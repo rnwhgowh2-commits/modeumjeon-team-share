@@ -414,3 +414,60 @@ class LotteonSettlement(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
     source = Column(String(12), default="manual", nullable=False)   # manual|auto
+
+
+class LotteonSettlePaid(Base):
+    """롯데온 지급내역(중개거래정산관리 크롤) — 「언제 실제로 입금됐나」.
+
+    🔴 왜 이 표가 있나(2026-08-07 실브라우저 실측) — 롯데온은 정산 OpenAPI 8종·정산예정금액조회·
+       정산요약·셀러머니를 다 뒤져도 **실지급일이 없다**(pymtTgtAmt 는 지급'대상'=예정액).
+       그래서 롯데온만 「받았을 것(확인 불가) 2,604만 + 입금일 지남 1,337만」이 판정 불가였다.
+       셀러오피스 「중개거래정산관리 > 지급내역」의 `seCmptDt`(정산완료일)가 유일한 답이다.
+       소스: GET soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail
+
+    ★ 롯데온은 **일정산** — 주문 단위가 아니라 **구매확정일(seStdDt) 단위**로 묶여 며칠 뒤 지급된다
+      (예 07-10 확정분 → 07-13 지급). 그래서 키가 (판매자ID, 정산기준일)이고, 주문에 붙일 때는
+      그 주문의 구매확정일로 이 표를 찾아 `se_cmpt_dt` 를 「받은 날」로 쓴다(쿠팡 회차와 같은 방식).
+    ★ Wing·롯데온 셀러오피스 세션 쿠키가 필요해 **서버에서 못 부른다** — 로컬 크롤 → push.
+    """
+    __tablename__ = "lotteon_settle_paid"
+    tr_no = Column(String(20), primary_key=True)          # 판매자ID(LO~)
+    se_std_dt = Column(String(10), primary_key=True)      # 정산기준일=구매확정일 YYYY-MM-DD
+    se_cmpt_dt = Column(String(10))                       # ★정산완료일 = 실제 입금된 날
+    fnl_pymt_bgt_amt = Column(Integer, default=0)         # ★최종정산지급액(그날 실지급)
+    pymt_tgt_amt = Column(Integer, default=0)             # 지급대상금액(차감 전)
+    se_typ = Column(String(20))                           # 정산유형(일정산 등)
+    account = Column(String(40))                          # 계정 별칭
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+    source = Column(String(12), default="manual", nullable=False)
+
+
+class RocketGrowthSettlement(Base):
+    """쿠팡 로켓그로스 정산 회차(Wing 화면 API 크롤) — 회차별 지급액·빠른정산 선인출.
+
+    🔴 왜 크롤인가(2026-08-07 라이브 실측) — 로켓그로스 정산액을 주는 **OpenAPI 가 없다**.
+       매출내역(revenue-history)에 로켓그로스 주문은 0건, 정산 회차(settlement-histories)도
+       마켓플레이스 몫만 담는다. Wing 화면 API 가 유일한 창구인데 로그인 세션 쿠키가 필요해
+       서버에서 못 부른다 → 로컬 크롤 → 서버 push(롯데온 lotteon_settlements 와 동형).
+       소스: GET wing.coupang.com/tenants/rfm/v2/settlements/status/api
+
+    ★ 회차 신원 = (group_key, ratio). groupKey 는 기간 기반이라 같은 기간의 30%·70% 회차가
+      **같은 키를 공유한다** — ratio 를 빼면 서로 덮어써 한쪽이 사라진다.
+    ★ fast_withdrawn(totalArFactoringDeductionAmount) = 빠른정산 계좌인출액 = **이미 받은 돈**.
+      마켓플레이스는 전용 필드가 없어 공제금액에서 역산했는데 여긴 필드가 있어 정확하다.
+    """
+    __tablename__ = "rg_settlements"
+    group_key = Column(String(64), primary_key=True)      # vendorId-시작일-종료일
+    ratio = Column(Integer, primary_key=True, default=0)  # 지급비율 30 / 70
+    account = Column(String(40))                          # 계정 별칭(세소(쿠팡) 등)
+    settlement_date = Column(String(10))                  # 정산일 YYYY-MM-DD
+    period_start = Column(String(10))                     # 매출인식 시작
+    period_end = Column(String(10))                       # 매출인식 종료
+    sales_amount = Column(Integer, default=0)             # 판매액
+    payable_amount = Column(Integer, default=0)           # ★지급액(H) — 「받을 돈」 기준
+    fast_withdrawn = Column(Integer, default=0)           # ★빠른정산 계좌인출액(이미 받음)
+    final_amount = Column(Integer, default=0)             # 최종지급액(통장 입금)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+    source = Column(String(12), default="manual", nullable=False)   # manual|auto

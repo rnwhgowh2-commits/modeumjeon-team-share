@@ -80,6 +80,66 @@ def test_옛_주문_구매확정창이_덮으면_실정산으로_갱신(session,
     assert str(stored["정산예정금(배송비포함)"]) == "26500"
 
 
+def test_정산일이_오면_받은_날로_저장한다(session, monkeypatch):
+    """🔴 stlDy(정산일) = 정산이 끝난 날 = 「입금됐다」의 유일한 근거.
+
+    2026-08-06 지도 정독 전엔 금액만 읽어, 11번가 520만이 계속 「입금일 지남·미확인」에
+    서 있었다 — 받았는지 못 받았는지 판정할 근거가 아예 없었다.
+    """
+    OS.save([_row()], session=session)
+    _patch(monkeypatch, {("E100", "1"): {"정산금액": 26500, "정산일": "2026-08-05",
+                                          "송금예정일": "2026-08-05"}})
+
+    stat = OI.refresh_settlement_eleven11(session=session)
+
+    assert stat["updated"] == 1
+    stored = OS.load(["eleven11"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert stored["_settle_paid_date"] == "2026-08-05"
+
+
+def test_이미_real_인_행에도_받은_날을_백필한다(session, monkeypatch):
+    """🔴 2026-08-07 라이브 — real 행은 「날짜만 백필」 경로를 타는데 거기서 **정산예정일만**
+    쓰고 있었다. 그래서 stlDy 가 실제로 오는데도 11번가 110건(2,098만)이 계속
+    「입금일 지남·미확인」에 남았다(estimated 행만 보는 테스트라 못 잡았다).
+    """
+    OS.save([_row(_settle_source="real", 정산예정금액=26500)], session=session)
+    _patch(monkeypatch, {("E100", "1"): {"정산금액": 26500, "정산일": "2026-08-05"}})
+
+    OI.refresh_settlement_eleven11(session=session)
+
+    stored = OS.load(["eleven11"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert stored["_settle_paid_date"] == "2026-08-05"
+    assert str(stored["정산예정금액"]) == "26500"      # 금액 불가침
+
+
+def test_받은_날만_있고_예정일이_없으면_예정일을_지우지_않는다(session, monkeypatch):
+    """없는 값으로 덮으면 있던 날짜가 사라진다."""
+    OS.save([_row(_settle_source="real", 정산예정금액=26500,
+                  정산예정일="2026-07-30")], session=session)
+    _patch(monkeypatch, {("E100", "1"): {"정산금액": 26500, "정산일": "2026-08-05"}})
+
+    OI.refresh_settlement_eleven11(session=session)
+
+    stored = OS.load(["eleven11"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert stored["_settle_paid_date"] == "2026-08-05"
+    assert stored["정산예정일"] == "2026-07-30"        # 그대로
+
+
+def test_정산일이_없으면_받았다고_하지_않는다(session, monkeypatch):
+    """없는 날짜를 지어내면 「안 받은 돈」이 받은 것으로 사라진다."""
+    OS.save([_row()], session=session)
+    _patch(monkeypatch, {("E100", "1"): {"정산금액": 26500}})
+
+    OI.refresh_settlement_eleven11(session=session)
+
+    stored = OS.load(["eleven11"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert not stored.get("_settle_paid_date")
+
+
 def test_배송비정산은_상품분에서_분리한다(session, monkeypatch):
     """정산예정금액(K) = 정산금액 − 배송비정산. 안 빼면 배송비 이중가산(인라인:2592 규약)."""
     OS.save([_row()], session=session)

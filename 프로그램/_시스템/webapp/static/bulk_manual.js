@@ -148,6 +148,10 @@
     ready: '올릴 수 있음', missing: '보충 필요',
     blocked: '제외', need_category: '카테고리 필요', registered: '이미 등록됨',
     uncertain: '확인 필요',
+    /* dup_source = 같은 소싱처 URL 의 **다른 초안**이 이 마켓에 이미 올라가 있다.
+       이 초안 자체는 안 올렸으므로 '이미 등록됨'과 말이 달라야 한다 — 안 그러면
+       「난 올린 적 없는데?」에서 막힌다. 사유에 상품번호·상대 초안 번호가 실려 온다. */
+    dup_source: '같은 URL 중복',
     /* 브랜드가 비면 지재권 제한표가 판정조차 못 한다 — 「모름」을 「통과」로 읽지 않는다. */
     need_brand: '브랜드 필요',
   };
@@ -157,6 +161,8 @@
   const PRE_DOT = {
     ready: 'ok', missing: 'warn', need_category: 'warn', blocked: 'danger',
     registered: 'na', uncertain: 'warn', need_brand: 'danger',
+    // registered 와 같은 이유로 회색(na) — 잠긴 줄은 조용한 색이 맞다.
+    dup_source: 'na',
   };
   const PRE_MARKET = {
     smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',
@@ -716,14 +722,22 @@
     const lockedMap = body.pending_locked || {};
     const pend = (body.pending || []).map((m) => {
       const lk = lockedMap[m];
+      // ★ 잠근 사유(kind)마다 라벨·색을 표로 둔다. 예전엔 `registered 냐 아니냐` 삼항이라
+      //   새 사유가 생기면 조용히 「확인 필요」로 잘못 불렸다 — 사유가 늘 때 여기만 채운다.
+      const LOCK_VIEW = {
+        registered: { label: '이미 등록됨', dot: 'na' },
+        uncertain: { label: '확인 필요', dot: 'warn' },
+        dup_source: { label: '같은 URL 중복', dot: 'na' },
+      };
+      const lv = (lk && LOCK_VIEW[lk.kind]) || { label: '확인 필요', dot: 'warn' };
       const why = lk
-        ? `이 실행에서는 부르지 않았습니다 — ${lk.kind === 'registered' ? '이미 등록됨' : '확인 필요'}` +
+        ? `이 실행에서는 부르지 않았습니다 — ${lv.label}` +
           `${lk.market_product_id ? ' (상품번호 ' + esc(lk.market_product_id) + ')' : ''}`
         : '아직 부르지 않았습니다';
       return '<tr>' +
         `<td>${esc(PRE_MARKET[m] || m)}</td>` +
-        `<td><span class="dot ${lk ? (lk.kind === 'registered' ? 'na' : 'warn') : 'na'}"></span>` +
-        `${lk ? esc(REG_LABEL[lk.kind === 'registered' ? 'already' : 'uncertain']) : '대기'}</td>` +
+        `<td><span class="dot ${lk ? lv.dot : 'na'}"></span>` +
+        `${lk ? esc(lv.label) : '대기'}</td>` +
         `<td>${lk && lk.market_product_id ? esc(lk.market_product_id) : '—'}</td>` +
         `<td class="muted">${why}</td><td>—</td></tr>`;
     }).join('');

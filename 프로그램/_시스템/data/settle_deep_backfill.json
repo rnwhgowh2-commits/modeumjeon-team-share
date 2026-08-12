@@ -1,0 +1,20 @@
+{
+ "last_date": "2026-08-08",
+ "idx": 2,
+ "history": [
+  {
+   "date": "2026-08-07",
+   "market": "coupang",
+   "updated": 0,
+   "settle_rows": 0,
+   "errors": 0
+  },
+  {
+   "date": "2026-08-08",
+   "market": "eleven11",
+   "updated": 0,
+   "settle_rows": 0,
+   "errors": 0
+  }
+ ]
+}

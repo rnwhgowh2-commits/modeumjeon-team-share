@@ -125,6 +125,165 @@ def crawl_queue():
     return jsonify(_crawl_queue_cache.get(enabled, _produce))
 
 
+@bp.route('/crawl/due-urls')
+def crawl_due_urls():
+    """[읽기전용] 확장이 폴링 → **구성에 안 걸린 낱개** 크롤 대상.
+
+    🔴 이게 없어서 검색필터가 넣은 주소 30개가 크롤 4바퀴 도는 동안 하나도 안 긁혔다
+      (2026-08-07 라이브). 확장이 받는 `due-bundles` 는 due 인 `SourceProduct.url` 을
+      `BundleSourceUrl`(모음전 구성에 등록된 URL)과 맞춰 **그 모음전 코드만** 준다.
+      검색필터가 넣은 낱개 주소는 어느 구성에도 안 걸리므로 영영 목록에 안 들어간다.
+      에러도 안 난다 — `due_bundle_codes` 주석이 스스로 「조용한 누락」이라 부르는 모양.
+
+    🔴 **`due-bundles` 를 건드리지 않는다.** 그건 모음전 자동화가 쓰는 살아 있는 길이고,
+      거기에 낱개를 섞으면 「모음전 코드 하나 = 크롤 한 묶음」 전제가 깨진다.
+      옆에 하나 더 둔다(`due-listings` 를 붙였던 것과 같은 방식).
+
+    ★ 대상 고르기는 `due_products`(가중 랩·계수·느리게배수)를 **그대로** 쓴다.
+      여기서 다시 고르면 두 경로가 다른 순서로 돌아 계수 설정이 무의미해진다.
+    """
+    from lemouton.pricing.settings import get_or_init
+    from lemouton.sources.crawl_schedule import (
+        base_crawl_interval_seconds, due_products)
+    from lemouton.sources.service import normalize_url as _norm
+    from lemouton.sourcing.models import BundleSourceUrl
+
+    s = SessionLocal()
+    try:
+        if not bool(get_or_init(s).crawl_auto_enabled):
+            # 실행/정지 스위치를 이 경로만 무시하면 「껐는데 도는」 상태가 된다.
+            return jsonify({'enabled': False, 'count': 0, 'items': []})
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        due = due_products(s, base_interval_seconds=base_crawl_interval_seconds(s),
+                           now=now)
+        # 구성에 걸린 것은 `due-bundles` 가 이미 데려간다 — 겹치면 같은 상품을
+        # 두 경로가 각각 긁어 소싱처를 두 번 두들긴다.
+        in_bundle = {_norm(b.url or '') for b in s.query(BundleSourceUrl).all()}
+        items = [{'source_product_id': p.id, 'site': p.site, 'url': p.url,
+                  'crawl_weight': p.crawl_weight}
+                 for p in due if _norm(p.url or '') not in in_bundle]
+        return jsonify({'enabled': True, 'count': len(items), 'items': items})
+    finally:
+        s.close()
+
+
+@bp.route('/crawl/due-listings')
+def crawl_due_listings():
+    """[읽기전용] 로컬 크롤러(확장)가 폴링 → **지금 훑을 검색필터** 목록.
+
+    대량등록의 입구다. 검색 결과 한 줄에서 상품 주소 수십~수천 개를 캐는 일인데,
+    페이지를 여는 것은 브라우저가 해야 하므로 로컬 PC 가 한다(크롤=로컬 원칙).
+    서버는 **어느 주소를 훑을지**만 알려준다.
+
+    🔴 `due-bundles` 와 나란히 두는 이유 — `CrawlJob` 표가 있지만 **그 큐를 소비하는
+      워커가 저장소에 없다**(`sourcing_guide.py:975` 원문: "영원히 '대기'였다").
+      살아 있는 경로는 확장의 이 폴링 하나뿐이라 여기에 붙인다.
+
+    🔴 캐시를 두지 않는다 — 「지금 수집」을 누른 직후 8초를 기다리게 하면
+      사장님은 버튼이 안 먹은 줄 안다. 조회가 가볍다(도장 찍힌 행만).
+    """
+    from lemouton.registration.models import SearchFilter
+    from lemouton.sources import listing_discover as LD
+
+    s = SessionLocal()
+    try:
+        rows = (s.query(SearchFilter)
+                .filter(SearchFilter.deleted_at.is_(None))
+                .filter(SearchFilter.run_requested_at.isnot(None))
+                .order_by(SearchFilter.run_requested_at).limit(20).all())
+        out = []
+        for f in rows:
+            try:
+                # ★ 규칙도 같이 내려보낸다 — 확장에 박아 두면 소싱처를 붙일 때마다
+                #   확장을 고치고 「다시 불러오기」를 부탁하게 된다. 규칙은 서버 한 곳.
+                # 🔴 규칙 조회를 이 try 밖에 두면 안 된다. 페이지 범위를 안 준
+                #   필터는 `page_urls_for` 가 주소를 그대로 돌려주고 예외를 안 낸다
+                #   → 모르는 소싱처가 그대로 흘러와 **500** 이 난다(폴링 전체가 죽는다).
+                rule = LD.dom_rule_for(f.source_key)
+                pages = LD.page_urls_for(f.listing_url, source_key=f.source_key,
+                                         page_from=f.page_from, page_to=f.page_to)
+            except ValueError:
+                # 규칙을 모르는 소싱처 — 만들 때 막지만, 옛 데이터가 있을 수 있다.
+                #   조용히 빼면 「눌렀는데 아무 일도 안 남」이 된다. 사유를 실어 보낸다.
+                out.append({'filter_id': f.id, 'source_key': f.source_key,
+                            'page_urls': [], 'max_items': f.max_items,
+                            'error': f'{f.source_key} 는 리스팅 규칙이 없습니다'})
+                continue
+            out.append({'filter_id': f.id, 'source_key': f.source_key,
+                        'page_urls': pages, 'max_items': f.max_items,
+                        'sel': rule['sel'], 'attr': rule['attr'],
+                        'id_re': rule['id_re']})
+        return jsonify({'count': len(out), 'listings': out})
+    finally:
+        s.close()
+
+
+@bp.route('/crawl/listing-result', methods=['POST'])
+def crawl_listing_result():
+    """확장이 훑어 온 **상품 주소 목록** 접수 → 필터에 모아 둔다.
+
+    payload: {filter_id: int, ids: [str], error?: str}
+      ★ 확장은 **상품번호만** 보낸다. 주소 조립은 서버(`listing_discover.product_url_for`)가
+        한다 — 주소 모양을 아는 곳이 둘이 되면 소싱처를 붙일 때마다 확장까지 고쳐야 한다.
+        (`urls` 로 완성된 주소를 직접 줄 수도 있다 — 시험·수동 보정용.)
+    returns: {ok, found, new}
+
+    ★ 여기서 크롤하거나 초안을 만들지 않는다 — 그건 이미 있는 경로다
+      (`draft_from_url`). 이 라우트는 **주소를 기억**할 뿐이다. 두 벌로 만들지 않는다.
+    ★ 접수하면 도장(`run_requested_at`)을 지운다 — 안 지우면 확장이 같은 필터를
+      무한히 다시 훑는다.
+    ★ 0 건은 오류가 아니다. 검색 결과가 없을 수 있다(정직한 답).
+    """
+    from lemouton.registration.models import SearchFilter, SearchFilterItem
+    from lemouton.sources import listing_discover as LD
+
+    body = request.get_json(silent=True) or {}
+    fid = body.get('filter_id')
+    ids = body.get('ids')
+    urls = body.get('urls')
+    if not isinstance(fid, int) or not (isinstance(ids, list) or isinstance(urls, list)):
+        return jsonify({'ok': False, 'message': 'filter_id 와 ids(또는 urls)가 필요합니다'}), 400
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    s = SessionLocal()
+    try:
+        f = s.query(SearchFilter).filter_by(id=fid).first()
+        if f is None:
+            return jsonify({'ok': False, 'message': '검색필터를 찾을 수 없습니다'}), 404
+        if urls is None:
+            try:
+                urls = [LD.product_url_for(i, source_key=f.source_key)
+                        for i in ids if str(i or '').strip()]
+            except ValueError as e:
+                return jsonify({'ok': False, 'message': str(e)}), 400
+
+        seen = {r.product_url: r for r in
+                s.query(SearchFilterItem).filter_by(filter_id=fid).all()}
+        new_n = 0
+        for u in urls:
+            u = (u or '').strip()
+            if not u:
+                continue
+            row = seen.get(u)
+            if row is None:
+                s.add(SearchFilterItem(filter_id=fid, product_url=u,
+                                       first_seen_at=now, last_seen_at=now))
+                seen[u] = True
+                new_n += 1
+            else:
+                # 다시 보였을 뿐 — first_seen_at 은 건드리지 않는다(새 것 판정의 근거).
+                if hasattr(row, 'last_seen_at'):
+                    row.last_seen_at = now
+        f.run_requested_at = None          # 도장 회수 — 무한 재훑기 방지
+        f.last_run_at = now
+        f.last_new_count = new_n
+        s.commit()
+        return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
+                        'new': new_n})
+    finally:
+        s.close()
+
+
 @bp.route('/crawl/due-bundles')
 def crawl_due_bundles():
     """[읽기전용] 로컬 크롤러가 폴링 → 지금 크롤할 모음전 코드 목록.

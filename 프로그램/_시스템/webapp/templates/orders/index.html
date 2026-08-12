@@ -100,8 +100,40 @@
     .o7 .kpi .v small{font-size:12px;color:var(--sub);font-weight:600;}
     /* 카드 밑 근거 잔글씨(A안) — 「이 숫자가 무엇을 빼고 무엇을 더한 값인가」. */
     .o7 .kpi .cap{font-size:11px;color:var(--sub);font-weight:600;line-height:1.45;margin-top:6px;}
-    /* 좁은 창·폰 — 5칸을 그대로 두면 카드 하나가 60px 밑으로 눌려 잔글씨가 넘친다. */
-    @media(max-width:1180px){.o7 .kpis{grid-template-columns:repeat(3,1fr);}}
+    /* 매출 밑 「마켓 할인 N만 반영됨」 — 마우스 올리면 판매처별 내역이 뜬다. */
+    .o7 .kpi .cap b.hi{color:var(--글자-파랑,#1B64DA);font-weight:800;cursor:help;}
+    .o7 .kpi .cap b.hi .q{display:inline-flex;align-items:center;justify-content:center;
+      width:13px;height:13px;border-radius:50%;background:var(--글자-파랑,#1B64DA);color:#fff;
+      font-size:9px;margin-left:4px;vertical-align:1px;}
+    /* 🔴 호버 창은 body 에 붙이고 fixed — 표·카드의 overflow 에 잘리지 않게(규칙 1). */
+    .dcpop{display:none;position:fixed;z-index:99999;background:var(--surface,#fff);
+      border:1px solid var(--line2);border-radius:14px;max-height:70vh;overflow-y:auto;
+      box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;text-align:left;white-space:normal;
+      padding:14px 16px;width:340px;color:var(--ink,#191F28);}
+    .dcpop.on{display:block;}
+    .dcpop .ptit{font-size:13px;font-weight:700;margin-bottom:9px;}
+    .dcpop .ptit b{color:var(--글자-파랑,#1B64DA);}
+    .dcpop .ptit .sub{color:var(--sub);font-weight:600;font-size:11.5px;}
+    .dcpop .grp{margin-bottom:11px;}
+    .dcpop .grp .ghd{display:flex;justify-content:space-between;align-items:baseline;
+      font-size:12.5px;font-weight:700;padding-bottom:4px;border-bottom:1px solid var(--line);}
+    .dcpop .grp .ghd .num{font-variant-numeric:tabular-nums;}
+    .dcpop .grp .ghd i{font-style:normal;color:var(--sub);font-weight:600;font-size:11px;margin-left:7px;}
+    .dcpop .grp .ghd.unk{color:var(--sub);}
+    .dcpop .bear{font-size:11px;color:var(--sub);margin-top:4px;line-height:1.5;}
+    .dcpop .bear b{color:var(--글자-파랑,#1B64DA);}
+    .dcpop .bear .unk{color:var(--글자-주황,#B26A00);}
+    .dcpop .bear .kind{display:block;color:var(--sub);}
+    .dcpop .grp .unote{font-size:11px;color:var(--sub);margin-top:5px;line-height:1.5;}
+    .dcpop .glist{list-style:none;margin:5px 0 0;padding:0;}
+    .dcpop .glist li{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;
+      color:var(--sub2,#4E5968);padding:2px 0;}
+    .dcpop .glist .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .dcpop .glist .num{font-variant-numeric:tabular-nums;white-space:nowrap;}
+    .dcpop .pfoot{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);
+      font-size:11.5px;color:var(--sub);line-height:1.6;}
+    /* 좁은 창·폰 — 6칸을 그대로 두면 카드 하나가 60px 밑으로 눌려 잔글씨가 넘친다. */
+    @media(max-width:1480px){.o7 .kpis{grid-template-columns:repeat(3,1fr);}}
     @media(max-width:768px){.o7 .kpis{grid-template-columns:repeat(2,1fr);}}
     .o7 .mkline{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
     .o7 .mkbox{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;padding:8px 12px;font-size:12px;}
@@ -315,6 +347,136 @@
     .o7 .pp-tag.pp-t-none{color: var(--글자-희미, var(--faint));font-weight:400;}
     .o7 .pp-tag.pp-ok{color: var(--글자-초록, var(--green,#00A661));}
     .o7 .pp-tag.pp-err{color: var(--글자-빨강, var(--red,#F04452));}
+    /* ── 「주문 관리」 상태 열 (표 맨 왼쪽 첫 열) ──────────────────────────
+       시안 정본: `_시안_임시/주문관리_상태열_시안.html` (①표에서 고르기 ②항목 관리 ③다 채운 모습)
+       기본 표시는 **2안**: 점선 테두리 + 「기본」 꼬리표 = 「아직 안 봄」,
+       색이 찬 알약 = 「사장님이 손댐」. 이 둘이 한눈에 갈려야 한다.
+       색은 우리 프로그램 7색뿐(gray·blue·teal·green·orange·red·purple) — 자유 색 금지. */
+    .o7 td.ost-first,.o7 th.ost-first{background:var(--ap-g0,#FAFAFC);}
+    .o7 .ost-pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--ap-g3,#D2D2D7);
+      background:var(--surface,#ffffff);border-radius:var(--r-알약,980px);padding:4px 10px 4px 8px;
+      font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap;color:var(--ap-g45,#6E6E73);
+      transition:border-color var(--전환-빠름,.24s);}
+    .o7 .ost-pill:hover{border-color:var(--ap-g4,#86868B);}
+    .o7 .ost-pill .ost-dot{width:9px;height:9px;border-radius:var(--r-원,50%);flex:none;
+      background:var(--ap-g3,#D2D2D7);}
+    .o7 .ost-pill .ost-cv{font-size:10px;color:var(--ap-g45,#6E6E73);}
+    /* 손댄 줄 — 항목 색이 찬 알약. 테두리를 없애 색 덩어리로 읽힌다. */
+    .o7 .ost-pill.ost-filled{border-color:transparent;font-weight:600;}
+    /* 아직 안 본 줄(기본 항목 표시) — 흰 바탕 + 점선 + 「기본」 꼬리표. 저장된 값이 아니다. */
+    .o7 .ost-pill.ost-fb{background:var(--surface,#ffffff);border:1px dashed var(--ap-g3,#D2D2D7);
+      color:var(--ap-g45,#6E6E73);font-weight:400;}
+    .o7 .ost-pill .ost-tagd{font-size:11px;background:var(--ap-g1,#F5F5F7);color:var(--ap-g4,#86868B);
+      border-radius:var(--r-알약,980px);padding:1px 6px;}
+    .o7 .ost-pill.ost-saving{opacity:.6;}
+    .o7 .ost-pill.ost-bad{border-color:var(--ap-red,#FF3B30);border-style:solid;}
+    /* 7색 — 점(진한 쪽) */
+    .o7 .ost-d-gray{background:var(--ap-g4,#86868B);}
+    .o7 .ost-d-blue{background:var(--ap-버튼파랑,#0071E3);}
+    .o7 .ost-d-teal{background:var(--ap-sky,#5AC8FA);}
+    .o7 .ost-d-green{background:var(--ap-green,#34C759);}
+    .o7 .ost-d-orange{background:var(--ap-orange,#FF9500);}
+    .o7 .ost-d-red{background:var(--ap-red,#FF3B30);}
+    .o7 .ost-d-purple{background:var(--ap-purple,#AF52DE);}
+    /* 7색 — 찬 알약(연한 바탕 + 진한 글자) */
+    .o7 .ost-c-gray{background:var(--ap-g2,#E8E8ED);color:var(--ap-g45,#6E6E73);}
+    .o7 .ost-c-blue{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC);}
+    .o7 .ost-c-teal{background:var(--연한-하늘,rgba(90,200,250,.14));color:var(--ap-g5,#424245);}
+    .o7 .ost-c-green{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#248A3D);}
+    .o7 .ost-c-orange{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#C93400);}
+    .o7 .ost-c-red{background:var(--연한-빨강,rgba(255,59,48,.10));color:var(--글자-빨강,#D70015);}
+    .o7 .ost-c-purple{background:var(--연한-보라,rgba(175,82,222,.12));color:var(--ap-purple,#AF52DE);}
+    /* 드롭다운 — #colpop 과 같은 방식(문서에 하나만 두고 눌린 알약 옆으로 옮긴다). */
+    .ostdrop{display:none;position:absolute;z-index:60;width:258px;background:var(--surface,#ffffff);
+      border:1px solid var(--ap-g3,#D2D2D7);border-radius:14px;overflow:hidden;text-align:left;
+      font-size:12px;font-family:inherit;}
+    .ostdrop.on{display:block;}
+    .ostdrop .ost-top{padding:9px 14px;font-size:11px;color:var(--ap-g4,#86868B);
+      border-bottom:1px solid var(--ap-g1,#F5F5F7);}
+    .ostdrop .ost-it{display:flex;align-items:center;gap:9px;padding:9px 14px;font-size:12px;cursor:pointer;}
+    .ostdrop .ost-it:hover{background:var(--ap-g0,#FAFAFC);}
+    .ostdrop .ost-it.on{background:var(--연한-파랑,rgba(0,113,227,.10));font-weight:600;}
+    .ostdrop .ost-it .ost-dot{width:9px;height:9px;border-radius:var(--r-원,50%);flex:none;}
+    .ostdrop .ost-it .ost-ck{margin-left:auto;color:var(--ap-버튼파랑,#0071E3);}
+    .ostdrop .ost-it .ost-nmv{flex:1;}
+    .ostdrop .ost-it .ost-star{color:var(--ap-orange,#FF9500);font-size:11px;}
+    .ostdrop .ost-empty{padding:14px;color:var(--ap-g4,#86868B);font-size:11px;line-height:1.6;}
+    .ostdrop .ost-foot{border-top:1px solid var(--ap-g1,#F5F5F7);padding:9px 14px;font-size:12px;
+      color:var(--ap-링크파랑,#0066CC);cursor:pointer;}
+    .ostdrop .ost-foot:hover{background:var(--ap-g0,#FAFAFC);}
+    /* 5안 — 「추가」만 그 자리에서(Enter 한 번). 고치기·지우기는 창에서만(실수 삭제 방지). */
+    .ostdrop .ost-inl{display:flex;gap:6px;padding:9px 14px;border-top:1px solid var(--ap-g1,#F5F5F7);
+      background:var(--연한-파랑,rgba(0,113,227,.10));}
+    .ostdrop .ost-inl input{flex:1;min-width:0;border:1px solid var(--ap-버튼파랑,#0071E3);
+      border-radius:var(--r-작은것,8px);padding:6px 9px;font-family:inherit;font-size:12px;}
+    .ostdrop .ost-inl button{border:0;border-radius:var(--r-알약,980px);padding:5px 12px;font-size:11px;
+      font-family:inherit;cursor:pointer;background:var(--ap-버튼파랑,#0071E3);color:#fff;font-weight:600;}
+    .ostdrop .ost-err{padding:0 14px 9px;font-size:11px;color:var(--ap-red,#FF3B30);
+      background:var(--연한-파랑,rgba(0,113,227,.10));}
+    /* 항목 관리 창 — 시안 ②. 배치는 확정되면 조정한다(구조·클래스는 그대로 둔다). */
+    .ostback{display:none;position:fixed;inset:0;background:rgba(25,31,40,.45);z-index:120;
+      align-items:flex-start;justify-content:center;padding-top:60px;}
+    .ostback.on{display:flex;}
+    .ostmodal{background:var(--surface,#ffffff);border-radius:var(--r-팝업,18px);width:560px;max-width:92%;
+      max-height:82vh;overflow:auto;font-family:inherit;}
+    .ostmodal .ost-mh{padding:20px 22px 0;display:flex;align-items:flex-start;gap:8px;}
+    .ostmodal .ost-mh .t{font-size:17px;font-weight:600;flex:1;color:var(--ap-g6,#1D1D1F);}
+    .ostmodal .ost-mh .x{border:0;background:transparent;font-size:14px;color:var(--ap-g4,#86868B);
+      cursor:pointer;font-family:inherit;}
+    .ostmodal .ost-md{padding:4px 22px 0;font-size:11px;color:var(--ap-g45,#6E6E73);line-height:1.6;}
+    .ostmodal .ost-mb{padding:16px 22px 22px;}
+    .ostmodal .ost-row{display:flex;align-items:center;gap:8px;padding:9px 0;
+      border-bottom:1px solid var(--ap-g1,#F5F5F7);}
+    .ostmodal .ost-row.ost-drag{opacity:.45;}
+    .ostmodal .ost-grip{color:var(--ap-g3,#D2D2D7);cursor:grab;font-size:14px;}
+    /* 위/아래 화살표 — 끌기(HTML5 drag&drop)는 **폰에서 아예 안 된다**. 마우스 없이도
+       순서를 바꿀 수 있게 단추를 병행한다(끌기는 그대로 둔다). */
+    .ostmodal .ost-mv{display:flex;flex-direction:column;gap:2px;}
+    .ostmodal .ost-mv button{border:1px solid var(--ap-g3,#D2D2D7);background:var(--surface,#ffffff);
+      border-radius:var(--r-작은것,8px);width:22px;height:15px;padding:0;line-height:1;
+      font-size:9px;font-family:inherit;font-weight:400;color:var(--ap-g45,#6E6E73);cursor:pointer;}
+    .ostmodal .ost-mv button:hover:not(:disabled){border-color:var(--ap-버튼파랑,#0071E3);
+      color:var(--ap-링크파랑,#0066CC);}
+    .ostmodal .ost-mv button:disabled{color:var(--ap-g3,#D2D2D7);
+      border-color:var(--ap-g1,#F5F5F7);cursor:default;}
+    .ostmodal .ost-nm{flex:1;min-width:60px;border:1px solid transparent;border-radius:var(--r-작은것,8px);
+      padding:5px 8px;font-size:12px;font-family:inherit;background:transparent;color:var(--ap-g6,#1D1D1F);}
+    .ostmodal .ost-nm:hover{border-color:var(--ap-g2,#E8E8ED);}
+    .ostmodal .ost-nm:focus{border-color:var(--ap-버튼파랑,#0071E3);outline:none;}
+    .ostmodal .ost-sw{display:flex;gap:4px;}
+    .ostmodal .ost-sw i{width:17px;height:17px;border-radius:var(--r-원,50%);cursor:pointer;
+      display:inline-block;border:2px solid transparent;}
+    .ostmodal .ost-sw i.on{border-color:var(--ap-g6,#1D1D1F);}
+    .ostmodal .ost-dflt{border:1px solid var(--ap-g3,#D2D2D7);background:var(--surface,#ffffff);
+      border-radius:var(--r-알약,980px);padding:3px 9px;font-size:11px;font-family:inherit;
+      color:var(--ap-g45,#6E6E73);cursor:pointer;white-space:nowrap;}
+    .ostmodal .ost-dflt.on{border-color:var(--ap-버튼파랑,#0071E3);color:var(--ap-링크파랑,#0066CC);
+      font-weight:600;background:var(--연한-파랑,rgba(0,113,227,.10));}
+    .ostmodal .ost-del{border:0;background:transparent;color:var(--ap-red,#FF3B30);cursor:pointer;
+      font-size:11px;font-family:inherit;}
+    .ostmodal .ost-add{display:flex;gap:8px;margin-top:14px;}
+    .ostmodal .ost-add input{flex:1;border:1px solid var(--ap-g3,#D2D2D7);border-radius:var(--r-작은것,8px);
+      padding:8px 11px;font-family:inherit;font-size:12px;}
+    .ostmodal .ost-addbtn{border:0;border-radius:var(--r-알약,980px);padding:8px 16px;font-size:12px;
+      font-family:inherit;cursor:pointer;background:var(--ap-버튼파랑,#0071E3);color:#fff;font-weight:600;}
+    .ostmodal .ost-warn{background:var(--연한-주황,rgba(255,149,0,.10));border-radius:10px;padding:10px 13px;
+      font-size:11px;color:var(--글자-주황,#C93400);margin-top:12px;line-height:1.5;}
+    .ostmodal .ost-note{font-size:11px;color:var(--ap-g4,#86868B);margin-top:12px;line-height:1.6;}
+    .ostmodal .ost-msg{font-size:11px;margin-top:8px;min-height:15px;color:var(--ap-red,#FF3B30);}
+    .ostmodal .ost-empty{padding:18px 0;font-size:12px;color:var(--ap-g45,#6E6E73);line-height:1.7;}
+    /* 삭제 확인 카드 — 쓰는 주문이 있으면 빨강 + 건수, 없으면 초록으로 「바로 지워도 괜찮다」 */
+    .ostmodal .ost-cfm{border:1px solid var(--ap-red,#FF3B30);background:var(--연한-빨강,rgba(255,59,48,.10));
+      border-radius:var(--r-카드,12px);padding:13px 15px;margin-top:10px;font-size:12px;line-height:1.6;}
+    .ostmodal .ost-cfm b{color:var(--글자-빨강,#D70015);font-weight:600;}
+    .ostmodal .ost-cfm.ost-free{border-color:var(--ap-green,#34C759);
+      background:var(--연한-초록,rgba(52,199,89,.10));}
+    .ostmodal .ost-cfm.ost-free b{color:var(--글자-초록,#248A3D);}
+    .ostmodal .ost-cfm .ost-btns{display:flex;gap:8px;margin-top:10px;}
+    .ostmodal .ost-cfm button{border:0;border-radius:var(--r-알약,980px);padding:5px 12px;font-size:11px;
+      font-family:inherit;cursor:pointer;}
+    .ostmodal .ost-cfm .ost-no{background:var(--surface,#ffffff);color:var(--ap-링크파랑,#0066CC);
+      border:1px solid var(--ap-g3,#D2D2D7);}
+    .ostmodal .ost-cfm .ost-yes{background:var(--ap-red,#FF3B30);color:#fff;font-weight:600;}
     /* 매입 엑셀 올리기 카드 — 표 위 한 줄. 접혀 있고 눌러야 펼쳐진다. */
     .o7 .ppcard{border:1px solid var(--line);border-radius:8px;background:var(--surface,#ffffff);margin-bottom:12px;}
     .o7 .ppcard .pph{display:flex;align-items:center;gap:8px;width:100%;padding:10px 16px;background:transparent;
@@ -323,11 +485,46 @@
     .o7 .ppcard .pph .ppsub{color:var(--sub);font-weight:400;}
     .o7 .ppcard .ppbody{display:none;padding:0 16px 12px;border-top:1px solid var(--line);}
     .o7 .ppcard.on .ppbody{display:block;}
-    .o7 .ppdz{display:flex;align-items:center;gap:8px;border:1px dashed var(--line2);border-radius:8px;
-      padding:12px 16px;margin-top:12px;cursor:pointer;font-size:12px;color:var(--sub);}
-    .o7 .ppdz .ppfn{margin-left:auto;color:var(--ink);font-weight:600;}
-    .o7 .ppmsg{margin-top:8px;font-size:12px;color:var(--sub);line-height:1.7;}
+    .o7 .ppdz{display:flex;align-items:center;gap:8px;border:1px dashed var(--line2,#E8E8ED);border-radius:8px;
+      padding:12px 16px;margin-top:12px;cursor:pointer;font-size:12px;color:var(--sub,#86868B);}
+    .o7 .ppdz .ppdz-ic{font-size:16px;}
+    .o7 .ppdz .ppdz-tx{display:flex;flex:1;flex-direction:column;gap:2px;}
+    .o7 .ppdz .ppdz-t{font-weight:600;color:var(--ink,#1D1D1F);}
+    .o7 .ppdz .ppdz-s{font-weight:400;color:var(--sub,#86868B);}
+    .o7 .ppdz .ppfn{color:var(--ink,#1D1D1F);font-weight:600;}
+    .o7 .ppdz .pppick{border-radius:980px;padding:7px 16px;font-size:12px;font-weight:600;
+      background: var(--바탕-파랑, var(--blue,#0066CC));color:#FFFFFF;white-space:nowrap;}
+    /* 🔴 2안 — 「매입가 미입력」 탭에서만 큼직하게(hero). 그 탭이 곧 「채울 일이 있는 자리」다. */
+    .o7 .ppcard.pp-hero{border-color: var(--글자-파랑, var(--blue,#0066CC));}
+    .o7 .ppcard.pp-hero .ppdz{border-width:2px;border-color: var(--글자-파랑, var(--blue,#0066CC));
+      background: var(--연한-파랑, rgba(0,113,227,.04));padding:26px 20px;border-radius:12px;font-size:13px;}
+    .o7 .ppcard.pp-hero .ppdz .ppdz-ic{font-size:26px;}
+    .o7 .ppcard.pp-hero .ppdz .ppdz-t{font-size:15px;}
+    .o7 .ppdz.pp-over{border-color: var(--글자-파랑, var(--blue,#0066CC));
+      background: var(--연한-파랑, rgba(0,113,227,.04));}
+    .o7 .ppmsg{margin-top:8px;font-size:12px;color:var(--sub,#86868B);line-height:1.7;}
     .o7 .ppmsg b{font-weight:600;}
+    /* ── 올린 뒤 결과 — 요약 한 줄 + 문제 있는 것만 펼치기(2026-08-06 사장님 확정 시안) ──
+       🔴 표 3개를 통째로 펼쳐 두면 「무엇을 해야 하나」가 안 보인다. 요약 줄이 먼저 말한다. */
+    .o7 .ppres{border:1px solid var(--line,#D2D2D7);border-radius:12px;background:var(--surface,#FFFFFF);margin-top:12px;}
+    .o7 .ppres-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;font-size:13px;}
+    .o7 .ppres-h .big{font-size:15px;font-weight:600;}
+    .o7 .ppres-h .ok{color: var(--글자-초록, var(--green,#34C759));}
+    .o7 .ppres-h .warn{color: var(--글자-빨강, var(--red,#FF3B30));}
+    .o7 .ppres-h .mid{color:var(--sub,#86868B);font-weight:400;}
+    .o7 .ppres-h .sp{flex:1;}
+    .o7 .ppres-h .ppagain{border:1px solid var(--line2,#E8E8ED);border-radius:980px;padding:6px 14px;
+      font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;
+      background:var(--surface,#FFFFFF);color: var(--글자-파랑, var(--blue,#0066CC));}
+    .o7 .ppacc{border-top:1px solid var(--line,#D2D2D7);}
+    .o7 .ppacc-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;padding:11px 16px;
+      background:transparent;border:0;cursor:pointer;font-family:inherit;font-size:12px;
+      color:var(--ink,#1D1D1F);text-align:left;}
+    .o7 .ppacc-h b{font-weight:600;}
+    .o7 .ppacc-h .cnt{font-weight:600;font-variant-numeric:tabular-nums;}
+    .o7 .ppacc-h .why{color:var(--sub,#86868B);font-weight:400;}
+    .o7 .ppacc-b{padding:0 16px 12px;}
+    .o7 .ppacc.pp-shut .ppacc-b{display:none;}
     .o7 .pplist{margin-top:8px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;}
     .o7 .pplist table{width:100%;border-collapse:collapse;font-size:11px;}
     .o7 .pplist th,.o7 .pplist td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;
@@ -528,6 +725,14 @@
     .o7 .ffrc{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:999px;padding:4px 11px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;}
     .o7 .ffrc.on{background: var(--바탕-빨강, var(--red));border-color:var(--red);color:#fff;}
     .o7 .ffhint{width:100%;font-size:11px;color: var(--글자-희미, var(--faint));line-height:1.7;padding-bottom:7px;}
+    /* ── 마진 가로 탭(전체·이상마진·블랙스팟·매입가 미입력) — 설계서 §6.1 ──
+       3분류 탭(.fftabs)과 **같은 부품**을 쓴다. 판정 규칙의 단일 원천은 서버
+       `lemouton/orders/margin_flags.py`(마진 계산기에서 이식)다. */
+    .o7 .fftabs .mglb{font-size:11px;font-weight:600;color: var(--글자-희미, var(--faint,#8B95A1));margin-right:12px;align-self:center;}
+    .o7 .fft .dot.bs{background: var(--글자-기본, var(--ink,#191F28));}
+    .o7 .fft .dot.npp{background: var(--바탕-흐리게, var(--faint,#8B95A1));}
+    .o7 .fft b.mg-hot{color: var(--글자-빨강, var(--red,#F04452));}
+    .o7 .fft b.mg-zero{color: var(--글자-희미, var(--faint,#8B95A1));}
     /* ── 택배사 고르기 ── */
     .o7 .cxbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
     .o7 .cxbar:empty{display:none;}
@@ -754,21 +959,37 @@
       <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
       {% if tab != 'ship' %}{# 주문 3분류 — 이행 / 미이행 / 클레임. 판정이 오기 전엔 숨는다 #}
-      <div class="fftabs" id="ffTabs" style="display:none"></div>{% endif %}
-      {# 실매입가 — 더망고 매입 엑셀 올리기. 표 위 한 줄(접혀 있다). 설계서 §5.2 #}
+      <div class="fftabs" id="ffTabs" style="display:none"></div>
+      {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
+         판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
+      <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {# 「주문 관리」 상태별 거르기 알약 — 시안 ③. 항목을 하나도 안 만들었으면 숨는다.
+         🔴 주문 내역·송장 작업 **두 탭 모두** 같은 표를 쓰므로 조건 밖에 둔다. #}
+      <div class="fftabs" id="ostTabs" style="display:none"></div>
+      {# 실매입가 — 더망고 매입 엑셀 올리기. 설계서 §5.2 + 2026-08-06 사장님 확정 2안.
+         🔴 「매입가 미입력」 탭을 고르면 이 카드가 **펼쳐진 채 큼직하게** 뜬다 —
+           채울 일이 있는 자리에 도구를 둔다. 다른 탭에서는 접힌 한 줄로만.
+           (옛 배치는 늘 접혀 있어 사장님이 도구가 있는 줄도 모르셨다.) #}
       <div class="ppcard" id="ppCard">
         <button type="button" class="pph" id="ppHead">
           <b>💰 더망고 매입 엑셀 올리기</b>
-          <span class="ppsub">「구매가격」이 곧 실매입가입니다 — 오픈마켓주문번호·상품코드·옵션으로 주문 줄을 찾아 자동으로 채웁니다</span>
+          <span class="ppsub" id="ppSub">「구매가격」이 곧 실매입가입니다 — 오픈마켓주문번호·상품코드·옵션으로 주문 줄을 찾아 자동으로 채웁니다</span>
           <span style="margin-left:auto" id="ppChev">▾</span>
         </button>
         <div class="ppbody" id="ppBody">
-          <label class="ppdz" id="ppDz">
-            <input type="file" id="ppFile" accept=".xls,.xlsx,.htm,.html" style="display:none">
-            <span>📥</span><span>더망고 매입 엑셀 고르기 · 여기에 끌어놓기</span>
-            <span class="ppfn" id="ppFn"></span>
-          </label>
-          <div class="ppmsg" id="ppMsg">올리면 바로 매칭·저장합니다. 못 찾은 줄은 지우지 않고 아래에 그대로 보여드려요.</div>
+          <div id="ppDrop">
+            <label class="ppdz" id="ppDz">
+              <input type="file" id="ppFile" accept=".xls,.xlsx,.htm,.html" style="display:none">
+              <span class="ppdz-ic">📥</span>
+              <span class="ppdz-tx">
+                <span class="ppdz-t">더망고 매입 엑셀을 여기에 끌어놓으세요</span>
+                <span class="ppdz-s" id="ppDzSub">엑셀의 「구매가격」이 실매입가로 들어갑니다 · xls · xlsx · html</span>
+              </span>
+              <span class="ppfn" id="ppFn"></span>
+              <span class="pppick">파일 고르기</span>
+            </label>
+            <div class="ppmsg" id="ppMsg">올리면 바로 매칭·저장합니다. 못 찾은 줄은 지우지 않고 아래에 그대로 보여드려요.</div>
+          </div>
           <div id="ppOut"></div>
         </div>
       </div>
@@ -849,6 +1070,10 @@
     <div class="cfgft"><button type="button" id="cfgreset">기본값</button><button type="button" id="cfgsave" class="prim">저장</button></div>
   </div></div></div>
   <div class="o7"><div class="colpop" id="colpop"></div></div>
+  {# 「주문 관리」 상태 — 드롭다운(문서에 하나만 두고 눌린 알약 옆으로 옮긴다)과 항목 관리 창.
+     표 안(#tablewrap)은 가로 스크롤 컨테이너라 그 안에 두면 드롭다운이 잘린다. #}
+  <div class="ostdrop" id="ostdrop"></div>
+  <div class="ostback" id="ostback"><div class="ostmodal" id="ostmodal"></div></div>
   <div class="o7"><div class="cfgov" id="qov"><div class="cfgbox">
     <div class="cfghd">빠른 기간 버튼 관리<span>버튼을 켜고 끄듯 추가·수정·삭제하고, ↑↓ 로 순서를 바꾸세요</span></div>
     <div class="collist" id="qlist"></div>
@@ -900,6 +1125,10 @@
     // 화면 패널 컬럼(사용자 지정 순서, 2026-07-08 샵마인 대조). t=화면 라벨(없으면 c).
     // 정렬: 숫자·금액 우측(num) / 배지·상태 가운데(ctr) / 나머지 좌측(txt).
     var PANEL_COLS=[
+      // ── 「주문 관리」 상태(화면 전용) — 사장님이 만든 항목을 줄마다 지정. 사장님 확정 2026-08-06.
+      //  🔴 **맨 왼쪽 첫 열**이다(스크롤해도 눈에 먼저 들어와야 한다는 확정 사항).
+      //  SHIP 게이트를 넣지 않는다 → 주문 내역·송장 작업 두 탭에 같은 값이 동시에 뜬다.
+      {c:'_ostatus',a:'ctr',t:'주문 관리'},
       {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
       {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
       {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
@@ -937,7 +1166,94 @@
       '상품금액':1,'주문금액':1};
     var rows=[], srch='';
     var colFilter={};   // {컬럼명: {excluded:Set}} — 헤더 필터(엑셀식). 값 제외 목록.
-    function filterKey(col,r){var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
+    /* 🔴 화면 전용 칸(이름이 `_` 로 시작)은 행(preview.json)에 값이 **없다**. 그대로 두면
+         헤더 필터가 `r['_pp_purchase']` → 늘 빈 문자열을 보고 「(빈값) 462」 하나만 만든다
+         (2026-08-06 사장님 라이브 신고 — 실제로는 200건에 값이 있었다).
+       🔴 매입가는 별도 조회(`ppMap`)에만 있으므로 필터도 거기서 값을 본다.
+         숫자를 그대로 나열하면 462줄짜리 목록이라 쓸 수 없다 →
+         **「값 있음(출처별) / 값 없음」** 으로 묶는다. 출처를 숨기지 않는 건 화면 배지와
+         같은 원칙이다(예상가를 실매입가처럼 보이면 안 된다).
+       시험: tests/js/test_orders_purchase_filter.mjs (뮤테이션으로 실증) */
+    var PP_FKEY={real:'값 있음 · 실매입가',stock:'값 있음 · 사입가',estimate:'값 있음 · 예상'};
+    function ppFilterKey(r){
+      var d=ppOf(r);
+      if(!d||d.price==null||!d.tier)return '값 없음';
+      return PP_FKEY[d.tier]||('값 있음 · '+String(d.tier));
+    }
+    /* ── 「주문 관리」 상태 — 상태값(별도 조회) · 항목 목록 · 거르기 축 ──────────
+       ostMap  : line_uid → {option_id,name,color,is_fallback}. **행에는 없다.**
+       ostOpts : 사장님이 만든 항목 목록(순서대로). **처음엔 빈 배열이 정상**이다.
+       ostFilter: '' | '<항목 id>' | 'none'(지정 안 함) — 알약 거르기 축. */
+    var ostMap={}, ostOpts=[], ostSeq=0, ostState={}, ostFilter='';
+    function ostUid(r){return String(r['_line_uid']||'');}
+    function ostOf(r){var u=ostUid(r);return u?(ostMap[u]||null):null;}
+    /* 🔴 「주문 관리」 상태도 **행에 값이 없다** — 별도 조회(`ostMap`)에만 있다.
+         매입가에서 겪은 것과 **같은 부류**라, 필터도 그 map 을 봐야 한다
+         (안 그러면 여기서도 「(빈값) 462」 하나로 뭉개진다).
+       목록은 **항목 이름 + 「지정 안 함」**. 기본 항목이 얹혀 보이는 줄(is_fallback)은
+       그 항목 이름으로 센다 — 화면에 그렇게 보이기 때문이다(「지정 안 함」이 아니다).
+       시험: tests/js/test_orders_status_filter.mjs (뮤테이션으로 실증) */
+    function ostFilterKey(r){
+      var d=ostOf(r);
+      return (d&&d.name)?String(d.name):'지정 안 함';
+    }
+    /* ── 나머지 화면 전용 칸 3부류 — **같은 부류의 같은 버그** ────────────────
+       매입가(`_pp_purchase`)·상태(`_ostatus`)와 똑같이 **행(preview.json)에 값이 없고**
+       별도 조회에만 있다. 그대로 두면 필터 목록이 「(빈값) 462」 하나로 뭉개진다
+       (2026-08-06 매입가 사고 때 「3곳 더 남았다」고 적어 둔 그 세 곳).
+         · 공급방식 `_supply`      → smMap  (uid → 'dropship'|'stock')
+         · 가격 전후 `_pdx_*`      → pdxMap (행키 → {upload_purchase,current_purchase,margin,state})
+         · 바로가기 `_links`       → ffMap  (행키 → {links,sku})
+       🔴 숫자·주소를 그대로 나열하면 수백 줄짜리 목록이라 쓸 수 없다 →
+         **화면에 보이는 그대로**를 의미 묶음으로 낸다(매입가에서 쓴 방식 그대로).
+       시험: tests/js/test_orders_misc_filters.mjs (뮤테이션으로 실증) */
+    var SM_FKEY={dropship:'무재고',stock:'사입'};
+    function smFilterKey(r){
+      // 줄 식별자가 없는 줄은 애초에 고를 수 없다 — 화면에도 「—」다(무재고인 척 금지).
+      if(!smUid(r))return '정할 수 없음';
+      var m=smOf(r); return SM_FKEY[m]||String(m);
+    }
+    /* 매입가 전후 — 표 아래 범례의 색과 1:1(회색 그대로 · 주황 올랐음 · 빨강 손해 전환 · 초록 내렸음).
+       🔴 「지금 매입가」를 못 읽은 줄은 화면에 **「확인 불가」**라고 쓰여 있다 → 그대로 센다.
+       🔴 「올릴 때 값」만 없는 줄은 비교 자체가 안 된 줄이다 — 「그대로」에 섞으면 거짓말이 된다. */
+    var PDX_FKEY={same:'그대로',warn:'올랐음',loss:'올랐음 · 손해 전환',gain:'내렸음'};
+    function pdxPurchaseFilterKey(r){
+      var d=pdxOf(r);
+      if(!d||d.current_purchase==null)return '확인 불가';
+      if(d.upload_purchase==null)return '비교 불가 · 올릴 때 값 없음';
+      return PDX_FKEY[d.state]||'확인 불가';
+    }
+    /* 주문 판매가 — 칸이 pdxMap 값을 쓰되 없으면 행의 `단가`로 떨어진다(cellHTML 과 같은 순서). */
+    function pdxSaleFilterKey(r){
+      var d=pdxOf(r);
+      if(d&&d.order_sale_price!=null)return '값 있음';
+      var v=r['단가'];
+      return (v!==''&&v!=null)?'값 있음':'값 없음';
+    }
+    /* 지금 사면 마진 — 금액을 나열하지 않는다. 부호가 곧 「봐야 할 일」이다. */
+    function pdxMarginFilterKey(r){
+      var d=pdxOf(r);
+      if(!d||d.margin==null)return '확인 불가';
+      return Number(d.margin)<0?'마이너스':'마진 남음';
+    }
+    /* 바로가기 — 칸이 단추를 하나라도 그리면 「있음」. linkCell 과 **같은 조건**을 본다
+       (SHIP=송장 작업 탭에서는 이 칸을 아예 안 그린다 → 전부 「없음」). */
+    function linkFilterKey(r){
+      if(SHIP)return '없음';
+      var d=ffOf(r), L=d&&d.links;
+      if(!L)return '없음';
+      var n=(L.sources||[]).length+(L.product?1:0)+(d.sku?1:0);
+      return n?'있음':'없음';
+    }
+    function filterKey(col,r){
+      if(col==='_pp_purchase')return ppFilterKey(r);
+      if(col==='_ostatus')return ostFilterKey(r);
+      if(col==='_supply')return smFilterKey(r);
+      if(col==='_pdx_purchase')return pdxPurchaseFilterKey(r);
+      if(col==='_pdx_sale')return pdxSaleFilterKey(r);
+      if(col==='_pdx_margin')return pdxMarginFilterKey(r);
+      if(col==='_links')return linkFilterKey(r);
+      var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
     //  등록해 뒀는데 최근 3주 주문이 하나도 안 들어온 계정을 드러낸다.
     //  ★ 2026-07-24: 11번가 브랜드웨이 계정을 등록하기 전엔 그 계정 주문이
@@ -1044,6 +1360,24 @@
     // 「엑셀 내보내기」 = 화면에 보이는 그 행(filtered)을 그대로 서버에 보내 파일로 받는다(재조회 없음 → 화면=다운로드 일치).
     function syncBtn(){var x=document.getElementById('xlsxbtn');if(!x)return;var n=filtered().length;var ok=n>0&&!exportFails().length;x.style.opacity=ok?'1':'.4';x.style.pointerEvents=ok?'auto':'none';}
     function exportFname(){var mk=selMk().join('-')||'전체';var p=(cur.from||'').replace(/-/g,'')+'-'+(cur.to||'').replace(/-/g,'');return '모음전_주문_'+mk+'_'+p+'.xlsx';}
+    /* 「주문 관리」 상태를 엑셀에도 싣는다(사장님 확정 2026-08-06) — 열 이름 「주문 관리」·맨 앞.
+       상태는 행이 아니라 `ostMap` 에만 있으므로 내보낼 때 **행 복사본**에 얹어 보낸다.
+       🔴 원래 행을 고치지 않는다 — `srchHay` 캐시·필터가 그 행을 그대로 쓰고 있다.
+       🔴 기본 항목이 얹혀 보이는 줄은 「(기본)」을 붙인다. 화면에서 **점선 = 아직 안 봄**
+         이라 갈리는데, 엑셀에서 이름만 적으면 「손댄 줄」과 구분이 사라진다.
+       🔴 아직 안 고른 줄은 **빈칸**이다(화면에도 「고르기」라고만 떠 있다 — 값이 아니다). */
+    function ostExportText(r){
+      var d=ostOf(r);
+      if(!d||!d.name)return '';
+      return d.is_fallback?(String(d.name)+' (기본)'):String(d.name);
+    }
+    function exportRows(fr){
+      return fr.map(function(r){
+        var o={}; for(var k in r){if(Object.prototype.hasOwnProperty.call(r,k))o[k]=r[k];}
+        o['주문 관리']=ostExportText(r);
+        return o;
+      });
+    }
     function doExport(){
       var fails=exportFails();
       if(fails.length){alert('주문을 불러오지 못한 계정이 '+fails.length+'개 있어요. 발송 누락을 막기 위해 내보내기를 멈췄어요.\n「판매처 관리」에서 그 계정의 키·서버 IP 등록을 확인해 주세요.');return;}
@@ -1052,7 +1386,8 @@
       var x=document.getElementById('xlsxbtn'),old=x.textContent,fname=exportFname();
       x.textContent='⏳ 만드는 중…';x.style.pointerEvents='none';
       fetch('/orders/export.xlsx',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({rows:fr,cols:selCols(),fname:fname})})
+        body:JSON.stringify({rows:exportRows(fr),cols:selCols(),
+                             lead_cols:['주문 관리'],fname:fname})})
         .then(function(res){if(!res.ok)return res.text().then(function(t){throw new Error(t||('HTTP '+res.status));});return res.blob();})
         .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1500);})
         .catch(function(e){alert('엑셀 내보내기 실패: '+e.message);})
@@ -1096,6 +1431,21 @@
         if(fd.group!==ffFilter)return false;
         if(ffFilter==='unfulfill'&&ffReason&&fd.reason!==ffReason)return false;
       }
+      // 마진 축(이상마진/블랙스팟/매입가 미입력) — 주문 내역에서만. 설계서 §6.1.
+      //  🔴 서버를 다시 부르지 않는다 — 이미 받아 둔 판정(mgMap)으로 거를 뿐이다.
+      //  🔴 판정 못 한 행은 그 탭 소속이 아니다(추측 금지) — 「전체」에서만 보인다.
+      if(!SHIP&&mgFilter&&skipCol!=='_mg'){
+        var md=mgOf(r);
+        if(!md||!md[mgFilter])return false;
+      }
+      /* 「주문 관리」 상태 축 — 알약(시안 ③)으로 거른다. 주문 내역·송장 작업 둘 다.
+         🔴 서버를 다시 부르지 않는다 — 이미 받아 둔 ostMap 으로 거를 뿐이다.
+         'none' = 지정 안 함(기본 항목이 얹힌 줄은 「지정 안 함」이 아니다 — 화면에 값이 보인다). */
+      if(ostFilter&&skipCol!=='_ost'){
+        var od=ostOf(r);
+        if(ostFilter==='none'){ if(od)return false; }
+        else if(!od||String(od.option_id)!==ostFilter)return false;
+      }
       // 택배사 엑셀 3분류 축 — 올리기 전엔 아무것도 안 거른다(전체가 보인다).
       //  ★ 새 축을 넣을 땐 rowPass 에 넣어야 KPI·열필터·엑셀내보내기가 같이 따라온다.
       if(SHIP&&xlLoaded&&skipCol!=='_cls'){
@@ -1112,15 +1462,81 @@
     function baseRows(){return rows.filter(function(r){return rowPass(r,'_cls');});}
     // 필터 목록·건수의 모수 = 지금 화면에 보이는 행. 단 자기 컬럼 조건은 빼서 체크를 다시 켤 수 있게 한다.
     function filteredExcept(skipCol){return rows.filter(function(r){return rowPass(r,skipCol);});}
+    // ══ 매출 밑 「마켓 할인 N만 반영됨」 호버 창 — 판매처별 내역 ═══════════════
+    //  🔴 `hover-info-card` 규칙 1~5 를 그대로 따른다(앵커가 하나뿐이라 규칙 6 열기지연은 뺀다):
+    //    ① body + fixed — 표·카드의 overflow 에 안 잘리게
+    //    ② 마우스가 떠나도 250ms 뒤 닫기 — 창으로 건너가는 도중 꺼지지 않게
+    //    ③ 창에 들어오면 닫기 취소 · ④ 창에서 나가면 재예약
+    //    ⑤ 앵커 오른쪽 끝 정렬 · 아래 7px · 넘치면 위로 뒤집기 · 화면 안으로 clamp
+    //    + 스크롤하면 닫는다(fixed 좌표가 낡아 엉뚱한 자리에 남는다)
+    //  🔴 마켓별 숫자는 **공용 정의**(discountByMarket)가 센다 — 화면이 다시 세면 카드와 갈린다.
+    var _DC_CLOSE=250,_DC_GAP=7,_DC_EDGE=8,_dcData=null,_dcHideT=null;
+    var _dcPop=document.body.appendChild(Object.assign(document.createElement('div'),{className:'dcpop'}));
+    _dcPop.addEventListener('mouseenter',function(){clearTimeout(_dcHideT);_dcHideT=null;});
+    _dcPop.addEventListener('mouseleave',_dcSchedHide);
+    function _dcHide(){clearTimeout(_dcHideT);_dcHideT=null;_dcPop.classList.remove('on');}
+    function _dcSchedHide(){clearTimeout(_dcHideT);
+      _dcHideT=setTimeout(function(){_dcPop.classList.remove('on');},_DC_CLOSE);}
+    function _dcWon(n){return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+    function _dcHtml(d){
+      if(!d)return '';
+      var h='<div class="ptit">마켓 할인 <b>'+_dcWon(d.total)+'원</b>'
+           +' <span class="sub">— 많이 깎인 주문順</span></div>';
+      (d.markets||[]).forEach(function(m){
+        h+='<div class="grp"><div class="ghd"><span>'+esc(m.market)+'</span>'
+          +'<span class="num">'+_dcWon(m.sum)+'<i>'+m.count+'건</i></span></div>';
+        h+='<div class="bear">'+(m.sellerRate==null
+             ? '<span class="unk">누가 냈는지 확인 불가</span>'
+             : '우리 부담 <b>'+m.sellerRate+'%</b> · 마켓 부담 '+(100-m.sellerRate)+'%')
+          +((m.kindList&&m.kindList.length)
+             ? ' <span class="kind">'+m.kindList.map(function(k){
+                 return esc(k.name)+' '+_dcWon(k.amount);}).join(' · ')+'</span>' : '')
+          +'</div><ul class="glist">';
+        (m.top||[]).forEach(function(t){
+          h+='<li><span class="nm">'+esc(t.name)+'</span>'
+            +'<span class="num">'+_dcWon(t.amount)+'</span></li>';});
+        h+='</ul></div>';
+      });
+      if(d.esmUnknown){
+        h+='<div class="grp"><div class="ghd unk"><span>옥션 · G마켓</span>'
+          +'<span class="num">확인 불가<i>'+d.esmUnknown+'건</i></span></div>'
+          +'<div class="unote">마켓이 할인을 우리 몫과 마켓 몫으로 갈라 주지 않아요</div></div>';
+      }
+      if(d.blank)h+='<div class="pfoot">실결제 모르는 '+d.blank+'건은 뺐어요</div>';
+      return h;
+    }
+    function _dcShow(a){
+      clearTimeout(_dcHideT);_dcHideT=null;
+      _dcPop.innerHTML=_dcHtml(_dcData);
+      _dcPop.classList.add('on');                     // 크기를 재려면 먼저 보여야 한다
+      var r=a.getBoundingClientRect(),w=_dcPop.offsetWidth,h=_dcPop.offsetHeight;
+      var left=Math.max(_DC_EDGE,Math.min(r.right-w,innerWidth-w-_DC_EDGE));
+      var top=r.bottom+_DC_GAP;
+      if(top+h>innerHeight-_DC_EDGE)top=r.top-h-_DC_GAP;   // 아래가 모자라면 위로 뒤집기
+      _dcPop.style.left=left+'px';_dcPop.style.top=Math.max(_DC_EDGE,top)+'px';
+    }
+    document.addEventListener('mouseover',function(e){
+      var a=e.target.closest&&e.target.closest('[data-pop="disc"]');if(a)_dcShow(a);});
+    document.addEventListener('mouseout',function(e){
+      var a=e.target.closest&&e.target.closest('[data-pop="disc"]');
+      if(a&&!a.contains(e.relatedTarget)&&e.relatedTarget!==_dcPop
+         &&!_dcPop.contains(e.relatedTarget))_dcSchedHide();});
+    addEventListener('scroll',_dcHide,{passive:true});
+
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
-      // 카드 5칸(주문·발송대기·주문금액·매출·정산예정)은 order_claim_scope.js 가 만든다.
+      // 카드 6칸(주문·발송대기·주문금액·마켓할인·매출·정산예정)은 order_claim_scope.js 가 만든다.
+      //   · 주문금액 = 표의 `주문금액` 열 합(제외 없음) — 옛 「단가 개당가 총합」은
+      //     수량·배송비가 빠져 같은 이름의 표 열과 값이 달랐다(모순).
+      //   · 마켓할인 = 취소·반품 제외 후 (단가×수량 − 실결제) — 주문금액과 매출의 차를
+      //     화면이 직접 말한다(롯데온 제휴할인·스스 즉시할인 등).
       //   · 매출     = 취소·반품 제외 후 실결제+배송비 (폰 salesOf 와 **같은 함수**)
       //   · 정산예정 = 취소·반품 제외 후 `정산예정금(배송비포함)`
       //     (옛 코드는 `정산예정금액`=상품분을 제외 없이 더해, 배송비를 통째로 빼먹고
       //      취소된 주문의 정산까지 섞어 세고 있었다)
       //   발송대기 수만 화면의 WAIT 규칙에서 넘긴다(같은 수 두 정의 금지).
       document.getElementById('kpis').innerHTML=MOUM_ORDER_SCOPE.kpiHtml(fr,wait);
+      _dcData=MOUM_ORDER_SCOPE.discountByMarket(fr);   // 호버 창이 쓸 자료(같은 행에서 한 번만)
       // 마켓별 칩 — 칩 목록은 전체 마켓 유지(0건이어도 선택 해제 가능), 건수는 화면에 보이는 행 기준(마켓 조건 제외).
       var by={};filteredExcept('판매처').forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
       document.getElementById('mkline').innerHTML=allMarkets().map(function(m){
@@ -1558,6 +1974,39 @@
            + 'title="진짜 사온 값을 적으세요. 비우고 나가면 지워집니다(=입력 안 함).">'
            + '<span class="pp-tag '+tcls+'">'+esc(tag)+'</span></span>';
     }
+    /* ── 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력 (설계서 §6.1) ──
+       🔴 판정은 서버가 한 번만 한다(`/orders/api/purchase-price/resolve` 응답의 flags).
+         규칙의 단일 원천은 `lemouton/orders/margin_flags.py` — 마진 계산기
+         (`margin_rules.js` · `margin_embed.html`)에서 임계값째 옮겨 온 것이고,
+         마진 계산기 화면은 하나도 안 건드린다.
+       🔴 탭을 눌러도 **서버를 다시 부르지 않는다** — 이미 받아 온 행을 거를 뿐이다
+         (rowPass 의 `_mg` 축). 시험: tests/js/test_orders_margin_tabs_no_refetch.mjs
+       🔴 판정 못 한 줄(매입가·정산 확인 불가, 취소·반품)은 이상마진·블랙스팟 어느 쪽에도
+         넣지 않는다. 「전체」에서 보이고, 왜 빠졌는지는 줄 툴팁·탭 밑 안내로 말한다. */
+    var mgMap={}, mgFilter='';       // uid → {abnormal,blackspot,nopp,basis,judged,reason}
+    // 탭 건수(renderMgTabs 가 채운다). 매입 엑셀 카드가 「몇 건이 기다리는지」를 말할 때 쓴다.
+    //  🔴 판정 전엔 null — 0 으로 두면 「채울 게 없다」는 거짓말이 된다.
+    var mgCount=null;
+    var MG_TABS=[
+      {k:'abnormal', t:'이상마진', dot:'no',
+       d:'마진이 마이너스이거나, 마진율 40% 이상이면서 순마진 5,000원 이상인 줄이에요 — 마진 계산기와 같은 기준입니다.'},
+      {k:'blackspot', t:'블랙스팟', dot:'bs',
+       d:'정산이 0인데 매입가가 있어요 — 돈을 못 받은 건일 수 있어요.'},
+      {k:'nopp', t:'매입가 미입력', dot:'npp',
+       d:'실매입가를 아직 안 적은 줄이에요 — 「매입가」 칸에 진짜 사온 값을 바로 적을 수 있습니다.'}
+    ];
+    /* 주소로 탭 열기 — `/orders/?tab=list&mg=nopp` (상품관리 판매 이력에서 옴).
+       🔴 첫 조회 한 번만 먹인다. `load()` 가 탭을 비우는 건 「옛 기간의 판정을
+         새 기간에 물려주지 않는다」는 뜻이라, 그 규칙을 깨지 않고 얹는다.
+       🔴 아는 탭 이름만 받는다 — 주소에 아무 값이나 넣어도 빈 탭이 열리지 않는다. */
+    var mgPending=(function(){
+      try{
+        var v=(new URLSearchParams(location.search)).get('mg')||'';
+        return MG_TABS.some(function(t){return t.k===v;})?v:'';
+      }catch(e){return '';}
+    })();
+    function mgOf(r){var u=String(r['_line_uid']||'');return u?(mgMap[u]||null):null;}
+
     /* ── 공급방식(무재고/사입) — 주문 줄마다 사장님이 정한다 ────────────────
        · 기본 무재고. 아무것도 안 하면 무재고다.
        · 왼쪽 네모는 **일괄 지정용 선택**. 열쇠는 반드시 _line_uid —
@@ -1586,8 +2035,470 @@
            + (tag?'<span class="pp-tag '+tcls+'">'+tag+'</span>':'')
            + '</span>';
     }
+    /* ══ 「주문 관리」 상태 열 — 알약 · 드롭다운(고르기+추가) · 항목 관리 창 ═══════
+       사장님 확정 2026-08-06 (시안 `_시안_임시/주문관리_상태열_시안.html` · 항목관리 5안)
+       · 자리   = 주문 표 **맨 왼쪽 첫 열**(주문 내역·송장 작업 둘 다 같은 표라 저절로 공유).
+       · 고르기 = 알약 클릭 → 드롭다운 → **고르는 즉시 저장**(저장 단추 없음).
+       · 추가   = 드롭다운 **그 자리**에서 Enter 한 번. 🔴 추가해도 **자동 선택하지 않는다**
+                 (만들기와 고르기는 다른 행동 — 실수로 그 줄 상태가 바뀌면 안 된다).
+       · 고치기·지우기 = **창에서만**(5안의 핵심 — 드롭다운에 🗑 을 두지 않아 실수 삭제를 막는다).
+       · 기본 항목 = **표시만** 한다(점선 + 「기본」 꼬리표). 행을 미리 만들지 않는다 —
+                 서버 `resolve` 가 `is_fallback:true` 로 얹어 줄 뿐이다.                   */
+    var OST_COLORS=['gray','blue','teal','green','orange','red','purple'];
+    var OST_CLABEL={gray:'회색',blue:'파랑',teal:'하늘',green:'초록',
+                    orange:'주황',red:'빨강',purple:'보라'};
+    function ostCell(r){
+      var uid=ostUid(r);
+      if(!uid)return '<span class="pdx-dash" title="이 주문 줄의 식별자가 없어 상태를 정할 수 없어요">—</span>';
+      var d=ostOf(r), st=ostState[uid], cls='ost-pill', inner, tip='';
+      if(d&&d.is_fallback){
+        // 2안 — 점선 + 「기본」 꼬리표. **아직 안 봄**이라는 뜻이지 저장된 값이 아니다.
+        cls+=' ost-fb';
+        inner='<span class="ost-dot ost-d-'+esc(d.color)+'"></span>'+esc(d.name)
+             +'<span class="ost-tagd">기본</span>';
+        tip=' title="기본 항목이 보이는 중이에요 — 아직 고르지 않았습니다(저장 안 됨)."';
+      }else if(d){
+        cls+=' ost-filled ost-c-'+esc(d.color);
+        inner='<span class="ost-dot ost-d-'+esc(d.color)+'"></span>'+esc(d.name);
+      }else{
+        inner='<span class="ost-dot"></span>고르기';
+      }
+      if(st==='saving')cls+=' ost-saving';
+      if(st==='err'){cls+=' ost-bad';tip=' title="저장하지 못했어요 — 다시 골라 주세요."';}
+      return '<button type="button" class="'+cls+'" data-uid="'+esc(uid)+'"'+tip+'>'
+           + inner+'<span class="ost-cv">▾</span></button>';
+    }
+    // ── 드롭다운 ────────────────────────────────────────────────────────
+    var ostOpenUid=null;
+    function ostDropHTML(uid){
+      var cur=ostMap[uid];
+      var curId=(cur&&!cur.is_fallback)?String(cur.option_id):'';
+      var h='<div class="ost-top">주문 관리 상태 고르기</div>';
+      if(!ostOpts.length){
+        h+='<div class="ost-empty">아직 만든 항목이 없어요.<br>'
+          +'아래에 이름을 적고 <b>Enter</b> 를 누르면 첫 항목이 만들어집니다.</div>';
+      }else{
+        h+=ostOpts.map(function(o){
+          var on=String(o.id)===curId;
+          return '<div class="ost-it'+(on?' on':'')+'" data-oid="'+o.id+'">'
+            +'<span class="ost-dot ost-d-'+esc(o.color)+'"></span>'
+            +'<span class="ost-nmv">'+esc(o.name)+'</span>'
+            +(o.is_default?'<span class="ost-star" title="새 주문에 기본으로 보이는 항목">⭐</span>':'')
+            +(on?'<span class="ost-ck">✓</span>':'')+'</div>';
+        }).join('');
+        h+='<div class="ost-it" data-oid="" style="color:var(--ap-g4,#86868B)">'
+          +'<span class="ost-dot" style="background:var(--ap-g2,#E8E8ED)"></span>'
+          +'<span class="ost-nmv">비우기</span></div>';
+      }
+      h+='<div class="ost-inl"><input id="ostNew" maxlength="80" '
+        +'placeholder="여기에 적고 Enter — 바로 추가돼요">'
+        +'<button type="button" id="ostAdd">추가</button></div>'
+        +'<div class="ost-err" id="ostErr"></div>'
+        +'<div class="ost-foot" id="ostManage">⚙️ 이름·색·순서 고치기 →</div>';
+      return h;
+    }
+    function closeOstDrop(){
+      var d=document.getElementById('ostdrop'); if(!d)return;
+      d.classList.remove('on'); d.innerHTML=''; ostOpenUid=null;
+    }
+    function openOstDrop(uid,btn){
+      var d=document.getElementById('ostdrop'); if(!d)return;
+      ostOpenUid=uid; d.innerHTML=ostDropHTML(uid);
+      var rect=btn.getBoundingClientRect();
+      d.style.left=(window.scrollX+Math.max(6,Math.min(rect.left,window.innerWidth-268)))+'px';
+      d.style.top=(window.scrollY+rect.bottom+4)+'px';
+      d.classList.add('on');
+      bindOstDrop(uid);
+    }
+    function bindOstDrop(uid){
+      var d=document.getElementById('ostdrop'); if(!d)return;
+      [].slice.call(d.querySelectorAll('.ost-it')).forEach(function(it){
+        it.addEventListener('click',function(){
+          var oid=it.getAttribute('data-oid')||'';
+          closeOstDrop(); ostSave(uid,oid);
+        });
+      });
+      var inp=d.querySelector('#ostNew'), add=d.querySelector('#ostAdd');
+      function go(){ ostAddOption(inp?inp.value:'', uid); }
+      if(add)add.addEventListener('click',go);
+      if(inp){
+        inp.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){e.preventDefault();go();}
+          if(e.key==='Escape'){closeOstDrop();}
+        });
+        inp.focus();
+      }
+      var mg=d.querySelector('#ostManage');
+      if(mg)mg.addEventListener('click',function(){closeOstDrop();openOstModal();});
+    }
+    /* 🔴 추가 뒤 **자동 선택하지 않는다** — 드롭다운만 다시 그린다(열린 채로 남는다). */
+    function ostAddOption(name,uid){
+      var nm=String(name||'').trim();
+      var err=document.getElementById('ostErr');
+      if(!nm){ if(err)err.textContent='항목 이름을 적어 주세요.'; return; }
+      if(err)err.textContent='';
+      fetch('/orders/api/status-options',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({name:nm,color:ostNextColor()})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            var e2=document.getElementById('ostErr');
+            if(e2)e2.textContent=(o.j&&o.j.error)||'항목을 만들지 못했어요.';
+            return;
+          }
+          ostOpts=o.j.options||[];
+          if(ostOpenUid!=null){       // 열린 채로 목록만 새로 그린다(고른 값은 그대로)
+            var d=document.getElementById('ostdrop');
+            if(d){d.innerHTML=ostDropHTML(ostOpenUid);bindOstDrop(ostOpenUid);}
+          }
+          renderOstTabs();
+        })
+        .catch(function(){
+          var e3=document.getElementById('ostErr');
+          if(e3)e3.textContent='네트워크 오류로 만들지 못했어요.';
+        });
+    }
+    // 새 항목의 색 — 아직 안 쓴 색을 차례로 준다(전부 썼으면 첫 색). 창에서 언제든 바꾼다.
+    function ostNextColor(){
+      var used={}; ostOpts.forEach(function(o){used[o.color]=1;});
+      for(var i=0;i<OST_COLORS.length;i++){if(!used[OST_COLORS[i]])return OST_COLORS[i];}
+      return OST_COLORS[0];
+    }
+    /* 고르는 즉시 저장. 실패하면 옛 값으로 되돌린다 — 저장 안 된 값을 저장된 척 두지 않는다. */
+    function ostSave(uid,oid){
+      var prev=ostMap[uid]?JSON.parse(JSON.stringify(ostMap[uid])):null;
+      ostState[uid]='saving'; render();
+      fetch('/orders/api/line-status',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({line_uid:uid,option_id:(oid===''||oid==null)?null:Number(oid)})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            if(prev)ostMap[uid]=prev; else delete ostMap[uid];
+            ostState[uid]='err'; render(); return;
+          }
+          // 비웠어도 기본 항목이 있으면 서버가 그것을 is_fallback 으로 돌려준다.
+          if(o.j.status)ostMap[uid]=o.j.status; else delete ostMap[uid];
+          delete ostState[uid]; render();
+        })
+        .catch(function(){
+          if(prev)ostMap[uid]=prev; else delete ostMap[uid];
+          ostState[uid]='err'; render();
+        });
+    }
+    function bindOstCells(){
+      var wrap=document.getElementById('tablewrap'); if(!wrap)return;
+      [].slice.call(wrap.querySelectorAll('.ost-pill')).forEach(function(b){
+        var uid=b.getAttribute('data-uid'); if(!uid)return;
+        b.addEventListener('click',function(e){
+          e.stopPropagation();
+          if(ostOpenUid===uid){closeOstDrop();return;}
+          openOstDrop(uid,b);
+        });
+      });
+    }
+    // ── 항목 관리 창 (수정·삭제·순서·색·기본) ────────────────────────────
+    function ostModalHTML(){
+      var h='<div class="ost-mh"><div class="t">⚙️ 주문 관리 항목</div>'
+        +'<button type="button" class="x" id="ostX">✕ 닫기</button></div>'
+        +'<div class="ost-md">여기서 만든 항목이 드롭다운에 나옵니다. 팀 전체가 같은 목록을 씁니다.</div>'
+        +'<div class="ost-mb">';
+      if(!ostOpts.length){
+        h+='<div class="ost-empty">아직 만든 항목이 없어요 — 아래에 이름을 적고 '
+          +'<b>+ 첫 항목 만들기</b>를 누르세요.</div>';
+      }else{
+        h+=ostOpts.map(function(o,i){
+          // 🔴 끌기는 폰(터치)에서 안 된다 → 위/아래 단추를 나란히 둔다. 끝줄은 눌러도
+          //   할 일이 없으므로 아예 못 누르게 한다(눌렀는데 아무 일도 안 나면 고장으로 보인다).
+          var top=(i===0), bot=(i===ostOpts.length-1);
+          return '<div class="ost-row" draggable="true" data-oid="'+o.id+'">'
+            +'<span class="ost-grip" title="끌어서 순서를 바꿉니다">⠿</span>'
+            +'<span class="ost-mv">'
+            +'<button type="button" class="ost-up" data-oid="'+o.id+'"'+(top?' disabled':'')
+            +' title="한 칸 위로">▲</button>'
+            +'<button type="button" class="ost-dn" data-oid="'+o.id+'"'+(bot?' disabled':'')
+            +' title="한 칸 아래로">▼</button></span>'
+            +'<input class="ost-nm" data-oid="'+o.id+'" maxlength="80" value="'+esc(o.name)+'" '
+            +'title="이름을 눌러 바로 고칩니다 — 다른 곳을 누르면 저장돼요">'
+            +'<button type="button" class="ost-dflt'+(o.is_default?' on':'')+'" data-oid="'+o.id+'" '
+            +'title="새 주문에 이 상태가 보입니다 — 저장되는 게 아니라 표시만 합니다">'
+            +(o.is_default?'⭐ 기본':'기본으로')+'</button>'
+            +'<span class="ost-sw">'+OST_COLORS.map(function(c){
+                return '<i class="ost-d-'+c+(c===o.color?' on':'')+'" data-oid="'+o.id
+                  +'" data-color="'+c+'" title="'+OST_CLABEL[c]+'"></i>';
+              }).join('')+'</span>'
+            +'<button type="button" class="ost-del" data-oid="'+o.id+'">삭제</button></div>';
+        }).join('');
+      }
+      h+='<div class="ost-add"><input id="ostMNew" maxlength="80" '
+        +'placeholder="새 항목 이름 (예: 국내배송중)">'
+        +'<button type="button" class="ost-addbtn" id="ostMAdd">'
+        +(ostOpts.length?'+ 추가':'+ 첫 항목 만들기')+'</button></div>'
+        +'<div class="ost-msg" id="ostMMsg"></div>'
+        +'<div id="ostMCfm"></div>'
+        +'<div class="ost-warn">⚠️ 쓰고 있는 항목을 지우면 그 주문들의 상태가 비워집니다 — '
+        +'<b>몇 건이 쓰는 중</b>인지 알려드리고 한 번 더 물어봅니다.</div>'
+        +'<div class="ost-note">▲▼ 를 눌러(또는 ⠿ 를 끌어) 순서를 바꿉니다 — '
+        +'폰에서는 끌기가 안 되니 ▲▼ 를 쓰세요 · 이름을 눌러 바로 고칩니다 · '
+        +'색은 동그라미를 눌러 고릅니다(우리 프로그램 색 7가지)</div></div>';
+      return h;
+    }
+    function openOstModal(){
+      var back=document.getElementById('ostback'); if(!back)return;
+      back.classList.add('on'); drawOstModal();
+    }
+    function closeOstModal(){
+      var back=document.getElementById('ostback'); if(!back)return;
+      back.classList.remove('on');
+      var m=document.getElementById('ostmodal'); if(m)m.innerHTML='';
+    }
+    function ostMsg(txt,bad){
+      var el=document.getElementById('ostMMsg'); if(!el)return;
+      el.textContent=txt||'';
+      el.style.color=bad===false?'var(--ap-green,#34C759)':'var(--ap-red,#FF3B30)';
+    }
+    function drawOstModal(){
+      var m=document.getElementById('ostmodal'); if(!m)return;
+      m.innerHTML=ostModalHTML();
+      bindOstModal();
+    }
+    /* 목록이 바뀌면 표·알약도 같이 바뀐다(이름·색·순서·기본이 그대로 화면에 나온다).
+       `o.refetch` = 항목이 사라졌을 때. 그 줄이 「지정 안 함」인지 「기본 표시」인지는
+       **서버가 정한다**(기본 항목이 있으면 다시 얹힌다) — 화면이 추측하면 갈린다.
+       `o.msg` = 다시 그린 **뒤에** 남길 안내(먼저 쓰면 다시 그리며 지워진다). */
+    function ostAfterOptions(list,o){
+      o=o||{};
+      ostOpts=list||[];
+      var alive={}; ostOpts.forEach(function(x){alive[String(x.id)]=x;});
+      Object.keys(ostMap).forEach(function(u){
+        var d=ostMap[u], x=alive[String(d.option_id)];
+        if(!x){delete ostMap[u];return;}
+        d.name=x.name; d.color=x.color;      // 이름·색을 고치면 표에도 바로 반영
+      });
+      drawOstModal(); render();
+      if(o.msg)ostMsg(o.msg,o.bad);
+      if(o.refetch)loadOrderStatus(loadSeq);
+    }
+    function bindOstModal(){
+      var m=document.getElementById('ostmodal'); if(!m)return;
+      var x=m.querySelector('#ostX'); if(x)x.addEventListener('click',closeOstModal);
+      // 이름 고치기 — 다른 곳을 누르면(blur) 저장. 안 고쳤으면 요청도 안 한다.
+      [].slice.call(m.querySelectorAll('.ost-nm')).forEach(function(inp){
+        var oid=inp.getAttribute('data-oid'), before=inp.value;
+        inp.addEventListener('focus',function(){before=inp.value;});
+        inp.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){e.preventDefault();inp.blur();}
+          if(e.key==='Escape'){inp.value=before;inp.blur();}});
+        inp.addEventListener('blur',function(){
+          if(inp.value===before)return;
+          ostPatch(oid,{name:inp.value},function(){inp.value=before;});
+        });
+      });
+      [].slice.call(m.querySelectorAll('.ost-sw i')).forEach(function(i){
+        i.addEventListener('click',function(){
+          ostPatch(i.getAttribute('data-oid'),{color:i.getAttribute('data-color')});
+        });
+      });
+      [].slice.call(m.querySelectorAll('.ost-dflt')).forEach(function(b){
+        b.addEventListener('click',function(){
+          var on=b.classList.contains('on');
+          // 이미 기본이면 끈다(기본 없음) · 아니면 이것을 기본으로(기존 것은 서버가 내린다)
+          ostPatch(b.getAttribute('data-oid'),{is_default:!on});
+        });
+      });
+      [].slice.call(m.querySelectorAll('.ost-del')).forEach(function(b){
+        b.addEventListener('click',function(){ostAskDelete(b.getAttribute('data-oid'));});
+      });
+      var ni=m.querySelector('#ostMNew'), nb=m.querySelector('#ostMAdd');
+      function addIt(){
+        var nm=ni?String(ni.value||'').trim():'';
+        if(!nm){ostMsg('항목 이름을 적어 주세요.');return;}
+        fetch('/orders/api/status-options',{method:'POST',cache:'no-store',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({name:nm,color:ostNextColor()})})
+          .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+          .then(function(o){
+            if(!o.s||!o.j||!o.j.ok){ostMsg((o.j&&o.j.error)||'항목을 만들지 못했어요.');return;}
+            ostAfterOptions(o.j.options);
+          })
+          .catch(function(){ostMsg('네트워크 오류로 만들지 못했어요.');});
+      }
+      if(nb)nb.addEventListener('click',addIt);
+      if(ni)ni.addEventListener('keydown',function(e){
+        if(e.key==='Enter'){e.preventDefault();addIt();}});
+      bindOstMove(m);
+      bindOstDrag(m);
+    }
+    /* 순서 저장 — 끌기와 ▲▼ 가 **같은 길**을 쓴다(두 벌로 갈리면 한쪽만 고쳐진다). */
+    function ostReorder(ids){
+      fetch('/orders/api/status-options/reorder',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j||!j.ok){ostMsg('순서를 저장하지 못했어요.');return;}
+          ostAfterOptions(j.options);
+        })
+        .catch(function(){ostMsg('네트워크 오류로 순서를 저장하지 못했어요.');});
+    }
+    /* ▲▼ 한 칸 옮기기 — **터치에서도 되는 유일한 길**이다(끌기는 폰에서 안 먹는다).
+       🔴 화면 DOM 이 아니라 `ostOpts`(서버가 준 목록) 순서를 옮긴다 — 끌기 도중처럼
+         DOM 이 잠깐 어긋난 상태에서도 같은 답이 나온다. */
+    function ostMove(oid,delta){
+      var idx=-1;
+      for(var i=0;i<ostOpts.length;i++){if(String(ostOpts[i].id)===String(oid)){idx=i;break;}}
+      var to=idx+delta;
+      if(idx<0||to<0||to>=ostOpts.length)return;      // 끝에서는 할 일이 없다
+      var ids=ostOpts.map(function(o){return Number(o.id);});
+      var moved=ids.splice(idx,1)[0];
+      ids.splice(to,0,moved);
+      ostReorder(ids);
+    }
+    function bindOstMove(m){
+      [].slice.call(m.querySelectorAll('.ost-up')).forEach(function(b){
+        b.addEventListener('click',function(){ostMove(b.getAttribute('data-oid'),-1);});});
+      [].slice.call(m.querySelectorAll('.ost-dn')).forEach(function(b){
+        b.addEventListener('click',function(){ostMove(b.getAttribute('data-oid'),1);});});
+    }
+    /* ⠿ 끌어서 순서 바꾸기 — 놓는 순간 서버에 새 순서를 통째로 보낸다. */
+    function bindOstDrag(m){
+      var rowsEl=[].slice.call(m.querySelectorAll('.ost-row')), from=null;
+      rowsEl.forEach(function(row){
+        row.addEventListener('dragstart',function(){from=row;row.classList.add('ost-drag');});
+        row.addEventListener('dragend',function(){row.classList.remove('ost-drag');from=null;});
+        row.addEventListener('dragover',function(e){e.preventDefault();});
+        row.addEventListener('drop',function(e){
+          e.preventDefault();
+          if(!from||from===row)return;
+          var list=[].slice.call(m.querySelectorAll('.ost-row'));
+          if(list.indexOf(from)<list.indexOf(row))row.parentNode.insertBefore(from,row.nextSibling);
+          else row.parentNode.insertBefore(from,row);
+          var ids=[].slice.call(m.querySelectorAll('.ost-row'))
+            .map(function(x){return Number(x.getAttribute('data-oid'));});
+          ostReorder(ids);
+        });
+      });
+    }
+    function ostPatch(oid,body,undo){
+      fetch('/orders/api/status-options/'+encodeURIComponent(oid),
+          {method:'PATCH',cache:'no-store',headers:{'Content-Type':'application/json'},
+           body:JSON.stringify(body)})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            ostMsg((o.j&&o.j.error)||'고치지 못했어요.'); if(undo)undo(); return;
+          }
+          ostMsg(''); ostAfterOptions(o.j.options);
+        })
+        .catch(function(){ostMsg('네트워크 오류로 고치지 못했어요.'); if(undo)undo();});
+    }
+    /* 삭제 — 확인 카드부터. 쓰는 주문이 있으면 **건수를 세어** 알리고, 없으면 초록 톤.
+       🔴 서버는 `?force=1` 없이는 409 로 거절한다 — 화면 확인만 믿지 않는다(마지막 안전장치). */
+    function ostOptById(oid){
+      var hit=ostOpts.filter(function(o){return String(o.id)===String(oid);});
+      return hit.length?hit[0]:null;
+    }
+    function ostAskDelete(oid,serverCount){
+      var box=document.getElementById('ostMCfm'); if(!box)return;
+      var o=ostOptById(oid); if(!o)return;
+      var used=(serverCount!=null)?Number(serverCount)
+              :(typeof o.used==='number'?o.used:0);
+      var h;
+      if(used>0){
+        h='<div class="ost-cfm"><b>「'+esc(o.name)+'」를 지울까요?</b><br>'
+          +'지금 <b>'+used+'건</b>이 이 상태를 쓰고 있어요. 지우면 그 주문들은 「지정 안 함」이 됩니다.'
+          +(o.is_default?'<br>⭐ 이 항목은 <b>기본</b>이라, 지우면 새 주문은 빈 상태로 보입니다.':'');
+      }else{
+        h='<div class="ost-cfm ost-free"><b>「'+esc(o.name)+'」를 지울까요?</b><br>'
+          +'<b>쓰는 주문이 없어요</b> — 바로 지워도 괜찮습니다.'
+          +(o.is_default?'<br>⭐ 이 항목은 <b>기본</b>이라, 지우면 새 주문은 빈 상태로 보입니다.':'');
+      }
+      h+='<div class="ost-btns"><button type="button" class="ost-no">그만두기</button>'
+        +'<button type="button" class="ost-yes">지우기</button></div></div>';
+      box.innerHTML=h;
+      box.querySelector('.ost-no').addEventListener('click',function(){box.innerHTML='';});
+      box.querySelector('.ost-yes').addEventListener('click',function(){
+        ostDoDelete(oid,serverCount!=null);
+      });
+    }
+    function ostDoDelete(oid,force){
+      fetch('/orders/api/status-options/'+encodeURIComponent(oid)+(force?'?force=1':''),
+          {method:'DELETE',cache:'no-store'})
+        .then(function(r){return r.json().then(function(j){return {c:r.status,j:j};});})
+        .then(function(o){
+          if(o.c===409&&o.j&&o.j.in_use){
+            // 화면이 알던 건수와 달랐다(다른 사람이 그 사이 지정) — 서버가 센 숫자로 다시 묻는다.
+            ostAskDelete(oid,o.j.count); return;
+          }
+          if(!o.j||!o.j.ok){ostMsg((o.j&&o.j.error)||'지우지 못했어요.');return;}
+          var box=document.getElementById('ostMCfm'); if(box)box.innerHTML='';
+          // 🔴 지운 뒤에는 상태를 **서버에 다시 물어본다** — 기본 항목이 있으면 그 줄들은
+          //   「지정 안 함」이 아니라 다시 「기본 표시」로 돌아간다(화면이 추측하지 않는다).
+          ostAfterOptions(o.j.options, {refetch:true, bad:false,
+            msg:(o.j.cleared?('지웠어요 — '+o.j.cleared+'건이 그 상태에서 풀렸습니다.'):'지웠어요.')});
+        })
+        .catch(function(){ostMsg('네트워크 오류로 지우지 못했어요.');});
+    }
+    // ── 상태별 거르기 알약(시안 ③) ─────────────────────────────────────
+    //  🔴 서버를 다시 부르지 않는다 — 이미 받아 온 줄을 거를 뿐이다(rowPass 의 `_ost` 축).
+    //  기본 항목이 얹혀 보이는 줄도 그 항목 건수에 **포함**하되, 몇 건이 그런지 툴팁으로 밝힌다.
+    function renderOstTabs(){
+      var el=document.getElementById('ostTabs'); if(!el)return;
+      if(!ostOpts.length){el.style.display='none';el.innerHTML='';ostFilter='';return;}
+      el.style.display='';
+      var base=rows.filter(function(r){return rowPass(r,'_ost');});
+      var cnt={}, fb={}, none=0;
+      base.forEach(function(r){
+        var d=ostOf(r);
+        if(!d){none++;return;}
+        var k=String(d.option_id);
+        cnt[k]=(cnt[k]||0)+1;
+        if(d.is_fallback)fb[k]=(fb[k]||0)+1;
+      });
+      var h='<span class="mglb">주문 관리</span>'
+        +'<button class="fft'+(ostFilter?'':' on')+'" data-ost="">전체 <b'
+        +(base.length?'':' class="mg-zero"')+'>'+base.length+'</b></button>';
+      h+=ostOpts.map(function(o){
+        var k=String(o.id), n=cnt[k]||0;
+        var t=o.name+' '+n+'건'
+          +(fb[k]?(' — 이 중 '+fb[k]+'건은 아직 고르지 않은 줄에 기본 항목이 보이는 것입니다'):'');
+        return '<button class="fft'+(ostFilter===k?' on':'')+'" data-ost="'+k+'" title="'+esc(t)+'">'
+          +'<span class="dot ost-d-'+esc(o.color)+'"></span>'+esc(o.name)
+          +' <b'+(n?'':' class="mg-zero"')+'>'+n+'</b></button>';
+      }).join('');
+      h+='<button class="fft'+(ostFilter==='none'?' on':'')+'" data-ost="none" '
+        +'title="아직 아무 상태도 없는 줄이에요(기본 항목도 지정 안 된 상태)">지정 안 함 <b'
+        +(none?'':' class="mg-zero"')+'>'+none+'</b></button>';
+      h+='<div class="ffhint">주문을 「주문 관리」 상태로 갈라 봅니다 — 알약을 눌러도 다시 불러오지 않고, '
+        +'이미 불러온 줄을 거르기만 합니다. 점선 알약은 <b>기본 항목이 보이는 줄</b>(아직 안 고름)입니다.</div>';
+      el.innerHTML=h;
+      [].slice.call(el.querySelectorAll('.fft')).forEach(function(b){
+        b.addEventListener('click',function(){
+          ostFilter=b.getAttribute('data-ost'); render();});});   // ← 서버 호출 없음
+    }
+    /* 표를 그린 **뒤** 상태를 채운다 — 매입가·가격 전후·이행정보와 **같은 묶음**(runFill).
+       🔴 새 게이트를 만들지 않는다. `if(!loading)` 안에 두면 제일 느린 마켓 하나가
+         상태 표시를 통째로 붙잡는다(2026-08-06 「5분간 죽어있던」 버그의 원인). */
+    function loadOrderStatus(seq,done){
+      var mine=++ostSeq;
+      if(!rows.length){ostMap={};if(done)done();return;}
+      fetch('/orders/api/line-status/resolve',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(mine!==ostSeq||seq!==loadSeq)return;
+          // 실패하면 비운다 — 옛 값을 최신인 척 남겨 두지 않는다.
+          ostMap=(j&&j.ok&&j.statuses)?j.statuses:{};
+          ostOpts=(j&&j.ok&&j.options)?j.options:[];
+          if(!ostOpts.length)ostFilter='';
+          render();
+        })
+        .catch(function(){ if(mine===ostSeq){ostMap={};render();} })
+        .then(function(){ if(done)done(); });
+    }
     function cellHTML(col,r){
       var v=r[col];
+      if(col==='_ostatus')return ostCell(r);
       if(col==='_supply')return smCell(r);
       if(col==='_pp_purchase')return ppCell(r);
       if(col==='_pdx_purchase')return pdxPurchaseCell(r);
@@ -1723,14 +2634,17 @@
       // 맨 앞 체크박스 열은 **송장 전송 대상 고르기**용 — 조회 전용 화면엔 두지 않는다.
       var head='<tr>'+(SHIP?'<th class="ctr invck"><input type="checkbox" id="inv-all"></th>':'')+PANEL_COLS.map(function(pc){
         var active=colFilter[pc.c]&&colFilter[pc.c].excluded&&colFilter[pc.c].excluded.size;
-        return '<th class="fcol '+pc.a+(active?' filtered':'')+'" data-col="'+pc.c+'">'+(pc.t||pc.c)+'<span class="fic">▼</span></th>';
+        // 첫 열(주문 관리)만 살짝 다른 바탕 — 시안대로 「먼저 눈에 들어오는」 자리로 둔다.
+        var first=(pc.c==='_ostatus')?' ost-first':'';
+        return '<th class="fcol '+pc.a+first+(active?' filtered':'')+'" data-col="'+pc.c+'">'+(pc.t||pc.c)+'<span class="fic">▼</span></th>';
       }).join('')+'</tr>';
       var body=fr.map(function(r){
         var k=invKey(r), send=SENDABLE[invSlug(r)];
         var ck=SHIP?('<td class="ctr invck"><input type="checkbox" class="inv-ck" data-k="'+esc(k)+'"'
               +(invSel[k]?' checked':'')+(send?'':' disabled title="이 마켓은 아직 송장 전송을 지원하지 않아요"')+'></td>'):'';
         return '<tr class="'+rowCls(r).trim()+'"'+ffTitle(r)+'>'+ck+PANEL_COLS.map(function(pc){
-          return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))+'">'+cellHTML(pc.c,r)+'</td>';
+          return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))
+            +(pc.c==='_ostatus'?' ost-first':'')+'">'+cellHTML(pc.c,r)+'</td>';
         }).join('')+'</tr>';}).join('');
       // 범례 — 「해야 할 일」 칸을 뺀 대신, 색이 무슨 뜻인지 표 아래에서 설명한다.
       var legend='<div class="pdx-legend"><b>색이 상황을 말합니다</b><br>'
@@ -1746,6 +2660,7 @@
       bindInvCells(fr);
       bindPurchaseCells();
       bindSupplyCells();
+      bindOstCells();
       renderInvBar(fr);
       renderSupBar();
     }
@@ -1775,6 +2690,15 @@
         tag.className='pp-tag '+cls; tag.textContent=txt;
       });
     }
+    /* 매입가를 적으면 탭 판정(이상마진·블랙스팟·미입력)이 바뀐다 → 다시 물어본다.
+       🔴 여러 줄을 이어 적을 때 줄마다 다시 묻지 않는다 — 마지막 입력에서 1.2초 쉬면
+         한 번만 묻는다(판정에는 소싱처 계산이 딸려 있어 매번 돌리면 표가 느려진다).
+       이건 **탭 전환**이 아니라 **값 변경**이라 다시 부르는 게 맞다(탭 전환은 서버 호출 0). */
+    var ppFlagTimer=null;
+    function ppRefreshFlags(){
+      if(ppFlagTimer)clearTimeout(ppFlagTimer);
+      ppFlagTimer=setTimeout(function(){ppFlagTimer=null;loadPurchasePrice(loadSeq);},1200);
+    }
     function ppSave(uid,raw,inp){
       var txt=String(raw==null?'':raw).replace(/[, ]/g,'').trim();
       if(txt&&!/^\d+$/.test(txt)){
@@ -1800,6 +2724,7 @@
           ppRedraw(uid);
           setTimeout(function(){ if(ppState[uid]==='ok'){delete ppState[uid];ppRedraw(uid);} },1500);
           if(o.j.price==null)loadPurchasePrice(loadSeq);   // 지운 뒤엔 예상가를 다시 채운다
+          else ppRefreshFlags();      // 적은 뒤엔 탭 판정이 바뀐다(미입력 → 실매입가 기준)
         })
         .catch(function(){ ppState[uid]='err';
           if(inp)inp.title='네트워크 오류로 저장하지 못했어요.'; ppRedraw(uid); });
@@ -1861,18 +2786,56 @@
       var bar=document.getElementById('supbar'); if(!bar)return;
       var n=Object.keys(smSel).length;
       if(!n){bar.innerHTML='';return;}
+      /* 🔴 「주문 관리」 상태 일괄 지정도 **이 줄에 얹는다** — 표에 이미 있는 네모(다중선택)를
+           그대로 쓴다. 새 선택 배선을 또 만들면 「어느 네모가 무엇을 고른 건지」가 갈린다.
+           항목을 하나도 안 만들었으면 그 칸만 빠진다(없는 걸 고르라 할 수 없다). */
+      var ostPick=ostOpts.length
+        ? (' · 상태 <select class="supbtn" id="ostBulk"><option value="">고르기…</option>'
+           +ostOpts.map(function(o){
+               return '<option value="'+o.id+'">'+esc(o.name)+'</option>';}).join('')
+           +'<option value="__none">비우기</option></select>')
+        : '';
       bar.innerHTML='<div class="supbar-in"><b>'+n+'줄</b> 선택됨 — 한꺼번에 '
         +'<button type="button" class="supbtn" data-m="stock">사입으로</button>'
         +'<button type="button" class="supbtn" data-m="dropship">무재고로</button>'
+        +ostPick
         +'<button type="button" class="supbtn ghost" data-m="clear">선택 해제</button>'
         +'<span class="supmsg" id="supmsg"></span></div>';
       [].slice.call(bar.querySelectorAll('.supbtn')).forEach(function(b){
+        if(b.tagName==='SELECT')return;
         b.addEventListener('click',function(){
           var m=b.getAttribute('data-m');
           if(m==='clear'){smSel={};render();return;}
           smBulk(m);
         });
       });
+      var ob=bar.querySelector('#ostBulk');
+      if(ob)ob.addEventListener('change',function(){
+        if(!ob.value)return;
+        ostBulk(ob.value==='__none'?null:Number(ob.value));
+      });
+    }
+    /* 고른 여러 줄에 상태를 한꺼번에. 열쇠는 반드시 line_uid(공급방식 일괄과 같은 규약). */
+    function ostBulk(optionId){
+      var uids=Object.keys(smSel); if(!uids.length)return;
+      var msg=document.getElementById('supmsg'); if(msg)msg.textContent='저장 중…';
+      fetch('/orders/api/line-status/bulk',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({line_uids:uids,option_id:optionId})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            if(msg)msg.textContent='✗ '+((o.j&&o.j.error)||'저장하지 못했어요.');
+            return;
+          }
+          var st=o.j.statuses||{};
+          uids.forEach(function(u){ if(st[u])ostMap[u]=st[u]; else delete ostMap[u]; });
+          smSel={};
+          if(msg)msg.textContent='✓ '+o.j.saved+'줄 저장됨'
+            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):'');
+          render();
+        })
+        .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
     }
     function smBulk(mode){
       var uids=Object.keys(smSel); if(!uids.length)return;
@@ -2013,6 +2976,54 @@
       [].slice.call(el.querySelectorAll('.ffrc')).forEach(function(b){
         b.addEventListener('click',function(){
           var k=b.getAttribute('data-ffr'); ffReason=(ffReason===k)?'':k; render();});});
+    }
+    /* 마진 가로 탭 — 건수의 모수는 「이 축을 빼고 본 행」이다(3분류 탭과 같은 규약).
+       🔴 탭은 서로 겹칠 수 있다 — 블랙스팟은 마진이 마이너스라 이상마진에도 든다.
+         한 줄이 한 탭에만 있어야 한다고 잘라 버리면 「돈 못 받은 건」이 이상마진에서
+         사라진다. 그래서 각 탭은 **자기 질문에 답하는 거르개**로 둔다.
+       🔴 예상가로 판정한 건수는 따로 센다(설계서 §4 — 예상은 실적에 섞지 않는다). */
+    function renderMgTabs(){
+      var el=document.getElementById('mgTabs'); if(!el)return;
+      if(SHIP||!Object.keys(mgMap).length){mgCount=null;el.style.display='none';return;}
+      el.style.display='';
+      var base=rows.filter(function(r){return rowPass(r,'_mg');});
+      var cnt={abnormal:0,blackspot:0,nopp:0}, est={abnormal:0,blackspot:0}, unj=0, none=0;
+      base.forEach(function(r){
+        var d=mgOf(r);
+        if(!d){none++;return;}
+        if(!d.judged)unj++;
+        MG_TABS.forEach(function(t){ if(d[t.k])cnt[t.k]++; });
+        if(d.basis==='estimate'){ if(d.abnormal)est.abnormal++; if(d.blackspot)est.blackspot++; }
+      });
+      mgCount=cnt;
+      var h='<span class="mglb">돈 확인</span>'
+        +'<button class="fft'+(mgFilter?'':' on')+'" data-mg="">전체 <b'
+        +(base.length?'':' class="mg-zero"')+'>'+base.length+'</b></button>';
+      h+=MG_TABS.map(function(t){
+        var n=cnt[t.k];
+        var bc=n?(t.k==='nopp'?'':' class="mg-hot"'):' class="mg-zero"';
+        return '<button class="fft'+(mgFilter===t.k?' on':'')+'" data-mg="'+t.k+'" title="'+esc(t.d)+'">'
+          +'<span class="dot '+t.dot+'"></span>'+t.t+' <b'+bc+'>'+n+'</b></button>';
+      }).join('');
+      // 🔴 「왜 이 줄이 여기 있는지」를 탭마다 한 줄로 말한다 — 안 말하면 사장님은
+      //   숫자만 보고 무슨 뜻인지 되묻게 된다.
+      var cur=MG_TABS.filter(function(t){return t.k===mgFilter;})[0];
+      if(cur)h+='<div class="ffhint">'+esc(cur.d)+'</div>';
+      else h+='<div class="ffhint">주문을 「돈」 기준으로 갈라 봅니다 — 탭을 눌러도 다시 불러오지 않고, '
+             +'이미 불러온 줄을 거르기만 합니다.</div>';
+      // 예상가 기반은 실적이 아니다 — 섞어 세지 않고 따로 밝힌다(설계서 §4).
+      if(mgFilter==='abnormal'&&est.abnormal)
+        h+='<div class="ffhint">이 중 <b>예상 기반 '+est.abnormal+'건</b>은 실매입가가 아니라 '
+          +'소싱처 예상가로 판정했어요 — 실적 숫자로 쓰지 마세요. 「매입가 미입력」 탭에서 진짜 값을 적어 주세요.</div>';
+      if(mgFilter==='blackspot'&&est.blackspot)
+        h+='<div class="ffhint">이 중 <b>예상 기반 '+est.blackspot+'건</b>은 실매입가가 아니라 소싱처 예상가로 판정했어요.</div>';
+      // 🔴 판정 못 한 행이 있으면 반드시 말한다 — 말 안 하면 「주문이 사라졌다」로 보인다.
+      if(unj||none)h+='<div class="ffhint">매입가·정산예정금을 못 구했거나 취소·반품인 '
+        +(unj+none)+'건은 이상마진·블랙스팟 판정에서 뺐어요 — 「전체」에서 보입니다(추측하지 않습니다).</div>';
+      el.innerHTML=h;
+      [].slice.call(el.querySelectorAll('.fft')).forEach(function(b){
+        b.addEventListener('click',function(){
+          mgFilter=b.getAttribute('data-mg'); render();});});   // ← 서버 호출 없음
     }
     function renderClsTabs(){
       var el=document.getElementById('clsTabs'); if(!el)return;
@@ -2267,7 +3278,7 @@
     }
     function render(){
       var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();
-      renderFfTabs();
+      renderFfTabs();renderMgTabs();renderOstTabs();ppSyncMode();
       if(SHIP){
         // 엑셀을 올리기 전엔 아래를 통째로 접는다 — 볼 게 없는 표를 띄우지 않는다.
         var s3=document.getElementById('step3');
@@ -2315,7 +3326,13 @@
       var mks=selMk();syncBtn();
       var seq=++loadSeq;
       pdxMap={};pdxSeq++;      // 새 조회 — 옛 기간의 가격 전후를 남겨두지 않는다
-      resetFill();             // 새 조회 — 채우기 지문도 지운다(안 지우면 새 행을 안 채운다)
+      // 옛 기간의 마진 판정·탭 선택은 버린다(거짓 배지 금지). 주소로 온 탭
+      // (`?mg=nopp`)만 첫 조회에 한 번 살린다 — 그다음부터는 평소대로 비운다.
+      mgMap={};mgFilter=mgPending;mgPending='';
+      // 「주문 관리」 상태도 같이 비운다 — 옛 기간의 상태를 새 기간 줄에 물려주지 않는다.
+      //  거르기 알약도 푼다(값이 오기 전엔 전부 걸러져 「주문이 사라진 것처럼」 보인다).
+      ostMap={};ostSeq++;ostFilter='';
+      resetFill();           // 새 조회 — 채우기 지문도 지운다(안 지우면 새 행을 안 채운다)
       colFilter={};loadDone=0;loadTotal=mks.length;
       loadMks=mks;mkState={};mkCount={};mks.forEach(function(m){mkState[m]='load';});
       var ckOf=function(mk){return mk+'|'+cur.from+'|'+cur.to;};
@@ -2429,7 +3446,7 @@
       // 앞 묶음이 도는 중이면 지금은 안 쏜다 — 그 묶음이 끝나며 스스로 이어 받는다.
       if(seq!==loadSeq||fillBusy||!fillWant||fillWant===fillSig)return;
       fillSig=fillWant; fillBusy=true;
-      var live=true, left=4;   // 가격전후 · 3분류 · 매입가 · 공급방식
+      var live=true, left=5;   // 가격전후 · 3분류 · 매입가 · 공급방식 · 주문 관리 상태
       fillDrop=function(){live=false;};        // 새 조회가 시작되면 이 묶음의 완료 신호를 무시
       function done(){
         if(!live)return;
@@ -2438,7 +3455,7 @@
         runFill(seq);                          // 도는 동안 늘어난 행이 있으면 이어서 채운다
       }
       loadPriceDiff(seq,done);loadFulfillment(seq,done);loadPurchasePrice(seq,done);
-      loadSupplyMode(seq,done);
+      loadSupplyMode(seq,done);loadOrderStatus(seq,done);
     }
     // ── M4 가격 전후 조회 — 표에 행이 늘 때마다(위 scheduleFill) ────────────
     // 서버가 한 번에 계산한다(스냅샷 IN 쿼리 1회 + breakdown 캐시 1회). 행마다
@@ -2460,39 +3477,69 @@
         .catch(function(){ if(mine===pdxSeq){pdxMap={};render();} })
         .then(function(){ if(done)done(); });
     }
-    // ── 실매입가 우선순위 조회 — 표에 행이 늘 때마다(scheduleFill) ──────────
+    // ── 실매입가 우선순위 조회 + 마진 탭 판정 — 표에 행이 늘 때마다(scheduleFill) ──
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ppMap 을 비운다 → 전 칸 「확인 불가」.
     //  옛 값을 최신인 척 남겨 두면 이미 적은 값이라 믿고 넘어간다.
+    // 🔴 판정(flags)을 같은 응답에서 받는 이유 — 판정은 「행 + 그 매입가」의 함수라,
+    //   따로 부르면 서버가 소싱처 최종매입가 계산을 두 번 돌린다(표가 그만큼 늦어진다).
     function loadPurchasePrice(seq,done){
       var mine=++ppSeq;
-      if(!rows.length){ppMap={};if(done)done();return;}
+      if(!rows.length){ppMap={};mgMap={};if(done)done();return;}
       fetch('/orders/api/purchase-price/resolve',{method:'POST',cache:'no-store',
           headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
         .then(function(r){return r.json();})
         .then(function(j){
           if(mine!==ppSeq||seq!==loadSeq)return;
           ppMap=(j&&j.ok&&j.prices)?j.prices:{};
+          // 판정을 못 받았으면 탭을 아예 숨긴다(mgMap 이 비면 renderMgTabs 가 접는다).
+          //  옛 판정을 남겨 두면 「이상마진 12건」이 실제와 다른 채로 굳는다.
+          mgMap=(j&&j.ok&&j.flags)?j.flags:{};
+          if(!Object.keys(mgMap).length)mgFilter='';
           render();
         })
-        .catch(function(){ if(mine===ppSeq){ppMap={};render();} })
+        .catch(function(){ if(mine===ppSeq){ppMap={};mgMap={};mgFilter='';render();} })
         .then(function(){ if(done)done(); });
     }
     /* ── 더망고 매입 엑셀 올리기 ─────────────────────────────────────────
        🔴 못 붙은 줄·후보가 여럿인 줄을 **버리지 않고** 표로 보여준다. 조용히 사라지면
          사장님은 「올렸는데 왜 없지」를 겪는다.
+       🔴 2026-08-06 사장님 확정(2안) — 자리·결과 재설계:
+         ① 「매입가 미입력」 탭을 고르면 카드가 펼쳐진 채 큼직하게 뜬다(ppSyncMode).
+         ② 저장이 끝나면 **끌어놓기 자리는 접고** 요약 한 줄만 남긴다 — 큰 표 3개가
+            계속 남아 「보기 안 좋다」는 지적. 「다시 올리기」로 되연다.
+         ③ 결과 = 요약 줄 + 문제 있는 것만 접이식(가장 흔한 것 하나만 열림).
        손으로 주문 줄을 지정하는 UI 는 2단계 범위 — 여기선 목록 표시까지만 한다. */
+    // 카드를 손으로 열고 닫았는지(null = 손 안 댐 → 탭이 정한다). 탭이 바뀌면 초기화한다.
+    var ppManual=null, ppLastMg=null, ppDone=false;
+    /* 🔴 탭에 따라 카드를 펼치고 접는다 — render() 가 부른다(서버 호출 없음).
+         「매입가 미입력」 = 채울 일이 있는 자리 → 펼친 채 큼직하게(pp-hero). */
+    function ppSyncMode(){
+      var card=document.getElementById('ppCard'); if(!card)return;
+      var mg=(!SHIP&&typeof mgFilter==='string')?mgFilter:'';
+      if(mg!==ppLastMg){ppLastMg=mg;ppManual=null;}   // 탭이 바뀌면 손으로 연 상태는 버린다
+      var hero=(mg==='nopp');
+      var open=(ppManual==null)?hero:ppManual;
+      card.classList.toggle('pp-hero',hero);
+      card.classList.toggle('on',open);
+      var chev=document.getElementById('ppChev'); if(chev)chev.textContent=open?'▴':'▾';
+      // 몇 건이 기다리는지 — 판정을 못 받았으면(mgCount==null) 숫자를 지어내지 않는다.
+      var n=(mgCount&&typeof mgCount.nopp==='number')?mgCount.nopp:null;
+      var sub=document.getElementById('ppDzSub');
+      if(sub)sub.textContent='엑셀의 「구매가격」이 실매입가로 들어갑니다'
+        +((hero&&n)?(' · '+n+'건을 한 번에 채울 수 있어요'):' · xls · xlsx · html');
+    }
     (function(){
       var card=document.getElementById('ppCard'); if(!card)return;
       var head=document.getElementById('ppHead'), dz=document.getElementById('ppDz'),
           file=document.getElementById('ppFile'), fn=document.getElementById('ppFn'),
           msg=document.getElementById('ppMsg'), out=document.getElementById('ppOut'),
-          chev=document.getElementById('ppChev'), busy=false;
+          drop=document.getElementById('ppDrop'), busy=false;
       head.addEventListener('click',function(){
-        card.classList.toggle('on'); chev.textContent=card.classList.contains('on')?'▴':'▾';});
-      function tbl(title,list,cols){
+        ppManual=!card.classList.contains('on'); ppSyncMode();});
+      var C=['행번호','마켓주문일자','마켓명','마켓주문번호','수령인명','마켓상품명','옵션1','구매가격','사유'];
+      function tbl(list,cols){
         if(!list||!list.length)return '';
-        return '<div class="ppmsg"><b>'+esc(title)+'</b> — '+list.length+'줄</div>'
-          +'<div class="pplist"><table><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')
+        return '<div class="pplist"><table><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')
           +'</tr>'+list.slice(0,200).map(function(r){
             return '<tr>'+cols.map(function(c){
               var v=(c==='사유')?(r['사유']||''):r[c];
@@ -2500,9 +3547,54 @@
           +'</table></div>'
           +(list.length>200?'<div class="ppmsg">…앞 200줄만 표시했어요(전체 '+list.length+'줄).</div>':'');
       }
+      /* 접이식 한 칸. 제목 옆에 **왜 그런지 한 줄**을 반드시 붙인다 —
+         숫자만 보여 주면 사장님은 「이게 잘못된 건가」를 되묻게 된다. */
+      function acc(i,title,why,list,open){
+        if(!list||!list.length)return '';
+        return '<div class="ppacc'+(open?'':' pp-shut')+'" data-acc="'+i+'">'
+          +'<button type="button" class="ppacc-h"><span class="ppacc-ar">'+(open?'▾':'▸')+'</span>'
+          +'<b>'+esc(title)+'</b><span class="cnt">'+list.length+'건</span>'
+          +'<span class="why">— '+esc(why)+'</span></button>'
+          +'<div class="ppacc-b">'+tbl(list,C)+'</div></div>';
+      }
+      /* 결과 요약 — 시안의 res-h 그대로.
+         🔴 「구매가격 비어 있음」은 **고장이 아니라 정상 동작**이다(0원을 실매입가로
+           저장하면 마진이 거짓이 된다). 사장님 실사용에서 428줄 중 228줄이 이 경우였다.
+           그래서 「손볼 것」과 한 덩어리로 세지 않고 따로, 중립적으로 말한다. */
+      function resultHTML(j){
+        var fix=j.unmatched.length+j.ambiguous.length, wait=j.skipped_zero.length;
+        var h='<div class="ppres"><div class="ppres-h">'
+          +'<span class="big ok">✅ '+j.saved+'건 채웠어요</span>'
+          +'<span class="mid">읽은 줄 '+j.parsed+' · 저장 '+j.saved+'</span>';
+        if(fix)h+='<span class="big warn">손볼 것 '+fix+'건</span>';
+        if(wait)h+='<span class="mid">매입 처리를 기다리는 것 '+wait+'건</span>';
+        if(!fix&&!wait)h+='<span class="mid">손볼 것 없어요</span>';
+        h+='<span class="sp"></span><button type="button" class="ppagain" id="ppAgain">다시 올리기</button>'
+          +'</div>';
+        // 가장 흔한 것 하나만 열어 둔다 — 셋 다 펼치면 무엇을 할지 안 보인다.
+        var n=[j.unmatched.length,j.ambiguous.length,j.skipped_zero.length];
+        var top=n.indexOf(Math.max(n[0],n[1],n[2]));
+        h+=acc(0,'못 찾음','이 주문번호로 저장된 주문 줄이 없어요(기간 밖이거나 아직 안 불러온 주문)',j.unmatched,top===0)
+          +acc(1,'줄을 못 정함','후보가 여럿이라 아무 데도 안 적었어요(잘못 적으면 마진이 틀어집니다)',j.ambiguous,top===1)
+          +acc(2,'구매가격 비어 있음','더망고에서 아직 매입 처리가 안 끝난 주문이에요 — 0원을 실매입가로 저장하면 마진이 거짓이 됩니다. 매입 처리가 끝나면 다시 올려 주세요',j.skipped_zero,top===2);
+        return h+'</div>';
+      }
+      function bindResult(){
+        var again=document.getElementById('ppAgain');
+        if(again)again.addEventListener('click',function(){reopen();});
+        [].slice.call(out.querySelectorAll('.ppacc-h')).forEach(function(b){
+          b.addEventListener('click',function(){
+            var a=b.parentNode, shut=a.classList.toggle('pp-shut');
+            var ar=b.querySelector('.ppacc-ar'); if(ar)ar.textContent=shut?'▸':'▾';});});
+      }
+      function reopen(){                       // 「다시 올리기」 — 끌어놓기 자리를 되연다
+        ppDone=false; drop.style.display='';
+        fn.textContent=''; file.value='';
+        msg.innerHTML='올리면 바로 매칭·저장합니다. 못 찾은 줄은 지우지 않고 아래에 그대로 보여드려요.';
+      }
       function upload(f){
         if(!f||busy)return;
-        busy=true; fn.textContent=f.name;
+        busy=true; ppDone=false; drop.style.display=''; fn.textContent=f.name;
         msg.innerHTML='올리는 중… 주문 줄을 찾고 있어요.'; out.innerHTML='';
         var fd=new FormData(); fd.append('file',f);
         fetch('/orders/api/purchase-price/upload-mango',{method:'POST',body:fd})
@@ -2510,19 +3602,13 @@
           .then(function(o){
             busy=false;
             if(!o.j||!o.j.ok){
+              // 실패하면 자리를 접지 않는다 — 다시 올릴 곳이 눈앞에 있어야 한다.
               msg.innerHTML='<b>올리지 못했어요</b> — '+esc((o.j&&o.j.error)||'알 수 없는 오류');
               return;
             }
             var j=o.j;
-            msg.innerHTML='엑셀 <b>'+j.parsed+'줄</b> 중 주문 줄을 찾은 것 <b>'+j.matched
-              +'줄</b>, 실제로 저장한 것 <b>'+j.saved+'줄</b>.'
-              +(j.skipped_zero.length?' 구매가격이 비어 저장하지 않은 것 <b>'+j.skipped_zero.length+'줄</b>.':'')
-              +(j.unmatched.length?' <b>못 찾음 '+j.unmatched.length+'줄</b>.':'')
-              +(j.ambiguous.length?' <b>줄을 못 정함 '+j.ambiguous.length+'줄</b>.':'');
-            var C=['행번호','마켓주문일자','마켓명','마켓주문번호','수령인명','마켓상품명','옵션1','구매가격','사유'];
-            out.innerHTML = tbl('못 찾음 — 이 주문번호로 저장된 주문 줄이 없어요',j.unmatched,C)
-              + tbl('줄을 못 정함 — 후보가 여럿이라 아무 데도 안 적었어요',j.ambiguous,C)
-              + tbl('구매가격 없음 — 저장하지 않았어요',j.skipped_zero,C);
+            out.innerHTML=resultHTML(j); bindResult();
+            ppDone=true; drop.style.display='none';   // 저장 끝 → 끌어놓기 자리는 접는다
             if(j.saved)loadPurchasePrice(loadSeq);     // 저장분을 표에 즉시 반영
           })
           .catch(function(){ busy=false;
@@ -2530,10 +3616,13 @@
       }
       file.addEventListener('change',function(){ if(file.files&&file.files[0])upload(file.files[0]); });
       ['dragover','dragenter'].forEach(function(ev){
-        dz.addEventListener(ev,function(e){e.preventDefault();});});
+        dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.add('pp-over');});});
+      ['dragleave','dragend'].forEach(function(ev){
+        dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.remove('pp-over');});});
       dz.addEventListener('drop',function(e){
-        e.preventDefault();
+        e.preventDefault(); dz.classList.remove('pp-over');
         if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])upload(e.dataTransfer.files[0]);});
+      ppSyncMode();
     })();
     // ── 주문 3분류 판정 — 표에 행이 늘 때마다(scheduleFill) ─────────────────
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ffMap 을 비워 **탭 자체를 감춘다** —
@@ -2739,6 +3828,21 @@
     }
     function closeColPop(){pop.classList.remove('on');}
     document.addEventListener('click',function(e){if(pop.classList.contains('on')&&!pop.contains(e.target)&&!e.target.closest('th.fcol'))closeColPop();});
+    // 「주문 관리」 상태 드롭다운 — 바깥을 누르면 닫는다(알약 자체는 자기 핸들러가 토글).
+    document.addEventListener('click',function(e){
+      var d=document.getElementById('ostdrop');
+      if(d&&d.classList.contains('on')&&!d.contains(e.target)&&!e.target.closest('.ost-pill'))closeOstDrop();
+    });
+    document.addEventListener('keydown',function(e){
+      if(e.key!=='Escape')return;
+      closeOstDrop();
+      var back=document.getElementById('ostback');
+      if(back&&back.classList.contains('on'))closeOstModal();
+    });
+    (function(){   // 창 바깥(어두운 곳)을 누르면 닫는다
+      var back=document.getElementById('ostback'); if(!back)return;
+      back.addEventListener('click',function(e){if(e.target===back)closeOstModal();});
+    })();
 
     // ── 배송검사 통합 배선 (더망고 업로드 · 배송방식 토글칩) ──
     var mgFile=document.getElementById('mangoFile');
@@ -4187,6 +5291,10 @@
     .spn .kpi.hero .v{font-size:30px;}
     .spn .stack{display:flex;height:12px;border-radius:6px;overflow:hidden;margin-top:10px;background:rgba(255,255,255,.25);}
     .spn .legend{display:flex;gap:14px;font-size:11.5px;margin-top:6px;color:rgba(255,255,255,.9);flex-wrap:wrap;}
+    /* ⚡ 빠른정산 선인출 — 총액 바로 밑에서 「이 중 얼마는 이미 받으셨다」를 못 박는다.
+       (2026-08-06 Wing 실측: 이 줄이 없으면 세소 6월 291만이 두 번 서 있었다) */
+    .spn .fastnote{margin-top:8px;padding:7px 10px;border-radius:8px;font-size:12px;
+      background:rgba(255,255,255,.16);color:#fff;line-height:1.5;}
     .spn .kpi.warn{border-color:#FEC84B;background:var(--연한-노랑,#FFFAEB);cursor:pointer;}
     .spn .kpi.danger{border-color:#FDA29B;background:var(--연한-빨강,#FEF3F2);cursor:pointer;}
     /* B3 — 「이미 끝난 것」을 점선 상자로 묶어 「앞으로 받을 돈」과 갈라놓는다 */
@@ -4232,6 +5340,11 @@
     .spn .chip.est{color:var(--글자-주황,#B45309);background:rgba(180,83,9,.12);}
     .spn .chip.cat-c{color:var(--글자-파랑,#1B64DA);background:rgba(49,130,246,.1);}
     .spn .chip.cat-u{color:var(--sub);background:var(--n100,#F2F4F6);}
+    /* ⚡ 빠른정산 줄 — 그 기간에서 **뺀** 몫이라 마이너스로 읽히게 한다.
+       (2026-08-06 사장님: 기간 내 실제로 받을 돈이 헷갈리지 않게) */
+    .spn .chip.cat-f{color:#6D28D9;background:#EDE9FE;}
+    .spn tr.fastrow td{color:#6D28D9;background:rgba(157,119,237,.06);}
+    .spn .bktot{font-size:11px;font-weight:600;color:var(--sub);margin-top:2px;}
     .spn .exp td{background:var(--n100,#F8FAFC);padding:12px 16px;}
     .spn .acc{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--surface,#ffffff);}
     .spn .acc .hd{display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:var(--n100,#F8FAFB);}
@@ -4263,6 +5376,16 @@
         </div>
       </div>
       <button class="btn" id="spn-rules-btn" type="button">⚙️ 계산 규칙</button>
+      {# 🚀 로켓그로스는 쿠팡 OpenAPI 로 못 얻는다(2026-08-07 실측) — Wing 화면을 로컬 크롤러가
+         읽어 와야 한다. 사장님이 Wing 에 로그인돼 있으면 이 단추 하나로 끝난다. #}
+      <button class="btn" id="spn-rg-btn" type="button" title="쿠팡 Wing 에 로그인돼 있어야 해요">🚀 로켓그로스 가져오기</button>
+      <span class="note" id="spn-rg-msg" style="font-size:12px"></span>
+      {# 🔵 11번가 구매확정 전 정산예정액 — 하루 전엔 「마켓이 안 준다」고 봤는데 틀렸다.
+         조회 축을 **결제일**로 바꾸면 발주확인·배송완료 건도 금액과 함께 나온다
+         (2026-08-08 화면 실증 10건 464,691원). 셀러오피스 세션이 필요해 로컬 크롤. #}
+      <button class="btn" id="spn-el-btn" type="button"
+              title="11번가 셀러오피스에 로그인돼 있어야 해요">🔵 11번가 미확정 가져오기</button>
+      <span class="note" id="spn-el-msg" style="font-size:12px"></span>
     </div>
     <div class="kpis" id="spn-kpi"><div class="state">불러오는 중…</div></div>
     <div id="spn-reasons"></div>
@@ -4305,7 +5428,7 @@
     // 시안 확정(2026-08-06 사장님): A3 제목 앞 색 점 · B3 점선 상자로 「이미 끝난 것」 묶기.
     //  막대 조각 색 = 그 카드 점 색(눈으로 이어지게).
     var CLR={confirmed:'#8FD3A6',unconfirmed:'#7EA8F8',overdue:'#F5B544',undated:'#D5DAE0',
-             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438'};
+             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438',fast:'#9E77ED'};
     function dot(c){return '<i style="display:inline-block;width:9px;height:9px;border-radius:2px;'
       +'background:'+c+';margin-right:5px;vertical-align:middle"></i>';}
     // 「지남」 카드 밑 한 줄 — 무엇 때문인지(가장 큰 사유)를 바로 알려준다.
@@ -4336,11 +5459,23 @@
       no_confirm_channel:'마켓이 받는 날만 알려주고 「입금했다」는 안 알려줘요 — 통장이나 마켓 정산 화면과 대조가 필요합니다',
       not_in_batch:'마켓 정산 회차에 아직 안 들어갔어요 — 며칠 뒤 다시 보세요'
     };
-    function renderKpi(k,reasons){
+    function renderKpi(k,reasons,fast,wallet,rg){
       var tot=k.total_uncollected||0;
-      var pc=function(x){return tot?Math.max(0,x/tot*100):0;};
-      var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)</div>'
-        +'<div class="v">'+fmt(tot)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
+      // ⚡ 빠른정산으로 **이미 받은 돈**은 서버가 각 기간 칸에서 이미 빼 놓았다(apply_fast_withdrawn).
+      //   여기서는 **앞으로 받을 돈만** 그린다 — 이미 받은 조각을 이 막대에 끼우면
+      //   「기간 내 얼마 받나」가 흐려진다(2026-08-06 사장님 지시).
+      var fw=k.fast_withdrawn||0;                     // 칸에서 실제로 뺀 금액
+      var fastDone=(fast&&fast.수령완료분)||0;        // 이미 「받은 것」 쪽 — 총액과 무관
+      var fastTot=fw+fastDone;
+      // 💰 셀러월렛 미인출 잔액 — 기간 칸엔 못 나눠 총액에서만 뺀다(서버 kpi 와 같은 규칙).
+      var wb=k.wallet_balance||0;
+      // 🚀 로켓그로스 — 마켓플레이스와 완전히 별도라 여태 「받을 돈」에서 통째로 빠져 있었다.
+      //   회차 단위라 기간 칸엔 못 나눈다 → 총액에만 **더한다**(사장님 지시: 총예정금액 포함).
+      var rgv=k.rocket_growth||0;
+      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw-wb+rgv);
+      var pc=function(x){return net?Math.max(0,x/net*100):0;};
+      var h='<div class="kpi hero"><div class="t">앞으로 받을 돈 (끝까지 다 받으면)</div>'
+        +'<div class="v">'+fmt(net)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
         +'<div class="stack">'
         +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:'+CLR.confirmed+'"></div>'
         +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:'+CLR.unconfirmed+'"></div>'
@@ -4349,15 +5484,41 @@
         +'<div class="legend"><span>'+dot(CLR.confirmed)+'확정 '+fmt(k.confirmed_future)+'</span>'
         +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
         +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
-        +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div></div>'
+        +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div>'
+        +((fw||wb)?('<div class="fastnote">'+dot(CLR.fast)+'이미 받으신 돈은 <b>빼고</b> 계산했어요'
+             +(fw?(' · 빠른정산 <b>'+fmt(fw)+'원</b>'):'')
+             +(wb?(' · 셀러월렛 잔액 <b>'+fmt(wb)+'원</b>'):'')+'</div>'):'')
+        +(rgv?('<div class="fastnote" style="background:rgba(255,255,255,.12)">'
+             +'🚀 로켓그로스 <b>'+fmt(rgv)+'원</b>도 <b>더해서</b> 계산했어요 '
+             +'<span style="opacity:.85">(위 막대는 마켓플레이스 몫만 — 로켓그로스는 회차 단위라 기간에 못 나눠요)</span></div>'):'')
+        +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
         +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
-        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>';
+        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
+        // 🚀 로켓그로스 별도 카드(사장님 지시). 위 총액에는 **더해져** 있다.
+        //   빠른정산 선인출은 이미 뺀 뒤 금액이라 「받을 돈」이 맞다.
+        +(((rg||{}).지급액||0)?('<div class="kpi"><div class="t">🚀 로켓그로스</div>'
+             +'<div class="v">'+fmt(rgv)+'</div><div class="s">'
+             +'지급액 '+fmt(rg.지급액)+' − 빠른정산 '+fmt(rg.빠른정산)
+             +' · '+(rg.회차수||0)+'회차'
+             +'</div></div>'):'');
       // ── B3: 「이미 끝난 것」은 점선 상자로 묶어 받을 돈과 갈라놓는다 ──
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
-        +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>';
+        +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>'
+        // ⚡ 별도 카드 — 「빠른정산으로 미리 받은 돈」(사장님 요청). 위 「앞으로 받을 돈」에는
+        //   이미 빠져 있으므로 여기서는 **받은 사실만** 담백하게 보여준다.
+        +(fastTot?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
+             +'<div class="v">'+fmt(fastTot)+'</div><div class="s">'
+             +((fast.계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액);}).join(' · ')
+               ||'셀러월렛 인출')+'</div></div>'):'')
+        // 💰 아직 안 찾아간 돈 — 이미 사장님 것이라 「받을 돈」이 아니다. 인출만 하면 되는 돈.
+        +(wb?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'셀러월렛에 안 찾아간 돈</div>'
+             +'<div class="v">'+fmt(wb)+'</div><div class="s">인출만 하면 되는 돈 · '
+             +(((wallet||{}).계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액)
+               +(a.적은날?(' ('+a.적은날+')'):'');}).join(' · ')||'「⚙️ 계산 규칙」에서 적음')
+             +'</div></div>'):'');
       $('#spn-kpi').innerHTML=h;
       $('#spn-done').innerHTML='<div class="donebox">'
         +'<div class="donettl">✔️ 이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
@@ -4375,7 +5536,8 @@
     // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
     function renderPayout(data){
       lastAgg=data;
-      renderKpi(data.kpi||{}, data.overdue_reasons||{});
+      renderKpi(data.kpi||{}, data.overdue_reasons||{}, data.빠른정산||{},
+                data.셀러월렛||{}, data.로켓그로스||{});
       renderReasons(data.overdue_reasons||{});
       var m=data.meta||{};
       var meta='<div class="meta-chips">받는 날 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
@@ -4391,6 +5553,11 @@
       MK.forEach(function(mk){h+='<th class="n">'+MKL[mk]+'</th>';});
       h+='<th class="n">합계</th></tr>';
       data.buckets.forEach(function(b,bi){
+        // ⚡ 그 기간에 빠른정산으로 이미 받은 몫이 있으면 줄을 하나 더 세운다.
+        //   없으면 표가 그대로 — 안 쓰는 계정에까지 줄이 늘지 않게.
+        var fastSum=0;
+        MK.forEach(function(mk){var s=(b.markets||{})[mk]; if(s&&s.fast) fastSum+=s.fast;});
+        var rows=fastSum?3:2;
         ['confirmed','unconfirmed'].forEach(function(cat,ci){
           var rowSum=0;
           var cells='';
@@ -4399,11 +5566,21 @@
             var v=slot?slot[cat]||0:0; rowSum+=v;
             cells+='<td class="n click" data-b="'+esc(b.key)+'" data-mk="'+mk+'" data-cat="'+cat+'">'+(v?fmt(v):'—')+'</td>';
           });
-          h+='<tr>'+(ci===0?'<td class="txt" rowspan="2"><b>'+bucketLabel(b.key)+'</b></td>':'')
+          h+='<tr>'+(ci===0?'<td class="txt" rowspan="'+rows+'"><b>'+bucketLabel(b.key)+'</b>'
+              +(fastSum?('<div class="bktot">받을 돈 '+fmt(b.total||0)+'</div>'):'')+'</td>':'')
             +'<td class="c"><span class="chip '+(cat==='confirmed'?'cat-c':'cat-u')+'">'+(cat==='confirmed'?'확정':'미확정')+'</span></td>'
             +cells+'<td class="n"><b>'+fmt(rowSum)+'</b></td></tr>';
           h+='<tr class="exp" data-exp="'+esc(b.key)+'|'+cat+'" style="display:none"><td colspan="'+(MK.length+3)+'"></td></tr>';
         });
+        if(fastSum){
+          var fcells='';
+          MK.forEach(function(mk){
+            var s=(b.markets||{})[mk]; var v=s&&s.fast?s.fast:0;
+            fcells+='<td class="n fastcell">'+(v?('−'+fmt(v)):'—')+'</td>';
+          });
+          h+='<tr class="fastrow"><td class="c"><span class="chip cat-f">빠른정산</span></td>'
+            +fcells+'<td class="n"><b>−'+fmt(fastSum)+'</b></td></tr>';
+        }
       });
       h+='</table>';
       $('#spn-table').innerHTML=meta+h;
@@ -4416,6 +5593,21 @@
     function renderOrder(data){
       var sub=(data.meta&&data.meta.revenue_substituted)||0;
       var meta=sub?'<div class="meta-chips">실결제금액이 비어 상품금액+배송비로 대신 계산한 주문 '+sub+'건</div>':'';
+      // 🔴 정산율 감시 — 수수료와 크게 어긋나면 돈이 틀어진 신호(라이브 90~92% 실측).
+      var rw=data.rate_watch||{}, warn=[], oks=[];
+      Object.keys(rw).forEach(function(mk){
+        var w=rw[mk]; if(w.기대수수료==null) return;
+        var t=(MKL[mk]||mk)+' 정산율 '+w.정산율+'% (수수료 '+w.실수수료+'% · 기대 '+w.기대수수료+'%)';
+        (w.경고?warn:oks).push(t);
+      });
+      if(warn.length||oks.length){
+        meta+='<div class="rsum" style="margin:8px 0 4px">'
+          +(warn.length?'<div class="r" style="border-color:#FEC84B;background:var(--연한-노랑,#FFFAEB)">'
+            +'<b>⚠️ 수수료가 기대와 다릅니다</b><div class="how">'+warn.map(esc).join('<br>')+'</div>'
+            +'<div class="how">정산액이 크거나 매출이 작게 잡혔을 수 있어요 — 마켓 정산 화면과 한 건만 대조해 보세요</div></div>':'')
+          +(oks.length?'<div class="r"><b>✅ 수수료 정상 범위</b><div class="how">'+oks.map(esc).join('<br>')+'</div></div>':'')
+          +'</div>';
+      }
       if(!data.buckets||!data.buckets.length){
         $('#spn-table').innerHTML=meta+'<div class="state">이 기간에 잡히는 주문이 없습니다.</div>'; return;
       }
@@ -4590,6 +5782,10 @@
       box.innerHTML='<div style="background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px">'
         +'<b style="font-size:13.5px">'+esc(extraOpen.title)+'</b>'
         +' <span class="note" style="margin-left:6px">'+rows.length+'건 · '+fmt(sum)+'원</span>'
+        // 목록은 2,000건에서 잘린다 — 통장 대조는 엑셀로(상한 없음).
+        +' <a class="btn" style="float:right;text-decoration:none;font-size:12px;padding:5px 12px" '
+        +'href="/orders/api/settle-plan/export.xlsx?category='+extraOpen.cat+'">⬇ 엑셀로 전건 받기</a>'
+        +(extraRows.length>=2000?'<div class="note" style="color:var(--글자-주황,#B45309)">⚠️ 화면에는 2,000건까지만 보여요 — 전부 보시려면 엑셀로 받으세요</div>':'')
         +(extraOpen.cat==='overdue'?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
         +'<div style="margin-top:8px">'+chipHtml()+'</div>'
         // 🔴 마켓·계정은 **칩으로 거르고** 목록은 한 표에 **받는 날 최근순**(사장님 지시).
@@ -4632,6 +5828,30 @@
         +Math.max(0,Math.min(120,c.measured_days))+'" style="padding:2px 8px;font-size:11px;margin-left:4px">실측값으로</button>';
       return h;
     }
+    // 💰 셀러월렛에 아직 안 찾아간 돈 — 빠른정산 쓰는 계정만 묻는다(그 계정에만 생기는 돈).
+    //   빠른정산 계정을 아직 안 고르셨으면 안내만 한다(빈 칸을 늘어놓지 않는다).
+    function walletBox(rules){
+      var rows='';
+      MK.forEach(function(mk){
+        ((rules.fast_accounts||{})[mk]||[]).forEach(function(nm){
+          var ent=(((rules.wallet_balance||{})[mk])||{})[nm]||{};
+          rows+='<div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px">'
+            +'<span style="min-width:170px">'+MKL[mk]+' · '+esc(nm)+'</span>'
+            +'<input type="number" min="0" step="1" data-wbmk="'+esc(mk)+'" data-wbacc="'+esc(nm)+'"'
+            +' value="'+esc(ent['금액']||'')+'" placeholder="0" style="width:130px">원'
+            +(ent['적은날']?'<span class="note" style="font-size:11.5px">'+esc(ent['적은날'])+' 기준</span>':'')
+            +'</div>';
+        });
+      });
+      if(!rows) rows='<div class="note" style="margin-top:6px">위 표에서 빠른정산 쓰는 계정을 먼저 골라 주세요.</div>';
+      return '<div style="margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--n100,#F8FAFB)">'
+        +'<b style="font-size:13px">💰 셀러월렛에 아직 안 찾아간 돈</b>'
+        +'<div class="note" style="margin-top:4px">이미 사장님 돈인데 인출만 안 한 금액이에요. '
+        +'인출해야 마켓 정산에서 빠지기 때문에, 적어 두지 않으면 <b>앞으로 받을 돈이 그만큼 부풀어</b> 보입니다.</div>'
+        +rows
+        +'<div class="note" style="margin-top:6px">쿠팡 Wing → 「셀러월렛 빠른정산」 화면의 「빠른정산금 잔액」을 그대로 적어 주세요. '
+        +'저희가 읽을 수 있는 창구가 없어 직접 적으셔야 합니다.</div></div>';
+    }
     function openRules(){
       $('#spn-rules-modal').classList.add('on');
       $('#spn-rules-body').innerHTML='<div class="state">불러오는 중…</div>';
@@ -4663,6 +5883,10 @@
           +'<input type="number" min="1" max="365" id="spn-assume-days" value="'+esc(rules.assume_paid_after_days)+'"> 일 넘게 지나면 '
           +'<b>이미 받은 것</b>으로 보고 총액에서 뺍니다(별도 칸에는 계속 보여요).</div>'
           +'<div class="note" style="margin-top:4px">마켓이 「입금했다」를 알려주지 않아 안 받았다고 단정할 수 없기 때문이에요.</div></div>'
+          // 💰 셀러월렛 미인출 잔액 — 이미 사장님 돈인데 아직 안 찾아간 돈.
+          //   인출해야 마켓 회차에서 공제되므로, 그 전까지는 「받을 돈」에 그대로 서 있다.
+          //   읽을 API 가 없어(별도 시스템) 손으로 적는다. 빠른정산 쓰는 계정만 물어본다.
+          +walletBox(rules)
           +'<div class="note">추정 날짜에만 쓰이는 값입니다 — 마켓이 날짜를 준 주문(실측)은 이 표와 무관하게 그 날짜 그대로예요.</div>';
         $('#spn-rules-body').innerHTML=h;
         // 「실측값으로」 — 그 줄의 「확정→입금」 칸에 실측 중앙값을 넣는다(저장은 따로).
@@ -4686,6 +5910,18 @@
       });
       var ad=$('#spn-assume-days');
       if(ad) body.assume_paid_after_days=Number(ad.value);
+      // 💰 셀러월렛 잔액 — 0·빈칸은 담지 않는다(안 적은 것과 0원을 구분할 필요가 없다).
+      //   적은 날을 함께 남긴다 — 잔액은 매일 바뀌므로 「언제 기준 숫자인지」가 곧 신뢰도다.
+      var today=new Date().toISOString().slice(0,10);
+      body.wallet_balance={};
+      document.querySelectorAll('#spn-rules-body input[data-wbmk]').forEach(function(inp){
+        var v=Math.max(0,Math.round(Number(inp.value)||0));
+        if(v>0){
+          var mk=inp.dataset.wbmk;
+          body.wallet_balance[mk]=body.wallet_balance[mk]||{};
+          body.wallet_balance[mk][inp.dataset.wbacc]={'금액':v,'적은날':today};
+        }
+      });
       fetch('/orders/api/settle-plan/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
         .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
         .then(function(x){
@@ -4721,6 +5957,68 @@
         load();};
     });
     $('#spn-rules-btn').onclick=openRules;
+    // 🚀 로켓그로스 가져오기 — 확장이 Wing 세션으로 긁고, **인증된 이 페이지가** 서버로 넣는다
+    //   (확장 SW 의 fetch 는 mou-m 인증 쿠키를 안 실어 0건이 된다 — 롯데온에서 겪은 함정).
+    (function(){
+      var b=$('#spn-rg-btn'), m=$('#spn-rg-msg');
+      if(!b) return;
+      b.onclick=async function(){
+        if(!window.MoumExt||!window.MoumExt.installed()){
+          m.style.color='var(--글자-빨강,#B91C1C)';
+          m.textContent='확장(모음전 크롤러)이 없어요 — 크롬 확장을 로드해 주세요'; return; }
+        b.disabled=true; m.style.color='var(--sub)'; m.textContent='쿠팡 Wing 에서 가져오는 중…';
+        try{
+          var r=await window.MoumExt.send('coupang.rg.settle.crawl',{},120000);
+          var resp=(r&&r.resp)?r.resp:r;
+          if(!resp||!resp.ok){
+            m.style.color='var(--글자-빨강,#B91C1C)';
+            m.textContent='실패: '+((resp&&resp.error)||'알 수 없음')
+              +((resp&&resp.needLogin)?' — 쿠팡 Wing 에 로그인한 뒤 다시 눌러 주세요':'');
+            return; }
+          var pr=await fetch('/api/margin/rg-settlement',{method:'POST',credentials:'include',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({account:resp.account||'',source:'manual',rows:resp.rows||[]})
+          }).then(function(x){return x.json();}).catch(function(){return null;});
+          m.style.color='var(--글자-초록,#15803D)';
+          m.textContent='✔ '+(resp.collected||0)+'회차 가져옴 · 저장 '+((pr&&pr.saved)||0)+'건'
+            +(resp.account?(' · '+resp.account):'');
+          load();                                   // 총액·카드 다시 계산
+        }catch(e){ m.style.color='var(--글자-빨강,#B91C1C)'; m.textContent='실패: '+e; }
+        finally{ b.disabled=false; }
+      };
+    })();
+    // 🔵 11번가 미확정 가져오기 — 결제일 축 90일. 미매칭 건수를 **화면에 그대로 적는다**
+    //   (조인 축이 어긋나 0건이 되어도 「성공」으로 보이면 같은 오판이 반복된다).
+    (function(){
+      var b=$('#spn-el-btn'), m=$('#spn-el-msg');
+      if(!b) return;
+      b.onclick=async function(){
+        if(!window.MoumExt||!window.MoumExt.installed()){
+          m.style.color='var(--글자-빨강,#B91C1C)';
+          m.textContent='확장(모음전 크롤러)이 없어요 — 크롬 확장을 로드해 주세요'; return; }
+        b.disabled=true; m.style.color='var(--sub)'; m.textContent='11번가 셀러오피스에서 가져오는 중…';
+        try{
+          var r=await window.MoumExt.send('eleven11.unconf.crawl',{days:90},180000);
+          var resp=(r&&r.resp)?r.resp:r;
+          if(!resp||(!resp.ok&&!(resp.rows||[]).length)){
+            m.style.color='var(--글자-빨강,#B91C1C)';
+            m.textContent='실패: '+((resp&&resp.error)||'알 수 없음')
+              +((resp&&resp.needLogin)?' — 11번가 셀러오피스에 로그인한 뒤 다시 눌러 주세요':'');
+            return; }
+          var pr=await fetch('/api/margin/eleven11-unconf',{method:'POST',credentials:'include',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({source:'manual',rows:resp.rows||[]})
+          }).then(function(x){return x.json();}).catch(function(){return null;});
+          var miss=(pr&&pr['미매칭'])||0;
+          m.style.color=miss?'var(--글자-주황,#B45309)':'var(--글자-초록,#15803D)';
+          m.textContent='✔ '+(resp.collected||0)+'건 가져옴 · 반영 '+((pr&&pr['적용'])||0)+'건'
+            +(miss?(' · 우리 주문에 없음 '+miss+'건'):'')
+            +(resp.failedChunks?(' · ⚠ 못 읽은 기간 '+resp.failedChunks+'토막'):'');
+          load();                                   // 총액·카드 다시 계산
+        }catch(e){ m.style.color='var(--글자-빨강,#B91C1C)'; m.textContent='실패: '+e; }
+        finally{ b.disabled=false; }
+      };
+    })();
     $('#spn-rules-close').onclick=function(){$('#spn-rules-modal').classList.remove('on');};
     $('#spn-rules-save').onclick=saveRules;
     load();

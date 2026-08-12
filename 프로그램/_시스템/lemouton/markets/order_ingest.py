@@ -735,6 +735,101 @@ def restore_eleven11_blank_orders(days: int = 45, limit: int = 8,
                                 retry_hours=retry_hours, session=session)
 
 
+_STALESTAT_STAMP = "_stalestat_tried_at"       # 굳은 상태 재조회 간격 표식(row JSON 안)
+# 「이 상태로 오래 있으면 이상하다」 — 배송이 끝났으면 대개 8일 안에 자동 구매확정된다.
+_STALE_STATUSES = ("배송완료", "배송중", "배송준비중")
+
+
+def refresh_stale_delivered(market: str, min_age_days: int = 30,
+                            max_age_days: int = 180, limit: int = 30,
+                            retry_hours: int = 72, *, session=None) -> dict:
+    """오래도록 「배송완료」에 굳어 있는 주문을 **주문번호 단건 조회**로 되살린다.
+
+    🔴🔴 왜(2026-08-08 라이브) — 롯데온 3,941만원의 정체가 이것이었다. 3~6월 결제인데
+      아직 「배송완료」로 남은 622건. 「입금 확인 창구가 없다」가 아니라 **주문 상태가
+      낡은 것**이었다. 배송이 끝났으면 보통 8일 안에 자동 구매확정되므로, 30일이 지나도
+      배송완료면 마켓에선 이미 구매확정·정산이 끝났는데 우리만 못 따라간 것이다.
+
+    ■ 왜 목록 조회로는 영영 안 잡히나
+      우리 주문 갱신은 **최근 21일 창**만 본다. 그 창을 지나 상태가 바뀐 주문은 목록에
+      다시 안 나오고, 우리 저장분은 마지막으로 본 상태 그대로 굳는다. 아무도 에러를
+      내지 않으므로 **조용히** 틀린다(정산예정 총액이 계속 「받을 돈」에 남는다).
+
+    ■ 왜 「비어 있음」 자가치유(restore_blank_orders)가 이걸 못 잡나
+      이 행들은 상품명·단가가 **멀쩡히 차 있다**. 비어 있는 게 아니라 **낡았다**.
+      그래서 고르는 기준이 다르다 — 상태 + 나이.
+
+    ★ 굶김 방지: 되조회해도 안 바뀌는 주문(마켓이 정말 배송완료로 두는 경우)이 앞자리를
+      계속 차지하지 않도록 시도 시각을 새기고 retry_hours 안에는 건너뛴다.
+    ★ max_age_days 로 상한을 둔다 — 마켓 단건 조회도 무한 과거를 주지는 않는다.
+    """
+    fn_name = _BY_NO_INGEST.get(market)
+    if not fn_name:
+        raise ValueError(f"단건 조회를 지원하지 않는 마켓: {market} "
+                         f"({'|'.join(sorted(_BY_NO_INGEST))})")
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return {"targets": 0, "changed": 0}
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from sqlalchemy.orm.attributes import flag_modified
+
+        from lemouton.markets.models_orders import MarketOrderLine
+        now = _dt.datetime.now(KST)
+        newest = (now - _dt.timedelta(days=min_age_days)).strftime("%Y-%m-%d")
+        oldest = (now - _dt.timedelta(days=max_age_days)).strftime("%Y-%m-%d")
+        retry_cut = _dt.datetime.utcnow() - _dt.timedelta(hours=retry_hours)
+        rows = (session.query(MarketOrderLine)
+                .filter(MarketOrderLine.market == market,
+                        MarketOrderLine.status.in_(_STALE_STATUSES),
+                        MarketOrderLine.order_date >= oldest,
+                        MarketOrderLine.order_date <= newest)
+                .order_by(MarketOrderLine.order_date.asc()).all())   # 오래된 것부터
+        onos, targets, before = [], [], {}
+        for o in rows:
+            if not o.order_no or o.order_no in onos:
+                continue
+            row = o.row or {}
+            tried = str(row.get(_STALESTAT_STAMP) or "")
+            if tried:
+                try:
+                    if _dt.datetime.fromisoformat(tried) > retry_cut:
+                        continue
+                except ValueError:
+                    pass
+            onos.append(o.order_no)
+            targets.append(o)
+            before[o.line_uid] = o.status or ""
+            if len(onos) >= limit:
+                break
+        if not onos:
+            return {"targets": 0, "changed": 0}
+        stamp = _dt.datetime.utcnow().isoformat(timespec="seconds")
+        for o in targets:
+            o.row = {**(o.row or {}), _STALESTAT_STAMP: stamp}
+            flag_modified(o, "row")
+        session.commit()
+        st = globals()[fn_name](onos, session=session)
+        # 「조회했다」와 「바뀌었다」는 다르다 — 다시 읽어 상태 변화만 센다.
+        after = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == market,
+                         MarketOrderLine.order_no.in_(onos)).all())
+        moved = {}
+        for o in after:
+            was = before.get(o.line_uid)
+            if was is not None and (o.status or "") != was:
+                moved[f"{was}→{o.status or '(공란)'}"] = \
+                    moved.get(f"{was}→{o.status or '(공란)'}", 0) + 1
+        return {"targets": len(onos), "changed": sum(moved.values()),
+                "moves": moved, "not_found": st.get("not_found") or []}
+    finally:
+        if own:
+            session.close()
+
+
 def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,
                                    min_age_hours: int = 12, *,
                                    session=None) -> dict:
@@ -1238,9 +1333,36 @@ def refresh_settlement_coupang(*, since=None, until=None,
                              (since + _dt.timedelta(days=i)
                               for i in range(0, max(1, (until - since).days) + 1, 15))}
                             | {until.strftime("%Y-%m")})
+            fast_rows = []
+            # 🔴🔴 빠른정산 인출액은 **전용 필드가 없어 공제금액에서 역산**한다. 그래서 빠른정산을
+            #   안 쓰는 계정의 다른 공제(정산차감·전주채권 등)까지 「미리 받은 돈」으로 잘못 부를 수 있다.
+            #   2026-08-06 라이브: 세소(빠른정산 계정) 말고 **브랜드마켓(쿠팡)에도 214만**이 잡혔다.
+            #   → 받지도 않은 돈으로 총액을 깎게 된다. **사장님이 지정한 빠른정산 계정만** 담는다.
+            try:
+                from lemouton.margin.settle_plan_rules import load_rules
+                _fast_accts = set((load_rules().get("fast_accounts") or {}
+                                   ).get("coupang") or [])
+            except Exception:   # noqa: BLE001 — 규칙을 못 읽으면 아무 계정도 안 담는다(안전측)
+                _fast_accts = set()
             for ym in months:
                 for h in _cp_settle.fetch_settlement_histories(ym, client=cli):
                     hist_rows.append(h)
+                    # ⚡ 빠른정산 선인출 = **이미 통장에 들어온 돈**. 주문별 정산액엔 그대로
+                    #   남아 있어(회차 단위라 건별로 못 나눔) 안 빼면 「받을 돈」이 부푼다.
+                    #   Wing 실측(세소 6월): 대상액 1,108만 중 291만을 7/14 에 이미 인출.
+                    if (int(h.get("fastWithdrawn") or 0) > 0
+                            and (name or "") in _fast_accts):
+                        fast_rows.append(dict(h, market="coupang", account=name or ""))
+            if fast_rows:
+                from lemouton.margin import settle_fast_ledger as _fl
+                stat["fast_rows"] = stat.get("fast_rows", 0) + _fl.record(fast_rows)
+            # 설정에서 빠졌거나 예전에 잘못 담긴 계정 행을 걷어낸다(위 오염 이력 참고)
+            try:
+                from lemouton.margin import settle_fast_ledger as _fl2
+                stat["fast_pruned"] = (stat.get("fast_pruned", 0)
+                                       + _fl2.prune_accounts("coupang", _fast_accts))
+            except Exception:   # noqa: BLE001 — 정리 실패가 스윕을 막지 않는다
+                pass
         except Exception as e:   # noqa: BLE001 — 지급내역이 없어도 정산액 갱신은 진행
             msg = (f"[coupang·{name or '대표'}] 지급내역조회 실패: "
                    f"{type(e).__name__}: {e}")
@@ -1436,7 +1558,7 @@ def refresh_settlement_smartstore(*, since=None, until=None,
         own = True
     try:
         from lemouton.markets.models_orders import MarketOrderLine
-        from lemouton.markets.order_export import _finalize_rows
+        from lemouton.markets.order_export import _finalize_rows, _to_int
         # 매칭 키가 있는 행만 갱신되므로 전 기간을 훑어도 엉뚱한 행을 건드리지 않는다
         # (주문일↔결제일 하루 어긋남으로 놓치지 않게 날짜로 좁히지 않는다 — 쿠팡과 동일).
         lines = (session.query(MarketOrderLine)
@@ -1456,12 +1578,20 @@ def refresh_settlement_smartstore(*, since=None, until=None,
                 if v and row.get(k) != v:
                     row[k] = v
                     changed = True
-            if str(row.get("_settle_source") or "") != "real":
-                settle = prod[poid]
-                oid = poid2oid.get(poid)
-                if oid and oid not in _deliv_used and oid in deliv:
-                    settle += deliv[oid]          # 배송비 정산은 주문당 1회
-                    _deliv_used.add(oid)
+            # M열 = 상품 정산만 — 배송비 정산은 안 더한다.
+            #  🔴 되채움도 빌더(order_export.smartstore_order_rows)와 **같은 규약**이어야
+            #    한다. 한쪽만 고치면 같은 주문이 경로에 따라 다른 값이 된다(원천 분열).
+            #    옛 규칙은 배송비 정산을 더했고, `_finalize_rows` 가 N열에서 고객배송비를
+            #    또 더해 배송비가 두 번 들어갔다(2026-08-07 라이브 실측 2,910원 과다).
+            #
+            #  🔴🔴 **이미 `real` 인 행도 본다.** 규약 전환 전에 저장된 행은 배송비가 섞인
+            #    채로 `real` 이라, 「이미 real 이면 안 건드린다」가 그 옛값을 영영 보호한다
+            #    (11번가 「받은 날」이 real 행에 안 붙던 것과 같은 부류 — PR#907).
+            #    정산조회가 주는 상품분과 **다를 때만** 쓴다 → 값이 같으면 안 쓰므로
+            #    매번 전 행을 다시 쓰는 일은 없다.
+            settle = prod[poid]
+            _옛값 = _to_int(row.get("정산예정금액"))
+            if str(row.get("_settle_source") or "") != "real" or _옛값 != settle:
                 stat["targets"] += 1
                 row["정산예정금액"] = settle
                 row["_settle_source"] = "real"
@@ -1563,6 +1693,14 @@ def refresh_settlement_eleven11(*, since=None, until=None,
             date_changed = bool(_pdt) and row.get("정산예정일") != _pdt
             if _pdt:
                 new_row["정산예정일"] = _pdt
+            # 🔴 stlDy(정산일) = **정산이 끝난 날** = 「입금됐다」의 유일한 근거.
+            #   이 목록 자체가 구매확정분이라 여기 실린 라인은 정산이 이뤄진 것이다.
+            #   (2026-08-06 지도 정독 전엔 금액만 읽어, 11번가 520만이 계속 「입금일
+            #    지남·미확인」에 서 있었다 — 받았는지 못 받았는지 판정할 근거가 없었다)
+            _paid = ent.get("정산일")
+            if _paid and row.get("_settle_paid_date") != _paid:
+                new_row["_settle_paid_date"] = _paid
+                date_changed = True
             new_row["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
             new_row["_settle_source"] = "real"
             if "옵션추가금" in ent:                # 주문 API 엔 없는 실값(정산 optAmt 가 유일 소스)
@@ -1583,7 +1721,15 @@ def refresh_settlement_eleven11(*, since=None, until=None,
                     if not date_changed:
                         continue                  # 정상 real·날짜 변화 없음 → 손 안 댐
                     row2 = dict(row)              # 금액 불가침 — 날짜만 백필
-                    row2["정산예정일"] = _pdt
+                    # 🔴 [2026-08-07 라이브] 여기서 **정산예정일만** 쓰고 있었다.
+                    #   이미 real 인 행은 이 경로를 타는데, 「입금 확인」의 근거인 정산일
+                    #   (_settle_paid_date)이 빠져 11번가 110건(2,098만)이 stlDy 가 실제로
+                    #   오는데도 계속 「입금일 지남·미확인」에 남았다(진단으로 stlDy 확인 후 발견).
+                    #   ★ 없는 값으로 덮지 않는다 — _pdt 가 없는데 대입하면 날짜를 지운다.
+                    if _pdt:
+                        row2["정산예정일"] = _pdt
+                    if _paid:
+                        row2["_settle_paid_date"] = _paid
                     o.row = row2
                     o.last_seen_at = _store._now()
                     stat["updated"] += 1

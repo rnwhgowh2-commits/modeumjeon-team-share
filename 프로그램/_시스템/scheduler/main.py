@@ -327,8 +327,52 @@ def _order_settle_sweep_tick() -> None:
                             len(st['errors']))
             for e in st['errors'][:3]:
                 logger.warning('order_settle_sweep[eleven11] %s', e)
+        # ── 깊은 백필 — 하루 한 마켓씩 과거 180일 ─────────────────────────────
+        #  🔴 위 스윕들은 최근 45~75일만 본다. 그 창이 닫힌 뒤 확정된 정산은 **영영 안 들어와**
+        #    「이미 받았을 것(확인 불가)」로 쌓인다(2026-08-07 라이브 실측 **1억 5,242만원**).
+        #    손으로 과거를 넓게 훑으니 1억 5,433만이 「확인」으로 넘어갔고, 덤으로 옥션 정산율
+        #    거짓 경고(3.7% vs 15%)도 사라졌다(정산이 덜 채워져 과대로 보이던 것).
+        #  ★ 한 틱에 전 마켓을 훑으면 무겁다(스스는 하루씩 조회라 180일=계정당 180콜)
+        #    → 하루 한 마켓씩 순환. 6일에 한 바퀴면 과거 정산엔 충분하다.
+        _deep_backfill_once(sup)
     except Exception:                                   # noqa: BLE001
         logger.exception('order settle sweep failed')
+
+
+def _deep_backfill_once(sup) -> None:
+    """오늘 몫 한 마켓만 과거 180일로 훑는다(하루 1회·순환). 실패해도 다음 마켓으로 넘어간다."""
+    from datetime import date as _date
+
+    from lemouton.markets import settle_backfill as _bf
+    from lemouton.markets.order_ingest import (refresh_settlement,
+                                               refresh_settlement_coupang,
+                                               refresh_settlement_eleven11,
+                                               refresh_settlement_lotteon,
+                                               refresh_settlement_smartstore)
+    today = _date.today()
+    mk = _bf.due_market(today=today, supported=set(sup))
+    if not mk:
+        return
+    since, until = _bf.window(today=today)
+    fn = {'coupang': refresh_settlement_coupang,
+          'smartstore': refresh_settlement_smartstore,
+          'lotteon': refresh_settlement_lotteon,
+          'eleven11': refresh_settlement_eleven11}.get(mk)
+    st = None
+    try:
+        st = fn(since=since, until=until) if fn else refresh_settlement(
+            mk, since=since, until=until)
+        logger.info('settle_deep_backfill[%s]: %s~%s · 정산 %d건 → 갱신 %d · 실패 %d',
+                    mk, since.date(), until.date(), st.get('settle_rows', 0),
+                    st.get('updated', 0), len(st.get('errors') or []))
+        for e in (st.get('errors') or [])[:3]:
+            logger.warning('settle_deep_backfill[%s] %s', mk, e)
+    except Exception as e:                              # noqa: BLE001
+        # 조용히 넘기지 않는다 — 어느 마켓이 왜 막혔는지 로그와 기록에 남긴다.
+        logger.exception('settle_deep_backfill[%s] 실패', mk)
+        st = {'errors': [f'{type(e).__name__}: {str(e)[:200]}']}
+    finally:
+        _bf.mark_done(mk, today=today, stat=st or {})
 
 
 def _order_invoice_sweep_tick() -> None:
@@ -453,6 +497,18 @@ def _order_ingest_tick_fast() -> None:
                 logger.info('order_ingest_fast[%s]: 공란 채움 %s', _mk, st)
         except Exception:                               # noqa: BLE001
             logger.exception('%s blank-order fill failed', _mk)
+    # 「배송완료」에 굳은 옛 주문 되살리기 — 우리 목록 조회는 최근 21일 창만 본다.
+    #  그 창을 지나 구매확정된 주문은 목록에 다시 안 나와 저장분이 낡은 채로 굳는다.
+    #  2026-08-08 라이브: 롯데온 3~6월 622건(3,941만)이 아직 배송완료였다. 「입금 확인
+    #  창구가 없다」가 아니라 **주문 상태가 낡은 것**이었다. 에러가 안 나므로 조용히 틀린다.
+    for _mk, _lim in (('lotteon', 20), ('eleven11', 10)):
+        try:
+            from lemouton.markets.order_ingest import refresh_stale_delivered
+            st = refresh_stale_delivered(_mk, limit=_lim)
+            if st.get('changed'):
+                logger.info('order_ingest_fast[%s]: 굳은 배송완료 되살림 %s', _mk, st)
+        except Exception:                               # noqa: BLE001
+            logger.exception('%s stale-delivered refresh failed', _mk)
 
 
 def _auto_confirm_tick():

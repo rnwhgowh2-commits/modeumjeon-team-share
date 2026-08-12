@@ -25,6 +25,22 @@ def _clean_code(s: str) -> str:
     return '_'.join((s or '').split())[:64]
 
 
+def _derive_code(brand: str, name: str) -> str:
+    """상품 코드 = 「브랜드_이름」 — 단, **이름이 이미 브랜드로 시작하면 겹치지 않게**.
+
+    🔴 사장님이 상품 이름에 브랜드를 같이 적으시는 게 자연스럽다
+       (「르무통 메이트 스니커즈」). 그대로 붙이면 `르무통_르무통_메이트_스니커즈`
+       가 되어 코드가 지저분해진다(2026-08-06 라이브 실측).
+       화면에 보이는 **이름은 손대지 않는다** — 코드만 겹침을 없앤다.
+    """
+    b, n = (brand or '').strip(), (name or '').strip()
+    if b and n.lower().startswith(b.lower()):
+        꼬리 = n[len(b):].lstrip(' _-')
+        if 꼬리:                       # 이름이 브랜드뿐이면 그대로 둔다(빈 코드 방지)
+            n = 꼬리
+    return _clean_code(f'{b}_{n}' if b else n)
+
+
 def create_bundle_from_matrix(session, *, matrix: MatrixOption, name: str,
                               brand: str, category: str = '',
                               model_code: str = '', skus: list[str] | None = None,
@@ -54,7 +70,15 @@ def create_bundle_from_matrix(session, *, matrix: MatrixOption, name: str,
     if not brand:
         raise MatrixError('브랜드를 넣어 주세요. (한 상품에 하나만)')
 
-    code = _clean_code(model_code) or _clean_code(f'{brand}_{name}')
+    code = _clean_code(model_code) or _derive_code(brand, name)
+    # 🔴 「단독_」로 시작하는 코드는 만들지 못하게 막는다.
+    #   상품관리 목록·타워는 `~model_code.like('단독_%')` 로 그 앞글자를 걸러낸다.
+    #   브랜드를 「단독」으로 넣으면 코드가 `단독_이름` 이 되어, **파는 상품인데도**
+    #   상품관리에서 영영 안 보인다 — 조용히 사라지는 쪽이라 알아채기도 어렵다.
+    if code.startswith('단독_'):
+        raise MatrixError('「단독_」 로 시작하는 이름은 쓸 수 없어요 — '
+                          '창고 전용 물건을 가리키는 옛 표시라, 이 이름으로 만들면 '
+                          '상품 목록에서 안 보입니다. 브랜드나 상품 이름을 바꿔 주세요.')
     if session.get(Model, code) is not None:
         raise MatrixError(f'「{code}」 는 이미 있어요. 상품 이름을 조금 바꿔 주세요.')
 

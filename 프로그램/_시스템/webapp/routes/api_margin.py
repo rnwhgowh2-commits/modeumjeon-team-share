@@ -962,3 +962,88 @@ def lotteon_settlement_ingest():
             n += 1
         s.commit()
     return jsonify({"upserted": n, "skipped": skipped, "source": source})
+
+
+@bp.route("/rg-settlement", methods=["POST"])
+def rg_settlement_ingest():
+    """로켓그로스 정산 회차 push → (group_key, ratio)별 upsert.
+
+    🔴 왜 크롤 push 인가(2026-08-07 실측) — 로켓그로스 정산액을 주는 **OpenAPI 가 없다**.
+       Wing 화면 API(`/tenants/rfm/v2/settlements/status/api`)가 유일한데 로그인 세션
+       쿠키가 필요해 서버에서 못 부른다 → 로컬 크롤이 긁어 여기로 보낸다(롯데온과 동형).
+
+    본문: {"account": "세소(쿠팡)", "source": "auto"|"manual",
+           "rows": [ settlementStatusReports[] 원형 그대로 ]}
+    ★ 버린 행 수를 응답에 남긴다 — 조용히 삼키면 크롤이 멈춘 걸 아무도 모른다.
+    """
+    from lemouton.margin import rg_settlement as RG
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or "rows" not in body:
+        return jsonify({"error": "rows 필요"}), 400
+    rows = body.get("rows")
+    if not isinstance(rows, list):
+        return jsonify({"error": "rows 는 배열이어야 해요"}), 400
+    account = str(body.get("account") or "").strip()
+    source = str(body.get("source") or "manual").strip()[:12] or "manual"
+    parsed, skipped = RG.parse_rows(rows, account=account)
+    with SessionLocal() as s:
+        saved = RG.save(parsed, source=source, session=s)
+    return jsonify({"saved": saved, "skipped": skipped,
+                    "account": account, "source": source})
+
+
+@bp.route("/lotteon-paid", methods=["POST"])
+def lotteon_paid_ingest():
+    """롯데온 지급내역 push → (판매자ID, 정산기준일)별 upsert.
+
+    🔴 왜(2026-08-07 실브라우저 실측) — 롯데온은 정산 OpenAPI 8종·정산예정금액조회·정산요약·
+       셀러머니를 다 뒤져도 **실지급일이 없다**(pymtTgtAmt 는 예정액). 셀러오피스
+       「중개거래정산관리 > 지급내역」의 `seCmptDt`(정산완료일)가 유일한 답이다.
+       소스: GET soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail
+
+    본문: {"trNo": "LO10161082", "account": "브랜드박스(롯데온)", "source": "auto"|"manual",
+           "rows": [ … 응답 그대로 또는 data.settleDetailList.dataList[] ]}
+    ★ 버린 행 수를 응답에 남긴다 — 조용히 삼키면 크롤이 멈춘 걸 아무도 모른다.
+    """
+    from lemouton.margin import lotteon_paid as LP
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or "rows" not in body:
+        return jsonify({"error": "rows 필요"}), 400
+    tr_no = str(body.get("trNo") or "").strip()
+    if not tr_no:
+        # 판매자ID 없이 넣으면 계정이 섞여 합계가 조용히 틀어진다 → 받지 않는다.
+        return jsonify({"error": "trNo(판매자ID) 필요"}), 400
+    account = str(body.get("account") or "").strip()
+    source = str(body.get("source") or "manual").strip()[:12] or "manual"
+    parsed, skipped = LP.parse_rows(body.get("rows"), tr_no=tr_no, account=account)
+    with SessionLocal() as s:
+        saved = LP.save(parsed, source=source, session=s)
+    return jsonify({"saved": saved, "skipped": skipped,
+                    "trNo": tr_no, "account": account, "source": source})
+
+
+@bp.route("/eleven11-unconf", methods=["POST"])
+def eleven11_unconf_ingest():
+    """11번가 **구매확정 전** 정산예정액 push → 주문라인에 실값 반영.
+
+    🔴 왜(2026-08-08) — 하루 전 나는 「11번가는 구매확정 전 정산예정액을 안 준다」고
+       잘못 결론 냈다. 조회 축을 구매확정일로만 봐서 0건이 나온 걸 「없다」로 읽었다.
+       결제일(STL_DT) 축 + 정산 미확정(N) 으로 보니 주문번호·금액이 그대로 나온다.
+       이 창구가 붙기 전까지 그 구간(라이브 246만)은 발송대기 때 값(store) 상속이었다.
+       자세한 근거·응답 실측은 `lemouton/margin/eleven11_unconf.py` 머리말.
+
+    본문: {"rows": [...응답 그대로 또는 list[]], "account": "…", "source": "auto"|"manual"}
+    ★ 미매칭 건을 응답에 그대로 돌려준다 — 조인 축이 어긋나 0건이 되어도
+      「성공」으로 보이면 안 된다(조용한 실패 방지).
+    """
+    from lemouton.margin import eleven11_unconf as EU
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or "rows" not in body:
+        return jsonify({"error": "rows 필요"}), 400
+    account = str(body.get("account") or "").strip()
+    parsed, skipped = EU.parse_rows(body.get("rows"), account=account)
+    with SessionLocal() as s:
+        rep = EU.apply_rows(parsed, session=s)
+    rep["버린행"] = skipped
+    rep["account"] = account
+    return jsonify(rep)

@@ -116,6 +116,31 @@
        찾기 표와 같은 규칙), 줄 누르면 격자로, 옵션 고치기는 「⋯」 안. #}
     <div class="og-wrap">
       <aside class="og-rail">
+        {# [2026-08-06 사장님 첫 지시 「사이드바에도 구분하자」] 상품관리와 같은 판. #}
+        <div class="stg-block" id="og-stages">
+          <div class="stg-head stg-row on" data-s="">
+            <span class="lb">어디까지 왔나</span><span class="n">전체 {{ mat_counts.all }}</span>
+          </div>
+          <div class="stg-bar">
+            {%- for st in stages %}<i class="g{{ st }}"
+              style="width:{{ (mat_counts['s' ~ st] * 100 / mat_counts.all)|round(1) if mat_counts.all else 0 }}%"></i>{% endfor -%}
+            <i class="g0" style="width:{{ (mat_counts.none * 100 / mat_counts.all)|round(1) if mat_counts.all else 0 }}%"></i>
+          </div>
+          {% for st in stages %}
+          <div class="stg-row t{{ st }}" data-s="{{ st }}">
+            <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ mat_counts['s' ~ st] }}</span>
+          </div>
+          {% endfor %}
+          {% if mat_counts.made %}<div class="stg-row t3" data-s="made">
+            <span class="lb">상품 만듦</span><span class="n">{{ mat_counts.made }}</span>
+          </div>{% endif %}
+          <div class="stg-row t0" data-s="none">
+            <span class="lb">아직 상품 생성 안 함</span><span class="n">{{ mat_counts.none }}</span>
+          </div>
+          {% if mat_counts.derived %}<div class="stg-row t0" data-s="derived">
+            <span class="lb">갈라진 묶음</span><span class="n">{{ mat_counts.derived }}</span>
+          </div>{% endif %}
+        </div>
         <input class="og-in og-find" id="og-find" autocomplete="off"
                placeholder="브랜드·묶음 이름으로 찾기">
         <div class="og-rail-t">브랜드</div>
@@ -131,15 +156,22 @@
           {% for m in mats %}
           <tr class="og-row" data-href="/optgen/product/{{ m.id }}"
               data-brand="{{ m.brand or '' }}"
-              data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}">
+              data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}"
+              data-stage="{{ m.show }}">
             <td class="mono">{{ m.no }}</td>
             <td><b>{{ m.name }}</b></td>
             <td>{{ m.brand or '—' }}</td>
             {# [2026-08-06 사장님 확정] 상품관리와 **같은 4가지 상태**. 예전엔
                「옵션함이 아니면 판매 중」이라 마켓에 안 올라간 묶음까지 판매 중으로 나왔다. #}
-            <td class="c">{% if m.kind == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
-              {%- elif m.box or not m.code %}<span class="og-badge wait stgb">아직 상품 생성 안 함</span>
-              {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}</td>
+            {# 🔴 「아직 상품 생성 안 함」은 **정말 안 만들었을 때만**. 이 묶음으로 이미
+               상품을 만들었으면 그렇게 말한다 — 아니면 같은 묶음으로 두 번 만들게 된다. #}
+            <td class="c">{% if m.show == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
+              {%- elif m.show == 'made' %}<span class="og-badge stgb sale">상품 만듦</span>
+              {%- elif m.show == 'none' %}<span class="og-badge wait stgb">아직 상품 생성 안 함</span>
+              {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}
+              {# 🔴 `/bundles?q=…` 로 보내면 **아무 데도 안 간다** — 그 화면의 찾기는 화면 안
+                 JS 전용이라 주소의 q 를 안 읽는다(90행 그대로 뜬다). 상품 화면으로 바로. #}
+              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a>{% endfor %}</div>{% endif %}</td>
             <td class="r">{{ m.options }}</td>
             <td class="r og-actcell">
               {% if m.code %}
@@ -234,9 +266,43 @@
   .og-made-a.ghost{margin-left:0;background:var(--surface,#fff);
     color:var(--color-text-secondary);border:1px solid var(--color-border)}
   /* ── [2026-08-04 사장님 확정 E1+타이핑] 왼쪽 서랍 + 추려지는 표 ── */
-  .og-wrap{display:grid;grid-template-columns:230px 1fr;gap:var(--sp-4);
+  .og-wrap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-4);
     align-items:start}
-  .og-rail{background:var(--surface,#fff);border:1px solid var(--color-border);
+  .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
+  .stg-head{font-weight:600}
+  .stg-head .n{font-variant-numeric:tabular-nums}
+  .stg-bar{display:flex;height:10px;border-radius:980px;overflow:hidden;margin:8px 10px 10px}
+  .stg-bar i{display:block}
+  .stg-bar i.g1{background:var(--ap-g3,#D2D2D7)}
+  .stg-bar i.g2{background:var(--ap-버튼파랑,#0071E3)}
+  .stg-bar i.g4{background:var(--글자-주황,#C93400)}
+  .stg-bar i.g3{background:var(--ap-green,#34C759)}
+  .stg-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;
+    border:1px solid transparent;cursor:pointer;
+    transition:background .24s cubic-bezier(.4,0,.6,1),color .24s}
+  .stg-row:hover{background:var(--ap-g0,#FAFAFC)}
+  .stg-row.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  .stg-row .lb{flex:1;min-width:0;white-space:nowrap;line-height:1.4}
+  .stg-row .n{flex:none;font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums;line-height:1.4}
+  .stg-row.on .n{color:inherit}
+  .stg-div{height:1px;background:var(--ap-g2,#E8E8ED);margin:8px 10px}
+  /* 단계 구분 = **글자색만**. 줄에 색 배경을 칠하면 「덕지덕지」해진다(사장님 실측). */
+  .stg-row.t1 .lb{color:var(--ap-g45,#6E6E73)}
+  .stg-row.t2 .lb{color:var(--ap-링크파랑,#0066CC)}
+  .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
+  .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
+  .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
+  .stg-row.fix .n{font-weight:600}
+  /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.
+     글자 쪽은 안 건드리므로 화면이 조용하다. */
+  .stg-row .n{background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 9px;
+    min-width:38px;text-align:center;transition:background .24s}
+  .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
+  .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
+  .og-rail{width:max-content;min-width:230px;max-width:440px;
+    background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;padding:var(--sp-3)}
   .og-find{margin-bottom:0}
   .og-rail-t{font-size:11px;font-weight:700;color:var(--color-text-tertiary);
@@ -261,10 +327,21 @@
   .og-badge.sale{background:var(--color-ok-bg,#E7F7EE);color:var(--color-ok,#15803D)}
   .og-badge.wait{background:var(--n200,#E8E8ED);color:var(--color-text-secondary)}
   .og-badge.split{background:var(--color-warn-bg,#FEF6E7);color:var(--color-warn,#B45309)}
-  /* 4가지 상태 — 상품관리와 같은 색 뜻(회색·파랑·주황·초록) */
-  .og-badge.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
-  .og-badge.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#C93400)}
+  /* 4가지 상태 — 상품관리와 **같은 색·같은 뜻**(회색·파랑·주황·초록).
+     🔴 글자색은 반드시 `--글자-*` 를 쓴다. `--color-ok` 는 #34C759 로 풀려서
+        옅은 초록 배경 위 글씨 대비가 규칙(4.5)에 한참 못 미친다 — 같은 초록이라도
+        「배경용」과 「글자용」이 다르다(tokens.css 실측표). 상품관리는 이미 글자용을
+        쓰고 있어, 이걸 안 맞추면 두 화면의 초록이 서로 다른 색으로 보인다. */
   .og-badge.stgb{white-space:nowrap;display:inline-block;line-height:1.35}
+  /* 이 묶음으로 만든 상품 — 배지 아래 작은 줄. 누르면 상품관리에서 그 상품을 찾아 준다. */
+  .og-made-links{margin-top:4px;display:flex;flex-direction:column;gap:2px}
+  .og-made-links a{font-size:11.5px;color:var(--글자-파랑,#0066CC);text-decoration:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+  .og-made-links a:hover{text-decoration:underline}
+  .og-badge.stgb.sale{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#1D7A3D)}
+  .og-badge.stgb.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--글자-파랑,#0066CC)}
+  .og-badge.stgb.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#9A5B00)}
+  .og-badge.stgb.wait{background:var(--ap-g2,#E8E8ED);color:var(--ap-g5,#424245)}
   .og-actcell{position:relative;white-space:nowrap}
   /* [2026-08-05 사장님] ⋯(U+22EF)가 이 사이트 글꼴에서 빈칸으로 렌더돼 단추가
      안 보였다(전각 + 와 같은 부류·확대 캡처 실측). 어디서나 그려지는 가운뎃점
@@ -400,6 +477,7 @@
     var brandsBox = document.getElementById('og-brands');
     var cap = document.getElementById('og-cap');
     var total = rows.length, selBrand = null, q = '';
+    var selStage = '';                 // 「어디까지 왔나」에서 고른 상태('' = 전체)
 
     function escHtml(t) {
       return String(t).replace(/[&<>"]/g, function (c) {
@@ -420,12 +498,23 @@
                counts[b] + '</span></div>';
       }).join('');
 
+    /* 「어디까지 왔나」 줄 누르기 — 상품관리와 같은 규칙(한 번에 하나) */
+    var stgBox = document.getElementById('og-stages');
+    if (stgBox) stgBox.addEventListener('click', function (e) {
+      var r = e.target.closest('.stg-row'); if (!r) return;
+      selStage = r.getAttribute('data-s') || '';
+      stgBox.querySelectorAll('.stg-row').forEach(function (x) {
+        x.classList.toggle('on', x === r); });
+      apply();
+    });
+
     function apply() {
       var shown = 0;
       rows.forEach(function (r) {
         var okB = selBrand === null || (r.getAttribute('data-brand') || '') === selBrand;
         var okQ = !q || (r.getAttribute('data-find') || '').toLowerCase().indexOf(q) >= 0;
-        var on = okB && okQ;
+        var okS = !selStage || (r.getAttribute('data-stage') || '') === selStage;
+        var on = okB && okQ && okS;
         r.style.display = on ? '' : 'none';
         if (on) shown++;
       });

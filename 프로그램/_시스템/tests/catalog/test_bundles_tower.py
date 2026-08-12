@@ -163,6 +163,59 @@ def test_마켓에_안_올라간_상품은_판매중이_아니다(client, world)
         s.close()
 
 
+def test_구성에만_붙인_정책도_정책_적용으로_센다(client):
+    """🔴 「한 상품에 여러 정책」(구성마다 다른 정책)을 놓치면 안 된다.
+
+    정책은 두 곳에 붙는다 — 상품(BundlePolicyLink)과 **구성(SetPolicyLink)**.
+    상품 쪽만 보면, 구성마다 정책을 준 상품이 「상품 생성」(정책 없음)으로 잡히고
+    「손 볼 것」도 부풀려진다. 실제로는 그 상품은 정책값으로 마켓에 나간다.
+    """
+    from shared.db import SessionLocal
+    from lemouton.policy.models import MarketPolicy, SetPolicyLink
+    from lemouton.sets.models import ProductSet
+    from lemouton.sourcing.models import Model
+    from webapp.routes import bundles_tower as T
+
+    code = f'구성정책_{uuid.uuid4().hex[:8]}'
+    s = SessionLocal()
+    pol = st = None
+    try:
+        s.add(Model(model_code=code, model_name_raw=code, model_name_display=code,
+                    brand='르무통', display_no='M20260806-000002'))
+        pol = MarketPolicy(name=f'구성정책시험_{code}')
+        s.add(pol)
+        s.flush()
+        st = ProductSet(model_code=code, name='1벌')
+        s.add(st)
+        s.flush()
+        # 상품에는 안 붙이고 **구성에만** 붙인다
+        s.add(SetPolicyLink(set_id=st.id, policy_id=pol.id))
+        s.commit()
+        with T._cache_lock:
+            T._sales_cache.clear()
+            T._price_cache = None
+
+        with SessionLocal() as chk:
+            assert code in T.policy_models(chk, [code]), '구성 정책을 못 봤다'
+
+        html = client.get('/bundles').get_data(as_text=True)
+        i = html.find(f'data-code="{code}"')
+        assert i > 0
+        row = html[i:i + 900]
+        # 마켓은 없으니 2번(상품 생성 + 정책 적용)이라야 한다 — 1번이면 놓친 것
+        assert 'data-stage="2"' in row, row[:300]
+    finally:
+        s.rollback()
+        if st is not None:
+            s.query(SetPolicyLink).filter(SetPolicyLink.set_id == st.id).delete()
+            s.query(ProductSet).filter(ProductSet.id == st.id).delete()
+        if pol is not None:
+            s.query(MarketPolicy).filter(MarketPolicy.id == pol.id).delete()
+        s.query(Model).filter(Model.model_code == code).delete()
+        s.commit()
+        s.close()
+
+
 def test_네_상태_숫자의_합이_전체와_같다():
     """막대(4토막)와 목록이 어긋나지 않는다는 증거 — 겹치지 않게 나눠 센다."""
     from webapp.routes.bundles_tower import (
@@ -207,12 +260,16 @@ def test_sales_days_파라미터와_형태(client, world):
         f'/bundles/api/tower/{world["code"]}/sales?days=7&fresh=1').get_json()
     assert j['ok'] and j['days'] == 7
     assert j['total'] == {'qty': 0, 'revenue': 0, 'count': 0,
-                          'settle': None, 'settle_missing': 0}, \
-        '주문이 없으면 0 — 정산은 값이 없으니 None(0 으로 지어내지 않는다)'
+                          'settle': None, 'settle_missing': 0,
+                          'realized': None, 'realized_basis': 0,
+                          'purchase': 0, 'pp_missing': 0}, \
+        '주문이 없으면 0 — 정산·실현 마진은 값이 없으니 None(0 으로 지어내지 않는다)'
     assert j['cancels'] == {'count': 0, 'amount': 0}
     assert j['markets'] == [] and j['recent'] == [] and j['weeks'] == []
     assert j['margin_link'] == '/orders/?tab=margin', \
-        '실현 마진(순마진)은 재계산하지 않고 마진 계산기로 보낸다'
+        '마진 계산기 링크는 그대로 남긴다(그 화면은 하나도 안 건드린다)'
+    assert j['nopp_link'] == '/orders/?tab=list&mg=nopp', \
+        '「매입가 미입력」은 그 탭이 열린 채로 주문 내역을 연다'
     # 범위 밖 days 는 안전한 값으로 잘린다
     j2 = client.get(
         f'/bundles/api/tower/{world["code"]}/sales?days=99999').get_json()
@@ -405,8 +462,6 @@ def test_sales_정산은_배송비포함_칸에서만_읽는다(client, sold_wor
     assert j['total']['settle_missing'] == 1, '정산값 없는 판매 1건은 따로 센다'
     mk = {m['market']: m for m in j['markets']}['smartstore']
     assert mk['settle'] == 90000 and mk['settle_missing'] == 1
-    assert 'margin' not in j['total'], \
-        '실현 마진은 상품 단위로 낼 수 없다 — 링크로만 안내한다'
 
 
 def test_배지는_3원천_합집합(client, sold_world):
@@ -460,14 +515,16 @@ def test_캐시가_낡으면_옛값을_먼저_주고_뒤에서_갱신한다(clie
     from webapp.routes import bundles_tower as T
     code = sold_world['code']
     client.get(f'/bundles/api/tower/{code}/sales?days=60&fresh=1')
+    stamp = T.purchase_stamp()          # 실매입가는 안 건드렸다 — 도장은 그대로 둔다
     with T._cache_lock:
         assert 60 in T._sales_cache
         # 옛 값이 든 캐시를 「낡음」으로 만든다 — 값도 눈에 띄게 바꿔 둔다
-        T._sales_cache[60] = (0.0, {code: {'qty': 999, 'revenue': 0, 'count': 0,
-                                           'settle': None, 'settle_missing': 0,
-                                           'cancels': {'count': 0, 'amount': 0},
-                                           'markets': {}, 'recent': [],
-                                           'weeks': {}, 'truncated': False}})
+        T._sales_cache[60] = (0.0, stamp,
+                              {code: {'qty': 999, 'revenue': 0, 'count': 0,
+                                      'settle': None, 'settle_missing': 0,
+                                      'cancels': {'count': 0, 'amount': 0},
+                                      'markets': {}, 'recent': [],
+                                      'weeks': {}, 'truncated': False}})
     j = client.get(f'/bundles/api/tower/{code}/sales?days=60').get_json()
     assert j['total']['qty'] == 999, '낡아도 즉시 옛 값을 준다(요청이 안 기다린다)'
     th = T._refresh_threads.get('sales:60')
@@ -511,6 +568,11 @@ def test_목록_쿼리수가_상품수에_따라_늘지_않는다(client, world)
     event.listen(engine, 'before_cursor_execute', _count)
     extra = []
     try:
+        # 🔴 **한 번 미리 열어 둔다(warm-up).** 첫 호출에만 도는 준비 쿼리가 있다
+        #    (브랜드 색 덮어쓰기 조회 1 + count 2 — 뒤엔 메모리에 남아 안 돈다).
+        #    그걸 안 걷어내면 「첫 호출 25 → 두 번째 22」가 되어, N+1 이 없는데도
+        #    이 시험이 흔들린다(2026-08-06 실측 — origin/main 원본에서도 같았다).
+        measure()
         first = measure()
         s = SessionLocal()
         try:
@@ -537,3 +599,276 @@ def test_목록_쿼리수가_상품수에_따라_늘지_않는다(client, world)
     # 절대 상한은 넉넉히 — 진짜 감시선은 위의 「늘지 않는다」다(다른 시험이 남긴
     # 데이터 양에 따라 흔들리지 않게).
     assert first <= 60, f'목록 한 판이 쿼리 {first}개 — 배치로 묶여 있어야 한다'
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  3차 — 실현 마진(정산 − 실매입가) · 매입 원가 용어 (설계서 §6.2·§6.3)
+# ══════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def real_pp():
+    """실매입가를 넣고 빼는 도구 — `order_line_purchases` 가 단일 원천이다."""
+    from shared.db import SessionLocal
+    from lemouton.markets import purchase_price as PP
+
+    made = []
+
+    def _put(line_uid, price):
+        s = SessionLocal()
+        try:
+            PP.upsert(s, line_uid=line_uid, price=price, source=PP.SOURCE_MANUAL)
+            made.append(line_uid)
+        finally:
+            s.close()
+
+    yield _put
+
+    s = SessionLocal()
+    try:
+        for uid in made:
+            PP.delete(s, uid)
+    finally:
+        s.close()
+
+
+def _sales(client, code, days=60):
+    return client.get(
+        f'/bundles/api/tower/{code}/sales?days={days}&fresh=1').get_json()
+
+
+def test_실현마진은_정산에서_실매입가를_뺀_값이다(client, sold_world, real_pp):
+    """설계서 §6.2 — 실현 마진 = 정산 예정 − 실매입가. 실매입가 있는 줄만 더한다.
+
+    sold_world 의 판매 줄은 2개다(취소 1건은 애초에 안 센다):
+      · twr-o1 정산 90,000 · twr-o2 정산 없음
+    o1 에만 실매입가 60,000 을 적으면 실현 마진은 30,000 하나뿐이어야 한다.
+    """
+    code = sold_world['code']
+    real_pp(f'twr-o1-{code}', 60000)
+
+    j = _sales(client, code)
+    t = j['total']
+    assert t['count'] == 2, '취소 1건은 판매 건수에 안 든다'
+    assert t['realized'] == 90000 - 60000, '정산 90,000 − 실매입가 60,000'
+    assert t['purchase'] == 60000, '더한 실매입가도 그대로 밝힌다'
+    assert t['realized_basis'] == 1, '2건 중 1건만 기준 — 화면이 「2건 중 1건 기준」'
+    assert t['pp_missing'] == 1, '실매입가 없는 판매 1건은 미입력으로 센다'
+    mk = {m['market']: m for m in j['markets']}['smartstore']
+    assert (mk['realized'], mk['realized_basis'], mk['pp_missing']) == (30000, 1, 1), \
+        '마켓별 행도 합계와 같은 규칙으로 센다'
+
+
+def test_취소건과_정산없는건은_실현마진에_안_섞인다(client, sold_world, real_pp):
+    """취소 주문·정산 못 읽은 주문에 매입가가 있어도 실현 마진을 만들지 않는다.
+
+    · 취소(twr-o3)는 매출에서 뺀 건이라 실현 마진에도 못 들어간다
+      (넣으면 「팔지도 않은 것의 마진」이 생긴다)
+    · 정산 없는 줄(twr-o2)은 0 으로 채우면 매입가만큼 손실로 둔갑한다
+    """
+    code = sold_world['code']
+    real_pp(f'twr-o2-{code}', 40000)      # 정산 없음
+    real_pp(f'twr-o3-{code}', 30000)      # 취소 건
+
+    t = _sales(client, code)['total']
+    assert t['realized'] is None, '기준 줄이 하나도 없으면 0 이 아니라 「확인 불가」'
+    assert t['realized_basis'] == 0 and t['purchase'] == 0
+    assert t['pp_missing'] == 1, 'o1 만 미입력 — o2 는 매입가가 있으니 미입력이 아니다'
+    assert t['settle_missing'] == 1, '정산 못 읽은 줄은 이미 여기서 세고 있다'
+
+
+def test_매입가가_없으면_0이_아니라_미입력_건수다(client, sold_world):
+    """🔴 0 채움 금지 — 실매입가가 하나도 없으면 실현 마진은 None 이다."""
+    t = _sales(client, sold_world['code'])['total']
+    assert t['realized'] is None, '0 이면 「마진 0원」으로 읽힌다 — 지어내지 않는다'
+    assert t['realized_basis'] == 0
+    assert t['purchase'] == 0, '없는 매입가를 0 원으로 더하지 않는다'
+    assert t['pp_missing'] == 2, '판매 2건 모두 실매입가 미입력'
+    mk = {m['market']: m for m in _sales(client, sold_world['code'])['markets']}
+    assert mk['smartstore']['realized'] is None
+    assert mk['smartstore']['pp_missing'] == 2
+
+
+def test_예상가_사입가로는_실현마진을_만들지_않는다(client, sold_world, monkeypatch):
+    """설계서 §4 — 소싱 예상가로 낸 마진은 실적 숫자에 섞지 않는다.
+
+    `resolve_purchase_price`(실매입가 없으면 사입가·소싱 예상가로 내려가는 함수)가
+    모든 줄에 값을 준다고 해도 실현 마진은 **여전히 없다**. 판매 이력은
+    `get_many`(실매입가 표) 하나만 본다는 것을 못 박는다.
+    """
+    from lemouton.markets import purchase_price as PP
+
+    def _fake(session, line_uids, **kw):
+        return {str(u): {'price': 1000, 'tier': PP.TIER_ESTIMATE,
+                         'label': PP.TIER_LABEL[PP.TIER_ESTIMATE]}
+                for u in (line_uids or [])}
+
+    monkeypatch.setattr(PP, 'resolve_purchase_price', _fake)
+    t = _sales(client, sold_world['code'])['total']
+    assert t['realized'] is None, '예상가가 굴러 들어와도 실현 마진은 안 만든다'
+    assert t['purchase'] == 0
+    assert t['pp_missing'] == 2, '예상가가 있어도 「실매입가 미입력」이다'
+
+
+def test_미입력_링크는_주문내역_매입가_미입력_탭을_연다(client, sold_world):
+    """화면이 「채우러 가기」를 말할 수 있어야 한다 — 주소에 탭까지 실린다."""
+    import io
+
+    j = _sales(client, sold_world['code'])
+    assert j['nopp_link'] == '/orders/?tab=list&mg=nopp'
+    html = io.open('webapp/templates/orders/index.html', encoding='utf-8').read()
+    assert "get('mg')" in html, '주문 내역이 주소의 mg 값을 읽어 탭을 연다'
+    assert 'mgFilter=mgPending' in html, '첫 조회에 그 탭이 실제로 걸린다'
+    twr = io.open('webapp/templates/bundles/tower.html', encoding='utf-8').read()
+    assert 'j.nopp_link' in twr and '매입가 미입력 ' in twr, \
+        '판매 이력 칸이 그 링크를 건다'
+
+
+# ── 용어 되돌림 (2026-08-07 사장님 정의 확정) ─────────────────────────────
+#  🔴 PR#857 의 「최종매입가 → 순마진 예상가」 전환은 **오적용**이었다. 두 값은 다르다.
+#     · 최종매입가   = 소싱처 표면노출가 − 혜택            → **매입 원가**
+#     · 순마진 예상가 = 정산예정금(배송비 포함) − 최종매입가 → **마진**
+#     매입 원가 자리에 「순마진 예상가」라고 적힌 채 배포돼 라이브에서 돈 화면이
+#     틀린 이름을 달고 있었다. 여기서 되돌리고, 다시 뒤집히지 않게 못 박는다.
+
+def _read(path):
+    import io
+    return io.open(path, encoding='utf-8').read()
+
+
+#: 매입 원가를 가리키는 화면 자리 — 여기엔 「최종매입가」가 있어야 한다.
+COST_LABEL_SITES = {
+    'webapp/templates/matrix/index.html': [
+        '칸: 최종매입가', '표면가·최종매입가는', '<th class="trr">최종매입가</th>',
+        '최종매입가 = 표면가에서 혜택을 뺀',
+    ],
+    'webapp/templates/matrix/detail.html': [
+        '최종매입가</th>', '최저 최종매입가',
+    ],
+    'webapp/templates/bundles/tower.html': [
+        '칸 = 최저 최종매입가', '최종매입가</th>',
+        '소싱처 크롤값(최종매입가)',
+    ],
+    'webapp/templates/bundles/_matrix_v3.html': ['>최종매입가</span>'],
+    'webapp/templates/orders/index.html': [
+        '원 − 최종매입가 ', '정산예정금·최종매입가가 보입니다',
+    ],
+}
+
+
+def test_매입_원가_자리는_최종매입가로_부른다(client):
+    """표면가 − 혜택 = 최종매입가. 이 자리에 마진 이름을 달면 안 된다."""
+    for path, needles in COST_LABEL_SITES.items():
+        html = _read(path)
+        for n in needles:
+            assert n in html, f'{path} 에 「{n}」 이 없다 — 용어 되돌림이 빠졌다'
+
+
+def test_매입가_자리에_순마진_예상가라는_말이_없다(client):
+    """🔴 뒤집힘 감시 — 매입 원가 화면·매입가 tier 라벨 어디에도 마진 이름이 없어야 한다."""
+    for path in list(COST_LABEL_SITES) + [
+            'webapp/routes/bundles_tower.py',
+            'lemouton/markets/purchase_price.py']:
+        assert '순마진 예상가' not in _read(path), \
+            f'{path} 에 「순마진 예상가」가 다시 들어왔다 — 매입 원가 자리다'
+
+
+def test_매입가_tier_라벨_3종(client):
+    """주문 「매입가」 열의 세 tier 는 전부 **매입 원가** 이름이다."""
+    from lemouton.markets.purchase_price import TIER_LABEL
+    assert TIER_LABEL == {'real': '실매입가', 'stock': '사입가',
+                          'estimate': '최종매입가'}
+
+
+def test_되돌림이_코드_식별자를_안_건드렸다(client):
+    """문구만 바꾼 것이라야 값이 안 갈린다."""
+    assert 'min_final' in _read('webapp/templates/matrix/detail.html')
+    assert 'final_price' in _read('webapp/templates/bundles/_matrix_v3.html')
+    assert "r['min_final']" in _read('webapp/routes/bundles_tower.py')
+
+
+def test_되돌림이_실매입가_표기를_안_건드린다(client):
+    """🔴 이름을 되돌린다고 실매입가 쪽 문구까지 건드리면 안 된다."""
+    orders = _read('webapp/templates/orders/index.html')
+    assert "PP_TAG={real:'실매입가'" in orders, '매입가 열 tier 배지는 그대로'
+    assert '「구매가격」이 곧 실매입가입니다' in orders, '더망고 엑셀 안내도 그대로'
+    assert '실매입가를 아직 안 적은 줄이에요' in orders, '「매입가 미입력」 탭 설명 그대로'
+    twr = _read('webapp/templates/bundles/tower.html')
+    assert '실현 마진 = 정산 예정 − <b>실매입가</b>' in twr,         '판매 이력은 실현 마진의 원천을 실매입가라고 말한다'
+    assert '최종매입가' in twr and '실매입가' in twr,         '매입 원가(예상)와 실매입가 두 이름이 한 화면에서 구분돼 쓰인다'
+
+
+# ── 등록 카테고리 (PR#810 이 「캐시에 컬럼이 없어」 미구현으로 남긴 칸) ────────────
+
+def test_markets_가_등록_카테고리를_실어_보낸다(client, world):
+    """마켓 캐시에 있으면 그 값 그대로. 🔴 롯데온은 「마켓이 안 준다」로 갈라 표시한다."""
+    from shared.db import SessionLocal
+    from lemouton.catalog.models import MarketProduct, MarketProductGroup
+
+    code = world['code']
+    s = SessionLocal()
+    grp = None
+    try:
+        grp = MarketProductGroup(name='카테고리 그룹', model_code=code)
+        s.add(grp)
+        s.flush()
+        s.add(MarketProduct(group_id=grp.id, market='smartstore',
+                            account_key='default', market_product_id='SS-CAT',
+                            name='스스 상품', category_code='50002322',
+                            category_name='패션의류>여성의류>티셔츠'))
+        # 롯데온 — 캐시는 있는데 카테고리만 없다(마켓이 안 줘서)
+        s.add(MarketProduct(group_id=grp.id, market='lotteon',
+                            account_key='default', market_product_id='LO-CAT',
+                            name='롯데온 상품'))
+        s.commit()
+
+        j = client.get(f'/bundles/api/tower/{code}/markets').get_json()
+        assert j['ok'], j
+        by = {m['market']: m for m in j['markets']}
+        ss = by['smartstore']
+        assert ss['reg_category'] == '50002322'
+        assert ss['reg_category_name'] == '패션의류>여성의류>티셔츠'
+        assert ss['category_unsupported'] is False
+        lo = by['lotteon']
+        assert lo['reg_category'] is None and lo['reg_category_name'] is None
+        assert lo['category_unsupported'] is True, \
+            '롯데온 목록 API 는 카테고리를 아예 안 준다 — 「불러오면 채워져요」는 거짓말'
+        assert by['coupang']['category_unsupported'] is False
+    finally:
+        s.rollback()
+        if grp is not None:
+            s.query(MarketProduct).filter(
+                MarketProduct.group_id == grp.id).delete()
+            s.query(MarketProductGroup).filter(
+                MarketProductGroup.id == grp.id).delete()
+            s.commit()
+        s.close()
+
+
+def test_마켓_등록탭_표에_카테고리_열이_있다():
+    """열을 더했으면 펼침 판 colspan 도 같이 커져야 한다(안 그러면 표가 어긋난다)."""
+    twr = _read('webapp/templates/bundles/tower.html')
+    assert '<th class="l">등록 카테고리</th>' in twr
+    assert 'regCategory(m)' in twr
+    assert 'colspan="12"' in twr and 'colspan="11"' not in twr
+    assert '마켓이 카테고리를 안 알려줘요' in twr, '없는 이유를 정직하게 말한다'
+
+
+def test_판매집계가_쓰는_칸을_전부_가져온다():
+    """🔴 속도 때문에 「필요한 칸만」 가져오게 바꿨다. 한 칸이라도 빠지면
+    그 값이 **조용히 사라진다**(line_uid 를 빼면 실현 마진이 통째로 없어진다).
+
+    코드가 실제로 쓰는 칸을 세어, 조회가 그 칸을 전부 고르는지 본다.
+    """
+    import inspect
+    import re
+
+    from webapp.routes import bundles_tower as T
+
+    src = inspect.getsource(T._build_sales_index)
+    쓰는칸 = set(re.findall(r'\bln\.(\w+)', src))
+    가져오는칸 = set(re.findall(r'MarketOrderLine\.(\w+)', src))
+    빠진칸 = 쓰는칸 - 가져오는칸
+    assert not 빠진칸, (
+        f'조회가 안 가져오는 칸을 쓴다 — 그 값이 조용히 빈다: {sorted(빠진칸)}')
+    # 시험이 헛돌지 않게 — 실제로 몇 칸은 세어졌어야 한다
+    assert len(쓰는칸) >= 4, f'칸을 못 세었다(정규식이 헛돌았나): {쓰는칸}'

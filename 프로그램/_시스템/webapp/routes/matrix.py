@@ -310,10 +310,45 @@ def matrix_index():
                 'colors': st.get('colors', 0), 'sizes': st.get('sizes', 0),
                 'seen': st.get('seen'),
             })
+        _attach_stage_matrix(s, items)
     finally:
         s.close()
+    from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
+    # 🔴 판 숫자는 **화면에 실제로 보이는 것**만 센다.
+    #    숨긴 묶음(단독_·빈 묶음)은 기본으로 안 보이는데 같이 세면
+    #    「아직 상품 생성 안 함 89」라 해놓고 눌러도 3개만 나온다(라이브 실측).
+    #    「숨긴 묶음 보기」를 켜면 화면 JS 가 숫자를 다시 센다.
+    보임 = [i for i in items if not i.get('hid')]
+    counts = {'all': len(보임), 'all_with_hidden': len(items)}
+    for st in STAGES:
+        counts['s%d' % st] = sum(1 for i in 보임 if i.get('stage') == st)
+        counts['h%d' % st] = sum(1 for i in items if i.get('stage') == st)
+    counts['none'] = sum(1 for i in 보임 if not i.get('stage'))
+    counts['hnone'] = sum(1 for i in items if not i.get('stage'))
     return render_template('matrix/index.html', active='matrix', items=items,
-                           kw=request.args.get('q') or '')
+                           kw=request.args.get('q') or '',
+                           stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
+                           stage_cls=STAGE_CLS, stage_counts=counts)
+
+
+def _attach_stage_matrix(session, items):
+    """묶음마다 「어디까지 왔나」 4가지 상태 — 상품관리와 **같은 판정·같은 말**.
+
+    묶음에 상품이 아직 없으면(옵션함이거나 model_code 없음) 상태 없음(=아직 상품 안 만듦).
+    """
+    from webapp.routes.bundles_tower import stages_for
+    from lemouton.sourcing.models import Model
+
+    codes = [i['model_code'] for i in items if i.get('model_code')]
+    if not codes:
+        return
+    boxes = {c for (c,) in session.query(Model.model_code)
+             .filter(Model.model_code.in_(codes),
+                     Model.is_option_box.is_(True)).all()}
+    got = stages_for(session, [c for c in codes if c not in boxes])
+    for i in items:
+        c = i.get('model_code')
+        i['stage'] = got.get(c) if (c and c not in boxes) else None
 
 
 def detail_context(mo_id: int):

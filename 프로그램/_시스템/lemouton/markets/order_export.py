@@ -414,8 +414,20 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             pass
         day += _dt.timedelta(days=1)
 
+    # ── 추정에 쓸 실효 잔존율을 **이 조회의 실정산에서** 먼저 배운다 ──────────────
+    #  루프보다 앞에서 해야 첫 행부터 같은 값을 쓴다(행 순서에 따라 추정이 달라지면
+    #  같은 주문이 조회마다 다른 값이 된다). 표본이 모자라면 기본율로 떨어진다.
+    _ss_pairs = []
+    for _it in detail:
+        _po = _it.get("productOrder", {}) if isinstance(_it, dict) else {}
+        _amt = prod_settle.get(_g(_po, "productOrderId"))
+        if _amt is not None:
+            _ss_pairs.append((_g(_po, "totalPaymentAmount"), _amt))
+    _ss_factor = _ss_learn_fee_factor(_ss_pairs)
+
     rows = []
-    _deliv_used = set()   # 배송비 정산은 주문당 1회만 더함
+    #  `deliv_settle`(배송비 실정산)은 **M열에 안 섞는다** — 아래 M열 규약 주석 참조.
+    #  맵 자체는 계속 만든다(정산 진단·향후 소비처용). 쓰지 않는 게 의도다.
     for it in detail:
         po = it.get("productOrder", {}) if isinstance(it, dict) else {}
         od = it.get("order", {}) if isinstance(it, dict) else {}
@@ -425,28 +437,34 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         oid = _g(od, "orderId")
         prod_amt = prod_settle.get(poid)
         settle_val, settle_src = "", "none"
-        if prod_amt is not None:                       # 상품 정산 있으면 = 상품정산 + 배송비정산(1회)
+        # ★M열 = 상품 정산만. 배송비 정산(deliv_settle)은 여기 안 섞는다.
+        #  🔴 2026-08-07 라이브 실측으로 드러난 사고 — **쿠팡에서 이미 겪고 고친 것이
+        #    스스에만 남아 있었다**(order_export:1206 의 같은 규약 주석 참조).
+        #    옛 코드는 M 에 배송비 정산(97%)을 더했는데, `_finalize_rows` 가 거기에
+        #    고객배송비를 **또** 더해(N열 = M + 고객배송비) 배송비가 두 번 들어갔다.
+        #      실측 1건: 상품 58,430 + 배송비정산 2,910 = M 61,340 → N 64,340
+        #               (바른 값 61,430 — **2,910원 과다**)
+        #    같은 원인으로 수수료율(= (실결제−M)/실결제)도 1.32% 로 찍혔다(바른 값 6.00%).
+        #  배송비 실정산액은 마진 계산 등 다른 소비처가 없어, M 에서 빼도 정보 손실은
+        #  N열 규약(M + 고객배송비) 안에서 흡수된다 — 쿠팡과 같은 판단이다.
+        if prod_amt is not None:
             settle_val = prod_amt
-            if oid and oid not in _deliv_used and oid in deliv_settle:
-                settle_val += deliv_settle[oid]
-                _deliv_used.add(oid)
             settle_src = "real"
         else:
             # 최근 주문(정산 전) — 실결제금액 × (1-6%) 로 추정(쿠팡 미정산 추정과 동형).
             #  네이버는 오늘 주문의 정산을 아직 안 줘서 빈칸이면 순마진=0-매입=손실로 둔갑한다.
             est = _ss_estimate_settle(_g(po, "totalPaymentAmount"),
-                                      _g(po, "unitPrice"), _g(po, "quantity"))
+                                      _g(po, "unitPrice"), _g(po, "quantity"),
+                                      factor=_ss_factor)
             if est != "":
                 settle_val, settle_src = est, "estimated"
-            # 배송비 실정산은 상품정산 유무와 무관하게 붙어야 한다 — 반품·'배송비만 정산'(상품
-            # 없음) 케이스가 누락되던 조용한실패(쿠팡과 동일 버그클래스) 방지. 상품 추정치엔 더하고,
-            # 상품이 아예 없으면 배송비만으로 real 처리.
-            if oid and oid not in _deliv_used and oid in deliv_settle:
-                if settle_val == "":
-                    settle_val, settle_src = deliv_settle[oid], "real"
-                else:
-                    settle_val += deliv_settle[oid]
-                _deliv_used.add(oid)
+            # 여기서도 배송비 정산을 안 더한다 — 위 M열 규약과 같다.
+            #  옛 코드는 추정치에도 배송비 정산을 얹었고, 상품 정산이 아예 없으면
+            #  배송비만으로 real 처리했다. 둘 다 N열(M+고객배송비)에서 이중 가산된다.
+            #  🔴 상품 정산이 없는 행의 M 은 **공란이 정답**이다(쿠팡
+            #    `test_coupang_shipping_only_settlement_is_real` 과 같은 판단) —
+            #    모르는 값을 배송비로 메우면 「받을 돈」이 있는 것처럼 보인다.
+            #    빠진 건수는 화면이 「정산예정 모르는 N건」으로 이미 말한다.
         _ss_st = _ss_status(_g(po, "productOrderStatus"), _g(po, "placeOrderStatus"))
         _row = {
             "_shipkey": ("smartstore", oid),   # 배송건(주문) 단위 배송비 정규화용
@@ -484,6 +502,18 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "_pd_market_product_id": _g(po, "productId"),
             "_pd_market_product_id_alt": _g(po, "originalProductId"),
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
+            # ── 할인 부담 갈래(2026-08-08) — 「누가 깎아 줬나」를 화면이 말할 수 있게 ──
+            #  지도 확정: productDiscountAmount(총) · sellerBurdenDiscountAmount(판매자 부담).
+            #  마켓 부담 = 총 − 판매자 부담(네이버가 따로 안 준다 — 뺄셈이 유일한 길).
+            #  종류는 **총액 기준** 항목을 쓴다(판매자부담 종류별도 있지만 합이 총과 안 맞을 수 있어
+            #  화면엔 「무엇으로 깎였나」만 보여 준다).
+            "_dc_seller": _g(po, "sellerBurdenDiscountAmount", default=""),
+            "_dc_total": _g(po, "productDiscountAmount", default=""),
+            "_dc_kinds": {
+                "즉시할인": _g(po, "productImediateDiscountAmount", default=""),
+                "상품할인쿠폰": _g(po, "productProductDiscountAmount", default=""),
+                "복수구매할인": _g(po, "productMultiplePurchaseDiscountAmount", default=""),
+            },
             "옵션추가금": _g(po, "optionPrice", default=""),
             # 이미 등록된 송장은 마켓이 정본 — 안 읽어오면 사용자가 손으로 다시 치게 되고,
             # 그 값이 실제와 어긋나도 화면상 알 길이 없다(2026-07-10 실제 발생).
@@ -681,6 +711,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             # 209 정산 성분(2026-07-15 실검증 매핑) — 아래 정산 조인에서 compute_settlement 입력.
             "_lo_slAmt": _g(od, "slAmt", default=""),              # 상품가
             "_lo_seller_dc": _g(od, "sptDcPgmCmsnSum", default=""),  # 셀러부담 할인
+            # ── 할인 부담 갈래(2026-08-08) — 지도 확정 필드를 그대로 ──
+            #  sptDcPgmCmsnSum=셀러부담 합(정산 차감) · prSfcoShrAmtSum=롯데부담 합
+            #  (정산대상에서 빼고 수수료에서도 뺌) · fvrAmtSum=혜택(할인) 합계.
+            #  프로모션 종류(prTypCd)는 주문 안에 여러 벌로 중첩돼 와 줄 단위로 못 가른다 → 안 넣는다.
+            "_dc_seller": _g(od, "sptDcPgmCmsnSum", default=""),
+            "_dc_market": _g(od, "prSfcoShrAmtSum", default=""),
             "_lo_platform_dc": _g(od, "prSfcoShrAmtSum", default=""),  # 롯데부담 할인
             "_lo_dvcst": _g(od, "dvCst", default=""),              # 수수료적용배송비
             "_lo_spdno": _g(od, "spdNo", default=""),              # 상품번호(제휴 학습 키)
@@ -1112,15 +1148,28 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     _remote = _won(box.get("remotePrice"))
                     if isinstance(_remote, int) and _remote:
                         ship = (ship if isinstance(ship, int) else 0) + _remote
-                    # 실결제 = orderPrice(결제가격) **그대로** — 샵마인 규약(2026-07-23
-                    # 사장님 확정: 샵마인 K열=할인 차감 전 결제가). orderPrice 없으면 빈칸.
-                    _paid = _won(it.get("orderPrice"))
-                    # 판매자부담할인(즉시+다운로드쿠폰) — 정산 추정 시 매출에서 차감.
-                    #  쿠팡지원할인(coupangDiscount)은 쿠팡이 보전하므로 차감 금지.
+                    # 판매자부담할인(즉시+다운로드쿠폰) — 우리 주머니에서 나가는 돈.
+                    #  쿠팡지원할인(coupangDiscount)은 쿠팡이 보전하므로 차감 금지
+                    #  (`discountPrice` 총 할인을 그대로 빼면 그것까지 손해로 잡힌다).
                     _sdc_a = _won(it.get("instantCouponDiscount"))
                     _sdc_b = _won(it.get("downloadableCouponDiscount"))
                     _sdc = ((_sdc_a if isinstance(_sdc_a, int) else 0)
                             + (_sdc_b if isinstance(_sdc_b, int) else 0))
+                    # 실결제 = orderPrice(결제가격) − 판매자부담쿠폰. orderPrice 없으면 빈칸.
+                    #  🔴 기준이 두 번 바뀐 자리다:
+                    #    2026-07-23  orderPrice **그대로**(할인 차감 전) — 샵마인 K열과
+                    #                글자 그대로 맞추려던 규약.
+                    #    2026-08-06  사장님 확정 → 판매자부담쿠폰을 뺀다. 「매출」은 우리가
+                    #                실제로 번 돈이어야 한다. 옛 규약 탓에 쿠팡만 매출이
+                    #                쿠폰만큼 부풀고, 「정가−실결제」로 재는 마켓 할인
+                    #                카드에서 쿠팡만 **영원히 0** 으로 보였다.
+                    #  🔴 이중 차감 금지 — 정산 추정(_cp_estimate_settle)은 단가×수량에서
+                    #    따로 빼므로 실결제를 안 본다. 여기서 빼도 정산은 안 깎인다.
+                    #  🔴 샵마인 대조는 그대로 성립한다 — shopmine_recon 의 재현식 후보에
+                    #    「정가총액」이 이미 있어 판정이 match→def(설명 가능한 차이)가 된다.
+                    #    롯데온이 `_lo_seller_dc` 로 이미 그렇게 돌고 있다.
+                    _paid_raw = _won(it.get("orderPrice"))
+                    _paid = (_paid_raw - _sdc) if isinstance(_paid_raw, int) else _paid_raw
                     rows.append({
                         "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
                         # 송장 전송용 식별자 — coupang/orders.py::send_tracking 이 요구.
@@ -1150,6 +1199,17 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         # 쿠팡 vendorItem=옵션 단위 상품 — 단가에 옵션가 포함 → 추가금 구조적 0.
                         "옵션추가금": 0,
                         "_cp_seller_dc": _sdc,   # 정산 추정용(내부) — 판매자부담할인
+                        # ── 할인 부담 갈래(2026-08-08) — 화면이 「누가 깎아 줬나」를 말한다 ──
+                        #  지도 확정: discountPrice(총) = instantCouponDiscount(즉시할인 쿠폰)
+                        #  + downloadableCouponDiscount(다운로드 쿠폰) + coupangDiscount(쿠팡 지원).
+                        #  앞 둘이 판매자 부담, 마지막이 쿠팡 부담이다.
+                        "_dc_seller": _sdc,
+                        "_dc_market": (lambda v: v if isinstance(v, int) else "")(
+                            _won(it.get("coupangDiscount"))),
+                        "_dc_kinds": {
+                            "즉시할인쿠폰": _sdc_a if isinstance(_sdc_a, int) else "",
+                            "다운로드쿠폰": _sdc_b if isinstance(_sdc_b, int) else "",
+                        },
                         "정산예정금액": "",
                         "주문상태": _status_ko("coupang", box.get("status") or st),
                         "주문상태원본": box.get("status") or st,
@@ -1364,13 +1424,52 @@ def _cp_learn_fee_rates(rows, item_settle):
 SS_FEE_FACTOR = 0.94          # 1 - 0.06 (스마트스토어 판매수수료 추정 6% — 사용자 지정)
 
 
-def _ss_estimate_settle(paid, unit, qty):
-    """미정산(최근·정산 전) 스마트스토어 주문 정산예정금액 추정 = round(매출 × 0.94).
+SS_LEARN_MIN_SAMPLES = 5      # 이만큼은 봐야 배운다(한두 건으로 배우면 이상치가 전체를 흔든다)
+SS_RATE_MIN, SS_RATE_MAX = 0.02, 0.12   # 상식 범위 밖은 정산이 아닌 무언가(부분취소·조정)
+
+
+def _ss_learn_fee_factor(pairs) -> float:
+    """실정산 (실결제, 정산) 짝들에서 **실효 잔존율**(1−수수료율)을 역산해 평균낸다.
+
+    🔴 왜 고정 6% 로는 안 되나 — 라이브 실측(2026-08-07, 저장분 2,050건 역산)
+      · 2025-12~2026-02  6.63% / 4.63%  = Npay **일반 3.630%** + 판매수수료 3% / 마케팅 1%
+      · 2026-03~         6.00% / 4.00%  = Npay **중소3 3.003%** + 판매수수료 3% / 마케팅 1%
+      2026-02 경 국세청 매출 등급이 「일반 → 중소3」으로 재산정되며 요율이 통째로 바뀌었다.
+      게다가 유입경로(네이버쇼핑 검색 vs 마케팅 링크)에 따라 판매수수료가 3% / 1% 로
+      갈려 최근 실값의 **15%가 4%대**다. 고정 6% 는 그만큼 정산을 적게 잡는다.
+      (근거: 스마트스토어 도움말 「수수료의 종류」 — 상품금액엔 Npay+판매수수료 둘 다,
+       배송비엔 **Npay 만** 붙는다. 실측 배송비 3.00% 와 일치.)
+
+    미정산 주문은 유입경로를 알 수 없으므로 **최근 실값의 평균**이 가장 덜 틀린 추정이다.
+    등급이 또 바뀌어도 스스로 따라간다 — 그게 고정 상수와의 차이다.
+    표본이 모자라거나 상식 범위를 벗어나면 배우지 않고 기존 기본율을 쓴다.
+    """
+    good = []
+    for paid, settle in pairs or []:
+        try:
+            p, s = int(paid), int(settle)
+        except (TypeError, ValueError):
+            continue
+        if p <= 0 or s <= 0:
+            continue
+        rate = 1 - (s / p)
+        if SS_RATE_MIN <= rate <= SS_RATE_MAX:
+            good.append(s / p)
+    if len(good) < SS_LEARN_MIN_SAMPLES:
+        return SS_FEE_FACTOR
+    return sum(good) / len(good)
+
+
+def _ss_estimate_settle(paid, unit, qty, factor=None):
+    """미정산(최근·정산 전) 스마트스토어 주문 정산예정금액 추정 = round(매출 × 잔존율).
 
     매출 = 실결제금액(할인 반영, 우선) → 없으면 단가×수량. 둘 다 없으면 빈칸(폴백 0 금지).
+    잔존율은 같은 조회의 실정산에서 배운 값(`_ss_learn_fee_factor`), 없으면 기본 0.94.
     확정액 아님(추정) — _settle_source='estimated' 로 태그해 실정산과 구분한다.
     네이버는 최근 주문 정산을 미래에 확정하므로(오늘 주문=오늘 정산 없음), 실정산 없을 때만 사용.
     """
+    if factor is None:
+        factor = SS_FEE_FACTOR
     base = None
     try:
         base = int(paid)
@@ -1381,7 +1480,7 @@ def _ss_estimate_settle(paid, unit, qty):
             base = u * q
         except (TypeError, ValueError):
             return ""             # 매출 근거 없음 → 추정 안 함
-    return round(base * SS_FEE_FACTOR)
+    return round(base * factor)
 
 
 def _coupang_settle_map(since, until, client):
@@ -2483,6 +2582,12 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             #   '확인 불가'로 남는다(조용히 엉뚱한 옵션에 붙지 않는다).
             "_pd_market_option_id": _g11(od, "prdStckNo"),
             "_pd_market_product_id": _g11(od, "prdNo"),
+            # ── 할인 부담 갈래(2026-08-08) — 지도 확정: 11번가는 둘을 **따로** 준다 ──
+            #  sellerDscPrc=판매자 할인금액 · tmallDscPrc=11번가 할인금액.
+            #  (실결제 보정에 쓰는 tmallApplyDscAmt 는 '적용'값이라 표기값과 다를 수 있어
+            #   부담 갈래는 표기 기준 두 필드를 그대로 쓴다 — 섞으면 합이 안 맞는다.)
+            "_dc_seller": _g11(od, "sellerDscPrc"),
+            "_dc_market": _g11(od, "tmallDscPrc"),
             # 실결제 = ordPayAmt − 배송비 + (tmall 표기할인 − 적용할인) — 샵마인 K열 규약.
             #  ①배송비 제외(2026-07-23 대조 17건 실측). ②11번가 할인은 '표기'(tmallDscPrc)와
             #  '적용'(tmallApplyDscAmt)이 다를 수 있고 ordPayAmt 는 표기 기준 차감이라,
@@ -3084,8 +3189,19 @@ def _finalize_rows(rows: list) -> list:
             fee = None
         if fee is not None:
             r["마켓수수료"] = fee
-            r["수수료율"] = (f"{round(fee / total * 100, 2)}%"
-                             if isinstance(total, int) and total > 0 else "")
+            # 수수료율 분모 = **실결제**(할인 후 실제로 받은 돈). 없으면 총주문금액.
+            #  🔴 2026-08-06 정정 — 옛 분모는 `total`(총주문금액=할인 전 정가)이었다.
+            #    분자(수수료 = 실결제 − 정산)는 이미 할인 후 기준인데 분모만 정가라,
+            #    할인 붙은 주문일수록 표시 율이 계약 요율보다 **낮게** 나왔다.
+            #    라이브 실측(2026-08-06): 스스 33건이 정가 기준 5.27·4.70·4.56% 로
+            #    흩어지는데 실결제 기준은 **전부 6.00%**(계약 요율). 쿠팡은 21건이
+            #    11.43% → **11.55%**(계약 요율). 정가 기준이 틀렸다는 증거다.
+            #  🔴 `paid` 는 위에서 실결제 공란이면 이미 총주문금액으로 떨어져 있다
+            #    (`if paid is None and isinstance(total, int): paid = total`).
+            #    그래도 0·음수 방어를 남긴다 — 0 으로 나누면 화면이 통째로 죽는다.
+            _rate_base = paid if isinstance(paid, int) and paid > 0 else total
+            r["수수료율"] = (f"{round(fee / _rate_base * 100, 2)}%"
+                             if isinstance(_rate_base, int) and _rate_base > 0 else "")
         elif not zero_cancel:                # 취소완료 0 확정은 위에서 이미 채움
             r["마켓수수료"] = ""
             r["수수료율"] = ""
@@ -3653,10 +3769,20 @@ def resolve_columns(columns=None) -> list:
     return out or list(DEFAULT_COLUMNS)
 
 
-def rows_to_xlsx(rows: list, columns=None) -> bytes:
-    """행(dict) → xlsx 바이트. columns 로 열 구성·순서 지정(A5 양식 설정)."""
+def rows_to_xlsx(rows: list, columns=None, lead_columns=None) -> bytes:
+    """행(dict) → xlsx 바이트. columns 로 열 구성·순서 지정(A5 양식 설정).
+
+    `lead_columns` = **맨 앞에 그대로 붙이는 열**(화면 전용 칸처럼 `ALL_COLUMNS`
+    화이트리스트에 없는 열). 🔴 `ALL_COLUMNS`·`DEFAULT_COLUMNS` 는 건드리지 않는다 —
+    거기에 넣으면 양식 설정 UI·기존 프리셋·GET(레거시) 내보내기의 **열 순서와 이름이
+    통째로 밀린다**(엑셀을 쓰는 다른 흐름이 깨진다). 여기서 앞에 붙이기만 한다.
+    같은 이름이 `columns` 에도 있으면 중복 열을 만들지 않는다.
+    """
     import openpyxl
     cols = resolve_columns(columns)
+    for c in reversed([str(c).strip() for c in (lead_columns or []) if str(c).strip()]):
+        if c not in cols:
+            cols = [c] + cols
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "주문"

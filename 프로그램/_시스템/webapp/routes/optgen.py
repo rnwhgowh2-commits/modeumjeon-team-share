@@ -87,11 +87,77 @@ def _matrices(session, limit: int = 100):
                       MatrixOption.kind, Model.is_option_box, Model.brand,
                       MatrixOption.model_code)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
-    out = [{'id': i, 'no': no or '—', 'name': nm, 'kind': k,
+    out = [{'id': i, 'no': no or '—', 'name': display_name(nm, mc), 'kind': k,
             'box': bool(box), 'brand': br, 'options': n, 'code': mc}
            for i, no, nm, k, box, br, n, mc in rows if n]
     _attach_stage(session, out)
+    _attach_made(session, out)
     return out
+
+
+#: 코드 앞글자 「단독_」 — 옛날에 「재고관리에만 두는 물건」을 문자열로 흉내 낸 흔적.
+#: 지금은 정식 상태(is_option_box)가 그 뜻을 맡는다. 코드는 그대로 두되(8곳이 이걸로
+#: 걸러낸다 — 건드리면 창고 물건이 판매 목록에 다시 섞인다) **화면에서는 감춘다**.
+_LEGACY_PREFIX = '단독_'
+
+
+def display_name(name: str, code: str | None) -> str:
+    """화면에 보일 이름 — 뜻이 안 통하는 코드 앞글자를 떼어 준다.
+
+    이름을 따로 안 지은 옛 물건은 이름이 코드와 같아서 `단독_SKU-…` 로 보였다.
+    사장님이 창고에서 쓰시는 번호(SKU-…)만 남기는 편이 오히려 찾기 쉽다.
+    뜻(아직 상품 안 만듦)은 옆 「상태」 칸이 이미 말한다.
+    """
+    nm = (name or '').strip() or (code or '')
+    return nm[len(_LEGACY_PREFIX):] if nm.startswith(_LEGACY_PREFIX) else nm
+
+
+def _attach_made(session, mats):
+    """이 묶음으로 **이미 상품을 만들었는지** 붙인다.
+
+    🔴 안 붙이면 화면이 거짓말을 한다 — 상품을 만들어도 그 줄은 계속
+       「아직 상품 생성 안 함」이라고 말한다. 기록(BundleMatrixLink)은 이미 있는데
+       화면이 안 볼 뿐이다. 그대로 두면 같은 묶음으로 상품을 두 번 만들게 된다.
+    """
+    from lemouton.matrix.models import BundleMatrixLink
+    from lemouton.sourcing.models import Model
+
+    ids = [m['id'] for m in mats if m.get('id')]
+    if not ids:
+        return
+    made: dict[int, list] = {}
+    for mo_id, code, name, no in (
+            session.query(BundleMatrixLink.matrix_option_id, Model.model_code,
+                          Model.model_name_display, Model.display_no)
+            .join(Model, Model.model_code == BundleMatrixLink.model_code)
+            .filter(BundleMatrixLink.matrix_option_id.in_(ids))
+            .order_by(BundleMatrixLink.created_at.desc()).all()):
+        made.setdefault(mo_id, []).append(
+            {'code': code, 'name': display_name(name, code), 'no': no})
+    for m in mats:
+        m['made'] = made.get(m['id'], [])
+
+
+def _attach_shown(mats):
+    """줄마다 **화면에 실제로 보일 상태**를 한 번만 정한다.
+
+    🔴 2026-08-07 라이브에서 잡힌 거짓말 — 판은 `stage` 로 세는데 표는 「옵션함인가·
+       상품을 만들었나」로 글자를 골랐다. 세는 기준과 보여주는 기준이 갈리니
+       판에는 「아직 상품 생성 안 함 0」인데 표에는 그 글자가 **52줄**이었고,
+       판의 「상품 생성 적용 81」은 표에 30줄뿐이었다.
+       더 나쁜 건 옵션함인데 `stage=4`(마켓 등록·판매중)로 세어져,
+       **상품관리에는 없는 물건이 「판매중」 칸에 잡혔다**(라이브 2줄 실측:
+       르무통 스위트 메리제인 · SKU-484B2862 — 둘 다 상품관리에 없음).
+
+    그래서 규칙을 여기 한 곳에 두고 표·판·거르기가 이 값을 같이 쓴다.
+    """
+    for m in mats:
+        if m.get('kind') == 'derived':
+            m['show'] = 'derived'                             # 갈라진 묶음 — 4상태 밖
+        elif m.get('box') or not m.get('code'):
+            m['show'] = 'made' if m.get('made') else 'none'   # 옵션함: 상품을 만들었나
+        else:
+            m['show'] = str(m.get('stage') or '')             # 상품이 된 묶음: 4상태
 
 
 def _attach_stage(session, mats):
@@ -101,18 +167,14 @@ def _attach_stage(session, mats):
        예전엔 여기서 `옵션함이 아니면 판매 중`이라고 따로 정했는데, 그러면
        마켓에 하나도 안 올라간 묶음까지 「판매 중」으로 나온다(상품관리와 같은 오표기).
     """
-    from lemouton.policy.models import BundlePolicyLink
     from webapp.routes.bundles_tower import (
-        STAGE_CLS, STAGE_LABEL_MATRIX, _registered_markets, stage_of,
+        STAGE_CLS, STAGE_LABEL_MATRIX, _registered_markets, policy_models, stage_of,
     )
 
     codes = [m['code'] for m in mats if m.get('code')]
     if not codes:
         return
-    policies = {l.model_code for l in
-                session.query(BundlePolicyLink)
-                .filter(BundlePolicyLink.model_code.in_(codes),
-                        BundlePolicyLink.policy_id.isnot(None)).all()}
+    policies = policy_models(session, codes)      # 상품 ∪ 구성 — 상품관리와 같은 판정
     markets = _registered_markets(session, codes)
     for m in mats:
         c = m.get('code')
@@ -145,10 +207,20 @@ def index():
         made = {'no': request.args.get('made'),
                 'code': request.args.get('code') or '',
                 'options': request.args.get('opts') or ''}
+    # 「어디까지 왔나」 판 — 상품관리와 같은 4상태(사장님 첫 지시 「사이드바에도 구분하자」)
+    from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
+    _attach_shown(mats)
+    mat_counts = {'all': len(mats)}
+    for st in STAGES:
+        mat_counts['s%d' % st] = sum(1 for m in mats if m.get('show') == str(st))
+    for k in ('none', 'made', 'derived'):
+        mat_counts[k] = sum(1 for m in mats if m.get('show') == k)
     return render_template('optgen/index.html',
                            active_app='bundles', active='optgen_' + tab,
                            subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats,
-                           made=made, markets=IMPORT_MARKETS)
+                           made=made, markets=IMPORT_MARKETS,
+                           stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
+                           stage_cls=STAGE_CLS, mat_counts=mat_counts)
 
 
 @bp.get('/product/<int:mo_id>')

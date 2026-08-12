@@ -242,6 +242,9 @@ _ESM_COMMON: dict = {
         "convert_legacy": "/item/v1/goods/convert-legacy-goods",  # 1.0 상품→2.0 전환(POST).
                                                                   #   ESM 상품 API 는 2.0 전용이라 1.0 이면 이걸 먼저
         "register": "/item/v1/goods",                          # 신규 상품 등록(후속)
+        # 상품 수정 — 등록과 같은 스키마를 마스터 goodsNo 로 PUT (지도 esm.20, st=ok).
+        # ⚠️ 사이트 상품번호가 아니라 **마스터 goodsNo** 로만 수정된다.
+        "update": "/item/v1/goods/{goodsNo}",
     },
 }
 

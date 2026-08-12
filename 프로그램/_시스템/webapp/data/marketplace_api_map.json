@@ -2139,7 +2139,8 @@
    ],
    "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
    "idTraps": [
-    "[2026-08-06] 카탈로그 판매가 채우기(lotteon_prices.enrich_prices)가 itmLst[].slPrc 최저값을 저장. 배송비는 dvCstPolNo(정책번호)만 있고 금액이 없다 — 금액은 별도 실측 전 NULL."
+    "[2026-08-06] 카탈로그 판매가 채우기(lotteon_prices.enrich_prices)가 itmLst[].slPrc 최저값을 저장. 배송비는 dvCstPolNo(정책번호)만 있고 금액이 없다 — 금액은 별도 실측 전 NULL.",
+    "[2026-08-06 왕복검증] 상세 HTML·이미지 필드가 이 지도에 미확보(res.note=전체 스펙 apiNo=94). 되읽을 수 없는 축은 보내지 않는다 — 보내면 원복됐는지 영영 확인할 수 없다. 프로브(GET /api/live-send-test/roundtrip-probe)로 실측해 확인되면 되채울 것."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -2221,7 +2222,8 @@
    "idTraps": [
     "★★[2026-07-23] 1회 호출은 **1페이지 100행**이 전부다(rowsPerPage MAX 100). 이 계정 카탈로그는 dataCount 13,883 — 조회기간 없이 1페이지만 훑고 「0건」이라 답하면 실제로 있는 상품을 「없다」고 말하는 **거짓 답**이 된다. 존재 확인 용도로 쓸 땐 ①regStrtDttm 을 찾는 시점 근처로 좁히고 ②pageNo 를 넘겨 가며 훑고 ③실제로 훑은 범위를 결과에 같이 실어야 한다(구현: webapp/routes/bulk/drafts.py:_lotteon_lookup).",
     "★조회기간 자체의 상한은 **확인불가**(문서·실측 모두 미확보). 넓혀 쓰기 전에 실측할 것 — 이 저장소에는 조회기간 초과가 에러가 아니라 **조용한 0건**으로 돌아온 전례가 있다(11번가).",
-    "[2026-08-06 프로브 실측 run 31024768904] 응답에 가격·배송비 필드가 0개(spdNo·spdNm·slStatCd·승인상태뿐) — 판매가는 상세 itmLst[].slPrc 로만 얻는다(catalog.lotteon_prices.enrich_prices)."
+    "[2026-08-06 프로브 실측 run 31024768904] 응답에 가격·배송비 필드가 0개(spdNo·spdNm·slStatCd·승인상태뿐) — 판매가는 상세 itmLst[].slPrc 로만 얻는다(catalog.lotteon_prices.enrich_prices).",
+    "[2026-08-07] 🔴 **카테고리 필드가 응답에 없다** — 2026-08-06 프로브 실측대로 spdNo·spdNm·slStatCd·승인상태뿐이라 MarketProduct.category_code 는 롯데온만 영원히 NULL 이다. 상품관리 「마켓 등록·정책」 탭은 이 사실을 「마켓이 카테고리를 안 알려줘요」로 표시한다(날조 금지). 카테고리가 필요하면 상세(get_product_detail)의 scatNo·dcatLst 를 봐야 한다(shared/platforms/lotteon/products.py::_REGISTER_TEMPLATE_FIELDS)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/lotteon/products.py:list_products · webapp/routes/bulk/drafts.py:_lotteon_lookup",
@@ -15829,7 +15831,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-07] 응답 data[].displayCategoryCode(전시 카테고리 = 등록에 쓰는 코드)를 저장한다(lemouton/catalog/fetchers.py::_coupang → MarketProduct.category_code). 🔴 **카테고리 이름은 안 준다** — 코드로 이름을 지어내지 않는다(category_name 은 NULL)."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/products/product-list-paging-query",
@@ -18292,7 +18296,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06 왕복검증 배선] 승인불요 partial 의 수정 가능 필드는 배송·반품 25개뿐 — 상품명·상세·이미지는 없다(전수 확인). 그 3축은 이 API(전체 JSON 재전송)뿐이고 '승인 후에 반영'된다 → 보낸 직후 되읽으면 옛 값이라 '안 바뀜=실패'로 적으면 거짓 보고. 🔴 requested 는 false 로 — true 면 판매 승인까지 요청한다. 코드: lemouton/uploader/roundtrip/markets/coupang.py"
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/products/modify-product",
@@ -24869,7 +24875,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg"
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/rocket-growth/rg-order-apilist-query",
@@ -24994,7 +25002,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg"
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/rocket-growth/api",
@@ -38438,7 +38448,8 @@
     "[2026-07-21 라이브 실증] 실등록→판매중지 왕복 성공(옥션 6477606513·G마켓 6477646133, 파이프라인 6477870979/6477875678). 구현: shared/platforms/esm/products.py",
     "★등록 400 3함정(실측): ①price·stock 은 Gmkt·Iac **둘 다 required**(stock 0 불가·price 10원~10억) — 비대상 사이트에 0 넣으면 400. 노출 사이트는 itemBasicInfo.category.site[] 가 결정 ②itemAddtionalInfo.isAdultProduct 필수(지도 required 공란이지만 실 API 는 400) ③shipping.policy.feeType=2(상품별배송비)면 each{feeType,feePayType,fee} 필수",
     "★마스터 카탈로그는 옥션·G마켓 공용 — siteId 검색에도 반대 사이트 전용 상품이 섞인다. 선행자원(발송정책 등) 재사용 시 값이 다 찰 때까지 본보기 상품을 순회할 것(1건만 보면 G마켓 실패 실측). 상세 순회 + 옵션 봉투 조회를 분리하면 60초(gunicorn) 초과 502 — 한 순회에서 같이 수확",
-    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 카테고리는 GET 조회 응답의 itemBasicInfo.category.site[](siteType 1=옥션·2=G마켓 의 catCode)에서 되받는다. 맵핑표에 박는 값은 site catCode — 우리 카테고리 사전(market_categories)의 code 축과 같아야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 축이라 여기 쓰면 400 거부된다). ⚠️ GET 조회 응답에 category 블록이 실려 오는지는 라이브 미확정 — 없으면 '확인불가'로 건너뛴다(추측 금지). 코드=shared/platforms/esm/products.py::extract_category_codes"
+    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 카테고리는 GET 조회 응답의 itemBasicInfo.category.site[](siteType 1=옥션·2=G마켓 의 catCode)에서 되받는다. 맵핑표에 박는 값은 site catCode — 우리 카테고리 사전(market_categories)의 code 축과 같아야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 축이라 여기 쓰면 400 거부된다). ⚠️ GET 조회 응답에 category 블록이 실려 오는지는 라이브 미확정 — 없으면 '확인불가'로 건너뛴다(추측 금지). 코드=shared/platforms/esm/products.py::extract_category_codes",
+    "[2026-08-06 왕복검증 배선] 5축 필드 경로 확정 — 상품명 itemBasicInfo.goodsName.kor · 가격 itemAddtionalInfo.price.Iac/.Gmkt · 재고 .stock.Iac/.Gmkt · 이미지 .images.basicImgURL + addtionalImg1~14URL · 상세 .descriptions.kor.html · 판매상태 isSell.iac/.gmkt(수정 시 필수). 🔴 이미지가 줄면 남은 addtionalImgNURL 칸을 지워야 한다(안 지우면 옛 사진이 남는다). 코드: lemouton/uploader/roundtrip/markets/esm.py"
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -41022,7 +41033,8 @@
     "[2026-07-21 라이브 실증] 실등록→판매중지 왕복 성공(옥션 6477606513·G마켓 6477646133, 파이프라인 6477870979/6477875678). 구현: shared/platforms/esm/products.py",
     "★등록 400 3함정(실측): ①price·stock 은 Gmkt·Iac **둘 다 required**(stock 0 불가·price 10원~10억) — 비대상 사이트에 0 넣으면 400. 노출 사이트는 itemBasicInfo.category.site[] 가 결정 ②itemAddtionalInfo.isAdultProduct 필수(지도 required 공란이지만 실 API 는 400) ③shipping.policy.feeType=2(상품별배송비)면 each{feeType,feePayType,fee} 필수",
     "★마스터 카탈로그는 옥션·G마켓 공용 — siteId 검색에도 반대 사이트 전용 상품이 섞인다. 선행자원(발송정책 등) 재사용 시 값이 다 찰 때까지 본보기 상품을 순회할 것(1건만 보면 G마켓 실패 실측). 상세 순회 + 옵션 봉투 조회를 분리하면 60초(gunicorn) 초과 502 — 한 순회에서 같이 수확",
-    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 카테고리는 GET 조회 응답의 itemBasicInfo.category.site[](siteType 1=옥션·2=G마켓 의 catCode)에서 되받는다. 맵핑표에 박는 값은 site catCode — 우리 카테고리 사전(market_categories)의 code 축과 같아야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 축이라 여기 쓰면 400 거부된다). ⚠️ GET 조회 응답에 category 블록이 실려 오는지는 라이브 미확정 — 없으면 '확인불가'로 건너뛴다(추측 금지). 코드=shared/platforms/esm/products.py::extract_category_codes"
+    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 카테고리는 GET 조회 응답의 itemBasicInfo.category.site[](siteType 1=옥션·2=G마켓 의 catCode)에서 되받는다. 맵핑표에 박는 값은 site catCode — 우리 카테고리 사전(market_categories)의 code 축과 같아야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 축이라 여기 쓰면 400 거부된다). ⚠️ GET 조회 응답에 category 블록이 실려 오는지는 라이브 미확정 — 없으면 '확인불가'로 건너뛴다(추측 금지). 코드=shared/platforms/esm/products.py::extract_category_codes",
+    "[2026-08-06 왕복검증 배선] 5축 필드 경로 확정 — 상품명 itemBasicInfo.goodsName.kor · 가격 itemAddtionalInfo.price.Iac/.Gmkt · 재고 .stock.Iac/.Gmkt · 이미지 .images.basicImgURL + addtionalImg1~14URL · 상세 .descriptions.kor.html · 판매상태 isSell.iac/.gmkt(수정 시 필수). 🔴 이미지가 줄면 남은 addtionalImgNURL 칸을 지워야 한다(안 지우면 옛 사진이 남는다). 코드: lemouton/uploader/roundtrip/markets/esm.py"
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -42470,7 +42482,8 @@
     "siteId 1:옥션 2:지마켓. 응답 items 내 gmkt=지마켓, iac=옥션 사이트별 상품번호/판매상태/가격/재고/카테고리 분리 제공. 분당 최대 30회 호출 제한.",
     "[2026-07-22 라이브 실측] keyword·sellStatus 요청 파라미터가 **무시된다** — 조건과 무관하게 전체가 반환됨(keyword=르무통 인데 total=전체 3,257·sellStatus=11 필터에 21 행 섞임). 이름/상태 검색은 전 페이지 순회 후 클라이언트 필터로(진단 product-list?scan=1 배선·분당 30회 한도 준수 2.2s 간격)",
     "★응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지) — 행 값이 진실",
-    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장."
+    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장.",
+    "[2026-08-07] 응답 items[].category.site.{iac|gmkt}.{catCode,catName} 를 저장한다(없으면 사이트 공용 category.esm 로 폴백) — lemouton/catalog/fetchers.py::_esm → MarketProduct.category_code/category_name. 🔴 사이트별 값이 먼저다(옥션·G마켓 체계가 다르다)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -43137,7 +43150,8 @@
     "siteId 1:옥션 2:지마켓. 응답 items 내 gmkt=지마켓, iac=옥션 사이트별 상품번호/판매상태/가격/재고/카테고리 분리 제공. 분당 최대 30회 호출 제한.",
     "[2026-07-22 라이브 실측] keyword·sellStatus 요청 파라미터가 **무시된다** — 조건과 무관하게 전체가 반환됨(keyword=르무통 인데 total=전체 3,257·sellStatus=11 필터에 21 행 섞임). 이름/상태 검색은 전 페이지 순회 후 클라이언트 필터로(진단 product-list?scan=1 배선·분당 30회 한도 준수 2.2s 간격)",
     "★응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지) — 행 값이 진실",
-    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장."
+    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장.",
+    "[2026-08-07] 응답 items[].category.site.{iac|gmkt}.{catCode,catName} 를 저장한다(없으면 사이트 공용 category.esm 로 폴백) — lemouton/catalog/fetchers.py::_esm → MarketProduct.category_code/category_name. 🔴 사이트별 값이 먼저다(옥션·G마켓 체계가 다르다)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -80637,7 +80651,8 @@
    "success": "HTTP 200 + 응답 XML 정상 파싱. 실패 시 errorResponse(오류.* 필드)·resultCode 확인. openapikey 헤더·IP 등록 필수(401/403/429).",
    "idTraps": [
     "[2026-07-23 M3 카테고리 회수] dispCtgrNo(카테고리번호)를 응답 필드로 명시한 문서 원천은 이 '다중 상품 조회'다. 우리가 상품 단위 조회에 쓰는 단건 GET /rest/prodmarketservice/prodmarket/{prdNo} 응답에도 실려 오는지는 ⚠️라이브 미확정 — 그래서 회수는 단건 먼저 보고, 없으면 이 API 를 prdNo 조건으로 한 번 더 묻는다(shared/platforms/eleven11/products.py::get_display_category_no). 둘 다 없으면 '확인불가'.",
-    "[2026-07-23 리뷰 C2] 이 API 로 되찾을 때 응답 행의 prdNo 가 **요청한 prdNo 와 정확히 같을 때만** 채택한다. prdNo 가 응답에 없거나(빈 값) 서버가 prdNo 조건을 무시하면 limit=1 로 돌아온 '아무 상품'의 dispCtgrNo 가 confidence 0.99 로 맵핑에 박혀 다음 등록이 남의 카테고리로 나간다(금전 손해). 빈 prdNo 를 통과시키던 코드가 실제로 있었다 — 정확일치만."
+    "[2026-07-23 리뷰 C2] 이 API 로 되찾을 때 응답 행의 prdNo 가 **요청한 prdNo 와 정확히 같을 때만** 채택한다. prdNo 가 응답에 없거나(빈 값) 서버가 prdNo 조건을 무시하면 limit=1 로 돌아온 '아무 상품'의 dispCtgrNo 가 confidence 0.99 로 맵핑에 박혀 다음 등록이 남의 카테고리로 나간다(금전 손해). 빈 prdNo 를 통과시키던 코드가 실제로 있었다 — 정확일치만.",
+    "[2026-08-07] 목록 훑기(lemouton/catalog/fetchers.py::_eleven11)가 이 응답의 dispCtgrNo 를 그 행의 prdNo 줄에 그대로 저장한다 → MarketProduct.category_code. 같은 응답 같은 행이라 리뷰 C2 의 「남의 prdNo 값 채택」 위험이 없다. rootCtgrNo 는 무시(11번가 시스템 코드)."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -83779,7 +83794,8 @@
     "★실측 필수(스펙 [필수] 표기 밖): aplBgnDy/aplEndDy(YYYY/MM/DD·selTermUseYn=N=영구판매), rtngExchDetail(교환반품안내)",
     "★상품정보제공고시 ProductNotification: type 891011=9개 항목 필수. 코드표 첨부 미확보 시 같은 유효코드 23759468 을 9번 중복해도 통과(실증 우회). 검증순서=①개수 ②코드존재(에러 오라클로 판별 가능)",
     "★계정당 판매중 상품 10,000개 한도 — 초과 계정은 등록 자체 거부(브랜드박스·위시 실측). 여유 계정으로 등록",
-    "★옵션 = 싱글옵션 ProductOption 반복(optSelectYn=Y·colTitle·colValue0=\"색상/사이즈\" 조합값·colCount=옵션별 재고·colOptPrice). 멀티옵션은 API 로 옵션별 재고 불가(일괄만)·옵션가 0원만"
+    "★옵션 = 싱글옵션 ProductOption 반복(optSelectYn=Y·colTitle·colValue0=\"색상/사이즈\" 조합값·colCount=옵션별 재고·colOptPrice). 멀티옵션은 API 로 옵션별 재고 불가(일괄만)·옵션가 0원만",
+    "[2026-08-06 실측·로그인 화면] 11번가 셀러 「상품관리」 탭에 수정 API 가 실제로 존재한다 — 상품등록/신규상품등록 · **상품수정/신규상품수정** · 상품가격수정 · 상품 추가 구성상품 조회 · 상품상세설명 조회 · 상품 판매기간 조회 · 상품 추가구성상품 수정 · **상품상세설명 수정** · **상품 옵션 수정** · 상품가격/즉시할인 수정 · 상품 판매기간 연장 · 실재고체크를 통한 옵션품절 리스트 조회. 등록 URL = http://api.11st.co.kr/rest/prodservices/product (POST · XML · API KEY 는 HttpHeaders). 🔴 문서는 openapi.11st.co.kr 로그인 후에만 보인다(비로그인 시 구매자용 ProductSearch 만 나온다 — categoryNo 를 바꿔도 같은 6,331바이트가 온다). 각 API 상세 스펙은 미확보 → 확보 후 되채울 것."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -93917,7 +93933,8 @@
    "success": "HTTP 200 성공. 실패 시 응답 code(BAD_REQUEST·UNAUTHORIZED 등) 확인. 요청/응답 본문 상세=관련 구조체(smartstore.schema.*) 참조.",
    "idTraps": [
     "[2026-08-04] 응답의 discountedPrice(할인가=고객 표면노출가)를 **받아오면서 버리고 있었다** — leafCategoryId 와 같은 부류. 이제 저장한다: lemouton/catalog/fetchers.py::_smartstore → MarketProduct.exposed_price. 다른 마켓 노출가는 미확인(NULL 유지·날조 금지).",
-    "[2026-08-05] deliveryFee(기본 배송비)도 받으면서 버리던 값 — market_products.delivery_fee 로 저장(discountedPrice 와 같은 부류)."
+    "[2026-08-05] deliveryFee(기본 배송비)도 받으면서 버리던 값 — market_products.delivery_fee 로 저장(discountedPrice 와 같은 부류).",
+    "[2026-08-07] 카테고리도 **같은 부류**(받아오면서 버리던 값)였다 — 응답 channelProducts[].categoryId(잎)·wholeCategoryName(전체 경로명)을 이제 저장한다: lemouton/catalog/fetchers.py::_smartstore → MarketProduct.category_code/category_name."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -134161,7 +134178,8 @@
    ],
    "success": "HTTP 200 성공. 실패 시 응답 code(BAD_REQUEST·UNAUTHORIZED 등) 확인. 요청/응답 본문 상세=관련 구조체(smartstore.schema.*) 참조.",
    "idTraps": [
-    "[2026-08-06 구현] 정책 「판매가 · 즉시할인」 → customerBenefit.immediateDiscountPolicy.discountMethod{value,unitType}. unitType 은 PERCENT/WON 만 가능(문서). mobileDiscountMethod 는 무시되므로 쓰지 않는다. 전송 코드는 shared/platforms/smartstore/edit_product.edit_options(immediate_discount=…) 에 이미 있었다."
+    "[2026-08-06 구현] 정책 「판매가 · 즉시할인」 → customerBenefit.immediateDiscountPolicy.discountMethod{value,unitType}. unitType 은 PERCENT/WON 만 가능(문서). mobileDiscountMethod 는 무시되므로 쓰지 않는다. 전송 코드는 shared/platforms/smartstore/edit_product.edit_options(immediate_discount=…) 에 이미 있었다.",
+    "[2026-08-06 라이브 왕복검증] 이 PUT 하나로 가격·재고·상품명(name)·상세(detailContent)·이미지(images) 5축을 모두 바꿀 수 있다(라이브 실증). 🔴 단 네이버가 상세 HTML 을 검열한다 — 모르는 속성은 <!-- Not Allowed Attribute Filtered (...) --> 주석으로 바뀐다. 되읽기 검증을 '완전일치'로 하면 상세는 영원히 실패로 보인다(평문 토큰으로 확인할 것). 옵션 없는 단일상품의 재고는 optionCombinations 가 아니라 originProduct.stockQuantity."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -163138,7 +163156,9 @@
     }
    ],
    "success": "HTTP 200 성공. 실패 시 응답 code(BAD_REQUEST·UNAUTHORIZED 등) 확인. 요청/응답 본문 상세=관련 구조체(smartstore.schema.*) 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06 라이브 실측] 🔴 네이버는 MIME 이 맞아도 **파일명의 확장자**로 거른다. 확장자 없는 이름(image_0)으로 보내면 400 — invalidInputs[0].type=\"PhotoInfraUpload.extension\" \"JPEG, JPG, GIF, PNG, BMP 파일만 업로드가 가능합니다.\" 확장자는 바이트로 판정한 실제 포맷에서 뽑아 붙여야 한다(shared/platforms/smartstore/images.py _MIME_EXT). 이 경로는 상품 등록(registration/image_prep)도 같이 쓴다."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://apicenter.commerce.naver.com/docs/commerce-api/current/upload-product",
@@ -169514,6 +169534,305 @@
    "persistIds": "lotteon_so_order_lines(od_no, od_seq, proc_seq)",
    "codeRef": "extension/moum-crawler/background.js lotteonOrdersCrawlInPage(0.7.57) / webapp/routes/order_ingest.py api_lotteon_so_upsert / lemouton/markets/lotteon_so.py",
    "docApiNo": ""
+  },
+  {
+   "id": "lotteon.selleroffice.settle.paid",
+   "market": "lotteon",
+   "fnKey": "selleroffice.settle.paid",
+   "nm": "지급내역(중개거래정산관리 — 크롤) ★입금 확인의 유일한 창구",
+   "endpoint": "GET https://soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "배선 예정 — 확장 lotteon.settle.crawl 에 얹는다",
+   "persistIds": "lotteon_settle_paid(tr_no, se_std_dt) — se_cmpt_dt·fnl_pymt_bgt_amt",
+   "req": {
+    "method": "GET",
+    "url": "https://soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail",
+    "params": [
+     "trNo*:판매자ID(LO~)",
+     "strtDttm*:시작일 YYYYMMDD",
+     "endDttm*:종료일 YYYYMMDD",
+     "searchDtFg*:날짜기준(02=정산일)",
+     "pageNo*:1부터",
+     "rowsPerPage*:30",
+     "odNo·sitmNo·ltrtNo·spclAprvCmsn·searchDt:빈값 허용"
+    ],
+    "auth": "판매자센터 로그인 세션 쿠키 — **서버에서 못 부른다**(로컬 크롤 전용)"
+   },
+   "res": {
+    "note": "data.settleDetailList.dataList[] = **구매확정일(seStdDt) 단위 일정산 행**. 합계는 data.settleDetail. 2026-08-07 실측 29건·최종지급 합 8,475,583."
+   },
+   "fields": [
+    {
+     "key": "seStdDt",
+     "meaning": "★정산기준일(구매확정일) — 우리 주문과 조인하는 축",
+     "example": "2026-07-10"
+    },
+    {
+     "key": "seCmptDt",
+     "meaning": "★★**정산완료일 = 실제 입금된 날**. 롯데온 「입금 확인」의 유일한 근거",
+     "example": "2026-07-13"
+    },
+    {
+     "key": "fnlPymtBgtAmt",
+     "meaning": "★최종정산지급액(그날 실제 지급액)",
+     "example": "110661.00"
+    },
+    {
+     "key": "pymtTgtAmt",
+     "meaning": "지급대상금액(차감 전)",
+     "example": "110978.00"
+    },
+    {
+     "key": "seCclCdText",
+     "meaning": "정산유형(일정산 등)",
+     "example": "일정산"
+    },
+    {
+     "key": "slAmt",
+     "meaning": "판매가(상품)",
+     "example": "84400.00"
+    },
+    {
+     "key": "dvCstSeTgtAmt",
+     "meaning": "판매가(배송비)",
+     "example": "40000.00"
+    },
+    {
+     "key": "pdDcAmt",
+     "meaning": "총할인금액",
+     "example": "3810.00"
+    },
+    {
+     "key": "itmdCmsn",
+     "meaning": "중개수수료",
+     "example": "9929.00"
+    }
+   ],
+   "success": "returnCode=SUCCESS · data.settleDetailList.dataList[] · totalCount 로 페이징",
+   "idTraps": [
+    "★★[2026-08-07 실브라우저 실측] **롯데온 「입금됐다」를 아는 유일한 창구**. 정산 OpenAPI 8종·정산예정금액조회·정산요약·셀러머니 전부 확인했으나 실지급일이 없었다(pymtTgtAmt 는 예정액). 이 화면(중개거래정산관리 > 지급내역)의 `seCmptDt` 가 답이다.",
+    "★조인 축 = **구매확정일(seStdDt)**. 롯데온은 **일정산** — 구매확정일별로 묶어 며칠 뒤 지급한다(예 07-10 확정분 → 07-13 지급). 주문 단위가 아니라 **날짜 단위**라 쿠팡 회차와 같은 방식으로 잇는다.",
+    "★`searchDtFg=02` 는 **정산일 기준** 조회. 구매확정일 기준으로 훑으려면 다른 값(미확인)이 필요할 수 있다.",
+    "★발굴이 어렵다 — 세션 단명 + WebSquare 라 자동 클릭 불가. 사장님이 화면을 직접 열어 F12 Network 로 URL 을 떠 주셔야 했다(2026-08-07, 3회 실패 후 성공)."
+   ]
+  },
+  {
+   "id": "coupang.wing.unconfirmed.summary",
+   "market": "coupang",
+   "fnKey": "wing.unconfirmed.summary",
+   "nm": "미구매확정 정산예정(Wing 화면 API — 크롤) ★구매확정 전 실값",
+   "endpoint": "GET https://wing.coupang.com/tenants/finance/wing/unconfirmed/summary",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "배선 예정 — 확장 crawl 로 계정별 수집",
+   "persistIds": "미정 — (vendorId, 배송상태, 조회기간) 단위 집계",
+   "req": {
+    "method": "GET",
+    "url": "https://wing.coupang.com/tenants/finance/wing/unconfirmed/summary",
+    "params": [
+     "v*:vendorId(계정)",
+     "searchDateRange*:YYYY-MM-DD~YYYY-MM-DD(결제일 기준)",
+     "searchType:VENDORITEMID",
+     "searchValue:빈값"
+    ],
+    "auth": "Wing 로그인 세션 쿠키 — **서버에서 못 부른다**(로컬 크롤 전용)"
+   },
+   "res": {
+    "note": "unconfirmedReportList[] = **배송상태별 집계**(주문 단위 아님 — orderId·vendorItemId 는 null). 2026-08-07 세소 실측(최근 1달): 배송완료 11건 · totalAmount 545,066."
+   },
+   "fields": [
+    {
+     "key": "shipmentDeliveryStatus",
+     "meaning": "★배송상태 코드(E=배송완료 실측)",
+     "example": "E"
+    },
+    {
+     "key": "confirmed",
+     "meaning": "구매확정 여부(이 창구는 항상 false)",
+     "example": "false"
+    },
+    {
+     "key": "saleQuantity",
+     "meaning": "건수",
+     "example": "11"
+    },
+    {
+     "key": "totalSaleAmount",
+     "meaning": "매출(상품+배송비)",
+     "example": "613900"
+    },
+    {
+     "key": "totalServiceFee",
+     "meaning": "수수료 합",
+     "example": "68834"
+    },
+    {
+     "key": "totalAmount",
+     "meaning": "★★**정산 예정액**(구매확정 전인데도 마켓이 주는 실값)",
+     "example": "545066"
+    },
+    {
+     "key": "finalShippingReport",
+     "meaning": "전체 합계(같은 필드 구성)",
+     "example": ""
+    }
+   ],
+   "success": "HTTP 200 · unconfirmedReportList[] + finalShippingReport",
+   "idTraps": [
+    "★★[2026-08-07 실브라우저 실측] **구매확정 전에도 마켓이 정산예정액을 준다**. revenue-history 는 매출인식(구매확정) 후에만 주기 때문에 배송중·배송완료 구간(라이브 938만)이 계수 추정으로 남아 있었는데, 이 화면 API 가 그 구간의 실값이다. 사장님 지적(\"판매자센터에 다 보이는데 왜 API로 못 받냐\")이 정확했다.",
+    "★**배송상태별 집계**라 주문 하나하나에 못 붙인다(orderId·vendorItemId 가 null). 총액 대조·보정에 쓰고, 주문별 금액을 이걸로 덮지 말 것.",
+    "★조회창은 **결제일 기준** `searchDateRange`. 최근 1달로는 두 달 전 결제 건이 안 잡힌다 — 180일 등 넉넉히 넣을 것(2026-08-07 사장님 지적).",
+    "★계정별로 `v=vendorId` 를 바꿔 각각 불러야 한다(화면은 로그인된 1계정만 보여준다). 라이브 대조: 화면 11건 545,066 vs 우리 저장분 쿠팡 미확정 319건 2,305만 — **계정·기간 차이**.",
+    "★Wing 세션 쿠키 필요 → 서버 불가, 로컬 크롤만. 화면 경로 /tenants/finance/wing/unconfirmed/dashboard"
+   ]
+  },
+  {
+   "id": "eleven11.selleroffice.settle.status",
+   "market": "eleven11",
+   "fnKey": "selleroffice.settle.status",
+   "nm": "판매/정산현황 — 구매확정 전 정산예정액(셀러오피스 화면 API·로컬 크롤)",
+   "endpoint": "POST https://soffice.11st.co.kr/remittance/SellerRemittanceAction.tmall",
+   "dir": "recv",
+   "st": "ok",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "lemouton/margin/eleven11_unconf.py · webapp/routes/api_margin.py:eleven11_unconf_ingest · extension/moum-crawler/background.js:handleEleven11UnconfCrawl(0.7.86)",
+   "persistIds": "market_order_lines.line_uid = eleven11|{ordNo}|{ordPrdSeq}",
+   "req": {
+    "method": "POST",
+    "params": [
+     "method*:getSelAllStatDtlsSoffice(상세·주문번호 있음) / getSellerOwnSelStatSoffice(요약) / getSellerOwnSelStatNotSoffice(미확정 요약) / getSellerOwnQuickStlSoffice(빠른정산) / getSellerOwnCnsgnDlvSoffice(위탁배송)",
+     "dtlSearchStlmntType*:**N=정산 미확정(구매확정 전 포함)** / Y=정산 확정",
+     "searchDtType*:**STL_DT=결제일** / BUY_CNFRM_DT=구매확정일",
+     "stDate·edDate*:YYYYMMDD — **한 달 상한**(90일은 토막내 부른다)",
+     "start·limit:페이징 / cnsgnDlvYn·quickStlYn:N / searchType:ALL"
+    ],
+    "auth": "셀러오피스 로그인 세션 — 서버에서 못 부른다(로컬 PC 크롤)"
+   },
+   "res": {
+    "note": "{list:[…], totalCount:n} — totalCount 는 0 으로 와도 list 는 채워져 온다(실측)"
+   },
+   "fields": [
+    {
+     "key": "ordNo",
+     "meaning": "주문번호(조인 축)",
+     "example": "20260806090786705"
+    },
+    {
+     "key": "ordPrdSeq",
+     "meaning": "주문순번(라인 구분)",
+     "example": "1"
+    },
+    {
+     "key": "ordPrdStat",
+     "meaning": "주문상태",
+     "example": "발주확인 / 배송완료"
+    },
+    {
+     "key": "stlAmt",
+     "meaning": "★정산예정금액(배송비 포함)",
+     "example": "47894"
+    },
+    {
+     "key": "selPrc",
+     "meaning": "판매가(배송비 제외)",
+     "example": "58400"
+    },
+    {
+     "key": "deductAmt",
+     "meaning": "공제금액",
+     "example": "10506"
+    },
+    {
+     "key": "selFixedFee",
+     "meaning": "수수료율",
+     "example": "13.00%"
+    },
+    {
+     "key": "ordStlEndDt",
+     "meaning": "결제완료일",
+     "example": "2026/08/06"
+    },
+    {
+     "key": "stlPlnDy",
+     "meaning": "정산예정일 — 구매확정 전엔 **빈 값**",
+     "example": ""
+    },
+    {
+     "key": "sellerId",
+     "meaning": "판매자ID(계정 구분)",
+     "example": "rnwhgowh1"
+    }
+   ],
+   "success": "HTTP 200 · JSON",
+   "idTraps": [
+    "★★[2026-08-08 오판 정정] 전날 「11번가는 구매확정 전 정산예정액을 마켓이 안 준다(구조적 한계)」고 결론 냈는데 **틀렸다**. 근거였던 「정산 미확정 0건」은 조회 축이 `searchDtType=BUY_CNFRM_DT`(구매확정일)여서 나온 것 — 구매확정 전 주문은 구매확정일이 없으니 **애초에 조회 대상이 아니었을 뿐**이다. `STL_DT`(결제일)로 바꾸니 발주확인·배송완료 10건이 금액과 함께 나왔다. **0건은 「없다」가 아니라 「이 축으론 안 보인다」일 수 있다.**",
+    "★`stlAmt` 에는 **배송비가 이미 들어 있다**(실측: selPrc 합 527,700 + 배송비 = 화면 판매금액 547,700 인데 stlAmt 합 464,691 은 화면 정산예정금액과 정확히 일치). 우리 `정산예정금(배송비포함)` 과 정의가 같으므로 **배송비를 또 더하면 이중계상**이다.",
+    "★화면 조회는 **한 달 상한**이다. 90일을 한 번에 부르면 조용히 잘린다 → 달 단위로 토막.",
+    "★화면은 **로그인한 그 계정 하나**만 보여준다. 계정이 여럿이면 각각 떠서 합쳐야 한다 (쿠팡에서 화면 11건 vs 우리 319건으로 어긋나 오판할 뻔했다). 응답 `sellerId` 로 구분.",
+    "★로그인이 풀리면 JSON 이 아니라 HTML 이 온다 → 0건으로 삼키지 말고 needLogin 으로 실패시킬 것."
+   ]
+  },
+  {
+   "id": "eleven11.selleroffice.main.summary",
+   "market": "eleven11",
+   "fnKey": "selleroffice.main.summary",
+   "nm": "셀러오피스 메인 정산 요약(전일 확정분)",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "미구현 — 발굴만(2026-08-07)",
+   "persistIds": "",
+   "endpoint": "GET https://apis.11st.co.kr/settlement/external/v1/selleroffice/main/summary",
+   "req": {
+    "method": "GET",
+    "params": [
+     "(세션 기반 — 파라미터 없음)"
+    ],
+    "auth": "셀러오피스 로그인 세션"
+   },
+   "res": {
+    "note": "2026-08-07 실측: sellerNo 75895425 · lastDaySettleAmount 31,004 · cashAmount 0 · pointAmount 0 · lastDayAdvanceSettleAmount 0 · rmtncPlnDy 20260811"
+   },
+   "fields": [
+    {
+     "key": "lastDaySettleAmount",
+     "meaning": "전일 확정 정산액",
+     "example": "31004"
+    },
+    {
+     "key": "rmtncPlnDy",
+     "meaning": "송금 예정일",
+     "example": "20260811"
+    },
+    {
+     "key": "lastDayAdvanceSettleAmount",
+     "meaning": "전일 빠른정산액",
+     "example": "0"
+    }
+   ],
+   "success": "HTTP 200 JSON",
+   "idTraps": [
+    "★전일 확정분 요약일 뿐 — 구매확정 전 예정액은 여기 없다(그건 selleroffice.settle.status 의 dtlSearchStlmntType=N)."
+   ]
   }
  ],
  "autoConfirm": {
@@ -170880,6 +171199,72 @@
    "severity": "low",
    "status": "resolved",
    "lesson": "적재분을 통째로 읽어 거르는 화면은 **창 폭 = 응답 시간**이다. 느리면 로직보다 먼저 창을 의심하라."
+  },
+  {
+   "id": "2026-08-06-eleven11-product-update-spec-not-collected",
+   "date": "2026-08-06",
+   "markets": [
+    "eleven11"
+   ],
+   "area": "상품수정",
+   "title": "11번가 상품수정 API — 존재는 확인, 스펙은 미확보(GET 으로는 jsonData 가 안 나온다)",
+   "symptom": "5축 왕복 검증을 붙이려는데 지도에 11번가 상품 수정 API 가 없다(25개 중 등록만 있음). 로그인 화면에는 분명히 있는데 자동 수집이 전부 빈 결과.",
+   "cause": "① 비로그인 상태에서는 categoryNo 를 뭘로 바꿔도 구매자용 ProductSearch 페이지가 같은 6,331바이트로 온다(실측 20페이지 전부 동일) — 에러가 아니라 조용히 다른 걸 준다. ② 로그인 후에도 GET 으로는 jsonData 가 빈 문자열(categoryNo 8종 × apiSpecType 2종 = 16조합 전부 0자). 이 문서는 changeLang() 이 $('#pageForm').submit() 하는 POST 폼으로 본문을 받는다.",
+   "fix": "미해결. 확보한 것 — 상품관리 탭 12개 이름(상품등록/신규상품등록·상품수정/신규상품수정·상품가격수정·상품 추가 구성상품 조회·상품상세설명 조회·상품 판매기간 조회·상품 추가구성상품 수정·상품상세설명 수정·상품 옵션 수정·상품가격/즉시할인 수정·상품 판매기간 연장·실재고체크를 통한 옵션품절 리스트 조회) + 등록 URL POST /rest/prodservices/product(XML·API KEY 는 HttpHeaders). 미확보 — 각 수정 API 의 method·URL·요청 XML 필드.",
+   "status": "open",
+   "lesson": "11번가 개발가이드는 GET 으로 jsonData 를 안 준다 — 다음엔 #pageForm 의 필드를 먼저 확인해 POST 로 받거나, 실브라우저로 탭을 눌러 렌더된 뒤 DOM 을 덤프할 것. 시도해서 안 된 경로(categoryNo GET·apiSeq GET·method=OpenAPITester GET)를 여기 남긴다 — 같은 길을 다시 파지 말 것.",
+   "severity": "med",
+   "commit": ""
+  },
+  {
+   "id": "2026-08-06-coupang-rejected-product-price-noop",
+   "date": "2026-08-06",
+   "severity": "med",
+   "commit": "",
+   "markets": [
+    "coupang"
+   ],
+   "area": "가격·재고",
+   "title": "승인반려 상품은 가격 변경이 에러 없이 안 먹는다(조용한 무시)",
+   "symptom": "5축 왕복에서 쿠팡 가격 179,600→180,600 전송이 200 인데 되읽으니 179,600 그대로. 에러 없음.",
+   "cause": "대상이 statusName=승인반려 상품이었다. 승인이 안 난 상품은 vendorItemId 가 활성이 아닌 것으로 보인다(확정 근거 미확보 — 추정). 쿠팡 판매중지 후보를 3계정 563건 훑었는데 전부 승인반려였고 부분승인완료는 0건이라 대조군을 못 만들었다.",
+   "fix": "승인반려·상품삭제·임시저장·심사중·승인대기중 상태에서는 가격·재고 축을 '확인불가'로 남긴다(lemouton/uploader/roundtrip/markets/coupang.py _PRICE_INERT_STATUSES). '보냈는데 안 바뀜=실패'로 적으면 멀쩡한 배선을 뜯게 된다.",
+   "status": "open",
+   "lesson": "쿠팡은 200 을 주고도 아무것도 안 바꿀 수 있다 — 상태에 따라 API 가 무력화된다. 왕복(되읽기) 없이 200 만 보고 성공으로 적으면 영영 모른다. 그리고 '판매중지 상품으로 시험한다'는 원칙이 쿠팡에선 '가격 API 가 안 먹는 상품으로 시험한다'와 같은 뜻이 된다 — 마켓마다 판매중지의 의미가 다르다."
+  },
+  {
+   "id": "2026-08-06-esm-selling-period-readback-mismatch",
+   "date": "2026-08-06",
+   "severity": "high",
+   "commit": "",
+   "markets": [
+    "auction",
+    "gmarket"
+   ],
+   "area": "상품수정",
+   "title": "옥션·G마켓 수정 400 — 조회가 준 판매기간을 그대로 되돌리면 거부",
+   "symptom": "PUT /item/v1/goods/{goodsNo} 가 400. 처음엔 사유가 안 보여 원인 불명이었다.",
+   "cause": "raise_for_status 가 본문을 버려 사유를 못 봤다. 본문을 건지니 resultCode=1000 [\"[IAC] 판매기간은 -1(무제한), 0, 15, 30, 60, 90만 가능합니다.\"]. 지도 esm.20 sellingPeriod 설명에 이미 있었다 — 「조회 API 경우 **남은 판매 기간** 확인 가능」 · 「수정시 **0** 입력 경우 **기존 기간 유지**」. 조회는 남은 일수(37 등)를 주는데 수정은 그 값을 안 받는다.",
+   "fix": "① 4xx 본문에서 resultCode·message 를 꺼내 예외에 실어 올린다(_error_body). ② 수정 body 의 sellingPeriod 를 0(기존 유지)으로 보낸다 — 상품 설정을 바꾸지 않으면서 거부도 안 되는 유일한 값. 칸이 없으면 만들지 않는다.",
+   "status": "resolved",
+   "lesson": "GET→PUT 왕복은 '조회 응답 = 수정 요청'을 가정하는데 그게 틀릴 때가 있다. 조회가 파생값(남은 일수)을 주고 수정은 설정값(기간 코드)을 받는 필드는 반드시 변환해야 한다. 그리고 400 본문을 버리면 이걸 영영 못 찾는다 — 사유 표면화가 먼저다."
+  },
+  {
+   "id": "2026-08-07-esm-modify-triggers-ip-screening-lock",
+   "date": "2026-08-07",
+   "severity": "high",
+   "commit": "",
+   "markets": [
+    "auction",
+    "gmarket"
+   ],
+   "area": "상품수정",
+   "title": "🔴 옥션·G마켓 상품수정 PUT 자체가 재심사를 유발해 상품이 잠긴다 — 원복 불가(2건 실측)",
+   "symptom": "판매중지 상품 2건에 상품수정 PUT. ①옥션 6390703083 — 가격·상품명·상세 5축. ②G마켓 6390711573 — **가격 한 축만**. 둘 다 첫 전송은 성공(값이 실제로 바뀜)하고 몇 초 뒤 원복이 거부됐다: resultCode=1000 [지식재산권침해 우려(1250/1251)]의 사유로 사이트 내 상품 노출이 제한 되었습니다. 저널 손복구도 같은 사유로 거부. 마켓에 되돌릴 수 없는 변경이 남았다(옥션 가격 69,800/원래 68,800 + 상품명 '(시험중)' + 상세 문구 · G마켓 가격 84,300/원래 83,300).",
+   "cause": "**상품수정 PUT 자체가 재심사(스크리닝)를 유발한다.** 처음엔 상품명의 브랜드('나이키')가 방아쇠라고 봤는데, **가격 한 축만 보낸 G마켓도 똑같이 잠겨** 그 가설이 반증됐다. 어떤 필드를 바꾸든 PUT 이 나가면 재심사가 돌고, 브랜드 상품은 지재권 심사에 걸린다. 전송 전에는 수정이 가능한 상태였고 전송 직후 제재가 걸렸다.",
+   "fix": "옥션·G마켓 왕복 전송을 **차단**(webapp/routes/live_send_test.py ROUNDTRIP_MARKETS 에서 제외). 조회(roundtrip-probe)는 계속 된다. 손복구 2건은 사람이 ESM 셀러오피스에서 직접 해야 한다.",
+   "status": "open",
+   "lesson": "🔴 **원복이 되리라는 보장이 없다.** 마켓이 수정 자체를 계기로 상품을 잠글 수 있고, 그러면 저널(원래값 기록)이 있어도 되돌릴 수 없다. 왕복 시험을 설계할 때 '원복 전송이 반드시 성공한다'를 전제하면 안 된다. 그리고 축을 줄여도 안전해지지 않는다 — 위험한 것은 필드가 아니라 **PUT 을 보내는 행위**다. 브랜드 상품이 많은 마켓에서는 상품수정 API 를 시험 목적으로 부르지 말 것."
   }
  ]
 }

@@ -11,6 +11,26 @@
  *   ② 매출     = 제외 후 `실결제금액 + 배송비` 합.
  *   ③ 정산예정 = 제외 후 `정산예정금(배송비포함)` 합.
  *
+ * 사장님 확정(2026-08-06 2차) — 주문금액·마켓 할인
+ *   ④ 주문금액 = **표의 `주문금액` 열을 그대로** 더한다(제외 없음).
+ *   ⑤ 「마켓 할인」 카드를 주문금액과 매출 **사이**에 넣는다
+ *      = 제외 후 `단가×수량 − 실결제금액`.
+ *
+ * 🔴 옛 주문금액이 왜 틀렸나 — 같은 이름, 두 정의
+ *   옛 계산은 `단가`(상품 **개당가**) 만 더했다. 수량도 배송비도 안 들어가서,
+ *   표의 `주문금액` 열(order_export._finalize_rows: 단가×수량 + 배송비)과 이름은
+ *   같은데 값이 달랐다. 표 합계와 카드가 어긋나는 게 정상처럼 굳어 있었다.
+ *
+ * 🔴 「주문금액 − 매출」의 정체는 마켓 할인이다
+ *   라이브 실측(2026-08-06 오늘·48건): 정가 4,506,140 → 실결제 4,186,470.
+ *   롯데온은 26건 **전부** 제휴할인이 붙어 있었다(스스 4/6·11번가 4/4·쿠팡 0/12).
+ *   차이가 22만인데 화면에 아무 설명이 없어 「오류 아니냐」가 반복됐다.
+ *
+ * 🔴 모르는 값을 0 으로 삼키지 않는다
+ *   `단가`·`실결제금액`이 빈칸인 행은 흔하다(11번가 구매확정 목록엔 단가가 없다).
+ *   0 으로 더하면 주문금액이 조용히 줄고 **할인이 늘어난 것처럼** 보인다.
+ *   정산예정과 똑같이 「모르는 N건 빠짐」을 잔글씨 마지막 줄로 말한다.
+ *
  * 왜 `정산예정금액` 이 아니라 `정산예정금(배송비포함)` 인가
  *   order_export._finalize_rows 규약: `정산예정금액`=상품분(배송비 뺀 값),
  *   `정산예정금(배송비포함)`=정산예정금액+고객배송비. 배송비는 배송건 첫 행에만
@@ -40,6 +60,19 @@
   'use strict';
 
   var SETTLE_FIELD = '정산예정금(배송비포함)';
+  var AMOUNT_FIELD = '주문금액';     // 표의 그 열(= 단가×수량 + 배송비). 카드와 표는 한 값이다.
+
+  /** 마켓 할인을 **잴 수 없는** 마켓 — 0 이 아니라 「확인 불가」다.
+   *  `_finalize_rows` 의 `force_orig` 가 이 두 마켓의 `실결제금액`을 원금
+   *  (단가×수량+옵션)으로 **덮어쓴다**(샵마인 K열 규약). 그래서 「정가−실결제」가
+   *  항상 정확히 0 인데, 할인이 없어서가 아니라 덮어써서 0 이다.
+   *
+   *  ESM 주문 API 전수 확인(2026-08-06 데이터코드지도):
+   *    · G마켓 `OrderAmount` = 판매단가×수량 (할인 미반영) → 사이트할인을 못 분리 → 불가
+   *    · 옥션 `AcntMoney` 에 판매자할인이 섞여 있으나 **배송비가 장바구니 합계로 모든
+   *      줄에 중복** 내려와(지도 원문) 줄 단위로 못 가른다 → 라이브 실측 전엔 확인 불가
+   *  정합성 3대 원칙: 확인 못 하면 「확인 불가」로 표기, 추정·폴백 금지. */
+  var ESM_UNKNOWN = { '옥션': 1, 'G마켓': 1 };
 
   // 되돌린 클레임·교환 — 여기 걸리면 **무조건 남긴다**(아래 CLAIM_RE 보다 우선).
   //   철회는 「취소철회·반품철회」처럼 **앞 글자가 붙었을 때만** 남긴다
@@ -95,11 +128,113 @@
     return { sum: sum, counted: counted, blank: blank };
   }
 
+  /** 주문금액 = 표의 `주문금액` 열 합(제외 없음).
+   *  🔴 `단가`를 다시 곱하지 않는다 — 그 셈은 `_finalize_rows` 가 이미 했고,
+   *     배송비는 **배송건 첫 행에만** 실려 있어 여기서 다시 더하면 중복된다. */
+  function amountSummary(rows) {
+    var sum = 0, counted = 0, blank = 0;
+    (rows || []).forEach(function (r) {
+      // 🔴 2026-08-08 사장님 확정 — 여기도 취소·반품을 뺀다.
+      //   전엔 주문금액만 「제외 없음」이라 세 숫자가 안 이어졌다
+      //   (실측 3,658 − 207 ≠ 2,485 — 차이의 대부분이 취소·반품이었다).
+      //   매출·할인과 같은 모수여야 「정가 → 할인 → 매출」로 읽힌다.
+      if (rowExcluded(r)) return;
+      var v = (r || {})[AMOUNT_FIELD];
+      if (isBlank(v)) { blank++; return; }
+      sum += num(v);
+      counted++;
+    });
+    return { sum: sum, counted: counted, blank: blank };
+  }
+
+  /** 판매처별 마켓 할인 — 호버 창이 쓸 자료.
+   *  · markets = [{market, sum, count, top:[{name, amount, orderNo}…]}] 할인 많은 순
+   *  · esmUnknown = 옥션·G마켓 건수(금액 표에 안 섞는다 — 0 으로 보이면 「할인 없음」 오독)
+   *  · blank = 정가·실결제를 모르는 건수 */
+  function discountByMarket(rows) {
+    var by = {}, esmUnknown = 0, blank = 0, total = 0;
+    (rows || []).forEach(function (r) {
+      r = r || {};
+      if (rowExcluded(r)) return;
+      var mk = r['판매처'] || '(모름)';
+      if (ESM_UNKNOWN[mk]) { esmUnknown++; return; }
+      var u = r['단가'], p = r['실결제금액'];
+      if (isBlank(u) || isBlank(p)) { blank++; return; }
+      var q = parseInt(r['수량'], 10);
+      if (!isFinite(q) || q < 1) q = 1;
+      var d = num(u) * q - num(p);
+      var b = by[mk] || (by[mk] = { market: mk, sum: 0, count: 0, top: [],
+                                    seller: 0, mkt: 0, known: 0, kinds: {} });
+      b.sum += d; b.count++; total += d;
+      // ── 「누가 깎아 줬나」 — 마켓이 갈라 주는 곳만 센다(안 주면 안 세고 건수로 남긴다) ──
+      //  스스: 총(_dc_total) − 셀러(_dc_seller) = 마켓. 나머지 마켓은 둘 다 실값으로 온다.
+      var s = r['_dc_seller'], m2 = r['_dc_market'], tt = r['_dc_total'];
+      if (!isBlank(s) && (!isBlank(m2) || !isBlank(tt))) {
+        var sv = num(s);
+        var mv = isBlank(m2) ? Math.max(0, num(tt) - sv) : num(m2);
+        b.seller += sv; b.mkt += mv; b.known++;
+      }
+      var kk = r['_dc_kinds'];
+      if (kk) {
+        for (var kn in kk) {
+          if (!Object.prototype.hasOwnProperty.call(kk, kn) || isBlank(kk[kn])) continue;
+          if (num(kk[kn]) > 0) b.kinds[kn] = (b.kinds[kn] || 0) + num(kk[kn]);
+        }
+      }
+      if (d > 0) {
+        b.top.push({ name: String(r['상품명'] || ''), amount: d,
+                     orderNo: String(r['오픈마켓주문번호'] || '') });
+      }
+    });
+    var out = [];
+    for (var k in by) {
+      if (!Object.prototype.hasOwnProperty.call(by, k)) continue;
+      by[k].top.sort(function (a, b2) { return b2.amount - a.amount; });
+      by[k].top = by[k].top.slice(0, 3);
+      // 셀러 부담율 = 셀러 / (셀러+마켓). 🔴 갈래를 아는 행이 하나도 없으면 **null**
+      //   — 0% 로 적으면 「마켓이 다 내줬다」는 거짓말이 된다.
+      var b3 = by[k], tot2 = b3.seller + b3.mkt;
+      b3.sellerRate = (b3.known && tot2 > 0) ? Math.round(b3.seller / tot2 * 100) : null;
+      b3.kindList = Object.keys(b3.kinds)
+        .map(function (n) { return { name: n, amount: b3.kinds[n] }; })
+        .sort(function (x, y) { return y.amount - x.amount; });
+      out.push(b3);
+    }
+    out.sort(function (a, b2) { return b2.sum - a.sum; });
+    return { markets: out, total: total, esmUnknown: esmUnknown, blank: blank };
+  }
+
+  /** 마켓 할인 = 제외 후 (단가×수량 − 실결제금액). 전 마켓 한 가지 셈이다.
+   *  모수는 **매출과 같다**(취소·반품 제외) — 그래야 주문금액 − 할인 = 매출로 읽힌다.
+   *  배송비는 양쪽에 똑같이 들어가 상쇄되므로 여기선 안 본다.
+   *
+   *  🔴 `_cp_seller_dc` 를 여기서 **또 더하면 두 번 센다**
+   *     2026-08-06 사장님 확정으로 쿠팡 `실결제금액`이 판매자부담쿠폰을 **이미 뺀**
+   *     값이 됐다(order_export 의 `_paid_raw - _sdc`). 그 전에는 쿠팡만 실결제가
+   *     할인 차감 **전**이라 여기서 따로 더해 줬는데, 그 줄을 지우지 않으면
+   *     쿠팡 할인이 정확히 두 배로 잡힌다. 지웠다 — 되살리지 말 것.
+   *  🔴 이제 쿠팡도 매출에서 쿠폰이 빠지므로 주문금액 − 할인 = 매출 이 전 마켓 성립한다. */
+  function discountSummary(rows) {
+    var sum = 0, counted = 0, blank = 0, esmUnknown = 0;
+    (rows || []).forEach(function (r) {
+      if (rowExcluded(r)) return;
+      if (ESM_UNKNOWN[(r || {})['판매처']]) { esmUnknown++; return; }
+      var u = (r || {})['단가'], p = (r || {})['실결제금액'];
+      if (isBlank(u) || isBlank(p)) { blank++; return; }   // 둘 중 하나만 없어도 못 센다
+      var q = parseInt((r || {})['수량'], 10);
+      if (!isFinite(q) || q < 1) q = 1;
+      sum += num(u) * q - num(p);
+      counted++;
+    });
+    return { sum: sum, counted: counted, blank: blank, esmUnknown: esmUnknown };
+  }
+
   // 카드 밑 잔글씨(사장님 확정 A안) — 화면마다 다시 쓰지 않는다.
   var CAPS = {
     sales:  ['취소·반품 제외', '교환 정산 포함', '실결제+배송비'],
     settle: ['취소·반품 제외', '교환 정산 포함', '배송비 포함'],
-    amount: ['단가 총합', '제외 없음'],
+    amount: ['단가×수량+배송비', '취소·반품 제외'],
+    discount: ['취소·반품 제외', '정가−실결제'],
     salesPhone: ['취소·반품 제외', '교환 정산 포함']   // 폰은 칸이 좁아 2줄
   };
 
@@ -116,24 +251,68 @@
 
   function man(n) { return (n / 10000).toFixed(0) + '<small>만</small>'; }
 
-  /** PC 주문내역 KPI 5칸 — 주문·발송대기·주문금액·매출·정산예정.
+  /** 할인은 「빼는 값」이라 부호를 보여준다. 0 이면 「−0만」이 되지 않게 그냥 둔다.
+   *  음수(옵션추가금이 실결제에 실린 경우)는 숨기지 않고 +로 드러낸다. */
+  function signedMan(n) {
+    if (n > 0) return '−' + man(n);
+    if (n < 0) return '+' + man(-n);
+    return man(0);
+  }
+
+  function withBlank(caps, blank, 말) {
+    var out = caps.slice();
+    if (blank) out.push(말 + ' 모르는 ' + blank + '건 빠짐');
+    return out;
+  }
+
+  /** 마켓 할인 잔글씨. 옛 판에는 「쿠팡 쿠폰 N원 포함(매출엔 안 빠짐)」 줄이 있었다 —
+   *  쿠팡 실결제가 할인 차감 전이라 항등식이 깨졌기 때문이다. 2026-08-06 확정으로
+   *  쿠팡 매출에서도 쿠폰이 빠져 전 마켓 항등식이 성립하므로 그 예외 안내는 없앴다
+   *  (남겨 두면 거짓말이 된다). PC·폰이 이 한 함수를 같이 쓴다. */
+  function discountCaps(dc) {
+    var out = withBlank(CAPS.discount, dc.blank, '실결제');
+    // 「0 이라 안 보이는 것」과 「못 재서 안 보이는 것」을 화면이 갈라 말한다.
+    if (dc.esmUnknown) out.push('옥션·G마켓 ' + dc.esmUnknown + '건은 할인 확인 불가');
+    return out;
+  }
+
+  /** PC 주문내역 KPI 6칸 — 주문·발송대기·주문금액·마켓 할인·매출·정산예정.
+   *  🔴 마켓 할인은 주문금액과 매출 **사이**에 둔다 — 세 숫자를 왼쪽에서 오른쪽으로
+   *     이어 읽으면 「정가 → 할인 → 실제 매출」이 한 줄로 설명된다.
    *  발송대기는 화면의 WAIT 정규식이 세어 넘겨준다(같은 수 두 정의 금지). */
+  /** 매출 카드 밑에 붙는 한 줄 — 할인이 **이미 빠졌음**을 말하는 자리.
+   *  🔴 옆 칸에 「−207만」으로 세웠더니 **또 빼는 돈**으로 읽혔다(2026-08-08 사장님 지적).
+   *     매출은 이미 할인이 빠진 값이라, 「반영됨」이라고 말해야 두 번 빼지 않는다.
+   *  `data-pop` 이 호버 창의 앵커다(마켓별 내역은 화면이 그린다). */
+  function discountHint(dc) {
+    if (!dc || (!dc.sum && !dc.esmUnknown)) return '';
+    return '<b class="hi" data-pop="disc">마켓 할인 ' + man(dc.sum).replace('<small>', '<small>')
+         + ' 반영됨<span class="q">?</span></b>';
+  }
+
   function kpiHtml(rows, waitN) {
     rows = rows || [];
-    var amt = 0;
-    rows.forEach(function (r) { amt += num(r['단가']); });   // 주문금액 = 단가 총합(제외 없음)
+    var am = amountSummary(rows);
+    var dc = discountSummary(rows);
     var st = settleSummary(rows);
-    var settleCaps = CAPS.settle.slice();
-    if (st.blank) settleCaps.push('정산예정 모르는 ' + st.blank + '건 빠짐');
+    var salesCaps = CAPS.sales.concat([discountHint(dc)]).filter(Boolean);
     return card('주문', rows.length + '<small>건</small>')
          + card('발송대기', waitN + '<small>건</small>')
-         + card('주문금액', man(amt), CAPS.amount)
-         + card('매출', man(salesOf(rows)), CAPS.sales)
-         + card('정산예정', man(st.sum), settleCaps);
+         + card('주문금액', man(am.sum), withBlank(CAPS.amount, am.blank, '주문금액'))
+         + card('매출', man(salesOf(rows)), salesCaps)
+         + card('정산예정', man(st.sum), withBlank(CAPS.settle, st.blank, '정산예정'));
   }
 
   var API = {
     SETTLE_FIELD: SETTLE_FIELD,
+    AMOUNT_FIELD: AMOUNT_FIELD,
+    amountSummary: amountSummary,
+    discountSummary: discountSummary,
+    discountByMarket: discountByMarket,
+    discountCaps: discountCaps,
+    discountHint: discountHint,
+    ESM_UNKNOWN: ESM_UNKNOWN,
+    signedMan: signedMan,
     KEEP_RE: KEEP_RE,
     CLAIM_RE: CLAIM_RE,
     CAPS: CAPS,

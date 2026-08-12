@@ -1302,3 +1302,581 @@ def api_suspend_eleven11():
         return jsonify({"ok": False, "mode": "전시중지", "prdNo": prd_no,
                         "error": f"{type(e).__name__}: {str(e)[:800]}",
                         "detail": traceback.format_exc()[-800:]}), 200
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# [2026-08-06] 5축 왕복 실전송 검증 — 바꿔 보내고 · 되읽어 확인하고 · 되돌린다.
+#
+#   정본 설계: docs/superpowers/specs/2026-08-06-마켓-5축-왕복-실전송-검증-design.md
+#   코어:      lemouton/uploader/roundtrip/ (runner·journal·snapshot·markets·probe_image)
+#
+#   안전 불변식(코어에서 테스트로 못 박음 — 여기선 잠금만 건다):
+#     · 2중 잠금 — arm=1 AND 서버키 MOUM_LIVE_UPLOAD 둘 다여야 전송.
+#     · 판매중지 상품만. 판매중이면 코어가 거부한다.
+#     · 저널(원복 보험)을 못 쓰면 전송하지 않는다.
+#     · 원복은 finally — 검증이 깨져도, 예외가 나도 반드시 돈다.
+#
+#   마켓별 근거(데이터 코드 지도):
+#     · smartstore  PUT origin-products/{no}      st=ok   — 5축 · 즉시 반영
+#     · auction/gmarket PUT /item/v1/goods/{no}   st=ok   — 5축 · 즉시 반영
+#         🔴 isEditableGoodsName=false 면 상품명이 에러 없이 무시된다(조회로 미리 거른다)
+#     · coupang / lotteon / eleven11 — 아래 주석 참조(아직 미지원)
+# ═════════════════════════════════════════════════════════════════════════════
+#: 🔴 [2026-08-07 사고 2건] ESM 상품수정 PUT **자체**가 재심사를 유발해 상품이 잠긴다.
+#:    옥션 6390703083(5축) · G마켓 6390711573(**가격 한 축만**) 둘 다 같은 결과 —
+#:    첫 전송은 성공하고 몇 초 뒤 원복이 「지식재산권침해 우려(1250/1251) 노출 제한」으로
+#:    거부됐다. 저널 손복구도 거부. **되돌릴 수 없는 변경이 남았다.**
+#:    처음엔 상품명·브랜드가 방아쇠라고 봤는데, 가격 한 축만 보낸 G마켓도 같아서
+#:    **PUT 자체가 원인**임이 드러났다. 원인 규명 전까지 전송을 막는다(조회는 계속 된다).
+_ESM_BLOCKED = ("옥션·G마켓 왕복은 사고로 막아 뒀습니다 — 상품수정 전송이 **재심사**를 "
+                "유발해 상품이 잠기고, 원복도 손복구도 거부됩니다(2026-08-07 실측 2건). "
+                "조회(roundtrip-probe)는 계속 됩니다.")
+
+#: **전송**이 허용된 마켓. 옥션·G마켓은 사고로 빠져 있다.
+#: 🟢 11번가 — 가격·재고 **전용 API 가 이미 우리 코드에 있었다**(2026-08-08).
+#:    「지도에 없다」던 건 상품수정(5축) 얘기고, 가격·재고는 별도 엔드포인트다.
+ROUNDTRIP_MARKETS = ("smartstore", "coupang", "lotteon", "eleven11")
+
+#: **조회**가 허용된 마켓 — 마켓에 아무것도 안 쓰므로 차단과 무관하게 열어 둔다.
+#: 🔴 차단을 조회에까지 걸었더니 원인 진단조차 못 했다(2026-08-07).
+ROUNDTRIP_READ_MARKETS = ROUNDTRIP_MARKETS + ("auction", "gmarket")
+
+#: 아직 못 붙인 마켓 — **없는 것을 있는 척 하지 않는다.** 거부할 때 이유를 그대로 말한다.
+ROUNDTRIP_NOT_YET = {
+    "auction": _ESM_BLOCKED,
+    "gmarket": _ESM_BLOCKED,
+}
+
+
+def _roundtrip_client(market: str, env_prefix):
+    from lemouton.uploader import market_fetch as MF
+    if market == "smartstore":
+        return MF._smartstore_client(env_prefix)
+    if market in ("auction", "gmarket"):
+        return MF._esm_client(market, env_prefix)
+    if market == "coupang":
+        return MF._coupang_client(env_prefix)
+    if market == "lotteon":
+        return MF._lotteon_client(env_prefix)
+    if market == "eleven11":
+        return MF._eleven11_client(env_prefix)
+    raise ValueError(f"왕복 시험 미지원 마켓: {market}")
+
+
+@bp.get("/api/live-send-test/roundtrip-candidates")
+def api_roundtrip_candidates():
+    """왕복 시험에 쓸 **판매중지** 상품 후보 (읽기 전용 — 마켓에 아무것도 안 쓴다).
+
+    계정 지정: `env_prefix=SMARTSTORE_2` 를 권장한다. `account` 는 UploadAccount.account_key
+    인데 표시명과 달라 화면에서 알 수 없다(표시명을 넣으면 조용히 대표 계정으로 떨어진다
+    — 2026-07-25 「대표계정 폴백」 이력과 같은 부류라 여기서 원천 차단).
+    `all=1` 이면 활성 계정을 **전부** 훑되 계정을 섞지 않고 계정별로 따로 보고한다.
+    """
+    market = (request.args.get("market") or "smartstore").strip()
+    account = (request.args.get("account") or "").strip()
+    want_prefix = (request.args.get("env_prefix") or "").strip()
+    scan_all = request.args.get("all") == "1"
+    # 사장님 확정(2026-08-07) — 판매중 상품으로 시험한다. on_sale=1 이면 판매중만 고른다.
+    want_on_sale = request.args.get("on_sale") == "1"
+    pages = min(int(request.args.get("pages") or 3), 20)
+
+    if market not in ROUNDTRIP_READ_MARKETS:
+        return jsonify({"ok": False, "market": market, "env_prefix": want_prefix or None,
+                        "accounts": [],
+                        "error": f"{market} 은 아직 왕복 시험을 지원하지 않아요."}), 400
+
+    def _scan(env_prefix, acct_name):
+        row = {"account": acct_name, "env_prefix": env_prefix,
+               "scanned_total": None, "candidates": [], "candidate_count": 0,
+               "error": None}
+        try:
+            client = _roundtrip_client(market, env_prefix)
+            found = []
+            if market == "smartstore":
+                from lemouton.uploader.roundtrip.candidates import suspended_from_search
+                for page in range(1, pages + 1):
+                    resp = client.request("POST", "/external/v1/products/search",
+                                          body={"page": page, "size": 100})
+                    if row["scanned_total"] is None:
+                        row["scanned_total"] = (resp or {}).get("totalElements")
+                    found.extend(suspended_from_search(resp or {},
+                                                      want="sale" if want_on_sale else "stopped"))
+                    if not ((resp or {}).get("contents")):
+                        break
+            elif market == "lotteon":
+                # 롯데온 — **검증된 기존 list_products** 를 쓴다.
+                #   손으로 body 를 조립하면 pageNo·rowsPerPage 누락(returnCode 9000)이나
+                #   응답 형태 차이(data 가 list/dict 양쪽)를 또 밟는다 — 이미 겪은 이력이다.
+                from shared.platforms.lotteon.products import list_products
+                from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+                _lo_check = is_on_sale if want_on_sale else is_stopped
+                total = 0
+                for page in range(1, pages + 1):
+                    rows = list_products(
+                        client=client, page_no=page, rows_per_page=100,
+                        sale_status=("SALE" if want_on_sale else "STP"))
+                    total += len(rows)
+                    for r in rows:
+                        if not _lo_check("lotteon", (r or {}).get("slStatCd")):
+                            continue
+                        spd = (r or {}).get("spdNo")
+                        if not spd:
+                            continue
+                        found.append({"origin_product_no": str(spd),
+                                      "channel_product_no": None,
+                                      "name": r.get("pdNm"),
+                                      # 마켓 원값 그대로 — 무엇을 보고 골랐는지 보이게
+                                      "status": str(r.get("slStatCd") or "").upper()})
+                    if not rows:
+                        break
+                row["scanned_total"] = total
+            elif market == "coupang":
+                # 쿠팡 — 상품 목록(seller-products)에서 판매중지만 고른다.
+                #   커서(nextToken) 방식이라 페이지 번호가 아니다.
+                from shared.platforms import COUPANG
+                vid = (getattr(client, "vendor_id", None)
+                       or (getattr(client, "_cfg", None) or {}).get("vendor_id"))
+                token, total = "", 0
+                for _ in range(pages):
+                    q = f"vendorId={vid}&maxPerPage=100"
+                    if token:
+                        q += f"&nextToken={token}"
+                    resp = client.request(method="GET",
+                                          path=COUPANG["paths"]["create_product"], query=q)
+                    rows = (resp or {}).get("data") or []
+                    total += len(rows)
+                    from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+                    _cp_check = is_on_sale if want_on_sale else is_stopped
+                    for r in rows:
+                        st = (r or {}).get("statusName")
+                        # 🔴 쿠팡 판매중지는 「부분승인완료·승인반려·상품삭제」다
+                        #    (「중지」라는 낱말이 안 들어간다 — 낱말 판정은 0건이 났다).
+                        if not _cp_check("coupang", st):
+                            continue
+                        pid = (r or {}).get("sellerProductId")
+                        if not pid:
+                            continue
+                        found.append({"origin_product_no": str(pid),
+                                      "channel_product_no": None,
+                                      "name": r.get("sellerProductName"),
+                                      "status": st})
+                    token = (resp or {}).get("nextToken") or ""
+                    if not token or not rows:
+                        break
+                row["scanned_total"] = total
+            elif market == "eleven11":
+                # 11번가 — 다중 상품 조회. 판매상태 103=판매중 / 105·106·108=중지.
+                #   🔴 요청 필터를 믿지 않고 **응답 행의 selStatCd** 로 다시 거른다
+                #      (ESM 이 요청 필터를 무시했던 부류를 선제 차단).
+                from shared.platforms.eleven11.products import search_products
+                from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+                _e_check = is_on_sale if want_on_sale else is_stopped
+                total = 0
+                for page in range(pages):
+                    rows = search_products(
+                        client=client, limit=100,
+                        start=page * 100 + 1, end=(page + 1) * 100,
+                        sale_status=("103" if want_on_sale else "105"))
+                    total += len(rows)
+                    for r in rows:
+                        st = (r or {}).get("selStatCd")
+                        if not _e_check("eleven11", st):
+                            continue
+                        prd = (r or {}).get("prdNo")
+                        if not prd:
+                            continue
+                        found.append({"origin_product_no": str(prd),
+                                      "channel_product_no": None,
+                                      "name": r.get("prdNm"),
+                                      "status": str(st or "")})
+                    if not rows:
+                        break
+                row["scanned_total"] = total
+            else:
+                # ESM — 🔴 sellStatus 요청 필터는 **무시된다**(지도 2026-08-02 실측).
+                #   응답 **행의 sellStatus 가 진실**이라 클라이언트에서 걸러야 한다.
+                #   22(직권중지)는 마켓이 강제로 세운 상품이라 수정이 거부된다 —
+                #   이걸 안 걸러서 2026-08-07 사고 2건이 났다.
+                from shared.platforms.esm.products import search_goods
+                from lemouton.uploader.roundtrip.candidates import esm_suspended_from_search
+                import collections as _c
+                dist = _c.Counter()
+                site_key = "iac" if market == "auction" else "gmkt"
+                for page in range(1, pages + 1):
+                    resp = search_goods(client=client, market=market,
+                                        sell_status=("11" if want_on_sale else "21"),
+                                        page_index=page, page_size=100)
+                    if row["scanned_total"] is None:
+                        row["scanned_total"] = (resp or {}).get("totalItems")
+                    items = (resp or {}).get("items") or []
+                    for it in items:
+                        st = (it or {}).get("sellStatus")
+                        dist[str((st or {}).get(site_key) or "?")] += 1
+                    found.extend(esm_suspended_from_search(
+                        items, market=market,
+                        want="sale" if want_on_sale else "stopped"))
+                    if not items:
+                        break
+                # 진단 — 요청 필터가 무시되는 게 눈에 보이게 상태 분포를 함께 준다.
+                row["상태분포"] = dict(dist)
+            row["candidates"] = found[:50]
+            row["candidate_count"] = len(found)
+        except Exception as e:  # noqa: BLE001
+            row["error"] = f"{type(e).__name__}: {str(e)[:300]}"
+        return row
+
+    if scan_all:
+        from lemouton.markets import order_export as _oe
+        accts = _oe._active_accounts(market) or []
+        rows = [_scan(ep, nm) for ep, nm in accts]
+        return jsonify({"ok": True, "market": market, "mode": "전계정",
+                        "env_prefix": want_prefix or None, "accounts": rows,
+                        "candidate_count": sum(r["candidate_count"] for r in rows)})
+
+    if want_prefix:
+        env_prefix, acct_name = want_prefix, want_prefix
+        from lemouton.markets import order_export as _oe
+        for ep, nm in (_oe._active_accounts(market) or []):
+            if ep == want_prefix:
+                acct_name = nm
+                break
+    else:
+        env_prefix, acct_name = _first_account_env(market, account)
+
+    row = _scan(env_prefix, acct_name)
+    return jsonify({"ok": row["error"] is None, "market": market,
+                    "env_prefix": env_prefix, "accounts": [row], **row})
+
+
+@bp.post("/api/live-send-test/roundtrip")
+def api_roundtrip():
+    """5축 왕복 1회. body: {market, origin_product_no, account, axes[], arm}"""
+    p = request.get_json(silent=True) or {}
+    market = (p.get("market") or "smartstore").strip()
+    account = (p.get("account") or "").strip()
+    raw_no = p.get("origin_product_no") or p.get("product_id")
+
+    def _refuse(msg, **extra):
+        return jsonify({"ok": False, "armed": False, "sent": 0,
+                        "market": market, "refusal": msg, **extra})
+
+    # 차단은 **실수 방지**용이다 — 원인을 규명하려면 의도적으로 풀 수 있어야 한다.
+    #   unblock=1 은 사람이 사유를 알고 켜는 스위치(기본은 계속 막힘).
+    unblocked = str(p.get("unblock") or "") == "1"
+    allowed = ROUNDTRIP_MARKETS + (ROUNDTRIP_READ_MARKETS if unblocked else ())
+    if market not in allowed:
+        return _refuse(ROUNDTRIP_NOT_YET.get(
+            market, f"{market} 은 아직 왕복 시험을 지원하지 않아요."))
+    if not raw_no:
+        return _refuse("상품번호(origin_product_no)가 필요해요.")
+
+    # ── 2중 잠금 ────────────────────────────────────────────────────────────
+    armed_req = str(p.get("arm") or "") == "1"
+    # 서버키 판정은 시스템 정본(live_upload_enabled)을 그대로 쓴다 — 여기서만 '1' 만
+    # 인정하면 서버가 MOUM_LIVE_UPLOAD=true 로 무장됐는데 이 화면만 거부한다.
+    from lemouton.uploader.runtime import live_upload_enabled
+    server_key = live_upload_enabled()
+    if not armed_req:
+        return _refuse("실전송하려면 arm=1 이 필요해요(지금은 아무것도 보내지 않았습니다).")
+    if not server_key:
+        return _refuse("서버키 MOUM_LIVE_UPLOAD 가 꺼져 있어요 — "
+                       "배포 env 설정·재배포 후 다시 시도하세요.")
+
+    axes = tuple(p.get("axes") or ()) or None
+    # 계정은 env_prefix 우선 — account_key 는 표시명과 달라, 표시명을 넣으면 조용히
+    # 대표 계정으로 떨어져 「남의 계정 상품을 못 찾음」이 된다(2026-07-25 이력).
+    want_prefix = (p.get("env_prefix") or "").strip()
+    if want_prefix:
+        env_prefix, acct_name = want_prefix, want_prefix
+        from lemouton.markets import order_export as _oe
+        for ep, nm in (_oe._active_accounts(market) or []):
+            if ep == want_prefix:
+                acct_name = nm
+                break
+    else:
+        env_prefix, acct_name = _first_account_env(market, account)
+
+    from lemouton.uploader.roundtrip.journal import RoundtripJournal
+    from lemouton.uploader.roundtrip.probe_image import (
+        upload_probe_image, upload_probe_image_public,
+    )
+    from lemouton.uploader.roundtrip.runner import run_roundtrip
+    from lemouton.uploader.roundtrip.snapshot import AXES
+
+    ids = {}
+    approval_axes = ()
+    try:
+        client = _roundtrip_client(market, env_prefix)
+
+        if market == "smartstore":
+            # 수정 API 는 originProductNo 를 요구한다 — 어느 번호를 줘도 변환해서 쓴다
+            # (2026-07-17 과거이력: channelProductNo 로 수정 시도 → 실패).
+            from shared.platforms.smartstore.get_channel_no import resolve_product_ids
+            from lemouton.uploader.roundtrip.markets.smartstore import make_smartstore_ops
+            ids = resolve_product_ids(int(raw_no), client=client) or {}
+            if not ids:
+                return _refuse(f"상품번호 {raw_no} 를 이 계정({acct_name})에서 찾지 못했어요.")
+            product_no = str(ids["origin_product_no"])
+            ops = make_smartstore_ops(int(product_no), client=client)
+            # 스스는 자기 CDN(shop-phinf) URL 만 받는다 — 외부 URL 은 400.
+            image_fn = lambda: upload_probe_image(client=client)   # noqa: E731
+        elif market == "coupang":
+            from lemouton.uploader.roundtrip.markets.coupang import (
+                APPROVAL_AXES, make_coupang_ops,
+            )
+            product_no = str(raw_no)
+            ops = make_coupang_ops(int(product_no), client=client)
+            approval_axes = APPROVAL_AXES
+            image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
+        elif market == "lotteon":
+            from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
+            product_no = str(raw_no)
+            ops = make_lotteon_ops(product_no, client=client)
+            image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
+        elif market == "eleven11":
+            # 11번가 — 가격·재고 **전용 API**(GET price/{prdNo}/{selPrc} ·
+            #   PUT stockqty/{prdStckNo}). 상품명·상세·이미지는 수정 스펙 미확보라
+            #   어댑터가 스스로 missing 으로 내놓는다(지어내지 않는다).
+            from lemouton.uploader.roundtrip.markets.eleven11 import make_eleven11_ops
+            product_no = str(raw_no)
+            ops = make_eleven11_ops(product_no, client=client)
+            image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
+        else:
+            # ESM — 수정은 **마스터 goodsNo** 로만. 사이트 상품번호를 줘도 변환해서 쓰고,
+            #   이미 마스터번호면 변환 실패를 삼키고 그대로 쓴다(후보 조회가 주는 게 마스터번호).
+            from lemouton.uploader.roundtrip.markets.esm import (
+                make_esm_ops, resolve_master_goods_no,
+            )
+            product_no = resolve_master_goods_no(raw_no, client=client)
+            ops = make_esm_ops(product_no, market=market, client=client)
+            ids = {"channel_product_no": str(raw_no) if str(raw_no) != product_no else None}
+            # ESM 은 공개 URL 을 그대로 받는다 → 우리 R2 에 올려 그 주소를 쓴다.
+            image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
+
+        journal = RoundtripJournal(market=market, product_id=str(product_no))
+        report = run_roundtrip(
+            snapshot_fn=ops.snapshot, apply_fn=ops.apply, journal=journal,
+            axes=axes or AXES, on_sale_fn=ops.on_sale,
+            image_url_fn=image_fn, approval_axes=approval_axes,
+            allow_on_sale=(str(p.get("allow_on_sale") or "") == "1"),
+        )
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "armed": True, "market": market,
+                        "error": f"{type(e).__name__}: {str(e)[:400]}",
+                        "detail": traceback.format_exc()[-800:]}), 200
+
+    return jsonify({
+        "ok": report.ok,
+        "armed": True,
+        "market": market,
+        "account": acct_name,
+        "origin_product_no": product_no,
+        "channel_product_no": ids.get("channel_product_no"),
+        "product_name": ids.get("product_name") or (
+            report.before.name if report.before else None),
+        "refusal": report.refusal,
+        "send_error": report.send_error,
+        "reverted": report.reverted,
+        "revert_error": report.revert_error,
+        "recovery_hint": report.recovery_hint,
+        "journal": report.journal_path,
+        "axes": [{
+            "축": a.label, "axis": a.axis,
+            "원래값": a.before, "보낸값": a.sent, "보낸뒤": a.after,
+            "바뀜": a.changed_ok, "원복뒤": a.restored, "되돌아옴": a.restored_ok,
+            "비고": a.note,
+        } for a in report.axes],
+    })
+
+
+#: 프로브가 조사할 수 있는 마켓 — 어댑터가 아직 없어도 **조회는** 해 본다.
+PROBE_MARKETS = ("smartstore", "auction", "gmarket", "coupang", "lotteon", "eleven11")
+
+
+@bp.get("/api/live-send-test/roundtrip-probe")
+def api_roundtrip_probe():
+    """축 조회 프로브 — **읽기 전용**. 이 마켓이 5축 중 무엇을 실제로 주는가.
+
+    왜: 롯데온 상세조회는 지도에 필드가 10개뿐이고 `res.note="전체 스펙 롯데ON apiNo=94"`
+      (미확보)다. 11번가는 상품 수정 API 자체가 지도에 없다. 문서로 모르는 것을
+      **추측해서 어댑터를 짜면** 「없는 필드를 읽어 None → 확인불가」로 조용히 굳는다.
+      consult-market-map §3(갭 선순환): 실호출로 확보 → 지도에 되채움.
+
+    마켓에 **아무것도 쓰지 않는다.**
+    """
+    market = (request.args.get("market") or "").strip()
+    product_id = (request.args.get("product_id") or "").strip()
+    want_prefix = (request.args.get("env_prefix") or "").strip()
+
+    if market not in PROBE_MARKETS:
+        return jsonify({"ok": False, "market": market,
+                        "error": f"모르는 마켓: {market!r}"}), 400
+    if not product_id:
+        return jsonify({"ok": False, "market": market,
+                        "error": "상품번호(product_id)가 필요해요."}), 400
+
+    env_prefix = want_prefix or (_first_account_env(market, "")[0])
+
+    def _flat_keys(node, prefix="", out=None, depth=0):
+        """중첩 dict/list 의 열쇠 이름을 평평하게 — 어떤 필드가 오는지 눈으로 보려고."""
+        out = [] if out is None else out
+        if depth > 4 or len(out) > 400:
+            return out
+        if isinstance(node, dict):
+            for k, v in node.items():
+                p = f"{prefix}.{k}" if prefix else str(k)
+                out.append(p)
+                _flat_keys(v, p, out, depth + 1)
+        elif isinstance(node, list) and node:
+            _flat_keys(node[0], f"{prefix}[]", out, depth + 1)
+        return out
+
+    result = {"ok": True, "market": market, "product_id": product_id,
+              "env_prefix": env_prefix, "axes": None, "raw_keys": [], "error": None}
+    try:
+        if market in ROUNDTRIP_READ_MARKETS:
+            # 어댑터가 있는 마켓 — 그 어댑터가 읽는 그대로 보여준다.
+            client = _roundtrip_client(market, env_prefix)
+            if market == "smartstore":
+                from lemouton.uploader.roundtrip.markets.smartstore import make_smartstore_ops
+                ops = make_smartstore_ops(int(product_id), client=client)
+            elif market == "coupang":
+                from lemouton.uploader.roundtrip.markets.coupang import make_coupang_ops
+                ops = make_coupang_ops(int(product_id), client=client)
+            elif market == "lotteon":
+                from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
+                ops = make_lotteon_ops(str(product_id), client=client)
+            elif market == "eleven11":
+                from lemouton.uploader.roundtrip.markets.eleven11 import make_eleven11_ops
+                ops = make_eleven11_ops(str(product_id), client=client)
+            else:
+                from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
+                ops = make_esm_ops(product_id, market=market, client=client)
+            snap = ops.snapshot()
+            result["axes"] = {
+                "상품명": snap.name, "가격": snap.sale_price,
+                "재고": snap.value_of("stock"),
+                "상세길이": len(snap.detail_html or "") if snap.detail_html else None,
+                "이미지수": len(snap.image_urls) if snap.image_urls else None,
+            }
+            result["missing"] = list(snap.missing)
+            result["raw_keys"] = _flat_keys(snap.raw)[:400]
+        elif market == "lotteon":
+            from lemouton.uploader import market_fetch as MF
+            from shared.platforms.lotteon.products import get_product_detail
+            cli = MF._lotteon_client(env_prefix)
+            data = get_product_detail(str(product_id), client=cli)
+            result["raw_keys"] = _flat_keys(data)[:400]
+            result["axes"] = {"상품명": data.get("pdNm"), "판매상태": data.get("slStatCd")}
+        else:   # eleven11
+            from lemouton.uploader import market_fetch as MF
+            from shared.platforms.eleven11.stocks_query import get_stocks
+            cli = MF._eleven11_client(env_prefix)
+            data = get_stocks(str(product_id), client=cli)
+            result["raw_keys"] = _flat_keys(
+                data if isinstance(data, dict) else {"rows": data})[:400]
+            result["axes"] = {"재고행수": len(data) if isinstance(data, list) else None}
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        result["ok"] = False
+        result["error"] = f"{type(e).__name__}: {str(e)[:400]}"
+        result["detail"] = traceback.format_exc()[-700:]
+    return jsonify(result)
+
+
+@bp.get("/api/live-send-test/roundtrip-journals")
+def api_roundtrip_journals():
+    """남아 있는 왕복 저널 목록 — **원복 실패한 것부터** 보여준다(읽기 전용)."""
+    from shared.state_store import state_dir
+    import json as _json
+    from pathlib import Path
+    d = Path(state_dir()) / "roundtrip"
+    rows = []
+    if d.exists():
+        for f in sorted(d.glob("*.json"), reverse=True)[:60]:
+            try:
+                j = _json.loads(f.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                continue
+            # 🔴 원복실패는 결국 **사람이 손으로 되돌린다** — 그때 필요한 건 "실패했다"가
+            #    아니라 「원래 얼마였나」다. 저널엔 있는데 목록이 안 줘서 파일을 못 열면
+            #    복구를 못 한다(2026-08-08). 무거운 축(상세·이미지)은 길이만 준다.
+            def _brief(node):
+                out = {}
+                for k, v in (node or {}).items():
+                    if isinstance(v, str) and len(v) > 120:
+                        out[k] = f"({len(v)}자) {v[:80]}…"
+                    elif isinstance(v, (list, tuple)):
+                        out[k] = f"({len(v)}개) {list(v)[:2]}"
+                    else:
+                        out[k] = v
+                return out
+
+            rows.append({"file": f.name, "path": str(f), "market": j.get("market"),
+                         "product_id": j.get("product_id"), "status": j.get("status"),
+                         "note": j.get("note"), "written_at": j.get("written_at"),
+                         "원래값": _brief(j.get("before"))})
+    bad = [r for r in rows if "실패" in str(r.get("status") or "")]
+    return jsonify({"ok": True, "총": len(rows), "원복실패": len(bad),
+                    "실패목록": bad, "전체": rows})
+
+
+@bp.post("/api/live-send-test/roundtrip-restore")
+def api_roundtrip_restore():
+    """저널로 되돌리기 — **원복이 실패했을 때의 손복구**. body: {journal, arm}
+
+    🔴 왜 따로 있나: 원복이 실패하면 마켓에 시험값이 남는데, 왕복을 다시 부르면
+       **지금 값(시험값)을 원래값으로 삼아** 더 나빠진다. 되돌리기 전용 경로가 필요하다.
+    """
+    p = request.get_json(silent=True) or {}
+    journal = (p.get("journal") or "").strip()
+    if not journal:
+        return jsonify({"ok": False, "error": "journal(저널 파일 경로)이 필요해요."}), 400
+    if str(p.get("arm") or "") != "1":
+        return jsonify({"ok": False, "armed": False,
+                        "refusal": "되돌리려면 arm=1 이 필요해요."})
+    from lemouton.uploader.runtime import live_upload_enabled
+    if not live_upload_enabled():
+        return jsonify({"ok": False, "armed": False,
+                        "refusal": "서버키 MOUM_LIVE_UPLOAD 가 꺼져 있어요."})
+
+    import json as _json
+    from pathlib import Path
+    try:
+        meta = _json.loads(Path(journal).read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"저널을 읽지 못했어요: {e}"}), 400
+
+    market = str(meta.get("market") or "")
+    product_no = str(meta.get("product_id") or "")
+    env_prefix = (p.get("env_prefix") or "").strip() or _first_account_env(market, "")[0]
+
+    from lemouton.uploader.roundtrip.restore import restore_from_journal
+    try:
+        client = _roundtrip_client(market, env_prefix)
+        if market == "smartstore":
+            from lemouton.uploader.roundtrip.markets.smartstore import make_smartstore_ops
+            ops = make_smartstore_ops(int(product_no), client=client)
+        elif market == "coupang":
+            from lemouton.uploader.roundtrip.markets.coupang import make_coupang_ops
+            ops = make_coupang_ops(int(product_no), client=client)
+        elif market == "lotteon":
+            from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
+            ops = make_lotteon_ops(product_no, client=client)
+        else:
+            from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
+            ops = make_esm_ops(product_no, market=market, client=client)
+        rep = restore_from_journal(journal, apply_fn=ops.apply, snapshot_fn=ops.snapshot)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "armed": True, "market": market,
+                        "error": f"{type(e).__name__}: {str(e)[:400]}",
+                        "detail": traceback.format_exc()[-700:]}), 200
+
+    return jsonify({"ok": rep.ok, "armed": True, "market": rep.market,
+                    "product_id": rep.product_id, "error": rep.error,
+                    "되돌린값": {k: (list(v) if isinstance(v, tuple) else v)
+                              for k, v in rep.sent.items()},
+                    "확인됨": rep.verified, "안맞는축": list(rep.mismatched),
+                    "journal": rep.journal_path})

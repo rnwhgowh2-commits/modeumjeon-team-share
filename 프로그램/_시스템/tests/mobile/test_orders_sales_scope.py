@@ -147,6 +147,40 @@ def test_폰_잔글씨_문구가_공용_정의와_같다(client):
     assert out["caps"] == out["pc"][:2], "폰 2줄이 PC 3줄의 앞 두 줄과 달라졌다(두 화면 다른 말)"
 
 
+# ── ④ 마켓 할인 (2026-08-08 A안) — 칸을 빼고 매출 잔글씨 + 눌러서 내역 ────────
+def test_폰에도_할인_칸이_없고_매출_잔글씨로_간다(client):
+    """🔴 옆 칸에 「−207만」으로 세웠더니 **또 빼는 돈**으로 읽혔다(사장님 지적).
+
+    매출은 이미 할인이 빠진 값이라, 「N만 반영됨」으로 매출 밑에 적는다.
+    PC 와 **같은 함수**(discountHint)가 문구를 만든다 — 한쪽만 고치면 두 화면이 갈린다.
+    """
+    글 = _tpl()
+    본문 = _html(client)
+    assert 'id="mo-kpi-disc"' not in 본문, "폰에 아직 마켓 할인 칸이 남아 있다"
+    assert "SCOPE.discountHint(dc)" in 글, "매출 잔글씨를 공용 함수가 안 만든다"
+    assert "SCOPE.CAPS.salesPhone" in 글, "매출 잔글씨 원천이 공용 정의가 아니다"
+
+
+def test_폰_할인_내역은_공용_자료를_쓴다(client):
+    """폰이 판매처별 할인을 다시 세면 PC 와 숫자가 갈린다."""
+    글 = _tpl()
+    assert "SCOPE.discountByMarket(sub)" in 글,         "폰이 판매처별 할인을 직접 세고 있다(공용 정의로 넘겨야 한다)"
+
+
+def test_폰_내역창은_눌러서_열고_바깥을_누르면_닫힌다(client):
+    """🔴 폰엔 마우스가 없다 — 호버로 만들면 아예 못 연다.
+
+    창은 `document.body` + `position:fixed` 로 띄우고(카드 overflow 에 안 잘리게),
+    화면 아래쪽이면 위로 뒤집는다. 스크롤하면 닫는다(좌표가 낡는다).
+    """
+    글 = _tpl()
+    assert "document.body.appendChild" in 글, "창을 body 에 안 붙였다(카드에 잘린다)"
+    assert re.search(r"\.dcpop\{[^}]*position:fixed", 글), "position:fixed 가 아니다"
+    assert "_dcPop.contains(e.target)" in 글, "바깥을 눌러도 안 닫힌다"
+    assert "innerHeight" in 글 and "r.top-h-7" in 글.replace(" ", ""),         "화면 아래에서 위로 뒤집는 처리가 없다"
+    assert re.search(r"addEventListener\('scroll',\s*_dcHide", 글), "스크롤하면 닫아야 한다"
+
+
 def test_폰_잔글씨는_11px_하한을_지킨다():
     글 = _tpl()
     m = re.search(r"\.mo-kpi \.cap\{([^}]*)\}", 글)

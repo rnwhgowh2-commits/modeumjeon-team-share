@@ -184,9 +184,17 @@ def test_가이드_인라인_code_는_11p5px_바닥을_갖는다():
 
 
 def test_연속스캔_위치선택은_44px_에_16px_글자다():
+    """[2026-08-07] 위치 선택이 모드 줄 → 저장 줄로 옮겼다(카메라에 자리를 주려고).
+
+    옮긴 자리에서도 손끝 44px·글자 16px 는 그대로여야 한다.
+    ※ 옛 선택자(`.sb-modebar .locsel select`)를 그대로 두면 죽은 CSS 를 보게 되어
+      **아무것도 안 지키는 시험**이 된다 — 실제 쓰이는 자리를 봐야 한다.
+    """
     글 = _읽기('scan_batch.html')
     assert 'id="location-sel"' in 글, '#location-sel 이 사라졌다'
-    본문 = _규칙(글, '.sb-mode .locsel select')
+    assert re.search(r'<div class="sb-foot">[\s\S]{0,400}?id="location-sel"', 글), (
+        '위치 선택이 저장 줄(.sb-foot) 안에 있어야 한다 — 옮겼다면 이 시험도 같이 옮길 것')
+    본문 = _규칙(글, '.sb-foot select')
     assert _픽셀(본문, 'min-height') >= 44, '위치 선택 손끝 목표 44px 미만(실측 28px 재발)'
     assert _픽셀(본문, 'font-size') >= 16, 'iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다'
 
@@ -208,3 +216,61 @@ def test_바코드_검색_단추도_44px_다():
     assert m, '#manual-search 가 사라졌다'
     mh = re.search(r'min-height\s*:\s*([\d.]+)px', m.group(1))
     assert mh and float(mh.group(1)) >= 44, '검색 단추 손끝 목표 44px 미만(실측 33px 재발)'
+
+
+# ── 2026-08-06 — 전역 CSS 와 이름이 겹쳐 한 줄이 네 줄로 늘어났던 사고 재발 방지 ──
+def test_연속스캔_모드줄은_전역CSS와_이름이_겹치지_않는다():
+    """`.sb-mode` 는 toss.css 의 「모드 전환 단추」 이름이다.
+
+    연속 스캔 화면이 같은 이름을 쓰는 바람에 그쪽 flex-direction:column 을 뒤집어써
+    한 줄(64px)이 네 줄(145px)로 늘어나 담긴 목록 자리를 잡아먹고 있었다(라이브 실측).
+    이름을 되돌리면 여기서 걸린다.
+    """
+    글 = _읽기('scan_batch.html')
+    # 주석에 이름을 인용하는 건 괜찮다 — 실제로 「쓰는」 곳만 본다
+    assert not re.search(r'\.sb-mode(?![-\w])\s*[,{ ]*\{', 글), \
+        'CSS 규칙에 .sb-mode 가 되살아났다 — toss.css 와 겹친다'
+    assert not re.search(r'class="[^"]*\bsb-mode(?![-\w])', 글), \
+        'class 에 sb-mode 가 되살아났다 — toss.css 와 겹친다'
+
+    전역 = os.path.join(_시스템, 'webapp', 'static', 'toss.css')
+    if os.path.exists(전역):
+        with io.open(전역, encoding='utf-8') as f:
+            assert re.search(r'\.sb-mode(?![-\w])', f.read()), \
+                'toss.css 에서 .sb-mode 가 사라졌다면 이 검사의 전제를 다시 볼 것'
+
+
+# ── 2026-08-07 — 「연속 스캔 화면이 작다」 3차 신고 후 레이아웃 고정 ──────────────
+#   실측(라이브): 카메라가 55%·최소 340px 이었지만 실제 폰에서는 **늘 최소값에 걸려**
+#   340px 고정이었다(SE 553 · 아이폰14 664 화면 모두). 단독 스캔은 같은 폰에서 400·464px.
+#   → 모드 줄·직접 입력 줄을 걷어내고 카메라가 남는 자리를 전부 갖도록 바꿨다.
+def test_연속스캔_카메라가_남는_자리를_전부_갖는다():
+    본문 = _규칙(_읽기('scan_batch.html'), '.sb-cam')
+    assert re.search(r'flex\s*:\s*1', 본문), (
+        '카메라가 `flex:1` 이 아니면 고정 비율(%)이 최소값에 걸려 늘 같은 크기가 된다 — '
+        '실측에서 55% 가 340px 로 고정됐다')
+    px = _픽셀(본문, 'min-height')
+    assert px <= 240, (
+        '최소 높이를 크게 잡으면 작은 폰(SE 553px)에서 맨 아래 저장 줄을 화면 밖으로 밀어낸다 — '
+        '카메라를 키우려다 저장을 못 누르게 되는 게 더 나쁘다')
+
+
+def test_연속스캔_접은_직접입력칸은_자리를_차지하지_않는다():
+    """`display:flex` 는 브라우저 기본 `[hidden]{display:none}` 을 이긴다.
+
+    이 규칙이 없으면 접어 놨다고 믿는 칸이 61px 를 계속 차지해(실측)
+    담긴 목록이 16px 로 찌그러지고 저장 줄이 탭 뒤로 밀린다.
+    """
+    글 = _읽기('scan_batch.html')
+    assert re.search(r'\.sb-manual\[hidden\]\s*\{[^}]*display\s*:\s*none', 글), (
+        '.sb-manual[hidden]{display:none} 이 없다 — 접어도 자리를 차지한다')
+    assert re.search(r'id="manual-row"[^>]*\bhidden\b', 글), (
+        '직접 입력 줄은 평소 접혀 있어야 한다(카메라 자리를 60px 먹는다)')
+    assert 'id="manual-toggle"' in 글, '직접 입력을 여는 단추가 사라졌다'
+
+
+def test_연속스캔_담긴목록은_최소_한줄은_보인다():
+    본문 = _규칙(_읽기('scan_batch.html'), '.sb-list')
+    m = re.search(r'flex\s*:\s*0\s+0\s+([\d.]+)px', 본문)
+    assert m, '목록이 `flex:0 0 Npx` 로 자리를 확보해야 한다 — `flex:1` 이면 카메라에 밀려 16px 가 된다'
+    assert float(m.group(1)) >= 80, '담긴 줄 하나(높이 약 54px)와 여백이 들어갈 만큼은 확보할 것'

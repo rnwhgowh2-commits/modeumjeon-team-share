@@ -84,6 +84,7 @@ function harness(markets) {
       if (/fulfillment/.test(url)) return stall('fill', () => ({ ok: true, marks: {} }));
       if (/purchase-price\/resolve/.test(url)) return stall('fill', () => ({ ok: true, prices: {} }));
       if (/supply-mode\/resolve/.test(url)) return stall('fill', () => ({ ok: true, modes: {} }));
+      if (/line-status\/resolve/.test(url)) return stall('fill', () => ({ ok: true, statuses: {}, options: [] }));
       throw new Error('예상 못한 요청: ' + url);
     },
     state,
@@ -99,6 +100,10 @@ function harness(markets) {
     var rows=[], colFilter={}, cur={from:'2026-08-01',to:'2026-08-06'};
     var pdxMap={}, pdxSeq=0, ppMap={}, ppSeq=0, ffMap={}, ffSeq=0, ffFilter='', ffReason='';
     var smMap={}, smSeq=0;
+    // 「주문 관리」 상태 — load() 가 매 조회마다 비우고, runFill 이 같은 묶음으로 채운다.
+    var ostMap={}, ostOpts=[], ostSeq=0, ostState={}, ostFilter='';
+    // 마진 가로 탭 상태 — load() 가 매 조회마다 비운다(주소로 온 탭은 첫 조회 한 번).
+    var mgMap={}, mgFilter='', mgPending='';
     var renderCount=0;
     function qparam(){return 'from='+cur.from+'&to='+cur.to;}
     function selMk(){return env.selected.slice();}
@@ -110,8 +115,11 @@ function harness(markets) {
     ${extract('loadFulfillment')}
     ${extract('loadPurchasePrice')}
     ${extract('loadSupplyMode')}
+    ${extract('loadOrderStatus')}
     return {load:load, rowCount:function(){return rows.length;},
-            isLoading:function(){return loading;}, renderCount:function(){return renderCount;}};
+            isLoading:function(){return loading;}, renderCount:function(){return renderCount;},
+            tab:function(){return mgFilter;},
+            setPending:function(v){mgPending=v;}};
   `;
   // eslint-disable-next-line no-new-func
   const api = new Function('env', script)(env);
@@ -119,7 +127,7 @@ function harness(markets) {
   return Object.assign(api, env);
 }
 
-const fillCalls = (h) => h.calls.filter((c) => /price-diff|fulfillment|purchase-price\/resolve|supply-mode\/resolve/.test(c.url));
+const fillCalls = (h) => h.calls.filter((c) => /price-diff|fulfillment|purchase-price\/resolve|supply-mode\/resolve|line-status\/resolve/.test(c.url));
 const urlsOf = (cs) => cs.map((c) => c.url.replace(/^\/orders\//, ''));
 
 console.log('주문 표 채우기 배선 — 제일 느린 마켓에 묶이지 않는다:\n');
@@ -138,18 +146,19 @@ ok(h.isLoading() === true, '느린 마켓 2개가 아직 안 왔으니 loading �
 ok(h.rowCount() === 2, '표에는 먼저 온 쿠팡 2줄이 이미 그려져 있다');
 
 let f = fillCalls(h);
-ok(f.length === 4, `표가 그려졌으면 채우기 4종이 나간다 — 실제: ${f.length}건 [${urlsOf(f)}]`);
+ok(f.length === 5, `표가 그려졌으면 채우기 5종이 나간다 — 실제: ${f.length}건 [${urlsOf(f)}]`);
 ok(f.some((c) => /price-diff/.test(c.url)), '가격 전후(price-diff.json)가 나갔다');
 ok(f.some((c) => /fulfillment/.test(c.url)), '3분류(fulfillment.json)가 나갔다');
 ok(f.some((c) => /purchase-price\/resolve/.test(c.url)), '매입가(purchase-price/resolve)가 나갔다 ← 이번 버그');
 ok(f.some((c) => /supply-mode\/resolve/.test(c.url)), '공급방식(supply-mode/resolve)이 나갔다');
-ok(f.length === 4 && f.every((c) => c.rows === 2), '보낸 행은 그때까지 도착한 2줄');
+ok(f.some((c) => /line-status\/resolve/.test(c.url)), '「주문 관리」 상태(line-status/resolve)가 나갔다 — 새 게이트를 따로 만들지 않았다');
+ok(f.length === 5 && f.every((c) => c.rows === 2), '보낸 행은 그때까지 도착한 2줄');
 
 // ── 줄 세우기: 도는 중에 새 마켓이 와도 겹쳐 쏘지 않는다 ──
 h.release('mkt:smartstore');
 await sleep(700);
 ok(h.rowCount() === 5, '스스가 도착해 표는 5줄이 됐다');
-ok(fillCalls(h).length === 4, `앞 묶음이 도는 중이면 새로 안 쏜다(워커 2개 보호) — 실제: ${fillCalls(h).length}건`);
+ok(fillCalls(h).length === 5, `앞 묶음이 도는 중이면 새로 안 쏜다(워커 2개 보호) — 실제: ${fillCalls(h).length}건`);
 
 // ── 이어받기: 앞 묶음이 끝나면 그동안 늘어난 행으로 한 번 더 ──
 h.release('fill');
@@ -157,15 +166,28 @@ await sleep(50);
 h.release('fill');         // done() 이 체인 끝에서 도는 틱을 한 번 더 준다
 await sleep(700);
 f = fillCalls(h);
-ok(f.length === 8, `앞 묶음이 끝나면 늘어난 행으로 이어서 채운다 — 실제: ${f.length}건`);
-ok(f.slice(4).length === 4 && f.slice(4).every((c) => c.rows === 5), '두 번째 묶음은 5줄 전부를 보낸다');
-ok(h.isLoading() === true && f.length === 8, '옥션은 끝까지 안 왔는데도 채우기는 두 번 다 돌았다 (근본 수정 지점)');
+ok(f.length === 10, `앞 묶음이 끝나면 늘어난 행으로 이어서 채운다 — 실제: ${f.length}건`);
+ok(f.slice(5).length === 5 && f.slice(5).every((c) => c.rows === 5), '두 번째 묶음은 5줄 전부를 보낸다');
+ok(h.isLoading() === true && f.length === 10, '옥션은 끝까지 안 왔는데도 채우기는 두 번 다 돌았다 (근본 수정 지점)');
 
 // ── 회귀 방지: 옛 게이트가 되돌아오면 즉사 ──
 //   (호출문 자체는 옛 코드에도 있었으므로 「있다」가 아니라 「게이트가 없다」를 못 박는다)
 ok(!/if\(!loading\)\{loadPriceDiff/.test(SRC),
    '옛 게이트 `if(!loading){loadPriceDiff...}` 가 되돌아오지 않았다');
 ok(/scheduleFill\(seq,/.test(SRC), 'rebuild() 가 scheduleFill 로 채우기를 건다');
+
+// ── 주소로 온 탭(`?mg=nopp`) — 상품관리 판매 이력의 「매입가 미입력 N건 →」 링크 ──
+//   설계서 §6.2. 첫 조회에만 걸리고, 그다음 조회부터는 평소대로 비워진다
+//   (「옛 기간의 판정을 새 기간에 물려주지 않는다」는 규칙을 안 깬다).
+console.log('\n주소로 온 마진 탭 — 첫 조회 한 번만:\n');
+const h2 = harness({ coupang: { respond: true, rows: [{ _line_uid: 'c|1|1' }] } });
+h2.setPending('nopp');       // 주소 `?mg=nopp` 를 읽어 둔 상태
+h2.load();
+await sleep(700);
+ok(h2.tab() === 'nopp', `첫 조회에 「매입가 미입력」 탭이 걸린다 — 실제: '${h2.tab()}'`);
+h2.load();                 // 사장님이 기간을 바꿔 다시 조회
+await sleep(700);
+ok(h2.tab() === '', `두 번째 조회부터는 평소대로 비운다 — 실제: '${h2.tab()}'`);
 
 console.log('\n결과: ' + (fails ? fails + ' 실패' : '전부 통과'));
 process.exit(fails ? 1 : 0);

@@ -16,8 +16,52 @@
     .mx-empty{padding:48px 16px;text-align:center;color:var(--sub,#8B95A1);background:var(--surface,#ffffff);
               border:1px dashed var(--n300,var(--line,#E5E8EB));border-radius:12px}
     /* ── [2026-08-04 카드형→격자] 왼쪽 사이드바 + 줄 목록 (시안 B1 확정) ── */
-    .gl-app{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
-    .gl-sb{position:sticky;top:16px;background:var(--surface,#ffffff);
+    .gl-app{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:start}
+    /* ── 「어디까지 왔나」 판 — 상품관리(bundles/tower.html) 규칙을 그대로 가져왔다.
+     두 화면이 같은 모양이어야 오가며 봐도 안 헷갈린다(사장님 지시). */
+  .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
+  .stg-head{font-weight:600}
+  .stg-head .n{font-variant-numeric:tabular-nums}
+  .stg-bar{display:flex;height:10px;border-radius:980px;overflow:hidden;margin:8px 10px 10px}
+  .stg-bar i{display:block}
+  .stg-bar i.g1{background:var(--ap-g3,#D2D2D7)}
+  .stg-bar i.g2{background:var(--ap-버튼파랑,#0071E3)}
+  .stg-bar i.g4{background:var(--글자-주황,#C93400)}
+  .stg-bar i.g3{background:var(--ap-green,#34C759)}
+  .stg-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;
+    border:1px solid transparent;cursor:pointer;
+    transition:background .24s cubic-bezier(.4,0,.6,1),color .24s}
+  .stg-row:hover{background:var(--ap-g0,#FAFAFC)}
+  .stg-row.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  .stg-row .lb{flex:1;min-width:0;white-space:nowrap;line-height:1.4}
+  .stg-row .n{flex:none;font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums;line-height:1.4}
+  .stg-row.on .n{color:inherit}
+  .stg-div{height:1px;background:var(--ap-g2,#E8E8ED);margin:8px 10px}
+  /* 단계 구분 = **글자색만**. 줄에 색 배경을 칠하면 「덕지덕지」해진다(사장님 실측). */
+  .stg-row.t1 .lb{color:var(--ap-g45,#6E6E73)}
+  .stg-row.t2 .lb{color:var(--ap-링크파랑,#0066CC)}
+  .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
+  .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
+  .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
+  .stg-row.fix .n{font-weight:600}
+  /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.
+     글자 쪽은 안 건드리므로 화면이 조용하다. */
+  .stg-row .n{background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 9px;
+    min-width:38px;text-align:center;transition:background .24s}
+  .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
+  .twr-card{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px}
+  .twr-in{width:100%;border:1px solid var(--ap-g3,#D2D2D7);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:14px;color:var(--ink,#1D1D1F);background:var(--surface,#fff);box-sizing:border-box}
+  .twr-st{font-size:11px;font-weight:600;color:var(--ap-g4,#86868B);margin:16px 0 6px}
+  .twr-sr{display:flex;justify-content:space-between;padding:7px 10px;border-radius:8px;cursor:pointer}
+  .twr-sr.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC);font-weight:600}
+  .twr-sr .n{font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums}
+  .twr-sr.on .n{color:inherit}
+  .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
+
+  .gl-sb{position:sticky;top:16px;width:max-content;min-width:240px;max-width:440px;
+           background:var(--surface,#ffffff);
            border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 14px;font-size:13px}
     .sb-sec{margin-bottom:18px}
     .sb-sec:last-child{margin-bottom:0}
@@ -158,6 +202,31 @@
   {% set n_hid = items | selectattr('hid') | list | length %}
   <div class="gl-app">
     <aside class="gl-sb">
+      {# [2026-08-06 사장님 요청 — 첫 지시 「사이드바에도 구분하자」] 상품관리와 **같은 판**.
+         말·색·순서·숫자 알약까지 그대로 — 두 화면을 오가며 봐도 안 헷갈리게.
+         「손 볼 것」은 아래 「보기 · 이상 있는 묶음만」이 이미 맡고 있어 넣지 않는다
+         (같은 걸 두 곳에서 세면 서로 어긋난다). #}
+      <div class="stg-block" id="mx-stages">
+        <div class="stg-head stg-row on" data-s=""
+             data-n="{{ stage_counts.all }}" data-nh="{{ stage_counts.all_with_hidden }}">
+          <span class="lb">어디까지 왔나</span><span class="n">전체 {{ stage_counts.all }}</span>
+        </div>
+        <div class="stg-bar">
+          {%- for st in stages %}<i class="g{{ st }}"
+            style="width:{{ (stage_counts['s' ~ st] * 100 / stage_counts.all)|round(1) if stage_counts.all else 0 }}%"></i>{% endfor -%}
+          <i class="g0" style="width:{{ (stage_counts.none * 100 / stage_counts.all)|round(1) if stage_counts.all else 0 }}%"></i>
+        </div>
+        {% for st in stages %}
+        <div class="stg-row t{{ st }}" data-s="{{ st }}"
+             data-n="{{ stage_counts['s' ~ st] }}" data-nh="{{ stage_counts['h' ~ st] }}">
+          <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ stage_counts['s' ~ st] }}</span>
+        </div>
+        {% endfor %}
+        <div class="stg-row t0" data-s="none"
+             data-n="{{ stage_counts.none }}" data-nh="{{ stage_counts.hnone }}">
+          <span class="lb">아직 상품 생성 안 함</span><span class="n">{{ stage_counts.none }}</span>
+        </div>
+      </div>
       <div class="sb-sec">
         <div class="sb-t">찾기</div>
         <form class="sb-search" method="get">
@@ -180,7 +249,9 @@
           <input type="checkbox" id="f-warn">
           <span class="sb-nm">이상 있는 묶음만<span class="sb-hint">ⓘ</span></span>
           <span class="sb-n">{{ n_warn }}</span></label>
-        <label class="sb-row" data-tip="평소 이 화면에서 <b>볼 일이 없어 숨겨 둔 묶음</b>을 꺼내 봅니다.<br><br>· <b>재고 단독 묶음</b> — 재고관리에서 「모음전으로 등록」을 체크하지 않고 등록한 상품에 시스템이 자동으로 붙인 묶음(이름이 단독_으로 시작). 재고 수량은 재고관리 탭에서 그대로 관리됩니다.<br>· <b>빈 묶음</b> — 옵션이 하나도 안 담긴 묶음.">
+        {# [2026-08-06 사장님 확정] 「재고 단독 묶음」·「단독_으로 시작」은 코드 앞글자를 그대로
+           읽어 준 말이라 뜻이 안 통했다. 사장님이 보는 말은 「아직 상품 안 만든 것」 한 벌로. #}
+        <label class="sb-row" data-tip="평소 이 화면에서 <b>볼 일이 없어 숨겨 둔 묶음</b>을 꺼내 봅니다.<br><br>· <b>아직 상품 안 만든 묶음</b> — 재고관리에서 「모음전에도 등록」을 체크하지 않고 등록한 물건입니다. 창고에는 있지만 아직 팔 상품으로 만들지 않았습니다. 재고 수량은 재고관리 탭에서 그대로 관리됩니다.<br>· <b>빈 묶음</b> — 옵션이 하나도 안 담긴 묶음.">
           <input type="checkbox" id="f-hid">
           <span class="sb-nm">숨긴 묶음 보기<span class="sb-hint">ⓘ</span></span>
           <span class="sb-n">{{ n_hid }}</span></label>
@@ -203,7 +274,8 @@
           {% for it in items %}
           <tr class="glr" data-name="{{ it.blob }}"
               data-count="{{ it.count }}" data-idx="{{ loop.index0 }}" data-id="{{ it.id }}"
-              data-warn="{{ 1 if it.warn else 0 }}" data-hid="{{ 1 if it.hid else 0 }}">
+              data-warn="{{ 1 if it.warn else 0 }}" data-hid="{{ 1 if it.hid else 0 }}"
+              data-stage="{{ it.stage if it.stage else 'none' }}">
             <td class="tl"><span class="mx-no">{{ it.no or '번호 대기' }}</span></td>
             <td class="tl"><a class="nm" href="/matrix/{{ it.id }}">{{ it.name }}</a>
               <span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span></td>
@@ -262,6 +334,7 @@
   (function () {
     function rows(){ return [].slice.call(document.querySelectorAll('tr.glr')); }
     const glq = document.getElementById('glq'), glac = document.getElementById('glac');
+    let stgPick = '';                     // 「어디까지 왔나」에서 고른 상태('' = 전체)
     function apply(){
       /* [2026-08-06 최종안] 거르기는 둘뿐 — 이상만 보기 · 숨긴 묶음 보기.
          검색은 서버가 내려준 blob(이름·번호·모델코드·브랜드·색상·사이즈·SKU·상품명)을 그대로 본다. */
@@ -272,6 +345,8 @@
       rows().forEach(function (tr) {
         let ok = true;
         if (kw && tr.dataset.name.toLowerCase().indexOf(kw) < 0) ok = false;
+        /* [2026-08-06] 「어디까지 왔나」 거르기 — 상품관리와 같은 판. */
+        if (ok && stgPick && tr.dataset.stage !== stgPick) ok = false;
         if (ok && onlyWarn && tr.dataset.warn !== '1') ok = false;
         if (ok && !showHid && tr.dataset.hid === '1') ok = false;
         tr.style.display = ok ? '' : 'none';
@@ -283,9 +358,31 @@
         empty.querySelector('.gl-kw').textContent = kw || '고른 조건';
       }
     }
+    /* 🔴 판 숫자는 **화면에 보이는 것**과 같아야 한다. 「숨긴 묶음 보기」를 켜면
+       보이는 대상이 늘어나므로 숫자도 같이 바꾼다 — 안 그러면 「아직 상품 생성 안 함 89」
+       라 해놓고 눌러도 3개만 나온다(라이브 실측). */
+    function syncStageCounts() {
+      const showHid = document.getElementById('f-hid').checked;
+      document.querySelectorAll('#mx-stages .stg-row').forEach(function (r) {
+        const n = r.querySelector('.n');
+        if (!n || r.dataset.n === undefined) return;
+        n.textContent = (r.classList.contains('stg-head') ? '전체 ' : '') +
+                        (showHid ? r.dataset.nh : r.dataset.n);
+      });
+    }
     ['f-warn', 'f-hid'].forEach(function (id) {
       const c = document.getElementById(id);
-      if (c) c.addEventListener('change', apply);
+      if (c) c.addEventListener('change', function () { syncStageCounts(); apply(); });
+    });
+    /* 「어디까지 왔나」 줄 누르기 — 한 번에 하나만(상품관리와 같은 규칙) */
+    const stgBox = document.getElementById('mx-stages');
+    if (stgBox) stgBox.addEventListener('click', function (e) {
+      const r = e.target.closest('.stg-row'); if (!r) return;
+      stgPick = r.dataset.s || '';
+      stgBox.querySelectorAll('.stg-row').forEach(function (x) {
+        x.classList.toggle('on', x === r);
+      });
+      apply();
     });
     document.getElementById('glsort').addEventListener('change', function () {
       const key = this.value;
@@ -512,7 +609,7 @@
                 + '<td class="tc">' + (x.url ? '<a href="' + esc(x.url)
                    + '" target="_blank" rel="noopener noreferrer">↗</a>' : '—') + '</td></tr>';
             }).join('') + '</tbody></table>'
-          + '<div class="mxp-note">최종매입가 = 표면가에서 혜택을 뺀, 실제로 내는 돈. 못 구한 곳은 「—」 그대로 둡니다(표면가로 메우지 않아요).</div>';
+          + '<div class="mxp-note">최종매입가 = 표면가에서 혜택을 뺀, <b>살 때 낼 것으로 보이는</b> 값이에요(소싱처 크롤 기준 예상). 실제로 사고 낸 값은 주문 내역의 「실매입가」입니다. 못 구한 곳은 「—」 그대로 둡니다(표면가로 메우지 않아요).</div>';
       }
       pane('src').innerHTML = sh;
 

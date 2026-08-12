@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.76";  // 0.7.76 = [정산] 「예기치 못한 오류: No tab with id」의 정체 — 감시에 끊긴 옛 회차가 뒷정리까지 흘러와 **지금 도는 새 회차의 롯데온 탭을 닫아** 그 계정을 죽였다(2026-08-06 17:47 라이브: 브랜드마켓). 깃발·기록엔 세대 가드가 있었는데 탭 정리에만 빠져 있었다 → 뒷정리도 내 세대일 때만.  0.7.75 = [정산] 자동 회차 실패 2~3계정의 진짜 원인 — 롯데온 전용 백그라운드 탭에 **재우기 금지(autoDiscardable=false) 핀이 없었다**. 크롬 메모리 세이버가 그 탭을 재우면 executeScript 가 영구 대기하고(→30분 감시가 회차를 통째로 끊음), 깨어난 탭은 로그인 세션을 잃어 「로그아웃 실패·로그인 실패」로 떨어진다 (2026-08-06 실측: 하루 4회 강제중단·매 회차 실패 2~3, 같은 계정을 손으로 돌리면 정상 — 손 회차는 짧고 브라우저를 쓰는 중이라 탭이 안 재워진다). 서비스 탭엔 2026-06-22 에 같은 이유로 이미 핀이 있었는데 롯데온 탭만 빠져 있었다. 같이 막은 무한대기 3곳: ①주입 1회 하드 타임아웃(45초·수집은 예산만큼) ②페이지 안 XHR timeout 30초(기본은 무한) ③수집 루프 자체 예산. 더불어 ④실패 계정 1회 자동 재시도(손으로 다시 누르면 되던 것을 회차가 스스로) ⑤회차 예산 25분·감시 30→40분(감시가 「회차 끝내는 정상 수단」이 되어 있었다 — 끊기면 계정별 기록이 안 남는다) ⑥순서가 못 온 계정부터 다음 회차 출발(뒷자리 계정이 영영 굶는 것 방지).  0.7.74 = [정산] 회차 이력(hist) — 화면 「기록」이 페이지가 손수 돌린 회차만 적어, 자동을 확장으로 옮긴 뒤론 기록이 하루 통째로 비었다(2026-08-05 실측: 최근 22:40 인데 기록 마지막이 어제 00:07 = 한 화면 모순). 이력의 주인은 회차의 주인(확장) — 완료·강제중단·도중끊김을 storage hist(최근 60회)에 남기고 getState 로 화면이 그린다. 화면이 꺼져 있던 시간의 회차도 이제 기록에 보인다.  0.7.73 = [정산] 회차 심장박동+시작 도장 —MV3 SW 는 30초 조용하면 크롬이 죽인다. 회차가 탭 로드를 조용히 기다리다 SW 와 함께 증발했다(실측 2026-08-04 저녁: 19:56·20:56 연속, 기록 0 — 낮엔 다른 크롤 활동이 우연히 SW 를 깨워 둬 살아남음). ①회차 중 20초마다 storage.get 심장박동으로 SW 유지 ②시작 도장(runStartedAt)을 스토리지에 박고 SW 재기동 시 끝맺음 없는 도장이 보이면 「회차 도중 크롬이 확장을 재워 끊김」을 last.error 로 남긴다(증발 금지 — 여태 「거른 것」과 구분 불가였다).  0.7.72 = [정산] 회차 감시 —한 회차가 30분을 넘겨 안 끝나면(롯데온 페이지 무한 대기 등) 강제로 내려놓고 다음 회차부터 다시 돈다. 걸린 회차가 _settleRunning 을 영영 쥐면 틱이 매번 busy 로 빠져 회차를 1~2시간씩 걸렀다(2026-08-04 실측: 17:10 다음이 19:56). 세대표(_settleGen)로 옛 회차는 나아가지도·상태를 쓰지도 못하게 해 새 회차와의 이중 실행·이중 기록을 막는다. 강제 중단은 last.error 로 남긴다(조용한 복구 금지).  0.7.71 = 병합 —0.7.70(정산 via=auto)과 0.7.69(폰 리모컨 상시 폴링)를 합침(내용 변경 없음).  0.7.70 = [정산] 회차 기록에 via="auto" 를 명시. 화면에서 손으로 돌린 회차(via="manual")와 섞이면 안 된다 — 배너는 「자동이 살아 있나」를 묻는데 수동까지 세면 한 번 눌러 본 것만으로 조용해져 자동이 죽어도 모른다.  0.7.68b = [정산] 계정별 회차 결과를 서버에 남긴다(/api/margin/lotteon-crawl-run). 여태 「자동이 돌고 있나」를 정산표 updated_at 으로 짐작했는데 그건 「값이 바뀐 시각」이라 양방향으로 틀린다(안 바뀌면 멀쩡해도 낡아 보이고, 막혀도 남이 바꾸면 최신으로 보임). 화면도 「실패 2」만 알려줘 어느 계정인지 몰랐다 → 계정 단위 ok|verify|fail 기록.  0.7.69 = 폰 크롤 리모컨 — 크롤 폴링 알람을 상시화. 멈춰 있어도 확장이 1분마다 서버를 물어 ①폰에서 시작 가능 ②서버가 PC 생존 판정 가능. 크롤 동작 자체는 불변(서버 enabled 게이트가 이중 안전). ★부수효과 = 열린 mou-m 탭이 하나도 없으면 백그라운드 탭 1개가 상주한다 — 폴링이 bgFetch→ensureServiceTab 을 타는데 자동 폴링 경로엔 closeServiceTabIfOwned 가 없다(크롤 PC 는 세션 유지가 이득이라 의도적으로 둠). 같이: 알람은 없을 때만 생성(alarms.create 는 대체라 SW 가 깰 때마다 리셋되면 영영 안 터진다) + onStartup/onInstalled 에서 1회 즉시 폴(첫 신호까지 60초 공백 제거).  0.7.68 = [정산] 롯데온 정산 자동 회차가 최근 60일만 훑어, 그 창을 지나서 확정된 정산은 영영 못 보고 0/공란으로 굳었다(라이브 실측: 롯데온 결손 915건 중 크롤없음 874건). → 2단 회차(매 회차 60일 · 하루 1회 180일). 같이: source="auto" 로 push 해 서버가 「자동이 돌고 있나」를 답할 수 있게 + 여태 수집해놓고 버리던 주문 크롤분(orderRows)을 /lotteon-so-upsert 로 1,000개씩 나눠 전송(rows>2000 은 400 인데 .catch 로 삼켜져 조용히 유실).  0.7.67 = [노션 보고] 캡처에 옆 요일 칸이 같이 찍히던 것 — 위로 올라가며 「충분히 큰 블록」을 잡으니 여러 요일을 감싸는 바깥 덩어리가 잡혔다(2026-08-02 실측: 일요일 옆에 목요일이 반쯤). → **요일 이름이 하나만 들어있는** 가장 큰 덩어리로 판별(dayCount>1 이면 거기서 멈춤). 라벨 개수 기준이라 노션 DOM 구조가 바뀌어도 버틴다.  0.7.66 = [노션 보고] 캡처 백지 재발 — 스크롤로 렌더를 유도한 게 틀렸다. 노션은 화면을 벗어난 블록을 **위아래 양쪽** 모두 지운다(2026-08-02 실측: 아래를 그리러 내려가니 위가 지워져 「일요일」 라벨만 남고 전부 백지). → 스크롤을 버리고 Emulation.setDeviceMetricsOverride 로 **화면 높이를 9000px 로 위장**한다. 노션이 칸 전체를 「보이는 것」으로 여겨 한꺼번에 그리므로 스크롤이 아예 필요 없다. 끝나면 clearDeviceMetricsOverride.  0.7.65 = [노션 보고] 캡처 아래가 잘리던 것 — 노션은 화면 밖 블록을 미리 안 그린다(지연 렌더). 재는 순간 높이만 믿고 찍으면 아직 안 그려진 아래쪽이 백지로 나온다(2026-08-02 실측: 「오후」 아래 전부 빈 칸). → 칸 끝까지 조금씩 훑어 내려 다 그리게 한 뒤 높이가 3회 연속 그대로일 때 잰다. 스크롤 중 요소가 교체될 수 있어 매 회 다시 찾는다. 높이 상한 6000→12000.  0.7.64 = [노션 보고] 노션 「투두리스트 (영빈)」 오늘 요일 칸을 잘라 mou-m 에 올린다(카톡 보고 사진). 1분 알람 → /api/reports/notion-todo/shot/needed 로 「발송 10분 전인가·신선한 캡처가 있나」 확인 → 필요할 때만 노션을 백그라운드 탭으로 열어 캡처 후 닫는다. ★captureVisibleTab 이 아니라 chrome.debugger 의 Page.captureScreenshot(captureBeyondViewport) — 보이는 화면만 찍으면 화면보다 긴 요일 칸이 잘린다. ★노션 CSS 클래스는 수시로 바뀌므로 클래스에 안 기댄다: 「요일 글자」 텍스트노드를 찾아 위로 올라가며 충분히 큰 [data-block-id] 블록을 고른다. 업로드는 mou-m 탭 안 same-origin fetch(SW 직접 fetch 는 SameSite=Lax 세션쿠키가 안 실림). 권한 추가: debugger + notion.so/notion.com/notion.site.  0.7.63 = [M4-5] 확장 경로 소싱처(무신사·롯데온) 상품 사진·상세설명 수집·전달 — 무신사 = 이미 부르는 api2/goods/{id} 응답의 thumbnailImageUrl(대표)+goodsImages[](추가컷)+goodsContents(상세HTML), 추가호출 0. 호스트 image.msscdn.net 은 PDP og:image 와 문자열 일치 실측·렌디션 _500 치환 금지(떼면 404). 롯데온 = JSON-LD Product.image 1순위 + base API imgInfo.imageList(imgRteNm+imgFileNm, 접두 contents.lotteon.com/itemimage) 폴백, 상세는 descInfo.epnJsn DSCRP → contents.lotteon.com/itemdetail 파일(★후보 6개 중 이것만 200, 나머지 403). 🔴 상세 파일은 CORS 헤더가 없어 페이지에서 못 받는다 → host_permissions 로 서비스워커(fetchDetailFileBG)가 받는다. 조립 규칙 단일 원천 = M4IMG-HELPERS 블록(추출기는 원문 조각만 넘김). 배관 = BG_JS 결과조립 분기 + fetchMusinsaAdapter + toItemBG image_urls/detail_html 명시 통과. ★BENEFIT_PASSTHROUGH 금지(중복 저장). 사진 0장이면 콘솔 경고(조용한 실패 금지). 0.7.62 = 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.86";  // 0.7.86 = [정산] 11번가 **구매확정 전** 정산예정액 크롤 — 하루 전엔 「11번가는 그 구간을 마켓 자체가 안 준다(구조적 한계)」고 결론 냈는데 **틀렸다**. 근거로 삼은 「정산 미확정 0건」이 조회 축을 구매확정일(BUY_CNFRM_DT)로 놓은 결과였고, 구매확정 전 주문은 구매확정일이 없어 애초에 조회 대상이 아니었을 뿐이다. 결제일 축(searchDtType=STL_DT) + 정산 미확정(dtlSearchStlmntType=N)으로 부르니 발주확인·배송완료 건이 주문번호(ordNo·ordPrdSeq)와 정산예정액(stlAmt)까지 그대로 온다(2026-08-08 실측 10건 464,691원 — 화면 합계와 일치). ★0건은 「없다」가 아니라 「이 축으론 안 보인다」일 수 있다. ★화면 조회 상한이 한 달이라 90일을 달 단위로 토막내 부른다. ★로그인 풀리면 HTML 이 오므로 조용한 0건이 아니라 needLogin 으로 정직하게 실패. ★못 읽은 토막 수를 돌려준다(덜 긁은 합계를 온전한 값처럼 쓰지 않게).  0.7.85 = [정산] 롯데온 지급내역 크롤 — 롯데온은 정산 OpenAPI 8종·정산예정금액조회·정산요약·셀러머니 어디에도 **실지급일이 없다**. 셀러오피스 「중개거래정산관리 > 지급내역」 selectMediationSettleDetail 의 seCmptDt(정산완료일)가 유일한 답(2026-08-07 실브라우저 확인). 구매확정일(seStdDt) 단위 일정산이라 그 축으로 조인한다.  0.7.84 = 0.7.84 = [대량등록] 훑기 규칙을 **서버가 준다**. 여태 _listingCollectIds 에 a[href*="/products/"] 가 박혀 있어 무신사 전용이었다 — 서버에 SSF·롯데온 규칙을 넣어도 확장은 무신사 링크만 찾아 **에러 없이 0건**(「규칙을 넣었다」와 「그 규칙이 쓰인다」는 다른 사실). → /api/crawl/due-listings 가 sel·attr·id_re 를 같이 내려주고 확장은 요소마다 `속성="값"` 문자열을 만들어 정규식을 건다(링크에서 뽑는 곳과 속성에서 뽑는 곳 H몰 data-slitm-cd 가 규칙 한 벌로 끝난다 — H몰 상품 카드는 <a href> 가 아니다, 실측). ★규칙이 안 오면 훑지 않는다(옛 규칙으로 대신 훑으면 엉뚱한 번호를 긁고 「수집됨」이라 말한다 — 0건보다 나쁘다). 넓힌 소싱처 = SSF·롯데온·롯데아이몰·현대H몰(2026-08-08 실측). 0.7.83 = [대량등록] 구성에 안 걸린 **낱개 주소**도 크롤한다. 검색필터가 넣은 주소 30개가 크롤 4바퀴 도는 동안 하나도 안 긁혔다(2026-08-07 라이브) — due-bundles 는 모음전 **코드**만 주는데 낱개 주소는 어느 구성(BundleSourceUrl)에도 안 걸려 목록에 영영 안 들어가고 에러도 안 났다(조용한 누락). → 서버 /api/crawl/due-urls 신설(구성에 걸린 건 제외 — 겹치면 두 경로가 같은 상품을 두 번 긁는다), 확장이 기존 moum-auto-poll 알람에 얹어 폴링. 크롤·저장은 기존 것 그대로 — crawlItemInTabBG(8소싱처 라우터) + ★saveItemsBG(=toItemBG 매핑) 로 저장. 직접 조립하면 혜택·카테고리경로·사진·상세가 통째로 빠진다. ★한 틱에 5건까지(알람은 1분마다 다시 온다) + _loneBusy 로 창 쌓임 차단. ★서버 enabled 게이트를 여기서도 지킨다(껐는데 도는 상태 금지).  0.7.82 = 0.7.82 = [대량등록] 검색필터 — 검색 결과 URL 한 줄을 훑어 상품 주소를 캔다. 서버 /api/crawl/due-listings 폴링(기존 moum-auto-poll 알람에 얹음 — 알람을 더 만들면 서로 카운트다운을 리셋시키는 사고 표면이 넓어진다) → 페이지를 백그라운드 탭으로 열고 a[href*="/products/"] 번호 수집 → /api/crawl/listing-result 로 전송. ★탭에 재우기 금지(_pinTab) — 크롬 메모리 세이버가 재우면 executeScript 가 영영 안 돌아온다(0.7.75 재발 방지). ★로드 45초 하드 타임아웃 + 한 번에 한 필터(_listingBusy)로 탭 쌓임 차단. ★번호만 보내고 주소 조립은 서버(listing_discover)가 한다 — 주소 규칙을 아는 곳이 둘이 되면 소싱처를 붙일 때마다 확장까지 고쳐야 한다. ★한 장이 실패하면 error 로 실어 보낸다(0건과 구분 — 조용한 실패 금지).  0.7.81 = 0.7.81 = [정산] 로켓그로스 정산 수집 — 로켓그로스 정산액을 주는 **쿠팡 OpenAPI 가 없다**(2026-08-07 실측: 매출내역에 로켓그로스 주문 0건, 정산 회차도 마켓플레이스 몫만). Wing 화면 API `/tenants/rfm/v2/settlements/status/api` 가 유일한 창구인데 로그인 세션 쿠키가 필요해 서버에서 못 부른다 → 롯데온과 같은 로컬 크롤. ★totalArFactoringDeductionAmount = 빠른정산 계좌인출액(이미 받은 돈) 전용 필드가 있어 마켓플레이스보다 정확. ★로그인 만료 시 xauth HTML 이 오므로 0건으로 삼키지 않고 needLogin 으로 정직하게 실패.  0.7.76 = [정산] 「예기치 못한 오류: No tab with id」의 정체 — 감시에 끊긴 옛 회차가 뒷정리까지 흘러와 **지금 도는 새 회차의 롯데온 탭을 닫아** 그 계정을 죽였다(2026-08-06 17:47 라이브: 브랜드마켓). 깃발·기록엔 세대 가드가 있었는데 탭 정리에만 빠져 있었다 → 뒷정리도 내 세대일 때만.  0.7.75 = [정산] 자동 회차 실패 2~3계정의 진짜 원인 — 롯데온 전용 백그라운드 탭에 **재우기 금지(autoDiscardable=false) 핀이 없었다**. 크롬 메모리 세이버가 그 탭을 재우면 executeScript 가 영구 대기하고(→30분 감시가 회차를 통째로 끊음), 깨어난 탭은 로그인 세션을 잃어 「로그아웃 실패·로그인 실패」로 떨어진다 (2026-08-06 실측: 하루 4회 강제중단·매 회차 실패 2~3, 같은 계정을 손으로 돌리면 정상 — 손 회차는 짧고 브라우저를 쓰는 중이라 탭이 안 재워진다). 서비스 탭엔 2026-06-22 에 같은 이유로 이미 핀이 있었는데 롯데온 탭만 빠져 있었다. 같이 막은 무한대기 3곳: ①주입 1회 하드 타임아웃(45초·수집은 예산만큼) ②페이지 안 XHR timeout 30초(기본은 무한) ③수집 루프 자체 예산. 더불어 ④실패 계정 1회 자동 재시도(손으로 다시 누르면 되던 것을 회차가 스스로) ⑤회차 예산 25분·감시 30→40분(감시가 「회차 끝내는 정상 수단」이 되어 있었다 — 끊기면 계정별 기록이 안 남는다) ⑥순서가 못 온 계정부터 다음 회차 출발(뒷자리 계정이 영영 굶는 것 방지).  0.7.74 = [정산] 회차 이력(hist) — 화면 「기록」이 페이지가 손수 돌린 회차만 적어, 자동을 확장으로 옮긴 뒤론 기록이 하루 통째로 비었다(2026-08-05 실측: 최근 22:40 인데 기록 마지막이 어제 00:07 = 한 화면 모순). 이력의 주인은 회차의 주인(확장) — 완료·강제중단·도중끊김을 storage hist(최근 60회)에 남기고 getState 로 화면이 그린다. 화면이 꺼져 있던 시간의 회차도 이제 기록에 보인다.  0.7.73 = [정산] 회차 심장박동+시작 도장 —MV3 SW 는 30초 조용하면 크롬이 죽인다. 회차가 탭 로드를 조용히 기다리다 SW 와 함께 증발했다(실측 2026-08-04 저녁: 19:56·20:56 연속, 기록 0 — 낮엔 다른 크롤 활동이 우연히 SW 를 깨워 둬 살아남음). ①회차 중 20초마다 storage.get 심장박동으로 SW 유지 ②시작 도장(runStartedAt)을 스토리지에 박고 SW 재기동 시 끝맺음 없는 도장이 보이면 「회차 도중 크롬이 확장을 재워 끊김」을 last.error 로 남긴다(증발 금지 — 여태 「거른 것」과 구분 불가였다).  0.7.72 = [정산] 회차 감시 —한 회차가 30분을 넘겨 안 끝나면(롯데온 페이지 무한 대기 등) 강제로 내려놓고 다음 회차부터 다시 돈다. 걸린 회차가 _settleRunning 을 영영 쥐면 틱이 매번 busy 로 빠져 회차를 1~2시간씩 걸렀다(2026-08-04 실측: 17:10 다음이 19:56). 세대표(_settleGen)로 옛 회차는 나아가지도·상태를 쓰지도 못하게 해 새 회차와의 이중 실행·이중 기록을 막는다. 강제 중단은 last.error 로 남긴다(조용한 복구 금지).  0.7.71 = 병합 —0.7.70(정산 via=auto)과 0.7.69(폰 리모컨 상시 폴링)를 합침(내용 변경 없음).  0.7.70 = [정산] 회차 기록에 via="auto" 를 명시. 화면에서 손으로 돌린 회차(via="manual")와 섞이면 안 된다 — 배너는 「자동이 살아 있나」를 묻는데 수동까지 세면 한 번 눌러 본 것만으로 조용해져 자동이 죽어도 모른다.  0.7.68b = [정산] 계정별 회차 결과를 서버에 남긴다(/api/margin/lotteon-crawl-run). 여태 「자동이 돌고 있나」를 정산표 updated_at 으로 짐작했는데 그건 「값이 바뀐 시각」이라 양방향으로 틀린다(안 바뀌면 멀쩡해도 낡아 보이고, 막혀도 남이 바꾸면 최신으로 보임). 화면도 「실패 2」만 알려줘 어느 계정인지 몰랐다 → 계정 단위 ok|verify|fail 기록.  0.7.69 = 폰 크롤 리모컨 — 크롤 폴링 알람을 상시화. 멈춰 있어도 확장이 1분마다 서버를 물어 ①폰에서 시작 가능 ②서버가 PC 생존 판정 가능. 크롤 동작 자체는 불변(서버 enabled 게이트가 이중 안전). ★부수효과 = 열린 mou-m 탭이 하나도 없으면 백그라운드 탭 1개가 상주한다 — 폴링이 bgFetch→ensureServiceTab 을 타는데 자동 폴링 경로엔 closeServiceTabIfOwned 가 없다(크롤 PC 는 세션 유지가 이득이라 의도적으로 둠). 같이: 알람은 없을 때만 생성(alarms.create 는 대체라 SW 가 깰 때마다 리셋되면 영영 안 터진다) + onStartup/onInstalled 에서 1회 즉시 폴(첫 신호까지 60초 공백 제거).  0.7.68 = [정산] 롯데온 정산 자동 회차가 최근 60일만 훑어, 그 창을 지나서 확정된 정산은 영영 못 보고 0/공란으로 굳었다(라이브 실측: 롯데온 결손 915건 중 크롤없음 874건). → 2단 회차(매 회차 60일 · 하루 1회 180일). 같이: source="auto" 로 push 해 서버가 「자동이 돌고 있나」를 답할 수 있게 + 여태 수집해놓고 버리던 주문 크롤분(orderRows)을 /lotteon-so-upsert 로 1,000개씩 나눠 전송(rows>2000 은 400 인데 .catch 로 삼켜져 조용히 유실).  0.7.67 = [노션 보고] 캡처에 옆 요일 칸이 같이 찍히던 것 — 위로 올라가며 「충분히 큰 블록」을 잡으니 여러 요일을 감싸는 바깥 덩어리가 잡혔다(2026-08-02 실측: 일요일 옆에 목요일이 반쯤). → **요일 이름이 하나만 들어있는** 가장 큰 덩어리로 판별(dayCount>1 이면 거기서 멈춤). 라벨 개수 기준이라 노션 DOM 구조가 바뀌어도 버틴다.  0.7.66 = [노션 보고] 캡처 백지 재발 — 스크롤로 렌더를 유도한 게 틀렸다. 노션은 화면을 벗어난 블록을 **위아래 양쪽** 모두 지운다(2026-08-02 실측: 아래를 그리러 내려가니 위가 지워져 「일요일」 라벨만 남고 전부 백지). → 스크롤을 버리고 Emulation.setDeviceMetricsOverride 로 **화면 높이를 9000px 로 위장**한다. 노션이 칸 전체를 「보이는 것」으로 여겨 한꺼번에 그리므로 스크롤이 아예 필요 없다. 끝나면 clearDeviceMetricsOverride.  0.7.65 = [노션 보고] 캡처 아래가 잘리던 것 — 노션은 화면 밖 블록을 미리 안 그린다(지연 렌더). 재는 순간 높이만 믿고 찍으면 아직 안 그려진 아래쪽이 백지로 나온다(2026-08-02 실측: 「오후」 아래 전부 빈 칸). → 칸 끝까지 조금씩 훑어 내려 다 그리게 한 뒤 높이가 3회 연속 그대로일 때 잰다. 스크롤 중 요소가 교체될 수 있어 매 회 다시 찾는다. 높이 상한 6000→12000.  0.7.64 = [노션 보고] 노션 「투두리스트 (영빈)」 오늘 요일 칸을 잘라 mou-m 에 올린다(카톡 보고 사진). 1분 알람 → /api/reports/notion-todo/shot/needed 로 「발송 10분 전인가·신선한 캡처가 있나」 확인 → 필요할 때만 노션을 백그라운드 탭으로 열어 캡처 후 닫는다. ★captureVisibleTab 이 아니라 chrome.debugger 의 Page.captureScreenshot(captureBeyondViewport) — 보이는 화면만 찍으면 화면보다 긴 요일 칸이 잘린다. ★노션 CSS 클래스는 수시로 바뀌므로 클래스에 안 기댄다: 「요일 글자」 텍스트노드를 찾아 위로 올라가며 충분히 큰 [data-block-id] 블록을 고른다. 업로드는 mou-m 탭 안 same-origin fetch(SW 직접 fetch 는 SameSite=Lax 세션쿠키가 안 실림). 권한 추가: debugger + notion.so/notion.com/notion.site.  0.7.63 = [M4-5] 확장 경로 소싱처(무신사·롯데온) 상품 사진·상세설명 수집·전달 — 무신사 = 이미 부르는 api2/goods/{id} 응답의 thumbnailImageUrl(대표)+goodsImages[](추가컷)+goodsContents(상세HTML), 추가호출 0. 호스트 image.msscdn.net 은 PDP og:image 와 문자열 일치 실측·렌디션 _500 치환 금지(떼면 404). 롯데온 = JSON-LD Product.image 1순위 + base API imgInfo.imageList(imgRteNm+imgFileNm, 접두 contents.lotteon.com/itemimage) 폴백, 상세는 descInfo.epnJsn DSCRP → contents.lotteon.com/itemdetail 파일(★후보 6개 중 이것만 200, 나머지 403). 🔴 상세 파일은 CORS 헤더가 없어 페이지에서 못 받는다 → host_permissions 로 서비스워커(fetchDetailFileBG)가 받는다. 조립 규칙 단일 원천 = M4IMG-HELPERS 블록(추출기는 원문 조각만 넘김). 배관 = BG_JS 결과조립 분기 + fetchMusinsaAdapter + toItemBG image_urls/detail_html 명시 통과. ★BENEFIT_PASSTHROUGH 금지(중복 저장). 사진 0장이면 콘솔 경고(조용한 실패 금지). 0.7.62 = 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -198,6 +198,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  // ── [2026-08-07] 롯데온 지급내역 크롤: 「언제 실제로 입금됐나」 ──
+  //   🔴 롯데온은 정산 OpenAPI 8종·정산예정금액조회·정산요약·셀러머니 어디에도 **실지급일이
+  //     없다**(pymtTgtAmt 는 예정액). 셀러오피스 「중개거래정산관리 > 지급내역」의
+  //     `seCmptDt`(정산완료일)가 유일한 답이다(2026-08-07 실브라우저로 확인).
+  if (type === "lotteon.paid.crawl") {
+    handleLotteonPaidCrawl(msg.payload || {})
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
+  // ── [2026-08-07] 로켓그로스 정산 크롤: Wing 화면 API 를 로그인 세션으로 긁어 서버 push ──
+  //   🔴 왜 크롤인가 — 로켓그로스 정산액을 주는 **OpenAPI 가 없다**(라이브 실측: 매출내역에
+  //     로켓그로스 주문 0건, 정산 회차도 마켓플레이스 몫만). Wing 화면 API 가 유일한데
+  //     로그인 세션 쿠키가 필요해 서버(AWS)에서 못 부른다 → 롯데온과 같은 로컬 크롤 구조.
+  if (type === "coupang.rg.settle.crawl") {
+    handleCoupangRgSettleCrawl(msg.payload || {})
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
+  // ── [2026-08-08] 11번가 구매확정 전 정산예정액: 결제일 축 + 정산 미확정 ──
+  //   🔴 전날 나는 「11번가는 구매확정 전 정산예정액을 안 준다」고 잘못 결론 냈다.
+  //     구매확정일 축으로만 조회해 0건이 나온 걸 「없다」로 읽은 것이다. 결제일(STL_DT)
+  //     축 + 정산 미확정(N) 으로 보면 주문번호·금액이 그대로 온다(사장님 화면 실증).
+  if (type === "eleven11.unconf.crawl") {
+    handleEleven11UnconfCrawl(msg.payload || {})
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   // 전용 탭 닫기(전체 순회 종료 후 정리)
   if (type === "lotteon.closetab") {
     (async () => {
@@ -209,6 +236,222 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   sendResponse({ error: "unknown type: " + type });
   return false;
 });
+
+// ── [2026-08-07] 롯데온 지급내역 크롤 ──────────────────────────────────────────
+//  창구: GET soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail
+//        ?trNo=&strtDttm=YYYYMMDD&endDttm=YYYYMMDD&searchDtFg=02&pageNo=1&rowsPerPage=100
+//  ★ 로그인된 store.lotteon.com 세션에서 불러야 한다(soapi 는 store 오리진만 허용).
+//  ★ 응답 data.settleDetailList.dataList[] — 구매확정일(seStdDt) 단위 일정산 행.
+async function handleLotteonPaidCrawl(payload) {
+  const since = String(payload.since || "").replace(/-/g, "") || _ymdOffset(-180);
+  const until = String(payload.until || "").replace(/-/g, "") || _ymdOffset(0);
+  let tab = (await chrome.tabs.query({ url: "https://store.lotteon.com/*" }))[0];
+  let opened = false;
+  if (!tab) {
+    tab = await chrome.tabs.create({
+      url: "https://store.lotteon.com/cm/main/index_SO.wsp", active: false });
+    opened = true;
+    try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  }
+  let res;
+  try {
+    const out = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN",
+      func: lotteonPaidCrawlInPage, args: [since, until, payload.trNo || ""],
+    });
+    res = (out && out[0] && out[0].result) || { ok: false, error: "실행 결과 없음" };
+  } finally {
+    if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
+  }
+  return res;
+}
+// MAIN world 주입 — store.lotteon.com 페이지 컨텍스트(세션)에서 실행. 외부 스코프 참조 금지.
+function lotteonPaidCrawlInPage(sinceYMD, untilYMD, trNoArg) {
+  return (async () => {
+    try {
+      let trNo = trNoArg || "";
+      if (!trNo) {
+        const el = document.querySelector("#mf_sellerShop_trNo");
+        trNo = (el && (el.innerText || "").trim()) || "";
+        if (!trNo) {
+          const m = (document.body.innerText || "").match(/LO\d{6,}/);
+          trNo = m ? m[0] : "";
+        }
+      }
+      if (!trNo) return { ok: false, error: "trNo not found" };
+      let tok = "";
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const v = sessionStorage.getItem(sessionStorage.key(i)) || "";
+        if (/^[0-9a-f]{56}$/i.test(v)) { tok = v; break; }
+      }
+      if (!tok) return { ok: false, error: "session token missing", needLogin: true };
+      const rows = [];
+      for (let page = 1; page <= 20; page++) {
+        const url = "https://soapi.lotteon.com/settle/v1/so/mediationSettleManagement"
+          + "/selectMediationSettleDetail?spclAprvCmsn=&odNo=&sitmNo=&ltrtNo="
+          + "&strtDttm=" + sinceYMD + "&endDttm=" + untilYMD + "&trNo=" + trNo
+          + "&searchDt=&searchDtFg=02&pageNo=" + page + "&rowsPerPage=100";
+        const body = await new Promise((resolve, reject) => {
+          const x = new XMLHttpRequest();
+          x.open("GET", url, true);
+          x.withCredentials = true;
+          x.timeout = 30000;
+          x.setRequestHeader("authorization", "Bearer " + tok);
+          x.setRequestHeader("x-timezone", "GMT+09:00");
+          x.setRequestHeader("accept", "application/json");
+          x.onload = () => { try { resolve(JSON.parse(x.responseText)); }
+                            catch (e) { reject(new Error("parse fail " + x.status)); } };
+          x.onerror = () => reject(new Error("network error"));
+          x.ontimeout = () => reject(new Error("timeout 30s"));
+          x.send();
+        });
+        const lst = (((body || {}).data || {}).settleDetailList || {}).dataList || [];
+        rows.push.apply(rows, lst);
+        if (lst.length < 100) break;
+      }
+      return { ok: true, trNo: trNo, rows: rows, collected: rows.length };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  })();
+}
+
+// ── [2026-08-08] 11번가 구매확정 전 정산예정액 크롤 ─────────────────────────────
+//  창구: POST soffice.11st.co.kr/remittance/SellerRemittanceAction.tmall
+//        ?method=getSelAllStatDtlsSoffice&dtlSearchStlmntType=N&searchDtType=STL_DT
+//  ★ dtlSearchStlmntType=N(정산 미확정) + searchDtType=STL_DT(결제일) 두 개가 핵심이다.
+//    구매확정일(BUY_CNFRM_DT) 축이면 구매확정 전 주문은 **조회 대상이 아니라 0건**이 나온다.
+//  ★ 화면 조회 상한이 **한 달**이라 기간을 달 단위로 토막내 부른다(2026-08-08 실측).
+//  ★ 셀러오피스 세션 쿠키가 필요해 서버에선 못 부른다 → 로컬 크롤(롯데온·로켓그로스와 동일).
+async function handleEleven11UnconfCrawl(payload) {
+  const days = Number(payload.days || 90) || 90;      // 기본 90일 — 배송완료로 굳는 건이 있다
+  const chunks = _monthChunks(days);
+  let tab = (await chrome.tabs.query({ url: "https://soffice.11st.co.kr/*" }))[0];
+  let opened = false;
+  if (!tab) {
+    tab = await chrome.tabs.create({
+      url: "https://soffice.11st.co.kr/view/35936", active: false });
+    opened = true;
+    try { await waitTabComplete(tab.id, 30000); } catch (_) {}
+  }
+  let res;
+  try {
+    const out = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, func: eleven11UnconfCrawlInPage, args: [chunks],
+    });
+    res = (out && out[0] && out[0].result) || { ok: false, error: "실행 결과 없음" };
+  } finally {
+    if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
+  }
+  return res;
+}
+// 오늘부터 거꾸로 days 일을 **한 달 이하** 토막으로 자른다 (화면 상한이 한 달).
+function _monthChunks(days) {
+  const out = [];
+  const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, "");
+  let end = new Date();
+  for (let left = days; left > 0; left -= 30) {
+    const span = Math.min(30, left) - 1;
+    const start = new Date(end.getTime() - span * 86400000);
+    out.push([fmt(start), fmt(end)]);
+    end = new Date(start.getTime() - 86400000);
+  }
+  return out;
+}
+// 페이지 컨텍스트 주입 — same-origin 이라 세션 쿠키가 자동으로 실린다. 외부 스코프 참조 금지.
+function eleven11UnconfCrawlInPage(chunks) {
+  return (async () => {
+    const BASE = "https://soffice.11st.co.kr/remittance/SellerRemittanceAction.tmall";
+    const rows = []; const per = []; let failed = 0;
+    for (const [st, ed] of chunks) {
+      const q = new URLSearchParams({
+        method: "getSelAllStatDtlsSoffice", start: "0", limit: "500",
+        dtlSearchStlmntType: "N", cnsgnDlvYn: "N", quickStlYn: "N",
+        searchType: "ALL", stDate: st, edDate: ed, ordPrdStat: "",
+        searchDtType: "STL_DT", dtlSearchType: "", dtlSearchVal: "",
+      });
+      try {
+        const r = await fetch(BASE + "?" + q, { method: "POST", credentials: "include" });
+        const t = await r.text();
+        // 로그인이 풀리면 HTML 이 온다 → 조용한 0건이 아니라 정직한 실패로 돌린다.
+        if (!r.ok || /^\s*</.test(t)) {
+          failed++; per.push({ st: st, ed: ed, error: "http " + r.status, needLogin: /login/i.test(t) });
+          continue;
+        }
+        const lst = (JSON.parse(t) || {}).list || [];
+        rows.push.apply(rows, lst);
+        per.push({ st: st, ed: ed, n: lst.length });
+      } catch (e) {
+        failed++; per.push({ st: st, ed: ed, error: String((e && e.message) || e) });
+      }
+    }
+    // 한 토막이라도 실패하면 알린다 — 「덜 긁은 합계」를 온전한 값처럼 쓰면 안 된다.
+    return { ok: failed === 0, rows: rows, collected: rows.length,
+             chunks: per, failedChunks: failed,
+             needLogin: per.some((c) => c.needLogin) };
+  })();
+}
+
+// ── [2026-08-07] 로켓그로스 정산 크롤 ────────────────────────────────────────────
+//  창구: GET https://wing.coupang.com/tenants/rfm/v2/settlements/status/api
+//  화면: /tenants/rfm/settlements/status-new (「/settlements/home」은 요약이라 이 API 가 안 뜬다)
+//  ★ 로그인 세션이 없으면 xauth 로그인 페이지 HTML 이 와서 JSON 파싱이 깨진다 →
+//    조용한 0건이 아니라 **정직하게 실패**로 돌려준다(사장님이 로그인하면 다시 누르면 됨).
+async function handleCoupangRgSettleCrawl(payload) {
+  let tab = (await chrome.tabs.query({ url: "https://wing.coupang.com/*" }))[0];
+  let opened = false;
+  if (!tab) {
+    tab = await chrome.tabs.create({
+      url: "https://wing.coupang.com/tenants/rfm/settlements/status-new", active: false });
+    opened = true;
+    try { await waitTabComplete(tab.id, 30000); } catch (_) {}
+  }
+  let res;
+  try {
+    const out = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN",
+      func: coupangRgSettleCrawlInPage, args: [Number(payload.budgetMs) || 60000],
+    });
+    res = (out && out[0] && out[0].result) || { ok: false, error: "실행 결과 없음" };
+  } finally {
+    if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
+  }
+  return res;
+}
+// MAIN world 주입 — wing.coupang.com 페이지 컨텍스트(세션 쿠키)에서 실행. 외부 스코프 참조 금지.
+function coupangRgSettleCrawlInPage(budgetMs) {
+  return (async () => {
+    const t0 = Date.now();
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), Math.max(5000, budgetMs || 60000));
+      let r;
+      try {
+        r = await fetch("/tenants/rfm/v2/settlements/status/api",
+                        { credentials: "include", headers: { accept: "application/json" },
+                          signal: ctrl.signal });
+      } finally { clearTimeout(timer); }
+      if (!r.ok) return { ok: false, error: "HTTP " + r.status };
+      const ct = r.headers.get("content-type") || "";
+      if (ct.indexOf("json") < 0) {
+        // 로그인 만료 → xauth HTML. 0건으로 삼키면 「정산이 없다」는 거짓이 된다.
+        return { ok: false, error: "로그인 필요(응답이 JSON 이 아님)", needLogin: true };
+      }
+      const b = await r.json();
+      const rows = (b && b.settlementStatusReports) || [];
+      // 계정 별칭 — 화면 제목이 "Coupang Wing - 유영빈, 세소" 꼴. 없으면 빈값(서버가 그대로 둠).
+      let acc = "";
+      try {
+        const m = String(document.title || "").split("-").pop();
+        acc = (m || "").split(",").pop().trim();
+      } catch (_) { acc = ""; }
+      return { ok: true, rows: rows, collected: rows.length, account: acc,
+               ms: Date.now() - t0 };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  })();
+}
 
 // ── [2026-07-16] 롯데온 정산 크롤 — 로그인된 store.lotteon.com 세션서 soapi 페이징 수집 → 서버 push ──
 function _ymdOffset(days) {
@@ -2365,7 +2608,168 @@ async function moumAutoPollOnce() {
       mgrEnqueue({ codes: r.codes, base: _mgr.base });   // 기존 큐/동시성/재시도 재사용
     }
   } catch (e) { console.warn("[moum-auto-poll]", e && e.message ? e.message : e); }
+  // [2026-08-06 검색필터] 같은 알람에 얹는다 — 알람을 하나 더 만들면 서로 카운트다운을
+  //   리셋시키는 사고(0.7.69 주석)의 표면이 넓어진다.
+  await moumListingPollOnce();
+  await moumLoneUrlPollOnce();
 }
+
+// ── [2026-08-07] 구성에 안 걸린 **낱개 주소** 크롤 ──────────────────────────
+//   🔴 이게 없어서 검색필터가 넣은 주소 30개가 크롤 4바퀴 도는 동안 하나도 안 긁혔다.
+//     위 due-bundles 는 **모음전 코드**만 준다 — 낱개 주소는 어느 구성에도 안 걸려
+//     그 목록에 영영 안 들어가고, 에러도 안 난다(조용한 누락).
+//   ★ 크롤·저장은 기존 것을 그대로 쓴다 — `crawlItemInTabBG`(8소싱처 라우터) +
+//     `/api/sources/crawl-result`(저장). 여기서 새로 만드는 건 「누구를 긁을지」뿐.
+const _LONE_MAX_PER_TICK = 5;   // 한 번에 이만큼만 — 알람은 1분마다 다시 온다
+
+let _loneBusy = false;
+async function moumLoneUrlPollOnce() {
+  if (_loneBusy) return;               // 겹치면 창이 쌓인다
+  let due = null;
+  try {
+    due = await bgFetch("/api/crawl/due-urls").then((x) => x.json());
+  } catch (e) { return; }
+  if (!due || !due.enabled) return;    // 실행/정지 스위치를 여기서도 지킨다
+  const items = (due.items || []).slice(0, _LONE_MAX_PER_TICK);
+  if (!items.length) return;
+
+  _loneBusy = true;
+  let win = null;
+  try {
+    win = await handleOpenWin({});
+    if (!win.ok) return;
+    for (const it of items) {
+      try {
+        const out = await crawlItemInTabBG(
+          win.tabId, null,
+          { source_key: it.site, url: it.url, url_type: "dan" }, null);
+        // 🔴 결과를 **저장까지** 한다. handleCrawlOne(진단용)은 일부러 저장을 안 하는데,
+        //   여기서 그걸 그대로 쓰면 긁어놓고 버리는 꼴이 된다.
+        // 🔴 저장은 반드시 `saveItemsBG`(=toItemBG 매핑)를 거친다. 직접 조립하면
+        //   혜택·카테고리경로·사진·상세가 통째로 빠진다 — toItemBG 주석이
+        //   「이 줄이 빠지면 수집해도 조용히 유실된다」고 못박은 그 자리다.
+        if (out && out.status === "ok") {
+          const saved = await saveItemsBG([Object.assign({}, out, {
+            source_key: it.site, url: it.url,
+          })]);
+          if (!saved || saved.ok === false) {
+            console.warn("[moum-lone] 저장 실패", it.url, saved && saved.error);
+          }
+        }
+      } catch (e) {
+        console.warn("[moum-lone]", it.url, e && e.message ? e.message : e);
+      }
+    }
+  } finally {
+    if (win && win.winId != null) {
+      try { await chrome.windows.remove(win.winId); } catch (_) {}
+    }
+    _loneBusy = false;
+  }
+}
+
+// ── [2026-08-06] 검색필터: 리스팅 URL 을 훑어 상품 주소를 캔다 ──────────────
+//   대량등록의 입구. 서버는 「어느 주소를 훑을지」만 알려주고(/api/crawl/due-listings)
+//   페이지를 여는 일은 여기(로컬 PC)가 한다 — 크롤=로컬 원칙.
+//   결과는 /api/crawl/listing-result 로 돌려보낸다.
+const _LISTING_PAGE_TIMEOUT_MS = 45000;   // 한 장 여는 데 이만큼 넘으면 포기(무한대기 금지)
+const _LISTING_SETTLE_MS = 2500;          // 로드 완료 뒤 목록이 그려질 틈
+
+// 페이지 안에서 실행 — 상품의 **번호만** 긁는다.
+//   ★ 규칙(선택자·속성·정규식)은 **서버가 준다**(`/api/crawl/due-listings`).
+//     [2026-08-08] 예전엔 여기 `a[href*="/products/"]` 가 박혀 있었다 — 무신사 전용.
+//     그래서 서버에 SSF·롯데온 규칙을 넣어도 확장은 무신사 링크만 찾아 **에러 없이
+//     0건**이었다. 규칙을 아는 곳이 둘이면 소싱처를 붙일 때마다 확장까지 고쳐야 하고,
+//     그때마다 사장님께 「확장 다시 불러오기」를 부탁하게 된다.
+//   ★ 요소마다 `속성이름="값"` 꼴 문자열을 만들어 거기에 정규식을 건다. 그래야
+//     링크에서 뽑는 곳(무신사·SSF·롯데온)과 **속성에서 뽑는 곳(H몰 `data-slitm-cd`)**이
+//     같은 정규식 한 벌로 끝난다. H몰 상품 카드는 `<a href>` 가 아니다(실측).
+//   ★ 번호만 보내고 주소 조립은 서버가 한다 — 추적 꼬리표(?srsltid=)가 붙은 채
+//     저장되면 같은 상품이 두 벌로 갈린다.
+function _listingCollectIds(sel, attr, reSrc) {
+  const out = [];
+  const seen = new Set();
+  let re;
+  try { re = new RegExp(reSrc); } catch (e) { return out; }
+  document.querySelectorAll(sel).forEach((el) => {
+    const v = el.getAttribute(attr);
+    if (v == null) return;
+    const m = (attr + '="' + String(v) + '"').match(re);
+    if (m && m[1] && !seen.has(m[1])) { seen.add(m[1]); out.push(m[1]); }
+  });
+  return out;
+}
+
+async function _listingScanOnePage(url, rule) {
+  const tab = await chrome.tabs.create({ url: url, active: false });
+  if (!tab || tab.id == null) throw new Error("탭 생성 실패");
+  const tabId = tab.id;
+  // ★ 재우기 금지 — 크롬 메모리 세이버가 백그라운드 탭을 재우면 executeScript 가
+  //   영영 안 돌아온다(0.7.75 에서 정산이 이걸로 죽었다). 같은 함정을 한 곳만 막으면
+  //   남은 곳이 터진다.
+  _pinTab(tabId);
+  try {
+    const ok = await _notionWaitTab(tabId, _LISTING_PAGE_TIMEOUT_MS);
+    if (!ok) throw new Error("페이지 로드 시간 초과");
+    await new Promise((r) => setTimeout(r, _LISTING_SETTLE_MS));
+    const out = await chrome.scripting.executeScript({
+      target: { tabId }, func: _listingCollectIds,
+      args: [rule.sel, rule.attr, rule.id_re],
+    });
+    return (out && out[0] && out[0].result) || [];
+  } finally {
+    try { await chrome.tabs.remove(tabId); } catch (_) {}
+  }
+}
+
+let _listingBusy = false;
+async function moumListingPollOnce() {
+  if (_listingBusy) return;              // 한 번에 하나만 — 겹치면 탭이 쌓인다
+  let due = null;
+  try {
+    due = await bgFetch("/api/crawl/due-listings").then((x) => x.json());
+  } catch (e) { return; }
+  const jobs = (due && Array.isArray(due.listings)) ? due.listings : [];
+  if (!jobs.length) return;
+
+  _listingBusy = true;
+  try {
+    for (const job of jobs) {
+      const ids = new Set();
+      let err = job.error || "";
+      // 🔴 규칙이 안 왔으면 **훑지 않는다.** 예전 규칙으로 대신 훑으면 엉뚱한 번호를
+      //   긁어 놓고 「수집됨」이라 말하게 된다 — 0건보다 나쁘다.
+      const rule = (job.sel && job.attr && job.id_re)
+        ? { sel: job.sel, attr: job.attr, id_re: job.id_re } : null;
+      if (!rule && !err) {
+        err = "서버가 훑기 규칙을 안 줬습니다(서버가 예전 판일 수 있습니다)";
+      }
+      for (const pageUrl of (rule ? (job.page_urls || []) : [])) {
+        try {
+          for (const id of await _listingScanOnePage(pageUrl, rule)) {
+            ids.add(id);
+            if (job.max_items && ids.size >= job.max_items) break;
+          }
+        } catch (e) {
+          // 🔴 조용히 넘기지 않는다 — 한 장이 실패한 걸 0건과 구분해야 한다.
+          err = (err ? err + " / " : "") + (e && e.message ? e.message : String(e));
+        }
+        if (job.max_items && ids.size >= job.max_items) break;
+      }
+      // ★ **번호만 보낸다.** 주소 조립은 서버(listing_discover)가 한다 — 소싱처마다
+      //   주소 모양이 다른데 여기서 조립하면 규칙을 아는 곳이 두 곳이 되고,
+      //   다음 소싱처를 붙일 때 확장도 같이 고쳐야 한다(재로드 부탁이 또 생긴다).
+      try {
+        await bgFetch("/api/crawl/listing-result", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filter_id: job.filter_id, ids: Array.from(ids),
+                                 error: err || undefined }),
+        });
+      } catch (e) { console.warn("[moum-listing] 결과 전송 실패", e); }
+    }
+  } finally { _listingBusy = false; }
+}
+
 function moumAutoPollStart() {
   moumAutoPollOnce();   // 즉시 1회
   try { chrome.alarms.create(MOUM_POLL_ALARM, { periodInMinutes: 1 }); } catch (_) {}

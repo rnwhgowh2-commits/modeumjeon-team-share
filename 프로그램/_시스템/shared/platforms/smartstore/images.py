@@ -32,6 +32,20 @@ _MAGIC = (
     (b'BM', 'image/bmp'),
 )
 
+# 🔴 [2026-08-06 라이브 실측] 네이버는 MIME 이 맞아도 **파일명의 확장자**로 거른다.
+#   확장자 없는 이름(`image_0`)으로 보내면 400:
+#     invalidInputs[0].type = "PhotoInfraUpload.extension"
+#     "JPEG, JPG, GIF, PNG, BMP 파일만 업로드가 가능합니다."
+#   이 경로는 상품 등록(registration/image_prep)도 같이 쓴다 — 등록 시 이미지가
+#   안 올라가던 원인이기도 하다. 확장자는 **바이트로 판정한 실제 포맷**에서 뽑는다
+#   (남이 준 파일 이름을 믿지 않는다).
+_MIME_EXT = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/bmp': '.bmp',
+}
+
 # ★ 공식: 이미지 업로드는 스토어 계정당 동시 1건만 허용된다. 프로세스 안에서 병렬
 # 호출이 나가지 않도록 직렬화한다. (여러 프로세스·기기가 같은 계정을 동시에 쓰면
 # 이 락으로는 못 막는다 — 그때는 마켓이 '이전 요청이 진행중입니다.' 로 거절한다.)
@@ -70,10 +84,12 @@ def upload_images(blobs: list, *, client=None) -> list:
             f'이미지 합계가 10MB 미만이어야 합니다 — {total:,} bytes 입니다.')
 
     # MIME 은 전송 전에 전부 판정한다 (한 장이라도 미지원이면 아예 호출하지 않는다).
-    files = [
-        (_MULTIPART_FIELD, (f'image_{i}', blob, _sniff_mime(blob)))
-        for i, blob in enumerate(blobs)
-    ]
+    files = []
+    for i, blob in enumerate(blobs):
+        mime = _sniff_mime(blob)
+        # 확장자는 실제 포맷에서 — 없으면 네이버가 400(PhotoInfraUpload.extension).
+        files.append((_MULTIPART_FIELD,
+                      (f'image_{i}{_MIME_EXT[mime]}', blob, mime)))
 
     if client is None:
         from shared.platforms.smartstore.client import SmartStoreClient

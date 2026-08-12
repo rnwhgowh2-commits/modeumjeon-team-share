@@ -250,3 +250,34 @@ def test_summary_shape_and_period_from_file():
     assert res["period"] == ["2026-04-15", "2026-07-21"]   # 기간 = 파일이 결정
     assert res["sm_rows"] == 2
     assert set(res["existence"]) >= {"total", "found", "missing"}
+
+
+# ── 쿠팡 실결제 기준 변경(2026-08-06) — 대조가 빨갛게 물들지 않아야 한다 ──────
+def test_쿠팡_판매자쿠폰만큼_낮은_실결제는_설명가능한_차이다():
+    """🔴 이 시험이 지키는 사고 — 매출 기준을 바꿨더니 대조 탭이 전건 「불일치」.
+
+    2026-08-06 사장님 확정으로 우리 `실결제금액` 은 판매자부담쿠폰을 뺀 값이 됐다.
+    샵마인 K열은 여전히 **정가총액**이라 두 값이 쿠폰만큼 갈린다. 그 차이는
+    재현식 후보(정가총액)로 **설명되는** 차이라 `def` 여야 한다 — `diff`(진짜 어긋남)
+    로 잡히면 대조 탭이 쿠팡 전건 빨강이 되어 진짜 사고를 못 본다.
+    롯데온이 `_lo_seller_dc` 로 이미 같은 방식으로 돌고 있다.
+    """
+    res = R.reconcile([_sm(unit=50000, qty=1, paid=50000, settle=44225, fee=5775)],
+                      [_ours(unit=50000, qty=1, paid=47000, settle=44225, fee=5775,
+                             _cp_seller_dc=3000)])
+    f = res["fields"]["coupang"]["paid"]
+    assert f.get("diff", 0) == 0, "쿠폰만큼의 차이가 진짜 불일치로 잡혔다: %s" % f
+    assert f.get("def", 0) == 1, "설명 가능한 차이(def)로 안 잡혔다: %s" % f
+
+
+def test_쿠팡_설명안되는_차이는_여전히_불일치다():
+    """위 시험이 「전부 def 로 봐주기」로 새면 진짜 어긋남을 놓친다.
+
+    🔴 `def` 의 뜻은 「**샵마인 값**이 우리가 아는 공식으로 재현된다」이지
+    「차이가 설명된다」가 아니다. 그래서 샵 값이 어느 공식으로도 안 나오게 만든다
+    (정가총액 50,000 도 아니고 정산+수수료 50,000 도 아닌 49,999).
+    """
+    res = R.reconcile([_sm(unit=50000, qty=1, paid=49999, settle=44225, fee=5775)],
+                      [_ours(unit=50000, qty=1, paid=31234, settle=44225, fee=5775)])
+    assert res["fields"]["coupang"]["paid"].get("diff", 0) == 1, \
+        "아무 근거 없는 차이인데 설명 가능으로 봐줬다: %s" % res["fields"]["coupang"]["paid"]

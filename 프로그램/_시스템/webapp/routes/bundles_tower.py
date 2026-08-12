@@ -7,12 +7,15 @@
 
 🔴 값을 지어내지 않는다 — 모르면 None(화면 「확인 불가」/「—」).
 🔴 같은 값을 다시 계산하지 않는다 — 전부 기존 단일 진실 원천을 **호출만** 한다:
-   · 최종매입가  = webapp.routes.matrix._rows_for → api_pricing._attach_final_purchase
+   · 최종매입가(소싱처 크롤값) = webapp.routes.matrix._rows_for
+     → api_pricing._attach_final_purchase (코드 이름은 여전히 min_final·final_price 다)
    · 정책 판매가·마진 = lemouton.policy.preview.result_by_market
    · 수수료율    = lemouton.pricing.fee_defaults (market_fee_defaults DB)
    · 주문 매칭   = lemouton.orders.price_diff.resolve_targets_verbose
+   · 실매입가    = lemouton.markets.purchase_price.get_many (order_line_purchases)
    · 가격 이력   = 기존 /api/matrix/price-history 를 프론트가 직접 호출
-   · 정산·실현 마진은 여기서 재계산하지 않는다 — 마진 계산기 링크로 안내(시안 명시).
+   · 정산 예정은 저장된 값을 읽기만 하고, 실현 마진은 거기서 실매입가만 뺀다
+     — 산식은 마진 계산기와 같고, 그 화면은 하나도 안 건드린다(설계서 §6.2).
 """
 from __future__ import annotations
 
@@ -79,6 +82,46 @@ def stage_of(has_policy: bool, has_market: bool) -> int:
     return STAGE_POLICY if has_policy else STAGE_MADE
 
 
+def stages_for(session, codes: list[str]) -> dict:
+    """model_code → 4가지 상태. **묶음 목록 화면들이 공용으로 쓴다.**
+
+    🔴 옵션관리(/matrix)·옵션 목록(/optgen)·상품관리가 같은 함수를 쓴다 —
+       판정이 두 벌이 되면 같은 상품을 화면마다 다르게 부른다.
+    """
+    codes = [c for c in codes if c]
+    if not codes:
+        return {}
+    pol = policy_models(session, codes)
+    mkt = _registered_markets(session, codes)
+    return {c: stage_of(c in pol, bool(mkt.get(c))) for c in codes}
+
+
+def policy_models(s, codes: list[str]) -> set:
+    """정책이 붙은 model_code 집합 — **두 자리를 다 본다**(배치 2쿼리).
+
+    🔴 상품 단위(BundlePolicyLink)만 보면 「구성(벌)마다 다른 정책」을 붙인 상품이
+       「정책 없음」으로 잘못 잡힌다. 정책은 두 곳에 붙을 수 있다:
+         ① BundlePolicyLink  — 상품에 하나 (구성이 따로 안 정했을 때 쓰는 바탕값)
+         ② SetPolicyLink     — 구성(ProductSet)마다 하나 (「한 상품에 여러 정책」의 실체)
+       둘 중 하나라도 있으면 「정책 적용됨」이다 — 그 상품은 실제로 정책값으로 나간다.
+    """
+    from lemouton.policy.models import BundlePolicyLink, SetPolicyLink
+    from lemouton.sets.models import ProductSet
+
+    if not codes:
+        return set()
+    got = {mc for (mc,) in
+           s.query(BundlePolicyLink.model_code)
+           .filter(BundlePolicyLink.model_code.in_(codes),
+                   BundlePolicyLink.policy_id.isnot(None)).distinct().all()}
+    got |= {mc for (mc,) in
+            s.query(ProductSet.model_code)
+            .join(SetPolicyLink, SetPolicyLink.set_id == ProductSet.id)
+            .filter(ProductSet.model_code.in_(codes),
+                    SetPolicyLink.policy_id.isnot(None)).distinct().all()}
+    return got
+
+
 #: 판매 이력 스캔 상한 — 전체 주문 풀스캔 방지(기간 필터 뒤에도 이 수를 넘지 않는다)
 _SALES_ROW_CAP = 20000
 #: [2026-08-06 속도] 60→300초. 스캔(주문 2만행 JSON)·최종매입가 일괄 계산이 비싸서
@@ -87,8 +130,11 @@ _SALES_ROW_CAP = 20000
 _CACHE_TTL = 300         # 초 — 목록 열·판매 집계 공용
 
 _cache_lock = threading.Lock()
-_sales_cache: dict[int, tuple[float, dict]] = {}     # {days: (ts, per_model)}
-_price_cache: tuple[float, dict] | None = None       # (ts, per_model)
+#: {days: (ts, 실매입가 도장, per_model)} — 도장은 아래 `purchase_stamp` 참고.
+_sales_cache: dict[int, tuple[float, str, dict]] = {}
+#: (ts, per_model) — 도장이 없다. 이 열들(최종매입가·정책 판매가·재고)은
+#: `order_line_purchases` 를 아예 안 읽어서 매입가가 바뀌어도 값이 안 변한다.
+_price_cache: tuple[float, dict] | None = None
 #: 진행 중인 백그라운드 갱신(single-flight) — 같은 키는 한 번만 돈다.
 _refreshing: set[str] = set()
 #: 테스트가 join 할 수 있게 마지막 스레드를 들고 있는다(운영엔 영향 없음).
@@ -176,15 +222,41 @@ def _build_sales_index(s, days: int) -> dict:
       (`orders/fulfillment.py:49`, `margin/sell_source.py:271` — 둘 다 같은 칸).
       값이 없는 행은 settle_missing 으로 센다(없는 값을 0 으로 지어내지 않고,
       상품분만 든 「정산예정금액」으로 대신 채우지도 않는다 — 정의가 다르다).
+    · 실현 마진 = 정산 예정 − **실매입가**(설계서 §6.2·3단계). 아래 「실현 마진」 참고.
     · weeks = 주(월요일 시작) × 마켓별 판매 수량 — 판매 추이 그래프 재료.
+
+    ## 실현 마진 (설계서 §6.2)
+
+    `realized = Σ(정산예정금(배송비포함) − 실매입가)` — **실매입가가 있는 줄만** 더한다.
+
+    · 매입가 원천은 `order_line_purchases` 하나(`markets/purchase_price.get_many`).
+      🔴 `resolve_purchase_price` 를 쓰지 않는다 — 그건 없을 때 사입가·소싱 예상가로
+      내려가는데, 「실현」은 실제로 낸 돈으로만 만들어야 한다(설계서 §4 「예상가로 낸
+      마진은 실적 숫자에 섞지 않는다」).
+    · 산식은 마진 계산기의 순마진(`margin_flags.recompute_row`: 정산 − 구매가격)과
+      같다 — 수량을 다시 곱하지 않는다(실매입가는 그 줄에 실제로 쓴 돈이다).
+    · 🔴 **0 으로 채우지 않는다.** 실매입가 없는 줄은 `pp_missing` 으로 세고,
+      쓴 줄 수는 `realized_basis` 로 밝힌다(화면 「27건 중 3건 기준」).
+      정산을 못 읽은 줄은 이미 `settle_missing` 이고, 실현 마진에서도 빠진다.
+    · 기준 줄이 하나도 없으면 `realized=None`(= 「확인 불가」). 0 이 아니다.
     """
+    from lemouton.markets import purchase_price as _pp
     from lemouton.markets.models_orders import MarketOrderLine
     from lemouton.orders.fulfillment import SETTLE_FIELD
     from lemouton.orders.price_diff import MATCH_OK, resolve_targets_verbose, row_key
     from lemouton.sourcing.models import Option
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime('%Y-%m-%d')
-    lines = (s.query(MarketOrderLine)
+    # [2026-08-07 속도] 쓰는 칸만 가져온다. 예전엔 줄 전체(15칸)를 ORM 개체로 만들어
+    #   2만 줄이면 개체 2만 개를 짓고 안 쓰는 칸까지 서버에서 끌어왔다.
+    #   여기서 실제로 쓰는 건 아래 5칸뿐이다(row = 화면·집계용 JSON).
+    #   🔴 날짜 단독 인덱스(ix_mol_date)와 한 쌍 — 기존 인덱스는 (market, order_date)
+    #      복합이라 날짜만으로 거르는 이 조회에는 못 쓴다(shared/db.py 주석).
+    #   🔴 `line_uid` 를 빠뜨리면 실매입가 조회(_pp.get_many)가 조용히 비어
+    #      「실현 마진」이 소리 없이 사라진다 — 쓰는 칸을 전수로 세어 넣었다.
+    lines = (s.query(MarketOrderLine.line_uid, MarketOrderLine.market,
+                     MarketOrderLine.order_date, MarketOrderLine.status,
+                     MarketOrderLine.account, MarketOrderLine.row)
              .filter(MarketOrderLine.order_date >= cutoff)
              .order_by(MarketOrderLine.order_date.desc())
              .limit(_SALES_ROW_CAP).all())
@@ -202,6 +274,9 @@ def _build_sales_index(s, days: int) -> dict:
         sku_model = dict(s.query(Option.canonical_sku, Option.model_code)
                          .filter(Option.canonical_sku.in_(list(skus))).all())
 
+    # 실매입가 — 사람이 적은 값만. 없는 줄은 키가 아예 없다(0 이 아니다).
+    real_pp = _pp.get_many(s, [ln.line_uid for _, ln, _ in matched])
+
     per_model: dict[str, dict] = {}
     for sku, ln, r in matched:
         mc = sku_model.get(sku)
@@ -210,6 +285,8 @@ def _build_sales_index(s, days: int) -> dict:
         agg = per_model.setdefault(mc, {
             'qty': 0, 'revenue': 0, 'count': 0,
             'settle': None, 'settle_missing': 0,
+            # 실현 마진 — realized=None 은 「쓸 수 있는 줄이 하나도 없음」(0 아님)
+            'realized': None, 'realized_basis': 0, 'purchase': 0, 'pp_missing': 0,
             'cancels': {'count': 0, 'amount': 0},
             'markets': {}, 'recent': [], 'weeks': {},
             'truncated': len(lines) >= _SALES_ROW_CAP,
@@ -244,7 +321,9 @@ def _build_sales_index(s, days: int) -> dict:
                 'market': ln.market,
                 'label': _MK_LABEL.get(ln.market, ln.market),
                 'count': 0, 'qty': 0, 'revenue': 0,
-                'settle': None, 'settle_missing': 0, 'last': ''})
+                'settle': None, 'settle_missing': 0,
+                'realized': None, 'realized_basis': 0,
+                'purchase': 0, 'pp_missing': 0, 'last': ''})
             mk['count'] += 1
             mk['qty'] += qty
             mk['revenue'] += amount or 0
@@ -254,6 +333,22 @@ def _build_sales_index(s, days: int) -> dict:
                 mk['settle_missing'] += 1
             if entry['at'] > mk['last']:
                 mk['last'] = entry['at']
+            # ── 실현 마진 = 정산 − 실매입가 (실매입가 있는 줄만) ──────────
+            _row_pp = real_pp.get(ln.line_uid)
+            _buy = int(_row_pp.purchase_price) if _row_pp is not None else None
+            if _buy is None:
+                agg['pp_missing'] += 1
+                mk['pp_missing'] += 1
+            elif settle is not None:
+                _gain = settle - _buy
+                agg['realized'] = (agg['realized'] or 0) + _gain
+                agg['realized_basis'] += 1
+                agg['purchase'] += _buy
+                mk['realized'] = (mk['realized'] or 0) + _gain
+                mk['realized_basis'] += 1
+                mk['purchase'] += _buy
+            # 매입가는 있는데 정산을 못 읽은 줄 — settle_missing 에서 이미 세고,
+            # 실현 마진에서도 뺀다(없는 정산을 0 으로 지어내지 않는다).
             wk = _week_start(entry['at'])
             if wk:
                 wkm = agg['weeks'].setdefault(wk, {})
@@ -270,10 +365,92 @@ def _build_sales_index(s, days: int) -> dict:
     return per_model
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  실매입가 「버전 도장」 — 워커가 둘이어도 낡은 돈 숫자를 안 보여주기 위한 장치
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#  🔴 이 자리에서 실제로 났던 버그(라이브 실측 2026-08-06):
+#     주문 내역에서 실매입가 50,000 을 저장한 **직후** 판매 이력(days=30)을 열면
+#     `realized:null, pp_missing:27`(옛 값)이 나왔다. 같은 순간 days=29 로 물으면
+#     캐시 키가 달라 새로 계산돼 `realized:60545, realized_basis:1` 로 **정상**이었다.
+#     → 계산은 맞았고 300초 캐시만 낡아 있었다. 사장님은 「저장이 안 됐나?」로 읽는다.
+#
+#  왜 도장(stamp)인가 — 캐시는 **프로세스 메모리**다. 라이브는 워커 2개라
+#  저장을 받은 워커에서 캐시를 비워도 **다른 워커는 그대로 옛 값을 준다**
+#  (새로고침 두 번에 값이 왔다갔다 하는, 더 나쁜 그림). 그래서 워커들이 공유하는
+#  DB 에 이미 있는 사실 하나를 도장으로 삼는다 — 새 표를 만들지 않는다.
+#
+#  도장 = (order_line_purchases 의 마지막 updated_at, 행 수). 두 값이 **다 필요**하다:
+#    · 수정      → updated_at 이 지금으로 올라간다      → 앞이 바뀐다
+#    · 신규 저장 → 행이 하나 는다                        → 뒤가 바뀐다
+#    · 삭제      → 지운 게 최신 행이 아니면 updated_at 은 그대로다 → **뒤로만 잡힌다**
+#  하나만 쓰면 삭제(=「매입가 지움」)를 놓친다 — 그게 이번 버그의 반대 방향 함정이다.
+_PP_STAMP_UNKNOWN = '?'
+
+
+def purchase_stamp(session=None) -> str:
+    """`order_line_purchases` 의 버전 도장 한 줄. 못 읽으면 `'?'`.
+
+    쿼리는 집계 2개(max·count) 하나뿐 — 주문 2만 행 스캔에 비하면 없는 값이다.
+    못 읽었을 때 매번 다른 값을 지어내면 요청마다 전체 재계산이 되어 화면이 죽는다.
+    그래서 고정 `'?'` 를 돌려주고(그때는 TTL 만으로 간다) 사유는 로그에 남긴다.
+    """
+    from sqlalchemy import func
+
+    from lemouton.markets.models_purchase import OrderLinePurchase
+
+    s, own = (session, False) if session is not None else (SessionLocal(), True)
+    try:
+        mx, cnt = (s.query(func.max(OrderLinePurchase.updated_at),
+                           func.count(OrderLinePurchase.line_uid)).one())
+        # SQLite 는 집계 결과를 문자열로 돌려주기도 한다 — 둘 다 받는다
+        # (여기서 터지면 도장이 '?' 로 굳어 무효화가 통째로 죽는다).
+        if mx is None:
+            mark = '-'
+        else:
+            mark = mx.isoformat() if hasattr(mx, 'isoformat') else str(mx)
+        return f'{mark}|{int(cnt or 0)}'
+    except Exception:                                  # noqa: BLE001
+        _log.exception('[tower] 실매입가 도장 조회 실패 — TTL 만으로 갑니다')
+        return _PP_STAMP_UNKNOWN
+    finally:
+        if own:
+            s.close()
+
+
+def invalidate_sales_cache(reason: str = '') -> None:
+    """실매입가가 바뀌었다 — **이 워커의** 판매 집계 캐시를 통째로 버린다.
+
+    ## 왜 「그 상품만」이 아니라 통째인가
+
+    캐시 한 칸의 내용물은 `{days: {model_code: 집계, …}}` 로, **한 번의 주문 스캔에서
+    전 상품이 같이 나온 dict** 다. 그래서 한 상품만 도려내려면 그 상품 몫을 다시
+    계산해야 하는데, 그건 주문 스캔을 한 번 더 도는 것이라 전체를 버리는 것보다
+    싸지 않고 집계 규칙이 두 벌이 된다(재계산 금지 위반). 저장 시점에 model_code 를
+    알아낸다 해도 **쓸 데가 없다** — 캐시의 최소 단위가 기간(days) 통짜다.
+
+    기간별로 키가 갈리므로(30·60·365…) `clear()` 로 **모든 기간 키**를 버린다.
+    이번 버그가 딱 그 자리였다 — days=30 만 낡고 days=29 는 멀쩡했다.
+
+    이건 「빠른 길」일 뿐 안전장치는 아니다. 진짜 보증은 위 `purchase_stamp` 다
+    (이 함수가 안 불려도, 다른 워커라도, 도장이 다르면 다시 계산된다).
+    """
+    with _cache_lock:
+        n = len(_sales_cache)
+        _sales_cache.clear()
+    _log.info('[tower] 판매 집계 캐시 비움(기간 키 %d개) — %s',
+              n, reason or '실매입가 변경')
+
+
 def _rebuild_sales(days: int) -> dict:
     t0 = time.perf_counter()
     s = SessionLocal()
+    stamp = _PP_STAMP_UNKNOWN
     try:
+        # 🔴 도장은 **집계를 만들기 전에** 찍는다. 만드는 도중에 매입가가 바뀌면
+        #    저장되는 도장이 옛 것이라 다음 요청이 한 번 더 만든다 — 놓치는 쪽이
+        #    아니라 한 번 더 하는 쪽으로 틀린다(돈 숫자라 그래야 한다).
+        stamp = purchase_stamp(s)
         data = _build_sales_index(s, days)
     except Exception:                                  # noqa: BLE001
         _log.exception('[tower] 판매 집계 실패 days=%s', days)
@@ -283,21 +460,31 @@ def _rebuild_sales(days: int) -> dict:
     _log.info('[tower][perf] sales_index(%s) 재계산 %.0fms',
               days, (time.perf_counter() - t0) * 1000)
     with _cache_lock:
-        _sales_cache[days] = (time.time(), data)
+        _sales_cache[days] = (time.time(), stamp, data)
     return data
 
 
 def sales_index(days: int = 30, *, fresh: bool = False) -> dict:
     """300초 캐시 + stale-while-revalidate — 목록(모든 상품)과 탭(상품 하나)이
     같은 스캔을 나눠 쓴다. 캐시가 낡았으면 **낡은 값을 즉시 돌려주고**
-    갱신은 백그라운드 스레드 한 개가 한다(첫 요청만 동기)."""
+    갱신은 백그라운드 스레드 한 개가 한다(첫 요청만 동기).
+
+    🔴 단 **실매입가가 바뀐 것은 예외** — 그건 「낡음」이 아니라 「틀림」이다.
+    실현 마진이 통째로 달라지므로 옛 값을 먼저 주지 않고 여기서 즉시 다시 만든다
+    (SWR 로 미루면 사장님이 저장 직후 「매입가 미입력」을 보고 저장이 안 된 줄 안다).
+    """
     now = time.time()
+    stamp = purchase_stamp()
     with _cache_lock:
         hit = _sales_cache.get(days)
     if hit and not fresh:
+        if hit[1] != stamp:
+            _log.info('[tower] 실매입가 변경 감지(%s → %s) — 판매 집계 즉시 재계산 days=%s',
+                      hit[1], stamp, days)
+            return _rebuild_sales(days)
         if now - hit[0] >= _CACHE_TTL:
             _kick_refresh(f'sales:{days}', lambda: _rebuild_sales(days))
-        return hit[1]
+        return hit[2]
     return _rebuild_sales(days)
 
 
@@ -598,6 +785,8 @@ def bundle_list():
 
         # 마켓 등록 — 3원천 합집합(배치 쿼리, N+1 없음)
         reg_by_model = _registered_markets(s, codes)
+        # 정책 — 상품(BundlePolicyLink) ∪ 구성(SetPolicyLink). 배치 2쿼리.
+        has_policy = policy_models(s, codes)
 
         # 크롤 실패 — URL 합집합(옵션 매칭 ∪ 모델 주소) 중 error/timeout. 배치 2쿼리.
         fail_by_model: dict[str, set] = {c: set() for c in codes}
@@ -644,9 +833,11 @@ def bundle_list():
             sl = sales.get(c) or {}
             fails = len(fail_by_model.get(c) or ())
             mkts = sorted(reg_by_model.get(c) or ())
-            stage = stage_of(bool(p.get('policy_id')), bool(mkts))
+            policy_on = c in has_policy
+            stage = stage_of(policy_on, bool(mkts))
             selling = stage in SELLING_STAGES
-            issues = fails + (p.get('soldout') or 0) + (0 if p.get('policy_id') else 1)
+            # 「정책 없음」도 구성 정책까지 보고 센다 — 안 그러면 손 볼 것이 부풀려진다
+            issues = fails + (p.get('soldout') or 0) + (0 if policy_on else 1)
             items.append({
                 'code': c, 'no': m.display_no or '',
                 'name': m.model_name_display or m.model_name_raw or c,
@@ -874,14 +1065,16 @@ def tower_sales(code: str):
     """탭⑥ 판매 이력 — 주문 내역 원천.
 
     · 정산 예정 = 주문 행의 `정산예정금(배송비포함)` 합(읽기만 — 재계산 금지).
-    · 실현 마진(순마진)은 **여기서 낼 수 없다**. 마진 계산기의 순마진 =
-      정산 − 구매가격이고, 그 「구매가격」은 사장님이 올리는 더망고 매입 엑셀에만
-      있다(서버 테이블에 없다: `margin/buy_parser.py` → `MarginPendingUpload`).
-      게다가 `lemouton/margin/*` 는 model_code·canonical_sku 개념이 아예 없어
-      (상품 축이 상품명에서 긁은 숫자 「상품코드」다) 상품 하나로 좁힐 키가 없고,
-      `matcher.match_data` 는 매입×매출 전체를 한 판에 맞추는 배치라 쪼갤 수도 없다.
-      → 억지로 다시 만들면 **마진 계산기와 다른 숫자**가 나온다. 그래서 화면은
-      마진 계산기(/orders/?tab=margin) 링크로 보낸다(JSON 에 순마진 없음).
+    · 실현 마진 = 정산 예정 − **실매입가**(설계서 §6.2·3단계). 산식·거르개는
+      `_build_sales_index` 주석 참고. 🔴 실매입가가 없는 줄은 0 으로 채우지 않고
+      `pp_missing` 으로 세어 화면이 「매입가 미입력 N건」이라 말하게 한다.
+      쓴 줄 수(`realized_basis`)도 같이 내보내 「N건 중 B건 기준」으로 밝힌다.
+    · 🔴 예상가·사입가로는 실현 마진을 만들지 않는다 — 그건 「예상」이지 실적이 아니다.
+      그 값들은 옵션 매트릭스의 「최종매입가」 쪽에서 따로 보여 준다.
+    · 1단계 이전 기록: 실현 마진을 낼 수 없던 이유는 매입가가 서버에 없었기
+      때문이다(더망고 엑셀 안에만 있었다). 이제 `order_line_purchases` 가
+      단일 원천이라 상품 축(`canonical_sku`→`model_code`)으로 좁힐 수 있다.
+      마진 계산기 화면은 **하나도 안 건드린다** — 링크는 그대로 남긴다.
     """
     s = SessionLocal()
     try:
@@ -912,12 +1105,19 @@ def tower_sales(code: str):
                               # (재계산 아님). None = 이 기간에 값 가진 행이
                               # 하나도 없음 → 화면은 「확인 불가」로 적는다.
                               'settle': agg.get('settle'),
-                              'settle_missing': agg.get('settle_missing', 0)},
+                              'settle_missing': agg.get('settle_missing', 0),
+                              # 실현 마진 — 실매입가가 있는 줄만. None = 쓸 줄 없음
+                              'realized': agg.get('realized'),
+                              'realized_basis': agg.get('realized_basis', 0),
+                              'purchase': agg.get('purchase', 0),
+                              'pp_missing': agg.get('pp_missing', 0)},
                     'cancels': agg.get('cancels') or {'count': 0, 'amount': 0},
                     'markets': markets, 'top_options': by_opt, 'recent': recent,
                     'weeks': weeks,
                     'truncated': bool(agg.get('truncated')),
-                    'margin_link': '/orders/?tab=margin'})
+                    'margin_link': '/orders/?tab=margin',
+                    # 「매입가 미입력」 탭이 열린 채로 주문 내역을 연다(설계서 §6.1)
+                    'nopp_link': '/orders/?tab=list&mg=nopp'})
 
 
 @bp.get('/bundles/api/tower/<path:code>/matrix')
@@ -1086,6 +1286,13 @@ def tower_markets_api(code: str):
                 'registered': bool(reg_pid) or (mk in reg_union),
                 'reg_name': (mp.name if mp else None),
                 'reg_status': (mp.status if mp else None),
+                # 마켓에 실제로 등록된 카테고리(캐시). 없으면 null — 화면이 「왜 없는지」를
+                #  구분해서 말한다. 🔴 롯데온은 목록 API 가 카테고리를 아예 안 준다
+                #  (지도 lotteon.product.list idTraps · 2026-08-06 프로브 실측)
+                #  → 영원히 null 이므로 「불러오면 채워진다」고 하면 거짓말이 된다.
+                'reg_category': (mp.category_code if mp else None),
+                'reg_category_name': (mp.category_name if mp else None),
+                'category_unsupported': (mk == 'lotteon'),
                 'last_send': _iso(max(lasts)) if lasts else None,
                 'options': [{
                     'sku': r.canonical_sku,

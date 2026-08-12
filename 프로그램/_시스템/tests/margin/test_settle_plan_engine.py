@@ -320,3 +320,31 @@ def test_사유_설명은_사람이_읽는_말로_나온다():
     txt = SP.reason_text("not_confirmed_yet", "lotteon")
     assert "구매확정" in txt["뜻"] and txt["확인"]
     assert "11번가" in SP.reason_text("no_confirm_channel", "eleven11")["뜻"]
+
+
+# ══ [2026-08-06] 개선 — 정산율 감시 · 「구매결정」 확정 인정 ═══════════════════
+
+def test_구매결정도_구매확정으로_본다():
+    """옥션·G마켓은 확정을 「구매결정」이라 쓴다. 사유 판정은 이미 그렇게 보는데
+    분류만 미확정으로 넣어 **같은 프로그램 안에서 기준이 어긋났다**(라이브 1건)."""
+    assert SP.classify(_line(status="구매결정", market="gmarket"),
+                       today=TODAY) == "confirmed"
+    assert SP.classify(_line(status="구매확정"), today=TODAY) == "confirmed"
+
+
+def test_정산율_감시_수수료와_어긋나면_경고():
+    """매출 대비 정산율이 마켓 수수료율과 크게 다르면 돈이 틀어진 신호다.
+    라이브 실측 90~92%(수수료 6~18% 감안 시 과대) — 아무도 못 알아채던 것."""
+    rows = [{"market": "coupang", "revenue": 1000000, "settle": 950000},
+            {"market": "smartstore", "revenue": 1000000, "settle": 940000}]
+    w = SP.rate_watch(rows)
+    cp = w["coupang"]
+    assert cp["정산율"] == 95.0
+    assert cp["기대수수료"] == 11.55          # 마켓 요율표
+    assert cp["차이"] > 5                      # 95% 면 수수료 5% — 6.55%p 어긋남
+    assert cp["경고"] is True
+    assert w["smartstore"]["경고"] is False    # 스스 6% → 94% 는 정상
+
+
+def test_정산율_감시_재료없으면_말하지_않는다():
+    assert SP.rate_watch([{"market": "coupang", "revenue": 0, "settle": 0}]) == {}
