@@ -21,7 +21,7 @@ def client(monkeypatch):
 
 def _make(client, name='지울것'):
     return client.post('/optgen/api/option-box',
-                       json={'name': name}).get_json()['code']
+                       json={'name': name, 'brand': '르무통'}).get_json()['code']
 
 
 def test_옵션함을_지우면_사라진다(client):

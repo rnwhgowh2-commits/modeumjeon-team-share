@@ -25,7 +25,7 @@ def client(monkeypatch):
 def box_html(client):
     """옵션 두 개짜리 옵션함을 만들어 화면을 받고, 끝나면 지운다."""
     code = client.post('/optgen/api/option-box',
-                       json={'name': '연동확인 검사함'}).get_json()['code']
+                       json={'name': '연동확인 검사함', 'brand': '르무통'}).get_json()['code']
     client.post(f'/api/bundles/{code}/options/combo', json={
         'steps': [{'axis_name': '색상', 'values': ['블랙']},
                   {'axis_name': '사이즈', 'values': ['230', '240']}],

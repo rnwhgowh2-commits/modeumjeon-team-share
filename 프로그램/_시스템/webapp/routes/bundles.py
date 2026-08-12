@@ -2256,8 +2256,16 @@ def api_color_code_normalize():
 
 #  SourceOption 이 들고 있는 축은 색·사이즈 둘뿐이다. 3축(모델 등)은 아직 소싱처에서
 #  회수하지 않는다 → 조용히 비우지 않고 이유를 돌려준다(설계 §13, 8단계에서 확장).
-_AXIS_SLOTS = ('color', 'size')
+#
+#  🔴 [2026-08-12] 예전엔 여기서 `_AXIS_SLOTS[i]` 로 **위치**만 보고 짝을 정했다.
+#     노션대로 모델을 1축에 두면 **소싱처의 색 표기가 모델 축에 붙는다** —
+#     라벨을 소싱처 사실처럼 써서 「자동 4·전부 초록」이었는데 실제로는 하나도
+#     안 맞았던 사고(_DAN_REASON 아래 주석)와 같은 부류다.
+#     이제 축 **이름**으로 정한다. 규칙은 lemouton/sourcing/axis_slot.py 한 곳뿐이고,
+#     이름을 못 알아보는 옛 매트릭스는 오늘 그대로 위치로 정해 동작이 안 바뀐다.
 _AXIS_UNAVAILABLE = '이 축은 아직 소싱처에서 회수하지 않습니다 (색·사이즈만 수집)'
+_AXIS_MODEL_UNAVAILABLE = ('모델 축은 소싱처가 알려주지 않습니다 — '
+                           '맞출 것이 없습니다 (색·사이즈만 수집)')
 
 
 #  단품 주소 = URL 하나 = 색 하나. 어느 색인지는 주소를 등록할 때 이미 정해졌으니
@@ -2340,13 +2348,19 @@ def api_axis_mapping_preview(code):
         # url_items: [{url,label}] 우선 (라벨로 단품 색 보강). urls: [str] 도 계속 받는다.
         vals, crawled, uncrawled, has_color_src = _source_axis_values(
             s, body.get('url_items') or body.get('urls'))
+        # 축 이름으로 짝을 정한다 — 규칙은 axis_slot 한 곳뿐(위 주석 참조).
+        from lemouton.sourcing.axis_slot import semantic_slots
+        axis_names = [((ax.get('axis_name') or '').strip() or f'축{i + 1}')
+                      if isinstance(ax, dict) else ''
+                      for i, ax in enumerate(axes)]
+        slots = semantic_slots(axis_names)
         out = []
         for i, ax in enumerate(axes):
             if not isinstance(ax, dict):
                 continue
-            name = (ax.get('axis_name') or '').strip() or f'축{i + 1}'
+            name = axis_names[i]
             our_values = [str(v).strip() for v in (ax.get('values') or []) if str(v).strip()]
-            slot = _AXIS_SLOTS[i] if i < len(_AXIS_SLOTS) else None
+            slot = slots[i]
             src_values = vals.get(slot, []) if slot else []
             # 색 축인데 단품 주소만 있으면 접는다 — 맞출 것이 없다.
             if slot == 'color' and not has_color_src:
@@ -2362,9 +2376,12 @@ def api_axis_mapping_preview(code):
                 })
                 continue
             if slot is None:
+                # 모델 축은 「아직 안 한다」가 아니라 「소싱처에 없다」 — 말을 갈라 준다.
+                from lemouton.sourcing.axis_slot import is_model_axis
                 out.append({
                     'axis_name': name, 'available': False,
-                    'reason': _AXIS_UNAVAILABLE, 'source_values': [],
+                    'reason': (_AXIS_MODEL_UNAVAILABLE if is_model_axis(name)
+                               else _AXIS_UNAVAILABLE), 'source_values': [],
                     'rows': [{'our_value': v, 'source_value': None, 'status': 'none',
                               'method': None, 'origin': None, 'candidates': []}
                              for v in our_values],
@@ -2434,8 +2451,29 @@ def api_axis_mapping_set(code):
                                our_value=our_value, source_value=source_value,
                                origin=origin)
         except ax.AliasConflict as e:
+            # [2026-08-12 노션 옵션 c] 「이미 쓰고 있다」에서 **막히지 않게** 한다.
+            #   🔴 이 표는 소싱처 전역이라 매트릭스를 지워도 행이 남는다. 그런데 화면은
+            #      지금 매트릭스의 축 값 줄만 그리므로, 남은 행(유령)은 화면에 안 나타나
+            #      **놓아줄 방법이 없다** — 사장님이 실제로 막히신 자리.
+            #   그래서 「누가 붙잡고 있고, 그게 지금 쓰이는 값인지」를 같이 알려주고,
+            #   `takeover:true` 로 다시 부르면 **한 트랜잭션에서 놓고 잡는다**(1:1 유지).
+            holder = getattr(e, 'holder', '') or ''
+            if body.get('takeover') and holder:
+                s.rollback()
+                ax.clear_alias(s, source_key, axis_name, holder)
+                row = ax.set_alias(s, source_key=source_key, axis_name=axis_name,
+                                   our_value=our_value, source_value=source_value,
+                                   origin=origin)
+                s.commit()
+                return jsonify({'ok': True, 'cleared': False, 'took_from': holder,
+                                'our_value': row.our_value,
+                                'source_value': row.source_value, 'origin': row.origin})
+            users = ax.users_of(s, axis_name, holder) if holder else []
             s.rollback()
-            return jsonify({'ok': False, 'error': str(e)}), 409
+            return jsonify({'ok': False, 'error': str(e),
+                            'conflict': {'holder': holder,
+                                         'holder_used_by': users,
+                                         'ghost': not users}}), 409
         except ValueError as e:
             s.rollback()
             return jsonify({'ok': False, 'error': str(e)}), 400

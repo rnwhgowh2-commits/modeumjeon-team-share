@@ -18,6 +18,18 @@
     .mtab .st{display:block;font-size:11px;font-weight:500;margin-top:4px;color:var(--sub,#8B95A1)}
     .mtab.on .st{color: var(--글자-파랑, var(--primary,#3F72B8))}
     .mtab .st.no{color: var(--글자-주황, var(--amber,#B45309))}
+    /* ── [2026-08-12 확정 B2] 안 켠 마켓 — 흐리게 + 자물쇠 (노션 정책생성 a) ──
+       🔴 숨기지 않는다. 숨기면 거기 채워 둔 값을 다시 고칠 길이 사라진다. */
+    .mtab.mkoff{opacity:.42}
+    .mtab.mkoff .st{color:var(--sub,#8B95A1)}
+    .mk-grid label.mkoff{opacity:.5}
+    .mklock{margin-left:3px}
+    .mkoff-note{background:var(--n100,#F2F4F6);border-radius:8px;padding:10px 14px;
+                font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;
+                margin-bottom:10px}
+    .mkoff-note b{color:var(--ink,#191F28)}
+    .fill-sum{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
+    .fill-sum b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
 
     /* 항목 아코디언 — 대량등록 「데이터 가공」과 같은 모양 */
     .it{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;margin-bottom:8px;overflow:hidden}
@@ -189,10 +201,18 @@
     붙은 상품 {{ applied }}개{% if policy.memo %} · {{ policy.memo }}{% endif %}
   </div>
 
+  {# ── [2026-08-12 사장님 확정 B2] 안 켠 마켓은 흐리게 + 자물쇠 ────────────────
+     노션 「마켓 활성화 체크 박스 → 체크한 것만 가공 활성화」.
+     🔴 목록에서 빼지 않는다 — 빼면 거기 채워 둔 값을 다시 고칠 길이 사라진다.
+        껐다 켜면 값이 그대로 살아나야 한다는 게 사장님 뜻이라, 「없애기」가 아니라
+        「위상 낮추기」다. #}
   <div class="mtabs">
     {% for mk, label in markets %}
-    <a class="mtab {{ 'on' if mk == market }}" href="/policies/{{ policy.id }}?m={{ mk }}">
-      {{ label }}
+    {% set off = (mk != common_key and mk not in enabled) %}
+    <a class="mtab {{ 'on' if mk == market }} {{ 'mkoff' if off }}"
+       href="/policies/{{ policy.id }}?m={{ mk }}"
+       {% if off %}title="안 켠 마켓입니다 — 적어 둔 값은 그대로 남아 있어요"{% endif %}>
+      {{ label }}{% if off %}<span class="mklock">🔒</span>{% endif %}
       {% if mk == common_key %}
         <span class="st">여기서 채웁니다</span>
       {% else %}
@@ -207,6 +227,19 @@
       {% endif %}
     </a>
     {% endfor %}
+  </div>
+
+  {# 안 켠 마켓이 있을 때만 말한다 — 없으면 군더더기다. 셈은 서버(fill_sum)가 한다. #}
+  {% if fill_sum.off %}
+  <div class="mkoff-note">
+    🔒 가 붙은 <b>{{ fill_sum.off }}곳</b>은 <b>안 켠 마켓</b>이라 가공할 필요가 없습니다.
+    적어 둔 값은 <b>그대로 남아</b> 다시 켜면 살아납니다 —
+    켜고 끄기는 <a href="/policies">정책 목록</a>의 「내보낼 마켓 · 고치기」에서 합니다.
+  </div>
+  {% endif %}
+  <div class="fill-sum">
+    채움 <b>{{ fill_sum.filled }}</b>/<b>{{ fill_sum.total }}</b>
+    — 켠 <b>{{ fill_sum.on }}</b>곳만 셉니다{% if fill_sum.off %} (안 켠 {{ fill_sum.off }}곳은 분모에서 뺐습니다){% endif %}
   </div>
 
   {% if is_common %}
@@ -542,8 +575,13 @@
       <span style="margin-left:12px;font-weight:400;color:var(--글자-보조,#6B7684)">— 넣을 마켓</span></div>
     <div class="mk-grid">
       {% for mk, label in markets %}{% if mk != common_key %}
-      <label><input type="checkbox" class="mkPick" value="{{ mk }}"
-                    data-label="{{ label }}" data-state="{{ summary[mk].state }}"> {{ label }}
+      {# [2026-08-12 확정 B2] 안 켠 마켓은 여기서도 흐리게 + 자물쇠.
+         🔴 넣는 것 자체는 막지 않는다 — 값은 남겨 둬야 다시 켤 때 살아난다.
+            「지금 안 쓰는 곳」이라는 표시만 한다. #}
+      <label class="{{ 'mkoff' if mk not in enabled }}"
+             {% if mk not in enabled %}title="안 켠 마켓입니다 — 넣어 둬도 지금은 안 나갑니다"{% endif %}>
+        <input type="checkbox" class="mkPick" value="{{ mk }}"
+                    data-label="{{ label }}" data-state="{{ summary[mk].state }}"> {{ label }}{% if mk not in enabled %}<span class="mklock">🔒</span>{% endif %}
         <span class="src {{ summary[mk].state }}">
           {% if summary[mk].state == 'common' %}공통
           {% elif summary[mk].state == 'own' %}직접{% else %}없음{% endif %}</span></label>

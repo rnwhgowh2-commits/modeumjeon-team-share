@@ -1937,6 +1937,15 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                               or od.get("OptAddPrice") is not None
                               or od.get("_claim_kind") is None) else ""),
             # 실결제(K열) = 원금(단가×수량+옵션) — 샵마인 규약(2026-07-23 G마켓 13/13 전수:
+            # ── 할인 부담 갈래(2026-08-12) — 지도에 있는데 우리가 안 읽던 필드 ──
+            #  SellerDiscountPrice  판매자할인금액(1+2 최종) = **우리 부담**
+            #  DirectDiscountPrice  사이트에서 할인 지원하는 금액 = **마켓 부담**
+            #  🔴 앞서 「G마켓은 구조적으로 불가」라고 보고했던 것은 오판이다 —
+            #    `OrderAmount`·`AcntMoney` 만 보고 **같은 응답 안의 이 두 필드를 놓쳤다**.
+            #    지도만 보고 또 단정하지 않도록, 값이 실제로 오는지는 진단 창구
+            #    `/orders/diag/esm-order-raw` 로 라이브 확인한 뒤에 쓴다.
+            "_dc_seller": _g(od, "SellerDiscountPrice"),
+            "_dc_market": _g(od, "DirectDiscountPrice"),
             #  샵 K=단가×수량, 판매자 쿠폰 할인 전). 빌더에서 채워야 미정산 신규 주문도
             #  estimate_settle_from_history 가 돈다(실측 471551517: K 공란→추정 불발).
             #  _finalize_rows 의 ESM K=원금 규칙과 같은 값이라 이중 계산 아님.
@@ -3178,8 +3187,20 @@ def _finalize_rows(rows: list) -> list:
                       or (_mk == "쿠팡" and "반품완료" in _st)
                       or _mk in ("옥션", "G마켓"))
         if force_orig and isinstance(total, int) and total > 0:
-            r["실결제금액"] = total
-            paid = total
+            # 🔴 옥션·G마켓도 「매출 = 실제로 번 돈」 (2026-08-12 — 쿠팡 PR#884 와 같은 규칙).
+            #   두 마켓 다 주문 API 가 갈래를 준다(라이브 실증):
+            #     옥션 2567864872  SellerDiscountPrice 0 · DirectDiscountPrice 8,980
+            #     G마켓 18/22행     셀러 합 0 · 마켓 합 47,640
+            #   앞서 「구조적 불가」로 보고한 것은 `OrderAmount`·`AcntMoney` 만 보고 낸 오판.
+            #   · 판매자할인은 우리 주머니에서 나가므로 **뺀다**
+            #   · 사이트(마켓) 할인은 마켓이 부담하므로 **안 뺀다**(빼면 매출이 실제보다 작아진다)
+            #   취소·클레임 행은 여전히 원금 그대로 — 샵마인 K열 규약(할인 차감 전).
+            _esm_sdc = 0
+            if _mk in ("옥션", "G마켓") and not zero_cancel \
+                    and "취소" not in _st and "반품" not in _st and "철회" not in _st:
+                _esm_sdc = _to_int(r.get("_dc_seller"), 0) or 0
+            r["실결제금액"] = total - _esm_sdc
+            paid = r["실결제금액"]
         # 마켓수수료: 빌더가 정산 API 실값으로 미리 채웠으면(롯데온 SettleCommission) 그대로 사용,
         #  아니면 실결제 − 정산예정금액 파생(둘 다 있고 양수일 때). 아니면 공란(폴백 금지).
         #  취소완료 0 확정 행은 파생 금지 — 실결제−0 이 수수료로 날조된다.

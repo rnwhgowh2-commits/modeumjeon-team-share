@@ -185,3 +185,33 @@ def test_지우기_단추가_내마켓_탭에서도_살아있다(client):
     assert "getElementById('ob-make')" in js
     assert 'if (!btn) return;' not in js, '만들기 칸이 없으면 지우기까지 죽는다'
     assert "querySelectorAll('[data-del]')" in js
+
+
+# ── [2026-08-12 노션 하위탭 a · 사장님 A1 확정] 2단 위상 ──────────────────
+#   「옵션 생성」과 「상품 생성」은 다른 일이다 — 평평한 3탭은 같은 급으로 보였다.
+#   🔴 위 검사들이 지키는 계약(같은 3개·같은 label·같은 순서)은 그대로 둔 채
+#      화면이 그리는 방식만 2단으로 바꾼다.
+
+def test_하위탭이_옵션생성_상품생성_두_묶음으로_갈린다():
+    from webapp.routes.optgen import subtab_groups
+    g = subtab_groups()
+    assert [x[0] for x in g] == ['option', 'product']
+    assert [x[1] for x in g] == ['옵션 생성', '상품 생성']
+    assert [t['key'] for t in g[0][2]] == ['direct', 'market'], '옵션 생성 아래 2개'
+    assert [t['key'] for t in g[1][2]] == ['product']
+
+
+def test_묶음을_눌러도_원래_탭_주소로_간다(client):
+    """윗단은 그 묶음의 **첫 하위탭**으로 보낸다 — 새 주소를 만들지 않는다."""
+    from webapp.routes.optgen import subtab_groups
+    for _g, _lb, items in subtab_groups():
+        r = client.get('/optgen?tab=' + items[0]['key'])
+        assert r.status_code == 200
+    html = client.get('/optgen?tab=direct').get_data(as_text=True)
+    assert 'href="/optgen?tab=direct"' in html
+    assert 'href="/optgen?tab=product"' in html
+    # 아랫단은 옵션 생성일 때만 (상품 생성은 하위가 하나뿐).
+    # 🔴 `og-subtabs` 는 CSS 에도 나온다 — **마크업**만 본다.
+    assert '<div class="og-subtabs">' in html
+    assert '<div class="og-subtabs">' not in \
+        client.get('/optgen?tab=product').get_data(as_text=True)

@@ -31,10 +31,12 @@ def test_스펙의_수집단계는_노션_하위탭_3개다():
     assert ids == ['i_optgen_direct', 'i_optgen_market', 'i_optgen_product']
 
 
-def test_스펙의_상품관리에_모음전_상품관리와_옵션관리가_들어간다():
+def test_스펙의_상품관리에_옵션관리와_상품관리가_들어간다():
+    """[2026-08-12 노션 b항] 순서를 옵션 먼저로 뒤집었다.
+    개명·재정렬 계약 전체는 tests/catalog/test_catalog_tabs_rename.py."""
     spec = {s[0]: s for s in SB._STAGE_SPEC}
     ids = spec['s_catalog'][4]
-    assert ids == ['i_bundles', 'i_matrix', 'i_catalog']
+    assert ids == ['i_matrix', 'i_bundles', 'i_catalog']
 
 
 def test_삭제확정_3개는_렌더에서_걸러진다():
@@ -47,9 +49,10 @@ def test_옮긴_항목은_이름이_강제로_바뀐다():
     """사장님이 예전에 고쳐둔 이름이 남아 있어도 새 이름으로 보여야 한다."""
     for iid in ('i_bundles', 'i_matrix', 'i_catalog'):
         assert iid in SB._FORCE_RENAME
-    assert SB._ITEM_DEFS['i_bundles']['name'] == '모음전 상품관리'
-    assert SB._ITEM_DEFS['i_matrix']['name'] == '모음전 옵션관리'
-    assert SB._ITEM_DEFS['i_catalog']['name'] == '마켓 상품 현황'
+    # [2026-08-12 노션 a항] 「모음전」을 뗐다.
+    assert SB._ITEM_DEFS['i_bundles']['name'] == '상품관리'
+    assert SB._ITEM_DEFS['i_matrix']['name'] == '옵션관리'
+    assert SB._ITEM_DEFS['i_catalog']['name'] == '실마켓 상품 현황'
     assert SB._ITEM_DEFS['i_optgen_direct']['url'] == '/optgen?tab=direct'
 
 
@@ -108,13 +111,13 @@ def test_옮긴_뒤_화면에는_새_이름으로_뜬다(monkeypatch):
     out = SB.get_layout_for_template()
     names = {it['id']: it['name']
              for st in out['stages'] for it in st['items']}
-    assert names['i_bundles'] == '모음전 상품관리'
-    assert names['i_matrix'] == '모음전 옵션관리'
+    assert names['i_bundles'] == '상품관리'
+    assert names['i_matrix'] == '옵션관리'
     assert names['i_optgen_direct'] == '모음전 옵션 생성 (직접)'
     # 🔴 라이브에서 잡은 것 — 옮겨온 항목만 개명되고, 원래 그 자리에 있던
-    #   i_catalog 는 옛 이름 「상품관리」 그대로 떴다. 강제 개명은 저장본에
+    #   i_catalog 는 옛 이름 그대로 떴다. 강제 개명은 저장본에
     #   **이미 있던** 항목에도 걸려야 한다.
-    assert names['i_catalog'] == '마켓 상품 현황'
+    assert names['i_catalog'] == '실마켓 상품 현황'
 
 
 import pytest
