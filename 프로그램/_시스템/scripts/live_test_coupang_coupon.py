@@ -67,6 +67,32 @@ def _our_coupons(client, vid):
     return [c for c in content if (c.get('promotionName') or '') == COUPON_NAME], content
 
 
+def _any_contract_id(client, vid):
+    """지난 쿠폰에서라도 계약ID를 찾는다 — 지어내지 않기 위해서다.
+
+    🔴 실측(2026-08-06) — 세소쿠팡은 2년짜리 넓은 쿠폰이 **전 옵션을 덮어** 검증용
+      쿠폰을 붙일 자리가 없었다(후보 12개 전부 [CIR08]). 그래서 쿠폰이 없는 다른
+      계정으로 옮겨야 하는데, 그런 계정은 적용 중 쿠폰이 없어 계약ID도 안 나온다.
+      계약ID는 쿠폰 상태와 무관한 **그 계정의 계약 번호**라 지난 것에서 읽어도 같다.
+      ⚠️ 상태값은 마켓이 정한 것만 받는다 — 400 이 나면 그 상태는 조용히 건너뛴다.
+    """
+    for st in ('', 'EXPIRED', 'PAUSED', 'READY'):
+        try:
+            q = 'page=1&size=50&sort=desc'
+            if st:
+                q = f'status={st}&' + q
+            resp = client.request(
+                'GET', f'/v2/providers/fms/apis/api/v2/vendors/{vid}/coupons',
+                query=q)
+        except Exception:                               # noqa: BLE001
+            continue                                    # 모르는 상태값 — 건너뛴다
+        for c in (((resp or {}).get('data') or {}).get('content') or []):
+            if c.get('contractId'):
+                print(f'  (계약ID 를 지난 쿠폰 {c.get("couponId")} 에서 읽었습니다)')
+                return c['contractId']
+    return None
+
+
 def _taken_items(client, vid):
     """이미 **다른 쿠폰이 쓰고 있는** 옵션들.
 
@@ -225,10 +251,14 @@ def do_create(client, vid):
         print(f'■ 이미 우리 검증 쿠폰이 있습니다(couponId={ours[0].get("couponId")}) — '
               f'새로 만들지 않습니다. verify 로 확인하거나 expire 로 내리세요.')
         return 0
-    # 🔴 계약ID는 그 계정의 **실제 쿠폰**에서 읽는다(지어내지 않는다)
+    # 🔴 계약ID는 그 계정의 **실제 쿠폰**에서 읽는다(지어내지 않는다).
+    #   적용 중 쿠폰이 없는 계정도 있어서, 지난 쿠폰까지 뒤진다 —
+    #   계약ID는 쿠폰의 상태와 무관한 그 계정의 계약 번호다.
     contract_id = next((c.get('contractId') for c in allc if c.get('contractId')), None)
     if not contract_id:
-        print('■ 이 계정에 적용 중 쿠폰이 없어 계약ID를 알 수 없습니다 — 만들지 않습니다.')
+        contract_id = _any_contract_id(client, vid)
+    if not contract_id:
+        print('■ 이 계정에서 계약ID를 찾지 못했습니다(쿠폰 이력 없음) — 만들지 않습니다.')
         return 1
 
     taken = _taken_items(client, vid)
