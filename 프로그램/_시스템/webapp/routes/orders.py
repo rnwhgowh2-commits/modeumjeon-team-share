@@ -1884,8 +1884,13 @@ def orders_diag_esm_order_raw():
 
     from shared.platforms.esm import orders as _eo
     #  담을 필드만 화이트리스트 — 실수로 고객정보가 새지 않게 「빼기」가 아니라 「고르기」.
+    #  [2026-08-12] 할인 부담 갈래 — 지도에 있는데 우리가 안 읽던 필드.
+    #    SellerDiscountPrice(판매자할인 1+2 최종) · DirectDiscountPrice(사이트 지원 할인).
+    #    「G마켓은 구조적 불가」로 적었던 앞선 결론은 이 둘을 못 보고 내린 오판이었다.
     _KEEP = ("OrderNo", "GoodsName", "SalePrice", "ContrAmount", "OptSelPrice",
-             "OptAddPrice", "ShippingFee", "OrderAmount", "AcntMoney", "OrderStatus")
+             "OptAddPrice", "ShippingFee", "OrderAmount", "AcntMoney", "OrderStatus",
+             "SellerDiscountPrice", "SellerDiscountPrice1", "SellerDiscountPrice2",
+             "DirectDiscountPrice")
     want = [o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()]
     rows, keys_seen = [], set()
     # 🔴 어느 계정으로 물었는지 **응답에 적는다** — 별칭이 안 맞아 대표로 폴백하면
