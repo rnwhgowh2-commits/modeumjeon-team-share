@@ -18,10 +18,18 @@ from lemouton.uploader.scoped_send import (
 bp = Blueprint("live_send_test", __name__)
 
 # 이 화면이 다루는 마켓(실전송 검증 대상). 표시·필터용 정본.
+#: 🔴 [2026-08-12] 여기가 3개로 잠겨 있어서 옥션·G마켓·11번가 상품은 화면에서
+#:    **고를 수조차 없었다**. `scoped_send._account_adapter` 는 진작 6마켓을 다
+#:    만들 수 있었는데 목록만 안 늘린 것 — 「코드가 없다」와 「목록에 안 적었다」는
+#:    다른 문제고, 뒤엣것은 에러도 안 나서 있는 기능이 없는 것처럼 굳는다.
+#:    같은 날 6마켓 전부 라이브 왕복(가격 +100 · 재고 ±1 → 원복)으로 실측하고 열었다.
 SEND_MARKETS = [
     {"key": "smartstore", "label": "스마트스토어"},
     {"key": "coupang", "label": "쿠팡"},
     {"key": "lotteon", "label": "롯데온"},
+    {"key": "eleven11", "label": "11번가"},
+    {"key": "auction", "label": "옥션"},
+    {"key": "gmarket", "label": "G마켓"},
 ]
 
 
@@ -1882,9 +1890,15 @@ def api_roundtrip_restore():
         elif market == "lotteon":
             from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
             ops = make_lotteon_ops(product_no, client=client)
+        elif market == "eleven11":
+            from lemouton.uploader.roundtrip.markets.eleven11 import make_eleven11_ops
+            ops = make_eleven11_ops(product_no, client=client)
         else:
             from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
-            ops = make_esm_ops(product_no, market=market, client=client)
+            # 🔴 손복구는 **원래 이름으로 되돌리는** 일이다 — 상품명 축을 막아 두면
+            #    시험 표식 " (시험중)" 이 붙은 채로 영영 남는다(2026-08-12 발견).
+            #    시험할 때 상품명을 끄는 것과, 되돌릴 때 켜는 것은 다른 문제다.
+            ops = make_esm_ops(product_no, market=market, client=client, allow_name=True)
         rep = restore_from_journal(journal, apply_fn=ops.apply, snapshot_fn=ops.snapshot)
     except Exception as e:  # noqa: BLE001
         import traceback
@@ -1892,9 +1906,22 @@ def api_roundtrip_restore():
                         "error": f"{type(e).__name__}: {str(e)[:400]}",
                         "detail": traceback.format_exc()[-700:]}), 200
 
+    # 확인이 끝났으면 저널 상태를 바꾼다 — 안 그러면 목록에 「원복실패」로 영영 남아
+    # 다음 사람이 또 손복구를 돌리고, 진짜 남은 문제가 소음에 묻힌다(2026-08-12).
+    if rep.ok and rep.verified:
+        from lemouton.uploader.roundtrip.journal import mark_resolved
+        skipped = ", ".join(rep.skipped or {})
+        mark_resolved(journal, note=(
+            "손복구 확인 — 마켓에 시험 흔적 없음"
+            + (f" (시험 뒤 정상 변경이라 안 건드린 축: {skipped})" if skipped else "")))
+
     return jsonify({"ok": rep.ok, "armed": True, "market": rep.market,
                     "product_id": rep.product_id, "error": rep.error,
                     "되돌린값": {k: (list(v) if isinstance(v, tuple) else v)
                               for k, v in rep.sent.items()},
                     "확인됨": rep.verified, "안맞는축": list(rep.mismatched),
+                    # 시험 흔적이 아니라 그 뒤에 정상적으로 바뀐 값이라 안 건드린 축.
+                    # 조용히 건너뛰면 「되돌렸다」는 보고가 거짓이 된다.
+                    "안건드린축": {k: (list(v) if isinstance(v, tuple) else v)
+                               for k, v in (rep.skipped or {}).items()},
                     "journal": rep.journal_path})

@@ -31,7 +31,10 @@ def policy_index():
         items = []
         for p in s.query(MarketPolicy).filter(MarketPolicy.deleted_at.is_(None)) \
                   .order_by(MarketPolicy.is_default.desc(), MarketPolicy.created_at.desc()):
-            rd = readiness(s, p.id)
+            # [2026-08-12] 채움·「쓸 수 있음」은 **켠 마켓만** 센다(노션 정책생성 a).
+            #   안 켠 마켓을 분모에 두면 100% 가 영영 안 찬다.
+            on = enabled_markets(s, p)
+            rd = readiness(s, p.id, markets=on)
             items.append({
                 'id': p.id, 'name': p.name, 'memo': p.memo, 'brand': p.brand,
                 'is_default': bool(p.is_default),
@@ -39,7 +42,7 @@ def policy_index():
                 'filled': sum(v['filled'] for v in rd.values()),
                 'total': sum(v['total'] for v in rd.values()),
                 'ready': [m for m, v in rd.items() if v['price_ready']],
-                'markets': enabled_markets(s, p),
+                'markets': on,
                 'summary': market_summary(s, p.id),
             })
         brands = brand_counts(s)
@@ -60,7 +63,9 @@ def policy_detail(pid: int):
     from lemouton.policy.common_sync import market_summary, origin_of
     from lemouton.policy.fields import COMMON_KEY, COMMON_LABEL, MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import applied_count, readiness, values_for
+    from lemouton.policy.service import (
+        applied_count, enabled_markets, readiness, values_for,
+    )
     from lemouton.policy import required as REQ
     from lemouton.pricing import fee_defaults
     from lemouton.pricing.unified import default_fee_pct
@@ -88,11 +93,31 @@ def policy_detail(pid: int):
                     for it in items}
         req_sum = (None if market == COMMON_KEY else
                    REQ.summary_for(market, [it['key'] for it in items], vals))
+        # ── [2026-08-12 확정 B2] 켠 마켓 / 채움 합계 ────────────────────────────
+        #   탭별 숫자는 전 마켓 그대로 두고(꺼 둔 곳도 열어 보면 값이 보여야 한다),
+        #   **합계만** 켠 마켓으로 센다.
+        _on_markets = enabled_markets(s, p)
+        _rd_all = readiness(s, pid)
+        _on = [k for k, _lb in MARKETS if k in set(_on_markets)]
+        _off = [k for k, _lb in MARKETS if k not in set(_on_markets)]
+        _fill_sum = {
+            'filled': sum(_rd_all[k]['filled'] for k in _on),
+            'total': sum(_rd_all[k]['total'] for k in _on),
+            'on': len(_on), 'off': len(_off),
+        }
         ctx = {
             'policy': {'id': p.id, 'name': p.name, 'memo': p.memo or '',
                        'is_default': bool(p.is_default), 'brand': p.brand or ''},
             'markets': [(COMMON_KEY, COMMON_LABEL)] + list(MARKETS),
             'market': market,
+            # ── [2026-08-12 사장님 확정 B2] 노션 「마켓 활성화 체크한 것만 가공 활성화」 ──
+            #   🔴 꺼진 마켓을 목록에서 **빼지 않는다.** 빼면 거기 채워 둔 값을
+            #     다시 고칠 길이 사라진다(껐다 켜면 살아나야 한다는 게 사장님 뜻).
+            #     흐리게 + 자물쇠로 **위상만 낮춘다.**
+            'enabled': set(_on_markets),
+            # 채움 합계 — **켠 마켓만** 센다. 셈을 템플릿에 넣으면 검사가 어려워
+            #   여기서 만들어 넘긴다.
+            'fill_sum': _fill_sum,
             'is_common': market == COMMON_KEY,
             'common_key': COMMON_KEY,
             'items': items,
@@ -105,7 +130,7 @@ def policy_detail(pid: int):
             'stored_only_note': REQ.STORED_ONLY_NOTE,
             'origin': origin_of(s, pid, market),
             'summary': market_summary(s, pid),
-            'readiness': readiness(s, pid),
+            'readiness': _rd_all,
             'applied': applied_count(s, pid),
             # [2026-08-02] 이 마켓의 수수료 기준 — 화면 빈칸에 채워 넣는다.
             #   🔴 숫자를 화면에 적어 두지 않는다. 계산은 `default_fee_rate`,
@@ -459,8 +484,13 @@ def policy_apply_page():
         pbrands = brand_counts(s)
     finally:
         s.close()
+    # [2026-08-12 노션 상품 c-1] `?model=<코드>` 로 들어오면 그 상품을 미리 골라 둔다.
+    #   🔴 검색칸도 같이 채운다 — 상품 목록은 300줄 상한이라, 체크만 해 두면
+    #      「체크했다는데 목록에 없다」가 된다.
+    pick = [c for c in request.args.getlist('model') if c]
     return render_template('policy/apply.html', active='policy_apply',
-                           policies=policies, pbrands=pbrands)
+                           policies=policies, pbrands=pbrands,
+                           pick=pick, pick_q=(pick[0] if len(pick) == 1 else ''))
 
 
 # ════════════════════════════════════════════════════════════════════════

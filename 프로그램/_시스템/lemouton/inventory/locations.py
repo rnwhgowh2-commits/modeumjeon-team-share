@@ -140,3 +140,31 @@ def seed_defaults(session: Session) -> list[InventoryLocation]:
     if created:
         session.flush()
     return created
+
+
+def ensure_default_location(session: Session) -> int:
+    """재고를 넣을 **기본 위치** id. 없으면 만들어서라도 돌려준다.
+
+    [2026-08-12] 같은 판정이 코드 세 곳에 흩어져 있었다
+    (`boxhero_import._ensure_default_location`, `webapp/routes/inventory/data.py`,
+    `webapp/routes/inventory/purchase_sale.py`). 옵션 생성에 초기 재고를 붙이면서
+    **네 번째를 만들지 않으려고** 여기로 올렸다 — 위치를 고르는 규칙이 갈리면
+    같은 물건이 서로 다른 창고에 쌓인다.
+
+    규칙: is_default=True 우선 → 없으면 `seed_defaults` → 그래도 없으면 하나 만든다.
+    """
+    def _pick():
+        return (session.query(InventoryLocation)
+                .filter(InventoryLocation.deleted_at.is_(None))
+                .filter(InventoryLocation.is_default.is_(True))
+                .first())
+
+    loc = _pick()
+    if loc is None:
+        seed_defaults(session)
+        loc = _pick()
+    if loc is None:
+        loc = InventoryLocation(name='기본 위치', is_default=True, sort_order=1)
+        session.add(loc)
+        session.flush()
+    return loc.id

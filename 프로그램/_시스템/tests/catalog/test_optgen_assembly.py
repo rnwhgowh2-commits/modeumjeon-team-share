@@ -31,7 +31,7 @@ def matrix_with_option(client):
     from lemouton.sourcing.models import Option
     name = f'조립대시험_{uuid.uuid4().hex[:8]}'
     code = client.post('/optgen/api/option-box',
-                       json={'name': name}).get_json()['code']
+                       json={'name': name, 'brand': '르무통'}).get_json()['code']
     sku = f'SKU-{uuid.uuid4().hex[:12]}'
     s = SessionLocal()
     try:

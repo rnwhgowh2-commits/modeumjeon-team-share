@@ -46,8 +46,13 @@ _PRODUCT_LINK = {
     #     상품번호가 죄다 `bundle` 이 되어 **묶음 전부가 한 건으로 뭉개진다.**
     'lotteon': (re.compile(r'/p/product/(?!bundle\b)([A-Za-z0-9_]+)'),
                 'https://www.lotteon.com/p/product/{id}'),
-    # lotteimall: `/goods/viewGoodsDetail.lotte?goods_no=3272278659`
-    'lotteimall': (re.compile(r'viewGoodsDetail\.lotte\?[^"\'<>]*?goods_no=(\d+)'),
+    # lotteimall: 🔴 **링크를 보면 안 된다.** `a[href*=viewGoodsDetail]` 로 잡히는 25건은
+    #   전부 메뉴 속 추천 배너(`recom_swiper`·`plan_banner`)다 — 검색 결과가 아니다.
+    #   실증(2026-08-08): 「검색된 상품이 없습니다」가 뜨는 검색어에서도 그 링크가
+    #   **25건 그대로** 나왔다. 그대로 뒀으면 검색할 때마다 엉뚱한 상품 25건이
+    #   크롤 대기에 들어가 초안까지 됐다.
+    #   진짜 결과는 `data-goods-no` 속성이다(나이키 60건 · 결과 없음 0건, 실측 대조).
+    'lotteimall': (re.compile(r'data-goods-no="(\d+)"'),
                    'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no={id}'),
     # hmall: 🔴 **링크가 아니다.** 상품 카드가 `<a href>` 가 아니라서 링크만 찾으면
     #   영영 0건이다(실측: 검색 결과 29개 링크 중 상품 0건). 번호는 속성에만 있다.
@@ -76,11 +81,40 @@ _PAGE_PARAM = {
 #: 🔴 확장에 규칙을 **박아 두지 않는다.** 예전엔 `a[href*="/products/"]` 가 확장 안에
 #:   박혀 있어 소싱처를 넣어도 무신사 말고는 0건이었다. 규칙을 아는 곳은 서버 하나다
 #:   (소싱처를 붙일 때마다 「확장 다시 불러오기」를 부탁하지 않기 위해서다).
+#: 소싱처별 「더 있다」를 알아보는 선택자 — 이게 화면에 있으면 **첫 장만 가져온 것**.
+#: 🔴 [2026-08-08 실측 정정] 처음엔 「무한 스크롤이라 내리면 더 나온다」고 보고 스크롤을
+#:   넣었는데 **틀렸다.** 롯데온 48→48 · 롯데아이몰 24→24 · 현대H몰 40→40 —
+#:   화면을 끝까지 내려도(H몰은 안쪽 스크롤 상자까지 확인) 개수가 그대로였다.
+#:   셋 다 **단추를 눌러 넘기는** 방식이다(롯데온 「2」를 눌러 상품이 바뀌는 것 확인).
+#: ★ 지금 할 수 있는 정직한 일은 **「더 있다」를 말해 주는 것**이다. 단추를 눌러 가며
+#:   여러 장을 걷는 일은 다음 걸음 — 그때까지 「48개가 전부」라고 믿게 두지 않는다.
+#: 🔴 모르는 곳은 **비워 둔다.** 선택자를 추측해 넣으면 「더 있음」이 늘 켜지거나
+#:   늘 꺼져서 둘 다 거짓말이 된다.
+#: 「검색 결과가 없다」고 화면이 말할 때 쓰는 글귀.
+#: 🔴🔴 [2026-08-08 실측] 소싱처 대부분이 **결과가 0건이어도 추천 상품을 화면에 깐다.**
+#:   그걸 우리 규칙이 상품으로 집어 간다 — 롯데온 25건 · 롯데아이몰 25건 · 현대H몰 12건.
+#:   막지 않으면 **오타 한 번에 엉뚱한 상품 수십 건이 크롤 대기에 들어가 초안까지 된다.**
+#:   (롯데아이몰은 규칙 자체를 `data-goods-no` 로 바꿔 이미 0건이지만, 겹겹으로 막는다.)
+#: ★ 글귀는 화면에 그대로 보이는 말이라 소싱처가 UI 를 바꾸면 안 맞을 수 있다 —
+#:   그래서 **이게 없다고 0건으로 만들지는 않는다.** 있을 때만 「없다」고 확정한다.
+_EMPTY_TEXT = {
+    'musinsa': '검색 결과가 없습니다',      # 뒤에 「회원가입 이벤트 상품」 19건이 깔린다
+    'lotteon': '검색결과가 없습니다',
+    'lotteimall': '검색된 상품이 없습니다',
+    'hmall': '검색결과가 없습니다',
+    'lemouton': '검색결과가 없습니다',      # 결과 0건인데 상단 노출 상품 1건이 잡혔다
+}
+
+_MORE_SELECT = {
+    'lotteon': 'a.srchPaginationNext',      # 실측: 「다음」 — 눌러서 상품이 바뀜
+    'lotteimall': 'a.next.ico',             # 실측: 「다음」 단추 존재
+}
+
 _DOM_SELECT = {
     'musinsa':    ('a[href*="/products/"]', 'href'),
     'ssf':        ('a[href*="/good"]', 'href'),
     'lotteon':    ('a[href*="/p/product/"]', 'href'),
-    'lotteimall': ('a[href*="viewGoodsDetail"]', 'href'),
+    'lotteimall': ('[data-goods-no]', 'data-goods-no'),
     'hmall':      ('[data-slitm-cd]', 'data-slitm-cd'),
     'lemouton':   ('a[href*="product_no="]', 'href'),
 }
@@ -113,7 +147,9 @@ def dom_rule_for(source_key: str) -> dict:
     key = str(source_key or '').strip().lower()
     pat, _tpl = _rule(key)          # 모르는 곳이면 여기서 예외
     sel, attr = _DOM_SELECT[key]
-    return {'sel': sel, 'attr': attr, 'id_re': pat.pattern}
+    return {'sel': sel, 'attr': attr, 'id_re': pat.pattern,
+            'more_sel': _MORE_SELECT.get(key),
+            'empty_text': _EMPTY_TEXT.get(key)}
 
 
 def product_url_for(product_id, *, source_key: str) -> str:
@@ -155,6 +191,30 @@ def extract_product_urls(html: str, *, source_key: str, max_items=None) -> list[
     return out
 
 
+def click_pages_for(source_key: str, page_from=None, page_to=None) -> int:
+    """단추로 넘기는 소싱처에서 **「다음」을 몇 번 눌러 걷을지.** 1 = 첫 장만.
+
+    ━━ 사장님 화면을 그대로 쓴다 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    「몇 쪽부터 / 몇 쪽까지」 칸이 이미 있다. 주소로 넘기는 곳은 주소를 만들고,
+    단추로 넘기는 곳은 **그만큼 단추를 누른다.** 같은 뜻인데 칸이 둘이면
+    사장님이 어느 쪽을 채워야 할지 모른다.
+
+    🔴 주소로 넘길 수 있는 곳은 **누르지 않는다**(1을 돌려준다) — 주소로도 넘기고
+      단추도 누르면 같은 상품을 두 번 걷는다.
+    🔴 상한은 `MAX_PAGES`. 실수로 1~9999 를 넣으면 소싱처를 두들긴다(차단 위험).
+    """
+    key = str(source_key or '').strip().lower()
+    if _PAGE_PARAM.get(key):          # 주소로 넘기는 곳
+        return 1
+    if not _MORE_SELECT.get(key):     # 넘기는 법을 모르는 곳
+        return 1
+    if page_from is None and page_to is None:
+        return 1                      # 임의로 넓히지 않는다
+    lo = max(1, int(page_from or 1))
+    hi = max(lo, int(page_to or lo))
+    return min(hi - lo + 1, MAX_PAGES)
+
+
 def page_urls_for(listing_url: str, *, source_key: str,
                   page_from=None, page_to=None) -> list[str]:
     """리스팅 URL + 페이지 범위 → 실제로 열 주소 목록.
@@ -170,7 +230,10 @@ def page_urls_for(listing_url: str, *, source_key: str,
         return [listing_url]
     param = _PAGE_PARAM.get(key)
     if not param:
-        raise ValueError(f'{key} 는 페이지 넘김 규칙을 아직 모릅니다 — 범위를 못 씁니다.')
+        # 🔴 예전엔 여기서 예외를 냈다 — 그러면 범위를 적은 순간 **첫 장조차 못 걷는다.**
+        #   주소로 못 넘기는 곳이라도 첫 장은 걷을 수 있고, 단추로 넘기는 곳이면
+        #   `click_pages_for` 가 「몇 번 누를지」로 답한다. 걷을 수 있는 데까지는 걷는다.
+        return [listing_url]
 
     lo = max(1, int(page_from or 1))
     hi = max(lo, int(page_to or lo))

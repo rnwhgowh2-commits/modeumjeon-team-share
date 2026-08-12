@@ -58,6 +58,26 @@ def _ok(**kw):
     return jsonify({'ok': True, **kw})
 
 
+def _tpl_get(tpl, name, default=None):
+    """가격 템플릿(또는 **정책 껍데기**)에서 한 칸을 꺼낸다 — 없거나 안 정했으면 기본값.
+
+    🔴 2026-08-12 라이브 500 의 정체.
+      정책이 붙으면 `tpl` 은 PriceTemplate 이 아니라 **정책 껍데기**로 바뀐다
+      (`policy_as_template`). 그 껍데기는 정책이 아는 칸만 답하고, 모르는 칸은
+      **되받을 템플릿(fallback)에 넘긴다**. 그런데 **가격 템플릿이 아예 없는 상품**은
+      되받을 곳이 없어 `AttributeError` 로 터졌다 — 상품 91개 중 1개
+      (「르무통 메이트 스니커즈 test」: 정책 있음 + 가격 템플릿 없음)가 그랬고,
+      편집 화면이 「internal_error」만 띄우고 아무것도 못 하게 됐다.
+
+    `getattr(..., None)` 이 그 AttributeError 를 받아 내고, 값이 없으면
+    **부르는 쪽이 쓰던 기본값**을 그대로 쓴다 — 없는 값을 여기서 지어내지 않는다.
+    """
+    if tpl is None:
+        return default
+    v = getattr(tpl, name, None)
+    return default if v is None else v
+
+
 def _err(msg, code=400):
     return jsonify({'ok': False, 'error': msg}), code
 
@@ -1420,14 +1440,14 @@ def _option_matrix_one(s, code: str, batch: dict):
         cfg = cfg_dict.get(o.canonical_sku)
         auto = cfg.auto_enabled if cfg else True
         margin = (cfg.margin_rate if cfg and cfg.margin_rate is not None
-                  else (tpl.ss_margin_rate if tpl else 0.10))
+                  else _tpl_get(tpl, 'ss_margin_rate', 0.10))
         ss_fee = (cfg.ss_fee_rate if cfg and cfg.ss_fee_rate is not None
-                  else (tpl.ss_fee_rate if tpl else 0.06))
+                  else _tpl_get(tpl, 'ss_fee_rate', 0.06))
         cp_fee = (cfg.cp_fee_rate if cfg and cfg.cp_fee_rate is not None
-                  else (tpl.coupang_fee_rate if tpl else 0.1155))
-        ss_ship = (tpl.ss_delivery_fee if tpl else 0) or 0
-        cp_ship = (tpl.coupang_delivery_fee if tpl else 0) or 0
-        rounding = (tpl.rounding_unit if tpl else 100) or 100
+                  else _tpl_get(tpl, 'coupang_fee_rate', 0.1155))
+        ss_ship = _tpl_get(tpl, 'ss_delivery_fee', 0) or 0
+        cp_ship = _tpl_get(tpl, 'coupang_delivery_fee', 0) or 0
+        rounding = _tpl_get(tpl, 'rounding_unit', 100) or 100
 
         # [2026-06-03 핵심 로직] 원가 = "재고 존재 + 크롤 성공" 소싱처 중 최저 크롤가.
         #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.
@@ -1478,8 +1498,8 @@ def _option_matrix_one(s, code: str, batch: dict):
         #   'template' (기본) — 템플릿 boxhero_purchase_price → 0이면 옵션 _avg 폴백
         #   'avg'             — 옵션 _avg → 0이면 템플릿값 폴백
         #   둘 다 0이면 사입 카드 차단 (UI 빨간 🚫)
-        _tpl_purchase = (tpl.boxhero_purchase_price if tpl else 0) or 0
-        _src_pri = (tpl.price_source_priority if tpl else 'template') or 'template'
+        _tpl_purchase = _tpl_get(tpl, 'boxhero_purchase_price', 0) or 0
+        _src_pri = _tpl_get(tpl, 'price_source_priority', 'template') or 'template'
         if _src_pri == 'avg':
             _resolved_avg = _avg or _tpl_purchase
         else:
@@ -1812,15 +1832,15 @@ def _option_matrix_one(s, code: str, batch: dict):
         options=opt_rows,
         bundle_group=bundle_group_payload,
         template={
-            'id': tpl.id if tpl else None,
-            'name': tpl.name if tpl else None,
-            'purchase_price': (tpl.boxhero_purchase_price if tpl else None),
-            'margin_rate': (tpl.ss_margin_rate if tpl else None),
-            'ss_fee_rate': (tpl.ss_fee_rate if tpl else None),
-            'cp_fee_rate': (tpl.coupang_fee_rate if tpl else None),
-            'ss_delivery_fee': (tpl.ss_delivery_fee if tpl else None),
-            'cp_delivery_fee': (tpl.coupang_delivery_fee if tpl else None),
-            'rounding_unit': (tpl.rounding_unit if tpl else None),
+            'id': _tpl_get(tpl, 'id'),
+            'name': _tpl_get(tpl, 'name'),
+            'purchase_price': _tpl_get(tpl, 'boxhero_purchase_price'),
+            'margin_rate': _tpl_get(tpl, 'ss_margin_rate'),
+            'ss_fee_rate': _tpl_get(tpl, 'ss_fee_rate'),
+            'cp_fee_rate': _tpl_get(tpl, 'coupang_fee_rate'),
+            'ss_delivery_fee': _tpl_get(tpl, 'ss_delivery_fee'),
+            'cp_delivery_fee': _tpl_get(tpl, 'coupang_delivery_fee'),
+            'rounding_unit': _tpl_get(tpl, 'rounding_unit'),
         } if tpl else None,
     )
 
@@ -2803,14 +2823,14 @@ def get_price_breakdown(sku: str):
         tpl = (s.query(PriceTemplate).filter_by(id=m.price_template_id).first()
                if m and m.price_template_id else None)
         margin = (cfg.margin_rate if cfg and cfg.margin_rate is not None
-                  else (tpl.ss_margin_rate if tpl else 0.10))
+                  else _tpl_get(tpl, 'ss_margin_rate', 0.10))
         ss_fee = (cfg.ss_fee_rate if cfg and cfg.ss_fee_rate is not None
-                  else (tpl.ss_fee_rate if tpl else 0.06))
+                  else _tpl_get(tpl, 'ss_fee_rate', 0.06))
         cp_fee = (cfg.cp_fee_rate if cfg and cfg.cp_fee_rate is not None
-                  else (tpl.coupang_fee_rate if tpl else 0.1155))
-        ss_ship = (tpl.ss_delivery_fee if tpl else 0) or 0
-        cp_ship = (tpl.coupang_delivery_fee if tpl else 0) or 0
-        rounding = (tpl.rounding_unit if tpl else 100) or 100
+                  else _tpl_get(tpl, 'coupang_fee_rate', 0.1155))
+        ss_ship = _tpl_get(tpl, 'ss_delivery_fee', 0) or 0
+        cp_ship = _tpl_get(tpl, 'coupang_delivery_fee', 0) or 0
+        rounding = _tpl_get(tpl, 'rounding_unit', 100) or 100
         # 원가 = 르무통 소싱처 크롤가 우선 (2026-05-09 fix)
         try:
             from lemouton.sourcing.models_v2 import OptionSourceCache

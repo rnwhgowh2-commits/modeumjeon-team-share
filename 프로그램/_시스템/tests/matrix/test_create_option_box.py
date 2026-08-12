@@ -27,7 +27,7 @@ def session():
 
 def test_옵션함을_만들면_매트릭스와_U번호가_생긴다(session):
     from lemouton.matrix.service import create_option_box
-    mo = create_option_box(session, name='르무통 메이트')
+    mo = create_option_box(session, name='르무통 메이트', brand='르무통')
     assert mo.kind == 'origin'
     assert mo.name == '르무통 메이트'
     assert mo.display_no.startswith('U')
@@ -37,7 +37,7 @@ def test_상품번호는_안_붙는다(session):
     """🔴 아직 파는 게 아니다 — M… 이 붙으면 규칙 3이 깨진다."""
     from lemouton.matrix.service import create_option_box
     from lemouton.sourcing.models import Model
-    mo = create_option_box(session, name='르무통 메이트')
+    mo = create_option_box(session, name='르무통 메이트', brand='르무통')
     m = session.get(Model, mo.model_code)
     assert m.is_option_box is True
     assert m.display_no is None
@@ -47,14 +47,14 @@ def test_이름이_비면_거절한다(session):
     """이름 없는 묶음은 나중에 아무도 못 찾는다."""
     from lemouton.matrix.service import create_option_box
     with pytest.raises(ValueError):
-        create_option_box(session, name='   ')
+        create_option_box(session, name='   ', brand='르무통')
 
 
 def test_같은_이름을_두_번_만들어도_안_겹친다(session):
     """사장님이 같은 이름을 또 쓸 수 있다 — 저장이 터지면 안 된다."""
     from lemouton.matrix.service import create_option_box
-    a = create_option_box(session, name='메이트')
-    b = create_option_box(session, name='메이트')
+    a = create_option_box(session, name='메이트', brand='르무통')
+    b = create_option_box(session, name='메이트', brand='르무통')
     assert a.model_code != b.model_code
     assert a.display_no != b.display_no
 
@@ -63,7 +63,7 @@ def test_옵션함에_옵션을_붙일_수_있다(session):
     """이게 목적 — 상품을 안 만들고도 옵션이 저장된다."""
     from lemouton.matrix.service import create_option_box
     from lemouton.sourcing.models import Option
-    mo = create_option_box(session, name='메이트')
+    mo = create_option_box(session, name='메이트', brand='르무통')
     session.add(Option(canonical_sku='SKU-TEST0001', model_code=mo.model_code,
                        matrix_option_id=mo.id, color_code='블랙', size_code='250'))
     session.flush()
@@ -76,3 +76,16 @@ def test_브랜드를_적어두면_그대로_들어간다(session):
     from lemouton.sourcing.models import Model
     mo = create_option_box(session, name='메이트', brand='나이키')
     assert session.get(Model, mo.model_code).brand == '나이키'
+
+
+def test_브랜드가_비면_거절한다(session):
+    """[2026-08-12 노션 옵션 b★ 「브랜드/모델명 입력되어야함」]
+
+    🔴 예전엔 비우면 조용히 「르무통」이 박혔다. 다른 브랜드 물건이 르무통으로
+       잡히면 브랜드별 정책·크롤 계수·정산 분류가 통째로 어긋난다.
+       「누락 없이」의 뜻은 「거짓으로 채우지 않기」다.
+    """
+    from lemouton.matrix.service import create_option_box
+    for bad in (None, '', '   '):
+        with pytest.raises(ValueError):
+            create_option_box(session, name='메이트', brand=bad)

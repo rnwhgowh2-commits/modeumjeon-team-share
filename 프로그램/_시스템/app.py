@@ -140,6 +140,8 @@ def create_app() -> Flask:
     import lemouton.markets.models_shopmine  # noqa: F401
     # 실매입가(사람이 적는 값) — 적재분과 물리적으로 분리된 표(2026-08-06). 재수집에 안 지워진다.
     import lemouton.markets.models_purchase  # noqa: F401
+    # 실매입가 **변경 이력**(누가 언제 얼마→얼마) — 덧붙이기 전용(2026-08-12).
+    import lemouton.markets.models_purchase_history  # noqa: F401
     import lemouton.markets.models_supply  # noqa: F401
     # 「주문 관리」 상태(사장님이 만든 항목 + 줄마다 지정) — 재수집에 안 지워지는 별도 표.
     import lemouton.markets.models_order_status  # noqa: F401
