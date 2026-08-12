@@ -62,17 +62,18 @@
   var SETTLE_FIELD = '정산예정금(배송비포함)';
   var AMOUNT_FIELD = '주문금액';     // 표의 그 열(= 단가×수량 + 배송비). 카드와 표는 한 값이다.
 
-  /** 마켓 할인을 **잴 수 없는** 마켓 — 0 이 아니라 「확인 불가」다.
-   *  `_finalize_rows` 의 `force_orig` 가 이 두 마켓의 `실결제금액`을 원금
-   *  (단가×수량+옵션)으로 **덮어쓴다**(샵마인 K열 규약). 그래서 「정가−실결제」가
-   *  항상 정확히 0 인데, 할인이 없어서가 아니라 덮어써서 0 이다.
+  /** 마켓 할인을 **잴 수 없는** 마켓 — 0 이 아니라 「확인 불가」로 적을 곳.
+   *  정합성 3대 원칙: 확인 못 하면 「확인 불가」, 추정·폴백 금지.
    *
-   *  ESM 주문 API 전수 확인(2026-08-06 데이터코드지도):
-   *    · G마켓 `OrderAmount` = 판매단가×수량 (할인 미반영) → 사이트할인을 못 분리 → 불가
-   *    · 옥션 `AcntMoney` 에 판매자할인이 섞여 있으나 **배송비가 장바구니 합계로 모든
-   *      줄에 중복** 내려와(지도 원문) 줄 단위로 못 가른다 → 라이브 실측 전엔 확인 불가
-   *  정합성 3대 원칙: 확인 못 하면 「확인 불가」로 표기, 추정·폴백 금지. */
-  var ESM_UNKNOWN = { '옥션': 1, 'G마켓': 1 };
+   *  🔴 2026-08-12 현재 **비어 있다**(= 확인 불가 마켓 없음). 옛 판에는 옥션·G마켓이
+   *    들어 있었는데, 그건 `OrderAmount`·`AcntMoney` 두 필드만 보고 「구조적으로 못
+   *    가른다」고 낸 **오판**이었다. 같은 주문조회 응답 안에 갈래가 그대로 있다:
+   *      · 옥션 2567864872  SellerDiscountPrice 0 · DirectDiscountPrice 8,980
+   *      · G마켓 22행 중 18행  셀러 합 0 · 마켓 합 47,640
+   *    `_finalize_rows` 의 `force_orig` 도 이제 판매자할인만 빼므로(사이트할인은 마켓
+   *    돈이라 안 뺀다), 「정가−실결제」가 곧 우리 부담이 된다.
+   *    이름은 남긴다 — 갈래를 못 주는 마켓이 생기면 여기에 넣으면 그대로 작동한다. */
+  var ESM_UNKNOWN = {};
 
   // 되돌린 클레임·교환 — 여기 걸리면 **무조건 남긴다**(아래 CLAIM_RE 보다 우선).
   //   철회는 「취소철회·반품철회」처럼 **앞 글자가 붙었을 때만** 남긴다
@@ -162,15 +163,25 @@
       if (g === null || isBlank(p)) { blank++; return; }
       var d = g - num(p);
       var b = by[mk] || (by[mk] = { market: mk, sum: 0, count: 0, top: [],
-                                    seller: 0, mkt: 0, known: 0, kinds: {} });
+                                    seller: 0, mkt: 0, mktOut: 0, known: 0, kinds: {} });
       b.sum += d; b.count++; total += d;
       // ── 「누가 깎아 줬나」 — 마켓이 갈라 주는 곳만 센다(안 주면 안 세고 건수로 남긴다) ──
       //  스스: 총(_dc_total) − 셀러(_dc_seller) = 마켓. 나머지 마켓은 둘 다 실값으로 온다.
-      var s = r['_dc_seller'], m2 = r['_dc_market'], tt = r['_dc_total'];
-      if (!isBlank(s) && (!isBlank(m2) || !isBlank(tt))) {
-        var sv = num(s);
-        var mv = isBlank(m2) ? Math.max(0, num(tt) - sv) : num(m2);
-        b.seller += sv; b.mkt += mv; b.known++;
+      // 🔴 부담율은 **화면에 뜬 그 금액(d)** 을 100 으로 놓고 잰다(2026-08-12 정정).
+      //   마켓마다 `실결제금액`의 뜻이 달라 카드 금액에 담긴 것이 다르기 때문:
+      //     · 스스·11번가·롯데온 — 실결제가 모든 할인 반영 → d = 셀러+마켓
+      //     · 쿠팡             — 실결제가 셀러 쿠폰만 반영 → d = 셀러분만
+      //   옛 식 `셀러/(셀러+마켓)` 은 카드에 없는 마켓분을 분모에 넣어, 쿠팡이
+      //   **「우리 부담 0%」**로 떴다(라이브 실측 — 그 100원은 전액 우리 돈이다).
+      //   우리 몫은 d 를 넘을 수 없으므로 잘라 쓴다.
+      var s = r['_dc_seller'], mk2 = r['_dc_market'];
+      if (!isBlank(s)) {
+        var sv = Math.max(0, Math.min(num(s), d));
+        var mvIn = Math.max(0, d - sv);          // 카드 금액 안에 든 마켓 몫
+        b.seller += sv; b.mkt += mvIn; b.known++;
+        // 🔴 마켓이 **카드 밖에서** 부담한 몫 — 우리 매출과 무관해 카드 금액엔 없다.
+        //   비율만 쓰면 「옥션이 8,980원 깎아줬다」는 사실이 화면에서 사라진다.
+        if (!isBlank(mk2)) b.mktOut += Math.max(0, num(mk2) - mvIn);
       }
       var kk = r['_dc_kinds'];
       if (kk) {
@@ -193,10 +204,16 @@
       //   — 0% 로 적으면 「마켓이 다 내줬다」는 거짓말이 된다.
       var b3 = by[k], tot2 = b3.seller + b3.mkt;
       b3.sellerRate = (b3.known && tot2 > 0) ? Math.round(b3.seller / tot2 * 100) : null;
+      // 🔴 얼마나 근거가 있는 비율인지 같이 돌려준다(2026-08-12).
+      //   11번가는 109행 중 19행만 갈래 값이 온다 — 아는 행만으로 낸 비율을 화면이
+      //   **전체인 양** 보여줘 할인 569,904원 중 466,989원이 근거 없는 몫이 됐다.
+      b3.knownSum = tot2;
       b3.kindList = Object.keys(b3.kinds)
         .map(function (n) { return { name: n, amount: b3.kinds[n] }; })
         .sort(function (x, y) { return y.amount - x.amount; });
-      out.push(b3);
+      // 할인도 0 이고 마켓이 따로 낸 것도 없으면 표에 안 싣는다(빈 줄 = 잡음).
+      //   단 마켓이 따로 부담한 게 있으면 금액이 0 이어도 남긴다 — 그게 볼거리다.
+      if (b3.sum !== 0 || b3.mktOut > 0) out.push(b3);
     }
     out.sort(function (a, b2) { return b2.sum - a.sum; });
     return { markets: out, total: total, esmUnknown: esmUnknown, blank: blank };
@@ -243,7 +260,7 @@
   var CAPS = {
     sales:  ['취소·반품 제외', '교환 정산 포함', '실결제+배송비'],
     settle: ['취소·반품 제외', '교환 정산 포함', '배송비 포함'],
-    amount: ['단가×수량+배송비', '취소·반품 제외'],
+    amount: ['단가×수량+옵션+배송비', '취소·반품 제외'],
     discount: ['취소·반품 제외', '정가−실결제'],
     salesPhone: ['취소·반품 제외', '교환 정산 포함']   // 폰은 칸이 좁아 2줄
   };
@@ -273,6 +290,30 @@
     var out = caps.slice();
     if (blank) out.push(말 + ' 모르는 ' + blank + '건 빠짐');
     return out;
+  }
+
+  /** 판매처 한 줄의 「누가 냈나」 문구 — PC·폰이 **같은 함수**를 쓴다.
+   *  갈래를 모르는 몫이 있으면 그 금액을 반드시 밝힌다(부분을 전체로 읽히지 않게). */
+  function comma(n) {
+    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function burdenLine(m) {
+    if (!m) return '';
+    var rest = Math.max(0, (m.sum || 0) - (m.knownSum || 0));
+    // 🔴 「우리가 낸 게 0원」과 「누가 냈는지 모른다」는 완전히 다른 말이다(2026-08-12).
+    //   옥션은 SellerDiscountPrice=0 · DirectDiscountPrice=8,980 이 실제로 온다 —
+    //   갈래를 아는데 「확인 불가」로 뭉개면 아는 사실을 화면이 모른다고 거짓말한다.
+    var head = (m.sellerRate == null)
+      ? (m.known ? '우리 부담 없음(전액 마켓 부담)' : '누가 냈는지 확인 불가')
+      : '우리 부담 ' + m.sellerRate + '% · 마켓 부담 ' + (100 - m.sellerRate) + '%';
+    if (rest > 0 && m.sellerRate != null) {
+      head += ' (' + comma(m.knownSum) + '원만 확인 · ' + comma(rest) + '원은 확인 불가)';
+    }
+    if (m.mktOut > 0) {
+      head += ' · 마켓이 따로 ' + comma(m.mktOut) + '원 부담(우리 매출과 무관)';
+    }
+    return head;
   }
 
   /** 마켓 할인 잔글씨. 옛 판에는 「쿠팡 쿠폰 N원 포함(매출엔 안 빠짐)」 줄이 있었다 —
@@ -320,6 +361,7 @@
     discountSummary: discountSummary,
     discountByMarket: discountByMarket,
     discountCaps: discountCaps,
+    burdenLine: burdenLine,
     discountHint: discountHint,
     ESM_UNKNOWN: ESM_UNKNOWN,
     signedMan: signedMan,

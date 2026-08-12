@@ -30,7 +30,14 @@ def save_step_design(session: Session, model_code: str, steps: list[dict]) -> No
         ))
 
 
-def apply_renames(session: Session, model_code: str, renames) -> dict:
+def axis_names_of(steps) -> list[str]:
+    """단계 설계 → 축 이름 목록. `save_step_design` 과 같은 기본값 규칙을 쓴다."""
+    return [(st.get('axis_name') or st.get('name') or f'단계{i}')
+            for i, st in enumerate(steps or [], start=1)]
+
+
+def apply_renames(session: Session, model_code: str, renames,
+                  axis_names=None) -> dict:
     """축 값 이름 바꾸기 — **기존 옵션의 축 값만 갈아끼운다.**
 
     🔴 이 함수가 있는 이유 한 줄:
@@ -43,10 +50,14 @@ def apply_renames(session: Session, model_code: str, renames) -> dict:
         renames: [{"axis": 0, "from": "색상1", "to": "블랙"}, ...]
                  축 번호는 단계 순서(0부터). 사장님이 확인창에서 짝지은 것만 온다 —
                  기계가 추측해서 만들지 않는다(틀린 짝 = URL·재고 오배치 = 돈).
+        axis_names: 축 이름들. 옛 칸(color_code/size_code)을 **이름 기준**으로 채우기
+                 위해 받는다. 안 주면 옛 규칙(1·2번째 축)대로 — 부르는 곳이 하나뿐이라
+                 실제로는 늘 들어온다.
 
     Returns:
         {'renamed': 바뀐 옵션 수, 'conflicts': [이미 그 조합이 있어 못 바꾼 sku]}
     """
+    from .axis_slot import legacy_pair
     from .option_orphans import axes_of
 
     pairs = []
@@ -80,8 +91,9 @@ def apply_renames(session: Session, model_code: str, renames) -> dict:
         taken.discard(tuple(cur))
         taken.add(tuple(nxt))
         o.axis_values_json = json.dumps(nxt, ensure_ascii=False)
-        o.color_code = nxt[0] if len(nxt) > 0 else ''
-        o.size_code = nxt[1] if len(nxt) > 1 else ''
+        # [2026-08-12] 옛 칸은 **축 이름**으로 채운다 — 「몇 번째 축인가」로 채우면
+        #   모델을 1축에 둔 순간 `color_code` 에 모델명이 들어간다(lemouton/sourcing/axis_slot.py).
+        o.color_code, o.size_code = legacy_pair(axis_names, nxt)
         renamed += 1
 
     if renamed:
@@ -123,9 +135,11 @@ def create_combination_options(
 
     save_step_design(session, model_code, steps)
 
+    axis_names = axis_names_of(steps)
+
     # 이름 바꾸기 먼저 — 아래 중복 검사가 **갈아끼운 뒤의 값**을 보게 한다.
     #   순서가 바뀌면 옛 이름이 「없는 조합」으로 잡혀 새 옵션이 또 생긴다.
-    rn = apply_renames(session, model_code, renames)
+    rn = apply_renames(session, model_code, renames, axis_names=axis_names)
 
     # [2026-05-28] Phase 1-2 — canonical_sku 형식 통일 (SKU-XXX) + axis 기반 중복 검사
     #   - existing_skus: 전체 DB의 SKU 중복 회피 (UNIQUE PK 충돌 방지)
@@ -153,16 +167,23 @@ def create_combination_options(
     # [2026-05-28] Phase 1-2/1-4 — 컬럼 규칙: shared.sku_format 모듈로 통일
     from shared.sku_format import gen_barcode
 
+    from .axis_slot import legacy_pair
+
     created: list[str] = []
     for spec in specs:
         values = spec['axis_values']
+        # [2026-08-12] 옛 칸(color_code/size_code)은 **축 이름**으로 채운다.
+        #   예전엔 `values[0]`·`values[1]` 이라, 노션대로 모델을 1축에 두면
+        #   색상 칸에 모델명이 들어갔다 — 그 칸은 마켓 전송·재고·마진이 다 읽는다.
+        #   규칙은 lemouton/sourcing/axis_slot.py 한 곳에만 있다.
+        color_code, size_code = legacy_pair(axis_names, values)
         session.add(Option(
             canonical_sku=spec['canonical_sku'],
             boxhero_sku=spec['canonical_sku'],  # 사용자 룰: 자체 SKU 가 박스히어로 SKU
             barcode=gen_barcode(),               # 자동 EAN-13
             model_code=model_code,
-            color_code=(values[0] if len(values) > 0 else ''),
-            size_code=(values[1] if len(values) > 1 else ''),
+            color_code=color_code,
+            size_code=size_code,
             axis_values_json=spec['axis_values_json'],
         ))
         created.append(spec['canonical_sku'])

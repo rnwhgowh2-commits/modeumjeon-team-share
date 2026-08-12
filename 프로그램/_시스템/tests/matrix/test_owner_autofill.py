@@ -27,7 +27,7 @@ def session():
 
 def _box(session, name='메이트'):
     from lemouton.matrix.service import create_option_box
-    return create_option_box(session, name=name)
+    return create_option_box(session, name=name, brand='르무통')
 
 
 def test_새_옵션에_주인이_저절로_붙는다(session):

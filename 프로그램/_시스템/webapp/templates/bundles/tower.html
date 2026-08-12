@@ -1,8 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}모음전 상품관리 — 모음전 자동화{% endblock %}
+{% block title %}상품관리 — 모음전 자동화{% endblock %}
 {% block content %}
 {# ═══════════════════════════════════════════════════════════════════════
-   모음전 상품관리 컨트롤타워 — 확정 시안 v8(상품관리_최종시안_v8_판매이력_추가.html)
+   상품관리 컨트롤타워 — 확정 시안 v8(상품관리_최종시안_v8_판매이력_추가.html)
+   [2026-08-12 노션] 이름에서 「모음전」을 뗐다 — 메뉴 이름과 화면 제목을 맞춘다.
    구조·클래스·수치는 시안 그대로, 색만 tokens.css 토큰(예비값 필수)으로 옮겼다.
    표 정렬 = 머리글 기준 가운데(상품 칸만 왼쪽) · 굵기 400/600 · 그림자 0 · 줄간격 1.57
    ═══════════════════════════════════════════════════════════════════════ #}
@@ -207,7 +208,7 @@
 </style>
 
 <div class="twr-head">
-  <h1>모음전 상품관리</h1>
+  <h1>상품관리</h1>
   <span class="d">내 상품의 판매·가격·재고·마켓 상태를 한 표에서</span>
 </div>
 
@@ -460,8 +461,11 @@ function expand(tr){
   var tabsHtml = TABS.map(function(t,i){
     return '<div class="twr-tab' + (i===0?' on':'') + '" data-t="' + t.id + '">' + t.name + '</div>';
   }).join('');
-  var matrixId = tr.dataset.matrix;
-  var editHref = matrixId ? ('/optgen/product/' + matrixId) : ('/bundles/' + encodeURIComponent(code));
+  // [2026-08-12 노션] 「상태에 따라 눌러서 나오는 결과 다름」 고장 수정.
+  //   전에는 matrix_id 가 있으면 조립대, 없으면 /bundles/<code>(다른 메뉴의 다른
+  //   화면)로 갈라졌다 — 단추 이름은 둘 다 「편집 (생성 탭)」인데 한쪽은 아니었다.
+  //   이제 코드 기준 한 주소로만 보낸다. 원본이 없으면 그 라우트가 만들어서 보낸다.
+  var editHref = '/optgen/product/by-code/' + encodeURIComponent(code);
   td.innerHTML =
     '<div class="twr-tabs">' + tabsHtml +
       '<div style="flex:1"></div>' +
@@ -707,6 +711,21 @@ function realizedCell(j, o, bold){
     fmt(o.count || 0) + '건 중 ' + fmt(basis) + '건 기준</div>' +
     (miss ? '<div style="font-size:11px">' + ppMissLink(j, miss) + '</div>' : '') + '</td>';
 }
+/* [2026-08-12 노션] 「판매이력탭 : 매입가 필요」 — 실현 마진 옆에 그 근거가 된 돈.
+   🔴 o.purchase 는 **실현 마진을 낸 줄만**의 합이다(정산○ + 실매입가○).
+      「이 상품 사는 데 쓴 돈 전부」가 아니므로 건수를 같이 적어 뜻을 못 박는다.
+   🔴 기준 줄이 0 이면 서버가 0 을 주지만 화면엔 「—」로 낸다 — 0 원을 찍으면
+      「0원에 사왔다」로 읽혀 마진이 거짓이 된다(서버 철칙의 화면 쪽 짝). */
+function buyCell(j, o, bold){
+  var basis = o.realized_basis || 0, miss = o.pp_missing || 0;
+  if(!basis){
+    return '<td>' + dim('—') + (miss ? '<div style="font-size:11px;margin-top:2px">' +
+      ppMissLink(j, miss) + '</div>' : '') + '</td>';
+  }
+  return '<td' + (bold ? ' style="font-weight:600"' : '') + '>' + fmt(o.purchase || 0) +
+    '<div class="twr-u" style="font-size:11px;font-weight:400">' +
+    fmt(o.count || 0) + '건 중 ' + fmt(basis) + '건에 쓴 돈</div></td>';
+}
 function kpiRealized(j){
   var t = j.total, miss = t.pp_missing || 0;
   var head = '<div style="font-size:12px;margin-top:6px;padding-top:6px;' +
@@ -753,6 +772,8 @@ function renderT6(j){
       (missing ? ' <span class="twr-u" style="font-size:11px">미수집 ' + fmt(missing) + '건</span>' : '') + '</td>';
   }
   h += '<table class="atb"><tr><th class="l">마켓</th><th>판매 건수</th><th>수량</th><th>매출</th><th>정산 예정</th>' +
+    '<th title="실현 마진을 낸 줄에 실제로 쓴 돈이에요. 정산과 실매입가가 둘 다 있는 줄만 더합니다 — 이 상품을 사 오는 데 쓴 돈 전부가 아니에요.">' +
+      '실매입가 <span class="cap">(실현 기준)</span></th>' +
     '<th title="정산 예정 − 실매입가. 실매입가를 적은 줄만 더합니다 — 없는 줄을 0 으로 채우지 않아요.">실현 마진</th>' +
     '<th>최근 판매</th><th></th></tr>';
   if(j.markets.length){
@@ -760,6 +781,7 @@ function renderT6(j){
       h += '<tr><td class="l" style="font-weight:600">' + esc(m.label) + '</td>' +
         '<td>' + fmt(m.count) + '</td><td>' + fmt(m.qty) + '</td><td>' + fmt(m.revenue) + '</td>' +
         settleCell(m.settle, m.settle_missing, false) +
+        buyCell(j, m, false) +
         realizedCell(j, m, false) +
         '<td>' + dim(shortDt(m.last)) + '</td>' +
         '<td><a class="tlink" href="/orders/">주문 보기 →</a></td></tr>';
@@ -768,13 +790,16 @@ function renderT6(j){
       '<td style="font-weight:600">' + fmt(j.total.count) + '</td><td style="font-weight:600">' + fmt(j.total.qty) + '</td>' +
       '<td style="font-weight:600">' + fmt(j.total.revenue) + '</td>' +
       settleCell(j.total.settle, j.total.settle_missing, true) +
+      buyCell(j, j.total, true) +
       realizedCell(j, j.total, true) +
       '<td></td><td></td></tr>';
   } else {
-    h += '<tr><td colspan="8">' + dim('이 기간에 이 상품으로 연결된 주문이 없어요') + '</td></tr>';
+    h += '<tr><td colspan="9">' + dim('이 기간에 이 상품으로 연결된 주문이 없어요') + '</td></tr>';
   }
   h += '</table>';
   h += '<div class="tnote">정산 예정 = 주문 내역에 저장된 「정산예정금(배송비포함)」 합이에요 — 여기서 다시 계산하지 않습니다 · ' +
+       '<b>실매입가</b> 칸은 실현 마진을 낸 줄에 실제로 쓴 돈만 더한 값이에요 — ' +
+       '이 상품을 사 오는 데 쓴 돈 전부가 아닙니다(매입가를 안 적은 줄은 아예 빠져 있어요) · ' +
        '실현 마진 = 정산 예정 − <b>실매입가</b>(손으로 적었거나 더망고 매입 엑셀로 들어온 값). ' +
        '실매입가가 없는 줄은 <b>0 으로 채우지 않고 빼고</b> 세요 — 몇 건을 뺐는지 칸마다 적어 둡니다 · ' +
        '소싱처 크롤값(최종매입가)·사입가로는 실현 마진을 만들지 않아요(그건 예상입니다) · ' +
@@ -789,28 +814,38 @@ function renderT6(j){
 
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">';
   h += '<div class="tcard" style="margin:0"><div class="tcard-t">많이 팔린 옵션 <span class="cap">이 기간</span></div>' +
-       '<table class="atb"><tr><th class="l">옵션</th><th>수량</th><th>매출</th><th>비중</th></tr>';
+       '<table class="atb"><tr><th class="l">옵션</th><th>수량</th><th>매출</th>' +
+       '<th title="이 옵션에서 실현 마진을 낸 줄에 실제로 쓴 돈이에요. 마켓별 표와 같은 기준입니다.">' +
+         '실매입가 <span class="cap">(실현 기준)</span></th><th>비중</th></tr>';
   if(j.top_options.length){
     j.top_options.forEach(function(o, i){
       var share = j.total.qty ? Math.round(o.qty / j.total.qty * 100) : null;
       h += '<tr><td class="l">' + esc(o.option || o.sku) + '</td>' +
         '<td' + (i === 0 ? ' style="font-weight:600"' : '') + '>' + fmt(o.qty) + '</td>' +
-        '<td>' + fmt(o.revenue) + '</td><td>' + (share === null ? '—' : share + '%') + '</td></tr>';
+        '<td>' + fmt(o.revenue) + '</td>' +
+        // 옵션별은 자리가 좁아 건수 대신 「—」만. 기준은 표 밑 캡션이 한 번 밝힌다.
+        '<td>' + (o.pp_basis ? fmt(o.purchase || 0) : dim('—')) + '</td>' +
+        '<td>' + (share === null ? '—' : share + '%') + '</td></tr>';
     });
-  } else { h += '<tr><td colspan="4">' + dim('아직 없음') + '</td></tr>'; }
+  } else { h += '<tr><td colspan="5">' + dim('아직 없음') + '</td></tr>'; }
   h += '</table></div>';
   h += '<div class="tcard" style="margin:0"><div class="tcard-t">최근 주문 <span class="cap">최신 5건</span>' +
        '<span class="sp"></span><a class="tlink" href="/orders/">주문 관리에서 전체 보기 →</a></div>' +
-       '<table class="atb"><tr><th>주문일시</th><th>마켓</th><th class="l">옵션</th><th>수량</th><th>금액</th><th>상태</th></tr>';
+       '<table class="atb"><tr><th>주문일시</th><th>마켓</th><th class="l">옵션</th><th>수량</th><th>금액</th>' +
+       '<th title="이 주문 줄에 적힌 실매입가예요. 안 적었으면 「—」입니다 — 0 원으로 채우지 않아요.">실매입가</th>' +
+       '<th>상태</th></tr>';
   if(j.recent.length){
     j.recent.forEach(function(r){
       var bad = (r.status.indexOf('취소') >= 0 || r.status.indexOf('반품') >= 0);
       h += '<tr><td>' + dim(shortDt(r.at)) + '</td><td>' + esc(r.market_label) + '</td>' +
         '<td class="l">' + esc(r.option) + '</td><td>' + fmt(r.qty) + '</td>' +
         '<td>' + fmt(r.amount) + '</td>' +
+        // 줄 하나짜리라 「몇 건 기준」 오해가 없다 — 값 그대로. 없으면 「—」.
+        '<td>' + (r.purchase === null || r.purchase === undefined
+                  ? dim('—') : fmt(r.purchase)) + '</td>' +
         '<td><span class="twr-badge ' + (bad ? 'warn' : 'sale') + '">' + esc(r.status || '—') + '</span></td></tr>';
     });
-  } else { h += '<tr><td colspan="6">' + dim('아직 없음') + '</td></tr>'; }
+  } else { h += '<tr><td colspan="7">' + dim('아직 없음') + '</td></tr>'; }
   h += '</table></div></div>';
   h += '<div class="tnote" style="padding:0 4px">원천: 주문 내역(전 마켓 수집분) · 취소·반품은 매출·실현 마진에서 뺀 값 · 정산 예정은 저장된 값을 읽기만 하고, 실현 마진은 거기서 실매입가만 뺍니다(재계산 없음 — 마진 계산기와 같은 산식)</div>';
   body().innerHTML = h;
@@ -829,7 +864,6 @@ function renderT6(j){
 function renderT2(j){
   var byKey = {};
   j.cells.forEach(function(c){ byKey[c.color + '|' + c.size] = c; });
-  var matrixId = open.tr.dataset.matrix;
   /* [2026-08-08] 소싱처 수를 **센다** — 「9곳」으로 박으면 상품마다 달라 거짓이 된다. */
   var 소싱처 = {};
   j.cells.forEach(function(c){ (c.sources||[]).forEach(function(s){ if(s.label) 소싱처[s.label]=1; }); });
@@ -840,7 +874,10 @@ function renderT2(j){
     '<a class="twr-btn pri sm" href="/bundles/' + encodeURIComponent(open.tr.dataset.code) + '/all">🧾 소싱처 ' +
       (소싱처수 ? 소싱처수 + '곳 ' : '') + '전부 보기 →</a>' +
     '<a class="twr-btn gho sm" href="/inventory/">🏷 사입 재고 (재고관리)</a>' +
-    (matrixId ? '<a class="twr-btn pri sm" href="/optgen/product/' + matrixId + '">✏️ 매트릭스 수정 (생성 탭)</a>' : '') +
+    /* [2026-08-12] 원본이 없으면 단추가 아예 사라지던 자리 — 머리줄 「편집」과 같은
+       문(코드 기준)으로 보낸다. 같은 일을 하는 단추가 서로 다른 데로 가면 안 된다. */
+    '<a class="twr-btn pri sm" href="/optgen/product/by-code/' +
+      encodeURIComponent(open.tr.dataset.code) + '">✏️ 매트릭스 수정 (생성 탭)</a>' +
     '</div>';
   if(!j.cells.length){
     h += '<div class="twr-u">옵션이 아직 없어요.</div></div>';
@@ -956,9 +993,11 @@ function renderT3(j){
 }
 
 /* 등록 카테고리 한 칸 — 값이 없을 때 **왜 없는지**를 갈라 말한다.
-   🔴 롯데온은 상품 목록 API 응답에 카테고리 필드가 아예 없다(spdNo·spdNm·slStatCd·
-     승인상태뿐 — 2026-08-06 프로브 실측). 「다시 불러오면 채워져요」는 롯데온에겐
-     영원히 거짓말이라, 마켓이 안 준다는 사실을 그대로 말한다.
+   🔴 [2026-08-12 정정] 롯데온을 「끝까지 못 받는다」로 두던 옛 문구를 거둔다.
+     목록 API 에 없는 건 맞지만 **상세(product/detail)에는 scatNo·dcatLst 가 온다**
+     (등록이 그 두 필드를 복사해 라이브 성공 — 2026-07-21). 이제 판매가를 채우는 그
+     상세 훑기가 카테고리도 같이 거둔다. 다만 **훑기가 아직 안 닿았을 수 있어**
+     롯데온은 「어떻게 채워지는지」를 따로 말한다(다른 마켓과 채우는 경로가 다르다).
    🔴 코드밖에 못 받는 마켓(쿠팡·11번가)은 코드만 보여준다 — 이름을 지어내지 않는다. */
 function regCategory(m){
   if (!m.registered) return dim('—');
@@ -968,8 +1007,8 @@ function regCategory(m){
     if (nm && code) return nm + ' <span class="twr-u">' + code + '</span>';
     return nm || code;
   }
-  if (m.category_unsupported)
-    return '<span title="롯데온 상품 목록 API 응답에 카테고리 필드가 없습니다(spdNo·spdNm·판매상태·승인상태뿐). 없는 값을 지어내지 않습니다." style="color:var(--ap-g45,#6E6E73)">마켓이 카테고리를 안 알려줘요</span>';
+  if (m.category_via_detail)
+    return dim('아직 안 채워짐 — 롯데온은 상품 하나하나 상세를 봐야 알 수 있어요(가격 훑기가 돌면 같이 채워집니다)');
   return dim('확인 불가 — 「내마켓 불러오기」를 다시 하면 채워져요');
 }
 

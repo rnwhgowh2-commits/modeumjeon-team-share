@@ -62,9 +62,9 @@ def test_주입된_항목은_주소와_이름이_스펙대로다(monkeypatch):
     got = [i for i in _items(SB.get_layout_for_template(), 's_catalog')
            if i['id'] == 'i_catalog']
     assert got[0]['url'] == '/catalog/'
-    # [2026-08-01] 상품관리가 3탭(모음전 상품관리·모음전 옵션관리·마켓 상품 현황)으로
-    #   갈리면서 이 항목은 「마켓에 올라간 상품」 전용이 됐다 → 개명.
-    assert got[0]['name'] == '마켓 상품 현황'
+    # [2026-08-01] 상품관리가 3탭으로 갈리면서 이 항목은 「마켓에 올라간 상품」 전용이 됐다.
+    # [2026-08-12] 「모음전」을 떼면서 옆 탭이 「상품관리」가 됐다 → 「실」을 붙여 가른다.
+    assert got[0]['name'] == '실마켓 상품 현황'
 
 
 def test_이미_있으면_두_번_넣지_않고_자리도_안_옮긴다(monkeypatch):
@@ -117,7 +117,10 @@ def test_8분류_재편은_두_번_해도_같다(monkeypatch):
 
 
 def test_재편은_사장님이_고친_이름을_살린다():
-    """이모지·이름을 바꿔둔 항목은 그대로 — 단 「템플릿」은 「가격 정책」으로 확정 개명."""
+    """이모지·이름을 바꿔둔 항목은 그대로 — 단 「템플릿」은 확정 개명(강제 개명 대상).
+
+    [2026-08-12] 노션 「b-1. 가격 정책 → 옵션 맵핑 템플릿」 반영.
+    """
     lay = {'version': 1, 'standalone': [], 'stages': [
         {'id': 's_sell', 'name': '판매', 'items': [
             {'id': 'i_orders', 'emoji': '🧾', 'name': '주문서', 'url': '/orders/?tab=list'},
@@ -127,7 +130,7 @@ def test_재편은_사장님이_고친_이름을_살린다():
     SB._migrate_to_8groups(lay)
     flat = {i['id']: i for st in lay['stages'] for i in st['items']}
     assert flat['i_orders']['name'] == '주문서' and flat['i_orders']['emoji'] == '🧾'
-    assert flat['i_templates']['name'] == '가격 정책'
+    assert flat['i_templates']['name'] == '옵션 맵핑 템플릿'
 
 
 def test_정산예정금액_메뉴는_주문분류에_한번만_추가된다():
@@ -141,6 +144,77 @@ def test_정산예정금액_메뉴는_주문분류에_한번만_추가된다():
     ids = [i['id'] for i in lay['stages'][0]['items']]
     assert ids[-1] == 'i_settle_plan'
     assert SB._migrate_settle_plan(lay) is False, '두 번째 호출에서 또 바꿨다'
+
+
+# ── [2026-08-12] 노션 「상품가공 > b-2. 기타 상위탭 아래로 옮기기」 ──────────────
+
+def _옮기기_전_저장본() -> dict:
+    """i_templates 가 아직 「상품 가공」에 있는 저장본 (라이브가 이 모양이다)."""
+    return {'version': 1, 'standalone': [], 'stages': [
+        {'id': 's_process', 'name': '상품 가공', 'items': [
+            {'id': 'i_policies', 'name': '정책 생성', 'url': '/policies'},
+            {'id': 'i_policy_apply', 'name': '상품 정책 적용', 'url': '/policies/apply'},
+            {'id': 'i_templates', 'emoji': '💲', 'name': '가격 정책', 'url': '/templates'},
+        ]},
+        {'id': 's_etc', 'name': '기타', 'items': [
+            {'id': 'i_trash', 'name': '휴지통·변경 이력', 'url': '/trash'},
+        ]},
+    ]}
+
+
+def test_옵션맵핑템플릿이_기타로_옮겨진다():
+    """🔴 스펙(_STAGE_SPEC)만 고치면 **안 옮겨진다** — 저장본에 이미 있는 항목은
+    주입 로직이 「빠진 것」으로 안 잡기 때문. 저장본을 갈아끼우는지 확인한다."""
+    lay = _옮기기_전_저장본()
+    assert SB._migrate_templates_to_etc(lay) is True
+
+    process = next(st for st in lay['stages'] if st['id'] == 's_process')
+    etc = next(st for st in lay['stages'] if st['id'] == 's_etc')
+    assert [i['id'] for i in process['items']] == ['i_policies', 'i_policy_apply'], \
+        '상품 가공에 그대로 남았다'
+    assert etc['items'][0]['id'] == 'i_templates', '기타 맨 앞에 안 왔다'
+
+
+def test_옮기면서_새_이름으로_바뀐다():
+    """i_templates 는 강제 개명 대상 — 저장본의 옛 이름이 이기면 안 된다."""
+    lay = _옮기기_전_저장본()
+    SB._migrate_templates_to_etc(lay)
+    etc = next(st for st in lay['stages'] if st['id'] == 's_etc')
+    moved = etc['items'][0]
+    assert moved['name'] == '옵션 맵핑 템플릿', f"옛 이름이 남았다: {moved['name']}"
+    assert moved['url'] == '/templates'
+
+
+def test_옮기기는_두_번_해도_같다():
+    """매 요청마다 저장을 유발하면 안 된다(idempotent).
+
+    🔴 「이미 했나」 판정을 존재 여부로 하면 옮기기 전에도 True 라 **한 번도 안 돈다**.
+       목적지(s_etc)에 있나로 판정해야 한다."""
+    lay = _옮기기_전_저장본()
+    assert SB._migrate_templates_to_etc(lay) is True
+    before = [(st['id'], [i['id'] for i in st['items']]) for st in lay['stages']]
+    assert SB._migrate_templates_to_etc(lay) is False, '두 번째 호출에서 또 바꿨다'
+    after = [(st['id'], [i['id'] for i in st['items']]) for st in lay['stages']]
+    assert before == after
+
+
+def test_오른쪽_바로가기에_있어도_거두어_옮긴다():
+    """사장님이 드래그로 standalone 에 빼 뒀을 수도 있다 — 거기서도 뽑아온다."""
+    lay = {'version': 1,
+           'standalone': [{'id': 'i_templates', 'name': '가격 정책', 'url': '/templates'}],
+           'stages': [{'id': 's_etc', 'name': '기타', 'items': []}]}
+    assert SB._migrate_templates_to_etc(lay) is True
+    assert lay['standalone'] == [], '바로가기에 그대로 남았다'
+    assert [i['id'] for i in lay['stages'][0]['items']] == ['i_templates']
+
+
+def test_같은_메뉴가_두_번_생기지_않는다():
+    """옮기기 뒤에도 id 는 유일해야 한다 — 중복이면 저장 검증(_validate)이 400 을 낸다."""
+    lay = _옮기기_전_저장본()
+    SB._migrate_templates_to_etc(lay)
+    ids = [i['id'] for st in lay['stages'] for i in st['items']]
+    ids += [i['id'] for i in lay['standalone']]
+    assert len(ids) == len(set(ids)), f'겹친 메뉴가 있다: {ids}'
 
 
 def test_정산예정금액_주문분류_없는_저장본은_바로가기로라도_노출():

@@ -138,8 +138,12 @@ def create_app() -> Flask:
     import lemouton.markets.models_orders  # noqa: F401
     # 샵마인 내보내기 적재 — 공란 채움 외부 실데이터 소스(2026-07-22)
     import lemouton.markets.models_shopmine  # noqa: F401
+    # 마켓 정산 대조 실행 이력 — 마켓 화면 엑셀 ↔ 우리 정산예정금액(2026-08-12)
+    import lemouton.margin.models_settle_recon  # noqa: F401
     # 실매입가(사람이 적는 값) — 적재분과 물리적으로 분리된 표(2026-08-06). 재수집에 안 지워진다.
     import lemouton.markets.models_purchase  # noqa: F401
+    # 실매입가 **변경 이력**(누가 언제 얼마→얼마) — 덧붙이기 전용(2026-08-12).
+    import lemouton.markets.models_purchase_history  # noqa: F401
     import lemouton.markets.models_supply  # noqa: F401
     # 「주문 관리」 상태(사장님이 만든 항목 + 줄마다 지정) — 재수집에 안 지워지는 별도 표.
     import lemouton.markets.models_order_status  # noqa: F401
@@ -310,6 +314,26 @@ def create_app() -> Flask:
         _g._perf_t0 = _time.perf_counter()
         _g._db_ms = 0.0
         _g._db_n = 0
+
+    # ── [2026-08-12] 앞단(Cloudflare/Caddy)이 502·504 본문을 자기 오류 페이지로 갈아치운다 ──
+    #   증상: 앱이 `jsonify({"ok":False,"error":...}), 502` 를 내도 브라우저에는 6.4KB 짜리
+    #        Cloudflare "Bad gateway" HTML 이 도착 → 화면 JS 의 `res.json()` 이 터져
+    #        사용자는 사유 대신 「네트워크 오류: Unexpected token '<'」 만 본다.
+    #   실측(2026-08-12 라이브): /accounts/api/upload/accounts/13/write-test 에 없는 상품번호를
+    #        넣어 앱이 일부러 502 JSON 을 내게 했더니 응답이 HTML 로 바뀌고 앱 헤더
+    #        (X-Server-Time-Ms 등)까지 통째로 사라졌다 = 앞단이 갈아치운 것이 확정.
+    #   대응: JSON 응답에 한해 502·504 를 424(Failed Dependency)로 바꾼다. 4xx 는 앞단이
+    #        그대로 통과시키므로 본문(사유·hint·body_snippet)이 화면까지 살아서 간다.
+    #        의미도 맞다 — "우리 서버는 살아 있고 바깥 마켓 호출이 실패했다".
+    #        화면 JS 는 전부 `data.ok` 로 판정하므로 상태코드 변경의 부작용이 없다.
+    _CDN_SWALLOWED = (502, 504)
+
+    @app.after_request
+    def _unswallow_gateway_json(resp):
+        if resp.status_code in _CDN_SWALLOWED and resp.mimetype == 'application/json':
+            resp.headers['X-Upstream-Status'] = str(resp.status_code)  # 원래 뜻 보존
+            resp.status_code = 424
+        return resp
 
     @app.after_request
     def _perf_log(resp):

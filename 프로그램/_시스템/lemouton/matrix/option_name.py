@@ -20,3 +20,24 @@ def full_name(matrix_name: str | None, option) -> str:
     parts = [(matrix_name or '').strip()]
     parts += [str(v).strip() for v in option_axis_values(option)]
     return ' '.join(p for p in parts if p)
+
+
+def model_name_of(matrix_name: str | None, option, axis_names=None) -> str:
+    """이 옵션의 **모델명**. 노션 옵션 b★ 「옵션별 모델 누락 없을지」의 답.
+
+    · 모델 축이 있으면(모델모음전) — 그 축의 값. 옵션마다 다르다.
+    · 모델 축이 없으면(색상모음전) — **매트릭스 이름**이 곧 모델명이다.
+      노션 「색상모음전의 경우 모델명 별도 표기 필요」 = 축에 없으니 따로 보여 달라는 뜻.
+
+    🔴 이 함수 덕에 **모델명이 비는 옵션이 구조적으로 없다.**
+       매트릭스 이름은 만들 때 필수라 항상 있고, 모델 축이 있으면 그 값이 있다.
+       새 칸을 만들지 않는다 — 같은 사실을 두 곳에 저장하면 언젠가 갈린다.
+    """
+    from lemouton.sourcing.axis_slot import is_model_axis
+    from lemouton.sourcing.option_combo import option_axis_values
+
+    vals = [str(v).strip() for v in option_axis_values(option)]
+    for i, nm in enumerate(axis_names or []):
+        if is_model_axis(nm) and i < len(vals) and vals[i]:
+            return vals[i]
+    return (matrix_name or '').strip()

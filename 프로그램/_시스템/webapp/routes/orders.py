@@ -38,7 +38,11 @@ SUBTABS = [
     # [2026-07-16] 정산·매출(sales) 탭 삭제(사용자 요청). tab=sales 진입은 list 로 폴백.
     {'key': 'cs', 'label': 'CS', 'desc': '취소·반품·교환 + 고객문의 조회·처리'},
     {'key': 'register', 'label': '신규 상품 등록', 'desc': '모음전 상품을 마켓에 신규 등록'},
-    {'key': 'margin', 'label': '마진 계산기', 'desc': '가격·수수료·배송비 입력 → 실 마진 시뮬'},
+    # [2026-08-12] 역할 나눔(설계서 §9) — 실매입가 입력·이상마진·블랙스팟은 「주문 내역」으로
+    #   옮겼다. 🔴 탭은 없애지 않는다: 이 화면에만 있는 기간 집계(일별·월별·브랜드별·
+    #   금액대별·상품별·마켓별·소싱처별)가 옮겨진 적이 없어서 없애면 통째로 사라진다.
+    {'key': 'margin', 'label': '마진 계산기',
+     'desc': '기간 집계·분석 (일별·월별·브랜드별·마켓별·소싱처별) — 실매입가 입력은 주문 내역에서'},
     {'key': 'recon', 'label': '샵마인 대조', 'desc': '샵마인 정답지 엑셀 ↔ 우리 적재분 전수 대조 (누락·필드차이)'},
     # [2026-08-06] 정산예정금액 — 기간별 미래 정산예정금(자금계획). 🔴 옛 sales 탭 id 재사용
     #   금지(사이드바 _REMOVED_IDS 가 i_sales 를 지운다) — 새 id=settle_plan.
@@ -684,7 +688,7 @@ def purchase_price_save():
     s = SessionLocal()
     try:
         row = _pp.upsert(s, line_uid=line_uid, price=raw,
-                         source=_pp.SOURCE_MANUAL, memo=memo)
+                         source=_pp.SOURCE_MANUAL, memo=memo, input_by=_who())
         # 저장이든 삭제(0·빈칸)든 실현 마진이 달라진다 — 둘 다 캐시를 버린다.
         _invalidate_tower_sales(f'실매입가 저장 uid={line_uid}')
         if row is None:
@@ -698,6 +702,102 @@ def purchase_price_save():
     except Exception as e:   # noqa: BLE001
         import logging
         logging.getLogger(__name__).exception("실매입가 저장 실패 uid=%s", line_uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+def _who():
+    """지금 로그인한 사람(이메일). 못 알면 None — 「모른다」를 지어내지 않는다."""
+    try:
+        from flask_login import current_user
+        return getattr(current_user, 'email', None)
+    except Exception:   # noqa: BLE001 — 로그인 매니저 없는 테스트 앱
+        return None
+
+
+@bp.get('/api/purchase-price/history')
+def purchase_price_history():
+    """한 주문 줄의 실매입가 변경 이력. `?line_uid=...&limit=50`
+
+    화면(매입가 칸의 「이력」)이 그대로 그린다. 이력이 없으면 빈 목록 —
+    **「변경 없음」과 「이력 기능 도입 전」을 화면이 구분해 말한다**(items 가 비면 안내문).
+    """
+    from lemouton.markets import purchase_price as _pp
+
+    uid = (request.args.get('line_uid') or '').strip()
+    if not uid:
+        return jsonify(ok=False, error="line_uid 가 없어요."), 400
+    try:
+        limit = max(1, min(200, int(request.args.get('limit') or 50)))
+    except (TypeError, ValueError):
+        limit = 50
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, line_uid=uid, items=_pp.history(s, uid, limit=limit))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("매입가 이력 조회 실패 uid=%s", uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/purchase-price/bulk')
+def purchase_price_bulk():
+    """고른 여러 줄에 **같은** 실매입가를 한꺼번에. payload: {line_uids:[...], price, memo?}
+
+    · 상태 열 일괄 지정(`/api/line-status/bulk`)과 **같은 규약**이다 — 열쇠는 반드시
+      `line_uid`. 🔴 주문번호로 묶으면 다품목 주문의 형제 줄까지 같은 값이 박힌다.
+    · `price` 가 비었거나 0 이면 **고른 줄의 실매입가를 지운다**(= 「입력 안 함」).
+      한 줄 저장과 같은 규칙이라 「빈칸으로 저장 = 지움」이 화면마다 갈리지 않는다.
+    · 🔴 한 줄이 실패해도 나머지를 되돌리지 않는다 — 대신 실패한 줄을 **그대로 돌려준다**
+      (조용한 실패 금지). 화면이 「N줄 저장 · M줄 실패」로 말한다.
+    """
+    from lemouton.markets import purchase_price as _pp
+
+    payload = request.get_json(silent=True) or {}
+    uids = payload.get('line_uids') or []
+    if not isinstance(uids, list) or not uids:
+        return jsonify(ok=False, error="선택된 주문 줄이 없어요."), 400
+    if len(uids) > 2000:
+        return jsonify(ok=False, error="한 번에 2,000줄까지예요 — 나눠서 저장해 주세요."), 400
+    raw = payload.get('price')
+    if raw not in (None, ''):
+        try:                          # 숫자가 아니면 조용히 0(=삭제)으로 흘리지 않는다
+            float(str(raw).replace(',', '').strip())
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="매입가는 숫자로 적어 주세요."), 400
+    memo = payload.get('memo')
+    memo = str(memo)[:255] if memo not in (None, '') else None
+    who = _who()
+    s = SessionLocal()
+    try:
+        saved, deleted, failed = 0, 0, []
+        for u in uids:
+            uid = str(u or '').strip()
+            if not uid:
+                continue
+            try:
+                row = _pp.upsert(s, line_uid=uid, price=raw,
+                                 source=_pp.SOURCE_MANUAL, memo=memo,
+                                 input_by=who)
+                if row is None:
+                    deleted += 1
+                else:
+                    saved += 1
+            except Exception as e:   # noqa: BLE001 — 한 줄 실패가 나머지를 막지 않는다
+                failed.append({'line_uid': uid, 'error': f"{type(e).__name__}: {str(e)[:120]}"})
+        if saved or deleted:
+            _invalidate_tower_sales(f'실매입가 일괄 저장 {saved}줄 · 지움 {deleted}줄')
+        return jsonify(ok=True, saved=saved, deleted=deleted, failed=failed,
+                       price=(None if not saved else _pp._to_price(raw)),
+                       tier=(None if not saved else _pp.TIER_REAL),
+                       label=(_pp.LABEL_UNKNOWN if not saved
+                              else _pp.TIER_LABEL[_pp.TIER_REAL]))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("실매입가 일괄 저장 실패 n=%d", len(uids))
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
     finally:
         s.close()
@@ -1306,8 +1406,8 @@ def settle_plan_agg():
 
 @bp.route('/api/settle-plan/detail')
 def settle_plan_detail():
-    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|undated|assumed_paid|
-    risk|paid)·market·account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 배지.
+    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|not_started|undated|
+    assumed_paid|risk|paid)·market·account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 배지.
 
     🔴 집계와 **같은 판정(SP.resolve)** 을 쓴다 — 예전엔 여기만 classify 로 걸러
        「KPI 5.5억 · 목록 0건」이 라이브에 나갔다(2026-08-06).
@@ -1320,6 +1420,12 @@ def settle_plan_detail():
     account = (request.args.get('account') or '').strip()
     bucket = (request.args.get('bucket') or '').strip()
     unit = (request.args.get('unit') or 'week').strip()
+    axis = (request.args.get('axis') or 'payout').strip()
+    if axis == 'order':
+        # 🔴 [2026-08-12 노션 c-3] 주문일 축에도 상세내역을 준다. 부류(confirmed/…)는
+        #   지급예정일 축의 개념이라 여기선 안 쓴다 — 그 칸에 들어간 주문 그대로다.
+        #   들어가는지/매출액이 얼마인지는 집계와 **같은 함수**(SP.order_axis_row)가 정한다.
+        return _settle_plan_detail_order(SP, market, account, bucket, unit)
     rules = load_rules()
     today = _dt.date.today()
     rows_out, truncated = [], False
@@ -1334,19 +1440,28 @@ def settle_plan_detail():
         if not amount:
             continue
         evs = r["events"]
+        row = ln["row"]
         if category in ("risk", "paid"):
             if cat != category:
                 continue
+            # 🔴 [2026-08-12 노션 c-2] 「받은 이력」 칸을 눌렀을 때 그 칸의 주문만 준다.
+            #   받은 것의 날짜 축은 예정일이 아니라 **실제 받은 날**이다.
+            if bucket and category == "paid":
+                _pd0 = SP._norm_date(row.get("_settle_paid_date"))
+                if not _pd0 or SP.bucket_key(_pd0, unit) != bucket:
+                    continue
         elif category:
             evs = [e for e in evs if e.get("bucket") == category]
             if not evs:
                 continue
-            if bucket and category in ("confirmed", "unconfirmed"):
+            # 🔴 [2026-08-12] 예전엔 확정/미확정에만 칸 거르기를 걸었다 — 지난 날 칸
+            #   (지남·정산시작전·받았을것)을 눌러도 그 기간과 무관한 전건이 나왔다.
+            #   이벤트 날짜로 거르는 건 어느 부류든 똑같이 옳다.
+            if bucket:
                 evs = [e for e in evs
                        if e["date"] and SP.bucket_key(e["date"], unit) == bucket]
                 if not evs:
                     continue
-        row = ln["row"]
         ship = _oe._to_int(row.get("배송비"), 0) or 0
         dates = [e["date"] for e in evs if e["date"]]
         srcs = {e["date_source"] for e in evs if e["date_source"]}
@@ -1371,6 +1486,10 @@ def settle_plan_detail():
             "옵션": row.get("옵션") or "",
             "수량": row.get("수량") or "",
             "주문상태": row.get("주문상태") or "",
+            # 🔴 [2026-08-12 노션 c-1] 마켓 정산 화면과 한 건씩 맞대 보려면 「누구에게 간
+            #   주문인가」가 있어야 한다. 주문 내역 표와 **같은 수준**으로 그대로 준다
+            #   (그 표도 수령자를 가리지 않는다 — 두 화면이 다르면 대조가 안 된다).
+            "수령자": row.get("수령자") or "",
             "account": ln.get("account") or "",
             "market": ln["market"],
             "category": cat,
@@ -1394,11 +1513,51 @@ def settle_plan_detail():
     return jsonify(rows=rows_out, truncated=truncated)
 
 
+def _settle_plan_detail_order(SP, market, account, bucket, unit):
+    """주문일 축 드릴다운 — 그 기간 칸에 들어간 주문 목록(매출액 + 정산예정금).
+
+    🔴 「매출액을 실결제금액 대신 상품금액+배송비로 **대체**」한 줄은 목록에도 그 사실을
+      적는다. 지금까지는 집계 meta 에 건수만 있어, 어느 주문이 대체됐는지 알 수 없었다.
+    """
+    rows_out, truncated = [], False
+    for ln in _settle_plan_lines([market] if market else None):
+        if account and (ln.get("account") or "") != account:
+            continue
+        hit = SP.order_axis_row(ln, unit=unit)
+        if hit is None:
+            continue
+        if bucket and hit["bucket"] != bucket:
+            continue
+        row = ln["row"]
+        rows_out.append({
+            "주문번호": row.get("오픈마켓주문번호") or "",
+            "주문일": hit["주문일"],
+            "상품명": row.get("상품명") or "",
+            "옵션": row.get("옵션") or "",
+            "수량": row.get("수량") or "",
+            "주문상태": row.get("주문상태") or "",
+            "수령자": row.get("수령자") or "",
+            "account": ln.get("account") or "",
+            "market": ln["market"],
+            "매출액": hit["revenue"],
+            "매출액대체": hit["substituted"],
+            "총정산예정": hit["settle"],
+            "_settle_source": hit["settle_source"],
+            "bucket": hit["bucket"],
+        })
+        if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
+            truncated = True
+            break
+    rows_out.sort(key=lambda r: (r["주문일"], r["주문번호"]), reverse=True)
+    return jsonify(rows=rows_out, truncated=truncated, axis='order')
+
+
 #: 내보내기·목록이 함께 쓰는 부류 이름 — 한 곳에서만 정의(둘이 갈리면 조용히 어긋난다)
-_SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "undated",
+_SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "not_started", "undated",
                   "assumed_paid", "risk", "paid")
 _SP_CAT_KO = {"confirmed": "확정예정", "unconfirmed": "미확정예정",
-              "overdue": "입금일지남", "undated": "받는날미정",
+              "overdue": "입금일지남", "not_started": "정산시작전",
+              "undated": "받는날미정",
               "assumed_paid": "이미받았을것", "risk": "반품취소진행", "paid": "이미받음"}
 
 
@@ -1725,8 +1884,13 @@ def orders_diag_esm_order_raw():
 
     from shared.platforms.esm import orders as _eo
     #  담을 필드만 화이트리스트 — 실수로 고객정보가 새지 않게 「빼기」가 아니라 「고르기」.
+    #  [2026-08-12] 할인 부담 갈래 — 지도에 있는데 우리가 안 읽던 필드.
+    #    SellerDiscountPrice(판매자할인 1+2 최종) · DirectDiscountPrice(사이트 지원 할인).
+    #    「G마켓은 구조적 불가」로 적었던 앞선 결론은 이 둘을 못 보고 내린 오판이었다.
     _KEEP = ("OrderNo", "GoodsName", "SalePrice", "ContrAmount", "OptSelPrice",
-             "OptAddPrice", "ShippingFee", "OrderAmount", "AcntMoney", "OrderStatus")
+             "OptAddPrice", "ShippingFee", "OrderAmount", "AcntMoney", "OrderStatus",
+             "SellerDiscountPrice", "SellerDiscountPrice1", "SellerDiscountPrice2",
+             "DirectDiscountPrice")
     want = [o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()]
     rows, keys_seen = [], set()
     # 🔴 어느 계정으로 물었는지 **응답에 적는다** — 별칭이 안 맞아 대표로 폴백하면
@@ -1949,6 +2113,66 @@ def orders_diag_coupang_rg():
                          '없으면 로켓그로스 정산은 별도라 금액 산출 방법을 따로 정해야 함'))
 
 
+@bp.route('/diag/stale-delivered')
+def orders_diag_stale_delivered():
+    """[진단·수동실행] 「배송완료」에 굳은 옛 주문 되살리기 — 왜 안 줄어드나 눈으로.
+
+    🔴 왜 필요한가(2026-08-12) — 자동 틱을 얹은 지 4일인데 롯데온 미확정이 622→579건,
+      43건밖에 안 줄었다. 3~4월 319건(1,792만)은 그대로다. 여기서 갈리는 가설이 셋인데
+      **로그를 못 보면 어느 쪽인지 모른다**:
+        ① 우리 틱이 아예 안 돈다        ② 되조회해도 마켓이 여전히 배송완료라 답한다
+        ③ 오래된 주문이라 단건 조회에서 not_found 다
+      ②·③ 이면 「우리가 낡은 것」이 아니라 **마켓 쪽 사실**이므로 되살리기를 아무리
+      돌려도 안 줄어든다 — 그때는 다른 방법(정산 창구 조인)으로 가야 한다.
+
+    `?market=lotteon&limit=50&dry=1`
+      · `dry=1` — **마켓을 부르지 않고** 대상만 센다(월별 분포). 안전한 첫 걸음.
+      · `dry=0` — 실제로 되조회하고 전이(moves)·not_found 를 그대로 돌려준다.
+        자동 틱보다 크게 잡아 밀린 것을 한 번에 밀어낼 수도 있다.
+    """
+    from flask import jsonify
+
+    from lemouton.markets.order_ingest import (_STALE_STATUSES,
+                                               refresh_stale_delivered)
+    market = (request.args.get('market') or 'lotteon').strip()
+    try:
+        limit = max(1, min(400, int(request.args.get('limit') or 50)))
+    except ValueError:
+        limit = 50
+    min_age = int(request.args.get('min_age_days') or 30)
+    max_age = int(request.args.get('max_age_days') or 180)
+    dry = (request.args.get('dry') or '1') not in ('0', 'false', 'no')
+    if dry:
+        from shared.db import SessionLocal
+        from lemouton.markets.models_orders import MarketOrderLine as L
+        now = _dt.datetime.now(_oe.KST)
+        newest = (now - _dt.timedelta(days=min_age)).strftime('%Y-%m-%d')
+        oldest = (now - _dt.timedelta(days=max_age)).strftime('%Y-%m-%d')
+        with SessionLocal() as s:
+            rows = (s.query(L).filter(L.market == market,
+                                      L.status.in_(_STALE_STATUSES),
+                                      L.order_date >= oldest,
+                                      L.order_date <= newest).all())
+            by, tried = {}, 0
+            for o in rows:
+                k = (o.order_date or '?')[:7]
+                by[k] = by.get(k, 0) + 1
+                if (o.row or {}).get('_stalestat_tried_at'):
+                    tried += 1
+            return jsonify(ok=True, dry=True, market=market,
+                           창=f'{oldest}~{newest}', 대상건수=len(rows),
+                           월별=by, 이미시도한건수=tried,
+                           주문번호수=len({o.order_no for o in rows}),
+                           해석='이미시도한건수가 대상건수와 비슷한데 안 줄면 = 마켓이 '
+                                '여전히 배송완료라고 답하는 것(우리 문제가 아님)')
+    try:
+        rep = refresh_stale_delivered(market, min_age_days=min_age,
+                                      max_age_days=max_age, limit=limit)
+    except Exception as e:                              # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f'{type(e).__name__}: {str(e)[:300]}'), 500
+    return jsonify(ok=True, dry=False, market=market, **rep)
+
+
 @bp.route('/diag/eleven11-settle')
 def orders_diag_eleven11_settle():
     """[읽기 전용] 11번가 정산내역조회 raw — **어떤 필드가 실제로 오는지** 눈으로.
@@ -2093,8 +2317,16 @@ def orders_diag_lotteon_itmd():
             'spdNo': r.get('spdNo'), 'pymtAmt': amt, 'pcsCmsn': _lo._num(r.get('pcsCmsn')),
         })
         by_order[od]['pymtAmt합'] += amt
+    # 🔴 [2026-08-12] 원본 **필드 이름**도 같이 준다(값 아님).
+    #   롯데온 지급내역(seCmptDt=실입금일)은 **구매확정일(seStdDt) 단위**로 묶여 있어
+    #   주문에 붙이려면 그 주문의 구매확정일이 있어야 한다. 그런데 우리는 그 값을
+    #   어디에도 안 갖고 있다(롯데온 주문 API 에 구매확정 단계 자체가 없다).
+    #   SettleItmdSales 응답에 확정일 계열 필드가 오는지 **추측 말고 눈으로** 확인하려는
+    #   목적이다. 있으면 조인이 되고, 없으면 일자별 조회로 창을 쪼개는 수밖에 없다.
+    키목록 = sorted({k for r in rows[:200] for k in (r or {}).keys()})
     return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
-                   alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order)
+                   alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order,
+                   원본필드이름=키목록)
 
 
 @bp.route('/diag/store-span')
@@ -2705,6 +2937,102 @@ def shopmine_recon_latest():
                                'detail': latest.result},
                        prev=(prev.summary if prev else None),
                        prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
+# ── 마켓 정산 대조 (노션 주문관리 c-4) ────────────────────────────────────────
+#  마켓 정산 화면에서 내려받은 엑셀 ↔ 우리 정산예정금액. 규칙·엔진 = margin/settle_recon.py
+
+@bp.route('/settle-recon/items')
+def settle_recon_items():
+    """대조 항목 목록 + 기준일 규칙 — 화면이 「마켓에서 이렇게 뽑으세요」를 그대로 보여준다."""
+    from lemouton.margin import settle_recon as _sr
+    return jsonify(ok=True, items=[{'key': k, **v} for k, v in _sr.ITEMS.items()])
+
+
+@bp.route('/settle-recon/run', methods=['POST'])
+def settle_recon_run():
+    """마켓 정산 엑셀 업로드 → 우리 값과 대조 → 결과 저장(지난번 대비 추적).
+
+    🔴 열 이름을 추측하지 않는다 — 금액 열을 못 찾으면 파일에서 본 열 이름을 그대로
+      돌려주며 422 로 실패한다. 조용히 0원으로 넘어가면 「대조했는데 일치」가 된다.
+    """
+    from lemouton.margin import settle_recon as _sr
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    from lemouton.margin.settle_plan_rules import load_rules, wallet_summary
+
+    item = (request.form.get('item') or '').strip()
+    if item not in _sr.ITEMS:
+        return jsonify(ok=False,
+                       error=f'모르는 대조 항목입니다: {item or "(없음)"}'), 400
+    f = request.files.get('file')
+    if not f:
+        return jsonify(ok=False, error='파일이 없습니다.'), 400
+    try:
+        parsed = _sr.parse_sheet(f.read())
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 422
+    except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
+        return jsonify(ok=False, error=f'엑셀을 읽지 못했습니다: {type(e).__name__}: {e}'), 400
+
+    rules = load_rules()
+    lines = _settle_plan_lines([_sr.ITEMS[item]['market']])
+    try:
+        from lemouton.margin import rg_settlement as RG
+        rg = RG.summary()
+    except Exception:   # noqa: BLE001 — 로켓그로스가 없어도 나머지는 대조된다
+        rg = {}
+    try:
+        from lemouton.margin import settle_fast_ledger as FL
+        fast = FL.summary()
+    except Exception:   # noqa: BLE001
+        fast = {}
+    try:
+        wallet = wallet_summary(rules)
+    except Exception:   # noqa: BLE001
+        wallet = {}
+    res = _sr.reconcile(item, parsed, lines, rules, today=_dt.date.today(),
+                        rg_summary=rg, fast_summary=fast, wallet_summary=wallet)
+
+    s = SessionLocal()
+    try:
+        prev = (s.query(SettleReconRun).filter(SettleReconRun.item == item)
+                .order_by(SettleReconRun.id.desc()).first())
+        run = SettleReconRun(item=item, filename=f.filename or '',
+                             market_total=int(res['마켓값'] or 0),
+                             ours_total=int(res['우리값'] or 0),
+                             verdict=res['판정'],
+                             parsed={k: v for k, v in parsed.items() if k != 'rows'},
+                             result=res)
+        s.add(run)
+        # 저장 상한 30회 — Supabase 무료 티어(500MB) 보호. 오래된 실행부터 삭제.
+        for o in (s.query(SettleReconRun).order_by(SettleReconRun.id.desc())
+                  .offset(29).all()):
+            s.delete(o)
+        s.commit()
+        return jsonify(ok=True, ran_at=run.ran_at.isoformat(), result=res,
+                       parsed=parsed,
+                       prev=(prev.result if prev else None),
+                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
+@bp.route('/settle-recon/latest')
+def settle_recon_latest():
+    """항목별 마지막 대조 결과 — 탭에 들어오면 지난번 판정이 바로 보인다."""
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    s = SessionLocal()
+    try:
+        out = {}
+        for r in (s.query(SettleReconRun)
+                  .order_by(SettleReconRun.id.desc()).limit(60).all()):
+            if r.item in out:
+                continue
+            out[r.item] = {'ran_at': r.ran_at.isoformat(), 'filename': r.filename,
+                           'result': r.result, 'parsed': r.parsed}
+        return jsonify(ok=True, latest=out)
     finally:
         s.close()
 

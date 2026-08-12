@@ -28,8 +28,12 @@ on:
         description: '무엇을 검증할지 — smartstore(즉시 적용) / coupang(다음날 0시)'
         required: false
         default: 'smartstore'
+      account:
+        description: 'coupang 일 때 계정 (기본 세소쿠팡)'
+        required: false
+        default: '세소쿠팡'
       coupang_mode:
-        description: 'coupang 일 때만 — create(오늘 걸기) / verify(내일 확인) / expire(내리기)'
+        description: 'coupang 일 때만 — create / verify / expire / diag(읽기전용 진단)'
         required: false
         default: 'create'
 
@@ -59,6 +63,7 @@ jobs:
           RAW_CH: ${{ inputs.channel_no }}
           RAW_TARGET: ${{ inputs.target }}
           RAW_CPMODE: ${{ inputs.coupang_mode }}
+          RAW_ACCT: ${{ inputs.account }}
         run: |
           set -o pipefail
           # 입력은 전부 허용목록으로 검사한 뒤에만 명령줄에 쓴다.
@@ -68,7 +73,7 @@ jobs:
             *) echo "모르는 대상: $RAW_TARGET"; exit 1 ;;
           esac
           case "$RAW_CPMODE" in
-            ''|create|verify|expire) CPMODE="${RAW_CPMODE:-create}" ;;
+            ''|create|verify|expire|diag) CPMODE="${RAW_CPMODE:-create}" ;;
             *) echo "모르는 모드: $RAW_CPMODE"; exit 1 ;;
           esac
           case "$RAW_CH" in
@@ -80,4 +85,4 @@ jobs:
               "C=\$(sudo docker ps --format '{{.Names}}' | grep -i modeum | head -1); \
                if [ -z \"\$C\" ]; then echo '모음전 컨테이너를 못 찾았습니다'; exit 1; fi; \
                echo \"컨테이너: \$C\"; \
-               sudo docker exec -i -w /app -e TEST_CHANNEL_NO='$RAW_CH'                  -e TEST_PRODUCT='$RAW_CH' -e MODE='$CPMODE' \"\$C\" python -"
+               sudo docker exec -i -w /app -e TEST_CHANNEL_NO='$RAW_CH'                  -e TEST_PRODUCT='$RAW_CH' -e MODE='$CPMODE' -e TEST_ACCOUNT=\"$RAW_ACCT\" \"\$C\" python -"

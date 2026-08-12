@@ -28,7 +28,12 @@
     .cnt{font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:999px}
 
     /* V2 격자 */
-    .mxsel{border-collapse:collapse;font-size:11px;width:100%}
+    /* [2026-08-12 노션 상품 a-2] `width:100%` 였을 때 사이즈가 3개뿐이면 남는 폭을
+       첫 열(색상＼사이즈)이 다 먹어 **394px**(표 전체 787px)이 됐다 — 라이브 실측.
+       칸 폭은 내용에 맞추고, 넘치면 감싼 상자(overflow:auto)가 안에서만 굴러간다. */
+    .mxsel{border-collapse:collapse;font-size:11px;width:auto}
+    .mxsel thead th:first-child,.mxsel tbody th{width:1px;white-space:nowrap}
+    .mxsel thead th:not(:first-child),.mxsel td{min-width:54px}
     .mxsel th{background:var(--n100,#F2F4F6);padding:8px 4px;border:1px solid var(--line,#E5E8EB);font-weight:600;
               color:var(--글자-기본,#4E5968);white-space:nowrap;user-select:none}
     .mxsel th.pick{cursor:pointer}
@@ -72,6 +77,30 @@
     .unit{font-size:11px;color:var(--sub,#8B95A1);margin-left:0px}
     .code{font-family:ui-monospace,monospace;font-size:11px;background:var(--n100,#F2F4F6);
           padding:0px 4px;border-radius:8px}
+    /* [2026-08-12 노션 상품 b-1] 이미 만든 상품 카드 + 「또 만들기」 접힘 */
+    .madebox{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px;margin-bottom:8px}
+    .madeline{font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .madesub{font-size:11.5px;color:var(--sub,#8B95A1);margin-top:4px;line-height:1.6}
+    .madelinks{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .madelinks a{font-size:11.5px;font-weight:700;text-decoration:none;
+      color:var(--글자-파랑,#0066CC);border:1px solid var(--line,#E5E8EB);
+      border-radius:8px;padding:5px 10px}
+    .madelinks a:hover{border-color:var(--primary,#3182F6)}
+    .remake summary{font-size:14px;font-weight:700;cursor:pointer;list-style:revert}
+    .remake[open] summary{margin-bottom:12px}
+    .warnline{font-size:12px;color:var(--글자-주황,#9A5B00);
+      background:var(--연한-주황,#FFFBEB);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.6}
+    /* 그때 담은 칸 — 격자에서 옅은 초록 테두리로만 표시(고른 칸의 파랑과 안 겹치게) */
+    .mxsel td.made{box-shadow:inset 0 0 0 2px var(--ap-green,#34C759)}
+    /* [2026-08-12 B2] 격자 위 모델 탭 */
+    .mg-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+    .mg-tab{padding:5px 12px;font-size:12px;border-radius:999px;
+      border:1px solid var(--line,#E5E8EB);background:var(--surface,#fff);
+      color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit}
+    .mg-tab.on{background:var(--연한-파랑,#E8F2FF);color:#1B64DA;
+      border-color:#1B64DA;font-weight:700}
+    .mg-n{font-size:11px;color:var(--sub,#8B95A1);margin-left:4px}
+    .mg-tab.on .mg-n{color:inherit}
     .dlist a{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
              padding:8px 12px;margin:0 4px 4px 0;text-decoration:none;color:inherit;font-size:12px}
     .dlist a:hover{border-color:var(--primary,#3182F6);background:var(--n100,#F7FBFF)}
@@ -111,6 +140,10 @@
       {% if assembly and editable %}🧱 격자에서 고르기{% else %}🧱 담긴 옵션{% endif %}
       <span class="cnt">{{ rows|length }}개</span>
     </div>
+    {# [2026-08-12 노션 · 사장님 B2 확정] 모델 탭 — 격자는 색상 × 사이즈 두 축뿐이라
+       모델이 다른 옵션이 같은 칸에 겹쳤다. 모델을 골라 그 격자만 본다.
+       모델 축이 없는 색상모음전에서는 아예 안 뜬다. #}
+    <div class="mg-tabs" id="mgtabs" hidden></div>
     <div style="overflow:auto;max-height:560px">
       <table class="mxsel" id="mx"></table>
     </div>
@@ -132,8 +165,41 @@
   {# ── 오른쪽 조립대 — 하위탭③(assembly)에서만. 관리 탭은 보기 전용(설계서 §4) ── #}
   {% if assembly %}
   <div>
+    {# ── [2026-08-12 노션 상품 b-1] 이미 만든 상품이 있으면 그때 값을 그대로 보여준다 ──
+       🔴 예전엔 「상품 만듦」인 묶음을 열어도 조립대가 백지라, 사장님이 같은 묶음으로
+          또 만들게 됐다. 값은 **읽는 글자**로 보여준다 — 입력칸에 채워 두면
+          「여기서 고칠 수 있다」는 거짓 신호가 된다(옵션은 복제본이라 여기서 못 고친다). #}
+    {% if made %}
     <div class="card">
+      <div class="card-t">📦 이 묶음으로 만든 상품 <span class="cnt">{{ made|length }}개</span></div>
+      {% for d in made %}
+      <div class="madebox">
+        <div class="madeline"><b>{{ d.name }}</b>
+          {% if d.no %}<span class="code">{{ d.no }}</span>{% endif %}</div>
+        <div class="madesub">브랜드 {{ d.brand or '—' }} · 카테고리 {{ d.category or '—' }}
+          · 담은 조합 {{ d.picked|length }}개</div>
+        <div class="madelinks">
+          <a href="/bundles/{{ d.code|urlencode }}">상품 보기 →</a>
+          {# [노션 상품 c-1] 정책이 붙었으면 보러, 아니면 붙이러 — 상태에 따라 갈린다 #}
+          <a href="{{ d.policy_url }}">{{ d.policy_label }}</a>
+        </div>
+      </div>
+      {% endfor %}
+      <div class="hintbox" style="margin:0">
+        담은 옵션은 <b>(색상·사이즈) 대조로 되짚은 것</b>입니다 — 만들 때 옵션을 복제하면서
+        어느 줄에서 왔는지는 안 남겼습니다. 상품의 이름·정책은
+        <b>상품 가공</b>에서 고칩니다(여기서는 못 고칩니다).
+      </div>
+    </div>
+    {% endif %}
+
+    {# 이미 만들었으면 접어 둔다 — 막지는 않는다. 같은 옵션으로 색 조합만 달리해
+       여러 상품을 파는 길이 실제로 쓰이고, BundleMatrixLink 도 N 을 허용한다. #}
+    {% if made %}<details class="card remake"><summary>➕ 이 묶음으로 <b>또</b> 상품 만들기</summary>
+      <div class="warnline">이 묶음으로 이미 {{ made|length }}개를 만들었습니다. 같은 상품을 두 번 만들지 않도록 확인해 주세요.</div>
+    {% else %}<div class="card">
       <div class="card-t">📦 이 옵션들로 상품 만들기</div>
+    {% endif %}
       <div class="fld"><label>상품 이름</label>
         <input id="bname" placeholder="예: 르무통 메이트 스니커즈"></div>
       <div class="fld"><label>브랜드 <span style="color:var(--sub,#8B95A1);font-weight:400">(하나만)</span></label>
@@ -147,10 +213,14 @@
       <button class="btn2" id="build" type="button" style="width:100%;justify-content:center" disabled>
         상품 만들기</button>
       <div class="msg" id="bmsg"></div>
-    </div>
+    {% if made %}</details>{% else %}</div>{% endif %}
 
     {% if editable %}
-    <div class="card">
+    {# [2026-08-12 노션 상품 c-3 · 사장님 확정] **2개 이상** 골랐을 때만 보인다.
+       늘 떠 있으면 「지금 뭘 하라는 건지」가 흐려진다(사장님 지적).
+       프로그램은 1개짜리 파생도 만들 수 있지만, 실제로 쓰지 않으신다고 확정하셨다
+       (파생 = 원본에서 옵션을 골라 담은 목록 — 하나만 담을 일이 없다). #}
+    <div class="card" id="dcard" hidden>
       <div class="card-t">✂️ 고른 것만 새 묶음으로</div>
       <div class="fld"><label>파생 묶음 이름</label>
         <input id="dname" placeholder="예: 인기색 4종"></div>
@@ -173,6 +243,14 @@
     <span style="font-size:12.5px;color:var(--글자-보조,#6B7684);flex:1;line-height:1.6">
       이 화면은 <b>확인 전용</b>입니다 — 이 묶음으로 상품을 만들거나 옵션을 고르는 작업은
       「옵션생성 &amp; 상품생성」에서 합니다.</span>
+    {# [2026-08-12 노션] 「옵션 클릭 시 옵션 조합 생성·수정」 — 입구는 /optgen/box 하나.
+       들어가면 조합 만들기·고치기 창이 저절로 열린다(설계서 규칙 12 · 같은 문 하나).
+       🔴 파생은 잠근다 — 축·이름·소싱처 주소는 원본에서만 고친다(service.edit_target). #}
+    {% if editable and mo.model_code %}
+    <a href="/optgen/box/{{ mo.model_code|urlencode }}" style="border:1px solid var(--line,#E5E8EB);
+       color:var(--ink,#191F28);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;
+       text-decoration:none;white-space:nowrap">🧱 옵션 조합 만들기 · 고치기 →</a>
+    {% endif %}
     <a href="/optgen/product/{{ mo.id }}" style="background:var(--바탕-파랑,var(--primary,#3182F6));
        color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;
        text-decoration:none;white-space:nowrap">🛠 이 묶음으로 상품 만들기 →</a>
@@ -213,7 +291,22 @@ const EDITABLE = {{ 'true' if editable else 'false' }};
 const ASSEMBLY = {{ 'true' if assembly else 'false' }};
 const DETAIL_BASE = {{ detail_base|tojson }};
 const MO_ID = {{ mo.id }};
-const byKey = {}; ROWS.forEach(r => byKey[r.color + ' ' + r.size] = r);
+/* [2026-08-12 노션 상품 b-1] 그때 담은 칸 — (색상,사이즈) 대조로 되짚은 추정값.
+   고른 칸(파랑)과 겹치지 않게 초록 테두리로만 표시한다. */
+const MADE_SKUS = new Set({{ (made or [])|map(attribute='picked')|sum(start=[])|list|tojson }});
+/* [2026-08-12 사장님 B2 확정] 격자는 색상 × 사이즈 두 축뿐이라, 모델이 다른 옵션이
+   같은 칸에 겹쳤다(실측: 옵션 3개 → 격자 2칸). 모델을 골라 그 격자만 그린다.
+   모델 축이 없으면 MODELS 가 비고 탭도 안 뜬다 — 색상모음전은 지금 그대로.
+   🔴 이 줄에 있던 NUL 문자 2개를 정상 공백으로 바로잡았다(origin/main 부터 있던 것). */
+const MODELS = {{ (models or [])|tojson }};
+let curModel = MODELS.length ? MODELS[0] : null;
+const inModel = r => !curModel || r.model === curModel;
+let byKey = {};
+function reindex(){
+  byKey = {};
+  ROWS.filter(inModel).forEach(r => byKey[r.color + ' ' + r.size] = r);
+}
+reindex();
 const fmt = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
 
 /* ── 정보창 — hover-info-card 6규칙 ──
@@ -373,16 +466,24 @@ const mx = document.getElementById('mx');
 /* 격자에서 「고르기」는 조립대(assembly)에서만 뜻이 있다 — 관리 탭은 보기 전용 */
 const CANPICK = EDITABLE && ASSEMBLY;
 function build(){
+  /* 고른 모델에 실제로 있는 색·사이즈만 축으로 세운다 — 없는 칸을 회색으로 늘어놓으면
+     「그 모델에 그 조합이 있다」로 잘못 읽힌다. */
+  const rs = ROWS.filter(inModel);
+  const 색목록 = COLORS.filter(c => rs.some(r => r.color === c));
+  const 사이즈목록 = SIZES.filter(s => rs.some(r => r.size === s));
   let h = '<thead><tr><th style="text-align:left">색상＼사이즈</th>'
-        + SIZES.map(s => '<th' + (CANPICK ? ' class="pick" data-col="' + s + '"' : '') + '>' + s + '</th>').join('')
+        + 사이즈목록.map(s => '<th' + (CANPICK ? ' class="pick" data-col="' + s + '"' : '') + '>' + s + '</th>').join('')
         + '</tr></thead><tbody>';
-  COLORS.forEach(c => {
+  색목록.forEach(c => {
     h += '<tr><th style="text-align:left"' + (CANPICK ? ' class="pick" data-row="' + c + '"' : '') + '>' + c + '</th>';
-    SIZES.forEach(s => {
-      const r = byKey[c + ' ' + s];
+    사이즈목록.forEach(s => {
+      const r = byKey[c + ' ' + s];
       if (!r){ h += '<td class="none"><div class="cell">—</div></td>'; return; }
-      h += '<td class="' + (sel.has(r.sku) ? 'on' : '') + '" data-sku="' + r.sku + '"><div class="cell">'
-         + r.src_count + '</div></td>';
+      h += '<td class="' + (sel.has(r.sku) ? 'on' : '')
+         + (MADE_SKUS.has(r.sku) ? ' made' : '')
+         + '" data-sku="' + r.sku + '"'
+         + (MADE_SKUS.has(r.sku) ? ' title="이미 만든 상품에 담긴 조합이에요"' : '')
+         + '><div class="cell">' + r.src_count + '</div></td>';
     });
     h += '</tr>';
   });
@@ -398,7 +499,7 @@ function build(){
   [['data-row', 'color'], ['data-col', 'size']].forEach(([attr, key]) => {
     mx.querySelectorAll('th[' + attr + ']').forEach(th => {
       const v = th.getAttribute(attr);
-      const rs = ROWS.filter(r => r[key] === v);
+      const rs = ROWS.filter(r => inModel(r) && r[key] === v);
       th.classList.toggle('hit', rs.length > 0 && rs.every(r => sel.has(r.sku)));
       th.addEventListener('click', () => {
         const on = rs.every(r => sel.has(r.sku));
@@ -415,11 +516,36 @@ function upd(){
   document.getElementById('build').disabled = sel.size === 0;
   const mk = document.getElementById('make');
   if (mk){
-    const all = sel.size === ROWS.length;
+    const all = sel.size === ROWS.filter(inModel).length;
     mk.disabled = sel.size === 0 || all;
     mk.textContent = all ? '전부 고르면 원본과 같아요' : '고른 것만 파생 만들기 →';
   }
+  /* [2026-08-12 노션 상품 c-3 · 사장님 확정] **2개 이상** 골랐을 때만 파생 카드.
+     원문이 「여러개 선택했을 때만」이고, 1개짜리 파생은 실제로 쓰지 않으신다고 확정. */
+  const dcard = document.getElementById('dcard');
+  if (dcard) dcard.hidden = sel.size < 2;
 }
+/* [2026-08-12 B2] 모델 탭 — 모델이 둘 이상일 때만 뜬다.
+   🔴 모델을 바꾸면 고른 것을 비운다. 안 비우면 안 보이는 모델의 옵션이 몰래 담겨
+      「고른 2개」인데 화면엔 1칸만 파란 어긋남이 난다. */
+function drawModelTabs(){
+  const box = document.getElementById('mgtabs');
+  if (!box || MODELS.length < 2) return;
+  box.hidden = false;
+  box.innerHTML = MODELS.map(m => {
+    const n = ROWS.filter(r => r.model === m).length;
+    return '<button type="button" class="mg-tab' + (m === curModel ? ' on' : '') +
+           '" data-m="' + esc(m) + '">' + esc(m) +
+           '<span class="mg-n">' + n + '</span></button>';
+  }).join('');
+  box.querySelectorAll('.mg-tab').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.m === curModel) return;
+    curModel = b.dataset.m;
+    sel.clear();
+    reindex(); drawModelTabs(); build(); upd();
+  }));
+}
+drawModelTabs();
 build(); upd();
 
 /* ── 노션 ④ 「적용된 정책 보기」 · 「카테고리 맵핑 보기」 ──────────────────
@@ -483,7 +609,7 @@ build(); upd();
 if (ASSEMBLY){
 document.getElementById('clear').addEventListener('click', () => { sel.clear(); build(); upd(); });
 document.getElementById('all').addEventListener('click', () => {
-  ROWS.forEach(r => sel.add(r.sku)); build(); upd();
+  ROWS.filter(inModel).forEach(r => sel.add(r.sku)); build(); upd();
 });
 
 /* 상품 만들기 — 성공하면 하위탭③ 초기화면으로 돌아가 배너로 알린다(확정 2번).
