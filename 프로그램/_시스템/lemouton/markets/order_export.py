@@ -3142,12 +3142,19 @@ def _finalize_rows(rows: list) -> list:
         elif sk is not None:
             seen.add(sk)
         r["배송비"] = ship
-        r["주문금액"] = (prod + ship) if prod != "" else ""
 
         # ── 샵마인 대조 파생(2026-07-08): 총주문금액·마켓수수료·수수료율 ──
         opt_add = _to_int(r.get("옵션추가금"), 0) or 0
         total = (prod + opt_add) if prod != "" else ""   # 총주문금액 = 단가×수량 + 옵션추가금
         r["총주문금액"] = total
+        # 🔴 주문금액 = 총주문금액 + 배송비 — **옵션추가금을 반드시 포함**한다(2026-08-12).
+        #   옛 식은 `단가×수량 + 배송비` 라 옵션가를 통째로 빼먹었다. 실결제엔 옵션가가
+        #   들어 있으므로 「정가 − 실결제」로 재는 마켓 할인이 **음수**로 나왔다.
+        #   라이브 실측: 단가 273,000 + 옵션 65,000, 실결제 298,300
+        #     옛 정가 273,000 → 할인 −25,300(음수)  /  바른 정가 338,000 → 할인 39,700
+        #     = 네이버가 준 productDiscountAmount 와 정확히 일치.
+        #   7일 스스 81행 중 31행에 옵션가·16행이 음수였고, 할인 합계가 78만 → 337만이 됐다.
+        r["주문금액"] = (total + ship) if total != "" else ""
         settle = _to_int(r.get("정산예정금액"))
         paid = _to_int(r.get("실결제금액"))
         if paid is None and isinstance(total, int):
