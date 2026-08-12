@@ -173,6 +173,14 @@
     <span style="font-size:12.5px;color:var(--글자-보조,#6B7684);flex:1;line-height:1.6">
       이 화면은 <b>확인 전용</b>입니다 — 이 묶음으로 상품을 만들거나 옵션을 고르는 작업은
       「옵션생성 &amp; 상품생성」에서 합니다.</span>
+    {# [2026-08-12 노션] 「옵션 클릭 시 옵션 조합 생성·수정」 — 입구는 /optgen/box 하나.
+       들어가면 조합 만들기·고치기 창이 저절로 열린다(설계서 규칙 12 · 같은 문 하나).
+       🔴 파생은 잠근다 — 축·이름·소싱처 주소는 원본에서만 고친다(service.edit_target). #}
+    {% if editable and mo.model_code %}
+    <a href="/optgen/box/{{ mo.model_code|urlencode }}" style="border:1px solid var(--line,#E5E8EB);
+       color:var(--ink,#191F28);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;
+       text-decoration:none;white-space:nowrap">🧱 옵션 조합 만들기 · 고치기 →</a>
+    {% endif %}
     <a href="/optgen/product/{{ mo.id }}" style="background:var(--바탕-파랑,var(--primary,#3182F6));
        color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;
        text-decoration:none;white-space:nowrap">🛠 이 묶음으로 상품 만들기 →</a>

@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}상품관리{% endblock %}
+{% block title %}실마켓 상품 현황{% endblock %}
 {% block content %}
+{# [2026-08-12 노션] 제목이 「상품관리」였다 — 그런데 그건 이제 **옆 탭**(/bundles)의
+   이름이다. 같은 이름이 두 곳에 있으면 어느 화면인지 알 수 없다. 메뉴와 같은 말로 맞춘다. #}
 <div class="page">
   <div class="page-header">
-    <h1 class="page-header__title">상품관리</h1>
+    <h1 class="page-header__title">실마켓 상품 현황</h1>
     <p class="page-sub">
       {{ catalog_subtabs | selectattr('key', 'equalto', catalog_tab)
          | map(attribute='desc') | first }}</p>

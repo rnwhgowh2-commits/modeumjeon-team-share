@@ -36,8 +36,10 @@ _ITEM_DEFS: dict[str, dict] = {
     #   ★ 묶음(stage) 안에 넣지 않는다. 대량등록 화면 **안에** 「상품관리·주문관리·통계」가
     #     따로 또 있어, 묶음에 넣으면 같은 이름이 두 곳에 생겨 헷갈린다.
     'i_bulk':           {'emoji': '📚', 'name': '대량등록',        'url': '/bulk/',                 'active_key': 'bulk',            'badge_key': None},
-    'i_bundles':        {'emoji': '📋', 'name': '모음전 상품관리',   'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
-    'i_matrix':         {'emoji': '🧱', 'name': '모음전 옵션관리',   'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
+    # [2026-08-12 노션·사장님 확정] 「모음전」을 뗀다 — 분류(「상품 관리」) 아래에 있어
+    #   이미 모음전 얘기인 게 드러난다. 긴 이름이 메뉴에서 두 줄로 접히기도 했다.
+    'i_bundles':        {'emoji': '📋', 'name': '상품관리',          'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
+    'i_matrix':         {'emoji': '🧱', 'name': '옵션관리',          'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
     # [2026-07-31] 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」
     'i_policies':       {'emoji': '🔧', 'name': '정책 생성',        'url': '/policies',              'active_key': 'policies',        'badge_key': None},
     # [2026-08-01] 노션 「상품 가공」 하위탭 ② — 상품 고르고 정책 붙이기
@@ -48,7 +50,10 @@ _ITEM_DEFS: dict[str, dict] = {
     #   [2026-08-06] 분류 이름은 `_SEND_STAGE_NAME`(「상품수집&전송」) — 사장님 지시.
     'i_market_send':    {'emoji': '📤', 'name': '마켓 전송',        'url': '/market-send',           'active_key': 'market_send',     'badge_key': None},
     'i_automation':     {'emoji': '⚙️', 'name': '자동화',           'url': '/automation',            'active_key': 'automation',      'badge_key': None},
-    'i_catalog':        {'emoji': '📦', 'name': '마켓 상품 현황',    'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
+    # [2026-08-12 사장님 확정] 「마켓 상품 현황」 → 「실마켓 상품 현황」.
+    #   우리 프로그램 안의 상품(i_bundles)과, **실제 마켓에 올라가 있는** 상품을
+    #   가르는 게 이 탭의 뜻이다. 「실」 한 글자가 그 구분을 만든다.
+    'i_catalog':        {'emoji': '📦', 'name': '실마켓 상품 현황',  'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
     'i_orders':         {'emoji': '📋', 'name': '주문 내역',        'url': '/orders/?tab=list',      'active_key': 'orders_list',     'badge_key': None},
     'i_ship':           {'emoji': '📦', 'name': '송장 작업',        'url': '/orders/?tab=ship',      'active_key': 'orders_ship',     'badge_key': None},
     'i_cs':             {'emoji': '💬', 'name': 'CS',               'url': '/orders/?tab=cs',        'active_key': 'orders_cs',       'badge_key': None},
@@ -76,6 +81,15 @@ _ITEM_DEFS: dict[str, dict] = {
 _SEND_STAGE_EMOJI = '📤'
 _SEND_STAGE_NAME = '상품수집&전송'
 
+#: 「상품 관리」 하위탭 3개 — 노션 b항 순서(옵션 먼저, 상품 나중, 실마켓 현황 끝).
+#  🔴 스펙(_STAGE_SPEC)과 개명·재정렬 마이그레이션이 **같이** 쓴다.
+#     순서를 두 곳에 적으면 다음에 한 곳만 고쳐서 또 어긋난다(_SEND2 와 같은 이유).
+_CATALOG3: tuple[str, ...] = ('i_matrix', 'i_bundles', 'i_catalog')
+
+#: 저장본 세대. 9 = 상품관리 하위탭 1회 재정렬 완료(_migrate_catalog_order).
+#  🔴 이 표시가 없으면 재정렬이 매 요청마다 돌아 사장님 드래그를 되돌린다.
+_SCHEMA = 9
+
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
 _STAGE_SPEC: list[tuple] = [
     ('s_collect',   '📥', '옵션생성 & 상품생성', '#3182F6', ['i_optgen_direct', 'i_optgen_market',
@@ -83,7 +97,7 @@ _STAGE_SPEC: list[tuple] = [
     ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply', 'i_templates']),
     ('s_auto',      _SEND_STAGE_EMOJI, _SEND_STAGE_NAME,
                                      '#8B5CF6', ['i_market_send', 'i_automation']),
-    ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_bundles', 'i_matrix', 'i_catalog']),
+    ('s_catalog',   '📦', '상품 관리',     '#06B6D4', list(_CATALOG3)),
     ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs', 'i_settle_plan']),
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
     ('s_inventory', '🏷', '재고관리',      '#10B981', ['i_inventory']),
@@ -159,7 +173,9 @@ def _default_layout() -> dict:
     """노션 8분류 기본 레이아웃. 항목 url/active_key/badge 는 기존 페이지 그대로(이동만)."""
     return {
         'version': 1,
-        'schema': 8,
+        # 🔴 리터럴 8 이었다 — 새 볼륨이 8로 써 놓으면 바로 다음 요청에 재정렬이
+        #    또 돌아 쓸데없이 한 번 더 저장한다. 기본값은 늘 최신 세대여야 한다.
+        'schema': _SCHEMA,
         'updated_at': None,
         'standalone': [
             {'id': 'i_home', 'emoji': '⌂', 'name': '홈',
@@ -413,6 +429,65 @@ def _migrate_send_rename(layout: dict) -> bool:
     return changed
 
 
+def _migrate_catalog_rename(layout: dict) -> bool:
+    """[2026-08-12 노션 a항] 상품 관리 하위탭 개명(idempotent, 어긋나면 언제든 다시 고침).
+
+      모음전 상품관리 → 상품관리 · 모음전 옵션관리 → 옵션관리
+      마켓 상품 현황 → 실마켓 상품 현황
+
+    🔴 왜 `_FORCE_RENAME` 만으로는 안 되나 — 그건 `_item()` 이 불릴 때만 작동하는데,
+       `get_layout_for_template()` 은 저장본에 **이미 있는** 항목을 `_item()` 없이
+       그대로 통과시킨다. 세 항목 다 저장본에 있으므로 영영 안 닿는다.
+       (i_policies · i_automation · s_auto 때 반복된 그 자리 — `_migrate_send_rename` 참조)
+
+    옛 문자열을 안 적고 `_ITEM_DEFS` 와 **다르면** 갈아끼운다 — 사장님이 손으로 고쳐둔
+    이름이 있어도 의도된 개명이므로 덮는 게 맞다(`_FORCE_RENAME` 과 같은 원칙).
+    이름 기준이라 나중에 저장본이 어긋나도 스스로 낫는다.
+    """
+    changed = False
+    for st in (layout.get('stages') or []):
+        if st.get('id') != 's_catalog':
+            continue
+        for it in (st.get('items') or []):
+            spec = _ITEM_DEFS.get(it.get('id'))
+            if not spec or it.get('id') not in _CATALOG3:
+                continue
+            for k in ('emoji', 'name'):
+                if it.get(k) != spec[k]:
+                    it[k] = spec[k]
+                    changed = True
+    return changed
+
+
+def _migrate_catalog_order(layout: dict) -> bool:
+    """[2026-08-12 노션 b항] 상품 관리 하위탭을 **딱 한 번** 옵션관리 먼저로 재정렬.
+
+    🔴 왜 스펙만 고치면 안 되나 — `get_layout_for_template()` 은 「이미 있는 항목의
+       순서는 건드리지 않는다」(사장님이 드래그로 둔 자리가 곧 의도다). 그래서
+       `_STAGE_SPEC` 순서를 바꿔도 화면 순서는 안 바뀐다. 순서를 바꾸는 일은
+       **저장본을 한 번 갈아끼우는** 마이그레이션의 몫이다.
+
+    🔴 왜 「스펙과 다르면 고친다」가 아니라 schema 표시인가 — 그렇게 짜면 사장님이
+       나중에 이 셋을 드래그로 되돌려도 **다음 요청마다 되돌아온다**(드래그가 안 먹는
+       것처럼 보인다). 「의도된 1회 재정렬」과 「드래그 순서 보존」은 이 표시 하나로만
+       양립한다. 개명(_migrate_catalog_rename)은 반대로 늘 다시 걸어야 하므로 따로 뒀다.
+    """
+    if int(layout.get('schema') or 0) >= _SCHEMA:
+        return False
+    layout['schema'] = _SCHEMA      # 분류가 없는 저장본에도 표시는 남긴다(재실행 방지)
+    for st in (layout.get('stages') or []):
+        if st.get('id') != 's_catalog':
+            continue
+        items = list(st.get('items') or [])
+        by_id = {it.get('id'): it for it in items}
+        head = [by_id[i] for i in _CATALOG3 if i in by_id]
+        # 스펙 밖 항목(사장님이 이 분류에 끌어다 둔 딴 메뉴)은 잃지 않고 뒤에 그대로.
+        rest = [it for it in items if it.get('id') not in _CATALOG3]
+        st['items'] = head + rest
+        break
+    return True
+
+
 def _migrate_bulk_loose(layout: dict) -> bool:
     """[2026-08-02 사장님 확정] 「대량등록」을 오른쪽 바로가기로 넣는다(1회, idempotent).
 
@@ -503,8 +578,10 @@ def _load() -> dict:
         _mig9 = _migrate_bulk_loose(data)     # [2026-08-02] 대량등록 오른쪽 바로가기(1회)
         _mig10 = _migrate_settle_plan(data)   # [2026-08-06] 정산예정금액 메뉴(1회)
         _mig11 = _migrate_send_rename(data)   # [2026-08-06] s_auto → 「상품수집&전송」 개명
+        _mig12 = _migrate_catalog_rename(data)  # [2026-08-12] 상품관리 하위탭 개명(늘)
+        _mig13 = _migrate_catalog_order(data)   # [2026-08-12] 상품관리 하위탭 재정렬(1회)
         if (_mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8
-                or _mig9 or _mig10 or _mig11):
+                or _mig9 or _mig10 or _mig11 or _mig12 or _mig13):
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
@@ -636,6 +713,9 @@ def api_put_layout():
     if not ok:
         return jsonify({'ok': False, 'error': msg}), 400
     payload['version'] = 1
+    # 🔴 schema 를 잃으면 1회 재정렬(_migrate_catalog_order)이 다시 돌아, 사장님이
+    #    방금 드래그로 둔 순서를 되돌린다. 보내오지 않았으면 최신 세대로 채운다.
+    payload.setdefault('schema', _SCHEMA)
     with _lock:
         _save(payload)
     return jsonify({'ok': True, 'updated_at': payload['updated_at']})
