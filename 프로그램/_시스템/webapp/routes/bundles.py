@@ -1418,26 +1418,13 @@ def api_delete_source_url(code, url_id):
 #  Phase 4 (2026-05-28) — 모음전 옵션 ↔ 재고관리 옵션 매핑 (페이지 + API)
 # ═══════════════════════════════════════════════════════════════════
 
-@bp.route('/bundles/<code>/inventory-mapping')
-def bundle_inventory_mapping(code):
-    """B3-3 in-place 매핑 표 + E2 누적 색·도트 페이지."""
-    s = SessionLocal()
-    try:
-        m = s.query(Model).filter_by(model_code=code).first()
-        if not m:
-            return ('bundle not found', 404)
-        opts = (s.query(Option)
-                .filter_by(model_code=code)
-                .order_by(Option.sort_order, Option.canonical_sku)
-                .all())
-        return render_template(
-            'bundles/inventory_mapping.html',
-            active='bundles',
-            bundle=m,
-            bundle_options=opts,
-        )
-    finally:
-        s.close()
+# [2026-08-13 감사] `/bundles/<code>/inventory-mapping` 페이지를 없앴다.
+#   설계서 규칙 12(같은 기능의 입구는 하나)가 **삭제하라고 적어 둔 화면**인데 살아 있었고,
+#   라이브에서 status 200 으로 열리며 「재고관리 매핑」이라는 **이미 없어진 기능 이름**을
+#   그대로 보여 줬다(옵션 1개 = 재고 SKU 1개로 확정돼 매핑 자체가 사라졌다 · 2026-08-02).
+#   화면·JS·시험 어디에서도 부르지 않는 것을 전수 확인하고 지웠다(참조 0건).
+#   ⚠️ 같은 이름의 API 두 개(`/api/bundles/<code>/inventory-mapping` GET·POST)는
+#      아직 남아 있다 — 역시 부르는 곳이 없다. 지우려면 따로 확인하고 지울 것.
 
 # [2026-05-29] 표기 차이 alias — shared 단일 진실 원천 사용
 #   기존 _normalize_label 은 normalize_label 의 alias (호환)
@@ -2458,9 +2445,14 @@ def api_axis_mapping_set(code):
             #   그래서 「누가 붙잡고 있고, 그게 지금 쓰이는 값인지」를 같이 알려주고,
             #   `takeover:true` 로 다시 부르면 **한 트랜잭션에서 놓고 잡는다**(1:1 유지).
             holder = getattr(e, 'holder', '') or ''
-            if body.get('takeover') and holder:
+            # 🔴 [2026-08-13 감사] 붙잡은 줄이 **여럿일 수 있다**(DB 유일 제약이 없다).
+            #   예전엔 하나만 놓고 다시 잡으려다 두 번째에서 또 걸렸고, 그 예외가
+            #   이 `except` 안에서 터져 **500** 이 됐다 — 빼앗기가 다시 막다른 골목.
+            holders = [h for h in (getattr(e, 'holders', None) or [holder]) if h]
+            if body.get('takeover') and holders:
                 s.rollback()
-                ax.clear_alias(s, source_key, axis_name, holder)
+                for h in holders:
+                    ax.clear_alias(s, source_key, axis_name, h)
                 row = ax.set_alias(s, source_key=source_key, axis_name=axis_name,
                                    our_value=our_value, source_value=source_value,
                                    origin=origin)

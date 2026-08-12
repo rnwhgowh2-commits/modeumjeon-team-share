@@ -1424,6 +1424,21 @@ def settle_plan_agg():
     return jsonify(out)
 
 
+def _settle_ship_part(row: dict) -> int:
+    """N열(`정산예정금(배송비포함)`) 안에 들어 있는 **배송비 몫**.
+
+    🔴 N열이 무엇을 더했는지와 **똑같아야** 한다(order_export._finalize_rows).
+      마켓이 배송비 정산 실값을 주면 그 값(`_ship_settle`), 아니면 고객배송비.
+      여기만 고객배송비로 쪼개면 상품·배송비 두 칸이 동시에 틀린다 —
+      합계는 맞아서 눈에 안 띄고, 사장님이 마켓 화면과 맞대 볼 때만 드러난다.
+    🔴 0 은 「모름」이 아니라 「배송비 정산 0원」이다 → `is not None` 으로만 가른다.
+    """
+    real = _oe._to_int(row.get("_ship_settle"))
+    if real is not None:
+        return real
+    return _oe._to_int(row.get("배송비"), 0) or 0
+
+
 @bp.route('/api/settle-plan/detail')
 def settle_plan_detail():
     """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|not_started|undated|
@@ -1441,6 +1456,12 @@ def settle_plan_detail():
     bucket = (request.args.get('bucket') or '').strip()
     unit = (request.args.get('unit') or 'week').strip()
     axis = (request.args.get('axis') or 'payout').strip()
+    # 🔴 [2026-08-13] `orders=번호,번호` — 마켓 정산 명세와 **주문 단위로** 맞대기 위한 창구.
+    #   부류(category)로 훑으면 라이브에서 `paid` 한 부류만 2,000행 상한에 걸려 잘린다
+    #   (상한은 화면 보호용이라 없애면 안 된다). 대조는 「내가 아는 주문번호」로 좁히는 게
+    #   맞다 — 부류를 몰라도 되고, 잘림도 없고, 다음에 같은 대조를 그대로 재현할 수 있다.
+    want_orders = {o.strip() for o in (request.args.get('orders') or '').split(',')
+                   if o.strip()}
     if axis == 'order':
         # 🔴 [2026-08-12 노션 c-3] 주문일 축에도 상세내역을 준다. 부류(confirmed/…)는
         #   지급예정일 축의 개념이라 여기선 안 쓴다 — 그 칸에 들어간 주문 그대로다.
@@ -1455,6 +1476,8 @@ def settle_plan_detail():
         if cat == "excluded":
             continue
         if account and (ln.get("account") or "") != account:
+            continue
+        if want_orders and str(ln["row"].get("오픈마켓주문번호") or "") not in want_orders:
             continue
         amount, src = _settlement_for(ln["row"])
         if not amount:
@@ -1482,7 +1505,7 @@ def settle_plan_detail():
                        if e["date"] and SP.bucket_key(e["date"], unit) == bucket]
                 if not evs:
                     continue
-        ship = _oe._to_int(row.get("배송비"), 0) or 0
+        ship = _settle_ship_part(row)
         dates = [e["date"] for e in evs if e["date"]]
         srcs = {e["date_source"] for e in evs if e["date_source"]}
         # 쿠팡 분할지급이면 이 목록에 걸린 **조각 금액**만 보여준다(주문 전체가 아니라).
@@ -1530,6 +1553,14 @@ def settle_plan_detail():
         if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
             truncated = True
             break
+    if want_orders:
+        # 🔴 「달라고 한 주문 중 못 준 것」을 숨기지 않는다. 마켓 명세엔 있는데 우리에 없는
+        #   주문이 바로 대조의 알맹이인데, 조용히 빠지면 「차이 0건」이 거짓말이 된다.
+        #   못 준 사유는 셋 중 하나 — 저장분에 아예 없음 / `excluded` 부류 / 정산액 0·공란.
+        got = {str(r_["주문번호"]) for r_ in rows_out}
+        return jsonify(rows=rows_out, truncated=truncated,
+                       요청주문수=len(want_orders), 찾은주문수=len(got),
+                       못찾은주문=sorted(want_orders - got))
     return jsonify(rows=rows_out, truncated=truncated)
 
 
@@ -1617,7 +1648,7 @@ def settle_plan_export():
             if not evs:
                 continue
         row = ln["row"]
-        ship = _oe._to_int(row.get("배송비"), 0) or 0
+        ship = _settle_ship_part(row)
         part = sum(e["amount"] for e in evs) if evs else amount
         is_part = bool(evs) and part != amount
         rc = next((e.get("reason") for e in evs if e.get("reason")), "")
@@ -2131,6 +2162,110 @@ def orders_diag_coupang_rg():
                    매출내역에도_있는_주문=hit,
                    해석=('매출내역에 있으면 정산이 통합 → 기존 경로로 정산액 확보 가능. '
                          '없으면 로켓그로스 정산은 별도라 금액 산출 방법을 따로 정해야 함'))
+
+
+@bp.route('/diag/coupang-order-settle')
+def orders_diag_coupang_order_settle():
+    """[읽기 전용] 쿠팡 — **주문번호로** 정산 원본을 본다(`orders=`).
+
+    왜 필요한가 (2026-08-13):
+      ① 배송비 판정의 결정적 근거 — 쿠팡 자기 정산 엑셀은 배송료를 독립 행으로 주고
+         3.3% 수수료를 뗀다(4,000→3,868). 우리가 API 로 받는
+         `deliveryFee.settlementAmount` 가 **그 값과 같은지**를 눈으로 대조해야
+         「실값을 쓴다」는 판단이 근거를 갖는다.
+      ② 「엑셀엔 있는데 우리에 없는 31건」이 취소인지·조회창 밖인지·진짜 누락인지.
+         쿠팡만 `orders=` 진단 창구가 없어 여태 못 좁혔다(ESM·옥션·스스·롯데온은 있다).
+
+    `?from=YYYY-MM-DD&to=YYYY-MM-DD&orders=번호,번호&alias=`
+      · 창은 **매출인식일** 기준(revenue-history 규약). 25일 창으로 쪼개 순회한다.
+      · orders 를 주면 그 주문만. 안 주면 창 전체 요약(표본만).
+      · 응답은 금액·날짜·식별자뿐 — 고객정보는 담지 않는다.
+    """
+    from flask import jsonify
+
+    from shared.platforms.coupang.settlements import fetch_revenue_page
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    want = {o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()}
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        cli = _client_for_diag('coupang', alias)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+
+    by_order: dict = {}
+    errors: list = []
+    seen_orders = 0
+    # 🔴 revenue-history 는 "1개월 미만" 제약이 있다 — order_export 와 **같은** 25일 창을
+    #   쓴다(여기만 30일로 두면 진단이 HTTP 400 으로 조용히 0건이 된다).
+    for _w0, _w1 in _oe._cp_windows(since, until, days=25):
+        rec_from = _w0.strftime('%Y-%m-%d')
+        rec_to = (_w1 - _dt.timedelta(days=1)).strftime('%Y-%m-%d')
+        if rec_from > rec_to:      # 꼬리 창(뒤집힘) — 앞 창이 이미 덮는다
+            continue
+        token = ''
+        for _ in range(200):       # 페이징 안전 상한(빌더와 동일)
+            try:
+                resp = fetch_revenue_page(rec_from, rec_to, token=token,
+                                          max_per_page=50, client=cli)
+            except Exception as e:   # noqa: BLE001 — 한 창이 막혀도 나머지는 본다
+                errors.append(f"{rec_from}~{rec_to}: {type(e).__name__}: {str(e)[:150]}")
+                break
+            for order in (resp.get('data') or []):
+                seen_orders += 1
+                oid = str(order.get('orderId') or '')
+                if want and oid not in want:
+                    continue
+                ent = by_order.setdefault(oid, {
+                    '상품정산합': 0, '배송비정산': 0, '행수': 0, '구간': []})
+                _sale = order.get('saleType')
+                _sign = -1 if _sale == 'REFUND' else 1
+                _d = (order.get('deliveryFee') or {}).get('settlementAmount')
+                # 🔴 부호 규칙은 빌더와 같아야 한다(order_export._coupang_settle_map):
+                #   deliveryFee 는 REFUND 에서 **이미 음수**, items 는 양수라 부호를 준다.
+                if _d is not None:
+                    try:
+                        ent['배송비정산'] += int(_d)
+                    except (TypeError, ValueError):
+                        pass
+                for it in (order.get('items') or []):
+                    try:
+                        ent['상품정산합'] += _sign * int(it.get('settlementAmount') or 0)
+                    except (TypeError, ValueError):
+                        pass
+                    ent['행수'] += 1
+                ent['구간'].append({
+                    'saleType': _sale,
+                    '매출인식일': str(order.get('recognitionDate') or '')[:10],
+                    '정산예정일': str(order.get('settlementDate') or '')[:10],
+                    '최종정산일': str(order.get('finalSettlementDate') or '')[:10],
+                    'deliveryFee_settlementAmount': _d,
+                    '조회창': f"{rec_from}~{rec_to}",
+                })
+            if not resp.get('hasNext'):
+                break
+            token = resp.get('nextToken') or ''
+            if not token:
+                break
+
+    for ent in by_order.values():
+        ent['총정산'] = ent['상품정산합'] + ent['배송비정산']
+    missing = sorted(want - set(by_order)) if want else []
+    return jsonify(
+        ok=True, alias=alias or '(대표)',
+        기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}(매출인식일)",
+        요청주문수=len(want), 찾은주문수=len(by_order), 창안_전체주문수=seen_orders,
+        # ② 의 출발점 — 「이 창에서 못 찾은 주문」. 창을 넓혀 다시 부르면 취소·기간밖이 갈린다.
+        못찾은주문=missing,
+        합계={'상품정산합': sum(e['상품정산합'] for e in by_order.values()),
+              '배송비정산합': sum(e['배송비정산'] for e in by_order.values()),
+              '총정산합': sum(e['총정산'] for e in by_order.values())},
+        주문별=(by_order if want else dict(list(by_order.items())[:5])),
+        오류=errors,
+        해석=('배송비정산 = deliveryFee.settlementAmount(총배송비 − 배송비수수료 − VAT). '
+              '쿠팡 정산 엑셀의 <기본배송료>·<추가배송료> 행 정산금액 합과 같아야 한다. '
+              '같으면 N열(정산예정금(배송비포함))이 이 실값을 쓰는 것이 옳다는 증거.'))
 
 
 @bp.route('/diag/stale-delivered')
