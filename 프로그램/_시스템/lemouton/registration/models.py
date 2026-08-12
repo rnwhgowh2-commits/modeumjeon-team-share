@@ -227,6 +227,11 @@ class SearchFilter(Base):
     #: 마지막 훑기가 **더 있는데 멈췄나**(무한 스크롤을 정해진 횟수만 내림).
     #: 🔴 실패와 갈라 둔다 — 뭉치면 「끝까지 다 봤다」로 읽혀 없는 상품을 없다고 믿는다.
     last_capped = Column(Boolean, default=False, nullable=False)
+    #: 마지막으로 훑은 **확장의 판 번호**.
+    #: 🔴 「화면 새로고침」은 확장 본체를 안 바꾼다 — 화면 쪽만 새 판으로 보이고
+    #:   일하는 본체는 옛 판 그대로다(2026-08-08 이걸로 한참 헤맸다).
+    #:   그래서 확장이 스스로 판 번호를 실어 보내고, 화면이 그걸 보여 준다.
+    last_ext_version = Column(String(20))
     enabled = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime, default=_utcnow, nullable=False)

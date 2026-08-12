@@ -2961,6 +2961,32 @@ def shopmine_recon_latest():
         s.close()
 
 
+# ── 주문 내역 화면 설정 (열 순서·너비·빠른 기간·엑셀 양식) — 팀 공유 ──────────
+#  사장님(2026-08-12): "기간 직접 만들었는데 자꾸 사라져."
+#  원인은 재배포가 아니라 **브라우저 안에만 저장**돼 있던 것. 서버로 옮긴다.
+#  단 컨테이너 data/ 는 배포마다 사라지므로 state_store 를 쓴다(모듈 주석 참조).
+
+@bp.route('/api/view-prefs', methods=['GET', 'POST'])
+def order_view_prefs():
+    """GET = 저장된 설정 / POST = 보낸 칸만 덮어쓰기(부분 저장).
+
+    🔴 실패를 조용히 삼키지 않는다 — 저장이 안 됐는데 성공한 척하면 사장님이
+      같은 설정을 몇 번이고 다시 고치게 된다.
+    """
+    from lemouton.markets import order_view_prefs as _vp
+    if request.method == 'GET':
+        return jsonify(ok=True, prefs=_vp.load())
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify(ok=False, error='보낸 값이 올바르지 않습니다.'), 400
+    try:
+        return jsonify(ok=True, prefs=_vp.save(body))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except RuntimeError as e:
+        return jsonify(ok=False, error=str(e)), 500
+
+
 # ── 마켓 정산 대조 (노션 주문관리 c-4) ────────────────────────────────────────
 #  마켓 정산 화면에서 내려받은 엑셀 ↔ 우리 정산예정금액. 규칙·엔진 = margin/settle_recon.py
 

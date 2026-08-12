@@ -25,7 +25,10 @@ import re
 
 #: 한 번에 훑을 수 있는 페이지 수 상한.
 #: 🔴 실수로 1~9999 를 넣으면 소싱처를 두들기게 된다(차단·계정 위험). 사람이 정한 안전선.
-MAX_PAGES = 20
+#: ★ [2026-08-08] 20 → 60. 무신사 「나이키」가 **41쪽 2,412개**라 20 으로는 절반도 못 걷는다
+#:   (사장님: 「무신사 같은 경우 몇천개도 돼」). 60쪽 = 무신사 기준 3,600개까지.
+#:   ★ 쪽 사이에 0.7초를 쉬므로 60쪽이면 약 1분 — 소싱처를 몰아치지 않는다.
+MAX_PAGES = 60
 
 #: 소싱처별 「상품 링크」 규칙 — (상품번호를 잡는 정규식, 상품 URL 조립틀).
 #: 🔴 여기에 없는 소싱처는 **규칙을 모르는 것**이다. 지어내지 않는다.
@@ -56,13 +59,27 @@ _PRODUCT_LINK = {
                    'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no={id}'),
     # hmall: 🔴 **링크가 아니다.** 상품 카드가 `<a href>` 가 아니라서 링크만 찾으면
     #   영영 0건이다(실측: 검색 결과 29개 링크 중 상품 0건). 번호는 속성에만 있다.
-    'hmall': (re.compile(r'data-slitm-cd="(\d+)"'),
+    # hmall: 🔴 **화면이 아니라 받은 글에서 읽는다**(2026-08-08 라이브에서 드러남).
+    #   `page=3` 을 열어 보니 화면(DOM `[data-slitm-cd]`)은 **1쪽 36개**,
+    #   받은 글(HTML `"slitmCd":`)은 **3쪽 36개**, **겹침 0**이었다 —
+    #   서버는 3쪽을 보내는데 브라우저 안 앱이 다시 1쪽을 불러 화면을 덮어쓴다.
+    #   그래서 6쪽을 시켜도 결과가 36개(1쪽 분량)뿐이었다.
+    'hmall': (re.compile(r'"slitmCd"\s*:\s*"?(\d{6,})'),
               'https://www.hmall.com/md/pda/itemPtc?slitmCd={id}'),
     # lemouton(카페24): `/product/detail.html?product_no=140`
     #   🔴 카페24 템플릿 자리표시자 `product_no={$*product_no}` 가 HTML 에 그대로
     #     남아 있다. **숫자만** 잡지 않으면 목록마다 가짜 상품이 한 건씩 섞인다.
     'lemouton': (re.compile(r'product_no=(\d+)'),
                  'https://lemouton.co.kr/product/detail.html?product_no={id}'),
+    # ssg: `/item/itemView.ssg?itemId=1000552535854&siteNo=…&salestrNo=…`
+    #   상품 주소 모양은 `sourcing/crawlers/ssg.py` 첫 줄에 적힌 그대로다
+    #   (그 크롤러가 라이브에서 SSG 상품을 실제로 긁는다 — 지어낸 값이 아니다).
+    #   🔴 **다만 검색 결과 화면을 내 눈으로 못 봤다** — SSG 는 앱 브라우저·크롬 연결
+    #     둘 다 정책 차단이고 서버로 받아도 403 이다(2026-08-08 확인).
+    #     그래서 확장이 사장님 크롬에서 대신 재 보게 하고, 첫 결과를 사장님 화면
+    #     숫자와 대조하기 전에는 **「검증됨」이라 적지 않는다.**
+    'ssg': (re.compile(r'itemView[.]ssg[?][^"<>]*?itemId=(\d+)'),
+            'https://www.ssg.com/item/itemView.ssg?itemId={id}'),
 }
 
 #: 소싱처별 페이지 파라미터 이름. 없으면 페이지 넘김을 모르는 것.
@@ -71,31 +88,28 @@ _PRODUCT_LINK = {
 #:   실측: 롯데온 `page=2`·롯데아이몰 `startIndex=2`·SSF 검색 `currentPage=2` 모두
 #:   1페이지와 첫 상품이 같았다. SSF 는 **카테고리 목록**에서만 진짜로 넘어간다.
 _PAGE_PARAM = {
-    'musinsa': 'page',
+    # 🔴 [2026-08-08] musinsa 를 뺐다. `page=` 를 **서버가 아예 무시한다** —
+    #   1쪽과 2쪽 응답의 상품번호가 완전히 같았다(둘 다 totalCount 2412).
+    #   그대로 뒀으면 「5쪽까지」로 시켜도 같은 1쪽을 5번 긁고 「5장 봤다」고 거짓말했다.
+    #   무신사는 응답이 주는 `nextPageUrl` 을 따라간다(`_NEXT_URL_RE`).
     'ssf': 'currentPage',
+    # 🔴 [2026-08-08] H몰은 「스크롤」로 보이지만 **주소로 넘어간다.**
+    #   __NEXT_DATA__ 에 totalCount 16,406 · totalPages 456(쪽당 36개)이 있었고
+    #   `page=` 를 붙이니 그대로 넘어갔다(6쪽 216개, 중복 0).
+    #   ★ `pageNo=` 는 안 먹는다(1쪽과 같음) — 이름을 확인 안 하면 같은 쪽을 반복한다.
+    #   ★ 진짜 마우스 휠로 굴려도 `[data-slitm-cd]` 는 같은 36개였다(화면만 갈아 끼움).
+    'hmall': 'page',
+    # ssg: 사장님이 2쪽으로 넘긴 뒤의 주소를 그대로 주셨다 — `&page=2`.
+    'ssg': 'page',
     # 르무통은 검색·카테고리 둘 다 `page` 로 **진짜 넘어간다**(1쪽·2쪽 상품 25개가 달랐다).
     'lemouton': 'page',
 }
 
-#: 확장(로컬 PC)이 페이지 안에서 쓸 규칙 — 어떤 요소의 어느 값을 볼 것인가.
-#: 🔴 확장에 규칙을 **박아 두지 않는다.** 예전엔 `a[href*="/products/"]` 가 확장 안에
-#:   박혀 있어 소싱처를 넣어도 무신사 말고는 0건이었다. 규칙을 아는 곳은 서버 하나다
-#:   (소싱처를 붙일 때마다 「확장 다시 불러오기」를 부탁하지 않기 위해서다).
-#: 소싱처별 「더 있다」를 알아보는 선택자 — 이게 화면에 있으면 **첫 장만 가져온 것**.
-#: 🔴 [2026-08-08 실측 정정] 처음엔 「무한 스크롤이라 내리면 더 나온다」고 보고 스크롤을
-#:   넣었는데 **틀렸다.** 롯데온 48→48 · 롯데아이몰 24→24 · 현대H몰 40→40 —
-#:   화면을 끝까지 내려도(H몰은 안쪽 스크롤 상자까지 확인) 개수가 그대로였다.
-#:   셋 다 **단추를 눌러 넘기는** 방식이다(롯데온 「2」를 눌러 상품이 바뀌는 것 확인).
-#: ★ 지금 할 수 있는 정직한 일은 **「더 있다」를 말해 주는 것**이다. 단추를 눌러 가며
-#:   여러 장을 걷는 일은 다음 걸음 — 그때까지 「48개가 전부」라고 믿게 두지 않는다.
-#: 🔴 모르는 곳은 **비워 둔다.** 선택자를 추측해 넣으면 「더 있음」이 늘 켜지거나
-#:   늘 꺼져서 둘 다 거짓말이 된다.
 #: 「검색 결과가 없다」고 화면이 말할 때 쓰는 글귀.
 #: 🔴🔴 [2026-08-08 실측] 소싱처 대부분이 **결과가 0건이어도 추천 상품을 화면에 깐다.**
-#:   그걸 우리 규칙이 상품으로 집어 간다 — 롯데온 25건 · 롯데아이몰 25건 · 현대H몰 12건.
+#:   실측 — 무신사 19 · 롯데온 25 · 롯데아이몰 25 · 현대H몰 12 · 르무통 1 / SSF 만 0.
 #:   막지 않으면 **오타 한 번에 엉뚱한 상품 수십 건이 크롤 대기에 들어가 초안까지 된다.**
-#:   (롯데아이몰은 규칙 자체를 `data-goods-no` 로 바꿔 이미 0건이지만, 겹겹으로 막는다.)
-#: ★ 글귀는 화면에 그대로 보이는 말이라 소싱처가 UI 를 바꾸면 안 맞을 수 있다 —
+#: ★ 글귀는 화면에 보이는 말이라 소싱처가 UI 를 바꾸면 안 맞을 수 있다 —
 #:   그래서 **이게 없다고 0건으로 만들지는 않는다.** 있을 때만 「없다」고 확정한다.
 _EMPTY_TEXT = {
     'musinsa': '검색 결과가 없습니다',      # 뒤에 「회원가입 이벤트 상품」 19건이 깔린다
@@ -105,11 +119,40 @@ _EMPTY_TEXT = {
     'lemouton': '검색결과가 없습니다',      # 결과 0건인데 상단 노출 상품 1건이 잡혔다
 }
 
+#: 응답이 **스스로 알려 주는 다음 쪽 주소**를 꺼내는 규칙.
+#: 🔴 주소를 우리가 조립하면 안 된다 — 무신사는 `hmacId` 라는 서명이 붙어 있어
+#:   `page=2` 로 손수 바꿔 부르면 **403 「잘못된 접근입니다」**가 온다(실측).
+#:   받은 주소를 **글자 그대로** 따라가야 한다.
+#: ★ 실측(2026-08-08): 무신사 나이키 = 41쪽 2,412개, 쪽당 60개, 중복 0.
+_NEXT_URL_RE = {
+    'musinsa': r'"nextPageUrl"\s*:\s*"([^"]+)"',
+}
+
+#: 소싱처별 「다음」 단추 — 눌러 가며 여러 장을 걷는다(주소로도 스크롤로도 못 넘기는 곳).
+#: 🔴 모르는 곳은 **비워 둔다.** 선택자를 추측해 넣으면 「더 있음」이 늘 켜지거나
+#:   늘 꺼져서 둘 다 거짓말이 된다.
+#: 🔴 **같은 소싱처인데 주소 종류에 따라 페이지 넘김이 다른** 경우.
+#:   여기 걸리는 주소는 페이지 파라미터를 **안 붙인다**(붙이면 같은 1쪽을 반복한다).
+#: ★ 실측(2026-08-08) — SSF 는 카테고리 목록에서만 `currentPage` 가 먹고,
+#:   검색 결과에서는 1쪽·2쪽·`page=2` 가 **상품 60개까지 완전히 겹쳤다.**
+_NO_PAGE_PATH = {
+    'ssf': re.compile(r'/search/result'),
+}
+
+#: **화면이 아니라 받은 글(HTML)에서** 상품번호를 읽어야 하는 소싱처.
+#: 🔴 H몰은 서버가 보낸 쪽과 화면이 그리는 쪽이 다르다(위 주석 참조).
+#: ★ 다른 곳은 화면에서 읽는다 — 화면에서 읽는 편이 「눈에 보이는 것과 같다」는
+#:   장점이 있다(화면에 없는 배너·광고가 안 딸려 온다). 추측으로 넓히지 않는다.
+_HTML_SCAN = {'hmall'}
+
 _MORE_SELECT = {
     'lotteon': 'a.srchPaginationNext',      # 실측: 「다음」 — 눌러서 상품이 바뀜
     'lotteimall': 'a.next.ico',             # 실측: 「다음」 단추 존재
 }
 
+#: 확장(로컬 PC)이 페이지 안에서 쓸 규칙 — 어떤 요소의 어느 값을 볼 것인가.
+#: 🔴 확장에 규칙을 **박아 두지 않는다.** 예전엔 `a[href*="/products/"]` 가 확장 안에
+#:   박혀 있어 소싱처를 넣어도 무신사 말고는 0건이었다. 규칙을 아는 곳은 서버 하나다.
 _DOM_SELECT = {
     'musinsa':    ('a[href*="/products/"]', 'href'),
     'ssf':        ('a[href*="/good"]', 'href'),
@@ -117,6 +160,7 @@ _DOM_SELECT = {
     'lotteimall': ('[data-goods-no]', 'data-goods-no'),
     'hmall':      ('[data-slitm-cd]', 'data-slitm-cd'),
     'lemouton':   ('a[href*="product_no="]', 'href'),
+    'ssg':        ('a[href*="itemView.ssg"]', 'href'),
 }
 
 
@@ -148,7 +192,9 @@ def dom_rule_for(source_key: str) -> dict:
     pat, _tpl = _rule(key)          # 모르는 곳이면 여기서 예외
     sel, attr = _DOM_SELECT[key]
     return {'sel': sel, 'attr': attr, 'id_re': pat.pattern,
+            'html_scan': (key in _HTML_SCAN) or None,
             'more_sel': _MORE_SELECT.get(key),
+            'next_url_re': _NEXT_URL_RE.get(key),
             'empty_text': _EMPTY_TEXT.get(key)}
 
 
@@ -191,6 +237,23 @@ def extract_product_urls(html: str, *, source_key: str, max_items=None) -> list[
     return out
 
 
+def next_page_url_from(html: str, *, source_key: str):
+    """받은 HTML/JSON 에서 **다음 쪽 주소**를 그대로 꺼낸다. 없으면 None.
+
+    🔴 조립하지 않는다 — 서명(`hmacId`)이 붙어 있어 손대면 403 이 온다.
+    🔴 규칙을 모르는 소싱처는 None (여기서 억지로 찾지 않는다).
+    """
+    key = str(source_key or '').strip().lower()
+    pat = _NEXT_URL_RE.get(key)
+    if not pat:
+        return None
+    m = re.search(pat, html or '')
+    if not m:
+        return None
+    # ★ JSON 안에 있어 `&` 가 글자 그대로 & (백슬래시+u0026 여섯 글자)로 적혀 있다 — raw 문자열로 맞춰야 한다.
+    return m.group(1).replace('\\u0026', '&').replace('\\/', '/')
+
+
 def click_pages_for(source_key: str, page_from=None, page_to=None) -> int:
     """단추로 넘기는 소싱처에서 **「다음」을 몇 번 눌러 걷을지.** 1 = 첫 장만.
 
@@ -204,9 +267,11 @@ def click_pages_for(source_key: str, page_from=None, page_to=None) -> int:
     🔴 상한은 `MAX_PAGES`. 실수로 1~9999 를 넣으면 소싱처를 두들긴다(차단 위험).
     """
     key = str(source_key or '').strip().lower()
-    if _PAGE_PARAM.get(key):          # 주소로 넘기는 곳
+    if _PAGE_PARAM.get(key):          # 주소로 넘기는 곳 — 주소를 여러 개 만든다
         return 1
-    if not _MORE_SELECT.get(key):     # 넘기는 법을 모르는 곳
+    # 화면 안에서 넘기는 곳 = 「다음」 단추(롯데온·아이몰) 또는 다음쪽 주소(무신사).
+    # 🔴 무신사를 여기 안 넣으면 확장이 첫 쪽만 보고 끝난다(다음쪽을 아예 안 따라감).
+    if not (_MORE_SELECT.get(key) or _NEXT_URL_RE.get(key)):
         return 1
     if page_from is None and page_to is None:
         return 1                      # 임의로 넓히지 않는다
@@ -229,6 +294,10 @@ def page_urls_for(listing_url: str, *, source_key: str,
     if page_from is None and page_to is None:
         return [listing_url]
     param = _PAGE_PARAM.get(key)
+    # 같은 소싱처라도 이 주소 모양이면 페이지 넘김이 안 먹는다(SSF 검색 결과).
+    bad = _NO_PAGE_PATH.get(key)
+    if param and bad and bad.search(listing_url or ''):
+        param = None
     if not param:
         # 🔴 예전엔 여기서 예외를 냈다 — 그러면 범위를 적은 순간 **첫 장조차 못 걷는다.**
         #   주소로 못 넘기는 곳이라도 첫 장은 걷을 수 있고, 단추로 넘기는 곳이면

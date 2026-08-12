@@ -59,6 +59,7 @@ def _row(f):
         # 🔴 「못 봤다」와 「더 있는데 멈췄다」 — 둘 다 0건과 다른 사실이다.
         'last_error': getattr(f, 'last_error', None) or None,
         'last_capped': bool(getattr(f, 'last_capped', False)),
+        'last_ext_version': getattr(f, 'last_ext_version', None) or None,
         'apply_policy_id': f.apply_policy_id,
     }
 

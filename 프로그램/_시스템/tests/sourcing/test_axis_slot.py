@@ -80,3 +80,36 @@ def test_한_자리에_두_축이_들어가지_않는다():
         for slots in (storage_slots(names), semantic_slots(names)):
             got = [x for x in slots if x]
             assert len(got) == len(set(got)), f'{names} → {slots} 에서 자리가 겹쳤다'
+
+
+# ── 읽기 경로도 같은 규칙을 쓴다 (2026-08-12 · 전수 감사에서 잡힌 구멍) ──────
+#   저장·축맞추기 화면만 이름 기준으로 고치고 **매트릭스 읽기 경로를 빠뜨렸다.**
+#   그 값은 `match_source_option` 으로 흘러가 어느 소싱처 가격·재고를 붙일지 정한다 —
+#   틀리면 남의 색 가격이 붙는다. 규칙이 한 곳뿐인지 여기서 지킨다.
+
+def _names(monkeypatch, names):
+    from lemouton.sourcing import axis_match_audit as A
+
+    class _R:
+        def __init__(self, n):
+            self.axis_name = n
+    return A._axis_names(None, 'ANY', rows=[_R(n) for n in names])
+
+
+def test_읽기경로도_모델을_색상으로_안_읽는다(monkeypatch):
+    """🔴 모델·색상·사이즈로 짜면 색은 「색상」 사전에서 찾아야 한다."""
+    assert _names(monkeypatch, ['모델', '색상', '사이즈']) == ('색상', '사이즈')
+
+
+def test_읽기경로_색상사이즈는_오늘_그대로(monkeypatch):
+    assert _names(monkeypatch, ['색상', '사이즈']) == ('색상', '사이즈')
+
+
+def test_읽기경로_옛이름은_오늘_그대로(monkeypatch):
+    """이름을 못 알아보는 옛 매트릭스는 동작이 바뀌면 안 된다."""
+    assert _names(monkeypatch, ['단계1', '단계2']) == ('단계1', '단계2')
+
+
+def test_읽기경로_한축이면_사이즈는_기본값(monkeypatch):
+    assert _names(monkeypatch, ['색상']) == ('색상', '사이즈')
+    assert _names(monkeypatch, []) == ('색상', '사이즈')
