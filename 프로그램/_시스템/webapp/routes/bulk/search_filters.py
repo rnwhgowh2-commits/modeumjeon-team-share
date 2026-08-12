@@ -60,6 +60,9 @@ def _row(f):
         'last_error': getattr(f, 'last_error', None) or None,
         'last_capped': bool(getattr(f, 'last_capped', False)),
         'last_ext_version': getattr(f, 'last_ext_version', None) or None,
+        # 「이어서 걷는 중」 — 다음 회차가 시작할 쪽. None = 처음부터.
+        #   🔴 이 값을 화면이 모르면 사장님은 「또 눌러야 하나」를 알 수 없다.
+        'next_page_from': getattr(f, 'next_page_from', None) or None,
         'apply_policy_id': f.apply_policy_id,
     }
 
