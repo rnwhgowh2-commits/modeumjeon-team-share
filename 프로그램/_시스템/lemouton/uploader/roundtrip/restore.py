@@ -40,9 +40,12 @@ class RestoreReport:
     product_id: str = ""
     #: 시험 흔적이 아니라 **그 뒤에 정상적으로 바뀐 값**이라 건드리지 않은 축 {축: 현재값}.
     skipped: dict = field(default_factory=dict)
+    #: 🔴 **판별 자체를 못 한** 축 {축: 현재값}. 조용히 건너뛰면 시험값이 남았는데
+    #:    경보가 꺼진다 — 모르면 모른다고 말해야 사람이 본다.
+    unknown: dict = field(default_factory=dict)
 
 
-def _bears_our_mark(axis: str, cur, orig) -> bool:
+def _bears_our_mark(axis: str, cur, orig, sent=None) -> bool:
     """현재값이 **우리가 보낸 시험값 그대로**인가.
 
     🔴 [2026-08-12] 손복구가 저널의 5일 전 가격으로 현재가를 덮으려 했다. 그 사이
@@ -55,6 +58,12 @@ def _bears_our_mark(axis: str, cur, orig) -> bool:
     )
     if cur is None:
         return False
+
+    # 🎯 [2026-08-13] 저널에 **우리가 보낸 값**이 적혀 있으면 짐작하지 않는다.
+    #    지금 값이 그것과 같으면 우리 시험값이 그대로 남은 것 — 정확한 판정이다.
+    #    (아래 낱말·주소 짐작은 옛 저널을 위한 예비 수단일 뿐이다)
+    if sent is not None:
+        return _same(cur, sent)
     if axis == "sale_price":
         try:
             return int(cur) == int(orig) + _PRICE_DELTA
@@ -71,8 +80,12 @@ def _bears_our_mark(axis: str, cur, orig) -> bool:
     if axis == "detail_html":
         return _DETAIL_TOKEN in str(cur)
     if axis == "image_urls":
-        first = (tuple(cur) or ("",))[0]
-        return _PROBE_MARK in str(first)
+        # 🔴 주소 표식은 **우리 창고(R2)에 올린 경우에만** 붙는다. 스마트스토어는
+        #    네이버 CDN 에 올려 주소에 아무 표식이 없다 — 그때는 판별 불가다.
+        first = str((tuple(cur) or ("",))[0])
+        if _PROBE_MARK in first:
+            return True
+        return None                       # 모름 — 조용히 「아니다」로 넘기지 않는다
     return False
 
 
@@ -139,22 +152,31 @@ def restore_from_journal(journal_path, *, apply_fn, snapshot_fn=None,
     #    같이 보냈고, 남의 옵션 재고가 0 이라 full-replace 가 전부 거부됐다.
     #    마켓 쓰기는 한 번이라도 덜 하는 게 낫다.
     #    ⚠️ 현재값을 못 읽으면(snapshot_fn 없음) 비교 근거가 없으니 저널대로 다 보낸다.
+    sent_map = (data or {}).get("sent") or {}
     if snapshot_fn is not None:
         cur = snapshot_fn()
-        keep, skip = {}, {}
+        keep, skip, unknown = {}, {}, {}
         for a, v in changes.items():
             now = cur.value_of(a)
             if _same(now, v):
                 continue                  # 이미 원래대로 — 건드릴 이유가 없다
-            if _bears_our_mark(a, now, v):
+            mark = _bears_our_mark(a, now, v, sent_map.get(a))
+            if mark is True:
                 keep[a] = v
+            elif mark is None:
+                unknown[a] = now          # 판별 불가 — 안 건드리되 **모른다고 말한다**
             else:
                 # 시험 흔적이 아니다 = 그 뒤에 정상적으로 바뀐 값이다. 덮지 않는다.
                 skip[a] = now
-        changes, report.skipped = keep, dict(skip)
+        changes = keep
+        report.skipped, report.unknown = dict(skip), dict(unknown)
         if not changes:
             report.ok = True
-            report.verified = True
+            # 🔴 판별 못 한 축이 하나라도 있으면 「확인됨」이 아니다.
+            report.verified = None if unknown else True
+            if unknown:
+                report.error = (f"판별 불가 — {list(unknown)} 이 우리 시험값인지 알 수 없습니다"
+                                f"(저널에 보낸 값이 안 적힌 옛 기록). 마켓 화면에서 직접 봐 주세요.")
             return report                 # 되돌릴 게 없다 — 쓰기를 안 한다
 
     report.sent = dict(changes)

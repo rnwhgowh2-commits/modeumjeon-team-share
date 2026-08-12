@@ -155,8 +155,9 @@ def test_recalc_stock_total_simple(tmp_path):
     # 10 - 3 + 5 + 0(move) = 12
     assert total == 12
 
-    # 조정 (절대값 set)
-    s.add(InventoryTx(tx_type='adjust', option_canonical_sku=sku, qty=20, status='completed'))
+    # 조정 — **차이값**이다(2026-08-13 사장님 확정). 실사 20 이면 차이 +8 이 남는다.
+    #   근거·이유(위치별 합이 전체와 맞아야 한다) = shared/inventory_stock.py 머리말
+    s.add(InventoryTx(tx_type='adjust', option_canonical_sku=sku, qty=8, status='completed'))
     s.commit()
     total2 = recalc_stock_total(sku, s)
-    assert total2 == 20  # 조정 후 절대값
+    assert total2 == 20  # 12 + 8 = 실사한 20
