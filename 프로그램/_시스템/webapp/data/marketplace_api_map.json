@@ -169944,12 +169944,13 @@
    ],
    "success": "resultCode==200",
    "idTraps": [
-    "🔴 **재고 상한 9,999**. 이미 9,999 인 상품에 10,000 을 보내면 「옵션재고 번호 …의 수량 업데이트 실패」로 거부된다(2026-08-12 라이브 실측 prd=9532353519). 실패 문구가 수량 얘기를 안 해서 식별자 문제로 오진하기 쉽다.",
-    "🔴 **옵션 전체교체 API(update_stock)를 쓰면 안 된다** — 한 옵션만 보내면 형제 옵션이 지워진다. 반드시 이 재고번호 단위 API 를 쓴다.",
-    "🔴 열쇠는 상품번호가 아니라 **재고번호(prdStckNo)** 다. 상품번호를 넣으면 대상을 못 찾는다."
+    "🔴 열쇠는 **prdStckNo(재고번호)** 다. sellerStockCd(판매자 관리코드)나 mixOptNo 로 대신 채우면 「옵션재고 번호 1,2(상품번호:…)의 수량 업데이트 실패」로 거부된다 — 실패 문구가 **수량 얘기를 해서** 수량 문제로 오진하기 쉽다(2026-08-12 라이브 2회 실측, prd=9532353519). prdStckNo 는 eleven11.40 응답의 <prdStckNo> 다.",
+    "🔴 **상품무게(optWght)를 그대로 되돌려 보내야** 한다 — 빼면 무게가 지워진다(echo-back).",
+    "🔴 **옵션 전체교체 API(update_stock)를 쓰면 안 된다** — 한 옵션만 보내면 형제 옵션이 지워진다. 그래서 우리 코드의 update_stock 은 일부러 NotImplementedError 를 낸다."
    ],
    "persistIds": [
-    "prdStckNo"
+    "prdStckNo",
+    "optWght"
    ],
    "codeRef": "shared/platforms/eleven11/inventory.py:update_stock_by_stock_no",
    "docApiNo": ""
