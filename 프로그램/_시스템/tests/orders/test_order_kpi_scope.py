@@ -631,3 +631,38 @@ def test_마켓별_셀러부담율과_할인종류를_돌려준다():
     assert 종류 == ["즉시할인", "상품할인쿠폰"], (
         "할인 종류가 금액 큰 순이 아니거나 0원 항목이 섞였다: %s" % 종류)
     assert not m["11번가"]["kindList"], "종류를 모르는데 만들어 냈다"
+
+
+def test_할인은_옵션추가금까지_넣은_정가로_잰다():
+    """🔴 라이브 실측(2026-08-12) — 옵션가를 빼먹어 할인이 음수로 나오던 자리.
+
+    스스 실결제에는 옵션가가 들어 있다. 정가를 `단가×수량`으로만 잡으면
+    옵션가가 있는 주문은 할인이 **음수**가 된다(7일 스스 81행 중 16행이 그랬다).
+    정가 = `총주문금액`(단가×수량 + 옵션추가금). 그러면 네이버가 준 실제 할인과 맞는다.
+    """
+    행 = [{"주문상태": "배송중", "판매처": "스마트스토어", "단가": 273000, "수량": 1,
+           "옵션추가금": 65000, "배송비": 3000, "실결제금액": 298300,
+           "총주문금액": 338000, "주문금액": 341000, "상품명": "옷"}]
+    out = _run(r"""
+      const S=require(process.argv[1]);
+      const rows=JSON.parse(process.argv[2]);
+      console.log(JSON.stringify({disc:S.discountSummary(rows).sum,
+        amt:S.amountSummary(rows).sum, sales:S.salesOf(rows),
+        byMk:S.discountByMarket(rows).total}));
+    """, json.dumps(행, ensure_ascii=False))
+    assert out["disc"] == 39700, (
+        "옵션가를 빼먹었다(−25,300 이면 그것) — 네이버 실값은 39,700 이다: %s" % out["disc"])
+    assert out["byMk"] == 39700, "판매처별 집계도 같은 정가를 써야 한다: %s" % out["byMk"]
+    assert out["amt"] - out["disc"] == out["sales"], (
+        "주문금액 − 할인 ≠ 매출: %s" % out)
+
+
+def test_총주문금액이_없는_옛_저장분도_옵션가를_더한다():
+    """옛 저장분엔 `총주문금액`이 없다 — 그때도 단가×수량+옵션추가금으로 만든다."""
+    행 = [{"주문상태": "배송중", "판매처": "스마트스토어", "단가": 100000, "수량": 2,
+           "옵션추가금": 30000, "배송비": 0, "실결제금액": 200000, "상품명": "옷"}]
+    out = _run(r"""
+      const S=require(process.argv[1]);
+      console.log(JSON.stringify({disc:S.discountSummary(JSON.parse(process.argv[2])).sum}));
+    """, json.dumps(행, ensure_ascii=False))
+    assert out["disc"] == 30000, "옛 저장분에서 옵션가를 안 더했다: %s" % out["disc"]
