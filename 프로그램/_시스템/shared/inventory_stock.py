@@ -8,6 +8,23 @@
 성능
 - get_stock_batch(skus) 로 한 번에 N SKU 조회 (N+1 회피)
 - get_stock_summary() 도 1 쿼리로 전체 통계 계산
+
+🔴 조정(adjust)의 뜻 — **절대값이다** (2026-08-13 감사에서 통일)
+  「실사해 보니 5개였다」가 조정이다. 그래서 그 시점의 재고를 **그 값으로 정한다**.
+  근거 셋 — ① `create_adjustment(new_qty=…)` (ADR-002) ② 조정 목록 화면이 `= N`
+  으로 보여 준다 ③ 작업자가 차이를 계산하지 않고 센 수를 그대로 적는다.
+
+  ⚠️ 예전엔 **읽는 쪽 두 곳이 정반대**였다:
+      · lemouton/inventory/cogs.py  → 절대값(set)
+      · 이 파일의 `_stock_expr`     → delta 합
+    「입고 100 → 실사 조정 5」에서 한쪽은 5, 다른쪽은 105 를 돌려줬다(100개 과대).
+    **쓰는 쪽도 두 곳이 정반대**였다(`inbound.create_adjustment` 절대값 /
+    `api_inventory_link` 는 차이값) — 그래서 같은 표의 행이 두 가지 뜻을 가졌다.
+    지금은 쓰기·읽기 모두 **절대값 하나**로 맞췄고, 규칙은 `fold_tx_rows()` 한 곳이다.
+
+  성능 — SUM 으로는 「set」을 표현할 수 없다. 그래서 조정이 **있는 SKU 만**
+  차례대로 접고(`fold_tx_rows`), 나머지는 지금처럼 한 번의 SUM 으로 센다.
+  (라이브 조정 행은 2026-08-13 기준 1건 — 느린 길로 가는 SKU 는 사실상 없다)
 """
 from __future__ import annotations
 
@@ -33,6 +50,61 @@ def _stock_expr():
         (InventoryTx.tx_type == 'move', -func.abs(InventoryTx.qty)),
         else_=0,
     )
+
+
+def fold_tx_rows(rows) -> int:
+    """거래를 차례대로 접어 재고 하나를 낸다 — **재고 규칙의 단일 진실 원천.**
+
+    `rows` = (tx_type, qty) 를 **created_at 오름차순**으로. 부호는 저장 방식이
+    갈려 있어(데스크탑 양수 / 모바일 음수) `abs()` 로 통일한다.
+
+    · in     → +
+    · out    → −
+    · adjust → **그 값으로 정한다(set)** — 위 모듈 독스트링 참조
+    · move   → 총합에는 영향 없음(위치만 바뀐다)
+
+    🔴 `cogs.recalc_stock_total` 도 이 함수를 쓴다. 두 곳이 각자 세면 갈린다 —
+       실제로 갈려 있던 것을 여기로 합친 것이다.
+    """
+    total = 0
+    for tx_type, qty in rows:
+        q = int(qty or 0)
+        if tx_type == 'in':
+            total += abs(q)
+        elif tx_type == 'out':
+            total -= abs(q)
+        elif tx_type == 'adjust':
+            total = q                      # 실사 결과 = 그 시점 재고
+    return total
+
+
+def _skus_with_adjust(session, product_skus) -> set[str]:
+    """조정 이력이 있는 SKU — 이들만 느린 길(차례대로 접기)로 다시 센다."""
+    if not product_skus:
+        return set()
+    return {sk for (sk,) in session.query(InventoryTx.option_canonical_sku)
+            .filter(InventoryTx.option_canonical_sku.in_(list(product_skus)),
+                    InventoryTx.tx_type == 'adjust',
+                    InventoryTx.status == 'completed')
+            .distinct().all()}
+
+
+def _exact_stock(session, product_skus) -> dict[str, int]:
+    """조정이 낀 SKU 를 **차례대로 접어** 정확히 센다(전체 위치 합 기준)."""
+    out: dict[str, int] = {}
+    if not product_skus:
+        return out
+    rows = (session.query(InventoryTx.option_canonical_sku, InventoryTx.tx_type,
+                          InventoryTx.qty)
+            .filter(InventoryTx.option_canonical_sku.in_(list(product_skus)),
+                    InventoryTx.status == 'completed')
+            .order_by(InventoryTx.created_at, InventoryTx.id).all())
+    by: dict[str, list] = {}
+    for sk, t, q in rows:
+        by.setdefault(sk, []).append((t, q))
+    for sk in product_skus:
+        out[sk] = fold_tx_rows(by.get(sk, []))
+    return out
 
 
 def _product_sku_map(session, option_skus) -> dict[str, str]:
@@ -114,6 +186,15 @@ def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None
         mq = mq.filter(InventoryTx.location_to_id == location_id)
     for sk, s in mq.group_by(InventoryTx.option_canonical_sku).all():
         prod_stock[sk] = prod_stock.get(sk, 0) + int(s or 0)
+
+    # 3) 🔴 조정(adjust)은 **절대값**이라 SUM 으로 표현할 수 없다 — 조정이 낀 SKU 만
+    #    차례대로 접어 덮어쓴다(모듈 독스트링 참조). 조정이 없으면 위 SUM 그대로다.
+    #    ※ 위치별 조회(location_id)에서는 「그 위치의 실사」라는 뜻이 정의돼 있지 않아
+    #      건드리지 않는다 — 없는 뜻을 지어내지 않는다.
+    if location_id is None:
+        adj = _skus_with_adjust(session, product_skus)
+        if adj:
+            prod_stock.update(_exact_stock(session, adj))
 
     # 옵션 → (연결 재고제품) 재고 매핑
     return {opt: prod_stock.get(psku_map[opt], 0) for opt in option_skus}

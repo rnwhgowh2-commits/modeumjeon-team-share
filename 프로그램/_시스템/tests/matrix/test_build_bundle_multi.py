@@ -123,3 +123,97 @@ def test_하나만_줘도_예전과_똑같다(db):
     m, made = create_bundle_from_matrix(db, matrix=a, name='단수', brand='르무통', on=ON)
     assert made == 2
     assert db.query(BundleMatrixLink).filter_by(model_code=m.model_code).count() == 1
+
+
+# ── [2026-08-13 감사 후속] 3축(모델 축)에서 드러난 뿌리 두 가지 ──────────────
+#
+# 🔴 왜 여기서 못 박나
+#   겹침 판정이 (색상,사이즈)만 봤다. 모델모음전 3축은 모델 값이 옛 칸 어디에도
+#   안 들어가므로(axis_slot.storage_slots(['모델','색상','사이즈']) = [None,'color','size']),
+#   **모델만 다른 옵션들이 전부 같은 열쇠**가 되어 통째로 버려졌다.
+#   실측: 3축 묶음 2개(각 8옵션) → 새 상품 옵션 4개. 12개가 조용히 사라졌다.
+#   단수 호출(matrix=)도 같은 루프를 타므로 예전보다 나빠졌다(made 2 → 1).
+
+def _matrix3(db, code, name, axes, rows):
+    """3축 묶음 — rows 는 [(모델, 색상, 사이즈), …].
+
+    옛 칸은 실제 저장 규칙(axis_slot)과 같게 채운다 — 모델은 어느 칸에도 안 들어간다.
+    """
+    from lemouton.matrix.models import MatrixOption
+    from lemouton.sourcing.models import BundleOptionStep, Model, Option
+    db.add(Model(model_code=code, model_name_raw=name, model_name_display=name,
+                 brand='르무통', is_option_box=True))
+    db.flush()
+    for i, (ax, vals) in enumerate(axes, start=1):
+        db.add(BundleOptionStep(model_code=code, step_no=i, axis_name=ax,
+                                values_json=json.dumps(vals, ensure_ascii=False)))
+    for n, (mo_v, c, z) in enumerate(rows, start=1):
+        db.add(Option(canonical_sku='SKU-%s%02d' % (code[-4:], n), model_code=code,
+                      color_code=c, size_code=z,
+                      axis_values_json=json.dumps([mo_v, c, z], ensure_ascii=False)))
+    mx = MatrixOption(kind='origin', model_code=code, name=name, display_no=code)
+    db.add(mx)
+    db.flush()
+    return mx
+
+
+_AX3 = [('모델', ['메이트', '데일리']), ('색상', ['블랙']), ('사이즈', ['250'])]
+
+
+def test_모델만_다른_옵션은_겹침이_아니다(db):
+    """🔴 (색상,사이즈)만 보면 모델모음전의 옵션이 통째로 사라진다."""
+    from lemouton.matrix.build_service import create_bundle_from_matrix
+    from lemouton.sourcing.models import Option
+    a = _matrix3(db, 'UJJJ1', '메이트함', _AX3,
+                 [('메이트', '블랙', '250'), ('데일리', '블랙', '250')])
+    skipped = []
+    m, made = create_bundle_from_matrix(db, matrix=a, name='3축단수', brand='르무통',
+                                        skipped_out=skipped, on=ON)
+    assert made == 2, '모델이 다르면 다른 옵션이다 — 버리면 안 된다'
+    assert skipped == [], f'버린 것이 없어야 한다: {skipped}'
+    vals = sorted(json.loads(o.axis_values_json)[0] for o in
+                  db.query(Option).filter_by(model_code=m.model_code).all())
+    assert vals == ['데일리', '메이트'], f'모델 축 값이 둘 다 살아야 한다: {vals}'
+
+
+def test_3축_두_묶음을_합쳐도_옵션이_안_사라진다(db):
+    from lemouton.matrix.build_service import create_bundle_from_matrix
+    from lemouton.sourcing.models import Option
+    a = _matrix3(db, 'UKKK1', '가', _AX3,
+                 [('메이트', '블랙', '250'), ('데일리', '블랙', '250')])
+    b = _matrix3(db, 'ULLL2', '나', [('모델', ['클래식', '러너']), ('색상', ['블랙']),
+                                     ('사이즈', ['250'])],
+                 [('클래식', '블랙', '250'), ('러너', '블랙', '250')])
+    m, made = create_bundle_from_matrix(db, matrices=[a, b], name='3축합침',
+                                        brand='르무통', on=ON)
+    assert made == 4, '4모델 × 블랙 × 250 = 4옵션이 다 담겨야 한다'
+    assert db.query(Option).filter_by(model_code=m.model_code).count() == 4
+
+
+def test_진짜_같은_조합은_여전히_한_번만_담는다(db):
+    """겹침 판정을 넓히되 **진짜 중복은 그대로 막아야** 한다(회귀 방지)."""
+    from lemouton.matrix.build_service import create_bundle_from_matrix
+    a = _matrix3(db, 'UMMM1', '가', _AX3, [('메이트', '블랙', '250')])
+    b = _matrix3(db, 'UNNN2', '나', _AX3, [('메이트', '블랙', '250')])
+    skipped = []
+    _m, made = create_bundle_from_matrix(db, matrices=[a, b], name='진짜겹침',
+                                         brand='르무통', skipped_out=skipped, on=ON)
+    assert made == 1
+    assert skipped == ['메이트 블랙 250'], f'무엇을 버렸는지 말해야 한다: {skipped}'
+
+
+def test_출처_개수는_버린_것을_뺀_실제_담은_수다(db):
+    """🔴 `s not in skipped` 가 SKU 를 표시문자열과 견주어 **늘 참**이었다 —
+       화면이 실제보다 많이 담긴 것처럼 말했다."""
+    from lemouton.matrix.build_service import create_bundle_from_matrix
+    from lemouton.matrix.models import BundleMatrixLink
+    a = _matrix(db, 'UOOO1', '가', [('색상', ['블랙']), ('사이즈', ['250'])],
+                [('블랙', '250')])
+    b = _matrix(db, 'UPPP2', '나', [('색상', ['블랙']), ('사이즈', ['250'])],
+                [('블랙', '250')])
+    m, made = create_bundle_from_matrix(db, matrices=[a, b], name='개수확인',
+                                        brand='르무통', on=ON)
+    assert made == 1
+    counts = sorted(x.copied_count for x in db.query(BundleMatrixLink)
+                    .filter_by(model_code=m.model_code).all())
+    assert counts == [0, 1], f'버린 묶음은 0이어야 한다: {counts}'

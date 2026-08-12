@@ -326,7 +326,8 @@ def index():
                            made=made, markets=IMPORT_MARKETS,
                            stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
                            stage_cls=STAGE_CLS, mat_counts=mat_counts,
-                           box_counts=box_counts, axis_presets=AXIS_PRESETS)
+                           box_counts=box_counts, axis_presets=AXIS_PRESETS,
+                           blocked_axis_reason=BLOCKED_AXIS_REASON)
 
 
 @bp.get('/product/by-code/<path:code>')
@@ -393,15 +394,44 @@ AXIS_PRESETS = [
      'desc': '한 모델을 색상(과 사이즈)으로 펼칩니다',
      'options': [{'n': 1, 'axes': ['색상']},
                  {'n': 2, 'axes': ['색상', '사이즈']}]},
-    {'kind': 'model', 'label': '모델 모음전',
+    # 🔴 [2026-08-13 감사 후속] 모델 모음전은 **아직 못 고르게** 둔다 (`disabled`).
+    #   숨기지 않는다 — 사장님이 노션에 적으신 항목이라, 없애면 「빠뜨렸나」가 된다.
+    #   화면에 이유를 그대로 적고 고르지만 못하게 한다.
+    #
+    #   왜 못 여나 — 축 이름으로 칸을 정하게 고쳤지만(68fe4179) 모델 값이 갈 자리가 없다:
+    #     · 1축 ['모델']        → color_code 에 모델명 (고치려던 바로 그 증상)
+    #     · 2축 ['모델','색상'] → size_code 에 모델명 (마켓에 사이즈로 나간다)
+    #     · 3축                 → 어느 칸에도 안 들어간다 → 마켓 옵션 이름이
+    #       「블랙 250」으로 **겹쳐** 서로 다른 모델이 한 줄로 보인다(실측)
+    #   여는 데 필요한 것 두 가지 — 둘 다 사장님 결정이 있어야 한다:
+    #     ① 조립대 격자에 모델 축을 어떻게 그릴지 (지금은 색상×사이즈 2축 격자뿐)
+    #     ② 마켓별 옵션 1/2/3축 구성 정책 (노션 「마켓별 옵션 1/2/3축 구성 정책」)
+    #   (라이브 매트릭스 185개 전수 확인 결과 모델 축 사용 0건 — 지금 닫아도 잃는 것이 없다)
+    {'kind': 'model', 'label': '모델 모음전', 'disabled': True,
      'desc': '여러 모델을 한 상품에 담습니다',
      'options': [{'n': 1, 'axes': ['모델']},
                  {'n': 2, 'axes': ['모델', '색상']},
                  {'n': 3, 'axes': ['모델', '색상', '사이즈']}]},
 ]
 
+#: 아직 받지 않는 축 이름 — 위 주석 참조. 큰 창(조합 생성)에서도 같은 규칙을 쓴다.
+#: 🔴 이름 하나만 여기 적어 두면 두 입구가 갈리지 않는다.
+BLOCKED_AXIS_REASON = (
+    '「모델」 축은 아직 쓸 수 없어요 — 모델 값을 담을 칸이 없어 마켓에 올릴 때 '
+    '서로 다른 모델이 같은 옵션으로 겹칩니다. 격자·마켓 축 정책이 정해지면 열립니다.'
+)
+
+
+def blocked_axis(axis_names) -> bool:
+    """모델 축이 섞여 있나 — 만들기 창과 큰 창 **두 곳이 같은 함수**를 쓴다."""
+    from lemouton.sourcing.axis_slot import is_model_axis
+    return any(is_model_axis(a) for a in (axis_names or []))
+
 #: 프리셋에서 고를 수 있는 축 조합 — 화면이 보낸 값이 이 안에 있는지 검사한다.
-_ALLOWED_AXES = {tuple(o['axes']) for p in AXIS_PRESETS for o in p['options']}
+#: 🔴 `disabled` 프리셋은 **뺀다** — 화면엔 이유와 함께 보이지만 고를 수는 없다.
+#:    한 곳에서 빼야 화면·API 가 갈리지 않는다.
+_ALLOWED_AXES = {tuple(o['axes']) for p in AXIS_PRESETS if not p.get('disabled')
+                 for o in p['options']}
 
 
 @bp.post('/api/option-box')
@@ -418,6 +448,8 @@ def api_create_option_box():
     from lemouton.sourcing.option_service import save_step_design
     body = request.get_json(silent=True) or {}
     axes = [str(a).strip() for a in (body.get('axes') or []) if str(a).strip()]
+    if blocked_axis(axes):
+        return jsonify({'ok': False, 'error': BLOCKED_AXIS_REASON}), 400
     if axes and tuple(axes) not in _ALLOWED_AXES:
         return jsonify({'ok': False,
                         'error': f'고를 수 없는 축 구성이에요: {" · ".join(axes)}'}), 400
@@ -504,7 +536,18 @@ def api_initial_stock(code: str):
          `create_inbound` 가 이력을 남기며 그 캐시 칸까지 알아서 갱신한다.
       ② **이미 재고가 있는 옵션은 건너뛴다.** 「초기」가 두 번 들어가면 이중 계상이다.
          무엇을 건너뛰었는지 그대로 돌려준다 — 조용히 넘어가지 않는다.
-      ③ 위치가 하나도 없으면 **거부**한다. 어디에 쌓였는지 모르는 재고는 재고가 아니다.
+         🔴 [2026-08-13 감사] 예전엔 「읽고 → 쓰는」 사이에 아무 잠금이 없어,
+            같은 요청이 **동시에 두 번** 들어오면 둘 다 「재고 0」을 보고 둘 다 넣었다
+            (실측 3/3 두 배 · 캐시는 한쪽만 반영돼 원장과 갈렸다).
+            → 옵션 줄을 **먼저 잠그고**(`with_for_update`) 그 뒤에 읽는다.
+              PostgreSQL(라이브)은 두 번째 요청이 첫 요청의 커밋을 기다렸다가
+              「이미 있다」를 보고 건너뛴다. SQLite 는 이 잠금이 없지만 쓰기를
+              직렬화하므로 로컬 시험에서는 재현되지 않는다.
+      ③ 위치가 없으면 **기본 위치를 만들어서라도** 넣는다.
+         🔴 [2026-08-13 감사] 예전 독스트링은 「거부한다」였는데 **거짓이었다** —
+            `ensure_default_location` 은 이름 그대로 없으면 만든다(실패 경로가 없다).
+            위치를 지웠다고 초기 재고를 잃는 쪽이 더 나쁘므로 동작을 그대로 두고
+            **글을 사실에 맞춘다.**
     """
     from shared.inventory_stock import get_stock_batch
     from lemouton.inventory.inbound import create_inbound
@@ -536,6 +579,15 @@ def api_initial_stock(code: str):
         if stray:
             return jsonify({'ok': False,
                             'error': f'이 묶음의 옵션이 아니에요: {", ".join(stray[:5])}'}), 400
+
+        # 🔴 읽기 **전에** 옵션 줄을 잠근다 — 동시 요청 이중 계상 막이(위 ② 참조).
+        #   SQLite 는 FOR UPDATE 를 모르므로 조용히 건너뛴다(쓰기 직렬화로 대체).
+        try:
+            (s.query(Option.canonical_sku)
+             .filter(Option.canonical_sku.in_(sorted(mine)))   # 순서 고정 = 교착 방지
+             .with_for_update().all())
+        except Exception:                # noqa: BLE001 — 잠금을 모르는 DB(SQLite)는 정상 경로
+            pass
 
         have = get_stock_batch(s, list(mine))          # 원장 합계 = 진실 원천
         loc_id = ensure_default_location(s)

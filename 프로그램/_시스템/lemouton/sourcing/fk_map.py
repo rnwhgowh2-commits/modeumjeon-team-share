@@ -20,6 +20,17 @@ _OPTION_EXTRA: tuple[tuple[str, str], ...] = (
     ('option_benefit_overrides', 'canonical_sku'),
     ('option_product_links', 'option_canonical_sku'),
     ('option_product_links', 'product_canonical_sku'),
+    # 🔴 [2026-08-13 감사] `option_canonical_sku` 라 이름은 옵션을 가리키는데 **FK 가 아니라**
+    #   이 지도에 안 잡혔다. 그래서 낱개 옵션을 지우면 재고 이력이 **유령으로 남고**,
+    #   이름을 바꾸면 이력이 **옛 SKU 에 남아 끊긴다**(지우기·이름변경이 이 지도를 같이 본다).
+    #   묶음 지우기(optgen._purge_option_traces)는 이미 재고 이력을 치우고 있었다 —
+    #   즉 **경로마다 규칙이 달랐다.** 여기 한 줄로 네 경로가 같아진다.
+    #   ※ 이름이 `canonical_sku` 인 표들(inventory_products·sourcing_options 등)은
+    #     **자기 것**이라 넣으면 안 된다 — 남의 데이터를 지운다. 아래는 옵션 소유가 확실한 것만.
+    ('inventory_txs', 'option_canonical_sku'),
+    ('inventory_safety_stock', 'option_canonical_sku'),
+    ('inventory_count_sheet_items', 'option_canonical_sku'),
+    ('item_attribute_values', 'option_canonical_sku'),
 )
 
 _MODEL_EXTRA: tuple[tuple[str, str], ...] = (
