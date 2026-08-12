@@ -1406,8 +1406,8 @@ def settle_plan_agg():
 
 @bp.route('/api/settle-plan/detail')
 def settle_plan_detail():
-    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|undated|assumed_paid|
-    risk|paid)·market·account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 배지.
+    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|not_started|undated|
+    assumed_paid|risk|paid)·market·account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 배지.
 
     🔴 집계와 **같은 판정(SP.resolve)** 을 쓴다 — 예전엔 여기만 classify 로 걸러
        「KPI 5.5억 · 목록 0건」이 라이브에 나갔다(2026-08-06).
@@ -1420,6 +1420,12 @@ def settle_plan_detail():
     account = (request.args.get('account') or '').strip()
     bucket = (request.args.get('bucket') or '').strip()
     unit = (request.args.get('unit') or 'week').strip()
+    axis = (request.args.get('axis') or 'payout').strip()
+    if axis == 'order':
+        # 🔴 [2026-08-12 노션 c-3] 주문일 축에도 상세내역을 준다. 부류(confirmed/…)는
+        #   지급예정일 축의 개념이라 여기선 안 쓴다 — 그 칸에 들어간 주문 그대로다.
+        #   들어가는지/매출액이 얼마인지는 집계와 **같은 함수**(SP.order_axis_row)가 정한다.
+        return _settle_plan_detail_order(SP, market, account, bucket, unit)
     rules = load_rules()
     today = _dt.date.today()
     rows_out, truncated = [], False
@@ -1434,19 +1440,28 @@ def settle_plan_detail():
         if not amount:
             continue
         evs = r["events"]
+        row = ln["row"]
         if category in ("risk", "paid"):
             if cat != category:
                 continue
+            # 🔴 [2026-08-12 노션 c-2] 「받은 이력」 칸을 눌렀을 때 그 칸의 주문만 준다.
+            #   받은 것의 날짜 축은 예정일이 아니라 **실제 받은 날**이다.
+            if bucket and category == "paid":
+                _pd0 = SP._norm_date(row.get("_settle_paid_date"))
+                if not _pd0 or SP.bucket_key(_pd0, unit) != bucket:
+                    continue
         elif category:
             evs = [e for e in evs if e.get("bucket") == category]
             if not evs:
                 continue
-            if bucket and category in ("confirmed", "unconfirmed"):
+            # 🔴 [2026-08-12] 예전엔 확정/미확정에만 칸 거르기를 걸었다 — 지난 날 칸
+            #   (지남·정산시작전·받았을것)을 눌러도 그 기간과 무관한 전건이 나왔다.
+            #   이벤트 날짜로 거르는 건 어느 부류든 똑같이 옳다.
+            if bucket:
                 evs = [e for e in evs
                        if e["date"] and SP.bucket_key(e["date"], unit) == bucket]
                 if not evs:
                     continue
-        row = ln["row"]
         ship = _oe._to_int(row.get("배송비"), 0) or 0
         dates = [e["date"] for e in evs if e["date"]]
         srcs = {e["date_source"] for e in evs if e["date_source"]}
@@ -1471,6 +1486,10 @@ def settle_plan_detail():
             "옵션": row.get("옵션") or "",
             "수량": row.get("수량") or "",
             "주문상태": row.get("주문상태") or "",
+            # 🔴 [2026-08-12 노션 c-1] 마켓 정산 화면과 한 건씩 맞대 보려면 「누구에게 간
+            #   주문인가」가 있어야 한다. 주문 내역 표와 **같은 수준**으로 그대로 준다
+            #   (그 표도 수령자를 가리지 않는다 — 두 화면이 다르면 대조가 안 된다).
+            "수령자": row.get("수령자") or "",
             "account": ln.get("account") or "",
             "market": ln["market"],
             "category": cat,
@@ -1494,11 +1513,51 @@ def settle_plan_detail():
     return jsonify(rows=rows_out, truncated=truncated)
 
 
+def _settle_plan_detail_order(SP, market, account, bucket, unit):
+    """주문일 축 드릴다운 — 그 기간 칸에 들어간 주문 목록(매출액 + 정산예정금).
+
+    🔴 「매출액을 실결제금액 대신 상품금액+배송비로 **대체**」한 줄은 목록에도 그 사실을
+      적는다. 지금까지는 집계 meta 에 건수만 있어, 어느 주문이 대체됐는지 알 수 없었다.
+    """
+    rows_out, truncated = [], False
+    for ln in _settle_plan_lines([market] if market else None):
+        if account and (ln.get("account") or "") != account:
+            continue
+        hit = SP.order_axis_row(ln, unit=unit)
+        if hit is None:
+            continue
+        if bucket and hit["bucket"] != bucket:
+            continue
+        row = ln["row"]
+        rows_out.append({
+            "주문번호": row.get("오픈마켓주문번호") or "",
+            "주문일": hit["주문일"],
+            "상품명": row.get("상품명") or "",
+            "옵션": row.get("옵션") or "",
+            "수량": row.get("수량") or "",
+            "주문상태": row.get("주문상태") or "",
+            "수령자": row.get("수령자") or "",
+            "account": ln.get("account") or "",
+            "market": ln["market"],
+            "매출액": hit["revenue"],
+            "매출액대체": hit["substituted"],
+            "총정산예정": hit["settle"],
+            "_settle_source": hit["settle_source"],
+            "bucket": hit["bucket"],
+        })
+        if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
+            truncated = True
+            break
+    rows_out.sort(key=lambda r: (r["주문일"], r["주문번호"]), reverse=True)
+    return jsonify(rows=rows_out, truncated=truncated, axis='order')
+
+
 #: 내보내기·목록이 함께 쓰는 부류 이름 — 한 곳에서만 정의(둘이 갈리면 조용히 어긋난다)
-_SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "undated",
+_SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "not_started", "undated",
                   "assumed_paid", "risk", "paid")
 _SP_CAT_KO = {"confirmed": "확정예정", "unconfirmed": "미확정예정",
-              "overdue": "입금일지남", "undated": "받는날미정",
+              "overdue": "입금일지남", "not_started": "정산시작전",
+              "undated": "받는날미정",
               "assumed_paid": "이미받았을것", "risk": "반품취소진행", "paid": "이미받음"}
 
 
@@ -2253,8 +2312,16 @@ def orders_diag_lotteon_itmd():
             'spdNo': r.get('spdNo'), 'pymtAmt': amt, 'pcsCmsn': _lo._num(r.get('pcsCmsn')),
         })
         by_order[od]['pymtAmt합'] += amt
+    # 🔴 [2026-08-12] 원본 **필드 이름**도 같이 준다(값 아님).
+    #   롯데온 지급내역(seCmptDt=실입금일)은 **구매확정일(seStdDt) 단위**로 묶여 있어
+    #   주문에 붙이려면 그 주문의 구매확정일이 있어야 한다. 그런데 우리는 그 값을
+    #   어디에도 안 갖고 있다(롯데온 주문 API 에 구매확정 단계 자체가 없다).
+    #   SettleItmdSales 응답에 확정일 계열 필드가 오는지 **추측 말고 눈으로** 확인하려는
+    #   목적이다. 있으면 조인이 되고, 없으면 일자별 조회로 창을 쪼개는 수밖에 없다.
+    키목록 = sorted({k for r in rows[:200] for k in (r or {}).keys()})
     return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
-                   alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order)
+                   alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order,
+                   원본필드이름=키목록)
 
 
 @bp.route('/diag/store-span')
