@@ -213,6 +213,7 @@ def crawl_due_listings():
                         'page_urls': pages, 'max_items': f.max_items,
                         'sel': rule['sel'], 'attr': rule['attr'],
                         'id_re': rule['id_re'],
+                        'html_scan': rule['html_scan'],
                         'more_sel': rule['more_sel'],
                         'next_url_re': rule['next_url_re'],
                         'empty_text': rule['empty_text'],
@@ -287,7 +288,14 @@ def crawl_listing_result():
         #   실패한 걸 0건과 구분해야 한다」며 사유를 실어 보내는데, 서버가 버리니
         #   화면엔 그냥 「0건」이었다. 보내는 쪽이 정직해도 받는 쪽이 버리면 소용없다.
         # ★ 성공하면 옛 사유를 **지운다** — 낡은 문구가 남으면 「지금도 고장」으로 읽힌다.
-        f.last_error = (str(body.get('error') or '').strip() or None)
+        # 🔴 0건이면 **무엇을 봤는지**도 사유로 남긴다 — 「상품이 없다」와
+        #   「우리 규칙이 그 화면과 안 맞는다」가 똑같이 0으로 보이면 못 고친다.
+        _why = str(body.get('error') or '').strip()
+        if not _why and not urls:
+            _why = str(body.get('diag') or '').strip()
+        f.last_error = (_why or None)
+        # 확장 판 번호 — 화면만 새로고침한 상태를 알아보려고 남긴다.
+        f.last_ext_version = (str(body.get('ext_version') or '').strip() or None)
         # 「더 있는데 멈췄다」는 실패와 다른 사실이다. 뭉치면 「끝까지 다 봤다」로 읽혀
         # 사장님이 없는 상품을 없다고 믿게 된다.
         f.last_capped = bool(body.get('capped'))
