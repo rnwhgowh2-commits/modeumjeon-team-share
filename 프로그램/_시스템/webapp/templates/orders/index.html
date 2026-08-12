@@ -7161,8 +7161,28 @@
               +(blank?('<span class="chip c-m">'+blank+'</span>'):'')+'</td>';
           }).join('')+'</tr>'; }).join('')+'</tbody></table></div></div>';
 
+      /* [2026-08-13 사장님 확정 b] 노랑(정의차이)이 **왜** 노란지를 화면이 말한다.
+         종전엔 「정의차이 N건」 숫자만 있어, 「1건=5만원 정합성」 화면인데 무엇이
+         틀어졌는지 알 길이 없었다. 사유는 서버가 그 줄 실값으로 확인한 것만 붙인다. */
+      var RSUM={};
+      Object.keys(sum.def_reasons||{}).forEach(function(mk){
+        Object.keys(sum.def_reasons[mk]).forEach(function(f){
+          Object.keys(sum.def_reasons[mk][f]).forEach(function(why){
+            var e=sum.def_reasons[mk][f][why];
+            var t=RSUM[why]||(RSUM[why]={건수:0,금액합:0});
+            t.건수+=e.건수||0; t.금액합+=e.금액합||0; });});});
+      var rkeys=Object.keys(RSUM).sort(function(a,b){return RSUM[b].건수-RSUM[a].건수;});
+      if(rkeys.length){
+        h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">'
+          +'<span class="chip c-y">정의차이</span> 왜 다른가 <span style="font-weight:400;font-size:12px;color:var(--sub)">— 설명이 되는 차이입니다(작업필요 아님)</span></div>'
+          +'<div class="tw"><table><thead><tr><th>사유</th><th class="rt">건수</th><th class="rt">금액 차이 합</th></tr></thead><tbody>'
+          +rkeys.map(function(w){ return '<tr><td>'+esc(w)+'</td><td class="rt">'+fmt(RSUM[w].건수)+'</td>'
+            +'<td class="rt">'+fmt(RSUM[w].금액합)+'</td></tr>'; }).join('')
+          +'</tbody></table></div></div>';
+      }
+
       det=det||{};
-      var mm=det.mismatch||[], ms=det.missing||[], ud=det.undecided||[];
+      var mm=det.mismatch||[], ms=det.missing||[], ud=det.undecided||[], df=det.defs||[];
       function capNote(list,total){ return total>list.length?('<div class="note" style="padding:0 16px 12px">상세는 '+list.length+'건까지 표시 — 전체 '+total+'건(요약 수치는 전수)</div>'):''; }
       h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">🔴 필드 불일치 상세 (작업필요 '+fmt(sum.mismatch_total)+'건)</div>'
         +(mm.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>주문번호</th><th>계정</th><th>필드</th><th class="rt">샵마인</th><th class="rt">우리</th><th>상품</th></tr></thead><tbody>'
@@ -7170,6 +7190,17 @@
             +'<td class="rt r">'+((x.field==='date')?esc(x.shop):fmt(x.shop))+'</td><td class="rt">'+((x.field==='date')?esc(x.ours):fmt(x.ours))+'</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.product)+'</td></tr>';}).join('')
           +'</tbody></table></div>'+capNote(mm,sum.mismatch_total)
           : '<div class="state g">🎉 필드 불일치 0건</div>')+'</div>';
+      /* 노랑도 어느 주문인지 확인할 수 있어야 한다 — 종전엔 빨강만 표본이 있었다. */
+      if(df.length){
+        h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">'
+          +'<span class="chip c-y">정의차이</span> 상세</div>'
+          +'<div class="tw"><table><thead><tr><th>마켓</th><th>주문번호</th><th>계정</th><th>필드</th><th class="rt">샵마인</th><th class="rt">우리</th><th>사유</th></tr></thead><tbody>'
+          +df.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td class="mono">'+esc(x.order_no)+'</td>'
+            +'<td>'+esc(x.sm_alias)+'</td><td><b>'+esc(FLD[x.field]||x.field)+'</b></td>'
+            +'<td class="rt">'+fmt(x.shop)+'</td><td class="rt">'+fmt(x.ours)+'</td>'
+            +'<td style="max-width:320px">'+esc(x.reason)+'</td></tr>';}).join('')
+          +'</tbody></table></div></div>';
+      }
       h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">🔴 누락 주문 상세 ('+fmt(sum.existence&&sum.existence.missing)+'주문 / '+fmt(sum.missing_total)+'행)</div>'
         +(ms.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>샵마인 계정</th><th>우리 계정</th><th>주문번호</th><th>주문일</th><th>상품</th><th class="rt">실결제</th><th>샵 상태</th></tr></thead><tbody>'
           +ms.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td>'+esc(x.sm_alias)+'</td><td>'+esc(x.our_account||'—')+'</td><td class="mono">'+esc(x.order_no)+'</td><td>'+esc(x.date)+'</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.product)+'</td><td class="rt">'+fmt(x.paid)+'</td><td>'+esc(x.status)+'</td></tr>';}).join('')
