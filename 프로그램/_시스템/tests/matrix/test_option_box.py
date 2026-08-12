@@ -81,3 +81,46 @@ def test_옵션함은_번호_대기로_세지_않는다(session):
     session.add(_model('옵션함', is_option_box=True))
     session.flush()
     assert pending_counts(session)['models'] == 0
+
+
+# ── [2026-08-12 사장님 확정 1안] 옵션 묶음도 화면에서 지울 수 있어야 한다 ────────
+
+def _템플릿(path: str) -> str:
+    import pathlib
+    뿌리 = pathlib.Path(__file__).resolve().parents[2]
+    return (뿌리 / path).read_text(encoding='utf-8')
+
+
+def test_옵션_묶음_줄에도_지우기가_있다():
+    """🔴 옵션함엔 지우기가 있는데 **매트릭스 묶음 줄에만 없었다**(2026-08-12 실측).
+    그래서 시험용 묶음 82줄을 화면에서 지울 방법이 아예 없었다.
+    """
+    h = _템플릿('webapp/templates/optgen/index.html')
+    import re
+    # 매트릭스 줄의 메뉴(= 「옵션 고치기 →」 가 있는 그 메뉴) 안에 지우기가 있어야 한다
+    메뉴 = re.search(r'(?s)<a class="og-mi" href="/optgen/box/\{\{ m\.code \}\}">'
+                     r'옵션 고치기 →</a>(.*?)</div>', h)
+    assert 메뉴, '매트릭스 줄 메뉴를 못 찾았다 — 시험이 헛돈다'
+    assert 'og-mi-del' in 메뉴.group(1), '옵션 묶음 줄에 지우기가 없다'
+    assert 'data-del="{{ m.code }}"' in 메뉴.group(1), '무엇을 지울지 안 넘긴다'
+
+
+def test_조립대에도_지우기가_있고_보기전용엔_없다():
+    """지우기는 **작업하는 화면**에만. 상품관리 쪽 옵션관리는 보기 전용이다."""
+    h = _템플릿('webapp/templates/matrix/detail.html')
+    assert 'mxd-del' in h, '조립대에 지우기 단추가 없다'
+    assert '{% if assembly and mo.model_code %}' in h, \
+        '보기 전용(assembly 아님)에도 지우기가 보인다 — 「관리 탭은 확인」 원칙 위반'
+    assert "fetch('/optgen/api/option-box/'" in h, \
+        '조립대 지우기가 서버를 안 부른다'
+
+
+def test_지우기_처리는_한_벌이다():
+    """목록과 조립대가 **같은 코드**를 써야 막는 조건·알림이 안 갈린다."""
+    목록 = _템플릿('webapp/templates/optgen/index.html')
+    조립대 = _템플릿('webapp/templates/matrix/detail.html')
+    for 조각 in ("fetch('/optgen/api/option-box/'",
+                 "alert(j.error || '지우지 못했습니다.')",
+                 '개도 같이 사라지고 되돌릴 수 없습니다.'):
+        assert 조각 in 목록, f'목록에 원본 조각이 없다: {조각}'
+        assert 조각 in 조립대, f'조립대가 다른 코드를 쓴다: {조각}'

@@ -212,7 +212,14 @@ def crawl_due_listings():
             out.append({'filter_id': f.id, 'source_key': f.source_key,
                         'page_urls': pages, 'max_items': f.max_items,
                         'sel': rule['sel'], 'attr': rule['attr'],
-                        'id_re': rule['id_re']})
+                        'id_re': rule['id_re'],
+                        'html_scan': rule['html_scan'],
+                        'more_sel': rule['more_sel'],
+                        'next_url_re': rule['next_url_re'],
+                        'empty_text': rule['empty_text'],
+                        # 단추로 넘기는 곳은 「몇 번 누를지」로 답한다(같은 칸을 쓴다).
+                        'click_pages': LD.click_pages_for(
+                            f.source_key, f.page_from, f.page_to)})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()
@@ -277,6 +284,21 @@ def crawl_listing_result():
         f.run_requested_at = None          # 도장 회수 — 무한 재훑기 방지
         f.last_run_at = now
         f.last_new_count = new_n
+        # 🔴 [2026-08-08] 여태 `error` 를 받기만 하고 **버렸다.** 확장은 「한 장이
+        #   실패한 걸 0건과 구분해야 한다」며 사유를 실어 보내는데, 서버가 버리니
+        #   화면엔 그냥 「0건」이었다. 보내는 쪽이 정직해도 받는 쪽이 버리면 소용없다.
+        # ★ 성공하면 옛 사유를 **지운다** — 낡은 문구가 남으면 「지금도 고장」으로 읽힌다.
+        # 🔴 0건이면 **무엇을 봤는지**도 사유로 남긴다 — 「상품이 없다」와
+        #   「우리 규칙이 그 화면과 안 맞는다」가 똑같이 0으로 보이면 못 고친다.
+        _why = str(body.get('error') or '').strip()
+        if not _why and not urls:
+            _why = str(body.get('diag') or '').strip()
+        f.last_error = (_why or None)
+        # 확장 판 번호 — 화면만 새로고침한 상태를 알아보려고 남긴다.
+        f.last_ext_version = (str(body.get('ext_version') or '').strip() or None)
+        # 「더 있는데 멈췄다」는 실패와 다른 사실이다. 뭉치면 「끝까지 다 봤다」로 읽혀
+        # 사장님이 없는 상품을 없다고 믿게 된다.
+        f.last_capped = bool(body.get('capped'))
         s.commit()
         return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
                         'new': new_n})
@@ -3732,6 +3754,15 @@ def bundle_options_combo(code: str):
         return _err('steps(단계 설계)가 필요해요.')
     if len(steps) > 3:
         return _err('단계는 최대 3개까지예요.')
+    # 🔴 [2026-08-13 감사] 축이 **실제로 저장되는 곳은 여기**다. 만들기 창의 프리셋만
+    #   막아 두면 큰 창에서 축 이름을 고쳐 그대로 빠져나간다(감사 실측: 200 으로 저장됨).
+    #   모델 축은 값을 담을 칸이 없어 마켓 옵션 이름이 겹친다 — 두 입구가 같은 함수를 쓴다.
+    #   ※ 프리셋 전체를 여기서 강제하지는 않는다 — 축 이름 자유는 설계서 §5.1 이고,
+    #     라이브에 「단계1·단계2」 매트릭스가 실재해 그것까지 막으면 저장이 죽는다.
+    from webapp.routes.optgen import BLOCKED_AXIS_REASON, blocked_axis
+    if blocked_axis([(st or {}).get('axis_name') for st in steps
+                     if isinstance(st, dict)]):
+        return _err(BLOCKED_AXIS_REASON)
 
     from lemouton.sourcing.option_service import create_combination_options
     s = SessionLocal()

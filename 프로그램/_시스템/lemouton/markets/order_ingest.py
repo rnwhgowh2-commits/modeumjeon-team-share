@@ -745,6 +745,18 @@ def refresh_stale_delivered(market: str, min_age_days: int = 30,
                             retry_hours: int = 72, *, session=None) -> dict:
     """오래도록 「배송완료」에 굳어 있는 주문을 **주문번호 단건 조회**로 되살린다.
 
+    🚨🚨 [2026-08-12 철회] **자동 실행 금지.** 진단·수동 확인 전용으로만 남긴다.
+      라이브 30건을 돌려 보니 **30건 전부 상태가 뒤로 갔다**:
+        배송완료→출고지시 24 · 배송완료→회수지시 6
+      롯데온 단건 조회는 같은 상품라인을 **단계별 여러 행**으로 주고, 나중에 처리된
+      행이 상태를 덮어써 시간이 거꾸로 흐른다. 이 사실은 이미 실측으로 적혀 있었다
+      (`margin/sell_source.py:_one_row_per_line` — 「출고지시 37,599 + 배송완료 38,505」).
+      **나는 그 주석을 안 읽고 배선했다.** 다행히 스케줄러가 한 번도 안 돌아
+      882건이 온전했다(진단: 이미시도한건수 0).
+      ★ 「낡은 상태」는 상태 되조회로 못 고친다 — **정산 사실로 판정**해야 한다
+        (롯데온 지급내역 seCmptDt 조인 = `lemouton/margin/lotteon_paid.py`).
+
+
     🔴🔴 왜(2026-08-08 라이브) — 롯데온 3,941만원의 정체가 이것이었다. 3~6월 결제인데
       아직 「배송완료」로 남은 622건. 「입금 확인 창구가 없다」가 아니라 **주문 상태가
       낡은 것**이었다. 배송이 끝났으면 보통 8일 안에 자동 구매확정되므로, 30일이 지나도
@@ -1070,7 +1082,7 @@ def refresh_settlement_lotteon(*, since=None, until=None,
         since = now - _dt.timedelta(days=max(1, days))
     stat = {"market": "lotteon", "accounts": 0, "settle_rows": 0,
             "crawl_rows": 0, "targets": 0, "updated": 0,
-            "zero_reverted": 0, "errors": []}
+            "zero_reverted": 0, "confirmed_marked": 0, "errors": []}
 
     # ── 정산조회: 계정 단위로 **병렬**(rate 버킷 = 계정별) — ESM 과 같은 전략 ──────
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1079,11 +1091,16 @@ def refresh_settlement_lotteon(*, since=None, until=None,
     clients = _esm_settlement_clients("lotteon")
     stat["accounts"] = len(clients)
     smap: dict = {}
+    # 🔴 [2026-08-12] 구매확정일(seStdDt)도 같이 받는다. 이 값이 롯데온 지급내역
+    #   (실입금일)의 조인 축이다 — 여태 응답에 있었는데 우리가 안 읽어서
+    #   「롯데온은 입금 확인 창구가 없다」로 남아 있었다.
+    dmap: dict = {}
 
     # ★정산액은 **라인(odNo,odSeq) 단위**로 조인한다 — odNo 총액을 각 라인에 넣으면 다품
     #   주문이 2배(2026-07-25 실측·diag odSeq1=odSeq2=41,624). 인라인(order_export)과 동형.
     def _fetch_one(name, cli):
-        return name, _lo_settle.itmd_line_map(since, until, client=cli)
+        return name, _lo_settle.itmd_line_map(since, until, client=cli,
+                                              with_dates=True)
 
     if clients:
         with ThreadPoolExecutor(max_workers=min(len(clients), 8)) as ex:
@@ -1097,9 +1114,25 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                     logger.warning(msg)
                     stat["errors"].append(msg)
                     continue
-                for k, amt in got.items():           # k=(odNo,odSeq), amt=int(0 도 실정산)
+                # 🔴 튜플이 아니면(옛 서명·시험 스텁) 금액만 온 것으로 본다 —
+                #   여기서 터지면 위 except 가 삼켜 **정산 스윕이 통째로 죽는다**
+                #   (CI 에서 실제로 그렇게 됐다: "정산조회 실패: TypeError").
+                if isinstance(got, tuple):
+                    got_amts, got_dates = got
+                else:
+                    got_amts, got_dates = got, {}
+                for k, amt in got_amts.items():      # k=(odNo,odSeq), amt=int(0 도 실정산)
                     smap.setdefault((str(k[0]), str(k[1])), amt)
+                for k, d in (got_dates or {}).items():
+                    dmap.setdefault((str(k[0]), str(k[1])), d)
     stat["settle_rows"] = len(smap)
+    # 🔴🔴 [2026-08-12] OpenAPI(SettleItmdSales) 로 온 키만 **따로** 기억한다.
+    #   이 API 의 기준일이 구매확정일이라 여기 잡혔다는 것 자체가 「구매확정됐다」는 증거다.
+    #   바로 아래에서 셀러오피스 크롤값이 smap 을 **덮어쓰는데**, 그쪽은 **미정산도 포함**한다
+    #   (주석 참조: 크롤표 2,121건 중 0원이 1,744건). 섞인 뒤에 확정을 판정하면 아직 확정도
+    #   안 된 주문을 「구매확정」으로 찍어 정산예정금액 탭의 확정/미확정이 통째로 틀어진다.
+    _api_keys = set(smap.keys())
+    _api_odnos = {k[0] for k in _api_keys}
 
     own = False
     if session is None:
@@ -1142,6 +1175,17 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             stat["errors"].append(f"[lotteon] 크롤 정산 읽기 실패: {type(e).__name__}: {e}")
             stat["crawl_rows"] = 0
 
+        # 롯데온 지급내역(실입금일) — {구매확정일: 정산완료일}. 크롬 확장이 모아 둔 표다.
+        #  🔴 이 조인이 여태 **없어서** 「입금일 지남 1,090만 전액 롯데온·확인 불가」가
+        #    남아 있었다(paid_date_map 의 호출자가 시험뿐이었다).
+        try:
+            from lemouton.margin.lotteon_paid import paid_date_map
+            _paid_map = paid_date_map(session=session)
+        except Exception as e:   # noqa: BLE001 — 지급내역이 없어도 금액 갱신은 진행
+            stat["errors"].append(f"[lotteon] 지급내역 읽기 실패: {type(e).__name__}: {e}")
+            _paid_map = {}
+        stat["paid_dates"] = len(_paid_map)
+
         # odSeq 없는 옛 저장분 폴백용 — odNo 에 라인이 정확히 1개면 그 값을 안전하게 쓴다
         #  (단일라인은 라인값=주문총액). 다품인데 odSeq 불명이면 폴백 안 함(2배 위험 회피).
         _od_lines: dict = {}
@@ -1173,6 +1217,37 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                 amt = _lns[0] if _lns and len(_lns) == 1 else None
             if amt is None:
                 continue                          # 정산조회에 없음/다품 odSeq 불명 = 그대로 둠
+            # 🔴 [2026-08-12] 정산조회에 잡혔다 = 이 주문은 **구매확정됐다**.
+            #   SettleItmdSales 의 정산기준일이 곧 구매확정일이기 때문이다.
+            #   롯데온 odPrgsStepCd 에는 구매확정 코드가 **아예 없어**(11~15·21~27) 상태
+            #   문자열로는 확정을 알 수 없었고, 그 탓에 정산예정금액 탭에서 롯데온은
+            #   confirmed 부류가 구조적으로 0건 → 전부 「아직 구매확정 전」으로 떴다
+            #   (사장님 신고). 마켓이 준 이 증거를 행에 남겨 settle_plan.line_confirmed 가 쓴다.
+            #   ★ **언제** 확정됐는지는 응답에 없다 → 날짜를 지어내지 않고 사실만 적는다.
+            #   ★ True 만 쓴다 — False 를 쓰면 다음 회차(창 밖 주문)에서 확정을 지워 버린다.
+            #   ★ 판정 재료는 **OpenAPI 키(_api_keys)뿐**이다. smap 은 크롤(미정산 포함)이
+            #     섞인 뒤라 그걸로 판정하면 안 된다(위 _api_keys 주석).
+            _in_api = ((odno, odseq) in _api_keys
+                       or (not odseq and odno in _api_odnos))
+            # 🔴 [2026-08-12] 이제 **구매확정일 자체**를 적는다(예전엔 True 플래그뿐).
+            #   그래야 롯데온 지급내역(구매확정일 단위)에서 실입금일을 찾아 붙일 수 있다.
+            _cfm = dmap.get((odno, odseq))
+            if _cfm is None and not odseq:
+                _cfm = next((v for (o, _q), v in dmap.items() if o == odno), None)
+            mark_confirmed = False
+            if _in_api:
+                if row.get("_settle_confirmed") is not True:
+                    row["_settle_confirmed"] = True
+                    mark_confirmed = True
+                if _cfm and row.get("_settle_confirmed_date") != _cfm:
+                    row["_settle_confirmed_date"] = _cfm
+                    mark_confirmed = True
+                # 그 확정일에 롯데온이 **실제로 입금한 날**이 있으면 같이 적는다.
+                #  ★ 없으면 안 적는다 — 「받았다」로 단정하지 않는다(lotteon_paid 규약).
+                _pd = _paid_map.get(_cfm) if _cfm else None
+                if _pd and row.get("_settle_paid_date") != _pd:
+                    row["_settle_paid_date"] = _pd
+                    mark_confirmed = True
             # 🔴 pymtAmt 는 배송비 포함 지급액. 인라인 조인(order_export)은 정산예정금액을
             #   **상품분(−배송비)** 으로 저장하고 _finalize 가 +배송비로 '배송비포함' 열을
             #   복원한다. 인라인과 100% 같은 규약을 쓰려고 그 차감 함수를 그대로 재사용한다
@@ -1198,7 +1273,13 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                 is_boundary_double = (old_incl is not None and amt > 0
                                       and old_incl == 2 * amt)
                 if not (is_ship_double or is_boundary_double):
-                    continue                      # 정상 real → 손 안 댐
+                    # 금액은 손대지 않되, **확정 사실만** 새로 적을 게 있으면 저장한다.
+                    #  안 그러면 이미 real 인 롯데온 행(대부분)에 확정 증거가 영영 안 붙는다.
+                    if mark_confirmed:
+                        o.row = dict(row)         # 새 dict 대입 — JSON 컬럼 변경 감지
+                        o.last_seen_at = _store._now()
+                        stat["confirmed_marked"] += 1
+                    continue                      # 정상 real → 금액은 손 안 댐
             new_row = dict(row)
             new_row["정산예정금액"] = amt
             new_row["_settle_source"] = "real"

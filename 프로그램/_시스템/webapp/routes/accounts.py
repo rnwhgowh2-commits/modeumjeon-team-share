@@ -1531,15 +1531,35 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
     elapsed = round(_time.time() - started, 2)
     if r.status_code != 200:
         body_snippet = (r.text or "")[:300]
+        # 「HTTP 400」 숫자만 보여주면 사장님이 뭘 해야 할지 알 수 없다.
+        #  네이버가 준 사유(message · invalidInputs[].message)를 그대로 꺼내 붙인다.
+        naver_msg = ""
+        try:
+            _j = r.json()
+            _parts = [str(_j.get("message") or "").strip()]
+            for _iv in (_j.get("invalidInputs") or []):
+                _m = str((_iv or {}).get("message") or "").strip()
+                if _m:
+                    _parts.append(_m)
+            naver_msg = " · ".join(dict.fromkeys(p for p in _parts if p))
+        except Exception:  # noqa: BLE001 — 사유 꺼내기 실패가 본 판정을 막으면 안 된다.
+            pass
         hint = ""
-        if r.status_code == 403:
+        if "eapp-application.status" in body_snippet:
+            # 2026-08-12 브랜드타임(스스) 실측. 휴면 해제를 「계정」만 풀고 「애플리케이션」은
+            #  아직 사용 상태가 아닐 때 여기로 온다. 키·서명·서버 IP 는 멀쩡하다.
+            hint = ("네이버 커머스 API 센터에서 이 **애플리케이션**이 사용 가능 상태가 아닙니다"
+                    "(휴면·정지·심사중 등). 키 문제가 아니라 앱 상태 문제라 키를 다시 넣어도 "
+                    "똑같습니다. 커머스API센터 → 애플리케이션 관리에서 상태를 살린 뒤 다시 눌러주세요.")
+        elif r.status_code == 403:
             hint = ("403 — 해외 IP 차단 또는 셀러센터 API 허용목록 미등록. "
                     "AWS 서버라면 네이버 커머스 API 센터에 서버 IP(54.116.196.90) 등록 필요.")
         elif r.status_code == 401:
             hint = "401 — Client ID/Secret 또는 서명 오류. 키를 다시 확인하세요."
         return jsonify({
             "ok": False,
-            "error": f"스마트스토어 OAuth 실패 — HTTP {r.status_code}",
+            "error": (f"스마트스토어 OAuth 실패 — HTTP {r.status_code}"
+                      + (f" · {naver_msg}" if naver_msg else "")),
             "status_code": r.status_code,
             "elapsed_sec": elapsed,
             "body_snippet": body_snippet,

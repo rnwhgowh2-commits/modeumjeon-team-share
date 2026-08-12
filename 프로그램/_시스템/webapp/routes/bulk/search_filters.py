@@ -56,6 +56,10 @@ def _row(f):
         'run_requested_at': f.run_requested_at.isoformat() if f.run_requested_at else None,
         'last_run_at': f.last_run_at.isoformat() if f.last_run_at else None,
         'last_new_count': f.last_new_count,
+        # 🔴 「못 봤다」와 「더 있는데 멈췄다」 — 둘 다 0건과 다른 사실이다.
+        'last_error': getattr(f, 'last_error', None) or None,
+        'last_capped': bool(getattr(f, 'last_capped', False)),
+        'last_ext_version': getattr(f, 'last_ext_version', None) or None,
         'apply_policy_id': f.apply_policy_id,
     }
 
@@ -234,6 +238,80 @@ def compute_price_for(session, source_product, policy_id):
         return price, None
     except Exception as e:     # noqa: BLE001 — 값은 안 만들되 **왜인지는 말한다**
         return None, f'가격 계산 중 오류: {str(e)[:120]}'
+
+
+#: 「찾은 주소 보기」가 한 번에 내려주는 최대 건수.
+#: 🔴 수천 건을 한 번에 내리면 화면이 멎는다. **자른 사실은 `total` 로 말한다** —
+#:   조용히 자르면 「31건 찾았다는데 목록엔 20개뿐」이 되어 사장님이 못 믿게 된다.
+ITEMS_LIMIT_DEFAULT = 200
+ITEMS_LIMIT_MAX = 1000
+
+
+@bp.get('/api/search-filters/<int:filter_id>/items')
+def list_filter_items(filter_id: int):
+    """이 필터가 **무엇을** 찾았나 — 주소 목록.
+
+    ━━ 왜 필요한가 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    화면은 「찾음 31」이라고만 말했다. **무엇을 31개 찾았는지 볼 방법이 없었다.**
+    검색어가 엉뚱해 잡화가 딸려 와도 상품을 만들어 보기 전엔 모른다 —
+    수백~수천 건이면 그때 되돌리는 값이 크다.
+
+    ★ 주소마다 **어디까지 왔는지**도 같이 말한다. 주소만 보여주면
+      「왜 상품이 안 생기지」를 여전히 못 푼다.
+        crawled — 크롤이 끝났나(증거는 `last_status=='ok'` 하나뿐. 행이 있다고
+                  크롤된 게 아니다 — 방금 우리가 만든 빈 행일 수 있다)
+        drafted — 상품(초안)이 됐나
+
+    returns: {ok, total, items:[{product_url, first_seen_at, crawled, drafted}]}
+      total = **자르기 전** 전체 수(자른 것을 숨기지 않는다)
+    """
+    from lemouton.registration.models import (
+        ProductDraft, SearchFilter, SearchFilterItem)
+    from lemouton.sources.models import SourceProduct
+
+    try:
+        limit = int(request.args.get('limit') or ITEMS_LIMIT_DEFAULT)
+    except (TypeError, ValueError):
+        limit = ITEMS_LIMIT_DEFAULT
+    limit = max(1, min(limit, ITEMS_LIMIT_MAX))
+
+    s = SessionLocal()
+    try:
+        f = s.query(SearchFilter).filter_by(id=filter_id).first()
+        if f is None or f.deleted_at is not None:
+            return _err('검색필터를 찾을 수 없습니다.', 404)
+
+        total = s.query(SearchFilterItem).filter_by(filter_id=filter_id).count()
+        rows = (s.query(SearchFilterItem)
+                .filter_by(filter_id=filter_id)
+                .order_by(SearchFilterItem.id).limit(limit).all())
+        urls = [r.product_url for r in rows]
+
+        # 크롤됨 — 「행이 있다」가 아니라 「last_status=='ok'」가 증거다.
+        crawled = set()
+        drafted = set()
+        for i in range(0, len(urls), 900):          # IN 절 상한을 넘기지 않는다
+            chunk = urls[i:i + 900]
+            for (u,) in (s.query(SourceProduct.url)
+                         .filter(SourceProduct.site == f.source_key,
+                                 SourceProduct.url.in_(chunk),
+                                 SourceProduct.last_status == 'ok',
+                                 SourceProduct.deleted_at.is_(None)).all()):
+                crawled.add(u)
+            for (u,) in (s.query(ProductDraft.source_url)
+                         .filter(ProductDraft.source_url.in_(chunk),
+                                 ProductDraft.deleted_at.is_(None)).all()):
+                drafted.add(u)
+
+        items = [{'product_url': r.product_url,
+                  'first_seen_at': r.first_seen_at.isoformat() if r.first_seen_at else None,
+                  'crawled': r.product_url in crawled,
+                  'drafted': r.product_url in drafted}
+                 for r in rows]
+        return jsonify({'ok': True, 'total': total, 'items': items,
+                        'limit': limit})
+    finally:
+        s.close()
 
 
 #: 성적표가 매출을 볼 기간(일). 전 기간을 훑으면 주문라인 전수 조회가 되어 느리다.

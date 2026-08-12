@@ -19,7 +19,7 @@ def client(monkeypatch):
 
 
 def test_이름을_적으면_옵션함이_생긴다(client):
-    r = client.post('/optgen/api/option-box', json={'name': '르무통 메이트'})
+    r = client.post('/optgen/api/option-box', json={'name': '르무통 메이트', 'brand': '르무통'})
     assert r.status_code == 200, r.get_data(as_text=True)
     j = r.get_json()
     assert j['ok'] is True
@@ -30,7 +30,7 @@ def test_이름을_적으면_옵션함이_생긴다(client):
 
 def test_이름이_비면_거절하고_이유를_말한다(client):
     """조용히 만들어 놓으면 나중에 이름 없는 묶음을 아무도 못 찾는다."""
-    r = client.post('/optgen/api/option-box', json={'name': '  '})
+    r = client.post('/optgen/api/option-box', json={'name': '  ', 'brand': '르무통'})
     assert r.status_code == 400
     j = r.get_json()
     assert j['ok'] is False
@@ -39,7 +39,7 @@ def test_이름이_비면_거절하고_이유를_말한다(client):
 
 def test_만든_옵션함_화면이_열린다(client):
     code = client.post('/optgen/api/option-box',
-                       json={'name': '메이트'}).get_json()['code']
+                       json={'name': '메이트', 'brand': '르무통'}).get_json()['code']
     r = client.get(f'/optgen/box/{code}')
     assert r.status_code == 200
     html = r.get_data(as_text=True)
@@ -54,7 +54,7 @@ def test_없는_옵션함은_없다고_말한다(client):
 
 def test_만든_옵션함이_목록에_보인다(client):
     """만들어 놓고 못 찾으면 만든 의미가 없다."""
-    client.post('/optgen/api/option-box', json={'name': '목록에보일것'})
+    client.post('/optgen/api/option-box', json={'name': '목록에보일것', 'brand': '르무통'})
     html = client.get('/optgen?tab=option').get_data(as_text=True)
     assert '목록에보일것' in html
 
@@ -86,7 +86,7 @@ def test_옵션함에는_상품번호가_없다(client):
     from shared.db import SessionLocal
     from lemouton.sourcing.models import Model
     code = client.post('/optgen/api/option-box',
-                       json={'name': '번호확인'}).get_json()['code']
+                       json={'name': '번호확인', 'brand': '르무통'}).get_json()['code']
     s = SessionLocal()
     try:
         m = s.get(Model, code)
@@ -105,7 +105,7 @@ def test_상품생성_탭에_묶음_목록이_뜬다(client):
 def test_옵션_없는_묶음은_상품생성_목록에_안_뜬다(client):
     """담을 게 없어 눌러도 할 일이 없다."""
     code = client.post('/optgen/api/option-box',
-                       json={'name': '빈묶음테스트'}).get_json()['code']
+                       json={'name': '빈묶음테스트', 'brand': '르무통'}).get_json()['code']
     html = client.get('/optgen?tab=product').get_data(as_text=True)
     assert '빈묶음테스트' not in html
     client.delete(f'/optgen/api/option-box/{code}')

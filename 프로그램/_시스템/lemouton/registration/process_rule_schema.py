@@ -315,6 +315,66 @@ SCHEMAS: dict = {
                hint="마켓 한도까지 채움 (스스 10개)"),
             _F("fixed_tags", "고정 태그", "list", default=[]),
         )),
+    # ══ [2026-08-12] 사장님 엑셀 「마켓별 상품등록 정보」 대조로 추가 ══════════
+    #   근거 = 각 마켓 **상품등록 API 원문**(webapp/data/marketplace_api_map.json).
+    #   필수 판정과 그 근거는 `lemouton/policy/required.py` 가 따로 들고 있다.
+    #   🔴 기본값은 사장님이 엑셀에 적어 두신 값 그대로다 — 지어내지 않았다.
+    "listing": ItemSchema(
+        "listing", ITEM_LABELS["listing"], "§7-6 판매방식·통관 (엑셀 O·N·R·Q열)",
+        note="상품마다 거의 안 바뀌는 값들입니다 — 한 번 정해 두면 손 갈 일이 없습니다.",
+        fields=(
+            # 쿠팡 items.taxType[필수] · 옥션/G마켓 isVatFree[필수] · 11번가 suplDtyfrPrdClfCd[필수]
+            _F("tax_type", "과세구분", "choice", default="과세",
+               choices=("과세", "면세", "영세"),
+               hint="사장님 확정 = 과세 (해외구매대행은 별도 확인 필요)"),
+            # 스스 saleType(NEW/OLD) · 쿠팡 offerCondition · ESM goodsStatus · 11번가 prdStatCd[필수]
+            _F("product_condition", "상품상태", "choice", default="새상품",
+               choices=("새상품", "중고상품"),
+               hint="11번가는 등록 시 필수 칸입니다"),
+            # 🔴 쿠팡은 판매종료일시가 필수라 「설정 안 함」이 없다 —
+            #    문서가 「2099년까지 길게」를 권한다. 그래서 「가장 길게」가 기본값이다.
+            _F("sale_period", "판매기간", "choice", default="가장 길게",
+               choices=("가장 길게", "무제한", "직접 지정"),
+               hint="쿠팡·옥션·G마켓은 판매기간이 필수라 「설정 안 함」이 안 됩니다 — "
+                    "쿠팡 문서가 2099년까지 길게 잡으라고 안내합니다"),
+            # 스스 minorPurchasable[필수] · 쿠팡 adultOnly[필수] · 11번가 minorSelCnYn[필수]
+            _F("minor_purchase", "미성년자 구매", "choice", default="전연령 구매 가능",
+               choices=("전연령 구매 가능", "19세 이상만"),
+               hint="성인 카테고리 상품은 마켓이 강제로 19세 이상으로 돌립니다"),
+            # 쿠팡 manufacture — 「정확한 제조사를 못 적으면 brand 와 동일하게 입력 가능」
+            _F("manufacturer_mode", "제조사", "choice", default="브랜드와 동일",
+               choices=("브랜드와 동일", "직접 입력"),
+               hint="쿠팡 문서가 「제조사를 모르면 브랜드와 동일하게」라고 안내합니다"),
+            _F("manufacturer_fixed", "제조사 직접 입력", "text", default="",
+               hint="위에서 「직접 입력」을 고른 경우에만 씁니다"),
+        )),
+    "price_compare": ItemSchema(
+        "price_compare", ITEM_LABELS["price_compare"], "§7-6 판매방식·통관 (엑셀 M열)",
+        note="가격비교에 걸면 노출이 늘지만 수수료가 더 붙습니다.",
+        fields=(
+            # 스스 naverShoppingRegistration[필수] · 11번가 prcCmpExpYn(선택) · ESM pcs>isUse
+            #   🔴 쿠팡 등록 API 에는 이 개념 자체가 없다 — 사장님 엑셀도 X 로 적혀 있다.
+            _F("expose", "가격비교 노출", "bool", default=True,
+               hint="사장님 확정 = 노출. 쿠팡은 이 칸이 없어 아무 일도 안 합니다"),
+            _F("fee_add_pct", "가격비교 수수료 가산", "int", default=2, unit="%",
+               hint="사장님 엑셀 = 롯데온·11번가 2%. 🔴 지금은 적어 두기만 하고 "
+                    "판매가 계산에는 아직 안 들어갑니다"),
+        )),
+    "ids": ItemSchema(
+        "ids", ITEM_LABELS["ids"], "§7-11 식별번호 (엑셀 V·W열)",
+        note="상품마다 값이 달라 정책은 「빈칸일 때 어떻게 할지」만 정합니다.",
+        fields=(
+            # 11번가 modelNm — 「모델명이 없을 시 "없음"으로 입력합니다」
+            _F("model_mode", "모델번호", "choice", default="없으면 「없음」",
+               choices=("없으면 「없음」", "없으면 비워 둠"),
+               hint="11번가는 빈칸을 받지 않아 「없음」이라고 적어야 합니다"),
+            # 쿠팡 emptyBarcode(없으면 true) + emptyBarcodeReason
+            _F("barcode_mode", "바코드", "choice", default="없다고 밝힘",
+               choices=("없다고 밝힘", "없으면 비워 둠"),
+               hint="쿠팡은 바코드가 없으면 「없음」이라고 밝히는 칸이 따로 있습니다"),
+            _F("barcode_empty_reason", "바코드 없는 사유", "text", default="자체 제작 상품",
+               hint="쿠팡 전용 · 100자 제한"),
+        )),
     "brand": ItemSchema(
         "brand", ITEM_LABELS["brand"], "§7-1 브랜드 표기",
         note="표기를 고르지 않으면 저장된 브랜드를 그대로 씁니다 — 프로그램이 번역해 "
@@ -512,5 +572,5 @@ def validate_config(item_key: str, config: dict, *, notices: list = None) -> dic
 
 
 def all_schemas() -> list:
-    """화면이 폼을 그릴 수 있게 13항목 전부."""
+    """화면이 폼을 그릴 수 있게 전 항목(ITEM_KEYS 순서 그대로)."""
     return [SCHEMAS[k].to_dict() for k in ITEM_KEYS]

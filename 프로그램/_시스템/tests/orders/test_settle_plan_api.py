@@ -16,8 +16,17 @@ def _make_client():
     return app.test_client()
 
 
+# 🔴 「미확정」 줄의 지급예정일은 **관측 시각(status_at)에서 규칙으로 추정**한다.
+#   그래서 기준점을 과거로 고정해 두면 오늘이 그 날짜를 지나가는 순간 「앞으로 받을 돈」에서
+#   빠져 시험이 저절로 깨진다 — 2026-08-13 에 실제로 그렇게 깨졌고, 아무도 코드를
+#   안 고쳤는데 **모두의 배포가 막혔다**. 「미래」를 봐야 하는 줄은 기준점도 미래로 둔다
+#   (확정 줄이 이미 2099-08-20 을 쓰는 것과 같은 이유).
+FUTURE_AT = _dt.datetime(2099, 8, 1, 12, 0)
+PAST_AT = _dt.datetime(2026, 8, 1, 12, 0)
+
+
 def _line(status="구매확정", market="gmarket", incl=10000, src="real",
-          date=None, account="계정A", **row_extra):
+          date=None, account="계정A", status_at=PAST_AT, **row_extra):
     row = {"주문상태": status, "정산예정금(배송비포함)": incl, "정산예정금액": incl,
            "_settle_source": src, "주문일": "2026-08-01 10:00",
            "오픈마켓주문번호": "ONO1", "상품명": "코트", "옵션": "블랙/95",
@@ -26,7 +35,7 @@ def _line(status="구매확정", market="gmarket", incl=10000, src="real",
         row["정산예정일"] = date
     row.update(row_extra)
     return {"row": row, "market": market, "account": account,
-            "status_at": _dt.datetime(2026, 8, 1, 12, 0)}
+            "status_at": status_at}
 
 
 def _patch_lines(monkeypatch, lines):
@@ -37,7 +46,7 @@ def _patch_lines(monkeypatch, lines):
 def test_집계_지급예정일축(monkeypatch):
     _patch_lines(monkeypatch, [
         _line(date="2099-08-20", incl=100),
-        _line(status="배송중", src="estimated", incl=200),
+        _line(status="배송중", src="estimated", incl=200, status_at=FUTURE_AT),
     ])
     c = _make_client()
     r = c.get("/orders/api/settle-plan?axis=payout&unit=week")
@@ -226,13 +235,19 @@ def test_이미_받은_주문은_받은_날을_보여준다(monkeypatch):
     assert row["date_source"] == "real"        # 마켓이 알려준 날이라 실측
 
 
-def test_입금일_지남_목록에_사유와_확인방법이_실린다(monkeypatch):
-    """숫자만 보면 뭘 해야 할지 알 수 없다 — 원인과 확인법을 같이 준다."""
+def test_정산시작전_목록에_사유와_확인방법이_실린다(monkeypatch):
+    """숫자만 보면 뭘 해야 할지 알 수 없다 — 원인과 확인법을 같이 준다.
+
+    🔴 [2026-08-12] 이 건은 「입금일 지남」이 아니라 「정산 시작 전」이다 —
+       구매확정 전인데 **우리 추정** 날짜만 지난 것이라 돈이 밀린 게 아니다."""
     ln = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
     ln["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
     _patch_lines(monkeypatch, [ln])
     c = _make_client()
-    rows = c.get("/orders/api/settle-plan/detail?category=overdue").get_json()["rows"]
+    assert c.get("/orders/api/settle-plan/detail?category=overdue"
+                 ).get_json()["rows"] == []
+    rows = c.get("/orders/api/settle-plan/detail?category=not_started"
+                 ).get_json()["rows"]
     assert len(rows) == 1
     r = rows[0]
     assert r["사유코드"] == "not_confirmed_yet"
@@ -242,9 +257,12 @@ def test_입금일_지남_목록에_사유와_확인방법이_실린다(monkeypa
 
 
 def test_사유_요약도_집계에_들어간다(monkeypatch):
-    """카드 옆에 「무엇 때문에 이만큼인지」를 한눈에."""
-    a = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
-    a["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
+    """카드 옆에 「무엇 때문에 이만큼인지」를 한눈에.
+
+    ★ 「지남」 사유 요약은 **진짜 지난 것만** 센다 — 마켓이 준 날짜(real)가 지난 건들.
+      추정일만 지난 건 not_started 로 빠져 이 요약에 안 들어간다."""
+    # 마켓이 준 날짜가 지났는데 아직 구매확정 전 = 진짜 지남(사유: 확정 전)
+    a = _line(status="배송완료", market="lotteon", date="2026-08-01", incl=5000)
     b = _line(status="구매확정", market="eleven11", date="2026-08-01", incl=3000)
     _patch_lines(monkeypatch, [a, b])
     c = _make_client()
@@ -253,6 +271,30 @@ def test_사유_요약도_집계에_들어간다(monkeypatch):
     assert rs["not_confirmed_yet"]["금액"] == 5000
     assert rs["no_confirm_channel"]["금액"] == 3000
     assert rs["not_confirmed_yet"]["건수"] == 1
+
+
+def test_롯데온_수취완료는_확정예정으로_집계된다(monkeypatch):
+    """사장님 신고 — 롯데온은 구매확정인데 「아직 구매확정 전」이라 떴다.
+    롯데온의 확정 상태값은 「수취완료」(odPrgsStepCd=15)다."""
+    ln = _line(status="수취완료", market="lotteon", date="2099-08-20", incl=8000)
+    _patch_lines(monkeypatch, [ln])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan").get_json()
+    assert agg["kpi"]["confirmed_future"] == 8000
+    assert agg["kpi"]["unconfirmed_future"] == 0
+
+
+def test_정산시작전도_KPI와_목록이_일치한다(monkeypatch):
+    """새 부류를 만들 때마다 KPI 와 드릴다운이 갈리는 사고가 났다 — 같이 잠근다."""
+    ln = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
+    ln["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
+    _patch_lines(monkeypatch, [ln])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan").get_json()
+    rows = c.get("/orders/api/settle-plan/detail?category=not_started"
+                 ).get_json()["rows"]
+    assert agg["kpi"]["not_started"] == sum(r["총정산예정"] for r in rows) == 5000
+    assert agg["kpi"]["total_uncollected"] == 5000     # 사라지는 돈 0원
 
 
 # ══ [2026-08-06 개선] 정산율 감시 · 엑셀 내보내기 ════════════════════════════
@@ -291,3 +333,122 @@ def test_엑셀_모르는_부류는_거부(monkeypatch):
     _patch_lines(monkeypatch, [])
     c = _make_client()
     assert c.get("/orders/api/settle-plan/export.xlsx?category=몰라").status_code == 400
+
+
+# ══ [2026-08-12] 노션 c-1·c-2·c-3 ════════════════════════════════════════════
+
+def test_상세내역에_수령자가_실린다(monkeypatch):
+    """c-1 — 마켓 정산 화면과 한 건씩 맞대 보려면 「누구에게 간 주문인가」가 있어야 한다.
+    마켓·계정·주문상태·주문일은 이미 실려 있었고 수령자만 빠져 있었다."""
+    _patch_lines(monkeypatch, [_line(date="2099-08-20", 수령자="홍길동")])
+    c = _make_client()
+    r = c.get("/orders/api/settle-plan/detail?category=confirmed").get_json()["rows"][0]
+    for k in ("market", "account", "주문상태", "주문일", "수령자"):
+        assert r.get(k), f"{k} 가 상세내역에 없다"
+    assert r["수령자"] == "홍길동"
+
+
+def test_받은_이력이_받은_날_칸으로_나온다(monkeypatch):
+    """c-2 — 「받는 날 기준」인데 미래만 보였다. 과거 칸을 따로 준다."""
+    _patch_lines(monkeypatch, [
+        _line(date="2026-07-01", incl=900, _settle_paid_date="2026-07-28"),
+        _line(date="2099-08-20", incl=100),
+    ])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan?axis=payout&unit=week").get_json()
+    pb = agg["past_buckets"]
+    assert [b["key"] for b in pb] == ["2026-07-27"]
+    assert pb[0]["paid"] == 900
+    # 미래 본표·합계는 그대로 — 과거를 더해 부풀리지 않는다
+    assert sum(b["total"] for b in agg["buckets"]) == 100
+
+
+def test_받은_이력_칸을_누르면_그_칸_주문만_나온다(monkeypatch):
+    """예전엔 칸 거르기를 확정/미확정에만 걸어, 지난 칸을 눌러도 전건이 나왔다."""
+    _patch_lines(monkeypatch, [
+        _line(date="2026-07-01", incl=900, _settle_paid_date="2026-07-28",
+              오픈마켓주문번호="OLD"),
+        _line(date="2026-06-01", incl=500, _settle_paid_date="2026-06-02",
+              오픈마켓주문번호="OLDER"),
+    ])
+    c = _make_client()
+    rows = c.get("/orders/api/settle-plan/detail"
+                 "?category=paid&bucket=2026-07-27&unit=week").get_json()["rows"]
+    assert [r["주문번호"] for r in rows] == ["OLD"]
+
+
+def test_주문일축에도_상세내역이_있다(monkeypatch):
+    """c-3 — 주문일 축은 드릴다운이 아예 없었다."""
+    _patch_lines(monkeypatch, [
+        _line(date="2099-08-20", incl=100, 실결제금액=12000, 수령자="홍길동"),
+        _line(date="2099-08-20", incl=100, 주문일="2026-07-01 10:00",
+              오픈마켓주문번호="OTHER", 실결제금액=5000),
+    ])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan?axis=order&unit=day").get_json()
+    keys = [b["key"] for b in agg["buckets"]]
+    assert "2026-08-01" in keys
+    d = c.get("/orders/api/settle-plan/detail"
+              "?axis=order&bucket=2026-08-01&unit=day").get_json()
+    assert d["axis"] == "order"
+    assert [r["주문번호"] for r in d["rows"]] == ["ONO1"]
+    r = d["rows"][0]
+    assert r["매출액"] == 12000 and r["수령자"] == "홍길동"
+    # 집계와 목록이 같은 판정을 쓴다 — 그 칸의 매출 합이 목록 합과 같아야 한다
+    b = [x for x in agg["buckets"] if x["key"] == "2026-08-01"][0]
+    assert b["revenue"] == sum(x["매출액"] for x in d["rows"])
+
+
+def test_주문일축_목록은_매출_대체를_숨기지_않는다(monkeypatch):
+    """집계 meta 엔 건수만 있었다 — 어느 주문이 대체됐는지 줄마다 적는다."""
+    _patch_lines(monkeypatch, [_line(date="2099-08-20", incl=100,
+                                     상품금액=9000, 배송비=3000)])
+    c = _make_client()
+    d = c.get("/orders/api/settle-plan/detail"
+              "?axis=order&bucket=2026-08-01&unit=day").get_json()
+    assert d["rows"][0]["매출액"] == 12000
+    assert d["rows"][0]["매출액대체"] is True
+
+
+# ══ [2026-08-12] 노션 c-4 — 마켓 정산 대조 라우트 ════════════════════════════
+
+def _xlsx(rows):
+    import io as _io
+    import pandas as pd
+    buf = _io.BytesIO()
+    pd.DataFrame(rows).to_excel(buf, index=False)
+    return buf.getvalue()
+
+
+def test_대조항목이_기준일_규칙과_함께_나온다(monkeypatch):
+    """기준일을 잘못 뽑으면 대조 자체가 거짓 — 화면이 규칙을 그대로 보여줘야 한다."""
+    _patch_lines(monkeypatch, [])
+    c = _make_client()
+    j = c.get("/orders/settle-recon/items").get_json()
+    keys = {x["key"] for x in j["items"]}
+    assert keys == {"coupang_rg", "coupang_confirmed",
+                    "coupang_unconfirmed", "smartstore"}
+    rg = [x for x in j["items"] if x["key"] == "coupang_rg"][0]
+    assert "매출인식일 2달" in rg["기준일"]
+
+
+def test_모르는_항목은_거부한다(monkeypatch):
+    _patch_lines(monkeypatch, [])
+    c = _make_client()
+    r = c.post("/orders/settle-recon/run",
+               data={"item": "없는항목", "file": (__import__("io").BytesIO(b"x"), "a.xlsx")},
+               content_type="multipart/form-data")
+    assert r.status_code == 400
+
+
+def test_금액열을_못_찾으면_422로_본_열이름을_말한다(monkeypatch):
+    """🔴 조용히 0원으로 넘어가 「대조했는데 일치」라고 하면 안 된다."""
+    import io as _io
+    _patch_lines(monkeypatch, [])
+    c = _make_client()
+    r = c.post("/orders/settle-recon/run",
+               data={"item": "coupang_confirmed",
+                     "file": (_io.BytesIO(_xlsx([{"엉뚱한열": 1}])), "a.xlsx")},
+               content_type="multipart/form-data")
+    assert r.status_code == 422
+    assert "엉뚱한열" in r.get_json()["error"]

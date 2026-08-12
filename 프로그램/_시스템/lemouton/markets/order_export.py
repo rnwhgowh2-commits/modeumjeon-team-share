@@ -32,10 +32,12 @@ ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", 
                # 샵마인 대조로 추가(2026-07-08) — 판매처관리 계정명·주문번호·수수료·송장 등.
                "오픈마켓주문번호", "쇼핑몰별칭", "송장입력", "실결제금액",
                "총주문금액", "옵션추가금", "마켓수수료", "수수료율", "정산예정금(배송비포함)"]
-# 상품금액 = 단가×수량 / 주문금액 = 상품금액 + 배송비(배송건당 1회) / 정산예정금액 = 상품정산+배송비정산.
+# 상품금액 = 단가×수량 / 주문금액 = 총주문금액 + 배송비(배송건당 1회).
 # 배송비는 배송건(묶음) 단위 → 배송건 첫 행에만 표시(나머지 0, 합계 중복 방지).
-# 정산예정금액 = 상품 정산 + 배송비 정산(각자 수수료 차감). 배송비는 별도 정산 라인
-# (쿠팡 deliveryFee.settlementAmount·스스 DELIVERY행·롯데온 실결제 포함).
+# 🔴 M열(`정산예정금액`) = **상품 정산만**. 배송비 정산은 안 섞는다(이중 계상 사고 이력).
+#   배송비 정산은 행의 내부 키 `_ship_settle` 로 실려 N열(`정산예정금(배송비포함)`)에서만
+#   쓰인다 — 마켓이 배송비에서도 수수료를 뗀다(쿠팡 실측 3.3%, 2026-08-13 엑셀 전수).
+#   실값 출처: 쿠팡 deliveryFee.settlementAmount. 실값 없는 마켓은 고객배송비(옛 규약).
 DEFAULT_COLUMNS = list(ALL_COLUMNS)
 HEADER = DEFAULT_COLUMNS   # 하위호환 별칭
 
@@ -57,7 +59,12 @@ COLUMN_META = {
     "옵션추가금":   {"kind": "api",  "desc": "옵션 추가금(마켓 제공 시)"},
     "마켓수수료":   {"kind": "calc", "desc": "실결제 − 정산예정금액(둘 다 있을 때)"},
     "수수료율":     {"kind": "calc", "desc": "마켓수수료 ÷ 총주문금액"},
-    "정산예정금(배송비포함)": {"kind": "calc", "desc": "정산예정금액 + 고객배송비"},
+    # 🔴 2026-08-13 판정 — 「+ 고객배송비 전액」이 아니다. 마켓이 배송비에서도 수수료를 뗀다
+    #   (쿠팡 자기 정산 엑셀 449행·153주문 전수: 4,000→3,868 등 124행 예외 0건, 실효 3.3%).
+    #   실값을 주는 마켓은 그 값을, 없으면 고객배송비(옛 규약)로 떨어진다.
+    "정산예정금(배송비포함)": {"kind": "calc",
+                               "desc": "정산예정금액 + 배송비 정산액(마켓 실값·수수료 차감). "
+                                       "실값을 안 주는 마켓은 고객배송비"},
 }
 
 
@@ -253,6 +260,30 @@ SUPPORTED = {"smartstore", "lotteon", "coupang", "eleven11"}   # UI 엑셀버튼
 LIVE_VERIFIABLE = {"auction", "gmarket"}
 
 
+# ── 「확인 못 함」을 「검증 안 됨」으로 오해하지 않기 ────────────────────
+#  🔴 2026-08-12 라이브 사고: `preview.json?market=auction` 이 간헐적으로
+#     `{"ok":false,"error":"선택된 마켓이 없어요."}` 400 을 냈다(마켓을 분명히 지정했는데도).
+#     옥션·G마켓은 `SUPPORTED` 상수에 없고 **요청마다 DB 를 쳐서** 열리는 구조라,
+#     DB 가 한 번 삐끗하면 옛 코드의 `except: return set()` 이 그 마켓을 통째로
+#     「없는 마켓」으로 만들었다. 사유는 로그에도 안 남았다(조용한 실패).
+#
+#  대응: ①실패 사유를 로그로 남긴다 ②실패했을 때만 **직전 성공값**을 쓴다.
+#  ★ 성공값을 유효기간(TTL)으로 캐시하지 **않는다** — 그러면 마켓이 닫혀야 할 때
+#    늦게 닫혀, 미검증 계정 주문이 그 사이 조용히 빠진다(같은 조용한 누락 계열).
+#    잘못 여는 것과 잘못 닫는 것 **둘 다** 사고이므로, 평소엔 늘 실조회하고
+#    폴백은 **DB 가 실패한 순간에만** 쓴다.
+import threading as _threading_mod
+
+_verified_last_good: dict = {"value": None}
+_verified_lock = _threading_mod.Lock()
+
+
+def reset_verified_markets_cache() -> None:
+    """폴백값을 비운다 — 시험에서 앞 시험의 값이 새지 않게."""
+    with _verified_lock:
+        _verified_last_good["value"] = None
+
+
 def verified_markets() -> set:
     """라이브 검증이 끝나 공개해도 되는 마켓.
 
@@ -261,21 +292,42 @@ def verified_markets() -> set:
     ★ 한 계정이라도 미검증이면 마켓 전체를 잠근다. 검증된 계정만 부분 공개하면
       나머지 가게 주문이 통째로 빠진 채 '전체 주문'처럼 보인다 — 조용한 누락은
       발송 사고로 직결된다(11번가 같은 키 사고와 같은 계열).
-    DB 미연결·컬럼 미생성 등에서는 빈 집합(=아무것도 안 염)으로 안전하게 떨어진다.
+    """
+    got = _verified_markets_query()
+    if got is None:                       # 조회 **실패** — 직전 성공값 유지(없으면 빈 집합)
+        with _verified_lock:
+            prev = _verified_last_good["value"]
+        return set(prev) if prev is not None else set()
+    with _verified_lock:
+        _verified_last_good["value"] = set(got)
+    return set(got)
+
+
+def _verified_markets_query() -> set | None:
+    """DB 실조회. 실패하면 **사유를 로그로 남기고** None(=모름)을 돌려준다.
+
+    None 과 빈 집합을 갈라 쓰는 게 핵심이다 — 「검증된 마켓이 없다」와
+    「확인하지 못했다」는 완전히 다른 말인데, 옛 코드는 둘 다 빈 집합이었다.
     """
     try:
         from shared.db import SessionLocal
         from lemouton.sourcing.models_v2 import UploadAccount
         s = SessionLocal()
-    except Exception:  # noqa: BLE001 — DB 미연결/모델 미로드. 열지 않는 쪽이 안전.
-        return set()
+    except Exception as e:  # noqa: BLE001 — DB 미연결/모델 미로드.
+        import logging as _lg
+        _lg.getLogger(__name__).warning(
+            "[verified_markets] 검증 계정 조회 실패(연결): %s: %s", type(e).__name__, e)
+        return None
     try:
         rows = (s.query(UploadAccount.market, UploadAccount.live_verified_at)
                 .filter(UploadAccount.market.in_(sorted(LIVE_VERIFIABLE)),
                         UploadAccount.is_active == True)      # noqa: E712
                 .all())
-    except Exception:  # noqa: BLE001 — 컬럼 미생성(마이그레이션 전) 등.
-        return set()
+    except Exception as e:  # noqa: BLE001 — 컬럼 미생성(마이그레이션 전) 등.
+        import logging as _lg
+        _lg.getLogger(__name__).warning(
+            "[verified_markets] 검증 계정 조회 실패(질의): %s: %s", type(e).__name__, e)
+        return None
     finally:
         try:
             s.close()
@@ -1259,6 +1311,25 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         for _dk in ("정산예정일", "_settle_final_date"):
             if _cp_dts.get(_dk):
                 r[_dk] = _cp_dts[_dk]
+        # ── 배송비 정산 실값(N열 전용) — 여태 모으고 버리던 그 값을 쓴다 ──────────
+        #  🔴 2026-08-13: `deliv_settle` 은 `_coupang_settle_map` 이 주문 레벨
+        #    `deliveryFee.settlementAmount`(총배송비 − 배송비수수료 − VAT)로 이미 모으고
+        #    있었는데 소비처가 없어 버려졌다. 그 사이 N열은 고객배송비를 **전액** 더해
+        #    배송비 있는 주문마다 3.3%(4,000원이면 132원) 상시 과대였다.
+        #  🔴 0 은 「모름」이 아니라 「배송비 정산 0원」이다 — 엑셀 배송료 행 308개 중
+        #    184개가 0 이었다. falsy 로 보고 고객배송비로 폴백하면 그 전부가 과대가 된다.
+        #    그래서 `is not None` 으로만 가른다.
+        #  🔴 배송건당 1회 규약은 `_finalize_rows` 가 `_shipkey` 로 지킨다(여기선 주문의
+        #    모든 행에 같은 값을 싣고, 둘째 행부터 거기서 0 이 된다).
+        _dsettle = deliv_settle.get(oid)
+        if _dsettle is not None:
+            r["_ship_settle"] = _dsettle
+        else:
+            # 미정산(정산 전) — 상품 추정과 같은 규율로 배송비도 추정한다. 전액을 더하면
+            #  정산 전 주문이 늘 3.3% 부풀어 이행판정이 역마진 주문을 「가능」으로 내보낸다.
+            _cship = _to_int(r.get("배송비"), 0) or 0
+            if _cship:
+                r["_ship_settle"] = round(_cship * CP_SHIP_FEE_FACTOR)
         actual = item_settle.get((oid, vid))
         if actual is not None:
             r["정산예정금액"] = actual
@@ -1350,8 +1421,27 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
 
 
 CP_FEE_FACTOR = 0.8845        # 1 - 0.1155 (쿠팡 상품 판매수수료 11.55%)
-# (쿠팡 배송비 수수료 3% 상수는 M열=상품정산만 규약 전환(2026-07-23)으로 제거 —
-#  N열 = M + 고객배송비 전액, 샵마인 45건 전수 실측.)
+
+# ── 배송비 수수료: 2026-08-13 재판정(되돌림 아님, 근거 교체) ──────────────────
+#  옛 판정(2026-07-23): 「배송비 수수료 상수 제거 — N열 = M + 고객배송비 **전액**,
+#    샵마인 45건 전수 실측」
+#  새 판정(2026-08-13): **쿠팡 자기 정산 엑셀**(MSF_PAYMENT_REVENUE_DETAIL 9개·449행·
+#    153주문) 전수 대조. 배송료는 `<기본배송료>`/`<추가배송료>` 라는 독립 정산 행으로
+#    오고 판매액에 서비스이용율 3.0%(VAT 별도) = 실효 3.3% 가 붙는다. 예외 0건:
+#      4,000→3,868(105건) · 3,000→2,901(10) · 10,000→9,670(5)
+#      9,000→8,703(2) · 6,000→5,802(1) · −4,000→−3,868(환불 1)
+#    (정산금액 = 판매액 − 판매자할인쿠폰 − 판매수수료 로 141/141 원 단위 검산됨)
+#  🔴 두 실측은 **서로 모순이 아니다** — 샵마인은 제3자 프로그램의 *계산 필드*이고,
+#    우리 N열의 소비처(마진계산기·이행판정·KPI·정산탭)는 「마켓이 실제로 주는 돈」을
+#    묻는다. 사장님 확정(2026-08-12): "더망고는 제외하고 실마켓 기준으로. 실마켓은
+#    100% 정답이야." → 실마켓 값 채택.
+#  🔴 M열엔 절대 안 넣는다 — 스스에서 그렇게 했다가 `_finalize_rows` 가 또 더해
+#    이중 계상 사고(2026-08-07, 2,910원 과다·수수료율 1.32% 오표시). 실값은 행의
+#    내부 키 `_ship_settle` 로 따로 실어 `_finalize_rows` 가 N열에서만 쓴다.
+#  🔴 실값이 없는 마켓(롯데온·11번가·옥션·G마켓)은 **옛 규약 그대로** 고객배송비.
+#    롯데온은 M에서 고객배송비를 뺐다가 `_finalize` 가 되더하는 구조라(:648·:1029)
+#    N열 식을 통째로 바꾸면 그 정합이 깨진다.
+CP_SHIP_FEE_FACTOR = 0.967    # 1 - 0.033 (배송비 서비스이용율 3.0% + VAT 10%)
 
 
 def _cp_estimate_settle(unit, qty, ship, seller_dc=0, fee_rate=None):
@@ -1766,6 +1856,10 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
     # 백필(claim_to_now=False)은 '지금까지' 확장 없이 창 안만 — 창마다 to-now 스캔이
     # 붙으면 과거 창일수록 느려진다(backfill-until-now-scan 사고와 같은 유형).
     claim_until = _until_now(until) if claim_to_now else until
+    # 🔴 재는 줄이 없어 74.5초의 내역을 아무도 몰랐다(2026-08-12). 한 줄 남긴다 —
+    #   마켓 호출은 0회 늘지 않고, 다음에 느려지면 어디가 느린지 바로 보인다.
+    import time as _tm
+    _t_clm = _tm.monotonic()
     try:
         if claim_to_now:
             extra = list(_clm.iter_all(market, since, claim_until, client=client))
@@ -1777,9 +1871,14 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
                         _clm.iter_exchanges, _clm.iter_uncollected):
                 extra.extend(_fn(market, since, claim_until, client=client))
     except Exception as e:      # noqa: BLE001 — 클레임 조회 실패는 주문을 죽이지 않는다.
-        log.warning("[%s] 클레임 조회 실패(주문은 유지): %s: %s", market, type(e).__name__, e)
+        log.warning("[%s] 클레임 조회 실패(%.1f초 만에, 주문은 유지): %s: %s",
+                    market, _tm.monotonic() - _t_clm, type(e).__name__, e)
         diag["errors"]["클레임조회"] = f"{type(e).__name__}: {e}"[:200]
         return
+    _clm_sec = _tm.monotonic() - _t_clm
+    diag["counts"]["클레임조회초"] = round(_clm_sec, 1)
+    log.info("[%s] ESM 조회 — 주문 %d건 · 클레임 %d건 · 클레임에 %.1f초",
+             market, _n_order, len(extra), _clm_sec)
 
     # ★ 클레임도 '주문일 기준'으로 담는다 (2026-07-21 사장님 확정: 검증 기간은 "고객이
     #   실제로 발주한 날"이다. 취소일이 아니다). 클레임은 신청/완료일 기준으로 조회되므로
@@ -1937,6 +2036,15 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                               or od.get("OptAddPrice") is not None
                               or od.get("_claim_kind") is None) else ""),
             # 실결제(K열) = 원금(단가×수량+옵션) — 샵마인 규약(2026-07-23 G마켓 13/13 전수:
+            # ── 할인 부담 갈래(2026-08-12) — 지도에 있는데 우리가 안 읽던 필드 ──
+            #  SellerDiscountPrice  판매자할인금액(1+2 최종) = **우리 부담**
+            #  DirectDiscountPrice  사이트에서 할인 지원하는 금액 = **마켓 부담**
+            #  🔴 앞서 「G마켓은 구조적으로 불가」라고 보고했던 것은 오판이다 —
+            #    `OrderAmount`·`AcntMoney` 만 보고 **같은 응답 안의 이 두 필드를 놓쳤다**.
+            #    지도만 보고 또 단정하지 않도록, 값이 실제로 오는지는 진단 창구
+            #    `/orders/diag/esm-order-raw` 로 라이브 확인한 뒤에 쓴다.
+            "_dc_seller": _g(od, "SellerDiscountPrice"),
+            "_dc_market": _g(od, "DirectDiscountPrice"),
             #  샵 K=단가×수량, 판매자 쿠폰 할인 전). 빌더에서 채워야 미정산 신규 주문도
             #  estimate_settle_from_history 가 돈다(실측 471551517: K 공란→추정 불발).
             #  _finalize_rows 의 ESM K=원금 규칙과 같은 값이라 이중 계산 아님.
@@ -3137,17 +3245,34 @@ def _finalize_rows(rows: list) -> list:
         r.pop("_odseq", None)              # 140 진행단계 조인 임시키 제거(출력 누출 방지)
         sk = r.pop("_shipkey", None)
         ship = _to_int(r.get("배송비"), 0) or 0
+        # 배송비 **정산** 실값(N열 전용, 내부 키). 없으면 None → 옛 규약(고객배송비)으로.
+        #  🔴 `_to_int` 는 0 을 0 으로 돌려주므로 0 과 「없음」이 안 섞인다.
+        #  🔴 **pop 하지 않는다** — `_shipkey`·`_oid` 처럼 지워 버리면, 저장분을 다시
+        #    계산하는 `enrich_stored_rows`(→ `_finalize_rows` 재호출)에서 이 값이 없어
+        #    N열이 조용히 「M + 고객배송비」로 되돌아간다. 화면·마진계산기·정산탭이 읽는
+        #    것은 **저장분**이라, 그러면 고친 보람이 라이브에서 통째로 사라진다.
+        #    (`_merge_row` 는 새 조회에 이 키가 없으면 기존 값을 지우지 않는다.)
+        ship_settle = _to_int(r.get("_ship_settle"))
         if sk is not None and sk in seen:
             ship = 0                       # 이미 계산한 배송건 → 0
+            if ship_settle is not None:
+                ship_settle = 0            # 실값도 배송건당 1회 — 다건 주문 중복 가산 금지
         elif sk is not None:
             seen.add(sk)
         r["배송비"] = ship
-        r["주문금액"] = (prod + ship) if prod != "" else ""
 
         # ── 샵마인 대조 파생(2026-07-08): 총주문금액·마켓수수료·수수료율 ──
         opt_add = _to_int(r.get("옵션추가금"), 0) or 0
         total = (prod + opt_add) if prod != "" else ""   # 총주문금액 = 단가×수량 + 옵션추가금
         r["총주문금액"] = total
+        # 🔴 주문금액 = 총주문금액 + 배송비 — **옵션추가금을 반드시 포함**한다(2026-08-12).
+        #   옛 식은 `단가×수량 + 배송비` 라 옵션가를 통째로 빼먹었다. 실결제엔 옵션가가
+        #   들어 있으므로 「정가 − 실결제」로 재는 마켓 할인이 **음수**로 나왔다.
+        #   라이브 실측: 단가 273,000 + 옵션 65,000, 실결제 298,300
+        #     옛 정가 273,000 → 할인 −25,300(음수)  /  바른 정가 338,000 → 할인 39,700
+        #     = 네이버가 준 productDiscountAmount 와 정확히 일치.
+        #   7일 스스 81행 중 31행에 옵션가·16행이 음수였고, 할인 합계가 78만 → 337만이 됐다.
+        r["주문금액"] = (total + ship) if total != "" else ""
         settle = _to_int(r.get("정산예정금액"))
         paid = _to_int(r.get("실결제금액"))
         if paid is None and isinstance(total, int):
@@ -3171,8 +3296,20 @@ def _finalize_rows(rows: list) -> list:
                       or (_mk == "쿠팡" and "반품완료" in _st)
                       or _mk in ("옥션", "G마켓"))
         if force_orig and isinstance(total, int) and total > 0:
-            r["실결제금액"] = total
-            paid = total
+            # 🔴 옥션·G마켓도 「매출 = 실제로 번 돈」 (2026-08-12 — 쿠팡 PR#884 와 같은 규칙).
+            #   두 마켓 다 주문 API 가 갈래를 준다(라이브 실증):
+            #     옥션 2567864872  SellerDiscountPrice 0 · DirectDiscountPrice 8,980
+            #     G마켓 18/22행     셀러 합 0 · 마켓 합 47,640
+            #   앞서 「구조적 불가」로 보고한 것은 `OrderAmount`·`AcntMoney` 만 보고 낸 오판.
+            #   · 판매자할인은 우리 주머니에서 나가므로 **뺀다**
+            #   · 사이트(마켓) 할인은 마켓이 부담하므로 **안 뺀다**(빼면 매출이 실제보다 작아진다)
+            #   취소·클레임 행은 여전히 원금 그대로 — 샵마인 K열 규약(할인 차감 전).
+            _esm_sdc = 0
+            if _mk in ("옥션", "G마켓") and not zero_cancel \
+                    and "취소" not in _st and "반품" not in _st and "철회" not in _st:
+                _esm_sdc = _to_int(r.get("_dc_seller"), 0) or 0
+            r["실결제금액"] = total - _esm_sdc
+            paid = r["실결제금액"]
         # 마켓수수료: 빌더가 정산 API 실값으로 미리 채웠으면(롯데온 SettleCommission) 그대로 사용,
         #  아니면 실결제 − 정산예정금액 파생(둘 다 있고 양수일 때). 아니면 공란(폴백 금지).
         #  취소완료 0 확정 행은 파생 금지 — 실결제−0 이 수수료로 날조된다.
@@ -3205,8 +3342,18 @@ def _finalize_rows(rows: list) -> list:
         elif not zero_cancel:                # 취소완료 0 확정은 위에서 이미 채움
             r["마켓수수료"] = ""
             r["수수료율"] = ""
-        # 정산예정금(배송비포함) = 정산예정금액 + 고객배송비(무료배송이면 동일)
-        r["정산예정금(배송비포함)"] = (settle + ship) if settle is not None else ""
+        # ── N열 = 정산예정금액(상품) + **배송비 정산액** ─────────────────────────
+        #  🔴 2026-08-13 판정(CP_SHIP_FEE_FACTOR 주석 참조): 마켓은 배송비에서도 수수료를
+        #    뗀다(쿠팡 실측 3.3%). 실값을 주는 마켓은 `_ship_settle` 로 그 값을 싣는다.
+        #  🔴 실값이 없으면 **옛 규약 그대로** 고객배송비 전액 — 롯데온은 M에서 고객배송비를
+        #    뺐다가 여기서 되더하는 구조라(:648·:1029) 폴백이 바뀌면 그 정합이 깨진다.
+        #  🔴 취소완료 행은 손대지 않는다 — 「거래 무산 = 정산 0」 규약(위)과 얽히므로
+        #    실값 경로를 태우지 않고 예전 동작을 그대로 둔다(쿠팡 클레임 행은 배송비 0).
+        _ship_for_n = ship if (ship_settle is None or zero_cancel) else ship_settle
+        r["정산예정금(배송비포함)"] = (settle + _ship_for_n) if settle is not None else ""
+        if ship_settle is not None:
+            # 정규화된 값(둘째 행부터 0)을 되쓴다 — 저장분 재계산도 같은 N 이 나온다.
+            r["_ship_settle"] = ship_settle
         # 새 열 기본값 보장(빌더 미설정 시).
         r.setdefault("실결제금액", "")
         r.setdefault("옵션추가금", "")

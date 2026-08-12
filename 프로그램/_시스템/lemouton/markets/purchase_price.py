@@ -80,9 +80,42 @@ def get_many(session, line_uids) -> dict:
     return out
 
 
+def _record_history(session, *, line_uid, old_price, new_price,
+                    old_source=None, new_source=None, reason=None,
+                    ref=None, changed_by=None) -> None:
+    """변경 이력 한 줄 덧붙이기 (`models_purchase_history` 머리말의 규율).
+
+    · **바뀐 때만** 적는다 — 값도 출처도 그대로면 아무것도 안 남긴다(잡음 방지).
+    · 🔴 여기서 터져도 저장을 되돌리지 않는다. 돈 값을 못 적는 것보다 이력 한 줄이
+      비는 편이 낫다. 다만 **조용히 넘어가지는 않는다** — 로그에 남긴다.
+    """
+    if old_price == new_price and (old_source or None) == (new_source or None):
+        return
+    try:
+        from lemouton.markets.models_purchase_history import \
+            OrderLinePurchaseHistory
+
+        session.add(OrderLinePurchaseHistory(
+            line_uid=line_uid, old_price=old_price, new_price=new_price,
+            old_source=old_source, new_source=new_source,
+            reason=(reason or None), ref=(str(ref)[:255] if ref else None),
+            changed_by=changed_by))
+        session.commit()
+    except Exception:                       # noqa: BLE001
+        logger.exception("실매입가 변경 이력 적기 실패 uid=%s (%s→%s) — 저장 자체는 됐습니다",
+                         line_uid, old_price, new_price)
+        try:
+            session.rollback()
+        except Exception:                   # noqa: BLE001
+            pass
+
+
 def upsert(session, *, line_uid, price, source=SOURCE_MANUAL,
-           mango_ref=None, memo=None, input_by=None):
+           mango_ref=None, memo=None, input_by=None, reason=None):
     """실매입가 저장. **가격이 0 또는 None 이면 삭제**(= 「입력 안 함」으로 되돌림).
+
+    `reason` 은 변경 이력에 남길 「무엇이 이 변경을 일으켰나」다(기본값 = `source`).
+    마진 계산기 업로드처럼 출처는 mango 지만 경로가 다른 경우를 구분하려고 받는다.
 
     Returns: 저장된 행 / 삭제됐거나 애초에 없으면 None.
     """
@@ -96,10 +129,14 @@ def upsert(session, *, line_uid, price, source=SOURCE_MANUAL,
 
     n = _to_price(price)
     if n is None:
-        delete(session, uid)
+        delete(session, uid, reason=(reason or source), ref=mango_ref,
+               changed_by=input_by)
         return None
 
     obj = session.get(OrderLinePurchase, uid)
+    # 🔴 바꾸기 **전에** 옛 값을 챙긴다 — 고친 뒤에는 무엇이었는지 알 길이 없다.
+    old_price = int(obj.purchase_price) if obj is not None else None
+    old_source = obj.source if obj is not None else None
     if obj is None:
         obj = OrderLinePurchase(line_uid=uid, purchase_price=n, source=source,
                                 mango_ref=mango_ref, memo=memo, input_by=input_by)
@@ -116,11 +153,15 @@ def upsert(session, *, line_uid, price, source=SOURCE_MANUAL,
             obj.input_by = input_by
         obj.updated_at = datetime.now(timezone.utc)
     session.commit()
+    _record_history(session, line_uid=uid, old_price=old_price, new_price=n,
+                    old_source=old_source, new_source=source,
+                    reason=(reason or source), ref=mango_ref,
+                    changed_by=input_by)
     return obj
 
 
-def delete(session, line_uid) -> bool:
-    """행 삭제. 지운 게 있으면 True."""
+def delete(session, line_uid, *, reason=None, ref=None, changed_by=None) -> bool:
+    """행 삭제. 지운 게 있으면 True. **지움도 이력에 남는다**(new_price=None)."""
     from lemouton.markets.models_purchase import OrderLinePurchase
 
     uid = _clean(line_uid)
@@ -129,9 +170,40 @@ def delete(session, line_uid) -> bool:
     obj = session.get(OrderLinePurchase, uid)
     if obj is None:
         return False
+    old_price, old_source = int(obj.purchase_price), obj.source
     session.delete(obj)
     session.commit()
+    _record_history(session, line_uid=uid, old_price=old_price, new_price=None,
+                    old_source=old_source, new_source=None,
+                    reason=(reason or SOURCE_MANUAL), ref=ref,
+                    changed_by=changed_by)
     return True
+
+
+def history(session, line_uid, *, limit=50) -> list:
+    """한 주문 줄의 변경 이력 — 최신이 먼저. 화면이 그대로 그릴 수 있는 dict 목록."""
+    from lemouton.markets.models_purchase_history import \
+        OrderLinePurchaseHistory
+
+    uid = _clean(line_uid)
+    if not uid:
+        return []
+    rows = (session.query(OrderLinePurchaseHistory)
+            .filter(OrderLinePurchaseHistory.line_uid == uid)
+            .order_by(OrderLinePurchaseHistory.changed_at.desc(),
+                      OrderLinePurchaseHistory.id.desc())
+            .limit(int(limit)).all())
+    out = []
+    for r in rows:
+        out.append({
+            "id": int(r.id),
+            "old_price": (int(r.old_price) if r.old_price is not None else None),
+            "new_price": (int(r.new_price) if r.new_price is not None else None),
+            "old_source": r.old_source, "new_source": r.new_source,
+            "reason": r.reason, "ref": r.ref, "changed_by": r.changed_by,
+            "changed_at": (r.changed_at.isoformat() if r.changed_at else None),
+        })
+    return out
 
 
 # ── 우선순위 3단계 ────────────────────────────────────────────────────────

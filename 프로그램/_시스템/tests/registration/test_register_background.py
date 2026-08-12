@@ -369,8 +369,14 @@ def test_확인_버튼은_그_마켓_상품조회를_상품명으로_부른다(c
     assert body['scanned'] == 1 and '상품명' in body['scope'], body
 
 
-def test_조회_실패는_없다가_아니라_원문_사유로_502(client, monkeypatch):
-    """조회가 터진 것을 「상품 없음」으로 칠하면 유령 상품을 못 찾는다."""
+def test_조회_실패는_없다가_아니라_원문_사유로_424(client, monkeypatch):
+    """조회가 터진 것을 「상품 없음」으로 칠하면 유령 상품을 못 찾는다.
+
+    [2026-08-12] 상태코드가 502 → 424 로 바뀌었다. 앞단(Cloudflare/Caddy)이 502·504 의
+    본문을 자기 오류 HTML 로 갈아치워 원문 사유가 화면에 못 갔기 때문(app.py
+    _unswallow_gateway_json). 이 테스트가 지키려는 것은 상태코드 숫자가 아니라
+    「원문 사유를 버리지 않는다」이므로, 그 계약은 그대로 두고 코드만 맞춘다.
+    """
     import webapp.routes.bulk.drafts as D
     import lemouton.uploader.market_fetch as MF
     import shared.platforms.eleven11.products as P11
@@ -384,7 +390,8 @@ def test_조회_실패는_없다가_아니라_원문_사유로_502(client, monke
 
     monkeypatch.setattr(P11, 'search_products', boom)
     r = client.get(f'/bulk/api/drafts/{did}/market-lookup?market=eleven11')
-    assert r.status_code == 502
+    assert r.status_code == 424                     # 앞단이 안 삼키는 코드로 나간다
+    assert r.headers.get('X-Upstream-Status') == '502'   # 원래 뜻은 헤더에 보존
     assert r.get_json()['ok'] is False
     assert '서버 오류' in r.get_json()['error']     # 원문을 버리지 않는다
 

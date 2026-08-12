@@ -8,12 +8,26 @@
     <h1 class="page-header__title">옵션생성 &amp; 상품생성</h1>
   </div>
 
+  {# [2026-08-12 노션 하위탭 a · 사장님 A1 확정] 2단 위상 —
+     위에서 「옵션 생성 / 상품 생성」을 고르고, 아래에서 「직접 / 내마켓 불러오기」.
+     옵션을 먼저 만들고 상품은 나중이라는 순서가 눈에 보이게 한다. #}
   <div class="og-tabs">
-    {% for t in subtabs %}
-      <a class="og-tab {% if t.key == tab %}on{% endif %}"
-         href="/optgen?tab={{ t.key }}">{{ t.label }}</a>
+    {% for g, glabel, items in subtab_groups %}
+      {% set on = items | selectattr('key', 'equalto', tab) | list | length > 0 %}
+      <a class="og-tab {% if on %}on{% endif %}"
+         href="/optgen?tab={{ items[0].key }}">{{ glabel }}</a>
     {% endfor %}
   </div>
+  {% for g, glabel, items in subtab_groups %}
+    {% if items | selectattr('key', 'equalto', tab) | list | length > 0 and items | length > 1 %}
+    <div class="og-subtabs">
+      {% for t in items %}
+        <a class="og-sub {% if t.key == tab %}on{% endif %}"
+           href="/optgen?tab={{ t.key }}" title="{{ t.label }}">{{ t.short }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endfor %}
 
   {% if tab == 'market' %}
   {% include 'optgen/_market_pane.html' %}
@@ -25,7 +39,9 @@
      단추 → 가운데 만들기 창. 목록이 화면의 주인공이 된다. #}
   {% if tab in ('direct', 'market') %}
   <div class="og-list">
-    <div class="og-lh">옵션 매트릭스 <span class="og-cnt">{{ boxes|length }}</span>
+    {# 🔴 [2026-08-12 노션 옵션 e] 예전엔 `boxes|length` 였는데 목록이 50개에서 잘려
+       **언제나 「50」**이었다 — 상한값을 전체인 양 보여준 것이다. 이제 보이는 수를 센다. #}
+    <div class="og-lh">옵션 매트릭스 <span class="og-cnt" id="og-boxn">{{ box_counts.shown }}</span>
       {% if tab == 'direct' %}
       <button class="og-new" type="button" id="ob-open">+ 옵션 매트릭스 생성</button>
       {% endif %}
@@ -46,16 +62,34 @@
           <option value="name">이름 순</option>
           <option value="opts">옵션 많은 순</option>
         </select>
+        {# [2026-08-12 노션 옵션 e] 평소 볼 일 없는 묶음을 꺼내 보는 체크 —
+           /matrix 가 이미 쓰는 그 규칙·그 설명 그대로. #}
+        {% if box_counts.hidden %}
+        <label class="og-hid-row" title="평소 이 화면에서 볼 일이 없어 숨겨 둔 것을 꺼내 봅니다.&#10;· 창고에만 있는 물건 — 재고관리에서 「모음전에도 등록」을 체크하지 않고 넣은 것입니다. 창고에는 있지만 아직 팔 상품으로 만들지 않았습니다.&#10;· 빈 묶음 — 옵션이 하나도 안 담긴 묶음.">
+          <input type="checkbox" id="og-hid">
+          <span>창고에만 있는 물건 보기</span>
+          <span class="og-bc">{{ box_counts.hidden }}</span>
+        </label>
+        {% endif %}
       </aside>
-      <div>
+      <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
         <table class="og-tb og-c3">
-          <tr><th>번호</th><th>이름</th><th>브랜드</th><th class="r">옵션</th><th class="r"></th></tr>
+          {# [2026-08-12 사장님] 여러 개를 골라 한 번에 지우기 — 창고 물건이 88개나
+             쌓여 한 줄씩 지울 수 없다. 지우기는 되돌릴 수 없어 확인창에서 무엇을
+             지우는지 그대로 보여준다. #}
+          <tr><th class="og-pick"></th><th>번호</th><th>이름</th><th>브랜드</th>
+            <th class="r">옵션</th><th class="r"></th></tr>
           {% for b in boxes %}
           <tr class="og-row" data-href="/optgen/box/{{ b.code }}"
               data-brand="{{ b.brand or '' }}" data-name="{{ b.name }}" data-opts="{{ b.options }}"
+              data-hid="{{ 1 if b.hid else 0 }}"
               data-find="{{ b.code }} {{ b.name }} {{ b.brand or '' }}">
-            <td class="mono">{{ b.code }}</td>
+            {# [2026-08-13] 라벨로 감싼다 — 입력칸은 13px 뿐이라 여백을 눌러도 켜지게. #}
+            <td class="og-pick"><label><input type="checkbox" class="og-bk"
+                 data-code="{{ b.code }}" data-name="{{ b.name }}"
+                 data-opts="{{ b.options }}" aria-label="{{ b.name }} 고르기"></label></td>
+            <td class="mono">{{ b.shown_code }}</td>
             <td><b>{{ b.name }}</b></td>
             <td>{{ b.brand or '—' }}</td>
             <td class="r">{{ b.options }}</td>
@@ -70,6 +104,12 @@
           {% endfor %}
         </table>
       </div>
+    </div>
+    <div class="og-pickbar" id="og-delbar" hidden>
+      <span class="og-pickbar-n">고른 묶음 <b id="og-dn">0</b>개
+        · 안에 든 옵션 <b id="og-do">0</b>개<span class="og-pickbar-s">지우면 되돌릴 수 없습니다</span></span>
+      <button class="og-del-go" type="button" id="og-delgo">고른 묶음 지우기</button>
+      <button class="og-pclr" type="button" id="og-delclr">비우기</button>
     </div>
     {% else %}
     <div class="og-empty">아직 만든 옵션 매트릭스가 없습니다 —
@@ -89,10 +129,38 @@
       {# [2026-08-05 사장님] 뒷문장이 「상품은 / 나중에」로 갈라져 읽힘 — 줄을 분리 #}
       <div class="og-md">색상·사이즈를 짜서 옵션을 담을 매트릭스를 새로 만들어요.<br>
         <b>상품은 나중에 만듭니다.</b></div>
-      <label class="og-lb">이 매트릭스의 이름</label>
+
+      {# [2026-08-12 노션 옵션 a] 사장님이 정하신 순서 그대로 —
+         ①종류 → ②옵션축 → ③브랜드 → ④매트릭스의 이름. #}
+      <label class="og-lb"><span class="og-step">1</span> 어떤 모음전인가요</label>
+      <div class="og-rg" id="ob-kinds">
+        {# 🔴 [2026-08-13] `disabled` 종류는 **숨기지 않고 이유를 적는다.**
+           없애면 「빠뜨렸나」가 되고, 그냥 두면 골라서 틀린 데이터를 만든다. #}
+        {% for p in axis_presets %}
+        <label class="og-rr{% if loop.first %} on{% endif %}{% if p.disabled %} off{% endif %}"
+               data-kind="{{ p.kind }}"{% if p.disabled %} data-off="1"
+               title="{{ blocked_axis_reason }}"{% endif %}>
+          <input type="radio" name="ob-kind" value="{{ p.kind }}"
+                 {%- if loop.first %} checked{% endif %}
+                 {%- if p.disabled %} disabled{% endif %}>
+          <span><b class="og-rt">{{ p.label }}{% if p.disabled %} <span class="og-soon">준비 중</span>{% endif %}</b>
+            <span class="og-rd">{% if p.disabled %}{{ blocked_axis_reason }}{% else %}{{ p.desc }}{% endif %}</span></span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <label class="og-lb"><span class="og-step">2</span> 옵션축</label>
+      <div class="og-rg" id="ob-axes">
+        <span class="og-axes-none">위에서 모음전 종류를 먼저 고르세요</span>
+      </div>
+
+      <label class="og-lb"><span class="og-step">3</span> 브랜드</label>
+      <input class="og-in" id="ob-brand" placeholder="예: 르무통" maxlength="60">
+
+      {# 「이 매트릭스의 이름」 → 「매트릭스의 이름」 (사장님 지시로 '이' 제거) #}
+      <label class="og-lb"><span class="og-step">4</span> 매트릭스의 이름</label>
       <input class="og-in" id="ob-name" placeholder="예: 르무통 메이트" maxlength="120">
-      <label class="og-lb">브랜드</label>
-      <input class="og-in" id="ob-brand" placeholder="르무통" maxlength="60">
+
       <button class="og-btn" type="button" id="ob-make">만들고 색상·사이즈 짜러 가기 →</button>
       <div class="og-err" id="ob-err"></div>
     </div>
@@ -146,11 +214,13 @@
         <div class="og-rail-t">브랜드</div>
         <div id="og-brands"></div>
       </aside>
-      <div>
+      <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
         <table class="og-tb og-c3">
-          <tr><th>번호</th><th>이름</th><th>브랜드</th><th class="c">상태</th>
-            <th class="r">옵션</th><th class="r"></th></tr>
+          {# [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 체크칸을 늘 보이게 —
+             단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 개를 골라야 한다. #}
+          <tr><th class="og-pick"></th><th>번호</th><th>이름</th><th>브랜드</th>
+            <th class="c">상태</th><th class="r">옵션</th><th class="r"></th></tr>
           {# [2026-08-06 확정 1번a] 줄 클릭 = 조립대(/optgen/product/…) — 이 탭 소속.
              /matrix/… 로 보내면 상단 탭이 「상품 관리」로 점프하는 어긋남이 있었다. #}
           {% for m in mats %}
@@ -158,6 +228,10 @@
               data-brand="{{ m.brand or '' }}"
               data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}"
               data-stage="{{ m.show }}">
+            {# [2026-08-13] 라벨로 감싼다 — 입력칸은 13px 뿐이라 여백을 눌러도 켜지게. #}
+            <td class="og-pick"><label><input type="checkbox" class="og-ck"
+                 data-id="{{ m.id }}" data-name="{{ m.name }}"
+                 data-opts="{{ m.options }}" aria-label="{{ m.name }} 고르기"></label></td>
             <td class="mono">{{ m.no }}</td>
             <td><b>{{ m.name }}</b></td>
             <td>{{ m.brand or '—' }}</td>
@@ -171,7 +245,10 @@
               {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}
               {# 🔴 `/bundles?q=…` 로 보내면 **아무 데도 안 간다** — 그 화면의 찾기는 화면 안
                  JS 전용이라 주소의 q 를 안 읽는다(90행 그대로 뜬다). 상품 화면으로 바로. #}
-              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a>{% endfor %}</div>{% endif %}</td>
+              {# [2026-08-12 노션 상품 c-1] 만든 상품 줄마다 정책 바로가기 —
+                 정책은 옵션이 아니라 **상품**에 붙으므로 상품 줄에 단다.
+                 붙었으면 보러, 안 붙었으면 붙이러(상태에 따라 갈린다). #}
+              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<div class="og-made-one"><a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a><a class="og-pol" href="{{ d.policy_url }}" title="{{ d.policy_tip }}">🔧</a></div>{% endfor %}</div>{% endif %}</td>
             <td class="r">{{ m.options }}</td>
             <td class="r og-actcell">
               {% if m.code %}
@@ -180,12 +257,42 @@
               {% if m.code %}
               <div class="og-menu" hidden>
                 <a class="og-mi" href="/optgen/box/{{ m.code }}">옵션 고치기 →</a>
+                {# [2026-08-12 사장님 확정 1안] 옵션함 쪽에 이미 있던 지우기를 여기에도.
+                   🔴 판정·막는 조건은 옵션함 지우기(api_delete_option_box)를 **그대로** 쓴다 —
+                      판매용 상품·만든 상품 있음·갈라진 묶음 있음이면 서버가 막고 까닭을 말한다. #}
+                <button class="og-mi og-mi-del" type="button" data-del="{{ m.code }}"
+                        data-name="{{ m.name }}" data-opts="{{ m.options }}">지우기</button>
               </div>
               {% endif %}
             </td>
           </tr>
           {% endfor %}
         </table>
+      </div>
+    </div>
+    {# [2026-08-12 사장님 C1 확정] 2개 이상 고르면 아래 띠가 뜬다.
+       한 개만 고르면 그냥 그 묶음으로 들어가면 되므로 띠를 안 띄운다. #}
+    <div class="og-pickbar" id="og-pickbar" hidden>
+      <span class="og-pickbar-n">고른 묶음 <b id="og-pn">0</b>개
+        · 옵션 합계 <b id="og-po">0</b>개<span class="og-pickbar-s">(겹치는 조합은 한 번만 담깁니다)</span></span>
+      <button class="og-new" type="button" id="og-pgo">고른 묶음으로 상품 만들기</button>
+      <button class="og-pclr" type="button" id="og-pclr">비우기</button>
+    </div>
+
+    {# 만들기 창 — 옵션 탭의 창과 **같은 규격**(og-back·og-mbox)을 그대로 쓴다 #}
+    <div class="og-back" id="mb-back">
+      <div class="og-mbox">
+        <button class="og-mx" type="button" id="mb-close" aria-label="닫기">✕</button>
+        <div class="og-mt">📦 고른 묶음으로 상품 만들기</div>
+        <div class="og-md" id="mb-sum"></div>
+        <label class="og-lb">상품 이름</label>
+        <input class="og-in" id="mb-name" placeholder="예: 르무통 메이트 스니커즈" maxlength="120">
+        <label class="og-lb">브랜드 <span style="font-weight:400;color:var(--color-text-tertiary)">(하나만)</span></label>
+        <input class="og-in" id="mb-brand" placeholder="예: 르무통" maxlength="60">
+        <label class="og-lb">카테고리</label>
+        <input class="og-in" id="mb-cat" placeholder="예: 스니커즈" maxlength="60">
+        <button class="og-btn" type="button" id="mb-make">상품 만들기</button>
+        <div class="og-err" id="mb-err"></div>
       </div>
     </div>
     {% else %}
@@ -206,6 +313,14 @@
     color:var(--color-text-tertiary);border-bottom:2px solid transparent;
     text-decoration:none}
   .og-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+  /* [2026-08-12 A1] 아랫단 — 윗단이 「무슨 일인지」, 아랫단이 「어떤 방법인지」.
+     알약 모양으로 갈라 놓아 윗단 탭과 헷갈리지 않게 한다. */
+  .og-tabs{margin-bottom:var(--sp-3)}
+  .og-subtabs{display:flex;gap:6px;margin:0 0 var(--sp-6,32px) 4px}
+  .og-sub{padding:6px 13px;font-size:13px;border-radius:999px;text-decoration:none;
+    border:1px solid var(--color-border);color:var(--color-text-secondary)}
+  .og-sub.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--color-primary);
+    border-color:var(--color-primary);font-weight:700}
   .og-d{font-size:14px;color:var(--color-text-secondary);margin-bottom:var(--sp-3)}
   .og-now{font-size:13px;color:var(--color-text-tertiary);
     background:var(--color-bg-muted);border-radius:8px;padding:10px 12px;
@@ -240,8 +355,41 @@
     line-height:1.6}
   .og-mx{position:absolute;top:12px;right:14px;border:0;background:transparent;
     font-size:15px;color:var(--color-text-tertiary);cursor:pointer;font-family:inherit}
+  /* [2026-08-12 노션 옵션 a] 만들기 창 4단계 — 번호로 순서가 보이게 */
+  .og-step{display:inline-flex;width:18px;height:18px;border-radius:50%;
+    background:var(--color-bg-muted);color:var(--color-text-tertiary);
+    align-items:center;justify-content:center;font-size:11px;margin-right:6px}
+  /* [2026-08-12 사장님 A1 확정] 종류·옵션축 둘 다 **세로 라디오**.
+     설명이 같이 보여 처음 쓰는 사람도 안 헷갈린다(시안 v14 A1).
+     🔴 안 고른 칸은 **회색**으로 못 박는다 — `--color-border` 가 파랑 계열로 풀려
+        고른 칸과 구분이 안 되는 것을 시안에서 실측으로 잡았다. */
+  .og-rg{display:flex;flex-direction:column;gap:8px;margin-bottom:var(--sp-3);
+    min-height:36px}
+  .og-rr{display:flex;align-items:flex-start;gap:9px;border:1.5px solid var(--ap-g2,#E8E8ED);
+    border-radius:10px;padding:10px 12px;cursor:pointer;background:var(--surface,#fff)}
+  .og-rr:hover{border-color:var(--ap-g3,#D2D2D7)}
+  .og-rr input{margin:2px 0 0;accent-color:var(--color-primary);flex:none;cursor:pointer}
+  .og-rt{display:block;font-size:14px;font-weight:600}
+  .og-rd{display:block;font-size:12px;color:var(--color-text-tertiary);
+    line-height:1.5;margin-top:2px}
+  /* [2026-08-13] 아직 못 여는 종류 — 숨기지 않고 「준비 중」으로 말한다.
+     opacity 만 낮추면 왜 못 고르는지 알 수 없어, 이유 문구를 같이 띄운다. */
+  .og-rr.off{opacity:.55;cursor:not-allowed;background:var(--ap-g0,#FAFAFC)}
+  .og-rr.off:hover{border-color:var(--ap-g2,#E8E8ED)}
+  .og-rr.off input{cursor:not-allowed}
+  .og-soon{font-size:11px;font-weight:700;color:var(--글자-주황,#C93400);
+    background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 7px;margin-left:4px}
+  .og-rr.on{border-color:var(--color-primary);background:var(--연한-파랑,rgba(0,113,227,.08))}
+  .og-rr.on .og-rt{color:var(--color-primary)}
+  .og-axes-none{font-size:12.5px;color:var(--color-text-tertiary);padding:8px 0}
   /* [B1] 서랍 정렬 고르기 — 검색칸과 같은 규격, 밑여백만 없앤다 */
   .og-sort{margin-bottom:0}
+  /* [2026-08-12] 「숨긴 묶음 보기」 — 브랜드 줄(.og-b)과 같은 규격으로 나란히 */
+  .og-hid-row{display:flex;align-items:center;gap:8px;padding:8px 12px;
+    margin-top:var(--sp-3);border-top:1px solid var(--color-border);
+    font-size:14px;color:var(--color-text-secondary);cursor:pointer}
+  .og-hid-row input{margin:0;cursor:pointer}
+  .og-hid-row .og-bc{margin-left:auto}
   .og-cnt{font-size:13px;font-weight:600;color:var(--color-text-tertiary);
     background:var(--color-bg-muted);border-radius:999px;padding:2px 9px;margin-left:6px}
   .og-tb{width:100%;border-collapse:collapse;font-size:14px;
@@ -268,6 +416,11 @@
   /* ── [2026-08-04 사장님 확정 E1+타이핑] 왼쪽 서랍 + 추려지는 표 ── */
   .og-wrap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-4);
     align-items:start}
+  /* 🔴 [2026-08-12 라이브 실측] 표가 화면 밖으로 나가 **문서 전체가 가로로 굴렀다**.
+     서랍(497)+표(944)가 화면(1265)을 넘긴 것 — 상품명이 길수록 표가 벌어진다.
+     로컬은 줄이 서너 개뿐이라 안 났고 라이브에서만 났다(줄 수가 다르면 폭도 다르다).
+     화면은 그대로 두고 **표만 안에서 굴러가게** 한다(가로 넘침 규칙과 같은 처방). */
+  .og-tbwrap{min-width:0;overflow-x:auto}
   .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
   .stg-head{font-weight:600}
   .stg-head .n{font-variant-numeric:tabular-nums}
@@ -301,7 +454,14 @@
   .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
   .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
   .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
-  .og-rail{width:max-content;min-width:230px;max-width:440px;
+  /* [2026-08-12 노션 상품 a-1 · 사장님 확정 「사이드바를 키운다」]
+     440px 에서 라벨이 쓸 수 있는 폭은 카드 두 겹(서랍 + 판) 패딩을 빼면 318px 뿐인데
+     가장 긴 상태 이름(「상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용」)은 375px 라
+     nowrap 글자가 칸 밖으로 삐져나오고 문서 전체가 가로로 굴렀다(라이브 실측).
+     문구를 줄이거나 자르지 않는다 — 사장님이 지으신 말이고, 자르면 화면이 거짓말한다.
+     🔴 `width:max-content` 와 `.og-wrap` 의 `minmax(0,1fr)` 은 그대로 둔다
+        (tests/design/test_screen_truthfulness.py 가 지키는 규격 — 옛 버그를 막는 자리). */
+  .og-rail{width:max-content;min-width:230px;max-width:520px;
     background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;padding:var(--sp-3)}
   .og-find{margin-bottom:0}
@@ -338,10 +498,33 @@
   .og-made-links a{font-size:11.5px;color:var(--글자-파랑,#0066CC);text-decoration:none;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
   .og-made-links a:hover{text-decoration:underline}
+  /* [2026-08-12 노션 상품 c-1] 상품 줄 오른쪽 정책 바로가기 칩 */
+  .og-made-one{display:flex;align-items:center;gap:6px}
+  .og-pol{flex:none;border:1px solid var(--color-border);border-radius:6px;
+    padding:0 5px;font-size:11px;line-height:1.7;text-decoration:none}
+  .og-pol:hover{border-color:var(--color-primary);text-decoration:none}
   .og-badge.stgb.sale{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#1D7A3D)}
   .og-badge.stgb.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--글자-파랑,#0066CC)}
   .og-badge.stgb.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#9A5B00)}
   .og-badge.stgb.wait{background:var(--ap-g2,#E8E8ED);color:var(--ap-g5,#424245)}
+  /* [2026-08-12 사장님 C1 확정] 체크칸 + 고른 묶음 띠 */
+  .og-pick{width:1px;white-space:nowrap;text-align:center;padding-right:0}
+  .og-pick input{margin:0;cursor:pointer}
+  /* [2026-08-13 감사] 체크 입력칸은 13×13px 뿐이라 손끝 목표(44px)에 한참 모자랐다.
+     라벨로 감싸 **여백을 눌러도 켜지게** 한다 — 마크업만 늘고 보이는 건 그대로. */
+  .og-pick label{display:inline-flex;align-items:center;justify-content:center;
+    min-width:32px;min-height:32px;margin:-9px;padding:9px;cursor:pointer}
+  .og-pickbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+    background:var(--연한-파랑,rgba(0,113,227,.08));border:1px solid var(--color-border);
+    border-radius:10px;padding:11px 14px}
+  .og-pickbar-n{flex:1;font-size:13px;color:var(--글자-파랑,#0066CC)}
+  .og-pickbar-s{font-size:12px;color:var(--color-text-tertiary);margin-left:6px}
+  .og-pclr{border:1px solid var(--color-border);background:var(--surface,#fff);
+    color:var(--color-text-secondary);border-radius:8px;padding:8px 12px;
+    font-family:inherit;font-size:13px;cursor:pointer}
+  .og-del-go{background:var(--color-danger,#DC2626);color:#fff;border:0;border-radius:8px;
+    padding:8px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .og-del-go:disabled{opacity:.55;cursor:default}
   .og-actcell{position:relative;white-space:nowrap}
   /* [2026-08-05 사장님] ⋯(U+22EF)가 이 사이트 글꼴에서 빈칸으로 렌더돼 단추가
      안 보였다(전각 + 와 같은 부류·확대 캡처 실측). 어디서나 그려지는 가운뎃점
@@ -396,6 +579,17 @@
   .og-wrap { grid-template-columns: minmax(0, 1fr); }
   .og-b { min-height: 44px; }
   .og-more { min-height: 44px; padding: 0 12px; }
+  /* 🔴 [2026-08-13 감사 실측] 폰(375px)에서 **문서 전체가 146px 가로로 굴렀다.**
+     범인은 서랍(`.og-rail`) — `width:max-content` 라 가장 긴 상태 이름
+     「상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용」의 nowrap 폭(497px)이
+     그대로 화면 밖으로 나갔다(실측 scrollWidth 521 > clientWidth 375).
+     · 문구를 줄이거나 자르지 않는다 — 사장님이 지으신 말이고, 자르면 화면이 거짓말한다.
+     · `width:max-content` 자체도 안 건드린다(PC 규격 · test_screen_truthfulness).
+     → 폰에서만 **줄바꿈을 허용**한다. 두 줄이 되어도 글자는 다 보인다. */
+  .og-rail { width: auto; max-width: 100%; min-width: 0; }
+  .stg-row .lb { white-space: normal; }
+  /* 체크칸 손끝 목표 — 입력칸 자체는 13px 이라 라벨로 44px 를 만든다(감사 실측). */
+  .og-pick label { min-width: 44px; min-height: 44px; }
 }
 </style>
 
@@ -409,14 +603,77 @@
   var nameEl = document.getElementById('ob-name');
   var brandEl = document.getElementById('ob-brand');
   var errEl = document.getElementById('ob-err');
+
+  // [2026-08-12 노션 옵션 a·b] ①종류 → ②축 프리셋. 서버가 내려준 것만 고를 수 있다
+  //   (프리셋 원천 = webapp/routes/optgen.py AXIS_PRESETS — 화면에 또 적지 않는다).
+  var PRESETS = {{ axis_presets|tojson }};
+  var pickedKind = null, pickedAxes = null;
+  var kindsBox = document.getElementById('ob-kinds');
+  var axesBox = document.getElementById('ob-axes');
+
+  // [2026-08-12 사장님 A1 확정] 축도 **세로 라디오**로 그린다.
+  //   설명 한 줄(쓰임새)을 같이 달아 처음 쓰는 사람도 무엇을 고르는지 알게 한다.
+  var AX_SUB = {'색상': '사이즈가 하나뿐인 물건',
+                '색상 × 사이즈': '색상마다 사이즈가 있는 보통 신발·의류',
+                '모델': '모델만 여러 개',
+                '모델 × 색상': '모델마다 색이 있는 것',
+                '모델 × 색상 × 사이즈': '모델·색·사이즈가 다 있는 것'};
+  function esc0(s) { return String(s).replace(/[&<>"]/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function drawAxes() {
+    var pr = PRESETS.filter(function (x) { return x.kind === pickedKind; })[0];
+    if (!pr) { axesBox.innerHTML = '<span class="og-axes-none">위에서 모음전 종류를 먼저 고르세요</span>'; return; }
+    axesBox.innerHTML = pr.options.map(function (o) {
+      var key = o.axes.join(' × ');
+      var on = pickedAxes && pickedAxes.join(' ') === o.axes.join(' ');
+      return '<label class="og-rr' + (on ? ' on' : '') +
+             '" data-axes="' + esc0(o.axes.join(',')) + '">' +
+             '<input type="radio" name="ob-ax"' + (on ? ' checked' : '') + '>' +
+             '<span><b class="og-rt">' + o.n + '축 · ' + esc0(key) + '</b>' +
+             '<span class="og-rd">' + esc0(AX_SUB[key] || '') + '</span></span></label>';
+    }).join('');
+  }
+  kindsBox.addEventListener('click', function (e) {
+    var b = e.target.closest('.og-rr'); if (!b) return;
+    // [2026-08-13] 「준비 중」 종류는 고를 수 없다 — 서버도 400 으로 막는다(두 곳 같은 규칙).
+    if (b.getAttribute('data-off')) return;
+    pickedKind = b.getAttribute('data-kind');
+    // 종류를 바꾸면 축 고른 것은 버린다 — 남겨 두면 안 맞는 축이 딸려 간다.
+    pickedAxes = null;
+    kindsBox.querySelectorAll('.og-rr').forEach(function (x) {
+      var on = x === b;
+      x.classList.toggle('on', on);
+      var r = x.querySelector('input'); if (r) r.checked = on;
+    });
+    drawAxes();
+  });
+  axesBox.addEventListener('click', function (e) {
+    var b = e.target.closest('.og-rr'); if (!b) return;
+    pickedAxes = b.getAttribute('data-axes').split(',');
+    drawAxes();
+  });
+  // 첫 종류는 라디오가 이미 골라진 채로 뜬다 — 축도 바로 보여 준다.
+  pickedKind = (PRESETS[0] || {}).kind || null;
+  drawAxes();
+
   btn.addEventListener('click', function () {
     errEl.textContent = '';
+    // 사장님이 정하신 순서대로 물어본다 — 앞 단계가 비면 그 단계를 가리킨다.
+    if (!pickedKind) { errEl.textContent = '어떤 모음전인지 먼저 골라주세요.'; return; }
+    if (!pickedAxes) { errEl.textContent = '옵션축을 골라주세요.'; return; }
+    var brand = (brandEl.value || '').trim();
+    if (!brand) {
+      // 🔴 비워 두면 예전엔 조용히 「르무통」이 박혔다. 다른 브랜드 물건이
+      //    르무통으로 잡히면 브랜드별 정책·정산 분류가 통째로 어긋난다.
+      errEl.textContent = '브랜드를 적어주세요 — 비워 두면 엉뚱한 브랜드로 잡힙니다.';
+      brandEl.focus(); return;
+    }
     var name = (nameEl.value || '').trim();
     if (!name) { errEl.textContent = '이름을 적어주세요 — 없으면 나중에 찾을 수 없습니다.'; nameEl.focus(); return; }
     btn.disabled = true;
     fetch('/optgen/api/option-box', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name: name, brand: (brandEl.value || '').trim() || null}),
+      body: JSON.stringify({name: name, brand: brand, axes: pickedAxes}),
     }).then(function (r) { return r.json().then(function (j) { return {s: r.status, j: j}; }); })
       .then(function (res) {
         if (!res.j || !res.j.ok) {
@@ -476,27 +733,47 @@
     var rows = [].slice.call(document.querySelectorAll('.og-row'));
     var brandsBox = document.getElementById('og-brands');
     var cap = document.getElementById('og-cap');
-    var total = rows.length, selBrand = null, q = '';
+    var selBrand = null, q = '';
     var selStage = '';                 // 「어디까지 왔나」에서 고른 상태('' = 전체)
+    // [2026-08-12] 숨긴 묶음(단독_·빈 묶음) 보기 — 옵션 탭에만 있다.
+    var hidBox = document.getElementById('og-hid');
+    var boxN = document.getElementById('og-boxn');
+    // 🔴 숨긴 줄은 **세지도 않는다**. 세어 놓고 안 보여주면 브랜드 옆 숫자가
+    //    「플리츠플리즈 40」인데 눌러도 0줄인 거짓말이 된다(/matrix 가 겪은 그것).
+    function hidOK(r) {
+      return r.getAttribute('data-hid') !== '1' || (hidBox && hidBox.checked);
+    }
+    function pool() { return rows.filter(hidOK); }
+    var total = pool().length;
 
     function escHtml(t) {
       return String(t).replace(/[&<>"]/g, function (c) {
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
     }
-    var counts = {};
-    rows.forEach(function (r) {
-      var b = r.getAttribute('data-brand') || '';
-      counts[b] = (counts[b] || 0) + 1;
+    function buildBrands() {
+      var counts = {};
+      pool().forEach(function (r) {
+        var b = r.getAttribute('data-brand') || '';
+        counts[b] = (counts[b] || 0) + 1;
+      });
+      var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+      // data-b: '*' = 전체 / '' = 브랜드 없음 / 그 외 = 브랜드 이름
+      brandsBox.innerHTML =
+        '<div class="og-b on" data-b="*"><span>전체</span><span class="og-bc">' + total + '</span></div>' +
+        names.map(function (b) {
+          return '<div class="og-b" data-b="' + escHtml(b) + '"><span>' +
+                 (b ? escHtml(b) : '브랜드 없음') + '</span><span class="og-bc">' +
+                 counts[b] + '</span></div>';
+        }).join('');
+    }
+    buildBrands();
+    if (hidBox) hidBox.addEventListener('change', function () {
+      total = pool().length;
+      if (boxN) boxN.textContent = total;   // 머리줄 숫자도 같이 — 두 숫자가 갈리면 안 된다
+      selBrand = null;                      // 고른 브랜드가 사라질 수 있으니 푼다
+      buildBrands();
+      apply();
     });
-    var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
-    // data-b: '*' = 전체 / '' = 브랜드 없음 / 그 외 = 브랜드 이름
-    brandsBox.innerHTML =
-      '<div class="og-b on" data-b="*"><span>전체</span><span class="og-bc">' + total + '</span></div>' +
-      names.map(function (b) {
-        return '<div class="og-b" data-b="' + escHtml(b) + '"><span>' +
-               (b ? escHtml(b) : '브랜드 없음') + '</span><span class="og-bc">' +
-               counts[b] + '</span></div>';
-      }).join('');
 
     /* 「어디까지 왔나」 줄 누르기 — 상품관리와 같은 규칙(한 번에 하나) */
     var stgBox = document.getElementById('og-stages');
@@ -514,7 +791,7 @@
         var okB = selBrand === null || (r.getAttribute('data-brand') || '') === selBrand;
         var okQ = !q || (r.getAttribute('data-find') || '').toLowerCase().indexOf(q) >= 0;
         var okS = !selStage || (r.getAttribute('data-stage') || '') === selStage;
-        var on = okB && okQ && okS;
+        var on = okB && okQ && okS && hidOK(r);
         r.style.display = on ? '' : 'none';
         if (on) shown++;
       });
@@ -547,12 +824,14 @@
     find.addEventListener('input', function () {
       q = find.value.trim().toLowerCase(); apply();
     });
+    // 🔴 들어오자마자 한 번 돌린다 — 안 그러면 숨겨야 할 줄이 첫 화면에 그대로 뜬다.
+    apply();
   }
 
   // [확정 C3] 줄 아무 데나 누르면 다음으로 — 단, 「⋯」와 그 안은 빼고.
   document.querySelectorAll('.og-row').forEach(function (r) {
     r.addEventListener('click', function (e) {
-      if (e.target.closest('.og-more, .og-menu')) return;
+      if (e.target.closest('.og-more, .og-menu, .og-pick')) return;
       location.href = r.getAttribute('data-href');
     });
   });
@@ -570,6 +849,152 @@
     if (e.target.closest('.og-menu, .og-more')) return;
     document.querySelectorAll('.og-menu').forEach(function (m) { m.hidden = true; });
   });
+
+  // ── [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 여러 묶음 골라 상품 만들기 ──
+  //   왜 필요한가 — 단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 옵션을
+  //   골라야 한다. 새로 만들면 소싱처 주소·SKU 를 처음부터 다시 짜야 해서 낭비다.
+  //   🔴 줄 클릭(=그 묶음으로 이동)과 부딪치지 않게 체크칸은 클릭에서 빼 뒀다.
+  var picked = new Map();          // id → {name, opts}
+  var pbar = document.getElementById('og-pickbar');
+  if (pbar) {
+    var pn = document.getElementById('og-pn');
+    var po = document.getElementById('og-po');
+    function drawPick() {
+      pn.textContent = picked.size;
+      var sum = 0; picked.forEach(function (v) { sum += (+v.opts || 0); });
+      po.textContent = sum;
+      // 하나만 고르면 줄을 눌러 들어가면 된다 — 띠는 2개부터.
+      pbar.hidden = picked.size < 2;
+    }
+    document.querySelectorAll('.og-ck').forEach(function (ck) {
+      ck.addEventListener('click', function (e) { e.stopPropagation(); });
+      ck.addEventListener('change', function () {
+        var id = ck.getAttribute('data-id');
+        if (ck.checked) picked.set(id, {name: ck.getAttribute('data-name'),
+                                        opts: ck.getAttribute('data-opts')});
+        else picked.delete(id);
+        drawPick();
+      });
+    });
+    document.getElementById('og-pclr').addEventListener('click', function () {
+      picked.clear();
+      document.querySelectorAll('.og-ck').forEach(function (c) { c.checked = false; });
+      drawPick();
+    });
+
+    var mbBack = document.getElementById('mb-back');
+    var mbErr = document.getElementById('mb-err');
+    document.getElementById('og-pgo').addEventListener('click', function () {
+      var names = []; picked.forEach(function (v) { names.push(v.name); });
+      document.getElementById('mb-sum').innerHTML =
+        '고른 묶음 <b>' + picked.size + '개</b>를 한 상품으로 담습니다.<br>' +
+        names.map(function (n) { return '· ' + n; }).join('<br>') +
+        '<br><br>옵션은 <b>전부</b> 담기고, 같은 색상·사이즈가 겹치면 한 번만 담깁니다.';
+      mbErr.textContent = '';
+      mbBack.classList.add('open');
+      document.getElementById('mb-name').focus();
+    });
+    document.getElementById('mb-close').addEventListener('click', function () {
+      mbBack.classList.remove('open');
+    });
+    mbBack.addEventListener('click', function (e) {
+      if (e.target === mbBack) mbBack.classList.remove('open');
+    });
+    document.getElementById('mb-make').addEventListener('click', function () {
+      var b = document.getElementById('mb-make');
+      var name = (document.getElementById('mb-name').value || '').trim();
+      var brand = (document.getElementById('mb-brand').value || '').trim();
+      mbErr.textContent = '';
+      if (!name) { mbErr.textContent = '상품 이름을 적어주세요.'; return; }
+      if (!brand) { mbErr.textContent = '브랜드를 적어주세요. (한 상품에 하나만)'; return; }
+      b.disabled = true;
+      fetch('/api/matrix/build-bundle', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({matrix_ids: Array.from(picked.keys()), name: name,
+                              brand: brand,
+                              category: (document.getElementById('mb-cat').value || '').trim()}),
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          // 조용히 넘어가지 않는다 — 왜 안 됐는지, 무엇이 겹쳤는지 그대로 말한다.
+          if (!j.ok) { mbErr.textContent = j.error || '만들지 못했습니다.'; b.disabled = false; return; }
+          var q = '/optgen?tab=product&made=' + encodeURIComponent(j.no || '') +
+                  '&code=' + encodeURIComponent(j.model_code || '') +
+                  '&opts=' + encodeURIComponent(j.options || 0);
+          if (j.skipped && j.skipped.length) {
+            alert('겹치는 조합 ' + j.skipped.length + '개는 한 번만 담았어요:\n· ' +
+                  j.skipped.slice(0, 8).join('\n· '));
+          }
+          location.href = q;
+        })
+        .catch(function (e) {
+          mbErr.textContent = '만들지 못했습니다 — ' + e; b.disabled = false;
+        });
+    });
+  }
+
+  // ── [2026-08-12 사장님] 여러 묶음 골라 한 번에 지우기 ──────────────────
+  //   창고 물건이 88개나 쌓여 한 줄씩은 불가능하다.
+  //   🔴 되돌릴 수 없다 — 확인창에 **몇 개·옵션 몇 개**를 그대로 적고,
+  //      막힌 것이 있으면 왜 막혔는지 하나하나 알린다(조용히 건너뛰지 않는다).
+  var 고른함 = new Map();
+  var delbar = document.getElementById('og-delbar');
+  if (delbar) {
+    var dn = document.getElementById('og-dn'), doo = document.getElementById('og-do');
+    function drawDel() {
+      dn.textContent = 고른함.size;
+      var s = 0; 고른함.forEach(function (v) { s += (+v.opts || 0); });
+      doo.textContent = s;
+      delbar.hidden = 고른함.size === 0;
+    }
+    document.querySelectorAll('.og-bk').forEach(function (ck) {
+      ck.addEventListener('click', function (e) { e.stopPropagation(); });
+      ck.addEventListener('change', function () {
+        var c = ck.getAttribute('data-code');
+        if (ck.checked) 고른함.set(c, {name: ck.getAttribute('data-name'),
+                                       opts: ck.getAttribute('data-opts')});
+        else 고른함.delete(c);
+        drawDel();
+      });
+    });
+    document.getElementById('og-delclr').addEventListener('click', function () {
+      고른함.clear();
+      document.querySelectorAll('.og-bk').forEach(function (c) { c.checked = false; });
+      drawDel();
+    });
+    document.getElementById('og-delgo').addEventListener('click', function () {
+      var b = document.getElementById('og-delgo');
+      var 이름들 = [], 옵션합 = 0;
+      고른함.forEach(function (v) { 이름들.push(v.name); 옵션합 += (+v.opts || 0); });
+      var NL = String.fromCharCode(10);   // 확인창 줄바꿈 (따옴표 안 escape 안 씀)
+      var 줄 = ['묶음 ' + 고른함.size + '개를 지웁니다.',
+                '안에 있는 옵션 ' + 옵션합 + '개와 그 재고 기록도 같이 사라지고,',
+                '되돌릴 수 없습니다.', ''];
+      줄 = 줄.concat(이름들.slice(0, 6));
+      if (이름들.length > 6) 줄.push('… 외 ' + (이름들.length - 6) + '개');
+      줄.push('', '지울까요?');
+      if (!confirm(줄.join(NL))) return;
+      b.disabled = true; b.textContent = '지우는 중…';
+      fetch('/optgen/api/option-box/bulk-delete', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({codes: Array.from(고른함.keys())}),
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j.ok) { alert(j.error || '지우지 못했습니다.'); b.disabled = false; b.textContent = '고른 묶음 지우기'; return; }
+          var NL2 = String.fromCharCode(10);
+          var m = j.deleted + '개를 지웠습니다.';
+          if (j.failed) {
+            m += NL2 + NL2 + '지우지 못한 ' + j.failed + '개 —' + NL2 +
+                 j.errors.slice(0, 8).map(function (e) {
+                   return '· ' + e.code + ' : ' + e.error; }).join(NL2);
+          }
+          alert(m);
+          location.reload();
+        })
+        .catch(function (e) {
+          alert('지우지 못했습니다 — ' + e); b.disabled = false; b.textContent = '고른 묶음 지우기';
+        });
+    });
+  }
 
   // 옵션함 지우기 — 되돌릴 수 없으니 무엇을 지우는지 그대로 보여주고 묻는다.
   document.querySelectorAll('[data-del]').forEach(function (d) {

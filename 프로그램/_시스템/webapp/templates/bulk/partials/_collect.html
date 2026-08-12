@@ -75,6 +75,26 @@
   .sf-chip.ok{background:#EAF3DE;color:#27500A}
   .sf-chip.run{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
   .sf-chip.idle{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+  /* 못 봄 = 실패 / 더 있음 = 다 못 봤지만 실패는 아님 — 색으로도 갈라 둔다 */
+  .sf-n.link{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  /* 찾은 주소 보기 창 */
+  .mi-back{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9000;
+    display:flex;align-items:center;justify-content:center;padding:24px}
+  .mi-box{background:var(--bg,#fff);border-radius:14px;width:min(860px,100%);
+    max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+  .mi-hd{display:flex;justify-content:space-between;align-items:center;
+    padding:14px 16px;font-weight:700;border-bottom:1px solid var(--n100,#F2F4F6)}
+  .mi-x{border:0;background:var(--n100,#F2F4F6);border-radius:8px;padding:6px 12px;cursor:pointer}
+  .mi-cut{padding:8px 16px;font-size:12px;color:var(--sub,#8B95A1)}
+  .mi-body{overflow:auto;padding:8px 16px 16px}
+  .mi-t{width:100%;border-collapse:collapse;font-size:12px}
+  .mi-t td{padding:6px 8px;border-bottom:1px solid var(--n100,#F2F4F6);
+    word-break:break-all}
+  .mi-t td.st{white-space:nowrap;width:72px;color:var(--sub,#8B95A1)}
+  .mi-t td.st.c{color:#1B64DA}
+  .mi-t td.st.d{color:#27500A;font-weight:700}
+  .sf-chip.err{background:#FDECEC;color:#C0392B;cursor:help}
+  .sf-chip.warn{background:#FFF4E0;color:#9A5B00;cursor:help}
   .sf-num{text-align:right}
   .sf-n{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink,#191F28)}
   .sf-n.new{color:#1B64DA}
@@ -158,10 +178,17 @@
 
   function row(f) {
     const running = !!f.run_requested_at;
+    // 🔴 「못 봤다(실패)」와 「더 있는데 멈췄다」는 **0건과 다른 사실**이다.
+    //   여태 확장이 실패 사유를 보내도 서버가 버려서 화면엔 그냥 「끝남」이었다.
+    //   끝났다고만 적으면 사장님이 없는 상품을 없다고 믿는다.
     const chip = running
       ? '<span class="sf-chip run">수집 중</span>'
-      : (f.last_run_at ? '<span class="sf-chip ok">끝남</span>'
-                       : '<span class="sf-chip idle">대기</span>');
+      : (f.last_error
+          ? `<span class="sf-chip err" title="${esc(f.last_error)}">못 봄</span>`
+          : (f.last_capped
+              ? '<span class="sf-chip warn" title="소싱처에 「다음 페이지」가 남아 있습니다 — 지금은 첫 장만 가져옵니다">더 있음</span>'
+              : (f.last_run_at ? '<span class="sf-chip ok">끝남</span>'
+                               : '<span class="sf-chip idle">대기</span>')));
     // 🔴 아직 한 번도 안 훑었으면 0 이 아니라 「—」.
     //   0 은 「훑었는데 하나도 없었다」는 뜻이고, 「—」는 「아직 안 훑었다」는 뜻이다.
     //   둘을 같은 0 으로 보여주면 검색어가 잘못된 것을 영영 못 알아챈다.
@@ -190,10 +217,14 @@
             </select></div>
         </div>
         <div class="sf-st">${chip}</div>
-        <div class="sf-num"><div class="sf-n">${found}</div><div class="sf-l">찾음</div></div>
+        <div class="sf-num"><div class="sf-n${f.found_total ? ' link' : ''}"
+          ${f.found_total ? `data-items="${f.id}" title="무엇을 찾았는지 봅니다"` : ''}
+          >${found}</div><div class="sf-l">찾음</div></div>
         <div class="sf-num"><div class="sf-n new">${neu}</div><div class="sf-l">새 것</div></div>
         <div class="sf-num"><div class="sf-n made">${made}</div><div class="sf-l">상품</div></div>
-        <div class="sf-when">${esc(ago(f.last_run_at))}</div>
+        <div class="sf-when">${esc(ago(f.last_run_at))}${
+          f.last_ext_version ? `<div style="font-size:10px;opacity:.7">확장 ${esc(f.last_ext_version)}</div>` : ''
+        }</div>
         <div class="sf-act">
           <button class="sf-btn" data-run="${f.id}" ${running ? 'disabled' : ''}>
             ${running ? '훑는 중' : '지금 수집'}</button>
@@ -214,8 +245,11 @@
       <input class="sf-in" id="sf-url" placeholder="https://www.musinsa.com/search/goods?keyword=나이키">
       <div class="sf-grid">
         <label>몇 개까지<input class="sf-in sm" id="sf-max" placeholder="비우면 상한 없음"></label>
-        <label>몇 쪽부터<input class="sf-in sm" id="sf-pf" placeholder="1"></label>
-        <label>몇 쪽까지<input class="sf-in sm" id="sf-pt" placeholder="1"></label>
+        {# ★ 소싱처에 따라 주소로 넘기거나(무신사·SSF·르무통) 「다음」 단추를 눌러
+           넘긴다(롯데온·롯데아이몰). 사장님은 몇 쪽인지만 적으면 된다 —
+           같은 뜻인데 칸이 둘이면 어느 쪽을 채워야 할지 모른다. #}
+        <label title="비우면 첫 쪽만 봅니다">몇 쪽부터<input class="sf-in sm" id="sf-pf" placeholder="1"></label>
+        <label title="최대 60쪽. 무신사 한 쪽 60개 · 롯데온 47개 · 롯데아이몰 60개">몇 쪽까지<input class="sf-in sm" id="sf-pt" placeholder="1"></label>
         <!-- 🔴 한 줄짜리 칸이라 줄바꿈을 못 넣는다 — 쉼표로 여러 개를 적는다. -->
         <label>뺄 옵션(쉼표)<input class="sf-in sm" id="sf-ex" placeholder="예: 샘플, 중고"></label>
         <label>이름(비우면 자동)<input class="sf-in sm" id="sf-nm" placeholder="무신사_나이키_001"></label>
@@ -226,6 +260,15 @@
         <button class="sf-btn pri" id="sf-save">만들기</button>
         <button class="sf-btn" id="sf-cancel">그만두기</button>
         <span class="sf-hint" id="sf-msg">만든 뒤 「지금 수집」을 눌러야 훑기 시작합니다</span>
+        {# 🔴 소싱처마다 「여러 쪽을 걷을 수 있나」가 다르다 — 실측(2026-08-08).
+           안 되는 곳에 쪽수를 적으면 같은 1쪽을 반복하므로 미리 알린다. #}
+        <span class="sf-hint" style="display:block;margin-top:6px;line-height:1.7">
+          여러 쪽 걷기 —
+          무신사 <b>됨</b>(쪽당 60) · 롯데온 <b>됨</b>(60) · 롯데아이몰 <b>됨</b>(60)
+          · 현대H몰 <b>됨</b>(36) · 르무통 <b>됨</b>(25)
+          · SSF는 <b>카테고리 목록만</b>(검색 주소는 첫 쪽 60개)
+          · SSG는 <b>아직 확인 전</b>(규칙만 넣어 둠 — 처음 수집한 뒤 숫자를 맞춰 봐 주세요)
+        </span>
       </div>
     </div>`;
 
@@ -276,6 +319,9 @@
     root.querySelectorAll('[data-card]').forEach((b) => {
       b.onclick = () => showCard(b.dataset.card, b);
     });
+    root.querySelectorAll('[data-items]').forEach((b) => {
+      b.onclick = () => showItems(b.dataset.items);
+    });
     root.querySelectorAll('[data-del]').forEach((b) => {
       b.onclick = () => delNow(b.dataset.del, b);
     });
@@ -315,6 +361,34 @@
     fetch('/bulk/api/search-filters/' + id + '/run', { method: 'POST' })
       .then((r) => r.json()).then(() => load())
       .catch(() => load());
+  }
+
+  // 찾은 주소 보기 — 「찾음 31」만 보고는 **무엇을** 찾았는지 알 수 없다.
+  //   검색어가 엉뚱해 잡화가 딸려 와도 상품을 만들어 보기 전엔 모른다.
+  function showItems(id) {
+    fetch('/bulk/api/search-filters/' + id + '/items?limit=200')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) { window.alert(j.message || '못 불러왔습니다.'); return; }
+        const rows = (j.items || []).map((x) => {
+          // 주소만 보여주면 「왜 상품이 안 생기지」를 여전히 못 푼다.
+          const st = x.drafted ? '상품됨' : (x.crawled ? '크롤됨' : '크롤 전');
+          return `<tr><td class="st ${x.drafted ? 'd' : (x.crawled ? 'c' : '')}">${st}</td>`
+               + `<td><a href="${esc(x.product_url)}" target="_blank" rel="noopener">`
+               + `${esc(x.product_url)}</a></td></tr>`;
+        }).join('');
+        // 🔴 자른 것을 숨기지 않는다.
+        const cut = j.total > j.items.length
+          ? `<div class="mi-cut">전체 ${j.total}건 중 앞 ${j.items.length}건만 보입니다.</div>` : '';
+        const box = document.createElement('div');
+        box.className = 'mi-back';
+        box.innerHTML = `<div class="mi-box"><div class="mi-hd">찾은 주소 ${j.total}건`
+          + `<button class="mi-x">닫기</button></div>${cut}`
+          + `<div class="mi-body"><table class="mi-t">${rows}</table></div></div>`;
+        box.onclick = (e) => { if (e.target === box || e.target.className === 'mi-x') box.remove(); };
+        document.body.appendChild(box);
+      })
+      .catch((e) => window.alert(e.message));
   }
 
   // 성적표 — 「수집 → 상품 → 등록 → 매출」. 이 필터가 돈이 됐는지를 묻는 화면이다.

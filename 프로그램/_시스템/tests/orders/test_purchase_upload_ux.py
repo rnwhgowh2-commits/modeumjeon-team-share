@@ -24,6 +24,10 @@ import pytest
 JS = pathlib.Path(__file__).resolve().parents[1] / 'js'
 FILTER = JS / 'test_orders_purchase_filter.mjs'
 UPLOAD = JS / 'test_orders_purchase_upload_ux.mjs'
+# 노션 주문관리 b-3 — 실마진 열(정산예정금 − 매입가)의 「추정 딱지·매입가 없음」 규율.
+MARGIN = JS / 'test_orders_margin_cell.mjs'
+# 노션 주문관리 ⑥ — 「정산예정금」 27·28번 열에도 근거 딱지(여태 숫자만 찍혔다).
+SETTLE_MONEY = JS / 'test_orders_settle_money_cell.mjs'
 
 _NO_NODE = shutil.which('node') is None
 _SKIP = pytest.mark.skipif(
@@ -32,7 +36,8 @@ _SKIP = pytest.mark.skipif(
            '(설치하면 자동으로 돕니다 — 조용히 통과시키지 않습니다).')
 
 
-@pytest.mark.parametrize('p', [FILTER, UPLOAD], ids=['filter', 'upload_ux'])
+@pytest.mark.parametrize('p', [FILTER, UPLOAD, MARGIN, SETTLE_MONEY],
+                         ids=['filter', 'upload_ux', 'margin_cell', 'settle_money'])
 def test_배선_고정_파일이_실제로_있다(p):
     """node 가 없어 스킵되더라도 파일이 증발한 것은 알아야 한다."""
     assert p.exists(), p
@@ -54,3 +59,19 @@ def test_매입가_열_필터가_ppMap_의_진짜_값을_본다():
 def test_올리기_자리는_미입력_탭에서_펼쳐지고_저장_뒤_접힌다():
     """2안 배치 + 저장 후 dropzone 접힘 + 요약 한 줄 + 문제 있는 것만 펼치기."""
     _run(UPLOAD)
+
+
+@_SKIP
+def test_실마진_칸이_재료의_출처를_숨기지_않는다():
+    """매입가 없으면 0 으로 계산하지 않고 「매입가 없음」 · 정산 추정이면 「추정」 딱지."""
+    _run(MARGIN)
+
+
+@_SKIP
+def test_정산예정금_두_칸도_근거를_말한다():
+    """노션 ⑥ — 27·28번 열이 `MONEY_COLS` 로 떨어져 숫자만 찍히던 것.
+
+    실마진 칸엔 「추정」이 붙는데 그 **재료인 정산액**은 실측처럼 검게 보였다 —
+    한 화면 안에서 말이 어긋났다. 딱지 규칙은 실마진 칸과 같은 원천(SETTLE_SRC)을 쓴다.
+    """
+    _run(SETTLE_MONEY)

@@ -1,5 +1,5 @@
 {
- "version": 1,
+ "version": 2,
  "items": [
   {
    "id": null,
@@ -2255,6 +2255,114 @@
      "src": "SSG"
     }
    ]
+  },
+  {
+   "id": "P14",
+   "g": "가격",
+   "l": "fe",
+   "src": "매트릭스",
+   "st": "todo",
+   "sy": "'재계산▶' 버튼이 저장 0인 stub",
+   "cz": "버튼이 실제 재계산·저장 안 함(누르면 `loadMatrix` 새로고침만)",
+   "pv": "실제 재계산 미구현(잔존) — 우선 라벨 '재계산(준비중)'으로 오인 차단(2026-06-28)"
+  },
+  {
+   "id": "P27",
+   "g": "가격",
+   "l": "be",
+   "src": "전 소싱처",
+   "st": "ok",
+   "sy": "여러 상품 일괄 계산 시 먼저 계산한 SKU 가 나중 SKU 의 혜택을 영구 삭제(순서 의존·단건 재현 불가)",
+   "cz": "`compute_breakdown` 이 공유 캐시(`_cache['tpl_by_src']`) 소유의 ORM 행을 `it.enabled=False` 로 직접 꺼서 flush 시 DB 까지 write 가능",
+   "pv": "지역 `_disabled_ids` 집합 + 읽기 전용 `_Disabled` 프록시(5지점) — ORM 행 불변",
+   "ref": "dd80f599"
+  },
+  {
+   "id": "P34",
+   "g": "가격",
+   "l": "be",
+   "src": "전 소싱처(확장 crawl-result)",
+   "st": "ok",
+   "sy": "돈 무결성 감시기가 며칠째 빨강 — INV-5 「가격 있음+재고 NULL」 285건 · INV-4 「옵션 재고 stale」 373건. 실체는 **같은 285건이 두 규칙에 겹쳐 세진 것**(총합 658 로 부풀어 보고됨)",
+   "cz": "`save_crawl_result` 의 「옵션단위 표시가 일괄 갱신」에 **문이 하나도 없었다** — `price` 만 있으면 status·options[] 와 무관하게 그 상품의 **모든 옵션**에 `current_price` 를 칠한다. 2026-07-31 06:34:50 하드리셋(`_reset_bundle_crawl_state` 가 옵션 price·stock 을 NULL 로)  직후 06:36:59 에 도착한 **단 한 번의** crawl-result(상품 51개·소싱처 8곳이 **같은 마이크로초**로 도장 — 요청당 `now` 1개)가 `options[]` 없이 상품가만 들고 왔다 → 가격만 되채워지고 재고는 NULL, 옵션 `last_fetched_at` 도 안 올라가 INV-4 까지 동시 발화. 실측 증거: 285건 **전부** `current_price == sp.last_price`, 상품당 서로 다른 가격 1종",
+   "pv": "문 두 개 — `status == 'ok'` **그리고** `it.get('options')` 가 있을 때만 일괄 갱신(정합성 원칙 ②: 옵션 목록을 보지도 못한 크롤은 그 옵션 가격을 말할 자격이 없다. 상품 대표가는 `sp.last_price` 에 남아 화면 폴백으로 계속 쓰인다). 🔴**하드리셋이 `last_fetched_at` 은 안 지운다** — 값만 NULL 이고 시각은 예전 그대로라 「방금 긁은 것처럼」 보인다. 리셋 뒤 되채움 경로를 만들 땐 값·시각을 **같이** 본다. 핀 = `tests/pricing/test_crawl_result_price_no_fallback.py`",
+   "ref": "`webapp/routes/api_pricing.py::save_crawl_result`"
+  },
+  {
+   "id": "O1",
+   "g": "기타",
+   "l": "be",
+   "src": "구조",
+   "st": "todo",
+   "sy": "조용한 실패 버그 클래스(상시 주의 — 메이트 중복·표면가 불일치·SSG 완료 위장)",
+   "cz": "무결성 제약 부재(A) + SSOT 분열(last_price 평균 vs 최저)(B) + 누락 무경고(None 탈락)(C)",
+   "pv": "**버그 단건 아님** — §4 무결성 4철칙(상단)으로 상시 적용: DB 제약 + SSOT 통일 + None 후보 경고"
+  },
+  {
+   "id": "O28",
+   "g": "기타",
+   "l": "be",
+   "src": "크롤 공통(Playwright)",
+   "st": "ok",
+   "sy": "렌더 경로에서 상품 사진 URL 이 전부 같은 회색 플레이스홀더로 수집됨(대표 1 + 추가 5 = 6장 전부)",
+   "cz": "속도용 `block_heavy_resources` 가 image 를 `route.abort()` → 브라우저가 로드 실패로 보고 → Cafe24 인라인 `onerror=\"this.src='…'\"` 가 실행돼 `img.echosting.cafe24.com/thumb/img_product_big.gif` 로 치환. \"차단은 URL 수집과 무관하다\"는 **추론이 틀렸고 실측으로 뒤집힘**",
+   "pv": "image 는 abort 금지 — **1×1 투명 GIF(43B) 로 fulfill**(요청이 성공으로 끝나 onerror 미실행, 전송량은 여전히 0). media/font 만 abort. + 스킨 자산 호스트 배제 목록(`_NON_PRODUCT_IMG_HOSTS`). 가짜 route 단위테스트로 핀",
+   "ref": "`lemouton/sourcing/crawlers/base.py::block_heavy_resources`"
+  },
+  {
+   "id": "O29",
+   "g": "기타",
+   "l": "be",
+   "src": "SSF·SSG",
+   "st": "todo",
+   "sy": "상세 HTML 이 안 잡힘(4마켓 등록 필수값)",
+   "cz": "상세가 **페이지 HTML 밖**에 있다 — SSF 는 상품정보 탭을 AJAX 로 채우고(raw GET 응답은 빈 껍데기), SSG 는 교차출처 iframe(`itemdesc.ssg.com`) 안에 둔다. 렌더 outerHTML 로도 SSG 는 못 읽는다",
+   "pv": "지어내지 않고 **빈 문자열=상세 확인불가**로 둔다. SSF 는 확장 navGrab(창 렌더) 경로면 잡힌다. SSG 는 iframe URL 별도 GET 필요(curl_cffi chrome120 으로 200·3.5KB·img 5장 확인) — '크롤=로컬 PC' 원칙상 서버 parse 에서 부르면 안 되므로 로컬 크롤 경로 배선이 다음 단계",
+   "ref": "`crawlers/ssf.py::_parse_detail_html` · `crawlers/ssg.py::_parse_detail_html`"
+  },
+  {
+   "id": "O30",
+   "g": "기타",
+   "l": "be",
+   "src": "크롤 공통(상세 HTML)",
+   "st": "ok",
+   "sy": "소싱처 상세를 마켓에 올리면 **남의 몰 링크·추적픽셀이 같이 실린다**",
+   "cz": "`sanitize_detail_html` 이 유일한 관문인데(compile_more·compile_coupang 은 검사 없이 spec 에 넣는다) ① 상대 `<a href>` 를 **절대화**해 없던 남의 몰 링크를 작동하게 만들었고 ② 상세 img 엔 비상품 필터가 아예 없어 `//log.ssfshop.com/px.gif` 1×1 비콘이 통과했다",
+   "pv": "`a`·`picture` **unwrap**(주소 폐기, 글·사진 보존) · 상세 img 에도 hint/host 필터 + 1×1 크기힌트 · 태그 경계 컷 · video/audio/source/svg 드롭 · 수신 경계(crawl-result·parse) 에서 `status=='ok'` 게이트 + **재정제**",
+   "ref": "`crawlers/base.py::sanitize_detail_html` · `api_pricing.py::save_crawl_result` · `api_sources_parse.py::_persist_images_and_detail`"
+  },
+  {
+   "id": "O31",
+   "g": "기타",
+   "l": "be",
+   "src": "크롤 공통(Playwright)",
+   "st": "ok",
+   "sy": "O28 의 abort→fulfill 이 **다른 소싱처를 깨뜨리지 않았는지**(이미지 요청이 이제 '성공'으로 끝나 onload 기반 lazy-load·갤러리 스크립트가 돌 수 있다)",
+   "cz": "르무통(Cafe24) 한 곳에서만 실검증됐는데 같은 라우트를 무신사(`musinsa.py:236`·`musinsa_playwright.py:562,588`)·롯데온(`lotteon.py:907`)도 쓴다",
+   "pv": "**A/B 실측(2026-07-23, 같은 URL 을 abort 판·fulfill 판으로 각각 렌더)**: 무신사 3728480 → `_EXTRACT_JS` 원자료가 **바이트 단위로 동일**(상품명·브랜드·정상가 149,000·판매가 119,900·options·breakdown 전부) · innerText 차이는 「빈 줄 + '상품 정보 더보기'」 한 곳뿐(상세 이미지 영역이 더 렌더된 것) · DOM `<img>` 107→214. 롯데온 LO2158462914 → 캡처 API 세트·색 9·사이즈 13·제목 **완전 동일**. 결론 = 가격·재고·옵션 회귀 없음",
+   "ref": "`crawlers/base.py::block_heavy_resources`"
+  },
+  {
+   "id": "O32",
+   "g": "기타",
+   "l": "be",
+   "src": "축 맞추기 → 매트릭스",
+   "st": "ok",
+   "sy": "축을 **모델·색상·사이즈** 로 짜면 손으로 맞춘 색·사이즈와 「이 소싱처엔 없다」고 정한 것이 **둘 다 무시**될 수 있었다(남의 색 가격이 붙는 길)",
+   "cz": "저장·축맞추기 화면은 축 **이름**으로 고쳤는데 **매트릭스 읽기 경로만 위치 기준**으로 남아 있었다 — `axis_match_audit._axis_names` 가 `names[0], names[1]` 을 그대로 색·사이즈로 써서, 3축이면 색을 「모델」 사전에서 찾았다. 그 값은 `api_pricing.py:1225 match_source_option` 으로 흘러가 어느 소싱처 옵션을 붙일지 정한다",
+   "pv": "`_axis_names` 도 `axis_slot.semantic_slots` 를 쓰게 통일(규칙은 한 곳뿐). 이름을 못 알아보는 옛 매트릭스는 **위치 폴백** 유지 → 라이브 조합 전수 대조 **달라지는 것 0건**. 시험 `tests/sourcing/test_axis_slot.py` 4건이 지킨다",
+   "ref": "2026-08-12"
+  },
+  {
+   "id": "O33",
+   "g": "기타",
+   "l": "be",
+   "src": "축 맞추기",
+   "st": "ok",
+   "sy": "매트릭스를 만들다 **취소·삭제한 뒤 다시 맞추려 하면** 「이미 쓰고 있다」로 **영영 막혔다**(사장님 실사고)",
+   "cz": "`source_axis_aliases` 는 **소싱처 전역 사전**이라 매트릭스에 안 매인다. 묶음 삭제는 `models.model_code` FK 를 가진 표만 훑는데 이 표엔 그 FK 가 없어 행이 남고, 화면은 **지금 매트릭스의 축 값 줄만** 그려 그 「유령」을 놓아줄 방법이 없었다 — 오류 문구의 「먼저 그 줄에서 놓아야 합니다」가 가리킬 줄이 없었다",
+   "pv": "충돌 409 에 `conflict{holder, holder_used_by, ghost}` 를 실어 **「빼앗아 오기」**(놓기+잡기를 한 트랜잭션 → 1:1 유지). ❌ 삭제 시 사전 정리 = 다른 매트릭스 맞춤이 같이 날아감 / ❌ 자동 해제 = 전송 중 판정이 흔들림. `axis_alias.users_of()` 로 유령 판정(축 설계 `values_json` 을 파이썬에서 파싱 — `LIKE '%…%'` 는 JSON 이스케이프 때문에 틀린다)",
+   "ref": "2026-08-12"
   }
  ]
 }

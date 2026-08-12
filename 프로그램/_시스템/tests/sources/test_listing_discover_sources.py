@@ -80,35 +80,51 @@ def test_롯데온_묶음이_상품번호_bundle_로_뭉개지지_않는다():
 
 
 # ── 롯데아이몰 ────────────────────────────────────────────────────────
+#   🔴 **링크를 보면 안 된다.** `a[href*=viewGoodsDetail]` 로 잡히는 것은 전부
+#     메뉴 속 추천 배너다 — 검색 결과가 아니다.
+#     실증(2026-08-08): 「검색된 상품이 없습니다」가 뜨는 검색어에서도 그 링크가
+#     **25건 그대로** 나왔다. 그대로 뒀으면 검색할 때마다 엉뚱한 상품 25건이
+#     크롤 대기에 들어가 초안까지 됐을 것이다(조용히 틀린 데이터).
+#   진짜 결과는 `data-goods-no` 다(나이키 60건 · 결과 없음 0건, 실측 대조).
 LOTTEIMALL_HTML = """
-<a href="https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=3272278659&grbyEndDtime=2026">A</a>
-<a href="/goods/viewGoodsDetail.lotte?goods_no=1342297325&tlog=00100_14">B</a>
-<a href="/goods/viewGoodsDetail.lotte?goods_no=1342297325">B 또</a>
+<p class="info1" data-goods-no="3092098045">A</p>
+<p class="info1" data-goods-no="2901997165">B</p>
+<p class="info1" data-goods-no="3092098045">A 또</p>
+<a href="https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=3272278659">추천 배너 — 상품 아님</a>
 <a href="/planshop/viewPlanShopDetail.lotte?plan_no=1">기획전 — 상품 아님</a>
 """
 
 
-def test_롯데아이몰_꼬리표를_떼고_고른다():
+def test_롯데아이몰은_링크가_아니라_속성에서_고른다():
     urls = extract_product_urls(LOTTEIMALL_HTML, source_key='lotteimall')
 
     assert urls == [
-        'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=3272278659',
-        'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=1342297325'], urls
+        'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=3092098045',
+        'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=2901997165'], urls
+
+
+def test_롯데아이몰_추천배너는_상품이_아니다():
+    """🔴 이걸 안 막으면 결과 0건인 검색에서도 엉뚱한 상품 25건이 들어온다."""
+    urls = extract_product_urls(LOTTEIMALL_HTML, source_key='lotteimall')
+
+    assert not [u for u in urls if '3272278659' in u], urls
 
 
 # ── 현대H몰 ──────────────────────────────────────────────────────────
-#   🔴 실측 — H몰 상품 카드는 **`<a href>` 가 아니다.** 검색 결과 29개 링크 중
-#     상품 링크는 0건이었고, 상품번호는 `data-slitm-cd` 속성에만 있었다.
-#     링크만 찾는 규칙으로는 영영 0건이 나온다.
+#   🔴 실측 1차 — 상품 카드가 **`<a href>` 가 아니다**(검색 결과 29개 링크 중 상품 0건).
+#     그래서 처음엔 화면 속성 `data-slitm-cd` 로 잡았다.
+#   🔴 실측 2차(2026-08-08 라이브) — **그것도 부족했다.** `page=3` 을 열어 보니
+#     화면(DOM `[data-slitm-cd]`)은 1쪽 36개, 받은 글(HTML `"slitmCd":`)은 3쪽 36개,
+#     **겹침 0**. 브라우저 안 앱이 다시 1쪽을 불러 화면을 덮어쓴다.
+#     → **받은 글에서 읽는다**(`_HTML_SCAN`). 자세한 것은 test_html_scan_sources.py.
 HMALL_HTML = """
-<div data-slitm-cd="2152524048">[나이키] 폼 남성 드라이 핏 재킷</div>
-<div data-slitm-cd="2149351778">[나이키] 코트 비전 로</div>
-<div data-slitm-cd="2152524048">같은 상품 또</div>
+{"list":[{"slitmCd":"2152524048"},{"slitmCd":"2149351778"},{"slitmCd":"2152524048"}]}
+<div data-slitm-cd="9999999999">화면에 그려진 1쪽 상품 — 지금 쪽이 아닐 수 있다</div>
 <a href="/md/dpa/searchSpexSectItem?sectId=3140693">기획 — 상품 아님</a>
 """
 
 
-def test_H몰은_링크가_아니라_속성에서_고른다():
+def test_H몰은_받은_글에서_고른다():
     urls = extract_product_urls(HMALL_HTML, source_key='hmall')
 
     assert urls == ['https://www.hmall.com/md/pda/itemPtc?slitmCd=2152524048',

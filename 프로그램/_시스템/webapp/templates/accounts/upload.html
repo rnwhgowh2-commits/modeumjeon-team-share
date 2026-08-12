@@ -1064,7 +1064,18 @@ async function testApiConnection(accountId, displayName) {
   showToast(`🔌 ${displayName} API 연결 테스트 중…`, 'info');
   try {
     const res = await fetch(`/accounts/api/upload/accounts/${accountId}/test`, { method: 'POST' });
-    const data = await res.json();
+    // 앞단(Cloudflare/Caddy)이 본문을 오류 HTML 로 갈아치우는 경우가 있어 JSON 을 단정하지 않는다.
+    // 그냥 res.json() 을 부르면 「Unexpected token '<'」 만 남고 진짜 사유가 사라진다.
+    const raw = await res.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (_) {
+      showToast(`❌ 서버가 JSON 대신 오류 페이지를 보냈어요 (HTTP ${res.status}). `
+                + `앞단(Cloudflare/Caddy)이 본문을 갈아치웠을 수 있어요.`, 'error');
+      console.error('[API test] non-JSON response', res.status, raw.slice(0, 500));
+      return;
+    }
     if (data.ok) {
       showToast(data.message, 'success');
       console.log('[API test]', data);

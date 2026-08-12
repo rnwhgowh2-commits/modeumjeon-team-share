@@ -490,6 +490,12 @@ def _apply_lightweight_migrations() -> None:
         # 2026-08-06: 검색필터 — 이 상품이 어느 수집 행위에서 왔나(수기 초안은 NULL).
         #   search_filters 표 자체는 신규라 create_all 이 만든다. 여기는 기존 표의 새 칸만.
         ("product_drafts", "search_filter_id", "INTEGER"),
+        # 2026-08-08: 훑기 결과를 화면이 말할 수 있게 — 「못 봤다」와 「더 있는데 멈췄다」.
+        #   여태 확장이 보낸 실패 사유를 서버가 버려서 0건과 구분이 안 됐다.
+        ("search_filters", "last_error", "TEXT"),
+        ("search_filters", "last_capped", "BOOLEAN DEFAULT 0 NOT NULL"),
+        # 2026-08-08: 훑은 확장의 판 번호 — 「화면만 새로고침」 상태를 알아보려고.
+        ("search_filters", "last_ext_version", "VARCHAR(20)"),
         # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),

@@ -675,31 +675,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // ----- Templates 페이지 -----
-  if (action === 'new-price-tpl') {
-    e.preventDefault();
-    openPriceTplModal(null);
-    return;
-  }
-  if (action === 'edit-price-tpl' || action === 'dup-price-tpl' || action === 'del-price-tpl') {
-    e.preventDefault();
-    const id = btn.getAttribute('data-id');
-    if (action === 'del-price-tpl') {
-      if (!confirm('삭제할까요?')) return;
-      const res = await apiPost(`/api/templates/price/${id}/delete`, {});
-      flash(res.ok ? '삭제 완료' : ('실패: ' + (res.error || '')), res.ok ? 'ok' : 'err');
-      if (res.ok) setTimeout(() => location.reload(), 600);
-      return;
-    }
-    if (action === 'dup-price-tpl') {
-      const res = await apiPost(`/api/templates/price/${id}/duplicate`, {});
-      flash(res.ok ? '복제 완료' : '실패', res.ok ? 'ok' : 'err');
-      if (res.ok) setTimeout(() => location.reload(), 600);
-      return;
-    }
-    openPriceTplModal(id);
-    return;
-  }
+  // ----- 옵션 맵핑 템플릿 페이지 (구 「템플릿」) -----
+  // [2026-08-12] 노션 「b-3. 가로탭 3개 중 가격 템플릿 삭제」 —
+  //   가격 판이 화면에서 빠져 new/edit/dup/del-price-tpl 을 다는 곳이 한 군데도
+  //   없어졌다(저장소 전체 grep 0건). 그래서 그 4개 동작을 여기서 없앤다.
+  //   🔴 `openPriceTplModal()` **함수 본체는 남긴다** — 모음전 상세
+  //      (bundles/_matrix_v3.html 의 가격 템플릿 고르는 칸)가 그대로 부른다.
   if (action === 'new-color-tpl') { e.preventDefault(); openColorTplModal(null); return; }
   if (action === 'edit-color-tpl') { e.preventDefault(); openColorTplModal(btn.getAttribute('data-id')); return; }
   if (action === 'dup-color-tpl') {

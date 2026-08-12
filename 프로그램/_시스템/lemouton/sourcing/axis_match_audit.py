@@ -120,6 +120,20 @@ def _axis_names(session: Session, model_code: str, *, rows=None) -> tuple[str, s
                     .filter_by(model_code=model_code)
                     .order_by(BundleOptionStep.step_no).all())
         names = [(r.axis_name or "").strip() for r in rows if (r.axis_name or "").strip()]
+        # 🔴 [2026-08-12] 예전엔 `names[0], names[1]` — **몇 번째 축인가**로 골랐다.
+        #   그러면 축을 「모델·색상·사이즈」로 짠 순간 색을 「모델」 사전에서 찾게 되어,
+        #   손으로 맞춘 것과 「이 소싱처엔 없다」고 정한 것이 **둘 다 무시**된다.
+        #   이 값은 `match_source_option` 으로 흘러가 **어느 소싱처 옵션의 가격·재고를
+        #   우리 옵션에 붙일지**를 정한다 — 틀리면 남의 색 가격이 붙는다.
+        #   저장·축맞추기 화면은 이미 이름 기준(axis_slot)인데 이 읽기 경로만 남아 있었다.
+        #   규칙은 lemouton/sourcing/axis_slot.py 한 곳뿐이고 여기서도 그것을 쓴다.
+        if names:
+            from .axis_slot import COLOR, SIZE, semantic_slots
+            slots = semantic_slots(names)
+            c = next((names[i] for i, s in enumerate(slots) if s == COLOR), None)
+            z = next((names[i] for i, s in enumerate(slots) if s == SIZE), None)
+            if c or z:
+                return c or "색상", z or "사이즈"
         if len(names) >= 2:
             return names[0], names[1]
         if len(names) == 1:
