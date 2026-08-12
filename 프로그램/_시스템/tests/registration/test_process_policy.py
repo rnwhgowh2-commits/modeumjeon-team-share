@@ -241,8 +241,10 @@ def test_안_붙어_있던_구성은_그냥_붙는다(db):
 
 # ── 13항목 규칙 ─────────────────────────────────────────────────
 
-def test_항목은_13개(db):
-    assert len(ITEM_KEYS) == 13
+def test_항목_개수(db):
+    # [2026-08-12] 사장님 엑셀 「마켓별 상품등록 정보」 대조로 3항목 추가
+    #   (등록 기본값·가격비교 노출·모델번호/바코드) → 13 → 16.
+    assert len(ITEM_KEYS) == 16
     assert "name" in ITEM_KEYS
     assert "banned_words" in ITEM_KEYS
 

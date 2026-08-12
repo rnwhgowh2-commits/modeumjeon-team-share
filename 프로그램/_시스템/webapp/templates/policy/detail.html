@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
 {% block title %}{{ policy.name }} — 정책 생성{% endblock %}
 {% block content %}
-<section class="screen active" id="screen-policy-detail">
+<section class="screen active{{ ' mk-off' if not is_common and market not in enabled }}"
+         id="screen-policy-detail">
   <style>
     .pd-back{font-size:12px;color:var(--글자-기본,#4E5968);text-decoration:none}
     .pd-h{display:flex;align-items:center;gap:8px;margin:8px 0 4px;flex-wrap:wrap}
@@ -30,6 +31,25 @@
     .mkoff-note b{color:var(--ink,#191F28)}
     .fill-sum{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
     .fill-sum b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+    /* ── [2026-08-12 사장님 확정 C2] 마켓 탭에서 바로 켜고 끄기 (더망고 방식) ──
+       전에는 켜고 끄려면 정책 목록으로 돌아가야 했다.
+       🔴 「흐리게만」이다 — **입력을 막지 않는다.** 값이 보이는데 손댈 수 없으면
+         둘 다 잃는다. 끄는 것은 「안 보낸다」이지 「못 고친다」가 아니다. */
+    .mkgate{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+            border-radius:12px;padding:13px 16px;margin-bottom:14px}
+    .mkgate.off{border-color:var(--line,#C6CBD3);background:var(--n50,#F9FAFB)}
+    .mkgate label{display:flex;align-items:center;gap:9px;cursor:pointer;
+                  font-size:14px;font-weight:700}
+    .mkgate input{width:18px;height:18px;accent-color:var(--primary,#3182F6);flex:none}
+    .mkgate .d{font-size:12px;color:var(--글자-주황, var(--amber,#B45309));
+               line-height:1.7;margin:6px 0 0 27px}
+    .mkgate .m{font-size:12px;margin:6px 0 0 27px;min-height:0;
+               color:var(--글자-보조,#6B7684)}
+    .mkgate .m.err{color: var(--글자-빨강, var(--red,#E5484D))}
+    /* 꺼져 있으면 가공 칸을 흐리게. 항목 카드·미리보기만 대상이고
+       탭·안내·채움줄·저장줄은 또렷하게 남는다(끈 상태에서도 고칠 수 있어야 한다). */
+    #screen-policy-detail.mk-off .it,
+    #screen-policy-detail.mk-off .pv{opacity:.45}
 
     /* 항목 아코디언 — 대량등록 「데이터 가공」과 같은 모양 */
     .it{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;margin-bottom:8px;overflow:hidden}
@@ -234,13 +254,26 @@
   <div class="mkoff-note">
     🔒 가 붙은 <b>{{ fill_sum.off }}곳</b>은 <b>안 켠 마켓</b>이라 가공할 필요가 없습니다.
     적어 둔 값은 <b>그대로 남아</b> 다시 켜면 살아납니다 —
-    켜고 끄기는 <a href="/policies">정책 목록</a>의 「내보낼 마켓 · 고치기」에서 합니다.
+    켜고 끄기는 <b>아래 체크박스</b>에서 바로 하실 수 있습니다.
   </div>
   {% endif %}
   <div class="fill-sum">
     채움 <b>{{ fill_sum.filled }}</b>/<b>{{ fill_sum.total }}</b>
     — 켠 <b>{{ fill_sum.on }}</b>곳만 셉니다{% if fill_sum.off %} (안 켠 {{ fill_sum.off }}곳은 분모에서 뺐습니다){% endif %}
   </div>
+
+  {# ── [2026-08-12 사장님 확정 C2] 이 마켓 켜고 끄기 — 더망고식 체크박스 ────────
+     「마켓 공통」은 진짜 마켓이 아니라 값을 담아두는 자리라 여기 안 붙인다. #}
+  {% if not is_common %}
+  {% set mk_on = market in enabled %}
+  <div class="mkgate {{ '' if mk_on else 'off' }}" id="mkgate">
+    <label><input type="checkbox" id="mkon" {{ 'checked' if mk_on }}>
+      <span>[{{ market_label }} 정책설정]</span></label>
+    <div class="d">※ 체크를 풀면 이 마켓으로 <b>상품정보를 보내지 않습니다.</b>
+      적어 둔 값은 그대로 남고, 꺼 둔 동안에도 <b>고칠 수 있습니다.</b></div>
+    <div class="m" id="mkmsg"></div>
+  </div>
+  {% endif %}
 
   {% if is_common %}
   {# 공통 값은 「마지막에 넣은 값」이다 — 지금 그 마켓의 값이 아니다. #}
@@ -633,6 +666,46 @@
 
 <script>
 const PID = {{ policy.id }}, MARKET = {{ market|tojson }};
+
+/* ══ [2026-08-12 사장님 확정 C2] 이 마켓 켜고 끄기 ═══════════════════════════
+   더망고처럼 그 마켓 화면 안에서 바로 켜고 끈다(전에는 정책 목록으로 갔다 와야 했다).
+   🔴 끄면 **흐려지기만** 한다 — 값은 그대로 보이고 그대로 고칠 수 있다.
+     끄는 것은 「안 보낸다」이지 「못 고친다」가 아니다.
+   🔴 켠 마켓 목록은 정책 하나에 한 벌이라, 이 마켓만 넣고 빼서 **통째로** 보낸다.
+     지금 화면의 목록을 서버가 준 값으로만 만든다 — 화면에서 셈하면 어긋난다. */
+(function () {
+  const ck = document.getElementById('mkon');
+  if (!ck) return;                       // 「마켓 공통」 탭에는 없다
+  const gate = document.getElementById('mkgate');
+  const gmsg = document.getElementById('mkmsg');
+  const sec = document.getElementById('screen-policy-detail');
+  const ENABLED = {{ (enabled | list) | tojson }};
+
+  ck.addEventListener('change', async () => {
+    const want = new Set(ENABLED);
+    ck.checked ? want.add(MARKET) : want.delete(MARKET);
+    ck.disabled = true;
+    gmsg.className = 'm'; gmsg.textContent = '바꾸는 중…';
+    try {
+      const r = await fetch('/api/policies/' + PID + '/markets', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({markets: [...want]})});
+      const j = await r.json();
+      if (!j.ok) {
+        ck.checked = !ck.checked;        // 되돌린다 — 안 바뀐 걸 바뀐 척하면 안 된다
+        gmsg.className = 'm err'; gmsg.textContent = j.error;
+        return;
+      }
+      /* 채움 합계·탭 자물쇠가 같이 바뀌어야 하므로 화면을 다시 그린다. */
+      location.reload();
+    } catch (e) {
+      ck.checked = !ck.checked;
+      gmsg.className = 'm err'; gmsg.textContent = e.message;
+    } finally {
+      ck.disabled = false;
+    }
+  });
+})();
 function tg(k){ document.getElementById('it-' + k).classList.toggle('open'); }
 
 // [2026-08-02] 조건부 수수료율 — 체크하면 수수료율 칸의 숫자를 바꿔 놓는다.

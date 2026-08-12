@@ -95,8 +95,17 @@ def _boxes(session):
             .order_by(Model.created_at.is_(None),
                       Model.created_at.desc(), Model.model_code.desc())
             .all())
-    return [{'code': c, 'name': (d or r or c), 'brand': b, 'options': n,
-             # 숨김 = 재고 단독(단독_) + 빈 묶음(옵션 0) — `/matrix` 와 같은 뜻·같은 규칙
+    # 🔴 [2026-08-12 사장님] 「단독_」 이라는 말을 **화면에서 완전히 없앤다.**
+    #   이 글자는 사장님이 알 필요가 없는 프로그램 내부 표시다 — 재고관리에서
+    #   「모음전으로도 판다」를 체크 안 했을 때, 옵션을 담을 상자가 필요해서
+    #   프로그램이 그 SKU 앞에 붙여 만든 상자 이름일 뿐이다.
+    #   `display_name()` 이 그 앞글자를 떼는 일을 이미 하고 있었는데 **이 목록만
+    #   안 쓰고 있었다** — 그래서 「단독_SKU-…」 가 이름·번호에 그대로 찍혔다.
+    #   속(model_code)은 그대로 둔다. 8곳이 그 앞글자로 창고 물건을 가려내고 있어
+    #   건드리면 창고 물건이 판매 목록에 다시 섞인다.
+    return [{'code': c, 'shown_code': display_name(None, c),
+             'name': display_name(d or r or c, c), 'brand': b, 'options': n,
+             # 숨김 = 창고에만 있는 물건 + 빈 묶음(옵션 0) — `/matrix` 와 같은 규칙
              'hid': bool((c or '').startswith(_LEGACY_PREFIX) or n == 0)}
             for c, d, r, b, _ts, n in rows]
 
@@ -144,6 +153,7 @@ def display_name(name: str, code: str | None) -> str:
     뜻(아직 상품 안 만듦)은 옆 「상태」 칸이 이미 말한다.
     """
     nm = (name or '').strip() or (code or '')
+    # 이름을 안 주면 코드에서 앞글자만 떼어 준다(번호 칸에 쓴다).
     return nm[len(_LEGACY_PREFIX):] if nm.startswith(_LEGACY_PREFIX) else nm
 
 

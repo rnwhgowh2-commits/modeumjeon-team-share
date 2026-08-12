@@ -65,9 +65,9 @@
         {# [2026-08-12 노션 옵션 e] 평소 볼 일 없는 묶음을 꺼내 보는 체크 —
            /matrix 가 이미 쓰는 그 규칙·그 설명 그대로. #}
         {% if box_counts.hidden %}
-        <label class="og-hid-row" title="평소 이 화면에서 볼 일이 없어 숨겨 둔 묶음을 꺼내 봅니다.&#10;· 아직 상품 안 만든 묶음 — 재고관리에서 「모음전에도 등록」을 체크하지 않고 등록한 물건입니다. 창고에는 있지만 아직 팔 상품으로 만들지 않았습니다.&#10;· 빈 묶음 — 옵션이 하나도 안 담긴 묶음.">
+        <label class="og-hid-row" title="평소 이 화면에서 볼 일이 없어 숨겨 둔 것을 꺼내 봅니다.&#10;· 창고에만 있는 물건 — 재고관리에서 「모음전에도 등록」을 체크하지 않고 넣은 것입니다. 창고에는 있지만 아직 팔 상품으로 만들지 않았습니다.&#10;· 빈 묶음 — 옵션이 하나도 안 담긴 묶음.">
           <input type="checkbox" id="og-hid">
-          <span>숨긴 묶음 보기</span>
+          <span>창고에만 있는 물건 보기</span>
           <span class="og-bc">{{ box_counts.hidden }}</span>
         </label>
         {% endif %}
@@ -81,7 +81,7 @@
               data-brand="{{ b.brand or '' }}" data-name="{{ b.name }}" data-opts="{{ b.options }}"
               data-hid="{{ 1 if b.hid else 0 }}"
               data-find="{{ b.code }} {{ b.name }} {{ b.brand or '' }}">
-            <td class="mono">{{ b.code }}</td>
+            <td class="mono">{{ b.shown_code }}</td>
             <td><b>{{ b.name }}</b></td>
             <td>{{ b.brand or '—' }}</td>
             <td class="r">{{ b.options }}</td>
