@@ -315,8 +315,52 @@ def do_expire(client, vid):
     return 1 if bad else 0
 
 
+def do_diag(client, vid):
+    """왜 「안 물렸다」고 본 옵션이 물려 있었나 — **읽기만** 해서 재본다.
+
+    🔴 실측(2026-08-06) — status=APPLIED 로 모은 1,841개에 없던 옵션
+      93697560813 이 [CIR08] 로 거부됐다. 무엇을 빠뜨렸는지 값으로 확인한다:
+      상태 필터별 건수 · 그 옵션이 어느 목록에 있나.
+    """
+    targets = {'93697561761', '93697560813'}
+    resp = client.request(
+        'GET', f'/v2/providers/fms/apis/api/v2/vendors/{vid}/coupons',
+        query='status=APPLIED&page=1&size=50&sort=desc')
+    coupons = ((resp or {}).get('data') or {}).get('content') or []
+    print(f'■ 적용 중 쿠폰 {len(coupons)}개')
+    for c in coupons:
+        print(f'  couponId={c.get("couponId")} · {c.get("promotionName")} · '
+              f'{c.get("startAt")} ~ {c.get("endAt")}')
+
+    for st in ('APPLIED', 'PENDING', 'EXPIRED', ''):
+        for c in coupons:
+            cid = c.get('couponId')
+            found, total = set(), 0
+            for page in range(1, 61):
+                q = f'page={page}&size=50&sort=desc'
+                if st:
+                    q = f'status={st}&' + q
+                r = client.request(
+                    'GET',
+                    f'/v2/providers/fms/apis/api/v1/vendors/{vid}'
+                    f'/coupons/{cid}/items', query=q)
+                items = ((r or {}).get('data') or {}).get('content') or []
+                if not items:
+                    break
+                total += len(items)
+                for it in items:
+                    v = str(it.get('vendorItemId'))
+                    if v in targets:
+                        found.add(v)
+            print(f'  [status={st or "(없음)"}] 쿠폰 {cid} 옵션 {total}개'
+                  f' · 찾던 옵션 {sorted(found) or "없음"}')
+    return 0
+
+
 def main() -> int:
     client, vid = _client_and_vendor()
+    if MODE == 'diag':
+        return do_diag(client, vid)
     if MODE == 'create':
         return do_create(client, vid)
     if MODE == 'verify':

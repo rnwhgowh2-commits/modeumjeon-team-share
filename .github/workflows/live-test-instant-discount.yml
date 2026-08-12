@@ -29,7 +29,7 @@ on:
         required: false
         default: 'smartstore'
       coupang_mode:
-        description: 'coupang 일 때만 — create(오늘 걸기) / verify(내일 확인) / expire(내리기)'
+        description: 'coupang 일 때만 — create / verify / expire / diag(읽기전용 진단)'
         required: false
         default: 'create'
 
@@ -68,7 +68,7 @@ jobs:
             *) echo "모르는 대상: $RAW_TARGET"; exit 1 ;;
           esac
           case "$RAW_CPMODE" in
-            ''|create|verify|expire) CPMODE="${RAW_CPMODE:-create}" ;;
+            ''|create|verify|expire|diag) CPMODE="${RAW_CPMODE:-create}" ;;
             *) echo "모르는 모드: $RAW_CPMODE"; exit 1 ;;
           esac
           case "$RAW_CH" in
