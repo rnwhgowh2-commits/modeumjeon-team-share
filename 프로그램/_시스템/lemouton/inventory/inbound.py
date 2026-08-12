@@ -100,21 +100,35 @@ def create_outbound(session: Session, location_id: int, option_canonical_sku: st
 
 def create_adjustment(session: Session, location_id: int, option_canonical_sku: str,
                        new_qty: int, memo: str = '', created_by: str = '') -> InventoryTx:
-    """조정 — 시스템 재고를 절대값으로 set (ADR-002, recalc_stock_total adjust 처리)."""
+    """조정 — **결과 수량(new_qty)을 받아 원장엔 그 차이를 남긴다.**
+
+    🔴 [2026-08-13 사장님 확정] 조정은 **차이값**이다.
+       받는 값은 그대로 「실사해 보니 N개」다 — 작업자에게 뺄셈을 안 시킨다.
+       차이 계산은 여기서 한다.
+
+       절대값으로 남기면 **위치별 합이 전체와 안 맞는다**(전체는 접어서 세고
+       위치별은 더해서 세기 때문). 규칙 정본 = shared/inventory_stock.py 머리말.
+       모바일 창구(webapp/routes/mobile.py)도 같은 규칙이어야 한다 —
+       한쪽만 바뀌면 같은 표의 행이 두 가지 뜻을 갖는다(오늘 세 번 그랬다).
+    """
     opt = session.query(Option).filter(Option.canonical_sku == option_canonical_sku).first()
     if not opt:
         raise ValueError(f"옵션 없음: {option_canonical_sku}")
     if new_qty < 0:
         raise ValueError("조정 수량은 0 이상")
 
+    from shared.inventory_stock import get_stock_batch
+    before = int(get_stock_batch(session, [option_canonical_sku])
+                 .get(option_canonical_sku) or 0)
+    delta = int(new_qty) - before
     opt.boxhero_stock_total = new_qty
 
     tx = InventoryTx(
         tx_type='adjust',
         location_id=location_id,
         option_canonical_sku=option_canonical_sku,
-        qty=new_qty,
-        memo=memo.strip() or None,
+        qty=delta,
+        memo=(memo.strip() or f'{before} → {new_qty}'),
         created_by=created_by,
         created_at=_now(),
         status='completed',
