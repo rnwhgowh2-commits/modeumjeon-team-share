@@ -38,6 +38,46 @@ class RestoreReport:
     journal_path: str = ""
     market: str = ""
     product_id: str = ""
+    #: 시험 흔적이 아니라 **그 뒤에 정상적으로 바뀐 값**이라 건드리지 않은 축 {축: 현재값}.
+    skipped: dict = field(default_factory=dict)
+
+
+def _bears_our_mark(axis: str, cur, orig) -> bool:
+    """현재값이 **우리가 보낸 시험값 그대로**인가.
+
+    🔴 [2026-08-12] 손복구가 저널의 5일 전 가격으로 현재가를 덮으려 했다. 그 사이
+       우리 프로그램이 정상적으로 올려 둔 값이었다(마켓이 거부해서 무사했을 뿐).
+       손복구의 목적은 「시험이 남긴 흔적 지우기」이지 「그날 이후를 되감기」가 아니다.
+       시험 이후 정상적으로 바뀐 값을 옛값으로 덮으면 **금전 손실**이다.
+    """
+    from lemouton.uploader.roundtrip.runner import (
+        _DETAIL_TOKEN, _NAME_SUFFIX, _PRICE_DELTA, _STOCK_DELTA,
+    )
+    if cur is None:
+        return False
+    if axis == "sale_price":
+        try:
+            return int(cur) == int(orig) + _PRICE_DELTA
+        except (TypeError, ValueError):
+            return False
+    if axis == "stock":
+        try:
+            # 상한 상품은 -1 로 시험한다 — 위아래 둘 다 우리 흔적이다.
+            return abs(int(cur) - int(orig)) == _STOCK_DELTA
+        except (TypeError, ValueError):
+            return False
+    if axis == "name":
+        return str(cur).endswith(_NAME_SUFFIX)
+    if axis == "detail_html":
+        return _DETAIL_TOKEN in str(cur)
+    if axis == "image_urls":
+        first = (tuple(cur) or ("",))[0]
+        return _PROBE_MARK in str(first)
+    return False
+
+
+#: 시험 이미지 주소에 박히는 표식(probe_image.upload_probe_image_public 의 키).
+_PROBE_MARK = "roundtrip/probe_"
 
 
 def _same(got, want) -> bool:
@@ -101,11 +141,21 @@ def restore_from_journal(journal_path, *, apply_fn, snapshot_fn=None,
     #    ⚠️ 현재값을 못 읽으면(snapshot_fn 없음) 비교 근거가 없으니 저널대로 다 보낸다.
     if snapshot_fn is not None:
         cur = snapshot_fn()
-        changes = {a: v for a, v in changes.items() if not _same(cur.value_of(a), v)}
+        keep, skip = {}, {}
+        for a, v in changes.items():
+            now = cur.value_of(a)
+            if _same(now, v):
+                continue                  # 이미 원래대로 — 건드릴 이유가 없다
+            if _bears_our_mark(a, now, v):
+                keep[a] = v
+            else:
+                # 시험 흔적이 아니다 = 그 뒤에 정상적으로 바뀐 값이다. 덮지 않는다.
+                skip[a] = now
+        changes, report.skipped = keep, dict(skip)
         if not changes:
             report.ok = True
             report.verified = True
-            return report                 # 이미 원래대로다 — 쓰기를 안 한다
+            return report                 # 되돌릴 게 없다 — 쓰기를 안 한다
 
     report.sent = dict(changes)
     try:

@@ -1903,4 +1903,8 @@ def api_roundtrip_restore():
                     "되돌린값": {k: (list(v) if isinstance(v, tuple) else v)
                               for k, v in rep.sent.items()},
                     "확인됨": rep.verified, "안맞는축": list(rep.mismatched),
+                    # 시험 흔적이 아니라 그 뒤에 정상적으로 바뀐 값이라 안 건드린 축.
+                    # 조용히 건너뛰면 「되돌렸다」는 보고가 거짓이 된다.
+                    "안건드린축": {k: (list(v) if isinstance(v, tuple) else v)
+                               for k, v in (rep.skipped or {}).items()},
                     "journal": rep.journal_path})
