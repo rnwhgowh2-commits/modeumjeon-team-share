@@ -551,6 +551,17 @@
     .o7 .pplist th{font-weight:600;color:var(--sub);background:var(--bg,#F9FAFB);}
     .o7 .pdx-mg{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .pdx-mg.pdx-neg{color: var(--글자-빨강, var(--red,#F04452));}
+    /* 주문 이행 가능(노션 A-1) — 판정 + 「언제 긁은 값인가」를 한 칸에. */
+    .o7 .ffc{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px;white-space:nowrap;}
+    .o7 .ffc.ffc-go{color: var(--글자-초록, var(--green,#15803D));background:var(--연한-초록,#DCFCE7);}
+    .o7 .ffc.ffc-no{color:#B91C1C;background:var(--연한-빨강,#FEE2E2);}
+    .o7 .ffc.ffc-clm{color: var(--글자-주황,#B45309);background:var(--연한-노랑,#FEF3C7);}
+    .o7 .ffc.ffc-nourl{color: var(--글자-파랑,#1B64DA);background:var(--연한-파랑,#EEF4FF);}
+    .o7 .ffc.ffc-unk,.o7 .ffc.ffc-none{color:var(--sub);background:var(--n100,#F2F4F6);font-weight:400;}
+    .o7 .ffc-ago{display:block;font-size:10px;color: var(--글자-희미, var(--faint));margin-top:1px;white-space:nowrap;}
+    /* 묶음 사이 여백 열 — 폭만 차지하고 아무것도 안 그린다(사장님 11·22번). */
+    .o7 th[data-col^="_gap"],.o7 td.gapcol{width:10px;min-width:10px;max-width:10px;
+      background:var(--n100,#F5F7F9);border-left:1px solid var(--line);border-right:1px solid var(--line);padding:0;}
     /* 실마진(노션 b-3) — 숫자는 굵게, 재료의 출처는 옆에 작은 딱지로. 숨기지 않는다. */
     .o7 .mg-val{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .mg-val.mg-neg{color: var(--글자-빨강, var(--red,#F04452));}
@@ -1172,44 +1183,45 @@
     // 화면 패널 컬럼(사용자 지정 순서, 2026-07-08 샵마인 대조). t=화면 라벨(없으면 c).
     // 정렬: 숫자·금액 우측(num) / 배지·상태 가운데(ctr) / 나머지 좌측(txt).
     var PANEL_COLS=[
-      // ── 「주문 관리」 상태(화면 전용) — 사장님이 만든 항목을 줄마다 지정. 사장님 확정 2026-08-06.
-      //  🔴 **맨 왼쪽 첫 열**이다(스크롤해도 눈에 먼저 들어와야 한다는 확정 사항).
-      //  SHIP 게이트를 넣지 않는다 → 주문 내역·송장 작업 두 탭에 같은 값이 동시에 뜬다.
+      /* ══ 열 순서 — 2026-08-12 사장님이 1~32 번호로 직접 정하심 ══════════════
+         빈 번호(11·22)는 **묶음 사이 여백**이다(주문 사람 정보 앞 / 돈 앞).
+         🔴 「매입가」 입력칸은 사장님 목록엔 번호가 없지만 **빼면 실매입가를 적을
+           곳이 사라진다**(4번 「주문후 실마진」의 재료다) → 4번 바로 옆에 남겼다.
+         🔴 「주문 판매가」는 뺐다 — 라이브 373건 전부 「단가」와 같아 두 벌이었다
+           (사장님 확인: "차이 있음? 없으면 통합"). 23번 단가 하나로 합친다.
+         🔴 「매입가 (올릴 때 / 지금)」도 뺐다 — 3번 「주문전 예상 마진」이 같은
+           재료로 답을 이미 말한다(숫자 두 벌로 보여 주면 어느 쪽이 진짜인지 묻게 된다). */
+      // 1. 사장님이 만든 상태
       {c:'_ostatus',a:'ctr',t:'주문 관리'},
-      {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
-      {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
-      {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
-      // 노션 ⑤「바로가기 버튼」 — 우리 상품으로 매칭된 행에만 뜬다(화면 전용 칸).
-      {c:'_links',a:'ctr',t:'바로가기'},
-      {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
-      {c:'단가',a:'num'},
-      // ── 실매입가(화면 전용) — 네모 입력칸. 설계서 §5.1 ──
-      //  「진짜 사온 값」을 여기서 바로 적는다. 값이 없으면 아래 3순위(예상가)를
-      //  흐린 placeholder 로 보여주되, 어느 단계 값인지 배지로 늘 밝힌다.
+      // 2. 주문 이행 가능 — 소싱처 재고·가격 기준(신설). 마지막 크롤 시각을 같이 적는다.
+      {c:'_ffcol',a:'ctr',t:'주문 이행 가능'},
+      // 3~4. 마진 두 벌 — **주문 전(소싱처 값으로 예상)** 과 **주문 후(실제 사온 값)**
+      {c:'_pdx_margin',a:'num',t:'주문전 예상 마진'},
+      {c:'_margin',a:'num',t:'주문후 실마진'},
       {c:'_pp_purchase',a:'num',t:'매입가'},
-      // ── 공급방식(화면 전용) — 이 주문을 무재고로 보냈나 사입으로 보냈나. 사장님 확정 2026-08-06.
-      //  기본 무재고. 🔴 여기 표시만으로 재고를 깎지 않는다 — 차감은 포장하며 바코드 찍을 때.
-      //  SHIP 게이트를 넣지 않는다 → 주문 내역·송장 작업 두 탭에 같은 값이 동시에 뜬다.
+      // 5~10.
       {c:'_supply',a:'ctr',t:'공급방식'},
-      // ── M4 주문 시점 가격 차이 3칸(화면 전용, 서버 열 아님) ──
-      {c:'_pdx_purchase',a:'num',t:'매입가 (올릴 때 / 지금)'},
-      {c:'_pdx_sale',a:'num',t:'주문 판매가'},
-      {c:'_pdx_margin',a:'num',t:'지금 사면 마진'},
-      {c:'실결제금액',a:'num'},
-      {c:'배송비',a:'num',t:'고객배송비'},
-      {c:'정산예정금액',a:'num',t:'정산예상금'},
+      {c:'주문상태',a:'ctr'},{c:'송장입력',a:'ctr'},
+      {c:'주문일',a:'txt'},{c:'판매처',a:'ctr'},{c:'쇼핑몰별칭',a:'txt',t:'계정'},
+      // 11. 여백
+      {c:'_gap1',a:'ctr',t:''},
+      // 12~15.
+      {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
+      {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
+      // 16~21. 사람 — 구매자·구매자 연락처는 **수령자와 다를 때만** 적는다(같으면 「-」)
+      {c:'구매자',a:'txt'},{c:'구매자번호',a:'txt',t:'구매자 연락처'},
+      {c:'수령자',a:'txt'},{c:'수령자전화번호',a:'txt',t:'수령자 연락처'},
+      {c:'우편번호',a:'txt'},{c:'주소',a:'txt'},
+      // 22. 여백
+      {c:'_gap2',a:'ctr',t:''},
+      // 23~31. 돈
+      {c:'단가',a:'num'},{c:'실결제금액',a:'num'},{c:'배송비',a:'num',t:'고객배송비'},
+      {c:'정산예정금액',a:'num',t:'정산예정금'},
       {c:'정산예정금(배송비포함)',a:'num'},
-      // ── 실마진(화면 전용) — 노션 주문관리 b-3. 「정산예정금(배송비포함) − 매입금액」.
-      //  🔴 재료가 둘 다 있어야 계산한다. 매입가가 없으면 **「매입가 없음」** 이라 적고
-      //    0 으로 채우지 않는다(0 으로 두면 정산액 전액이 마진으로 보인다).
-      //  🔴 정산액이 추정이면 「추정」 딱지 — 마우스를 올리면 사유와 근거가 뜬다.
-      //    서버는 행마다 `_settle_source` 를 실어 보내는데 이 표가 여태 한 번도 안 읽었다.
-      {c:'_margin',a:'num',t:'실마진'},
       {c:'총주문금액',a:'num'},{c:'옵션추가금',a:'num'},
       {c:'마켓수수료',a:'num'},{c:'수수료율',a:'num'},
-      {c:'구매자',a:'txt'},{c:'구매자번호',a:'txt',t:'구매자전화번호'},
-      {c:'수령자',a:'txt'},{c:'수령자전화번호',a:'txt'},
-      {c:'우편번호',a:'txt'},{c:'주소',a:'txt'}
+      // 32.
+      {c:'_links',a:'ctr',t:'바로가기'}
     ];
     // 「배송방식」·「배송검사」는 더망고를 올려야 값이 생긴다. 2026-07-30 축소로
     //  더망고를 화면에서 뺐으므로 두 칸은 늘 「—」다 → 아예 안 보여준다(빈 칸 금지).
@@ -1308,6 +1320,14 @@
       if(col==='_pdx_sale')return pdxSaleFilterKey(r);
       if(col==='_pdx_margin')return pdxMarginFilterKey(r);
       if(col==='_margin')return marginFilterKey(r);
+      if(col==='_ffcol')return ffColLabel(r).text;
+      if(col==='_gap1'||col==='_gap2')return '';
+      // 🔴 [2026-08-12 사장님] 주문상태 ▼ 필터가 **마켓 원본값**으로 나왔다
+      //   (결제완료·구매확정·배송완료…가 마켓마다 다른 말로 흩어짐). 화면은 12개
+      //   통일 상태로 보여 주면서 필터만 원본이라 **같은 화면 안에서 기준이 어긋났다**.
+      if(col==='주문상태')return unifyStatus(r['주문상태']||'').canon;
+      if(col==='구매자')return _txt(sameAsRecv(r,'구매자','수령자'));
+      if(col==='구매자번호')return _txt(sameAsRecv(r,'구매자번호','수령자전화번호'));
       if(col==='_links')return linkFilterKey(r);
       var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
@@ -2068,6 +2088,62 @@
     /* 표를 통째로 다시 그리지 않고 이 한 칸만 갈아끼운다 — 사장님이 매입가를 손으로
        고치면 실마진도 **그 자리에서** 따라 바뀌어야 한다(ppRedraw 가 부른다).
        재료가 매입가 칸과 같으므로 같은 uid 로 찾는다. */
+    /* 태그를 걷어낸 글자만 — 필터 목록은 사람이 읽는 말로 묶여야 한다. */
+    function _txt(h){return String(h).replace(/<[^>]*>/g,'').trim();}
+    /* 구매자 ↔ 수령자 — 같으면 「-」. 다를 때만 적는다(사장님 확정 2026-08-12). */
+    function sameAsRecv(r,mine,recv){
+      var a=String(r[mine]||'').replace(/[\s-]/g,''), b=String(r[recv]||'').replace(/[\s-]/g,'');
+      if(!r[mine])return '<span class="muted">—</span>';
+      if(a&&a===b)return '<span class="muted" title="수령자와 같습니다">-</span>';
+      return esc(r[mine]);
+    }
+    /* ── 주문 이행 가능 (노션 A-1 · 사장님 확정 2026-08-12) ────────────────────
+       가능 / 불가능(S 재고없음 · P 역마진) / 클레임 / 소싱처 URL 없음 / 확인 불가.
+
+       🔴 소싱처 주소가 없는 건 「확인 불가」가 아니다 — 우리가 못 본 게 아니라
+         **볼 주소 자체가 없는** 것이다. 사장님이 짚은 두 경우를 호버로 구분해 적는다:
+           ① 오프라인에서 사입해 재고를 두고 파는 상품
+           ② 마켓엔 팔지만 아직 우리 프로그램에 연동이 안 된 상품
+       🔴 판정은 **마지막으로 긁은 값** 기준이다(크롤은 사장님 PC 확장이 한다).
+         그래서 크롤 시각을 같이 적는다 — 없으면 3일 전 재고를 오늘 것인 척 보여준다. */
+    var FF_URL_WHY={
+      ours_no_url:'우리 프로그램엔 있는데 소싱처 주소가 없어요 — 오프라인에서 사입해 재고를 두고 파는 상품일 수 있습니다.',
+      not_linked:'아직 우리 프로그램에 연동되지 않은 상품이에요 — 마켓에서는 팔고 있지만 소싱처 가격 크롤·판매처 업로드까지 이어지지 않았습니다.'
+    };
+    function ffAgo(iso){
+      if(!iso)return '';
+      var d=new Date(iso); if(isNaN(d))return '';
+      var m=Math.floor((Date.now()-d.getTime())/60000);
+      if(m<1)return '방금';
+      if(m<60)return m+'분 전';
+      if(m<1440)return Math.floor(m/60)+'시간 전';
+      return Math.floor(m/1440)+'일 전';
+    }
+    function ffColLabel(r){
+      var d=ffOf(r);
+      if(!d)return {text:'판정 전',cls:'ffc-none',why:'아직 판정하지 않았어요 — 「주문 이행 가능 판단」을 누르면 채워집니다.'};
+      if(d.group==='claim')return {text:'클레임',cls:'ffc-clm',why:'취소·반품·교환 건이라 이행 판정 대상이 아니에요.'};
+      if(d.group==='fulfill')return {text:'가능',cls:'ffc-go',
+        why:'소싱처에 재고가 있고, 정산예정금이 매입가보다 큽니다 — 지금 사서 보내면 됩니다.'};
+      if(d.reason==='S')return {text:'불가능 · S',cls:'ffc-no',why:'S = 소싱처가 품절이에요.'};
+      if(d.reason==='P')return {text:'불가능 · P',cls:'ffc-no',
+        why:'P = 역마진이에요 — 지금 사면 정산받을 돈보다 매입가가 큽니다.'};
+      if(d.reason==='no_source_url')return {text:'소싱처 URL 없음',cls:'ffc-nourl',
+        why:FF_URL_WHY[d.no_url_why]||'이 주문에 연결된 소싱처 주소가 없어요.'};
+      if(d.reason==='not_ours')return {text:'소싱처 URL 없음',cls:'ffc-nourl',why:FF_URL_WHY.not_linked};
+      return {text:'확인 불가',cls:'ffc-unk',
+        why:'우리 상품인데 재고나 매입가를 못 구했어요 — 지어내지 않고 이렇게 둡니다.'};
+    }
+    function ffColCell(r){
+      var d=ffOf(r), L=ffColLabel(r);
+      var ago=d?ffAgo(d.crawled_at):'';
+      var NL=String.fromCharCode(10);
+      var tip=L.why+(d&&d.crawled_at
+        ? (NL+'· 소싱처를 마지막으로 확인한 때: '+String(d.crawled_at).slice(0,16).replace('T',' ')+' ('+ago+')')
+        : (L.cls==='ffc-nourl' ? '' : NL+'· 소싱처를 확인한 기록이 없어요'));
+      return '<span class="ffc '+L.cls+'" title="'+esc(tip).replace(/"/g,'&quot;')+'">'+esc(L.text)+'</span>'
+           + (ago?('<span class="ffc-ago">'+esc(ago)+'</span>'):'');
+    }
     function marginRedraw(uid,r){
       var wrap=document.getElementById('tablewrap'); if(!wrap)return;
       var td=wrap.querySelector('td[data-mguid="'+uid.replace(/"/g,'')+'"]');
@@ -2719,7 +2795,13 @@
         return (d&&d.order_sale_price!=null)?pdxWon(d.order_sale_price)
           :((r['단가']!==''&&r['단가']!=null)?pdxWon(num(r['단가'])):'<span class="pdx-dash">—</span>');}
       if(col==='_links')return linkCell(r);
+      if(col==='_ffcol')return ffColCell(r);
+      if(col==='_gap1'||col==='_gap2')return '';
       if(col==='_margin')return marginCell(r);
+      // 구매자·구매자 연락처는 **수령자와 다를 때만** 적는다(사장님 확정) —
+      //  대부분 같은 사람이라 같은 이름이 두 번 서서 표만 넓어졌다.
+      if(col==='구매자')return sameAsRecv(r,'구매자','수령자');
+      if(col==='구매자번호')return sameAsRecv(r,'구매자번호','수령자전화번호');
       if(col==='_pdx_margin')return pdxMarginCell(r);
       if(col==='배송방식')return dmMethodCell(r);
       if(col==='배송검사')return dmCheckCell(r);
@@ -2861,7 +2943,8 @@
           //  다시 그리지 않고 이 칸만 갈아끼우기 위해서다(marginRedraw).
           var mid=(pc.c==='_margin')?(' data-mguid="'+esc(ppUid(r))+'"'):'';
           return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))
-            +(pc.c==='_ostatus'?' ost-first':'')+'"'+mid+'>'+cellHTML(pc.c,r)+'</td>';
+            +(pc.c==='_ostatus'?' ost-first':'')
+            +(pc.c.indexOf('_gap')===0?' gapcol':'')+'"'+mid+'>'+cellHTML(pc.c,r)+'</td>';
         }).join('')+'</tr>';}).join('');
       // 범례 — 「해야 할 일」 칸을 뺀 대신, 색이 무슨 뜻인지 표 아래에서 설명한다.
       var legend='<div class="pdx-legend"><b>색이 상황을 말합니다</b><br>'

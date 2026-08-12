@@ -118,3 +118,76 @@ def test_매입엑셀_업로드_경로가_한_벌이다():
     """드롭존과 「파일 고르기」가 같은 upload() 를 쓴다."""
     assert 'ppUploadFile=upload;' in SRC, 'upload() 를 드롭존이 못 부릅니다'
     assert 'if(ppUploadFile)ppUploadFile(f);' in SRC
+
+
+# ══ [2026-08-12 사장님 확정] 표 열 순서 1~32 ══════════════════════════════════
+#  사장님이 번호를 직접 매겨 주신 순서다. 한 칸만 밀려도 잡히게 배열로 못 박는다.
+
+import re as _re
+
+_PC = _re.search(r'var PANEL_COLS=\[(.*?)\n    \];', SRC, _re.S)
+PANEL = [(c, t) for c, a, t in
+         _re.findall(r"\{c:'([^']*)',a:'([^']+)'(?:,t:'([^']*)')?\}", _PC.group(1))] if _PC else []
+
+EXPECTED_COLS = [
+    '_ostatus', '_ffcol', '_pdx_margin', '_margin', '_pp_purchase', '_supply',
+    '주문상태', '송장입력', '주문일', '판매처', '쇼핑몰별칭', '_gap1',
+    '상품명', '옵션', '수량', '오픈마켓주문번호',
+    '구매자', '구매자번호', '수령자', '수령자전화번호', '우편번호', '주소', '_gap2',
+    '단가', '실결제금액', '배송비', '정산예정금액', '정산예정금(배송비포함)',
+    '총주문금액', '옵션추가금', '마켓수수료', '수수료율', '_links',
+]
+
+
+def test_열_순서가_사장님_확정대로다():
+    got = [c for c, _ in PANEL]
+    assert got == EXPECTED_COLS, f'열 순서가 바뀌었습니다\n기대: {EXPECTED_COLS}\n실제: {got}'
+
+
+def test_주문이행가능이_두번째다():
+    """A-1 — 사장님이 2번으로 못 박으신 신설 열."""
+    assert [c for c, _ in PANEL][1] == '_ffcol'
+
+
+def test_마진_두_열의_이름이_주문전_주문후로_갈린다():
+    """같은 「마진」이 두 개라 어느 쪽이 실제인지 알 수 없었다."""
+    d = dict(PANEL)
+    assert d['_pdx_margin'] == '주문전 예상 마진'
+    assert d['_margin'] == '주문후 실마진'
+
+
+def test_주문판매가는_단가와_통합돼_사라졌다():
+    """라이브 373건 전부 「단가」와 같았다 — 같은 숫자를 두 벌로 두지 않는다."""
+    got = [c for c, _ in PANEL]
+    assert '_pdx_sale' not in got
+    assert '단가' in got
+
+
+def test_매입가_입력칸은_남아_있다():
+    """🔴 사장님 목록엔 번호가 없지만 빼면 실매입가를 적을 곳이 사라진다
+    (4번 「주문후 실마진」의 재료다)."""
+    assert '_pp_purchase' in [c for c, _ in PANEL]
+
+
+def test_묶음_사이_여백이_둘이다():
+    """사장님이 비워 두신 11·22번 = 사람 정보 앞 / 돈 앞 여백."""
+    got = [c for c, _ in PANEL]
+    assert got.count('_gap1') == 1 and got.count('_gap2') == 1
+    assert got.index('_gap1') < got.index('상품명')
+    assert got.index('_gap2') < got.index('단가')
+
+
+# ── 헤더 필터 정규화 ─────────────────────────────────────────────────────────
+
+def test_주문상태_필터가_정규화된_값을_쓴다():
+    """🔴 화면 배지는 12개 통일 상태인데 ▼ 필터만 마켓 원본값이라
+    **같은 화면 안에서 기준이 어긋났다**(사장님 스크린샷)."""
+    assert "if(col==='주문상태')return unifyStatus(" in SRC
+
+
+def test_구매자는_수령자와_같으면_한줄로_줄인다():
+    """대부분 같은 사람이라 같은 이름이 두 번 서서 표만 넓어졌다."""
+    assert "if(col==='구매자')return sameAsRecv(r,'구매자','수령자');" in SRC
+    assert "if(col==='구매자번호')return sameAsRecv(r,'구매자번호','수령자전화번호');" in SRC
+    # 필터 목록도 화면과 같은 값을 봐야 한다(화면은 「-」인데 필터가 이름이면 어긋난다)
+    assert "if(col==='구매자')return _txt(sameAsRecv(" in SRC
