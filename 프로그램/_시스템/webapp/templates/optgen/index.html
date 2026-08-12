@@ -101,10 +101,30 @@
       {# [2026-08-05 사장님] 뒷문장이 「상품은 / 나중에」로 갈라져 읽힘 — 줄을 분리 #}
       <div class="og-md">색상·사이즈를 짜서 옵션을 담을 매트릭스를 새로 만들어요.<br>
         <b>상품은 나중에 만듭니다.</b></div>
-      <label class="og-lb">이 매트릭스의 이름</label>
+
+      {# [2026-08-12 노션 옵션 a] 사장님이 정하신 순서 그대로 —
+         ①종류 → ②옵션축 → ③브랜드 → ④매트릭스의 이름. #}
+      <label class="og-lb"><span class="og-step">1</span> 어떤 모음전인가요</label>
+      <div class="og-kinds" id="ob-kinds">
+        {% for p in axis_presets %}
+        <button type="button" class="og-kind" data-kind="{{ p.kind }}">
+          <b>{{ p.label }}</b><span>{{ p.desc }}</span>
+        </button>
+        {% endfor %}
+      </div>
+
+      <label class="og-lb"><span class="og-step">2</span> 옵션축</label>
+      <div class="og-axes" id="ob-axes">
+        <span class="og-axes-none">위에서 모음전 종류를 먼저 고르세요</span>
+      </div>
+
+      <label class="og-lb"><span class="og-step">3</span> 브랜드</label>
+      <input class="og-in" id="ob-brand" placeholder="예: 르무통" maxlength="60">
+
+      {# 「이 매트릭스의 이름」 → 「매트릭스의 이름」 (사장님 지시로 '이' 제거) #}
+      <label class="og-lb"><span class="og-step">4</span> 매트릭스의 이름</label>
       <input class="og-in" id="ob-name" placeholder="예: 르무통 메이트" maxlength="120">
-      <label class="og-lb">브랜드</label>
-      <input class="og-in" id="ob-brand" placeholder="르무통" maxlength="60">
+
       <button class="og-btn" type="button" id="ob-make">만들고 색상·사이즈 짜러 가기 →</button>
       <div class="og-err" id="ob-err"></div>
     </div>
@@ -252,6 +272,24 @@
     line-height:1.6}
   .og-mx{position:absolute;top:12px;right:14px;border:0;background:transparent;
     font-size:15px;color:var(--color-text-tertiary);cursor:pointer;font-family:inherit}
+  /* [2026-08-12 노션 옵션 a] 만들기 창 4단계 — 번호로 순서가 보이게 */
+  .og-step{display:inline-flex;width:18px;height:18px;border-radius:50%;
+    background:var(--color-bg-muted);color:var(--color-text-tertiary);
+    align-items:center;justify-content:center;font-size:11px;margin-right:6px}
+  .og-kinds{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:var(--sp-3)}
+  .og-kind{text-align:left;border:1.5px solid var(--color-border);border-radius:10px;
+    padding:10px 12px;background:var(--surface,#fff);font-family:inherit;cursor:pointer}
+  .og-kind b{display:block;font-size:14px;margin-bottom:2px}
+  .og-kind span{font-size:12px;color:var(--color-text-tertiary);line-height:1.5}
+  .og-kind.on{border-color:var(--color-primary);
+    background:var(--연한-파랑,rgba(0,113,227,.06))}
+  .og-kind.on b{color:var(--color-primary)}
+  .og-axes{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--sp-3);min-height:36px}
+  .og-axes-none{font-size:12.5px;color:var(--color-text-tertiary);padding:8px 0}
+  .og-ax{border:1.5px solid var(--color-border);border-radius:999px;padding:7px 14px;
+    background:var(--surface,#fff);font-family:inherit;font-size:13px;cursor:pointer}
+  .og-ax.on{border-color:var(--color-primary);color:var(--color-primary);font-weight:700;
+    background:var(--연한-파랑,rgba(0,113,227,.06))}
   /* [B1] 서랍 정렬 고르기 — 검색칸과 같은 규격, 밑여백만 없앤다 */
   .og-sort{margin-bottom:0}
   /* [2026-08-12] 「숨긴 묶음 보기」 — 브랜드 줄(.og-b)과 같은 규격으로 나란히 */
@@ -434,14 +472,56 @@
   var nameEl = document.getElementById('ob-name');
   var brandEl = document.getElementById('ob-brand');
   var errEl = document.getElementById('ob-err');
+
+  // [2026-08-12 노션 옵션 a·b] ①종류 → ②축 프리셋. 서버가 내려준 것만 고를 수 있다
+  //   (프리셋 원천 = webapp/routes/optgen.py AXIS_PRESETS — 화면에 또 적지 않는다).
+  var PRESETS = {{ axis_presets|tojson }};
+  var pickedKind = null, pickedAxes = null;
+  var kindsBox = document.getElementById('ob-kinds');
+  var axesBox = document.getElementById('ob-axes');
+
+  function drawAxes() {
+    var p = PRESETS.filter(function (x) { return x.kind === pickedKind; })[0];
+    if (!p) { axesBox.innerHTML = '<span class="og-axes-none">위에서 모음전 종류를 먼저 고르세요</span>'; return; }
+    axesBox.innerHTML = p.options.map(function (o) {
+      var on = pickedAxes && pickedAxes.join(' ') === o.axes.join(' ');
+      return '<button type="button" class="og-ax' + (on ? ' on' : '') +
+             '" data-axes="' + o.axes.join(',') + '">' + o.n + '축 · ' +
+             o.axes.join(' × ') + '</button>';
+    }).join('');
+  }
+  kindsBox.addEventListener('click', function (e) {
+    var b = e.target.closest('.og-kind'); if (!b) return;
+    pickedKind = b.getAttribute('data-kind');
+    // 종류를 바꾸면 축 고른 것은 버린다 — 남겨 두면 안 맞는 축이 딸려 간다.
+    pickedAxes = null;
+    kindsBox.querySelectorAll('.og-kind').forEach(function (x) { x.classList.toggle('on', x === b); });
+    drawAxes();
+  });
+  axesBox.addEventListener('click', function (e) {
+    var b = e.target.closest('.og-ax'); if (!b) return;
+    pickedAxes = b.getAttribute('data-axes').split(',');
+    drawAxes();
+  });
+
   btn.addEventListener('click', function () {
     errEl.textContent = '';
+    // 사장님이 정하신 순서대로 물어본다 — 앞 단계가 비면 그 단계를 가리킨다.
+    if (!pickedKind) { errEl.textContent = '어떤 모음전인지 먼저 골라주세요.'; return; }
+    if (!pickedAxes) { errEl.textContent = '옵션축을 골라주세요.'; return; }
+    var brand = (brandEl.value || '').trim();
+    if (!brand) {
+      // 🔴 비워 두면 예전엔 조용히 「르무통」이 박혔다. 다른 브랜드 물건이
+      //    르무통으로 잡히면 브랜드별 정책·정산 분류가 통째로 어긋난다.
+      errEl.textContent = '브랜드를 적어주세요 — 비워 두면 엉뚱한 브랜드로 잡힙니다.';
+      brandEl.focus(); return;
+    }
     var name = (nameEl.value || '').trim();
     if (!name) { errEl.textContent = '이름을 적어주세요 — 없으면 나중에 찾을 수 없습니다.'; nameEl.focus(); return; }
     btn.disabled = true;
     fetch('/optgen/api/option-box', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name: name, brand: (brandEl.value || '').trim() || null}),
+      body: JSON.stringify({name: name, brand: brand, axes: pickedAxes}),
     }).then(function (r) { return r.json().then(function (j) { return {s: r.status, j: j}; }); })
       .then(function (res) {
         if (!res.j || !res.j.ok) {

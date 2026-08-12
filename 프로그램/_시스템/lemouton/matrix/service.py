@@ -143,7 +143,7 @@ def edit_target(session, mo: MatrixOption) -> dict:
     }
 
 
-def create_option_box(session, *, name: str, brand: str = '르무통',
+def create_option_box(session, *, name: str, brand: str = '',
                       category: str | None = None,
                       memo: str | None = None) -> MatrixOption:
     """옵션함을 만든다 — 「상품 없이 옵션만」의 입구. 설계서 규칙 1·3.
@@ -165,11 +165,20 @@ def create_option_box(session, *, name: str, brand: str = '르무통',
     if not nm:
         raise ValueError('매트릭스 옵션명을 적어주세요 — 이름이 없으면 나중에 찾을 수 없습니다.')
 
+    # [2026-08-12 노션 옵션 b★ 「브랜드/모델명 입력되어야함」] 브랜드는 필수다.
+    #   🔴 예전엔 비우면 조용히 「르무통」이 박혔다. 「누락 없이」의 뜻은
+    #      「거짓으로 채우지 않기」다 — 다른 브랜드 물건이 르무통으로 잡히면
+    #      브랜드별 정책·크롤 계수·정산 분류가 통째로 어긋난다.
+    #   기존 데이터는 안 건드린다. 앞으로 만드는 것만 필수.
+    br = (brand or '').strip()
+    if not br:
+        raise ValueError('브랜드를 적어주세요 — 비워 두면 엉뚱한 브랜드로 잡힙니다.')
+
     seq = reserve(session, PREFIX_MATRIX_ORIGIN)
     no = format_no(PREFIX_MATRIX_ORIGIN, seq)
 
     session.add(Model(model_code=no, model_name_raw=nm, model_name_display=nm,
-                      brand=(brand or '르무통'), category=category,
+                      brand=br, category=category,
                       is_option_box=True))
     session.flush()
 

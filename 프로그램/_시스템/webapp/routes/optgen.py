@@ -240,7 +240,7 @@ def index():
                            made=made, markets=IMPORT_MARKETS,
                            stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
                            stage_cls=STAGE_CLS, mat_counts=mat_counts,
-                           box_counts=box_counts)
+                           box_counts=box_counts, axis_presets=AXIS_PRESETS)
 
 
 @bp.get('/product/<int:mo_id>')
@@ -264,20 +264,54 @@ def product_assembly(mo_id: int):
                            assembly=True, detail_base='/optgen/product/', **ctx)
 
 
+#: 모음전 종류별 축 프리셋 — 노션 옵션 b (사장님 확정 2026-08-12).
+#  ⚠️ 종류는 **저장하지 않는다.** 축에 「모델」이 있으면 모델모음전이다.
+#     같은 사실을 두 곳에 두면 언젠가 갈린다(이 프로젝트가 반복해 겪은 사고).
+#  ⚠️ 축 이름이 곧 색상/사이즈 칸 배정의 근거다 — 규칙은
+#     `lemouton/sourcing/axis_slot.py` 한 곳뿐이다.
+AXIS_PRESETS = [
+    {'kind': 'color', 'label': '색상 모음전',
+     'desc': '한 모델을 색상(과 사이즈)으로 펼칩니다',
+     'options': [{'n': 1, 'axes': ['색상']},
+                 {'n': 2, 'axes': ['색상', '사이즈']}]},
+    {'kind': 'model', 'label': '모델 모음전',
+     'desc': '여러 모델을 한 상품에 담습니다',
+     'options': [{'n': 1, 'axes': ['모델']},
+                 {'n': 2, 'axes': ['모델', '색상']},
+                 {'n': 3, 'axes': ['모델', '색상', '사이즈']}]},
+]
+
+#: 프리셋에서 고를 수 있는 축 조합 — 화면이 보낸 값이 이 안에 있는지 검사한다.
+_ALLOWED_AXES = {tuple(o['axes']) for p in AXIS_PRESETS for o in p['options']}
+
+
 @bp.post('/api/option-box')
 def api_create_option_box():
     """옵션함을 만든다 — 상품 없이 옵션만 만들기 위한 그릇.
 
     겉: 매트릭스 옵션 하나 + `U…` 번호 / 속: 모델 1 + 매트릭스 1 (`M…` 없음).
+
+    [2026-08-12 노션 옵션 a] 축을 **이름만** 먼저 저장한다. 값은 지금처럼 큰 창에서
+    채운다 — 그 창이 서버가 준 `axis_steps` 로 축 카드를 그대로 복원하므로
+    (`option_url_modal.js`), 창을 새로 만들 필요가 없다.
     """
     from lemouton.matrix.service import create_option_box
+    from lemouton.sourcing.option_service import save_step_design
     body = request.get_json(silent=True) or {}
+    axes = [str(a).strip() for a in (body.get('axes') or []) if str(a).strip()]
+    if axes and tuple(axes) not in _ALLOWED_AXES:
+        return jsonify({'ok': False,
+                        'error': f'고를 수 없는 축 구성이에요: {" · ".join(axes)}'}), 400
     s = SessionLocal()
     try:
         mo = create_option_box(s, name=body.get('name') or '',
-                               brand=(body.get('brand') or '르무통').strip(),
+                               brand=(body.get('brand') or '').strip(),
                                category=(body.get('category') or None),
                                memo=(body.get('memo') or None))
+        if axes:
+            # 값은 비운 채 이름만 — 큰 창이 이 이름으로 축 카드를 채운 채 열린다.
+            save_step_design(s, mo.model_code,
+                             [{'axis_name': a, 'values': []} for a in axes])
         s.commit()
         out = {'ok': True, 'code': mo.model_code,
                'display_no': mo.display_no, 'name': mo.name}
