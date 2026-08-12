@@ -374,9 +374,11 @@ def product_assembly(mo_id: int):
     from webapp.routes.matrix import detail_context
     ctx = detail_context(mo_id)
     if ctx is None:
+        # 🔴 matrix.py 의 같은 404 와 짝 — 한 곳만 고치면 다른 곳이 남는다.
         return render_template('errors/option_not_found.html',
                                active='optgen_product',
-                               requested_code='매트릭스 옵션',
+                               requested_code='',
+                               sku_label='옵션 묶음 번호',
                                requested_sku=str(mo_id)), 404
     return render_template('matrix/detail.html',
                            active_app='bundles', active='optgen_product',
