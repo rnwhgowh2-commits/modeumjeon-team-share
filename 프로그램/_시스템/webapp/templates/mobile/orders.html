@@ -737,30 +737,37 @@
      🔴 기본 항목은 **표시만**(is_fallback) — 폰에서도 점선으로 그려 「아직 안 봄」을 구분한다.
      · 항목 만들기·고치기·지우기는 PC 에서만(작은 화면에서 실수로 지우면 팀 전체가 바뀐다). */
   var ostMap={}, ostOpts=[], ostSeq=0, ostState={};   // ostState: uid → 'saving'|'err'
+  // 🔴 「못 불러왔다」와 「아무도 안 골랐다」는 **다른 사실**이다 — 알약이 갈라 말한다.
+  //   (2026-08-12 라이브에서 실제로 겪음: 배포 중 조회가 500 을 맞자 전 줄이 빈 「상태」로
+  //    보여 사장님 상태가 지워진 줄 알았다. 목록의 빈 화면이 「못 불러옴/진짜 0건」을
+  //    갈라 말하는 것과 같은 규율을 알약에도 건다.)
+  var ostOk=true;
   function ostUid(r){return String(r['_line_uid']||'');}
   function loadLineStatus(seq){
     var mine=++ostSeq;
-    if(!rows.length){ostMap={};return;}
+    if(!rows.length){ostMap={};ostOk=true;return;}
     askServer('/orders/api/line-status/resolve',{method:'POST',
         headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
       .then(function(j){
         if(mine!==ostSeq||seq!==loadSeq)return;
         // 🔴 실패하면 **비운다** — 옛 상태를 최신인 척 그리면 사장님이 이미 처리한 줄로 믿는다.
+        ostOk=!!(j&&j.ok);
         ostMap=(j&&j.ok&&j.statuses)?j.statuses:{};
         ostOpts=(j&&j.ok&&j.options)?j.options:[];
         render();
       })
-      .catch(function(){ if(mine===ostSeq){ostMap={};ostOpts=[];render();} });
+      .catch(function(){ if(mine===ostSeq){ostOk=false;ostMap={};ostOpts=[];render();} });
   }
   function ostCell(r){
     var uid=ostUid(r); if(!uid)return '';
     var st=ostState[uid], d=ostMap[uid]||null;
-    var cls='mo-ost'+(d&&d.is_fallback?' fb':'')
+    var cls='mo-ost'+((d&&d.is_fallback)||(!d&&!ostOk)?' fb':'')
            +(st==='saving'?' saving':'')+(st==='err'?' bad':'');
     var dot=d?('<span class="d mo-od-'+esc(d.color||'gray')+'"></span>'):'';
-    var txt=d?(esc(d.name)+(d.is_fallback?' 기본':'')):'상태';
+    var txt=d?(esc(d.name)+(d.is_fallback?' 기본':'')):(ostOk?'상태':'확인 불가');
     if(st==='err')txt='✗ 실패';
-    return '<span class="'+cls+'" data-ost="'+esc(uid)+'">'+dot+txt+'</span>';
+    var tip=(!d&&!ostOk)?' title="상태를 불러오지 못했어요 — 지워진 게 아닙니다."':'';
+    return '<span class="'+cls+'" data-ost="'+esc(uid)+'"'+tip+'>'+dot+txt+'</span>';
   }
   var _ostSheet=null, _ostUid='';
   function ostSheetClose(){ if(_ostSheet){_ostSheet.classList.remove('on');} }
@@ -780,7 +787,11 @@
     }
     var cur=(ostMap[uid]&&!ostMap[uid].is_fallback)?ostMap[uid].option_id:null;
     var body;
-    if(!ostOpts.length){
+    if(!ostOpts.length&&!ostOk){
+      // 🔴 못 불러온 것을 「항목이 없어요」라고 말하면 거짓이다 — 만들라고 시키게 된다.
+      body='<div class="none">상태 목록을 불러오지 못했어요.<br>'
+          +'잠시 뒤 새로고침해 주세요 — 만들어 둔 항목이 사라진 게 아닙니다.</div>';
+    }else if(!ostOpts.length){
       // 🔴 항목이 하나도 없으면 「고르라」고 할 수 없다 — 어디서 만드는지 말한다.
       body='<div class="none">아직 만든 상태 항목이 없어요.<br>'
           +'PC 「주문 내역」 첫 열의 <b>항목 관리</b>에서 먼저 만들어 주세요.</div>';
