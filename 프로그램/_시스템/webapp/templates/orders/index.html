@@ -559,8 +559,14 @@
                  z-index:2;user-select:none;}
     .o7 th.fcol:hover .colgrip{background:linear-gradient(to right,transparent,var(--blue));opacity:.35;}
     body.col-resizing{cursor:col-resize;user-select:none;}
-    /* 폭을 정한 열은 넘치는 글자를 줄임표로 — 안 그러면 좁혀도 줄바꿈으로 다시 넓어진다. */
-    .o7 table[style*="fixed"] td{overflow:hidden;text-overflow:ellipsis;}
+    /* 폭을 정한 열은 넘치는 글자를 줄임표로 — 안 그러면 좁혀도 줄바꿈으로 다시 넓어진다.
+       🔴 [2026-08-13] `th` 도 같이 잘라야 한다. 몸통만 자르면 **머리글자가 옆 칸으로
+         흘러넘쳐** 열을 줄여도 줄어 보이지 않는다(사장님 신고의 눈에 보이는 절반).
+       🔴 머리 칸은 `position:relative`(끌 손잡이 자리) 라 `overflow:hidden` 을 주면
+         손잡이가 잘린다 → 손잡이만 빠져나오게 따로 풀어 준다. */
+    .o7 table[style*="fixed"] td,
+    .o7 table[style*="fixed"] th{overflow:hidden;text-overflow:ellipsis;}
+    .o7 table[style*="fixed"] th .colgrip{right:0;}
     .o7 .ffbar{display:flex;align-items:center;gap:10px;margin:2px 0 8px;}
     .o7 .ffbtn{border:1px solid var(--line);background:var(--surface,#fff);border-radius:9px;
       padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);}
@@ -3005,16 +3011,44 @@
        🔴 표는 가로 스크롤 컨테이너 안이라 `table-layout:fixed` 가 아니면 지정한 폭이
          무시된다 — 폭을 하나라도 정하면 fixed 로 바꾼다. */
     var colW=null;                      // {열이름: px} — 서버에서 온다
+    /* 아직 사람이 안 건드린 열의 「원래 폭」 — 표를 다시 그릴 때마다 한 번만 잰다.
+       🔴 이걸 안 굳히면 `table-layout:fixed` 가 남은 공간을 **똑같이 나눠 가져** 손도
+         안 댄 열들이 제멋대로 넓어졌다 좁아진다. */
+    var colWAuto=null;
     function applyColW(){
       var t=document.querySelector('#tablewrap table'); if(!t||!t.rows[0])return;
+      var cells=[].slice.call(t.rows[0].cells);
       var any=colW&&Object.keys(colW).length;
-      t.style.tableLayout=any?'fixed':'';
-      [].slice.call(t.rows[0].cells).forEach(function(th){
+      if(!any){                                  // 정한 폭이 하나도 없으면 손대지 않는다
+        t.style.tableLayout=''; t.style.width='';
+        cells.forEach(function(th){th.style.width='';th.style.maxWidth='';th.style.minWidth='';});
+        return;
+      }
+      /* 🔴🔴 [2026-08-13 사장님: "칼럼 폭을 줄이고자하는데 끝까지 안줄여줘"]
+         `table-layout:fixed` 는 **표 폭이 확정된 숫자일 때만** 작동한다. 이 표는
+         `width:max-content`(= 내용만큼) 라 브라우저가 자동 배분으로 되돌렸고, 그러면
+         지정한 폭이 **「최소값」으로만** 쓰인다. 칸이 전부 `white-space:nowrap` 이라
+         긴 상품명이 곧 폭의 바닥이 됐다 — 넓히는 건 되고 **줄이는 건 안 됐다**.
+         (라이브 실측: 상품명 열에 30px 를 줘도 693px 그대로.)
+         → 폭을 하나라도 정하면 **모든 열의 폭을 못박고 그 합을 표 폭으로 준다.** */
+      if(!colWAuto){                             // 원래 폭은 자동 배분 상태에서 재야 한다
+        colWAuto={};
+        cells.forEach(function(th){
+          var c=th.getAttribute('data-col'); if(!c)return;
+          colWAuto[c]=Math.round(th.getBoundingClientRect().width);
+        });
+      }
+      var total=0;
+      cells.forEach(function(th){
         var c=th.getAttribute('data-col'); if(!c)return;
-        var w=colW&&colW[c];
-        th.style.width=w?(w+'px'):'';
-        th.style.maxWidth=w?(w+'px'):'';
+        var w=(colW&&colW[c])||colWAuto[c]||0;
+        if(!w)return;
+        th.style.width=w+'px'; th.style.minWidth=w+'px'; th.style.maxWidth=w+'px';
+        total+=w;
       });
+      t.style.tableLayout='fixed';
+      // 🔴 `min-width:100%` 는 CSS 에 그대로 둔다 — 합이 화면보다 좁아도 표가 오그라들지 않게.
+      t.style.width=total?(total+'px'):'';
     }
     function bindColResize(){
       var t=document.querySelector('#tablewrap table'); if(!t||!t.rows[0])return;
@@ -3029,7 +3063,10 @@
           var x0=e.clientX, w0=th.getBoundingClientRect().width;
           document.body.classList.add('col-resizing');
           function mv(ev){
-            var w=Math.max(40,Math.round(w0+(ev.clientX-x0)));
+            // 🔴 바닥을 24px 로 낮췄다(옛 40px). 사장님: "끝까지 안줄여줘."
+            //   0 까지 열면 손잡이를 다시 잡을 수 없어 되돌리지 못한다 — 24px 는
+            //   손잡이(7px)를 잡을 수 있는 최소치다. 두 번 누르면 원래대로 돌아간다.
+            var w=Math.max(24,Math.round(w0+(ev.clientX-x0)));
             colW=colW||{}; colW[c]=w; applyColW();
           }
           function up(){
@@ -3085,6 +3122,8 @@
       [].slice.call(document.querySelectorAll('#tablewrap th.fcol')).forEach(function(th){
         th.addEventListener('click',function(e){openColPop(th.getAttribute('data-col'),th);e.stopPropagation();});});
       // 저장된 열 너비를 입히고, 경계에 끌 손잡이를 단다(표를 다시 그릴 때마다).
+      // 🔴 원래 폭 기억은 버린다 — 표가 새로 그려졌으니 지난 판에서 잰 값은 남의 값이다.
+      colWAuto=null;
       applyColW(); bindColResize();
       bindInvCells(fr);
       bindPurchaseCells();
