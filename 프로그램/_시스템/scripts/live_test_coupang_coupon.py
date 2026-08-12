@@ -128,6 +128,46 @@ def _first_vendor_item(client, skip=None):
     return None, None, None
 
 
+def _find_free_product(client, taken, limit=25):
+    """안 물린 옵션이 하나라도 있는 **판매중지** 상품을 찾는다.
+
+    우리 캐시(market_products)에서 그 계정의 판매중지 상품을 꺼내 차례로 본다 —
+    마켓 목록을 다시 훑지 않는다(이미 밤마다 훑어 둔 것을 쓴다).
+    """
+    from shared.db import SessionLocal
+    from lemouton.catalog.models import MarketProduct
+    from shared.platforms.coupang.products import get_product
+
+    s = SessionLocal()
+    try:
+        rows = (s.query(MarketProduct.market_product_id, MarketProduct.name)
+                .filter_by(market='coupang', account_key=ACCOUNT)
+                .filter(MarketProduct.status != 'sale')
+                .filter(MarketProduct.deleted_at.is_(None))
+                .order_by(MarketProduct.id.desc()).limit(limit).all())
+    finally:
+        s.close()
+
+    for pid, nm in rows:
+        if str(pid) == str(PRODUCT):
+            continue
+        try:
+            d = get_product(pid, client=client)
+        except Exception as e:                          # noqa: BLE001
+            print(f'    {pid} 상세 실패: {str(e)[:80]}')
+            continue
+        for it in (d.get('items') or []):
+            mp = it.get('marketplaceItemData') or {}
+            iid = it.get('vendorItemId') or mp.get('vendorItemId')
+            pr = it.get('salePrice')
+            if not isinstance(pr, (int, float)):
+                pr = (mp.get('priceData') or {}).get('salePrice')
+            if iid and str(iid) not in taken and isinstance(pr, (int, float)):
+                print(f'    → 찾았습니다: {pid} 옵션 {iid} ({nm or ""})'[:100])
+                return int(iid), int(pr), (d.get('sellerProductName') or nm or pid)
+    return None, None, None
+
+
 def do_create(client, vid):
     from shared.platforms.coupang import promotions as P
 
@@ -143,18 +183,25 @@ def do_create(client, vid):
         return 1
 
     taken = _taken_items(client, vid)
+    print(f'  (남의 쿠폰이 쓰는 옵션 {len(taken)}개는 비켜 갑니다)')
+    # 🔴 실측(2026-08-06) — 지정한 시험 상품의 **옵션 98개가 전부** 사장님 쿠폰에 물려
+    #   있었다(물린 옵션 1,841개). 한 상품만 보고 포기하면 검증 자체를 못 한다 →
+    #   같은 계정의 **판매중지 상품**을 차례로 훑어 안 물린 옵션 하나를 찾는다.
+    #   판매중지만 고르는 이유는 처음과 같다 — 고객이 살 수 없어 금전 위험 0.
     item_id, price, pname = _first_vendor_item(client, skip=taken)
     if not item_id:
-        print(f'■ 시험 상품 {PRODUCT} 에서 쓸 수 있는 옵션을 못 찾았습니다 '
-              f'(모든 옵션이 이미 다른 쿠폰에 물려 있음 · 물린 옵션 {len(taken)}개)')
+        print(f'  ⚠️ 지정 상품 {PRODUCT} 은 옵션이 전부 물려 있어 다른 상품을 찾습니다')
+        item_id, price, pname = _find_free_product(client, taken)
+    if not item_id:
+        print(f'■ 이 계정에서 쓸 수 있는 옵션을 못 찾았습니다 '
+              f'(훑어본 판매중지 상품 전부가 이미 쿠폰에 물려 있음)')
         return 1
-    print(f'  (남의 쿠폰이 쓰는 옵션 {len(taken)}개는 비켜 갔습니다)')
 
     start = P.tomorrow_midnight()
     end = start[:10] + ' 23:59:59'
     print('=' * 70)
     print(f'■ 쿠팡 쿠폰 실전송 — {pname}')
-    print(f'  계정 {ACCOUNT} · 상품 {PRODUCT}(판매중지) · 옵션 {item_id} 하나만')
+    print(f'  계정 {ACCOUNT} · 판매중지 상품 · 옵션 {item_id} 하나만')
     print(f'  판매가의 약 {DISCOUNT_RATE:.0%} 정액 · {start} ~ {end} · 계약ID {contract_id}')
     print('=' * 70)
 
