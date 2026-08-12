@@ -100,14 +100,17 @@ def create_outbound(session: Session, location_id: int, option_canonical_sku: st
 
 def create_adjustment(session: Session, location_id: int, option_canonical_sku: str,
                        new_qty: int, memo: str = '', created_by: str = '') -> InventoryTx:
-    """조정 — **결과 수량(new_qty)을 받아** 원장엔 그 차이를 남긴다.
+    """조정 — **결과 수량(new_qty)을 받아 원장엔 그 차이를 남긴다.**
 
-    🔴 [2026-08-13] 예전엔 `qty=new_qty`(절대값)로 남겼다. 그런데 같은 표에
-       모바일·`api_inventory_link` 는 **차이값**을 남기고 있어, 한 표의 같은 종류
-       행이 두 가지 뜻을 가졌다 — 어느 읽는 쪽도 옳을 수 없었다.
-       차이값으로 통일한다: 합으로 셀 수 있고, **위치별 재고와도 맞는다**
-       (절대값이면 한 위치 실사가 다른 위치 재고까지 덮는다).
-       받는 값은 그대로 「결과 수량」이다 — 작업자에게 뺄셈을 시키지 않는다."""
+    🔴 [2026-08-13 사장님 확정] 조정은 **차이값**이다.
+       받는 값은 그대로 「실사해 보니 N개」다 — 작업자에게 뺄셈을 안 시킨다.
+       차이 계산은 여기서 한다.
+
+       절대값으로 남기면 **위치별 합이 전체와 안 맞는다**(전체는 접어서 세고
+       위치별은 더해서 세기 때문). 규칙 정본 = shared/inventory_stock.py 머리말.
+       모바일 창구(webapp/routes/mobile.py)도 같은 규칙이어야 한다 —
+       한쪽만 바뀌면 같은 표의 행이 두 가지 뜻을 갖는다(오늘 세 번 그랬다).
+    """
     opt = session.query(Option).filter(Option.canonical_sku == option_canonical_sku).first()
     if not opt:
         raise ValueError(f"옵션 없음: {option_canonical_sku}")

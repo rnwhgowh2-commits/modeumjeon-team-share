@@ -110,15 +110,15 @@ def test_action_adjust_delta_from_ssot(client, seeded):
     assert j["new_total_stock"] == 5
 
 
-def test_adjust는_증감분으로_저장한다(client, seeded):
+def test_adjust_저장값이_읽는_쪽과_같은_뜻이다(client, seeded):
     """🔴 저장값까지 못 박는다 — 응답만 보면 「어떻게 저장됐는지」를 안 본다.
 
-    재고 SSOT(`fold_tx_rows`)는 `adjust → total += q`(**증감분**)다.
-    창구는 「실사 5개」를 받고 뺄셈은 서버가 한다 → 원장엔 +4 가 남는다.
-
-    ⚠️ 2026-08-13 이 자리에서 반나절 사이 규약이 두 번 뒤집혔다(절대값 ↔ 델타).
-      두 번 다 **에러 없이 숫자만 틀리는** 사고였다(재고 4, 그다음 재고 6).
-      그래서 저장값과 그것을 접은 결과를 **둘 다** 못 박는다.
+    ⚠️ 2026-08-13 이 한 줄이 하루에 **세 번** 뒤집혔다(재고 4 → 6 → 4).
+      전부 에러 없이 숫자만 틀렸다. 그래서 **규칙을 여기 박아 두지 않고**
+      읽는 쪽 정본(`fold_tx_rows`)에게 물어 그와 같은지만 본다 —
+      규약이 바뀌어도 세 곳을 같이 바꾸면 그대로 통과한다.
+      쓰는 곳 세 곳을 한꺼번에 보는 시험은
+      `tests/inventory/test_adjust_writer_consistency.py`.
     """
     from lemouton.inventory.models import InventoryTx
     from shared.db import SessionLocal
@@ -132,7 +132,5 @@ def test_adjust는_증감분으로_저장한다(client, seeded):
         rows = (s.query(InventoryTx.tx_type, InventoryTx.qty)
                 .filter_by(option_canonical_sku=seeded["sku"], status="completed")
                 .order_by(InventoryTx.id).all())
-    adj = [q for t, q in rows if t == "adjust"]
-    assert adj == [4], f"조정은 증감분(5−1=4)으로 저장해야 한다: {rows}"
-    # 저장한 뜻과 읽는 뜻이 같아야 실사한 수가 그대로 나온다.
-    assert fold_tx_rows(rows) == 5
+    # 저장한 것을 읽는 쪽 규칙으로 접으면 **실사한 수**가 나와야 한다.
+    assert fold_tx_rows(rows) == 5, f"저장 뜻과 읽는 뜻이 어긋났다: {rows}"

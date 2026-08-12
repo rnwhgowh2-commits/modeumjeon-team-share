@@ -9,18 +9,24 @@
 - get_stock_batch(skus) 로 한 번에 N SKU 조회 (N+1 회피)
 - get_stock_summary() 도 1 쿼리로 전체 통계 계산
 
-🔴 조정(adjust)의 뜻 — **증감분(델타)이다** (2026-08-13 통일)
-  화면·모바일은 「실사해 보니 N개」를 받지만, 원장에는 **그 차이(N − 지금재고)** 를 남긴다.
-  그래야 ① 합(SUM)으로 셀 수 있고 ② **위치별 재고와 합이 맞는다**
-  (절대값으로 남기면 A창고 실사가 B창고 재고까지 덮어 버린다).
+🔴 조정(adjust)의 뜻 — **차이값이다** (2026-08-13 사장님 확정)
+  창구는 「실사해 보니 5개」를 그대로 받는다(작업자에게 뺄셈을 안 시킨다).
+  원장에는 **그 차이(5 − 지금재고)** 를 남긴다. 차이 계산은 창구 안에서 한다.
 
-  ⚠️ 예전엔 읽는 쪽 두 곳이 정반대였다 — `cogs.py` 절대값 / 여기 델타.
-    「입고 100 → 실사 5」에서 5 와 105 가 동시에 나왔다(100개 과대).
-    쓰는 쪽도 갈려 있었다 — 모바일·`api_inventory_link` 는 델타,
-    `inbound.create_adjustment` 만 절대값. 지금은 **전부 델타**이고
-    규칙은 `fold_tx_rows()` 한 곳뿐이다(`recalc_stock_total` 도 이걸 쓴다).
-  🔴 창구는 여전히 「결과 수량」을 받는다 — 작업자가 뺄셈하게 만들지 않는다.
-     차이 계산은 `create_adjustment` 안에서 한다.
+  ━━ 왜 차이값인가 — 절대값이면 **위치별 합이 전체와 안 맞는다** ━━━━━━━━━
+    절대값은 SUM 으로 표현할 수 없어, 전체는 「접어서(fold)」 세고 위치별은
+    「더해서(SUM)」 센다. 그러면 같은 데이터가 두 가지로 읽힌다:
+        창고A 입고 10 · 조정 5  →  전체 5 · 창고A 15   (합 15 ≠ 전체 5)
+    창고별 합이 전체와 다르면 **없는 재고를 팔게 된다.**
+    차이값이면 조정도 그냥 더하는 값이라 전체·위치별이 같은 규칙으로 계산돼
+    자동으로 맞고, SUM 한 번으로 끝나 특수 처리도 필요 없다.
+    시험 = tests/inventory/test_adjust_location_consistency.py
+
+  ⚠️ 2026-08-13 하루에 이 규약이 **세 번 뒤집혔다.** 매번 한두 군데만 고쳐서
+    같은 표의 행이 두 가지 뜻을 가졌고, 두 번 다 **에러 없이 숫자만 틀렸다**
+    (재고 4, 그다음 6, 그다음 −2). 고칠 때는 반드시 **다섯 군데를 한 번에**:
+      ① 이 파일 fold_tx_rows  ② _stock_expr  ③ inbound.create_adjustment
+      ④ webapp/routes/mobile.py  ⑤ 시험 두 파일
 """
 from __future__ import annotations
 
@@ -56,7 +62,7 @@ def fold_tx_rows(rows) -> int:
 
     · in     → +
     · out    → −
-    · adjust → **더한다(증감분·부호 그대로)** — 위 모듈 독스트링 참조
+    · adjust → **더한다(차이값·부호 그대로)** — 위 모듈 독스트링 참조
     · move   → 총합에는 영향 없음(위치만 바뀐다)
 
     🔴 `cogs.recalc_stock_total` 도 이 함수를 쓴다. 두 곳이 각자 세면 갈린다 —
@@ -70,8 +76,37 @@ def fold_tx_rows(rows) -> int:
         elif tx_type == 'out':
             total -= abs(q)
         elif tx_type == 'adjust':
-            total += q                     # 조정 = **증감분**(부호 그대로)
+            total += q                     # 차이값 — 부호 그대로 더한다
     return total
+
+
+def _skus_with_adjust(session, product_skus) -> set[str]:
+    """조정 이력이 있는 SKU — 이들만 느린 길(차례대로 접기)로 다시 센다."""
+    if not product_skus:
+        return set()
+    return {sk for (sk,) in session.query(InventoryTx.option_canonical_sku)
+            .filter(InventoryTx.option_canonical_sku.in_(list(product_skus)),
+                    InventoryTx.tx_type == 'adjust',
+                    InventoryTx.status == 'completed')
+            .distinct().all()}
+
+
+def _exact_stock(session, product_skus) -> dict[str, int]:
+    """조정이 낀 SKU 를 **차례대로 접어** 정확히 센다(전체 위치 합 기준)."""
+    out: dict[str, int] = {}
+    if not product_skus:
+        return out
+    rows = (session.query(InventoryTx.option_canonical_sku, InventoryTx.tx_type,
+                          InventoryTx.qty)
+            .filter(InventoryTx.option_canonical_sku.in_(list(product_skus)),
+                    InventoryTx.status == 'completed')
+            .order_by(InventoryTx.created_at, InventoryTx.id).all())
+    by: dict[str, list] = {}
+    for sk, t, q in rows:
+        by.setdefault(sk, []).append((t, q))
+    for sk in product_skus:
+        out[sk] = fold_tx_rows(by.get(sk, []))
+    return out
 
 
 def _product_sku_map(session, option_skus) -> dict[str, str]:
@@ -153,6 +188,12 @@ def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None
         mq = mq.filter(InventoryTx.location_to_id == location_id)
     for sk, s in mq.group_by(InventoryTx.option_canonical_sku).all():
         prod_stock[sk] = prod_stock.get(sk, 0) + int(s or 0)
+
+    # 3) 🟢 [2026-08-13] 조정이 **차이값**이 되면서 여기 있던 우회로가 필요 없어졌다.
+    #    예전엔 조정이 절대값이라 SUM 으로 표현이 안 돼, 조정이 낀 SKU 만 따로
+    #    「접어서」 덮어썼다. 그런데 위치별 조회는 그 뜻이 없어 그냥 SUM 했고,
+    #    그래서 **전체와 위치별 합이 갈렸다**(창고A 10·조정 5 → 전체 5, 창고A 15).
+    #    차이값은 그냥 더하는 값이라 위 SUM 하나로 전체·위치별이 같이 맞는다.
 
     # 옵션 → (연결 재고제품) 재고 매핑
     return {opt: prod_stock.get(psku_map[opt], 0) for opt in option_skus}

@@ -1342,12 +1342,45 @@ def api_suspend_eleven11():
 #:      · 옥션  6495431339  59,300→59,400→59,300 · 재고 10→11→10  (잠김 없음)
 #:      · G마켓 6495432102  35,300→35,400→35,300 · 재고 10→11→10  (잠김 없음)
 #:    그래서 차단을 **마켓 단위에서 축 단위로** 좁힌다. 아직 막는 건 아래 3축뿐이다.
-_ESM_HEAVY_AXES = ("name", "detail_html", "image_urls")
-_ESM_HEAVY_BLOCKED = (
-    "옥션·G마켓의 상품명·상세·이미지 왕복은 아직 막혀 있습니다 — 이 3축은 전용 API 가 "
-    "없어 **전체 상품수정 PUT** 뿐인데, 그 전송 자체가 재심사를 유발해 상품이 잠기고 "
-    "원복도 손복구도 거부됩니다(2026-08-07 실측 2건). "
-    "가격·재고는 전용 API 라 정상 왕복합니다(2026-08-12 실측).")
+#: 무거운 3축 — 상품명·상세·이미지. 가격·재고와 달리 **손님 화면에 그대로 보이고**,
+#: 마켓마다 되돌리기 실패 시 손복구가 어려운 축이다.
+HEAVY_AXES = ("name", "detail_html", "image_urls")
+_ESM_HEAVY_AXES = HEAVY_AXES        # 옛 이름 유지(참조가 남아 있다)
+
+#: 마켓별 무거운 축 잠금 사유. 값이 있으면 그 마켓의 3축은 막힌다.
+#: 🔴 [2026-08-13 전수 조사] 「옥션·G마켓만 막으면 된다」가 **틀렸다.**
+#:    쿠팡이 무방비로 열려 있었고, 그쪽이 오히려 돈에 직결된다.
+HEAVY_BLOCKED: dict[str, str] = {
+    "auction": (
+        "옥션의 상품명·상세·이미지 왕복은 아직 막혀 있습니다 — 지금 배선된 경로가 "
+        "**전체 상품수정 PUT** 이고, 그 전송 자체가 재심사를 유발해 상품이 잠기고 "
+        "원복도 손복구도 거부됩니다(2026-08-07 실측 2건). "
+        "가격·재고는 전용 API 라 정상 왕복합니다(2026-08-12 실측)."),
+    "coupang": (
+        "쿠팡의 상품명·상세·이미지 왕복은 막혀 있습니다 — 이 3축을 보내면 "
+        "**가격과 재고가 옛 값으로 되감깁니다**. 전송 시작 시점에 뜬 상품 사본을 그대로 "
+        "다시 올리는 구조라, 그 사본 안에 바꾸기 전 가격·재고가 들어 있고 승인이 나는 "
+        "순간 그 값으로 돌아갑니다(2026-08-13 코드 확인). "
+        "가격·재고는 전용 경로라 정상 왕복합니다(2026-08-12 실측)."),
+}
+HEAVY_BLOCKED["gmarket"] = HEAVY_BLOCKED["auction"].replace("옥션의", "G마켓의")
+_ESM_HEAVY_BLOCKED = HEAVY_BLOCKED["auction"]
+
+
+def _heavy_axis_refusal(market: str, axes, *, unblocked: bool = False):
+    """무거운 축 요청이면 (사유, 막힌축) 을 준다. 통과면 None.
+
+    🔴 축을 안 주면 5축 전부라 **그때도 막아야 한다** — 기본값이 위험한 쪽으로
+       열리면 안 된다.
+    """
+    if unblocked:
+        return None
+    why = HEAVY_BLOCKED.get(market)
+    if not why:
+        return None
+    want = tuple(axes or ()) or HEAVY_AXES
+    hit = [a for a in HEAVY_AXES if a in want]
+    return (why, hit) if hit else None
 
 #: **전송**이 허용된 마켓.
 #: 🟢 11번가 — 가격·재고 **전용 API 가 이미 우리 코드에 있었다**(2026-08-08).
@@ -1585,14 +1618,25 @@ def api_roundtrip():
     if not raw_no:
         return _refuse("상품번호(origin_product_no)가 필요해요.")
 
-    # 🔴 옥션·G마켓은 **축 단위**로 막는다 — 가격·재고(전용 API)는 열려 있고,
-    #    전체 상품수정 PUT 뿐인 3축만 계속 막는다. 요청 축을 안 주면 5축 전부라
-    #    이때도 막아야 한다(기본값이 위험 쪽으로 열리면 안 된다).
-    if market in ("auction", "gmarket") and not unblocked:
-        want = tuple(p.get("axes") or ()) or _ESM_HEAVY_AXES
-        hit = [a for a in _ESM_HEAVY_AXES if a in want]
-        if hit:
-            return _refuse(_ESM_HEAVY_BLOCKED, 막힌축=hit)
+    # 🔴 무거운 3축(상품명·상세·이미지)은 **마켓별로** 막는다 — 가격·재고는 열려 있다.
+    #    축을 안 주면 5축 전부라 그때도 막힌다(기본값이 위험 쪽으로 열리면 안 된다).
+    _blk = _heavy_axis_refusal(market, p.get("axes"), unblocked=unblocked)
+    if _blk:
+        return _refuse(_blk[0], 막힌축=_blk[1])
+
+    # 🔴 [2026-08-13] **판매중 상품 + 무거운 3축**은 같이 켤 수 없다.
+    #    사장님이 판매중 상품에 허락한 것은 가격 +100원·재고 +1 뿐이다(2026-08-07).
+    #    상품명·상세·사진은 손님과 검색 목록에 그대로 보이고, 몇 초 만에 되돌려도
+    #    검색 목록 사진은 한동안 남는다.
+    if str(p.get("allow_on_sale") or "") == "1":
+        _want = tuple(p.get("axes") or ()) or HEAVY_AXES
+        _hit = [a for a in HEAVY_AXES if a in _want]
+        if _hit:
+            return _refuse(
+                "판매중 상품에는 상품명·상세·이미지를 보내지 않습니다 — 손님과 검색 목록에 "
+                "그대로 보이고, 되돌려도 검색 목록 사진은 한동안 남습니다. "
+                "판매중 상품은 가격·재고만, 무거운 축은 판매중지 상품에서 시험하세요.",
+                막힌축=_hit)
 
     # ── 2중 잠금 ────────────────────────────────────────────────────────────
     armed_req = str(p.get("arm") or "") == "1"
@@ -1878,6 +1922,17 @@ def api_roundtrip_restore():
     product_no = str(meta.get("product_id") or "")
     env_prefix = (p.get("env_prefix") or "").strip() or _first_account_env(market, "")[0]
 
+    # 🔴 [2026-08-13] **전송만 막고 되돌리기를 안 막고 있었다.**
+    #    되돌리려다 2026-08-07 에 상품을 잠근 그 전송이 그대로 나간다.
+    #    저널엔 5축이 다 들어 있으므로 축 지정 없이 부르면 무거운 축까지 나간다.
+    _blk = _heavy_axis_refusal(market, p.get("axes"),
+                               unblocked=(str(p.get("unblock") or "") == "1"))
+    if _blk:
+        return jsonify({"ok": False, "armed": True, "market": market,
+                        "product_id": product_no, "막힌축": _blk[1],
+                        "refusal": _blk[0] + " (손복구도 같은 전송을 씁니다 — "
+                                             "셀러오피스에서 손으로 고쳐 주세요)"})
+
     from lemouton.uploader.roundtrip.restore import restore_from_journal
     try:
         client = _roundtrip_client(market, env_prefix)
@@ -1908,7 +1963,8 @@ def api_roundtrip_restore():
 
     # 확인이 끝났으면 저널 상태를 바꾼다 — 안 그러면 목록에 「원복실패」로 영영 남아
     # 다음 사람이 또 손복구를 돌리고, 진짜 남은 문제가 소음에 묻힌다(2026-08-12).
-    if rep.ok and rep.verified:
+    # 🔴 판별 못 한 축이 하나라도 있으면 도장을 찍지 않는다 — 「흔적 없음」이 거짓이 된다.
+    if rep.ok and rep.verified and not rep.unknown:
         from lemouton.uploader.roundtrip.journal import mark_resolved
         skipped = ", ".join(rep.skipped or {})
         mark_resolved(journal, note=(
@@ -1924,4 +1980,7 @@ def api_roundtrip_restore():
                     # 조용히 건너뛰면 「되돌렸다」는 보고가 거짓이 된다.
                     "안건드린축": {k: (list(v) if isinstance(v, tuple) else v)
                                for k, v in (rep.skipped or {}).items()},
+                    # 우리 시험값인지 **판별조차 못 한** 축 — 사람이 마켓 화면에서 봐야 한다.
+                    "판별불가축": {k: (list(v) if isinstance(v, tuple) else v)
+                               for k, v in (rep.unknown or {}).items()},
                     "journal": rep.journal_path})
