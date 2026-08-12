@@ -3664,16 +3664,20 @@
       //    (서버 combined_order_rows 가 단일비행이라 재시도가 조회를 두 배로 만들지 않음)
       var retried={};
       function fetchOne(mk,fresh){
-        function retryOrFail(failFn){
-          if(!retried[mk]){retried[mk]=1;
+        // 🔴 noRetry — 「기다리면 나아지는 실패」와 「재시도가 더 나쁘게 만드는 실패」를 가른다.
+        //   앞단 시간초과(524)는 옥션·G마켓이 5초/1회 대기줄에 밀려 100초를 넘긴 것이다.
+        //   여기서 15초 뒤 또 부르면 그 대기줄을 **한 번 더** 채워 원인을 키운다.
+        function retryOrFail(failFn,noRetry){
+          if(!noRetry&&!retried[mk]){retried[mk]=1;
             setTimeout(function(){if(seq===loadSeq)fetchOne(mk);},15000);return;}
           loadDone++;
           failFn();
           if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
           rebuild();
         }
+        var httpStatus=0;
         fetch('/orders/preview.json?market='+encodeURIComponent(mk)+(fresh?'&fresh=1':'')+'&'+qparam(),{cache:'no-store'})
-          .then(function(r){return r.json();})
+          .then(function(r){httpStatus=r.status;return r.json();})
           .then(function(j){
             if(seq!==loadSeq)return;                 // 새 조회가 시작됐으면 옛 응답 버림
             if(!j.ok){ // 실패: 저장본이 있으면 유지하되 정직하게 경고(저장본을 최신인 척 하지 않음)
@@ -3690,8 +3694,17 @@
           })
           .catch(function(){
             if(seq!==loadSeq)return;
+            // 524·504 = 앞단이 기다리다 끊은 것(응답이 오류 HTML 이라 r.json() 이 터진다).
+            //   옥션·G마켓은 5초/1회 제한이라 조회가 원래 오래 걸린다 — 사유를 그대로 말한다.
+            var slow=(httpStatus===524||httpStatus===504);
             retryOrFail(function(){mkState[mk]='fail';
-              pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];});
+              pwarn[mk]=[slow
+                ? '['+mk+'] 조회가 시간 안에 못 끝났어요(HTTP '+httpStatus+'). 이 마켓은 '
+                  +'5초에 1번만 조회할 수 있어 오래 걸립니다 — 기간을 좁혀 다시 눌러 주세요.'
+                  +(parts[mk]?' 저장본 표시 중.':'')
+                : '['+mk+'] 네트워크 오류로 불러오지 못했어요.'
+                  +(httpStatus?' (HTTP '+httpStatus+')':'')+(parts[mk]?' 저장본 표시 중.':'')];},
+              slow);
           });
       }
       mks.forEach(function(mk){fetchOne(mk);});
@@ -3947,6 +3960,15 @@
     // ── 배경 프리페치: 인접 기간을 미리 데워(캐시) 다음 클릭을 즉시로 ──
     // 사용자가 오늘→어제→그제→2~3일전 매번 새 기간을 눌러 캐시가 안 걸리던 문제 해결.
     // 각 기간은 진짜 preview.json 조회 그대로(파생·추정 없음) = 100% 정확. 순차·완만(429 억제).
+    // 🔴 미리 데우면 **안 되는** 마켓 (2026-08-12 라이브 실측으로 추가)
+    //   옥션·G마켓 주문조회는 마켓 규정이 계정당 **5초에 1회**인데, 조회 한 번에
+    //   대기 걸리는 호출이 6개 나간다(주문상태 5가지 + 입금확인중) → 하루치 52.6초.
+    //   프리페치는 8일 이하 기간 ≈7개를 미리 데우므로 옥션만 42호출·210초가 대기줄에
+    //   쌓이고, 사장님이 실제로 누른 조회가 그 뒤에 서서 앞단 100초 한도를 넘겨
+    //   `524: A timeout occurred` 로 끊겼다(화면엔 「불러오지 못했어요」만 떴다).
+    //   실패 뒤 15초 자동 재시도가 대기줄을 또 채워 더 나빠졌다.
+    //   미리 데워 아끼는 시간보다 **차례를 빼앗겨 실제 조회가 죽는 손해**가 훨씬 크다.
+    var PREFETCH_SKIP={auction:1,gmarket:1};
     var prefetchTok=0, prefetchTimer=null;
     function schedulePrefetch(){
       if(prefetchTimer)clearTimeout(prefetchTimer);
@@ -3961,7 +3983,8 @@
     }
     function prefetchNeighbors(){
       var myTok=++prefetchTok;                     // 이전 프리페치 취소
-      var mks=selMk(); if(!mks.length)return;
+      var mks=selMk().filter(function(mk){return !PREFETCH_SKIP[mk];});
+      if(!mks.length)return;                       // 느린 마켓뿐이면 미리 데우지 않는다
       var ranges=shortRanges(), i=0;
       (function step(){
         if(myTok!==prefetchTok)return;             // 사용자가 새로 조회 → 양보(취소)

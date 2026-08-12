@@ -253,6 +253,30 @@ SUPPORTED = {"smartstore", "lotteon", "coupang", "eleven11"}   # UI 엑셀버튼
 LIVE_VERIFIABLE = {"auction", "gmarket"}
 
 
+# ── 「확인 못 함」을 「검증 안 됨」으로 오해하지 않기 ────────────────────
+#  🔴 2026-08-12 라이브 사고: `preview.json?market=auction` 이 간헐적으로
+#     `{"ok":false,"error":"선택된 마켓이 없어요."}` 400 을 냈다(마켓을 분명히 지정했는데도).
+#     옥션·G마켓은 `SUPPORTED` 상수에 없고 **요청마다 DB 를 쳐서** 열리는 구조라,
+#     DB 가 한 번 삐끗하면 옛 코드의 `except: return set()` 이 그 마켓을 통째로
+#     「없는 마켓」으로 만들었다. 사유는 로그에도 안 남았다(조용한 실패).
+#
+#  대응: ①실패 사유를 로그로 남긴다 ②실패했을 때만 **직전 성공값**을 쓴다.
+#  ★ 성공값을 유효기간(TTL)으로 캐시하지 **않는다** — 그러면 마켓이 닫혀야 할 때
+#    늦게 닫혀, 미검증 계정 주문이 그 사이 조용히 빠진다(같은 조용한 누락 계열).
+#    잘못 여는 것과 잘못 닫는 것 **둘 다** 사고이므로, 평소엔 늘 실조회하고
+#    폴백은 **DB 가 실패한 순간에만** 쓴다.
+import threading as _threading_mod
+
+_verified_last_good: dict = {"value": None}
+_verified_lock = _threading_mod.Lock()
+
+
+def reset_verified_markets_cache() -> None:
+    """폴백값을 비운다 — 시험에서 앞 시험의 값이 새지 않게."""
+    with _verified_lock:
+        _verified_last_good["value"] = None
+
+
 def verified_markets() -> set:
     """라이브 검증이 끝나 공개해도 되는 마켓.
 
@@ -261,21 +285,42 @@ def verified_markets() -> set:
     ★ 한 계정이라도 미검증이면 마켓 전체를 잠근다. 검증된 계정만 부분 공개하면
       나머지 가게 주문이 통째로 빠진 채 '전체 주문'처럼 보인다 — 조용한 누락은
       발송 사고로 직결된다(11번가 같은 키 사고와 같은 계열).
-    DB 미연결·컬럼 미생성 등에서는 빈 집합(=아무것도 안 염)으로 안전하게 떨어진다.
+    """
+    got = _verified_markets_query()
+    if got is None:                       # 조회 **실패** — 직전 성공값 유지(없으면 빈 집합)
+        with _verified_lock:
+            prev = _verified_last_good["value"]
+        return set(prev) if prev is not None else set()
+    with _verified_lock:
+        _verified_last_good["value"] = set(got)
+    return set(got)
+
+
+def _verified_markets_query() -> set | None:
+    """DB 실조회. 실패하면 **사유를 로그로 남기고** None(=모름)을 돌려준다.
+
+    None 과 빈 집합을 갈라 쓰는 게 핵심이다 — 「검증된 마켓이 없다」와
+    「확인하지 못했다」는 완전히 다른 말인데, 옛 코드는 둘 다 빈 집합이었다.
     """
     try:
         from shared.db import SessionLocal
         from lemouton.sourcing.models_v2 import UploadAccount
         s = SessionLocal()
-    except Exception:  # noqa: BLE001 — DB 미연결/모델 미로드. 열지 않는 쪽이 안전.
-        return set()
+    except Exception as e:  # noqa: BLE001 — DB 미연결/모델 미로드.
+        import logging as _lg
+        _lg.getLogger(__name__).warning(
+            "[verified_markets] 검증 계정 조회 실패(연결): %s: %s", type(e).__name__, e)
+        return None
     try:
         rows = (s.query(UploadAccount.market, UploadAccount.live_verified_at)
                 .filter(UploadAccount.market.in_(sorted(LIVE_VERIFIABLE)),
                         UploadAccount.is_active == True)      # noqa: E712
                 .all())
-    except Exception:  # noqa: BLE001 — 컬럼 미생성(마이그레이션 전) 등.
-        return set()
+    except Exception as e:  # noqa: BLE001 — 컬럼 미생성(마이그레이션 전) 등.
+        import logging as _lg
+        _lg.getLogger(__name__).warning(
+            "[verified_markets] 검증 계정 조회 실패(질의): %s: %s", type(e).__name__, e)
+        return None
     finally:
         try:
             s.close()
