@@ -1898,6 +1898,15 @@ def api_roundtrip_restore():
                         "error": f"{type(e).__name__}: {str(e)[:400]}",
                         "detail": traceback.format_exc()[-700:]}), 200
 
+    # 확인이 끝났으면 저널 상태를 바꾼다 — 안 그러면 목록에 「원복실패」로 영영 남아
+    # 다음 사람이 또 손복구를 돌리고, 진짜 남은 문제가 소음에 묻힌다(2026-08-12).
+    if rep.ok and rep.verified:
+        from lemouton.uploader.roundtrip.journal import mark_resolved
+        skipped = ", ".join(rep.skipped or {})
+        mark_resolved(journal, note=(
+            "손복구 확인 — 마켓에 시험 흔적 없음"
+            + (f" (시험 뒤 정상 변경이라 안 건드린 축: {skipped})" if skipped else "")))
+
     return jsonify({"ok": rep.ok, "armed": True, "market": rep.market,
                     "product_id": rep.product_id, "error": rep.error,
                     "되돌린값": {k: (list(v) if isinstance(v, tuple) else v)

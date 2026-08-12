@@ -23,6 +23,30 @@ from lemouton.uploader.roundtrip.snapshot import Snapshot
 _STATUS_BEFORE = "전송전"
 _STATUS_OK = "원복완료"
 _STATUS_FAIL = "🔴원복실패"
+#: 손복구로 「마켓에 시험 흔적이 없다」를 확인한 상태.
+_STATUS_RESOLVED = "손복구확인"
+
+
+def mark_resolved(journal_path, *, note: str = "") -> None:
+    """손복구로 확인이 끝난 저널의 **상태만** 바꾼다.
+
+    🔴 [2026-08-12] 손복구를 다 돌려 시험 흔적이 0건인 걸 확인했는데 목록은 계속
+       「원복실패」로 떠 있었다. 고쳐진 걸 고쳐졌다고 안 적으면 다음 사람이 **또**
+       손복구를 돌리고, 진짜 남은 문제가 해결된 소음에 묻힌다.
+
+    ⚠️ `before`(원래값)는 절대 지우지 않는다 — 나중에 되돌릴 근거가 사라진다.
+    """
+    p = Path(journal_path)
+    if not p.exists():
+        return
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — 못 읽는 파일은 건드리지 않는다
+        return
+    data["status"] = _STATUS_RESOLVED
+    data["note"] = note or data.get("note") or ""
+    data["resolved_at"] = datetime.now().isoformat(timespec="seconds")
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _default_dir() -> Path:
