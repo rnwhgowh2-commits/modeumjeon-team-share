@@ -41,8 +41,15 @@ _ITEM_DEFS: dict[str, dict] = {
     # [2026-07-31] 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」
     'i_policies':       {'emoji': '🔧', 'name': '정책 생성',        'url': '/policies',              'active_key': 'policies',        'badge_key': None},
     # [2026-08-01] 노션 「상품 가공」 하위탭 ② — 상품 고르고 정책 붙이기
-    'i_policy_apply':   {'emoji': '🧩', 'name': '상품 정책 적용',  'url': '/policies/apply',        'active_key': 'policy_apply',    'badge_key': None},
-    'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
+    # [2026-08-12] 노션 「상품가공 > 하위탭 a. 상품 정책 적용 → 정책 적용」.
+    #   🔴 이름이 화면 밖 **안내 문구 2곳**(to_payload.py·send/models.py)에도 박혀 있다.
+    #      한 곳만 고치면 「정책 적용에서 붙여 주세요」라고 안내해 놓고 그런 이름의
+    #      메뉴가 없는 상태가 된다 — 같이 고친다.
+    'i_policy_apply':   {'emoji': '🧩', 'name': '정책 적용',      'url': '/policies/apply',        'active_key': 'policy_apply',    'badge_key': None},
+    # [2026-08-12] 노션 「상품가공 > 하위탭 b-1. 가격 정책 → 옵션 맵핑 템플릿」 + 「b-3. 가로탭
+    #   3개 중 가격 템플릿 삭제」. 가격 판이 빠지고 색상·사이즈(=옵션 맵핑)만 남으므로
+    #   돈 이모지 💲 는 뜻이 어긋난다 → 🔗.
+    'i_templates':      {'emoji': '🔗', 'name': '옵션 맵핑 템플릿', 'url': '/templates',             'active_key': 'templates',       'badge_key': None},
     # [2026-08-02] 「자동화」 분류 → 상단 분류 개편, 하위탭 2개 (사장님 확정 ⑤ · #687).
     #   ① 마켓 전송 = 골라서 지금 보내기(더망고식) / ② 자동화 = 저절로 돌기(지금 화면)
     #   [2026-08-06] 분류 이름은 `_SEND_STAGE_NAME`(「상품수집&전송」) — 사장님 지시.
@@ -80,14 +87,17 @@ _SEND_STAGE_NAME = '상품수집&전송'
 _STAGE_SPEC: list[tuple] = [
     ('s_collect',   '📥', '옵션생성 & 상품생성', '#3182F6', ['i_optgen_direct', 'i_optgen_market',
                                                               'i_optgen_product']),
-    ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply', 'i_templates']),
+    # [2026-08-12] 노션 「b-2. 기타 상위탭 아래로 옮기기」 — i_templates 를 s_etc 로.
+    #   「상품 가공」에는 노션 하위탭 그대로 「정책 생성 / 정책 적용」 둘만 남는다.
+    ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply']),
     ('s_auto',      _SEND_STAGE_EMOJI, _SEND_STAGE_NAME,
                                      '#8B5CF6', ['i_market_send', 'i_automation']),
     ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_bundles', 'i_matrix', 'i_catalog']),
     ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs', 'i_settle_plan']),
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
     ('s_inventory', '🏷', '재고관리',      '#10B981', ['i_inventory']),
-    ('s_etc',       '⚙️', '기타',          '#6B7280', ['i_crawl_guide', 'i_mk_acct', 'i_live_send_test',
+    ('s_etc',       '⚙️', '기타',          '#6B7280', ['i_templates', 'i_crawl_guide', 'i_mk_acct',
+                                                       'i_live_send_test',
                                                        'i_trash', 'i_alerts', 'i_data_guide',
                                                        'i_notion_report']),
 ]
@@ -475,6 +485,56 @@ def _migrate_settle_plan(layout: dict) -> bool:
     return True
 
 
+def _migrate_templates_to_etc(layout: dict) -> bool:
+    """[2026-08-12] 「옵션 맵핑 템플릿」을 「상품 가공」 → 「기타」로 이동(1회, idempotent).
+
+    노션 「상품가공 > 하위탭 b-2. 기타 상위탭 아래로 옮기기」.
+
+    🔴 _STAGE_SPEC 만 고치면 **절대 안 옮겨진다.** get_layout_for_template() 의
+       주입 로직은 「스펙엔 있는데 저장본엔 없는」 항목만 붙인다 — i_templates 는
+       저장본에 이미 있으므로 「빠진 것」으로 안 잡혀 상품 가공에 그대로 남는다.
+       그래서 저장본 자체를 갈아끼운다 (_migrate_optgen 이 i_bundles·i_matrix 를
+       옮긴 것과 같은 자리·같은 방법).
+
+    🔴 「이미 했나」 판정은 **목적지에 있나**로 한다. `_has_item_id` 로 존재만
+       보면 옮기기 전에도 True 라 한 번도 안 돈다.
+    """
+    stages = layout.get('stages') or []
+    etc = next((st for st in stages if st.get('id') == 's_etc'), None)
+    if etc is not None and any((it.get('id') == 'i_templates')
+                               for it in (etc.get('items') or [])):
+        return False                                   # 이미 기타에 있다
+
+    moved: dict | None = None
+    for st in stages:
+        keep = []
+        for it in st.get('items') or []:
+            if it.get('id') == 'i_templates':
+                moved = it                             # 어느 분류에 있든 뽑아낸다
+                continue
+            keep.append(it)
+        st['items'] = keep
+    # 오른쪽 바로가기(standalone)에 옮겨 뒀을 수도 있다 — 거기도 훑는다.
+    loose = []
+    for it in layout.get('standalone') or []:
+        if it.get('id') == 'i_templates':
+            moved = moved or it
+            continue
+        loose.append(it)
+    layout['standalone'] = loose
+
+    if etc is None:
+        etc = {'id': 's_etc', 'emoji': '⚙️', 'name': '기타',
+               'color': '#6B7280', 'collapsed': False, 'items': []}
+        stages.append(etc)
+    # 맨 앞에 붙인다 — 스펙(_STAGE_SPEC)의 기타 항목 순서와 같게.
+    #   _item() 이 개명을 건다: i_templates 는 _FORCE_RENAME 대상이라
+    #   저장본의 옛 이름(「가격 정책」)이 아니라 새 이름이 이긴다.
+    etc['items'] = [_item('i_templates', moved)] + list(etc.get('items') or [])
+    layout['stages'] = stages
+    return True
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -503,8 +563,9 @@ def _load() -> dict:
         _mig9 = _migrate_bulk_loose(data)     # [2026-08-02] 대량등록 오른쪽 바로가기(1회)
         _mig10 = _migrate_settle_plan(data)   # [2026-08-06] 정산예정금액 메뉴(1회)
         _mig11 = _migrate_send_rename(data)   # [2026-08-06] s_auto → 「상품수집&전송」 개명
+        _mig12 = _migrate_templates_to_etc(data)  # [2026-08-12] 옵션 맵핑 템플릿 → 기타(1회)
         if (_mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8
-                or _mig9 or _mig10 or _mig11):
+                or _mig9 or _mig10 or _mig11 or _mig12):
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime

@@ -276,7 +276,8 @@ def test_옛_값만_있는_정책도_열린다(client):
     assert '소싱품' in r.get_data(as_text=True)
 
 
-# ── 「상품 정책 적용」 하위탭 (노션 하위탭 ②) ────────────────────────────
+# ── 「정책 적용」 하위탭 (노션 하위탭 ②) ────────────────────────────────
+#   [2026-08-12] 노션 「a. 상품 정책 적용 → 정책 적용」 개명 반영.
 
 def _model(client, code, brand='르무통'):
     """※ Model.brand 는 **기본값이 '르무통'** 이고 NOT NULL 이다
@@ -294,7 +295,8 @@ def test_적용_화면이_열린다(client):
     r = client.get('/policies/apply')
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert '상품 정책 적용' in body
+    assert '정책 적용' in body
+    assert '상품 정책 적용' not in body, '옛 이름이 남아 있다'
     assert '① 상품 고르기' in body
     assert '② 정책 고르기' in body
 
