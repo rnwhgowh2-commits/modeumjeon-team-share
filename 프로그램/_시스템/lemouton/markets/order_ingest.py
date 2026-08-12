@@ -1114,7 +1114,13 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                     logger.warning(msg)
                     stat["errors"].append(msg)
                     continue
-                got_amts, got_dates = got
+                # 🔴 튜플이 아니면(옛 서명·시험 스텁) 금액만 온 것으로 본다 —
+                #   여기서 터지면 위 except 가 삼켜 **정산 스윕이 통째로 죽는다**
+                #   (CI 에서 실제로 그렇게 됐다: "정산조회 실패: TypeError").
+                if isinstance(got, tuple):
+                    got_amts, got_dates = got
+                else:
+                    got_amts, got_dates = got, {}
                 for k, amt in got_amts.items():      # k=(odNo,odSeq), amt=int(0 도 실정산)
                     smap.setdefault((str(k[0]), str(k[1])), amt)
                 for k, d in (got_dates or {}).items():
