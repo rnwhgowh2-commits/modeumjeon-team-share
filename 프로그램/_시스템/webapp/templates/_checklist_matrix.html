@@ -1,0 +1,421 @@
+{# 개발 체크리스트 — 표 + 마우스 정보창 공용 조각 (판매처·소싱처가 함께 쓴다)
+   · 밖에 내놓는 계약 두 개뿐 :  window.CHECKLIST_HTML (빈 껍데기 HTML) / window.ckInit(url [, opts])
+   · 데이터는 절대 박아 넣지 않는다 — ckInit 이 url 을 fetch 해서 그린다.
+   · CSS·정보창 코드는 「모음전 시안 v4 - 개발 체크리스트 확정.html」에서 잘라 왔다.
+     시안 전용 껍데기(.mock-win/.variant-tabs/.v-tab/.cmp/.chk/PAGE_CSS)와 박아 둔 CELLS/COLS/ROWL 은 버렸다. #}
+<style>
+/* ── 표 (시안 .dm2 .ck* 규칙 — 바깥틀만 .ckroot 로 바꿔 판매처·소싱처 어디에 얹어도 같게 보이게 했다) ── */
+.ckroot{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;
+  --ok:#15803D;--mono:ui-monospace,Menlo,monospace;
+  font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;font-size:12.5px;line-height:1.65;}
+.ckroot *{box-sizing:border-box;}
+
+/* 🔴 어긋남 배너 — 「화면은 초록인데 마켓엔 아무것도 안 간」 상태를 막는 장치. 비면 아예 안 뜬다. */
+.ckroot .ckdrift{display:none;background:#FFFBEB;border:1px solid #FDE68A;border-left:3px solid #B45309;
+  border-radius:8px;padding:9px 12px;margin:0 0 10px;font-size:12.5px;color:#7C4A03;line-height:1.65;}
+.ckroot .ckdrift.on{display:block;}
+.ckroot .ckdrift b{color:#92400E;font-weight:800;font-size:12.5px;}
+.ckroot .ckdrift ul{margin:4px 0 0;padding:0;list-style:none;}
+.ckroot .ckdrift li{margin-top:3px;}
+.ckroot .ckdrift li::before{content:'· ';}
+
+.ckroot .cklegend{display:flex;gap:10px;font-size:11px;color:var(--sub);margin:6px 0 10px;flex-wrap:wrap;align-items:center;line-height:1.65;}
+.ckroot .cklegend b{font-size:11px;color:#4E5968;font-weight:800;}
+.ckroot .ckwrap{display:grid;grid-template-columns:1fr 280px;gap:10px;align-items:start;}
+.ckroot .cktbl-scroll{overflow-x:auto;border:1px solid var(--line2);border-radius:8px;background:#fff;}
+.ckroot .cktbl{border-collapse:separate;border-spacing:0;font-size:11px;width:max-content;min-width:100%;}
+.ckroot .cktbl th,.ckroot .cktbl td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 6px;}
+/* 표 머리글 — 11px · 800 · #4E5968 · 바탕 없음(sticky 라 흰 판만 깔아 밑줄이 비치지 않게 한다) */
+.ckroot .cktbl thead th{background:#fff;font-size:11px;font-weight:800;color:#4E5968;line-height:1.65;
+  position:sticky;top:0;z-index:2;text-align:center;vertical-align:middle;}
+.ckroot .cktbl .ckg{background:#fff;font-size:11px;letter-spacing:-.2px;border-bottom:1px solid var(--line2);}
+.ckroot .cktbl .cks{font-size:11px;font-weight:800;color:#4E5968;max-width:80px;min-width:54px;line-height:1.65;}
+.ckroot .ckrule{color:#1B64DA;font-size:11px;margin-left:2px;}
+/* 마켓 이름 열은 옆으로 밀어도 계속 보여야 한다 */
+.ckroot .ckfix{position:sticky;left:0;z-index:3;background:#fff;text-align:left;min-width:112px;box-shadow:1px 0 0 var(--line2);}
+.ckroot thead .ckfix{z-index:4;background:#fff;}
+.ckroot .ckmk{display:block;font-weight:700;font-size:12.5px;line-height:1.65;}
+.ckroot .ckbar{display:inline-block;width:52px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;vertical-align:middle;margin-right:4px;}
+.ckroot .ckbar-in{display:block;height:100%;background:var(--ok);}
+.ckroot .cknum{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;font-family:var(--mono);}
+.ckroot .cksl{color:var(--faint);margin:0 1px;}
+.ckroot .ckdot{text-align:center;cursor:pointer;font-size:12.5px;width:40px;position:relative;}
+.ckroot .ckdot.armed{box-shadow:inset 0 0 0 2px #F59E0B;}
+.ckroot .ckdot.pinned{box-shadow:inset 0 0 0 2px var(--ink);}
+.ckroot .ckwarn{position:absolute;top:1px;right:2px;font-style:normal;font-size:11px;font-weight:800;color:#DC2626;line-height:1;}
+.ckroot .ckpanel{border:1px solid var(--line2);border-radius:8px;background:#fff;padding:12px;position:sticky;top:8px;min-height:240px;}
+.ckroot .ckph{font-size:11px;color:var(--sub);line-height:1.65;}
+.ckroot .ckerr{font-size:12.5px;color:#B91C1C;background:#FEF2F2;border:1px solid #FBD5D5;border-radius:8px;padding:9px 12px;line-height:1.65;}
+
+/* ── 정보창(떠 있는 것) — 바깥틀 이름은 ckpop, 오른쪽 고정판은 ckpanel. 속 부품(ckcard)만 공용 ── */
+.ckpop{display:none;position:fixed;z-index:99999;background:#fff;border:1px solid #d1d6db;border-radius:14px;
+  max-height:74vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;text-align:left;
+  font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:14px 16px;line-height:1.65;width:470px;
+  font-size:12.5px;} /* 글자는 11 / 12.5 / 14 세 가지만 — 안 정해 두면 host 의 16px 이 빈 껍데기로 새어 든다 */
+.ckpop.on{display:block;}
+.ckpop *{box-sizing:border-box;}
+.ckcard .pt{font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.5;}
+.ckcard .pt .dim{color:#C4CBD3;font-weight:400;}
+.ckcard .pb{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;line-height:1.5;}
+.ckcard .blk{margin-top:10px;}
+.ckcard .bl{font-size:12.5px;color:#191F28;font-weight:800;margin-bottom:5px;letter-spacing:-.2px;}
+.ckcard .blk{border-top:1px solid #EEF1F4;padding-top:9px;}
+.ckcard .blk.rule,.ckcard .blk.warn{border-top:0;padding-top:8px;}
+.ckcard .bv{font-size:12.5px;line-height:1.65;}
+.ckcard .bv li{margin-left:15px;}
+.ckcard .rule{background:#E8F0FE;border:1px solid #D6E4FD;border-radius:8px;padding:8px 10px;}
+.ckcard .rule .bl{color:#1B64DA;}
+.ckcard .warn{background:#FEF2F2;border:1px solid #FBD5D5;border-radius:8px;padding:8px 10px;font-size:12.5px;color:#B91C1C;}
+.ckcard .memo{color:#4E5968;}
+.ckcard .fd{border-top:1px solid #F1F3F5;padding:6px 0;}
+.ckcard .fd:first-child{border-top:0;}
+.ckcard .fk{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#191F28;word-break:break-all;}
+.ckcard .req{display:inline-block;font-size:11px;font-weight:700;color:#B91C1C;background:#FEF2F2;
+  border-radius:4px;padding:0 5px;margin-left:5px;line-height:1.5;}
+.ckcard .ft{font-size:12.5px;color:#4E5968;line-height:1.65;margin-top:1px;}
+.ckcard .mono{font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all;background:#F8FAFB;
+  border:1px solid #EEF1F4;border-radius:8px;padding:6px 8px;margin-top:3px;display:flex;gap:6px;align-items:flex-start;line-height:1.6;}
+.ckcard .mono span{flex:1;}
+.ckcard .cp{flex:none;font-size:11px;border:1px solid #d1d6db;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;color:#4E5968;}
+.ckcard .cp:hover{background:#F1F3F5;}
+.ckcard .cp.done{color:#15803D;border-color:#15803D;}
+.ckcard .foot{font-size:11px;color:#8B95A1;margin-top:10px;border-top:1px dashed #EEF1F4;padding-top:6px;line-height:1.65;}
+.ckcard .empty{font-size:12.5px;color:#8B95A1;background:#FAFBFC;border:1px dashed #E5E8EB;border-radius:8px;padding:8px 10px;}
+/* 배선 딱지 — 「나감 / 저장만 / 칸조차 없음」 세 값을 눈으로 갈라 준다 */
+.ckcard .ckwire{display:inline-block;font-size:11px;font-weight:800;border-radius:5px;padding:1px 7px;line-height:1.5;margin-right:5px;}
+.ckcard .unk{background:#F5F0FF;border:1px solid #E0D3FB;border-radius:8px;padding:8px 10px;font-size:12.5px;color:#5B21B6;line-height:1.65;}
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 칸 상태 여섯 가지. 시안은 다섯이었다.
+        나감(wired) 은 실계정 확인 전이라 검증완료와 절대 같은 색을 쓰지 않는다 —
+        합치면 아무도 확인 안 한 22칸이 「확인했다」로 보인다. ── */
+  var STATE = {
+    todo:       ['⬜', '미착수', '#98A2B3', '#EEF1F4'],
+    stored:     ['🟡', '저장만 됨', '#B45309', '#FAF0DE'],
+    wired:      ['🔵', '나감(확인 전)', '#1B64DA', '#E8F0FE'],
+    done:       ['🟢', '검증완료', '#15803D', '#E7F6EC'],
+    impossible: ['⚫', '불가', '#374151', '#E5E7EB'],
+    na:         ['➖', '해당없음', '#C4CBD3', '#FAFBFC']
+  };
+  /* 범례·집계에서 훑는 차례. 색은 위 표에서 따로 오므로 여기서 두 상태가 섞이는 일은 없다. */
+  var STATE_ORDER = [
+    'todo', 'stored',
+    'wired',
+    'done',
+    'impossible', 'na'
+  ];
+
+  /* 배선은 세 값이다. 'none' 은 프로그램에 칸조차 없다는 뜻 —
+     != 'wired' 로 뭉뚱그리면 12칸이 「저장은 된다」는 거짓말로 뜬다. */
+  var WIRE = {
+    wired:  ['마켓으로 나감', '#1B64DA', '#E8F0FE'],
+    stored: ['저장만 됨', '#B45309', '#FAF0DE'],
+    none:   ['프로그램에 칸 없음', '#98A2B3', '#EEF1F4']
+  };
+
+  /* 마켓 문서가 요구하는 세기. unknown 은 「없다」가 아니라 「모른다」다. */
+  var REQ = {
+    required:    ['필수', '#B91C1C', '#FEF2F2'],
+    conditional: ['조건부 필수', '#B45309', '#FAF0DE'],
+    optional:    ['선택', '#4E5968', '#F1F3F5'],
+    unknown:     ['확인 불가', '#6D28D9', '#EDE9FE']
+  };
+
+  var OPEN_DELAY = 140, CLOSE_DELAY = 250, GAP = 7, EDGE = 8;
+
+  /* 카드는 표 안이 아니라 body 에 붙이고 화면 기준으로 띄운다 — 표 안에 두면 스크롤에서 잘린다. */
+  var pop = document.body.appendChild(document.createElement('div'));
+  pop.className = 'ckpop ckcard';
+
+  var openTimer = null, hideTimer = null, armed = null, curKey = null, lastAnchor = null;
+  var DATA = null;          /* 서버가 준 것 그대로 — 조각 안에 박아 두지 않는다 */
+
+  function disarm() { if (armed) { armed.classList.remove('armed'); armed = null; } }
+  function hideNow() { pop.classList.remove('on'); curKey = null; }
+  function scheduleHide() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hideNow, CLOSE_DELAY);
+  }
+  /* 카드 위로 건너가는 중에는 안 꺼진다 / 카드에서 나가면 다시 예약한다 */
+  pop.addEventListener('mouseenter', function () {
+    clearTimeout(hideTimer); hideTimer = null;
+    clearTimeout(openTimer); openTimer = null; disarm();
+  });
+  pop.addEventListener('mouseleave', scheduleHide);
+  /* 창 스크롤 — 표 스크롤은 ckInit 에서 따로 건다(둘 다 걸어야 안 어긋난다) */
+  addEventListener('scroll', hideNow, { passive: true });
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /* 엑셀 원문의 "1) ... 2) ..." 를 줄로 끊는다 — 한 줄로 흐르면 안 읽힌다 */
+  function lines(t) {
+    var s = String(t || '').replace(/\r/g, '').split(/\n+|(?=\s\d\)\s)/)
+      .map(function (x) { return x.trim(); }).filter(Boolean);
+    return s.length > 1
+      ? '<ul class="bv">' + s.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'
+      : '<div class="bv">' + esc(s[0] || '-') + '</div>';
+  }
+
+  function badge(tri) {
+    return '<span class="pb" style="color:' + tri[2] + ';background:' + tri[3] + '">'
+      + tri[0] + ' ' + tri[1] + '</span>';
+  }
+
+  /* 「복사」 단추가 달린 한 줄 — 단추는 앵커 클릭을 같이 발동시키면 안 된다(아래 stopPropagation) */
+  function mono(label, val) {
+    if (!val) return '';
+    return '<div class="blk"><div class="bl">' + esc(label) + '</div><div class="mono"><span>'
+      + esc(val) + '</span><button class="cp" data-c="' + esc(val) + '">복사</button></div></div>';
+  }
+
+  function colOf(colNo) {
+    var list = (DATA && DATA.columns) || [];
+    for (var i = 0; i < list.length; i++) if (String(list[i].col) === String(colNo)) return list[i];
+    return { col: colNo, group: '', name: '', rule: '', item: null };
+  }
+  function rowOf(market) {
+    var list = (DATA && DATA.rows) || [];
+    for (var i = 0; i < list.length; i++) if (list[i].market === market) return list[i];
+    return { market: market, label: market, counts: {} };
+  }
+
+  /* ── 정보창 본문 — 위에서 아래로 : 이름·상태 / 우리 기준 / 마켓 문서 / 우리 항목·배선 / 주소 / 어긋남 / 엑셀 ── */
+  function render(key) {
+    var c = DATA.cells[key];
+    if (!c) return '<div class="empty">이 칸의 자료가 없습니다.</div>';
+    var parts = key.split(':'), mk = rowOf(parts[0]).label, col = colOf(parts[1]);
+    var st = STATE[c.state] || STATE.todo;
+
+    var h = '<div class="pt"><span>' + esc(mk) + '</span><span class="dim">·</span>'
+      + '<span>' + esc(col.name) + '</span>' + badge(st) + '</div>';
+
+    /* 2. 우리 기준 — 없으면 통째로 생략 */
+    if (col.rule) h += '<div class="blk rule"><div class="bl">우리 기준</div>' + lines(col.rule) + '</div>';
+
+    /* 3. 마켓 문서가 요구하는 것 — 배지 + 원문. 확인 불가면 왜 모르는지를 같이 보인다. */
+    var rq = REQ[c.required] || REQ.unknown;
+    h += '<div class="blk"><div class="bl">마켓 문서가 요구하는 것 '
+      + '<span class="pb" style="color:' + rq[1] + ';background:' + rq[2] + '">' + rq[0] + '</span></div>';
+    if (c.evidence) h += '<div class="ft">' + esc(c.evidence) + '</div>';
+    if (c.required === 'unknown') {
+      h += '<div class="unk"><b>없다는 뜻이 아니라 모른다는 뜻입니다.</b><br>'
+        + esc(c.note || '마켓 상품등록 API 원문에서 근거를 찾지 못했습니다.') + '</div>';
+    } else if (c.note) {
+      h += '<div class="ft">' + esc(c.note) + '</div>';
+    } else if (!c.evidence) {
+      h += '<div class="empty">아직 근거를 못 찾았습니다 — 지어내지 않고 비워 둡니다.</div>';
+    }
+    h += '</div>';
+
+    /* 4. 우리 프로그램 항목 + 배선 세 값 */
+    var wr = WIRE[c.wiring] || WIRE.none;
+    h += '<div class="blk"><div class="bl">우리 프로그램 항목</div>'
+      + '<div class="bv">' + esc(col.item || '없음 — 만들어야 함') + '</div>'
+      + '<div class="ft"><span class="ckwire" style="color:' + wr[1] + ';background:' + wr[2] + '">' + wr[0] + '</span>'
+      + esc(c.wiring_note || '') + '</div></div>';
+
+    /* 5. 보낼 주소 + 복사 */
+    h += mono('보낼 주소', c.api);
+
+    /* 6. 어긋남 */
+    if (c.conflict) h += '<div class="blk warn"><b>어긋남</b> ' + esc(c.conflict) + '</div>';
+
+    /* 7. 엑셀에 적어 두신 것 */
+    h += '<div class="blk"><div class="bl">엑셀에 적어 두신 것</div>'
+      + '<div class="memo">' + lines(c.spec) + '</div></div>';
+
+    var foot = '묶음 : ' + esc(col.group || '-');
+    if (c.state === 'done' && c.verified) foot += ' · 실계정 확인 : ' + esc(c.verified);
+    h += '<div class="foot">' + foot + '</div>';
+    return h;
+  }
+
+  /* 앵커 오른쪽 끝 정렬 · 아래 GAP · 넘치면 위로 뒤집기 · 화면 안으로 EDGE 만큼 밀어 넣기 */
+  function place(anchor) {
+    var r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    var left = Math.max(EDGE, Math.min(r.right - w, innerWidth - w - EDGE));
+    var top = r.bottom + GAP;
+    if (top + h > innerHeight - EDGE) top = r.top - h - GAP;
+    pop.style.left = left + 'px';
+    pop.style.top = Math.max(EDGE, top) + 'px';
+  }
+  function show(anchor, key) {
+    clearTimeout(hideTimer); hideTimer = null;
+    curKey = key; lastAnchor = anchor;
+    pop.className = 'ckpop ckcard';
+    pop.innerHTML = render(key);
+    pop.classList.add('on');
+    place(anchor);
+  }
+  /* 빠르게 훑을 때 가로채지 않도록 140ms 뒤에 연다. 열리기 직전 앵커에 .armed 로 표시한다. */
+  function arm(anchor, key) {
+    if (curKey === key) { clearTimeout(hideTimer); hideTimer = null; return; }
+    clearTimeout(openTimer); disarm();
+    armed = anchor; anchor.classList.add('armed');
+    openTimer = setTimeout(function () { disarm(); show(anchor, key); }, OPEN_DELAY);
+  }
+
+  /* 「복사」·「고정 해제」 단추는 앵커 클릭을 같이 발동시키면 안 된다 */
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest && ev.target.closest('.cp[data-c]');
+    if (!b) return;
+    ev.stopPropagation();
+    var txt = b.getAttribute('data-c');
+    var ok = function () {
+      var t = b.textContent;
+      b.textContent = '복사됨'; b.classList.add('done');
+      setTimeout(function () { b.textContent = t; b.classList.remove('done'); }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, function () {});
+    else ok();
+  });
+
+  /* ── 그리기 ── */
+  function legendHTML() {
+    var h = '<b>칸 표시</b>';
+    STATE_ORDER.forEach(function (k) {
+      var s = STATE[k];
+      h += '<span>' + s[0] + ' ' + s[1] + '</span>';
+    });
+    h += '<span style="color:#DC2626;font-weight:700">! 어긋남</span>'
+      + '<span style="color:#1B64DA">▸ 우리 기준이 정해진 항목</span>';
+    return h;
+  }
+
+  function headHTML(cols, rowHead) {
+    var g1 = '<tr><th class="ckfix" rowspan="2">' + esc(rowHead) + '</th>', i = 0;
+    while (i < cols.length) {
+      var j = i;
+      while (j + 1 < cols.length && cols[j + 1].group === cols[i].group) j++;
+      g1 += '<th class="ckg" colspan="' + (j - i + 1) + '">' + esc(cols[i].group) + '</th>';
+      i = j + 1;
+    }
+    g1 += '</tr>';
+    var g2 = '<tr>' + cols.map(function (c) {
+      return '<th class="cks" title="' + esc(c.name) + '">' + esc(c.name)
+        + (c.rule ? '<span class="ckrule">▸</span>' : '') + '</th>';
+    }).join('') + '</tr>';
+    return g1 + g2;
+  }
+
+  function bodyHTML(rows, cols, cells) {
+    return rows.map(function (r) {
+      var n = r.counts || {}, total = n.total || 0, done = n.done || 0;
+      var pct = total ? Math.round(done / total * 100) : 0;
+      var tip = STATE_ORDER.map(function (k) { return STATE[k][1] + ' ' + (n[k] || 0); }).join(' / ');
+      var h = '<th class="ckfix" title="' + esc(tip) + '"><span class="ckmk">' + esc(r.label) + '</span>'
+        + '<span class="ckbar"><span class="ckbar-in" style="width:' + pct + '%"></span></span>'
+        + '<span class="cknum">' + done + '<span class="cksl">/</span>' + total + '</span></th>';
+      h += cols.map(function (col) {
+        var key = r.market + ':' + col.col, c = cells[key];
+        if (!c) return '<td class="ckdot"></td>';
+        var s = STATE[c.state] || STATE.todo;
+        return '<td class="ckdot" style="background:' + s[3] + '" data-k="' + esc(key) + '">'
+          + '<span style="color:' + s[2] + '">' + s[0] + '</span>'
+          + (c.conflict ? '<i class="ckwarn" title="' + esc(c.conflict) + '">!</i>' : '') + '</td>';
+      }).join('');
+      return '<tr>' + h + '</tr>';
+    }).join('');
+  }
+
+  function paneReset(p) {
+    p.className = 'ckpanel';
+    p.removeAttribute('style');
+    p.innerHTML = '<div class="ckph"><b>오른쪽 고정판</b><br>'
+      + '칸에 마우스를 올리면 정보창이 뜨고, 누르면 여기에 고정됩니다.</div>';
+  }
+
+  function draw(root, d) {
+    DATA = d;
+    var cols = d.columns || [], rows = d.rows || [], cells = d.cells || {};
+    var rowHead = root.getAttribute('data-rowhead') || '판매처';
+
+    /* 🔴 어긋남 배너 — 있으면 전부 보인다. 이게 안 뜨면 거짓 검증완료를 아무도 못 본다. */
+    var banner = root.querySelector('.ckdrift'), drift = d.drift || [];
+    if (drift.length) {
+      banner.innerHTML = '<b>⚠ 어긋남 ' + drift.length + '건</b><ul>'
+        + drift.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul>';
+      banner.classList.add('on');
+    } else {
+      banner.classList.remove('on');
+      banner.innerHTML = '';
+    }
+
+    root.querySelector('.cklegend').innerHTML = legendHTML();
+    root.querySelector('.cktbl thead').innerHTML = headHTML(cols, rowHead);
+    root.querySelector('.cktbl tbody').innerHTML = bodyHTML(rows, cols, cells);
+
+    var pane = root.querySelector('.ckpanel');
+    root.querySelectorAll('.ckdot[data-k]').forEach(function (td) {
+      td.addEventListener('mouseenter', function () { arm(td, td.getAttribute('data-k')); });
+      td.addEventListener('click', function () {
+        root.querySelectorAll('.ckdot.pinned').forEach(function (x) { x.classList.remove('pinned'); });
+        td.classList.add('pinned');
+        /* 오른쪽 고정판은 좁은 칸이라 늘 세로 흐름형으로 그린다 — 표형을 넣으면 눌려서 못 읽는다. */
+        pane.className = 'ckpanel ckcard';
+        pane.style.cssText = 'position:sticky;top:8px;display:block;width:auto;max-height:none;box-shadow:none;overflow:auto;';
+        pane.innerHTML = '<button class="cp" data-unpin="1" style="float:right">고정 해제</button>'
+          + render(td.getAttribute('data-k'));
+        pane.querySelector('[data-unpin]').addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          root.querySelectorAll('.ckdot.pinned').forEach(function (x) { x.classList.remove('pinned'); });
+          paneReset(pane);
+        });
+      });
+    });
+  }
+
+  /* ── 밖에 내놓는 계약 두 개 — 이름이 바뀌면 탭이 조용히 백지가 된다 ── */
+  window.CHECKLIST_HTML = [
+    '<div class="ckroot">',
+    '<div class="ckdrift"></div>',
+    '<div class="cklegend"></div>',
+    '<div class="ckwrap">',
+    '<div class="cktbl-scroll"><table class="cktbl"><thead></thead><tbody></tbody></table></div>',
+    '<div class="ckpanel"><div class="ckph"><b>오른쪽 고정판</b><br>',
+    '칸에 마우스를 올리면 정보창이 뜨고, 누르면 여기에 고정됩니다.</div></div>',
+    '</div>',
+    '</div>'
+  ].join('');
+
+  window.ckInit = function (url, opts) {
+    opts = opts || {};
+    if (opts.nodeType === 1) opts = { root: opts };
+    var root = opts.root || document.querySelector('.ckroot');
+    if (!root) return;
+    if (opts.rowHead) root.setAttribute('data-rowhead', opts.rowHead);
+
+    var scroller = root.querySelector('.cktbl-scroll');
+    if (scroller && !scroller.hasAttribute('data-ck-bound')) {
+      scroller.setAttribute('data-ck-bound', '1');
+      /* 표를 옆으로 밀어도 카드가 제자리에 남지 않게 — 창 스크롤과 표 스크롤 둘 다 닫는다 */
+      scroller.addEventListener('scroll', hideNow, { passive: true });
+      scroller.addEventListener('mouseleave', function () {
+        clearTimeout(openTimer); disarm(); scheduleHide();
+      });
+    }
+
+    return fetch(url, { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+        return r.json();
+      })
+      .then(function (d) { draw(root, d); return d; })
+      .catch(function (e) {
+        /* 조용히 실패하면 백지가 남는다 — 못 그렸다는 사실을 화면에 적는다 */
+        var box = root.querySelector('.cktbl-scroll');
+        if (box) box.innerHTML = '<div class="ckerr">체크리스트를 불러오지 못했습니다 — '
+          + esc(String(e && e.message ? e.message : e)) + ' (' + esc(url) + ')</div>';
+        throw e;
+      });
+  };
+})();
+</script>
