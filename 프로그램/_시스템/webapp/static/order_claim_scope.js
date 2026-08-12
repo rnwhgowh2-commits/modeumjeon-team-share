@@ -199,6 +199,10 @@
       //   — 0% 로 적으면 「마켓이 다 내줬다」는 거짓말이 된다.
       var b3 = by[k], tot2 = b3.seller + b3.mkt;
       b3.sellerRate = (b3.known && tot2 > 0) ? Math.round(b3.seller / tot2 * 100) : null;
+      // 🔴 얼마나 근거가 있는 비율인지 같이 돌려준다(2026-08-12).
+      //   11번가는 109행 중 19행만 갈래 값이 온다 — 아는 행만으로 낸 비율을 화면이
+      //   **전체인 양** 보여줘 할인 569,904원 중 466,989원이 근거 없는 몫이 됐다.
+      b3.knownSum = tot2;
       b3.kindList = Object.keys(b3.kinds)
         .map(function (n) { return { name: n, amount: b3.kinds[n] }; })
         .sort(function (x, y) { return y.amount - x.amount; });
@@ -281,6 +285,24 @@
     return out;
   }
 
+  /** 판매처 한 줄의 「누가 냈나」 문구 — PC·폰이 **같은 함수**를 쓴다.
+   *  갈래를 모르는 몫이 있으면 그 금액을 반드시 밝힌다(부분을 전체로 읽히지 않게). */
+  function comma(n) {
+    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function burdenLine(m) {
+    if (!m) return '';
+    var rest = Math.max(0, (m.sum || 0) - (m.knownSum || 0));
+    var head = (m.sellerRate == null)
+      ? '누가 냈는지 확인 불가'
+      : '우리 부담 ' + m.sellerRate + '% · 마켓 부담 ' + (100 - m.sellerRate) + '%';
+    if (rest > 0 && m.sellerRate != null) {
+      head += ' (' + comma(m.knownSum) + '원만 확인 · ' + comma(rest) + '원은 확인 불가)';
+    }
+    return head;
+  }
+
   /** 마켓 할인 잔글씨. 옛 판에는 「쿠팡 쿠폰 N원 포함(매출엔 안 빠짐)」 줄이 있었다 —
    *  쿠팡 실결제가 할인 차감 전이라 항등식이 깨졌기 때문이다. 2026-08-06 확정으로
    *  쿠팡 매출에서도 쿠폰이 빠져 전 마켓 항등식이 성립하므로 그 예외 안내는 없앴다
@@ -326,6 +348,7 @@
     discountSummary: discountSummary,
     discountByMarket: discountByMarket,
     discountCaps: discountCaps,
+    burdenLine: burdenLine,
     discountHint: discountHint,
     ESM_UNKNOWN: ESM_UNKNOWN,
     signedMan: signedMan,
