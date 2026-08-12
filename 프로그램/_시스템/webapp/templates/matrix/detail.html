@@ -92,6 +92,15 @@
       background:var(--연한-주황,#FFFBEB);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.6}
     /* 그때 담은 칸 — 격자에서 옅은 초록 테두리로만 표시(고른 칸의 파랑과 안 겹치게) */
     .mxsel td.made{box-shadow:inset 0 0 0 2px var(--ap-green,#34C759)}
+    /* [2026-08-12 B2] 격자 위 모델 탭 */
+    .mg-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+    .mg-tab{padding:5px 12px;font-size:12px;border-radius:999px;
+      border:1px solid var(--line,#E5E8EB);background:var(--surface,#fff);
+      color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit}
+    .mg-tab.on{background:var(--연한-파랑,#E8F2FF);color:#1B64DA;
+      border-color:#1B64DA;font-weight:700}
+    .mg-n{font-size:11px;color:var(--sub,#8B95A1);margin-left:4px}
+    .mg-tab.on .mg-n{color:inherit}
     .dlist a{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
              padding:8px 12px;margin:0 4px 4px 0;text-decoration:none;color:inherit;font-size:12px}
     .dlist a:hover{border-color:var(--primary,#3182F6);background:var(--n100,#F7FBFF)}
@@ -131,6 +140,10 @@
       {% if assembly and editable %}🧱 격자에서 고르기{% else %}🧱 담긴 옵션{% endif %}
       <span class="cnt">{{ rows|length }}개</span>
     </div>
+    {# [2026-08-12 노션 · 사장님 B2 확정] 모델 탭 — 격자는 색상 × 사이즈 두 축뿐이라
+       모델이 다른 옵션이 같은 칸에 겹쳤다. 모델을 골라 그 격자만 본다.
+       모델 축이 없는 색상모음전에서는 아예 안 뜬다. #}
+    <div class="mg-tabs" id="mgtabs" hidden></div>
     <div style="overflow:auto;max-height:560px">
       <table class="mxsel" id="mx"></table>
     </div>
@@ -273,7 +286,19 @@ const MO_ID = {{ mo.id }};
 /* [2026-08-12 노션 상품 b-1] 그때 담은 칸 — (색상,사이즈) 대조로 되짚은 추정값.
    고른 칸(파랑)과 겹치지 않게 초록 테두리로만 표시한다. */
 const MADE_SKUS = new Set({{ (made or [])|map(attribute='picked')|sum(start=[])|list|tojson }});
-const byKey = {}; ROWS.forEach(r => byKey[r.color + ' ' + r.size] = r);
+/* [2026-08-12 사장님 B2 확정] 격자는 색상 × 사이즈 두 축뿐이라, 모델이 다른 옵션이
+   같은 칸에 겹쳤다(실측: 옵션 3개 → 격자 2칸). 모델을 골라 그 격자만 그린다.
+   모델 축이 없으면 MODELS 가 비고 탭도 안 뜬다 — 색상모음전은 지금 그대로.
+   🔴 이 줄에 있던 NUL 문자 2개를 정상 공백으로 바로잡았다(origin/main 부터 있던 것). */
+const MODELS = {{ (models or [])|tojson }};
+let curModel = MODELS.length ? MODELS[0] : null;
+const inModel = r => !curModel || r.model === curModel;
+let byKey = {};
+function reindex(){
+  byKey = {};
+  ROWS.filter(inModel).forEach(r => byKey[r.color + ' ' + r.size] = r);
+}
+reindex();
 const fmt = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
 
 /* ── 정보창 — hover-info-card 6규칙 ──
@@ -433,13 +458,18 @@ const mx = document.getElementById('mx');
 /* 격자에서 「고르기」는 조립대(assembly)에서만 뜻이 있다 — 관리 탭은 보기 전용 */
 const CANPICK = EDITABLE && ASSEMBLY;
 function build(){
+  /* 고른 모델에 실제로 있는 색·사이즈만 축으로 세운다 — 없는 칸을 회색으로 늘어놓으면
+     「그 모델에 그 조합이 있다」로 잘못 읽힌다. */
+  const rs = ROWS.filter(inModel);
+  const 색목록 = COLORS.filter(c => rs.some(r => r.color === c));
+  const 사이즈목록 = SIZES.filter(s => rs.some(r => r.size === s));
   let h = '<thead><tr><th style="text-align:left">색상＼사이즈</th>'
-        + SIZES.map(s => '<th' + (CANPICK ? ' class="pick" data-col="' + s + '"' : '') + '>' + s + '</th>').join('')
+        + 사이즈목록.map(s => '<th' + (CANPICK ? ' class="pick" data-col="' + s + '"' : '') + '>' + s + '</th>').join('')
         + '</tr></thead><tbody>';
-  COLORS.forEach(c => {
+  색목록.forEach(c => {
     h += '<tr><th style="text-align:left"' + (CANPICK ? ' class="pick" data-row="' + c + '"' : '') + '>' + c + '</th>';
-    SIZES.forEach(s => {
-      const r = byKey[c + ' ' + s];
+    사이즈목록.forEach(s => {
+      const r = byKey[c + ' ' + s];
       if (!r){ h += '<td class="none"><div class="cell">—</div></td>'; return; }
       h += '<td class="' + (sel.has(r.sku) ? 'on' : '')
          + (MADE_SKUS.has(r.sku) ? ' made' : '')
@@ -461,7 +491,7 @@ function build(){
   [['data-row', 'color'], ['data-col', 'size']].forEach(([attr, key]) => {
     mx.querySelectorAll('th[' + attr + ']').forEach(th => {
       const v = th.getAttribute(attr);
-      const rs = ROWS.filter(r => r[key] === v);
+      const rs = ROWS.filter(r => inModel(r) && r[key] === v);
       th.classList.toggle('hit', rs.length > 0 && rs.every(r => sel.has(r.sku)));
       th.addEventListener('click', () => {
         const on = rs.every(r => sel.has(r.sku));
@@ -478,7 +508,7 @@ function upd(){
   document.getElementById('build').disabled = sel.size === 0;
   const mk = document.getElementById('make');
   if (mk){
-    const all = sel.size === ROWS.length;
+    const all = sel.size === ROWS.filter(inModel).length;
     mk.disabled = sel.size === 0 || all;
     mk.textContent = all ? '전부 고르면 원본과 같아요' : '고른 것만 파생 만들기 →';
   }
@@ -486,6 +516,27 @@ function upd(){
   const dcard = document.getElementById('dcard');
   if (dcard) dcard.hidden = sel.size === 0;
 }
+/* [2026-08-12 B2] 모델 탭 — 모델이 둘 이상일 때만 뜬다.
+   🔴 모델을 바꾸면 고른 것을 비운다. 안 비우면 안 보이는 모델의 옵션이 몰래 담겨
+      「고른 2개」인데 화면엔 1칸만 파란 어긋남이 난다. */
+function drawModelTabs(){
+  const box = document.getElementById('mgtabs');
+  if (!box || MODELS.length < 2) return;
+  box.hidden = false;
+  box.innerHTML = MODELS.map(m => {
+    const n = ROWS.filter(r => r.model === m).length;
+    return '<button type="button" class="mg-tab' + (m === curModel ? ' on' : '') +
+           '" data-m="' + esc(m) + '">' + esc(m) +
+           '<span class="mg-n">' + n + '</span></button>';
+  }).join('');
+  box.querySelectorAll('.mg-tab').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.m === curModel) return;
+    curModel = b.dataset.m;
+    sel.clear();
+    reindex(); drawModelTabs(); build(); upd();
+  }));
+}
+drawModelTabs();
 build(); upd();
 
 /* ── 노션 ④ 「적용된 정책 보기」 · 「카테고리 맵핑 보기」 ──────────────────
@@ -549,7 +600,7 @@ build(); upd();
 if (ASSEMBLY){
 document.getElementById('clear').addEventListener('click', () => { sel.clear(); build(); upd(); });
 document.getElementById('all').addEventListener('click', () => {
-  ROWS.forEach(r => sel.add(r.sku)); build(); upd();
+  ROWS.filter(inModel).forEach(r => sel.add(r.sku)); build(); upd();
 });
 
 /* 상품 만들기 — 성공하면 하위탭③ 초기화면으로 돌아가 배너로 알린다(확정 2번).

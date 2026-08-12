@@ -195,8 +195,10 @@
       <div>
         <div class="og-cap" id="og-cap" hidden></div>
         <table class="og-tb og-c3">
-          <tr><th>번호</th><th>이름</th><th>브랜드</th><th class="c">상태</th>
-            <th class="r">옵션</th><th class="r"></th></tr>
+          {# [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 체크칸을 늘 보이게 —
+             단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 개를 골라야 한다. #}
+          <tr><th class="og-pick"></th><th>번호</th><th>이름</th><th>브랜드</th>
+            <th class="c">상태</th><th class="r">옵션</th><th class="r"></th></tr>
           {# [2026-08-06 확정 1번a] 줄 클릭 = 조립대(/optgen/product/…) — 이 탭 소속.
              /matrix/… 로 보내면 상단 탭이 「상품 관리」로 점프하는 어긋남이 있었다. #}
           {% for m in mats %}
@@ -204,6 +206,9 @@
               data-brand="{{ m.brand or '' }}"
               data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}"
               data-stage="{{ m.show }}">
+            <td class="og-pick"><input type="checkbox" class="og-ck"
+                 data-id="{{ m.id }}" data-name="{{ m.name }}"
+                 data-opts="{{ m.options }}" aria-label="{{ m.name }} 고르기"></td>
             <td class="mono">{{ m.no }}</td>
             <td><b>{{ m.name }}</b></td>
             <td>{{ m.brand or '—' }}</td>
@@ -235,6 +240,31 @@
           </tr>
           {% endfor %}
         </table>
+      </div>
+    </div>
+    {# [2026-08-12 사장님 C1 확정] 2개 이상 고르면 아래 띠가 뜬다.
+       한 개만 고르면 그냥 그 묶음으로 들어가면 되므로 띠를 안 띄운다. #}
+    <div class="og-pickbar" id="og-pickbar" hidden>
+      <span class="og-pickbar-n">고른 묶음 <b id="og-pn">0</b>개
+        · 옵션 합계 <b id="og-po">0</b>개<span class="og-pickbar-s">(겹치는 조합은 한 번만 담깁니다)</span></span>
+      <button class="og-new" type="button" id="og-pgo">고른 묶음으로 상품 만들기</button>
+      <button class="og-pclr" type="button" id="og-pclr">비우기</button>
+    </div>
+
+    {# 만들기 창 — 옵션 탭의 창과 **같은 규격**(og-back·og-mbox)을 그대로 쓴다 #}
+    <div class="og-back" id="mb-back">
+      <div class="og-mbox">
+        <button class="og-mx" type="button" id="mb-close" aria-label="닫기">✕</button>
+        <div class="og-mt">📦 고른 묶음으로 상품 만들기</div>
+        <div class="og-md" id="mb-sum"></div>
+        <label class="og-lb">상품 이름</label>
+        <input class="og-in" id="mb-name" placeholder="예: 르무통 메이트 스니커즈" maxlength="120">
+        <label class="og-lb">브랜드 <span style="font-weight:400;color:var(--color-text-tertiary)">(하나만)</span></label>
+        <input class="og-in" id="mb-brand" placeholder="예: 르무통" maxlength="60">
+        <label class="og-lb">카테고리</label>
+        <input class="og-in" id="mb-cat" placeholder="예: 스니커즈" maxlength="60">
+        <button class="og-btn" type="button" id="mb-make">상품 만들기</button>
+        <div class="og-err" id="mb-err"></div>
       </div>
     </div>
     {% else %}
@@ -435,6 +465,17 @@
   .og-badge.stgb.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--글자-파랑,#0066CC)}
   .og-badge.stgb.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#9A5B00)}
   .og-badge.stgb.wait{background:var(--ap-g2,#E8E8ED);color:var(--ap-g5,#424245)}
+  /* [2026-08-12 사장님 C1 확정] 체크칸 + 고른 묶음 띠 */
+  .og-pick{width:1px;white-space:nowrap;text-align:center;padding-right:0}
+  .og-pick input{margin:0;cursor:pointer}
+  .og-pickbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+    background:var(--연한-파랑,rgba(0,113,227,.08));border:1px solid var(--color-border);
+    border-radius:10px;padding:11px 14px}
+  .og-pickbar-n{flex:1;font-size:13px;color:var(--글자-파랑,#0066CC)}
+  .og-pickbar-s{font-size:12px;color:var(--color-text-tertiary);margin-left:6px}
+  .og-pclr{border:1px solid var(--color-border);background:var(--surface,#fff);
+    color:var(--color-text-secondary);border-radius:8px;padding:8px 12px;
+    font-family:inherit;font-size:13px;cursor:pointer}
   .og-actcell{position:relative;white-space:nowrap}
   /* [2026-08-05 사장님] ⋯(U+22EF)가 이 사이트 글꼴에서 빈칸으로 렌더돼 단추가
      안 보였다(전각 + 와 같은 부류·확대 캡처 실측). 어디서나 그려지는 가운뎃점
@@ -709,7 +750,7 @@
   // [확정 C3] 줄 아무 데나 누르면 다음으로 — 단, 「⋯」와 그 안은 빼고.
   document.querySelectorAll('.og-row').forEach(function (r) {
     r.addEventListener('click', function (e) {
-      if (e.target.closest('.og-more, .og-menu')) return;
+      if (e.target.closest('.og-more, .og-menu, .og-pick')) return;
       location.href = r.getAttribute('data-href');
     });
   });
@@ -727,6 +768,88 @@
     if (e.target.closest('.og-menu, .og-more')) return;
     document.querySelectorAll('.og-menu').forEach(function (m) { m.hidden = true; });
   });
+
+  // ── [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 여러 묶음 골라 상품 만들기 ──
+  //   왜 필요한가 — 단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 옵션을
+  //   골라야 한다. 새로 만들면 소싱처 주소·SKU 를 처음부터 다시 짜야 해서 낭비다.
+  //   🔴 줄 클릭(=그 묶음으로 이동)과 부딪치지 않게 체크칸은 클릭에서 빼 뒀다.
+  var picked = new Map();          // id → {name, opts}
+  var pbar = document.getElementById('og-pickbar');
+  if (pbar) {
+    var pn = document.getElementById('og-pn');
+    var po = document.getElementById('og-po');
+    function drawPick() {
+      pn.textContent = picked.size;
+      var sum = 0; picked.forEach(function (v) { sum += (+v.opts || 0); });
+      po.textContent = sum;
+      // 하나만 고르면 줄을 눌러 들어가면 된다 — 띠는 2개부터.
+      pbar.hidden = picked.size < 2;
+    }
+    document.querySelectorAll('.og-ck').forEach(function (ck) {
+      ck.addEventListener('click', function (e) { e.stopPropagation(); });
+      ck.addEventListener('change', function () {
+        var id = ck.getAttribute('data-id');
+        if (ck.checked) picked.set(id, {name: ck.getAttribute('data-name'),
+                                        opts: ck.getAttribute('data-opts')});
+        else picked.delete(id);
+        drawPick();
+      });
+    });
+    document.getElementById('og-pclr').addEventListener('click', function () {
+      picked.clear();
+      document.querySelectorAll('.og-ck').forEach(function (c) { c.checked = false; });
+      drawPick();
+    });
+
+    var mbBack = document.getElementById('mb-back');
+    var mbErr = document.getElementById('mb-err');
+    document.getElementById('og-pgo').addEventListener('click', function () {
+      var names = []; picked.forEach(function (v) { names.push(v.name); });
+      document.getElementById('mb-sum').innerHTML =
+        '고른 묶음 <b>' + picked.size + '개</b>를 한 상품으로 담습니다.<br>' +
+        names.map(function (n) { return '· ' + n; }).join('<br>') +
+        '<br><br>옵션은 <b>전부</b> 담기고, 같은 색상·사이즈가 겹치면 한 번만 담깁니다.';
+      mbErr.textContent = '';
+      mbBack.classList.add('open');
+      document.getElementById('mb-name').focus();
+    });
+    document.getElementById('mb-close').addEventListener('click', function () {
+      mbBack.classList.remove('open');
+    });
+    mbBack.addEventListener('click', function (e) {
+      if (e.target === mbBack) mbBack.classList.remove('open');
+    });
+    document.getElementById('mb-make').addEventListener('click', function () {
+      var b = document.getElementById('mb-make');
+      var name = (document.getElementById('mb-name').value || '').trim();
+      var brand = (document.getElementById('mb-brand').value || '').trim();
+      mbErr.textContent = '';
+      if (!name) { mbErr.textContent = '상품 이름을 적어주세요.'; return; }
+      if (!brand) { mbErr.textContent = '브랜드를 적어주세요. (한 상품에 하나만)'; return; }
+      b.disabled = true;
+      fetch('/api/matrix/build-bundle', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({matrix_ids: Array.from(picked.keys()), name: name,
+                              brand: brand,
+                              category: (document.getElementById('mb-cat').value || '').trim()}),
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          // 조용히 넘어가지 않는다 — 왜 안 됐는지, 무엇이 겹쳤는지 그대로 말한다.
+          if (!j.ok) { mbErr.textContent = j.error || '만들지 못했습니다.'; b.disabled = false; return; }
+          var q = '/optgen?tab=product&made=' + encodeURIComponent(j.no || '') +
+                  '&code=' + encodeURIComponent(j.model_code || '') +
+                  '&opts=' + encodeURIComponent(j.options || 0);
+          if (j.skipped && j.skipped.length) {
+            alert('겹치는 조합 ' + j.skipped.length + '개는 한 번만 담았어요:\n· ' +
+                  j.skipped.slice(0, 8).join('\n· '));
+          }
+          location.href = q;
+        })
+        .catch(function (e) {
+          mbErr.textContent = '만들지 못했습니다 — ' + e; b.disabled = false;
+        });
+    });
+  }
 
   // 옵션함 지우기 — 되돌릴 수 없으니 무엇을 지우는지 그대로 보여주고 묻는다.
   document.querySelectorAll('[data-del]').forEach(function (d) {

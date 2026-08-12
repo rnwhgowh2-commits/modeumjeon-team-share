@@ -352,6 +352,47 @@ def _attach_stage_matrix(session, items):
         i['stage'] = got.get(c) if (c and c not in boxes) else None
 
 
+def _attach_model(session, mo, rows) -> list[str]:
+    """줄마다 **모델명**을 붙이고, 격자에 쓸 모델 목록을 돌려준다.
+
+    🔴 [2026-08-12 노션 상품 c-2 옆에서 드러난 것 · 사장님 B2 확정]
+       격자는 색상 × 사이즈 두 축만 그린다. 그래서 모델모음전(3축)은
+       「메이트 블랙 250」과 「데일리 블랙 250」이 **같은 칸 하나에 겹쳤다**
+       (실측: 옵션 3개 → 격자 2칸). 모델을 격자 위 탭으로 갈라 준다.
+
+    모델이 없는(색상모음전) 묶음은 빈 목록 — 화면이 탭을 안 그린다.
+    """
+    from lemouton.matrix.option_name import model_name_of
+    from lemouton.sourcing.models import BundleOptionStep, Option
+
+    origin_code = mo.model_code
+    if origin_code is None:                       # 파생 — 원본에서 축을 읽는다
+        from lemouton.matrix.service import origin_of
+        org = origin_of(session, mo)
+        origin_code = org.model_code if org else None
+    axis_names = ([a for (a,) in session.query(BundleOptionStep.axis_name)
+                   .filter_by(model_code=origin_code)
+                   .order_by(BundleOptionStep.step_no).all()]
+                  if origin_code else [])
+    from lemouton.sourcing.axis_slot import is_model_axis
+    if not any(is_model_axis(a) for a in axis_names):
+        for r in rows:
+            r['model'] = ''
+        return []
+
+    skus = [r['sku'] for r in rows]
+    opts = {o.canonical_sku: o for o in session.query(Option)
+            .filter(Option.canonical_sku.in_(skus)).all()} if skus else {}
+    models: list[str] = []
+    for r in rows:
+        o = opts.get(r['sku'])
+        nm = model_name_of('', o, axis_names) if o is not None else ''
+        r['model'] = nm
+        if nm and nm not in models:
+            models.append(nm)
+    return models
+
+
 def _made_from(session, mo, rows) -> list[dict]:
     """이 묶음으로 **이미 만든 상품**들 — 그때 넣은 값과 담은 칸까지.
 
@@ -432,6 +473,7 @@ def detail_context(mo_id: int):
             'mo': {'id': mo.id, 'no': mo.display_no, 'name': mo.name,
                    'kind': mo.kind, 'model_code': mo.model_code},
             'rows': rows, 'colors': colors, 'sizes': sizes,
+            'models': _attach_model(s, mo, rows),
             'made': _made_from(s, mo, rows),
             'editable': gate['editable'], 'lock_reason': gate['reason'],
             'origin': ({'id': gate['origin'].id, 'no': gate['origin'].display_no,
@@ -752,23 +794,33 @@ def product_info_api():
 @bp.post('/api/matrix/build-bundle')
 def build_bundle_api():
     """이 매트릭스의 옵션으로 새 모음전 상품 만들기 —
-    {matrix_id, name, brand, category, skus?}"""
+    {matrix_id, name, brand, category, skus?}
+
+    [2026-08-12 노션 상품 c-2] `matrix_ids` 로 **여러 묶음을 한 상품**으로도 만든다.
+    옛 `matrix_id` 는 그대로 받는다 — 조립대 화면이 그걸 보낸다.
+    """
     from lemouton.matrix.build_service import create_bundle_from_matrix
     from lemouton.matrix.models import MatrixOption
     from lemouton.matrix.service import MatrixError
     p = request.get_json(silent=True) or {}
     s = SessionLocal()
     try:
-        mx = s.get(MatrixOption, int(p.get('matrix_id') or 0))
-        if mx is None:
+        ids = [int(x) for x in (p.get('matrix_ids') or []) if str(x).strip().isdigit()]
+        if not ids and p.get('matrix_id'):
+            ids = [int(p.get('matrix_id') or 0)]
+        mats = [s.get(MatrixOption, i) for i in ids]
+        if not ids or any(m is None for m in mats):
             return jsonify({'ok': False, 'error': '묶음을 찾을 수 없어요.'}), 404
+        skipped: list = []
         m, made = create_bundle_from_matrix(
-            s, matrix=mx, name=p.get('name') or '', brand=p.get('brand') or '',
+            s, matrices=mats, name=p.get('name') or '', brand=p.get('brand') or '',
             category=p.get('category') or '', model_code=p.get('model_code') or '',
-            skus=list(p.get('skus') or []) or None)
+            skus=list(p.get('skus') or []) or None, skipped_out=skipped)
         s.commit()
         return jsonify({'ok': True, 'model_code': m.model_code,
-                        'no': m.display_no, 'options': made})
+                        'no': m.display_no, 'options': made,
+                        # 겹쳐서 한 번만 담은 조합 — 조용히 버리지 않는다.
+                        'skipped': skipped})
     except MatrixError as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
