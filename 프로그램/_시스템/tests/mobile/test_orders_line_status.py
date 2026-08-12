@@ -111,6 +111,42 @@ def test_조회_실패면_옛_상태를_지운다():
     assert 'ostOpts=[]' in body
 
 
+def test_못_불러온_것과_안_고른_것을_갈라_말한다():
+    """🔴 2026-08-12 라이브에서 실제로 겪은 것 — 배포 중 조회가 500 을 맞자 전 줄이
+    빈 「상태」로 보여 **사장님이 정한 상태가 지워진 줄** 알았다. 비우기만 하면
+    「아무도 안 골랐다」와 「못 불러왔다」가 같은 얼굴이 된다.
+    """
+    src = _src()
+    assert re.search(r'var ostOk\s*=', src), 'ostOk(조회 성공 여부)가 없다'
+    cell = re.search(r'function ostCell\(r\)\{.*?\n  \}', src, re.S)
+    assert cell, 'ostCell() 이 사라졌다'
+    assert '확인 불가' in cell.group(0), \
+        '못 불러온 줄을 「상태」(=안 고름)로 그리면 지워진 것처럼 보인다'
+    assert 'ostOk' in cell.group(0)
+    # 실패 경로가 ostOk 를 반드시 내린다(안 내리면 위 갈래가 영영 안 걸린다)
+    load = re.search(r'function loadLineStatus\(seq\)\{.*?\n  \}', src, re.S).group(0)
+    assert 'ostOk=false' in load and 'ostOk=!!(j&&j.ok)' in load
+
+
+def test_시트도_못_불러온_것을_항목_없음이라_말하지_않는다():
+    """「항목이 없어요」는 만들라고 시키는 말이다 — 못 불러온 것에 그러면 거짓이다."""
+    src = _src()
+    m = re.search(r'if\(!ostOpts\.length&&!ostOk\)\{.*?\}', src, re.S)
+    assert m, '못 불러온 갈래가 없다'
+    assert '불러오지 못했어요' in m.group(0)
+    assert '사라진 게 아닙니다' in m.group(0)
+
+
+def test_PC_도_같은_규율을_지킨다():
+    """같은 사실을 두 화면이 다르게 말하면 안 된다(PC 주문 표도 ostOk 로 갈라 말한다)."""
+    pc = (_SYS / 'webapp' / 'templates' / 'orders' / 'index.html'
+          ).read_text(encoding='utf-8')
+    assert re.search(r'var ostOk\s*=', pc), 'PC 에 ostOk 가 없다'
+    cell = re.search(r'function ostCell\(r\)\{.*?\n    \}', pc, re.S)
+    assert cell and '확인 불가' in cell.group(0), \
+        'PC 도 못 불러온 줄을 「고르기」로 그리면 지워진 것처럼 보인다'
+
+
 def test_알약이_목록_줄에_실제로_그려진다():
     assert 'ostCell(r)+meta' in _src(), '함수만 있고 줄에 안 붙으면 화면엔 아무것도 없다'
 

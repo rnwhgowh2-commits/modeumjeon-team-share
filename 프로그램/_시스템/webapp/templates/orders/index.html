@@ -1204,6 +1204,8 @@
        ostOpts : 사장님이 만든 항목 목록(순서대로). **처음엔 빈 배열이 정상**이다.
        ostFilter: '' | '<항목 id>' | 'none'(지정 안 함) — 알약 거르기 축. */
     var ostMap={}, ostOpts=[], ostSeq=0, ostState={}, ostFilter='';
+    // 🔴 「못 불러왔다」와 「아무도 안 골랐다」는 **다른 사실**이다 — 칸이 갈라 말한다.
+    var ostOk=true;
     function ostUid(r){return String(r['_line_uid']||'');}
     function ostOf(r){var u=ostUid(r);return u?(ostMap[u]||null):null;}
     /* 🔴 「주문 관리」 상태도 **행에 값이 없다** — 별도 조회(`ostMap`)에만 있다.
@@ -2151,6 +2153,11 @@
       }else if(d){
         cls+=' ost-filled ost-c-'+esc(d.color);
         inner='<span class="ost-dot ost-d-'+esc(d.color)+'"></span>'+esc(d.name);
+      }else if(!ostOk){
+        // 🔴 못 불러온 것을 「고르기」로 그리면 사장님은 **상태가 지워진 줄로 믿는다**.
+        cls+=' ost-fb';
+        inner='<span class="ost-dot"></span>확인 불가';
+        tip=' title="상태를 불러오지 못했어요 — 지워진 게 아닙니다. 새로고침해 주세요."';
       }else{
         inner='<span class="ost-dot"></span>고르기';
       }
@@ -2572,19 +2579,23 @@
          상태 표시를 통째로 붙잡는다(2026-08-06 「5분간 죽어있던」 버그의 원인). */
     function loadOrderStatus(seq,done){
       var mine=++ostSeq;
-      if(!rows.length){ostMap={};if(done)done();return;}
+      if(!rows.length){ostMap={};ostOk=true;if(done)done();return;}
       fetch('/orders/api/line-status/resolve',{method:'POST',cache:'no-store',
           headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
         .then(function(r){return r.json();})
         .then(function(j){
           if(mine!==ostSeq||seq!==loadSeq)return;
           // 실패하면 비운다 — 옛 값을 최신인 척 남겨 두지 않는다.
+          //  🔴 비우기만 하면 **「아무도 안 골랐다」와 「못 불러왔다」가 같은 얼굴**이 된다
+          //    (2026-08-12 라이브 배포 중 실제로 겪음 — 전 줄이 「고르기」로 보여
+          //     상태가 지워진 줄 알았다). 그래서 성공 여부를 따로 들고 칸이 갈라 말한다.
+          ostOk=!!(j&&j.ok);
           ostMap=(j&&j.ok&&j.statuses)?j.statuses:{};
           ostOpts=(j&&j.ok&&j.options)?j.options:[];
           if(!ostOpts.length)ostFilter='';
           render();
         })
-        .catch(function(){ if(mine===ostSeq){ostMap={};render();} })
+        .catch(function(){ if(mine===ostSeq){ostOk=false;ostMap={};render();} })
         .then(function(){ if(done)done(); });
     }
     function cellHTML(col,r){
