@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""개발 체크리스트 — 셀 판정 (순수 함수, Flask 의존 없음)."""
+"""개발 체크리스트 — 셀 판정 (순수 함수, Flask 의존 없음).
+
+🔴 여기 WIRED 는 화면 6상태 중 하나이고, required.WIRED 는 배선 2상태 중 하나다.
+  문자열이 우연히 같을 뿐 다른 개념이다 — 비교는 반드시 심볼로 한다.
+"""
 from __future__ import annotations
 
 import json
@@ -28,7 +32,17 @@ _BLANK = ("", "-")
 
 
 def _spec(market: str, col: dict) -> str:
-    return (col.get("specs") or {}).get(market, "").strip()
+    """그 마켓의 엑셀 메모. 모르는 마켓 이름이면 **터뜨린다.**
+
+    🔴 조용히 빈 문자열로 떨어뜨리면 「모른다」가 「해당없음」으로 둔갑한다.
+      오타 난 마켓 키가 화면에 ➖ 로 뜨면 아무도 못 알아챈다.
+    """
+    specs = col.get("specs") or {}
+    if market not in specs:
+        raise KeyError(
+            f"「{col.get('name', '?')}」 열에 마켓 {market!r} 가 없습니다 — "
+            f"있는 마켓: {', '.join(sorted(specs)) or '(없음)'}")
+    return (specs[market] or "").strip()
 
 
 def cell_state(market: str, col: dict, marks: dict | None = None) -> str:
@@ -53,7 +67,10 @@ def cell_state(market: str, col: dict, marks: dict | None = None) -> str:
 
 
 def conflict_of(market: str, col: dict) -> str:
-    """우리 기준과 마켓 문서가 어긋나는가. 기계 판정만 — 추측하지 않는다."""
+    """우리 기준과 마켓 문서가 어긋나는가. 기계 판정만 — 추측하지 않는다.
+
+    CONDITIONAL(「~인 경우 필수」)은 **일부러 안 잡는다** — 조건이 맞는지는 기계가 못 정한다.
+    """
     item = col.get("item")
     if not item:
         return ""

@@ -108,3 +108,22 @@ def test_no_conflict_when_both_agree():
     col = {"col": 5, "name": "판매가", "rule": "", "item": "price",
            "specs": {"smartstore": "판매가"}}
     assert C.conflict_of("smartstore", col) == ""
+
+
+def test_unknown_market_raises_instead_of_silently_becoming_na():
+    """🔴 오타 난 마켓 이름이 「해당없음」으로 둔갑하면 아무도 못 알아챈다."""
+    col = {"col": 5, "name": "판매가", "rule": "", "item": "price",
+           "specs": {"smartstore": "판매가"}}
+    with pytest.raises(KeyError) as e:
+        C.cell_state("11st", col)          # eleven11 의 오타
+    assert "11st" in str(e.value) and "smartstore" in str(e.value)
+
+
+def test_status_of_none_item_is_unknown_so_branch_order_is_safe():
+    """③(항목 없음)과 ④(근거 모름)가 같은 답을 내는 것은 **우연**이다.
+
+    required.status_of(market, None) 이 UNKNOWN 을 돌려주기 때문인데,
+    그게 바뀌면 cell_state 의 순서가 조용히 의미를 갖게 된다. 여기서 못 박는다.
+    """
+    from lemouton.policy import required as R
+    assert R.status_of("smartstore", None)[0] == R.UNKNOWN
