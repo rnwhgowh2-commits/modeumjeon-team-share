@@ -24,11 +24,25 @@ class MatrixError(Exception):
 # ── 원본 ──────────────────────────────────────────────────────────────────
 
 def ensure_origin(session, model) -> MatrixOption:
-    """모델 하나에 원본 매트릭스 하나를 보장한다(멱등)."""
+    """모델 하나에 **살아 있는** 원본 매트릭스 하나를 보장한다(멱등).
+
+    🔴 [2026-08-12] 지워진 원본을 그대로 돌려주고 있었다. 화면은 `deleted_at IS NULL`
+       로 찾으므로 원본이 없는 상품이 되고, 백필 3경로(scheduler.jobs ·
+       admin_owner_snapshot · admin_display_no)는 「이미 있다」며 건너뛰어 구멍이
+       **영영** 안 메워졌다. 상품관리에서 「편집」이 딴 화면으로 새는 고장의 뿌리다
+       (라이브 실측 2026-08-12: 92개 중 2개).
+
+    ★ 새로 만들지 않고 **되살린다** — `uq_matrix_option_model_kind`(model_code, kind)
+      가 `deleted_at` 을 안 보므로, 새 행을 넣으면 유니크 제약에 걸려 터진다.
+      되살리는 편이 담긴 옵션·파생 관계도 그대로 살아나 뜻에도 맞다.
+    """
     got = session.scalar(select(MatrixOption).where(
         MatrixOption.model_code == model.model_code,
         MatrixOption.kind == KIND_ORIGIN))
     if got is not None:
+        if got.deleted_at is not None:
+            got.deleted_at = None
+            session.flush()
         return got
     mo = MatrixOption(
         kind=KIND_ORIGIN, model_code=model.model_code,
@@ -41,8 +55,11 @@ def ensure_origin(session, model) -> MatrixOption:
 def ensure_all_origins(session, *, limit: int | None = 500) -> int:
     """원본 매트릭스가 없는 모델에 만들어 준다. 붙인 수를 돌려준다."""
     from lemouton.sourcing.models import Model
+    # 🔴 「이미 있다」 판정은 ensure_origin 과 **같은 눈**이어야 한다 — 여기만
+    #    지워진 것까지 세면 백필이 그 모델을 건너뛰어 구멍이 안 메워진다.
     have = set(session.scalars(select(MatrixOption.model_code).where(
-        MatrixOption.kind == KIND_ORIGIN, MatrixOption.model_code.is_not(None))))
+        MatrixOption.kind == KIND_ORIGIN, MatrixOption.model_code.is_not(None),
+        MatrixOption.deleted_at.is_(None))))
     q = select(Model).order_by(Model.created_at.asc(), Model.model_code.asc())
     made = 0
     for m in session.scalars(q):
