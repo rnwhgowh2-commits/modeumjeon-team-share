@@ -805,6 +805,7 @@ function bindIncidents(){
 function dmRender(){
   // 상위탭(대분류)
   const TOP_DEFS=[
+    {k:'checklist', lb:'개발 체크리스트'},
     {k:'all',   lb:'마켓별 전체 API'},
     {k:'proglookup', lb:'프로그램 주문조회'},
     {k:'work:상품 조회', lb:'상품 조회'},
@@ -824,7 +825,7 @@ function dmRender(){
   const defByK={}; TOP_DEFS.forEach(t=>defByK[t.k]=t);
   const btnFor=(k,acc)=> k==='howto' ? howtoBtn : (acc?progBtn(defByK[k]):tbtn(defByK[k]));
   const TAB_GROUPS=[
-    {lab:'프로그램 적용', acc:true, keys:['proglookup','speed']},
+    {lab:'프로그램 적용', acc:true, keys:['checklist','proglookup','speed']},
     {lab:'마켓 API 참고', keys:['all','howto']},
     {lab:'업무별 카탈로그', keys:['work:상품 조회','work:상품 관리','settle','work:배송·송장','work:클레임·CS','trans']},
     {lab:'과거이력', keys:['incidents']},
@@ -842,7 +843,12 @@ function dmRender(){
   const subEl=document.getElementById('dm-mktabs'); subEl.innerHTML=sub; subEl.style.display=(DM_TOP==='all')?'':'none';
   const leg=document.querySelector('.dm2 .legend'); if(leg)leg.style.display=(DM_TOP==='all')?'':'none';
   const body=document.getElementById('dm-body');
-  if(DM_TOP==='trans'){
+  if(DM_TOP==='checklist'){
+    // 조각(_checklist_matrix.html)이 내놓는 빈 껍데기 + ckInit. 범례는 위 843줄에서 이미 숨는다(DM_TOP!=='all').
+    document.getElementById('dm-mktabs').style.display='none';
+    body.innerHTML=window.CHECKLIST_HTML;
+    window.ckInit('/marketplace-guide/checklist.json');
+  }else if(DM_TOP==='trans'){
     body.innerHTML=`<div class="tsplit"><div class="trail">${dmTransRail()}</div><div class="tcontent">${(DM_TSUB==='summary')?dmTransSummary():dmTransMarket(DM_TSUB)}</div></div>`;
   }else if(DM_TOP==='howto'){
     body.innerHTML=dmHowto();
@@ -894,4 +900,7 @@ function dmRender(){
 loadData().then(()=>{ if(!DM_MK && DATA.markets[0]) DM_MK=DATA.markets[0].id; dmRender(); }).catch(()=>{});
 </script>
 {% endraw %}
+{# 개발 체크리스트 표·정보창 공용 조각 — window.CHECKLIST_HTML / window.ckInit 을 내놓는다.
+   {% raw %} 바깥이어야 Jinja 가 실제로 include 한다(안에 두면 글자 그대로 찍힌다). #}
+{% include "_checklist_matrix.html" %}
 {% endblock %}
