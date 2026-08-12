@@ -650,6 +650,66 @@ def api_delete_option_box(code: str):
                     'purged': purged_traces})
 
 
+@bp.post('/api/box/reset-stock')
+def api_reset_stock():
+    """옛 재고 기록을 치운다 — body: {"codes": [...]}  (옵션·묶음은 그대로 둔다)
+
+    사장님 — 「재고는 다시 재입력해야해. 옛날 재고야.」
+
+    🔴 되돌릴 수 없다. 지우기 전에 **무엇을 얼마나 지우는지 세어 돌려준다.**
+    🔴 옵션·묶음은 **안 건드린다.** 이 창구는 재고 이력만 치운다.
+    🔴 치운 뒤 캐시 칸(`boxhero_stock_total`)을 원장 기준으로 다시 계산한다 —
+       안 하면 화면 숫자와 실제가 갈린다(캐시는 진실 원천이 아니다).
+    """
+    from lemouton.inventory.cogs import recalc_stock_total
+    from lemouton.inventory.models import InventoryTx
+    from lemouton.sourcing.models import Option
+
+    body = request.get_json(silent=True) or {}
+    codes = [str(c) for c in (body.get('codes') or []) if str(c).strip()]
+    if not codes:
+        return jsonify({'ok': False, 'error': '묶음을 골라 주세요.'}), 400
+    s = SessionLocal()
+    try:
+        skus = [r[0] for r in s.query(Option.canonical_sku)
+                .filter(Option.model_code.in_(codes)).all()]
+        if not skus:
+            return jsonify({'ok': True, 'boxes': len(codes), 'options': 0,
+                            'removed_rows': 0, 'cleared_qty': 0})
+        rows = (s.query(InventoryTx)
+                .filter(InventoryTx.option_canonical_sku.in_(skus)).all())
+        # 지우기 전에 **얼마가 있었는지** 세어 둔다 — 나중에 되짚을 근거.
+        before = 0
+        for sku in skus:
+            try:
+                before += int(recalc_stock_total(sku, s) or 0)
+            except Exception:                      # noqa: BLE001
+                pass
+        n = len(rows)
+        (s.query(InventoryTx)
+         .filter(InventoryTx.option_canonical_sku.in_(skus))
+         .delete(synchronize_session=False))
+        s.flush()
+        # 캐시를 원장(이제 빈 상태) 기준으로 다시 맞춘다.
+        #   🔴 `recalc_stock_total` 은 **계산만 하고 저장은 안 한다** — 돌려준 값을
+        #      직접 칸에 써야 한다. 안 그러면 화면은 옛 숫자를 계속 보여준다.
+        for sku in skus:
+            try:
+                o = s.get(Option, sku)
+                if o is not None:
+                    o.boxhero_stock_total = int(recalc_stock_total(sku, s) or 0)
+            except Exception:                      # noqa: BLE001
+                pass
+        s.commit()
+    except Exception as e:                          # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'boxes': len(codes), 'options': len(skus),
+                    'removed_rows': n, 'cleared_qty': before})
+
+
 @bp.post('/api/option-box/bulk-delete')
 def api_bulk_delete_boxes():
     """여러 묶음을 한 번에 지운다 — body: {"codes": [...]}
