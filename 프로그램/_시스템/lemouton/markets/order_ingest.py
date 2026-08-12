@@ -1091,11 +1091,16 @@ def refresh_settlement_lotteon(*, since=None, until=None,
     clients = _esm_settlement_clients("lotteon")
     stat["accounts"] = len(clients)
     smap: dict = {}
+    # 🔴 [2026-08-12] 구매확정일(seStdDt)도 같이 받는다. 이 값이 롯데온 지급내역
+    #   (실입금일)의 조인 축이다 — 여태 응답에 있었는데 우리가 안 읽어서
+    #   「롯데온은 입금 확인 창구가 없다」로 남아 있었다.
+    dmap: dict = {}
 
     # ★정산액은 **라인(odNo,odSeq) 단위**로 조인한다 — odNo 총액을 각 라인에 넣으면 다품
     #   주문이 2배(2026-07-25 실측·diag odSeq1=odSeq2=41,624). 인라인(order_export)과 동형.
     def _fetch_one(name, cli):
-        return name, _lo_settle.itmd_line_map(since, until, client=cli)
+        return name, _lo_settle.itmd_line_map(since, until, client=cli,
+                                              with_dates=True)
 
     if clients:
         with ThreadPoolExecutor(max_workers=min(len(clients), 8)) as ex:
@@ -1109,8 +1114,11 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                     logger.warning(msg)
                     stat["errors"].append(msg)
                     continue
-                for k, amt in got.items():           # k=(odNo,odSeq), amt=int(0 도 실정산)
+                got_amts, got_dates = got
+                for k, amt in got_amts.items():      # k=(odNo,odSeq), amt=int(0 도 실정산)
                     smap.setdefault((str(k[0]), str(k[1])), amt)
+                for k, d in (got_dates or {}).items():
+                    dmap.setdefault((str(k[0]), str(k[1])), d)
     stat["settle_rows"] = len(smap)
     # 🔴🔴 [2026-08-12] OpenAPI(SettleItmdSales) 로 온 키만 **따로** 기억한다.
     #   이 API 의 기준일이 구매확정일이라 여기 잡혔다는 것 자체가 「구매확정됐다」는 증거다.
@@ -1161,6 +1169,17 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             stat["errors"].append(f"[lotteon] 크롤 정산 읽기 실패: {type(e).__name__}: {e}")
             stat["crawl_rows"] = 0
 
+        # 롯데온 지급내역(실입금일) — {구매확정일: 정산완료일}. 크롬 확장이 모아 둔 표다.
+        #  🔴 이 조인이 여태 **없어서** 「입금일 지남 1,090만 전액 롯데온·확인 불가」가
+        #    남아 있었다(paid_date_map 의 호출자가 시험뿐이었다).
+        try:
+            from lemouton.margin.lotteon_paid import paid_date_map
+            _paid_map = paid_date_map(session=session)
+        except Exception as e:   # noqa: BLE001 — 지급내역이 없어도 금액 갱신은 진행
+            stat["errors"].append(f"[lotteon] 지급내역 읽기 실패: {type(e).__name__}: {e}")
+            _paid_map = {}
+        stat["paid_dates"] = len(_paid_map)
+
         # odSeq 없는 옛 저장분 폴백용 — odNo 에 라인이 정확히 1개면 그 값을 안전하게 쓴다
         #  (단일라인은 라인값=주문총액). 다품인데 odSeq 불명이면 폴백 안 함(2배 위험 회피).
         _od_lines: dict = {}
@@ -1204,9 +1223,25 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             #     섞인 뒤라 그걸로 판정하면 안 된다(위 _api_keys 주석).
             _in_api = ((odno, odseq) in _api_keys
                        or (not odseq and odno in _api_odnos))
-            mark_confirmed = _in_api and row.get("_settle_confirmed") is not True
-            if mark_confirmed:
-                row["_settle_confirmed"] = True
+            # 🔴 [2026-08-12] 이제 **구매확정일 자체**를 적는다(예전엔 True 플래그뿐).
+            #   그래야 롯데온 지급내역(구매확정일 단위)에서 실입금일을 찾아 붙일 수 있다.
+            _cfm = dmap.get((odno, odseq))
+            if _cfm is None and not odseq:
+                _cfm = next((v for (o, _q), v in dmap.items() if o == odno), None)
+            mark_confirmed = False
+            if _in_api:
+                if row.get("_settle_confirmed") is not True:
+                    row["_settle_confirmed"] = True
+                    mark_confirmed = True
+                if _cfm and row.get("_settle_confirmed_date") != _cfm:
+                    row["_settle_confirmed_date"] = _cfm
+                    mark_confirmed = True
+                # 그 확정일에 롯데온이 **실제로 입금한 날**이 있으면 같이 적는다.
+                #  ★ 없으면 안 적는다 — 「받았다」로 단정하지 않는다(lotteon_paid 규약).
+                _pd = _paid_map.get(_cfm) if _cfm else None
+                if _pd and row.get("_settle_paid_date") != _pd:
+                    row["_settle_paid_date"] = _pd
+                    mark_confirmed = True
             # 🔴 pymtAmt 는 배송비 포함 지급액. 인라인 조인(order_export)은 정산예정금액을
             #   **상품분(−배송비)** 으로 저장하고 _finalize 가 +배송비로 '배송비포함' 열을
             #   복원한다. 인라인과 100% 같은 규약을 쓰려고 그 차감 함수를 그대로 재사용한다

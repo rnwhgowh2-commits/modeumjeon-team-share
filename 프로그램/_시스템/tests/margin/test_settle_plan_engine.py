@@ -520,3 +520,12 @@ def test_주문일축_클레임은_목록에서도_빠진다():
         ln = _line(status=st, incl=100)
         ln["row"]["주문일"] = "2026-08-01 10:00"
         assert SP.order_axis_row(ln, unit="day") is None, st
+
+
+def test_구매확정일이_오면_그것도_확정_증거다():
+    """[2026-08-12] 롯데온 정산 응답에 seStdDt(정산기준일=구매확정일)가 **줄곧 있었는데**
+    우리가 안 읽고 있었다(라이브 진단 36개 필드 중 하나로 확인). 날짜가 있으면
+    「확정됐다」에 더해 **언제** 확정됐는지까지 아는 것이라 가장 단단한 증거다."""
+    ln = _line(status="배송완료", market="lotteon", src="estimated")
+    ln["row"]["_settle_confirmed_date"] = "2026-07-15"
+    assert SP.classify(ln, today=TODAY) == "confirmed"
