@@ -45,10 +45,10 @@ def test_drift_banner_is_carried_to_the_screen(client, monkeypatch):
     from lemouton.policy import checklist as CK
     monkeypatch.setattr(CK, "load_marks",
                         lambda name="dev_checklist_marks.json":
-                        ({"smartstore:2": {"verified": "2026-08-12"}}, ""))
+                        ({"smartstore:4": {"verified": "2026-08-12"}}, ""))
     data = client.get("/marketplace-guide/checklist.json").get_json()
     assert data["drift"], "배너가 화면까지 안 왔다"
-    assert "상품명" in data["drift"][0]
+    assert "카테고리" in data["drift"][0]
 
 
 def test_stored_only_cells_exist(client):

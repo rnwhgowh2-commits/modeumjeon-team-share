@@ -79,8 +79,10 @@ def test_cell_todo_when_market_evidence_unknown():
 
 def test_cell_stored_only_when_not_wired():
     """칸도 있고 마켓도 받는데 보내는 코드가 없으면 「저장만 됨」."""
-    col = {"col": 2, "name": "상품명", "rule": "", "item": "name",
-           "specs": {"smartstore": "100글자"}}
+    # ⚠️ 표본을 바꿀 때는 required.wiring_of 를 먼저 보라. 상품명은 2026-08-12 에
+    #   배선이 생겨 「나감」이 됐다 — 그때 이 시험이 빨간불이 돼 알려 줬다.
+    col = {"col": 4, "name": "카테고리", "rule": "", "item": "category",
+           "specs": {"smartstore": "카테고리선택"}}
     assert C.cell_state("smartstore", col) == "stored"
 
 
@@ -180,8 +182,8 @@ def test_build_marks_lotteon_as_evidence_missing():
 
 def test_drift_flags_verified_on_something_that_never_goes_out():
     """🔴 조용한 통과 금지 — 나가지도 않는 값에 「검증완료」가 달려 있으면 알린다."""
-    problems = C.drift({"smartstore:2": {"verified": "2026-08-12"}})   # 2 = 상품명(저장만 됨)
-    assert problems and "상품명" in problems[0]
+    problems = C.drift({"smartstore:4": {"verified": "2026-08-12"}})   # 4 = 카테고리(저장만 됨)
+    assert problems and "카테고리" in problems[0]
 
 
 def test_drift_silent_when_marks_are_sane():
@@ -204,7 +206,7 @@ def test_build_passes_columns_file_through_to_drift(tmp_path, monkeypatch):
     # ⚠️ 저장소 데이터 폴더에 쓰지 마라 — git 무시 대상이 아니라 찌꺼기가 커밋에 딸려 간다.
     _write_columns(tmp_path, "fake_columns.json",
                    [{"col": 77, "group": "시험", "name": "가짜열", "rule": "",
-                     "item": "name", "specs": {m: "값" for m, _ in CK.MARKETS}}])
+                     "item": "category", "specs": {m: "값" for m, _ in CK.MARKETS}}])
     monkeypatch.setattr(CK, "_DATA", str(tmp_path))
     monkeypatch.setattr(CK, "load_marks", lambda name="dev_checklist_marks.json":
                         ({"coupang:77": {"verified": "2026-08-12"}}, ""))
@@ -271,7 +273,7 @@ def test_cells_without_a_program_field_say_none_not_blank():
 def test_verified_is_only_carried_on_done_cells(monkeypatch):
     """🔴 초록이 아닌 칸에 날짜가 실리면 화면이 「반쯤 검증됨」으로 읽힌다."""
     from lemouton.policy import checklist as CK
-    seeded = {"smartstore:2": {"verified": "2026-08-12"},   # 저장만 됨
+    seeded = {"smartstore:4": {"verified": "2026-08-12"},   # 저장만 됨(카테고리)
               "lotteon:6": {"verified": "2026-08-12"},      # 해당없음
               "coupang:13": {"verified": "2026-08-12"},     # 불가
               "smartstore:5": {"verified": "2026-08-12"}}   # 나감 → 검증완료
@@ -279,7 +281,7 @@ def test_verified_is_only_carried_on_done_cells(monkeypatch):
                         lambda name="dev_checklist_marks.json": (seeded, ""))
     cells = CK.build()["cells"]
     assert cells["smartstore:5"]["verified"] == "2026-08-12"
-    for k in ("smartstore:2", "lotteon:6", "coupang:13"):
+    for k in ("smartstore:4", "lotteon:6", "coupang:13"):
         assert cells[k]["verified"] == "", f"{k} 에 날짜가 실렸다 ({cells[k]['state']})"
 
 
