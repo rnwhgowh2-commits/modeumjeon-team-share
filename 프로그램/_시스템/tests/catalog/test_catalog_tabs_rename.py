@@ -16,6 +16,8 @@
 """
 import json
 
+import pytest
+
 from webapp.routes import api_sidebar as SB
 
 
@@ -206,16 +208,132 @@ def test_화면에는_새_이름_새_순서로_뜬다(monkeypatch):
 
 
 def test_옛_이름이_화면_템플릿에_안_남았다():
-    """전수 grep — 사장님 눈에 보이는 글자에서 「모음전 상품관리·옵션관리」를 없앤다.
+    """전수 grep — 사장님 눈에 보이는 글자에서 옛 이름을 없앤다.
 
     ★코드 주석·도크스트링은 뺀다(왜 바꿨나는 남겨야 할 기록). 여기서 막는 건 화면.
+
+    🔴 이 시험은 **두 낱말만** 세다가 「매트릭스 옵션」 5곳을 놓친 채로 초록불이었다
+      (2026-08-12). 개명은 세 개인데 감시는 두 개였다 —
+      **개명 하나당 금지 낱말 하나**를 여기 같이 넣어야 한다.
+
+    🔴 「매트릭스」 하나로 세면 안 된다 — 「옵션 매트릭스」(상품관리 안의 가격 격자)·
+      「매핑 매트릭스」는 **딴 것**이라 살아 있어야 한다. 옛 탭 이름인
+      **「매트릭스 옵션」이라는 구절 그대로**만 막는다.
     """
+    import re
     from pathlib import Path
     tpl = Path(SB.__file__).resolve().parents[1] / 'templates'
+    금지 = [
+        ('모음전 상품관리', None),
+        ('모음전 옵션관리', None),
+        ('매트릭스 옵션', None),          # 옛 탭·옛 개체 이름 (지금은 옵션관리 / 옵션 묶음)
+        ('마켓 상품 현황', r'(?<!실)마켓 상품 현황'),   # 「실마켓 상품 현황」은 새 이름이라 통과
+    ]
     남은 = []
     for p in tpl.rglob('*.html'):
         txt = p.read_text(encoding='utf-8', errors='ignore')
-        for 옛 in ('모음전 상품관리', '모음전 옵션관리'):
-            if 옛 in txt:
+        for 옛, 패턴 in 금지:
+            found = re.search(패턴, txt) if 패턴 else (옛 in txt)
+            if found:
                 남은.append(f'{p.relative_to(tpl)} :: {옛}')
     assert 남은 == [], f'화면에 옛 이름이 남아 있다: {남은}'
+
+
+def test_옛_이름이_화면에_넘기는_파이썬_글자에도_안_남았다():
+    """🔴 템플릿만 훑으면 못 잡는다 — 라우트가 **글자를 만들어 템플릿에 넘긴다**.
+
+    `matrix.py` · `optgen.py` 가 404 화면에 `requested_code='매트릭스 옵션'` 을
+    넘겨서, 템플릿엔 옛 이름이 한 글자도 없는데 **화면엔 뜬다**.
+    그래서 템플릿 grep 이 통과하는 채로 깨져 있었다.
+
+    🔴 줄 단위로 낱말을 세면 안 된다 — 도크스트링·주석까지 걸려서
+      「왜 바꿨나」 기록을 지워야 통과하는 시험이 된다.
+      그래서 **파이썬 문법으로 읽어**, 화면으로 나가는 인자(`render_template(...)`·
+      `flash(...)`)에 박힌 글자만 본다. 설명글은 손대지 않는다.
+    """
+    import ast
+    from pathlib import Path
+    화면함수 = {'render_template', 'render_template_string', 'flash'}
+    뿌리 = Path(SB.__file__).resolve().parents[1]        # webapp/
+    남은 = []
+    for p in sorted(뿌리.rglob('*.py')):
+        tree = ast.parse(p.read_text(encoding='utf-8', errors='ignore'), str(p))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            이름 = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, 'id', '')
+            if 이름 not in 화면함수:
+                continue
+            글자들 = [(None, a) for a in node.args]
+            글자들 += [(kw.arg, kw.value) for kw in node.keywords]
+            for 인자, v in 글자들:
+                if (isinstance(v, ast.Constant) and isinstance(v.value, str)
+                        and '매트릭스 옵션' in v.value):
+                    남은.append(f'{p.relative_to(뿌리)}:{v.lineno} '
+                                f'{이름}({인자 or "위치인자"}=)')
+    assert 남은 == [], f'라우트가 옛 이름을 화면으로 넘긴다: {남은}'
+
+
+# ── ⑤ 404 화면 — 이름표가 값과 맞아야 한다 ────────────────────
+
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setenv('DISABLE_AUTH', '1')
+    import app as appmod
+    flask_app = appmod.create_app()
+    flask_app.config['TESTING'] = True
+    return flask_app.test_client()
+
+
+def test_없는_옵션묶음_404가_모음전_코드라고_안_한다(client):
+    """🔴 `모음전 코드: 매트릭스 옵션` 이라고 떴다 — 값도 옛 이름이고, 이름표도 틀렸다.
+
+    넘긴 값은 **옵션 묶음 번호**(mo_id)인데 이름표는 「모음전 코드」였다.
+    사장님이 그 번호를 모음전 코드로 알고 찾으면 영영 못 찾는다.
+    """
+    html = client.get('/matrix/99887766').get_data(as_text=True)
+    assert html.count('99887766') >= 1, '무엇을 찾다 실패했는지 안 알려준다'
+    assert '옵션 묶음 번호' in html, f'번호에 맞는 이름표가 없다'
+    assert '매트릭스 옵션' not in html
+    assert '모음전 코드' not in html, '옵션 묶음 번호를 모음전 코드라고 부른다'
+
+
+def test_없는_상품생성_조립대_404도_같다(client):
+    """같은 404를 옵션생성 탭에서도 쓴다 — 한 곳만 고치면 다른 곳이 남는다."""
+    html = client.get('/optgen/product/99887766').get_data(as_text=True)
+    assert html.count('99887766') >= 1
+    assert '옵션 묶음 번호' in html
+    assert '매트릭스 옵션' not in html
+    assert '모음전 코드' not in html
+
+
+def test_없는_정책_404도_모음전_코드라고_안_한다(client):
+    """`requested_code='정책'` — 정책 번호를 「모음전 코드」 자리에 넣고 있었다."""
+    html = client.get('/policies/99887766').get_data(as_text=True)
+    assert html.count('99887766') >= 1
+    assert '정책 번호' in html
+    assert '모음전 코드' not in html
+
+
+def test_404_제목이_못_찾은_것과_같은_말이다(client):
+    """정책 404가 「**옵션**을 찾을 수 없습니다」라고 떴다 — 화면 하나를 넷이 나눠 쓴다.
+
+    정책을 찾다 실패했는데 옵션을 못 찾았다고 하면 사장님이 딴 데를 뒤진다.
+    """
+    html = client.get('/policies/99887766').get_data(as_text=True)
+    assert '정책을 찾을 수 없습니다' in html
+    assert '옵션을 찾을 수 없습니다' not in html
+
+
+def test_옵션_404는_그대로_옵션이라고_한다(client):
+    """제목을 바꾸다가 **맞던 것까지** 바꾸면 안 된다."""
+    html = client.get('/matrix/99887766').get_data(as_text=True)
+    assert '옵션을 찾을 수 없습니다' in html
+
+
+def test_진짜_모음전_코드는_그대로_모음전_코드로_뜬다(client):
+    """이름표를 손보다가 **맞던 것까지 바꾸면** 안 된다 — 여기가 그 자물쇠다."""
+    html = client.get('/bundles/NOPE-CODE-1/option/NOPE-SKU-1').get_data(as_text=True)
+    assert '모음전 코드' in html and 'NOPE-CODE-1' in html
+    assert '옵션 SKU' in html and 'NOPE-SKU-1' in html

@@ -78,8 +78,11 @@ def policy_detail(pid: int):
     try:
         p = s.get(MarketPolicy, pid)
         if p is None or p.deleted_at is not None:
+            # 🔴 종전엔 「옵션을 찾을 수 없습니다 / 모음전 코드: 정책」이었다 —
+            #   정책을 찾다 실패했는데 옵션을 못 찾았다고 하면 딴 데를 뒤지게 된다.
             return render_template('errors/option_not_found.html', active='policies',
-                                   requested_code='정책', requested_sku=str(pid)), 404
+                                   what='정책', requested_code='',
+                                   sku_label='정책 번호', requested_sku=str(pid)), 404
         items = items_for(market)
         vals = values_for(s, pid, market)
         # ── 항목별 「이 마켓이 요구하는가」 + 「지금 실제로 나가는가」 ──────────
