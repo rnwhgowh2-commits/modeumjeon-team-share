@@ -1882,9 +1882,15 @@ def api_roundtrip_restore():
         elif market == "lotteon":
             from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
             ops = make_lotteon_ops(product_no, client=client)
+        elif market == "eleven11":
+            from lemouton.uploader.roundtrip.markets.eleven11 import make_eleven11_ops
+            ops = make_eleven11_ops(product_no, client=client)
         else:
             from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
-            ops = make_esm_ops(product_no, market=market, client=client)
+            # 🔴 손복구는 **원래 이름으로 되돌리는** 일이다 — 상품명 축을 막아 두면
+            #    시험 표식 " (시험중)" 이 붙은 채로 영영 남는다(2026-08-12 발견).
+            #    시험할 때 상품명을 끄는 것과, 되돌릴 때 켜는 것은 다른 문제다.
+            ops = make_esm_ops(product_no, market=market, client=client, allow_name=True)
         rep = restore_from_journal(journal, apply_fn=ops.apply, snapshot_fn=ops.snapshot)
     except Exception as e:  # noqa: BLE001
         import traceback
