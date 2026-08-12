@@ -1811,6 +1811,10 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
     # 백필(claim_to_now=False)은 '지금까지' 확장 없이 창 안만 — 창마다 to-now 스캔이
     # 붙으면 과거 창일수록 느려진다(backfill-until-now-scan 사고와 같은 유형).
     claim_until = _until_now(until) if claim_to_now else until
+    # 🔴 재는 줄이 없어 74.5초의 내역을 아무도 몰랐다(2026-08-12). 한 줄 남긴다 —
+    #   마켓 호출은 0회 늘지 않고, 다음에 느려지면 어디가 느린지 바로 보인다.
+    import time as _tm
+    _t_clm = _tm.monotonic()
     try:
         if claim_to_now:
             extra = list(_clm.iter_all(market, since, claim_until, client=client))
@@ -1822,9 +1826,14 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
                         _clm.iter_exchanges, _clm.iter_uncollected):
                 extra.extend(_fn(market, since, claim_until, client=client))
     except Exception as e:      # noqa: BLE001 — 클레임 조회 실패는 주문을 죽이지 않는다.
-        log.warning("[%s] 클레임 조회 실패(주문은 유지): %s: %s", market, type(e).__name__, e)
+        log.warning("[%s] 클레임 조회 실패(%.1f초 만에, 주문은 유지): %s: %s",
+                    market, _tm.monotonic() - _t_clm, type(e).__name__, e)
         diag["errors"]["클레임조회"] = f"{type(e).__name__}: {e}"[:200]
         return
+    _clm_sec = _tm.monotonic() - _t_clm
+    diag["counts"]["클레임조회초"] = round(_clm_sec, 1)
+    log.info("[%s] ESM 조회 — 주문 %d건 · 클레임 %d건 · 클레임에 %.1f초",
+             market, _n_order, len(extra), _clm_sec)
 
     # ★ 클레임도 '주문일 기준'으로 담는다 (2026-07-21 사장님 확정: 검증 기간은 "고객이
     #   실제로 발주한 날"이다. 취소일이 아니다). 클레임은 신청/완료일 기준으로 조회되므로
