@@ -243,8 +243,11 @@
       <input class="sf-in" id="sf-url" placeholder="https://www.musinsa.com/search/goods?keyword=나이키">
       <div class="sf-grid">
         <label>몇 개까지<input class="sf-in sm" id="sf-max" placeholder="비우면 상한 없음"></label>
-        <label>몇 쪽부터<input class="sf-in sm" id="sf-pf" placeholder="1"></label>
-        <label>몇 쪽까지<input class="sf-in sm" id="sf-pt" placeholder="1"></label>
+        {# ★ 소싱처에 따라 주소로 넘기거나(무신사·SSF·르무통) 「다음」 단추를 눌러
+           넘긴다(롯데온·롯데아이몰). 사장님은 몇 쪽인지만 적으면 된다 —
+           같은 뜻인데 칸이 둘이면 어느 쪽을 채워야 할지 모른다. #}
+        <label title="비우면 첫 쪽만 봅니다">몇 쪽부터<input class="sf-in sm" id="sf-pf" placeholder="1"></label>
+        <label title="롯데온·롯데아이몰은 「다음」을 그만큼 눌러 걷습니다">몇 쪽까지<input class="sf-in sm" id="sf-pt" placeholder="1"></label>
         <!-- 🔴 한 줄짜리 칸이라 줄바꿈을 못 넣는다 — 쉼표로 여러 개를 적는다. -->
         <label>뺄 옵션(쉼표)<input class="sf-in sm" id="sf-ex" placeholder="예: 샘플, 중고"></label>
         <label>이름(비우면 자동)<input class="sf-in sm" id="sf-nm" placeholder="무신사_나이키_001"></label>

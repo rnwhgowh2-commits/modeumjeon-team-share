@@ -191,6 +191,30 @@ def extract_product_urls(html: str, *, source_key: str, max_items=None) -> list[
     return out
 
 
+def click_pages_for(source_key: str, page_from=None, page_to=None) -> int:
+    """단추로 넘기는 소싱처에서 **「다음」을 몇 번 눌러 걷을지.** 1 = 첫 장만.
+
+    ━━ 사장님 화면을 그대로 쓴다 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    「몇 쪽부터 / 몇 쪽까지」 칸이 이미 있다. 주소로 넘기는 곳은 주소를 만들고,
+    단추로 넘기는 곳은 **그만큼 단추를 누른다.** 같은 뜻인데 칸이 둘이면
+    사장님이 어느 쪽을 채워야 할지 모른다.
+
+    🔴 주소로 넘길 수 있는 곳은 **누르지 않는다**(1을 돌려준다) — 주소로도 넘기고
+      단추도 누르면 같은 상품을 두 번 걷는다.
+    🔴 상한은 `MAX_PAGES`. 실수로 1~9999 를 넣으면 소싱처를 두들긴다(차단 위험).
+    """
+    key = str(source_key or '').strip().lower()
+    if _PAGE_PARAM.get(key):          # 주소로 넘기는 곳
+        return 1
+    if not _MORE_SELECT.get(key):     # 넘기는 법을 모르는 곳
+        return 1
+    if page_from is None and page_to is None:
+        return 1                      # 임의로 넓히지 않는다
+    lo = max(1, int(page_from or 1))
+    hi = max(lo, int(page_to or lo))
+    return min(hi - lo + 1, MAX_PAGES)
+
+
 def page_urls_for(listing_url: str, *, source_key: str,
                   page_from=None, page_to=None) -> list[str]:
     """리스팅 URL + 페이지 범위 → 실제로 열 주소 목록.
@@ -206,7 +230,10 @@ def page_urls_for(listing_url: str, *, source_key: str,
         return [listing_url]
     param = _PAGE_PARAM.get(key)
     if not param:
-        raise ValueError(f'{key} 는 페이지 넘김 규칙을 아직 모릅니다 — 범위를 못 씁니다.')
+        # 🔴 예전엔 여기서 예외를 냈다 — 그러면 범위를 적은 순간 **첫 장조차 못 걷는다.**
+        #   주소로 못 넘기는 곳이라도 첫 장은 걷을 수 있고, 단추로 넘기는 곳이면
+        #   `click_pages_for` 가 「몇 번 누를지」로 답한다. 걷을 수 있는 데까지는 걷는다.
+        return [listing_url]
 
     lo = max(1, int(page_from or 1))
     hi = max(lo, int(page_to or lo))

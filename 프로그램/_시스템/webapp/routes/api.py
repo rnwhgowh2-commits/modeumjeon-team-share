@@ -214,7 +214,10 @@ def crawl_due_listings():
                         'sel': rule['sel'], 'attr': rule['attr'],
                         'id_re': rule['id_re'],
                         'more_sel': rule['more_sel'],
-                        'empty_text': rule['empty_text']})
+                        'empty_text': rule['empty_text'],
+                        # 단추로 넘기는 곳은 「몇 번 누를지」로 답한다(같은 칸을 쓴다).
+                        'click_pages': LD.click_pages_for(
+                            f.source_key, f.page_from, f.page_to)})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()
