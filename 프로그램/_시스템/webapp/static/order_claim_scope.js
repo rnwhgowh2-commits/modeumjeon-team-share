@@ -166,11 +166,17 @@
       b.sum += d; b.count++; total += d;
       // ── 「누가 깎아 줬나」 — 마켓이 갈라 주는 곳만 센다(안 주면 안 세고 건수로 남긴다) ──
       //  스스: 총(_dc_total) − 셀러(_dc_seller) = 마켓. 나머지 마켓은 둘 다 실값으로 온다.
-      var s = r['_dc_seller'], m2 = r['_dc_market'], tt = r['_dc_total'];
-      if (!isBlank(s) && (!isBlank(m2) || !isBlank(tt))) {
-        var sv = num(s);
-        var mv = isBlank(m2) ? Math.max(0, num(tt) - sv) : num(m2);
-        b.seller += sv; b.mkt += mv; b.known++;
+      // 🔴 부담율은 **화면에 뜬 그 금액(d)** 을 100 으로 놓고 잰다(2026-08-12 정정).
+      //   마켓마다 `실결제금액`의 뜻이 달라 카드 금액에 담긴 것이 다르기 때문:
+      //     · 스스·11번가·롯데온 — 실결제가 모든 할인 반영 → d = 셀러+마켓
+      //     · 쿠팡             — 실결제가 셀러 쿠폰만 반영 → d = 셀러분만
+      //   옛 식 `셀러/(셀러+마켓)` 은 카드에 없는 마켓분을 분모에 넣어, 쿠팡이
+      //   **「우리 부담 0%」**로 떴다(라이브 실측 — 그 100원은 전액 우리 돈이다).
+      //   우리 몫은 d 를 넘을 수 없으므로 잘라 쓴다.
+      var s = r['_dc_seller'];
+      if (!isBlank(s)) {
+        var sv = Math.max(0, Math.min(num(s), d));
+        b.seller += sv; b.mkt += Math.max(0, d - sv); b.known++;
       }
       var kk = r['_dc_kinds'];
       if (kk) {
@@ -243,7 +249,7 @@
   var CAPS = {
     sales:  ['취소·반품 제외', '교환 정산 포함', '실결제+배송비'],
     settle: ['취소·반품 제외', '교환 정산 포함', '배송비 포함'],
-    amount: ['단가×수량+배송비', '취소·반품 제외'],
+    amount: ['단가×수량+옵션+배송비', '취소·반품 제외'],
     discount: ['취소·반품 제외', '정가−실결제'],
     salesPhone: ['취소·반품 제외', '교환 정산 포함']   // 폰은 칸이 좁아 2줄
   };
