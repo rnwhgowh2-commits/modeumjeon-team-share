@@ -1100,6 +1100,13 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                 for k, amt in got.items():           # k=(odNo,odSeq), amt=int(0 도 실정산)
                     smap.setdefault((str(k[0]), str(k[1])), amt)
     stat["settle_rows"] = len(smap)
+    # 🔴🔴 [2026-08-12] OpenAPI(SettleItmdSales) 로 온 키만 **따로** 기억한다.
+    #   이 API 의 기준일이 구매확정일이라 여기 잡혔다는 것 자체가 「구매확정됐다」는 증거다.
+    #   바로 아래에서 셀러오피스 크롤값이 smap 을 **덮어쓰는데**, 그쪽은 **미정산도 포함**한다
+    #   (주석 참조: 크롤표 2,121건 중 0원이 1,744건). 섞인 뒤에 확정을 판정하면 아직 확정도
+    #   안 된 주문을 「구매확정」으로 찍어 정산예정금액 탭의 확정/미확정이 통째로 틀어진다.
+    _api_keys = set(smap.keys())
+    _api_odnos = {k[0] for k in _api_keys}
 
     own = False
     if session is None:
@@ -1181,7 +1188,11 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             #   (사장님 신고). 마켓이 준 이 증거를 행에 남겨 settle_plan.line_confirmed 가 쓴다.
             #   ★ **언제** 확정됐는지는 응답에 없다 → 날짜를 지어내지 않고 사실만 적는다.
             #   ★ True 만 쓴다 — False 를 쓰면 다음 회차(창 밖 주문)에서 확정을 지워 버린다.
-            mark_confirmed = row.get("_settle_confirmed") is not True
+            #   ★ 판정 재료는 **OpenAPI 키(_api_keys)뿐**이다. smap 은 크롤(미정산 포함)이
+            #     섞인 뒤라 그걸로 판정하면 안 된다(위 _api_keys 주석).
+            _in_api = ((odno, odseq) in _api_keys
+                       or (not odseq and odno in _api_odnos))
+            mark_confirmed = _in_api and row.get("_settle_confirmed") is not True
             if mark_confirmed:
                 row["_settle_confirmed"] = True
             # 🔴 pymtAmt 는 배송비 포함 지급액. 인라인 조인(order_export)은 정산예정금액을

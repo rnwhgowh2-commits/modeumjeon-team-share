@@ -2094,8 +2094,16 @@ def orders_diag_lotteon_itmd():
             'spdNo': r.get('spdNo'), 'pymtAmt': amt, 'pcsCmsn': _lo._num(r.get('pcsCmsn')),
         })
         by_order[od]['pymtAmt합'] += amt
+    # 🔴 [2026-08-12] 원본 **필드 이름**도 같이 준다(값 아님).
+    #   롯데온 지급내역(seCmptDt=실입금일)은 **구매확정일(seStdDt) 단위**로 묶여 있어
+    #   주문에 붙이려면 그 주문의 구매확정일이 있어야 한다. 그런데 우리는 그 값을
+    #   어디에도 안 갖고 있다(롯데온 주문 API 에 구매확정 단계 자체가 없다).
+    #   SettleItmdSales 응답에 확정일 계열 필드가 오는지 **추측 말고 눈으로** 확인하려는
+    #   목적이다. 있으면 조인이 되고, 없으면 일자별 조회로 창을 쪼개는 수밖에 없다.
+    키목록 = sorted({k for r in rows[:200] for k in (r or {}).keys()})
     return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
-                   alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order)
+                   alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order,
+                   원본필드이름=키목록)
 
 
 @bp.route('/diag/store-span')

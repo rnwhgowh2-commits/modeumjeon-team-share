@@ -532,6 +532,14 @@
     .o7 .pplist th{font-weight:600;color:var(--sub);background:var(--bg,#F9FAFB);}
     .o7 .pdx-mg{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .pdx-mg.pdx-neg{color: var(--글자-빨강, var(--red,#F04452));}
+    /* 실마진(노션 b-3) — 숫자는 굵게, 재료의 출처는 옆에 작은 딱지로. 숨기지 않는다. */
+    .o7 .mg-val{font-variant-numeric:tabular-nums;font-weight:700;}
+    .o7 .mg-val.mg-neg{color: var(--글자-빨강, var(--red,#F04452));}
+    .o7 .mg-none{font-size:11px;color: var(--글자-희미, var(--faint));white-space:nowrap;}
+    .o7 .mg-chip{display:inline-block;margin-left:4px;font-size:10px;font-weight:600;
+                 border-radius:8px;padding:0 5px;white-space:nowrap;vertical-align:1px;}
+    .o7 .mg-chip.mg-est{color: var(--글자-주황,#B45309);background:rgba(180,83,9,.12);}
+    .o7 .mg-chip.mg-buy{color:var(--sub);background:var(--n100,#F2F4F6);font-weight:400;}
     .o7 .pdx-dash{color: var(--글자-희미, var(--faint));}
     .o7 tr.pdx-row-loss td{background:var(--연한-빨강,#FFF0F1);}
     .o7 tr.pdx-row-loss td:first-child{border-left:3px solid var(--red,#F04452);}
@@ -1152,6 +1160,12 @@
       {c:'배송비',a:'num',t:'고객배송비'},
       {c:'정산예정금액',a:'num',t:'정산예상금'},
       {c:'정산예정금(배송비포함)',a:'num'},
+      // ── 실마진(화면 전용) — 노션 주문관리 b-3. 「정산예정금(배송비포함) − 매입금액」.
+      //  🔴 재료가 둘 다 있어야 계산한다. 매입가가 없으면 **「매입가 없음」** 이라 적고
+      //    0 으로 채우지 않는다(0 으로 두면 정산액 전액이 마진으로 보인다).
+      //  🔴 정산액이 추정이면 「추정」 딱지 — 마우스를 올리면 사유와 근거가 뜬다.
+      //    서버는 행마다 `_settle_source` 를 실어 보내는데 이 표가 여태 한 번도 안 읽었다.
+      {c:'_margin',a:'num',t:'실마진'},
       {c:'총주문금액',a:'num'},{c:'옵션추가금',a:'num'},
       {c:'마켓수수료',a:'num'},{c:'수수료율',a:'num'},
       {c:'구매자',a:'txt'},{c:'구매자번호',a:'txt',t:'구매자전화번호'},
@@ -1252,6 +1266,7 @@
       if(col==='_pdx_purchase')return pdxPurchaseFilterKey(r);
       if(col==='_pdx_sale')return pdxSaleFilterKey(r);
       if(col==='_pdx_margin')return pdxMarginFilterKey(r);
+      if(col==='_margin')return marginFilterKey(r);
       if(col==='_links')return linkFilterKey(r);
       var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
@@ -1974,6 +1989,81 @@
            + 'title="진짜 사온 값을 적으세요. 비우고 나가면 지워집니다(=입력 안 함).">'
            + '<span class="pp-tag '+tcls+'">'+esc(tag)+'</span></span>';
     }
+    /* ── 실마진 칸 (노션 주문관리 b-3) ─────────────────────────────────────────
+       실마진 = 정산예정금(배송비포함) − 매입금액.
+
+       🔴 두 재료의 **출처를 절대 숨기지 않는다** — 매입가 칸이 이미 지키는 규율을
+         그대로 따른다. 숫자만 검게 찍으면 추정끼리 뺀 값이 실측 마진처럼 보인다.
+         · 정산액이 추정이면 「추정」 딱지 + 사유·근거 호버
+         · 매입가가 없으면 계산하지 않고 「매입가 없음」 (0 으로 채우면 정산액 전액이
+           마진으로 보인다 — 그건 거짓말이다)
+         · 매입가가 우리 계산값(사입가·예상)이면 그 사실을 작은 딱지로 붙인다 */
+    var SETTLE_SRC={
+      real:      {chip:'', why:'마켓이 알려준 실제 정산 예정액이에요(추정 아님).'},
+      store:     {chip:'', why:'예전에 마켓이 알려준 실값을 저장분에서 그대로 보존한 값이에요.'},
+      estimated: {chip:'추정',
+                  why:'마켓이 이 주문의 정산액을 아직 안 줘서 우리 규칙으로 계산했어요. '
+                     +'근거 = 마켓별 수수료율·배송비 규칙(롯데온·11번가는 실결제금액에 '
+                     +'마켓별 계수를 곱합니다). 마켓이 실값을 주면 자동으로 실측으로 바뀝니다.'},
+      zero_cancel:{chip:'취소', why:'취소완료라 정산 0원으로 확정된 건이에요.'},
+      none:      {chip:'없음',
+                  why:'정산액을 만들 재료가 없어요 — 지어내지 않습니다. '
+                     +'마켓 정산 조회가 아직 이 주문을 안 잡았을 수 있어요.'}
+    };
+    function mgSettleSrc(r){return SETTLE_SRC[String(r['_settle_source']||'')]||SETTLE_SRC.none;}
+    /* 매입가로 **쓸 수 있는 값** — 없으면 null. 예상(estimate)도 값은 쓰되 딱지를 붙인다.
+       (계산을 아예 막으면 사장님이 대략도 못 보신다. 대신 무엇으로 잰 값인지는 못 박는다.) */
+    function mgBuy(r){
+      var d=ppOf(r);
+      if(!d||d.price==null||!d.tier)return null;
+      return {price:Number(d.price), tier:d.tier};
+    }
+    /* 표를 통째로 다시 그리지 않고 이 한 칸만 갈아끼운다 — 사장님이 매입가를 손으로
+       고치면 실마진도 **그 자리에서** 따라 바뀌어야 한다(ppRedraw 가 부른다).
+       재료가 매입가 칸과 같으므로 같은 uid 로 찾는다. */
+    function marginRedraw(uid,r){
+      var wrap=document.getElementById('tablewrap'); if(!wrap)return;
+      var td=wrap.querySelector('td[data-mguid="'+uid.replace(/"/g,'')+'"]');
+      if(td)td.innerHTML=marginCell(r);
+    }
+    function marginCell(r){
+      var raw=r['정산예정금(배송비포함)'];
+      var settle=(raw===''||raw==null)?null:num(raw);
+      var buy=mgBuy(r), src=mgSettleSrc(r);
+      if(buy==null){
+        return '<span class="mg-none" title="매입가가 없어 실마진을 계산할 수 없어요. '
+             + '왼쪽 「매입가」 칸에 적거나 더망고 매입 엑셀을 올리면 자동으로 채워집니다.">'
+             + '매입가 없음</span>';
+      }
+      if(settle==null){
+        return '<span class="mg-none" title="'+esc(src.why)+'">정산액 없음</span>';
+      }
+      var m=settle-buy.price;
+      var tip='정산예정금(배송비포함) '+ppWon(settle)+'원 − 매입가 '+ppWon(buy.price)+'원 = '
+             +(m<0?'−'+ppWon(Math.abs(m)):ppWon(m))+'원'
+             +'\n· 정산액 근거: '+src.why
+             +'\n· 매입가 근거: '+(PP_TAG[buy.tier]||buy.tier)
+             +(buy.tier==='real'?'(사장님이 적은 값)':'(우리가 계산한 값 — 실제와 다를 수 있어요)');
+      var chips='';
+      if(src.chip)chips+='<span class="mg-chip mg-est">'+esc(src.chip)+'</span>';
+      if(buy.tier!=='real')chips+='<span class="mg-chip mg-buy">매입 '+esc(PP_TAG[buy.tier]||buy.tier)+'</span>';
+      // 🔴 이 범위의 esc() 는 &<> 만 바꾼다(따옴표는 안 건드림) — title 속성에 넣으려면
+      //   ffTitle 과 똑같이 큰따옴표를 직접 막아야 한다.
+      tip=esc(tip).replace(/"/g,'&quot;');
+      return '<span class="mg-val'+(m<0?' mg-neg':'')+'" title="'+tip+'">'
+           + (m<0?'−'+ppWon(Math.abs(m)):ppWon(m))+'</span>'+chips;
+    }
+    /* 헤더 필터도 행이 아니라 별도 조회(ppMap)를 봐야 한다 — 매입가·주문관리상태에서
+       겪은 것과 **같은 부류의 같은 버그**(그대로 두면 「(빈값) 462」 하나로 뭉개진다). */
+    function marginFilterKey(r){
+      var buy=mgBuy(r);
+      if(buy==null)return '매입가 없음';
+      var raw=r['정산예정금(배송비포함)'];
+      if(raw===''||raw==null)return '정산액 없음';
+      var src=String(r['_settle_source']||'');
+      if(src==='estimated'||src==='none')return '정산액 추정';
+      return (num(raw)-buy.price)<0?'마이너스':'마진 남음';
+    }
     /* ── 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력 (설계서 §6.1) ──
        🔴 판정은 서버가 한 번만 한다(`/orders/api/purchase-price/resolve` 응답의 flags).
          규칙의 단일 원천은 `lemouton/orders/margin_flags.py` — 마진 계산기
@@ -2506,6 +2596,7 @@
         return (d&&d.order_sale_price!=null)?pdxWon(d.order_sale_price)
           :((r['단가']!==''&&r['단가']!=null)?pdxWon(num(r['단가'])):'<span class="pdx-dash">—</span>');}
       if(col==='_links')return linkCell(r);
+      if(col==='_margin')return marginCell(r);
       if(col==='_pdx_margin')return pdxMarginCell(r);
       if(col==='배송방식')return dmMethodCell(r);
       if(col==='배송검사')return dmCheckCell(r);
@@ -2643,8 +2734,11 @@
         var ck=SHIP?('<td class="ctr invck"><input type="checkbox" class="inv-ck" data-k="'+esc(k)+'"'
               +(invSel[k]?' checked':'')+(send?'':' disabled title="이 마켓은 아직 송장 전송을 지원하지 않아요"')+'></td>'):'';
         return '<tr class="'+rowCls(r).trim()+'"'+ffTitle(r)+'>'+ck+PANEL_COLS.map(function(pc){
+          // 실마진 칸에는 줄 식별자를 달아 둔다 — 매입가를 손으로 고쳤을 때 표 전체를
+          //  다시 그리지 않고 이 칸만 갈아끼우기 위해서다(marginRedraw).
+          var mid=(pc.c==='_margin')?(' data-mguid="'+esc(ppUid(r))+'"'):'';
           return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))
-            +(pc.c==='_ostatus'?' ost-first':'')+'">'+cellHTML(pc.c,r)+'</td>';
+            +(pc.c==='_ostatus'?' ost-first':'')+'"'+mid+'>'+cellHTML(pc.c,r)+'</td>';
         }).join('')+'</tr>';}).join('');
       // 범례 — 「해야 할 일」 칸을 뺀 대신, 색이 무슨 뜻인지 표 아래에서 설명한다.
       var legend='<div class="pdx-legend"><b>색이 상황을 말합니다</b><br>'
@@ -2689,6 +2783,11 @@
         else {txt='확인 불가';cls='pp-t-none';}
         tag.className='pp-tag '+cls; tag.textContent=txt;
       });
+      // 매입가가 바뀌면 실마진도 그 자리에서 같이 바뀌어야 한다 — 안 그러면 옆 칸이
+      //  옛 마진을 최신인 척 붙들고 있다(두 칸이 같은 재료를 쓰는데 한 쪽만 갱신).
+      for(var i=0;i<rows.length;i++){
+        if(ppUid(rows[i])===uid){ marginRedraw(uid, rows[i]); break; }
+      }
     }
     /* 매입가를 적으면 탭 판정(이상마진·블랙스팟·미입력)이 바뀐다 → 다시 물어본다.
        🔴 여러 줄을 이어 적을 때 줄마다 다시 묻지 않는다 — 마지막 입력에서 1.2초 쉬면
