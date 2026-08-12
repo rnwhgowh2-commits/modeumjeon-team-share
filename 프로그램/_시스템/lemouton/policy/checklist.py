@@ -80,3 +80,74 @@ def conflict_of(market: str, col: dict) -> str:
         if status == _req.REQUIRED:
             return "마켓 문서는 [필수]라는데 우리는 안 쓰기로 돼 있습니다"
     return ""
+
+
+MARKETS = [("coupang", "쿠팡"), ("smartstore", "스마트스토어"), ("lotteon", "롯데온"),
+           ("eleven11", "11번가"), ("auction", "옥션"), ("gmarket", "G마켓")]
+
+
+def load_marks() -> dict:
+    """사람이 단 값. 파일이 없으면 빈 것으로 본다(아직 아무도 안 달았다는 뜻)."""
+    path = os.path.join(_DATA, "dev_checklist_marks.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f).get("marks") or {}
+
+
+def build(columns_file: str = "dev_checklist_columns.json") -> dict:
+    """화면이 그대로 그릴 수 있는 한 벌."""
+    cols = load_columns(columns_file)
+    marks = load_marks()
+    cells, rows = {}, []
+    for market, label in MARKETS:
+        counts = {k: 0 for k in (NA, IMPOSSIBLE, TODO, STORED, WIRED, DONE)}
+        for col in cols:
+            state = cell_state(market, col, marks)
+            counts[state] += 1
+            item = col.get("item")
+            status, evidence, note = (_req.status_of(market, item) if item
+                                      else (_req.UNKNOWN, "", "프로그램에 담을 칸이 아직 없습니다"))
+            wiring = _req.wiring_of(item) if item else ("", "")
+            cells[f"{market}:{col['col']}"] = {
+                "state": state,
+                "spec": _spec(market, col),
+                "required": status,
+                "evidence": evidence,
+                "note": note,
+                "wiring": wiring[0],
+                "wiring_note": wiring[1],
+                "api": _req.SOURCE_API.get(market, ""),
+                "conflict": conflict_of(market, col),
+                "verified": ((marks.get(f"{market}:{col['col']}") or {}).get("verified") or ""),
+            }
+        counts["total"] = len(cols) - counts[NA]
+        rows.append({"market": market, "label": label, "counts": counts})
+    return {"columns": cols, "rows": rows, "cells": cells, "drift": drift(marks)}
+
+
+def drift(marks: dict, columns_file: str = "dev_checklist_columns.json") -> list[str]:
+    """손으로 단 값이 코드와 어긋나면 사람 말로 돌려준다. 없으면 빈 목록.
+
+    🔴 조용한 통과 금지 — 「나가지도 않는 값에 검증완료가 달린 것」이 가장 위험하다.
+      그 칸은 화면에서 초록으로 보이지만 마켓에는 아무것도 안 갔다.
+    """
+    by_col = {c["col"]: c for c in load_columns(columns_file)}
+    out = []
+    for key, mark in (marks or {}).items():
+        if not (mark or {}).get("verified"):
+            continue
+        market, _, raw = key.partition(":")
+        try:
+            col = by_col[int(raw)]
+        except (ValueError, KeyError):
+            out.append(f"손보정에 없는 열 번호가 있습니다: {key}")
+            continue
+        item = col.get("item")
+        if not item:
+            out.append(f"「{col['name']}」({market}) 는 프로그램에 담을 칸이 아직 없는데 "
+                       f"검증완료로 표시돼 있습니다")
+        elif _req.wiring_of(item)[0] != _req.WIRED:
+            out.append(f"「{col['name']}」({market}) 는 저장만 되고 마켓으로 나가지 않는데 "
+                       f"검증완료로 표시돼 있습니다")
+    return out

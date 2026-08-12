@@ -127,3 +127,49 @@ def test_status_of_none_item_is_unknown_so_branch_order_is_safe():
     """
     from lemouton.policy import required as R
     assert R.status_of("smartstore", None)[0] == R.UNKNOWN
+
+
+def test_marks_file_loads_and_is_a_dict():
+    marks = C.load_marks()
+    assert isinstance(marks, dict)
+
+
+def test_build_returns_row_per_market():
+    data = C.build()
+    assert [r["market"] for r in data["rows"]] == \
+        ["coupang", "smartstore", "lotteon", "eleven11", "auction", "gmarket"]
+
+
+def test_build_cell_count_is_columns_times_markets():
+    data = C.build()
+    assert len(data["cells"]) == len(data["columns"]) * len(data["rows"])
+
+
+def test_build_counts_exclude_na_from_denominator():
+    """「해당없음」은 채울 대상이 아니므로 분모에서 뺀다 — 100%가 영영 안 차면 안 된다."""
+    data = C.build()
+    for row in data["rows"]:
+        c = row["counts"]
+        assert c["total"] == len(data["columns"]) - c["na"]
+
+
+def test_build_marks_lotteon_as_evidence_missing():
+    """롯데온은 등록 문서가 요약본이라 대부분 미착수로 떠야 한다."""
+    data = C.build()
+    lotteon = [r for r in data["rows"] if r["market"] == "lotteon"][0]
+    assert lotteon["counts"]["todo"] >= 10
+
+
+def test_drift_flags_verified_on_something_that_never_goes_out():
+    """🔴 조용한 통과 금지 — 나가지도 않는 값에 「검증완료」가 달려 있으면 알린다."""
+    problems = C.drift({"smartstore:2": {"verified": "2026-08-12"}})   # 2 = 상품명(저장만 됨)
+    assert problems and "상품명" in problems[0]
+
+
+def test_drift_silent_when_marks_are_sane():
+    assert C.drift({"smartstore:5": {"verified": "2026-08-12"}}) == []   # 5 = 판매가(나감)
+
+
+def test_drift_flags_unknown_column():
+    problems = C.drift({"smartstore:99": {"verified": "2026-08-12"}})
+    assert problems and "99" in problems[0]
