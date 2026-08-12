@@ -1,0 +1,147 @@
+# -*- coding: utf-8 -*-
+"""「정해져 나가는 값」 표가 **실제 코드와 같은가**.
+
+🔴 이 표는 「지금 코드가 무엇을 보내는가」의 사본이다. 사본은 반드시 낡는다 —
+   그래서 사람이 적은 목록끼리 대조하지 않고, **등록 코드 원본을 읽어** 맞춘다.
+   (오늘 「저장만 됩니다」가 거짓이었던 것도 사본이 낡아서 생긴 일이다)
+"""
+from pathlib import Path
+
+from lemouton.policy import fixed_sends as FS
+
+_SRC = Path('lemouton/registration')
+
+
+def _read(name: str) -> str:
+    return (_SRC / name).read_text(encoding='utf-8')
+
+
+# ── 표에 적힌 값이 실제 코드에 있는가 ────────────────────────────────────
+
+def test_쿠팡_고정값이_실제_코드에_그대로_있다():
+    """표만 고치고 코드를 안 고치면(또는 반대면) 화면이 거짓말한다."""
+    src = _read('compile_coupang.py')
+    있어야_할_것 = [
+        "'taxType': 'TAX'",
+        "'adultOnly': 'EVERYONE'",
+        "'parallelImported': 'NOT_PARALLEL_IMPORTED'",
+        "'overseasPurchased': 'NOT_OVERSEAS_PURCHASED'",
+        "'pccNeeded': 'false'",
+        "'notices': []",
+        "_SALE_ENDED_AT = '2099-12-31T23:59:59'",
+        "_DELIVERY_COMPANY = 'CJGLS'",
+    ]
+    빠진것 = [x for x in 있어야_할_것 if x not in src]
+    assert not 빠진것, f'표에 적었는데 코드에 없다 — 표가 낡았다: {빠진것}'
+
+
+def test_스스_고정값이_실제_코드에_그대로_있다():
+    src = _read('compile_smartstore.py')
+    assert "'naverShoppingRegistration': True" in src
+    assert "draft.origin_area_code or '0200037'" in src
+    assert "draft.importer or '-'" in src
+
+
+def test_초안_기본값이_실제_모델과_같다():
+    src = _read('models.py')
+    assert "notice_type = Column(String(32), default='WEAR'" in src
+    assert 'delivery_fee = Column(Integer, default=3000)' in src
+    assert 'return_fee = Column(Integer, default=5000)' in src
+
+
+def test_근거_위치가_전부_적혀_있다():
+    """「어디에 박혀 있나」가 없으면 사장님도 나도 다시 못 찾는다."""
+    for mk in ('coupang', 'smartstore'):
+        for row in FS.for_market(mk)['rows']:
+            assert row['where'], f'{mk} · {row["label"]} 에 근거 위치가 없다'
+            assert '.py:' in row['where'], row['where']
+
+
+# ── 확인 못 한 마켓을 「없다」고 하지 않는가 ──────────────────────────────
+
+def test_안_열어_본_마켓은_없다고_단정하지_않는다():
+    """🔴 「확인 못 함」과 「없음」은 다르다 — 이 프로젝트 최상위 원칙."""
+    for mk in FS.UNCHECKED:
+        got = FS.for_market(mk)
+        assert got['checked'] is False, mk
+        assert '없다는 뜻이 아닙니다' in got['reason']
+
+
+def test_확인한_마켓은_목록을_준다():
+    got = FS.for_market('coupang')
+    assert got['checked'] is True
+    labels = [r['label'] for r in got['rows']]
+    assert '과세구분' in labels and '택배사' in labels
+    assert '배송비' in labels, '마켓 공통 기본값도 같이 보여야 한다'
+
+
+# ── 정책과 실제가 어긋날 때 잡아내는가 ──────────────────────────────────
+
+def test_정책을_면세로_바꿔도_과세로_나가면_어긋남으로_잡는다():
+    """🔴 지금 코드는 정책 값을 안 읽는다 — 바꿔도 안 먹는데 화면이 조용하면 안 된다."""
+    got = FS.conflicts('coupang', {'listing': {'tax_type': '면세'}})
+    labels = [c['label'] for c in got]
+    assert '과세구분' in labels
+    c = [x for x in got if x['label'] == '과세구분'][0]
+    assert c['policy'] == '면세' and c['actual'] == '과세'
+
+
+def test_같으면_어긋남이_아니다():
+    got = FS.conflicts('coupang', {'listing': {'tax_type': '과세'}})
+    assert not [c for c in got if c['label'] == '과세구분']
+
+
+def test_정책에_안_채웠으면_어긋남이_아니다():
+    """안 정한 것을 「다르다」고 하면 화면이 경고로 뒤덮인다."""
+    assert FS.conflicts('coupang', {}) == []
+
+
+def test_배송비와_반품비를_따로_본다():
+    """🔴 「배송」 한 항목에 둘이 같이 있다 — 항목 이름만으로 고르면 첫 번째만 걸린다."""
+    got = FS.conflicts('coupang', {'shipping': {'fee_amount': 2500, 'return_fee': 4000}})
+    labels = {c['label'] for c in got}
+    assert '배송비' in labels, '배송비 어긋남을 못 잡았다'
+    assert '반품 배송비' in labels, '반품비 어긋남을 못 잡았다'
+    배송 = [c for c in got if c['label'] == '배송비'][0]
+    assert 배송['policy'] == '2,500원' and 배송['actual'] == '3,000원'
+
+
+def test_값_모양이_이상해도_화면이_안_죽는다():
+    """정책 값이 예상 밖 모양이어도 화면은 떠야 한다 — 비교를 포기할 뿐."""
+    for 이상한값 in ({'listing': None}, {'shipping': {'fee_amount': '삼천원'}},
+                     {'listing': {'tax_type': None}}):
+        FS.conflicts('coupang', 이상한값)      # 터지지 않으면 통과
+
+
+# ── [2026-08-13 사장님 확정 A1+B2] 화면 ─────────────────────────────────
+
+def test_항목별_대조가_늘_나온다():
+    """확정 B2 = 늘 나란히. 다를 때만 보여주면 「같다」는 확인이 안 된다."""
+    got = FS.by_item('coupang', {'listing': {'tax_type': '과세'}})
+    tax = [x for x in got.get('listing', []) if x['label'] == '과세구분']
+    assert tax, '같은데도 안 보여줬다'
+    assert tax[0]['same'] is True
+    assert tax[0]['policy'] == '과세' and tax[0]['actual'] == '과세'
+
+
+def test_다르면_같지_않다고_표시한다():
+    got = FS.by_item('coupang', {'listing': {'tax_type': '면세'}})
+    tax = [x for x in got['listing'] if x['label'] == '과세구분'][0]
+    assert tax['same'] is False
+
+
+def test_정책에_안_정했으면_실제값만_보여준다():
+    """「안 정함」과 「같음」은 다르다 — 안 정했으면 정책 쪽을 비운다."""
+    got = FS.by_item('coupang', {})
+    tax = [x for x in got['listing'] if x['label'] == '과세구분'][0]
+    assert tax['policy'] is None
+    assert tax['actual'] == '과세'
+    assert tax['same'] is False
+
+
+def test_정책에_칸이_없는_값은_항목별에_안_넣는다():
+    """해외구매·개인통관부호는 붙일 항목이 없다 — 접힌 표에만 나온다."""
+    got = FS.by_item('coupang', {})
+    labels = {x['label'] for rows in got.values() for x in rows}
+    assert '해외구매 여부' not in labels
+    assert '과세구분' in labels

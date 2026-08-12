@@ -139,6 +139,36 @@
     /* 「일부만」 — 반쪽은 작동하고 반쪽은 아직인 항목. 초록(다 됨)과 헷갈리면 안 되므로
        주황 계열로 가른다. 마우스를 올리면 어디까지 되는지 말해 준다. */
     .wire.half{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E));cursor:help}
+    /* ── [2026-08-13 확정 A1] 정해져 나가는 값 — 접힌 줄 ── */
+    .fx{background:var(--n50,#F9FAFB);border:1px solid var(--line,#E5E8EB);
+        border-radius:12px;margin-bottom:14px;overflow:hidden}
+    .fx-h{display:flex;align-items:center;gap:8px;padding:11px 15px;cursor:pointer;
+          font-size:13px;font-weight:700;color:var(--글자-기본,#4E5968);list-style:none}
+    .fx-h::-webkit-details-marker{display:none}
+    .fx-h::after{content:'▾';margin-left:auto;color:var(--sub,#8B95A1);font-size:12px}
+    .fx[open] .fx-h::after{content:'▴'}
+    .fx-h .n{background:var(--n100,#F2F4F6);border-radius:999px;padding:1px 9px;
+             font-size:11.5px;font-variant-numeric:tabular-nums}
+    table.fxt{width:100%;border-collapse:collapse;font-size:12.5px;
+              border-top:1px solid var(--line,#E5E8EB)}
+    /* 정렬: 이름·값 왼쪽(내용 폭) · 설명 왼쪽(남는 폭) · 근거는 오른쪽 흐리게 */
+    .fxt td{padding:7px 15px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:top}
+    .fxt tr:last-child td{border-bottom:0}
+    .fxt .lb{color:var(--글자-보조,#6B7684);white-space:nowrap;width:1%}
+    .fxt .vl{font-weight:700;color:var(--ink,#191F28);white-space:nowrap;width:1%}
+    .fxt .no{color:var(--글자-보조,#6B7684);line-height:1.6}
+    .fxt .src{color:var(--글자-희미,#8B95A1);font-size:11px;white-space:nowrap;
+              text-align:right;font-family:ui-monospace,monospace;width:1%}
+    .fx-why{padding:9px 15px;font-size:11.5px;color:var(--글자-보조,#6B7684);
+            line-height:1.7;background:var(--surface,#ffffff)}
+    .fx-none{background:var(--n100,#F2F4F6);border-radius:12px;padding:11px 15px;
+             font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:14px}
+    /* ── [2026-08-13 확정 B2] 항목 머리 「정책 ○○ / 실제 ○○」 알약 ── */
+    .fxp{font-size:11px;font-weight:600;border-radius:999px;padding:1px 9px;
+         white-space:nowrap;cursor:help}
+    .fxp.same{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
+    .fxp.diff{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
+    .fxp b{font-weight:700}
     /* 보조 설명줄 — `--sub` 는 밝은 화면에서 2.91 로 흐리다. 본문 보조색을 쓴다. */
     .req-why{font-size:11px;color:var(--글자-보조,#6B7684);line-height:1.6;margin-bottom:10px}
     .req-why b{color:var(--ink,#191F28)}
@@ -278,6 +308,36 @@
   </div>
   {% endif %}
 
+  {# ── [2026-08-13 사장님 확정 A1] 정해져 나가는 값 — 접힌 줄 하나 ────────────
+     🔴 여기 있는 값은 **사장님이 고칠 수 없는 값**이다. 정책 항목처럼 보이면
+       「고쳤는데 왜 안 먹지」가 된다 — 그래서 가공 항목들과 떨어진 자리에,
+       평소엔 접어서 둔다.
+     ★ 목록은 사람이 여기 적지 않는다 — `policy/fixed_sends.py` 가 원천이고,
+       그 표가 등록 코드와 갈리지 않는지는 시험이 코드 원본을 읽어 대조한다. #}
+  {% if fixed %}
+  {% if fixed.checked %}
+  <details class="fx">
+    <summary class="fx-h">이 마켓엔 이 값들이 정해져 나갑니다
+      <span class="n">{{ fixed.rows|length }}</span></summary>
+    <table class="fxt">
+      {% for r in fixed.rows %}
+      <tr>
+        <td class="lb">{{ r.label }}</td>
+        <td class="vl">{{ r.value }}</td>
+        <td class="no">{{ r.note }}</td>
+        <td class="src">{{ r.where }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div class="fx-why">이 값들은 <b>프로그램이 정해서 보냅니다</b> — 정책 화면에서
+      고를 수 있는 값이 아닙니다. 바꾸려면 알려 주세요.</div>
+  </details>
+  {% else %}
+  <div class="fx-none">이 마켓에 <b>무엇이 정해져 나가는지 아직 확인하지 못했습니다</b> —
+    {{ fixed.reason }}</div>
+  {% endif %}
+  {% endif %}
+
   {% if is_common %}
   {# 공통 값은 「마지막에 넣은 값」이다 — 지금 그 마켓의 값이 아니다. #}
   <div class="warn">
@@ -361,6 +421,20 @@
     <div class="it-h" onclick="tg('{{ it.key }}')">
       <span class="nm">{{ it.label }}</span>
       <span class="ref">{{ it.spec_ref or '' }}</span>
+      {# ── [2026-08-13 사장님 확정 B2] 정책값과 실제로 나가는 값을 **늘 나란히** ──
+         다를 때만 보여주면 「같다」는 사실도 확인이 안 되고, 안 보이는 동안
+         사장님은 정책값이 나가는 줄 안다.
+         🔴 색은 다를 때만 준다 — 전부 주황이면 아무도 안 읽는다. #}
+      {# 🔴 색은 **정책에 값을 넣었는데 다를 때만** 준다.
+         「안 정함」까지 주황으로 칠했더니 11개가 전부 주황이 됐다 —
+         전부 경고면 아무도 안 읽는다(만들자마자 그 함정에 빠졌다). #}
+      {% for f in (fixed_by_item or {}).get(it.key, []) %}
+      <span class="fxp {{ 'diff' if (f.policy and not f.same) else 'same' }}"
+            title="{{ f.label }} — 이 값은 프로그램이 정해서 보냅니다 ({{ f.where }})">
+        {{ f.label }}
+        {% if f.policy %}<b>정책 {{ f.policy }}</b> / {% endif %}실제 <b>{{ f.actual }}</b>
+      </span>
+      {% endfor %}
       {# ── 이 마켓이 요구하는가 — 마켓 상품등록 문서에 그렇게 적힌 것만 붙인다.
          「마켓 공통」 탭에는 req 가 비어 있어 아무것도 안 뜬다(어느 마켓 기준인지
          정해지지 않아 말할 수 없다). 근거·사유는 마우스를 올리면 보인다. #}
