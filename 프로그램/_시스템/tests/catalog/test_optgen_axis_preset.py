@@ -26,14 +26,40 @@ def _make(client, **kw):
     return client.post('/optgen/api/option-box', json=body)
 
 
-def test_모델모음전_3축을_고르면_그대로_저장된다(client):
-    r = _make(client, axes=['모델', '색상', '사이즈'])
+@pytest.mark.parametrize('axes', [['모델'], ['모델', '색상'],
+                                  ['모델', '색상', '사이즈'], ['색상', '모델명']])
+def test_모델_축은_아직_못_만든다(client, axes):
+    """🔴 [2026-08-13 감사] 모델 값을 담을 칸이 없다 —
+       1축은 color_code, 2축은 size_code 에 모델명이 들어가고,
+       3축은 어디에도 안 들어가 **마켓 옵션 이름이 겹친다**(실측).
+       격자·마켓 축 정책이 정해질 때까지 만들기 자체를 막는다."""
+    r = _make(client, axes=axes)
+    assert r.status_code == 400, r.get_data(as_text=True)
+    assert '모델' in (r.get_json() or {}).get('error', '')
+
+
+def test_큰_창에서도_모델_축은_못_만든다(client):
+    """🔴 축이 **실제로 저장되는 곳**은 큰 창(조합 생성)이다.
+       만들기 창만 막으면 여기로 그대로 빠져나간다 — 감사에서 실측된 구멍."""
+    code = _make(client, axes=['색상', '사이즈']).get_json()['code']
+    r = client.post(f'/api/bundles/{code}/options/combo', json={
+        'steps': [{'axis_name': '모델', 'values': ['메이트']},
+                  {'axis_name': '색상', 'values': ['블랙']}],
+        'selected': [['메이트', '블랙']],
+    })
+    assert r.status_code >= 400, r.get_data(as_text=True)
+    assert '모델' in (r.get_json() or {}).get('error', '')
+
+
+def test_옛_축이름은_큰_창에서_계속_저장된다(client):
+    """라이브에 「단계1·단계2」 매트릭스가 실재한다 — 프리셋을 여기서 강제하면 저장이 죽는다."""
+    code = _make(client, axes=['색상', '사이즈']).get_json()['code']
+    r = client.post(f'/api/bundles/{code}/options/combo', json={
+        'steps': [{'axis_name': '단계1', 'values': ['가']},
+                  {'axis_name': '단계2', 'values': ['나']}],
+        'selected': [['가', '나']],
+    })
     assert r.status_code == 200, r.get_data(as_text=True)
-    code = r.get_json()['code']
-    # 큰 창이 읽는 그 창구로 확인한다 — 화면이 실제로 보게 될 값이다.
-    j = client.get(f'/api/bundles/{code}/source-urls').get_json()
-    names = [s['axis_name'] for s in (j.get('axis_steps') or [])]
-    assert names == ['모델', '색상', '사이즈'], j.get('axis_steps')
 
 
 def test_색상모음전_2축도_저장된다(client):

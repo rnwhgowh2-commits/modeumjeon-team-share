@@ -108,3 +108,30 @@ def test_옵션을_지우면_자식_행도_같이_사라진다(client):
 def test_없는_옵션은_404_고_500_이_아니다(client):
     r = client.post('/api/bundles/없는모음전/options/SKU-NOPE0000/delete')
     assert r.status_code == 404, r.get_data(as_text=True)
+
+
+# ── [2026-08-13 감사 후속] 재고 이력이 지도에 없어 유령으로 남던 것 ──────────
+def test_옵션을_가리키는_비FK_칸도_지도에_있다():
+    """🔴 `option_canonical_sku` 는 이름이 옵션을 가리키는데 FK 가 아니라 지도에 안 잡혔다.
+
+    지우기·이름변경이 **같은 지도**를 보므로, 빠지면 낱개 옵션을 지울 때 재고 이력이
+    유령으로 남고(같은 SKU 가 다시 발급되면 없던 재고가 되살아난다),
+    이름을 바꾸면 이력이 옛 SKU 에 남아 끊긴다.
+    묶음 지우기(optgen._purge_option_traces)는 이미 치우고 있었다 — 경로마다 규칙이 달랐다.
+    """
+    from lemouton.sourcing.fk_map import option_child_columns
+    have = set(option_child_columns())
+    for t in ('inventory_txs', 'inventory_safety_stock',
+              'inventory_count_sheet_items', 'item_attribute_values'):
+        assert (t, 'option_canonical_sku') in have, f'{t} 가 지도에 없다 — 고아가 남는다'
+
+
+def test_남의_열쇠는_지도에_넣지_않는다():
+    """🔴 이름이 `canonical_sku` 라고 다 옵션이 아니다 — 넣으면 **남의 데이터를 지운다.**
+
+    inventory_products·sourcing_options 는 자기 자신의 열쇠다.
+    """
+    from lemouton.sourcing.fk_map import option_child_columns
+    have = set(option_child_columns())
+    for t in ('inventory_products', 'sourcing_options', 'options'):
+        assert (t, 'canonical_sku') not in have, f'{t} 는 자기 열쇠다 — 지우면 안 된다'

@@ -120,3 +120,35 @@ def test_안_빼앗으면_원래_주인이_그대로다(client):
     _set(client, '검정', 'BLACK')                      # takeover 없이 → 409
     rows = [a for a in _aliases() if a['source_value'] == 'BLACK']
     assert len(rows) == 1 and rows[0]['our_value'] == '없어진검정'
+
+
+# ── [2026-08-13 감사 후속] 붙잡은 줄이 **여럿**일 때도 빼앗을 수 있다 ────────
+def test_두_줄이_붙잡고_있어도_빼앗을_수_있다(client):
+    """🔴 이 표엔 DB 유일 제약이 없어 같은 표기를 두 줄이 붙잡을 수 있다.
+
+    예전엔 빼앗기가 **하나만** 놓고 다시 잡으려다 두 번째에서 또 걸렸고,
+    그 예외가 `except AliasConflict` 안에서 터져 **500** 이 났다 —
+    「이미 쓰고 있다」 막다른 골목이 그대로 되살아난 셈.
+    """
+    from shared.db import SessionLocal
+    from lemouton.sourcing.axis_alias import SourceAxisAlias, normalize_label
+    s = SessionLocal()
+    try:                     # 유일 제약이 없으니 실제로 두 줄을 만들 수 있다
+        for our in ('옛검정A', '옛검정B'):
+            s.add(SourceAxisAlias(source_key=SRC, axis_name=AXIS, our_value=our,
+                                  source_value='BLACK',
+                                  source_value_norm=normalize_label('BLACK'),
+                                  origin='manual', is_absent=False))
+        s.commit()
+    finally:
+        s.close()
+
+    r = _set(client, '새검정', 'BLACK')
+    assert r.status_code == 409, r.get_data(as_text=True)
+
+    r = _set(client, '새검정', 'BLACK', takeover=True)
+    assert r.status_code == 200, f'500 이면 막다른 골목이 되살아난 것: {r.get_data(as_text=True)}'
+
+    rows = [a for a in _aliases() if a['source_value'] == 'BLACK']
+    assert len(rows) == 1, f'1:1 이 깨졌다: {rows}'
+    assert rows[0]['our_value'] == '새검정'
