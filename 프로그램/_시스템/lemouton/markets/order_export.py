@@ -1415,7 +1415,35 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     return rows
 
 
-CP_FEE_FACTOR = 0.8845        # 1 - 0.1155 (쿠팡 상품 판매수수료 11.55%)
+# ── 쿠팡 수수료 셈법 — 사장님이 준 쿠팡 시험 결과 그대로 (2026-08-13) ─────────
+#   [상품 행]   요율 10.5%(부가세 별도)
+#       할인가   = 판매액 − 즉시할인(A) − 다운로드쿠폰(B)
+#       수수료   = 반올림( 버림(할인가 × 10.5%) × 1.1 )
+#       정산금액 = 할인가 − 수수료
+#   [배송료 행] 요율 3.0% — **따로 계산**
+#       수수료   = 반올림( 버림(배송비 × 3.0%) × 1.1 )   (4,000 → 132 → 3,868)
+#   주문 총정산 = 상품 행 합 + 배송료 행 합
+#
+# 🔴 순서가 중요하다 — `버림 → ×1.1 → 반올림` 이다.
+#   한 번에 `× 11.55%` 로 곱하면 값이 갈린다(11.55 = 10.5 × 1.1 이지만 버림 자리가 다르다).
+#   쿠팡 정산 엑셀 전수 검증: 이 식으로 **상품 299행 + 배송료 156행 = 455행 전부 일치,
+#   예외 0**. (옛 `round(기준 × 0.8845)` 식은 138행 중 98행만 맞았다.)
+CP_FEE_RATE_EX_VAT = 0.105    # 상품 판매수수료(부가세 별도) — 엑셀 「서비스이용율(%,VAT별도)」
+CP_SHIP_FEE_RATE_EX_VAT = 0.03    # 배송료 행 요율(부가세 별도)
+CP_VAT = 1.1
+
+
+def cp_fee(base, rate_ex_vat=CP_FEE_RATE_EX_VAT) -> int:
+    """쿠팡 수수료 = 반올림( 버림(기준 × 요율(VAT별도)) × 1.1 ).
+
+    ★ 반올림은 **`.5` 를 올린다**(상용 반올림). 파이썬 `round()` 는 은행가 반올림이라
+      `.5` 를 짝수 쪽으로 보내 절반을 내린다 — 그러면 정산이 1원씩 커진다.
+      엑셀 실측으로 `.5` 자리 28행 전부 쿠팡이 올림임을 확인했다(내림 0건).
+    """
+    return int(_math.floor(_math.floor(int(base) * rate_ex_vat) * CP_VAT + 0.5))
+
+
+CP_FEE_FACTOR = 0.8845        # 1 - 0.1155 (= 10.5% × 1.1). 옛 상수 — 아래 시험이 참조
 # (쿠팡 배송비 수수료 3% 상수는 M열=상품정산만 규약 전환(2026-07-23)으로 제거 —
 #  N열 = M + 고객배송비 전액, 샵마인 45건 전수 실측.)
 
@@ -1443,24 +1471,16 @@ def _cp_estimate_settle(unit, qty, ship, seller_dc=0, fee_rate=None):
     except (TypeError, ValueError):
         dc = 0
     base = max(0, u * q - dc)
-    rate = 1 - CP_FEE_FACTOR
-    if fee_rate is not None:
-        try:
-            rate = float(fee_rate)
-        except (TypeError, ValueError):
-            rate = 1 - CP_FEE_FACTOR
-    # 🔴 [2026-08-13] 쿠팡과 **같은 순서·같은 반올림**으로 센다.
-    #   쿠팡:  수수료 = 반올림(기준 × 요율)  →  정산 = 기준 − 수수료
-    #   옛 우리 식: round(기준 × (1 − 요율))  ← 한 번에 곱해 자리가 어긋났다.
-    #   게다가 파이썬 `round()` 는 **은행가 반올림**이라 `.5` 를 짝수 쪽으로 보낸다.
-    #   쿠팡 정산 엑셀 실측: `기준 × 11.55%` 가 정확히 `.5` 로 떨어지는 **28행 전부
-    #   쿠팡이 올림**(내림 0건). 그 자리에서 우리는 정산을 1원 크게 잡아
-    #   「받을 돈」이 상시 과대였다. 전수 재현율 98/138 → **124/138**.
-    #   (남은 14행은 그 상품 실요율이 11.548~11.549% — 고정값의 한계.
-    #    요율을 아는 상품은 `fee_rate` 로 넘겨 정확히 맞춘다.)
-    gross = base + s
-    fee = _math.floor(gross * rate + 0.5)
-    return gross - fee
+    # 🔴 [2026-08-13] 사장님이 준 쿠팡 시험 결과 그대로 — `cp_fee()` 한 곳에서만 센다.
+    #   상품과 배송료는 **요율이 다르고 따로 계산**한다(10.5% / 3.0%, 둘 다 VAT 별도).
+    #   여태 둘을 더해 한 요율로 물렸다. 라이브 호출부는 배송비를 0 으로 넘겨 왔지만
+    #   (배송비는 `_ship_settle` 로 따로 실린다), 규약을 코드에도 남긴다.
+    prod = base - cp_fee(base) if fee_rate is None else \
+        base - int(_math.floor(base * float(fee_rate) + 0.5))
+    # `fee_rate` 는 정산 확정분에서 배운 **부가세 포함 실효 요율**이다(`_cp_learn_fee_rates`).
+    #   이미 1.1 이 녹아 있으므로 여기서 또 곱하지 않는다.
+    ship_part = (s - cp_fee(s, CP_SHIP_FEE_RATE_EX_VAT)) if s else 0
+    return prod + ship_part
 
 
 def _cp_learn_fee_rates(rows, item_settle):
