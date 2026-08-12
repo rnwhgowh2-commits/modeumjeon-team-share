@@ -328,6 +328,43 @@ def coupang_barcode_fields(barcode) -> dict:
             'emptyBarcodeReason': _NO_BARCODE_REASON}
 
 
+def coupang_search_tags(bundle, options) -> list:
+    """[2026-08-13] 쿠팡 검색태그 — 구매자가 **검색할 말**만, 한도 안에서.
+
+    종전엔 `[모음전 코드, 색상]` 딱 2개였다. 모음전 코드는 우리 내부 관리번호라
+    구매자가 검색할 말이 아니다 — 20칸 중 1칸을 버리는 셈이었다.
+
+    담는 말 = **정책 §7-11 `_auto_tags` 와 같은 갈래**: 브랜드 → 카테고리 → 색상들.
+    **있는 값만** 쓴다(빈칸을 지어내지 않는다).
+    ★ 상품명 전체는 안 넣는다 — 정책이 안 넣는 값이고, 문장에 가까워 검색어로 안 쓰인다.
+      규칙을 두 벌로 만들면 「정책 미리보기」와 「실제로 나간 태그」가 갈린다.
+
+    🔴 한도는 지도에서 확인된 것만 (`market_limits.TAG_MAX_COUNT/TAG_MAX_LEN`) —
+      쿠팡 `items.searchTags` = "1개당 20자 이내, 최대 20개".
+      개수만 맞추면 긴 태그에서 쿠팡이 거부한다.
+    🔴 길이를 넘는 태그는 **자르지 않고 뺀다.** 잘라 만든 말은 구매자가 검색하지 않는
+      엉뚱한 말이라, 넣어 두면 한도만 갉아먹는다.
+    """
+    from lemouton.registration.market_limits import TAG_MAX_COUNT, TAG_MAX_LEN
+    말 = []
+    for v in (getattr(bundle, 'brand', ''), getattr(bundle, 'category', '')):
+        if str(v or '').strip():
+            말.append(str(v).strip())
+    for o in options or []:
+        c = str(getattr(o, 'color_code', '') or '').strip()
+        if c:
+            말.append(c)
+    cap_len = TAG_MAX_LEN.get('coupang')
+    out = []
+    for t in 말:
+        if cap_len and len(t) > cap_len:
+            continue                       # 자르지 않고 뺀다
+        if t not in out:
+            out.append(t)
+    cap_n = TAG_MAX_COUNT.get('coupang')
+    return out[:cap_n] if cap_n else out
+
+
 def build_coupang_items(opts, *, sale_price, image_url):
     """옵션 목록 → (쿠팡 items[], excluded). 옵션 추가금은 절대가에 가산한다.
 
