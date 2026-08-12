@@ -26,6 +26,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# 🔴 윈도우 명령창은 기본이 `cp949` 라 이모지(✅⚠️🔴)를 못 찍고 **UnicodeEncodeError 로
+#   죽는다.** 이 스크립트는 모든 안내 줄에 이모지가 붙어 있어 성공·실패·「손댐 있음」
+#   **어느 경로로도 결과를 못 내고 traceback 만 남겼다**(2026-08-12 실측, Python 3.14).
+#   → 못 찍는 글자만 `?` 로 바꾸고 한글은 그대로 둔다. 안내가 끊기는 것보다 낫다.
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(errors='replace')
+
 #: 크롬이 읽는 폴더. `chrome://extensions` 의 확장 ID 로 Secure Preferences 에서 찾는다.
 #: 🔴 폴더 **이름은 옛 판 그대로**(v0.7.63)라 이름만 보고 판단하면 안 된다.
 LOADED = Path(r'C:\Users\seung\Desktop\moum-crawler-v0.7.63')
