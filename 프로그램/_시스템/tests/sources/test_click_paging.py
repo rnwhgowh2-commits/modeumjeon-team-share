@@ -41,8 +41,14 @@ def test_상한을_넘지_않는다():
 
 
 def test_주소로_넘기는_곳은_누르지_않는다():
-    """무신사는 주소로 넘긴다 — 단추까지 누르면 같은 상품을 두 번 걷는다."""
-    assert click_pages_for('musinsa', 1, 5) == 1
+    """르무통은 주소로 넘긴다 — 단추까지 누르면 같은 상품을 두 번 걷는다."""
+    assert click_pages_for('lemouton', 1, 5) == 1
+
+
+def test_무신사도_여러_장을_걷는다():
+    """🔴 무신사엔 「다음」 단추가 없지만 응답이 `nextPageUrl` 을 준다.
+    이걸 1 로 답하면 **확장이 첫 쪽만 보고 끝난다**(다음쪽을 아예 안 따라감)."""
+    assert click_pages_for('musinsa', 1, 5) == 5
 
 
 def test_넘기는_법을_모르는_곳도_첫_장만():
@@ -69,11 +75,12 @@ def test_단추로_넘기는_곳은_주소를_한_장만_만든다():
 
 
 def test_주소로_넘기는_곳은_예전_그대로():
-    got = page_urls_for('https://www.musinsa.com/search/goods?keyword=나이키',
-                        source_key='musinsa', page_from=1, page_to=2)
+    """★ 예시를 무신사 → 르무통으로 바꿨다. 무신사는 `page=` 를 서버가 무시한다(실측)."""
+    got = page_urls_for('https://lemouton.co.kr/product/list_women.html?cate_no=60',
+                        source_key='lemouton', page_from=1, page_to=2)
 
-    assert got == ['https://www.musinsa.com/search/goods?keyword=나이키&page=1',
-                   'https://www.musinsa.com/search/goods?keyword=나이키&page=2'], got
+    assert got == ['https://lemouton.co.kr/product/list_women.html?cate_no=60&page=1',
+                   'https://lemouton.co.kr/product/list_women.html?cate_no=60&page=2'], got
 
 
 def test_둘_다_모르는_곳은_주소를_그대로_한_장():

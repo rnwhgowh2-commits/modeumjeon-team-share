@@ -214,6 +214,7 @@ def crawl_due_listings():
                         'sel': rule['sel'], 'attr': rule['attr'],
                         'id_re': rule['id_re'],
                         'more_sel': rule['more_sel'],
+                        'next_url_re': rule['next_url_re'],
                         'empty_text': rule['empty_text'],
                         # 단추로 넘기는 곳은 「몇 번 누를지」로 답한다(같은 칸을 쓴다).
                         'click_pages': LD.click_pages_for(

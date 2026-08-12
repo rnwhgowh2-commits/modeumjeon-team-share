@@ -95,7 +95,14 @@ def test_지금_수집을_누르면_훑을_주소가_확장에게_나간다(clie
 
     assert len(mine) == 1, due
     assert mine[0]['source_key'] == 'musinsa'
-    assert mine[0]['page_urls'] == [LISTING + '&page=1', LISTING + '&page=2'], mine[0]
+    # 🔴 [2026-08-08 정정] 예전엔 `&page=1`·`&page=2` 두 주소를 기대했다.
+    #   그런데 무신사는 `page=` 를 **서버가 아예 무시한다**(1쪽·2쪽 응답의 상품번호가
+    #   완전히 동일, 둘 다 totalCount 2412). 그대로 뒀으면 같은 1쪽을 두 번 긁고
+    #   「2장 봤다」고 거짓말했다. → **주소는 한 장**, 나머지는 응답이 주는
+    #   `nextPageUrl` 을 따라간다(그래서 `click_pages` 가 2 로 온다).
+    assert mine[0]['page_urls'] == [LISTING], mine[0]
+    assert mine[0]['click_pages'] == 2, mine[0]
+    assert mine[0]['next_url_re'], mine[0]
 
 
 def test_안_누른_필터는_안_나간다(client):
