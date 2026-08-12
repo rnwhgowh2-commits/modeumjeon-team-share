@@ -205,6 +205,77 @@ def parse_sheet(file_bytes: bytes) -> dict:
             "rows": rows, "상세잘림": int(df.shape[0]) > _DETAIL_CAP}
 
 
+# ── 마켓 값 · 자동 경로 (엑셀 없이) ──────────────────────────────────────────
+#  🔴 사장님께 파일을 부탁하기 전에 **이미 있는 자동 경로**를 먼저 쓴다.
+#    (로켓그로스 엑셀 184개를 요청했던 실수와 같은 부류를 피한다.)
+
+#: 스스 정산 조회 축 — 노션 규칙이 「정산예정일」이라 그 축으로만 부른다.
+#  결제일 축(`SETTLE_CASEBYCASE_PAY_DATE`)으로 부르면 **다른 것을 비교하게 된다.**
+SS_PERIOD_SCHEDULE = "SETTLE_CASEBYCASE_SETTLE_SCHEDULE_DATE"
+
+
+def market_actual_smartstore(*, today: dt.date, window_days: int = 30,
+                             client=None, iter_fn=None) -> dict:
+    """스마트스토어 정산 내역을 **마켓 API 로 직접** 읽어 `parse_sheet` 와 같은 모양으로.
+
+    노션 원문: *정산관리 > 정산 내역(일별) > 정산예정일(1달) / 일반정산금액 + 빠른정산금액
+    / 스스 기준, 집하일 하면 줌.*
+      → 축 = 정산예정일 · 창 = 오늘~+30일 · 정산 종류를 **가리지 않고 전부** 더한다
+        (일반 + 빠른). 「집하일 지급」은 빠른정산이 이미 나간 것을 뜻하는데, 그 몫도
+        정산예정일 축에 서 있으므로 여기서 빼지 않는다.
+
+    🔴 조용한 0건 금지 — 모든 날이 실패하면 ValueError. 일부만 실패하면 `오류` 에 담아
+      돌려주고 호출부가 화면에 띄운다. 0원과 「못 불러왔다」는 같은 얼굴이면 안 된다.
+    🔴 배송비 행(`productOrderType == "DELIVERY"`)은 상품과 **다른 번호**를 달고 온다
+      (배송비번호). 우리 주문번호는 상품주문번호라 주문 단위로 못 맞댄다 — 그래서
+      주문 단위 대조는 아예 시도하지 않는다(억지로 맞추면 가짜 불일치가 쏟아진다).
+    """
+    if iter_fn is None:
+        from shared.platforms.smartstore.settlements import iter_settle_by_case as iter_fn
+    until = today + dt.timedelta(days=window_days)
+    rows, total, n, errors = [], 0, 0, []
+    by_type: dict = {}
+    deliv_total = 0
+    day = today
+    while day <= until:
+        try:
+            for el in iter_fn(search_date=day.isoformat(),
+                              period_type=SS_PERIOD_SCHEDULE, client=client):
+                amt = _num(el.get("settleExpectAmount"))
+                if amt is None:
+                    continue            # 금액 없는 행 — 폴백 0 금지
+                total += amt
+                n += 1
+                t = str(el.get("settleType") or "(없음)")
+                b = by_type.setdefault(t, {"건수": 0, "금액": 0})
+                b["건수"] += 1
+                b["금액"] += amt
+                if str(el.get("productOrderType") or "") == "DELIVERY":
+                    deliv_total += amt
+                if len(rows) < _DETAIL_CAP:
+                    rows.append({"금액": amt, "날짜": day.isoformat(), "빠른정산": 0,
+                                 "주문번호": ""})
+        except Exception as e:      # noqa: BLE001 — 하루가 막혀도 나머지는 본다
+            errors.append(f"{day.isoformat()}: {type(e).__name__}: {str(e)[:150]}")
+        day += dt.timedelta(days=1)
+    if errors and n == 0:
+        raise ValueError(
+            "스마트스토어 정산 조회가 전부 실패했습니다 — 0원이 아니라 **못 불러온 것**입니다. "
+            + " / ".join(errors[:3]))
+    return {
+        "columns": ["settleExpectAmount(API)"], "amount_col": "settleExpectAmount",
+        "date_col": "settleExpectDate", "ratio_col": "", "is_base_amount": False,
+        # 🔴 주문번호 열을 비워 둔다 → `compare_orders` 가 「못 맞댄다」고 정직하게 말한다.
+        "order_col": "", "fast_col": "",
+        "건수": n, "금액건수": n, "합계": total, "빠른정산합계": 0,
+        "기간시작": today.isoformat(), "기간끝": until.isoformat(),
+        "rows": rows, "상세잘림": n > _DETAIL_CAP,
+        "정산구분별": by_type, "배송비정산합": deliv_total,
+        "오류": errors,
+        "출처": f"스마트스토어 정산 API(정산예정일 축) {today}~{until}",
+    }
+
+
 # ── 우리 값 ──────────────────────────────────────────────────────────────────
 
 def ours_for(item_key: str, lines: list, rules: dict, *, today: dt.date,
@@ -313,9 +384,17 @@ def compare_orders(parsed: dict, lines: list, *, tol: int = 2) -> dict:
     """**주문 단위** 대조 — 총액 대조보다 훨씬 강하다.
 
     🔴 [2026-08-12 실물 확인] 쿠팡 상세 엑셀의 「정산금액」은 지급비율 적용 **전**
-      금액이고, 우리 `정산예정금액` 도 같은 성격(그 주문의 정산 전액)이다.
+      금액이고, 우리 정산액도 같은 성격(그 주문의 정산 전액)이다.
       즉 **같은 종류의 숫자**라 주문번호로 바로 맞댈 수 있다 — 화면의 최종지급액
       (=Σ정산금액×지급비율)과 맞추려고 비율을 물을 필요가 없다.
+
+    🔴🔴 [2026-08-13 정정] 우리 쪽 재료는 **N열(`정산예정금(배송비포함)`)** 이다.
+      예전엔 M열(`정산예정금액` = **상품 정산만**)을 썼는데, 마켓 정산 명세의
+      「정산금액」은 **상품 + 배송비** 합이다(쿠팡 엑셀: 상품 113,924 + 배송료 3,868).
+      그래서 **배송비가 붙은 주문은 전부 가짜 「차이」로 잡혔다** — 우리가 틀린 게
+      아니라 비교 대상이 달랐던 것이다(153주문 중 124건이 여기 해당).
+      인수인계 문서가 총액 대조에서 짚은 그 함정이 이 함수 안에 그대로 남아 있었다.
+      N열이 빈 행(저장분 잔재)은 M열로 떨어진다 — 0 으로 보면 전액이 차이로 둔갑한다.
 
     반환: 일치/차이/우리에없음/마켓에없음 + 차이 목록(상한 있음).
     """
@@ -331,7 +410,10 @@ def compare_orders(parsed: dict, lines: list, *, tol: int = 2) -> dict:
         no = str(row.get("오픈마켓주문번호") or "").strip()
         if not no:
             continue
-        ours[no] = ours.get(no, 0) + (_to_int(row.get("정산예정금액"), 0) or 0)
+        amt = _to_int(row.get("정산예정금(배송비포함)"))
+        if amt is None:
+            amt = _to_int(row.get("정산예정금액"), 0) or 0
+        ours[no] = ours.get(no, 0) + amt
     same = diff = 0
     only_market, only_ours = [], []
     gaps = []

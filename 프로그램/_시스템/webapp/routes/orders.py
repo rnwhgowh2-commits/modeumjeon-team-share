@@ -3200,6 +3200,169 @@ def settle_recon_run():
         s.close()
 
 
+@bp.route('/settle-recon/run-live', methods=['POST', 'GET'])
+def settle_recon_run_live():
+    """엑셀 없이 대조 — 마켓 API 에서 **마켓 값을 우리가 직접 읽어** 우리 값과 맞댄다.
+
+    🔴 왜(2026-08-13) — 스마트스토어 대조는 「기준일 규칙만 코드에 넣고 실행은 한 번도
+      안 한」 상태였다. 사장님께 정산 엑셀을 부탁하기 전에, 이미 있는 자동 경로
+      (스스 정산 API)를 쓰는 게 맞다. 로켓그로스 엑셀 184개를 요청했던 실수와 같은 부류다.
+
+    `?item=smartstore&alias=` — 지금은 스마트스토어만. 결과는 엑셀 경로와 **같은 표**에
+    저장돼 지난번 판정과 이어진다.
+    """
+    from lemouton.margin import settle_recon as _sr
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    from lemouton.margin.settle_plan_rules import load_rules, wallet_summary
+
+    item = (request.args.get('item') or request.form.get('item') or 'smartstore').strip()
+    if item != 'smartstore':
+        return jsonify(ok=False, error=(
+            f'자동 대조는 아직 스마트스토어만 됩니다(요청: {item}). '
+            '쿠팡은 정산 엑셀 업로드(/settle-recon/run) 를 쓰세요.')), 400
+    alias = (request.args.get('alias') or request.form.get('alias') or '').strip()
+    today = _dt.date.today()
+    try:
+        cli = _client_for_diag('smartstore', alias)
+        parsed = _sr.market_actual_smartstore(
+            today=today, window_days=_sr.ITEMS[item]['window_days'], client=cli)
+    except ValueError as e:      # 조용한 0원 금지 — 사유를 그대로 올린다
+        return jsonify(ok=False, error=str(e)), 502
+    except Exception as e:       # noqa: BLE001
+        return jsonify(ok=False,
+                       error=f'{type(e).__name__}: {str(e)[:300]}'), 502
+
+    rules = load_rules()
+    lines = _settle_plan_lines([_sr.ITEMS[item]['market']])
+    try:
+        from lemouton.margin import settle_fast_ledger as FL
+        fast = FL.summary()
+    except Exception:   # noqa: BLE001
+        fast = {}
+    try:
+        wallet = wallet_summary(rules)
+    except Exception:   # noqa: BLE001
+        wallet = {}
+    res = _sr.reconcile(item, parsed, lines, rules, today=today,
+                        fast_summary=fast, wallet_summary=wallet)
+    res['자동'] = True
+    res['출처'] = parsed.get('출처') or ''
+    res['마켓_배송비정산합'] = parsed.get('배송비정산합')
+    res['마켓_정산구분별'] = parsed.get('정산구분별')
+    res['조회오류'] = parsed.get('오류') or []
+
+    s = SessionLocal()
+    try:
+        prev = (s.query(SettleReconRun).filter(SettleReconRun.item == item)
+                .order_by(SettleReconRun.id.desc()).first())
+        run = SettleReconRun(item=item, filename='(마켓 API 자동)',
+                             market_total=int(res['마켓값'] or 0),
+                             ours_total=int(res['우리값'] or 0),
+                             verdict=res['판정'],
+                             parsed={k: v for k, v in parsed.items() if k != 'rows'},
+                             result=res)
+        s.add(run)
+        for o in (s.query(SettleReconRun).order_by(SettleReconRun.id.desc())
+                  .offset(29).all()):
+            s.delete(o)
+        s.commit()
+        return jsonify(ok=True, ran_at=run.ran_at.isoformat(), result=res,
+                       parsed={k: v for k, v in parsed.items() if k != 'rows'},
+                       prev=(prev.result if prev else None),
+                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
+@bp.route('/settle-recon/run-manual', methods=['POST'])
+def settle_recon_run_manual():
+    """마켓 **화면 합계**를 손으로 적어 대조 — 엑셀로는 재현이 안 되는 항목용.
+
+    🔴 왜 이 칸이 필요한가(2026-08-13 실측) — 쿠팡 「미구매확정」 상세 엑셀
+      (UNCONFIRMED_SNAPSHOT_REPORT_DETAIL_LIST)엔 **수수료 열이 없다.**
+      판매금액 293,000 + 판매배송비 24,000 = 317,000 만 있고, 우리가 배운 상품별
+      실요율(11.55%)과 배송비 3.3% 로 계산하면 **282,366** 이 나온다.
+      사장님 화면 값은 268,840 이라 **13,526 이 설명되지 않는다** — 게다가 화면은
+      「5건」인데 엑셀엔 주문이 9건이라 **애초에 같은 묶음인지도 확실하지 않다.**
+      추측으로 계수를 맞추면 그 순간 대조는 자기 자신을 증명하는 거짓말이 된다.
+      그래서 **마켓 화면 숫자를 그대로 받아** 우리 값과 맞댄다.
+
+    🔴 이 숫자는 **대조 상대**일 뿐, 우리 정산액이 되지 않는다. 돈 값의 원천은 끝까지
+      마켓 API 다(사람이 적은 값이 금액 계산에 섞이면 원천이 둘로 갈린다).
+
+    `item=` · `market_total=` (필수) · `market_count=` · `memo=` · `screen_basis=`
+    """
+    from lemouton.margin import settle_recon as _sr
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    from lemouton.margin.settle_plan_rules import load_rules, wallet_summary
+
+    item = (request.form.get('item') or '').strip()
+    if item not in _sr.ITEMS:
+        return jsonify(ok=False,
+                       error=f'모르는 대조 항목입니다: {item or "(없음)"}'), 400
+    raw = (request.form.get('market_total') or '').strip()
+    total = _sr._num(raw)
+    if total is None:
+        return jsonify(ok=False, error=(
+            '마켓 화면 합계를 숫자로 적어 주세요. '
+            '0 을 넣으면 「대조했는데 일치」라는 거짓말이 됩니다.')), 400
+    try:
+        count = int(_sr._num(request.form.get('market_count') or '') or 0)
+    except (TypeError, ValueError):
+        count = 0
+    memo = (request.form.get('memo') or '').strip()[:300]
+    basis = (request.form.get('screen_basis') or '').strip()[:200]
+
+    rules = load_rules()
+    lines = _settle_plan_lines([_sr.ITEMS[item]['market']])
+    try:
+        from lemouton.margin import rg_settlement as RG
+        rg = RG.summary()
+    except Exception:   # noqa: BLE001
+        rg = {}
+    try:
+        from lemouton.margin import settle_fast_ledger as FL
+        fast = FL.summary()
+    except Exception:   # noqa: BLE001
+        fast = {}
+    try:
+        wallet = wallet_summary(rules)
+    except Exception:   # noqa: BLE001
+        wallet = {}
+    # `parse_sheet` 와 같은 모양으로 감싸 `reconcile` 을 그대로 태운다(원천 하나).
+    #  🔴 주문번호가 없으므로 주문 단위 대조는 「못 한다」고 정직하게 말한다.
+    parsed = {"columns": [], "amount_col": "(화면 값 직접 입력)", "date_col": "",
+              "ratio_col": "", "is_base_amount": False, "order_col": "", "fast_col": "",
+              "건수": count, "금액건수": count, "합계": int(total), "빠른정산합계": 0,
+              "기간시작": "", "기간끝": "", "rows": [], "상세잘림": False,
+              "화면기준": basis, "메모": memo}
+    res = _sr.reconcile(item, parsed, lines, rules, today=_dt.date.today(),
+                        rg_summary=rg, fast_summary=fast, wallet_summary=wallet)
+    res['손입력'] = True
+    res['화면기준'] = basis
+    res['메모'] = memo
+
+    s = SessionLocal()
+    try:
+        prev = (s.query(SettleReconRun).filter(SettleReconRun.item == item)
+                .order_by(SettleReconRun.id.desc()).first())
+        run = SettleReconRun(item=item, filename='(마켓 화면 값 직접 입력)',
+                             market_total=int(total),
+                             ours_total=int(res['우리값'] or 0),
+                             verdict=res['판정'], parsed=parsed, result=res)
+        s.add(run)
+        for o in (s.query(SettleReconRun).order_by(SettleReconRun.id.desc())
+                  .offset(29).all()):
+            s.delete(o)
+        s.commit()
+        return jsonify(ok=True, ran_at=run.ran_at.isoformat(), result=res,
+                       parsed=parsed,
+                       prev=(prev.result if prev else None),
+                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
 @bp.route('/settle-recon/latest')
 def settle_recon_latest():
     """항목별 마지막 대조 결과 — 탭에 들어오면 지난번 판정이 바로 보인다."""
