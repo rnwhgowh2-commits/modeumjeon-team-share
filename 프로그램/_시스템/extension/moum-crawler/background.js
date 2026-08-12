@@ -2897,6 +2897,11 @@ async function moumListingPollOnce() {
         } catch (e) {
           // 🔴 조용히 넘기지 않는다 — 한 장이 실패한 걸 0건과 구분해야 한다.
           err = (err ? err + " / " : "") + (e && e.message ? e.message : String(e));
+          // 🔴🔴 실패한 장은 **다 못 본 것**이다. 여태 여기서 capped 를 안 켜서
+          //   「훑는 중 시간 초과」인데도 화면엔 「끝남」으로 떴다 — 사장님은
+          //   「이 검색엔 289개뿐」이라고 믿는다(2026-08-12 라이브 롯데온·아이몰).
+          //   사유를 적는 것과 「다 못 봤다」고 말하는 것은 **다른 일**이다.
+          capped = true;
         }
         // 남은 페이지를 안 열고 끝내는 것도 「다 못 봤다」다.
         if (job.max_items && ids.size >= job.max_items) { capped = true; break; }
