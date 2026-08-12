@@ -531,14 +531,15 @@ def api_action():
       sku: str (canonical_sku),
       action: 'in' | 'out' | 'adjust',
       location_id: int,
-      qty: int,                # in/out: +qty / adjust: 새 절대값
+      qty: int,                # in/out: +qty / adjust: 세어 본 결과 수량
       memo: str (optional),
     }
 
     조정 (adjust):
-      - 「실사해 보니 qty 개」 — 원장에 **센 수(절대값)** 를 그대로 적는다
-        (2026-08-13 통일. 규칙 원천 = shared/inventory_stock.py `fold_tx_rows`)
-      - 응답의 applied_qty 는 **얼마나 바뀌었나**(qty − 현재재고)
+      - 받는 값은 「실사해 보니 qty 개」(결과 수량) — 작업자가 뺄셈하지 않는다
+      - 원장에는 **그 차이(qty − 현재재고)** 를 남긴다
+        (규칙 원천 = shared/inventory_stock.py `fold_tx_rows` — `adjust → total += q`)
+      - 응답의 applied_qty 도 그 차이다
     """
     data = request.get_json(silent=True) or {}
     sku = (data.get("sku") or "").strip()

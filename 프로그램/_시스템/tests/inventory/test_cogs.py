@@ -155,8 +155,14 @@ def test_recalc_stock_total_simple(tmp_path):
     # 10 - 3 + 5 + 0(move) = 12
     assert total == 12
 
-    # 조정 (절대값 set)
-    s.add(InventoryTx(tx_type='adjust', option_canonical_sku=sku, qty=20, status='completed'))
+    # 조정 = **증감분(델타)** — [2026-08-13] 절대값에서 바꿨다.
+    #   이 함수만 절대값(set)이고 `shared/inventory_stock.py` 는 델타 합이라
+    #   같은 데이터에서 두 숫자가 나왔다(「입고 100 → 실사 5」에 5 와 105).
+    #   델타로 통일한 이유: ① 합으로 셀 수 있다 ② **위치별 재고와 합이 맞는다**
+    #   (절대값이면 A창고 실사가 B창고 재고까지 덮는다) ③ 쓰는 곳 3곳 중 2곳이
+    #   이미 델타였다. 창구(`create_adjustment`)는 그대로 「결과 수량」을 받는다.
+    #   규칙 정본 = `shared.inventory_stock.fold_tx_rows`.
+    s.add(InventoryTx(tx_type='adjust', option_canonical_sku=sku, qty=8, status='completed'))
     s.commit()
     total2 = recalc_stock_total(sku, s)
-    assert total2 == 20  # 조정 후 절대값
+    assert total2 == 20, '12 + 8(증감분) = 20'
