@@ -30,27 +30,13 @@ def _now():
 
 
 def _ensure_default_location(session: Session) -> int:
-    """기본 위치 id 반환 — is_default=True 우선, 없으면 seed_defaults 로 생성."""
-    loc = (
-        session.query(InventoryLocation)
-        .filter(InventoryLocation.deleted_at.is_(None))
-        .filter(InventoryLocation.is_default.is_(True))
-        .first()
-    )
-    if loc is None:
-        from lemouton.inventory.locations import seed_defaults
-        seed_defaults(session)
-        loc = (
-            session.query(InventoryLocation)
-            .filter(InventoryLocation.deleted_at.is_(None))
-            .filter(InventoryLocation.is_default.is_(True))
-            .first()
-        )
-    if loc is None:
-        loc = InventoryLocation(name='기본 위치', is_default=True, sort_order=1)
-        session.add(loc)
-        session.flush()
-    return loc.id
+    """기본 위치 id — [2026-08-12] 규칙은 `locations.ensure_default_location` 한 곳뿐.
+
+    같은 판정이 세 곳에 흩어져 있었다. 위치를 고르는 규칙이 갈리면 같은 물건이
+    서로 다른 창고에 쌓인다 — 이름만 남기고 몸통은 하나로 합쳤다.
+    """
+    from lemouton.inventory.locations import ensure_default_location
+    return ensure_default_location(session)
 
 
 def _clean_article_no(raw: str) -> str:

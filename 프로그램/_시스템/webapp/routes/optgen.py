@@ -363,6 +363,11 @@ def box(code: str):
         axis_names = [a for (a,) in s.query(BundleOptionStep.axis_name)
                       .filter_by(model_code=code)
                       .order_by(BundleOptionStep.step_no).all()]
+        # [2026-08-12] 재고 숫자의 출처를 **원장 합계**로 바꾼다.
+        #   `Option.boxhero_stock_total` 은 캐시라, 서비스를 안 거친 경로가 갱신을
+        #   빠뜨리면 화면 숫자와 실재고가 갈린다(shared/inventory_stock.py 독스트링).
+        from shared.inventory_stock import get_stock_batch
+        stock = get_stock_batch(s, [o.canonical_sku for o in opts]) if opts else {}
         from lemouton.matrix.option_name import full_name, model_name_of
         rows = [{'no': o.display_no, 'name': full_name(nm, o),
                  'sku': o.canonical_sku,
@@ -371,7 +376,7 @@ def box(code: str):
                  'size': o.size_display or o.size_code,
                  'active': bool(o.is_active),
                  'stock_on': bool(o.use_purchase_inventory),
-                 'stock': int(o.boxhero_stock_total or 0)}
+                 'stock': int(stock.get(o.canonical_sku) or 0)}
                 for o in opts]
         info = {'code': m.model_code, 'name': nm, 'brand': m.brand,
                 'options': len(rows), 'rows': rows,
@@ -380,6 +385,75 @@ def box(code: str):
         s.close()
     return render_template('optgen/box.html',
                            active_app='bundles', active='optgen_direct', box=info)
+
+
+@bp.post('/api/box/<path:code>/initial-stock')
+def api_initial_stock(code: str):
+    """옵션 생성 뒤 **초기 재고**를 넣는다 — 노션 옵션 d 「입력 시, 재고 연동 ㄱㄱ!」
+
+    body: {"qty": {"SKU-…": 3, …}}
+
+    🔴 재고는 돈이다. 지키는 것 세 가지:
+      ① `options.boxhero_stock_total` 을 **직접 UPDATE 하지 않는다.** 진실 원천은
+         `InventoryTx(status='completed')` 합계다(shared/inventory_stock.py).
+         `create_inbound` 가 이력을 남기며 그 캐시 칸까지 알아서 갱신한다.
+      ② **이미 재고가 있는 옵션은 건너뛴다.** 「초기」가 두 번 들어가면 이중 계상이다.
+         무엇을 건너뛰었는지 그대로 돌려준다 — 조용히 넘어가지 않는다.
+      ③ 위치가 하나도 없으면 **거부**한다. 어디에 쌓였는지 모르는 재고는 재고가 아니다.
+    """
+    from shared.inventory_stock import get_stock_batch
+    from lemouton.inventory.inbound import create_inbound
+    from lemouton.inventory.locations import ensure_default_location
+    from lemouton.sourcing.models import Option
+
+    body = request.get_json(silent=True) or {}
+    raw = body.get('qty') or {}
+    if not isinstance(raw, dict):
+        return jsonify({'ok': False, 'error': 'qty 는 {SKU: 수량} 이어야 해요.'}), 400
+    want: dict[str, int] = {}
+    for sku, n in raw.items():
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            continue
+        if n > 0:
+            want[str(sku)] = n
+    if not want:
+        return jsonify({'ok': True, 'added': 0, 'skipped': [], 'skus': []})
+
+    s = SessionLocal()
+    try:
+        # 이 묶음의 옵션만 받는다 — 남의 SKU 에 재고를 꽂으면 안 된다.
+        mine = {sku for (sku,) in s.query(Option.canonical_sku)
+                .filter(Option.model_code == code,
+                        Option.canonical_sku.in_(list(want))).all()}
+        stray = [k for k in want if k not in mine]
+        if stray:
+            return jsonify({'ok': False,
+                            'error': f'이 묶음의 옵션이 아니에요: {", ".join(stray[:5])}'}), 400
+
+        have = get_stock_batch(s, list(mine))          # 원장 합계 = 진실 원천
+        loc_id = ensure_default_location(s)
+        added, skipped = [], []
+        for sku in sorted(mine):
+            if int(have.get(sku) or 0) > 0:
+                skipped.append(sku)                    # 이미 있다 — 두 번 넣지 않는다
+                continue
+            create_inbound(s, location_id=loc_id, option_canonical_sku=sku,
+                           qty=want[sku], unit_purchase_price=0,
+                           memo='옵션 생성 초기 재고', created_by='옵션 생성')
+            added.append(sku)
+        s.commit()
+    except ValueError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'added': len(added), 'skus': added,
+                    'skipped': skipped})
 
 
 @bp.delete('/api/option-box/<path:code>')
