@@ -40,6 +40,12 @@ class RestoreReport:
     product_id: str = ""
 
 
+def _same(got, want) -> bool:
+    if isinstance(got, (list, tuple)) or isinstance(want, (list, tuple)):
+        return tuple(got or ()) == tuple(want or ())
+    return got == want
+
+
 def _value_of(before: dict, axis: str):
     if axis == "stock":
         opts = before.get("options") or []
@@ -87,6 +93,19 @@ def restore_from_journal(journal_path, *, apply_fn, snapshot_fn=None,
         changes[axis] = tuple(v) if isinstance(v, list) and axis == "image_urls" else v
     if not changes:
         raise RestoreError("되돌릴 값이 하나도 없습니다(저널의 before 가 전부 확인불가).")
+
+    # 🔴 [2026-08-12] **이미 원래값인 축은 건드리지 않는다.** 옥션 손복구가
+    #    통째로 거부된 실사고 — 되돌려야 할 건 상품명·상세뿐인데 이미 맞는 재고까지
+    #    같이 보냈고, 남의 옵션 재고가 0 이라 full-replace 가 전부 거부됐다.
+    #    마켓 쓰기는 한 번이라도 덜 하는 게 낫다.
+    #    ⚠️ 현재값을 못 읽으면(snapshot_fn 없음) 비교 근거가 없으니 저널대로 다 보낸다.
+    if snapshot_fn is not None:
+        cur = snapshot_fn()
+        changes = {a: v for a, v in changes.items() if not _same(cur.value_of(a), v)}
+        if not changes:
+            report.ok = True
+            report.verified = True
+            return report                 # 이미 원래대로다 — 쓰기를 안 한다
 
     report.sent = dict(changes)
     try:
