@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
-"""주문 내역 화면의 **세로 순서** 고정 (2026-08-12 사장님 확정).
+"""주문 내역 화면의 **세로 순서** 고정 (2026-08-13 사장님 확정 — 올려주신 이미지 4장).
 
-    ① 주문 불러오는 중 → ② 마켓·계정별 불러오기 현황 → ③ 주문현황 카드
-    → ④ 가로탭(마켓 상태·주문 관리·돈 확인) → ⑤ 주문내역 표
+    ① 주문 불러오는 중 → ② 주문현황 카드 → ③ 계정 경고
+    → ④ 가로탭(마켓 상태·주문 관리·돈 확인) → ⑤ 마켓 칩·계정 칩 → ⑥ 주문내역 표
 
 🔴 왜 시험으로 잠그나 — 이 순서는 **화면 코드의 줄 순서**가 곧 결과라서, 나중에 누가
    한 블록만 옮겨도 조용히 되돌아간다. 옛 순서(탭 → 매입 엑셀 카드 → 숫자 카드 → 마켓줄)
    에서는 화면에 들어오자마자 오늘 몇 건·얼마인지를 알 수 없었다.
+🔴 2026-08-12 순서는 「마켓 칩 → 경고 → 카드 → 가로탭」이었다. 카드가 마켓 칩 아래라
+   화면 맨 위가 「거르는 장치」로 채워져 있었다 → 카드를 맨 위로, 거르는 장치는 아래로.
 
 🔴 더망고 매입 엑셀 — 사장님: "드래그 앤 드랍으로 올리도록 딱 느꼈으면 좋겠어."
    표 전체가 드롭존이고, 올리는 길은 **한 벌**이어야 한다(두 벌이면 한쪽만 고쳐진다).
@@ -54,8 +56,9 @@ LIST = _resolve('list')
 SHIP = _resolve('ship')
 
 #: 화면 순서 — 이 배열이 사장님 확정 순서 그 자체다.
-EXPECTED = ['loadbar', 'mkline', 'acctline', 'acovbar', 'warnbar',
-            'kpis', 'ffTabs', 'ostTabs', 'mgTabs', 'ppCard', 'droprel']
+EXPECTED = ['loadbar', 'kpis', 'acovbar', 'warnbar',
+            'ffTabs', 'ostTabs', 'mgTabs', 'mkline', 'acctline',
+            'ppCard', 'droprel']
 
 
 def test_주문내역_세로_순서가_확정대로다():
@@ -69,18 +72,29 @@ def test_불러오는중이_맨_위다():
     assert got[0] == 'loadbar'
 
 
-def test_숫자카드가_거르기_탭보다_위다():
-    """③이 ④보다 위 — 「무엇으로 거를지」보다 「오늘 상황」이 먼저다."""
+def test_숫자카드가_거르는_장치보다_모두_위다():
+    """②가 ④·⑤보다 위 — 「무엇으로 거를지」보다 「오늘 상황」이 먼저다.
+    🔴 마켓 칩(mkline)도 거르는 장치다. 2026-08-12 순서에선 이것만 카드 위에 있어
+       화면 맨 윗줄이 필터로 채워져 있었다."""
     got = _order(LIST, EXPECTED)
-    assert got.index('kpis') < got.index('ffTabs')
-    assert got.index('kpis') < got.index('ostTabs')
+    for x in ('ffTabs', 'ostTabs', 'mgTabs', 'mkline', 'acctline'):
+        assert got.index('kpis') < got.index(x), x
 
 
-def test_마켓_계정_현황이_숫자카드보다_위다():
-    """②가 ③보다 위 — 어느 마켓이 얼마나 들어왔는지를 먼저 본다."""
+def test_계정_경고가_숫자카드_바로_아래다():
+    """③ — 못 불러온 계정이 있으면 카드 숫자가 실제보다 적다. 숫자 바로 밑에서 말한다."""
     got = _order(LIST, EXPECTED)
-    for x in ('mkline', 'acctline', 'acovbar', 'warnbar'):
-        assert got.index(x) < got.index('kpis'), x
+    assert got.index('acovbar') == got.index('kpis') + 1
+    assert got.index('warnbar') == got.index('acovbar') + 1
+    # 경고가 거르기 탭보다 위 — 「덜 불러왔다」를 알고 나서 거른다
+    assert got.index('warnbar') < got.index('ffTabs')
+
+
+def test_마켓_계정_칩이_가로탭_바로_아래다():
+    """⑤ — 거르는 장치끼리 모아 둔다(가로탭 → 마켓 칩 → 계정 칩)."""
+    got = _order(LIST, EXPECTED)
+    assert got.index('mkline') == got.index('mgTabs') + 1
+    assert got.index('acctline') == got.index('mkline') + 1
 
 
 def test_매입_엑셀_카드는_표_바로_위다():

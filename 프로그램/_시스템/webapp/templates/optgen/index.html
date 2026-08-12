@@ -85,9 +85,10 @@
               data-brand="{{ b.brand or '' }}" data-name="{{ b.name }}" data-opts="{{ b.options }}"
               data-hid="{{ 1 if b.hid else 0 }}"
               data-find="{{ b.code }} {{ b.name }} {{ b.brand or '' }}">
-            <td class="og-pick"><input type="checkbox" class="og-bk"
+            {# [2026-08-13] 라벨로 감싼다 — 입력칸은 13px 뿐이라 여백을 눌러도 켜지게. #}
+            <td class="og-pick"><label><input type="checkbox" class="og-bk"
                  data-code="{{ b.code }}" data-name="{{ b.name }}"
-                 data-opts="{{ b.options }}" aria-label="{{ b.name }} 고르기"></td>
+                 data-opts="{{ b.options }}" aria-label="{{ b.name }} 고르기"></label></td>
             <td class="mono">{{ b.shown_code }}</td>
             <td><b>{{ b.name }}</b></td>
             <td>{{ b.brand or '—' }}</td>
@@ -133,11 +134,17 @@
          ①종류 → ②옵션축 → ③브랜드 → ④매트릭스의 이름. #}
       <label class="og-lb"><span class="og-step">1</span> 어떤 모음전인가요</label>
       <div class="og-rg" id="ob-kinds">
+        {# 🔴 [2026-08-13] `disabled` 종류는 **숨기지 않고 이유를 적는다.**
+           없애면 「빠뜨렸나」가 되고, 그냥 두면 골라서 틀린 데이터를 만든다. #}
         {% for p in axis_presets %}
-        <label class="og-rr{% if loop.first %} on{% endif %}" data-kind="{{ p.kind }}">
-          <input type="radio" name="ob-kind" value="{{ p.kind }}"{% if loop.first %} checked{% endif %}>
-          <span><b class="og-rt">{{ p.label }}</b>
-            <span class="og-rd">{{ p.desc }}</span></span>
+        <label class="og-rr{% if loop.first %} on{% endif %}{% if p.disabled %} off{% endif %}"
+               data-kind="{{ p.kind }}"{% if p.disabled %} data-off="1"
+               title="{{ blocked_axis_reason }}"{% endif %}>
+          <input type="radio" name="ob-kind" value="{{ p.kind }}"
+                 {%- if loop.first %} checked{% endif %}
+                 {%- if p.disabled %} disabled{% endif %}>
+          <span><b class="og-rt">{{ p.label }}{% if p.disabled %} <span class="og-soon">준비 중</span>{% endif %}</b>
+            <span class="og-rd">{% if p.disabled %}{{ blocked_axis_reason }}{% else %}{{ p.desc }}{% endif %}</span></span>
         </label>
         {% endfor %}
       </div>
@@ -221,9 +228,10 @@
               data-brand="{{ m.brand or '' }}"
               data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}"
               data-stage="{{ m.show }}">
-            <td class="og-pick"><input type="checkbox" class="og-ck"
+            {# [2026-08-13] 라벨로 감싼다 — 입력칸은 13px 뿐이라 여백을 눌러도 켜지게. #}
+            <td class="og-pick"><label><input type="checkbox" class="og-ck"
                  data-id="{{ m.id }}" data-name="{{ m.name }}"
-                 data-opts="{{ m.options }}" aria-label="{{ m.name }} 고르기"></td>
+                 data-opts="{{ m.options }}" aria-label="{{ m.name }} 고르기"></label></td>
             <td class="mono">{{ m.no }}</td>
             <td><b>{{ m.name }}</b></td>
             <td>{{ m.brand or '—' }}</td>
@@ -367,6 +375,13 @@
   .og-rt{display:block;font-size:14px;font-weight:600}
   .og-rd{display:block;font-size:12px;color:var(--color-text-tertiary);
     line-height:1.5;margin-top:2px}
+  /* [2026-08-13] 아직 못 여는 종류 — 숨기지 않고 「준비 중」으로 말한다.
+     opacity 만 낮추면 왜 못 고르는지 알 수 없어, 이유 문구를 같이 띄운다. */
+  .og-rr.off{opacity:.55;cursor:not-allowed;background:var(--ap-g0,#FAFAFC)}
+  .og-rr.off:hover{border-color:var(--ap-g2,#E8E8ED)}
+  .og-rr.off input{cursor:not-allowed}
+  .og-soon{font-size:11px;font-weight:700;color:var(--글자-주황,#C93400);
+    background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 7px;margin-left:4px}
   .og-rr.on{border-color:var(--color-primary);background:var(--연한-파랑,rgba(0,113,227,.08))}
   .og-rr.on .og-rt{color:var(--color-primary)}
   .og-axes-none{font-size:12.5px;color:var(--color-text-tertiary);padding:8px 0}
@@ -498,6 +513,10 @@
   /* [2026-08-12 사장님 C1 확정] 체크칸 + 고른 묶음 띠 */
   .og-pick{width:1px;white-space:nowrap;text-align:center;padding-right:0}
   .og-pick input{margin:0;cursor:pointer}
+  /* [2026-08-13 감사] 체크 입력칸은 13×13px 뿐이라 손끝 목표(44px)에 한참 모자랐다.
+     라벨로 감싸 **여백을 눌러도 켜지게** 한다 — 마크업만 늘고 보이는 건 그대로. */
+  .og-pick label{display:inline-flex;align-items:center;justify-content:center;
+    min-width:32px;min-height:32px;margin:-9px;padding:9px;cursor:pointer}
   .og-pickbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
     background:var(--연한-파랑,rgba(0,113,227,.08));border:1px solid var(--color-border);
     border-radius:10px;padding:11px 14px}
@@ -563,6 +582,17 @@
   .og-wrap { grid-template-columns: minmax(0, 1fr); }
   .og-b { min-height: 44px; }
   .og-more { min-height: 44px; padding: 0 12px; }
+  /* 🔴 [2026-08-13 감사 실측] 폰(375px)에서 **문서 전체가 146px 가로로 굴렀다.**
+     범인은 서랍(`.og-rail`) — `width:max-content` 라 가장 긴 상태 이름
+     「상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용」의 nowrap 폭(497px)이
+     그대로 화면 밖으로 나갔다(실측 scrollWidth 521 > clientWidth 375).
+     · 문구를 줄이거나 자르지 않는다 — 사장님이 지으신 말이고, 자르면 화면이 거짓말한다.
+     · `width:max-content` 자체도 안 건드린다(PC 규격 · test_screen_truthfulness).
+     → 폰에서만 **줄바꿈을 허용**한다. 두 줄이 되어도 글자는 다 보인다. */
+  .og-rail { width: auto; max-width: 100%; min-width: 0; }
+  .stg-row .lb { white-space: normal; }
+  /* 체크칸 손끝 목표 — 입력칸 자체는 13px 이라 라벨로 44px 를 만든다(감사 실측). */
+  .og-pick label { min-width: 44px; min-height: 44px; }
 }
 </style>
 
@@ -608,6 +638,8 @@
   }
   kindsBox.addEventListener('click', function (e) {
     var b = e.target.closest('.og-rr'); if (!b) return;
+    // [2026-08-13] 「준비 중」 종류는 고를 수 없다 — 서버도 400 으로 막는다(두 곳 같은 규칙).
+    if (b.getAttribute('data-off')) return;
     pickedKind = b.getAttribute('data-kind');
     // 종류를 바꾸면 축 고른 것은 버린다 — 남겨 두면 안 맞는 축이 딸려 간다.
     pickedAxes = null;
