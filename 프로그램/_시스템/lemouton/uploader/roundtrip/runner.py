@@ -187,7 +187,14 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
         r = AxisResult(axis=axis, label=AXIS_LABELS.get(axis, axis),
                        before=before.value_of(axis))
         if not before.has(axis):
-            r.note = f"확인불가 — 이 마켓이 「{r.label}」 을 조회로 주지 않습니다(전송 안 함)."
+            # 🔴 [2026-08-13] 「마켓이 안 줌」과 「우리가 안 보냄」은 다른 말이다.
+            #    읽히는 값인데 마켓 탓을 하면, 없는 제약을 있는 것처럼 굳힌다
+            #    (11번가 상품명이 실제로 그랬다 — 읽히는데 「안 준다」고 적혀 나갔다).
+            if before.value_of(axis) is not None:
+                r.note = (f"확인불가 — 「{r.label}」 은 읽히지만, 되돌려 쓸 안전한 방법이 없어 "
+                          f"저희가 보내지 않습니다(마켓이 안 주는 게 아닙니다).")
+            else:
+                r.note = f"확인불가 — 이 마켓이 「{r.label}」 을 조회로 주지 않습니다(전송 안 함)."
         elif axis == "image_urls" and not test_image:
             why = f" 사유: {image_error}" if image_error else ""
             r.note = ("확인불가 — 올릴 시험 이미지를 준비하지 못했습니다"
@@ -203,6 +210,14 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
         results[axis] = r
 
     changes = {a: results[a].sent for a in testable}
+
+    # 🔴 [2026-08-13] **보낸 값을 저널에 적는다.** 손복구가 「이게 우리 시험값인가」를
+    #    주소 모양·낱말로 짐작하다 틀렸다(스마트스토어 시험사진을 못 알아봄).
+    #    보낸 값을 그대로 적어 두면 짐작할 필요가 없다 — 지금 값과 같으면 우리 것이다.
+    try:
+        journal.record_sent(changes)
+    except AttributeError:
+        pass                      # 옛 저널 객체 호환 — 없으면 옛 방식(짐작)으로 떨어진다
 
     # 5) 전송 → 되읽기 → 검사. 실패해도 원복은 반드시 돈다.
     try:

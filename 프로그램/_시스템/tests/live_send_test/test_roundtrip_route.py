@@ -109,10 +109,14 @@ def test_11번가는_이제_지원_마켓이다(client):
 
 def test_스스_쿠팡_롯데온은_지원_마켓이다(client):
     """서버키가 꺼져 있어도 「미지원 마켓」이 아니라 「서버키 꺼짐」으로 거부돼야 한다.
-    (옥션·G마켓은 2026-08-07 사고로 차단 — 아래 별도 시험)"""
+
+    ⚠️ [2026-08-13] 축을 지정한다 — 축을 안 주면 5축 전부라 무거운 축 잠금에 먼저 걸린다
+    (쿠팡 3축은 가격·재고를 되감아서 막았다). 여기서 보려는 건 「마켓 지원 여부」다.
+    """
     for mk in ("smartstore", "coupang", "lotteon"):
         r = client.post("/api/live-send-test/roundtrip",
-                        json={"market": mk, "origin_product_no": 1, "arm": "1"})
+                        json={"market": mk, "origin_product_no": 1, "arm": "1",
+                              "axes": ["sale_price", "stock"]})
         refusal = r.get_json().get("refusal") or ""
         assert "MOUM_LIVE_UPLOAD" in refusal, f"{mk} 가 미지원으로 막혔다: {refusal}"
 
