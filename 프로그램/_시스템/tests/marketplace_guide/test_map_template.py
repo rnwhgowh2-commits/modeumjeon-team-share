@@ -126,3 +126,49 @@ def test_unassigned_tabs_counter_in_template():
     html = _map()
     assert "업무탭 미배정" in html
     assert "notabChip" in html
+
+
+# ── 개발 체크리스트 탭 ──
+
+def test_checklist_tab_exists():
+    html = _map()
+    assert "개발 체크리스트" in html
+    assert "'checklist'" in html
+
+
+def test_checklist_tab_is_in_program_group():
+    """「프로그램 적용」 묶음에 든다 — 마켓 문서 참고가 아니라 우리 할 일이다."""
+    html = _map()
+    # 「프로그램 적용」 첫 등장은 49,000자 앞 CSS 주석이라 기준점이 못 된다 → TAB_GROUPS 정의를 기준으로.
+    i_group = html.index("{lab:'프로그램 적용'")
+    i_tab = html.index("'checklist'")
+    assert abs(i_tab - i_group) < 2000
+    assert "keys:['checklist'" in html   # 묶음 맨 앞에 실제로 들어 있나
+
+
+def test_checklist_partial_is_included():
+    """조각을 안 넣으면 window.ckInit 이 없어 탭이 백지가 된다."""
+    assert '{% include "_checklist_matrix.html" %}' in _map()
+
+
+def test_checklist_include_is_outside_raw():
+    """{% raw %} 안에 들어가면 include 가 글자 그대로 찍힌다 — 렌더로 확인."""
+    html = _map()
+    i_inc = html.index('{% include "_checklist_matrix.html" %}')
+    assert i_inc > html.rindex("{% endraw %}")
+
+
+def test_checklist_branch_calls_ckinit():
+    html = _map()
+    assert "window.ckInit(" in html
+    assert "/marketplace-guide/checklist.json" in html
+
+
+def test_checklist_branch_keeps_tab_bindings():
+    """분기에서 일찍 return 하면 상단탭 onclick 재바인딩을 건너뛰어 탭바가 죽는다."""
+    html = _map()
+    i_br = html.index("if(DM_TOP==='checklist')")
+    i_bind = html.index(".dm2 .toptab').forEach(t=>t.onclick")
+    assert i_br < i_bind
+    branch = html[i_br:i_bind]
+    assert "return;" not in branch
