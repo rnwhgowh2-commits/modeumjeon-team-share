@@ -49,3 +49,62 @@ def test_column_numbers_are_unique():
     """col 로 열을 찾는 코드가 나중에 생긴다 — 중복이면 엉뚱한 열을 집는다."""
     nums = [c["col"] for c in _cols()["columns"]]
     assert len(nums) == len(set(nums)), f"열 번호 중복: {nums}"
+
+
+def test_cell_na_when_excel_blank():
+    """엑셀이 비었거나 「-」면 그 마켓엔 해당 없음."""
+    col = {"col": 22, "name": "모델번호", "rule": "", "item": "ids",
+           "specs": {"eleven11": "-"}}
+    assert C.cell_state("eleven11", col) == "na"
+
+
+def test_cell_impossible_when_excel_x():
+    col = {"col": 13, "name": "가격비교 노출", "rule": "", "item": "price_compare",
+           "specs": {"coupang": "X"}}
+    assert C.cell_state("coupang", col) == "impossible"
+
+
+def test_cell_todo_when_no_program_item():
+    col = {"col": 24, "name": "사이즈", "rule": "", "item": None,
+           "specs": {"coupang": "입력X"}}
+    assert C.cell_state("coupang", col) == "todo"
+
+
+def test_cell_todo_when_market_evidence_unknown():
+    """롯데온은 등록 문서가 요약본이라 근거를 못 찾는다 = 미착수(불가 아님)."""
+    col = {"col": 21, "name": "태그", "rule": "", "item": "tags",
+           "specs": {"lotteon": "값 있음"}}
+    assert C.cell_state("lotteon", col) == "todo"
+
+
+def test_cell_stored_only_when_not_wired():
+    """칸도 있고 마켓도 받는데 보내는 코드가 없으면 「저장만 됨」."""
+    col = {"col": 2, "name": "상품명", "rule": "", "item": "name",
+           "specs": {"smartstore": "100글자"}}
+    assert C.cell_state("smartstore", col) == "stored"
+
+
+def test_cell_done_needs_both_wired_and_verified():
+    """판매가는 나가지만(WIRED), 실계정 확인 표시가 있어야 검증완료."""
+    col = {"col": 5, "name": "판매가", "rule": "", "item": "price",
+           "specs": {"smartstore": "판매가"}}
+    assert C.cell_state("smartstore", col) == "wired"
+    assert C.cell_state("smartstore", col,
+                        marks={"smartstore:5": {"verified": "2026-08-12"}}) == "done"
+
+
+def test_conflict_when_market_requires_but_we_skip():
+    """11번가는 「등록 기본값」을 [필수]로 요구하는데 엑셀 제조사 칸은 「-」다.
+
+    ⚠️ 조합을 바꾸지 마라 — required.py 의 실제 값에 맞춰 고른 것이다.
+      (모델번호/11번가는 required 가 아니라 conditional 이라 여기 쓰면 안 된다.)
+    """
+    col = {"col": 17, "name": "제조사", "rule": "", "item": "listing",
+           "specs": {"eleven11": "-"}}
+    assert "필수" in C.conflict_of("eleven11", col)
+
+
+def test_no_conflict_when_both_agree():
+    col = {"col": 5, "name": "판매가", "rule": "", "item": "price",
+           "specs": {"smartstore": "판매가"}}
+    assert C.conflict_of("smartstore", col) == ""
