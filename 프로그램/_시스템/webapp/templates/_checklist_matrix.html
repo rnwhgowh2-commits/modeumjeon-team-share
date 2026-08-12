@@ -47,7 +47,8 @@
 .ckroot .ckph{font-size:11px;color:var(--sub);line-height:1.65;}
 .ckroot .ckerr{font-size:12.5px;color:#B91C1C;background:#FEF2F2;border:1px solid #FBD5D5;border-radius:8px;padding:9px 12px;line-height:1.65;}
 
-/* ── 정보창(떠 있는 것) — 바깥틀 이름은 ckpop, 오른쪽 고정판은 ckpanel. 속 부품(ckcard)만 공용 ── */
+/* ── 정보창(떠 있는 것) — 바깥틀 이름은 ckpop, 오른쪽 고정판은 ckpanel. 속 부품(ckcard)만 공용 ──
+   글자 크기는 아래 「확대 밖 보정」 블록에서 1.58배로 다시 적는다. 여기 12.5px 는 보정 전 기준값이다. */
 .ckpop{display:none;position:fixed;z-index:99999;background:#fff;border:1px solid #d1d6db;border-radius:14px;
   max-height:74vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;text-align:left;
   font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;padding:14px 16px;line-height:1.65;width:470px;
@@ -84,6 +85,38 @@
 /* 배선 딱지 — 「나감 / 저장만 / 칸조차 없음」 세 값을 눈으로 갈라 준다 */
 .ckcard .ckwire{display:inline-block;font-size:11px;font-weight:800;border-radius:5px;padding:1px 7px;line-height:1.5;margin-right:5px;}
 .ckcard .unk{background:#F5F0FF;border:1px solid #E0D3FB;border-radius:8px;padding:8px 10px;font-size:12.5px;color:#5B21B6;line-height:1.65;}
+
+/* ── 확대 밖 보정 (정보창 전용) ───────────────────────────────────────────
+   🔴 정보창은 document.body 에 붙어 `.dm2{zoom:1.58}` 밖에 있다.
+      그래서 같은 12.5px 가 표에서는 17.08px, 여기서는 10.81px 로 보였다(실측).
+      확대 밖에 있는 만큼 **스스로 1.58배**로 적어 둔다. zoom 을 쓰면 offsetWidth 가
+      확대 전 값이라 place() 의 자리 계산이 어긋난다 — 쓰지 마라.
+      `.dm2` 의 zoom 을 바꾸면 이 숫자도 같이 바꿔야 한다.
+   🔴 오른쪽 고정판(.ckpanel)은 `.dm2` 안이라 이미 제대로 커진다 — 여기 걸리면 안 된다.
+      그래서 `.ckcard …` 가 아니라 반드시 `.ckpop …` 으로만 덮는다.
+   글자는 세 가지뿐이라는 뜻은 그대로다 : 11→17.5 · 12.5→19.75 · 14→22 ── */
+.ckpop{font-size:19.75px;width:742px;padding:22px 25px;border-radius:22px;
+  box-shadow:0 16px 41px rgba(0,0,0,.2);
+  max-height:56vh;} /* 74vh 면 뒤집을 자리가 없어 카드가 가리키던 칸을 덮었다(실측 613px) */
+.ckpop .pt{font-size:22px;gap:9px;}
+.ckpop .pb{font-size:17.5px;padding:3px 11px;border-radius:8px;}
+.ckpop .blk{margin-top:16px;padding-top:14px;}
+.ckpop .blk.rule,.ckpop .blk.warn{padding-top:13px;}
+.ckpop .bl{font-size:19.75px;margin-bottom:8px;}
+.ckpop .bv{font-size:19.75px;}
+.ckpop .bv li{margin-left:24px;}
+.ckpop .rule{border-radius:13px;padding:13px 16px;}
+.ckpop .warn{border-radius:13px;padding:13px 16px;font-size:19.75px;}
+.ckpop .fd{padding:9px 0;}
+.ckpop .fk{font-size:17.5px;}
+.ckpop .req{font-size:17.5px;border-radius:6px;padding:0 8px;margin-left:8px;}
+.ckpop .ft{font-size:19.75px;margin-top:2px;}
+.ckpop .mono{font-size:17.5px;border-radius:13px;padding:9px 13px;margin-top:5px;gap:9px;}
+.ckpop .cp{font-size:17.5px;border-radius:9px;padding:3px 13px;}
+.ckpop .foot{font-size:17.5px;margin-top:16px;padding-top:9px;}
+.ckpop .empty{font-size:19.75px;border-radius:13px;padding:13px 16px;}
+.ckpop .ckwire{font-size:17.5px;border-radius:8px;padding:2px 11px;margin-right:8px;}
+.ckpop .unk{font-size:19.75px;border-radius:13px;padding:13px 16px;}
 </style>
 
 <script>
@@ -126,6 +159,9 @@
   };
 
   var OPEN_DELAY = 140, CLOSE_DELAY = 250, GAP = 7, EDGE = 8;
+  /* CARD_VH 는 CSS 의 max-height:56vh 와 같은 값이어야 한다 — 둘 중 하나만 고치면 어긋난다.
+     MIN_CARD 는 앵커가 화면을 거의 다 채워 위아래가 다 좁을 때의 바닥값이다. */
+  var CARD_VH = 0.56, MIN_CARD = 180;
 
   /* 카드는 표 안이 아니라 body 에 붙이고 화면 기준으로 띄운다 — 표 안에 두면 스크롤에서 잘린다. */
   var pop = document.body.appendChild(document.createElement('div'));
@@ -238,9 +274,19 @@
     return h;
   }
 
-  /* 앵커 오른쪽 끝 정렬 · 아래 GAP · 넘치면 위로 뒤집기 · 화면 안으로 EDGE 만큼 밀어 넣기 */
+  /* 앵커 오른쪽 끝 정렬 · 아래 GAP · 넘치면 위로 뒤집기 · 화면 안으로 EDGE 만큼 밀어 넣기
+     좌우 계산은 실측(카드 오른끝 − 칸 오른끝 = 0.0px)으로 맞다고 확인된 것이라 손대지 않는다.
+     🔴 세로만 먼저 묶는다 : 위·아래 남은 자리보다 카드가 크면 화면 위끝으로 밀리며
+        가리키던 칸을 덮었다(실측 카드 613px). 넓은 쪽에 맞춰 높이를 잘라 두면
+        뒤집을 자리가 생기고, 넘치는 글은 카드 안에서 스크롤된다. */
   function place(anchor) {
-    var r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    var r = anchor.getBoundingClientRect();
+    var below = innerHeight - r.bottom - GAP - EDGE;
+    var above = r.top - GAP - EDGE;
+    var room = Math.max(below, above);
+    pop.style.maxHeight = Math.round(Math.min(innerHeight * CARD_VH, Math.max(MIN_CARD, room))) + 'px';
+
+    var w = pop.offsetWidth, h = pop.offsetHeight;
     var left = Math.max(EDGE, Math.min(r.right - w, innerWidth - w - EDGE));
     var top = r.bottom + GAP;
     if (top + h > innerHeight - EDGE) top = r.top - h - GAP;

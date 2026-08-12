@@ -128,3 +128,44 @@ def test_contract_functions_are_exposed():
 def test_pop_and_panel_have_different_outer_names():
     html = _matrix()
     assert "ckpop" in html and "ckpanel" in html
+
+
+def test_popup_is_scaled_for_being_outside_the_zoom():
+    """🔴 정보창만 `.dm2{zoom:1.58}` 밖이라 같은 12.5px 가 표 17.08px · 정보창 10.81px 로 보였다.
+
+    글자는 여전히 세 가지뿐이다 — 확대 밖 값으로 11→17.5 · 12.5→19.75 · 14→22 를 쓴다.
+    """
+    html = _matrix()
+    for size in ["17.5px", "19.75px", "22px"]:
+        assert size in html, size
+    assert "742px" in html, "정보창 폭 470 × 1.58 = 742 가 없다"
+
+
+def test_zoom_is_never_used_on_the_popup():
+    """🔴 zoom 을 걸면 offsetWidth 가 확대 전 값이라 place() 의 자리 계산이 어긋난다.
+
+    주석은 `.dm2{zoom:1.58}` 을 설명해야 하므로 빼고 센다 — 실제 선언에만 없으면 된다.
+    """
+    import re
+    body = re.sub(r"/\*.*?\*/", "", _matrix(), flags=re.S)   # CSS 주석 제거
+    body = re.sub(r"\{#.*?#\}", "", body, flags=re.S)        # Jinja 주석 제거
+    assert "zoom:" not in body.replace(" ", "")
+
+
+def test_pinned_panel_is_not_scaled_twice():
+    """🔴 고정판은 `.dm2` 안이라 이미 커진다 — 1.58배 보정이 걸리면 두 배로 커진다."""
+    import re
+    html = _matrix()
+    for line in html.split("\n"):
+        if "17.5px" in line or "19.75px" in line or "742px" in line:
+            assert ".ckpop" in line, f"확대 보정이 정보창 밖으로 샜다: {line.strip()}"
+    # 보정은 .ckcard(공용 부품)가 아니라 .ckpop 으로만 걸어야 한다
+    assert not re.search(r"^\.ckcard[^\n]*(17\.5px|19\.75px|742px)", html, re.M)
+
+
+def test_card_leaves_room_to_flip_instead_of_covering_the_cell():
+    """🔴 74vh 면 뒤집을 자리가 없어 카드가 가리키던 칸을 덮었다(실측 613px)."""
+    html = _matrix().replace(" ", "")
+    assert "max-height:56vh" in html
+    assert "CARD_VH=0.56" in html, "CSS 의 56vh 와 JS 상수가 갈라지면 조용히 어긋난다"
+    assert "maxHeight" in html, "자리에 맞춰 높이를 잘라 주지 않으면 칸을 덮는다"
