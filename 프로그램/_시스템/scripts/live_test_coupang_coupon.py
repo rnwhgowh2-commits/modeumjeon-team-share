@@ -34,6 +34,14 @@ COUPON_NAME = '모음전 검증 쿠폰(자동)'
 #:   하한이 **판매가의 1% 언저리**로 보인다(문서엔 없다). 1% 로 잡고 결과로 확정한다.
 #:   지어낸 값이 아니라 **관측 두 개(거부 0.07% · 통과 1.09%) 사이에서 고른 값**이다.
 DISCOUNT_RATE = 0.01
+#: 🔴 사장님 확정(2026-08-06) — 「(가) 판매중 상품에 최소로 걸고 내일 확인」.
+#:   판매중지 상품엔 **옵션번호(vendorItemId)가 아예 없어**(승인 전) 쿠폰을 못 붙이고,
+#:   옵션번호가 있는 계정은 기존 2년짜리 쿠폰이 전 옵션을 덮었다 — 그래서 실판매
+#:   상품을 쓸 수밖에 없다. 노출을 최소로 줄인다:
+#:     · 옵션 **하나**에만 · 판매가의 1% · **내일 0~1시 한 시간만**
+#:   ALLOW_LIVE=1 이 아니면 판매중 상품은 손대지 않는다(실수 방지).
+ALLOW_LIVE = (os.environ.get('ALLOW_LIVE') or '') == '1'
+END_HOUR = os.environ.get('END_HOUR') or '00:59:59'
 
 
 def _client_and_vendor():
@@ -171,15 +179,17 @@ def _candidate_items(client, taken, limit=25, want=12):
 
     s = SessionLocal()
     try:
-        rows = (s.query(MarketProduct.market_product_id, MarketProduct.name)
-                .filter_by(market='coupang', account_key=ACCOUNT)
-                .filter(MarketProduct.status != 'sale')
-                .filter(MarketProduct.deleted_at.is_(None))
-                .order_by(MarketProduct.id.desc()).limit(limit).all())
+        q = (s.query(MarketProduct.market_product_id, MarketProduct.name)
+             .filter_by(market='coupang', account_key=ACCOUNT)
+             .filter(MarketProduct.deleted_at.is_(None)))
+        if not ALLOW_LIVE:
+            q = q.filter(MarketProduct.status != 'sale')
+        rows = q.order_by(MarketProduct.id.desc()).limit(limit).all()
     finally:
         s.close()
 
-    print(f'    캐시에서 꺼낸 판매중지 상품 {len(rows)}개를 훑습니다')
+    print(f'    캐시에서 꺼낸 상품 {len(rows)}개를 훑습니다'
+          + (' (판매중 포함 — 사장님 확정)' if ALLOW_LIVE else ' (판매중지만)'))
     out = []
     for pid, nm in rows:
         try:
@@ -278,7 +288,8 @@ def do_create(client, vid):
     item_id, price, pname = cands[0]
 
     start = P.tomorrow_midnight()
-    end = start[:10] + ' 23:59:59'
+    # 🔴 노출 최소화 — 하루가 아니라 **한 시간**(내일 0~1시)만 켠다.
+    end = start[:10] + ' ' + END_HOUR
     print('=' * 70)
     print(f'■ 쿠팡 쿠폰 실전송 — {pname}')
     print(f'  계정 {ACCOUNT} · 판매중지 상품 · 옵션 {item_id} 하나만')

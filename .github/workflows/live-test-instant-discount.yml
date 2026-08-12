@@ -32,6 +32,10 @@ on:
         description: 'coupang 일 때 계정 (기본 세소쿠팡)'
         required: false
         default: '세소쿠팡'
+      allow_live:
+        description: '판매중 상품에도 걸기 (실제 고객가가 내려갑니다) — YES 만 허용'
+        required: false
+        default: 'NO'
       coupang_mode:
         description: 'coupang 일 때만 — create / verify / expire / diag(읽기전용 진단)'
         required: false
@@ -64,6 +68,7 @@ jobs:
           RAW_TARGET: ${{ inputs.target }}
           RAW_CPMODE: ${{ inputs.coupang_mode }}
           RAW_ACCT: ${{ inputs.account }}
+          RAW_LIVE: ${{ inputs.allow_live }}
         run: |
           set -o pipefail
           # 입력은 전부 허용목록으로 검사한 뒤에만 명령줄에 쓴다.
@@ -79,10 +84,12 @@ jobs:
           case "$RAW_CH" in
             ''|*[!0-9]*) echo "상품번호는 숫자만: $RAW_CH"; exit 1 ;;
           esac
+          # 판매중 상품은 **사장님이 YES 라고 적었을 때만** 건드린다(실제 고객가 하락)
+          if [ "$RAW_LIVE" = "YES" ]; then LIVE=1; else LIVE=0; fi
           cat "$SCRIPT" \
             | ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new \
               -o ConnectTimeout=20 ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" \
               "C=\$(sudo docker ps --format '{{.Names}}' | grep -i modeum | head -1); \
                if [ -z \"\$C\" ]; then echo '모음전 컨테이너를 못 찾았습니다'; exit 1; fi; \
                echo \"컨테이너: \$C\"; \
-               sudo docker exec -i -w /app -e TEST_CHANNEL_NO='$RAW_CH'                  -e TEST_PRODUCT='$RAW_CH' -e MODE='$CPMODE' -e TEST_ACCOUNT=\"$RAW_ACCT\" \"\$C\" python -"
+               sudo docker exec -i -w /app -e TEST_CHANNEL_NO='$RAW_CH'                  -e TEST_PRODUCT='$RAW_CH' -e MODE='$CPMODE' -e TEST_ACCOUNT=\"$RAW_ACCT\" -e ALLOW_LIVE='$LIVE' \"\$C\" python -"
