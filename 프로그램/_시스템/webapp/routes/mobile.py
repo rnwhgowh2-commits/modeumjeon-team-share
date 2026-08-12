@@ -536,8 +536,9 @@ def api_action():
     }
 
     조정 (adjust):
-      - 현재 해당 위치 재고를 qty 로 맞춤
-      - delta = qty - 현재재고 → 그 delta 를 새 trans 로 기록
+      - 「실사해 보니 qty 개」 — 원장에 **센 수(절대값)** 를 그대로 적는다
+        (2026-08-13 통일. 규칙 원천 = shared/inventory_stock.py `fold_tx_rows`)
+      - 응답의 applied_qty 는 **얼마나 바뀌었나**(qty − 현재재고)
     """
     data = request.get_json(silent=True) or {}
     sku = (data.get("sku") or "").strip()
@@ -583,11 +584,24 @@ def api_action():
             tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
-            # 해당 위치의 현재 재고 — SSOT 부호 규약 (raw 합으로 계산하면 출고가
-            # 있는 SKU 에서 delta 가 틀어져 조정 결과 자체가 오염된다)
+            # 🔴 조정은 **증감분(델타)으로 저장한다** — 재고 SSOT 규약
+            #   (`shared/inventory_stock.fold_tx_rows`: `adjust → total += q`).
+            #   창구는 「실사해 보니 N개」를 받고, 뺄셈은 여기서 한다(작업자에게
+            #   차이를 계산시키지 않는다).
+            #
+            #   ⚠️ 2026-08-13 이 자리에서 반나절 사이 규약이 두 번 뒤집혔다.
+            #     ① 오전 감사: SSOT 를 **절대값**으로 통일 → 델타를 쓰던 여기가 어긋나
+            #        「조정 5 → 재고 4」(실사보다 적게)로 보였다.
+            #     ② 그걸 맞추려 여기를 절대값으로 바꿨는데(#997), 곧이어 SSOT 가
+            #        **델타로 재정정**돼(`2b1132c5`) 이번엔 「조정 5 → 재고 6」(더 많게)이
+            #        됐다. 두 번 다 **에러 없이 숫자만 틀리는** 사고다.
+            #   → 델타가 옳다: 합(SUM)으로 셀 수 있고, **위치별 재고와 총합이 맞는다**
+            #     (절대값이면 A창고 실사가 B창고 재고까지 덮는다).
+            #   🔴 여기를 고칠 일이 생기면 **먼저 `fold_tx_rows` 를 읽어라.** 저장하는
+            #     뜻과 읽는 뜻이 갈리는 순간 재고가 조용히 틀어진다.
             from shared.inventory_stock import get_stock_batch
             current = int(get_stock_batch(s, [sku], location_id=location_id).get(sku, 0))
-            tx_qty = int(qty) - int(current)
+            tx_qty = int(qty) - current         # 저장 = 증감분(SSOT 규약)
             if tx_qty == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
             tx_memo = memo or f"[모바일 조정] {current} → {qty}"
@@ -615,6 +629,7 @@ def api_action():
         return _ok(
             tx_id=tx.id,
             action=action,
+            # 조정도 저장값이 곧 변화량이다(델타 규약) — 갈라 쓸 이유가 없다.
             applied_qty=tx_qty,
             new_total_stock=int(new_total),
             location_name=loc.name,

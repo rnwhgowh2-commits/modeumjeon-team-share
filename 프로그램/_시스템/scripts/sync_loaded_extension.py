@@ -49,6 +49,43 @@ def _from_main(name: str) -> str:
     return out.stdout.decode('utf-8')
 
 
+def _blob(path: Path) -> str:
+    """그 파일 내용의 git 이름(해시). 같은 내용이면 같은 이름이 나온다."""
+    out = subprocess.run(['git', 'hash-object', str(path)],
+                         capture_output=True, cwd=Path(__file__).resolve().parents[1])
+    return out.stdout.decode().strip()
+
+
+def _is_a_past_main_version(name: str, path: Path, depth: int = 40) -> bool:
+    """로드 폴더의 이 파일이 **origin/main 의 지난 판 그대로**인가.
+
+    🔴 왜 이렇게 재나 — 처음엔 「origin/main 에 없는 줄이 있으면 손댐」으로 쟀는데
+      그게 **늘 참**이었다. 새 판이 기존 줄을 고치면 옛 줄은 당연히 새 판에 없다.
+      그래서 정상 갱신마다 안전장치가 걸려 도구를 아예 못 썼다(2026-08-12 실측:
+      0.7.92 → 0.7.94 에서 「손댐 4줄」로 막힘 — 넷 다 우리가 갈아 끼운 옛 줄이었다).
+
+    ★ 지난 판과 **글자까지 같으면** 아무도 손대지 않은 것이다. 어느 판과도 다르면
+      그때가 진짜 손댐이다. 「무엇이 다른가」가 아니라 「이 내용이 우리 이력에 있나」로 잰다.
+    """
+    here = _blob(path)
+    if not here:
+        return False
+    rel = f'프로그램/_시스템/extension/moum-crawler/{name}'
+    cwd = Path(__file__).resolve().parents[1]
+    # 🔴 `git log -- <경로>` 의 경로는 **지금 폴더 기준**이다(`git show rev:경로` 와 다르다).
+    #   저장소 루트 기준 경로를 그냥 넘기면 **한 건도 안 걸려 늘 「손댐」**이 된다 —
+    #   고친 판정이 옛 판정과 똑같이 늘 막히는 셈이라 알아채기 어렵다(2026-08-12 실측).
+    #   `:(top)` 을 붙이면 어디서 돌려도 루트 기준이 된다.
+    log = subprocess.run(['git', 'log', '--format=%H', f'-{depth}', 'origin/main',
+                          '--', f':(top){rel}'],
+                         capture_output=True, cwd=cwd)
+    for c in log.stdout.decode().split():
+        got = subprocess.run(['git', 'rev-parse', f'{c}:{rel}'], capture_output=True, cwd=cwd)
+        if got.stdout.decode().strip() == here:
+            return True
+    return False
+
+
 def _ver(text: str, name: str) -> str:
     if name.endswith('.json'):
         return json.loads(text).get('version', '?')
@@ -79,14 +116,12 @@ def main() -> int:
         return 1
 
     # 🔴 남의 손댐이 있는지 먼저 본다 — 통째로 덮기 전에 확인한다.
+    #   판정은 「지난 판 그대로인가」로 한다(_is_a_past_main_version 주석 참조).
     for n in ('background.js', 'content_mou.js'):
-        only_here = [l for l in now[n].splitlines()
-                     if l not in want[n] and 'MOUM_EXT_VERSION' not in l]
-        if only_here:
-            print(f'🔴 {n} 에 origin/main 에 없는 줄이 {len(only_here)}개 있습니다:')
-            for l in only_here[:5]:
-                print('   ', l.strip()[:100])
-            print('   → 다른 세션이 손댔을 수 있습니다. 확인 전에는 덮지 마세요.')
+        if not _is_a_past_main_version(n, LOADED / n):
+            print(f'🔴 {n} 이 origin/main 의 어느 판과도 다릅니다.')
+            print('   → 다른 세션이나 사람이 손댔을 수 있습니다. 확인 전에는 덮지 마세요.')
+            print(f'   비교: git diff <(git show origin/main:프로그램/_시스템/extension/moum-crawler/{n}) "{LOADED / n}"')
             return 3
 
     stamp = datetime.now().strftime('%Y%m%d_%H%M%S')

@@ -112,12 +112,30 @@ def _emit(rows, seen, kind):
 _CLAIM_TYPES = (2, 3)     # 2=신청일, 3=완료(철회)일
 
 
+# ★ 클레임은 **주문조회 5초/1회 버킷을 쓰지 않는다**(client.post 를 is_order 없이 부른다).
+#   그런데도 한 줄로 세워 보내느라 시간이 통째로 흘렀다 — 라이브 실측 2026-08-12:
+#     옥션 주문내역 7일치 1회 = 주문조회 5 + 입금확인중 1(≈30초, 5초 제한이라 못 줄임)
+#                              + 클레임 49회(≈44초) = 74.5초
+#     G마켓은 125.2초로 앞단(Cloudflare) 100초 한도를 넘겨 524 로 끊겼다.
+#   클레임 49회는 제한 대상이 아니므로 **동시에** 보낸다. 줄이는 게 아니라 겹치는 것이다
+#   (덜 보내면 주문이 샌다 — 호출 수는 그대로 유지한다).
+#   숫자를 크게 잡지 않는 이유: 마켓이 클레임에 동시 상한을 두는지 문서에 없다(확인불가).
+#   실패는 _rows 가 예외로 올리므로 조용한 0건은 나지 않는다 — 상한을 넘으면 화면이 말한다.
+_CLAIM_CONCURRENCY = 6
+
+
 def _iter_by_status(market, since, until, *, client, api, status_field,
                     statuses, kind, type_values=_CLAIM_TYPES, date_fmt="%Y-%m-%d"):
-    """클레임 3종 공통 — 기간 7일 분할 × 상태 순회 × (신청일·완료일) 기준."""
+    """클레임 3종 공통 — 기간 7일 분할 × 상태 순회 × (신청일·완료일) 기준.
+
+    보내는 본문은 옛 판과 **한 글자도 다르지 않고 순서도 같다**. 다른 것은 오직
+    「한 줄로 보내느냐 겹쳐 보내느냐」뿐이다. 결과를 넣는 순서도 옛 판 그대로라
+    OrderNo 중복 제거 결과가 바뀌지 않는다.
+    """
     site = site_code(market, api)
     path = PATHS[api]
     seen = set()
+    작업 = []
     for w_from, w_to in _windows(since, until, _CLAIM_WINDOW_DAYS):
         for st in statuses:
             for tp in type_values:
@@ -131,9 +149,22 @@ def _iter_by_status(market, since, until, *, client, api, status_field,
                 }
                 if status_field:
                     body[status_field] = st
-                yield from _emit(_fetch_window(client, path, body, w_from, w_to,
-                                               status_field, st, date_fmt),
-                                 seen, kind)
+                작업.append((body, w_from, w_to, st))
+
+    def _한건(a):
+        body, w_from, w_to, st = a
+        return _fetch_window(client, path, body, w_from, w_to, status_field, st, date_fmt)
+
+    if _CLAIM_CONCURRENCY <= 1 or len(작업) <= 1:
+        결과 = [_한건(a) for a in 작업]
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(_CLAIM_CONCURRENCY, len(작업))) as ex:
+            # map 은 **입력 순서대로** 돌려준다 — 순차본과 결과가 같아야 하므로 필수.
+            #   한 건이라도 예외면 여기서 그대로 터진다(조용한 0건 금지).
+            결과 = list(ex.map(_한건, 작업))
+    for rows in 결과:
+        yield from _emit(rows, seen, kind)
 
 
 # ★ 클레임 조회에는 **페이징 파라미터가 없고 응답에 TotalCount 도 없다**
