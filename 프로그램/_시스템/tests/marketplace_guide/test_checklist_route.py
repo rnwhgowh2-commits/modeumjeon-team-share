@@ -179,7 +179,8 @@ def test_card_leaves_room_to_flip_instead_of_covering_the_cell():
 def test_table_is_widened_beyond_the_950px_host():
     """🔴 25열이 950px 안에 갇히면 눌려서 안 읽힌다(사장님 화면에서 확인)."""
     html = _matrix()
-    assert "width:1180px" in html and "margin-left:-115px" in html
+    msg = "넓히기가 판매처 틀(.dm2) 안으로 한정돼 있어야 한다 — 소싱처까지 걸면 왼쪽이 잘린다"
+    assert ".dm2 .ckroot{width:1170px;margin-left:-110px;}" in html, msg
 
 
 def test_header_does_not_print_the_same_word_twice():

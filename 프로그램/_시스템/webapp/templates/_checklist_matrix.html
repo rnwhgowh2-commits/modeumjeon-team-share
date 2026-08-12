@@ -23,10 +23,13 @@
 .ckroot .cklegend b{font-size:11px;color:#4E5968;font-weight:800;}
 /* 사장님 지시(2026-08-13) — 오른쪽 고정판을 없애고 그 폭을 표에 준다. */
 .ckroot .ckwrap{display:block;}
-/* 표를 넓게 — `.dm2`(max-width:950px · zoom 1.58) 안에 갇히면 25열이 눌려 안 읽힌다.
-   좌우로 같은 만큼 넘겨 화면을 꽉 쓴다. 1180 x 1.58 = 1864px 이라 1920 화면에 들어간다.
+/* 표를 넓게 — 기본은 담긴 자리를 그대로 채운다(소싱처 지도는 자리가 넉넉하다). */
+.ckroot{width:auto;max-width:none;}
+/* 판매처 지도만 틀이 좁다(`.dm2` max-width:950px · zoom 1.58) — 25열이 눌려 안 읽힌다.
+   그 화면에서만 좌우로 같은 만큼 넘겨 넓힌다. 1170 x 1.58 = 1849px 이라 1920 화면에 딱 들어간다(1864 였을 땐 3px 넘쳤다 — 실측).
+   🔴 소싱처 지도에까지 걸면 왼쪽이 잘려 나간다(실측: 왼쪽 -110px). 반드시 `.dm2` 안으로 한정한다.
    🔴 `.dm2` 의 max-width 나 zoom 이 바뀌면 이 두 숫자도 같이 봐야 한다. */
-.ckroot{width:1180px;max-width:none;margin-left:-115px;}
+.dm2 .ckroot{width:1170px;margin-left:-110px;}
 .ckroot .cktbl-scroll{overflow-x:auto;border:1px solid var(--line2);border-radius:8px;background:#fff;}
 .ckroot .cktbl{border-collapse:separate;border-spacing:0;font-size:11px;width:max-content;min-width:100%;}
 .ckroot .cktbl th,.ckroot .cktbl td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:9px 7px;}
