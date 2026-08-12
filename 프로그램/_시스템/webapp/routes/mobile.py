@@ -531,14 +531,15 @@ def api_action():
       sku: str (canonical_sku),
       action: 'in' | 'out' | 'adjust',
       location_id: int,
-      qty: int,                # in/out: +qty / adjust: 새 절대값
+      qty: int,                # in/out: +qty / adjust: 세어 본 결과 수량
       memo: str (optional),
     }
 
     조정 (adjust):
-      - 「실사해 보니 qty 개」 — 원장에 **센 수(절대값)** 를 그대로 적는다
+      - 받는 값은 「실사해 보니 qty 개」(결과 수량) — 작업자가 뺄셈하지 않는다
+      - 원장에는 **그 차이(qty − 현재재고)** 를 남긴다
         (2026-08-13 통일. 규칙 원천 = shared/inventory_stock.py `fold_tx_rows`)
-      - 응답의 applied_qty 는 **얼마나 바뀌었나**(qty − 현재재고)
+      - 응답의 applied_qty 도 그 차이다
     """
     data = request.get_json(silent=True) or {}
     sku = (data.get("sku") or "").strip()
@@ -584,20 +585,21 @@ def api_action():
             tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
-            # 🔴 조정은 **절대값으로 저장한다** — 「실사해 보니 5개였다」가 조정이다.
-            #   재고 SSOT(`shared/inventory_stock.fold_tx_rows`)가 2026-08-13 감사에서
-            #   `adjust → total = q`(그 값으로 정한다)로 통일됐는데, **여기만 차이값을
-            #   저장하고 있었다.** 그래서 읽는 쪽이 그 차이값을 「센 수」로 읽었다:
-            #     재고 1 에서 「조정 5」 → 차이 4 저장 → SSOT 는 재고를 **4** 로 읽음.
-            #   실사한 수와 프로그램의 수가 달라지는, 조용한 재고 오류였다.
-            #   (같은 표의 행이 두 가지 뜻을 갖던 옛 사고의 마지막 잔재 — 모듈
-            #    독스트링의 "쓰는 쪽도 두 곳이 정반대였다" 가 여기서 아직 참이었다.)
+            # 🔴 조정은 **차이값(증감분)으로 저장한다** — 2026-08-13 최종 통일.
+            #   규칙 원천 = `shared/inventory_stock.fold_tx_rows` (`adjust → total += q`).
+            #   데스크탑 두 곳(`inbound.create_adjustment` · `api_inventory_link`)은
+            #   이미 차이값인데 **폰만 절대값**이 남아, 쓰는 쪽과 읽는 쪽이 정반대가 됐다:
+            #     재고 1 에서 「실사 5」 → 5 저장 → 읽는 쪽이 +5 로 더해 **재고 6**.
+            #   에러 없이 재고가 부푼다(조용한 오류).
+            #   ※ 왜 절대값이 아니라 차이값인가 — 절대값이면 **A위치 실사가 B위치
+            #     재고까지 덮는다**. 합(SUM)으로 셀 수 있는 것도 차이값뿐이다.
+            #   받는 값은 그대로 「세어 보니 N개」다 — 작업자에게 뺄셈을 시키지 않는다.
             from shared.inventory_stock import get_stock_batch
             current = int(get_stock_batch(s, [sku], location_id=location_id).get(sku, 0))
-            delta = int(qty) - current          # 사람에게 보여줄 변화량(저장값 아님)
+            delta = int(qty) - current
             if delta == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
-            tx_qty = int(qty)                   # ← 저장은 센 수 그대로(절대값)
+            tx_qty = delta                      # ← 원장에는 **차이값**
             tx_memo = memo or f"[모바일 조정] {current} → {qty}"
 
         tx = InventoryTx(

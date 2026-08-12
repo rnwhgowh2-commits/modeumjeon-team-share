@@ -113,9 +113,9 @@ def test_action_adjust_delta_from_ssot(client, seeded):
 def test_adjust는_센_수_그대로_저장한다(client, seeded):
     """🔴 저장값까지 못 박는다 — 응답만 보면 「어떻게 저장됐는지」를 안 본다.
 
-    재고 SSOT(`fold_tx_rows`)는 `adjust → total = q`(절대값)다. 여기서 차이값(4)을
-    저장하면 읽는 쪽이 그 4 를 「센 수」로 읽어 **실사 5 인데 재고 4** 가 된다.
-    2026-08-13 라이브 배포를 막고 있던 실제 사고가 이것이었다.
+    재고 SSOT(`fold_tx_rows`)는 `adjust → total += q`(차이값)다. 폰만 절대값(5)을
+    저장하고 있어 읽는 쪽이 그 5 를 **더해** 재고가 6 이 됐다(에러 없는 부풀림).
+    하루에 두 번 뜻이 뒤집힌 자리다 — 쓰는 쪽·읽는 쪽·시험을 **같이** 봐야 한다.
     """
     from lemouton.inventory.models import InventoryTx
     from shared.db import SessionLocal
@@ -130,6 +130,9 @@ def test_adjust는_센_수_그대로_저장한다(client, seeded):
                 .filter_by(option_canonical_sku=seeded["sku"], status="completed")
                 .order_by(InventoryTx.id).all())
     adj = [q for t, q in rows if t == "adjust"]
-    assert adj == [5], f"조정은 센 수 그대로 저장해야 한다(차이값 아님): {rows}"
-    # 그리고 그 저장값을 SSOT 규칙으로 접으면 실사한 수가 그대로 나와야 한다.
+    # 🔴 2026-08-13 최종 통일 = **차이값**. 절대값이면 A위치 실사가 B위치 재고까지
+    #   덮고, 합(SUM)으로 셀 수도 없다. 폰만 절대값이 남아 재고가 부풀었다
+    #   (재고 1 에서 실사 5 → 5 저장 → 읽는 쪽이 +5 → 재고 6).
+    assert adj == [4], f"조정은 차이값으로 저장해야 한다(센 수 아님): {rows}"
+    # 그리고 그 저장값을 SSOT 규칙으로 접으면 **실사한 수**가 나와야 한다.
     assert fold_tx_rows(rows) == 5
