@@ -185,6 +185,13 @@ def compute_sale_price_unified(
                 'shipping_fee': shipping_fee, 'rounding_unit': rounding_unit,
                 'raw_total': float(final), 'final_price': final,
                 'guardrail': guardrail, 'guardrail_status': status,
+                'seller_discount_unit': seller_discount_unit,
+                'seller_discount_value': seller_discount_value,
+                # 🔴 지정가는 **올려 잡지 않는다**(사람이 친 값 그대로) — 다만 할인이
+                #   걸려 있으면 고객이 내는 돈은 그만큼 적다. 마진을 정직하게 재려면
+                #   그 값을 알려 줘야 한다. 안 그러면 마진이 부풀어 가드가 헛돈다.
+                'exposed_price': _exposed(final, seller_discount_unit,
+                                          seller_discount_value),
             },
         )
 
@@ -218,6 +225,12 @@ def compute_sale_price_unified(
         }
         status = _apply_guardrail(final, guardrail)
         breakdown['guardrail_status'] = status
+        # 🔴 모드마다 따로 채우면 하나를 빠뜨린다 — 나가기 직전에 보장한다.
+        #   고객가(exposed_price)가 없으면 마진 계산이 표시 판매가로 재서 부풀어 보인다.
+        breakdown.setdefault('seller_discount_unit', seller_discount_unit)
+        breakdown.setdefault('seller_discount_value', seller_discount_value)
+        breakdown.setdefault('exposed_price',
+                             _exposed(final, seller_discount_unit, seller_discount_value))
         return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
     # ── mode='rate' — 마진율 = **판매가 대비** (2026-07-20 변경) ──
@@ -286,6 +299,12 @@ def compute_sale_price_unified(
         'margin_basis': int(round(base)),        # 마진을 어느 값 기준으로 쟀나
         'exposed_price': _exposed(final, seller_discount_unit, seller_discount_value),
     }
+    # 🔴 모드마다 따로 채우면 하나를 빠뜨린다 — 나가기 직전에 보장한다.
+    #   고객가(exposed_price)가 없으면 마진 계산이 표시 판매가로 재서 부풀어 보인다.
+    breakdown.setdefault('seller_discount_unit', seller_discount_unit)
+    breakdown.setdefault('seller_discount_value', seller_discount_value)
+    breakdown.setdefault('exposed_price',
+                         _exposed(final, seller_discount_unit, seller_discount_value))
     return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
 
