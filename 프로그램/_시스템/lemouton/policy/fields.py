@@ -72,6 +72,28 @@ EXTRA_ITEMS: list[dict] = [
              'item_shape': '', 'columns': []},
         ],
     },
+    # ── [2026-08-12] 사장님 엑셀 대조 — 그 마켓 등록 API 에만 있는 칸 ──────────
+    {
+        'key': '_parallel_import', 'label': '병행수입 여부',
+        'spec_ref': '엑셀 「기타」 · 쿠팡 items.parallelImported[필수]',
+        'note': '쿠팡 등록 API 가 필수로 요구합니다.', 'only': ['coupang'],
+        'fields': [
+            {'key': 'mode', 'label': '병행수입', 'type': 'choice', 'default': '병행수입 아님',
+             'choices': ['병행수입 아님', '병행수입'], 'hint': '', 'unit': '',
+             'item_shape': '', 'columns': []},
+        ],
+    },
+    {
+        'key': '_sell_method', 'label': '판매방식',
+        'spec_ref': '엑셀 「상품주요정보」 · 11번가 selMthdCd[필수]',
+        'note': '11번가 등록 API 가 필수로 요구합니다. 사장님 엑셀 = 고정가판매.',
+        'only': ['eleven11'],
+        'fields': [
+            {'key': 'mode', 'label': '판매방식', 'type': 'choice', 'default': '고정가판매',
+             'choices': ['고정가판매', '예약판매'], 'hint': '중고판매는 쓰지 않습니다',
+             'unit': '', 'item_shape': '', 'columns': []},
+        ],
+    },
 ]
 
 # 가격을 계산에 쓰려면 반드시 정해야 하는 항목

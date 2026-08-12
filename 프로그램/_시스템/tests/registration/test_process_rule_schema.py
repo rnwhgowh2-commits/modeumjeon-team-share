@@ -18,7 +18,9 @@ from lemouton.registration.process_rule_schema import (
 # ── 13항목이 다 있다 ────────────────────────────────────────────
 
 def test_열세_항목이_전부_있다():
-    assert len(SCHEMAS) == 13
+    # [2026-08-12] 사장님 엑셀 「마켓별 상품등록 정보」 대조로 3항목 추가
+    #   (등록 기본값·가격비교 노출·모델번호/바코드) → 13 → 16.
+    assert len(SCHEMAS) == 16
     for k in ITEM_KEYS:
         assert k in SCHEMAS, f"{k} 스키마가 없다"
 
@@ -156,7 +158,7 @@ def test_불리언을_숫자로_안_받는다():
 
 def test_화면이_폼을_그릴_수_있다():
     out = all_schemas()
-    assert len(out) == 13
+    assert len(out) == 16
     for s in out:
         assert s["label"] and s["fields"]
         for f in s["fields"]:

@@ -72,7 +72,9 @@ def test_가공_페이지가_200(client):
 def test_목록_API가_형태를_준다(client):
     j = client.get('/bulk/api/process/policies').get_json()
     assert 'rows' in j and 'policies' in j and 'counts' in j
-    assert len(j['item_labels']) == 13
+    # [2026-08-12] 사장님 엑셀 「마켓별 상품등록 정보」 대조로 3항목 추가
+    #   (등록 기본값·가격비교 노출·모델번호/바코드) → 13 → 16.
+    assert len(j['item_labels']) == 16
 
 
 def test_검색어와_필터를_받는다(client):
@@ -119,7 +121,9 @@ def test_상세_페이지가_열린다(client):
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert nm in html
-    assert '13항목' in html
+    # [2026-08-12] 항목 수를 화면 글자에 박아 두면 늘 때마다 거짓말이 된다.
+    #   숫자 대신 「그 화면이 맞나」로 본다.
+    assert '가공 규칙' in html
 
 
 def test_없는_정책은_404지만_화면은_설명한다(client):
