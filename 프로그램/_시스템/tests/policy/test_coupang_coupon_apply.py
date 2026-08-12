@@ -55,6 +55,11 @@ class _Fake:
          'start': '2026-01-01 00:00:00', 'end': '2026-12-31 23:59:59'},
     ]
 
+    #: ⚠️ 실클라이언트는 vendor_id 를 **속성이 아니라 설정 주머니**에 둔다
+    #:   (`promotions.vendor_id_of` · 2026-08-05 실사고). 흉내도 같은 자리에 둔다 —
+    #:   속성으로 두면 시험만 통과하고 라이브에선 전 계정이 「없음」이 된다.
+    _cfg = {'vendor_id': 'A00012345'}
+
     def __init__(self, ok_at=100, taken=(), contracts=None, attach_status='DONE'):
         self.ok_at = ok_at
         self.taken = {str(t) for t in taken}
