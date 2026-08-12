@@ -230,13 +230,26 @@ def test_coupang_unsettled_estimates_shipping_fee():
     r = next(r for r in _built(_CoupangNoDeliveryFee())
              if str(r["오픈마켓주문번호"]) == "100")
     assert r["_settle_source"] == "estimated"
-    assert r["정산예정금(배송비포함)"] == (
-        round(128900 * oe.CP_FEE_FACTOR) + round(4000 * oe.CP_SHIP_FEE_FACTOR))
+    # 🔴 기대값을 **손으로** 적는다 — 종전엔 `round(128900 * CP_FEE_FACTOR)` 처럼
+    #   구현식을 그대로 베껴서, 식이 틀려도 시험이 늘 통과했다(2026-08-13 발견).
+    #   쿠팡 규칙: 수수료 = 반올림( 버림(기준 × 요율VAT별도) × 1.1 )
+    #     상품  128,900 × 10.5% = 13,534.5 → 버림 13,534 → ×1.1 = 14,887.4
+    #                                       → 반올림 14,887 → 정산 114,013
+    #     배송료  4,000 ×  3.0% =    120.0 → 버림    120 → ×1.1 =    132.0
+    #                                       → 반올림    132 → 정산   3,868
+    #   합계 117,881. (옛 근사식 `×0.8845` 는 114,012 로 1원 적게 나왔다.)
+    assert r["정산예정금(배송비포함)"] == 117881
 
 
 @pytest.mark.parametrize("fee,settled", [
     (4000, 3868), (3000, 2901), (10000, 9670), (9000, 8703), (6000, 5802),
 ])
 def test_ship_fee_factor_matches_measured_excel(fee, settled):
-    """쿠팡 엑셀 124행에서 관측된 값을 상수가 그대로 재현하는가."""
+    """쿠팡 엑셀 배송료 행에서 관측된 값을 **실제 쓰는 식**이 재현하는가.
+
+    🔴 정본은 `cp_fee()` 다 — 상수 `CP_SHIP_FEE_FACTOR`(0.967) 는 근사라 버림 자리가
+      달라질 수 있다. 시험은 **라이브가 실제로 부르는 함수**를 걸어야 뜻이 있다.
+      (근사 상수도 이 5개 값에서는 같은 답을 내므로 함께 잠가 둔다.)
+    """
+    assert fee - oe.cp_fee(fee, oe.CP_SHIP_FEE_RATE_EX_VAT) == settled
     assert round(fee * oe.CP_SHIP_FEE_FACTOR) == settled
