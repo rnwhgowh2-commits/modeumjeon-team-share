@@ -505,6 +505,14 @@ def box(code: str):
         #   빠뜨리면 화면 숫자와 실재고가 갈린다(shared/inventory_stock.py 독스트링).
         from shared.inventory_stock import get_stock_batch
         stock = get_stock_batch(s, [o.canonical_sku for o in opts]) if opts else {}
+        # 🔴 [2026-08-13] 「재고 0」과 「아직 안 셌음」은 **다른 상태**다. 수량만으로는
+        #   못 가르므로 재고 이력이 있는지 따로 본다 — 화면이 0 을 「—」 로 잘못 보이면
+        #   사장님이 이미 센 것을 또 세게 된다.
+        from lemouton.inventory.models import InventoryTx
+        has_tx = {sk for (sk,) in s.query(InventoryTx.option_canonical_sku)
+                  .filter(InventoryTx.option_canonical_sku.in_(
+                      [o.canonical_sku for o in opts] or ['']),
+                      InventoryTx.status == 'completed').distinct().all()} if opts else set()
         from lemouton.matrix.option_name import full_name, model_name_of
         rows = [{'no': o.display_no, 'name': full_name(nm, o),
                  'sku': o.canonical_sku,
@@ -513,7 +521,8 @@ def box(code: str):
                  'size': o.size_display or o.size_code,
                  'active': bool(o.is_active),
                  'stock_on': bool(o.use_purchase_inventory),
-                 'stock': int(stock.get(o.canonical_sku) or 0)}
+                 'stock': int(stock.get(o.canonical_sku) or 0),
+                 'tx': o.canonical_sku in has_tx}
                 for o in opts]
         info = {'code': m.model_code, 'name': nm, 'brand': m.brand,
                 'options': len(rows), 'rows': rows,
@@ -549,9 +558,12 @@ def api_initial_stock(code: str):
             위치를 지웠다고 초기 재고를 잃는 쪽이 더 나쁘므로 동작을 그대로 두고
             **글을 사실에 맞춘다.**
     """
+    import datetime as _dt
+
     from shared.inventory_stock import get_stock_batch
     from lemouton.inventory.inbound import create_inbound
     from lemouton.inventory.locations import ensure_default_location
+    from lemouton.inventory.models import InventoryTx
     from lemouton.sourcing.models import Option
 
     body = request.get_json(silent=True) or {}
@@ -564,7 +576,10 @@ def api_initial_stock(code: str):
             n = int(n)
         except (TypeError, ValueError):
             continue
-        if n > 0:
+        # 🔴 [2026-08-13 사장님 확정] **공란 ≠ 0.**
+        #   공란 = 아직 안 셌다(화면이 아예 안 보낸다) / 0 = **세어 보니 0개였다**(기록한다).
+        #   예전엔 `n > 0` 이라 0 을 적어도 조용히 사라졌다. 음수만 거른다.
+        if n >= 0:
             want[str(sku)] = n
     if not want:
         return jsonify({'ok': True, 'added': 0, 'skipped': [], 'skus': []})
@@ -589,16 +604,36 @@ def api_initial_stock(code: str):
         except Exception:                # noqa: BLE001 — 잠금을 모르는 DB(SQLite)는 정상 경로
             pass
 
+        # 🔴 「이미 넣었나」는 **재고 수량이 아니라 재고 이력**으로 가른다.
+        #   0 도 넣을 수 있게 되면서 「재고 0」과 「아직 안 넣음」이 같은 얼굴이 됐다 —
+        #   수량으로 가르면 0 을 적을 때마다 입고가 계속 쌓인다.
+        from lemouton.inventory.models import InventoryTx
+        already = {sku for (sku,) in s.query(InventoryTx.option_canonical_sku)
+                   .filter(InventoryTx.option_canonical_sku.in_(sorted(mine)),
+                           InventoryTx.status == 'completed').distinct().all()}
         have = get_stock_batch(s, list(mine))          # 원장 합계 = 진실 원천
         loc_id = ensure_default_location(s)
         added, skipped = [], []
         for sku in sorted(mine):
-            if int(have.get(sku) or 0) > 0:
+            if sku in already or int(have.get(sku) or 0) > 0:
                 skipped.append(sku)                    # 이미 있다 — 두 번 넣지 않는다
                 continue
-            create_inbound(s, location_id=loc_id, option_canonical_sku=sku,
-                           qty=want[sku], unit_purchase_price=0,
-                           memo='옵션 생성 초기 재고', created_by='옵션 생성')
+            if want[sku] == 0:
+                # 🔴 0 은 **입고가 아니라 「세어 보니 없더라」는 기록**이다.
+                #   `create_inbound` 는 `qty<=0` 을 막는다 — 0개를 받았다는 건 말이 안 되니
+                #   그 막이는 옳다. 그래서 여기서 원장 줄만 직접 남긴다.
+                #   이 줄이 있어야 ① 화면이 「0」을 보여 주고 ② 다음에 또 묻지 않는다
+                #   (「재고 0」과 「아직 안 셌다」가 같은 얼굴이 되는 것을 막는다).
+                s.add(InventoryTx(
+                    tx_type='in', location_id=loc_id, option_canonical_sku=sku,
+                    qty=0, status='completed', source='local',
+                    created_by='옵션 생성', created_at=_dt.datetime.utcnow(),
+                    memo='옵션 생성 초기 재고 — 세어 보니 0개'))
+                s.flush()
+            else:
+                create_inbound(s, location_id=loc_id, option_canonical_sku=sku,
+                               qty=want[sku], unit_purchase_price=0,
+                               memo='옵션 생성 초기 재고', created_by='옵션 생성')
             added.append(sku)
         s.commit()
     except ValueError as e:
