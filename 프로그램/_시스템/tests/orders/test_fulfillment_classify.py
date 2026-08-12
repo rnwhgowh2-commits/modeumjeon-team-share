@@ -49,10 +49,14 @@ def _run(rows, *, sku_by_key, finals, stock_by_sku):
 
     targets = {k: {'sku': s, 'market': 'coupang', 'account': 'default', 'reason': ''}
                for k, s in sku_by_key.items()}
+    # ★ product_url 을 반드시 담는다 — 실제 옵션은 소싱처 **주소**를 갖고 있고,
+    #   주소가 0개면 판정이 「소싱처 URL 없음」으로 갈리기 때문이다(2026-08-12).
+    _u = 'https://example.com/p/1'
     opts = [{'sku': s, 'sources': ([{'crawled_price': 1000, 'stock_out': False,
-                                     'last_status': 'ok'}] if st == 'in'
+                                     'product_url': _u, 'last_status': 'ok'}] if st == 'in'
                                    else [{'crawled_price': 1000, 'stock_out': True,
-                                          'last_status': 'ok'}] if st == 'out' else [])}
+                                          'product_url': _u, 'last_status': 'ok'}] if st == 'out'
+                                   else [{'product_url': _u, 'last_status': 'ok'}])}
             for s, st in stock_by_sku.items()]
 
     class _Q:
@@ -171,8 +175,10 @@ def test_건수_요약():
 
 def _run_verbose(rows, targets, finals, stock_by_sku):
     from lemouton.orders import price_diff as PD
+    _u = 'https://example.com/p/1'
     opts = [{'sku': s, 'sources': ([{'crawled_price': 1000, 'stock_out': False,
-                                     'last_status': 'ok'}] if st == 'in' else [])}
+                                     'product_url': _u, 'last_status': 'ok'}] if st == 'in'
+                                   else [{'product_url': _u, 'last_status': 'ok'}])}
             for s, st in stock_by_sku.items()]
 
     class _Q:
@@ -316,3 +322,64 @@ def test_모르는_소싱처_키는_지어내지_않는다():
     from lemouton.sources.site_labels import label_of
     assert label_of('처음보는곳') == '처음보는곳'
     assert label_of('') == ''
+
+
+# ══ [2026-08-12 사장님] 소싱처 주소가 아예 없는 줄 ════════════════════════════
+#  "소싱처url 없으면 확인불가가 아니라, 소싱처url 없음으로 표기해줘."
+#  두 경우가 있다 — ① 오프라인 사입해 재고를 두고 파는 상품 ② 아직 연동 안 된 상품.
+#  둘 다 「크롤하면 알 수 있는데 안 했다」가 아니라서, 확인 불가와 같은 말로 뭉개면
+#  사장님이 **고칠 게 없는 줄**을 계속 들여다보게 된다.
+
+def _run_no_url(rows, sku_by_key, finals):
+    from unittest.mock import patch as _patch
+    from lemouton.orders import price_diff as PD
+    targets = {k: {'sku': s, 'market': 'coupang', 'account': 'default', 'reason': ''}
+               for k, s in sku_by_key.items()}
+    opts = [{'sku': s, 'sources': []} for s in sku_by_key.values()]   # 주소 0개
+
+    class _Q:
+        def filter(self, *a, **k):
+            return self
+
+        def all(self):
+            return [type('O', (), {'canonical_sku': s, 'model_code': 'M'})()
+                    for s in sku_by_key.values()]
+
+    session = type('S', (), {'query': lambda self, *a, **k: _Q()})()
+    with _patch.object(PD, 'resolve_targets_verbose', return_value=targets),          _patch.object(PD, '_current_purchase', return_value=(finals, {})):
+        return FF.classify_rows(session, rows,
+                                matrix_loader=lambda mc: {'ok': True, 'options': opts})
+
+
+def test_소싱처_주소가_없으면_확인불가가_아니라_소싱처URL없음():
+    from lemouton.orders import price_diff as PD
+    rows = [_row(settle='90,000')]
+    key = PD.row_key(rows[0])
+    out = _run_no_url(rows, {key: 'SKU-1'}, {})
+    assert out[key]['reason'] == FF.REASON_NO_SOURCE_URL
+    assert out[key]['no_url_why'] == 'ours_no_url'
+    assert out[key]['source_urls'] == 0
+
+
+def test_소싱처URL없음은_재고없음_역마진_판정을_덮지_않는다():
+    """🔴 이 순서가 뒤집히면 「재고 없음」·「역마진」이라는 **더 정확한 답**이 사라진다.
+    실제로 처음 구현에서 뒤집혀 시험 5건이 깨졌다."""
+    from lemouton.orders import price_diff as PD
+    # 주소는 없지만 재고가 품절이라고 이미 알고 있는 경우
+    rows = [_row(settle='90,000')]
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={key: 'SKU-1'}, finals={'SKU-1': 50000},
+               stock_by_sku={'SKU-1': 'out'})
+    assert out[key]['reason'] == FF.REASON_STOCK
+
+
+def test_크롤_시각을_같이_돌려준다():
+    """판정은 **마지막으로 긁은 값** 기준이라, 그 시각이 없으면 3일 전 재고를
+    오늘 것인 척 보여주게 된다."""
+    from lemouton.orders import price_diff as PD
+    rows = [_row(settle='90,000')]
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={key: 'SKU-1'}, finals={'SKU-1': 50000},
+               stock_by_sku={'SKU-1': 'in'})
+    assert 'crawled_at' in out[key]        # 값이 없어도 **키는 온다**(화면이 늘 읽는다)
+    assert out[key]['source_urls'] == 1

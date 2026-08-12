@@ -64,7 +64,7 @@ def _patch(monkeypatch, order_map, clients=(("메인", object()),), calls=None):
     monkeypatch.setattr(OI, "_esm_settlement_clients", lambda market: list(clients))
     from shared.platforms.lotteon import settlement as _lo
 
-    def _fake_line(since, until, *, client=None):
+    def _fake_line(since, until, *, client=None, **_kw):
         if calls is not None:
             calls.append((since.date(), until.date(), client))
         out = {}
@@ -194,7 +194,7 @@ def test_다계정_정산이_합쳐진다(session, monkeypatch):
     from shared.platforms.lotteon import settlement as _lo
     by_client = {}
 
-    def _fake_line(since, until, *, client=None):
+    def _fake_line(since, until, *, client=None, **_kw):
         # 계정 A 는 LO500 만, 계정 B 는 LO900 만 안다. (odNo,odSeq) 라인맵 반환.
         idx = len(by_client)
         by_client[id(client)] = idx
