@@ -584,26 +584,26 @@ def api_action():
             tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
-            # 🔴 조정은 **결과 수량(절대값)으로 저장한다** — 「실사해 보니 N개였다」.
-            #   쓰는 곳 셋이 **모두 같은 뜻**이어야 한다(그래야 읽는 쪽이 옳을 수 있다):
-            #     · lemouton/inventory/inbound.create_adjustment  → 절대값 (ADR-002)
-            #     · webapp/routes/api_inventory_link              → 절대값
-            #     · 여기(모바일)                                   → 절대값  ← 이 줄
-            #   읽는 쪽 정본은 `shared.inventory_stock.fold_tx_rows` (`adjust → total = q`).
+            # 🔴 조정은 **차이값(델타)으로 저장한다** — 원장엔 「얼마나 바뀌었나」를 남긴다.
+            #   창구는 「실사해 보니 N개」를 받고 뺄셈은 서버가 한다(작업자에게 안 시킨다).
             #
-            #   ⚠️ 2026-08-13 이 한 줄이 하루에 **세 번** 뒤집혔다(재고 4 → 6 → 4).
-            #     전부 「에러 없이 숫자만 틀리는」 사고였고, 원인은 매번 같았다 —
-            #     **쓰는 곳 세 개를 다 안 보고** 문서 한 곳만 보고 맞췄기 때문이다.
-            #   🔴 여기를 고치려거든 위 **세 곳을 한꺼번에** 보라. 한 곳만 바꾸면 같은
-            #     표의 같은 종류 행이 두 가지 뜻을 갖고, 그 순간 어느 읽는 쪽도 옳을 수
-            #     없다. `tests/inventory/test_adjust_writer_consistency.py` 가 세 곳을
-            #     한꺼번에 잡는다 — 이 뒤집기를 끝내려고 만든 시험이다.
+            #   ■ 왜 절대값이 아닌가 — **위치별 합이 전체와 안 맞는다**
+            #     전체 재고는 조정을 「그 시점 재고」로 덮을 수 있지만, 위치별 재고엔
+            #     「그 위치의 실사」라는 뜻이 정의돼 있지 않아 그냥 더한다. 그래서
+            #     창고A 입고10·조정5 면 전체 5 / 창고A 15 로 갈리고 — 없는 재고를 판다.
+            #     차이값이면 전체·위치별이 같은 규칙이라 자동으로 맞는다(사장님 확정).
+            #
+            #   ⚠️ 2026-08-13 이 한 줄이 하루에 **네 번** 뒤집혔다. 매번 원인이 같았다 —
+            #     쓰는 곳 **셋**(여기 · inbound.create_adjustment · api_inventory_link)을
+            #     다 안 보고 한두 곳만 고쳤다. 나도 한 번 그랬다(「쓰는 곳 다수결」로 판단).
+            #   🔴 판별식 주의: `fold_tx_rows([("adjust",5)])` 는 절대값이든 델타든 5 라
+            #     **못 가른다.** 앞에 행을 두어야 한다 —
+            #     `fold_tx_rows([("in",10),("adjust",5)])` → 절대값 5 / 델타 15.
             from shared.inventory_stock import get_stock_batch
             current = int(get_stock_batch(s, [sku], location_id=location_id).get(sku, 0))
-            delta = int(qty) - current          # 사람에게 보여줄 변화량(저장값 아님)
-            if delta == 0:
+            tx_qty = int(qty) - current         # 저장 = 차이값(원장 규약)
+            if tx_qty == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
-            tx_qty = int(qty)                   # 저장 = 센 수 그대로(절대값)
             tx_memo = memo or f"[모바일 조정] {current} → {qty}"
 
         tx = InventoryTx(
@@ -630,9 +630,8 @@ def api_action():
             tx_id=tx.id,
             action=action,
             # 조정도 저장값이 곧 변화량이다(델타 규약) — 갈라 쓸 이유가 없다.
-            # 화면엔 **변화량**을 보여준다(「4개 늘었다」). 조정만 저장값(절대값)과
-            #  뜻이 달라 여기서 가른다 — 입고·출고는 저장값이 곧 변화량이다.
-            applied_qty=(delta if action == "adjust" else tx_qty),
+            # 델타 규약에선 저장값이 곧 변화량이다 — 갈라 쓸 이유가 없다.
+            applied_qty=tx_qty,
             new_total_stock=int(new_total),
             location_name=loc.name,
             actor=actor,

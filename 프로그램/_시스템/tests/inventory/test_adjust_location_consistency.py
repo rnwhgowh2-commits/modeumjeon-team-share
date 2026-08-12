@@ -98,3 +98,26 @@ def test_적는_쪽_두_창구가_같은_뜻이다():
            .split("else:  # adjust")[1].split("tx = InventoryTx")[0].replace(" ", ""))
     assert "tx_qty=int(qty)-current" in mob or "tx_qty=delta" in mob, \
         "모바일 조정이 차이값을 안 남긴다"
+
+def test_적는_쪽_세_번째_창구도_같은_뜻이다():
+    """🔴 창구는 **셋**이다 — 연동 화면(api_inventory_link)이 빠져 있었다.
+
+    2026-08-13 이 자리가 네 번 뒤집히는 동안, 위 시험이 둘만 보는 사이 이 세 번째가
+    절대값(`qty=qty_after`)으로 남아 있었다. 「두 곳이 같다」로는 부족하다.
+    """
+    import inspect
+
+    from webapp.routes import api_inventory_link
+    src = inspect.getsource(api_inventory_link).replace(" ", "")
+    assert "qty=diff," in src, "연동 화면 조정이 차이값을 안 남긴다"
+    assert "qty=qty_after," not in src, "연동 화면 조정이 아직 결과 수량(절대값)을 남긴다"
+
+
+def test_판별식은_조정_행_하나로는_안_된다():
+    """🔴 이 규약을 재는 시험을 쓸 때의 함정 — 실제로 내가 여기 걸렸다.
+
+    `fold_tx_rows([("adjust", 5)])` 는 절대값이든 차이값이든 **똑같이 5** 다.
+    앞에 다른 행이 있어야 갈린다: 절대값이면 5, 차이값이면 15.
+    """
+    assert fold_tx_rows([("adjust", 5)]) == 5           # 못 가르는 식
+    assert fold_tx_rows([("in", 10), ("adjust", 5)]) == 15   # 가르는 식(차이값)
