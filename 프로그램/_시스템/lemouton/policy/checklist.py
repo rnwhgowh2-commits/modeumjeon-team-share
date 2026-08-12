@@ -123,7 +123,8 @@ def build(columns_file: str = "dev_checklist_columns.json") -> dict:
             }
         counts["total"] = len(cols) - counts[NA]
         rows.append({"market": market, "label": label, "counts": counts})
-    return {"columns": cols, "rows": rows, "cells": cells, "drift": drift(marks)}
+    return {"columns": cols, "rows": rows, "cells": cells,
+            "drift": drift(marks, columns_file)}
 
 
 def drift(marks: dict, columns_file: str = "dev_checklist_columns.json") -> list[str]:

@@ -173,3 +173,29 @@ def test_drift_silent_when_marks_are_sane():
 def test_drift_flags_unknown_column():
     problems = C.drift({"smartstore:99": {"verified": "2026-08-12"}})
     assert problems and "99" in problems[0]
+
+
+def test_build_passes_columns_file_through_to_drift(tmp_path, monkeypatch):
+    """🔴 build 가 다른 열 정의를 받으면 배너도 **그 열 정의**로 판정해야 한다.
+
+    안 넘기면 배너가 엉뚱한 표를 보고, 있는 경고를 놓치거나 없는 경고를 띄운다.
+    """
+    import json as _json
+    import os as _os
+    from lemouton.policy import checklist as CK
+
+    # 열 하나뿐인 가짜 열 정의를 만들어 둔다 (77번 열은 진짜 표에 없다)
+    fake = {"columns": [{"col": 77, "group": "시험", "name": "가짜열", "rule": "",
+                         "item": "name",
+                         "specs": {m: "값" for m, _ in CK.MARKETS}}]}
+    path = _os.path.join(CK._DATA, "_test_fake_columns.json")
+    with open(path, "w", encoding="utf-8") as f:
+        _json.dump(fake, f, ensure_ascii=False)
+    monkeypatch.setattr(CK, "load_marks", lambda: {"coupang:77": {"verified": "2026-08-12"}})
+    try:
+        data = CK.build("_test_fake_columns.json")
+        # 77번 열은 진짜 표엔 없다 — 파일이 안 넘어가면 「없는 열 번호」로 잘못 뜬다
+        assert data["drift"], "배너가 아예 안 떴다"
+        assert "가짜열" in data["drift"][0], f"엉뚱한 표를 봤다: {data['drift'][0]}"
+    finally:
+        _os.remove(path)
