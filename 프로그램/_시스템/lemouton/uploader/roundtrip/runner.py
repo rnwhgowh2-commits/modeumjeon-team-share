@@ -66,13 +66,29 @@ class RoundtripReport:
     recovery_hint: str = ""
 
 
-def _test_value(axis: str, before: Snapshot, image_url: str | None):
-    """축별 시험값 — before 에서 만든다(고정 상수 금지: 현재값과 같으면 검증 무의미)."""
+def _test_value(axis: str, before: Snapshot, image_url: str | None, *, bounds=None):
+    """축별 시험값 — before 에서 만든다(고정 상수 금지: 현재값과 같으면 검증 무의미).
+
+    Args:
+        bounds: 재고 (하한, 상한). 마켓이 정한 범위를 어댑터가 알려준다. 모르면 None.
+
+    🔴 [2026-08-12] 11번가 실측 — 재고가 이미 **상한(9,999)** 인 상품에 +1 을 보내
+       마켓이 거부했다. 왕복은 "값을 흔들었다 되돌리는" 것이지 "무조건 늘리는" 게
+       아니다. 위로 못 가면 아래로 흔든다. 방향이 없으면 None(=확인불가)을 준다.
+       ⚠️ 가격은 방향을 바꾸지 않는다 — 내리면 그 잠깐 **싸게 팔린다**(금전 손실).
+    """
     cur = before.value_of(axis)
     if axis == "sale_price":
         return int(cur) + _PRICE_DELTA
     if axis == "stock":
-        return int(cur) + _STOCK_DELTA
+        cur = int(cur)
+        lo, hi = (bounds or (None, None))
+        if hi is not None and cur + _STOCK_DELTA > hi:
+            down = cur - _STOCK_DELTA
+            if lo is not None and down < lo:
+                return None            # 흔들 방향이 없다 — 지어내지 않는다
+            return down
+        return cur + _STOCK_DELTA
     if axis == "name":
         return str(cur) + _NAME_SUFFIX
     if axis == "detail_html":
@@ -111,6 +127,7 @@ def _restored_ok(axis: str, before, restored) -> bool:
 def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
                   on_sale_fn=None, image_url_fn=None,
                   approval_axes=(), allow_on_sale=False,
+                  stock_bounds=None,
                   recheck_sleep: float = 3.0) -> RoundtripReport:
     """5축 왕복 1회.
 
@@ -176,8 +193,13 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
             r.note = ("확인불가 — 올릴 시험 이미지를 준비하지 못했습니다"
                       f"(없는 주소를 지어내 보내지 않습니다).{why}")
         else:
-            testable.append(axis)
-            r.sent = _test_value(axis, before, test_image)
+            r.sent = _test_value(axis, before, test_image, bounds=stock_bounds)
+            if r.sent is None:
+                # 흔들 방향이 없다(상한이자 하한) — 보낼 값을 지어내지 않는다.
+                r.note = (f"확인불가 — 현재 「{r.label}」 이 마켓 허용범위"
+                          f"{stock_bounds} 의 끝이라 올리지도 내리지도 못합니다(전송 안 함).")
+            else:
+                testable.append(axis)
         results[axis] = r
 
     changes = {a: results[a].sent for a in testable}

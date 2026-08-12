@@ -272,12 +272,60 @@ def upload():
                                 period_from=pf, period_to=pt)
     finally:
         _sess.close()
+    shared = _share_to_purchase_store(buy_df, f.filename or "buy.xlsx")
     return jsonify({
         "rows": int(len(buy_df)),
         "markets": markets,
         "period_from": _iso(pf),
         "period_to": _iso(pt),
+        # 주문 내역·상품관리와 **같은 값**을 쓰기 위해 같이 저장한 결과(설계서 §8).
+        "shared": shared,
     })
+
+
+def _share_to_purchase_store(buy_df, filename: str) -> dict:
+    """마진 계산기에 올린 매입 엑셀을 **실매입가 단일 원천에도** 저장한다.
+
+    🔴 왜 필요한가 — 사장님 확정 규칙 6 「실매입가가 입력되면 실마진이 필요한 곳에
+      데이터 공유한다」. 여기서 안 하면 같은 엑셀을 올려도 **마진 계산기만 알고
+      주문 내역·상품관리는 모르는** 상태가 되어 같은 상품 마진이 화면마다 갈린다
+      (설계서 §8 「같은 정보 두 화면 = 같은 값」).
+
+    · 저장 경로는 주문 내역 업로드와 **완전히 같은 코드**(`purchase_mango.apply`)다 —
+      규칙을 두 번 구현하지 않는다. 후보가 여럿이면 저장하지 않는 것도 그대로다.
+    · 🔴 실패해도 업로드를 되돌리지 않는다. 대신 `error` 를 담아 **조용히 넘어가지 않는다**.
+    """
+    from lemouton.markets import order_store as _os
+    from lemouton.markets import purchase_mango as _pm
+
+    try:
+        order_nos = _pm.order_keys_from_buy(buy_df)
+        if not order_nos:
+            return {"saved": 0, "matched": 0,
+                    "error": "엑셀에 마켓주문번호가 없어 주문 줄에 붙이지 못했어요."}
+        s = SessionLocal()
+        try:
+            rows = _os.load(order_nos=order_nos, include_claims=False, session=s)
+            res = _pm.apply(s, buy_df, rows, filename=filename,
+                            reason="margin")
+        finally:
+            s.close()
+        if res.get("saved"):
+            try:
+                from webapp.routes.orders import _invalidate_tower_sales
+                _invalidate_tower_sales(
+                    f"마진 계산기 매입 엑셀 {filename} — {res['saved']}줄 공유 저장")
+            except Exception:   # noqa: BLE001 — 캐시 비우기 실패가 저장을 되돌리면 안 된다
+                logger.exception("판매 이력 캐시 무효화 실패 (도장으로는 갱신됨)")
+        return {"saved": int(res.get("saved") or 0),
+                "matched": int(res.get("matched") or 0),
+                "unmatched": len(res.get("unmatched") or []),
+                "ambiguous": len(res.get("ambiguous") or []),
+                "skipped_zero": len(res.get("skipped_zero") or [])}
+    except Exception as e:   # noqa: BLE001
+        logger.exception("매입 엑셀 공유 저장 실패 %s", filename)
+        return {"saved": 0, "matched": 0,
+                "error": f"{type(e).__name__}: {str(e)[:200]}"}
 
 
 @bp.route("/upload-shopmine", methods=["POST"])

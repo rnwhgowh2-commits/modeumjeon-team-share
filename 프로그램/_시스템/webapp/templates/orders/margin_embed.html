@@ -1327,7 +1327,15 @@ async function uploadFiles(type, files) {
 
     if (info && info.success) {
       const extra = info.source_filename ? ' (' + info.source_filename + ')' : '';
-      setStatus(type, 'ok', info.rows.toLocaleString() + '건 로드됨' + extra);
+      /* [모음전 2026-08-12] _moumShared = 이 엑셀이 실매입가 단일 원천에도 저장된 결과 (api_margin._share_to_purchase_store) — 조용히 넘어가면 「올렸는데 주문 내역엔 왜 없지」가 된다 */
+      var _moumShared = (data && data.shared) || null;
+      var _moumSharedTxt = !_moumShared ? ''
+        : (_moumShared.error ? (' · 주문 내역 공유 실패: ' + _moumShared.error)
+           : (' · 주문 내역에도 ' + Number(_moumShared.saved || 0).toLocaleString() + '줄 저장'
+              + ((_moumShared.unmatched || _moumShared.ambiguous || _moumShared.skipped_zero)
+                 ? '(못 붙음 ' + (_moumShared.unmatched || 0) + ' · 여럿 ' + (_moumShared.ambiguous || 0)
+                   + ' · 구매가격 빈칸 ' + (_moumShared.skipped_zero || 0) + ')' : '')));
+      setStatus(type, 'ok', info.rows.toLocaleString() + '건 로드됨' + extra + _moumSharedTxt);
       document.getElementById(type === 'buy' ? 'buyBox' : 'sellBox').classList.add('success');
       if (type === 'buy')  buyLoaded  = true;
       if (type === 'sell') sellLoaded = true;

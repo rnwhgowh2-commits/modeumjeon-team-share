@@ -716,6 +716,26 @@ SEAMS.append((
 ))
 
 
+# ── [2026-08-12] 매입 엑셀 = 실매입가 **단일 원천에도** 저장 → 그 결과를 말한다 ──
+#  서버(api_margin.upload → _share_to_purchase_store)가 같은 엑셀을 주문 라인
+#  (`order_line_purchases`)에도 저장한다(사장님 확정 규칙 6 「실마진이 필요한 곳에 공유」).
+#  🔴 저장 결과를 화면이 말해야 한다 — 조용히 넘어가면 「올렸는데 주문 내역엔 왜 없지」가 된다.
+SEAMS.append((
+    "      setStatus(type, 'ok', info.rows.toLocaleString() + '건 로드됨' + extra);\n",
+    "      /* [모음전 2026-08-12] _moumShared = 이 엑셀이 실매입가 단일 원천에도 저장된 결과"
+    " (api_margin._share_to_purchase_store) — 조용히 넘어가면 「올렸는데 주문 내역엔 왜 없지」가 된다 */\n"
+    "      var _moumShared = (data && data.shared) || null;\n"
+    "      var _moumSharedTxt = !_moumShared ? ''\n"
+    "        : (_moumShared.error ? (' · 주문 내역 공유 실패: ' + _moumShared.error)\n"
+    "           : (' · 주문 내역에도 ' + Number(_moumShared.saved || 0).toLocaleString() + '줄 저장'\n"
+    "              + ((_moumShared.unmatched || _moumShared.ambiguous || _moumShared.skipped_zero)\n"
+    "                 ? '(못 붙음 ' + (_moumShared.unmatched || 0) + ' · 여럿 ' + (_moumShared.ambiguous || 0)\n"
+    "                   + ' · 구매가격 빈칸 ' + (_moumShared.skipped_zero || 0) + ')' : '')));\n"
+    "      setStatus(type, 'ok', info.rows.toLocaleString() + '건 로드됨' + extra + _moumSharedTxt);\n",
+    1,
+))
+
+
 def _색을_토큰으로(text: str) -> str:
     """<style> 블록의 굳은 색을 `var(--토큰, 원래색)` 으로 바꾼다.
 

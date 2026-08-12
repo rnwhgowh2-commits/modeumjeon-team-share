@@ -2135,12 +2135,23 @@
      "key": "data.itmLst[].itmOptLst[]",
      "meaning": "단품속성(옵션명/옵션값)",
      "example": "array"
+    },
+    {
+     "key": "data.scatNo",
+     "meaning": "표준카테고리번호(등록 시 scatNo* 로 그대로 쓰는 그 번호)",
+     "example": "30"
+    },
+    {
+     "key": "data.dcatLst[]",
+     "meaning": "전시카테고리 목록(leaf=lfDcatNo)",
+     "example": "array"
     }
    ],
    "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
    "idTraps": [
     "[2026-08-06] 카탈로그 판매가 채우기(lotteon_prices.enrich_prices)가 itmLst[].slPrc 최저값을 저장. 배송비는 dvCstPolNo(정책번호)만 있고 금액이 없다 — 금액은 별도 실측 전 NULL.",
-    "[2026-08-06 왕복검증] 상세 HTML·이미지 필드가 이 지도에 미확보(res.note=전체 스펙 apiNo=94). 되읽을 수 없는 축은 보내지 않는다 — 보내면 원복됐는지 영영 확인할 수 없다. 프로브(GET /api/live-send-test/roundtrip-probe)로 실측해 확인되면 되채울 것."
+    "[2026-08-06 왕복검증] 상세 HTML·이미지 필드가 이 지도에 미확보(res.note=전체 스펙 apiNo=94). 되읽을 수 없는 축은 보내지 않는다 — 보내면 원복됐는지 영영 확인할 수 없다. 프로브(GET /api/live-send-test/roundtrip-probe)로 실측해 확인되면 되채울 것.",
+    "[2026-08-12] 🟢 **카테고리는 여기서 온다** — 목록(product.list)엔 없지만 상세엔 scatNo(표준카테고리번호)·dcatLst(전시카테고리)가 실려 온다. 근거: 상품 등록이 본보기 상세의 이 두 필드를 그대로 복사해 라이브 성공(2026-07-21 LO2729045338 · products.py::_REGISTER_TEMPLATE_FIELDS). 카탈로그는 판매가를 채우는 **그 상세 호출에서 같이** 거둔다(catalog/lotteon_prices.category_of → MarketProduct.category_code). 🔴 카테고리 **이름**은 실려 오는지 미확인 — 안 오면 코드만 보여주고 이름을 지어내지 않는다."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -2223,7 +2234,7 @@
     "★★[2026-07-23] 1회 호출은 **1페이지 100행**이 전부다(rowsPerPage MAX 100). 이 계정 카탈로그는 dataCount 13,883 — 조회기간 없이 1페이지만 훑고 「0건」이라 답하면 실제로 있는 상품을 「없다」고 말하는 **거짓 답**이 된다. 존재 확인 용도로 쓸 땐 ①regStrtDttm 을 찾는 시점 근처로 좁히고 ②pageNo 를 넘겨 가며 훑고 ③실제로 훑은 범위를 결과에 같이 실어야 한다(구현: webapp/routes/bulk/drafts.py:_lotteon_lookup).",
     "★조회기간 자체의 상한은 **확인불가**(문서·실측 모두 미확보). 넓혀 쓰기 전에 실측할 것 — 이 저장소에는 조회기간 초과가 에러가 아니라 **조용한 0건**으로 돌아온 전례가 있다(11번가).",
     "[2026-08-06 프로브 실측 run 31024768904] 응답에 가격·배송비 필드가 0개(spdNo·spdNm·slStatCd·승인상태뿐) — 판매가는 상세 itmLst[].slPrc 로만 얻는다(catalog.lotteon_prices.enrich_prices).",
-    "[2026-08-07] 🔴 **카테고리 필드가 응답에 없다** — 2026-08-06 프로브 실측대로 spdNo·spdNm·slStatCd·승인상태뿐이라 MarketProduct.category_code 는 롯데온만 영원히 NULL 이다. 상품관리 「마켓 등록·정책」 탭은 이 사실을 「마켓이 카테고리를 안 알려줘요」로 표시한다(날조 금지). 카테고리가 필요하면 상세(get_product_detail)의 scatNo·dcatLst 를 봐야 한다(shared/platforms/lotteon/products.py::_REGISTER_TEMPLATE_FIELDS)."
+    "[2026-08-12 정정] 🔴 **카테고리 필드가 응답에 없다**(목록 한정 — 2026-08-06 프로브 실측 run 31024768904, spdNo·spdNm·slStatCd·승인상태뿐)는 사실 그대로다. 다만 「그래서 롯데온 카테고리는 끝까지 못 채운다」던 옛 결론은 **틀렸다** — 상세(lotteon.product.get_detail)의 scatNo·dcatLst 로 채운다. 2026-08-12 부터 catalog/lotteon_prices.enrich_prices 가 판매가와 함께 카테고리도 거둔다(같은 상세 호출 1번, 추가 호출 0). 상품관리 「마켓 등록·정책」 탭은 아직 안 채워진 줄을 「아직 안 채워짐 — 상세를 봐야 알 수 있어요」로 말한다."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/lotteon/products.py:list_products · webapp/routes/bulk/drafts.py:_lotteon_lookup",
@@ -169833,6 +169844,127 @@
    "idTraps": [
     "★전일 확정분 요약일 뿐 — 구매확정 전 예정액은 여기 없다(그건 selleroffice.settle.status 의 dtlSearchStlmntType=N)."
    ]
+  },
+  {
+   "id": "eleven11.900",
+   "market": "eleven11",
+   "fnKey": "eleven11:900",
+   "tabs": [
+    "상품 수정"
+   ],
+   "category": "상품",
+   "nm": "판매가 변경(단건)",
+   "dir": "send",
+   "st": "ok",
+   "endpoint": "GET https://api.11st.co.kr/rest/prodservices/product/price/{prdNo}/{selPrc}",
+   "req": {
+    "method": "GET",
+    "protocol": "https",
+    "url": "https://api.11st.co.kr/rest/prodservices/product/price/[prdNo]/[selPrc]",
+    "params": [
+     {
+      "name": "경로.prdNo",
+      "desc": "상품번호 · string [필수]",
+      "example": "9532353519"
+     },
+     {
+      "name": "경로.selPrc",
+      "desc": "바꿀 판매가(원) · int [필수]",
+      "example": "97100"
+     }
+    ],
+    "description": "등록된 상품의 판매가를 바꾼다. 경로에 값을 넣는 방식이라 본문이 없다(GET 이지만 쓰기 API)."
+   },
+   "res": {
+    "fields_count": 3,
+    "sample": "<ResultProduct><resultCode>200</resultCode><resultMessage>정상적으로 처리되었습니다</resultMessage></ResultProduct>",
+    "errorResponse_fields": 0
+   },
+   "fields": [
+    {
+     "key": "resultCode",
+     "meaning": "결과코드 · 200=성공",
+     "example": "200"
+    },
+    {
+     "key": "resultMessage",
+     "meaning": "결과내용",
+     "example": "정상적으로 처리되었습니다"
+    }
+   ],
+   "success": "resultCode==200",
+   "idTraps": [
+    "🔴 **GET 인데 쓰기 API** 다 — 조회로 착각해 재시도하면 값이 또 바뀐다.",
+    "🔴 가격 **조회**는 여기가 아니라 products.get_product_price(GET prodmarket/{prdNo} 의 selPrc)다. prices.py 에서 조회 함수를 찾다가 ImportError 로 죽은 이력(2026-08-12)."
+   ],
+   "persistIds": [],
+   "codeRef": "shared/platforms/eleven11/prices.py:update_price",
+   "docApiNo": ""
+  },
+  {
+   "id": "eleven11.901",
+   "market": "eleven11",
+   "fnKey": "eleven11:901",
+   "tabs": [
+    "상품 수정"
+   ],
+   "category": "재고",
+   "nm": "옵션 재고수량 변경(재고번호 단위)",
+   "dir": "send",
+   "st": "ok",
+   "endpoint": "PUT https://api.11st.co.kr/rest/prodservices/stockqty/{prdStckNo}",
+   "req": {
+    "method": "PUT",
+    "protocol": "https",
+    "url": "https://api.11st.co.kr/rest/prodservices/stockqty/[prdStckNo]",
+    "params": [
+     {
+      "name": "경로.prdStckNo",
+      "desc": "옵션 재고번호 · string [필수] · stocks 조회가 주는 값",
+      "example": "1"
+     },
+     {
+      "name": "본문.prdNo",
+      "desc": "상품번호 · string [필수]",
+      "example": "9532353519"
+     },
+     {
+      "name": "본문.stckQty",
+      "desc": "바꿀 재고수량 · int [필수]",
+      "example": "10"
+     }
+    ],
+    "description": "옵션 하나의 재고수량만 바꾼다. 재고번호는 다중 상품 재고 정보 조회(eleven11.40)로 얻는다."
+   },
+   "res": {
+    "fields_count": 3,
+    "sample": "",
+    "errorResponse_fields": 0
+   },
+   "fields": [
+    {
+     "key": "resultCode",
+     "meaning": "결과코드",
+     "example": "200"
+    },
+    {
+     "key": "resultMessage",
+     "meaning": "결과내용",
+     "example": "옵션재고 번호 1,2(상품번호:9532353519)의 수량 업데이트 실패."
+    }
+   ],
+   "success": "resultCode==200",
+   "idTraps": [
+    "🔴 열쇠는 **prdStckNo(재고번호)** 다. sellerStockCd(판매자 관리코드)나 mixOptNo 로 대신 채우면 「옵션재고 번호 1,2(상품번호:…)의 수량 업데이트 실패」로 거부된다 — 실패 문구가 **수량 얘기를 해서** 수량 문제로 오진하기 쉽다(2026-08-12 라이브 2회 실측, prd=9532353519). prdStckNo 는 eleven11.40 응답의 <prdStckNo> 다.",
+    "🔴 **상품무게(optWght)를 그대로 되돌려 보내야** 한다 — 빼면 무게가 지워진다(echo-back).",
+    "🔴 **옵션 전체교체 API(update_stock)를 쓰면 안 된다** — 한 옵션만 보내면 형제 옵션이 지워진다. 그래서 우리 코드의 update_stock 은 일부러 NotImplementedError 를 낸다."
+   ],
+   "persistIds": [
+    "prdStckNo",
+    "optWght"
+   ],
+   "codeRef": "shared/platforms/eleven11/inventory.py:update_stock_by_stock_no",
+   "docApiNo": ""
   }
  ],
  "autoConfirm": {

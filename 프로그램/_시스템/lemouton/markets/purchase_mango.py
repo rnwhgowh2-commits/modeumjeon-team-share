@@ -206,11 +206,14 @@ def match_to_lines(buy_df, order_rows) -> dict:
     return {"matched": matched, "unmatched": unmatched, "ambiguous": ambiguous}
 
 
-def apply(session, buy_df, order_rows, *, filename: str = "", input_by=None) -> dict:
+def apply(session, buy_df, order_rows, *, filename: str = "", input_by=None,
+          reason=None) -> dict:
     """매칭 → `order_line_purchases` 저장. 매칭 결과를 그대로 되돌려준다.
 
     · 구매가격 0(미입력 센티널 포함)은 **저장하지 않고** `skipped_zero` 로 드러낸다.
     · 못 붙은 행·애매한 행은 버리지 않고 응답에 담는다.
+    · `reason` 은 변경 이력에 남길 경로 이름(기본 `mango`). 마진 계산기 쪽 업로드는
+      `margin` 을 넘겨 「어느 화면에서 올린 엑셀이 덮어썼나」를 나중에 알 수 있게 한다.
     """
     from lemouton.markets import purchase_price as _pp
 
@@ -222,7 +225,8 @@ def apply(session, buy_df, order_rows, *, filename: str = "", input_by=None) -> 
             continue
         ref = f"{filename}#{m['buy'].get('행번호')}"[:255] if filename else None
         _pp.upsert(session, line_uid=m["line_uid"], price=m["price"],
-                   source=_pp.SOURCE_MANGO, mango_ref=ref, input_by=input_by)
+                   source=_pp.SOURCE_MANGO, mango_ref=ref, input_by=input_by,
+                   reason=(reason or _pp.SOURCE_MANGO))
         saved += 1
     return {
         "matched": len(res["matched"]),
