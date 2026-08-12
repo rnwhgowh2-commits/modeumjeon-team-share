@@ -34,7 +34,7 @@
           <tr>
             <th style="padding:8px 8px;text-align:left;font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600">제품</th>
             <th style="padding:8px 8px;text-align:right;font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600;width:90px">수량</th>
-            <th style="padding:8px 8px;text-align:right;font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600;width:120px;cursor:pointer">단가 <span style="color: var(--글자-희미, var(--faint,#9CA3AF));font-size:11px">▾</span></th>
+            <th style="padding:8px 8px;text-align:right;font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600;width:120px;cursor:pointer">단가 <span style="color: var(--글자-희미, var(--faint,#9CA3AF));font-size:12px">▾</span></th>
             <th style="padding:8px 8px;text-align:right;font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600;width:90px">할인</th>
             <th style="padding:8px 8px;text-align:right;font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600;width:90px">세금</th>
             <th style="padding:8px 8px;text-align:right;font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600;width:120px">금액</th>
@@ -100,7 +100,7 @@
     <div>
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
         <label style="font-size:14px;color:var(--ink,#292A2F);font-weight:600">커스텀 필드</label>
-        <span title="발주서에 사용자 정의 필드를 추가합니다" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--line2,#F1F1F4);color:var(--sub,#8F91A0);font-size:11px;font-weight:700;cursor:help">i</span>
+        <span title="발주서에 사용자 정의 필드를 추가합니다" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--line2,#F1F1F4);color:var(--sub,#8F91A0);font-size:12px;font-weight:700;cursor:help">i</span>
       </div>
       <div id="customFields"></div>
       <button type="button" onclick="addCustomField()" style="margin-top:4px;margin-left:32px;background:none;border:none;color: var(--글자-파랑, var(--primary,#4F67FF));padding:0;font-size:14px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
@@ -142,7 +142,7 @@ let discounts = [];    // [{name,value,type}] type: amount|rate (전체 적용)
 function openProductModal(){renderModalRows(OPTIONS);document.getElementById('productSearch').value='';document.getElementById('productModal').style.display='flex';setTimeout(()=>document.getElementById('productSearch').focus(),100)}
 function closeProductModal(){document.getElementById('productModal').style.display='none'}
 function filterProducts(){const q=document.getElementById('productSearch').value.trim().toLowerCase();renderModalRows(OPTIONS.filter(o=>!q||o.sku.toLowerCase().includes(q)||(o.color||'').toLowerCase().includes(q)))}
-function renderModalRows(list){document.getElementById('modalProductRows').innerHTML=list.slice(0,200).map(o=>`<tr style="border-bottom:1px solid var(--n100,#F2F4F6)"><td style="padding:8px 8px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" data-avg="${o.avg}" onchange="updateSelectedCount()"></td><td style="padding:8px 8px;font-family:ui-monospace,monospace;font-size:11px">${o.sku}</td><td style="padding:8px 8px">${o.color} / ${o.size}</td><td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace">${o.avg?o.avg.toLocaleString():'—'}</td></tr>`).join('');document.getElementById('modalCount').textContent=`전체 ${list.length}`;document.getElementById('modalCheckAll').checked=false;updateSelectedCount()}
+function renderModalRows(list){document.getElementById('modalProductRows').innerHTML=list.slice(0,200).map(o=>`<tr style="border-bottom:1px solid var(--n100,#F2F4F6)"><td style="padding:8px 8px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" data-avg="${o.avg}" onchange="updateSelectedCount()"></td><td style="padding:8px 8px;font-family:ui-monospace,monospace;font-size:12px">${o.sku}</td><td style="padding:8px 8px">${o.color} / ${o.size}</td><td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace">${o.avg?o.avg.toLocaleString():'—'}</td></tr>`).join('');document.getElementById('modalCount').textContent=`전체 ${list.length}`;document.getElementById('modalCheckAll').checked=false;updateSelectedCount()}
 function modalToggleAll(m){document.querySelectorAll('.modal-pick').forEach(c=>c.checked=m.checked);updateSelectedCount()}
 function updateSelectedCount(){document.getElementById('modalSelected').textContent='선택 '+document.querySelectorAll('.modal-pick:checked').length+'개'}
 function addSelected(){[...document.querySelectorAll('.modal-pick:checked')].forEach(cb=>{if(lines.some(l=>l.sku===cb.value))return;lines.push({sku:cb.value,qty:1,price:parseInt(cb.dataset.avg)||0,disc:0,tax:0})});renderLines();closeProductModal()}

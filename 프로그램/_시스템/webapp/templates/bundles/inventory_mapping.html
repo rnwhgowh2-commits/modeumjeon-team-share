@@ -80,7 +80,7 @@
     // [2026-08-06 사장님 확정] 「단독」은 코드 앞글자를 그대로 보여준 말이라 뜻이 안 통했다.
     //   실제 뜻 = 재고관리에만 있고 아직 팔 상품으로 안 만든 것 → 옵션매트릭스의
     //   「아직 상품 생성 안 함」과 같은 뜻. 화면 말을 한 벌로 맞춘다(어휘를 늘리지 않는다).
-    const standalone = inv.is_standalone ? '<span title="재고관리에만 있고, 아직 팔 상품으로 만들지 않은 것" style="background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E));padding:0px 4px;border-radius:0px;font-size:11px;margin-left:4px">상품 안 만듦</span>' : '';
+    const standalone = inv.is_standalone ? '<span title="재고관리에만 있고, 아직 팔 상품으로 만들지 않은 것" style="background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E));padding:0px 4px;border-radius:0px;font-size:12px;margin-left:4px">상품 안 만듦</span>' : '';
     return `<span style="font-family:ui-monospace,monospace">${escHtml(inv.sku)}</span>${standalone} · ${escHtml(inv.model_name || inv.model_code)} · ${escHtml(inv.color || '-')}/${escHtml(inv.size || '-')} · ${stock}`;
   }
 
@@ -99,7 +99,7 @@
 
     const candList = candidates[bopt.canonical_sku] || [];
     const candBtn = candList.length
-      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:var(--연한-파랑,#EFF6FF);border:1px solid var(--연한-파랑,#BFDBFE);color: var(--글자-파랑, var(--primary,#1E40AF));padding:4px 8px;border-radius:0px;font-size:11px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
+      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:var(--연한-파랑,#EFF6FF);border:1px solid var(--연한-파랑,#BFDBFE);color: var(--글자-파랑, var(--primary,#1E40AF));padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
       : '';
 
     const ucolor = bopt.color || '-';
