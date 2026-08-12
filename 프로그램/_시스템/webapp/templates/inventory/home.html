@@ -8,7 +8,7 @@
   {# 박스히어로 1:1 헤더 — 제목+ⓘ + 우측 [+제품 추가][▾][데이터 관리][매트릭스 R2] #}
   <div id="iv-head" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
     <h1 style="font-size:40px;font-weight:600;margin:0;color:#292A2F">제품목록</h1>{# [2026-08-06 사장님 확정] 전 탭 공통 40·600 #}
-    <span title="우리 보유 옵션 전체 — SKU·바코드·브랜드·모델명·색상·사이즈·평균매입가·총재고·위치별 재고" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color: var(--글자-희미, #8F91A0);font-size:11px;font-weight:700;cursor:help">i</span>
+    <span title="우리 보유 옵션 전체 — SKU·바코드·브랜드·모델명·색상·사이즈·평균매입가·총재고·위치별 재고" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color: var(--글자-희미, #8F91A0);font-size:12px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <a href="{{ url_for('inventory.data_items') }}#new" style="background:#4F67FF;color:#fff;padding:7px 14px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">+ 제품 추가</a>
       <button type="button" onclick="document.getElementById('headerMore').classList.toggle('open')" style="background:#4F67FF;color:#fff;padding:7px 8px;border:none;border-radius:5px;font-size:12px;cursor:pointer;font-weight:700">▾</button>
@@ -213,7 +213,7 @@
             '<div style="flex-shrink:0">'+imgEl+'</div>' +
             '<div style="flex:1;min-width:0">' +
               '<div style="font-size:13.5px;color:#191F28;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3">'+esc(o.name||o.sku)+'</div>' +
-              '<div style="font-size:11.5px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(metaStr)+'</div>' +
+              '<div style="font-size:12px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(metaStr)+'</div>' +
             '</div>' +
             '<div style="flex-shrink:0;font-weight:600;font-family:ui-monospace,monospace;font-size:14px;color:'+stockColor+';min-width:38px;text-align:right">'+o.stock+'</div>';
           frag.appendChild(row);
@@ -288,14 +288,14 @@
       {# 헤더: 묶어보기 + 정렬 #}
       <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #E5E8EB;background:#fff">
         <a href="?{% if in_stock_only %}in_stock=1&{% endif %}{% if search_q %}q={{ search_q }}&{% endif %}{% if not group_by_model %}group_by_model=1{% endif %}" style="font-size:13.5px;color:#191F28;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;gap:5px">
-          묶어보기 <span style="font-size:11px;color:#6B7684">▾</span>
+          묶어보기 <span style="font-size:12px;color:#6B7684">▾</span>
         </a>
         <button type="button" title="정렬" style="background:transparent;border:0;color:#6B7684;cursor:pointer;font-size:14px;padding:4px 8px">↕</button>
       </div>
 
       {# 카운트 #}
       <div style="padding:8px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:12px;display:flex;justify-content:space-between;align-items:center">
-        <span style="color:#191F28;font-weight:600">{{ '{:,}'.format(stats.total) }}개 품목{% if stats.shown_limited %} <span style="color:#FF8E3C;font-size:11px">· 상위 {{ '{:,}'.format(stats.shown) }}개 표시</span>{% endif %}</span>
+        <span style="color:#191F28;font-weight:600">{{ '{:,}'.format(stats.total) }}개 품목{% if stats.shown_limited %} <span style="color:#FF8E3C;font-size:12px">· 상위 {{ '{:,}'.format(stats.shown) }}개 표시</span>{% endif %}</span>
         <span style="color:#6B7684">총 <b style="color:#191F28;font-weight:700">{{ '{:,}'.format(stats.total_stock) }}</b></span>
       </div>
 
@@ -347,7 +347,7 @@
             {# 제품명 + 메타 #}
             <div style="flex:1;min-width:0">
               <div style="font-size:13.5px;color:#191F28;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3">{{ _pname }}</div>
-              <div style="font-size:11.5px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _meta_parts | join(' / ') }}</div>
+              <div style="font-size:12px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _meta_parts | join(' / ') }}</div>
             </div>
             {# 재고 수량 #}
             <div style="flex-shrink:0;font-weight:600;font-family:ui-monospace,monospace;font-size:14px;color:{% if _rt > 0 %}#191F28{% else %}#9CA3AF{% endif %};min-width:38px;text-align:right">{{ _rt }}</div>
@@ -377,7 +377,7 @@
         {% endif %}
         <div style="flex:1;min-width:0">
           <div style="font-size:14px;color:#191F28;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _d_pname }}</div>
-          <div style="font-size:11.5px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _d_meta }}</div>
+          <div style="font-size:12px;color:#6B7684;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _d_meta }}</div>
         </div>
         <div style="flex-shrink:0;display:flex;align-items:center;gap:6px">
           <span style="font-weight:700;font-family:ui-monospace,monospace;font-size:15px;color:{% if (d.realtime_stock or 0) > 0 %}#191F28{% else %}#9CA3AF{% endif %}">{{ d.realtime_stock or 0 }}</span>
@@ -595,7 +595,7 @@
     th.style.whiteSpace = 'nowrap';
     var span = document.createElement('span'); span.textContent = label;
     var arrow = document.createElement('span'); arrow.className = 'sort-arrow';
-    arrow.style.cssText = 'color:#3182F6;font-size:11px';
+    arrow.style.cssText = 'color:#3182F6;font-size:12px';
     var fbtn = document.createElement('span'); fbtn.className = 'filter-btn';
     fbtn.textContent = ' ▾';
     fbtn.title = '필터';
@@ -721,7 +721,7 @@
     <div style="padding:18px 22px">
       <div style="background:#EFF6FF;border:1px solid #BCD2FF;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#1E3A8A">
         <strong>📦 선택된 옵션:</strong> <span id="bbm_count">0</span>건<br>
-        <span id="bbm_preview" style="font-size:11.5px;color:#3B4DD1"></span>
+        <span id="bbm_preview" style="font-size:12px;color:#3B4DD1"></span>
       </div>
       <div style="margin-bottom:10px">
         <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">모음전 이름 <span style="color:#DC2626">*</span></label>
@@ -741,7 +741,7 @@
         <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">품번 (선택)</label>
         <input id="bbm_article_no" type="text" placeholder="예: FV5420-002 (영숫자+하이픈)" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace">
       </div>
-      <div id="bbm_axes_preview" style="background:#F9FAFB;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11.5px">
+      <div id="bbm_axes_preview" style="background:#F9FAFB;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px">
         <div style="font-weight:700;color:#191F28;margin-bottom:6px">🪄 자동 추론 단계 설계</div>
         <div id="bbm_axes_body" style="color:#4E5968"></div>
       </div>
