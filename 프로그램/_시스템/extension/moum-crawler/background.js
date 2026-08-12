@@ -2834,12 +2834,32 @@ async function _listingScanOnePage(url, rule) {
       try {
         const probe = await chrome.scripting.executeScript({
           target: { tabId }, args: [rule.sel],
-          func: (s) => ({ 링크수: document.querySelectorAll('a[href]').length,
-                          선택자수: (() => { try { return document.querySelectorAll(s).length; } catch (e) { return -1; } })(),
-                          제목: (document.title || '').slice(0, 40) }),
+          func: (s) => {
+            // 🔴 「링크는 있는데 우리 선택자엔 0개」까지 알아도 **고칠 수가 없다** —
+            //   그 화면의 링크가 어떤 모양인지를 모르기 때문이다. SSG 는 브라우저
+            //   도구로 열 수 없어(정책 차단) 내 눈으로 못 본다 → 확장이 대신 본다.
+            //   ★ 링크 주소를 통째로 보내지 않는다. **경로 모양만** 센다
+            //     (숫자는 `#` 로 뭉갠다) — 어느 모양이 상품인지 고르기엔 충분하다.
+            const cnt = {};
+            document.querySelectorAll('a[href]').forEach((a) => {
+              let p;
+              try { p = new URL(a.getAttribute('href'), location.href).pathname; }
+              catch (e) { return; }
+              p = p.replace(/\d+/g, '#');
+              cnt[p] = (cnt[p] || 0) + 1;
+            });
+            const top = Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x]).slice(0, 5)
+              .map((k) => k + '×' + cnt[k]);
+            return { 링크수: document.querySelectorAll('a[href]').length,
+                     선택자수: (() => { try { return document.querySelectorAll(s).length; } catch (e) { return -1; } })(),
+                     제목: (document.title || '').slice(0, 40),
+                     링크모양: top.join(' , ') };
+          },
         });
         const d = probe && probe[0] && probe[0].result;
-        if (d) got.diag = '0건(' + d.제목 + ' · 링크 ' + d.링크수 + ' · 선택자 ' + d.선택자수 + ')';
+        if (d) got.diag = '0건(' + d.제목 + ' · 링크 ' + d.링크수
+          + ' · 선택자 ' + d.선택자수
+          + (d.링크모양 ? ' · 많은 모양 ' + d.링크모양 : '') + ')';
       } catch (e) {}
     }
     return got || { ids: [], capped: false };
