@@ -126,6 +126,34 @@ class EsmOps:
             resp = resp["data"]          # 봉투를 쓰는 응답 형태 대응
         return resp if isinstance(resp, dict) else {}
 
+    def _option_rows(self) -> list[tuple[str, object]]:
+        """옵션 API(esm.26)가 주는 **진짜 옵션 식별자(optSeq)** 와 그 사이트 재고.
+
+        🔴 [2026-08-08] 여기 없이 상품 상세만 읽고 `"__base__"` 라는 **우리가 지어낸
+           이름**을 재고 API 에 넘겼다 → 마켓이 대상 옵션을 못 찾아 재고가 통째로 실패.
+           재고를 쓰는 API 가 요구하는 열쇠는 그 API 로 읽어야 한다.
+        옵션이 없으면 빈 목록 — 그때는 **본품 재고 API** 를 쓴다(옵션 API 대상이 아님).
+        """
+        col, _ = self._cols               # 'Iac' / 'Gmkt'
+        try:
+            from shared.platforms.esm.inventory import (
+                _ci_get, _find_option_details, _option_id_of,
+            )
+            env = self.client.request(method="GET", path=self._path("options"))
+            details = _find_option_details(env) or []
+        except Exception:  # noqa: BLE001 — 못 읽으면 옵션 없음이 아니라 '모름'
+            return []
+        out = []
+        for d in details:
+            if not isinstance(d, dict):
+                continue
+            oid = _option_id_of(d)
+            if not oid:
+                continue                   # 식별자를 모르면 그 옵션은 건드리지 않는다
+            qty = _ci_get(d, "qty") or {}
+            out.append((oid, qty.get(col) if isinstance(qty, dict) else None))
+        return out
+
     def snapshot(self) -> Snapshot:
         price_col, _ = self._cols
         g = self._get()
@@ -146,14 +174,25 @@ class EsmOps:
                     extra.append(u)
             imgs = (rep,) + tuple(extra)
 
-        options = ((_BASE_STOCK_ID, stock, None),) if stock is not None else ()
+        # 🔴 재고를 쓰는 API 가 요구하는 열쇠(optSeq)는 **그 API 로 읽는다**.
+        #    상품 상세만 읽고 이름을 지어내면 대상 옵션을 못 찾아 통째로 실패한다.
+        opt_rows = self._option_rows()
+        if opt_rows:
+            oid, oqty = opt_rows[0]
+            options = ((oid, oqty if oqty is not None else stock, None),)
+        elif stock is not None:
+            options = ((_BASE_STOCK_ID, stock, None),)   # 본품만 — 본품 재고 API 로 간다
+        else:
+            options = ()
 
         missing = tuple(a for a, v in (("name", name), ("sale_price", price),
                                        ("detail_html", html), ("image_urls", imgs))
                         if v is None)
         # 🔴 원래 재고가 규격 밖(0 등)이면 **원복할 값이 무효**라 왕복이 성립하지 않는다.
         #    시험했다가 원복에서 400 이 나면 마켓에 시험값이 그대로 남는다 → 아예 안 건드린다.
-        if stock is None or not (_STOCK_MIN <= int(stock) <= _STOCK_MAX):
+        #    판정은 **원복할 값**(= 우리가 실제로 되돌려 보낼 옵션 재고)으로 한다.
+        cur_stock = options[0][1] if options else None
+        if cur_stock is None or not (_STOCK_MIN <= int(cur_stock) <= _STOCK_MAX):
             missing = missing + ("stock",)
         # 🔴 상품명 수정 불가 상품 — 보내도 조용히 무시되므로 시험 대상에서 뺀다.
         # 🔴 그리고 상품명 축은 **기본 끔**(2026-08-07 사고 — 재심사 유발로 상품이 잠김).
@@ -175,7 +214,8 @@ class EsmOps:
         return _dig(self._get(), "isSell", sell_col) is not False
 
     # ── 쓰기 ────────────────────────────────────────────────────────────────
-    def apply(self, changes: dict, *, _price_fn=None, _stock_fn=None) -> None:
+    def apply(self, changes: dict, *, _price_fn=None, _stock_fn=None,
+              _base_stock_fn=None) -> None:
         """🔴 [2026-08-07] **가격·재고는 전용 API**, 3축만 전체 상품수정 PUT.
 
         전체 PUT(esm.20)으로 가격을 바꿨더니 **재심사가 돌아 브랜드 상품이 잠겼다**.
@@ -206,13 +246,25 @@ class EsmOps:
                 raise ValueError(
                     f"ESM 재고는 {_STOCK_MIN}~{_STOCK_MAX:,} 범위여야 합니다: {v} "
                     f"(0 은 규격상 무효 — 품절은 isSoldOutSite/isSell 로 표현합니다)")
-            fn = _stock_fn
-            if fn is None:
-                from shared.platforms.esm.inventory import update_stock as fn
-            snap = self.snapshot()
-            opt_id = str(snap.options[0][0]) if snap.options else _BASE_STOCK_ID
-            if not fn(str(self.goods_no), self.market, opt_id, v, client=self.client):
-                raise RuntimeError("ESM 재고 수정 실패")
+            opt_rows = self._option_rows()
+            if opt_rows:
+                # 옵션 상품 — 옵션 API(esm.26)에 **그 API 가 준 optSeq** 로 보낸다.
+                opt_id = str(opt_rows[0][0])
+                fn = _stock_fn
+                if fn is None:
+                    from shared.platforms.esm.inventory import update_stock as fn
+                if not fn(str(self.goods_no), self.market, opt_id, v, client=self.client):
+                    raise RuntimeError(
+                        f"ESM 재고 수정 실패 — 옵션 {opt_id} (goodsNo={self.goods_no}, "
+                        f"{self.market}). 옵션 API 가 거부했습니다.")
+            else:
+                # 본품만 판매하는 상품 — 옵션 API 대상이 아니다(문서 /194 명시).
+                fn = _base_stock_fn
+                if fn is None:
+                    from shared.platforms.esm.inventory import update_base_stock as fn
+                if not fn(str(self.goods_no), self.market, v, client=self.client):
+                    raise RuntimeError(
+                        f"ESM 본품 재고 수정 실패 (goodsNo={self.goods_no}, {self.market})")
 
         # ③ 상품명·상세·이미지 — 전용 API 가 없다. 전체 PUT 뿐이라 재심사 위험이 있다.
         heavy = [a for a in ("name", "detail_html", "image_urls") if a in changes]
