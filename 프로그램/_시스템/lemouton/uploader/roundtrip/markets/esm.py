@@ -94,6 +94,9 @@ def _put(d, value, *keys):
 
 @dataclass
 class EsmOps:
+    #: 러너가 읽어 가는 재고 허용범위 — 0 은 규격상 무효(품절은 플래그로 표현).
+    STOCK_BOUNDS = (_STOCK_MIN, _STOCK_MAX)
+
     goods_no: str
     market: str
     client: object

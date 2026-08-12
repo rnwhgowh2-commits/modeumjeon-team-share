@@ -1675,6 +1675,8 @@ def api_roundtrip():
             axes=axes or AXES, on_sale_fn=ops.on_sale,
             image_url_fn=image_fn, approval_axes=approval_axes,
             allow_on_sale=(str(p.get("allow_on_sale") or "") == "1"),
+            # 마켓이 정한 재고 범위 — 상한이면 +1 대신 -1 로 흔든다(2026-08-12 11번가).
+            stock_bounds=getattr(ops, "STOCK_BOUNDS", None),
         )
     except Exception as e:  # noqa: BLE001
         import traceback
