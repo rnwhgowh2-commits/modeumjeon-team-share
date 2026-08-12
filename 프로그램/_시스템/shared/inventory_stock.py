@@ -8,6 +8,19 @@
 성능
 - get_stock_batch(skus) 로 한 번에 N SKU 조회 (N+1 회피)
 - get_stock_summary() 도 1 쿼리로 전체 통계 계산
+
+🔴 조정(adjust)의 뜻 — **증감분(델타)이다** (2026-08-13 통일)
+  화면·모바일은 「실사해 보니 N개」를 받지만, 원장에는 **그 차이(N − 지금재고)** 를 남긴다.
+  그래야 ① 합(SUM)으로 셀 수 있고 ② **위치별 재고와 합이 맞는다**
+  (절대값으로 남기면 A창고 실사가 B창고 재고까지 덮어 버린다).
+
+  ⚠️ 예전엔 읽는 쪽 두 곳이 정반대였다 — `cogs.py` 절대값 / 여기 델타.
+    「입고 100 → 실사 5」에서 5 와 105 가 동시에 나왔다(100개 과대).
+    쓰는 쪽도 갈려 있었다 — 모바일·`api_inventory_link` 는 델타,
+    `inbound.create_adjustment` 만 절대값. 지금은 **전부 델타**이고
+    규칙은 `fold_tx_rows()` 한 곳뿐이다(`recalc_stock_total` 도 이걸 쓴다).
+  🔴 창구는 여전히 「결과 수량」을 받는다 — 작업자가 뺄셈하게 만들지 않는다.
+     차이 계산은 `create_adjustment` 안에서 한다.
 """
 from __future__ import annotations
 
@@ -33,6 +46,32 @@ def _stock_expr():
         (InventoryTx.tx_type == 'move', -func.abs(InventoryTx.qty)),
         else_=0,
     )
+
+
+def fold_tx_rows(rows) -> int:
+    """거래를 차례대로 접어 재고 하나를 낸다 — **재고 규칙의 단일 진실 원천.**
+
+    `rows` = (tx_type, qty) 를 **created_at 오름차순**으로. 부호는 저장 방식이
+    갈려 있어(데스크탑 양수 / 모바일 음수) `abs()` 로 통일한다.
+
+    · in     → +
+    · out    → −
+    · adjust → **더한다(증감분·부호 그대로)** — 위 모듈 독스트링 참조
+    · move   → 총합에는 영향 없음(위치만 바뀐다)
+
+    🔴 `cogs.recalc_stock_total` 도 이 함수를 쓴다. 두 곳이 각자 세면 갈린다 —
+       실제로 갈려 있던 것을 여기로 합친 것이다.
+    """
+    total = 0
+    for tx_type, qty in rows:
+        q = int(qty or 0)
+        if tx_type == 'in':
+            total += abs(q)
+        elif tx_type == 'out':
+            total -= abs(q)
+        elif tx_type == 'adjust':
+            total += q                     # 조정 = **증감분**(부호 그대로)
+    return total
 
 
 def _product_sku_map(session, option_skus) -> dict[str, str]:

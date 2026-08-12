@@ -24,13 +24,19 @@ from dataclasses import dataclass
 
 from lemouton.uploader.roundtrip.snapshot import Snapshot
 
-#: 스펙 미확보라 되돌려 쓸 수 없는 축 — 읽히더라도 시험 대상에서 뺀다.
-_UNWRITABLE = ("name", "detail_html", "image_urls")
+#: 전용 수정 API 가 없어 되돌려 쓸 수 없는 축 — 읽히더라도 시험 대상에서 뺀다.
+#: 🔴 상품명·이미지는 상품수정(PUT /product/{prdNo}) 뿐인데 문서 원문이
+#:    「기존 데이터는 사라지고 수정되는 정보로 교체됩니다」 — **전체 교체**다.
+#:    필수 30여 개를 하나도 안 틀리고 되돌려 보내야 해서 위험 대비 실익이 없다.
+#: 🎯 상세는 전용 API 가 따로 있어 여기서 뺐다(eleven11.903/904).
+_UNWRITABLE = ("name", "image_urls")
 
-#: 🔴 [2026-08-12 라이브 실측] 재고 상한. 9,999 인 상품에 10,000 을 보냈더니
-#:    「옵션재고 번호 …의 수량 업데이트 실패」로 거부됐다(prd 9532353519).
-#:    상한이면 +1 대신 -1 로 흔든다(runner 가 처리한다).
-STOCK_BOUNDS = (0, 9999)
+#: ⚠️ [2026-08-12 오보 정정] 예전에 여기 `STOCK_BOUNDS = (0, 9999)` 가 있었다.
+#:    재고 전송 실패를 「수량이 상한을 넘었다」로 오진했을 때 **내가 지어낸 값**이다.
+#:    진짜 원인은 재고번호(prdStckNo) 자리에 옵션번호(mixOptNo '1,2')를 넣은 것이었고,
+#:    문서 어디에도 재고 상한은 없다(예제 재고 500·62·99).
+#:    근거 없는 제약을 코드·지도에 적으면 **되는 것도 안 하게 된다.**
+STOCK_BOUNDS = None
 
 
 @dataclass
@@ -44,6 +50,8 @@ class Eleven11Ops:
     _get_price: object = None
     _update_price: object = None
     _update_stock: object = None
+    _get_detail: object = None
+    _update_detail: object = None
 
     # ── 되읽기 ──────────────────────────────────────────────────────────────
     def _stocks(self):
@@ -66,9 +74,20 @@ class Eleven11Ops:
         except Exception:  # noqa: BLE001
             return None
 
+    def _detail(self):
+        """상세 HTML. 🎯 상품조회엔 안 실려 온다 — **전용 API**(eleven11.903)로 읽는다."""
+        fn = self._get_detail
+        if fn is None:
+            from shared.platforms.eleven11.detail_cont import get_detail_html as fn
+        try:
+            return fn(str(self.product_id), client=self.client)
+        except Exception:  # noqa: BLE001 — 못 읽으면 확인불가(빈 문자열로 지어내지 않는다)
+            return None
+
     def snapshot(self) -> Snapshot:
         rows = self._stocks()
         price = self._price()
+        detail = self._detail()
 
         first = rows[0] if rows else {}
         stock = first.get("stock")
@@ -83,11 +102,14 @@ class Eleven11Ops:
             missing = missing + ("sale_price",)
         if stock is None or not options:
             missing = missing + ("stock",)
+        if detail is None:
+            missing = missing + ("detail_html",)
 
         return Snapshot(market="eleven11", product_id=str(self.product_id),
-                        name=None, detail_html=None, image_urls=None,
+                        name=None, detail_html=detail, image_urls=None,
                         sale_price=price, options=options, missing=missing,
-                        raw={"stocks": rows, "price": price})
+                        raw={"stocks": rows, "price": price,
+                             "detail_len": len(detail or "") if detail else None})
 
     def on_sale(self) -> bool:
         """11번가 목록 조회가 상태를 주지만 상세엔 없다 — 모르면 판매중으로 본다(안전 쪽)."""
@@ -102,8 +124,18 @@ class Eleven11Ops:
         blocked = [a for a in _UNWRITABLE if a in changes]
         if blocked:
             raise RuntimeError(
-                f"11번가는 {blocked} 축의 수정 API 스펙이 미확보입니다 — "
-                f"되읽지 못하는 값을 보내면 원복됐는지 확인할 수 없어 보내지 않습니다.")
+                f"11번가는 {blocked} 축에 전용 수정 API 가 없습니다 — 상품수정(PUT)뿐인데 "
+                f"그건 **전체 교체**라(문서 원문: 기존 데이터는 사라지고 교체됩니다) "
+                f"필수 30여 개를 하나도 안 틀리고 되돌려 보내야 합니다. 보내지 않습니다.")
+
+        if "detail_html" in changes:
+            # 🎯 전용 API — 상품수정(전체 교체)을 피한다.
+            fn = self._update_detail
+            if fn is None:
+                from shared.platforms.eleven11.detail_cont import update_detail_html as fn
+            # ⚠️ 성공 응답이 빈 <Product/> 라 여기선 성공을 판정할 수 없다.
+            #    러너가 되읽어 확인한다 — 그게 유일한 검증 수단이다.
+            fn(str(self.product_id), str(changes["detail_html"]), client=self.client)
 
         if "sale_price" in changes:
             from shared.platforms.price_guard import assert_live_sale_price

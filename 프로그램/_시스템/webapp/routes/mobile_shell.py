@@ -185,7 +185,9 @@ MOBILE_READY_URLS: set[str] = {
 #  (/audit 처럼 메뉴 줄 없는 하위 화면을 넣으면 그 시험이 막는다 — 의도된 문지기).
 #  ★ MOBILE_READY_URLS 의 부분집합이어야 한다(같은 글자 그대로 — 시험이 지킨다).
 MOBILE_READY_MENU_URLS: set[str] = {
-    "/alerts", "/trash",
+    # [2026-08-12 사장님 확정 ㉠] "/trash" 를 뺐다 — PC 메뉴에서 없앴다.
+    #   여기 남겨 두면 「PC 메뉴에 없는 주소」라 시험이 막는다(의도된 문지기).
+    "/alerts",
     "/catalog/", "/data-guide", "/live-send-test", "/reports/notion-todo",
     "/templates", "/policies", "/policies/apply", "/accounts/upload",
     "/market-send", "/automation", "/bulk/",

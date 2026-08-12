@@ -201,6 +201,9 @@
   .sgmap #syncdash tbody tr.r{border-bottom:1px solid var(--line2,#F4F6F8);cursor:pointer;}
   .sgmap #syncdash tbody tr.r:hover td{background:var(--n100,#FBFCFD);}
   .sgmap #syncdash td{padding:12px 8px;vertical-align:top;}
+  /* 카탈로그 글의 `코드`·**굵게** 표기 (rich() 가 만든다 — 없으면 별표가 글자로 보인다) */
+  .sgmap #syncdash code{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:var(--line2,#F4F6F8);border:1px solid var(--line2,#E8ECEF);border-radius:6px;padding:0 4px;color:var(--ink,#2A3441);word-break:break-all;}
+  .sgmap #syncdash strong{font-weight:700;color:var(--ink,#191F28);}
   .sgmap #syncdash .area{white-space:nowrap;font-weight:600;color:var(--글자-기본,#4E5968);}
   .sgmap #syncdash .layer{white-space:nowrap;color: var(--글자-희미, var(--faint,#9AA3AD));}
   .sgmap #syncdash .src{white-space:nowrap;font-weight:700;color:var(--글자-기본,#4E5968);}
@@ -1293,6 +1296,15 @@
 (function(){
   // ── 동기화 대시보드 helper functions ──
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  // 카탈로그 글은 원문(.md)과 같은 표기를 쓴다 — `코드` 와 **굵게** 를 살려 그린다.
+  //   안 그러면 별표·백틱이 글자 그대로 화면에 뜬다(2026-08-12 실측 18항목·19줄).
+  //   🔴 반드시 esc() 로 먼저 막고 나서 태그를 넣는다. 순서가 바뀌면 카탈로그 글이 HTML 로 실행된다.
+  //   🔴 치환값은 함수형으로 넣는다 — 문자열형이면 본문의 `$&` 같은 글자가 특수 기호로 삼켜진다.
+  function rich(s){
+    return esc(s)
+      .replace(/`([^`]+)`/g, function(m,g){return '<code>'+g+'</code>';})
+      .replace(/\*\*([^*]+)\*\*/g, function(m,g){return '<strong>'+g+'</strong>';});
+  }
   function hasCode(e){return !!(e.code&&e.code.file&&e.code.func);}
   function bucket(e){
     if(e.crawl==='no')return 'no';                 // 코드 미반영(진짜 손볼 곳)
@@ -1342,12 +1354,12 @@
     }).join('');
     return '<tr class="r"><td class="area">'+area+'</td><td class="layer">'+esc(lay)+'</td>'
       +'<td class="src">'+esc(e.src)+'</td>'
-      +'<td>'+esc(e.sy)+rsn+codeLine+'</td>'
+      +'<td>'+rich(e.sy)+rsn+codeLine+'</td>'
       +'<td class="ct">'+crawlCell+'</td><td class="ct">'+gl(e.doc)+'</td><td class="ct">'+gl(e.view)+'</td>'
       +'<td class="ar">▸</td></tr>'
       +'<tr class="det"><td colspan="8"><div class="inner">'
-      +'<div class="dl"><span class="dk">원인</span><span>'+esc(e.cz)+'</span></div>'
-      +'<div class="dl"><span class="dk">재발방지</span><span>'+esc(e.pv)+'</span></div>'
+      +'<div class="dl"><span class="dk">원인</span><span>'+rich(e.cz)+'</span></div>'
+      +'<div class="dl"><span class="dk">재발방지</span><span>'+rich(e.pv)+'</span></div>'
       +(sh?'<div class="note warn">🔗 공유 코드 — '+esc(sh.join('·'))+' 함께 영향. 수정 시 이 소싱처들 회귀 재크롤 필수.</div>':'')
       +'<div class="rev"><div class="rev-t">rev</div>'+revH+'</div>'
       +'</div></td></tr>';
@@ -1356,9 +1368,9 @@
     var rules=items.filter(function(e){return e.rule;});
     if(!rules.length)return '';
     var rows=rules.map(function(e){
-      return '<tr><td class="rl-n">🛡️ '+esc(e.sy)+'</td>'
-        +'<td>'+esc(e.cz)+'</td>'
-        +'<td class="rl-w">'+esc(e.pv)+'</td></tr>';
+      return '<tr><td class="rl-n">🛡️ '+rich(e.sy)+'</td>'
+        +'<td>'+rich(e.cz)+'</td>'
+        +'<td class="rl-w">'+rich(e.pv)+'</td></tr>';
     }).join('');
     return '<div class="sech rule"><span class="d"></span>철칙 · 방향 복귀 기준 '
       +'<span class="c">'+rules.length+'</span><span class="hint">— 어기면 그 에러가 재발</span></div>'

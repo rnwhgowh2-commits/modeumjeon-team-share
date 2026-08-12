@@ -110,9 +110,13 @@ _STAGE_SPEC: list[tuple] = [
     ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs', 'i_settle_plan']),
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
     ('s_inventory', '🏷', '재고관리',      '#10B981', ['i_inventory']),
+    # [2026-08-12 사장님 확정 ㉠] 「휴지통·변경 이력」(i_trash) 을 뺐다 — 휴지통을 안 쓴다.
+    #   🔴 목록에서도 빼야 한다. _REMOVED_IDS 에만 넣으면 「없앤 것이 아직 메뉴에 있다」고
+    #      감시 시험이 잡는다(둘이 어긋나면 저장본·마이그레이션이 갈린다).
+    #   ★ main 이 같은 줄에 더한 'i_templates' 는 **그대로 살린다** — 내 변경은 i_trash 하나뿐.
     ('s_etc',       '⚙️', '기타',          '#6B7280', ['i_templates', 'i_crawl_guide', 'i_mk_acct',
                                                        'i_live_send_test',
-                                                       'i_trash', 'i_alerts', 'i_data_guide',
+                                                       'i_alerts', 'i_data_guide',
                                                        'i_notion_report']),
 ]
 
@@ -127,6 +131,11 @@ _REMOVED_IDS: set[str] = {
     'i_new', 'i_migrate', 'i_sets_dash',
     # [2026-08-02] 하위탭 3개로 갈라짐 → 합쳐져 있던 옛 항목. 저장본에 남아 있어도 안 뜬다.
     'i_optgen',
+    # [2026-08-12 사장님 확정] 휴지통을 안 쓴다 — 지우기는 그 자리에서 진짜로 지운다.
+    #   🔴 이 메뉴엔 「변경 이력」도 같이 달려 있었다(누가 언제 무엇을 고쳤나 59건 실측).
+    #      사장님이 둘 다 빼기로 확정(㉠). 화면만 감추는 것이라 /trash·/audit 주소로는
+    #      여전히 열린다 — 기록 자체는 지우지 않는다.
+    'i_trash',
 }
 
 #: 「옵션생성 & 상품생성」 항목 id — 옛것(합본) + 지금것(하위탭 3개).

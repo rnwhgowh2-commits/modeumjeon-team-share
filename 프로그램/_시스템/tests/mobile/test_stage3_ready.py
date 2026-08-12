@@ -100,10 +100,15 @@ def test_READY_주소가_전부_진짜_라우트다(flask_app):
 
 def test_배치1_세_주소가_READY에_있다():
     from webapp.routes.mobile_shell import MOBILE_READY_MENU_URLS, MOBILE_READY_URLS
+    # 화면 자체는 셋 다 폰에서 잘 보이게 해 뒀다 — 주소로 열면 그대로 쓴다.
     assert {'/alerts', '/trash', '/audit'} <= MOBILE_READY_URLS
     # 메뉴 배지 줄도 고정 목록으로 못 박는다 — 아래 배지 시험(④)은 집합을 그대로
     # 돌기 때문에, 집합에서 줄이 빠지면 검사도 같이 빠져 조용히 약해진다.
-    assert {'/alerts', '/trash'} <= MOBILE_READY_MENU_URLS
+    #   🔴 [2026-08-12 사장님 확정 ㉠] '/trash' 는 뺐다 — PC 메뉴에서 없앴기 때문이다.
+    #     배지는 「메뉴 줄이 있는 화면」에만 붙는다. 메뉴에서 없앤 주소를 여기 남기면
+    #     「PC 메뉴에 없는 주소」라 짝 시험이 막는다.
+    assert {'/alerts'} <= MOBILE_READY_MENU_URLS
+    assert '/trash' not in MOBILE_READY_MENU_URLS,         '메뉴에서 없앤 주소가 배지 목록에 남아 있다'
 
 
 def test_배치2_주소가_READY에_있다():

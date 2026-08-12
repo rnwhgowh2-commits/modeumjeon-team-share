@@ -75,12 +75,20 @@
       <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
         <table class="og-tb og-c3">
-          <tr><th>번호</th><th>이름</th><th>브랜드</th><th class="r">옵션</th><th class="r"></th></tr>
+          {# [2026-08-12 사장님] 여러 개를 골라 한 번에 지우기 — 창고 물건이 88개나
+             쌓여 한 줄씩 지울 수 없다. 지우기는 되돌릴 수 없어 확인창에서 무엇을
+             지우는지 그대로 보여준다. #}
+          <tr><th class="og-pick"></th><th>번호</th><th>이름</th><th>브랜드</th>
+            <th class="r">옵션</th><th class="r"></th></tr>
           {% for b in boxes %}
           <tr class="og-row" data-href="/optgen/box/{{ b.code }}"
               data-brand="{{ b.brand or '' }}" data-name="{{ b.name }}" data-opts="{{ b.options }}"
               data-hid="{{ 1 if b.hid else 0 }}"
               data-find="{{ b.code }} {{ b.name }} {{ b.brand or '' }}">
+            {# [2026-08-13] 라벨로 감싼다 — 입력칸은 13px 뿐이라 여백을 눌러도 켜지게. #}
+            <td class="og-pick"><label><input type="checkbox" class="og-bk"
+                 data-code="{{ b.code }}" data-name="{{ b.name }}"
+                 data-opts="{{ b.options }}" aria-label="{{ b.name }} 고르기"></label></td>
             <td class="mono">{{ b.shown_code }}</td>
             <td><b>{{ b.name }}</b></td>
             <td>{{ b.brand or '—' }}</td>
@@ -96,6 +104,12 @@
           {% endfor %}
         </table>
       </div>
+    </div>
+    <div class="og-pickbar" id="og-delbar" hidden>
+      <span class="og-pickbar-n">고른 묶음 <b id="og-dn">0</b>개
+        · 안에 든 옵션 <b id="og-do">0</b>개<span class="og-pickbar-s">지우면 되돌릴 수 없습니다</span></span>
+      <button class="og-del-go" type="button" id="og-delgo">고른 묶음 지우기</button>
+      <button class="og-pclr" type="button" id="og-delclr">비우기</button>
     </div>
     {% else %}
     <div class="og-empty">아직 만든 옵션 매트릭스가 없습니다 —
@@ -120,11 +134,17 @@
          ①종류 → ②옵션축 → ③브랜드 → ④매트릭스의 이름. #}
       <label class="og-lb"><span class="og-step">1</span> 어떤 모음전인가요</label>
       <div class="og-rg" id="ob-kinds">
+        {# 🔴 [2026-08-13] `disabled` 종류는 **숨기지 않고 이유를 적는다.**
+           없애면 「빠뜨렸나」가 되고, 그냥 두면 골라서 틀린 데이터를 만든다. #}
         {% for p in axis_presets %}
-        <label class="og-rr{% if loop.first %} on{% endif %}" data-kind="{{ p.kind }}">
-          <input type="radio" name="ob-kind" value="{{ p.kind }}"{% if loop.first %} checked{% endif %}>
-          <span><b class="og-rt">{{ p.label }}</b>
-            <span class="og-rd">{{ p.desc }}</span></span>
+        <label class="og-rr{% if loop.first %} on{% endif %}{% if p.disabled %} off{% endif %}"
+               data-kind="{{ p.kind }}"{% if p.disabled %} data-off="1"
+               title="{{ blocked_axis_reason }}"{% endif %}>
+          <input type="radio" name="ob-kind" value="{{ p.kind }}"
+                 {%- if loop.first %} checked{% endif %}
+                 {%- if p.disabled %} disabled{% endif %}>
+          <span><b class="og-rt">{{ p.label }}{% if p.disabled %} <span class="og-soon">준비 중</span>{% endif %}</b>
+            <span class="og-rd">{% if p.disabled %}{{ blocked_axis_reason }}{% else %}{{ p.desc }}{% endif %}</span></span>
         </label>
         {% endfor %}
       </div>
@@ -208,9 +228,10 @@
               data-brand="{{ m.brand or '' }}"
               data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}"
               data-stage="{{ m.show }}">
-            <td class="og-pick"><input type="checkbox" class="og-ck"
+            {# [2026-08-13] 라벨로 감싼다 — 입력칸은 13px 뿐이라 여백을 눌러도 켜지게. #}
+            <td class="og-pick"><label><input type="checkbox" class="og-ck"
                  data-id="{{ m.id }}" data-name="{{ m.name }}"
-                 data-opts="{{ m.options }}" aria-label="{{ m.name }} 고르기"></td>
+                 data-opts="{{ m.options }}" aria-label="{{ m.name }} 고르기"></label></td>
             <td class="mono">{{ m.no }}</td>
             <td><b>{{ m.name }}</b></td>
             <td>{{ m.brand or '—' }}</td>
@@ -236,6 +257,11 @@
               {% if m.code %}
               <div class="og-menu" hidden>
                 <a class="og-mi" href="/optgen/box/{{ m.code }}">옵션 고치기 →</a>
+                {# [2026-08-12 사장님 확정 1안] 옵션함 쪽에 이미 있던 지우기를 여기에도.
+                   🔴 판정·막는 조건은 옵션함 지우기(api_delete_option_box)를 **그대로** 쓴다 —
+                      판매용 상품·만든 상품 있음·갈라진 묶음 있음이면 서버가 막고 까닭을 말한다. #}
+                <button class="og-mi og-mi-del" type="button" data-del="{{ m.code }}"
+                        data-name="{{ m.name }}" data-opts="{{ m.options }}">지우기</button>
               </div>
               {% endif %}
             </td>
@@ -346,6 +372,13 @@
   .og-rt{display:block;font-size:14px;font-weight:600}
   .og-rd{display:block;font-size:12px;color:var(--color-text-tertiary);
     line-height:1.5;margin-top:2px}
+  /* [2026-08-13] 아직 못 여는 종류 — 숨기지 않고 「준비 중」으로 말한다.
+     opacity 만 낮추면 왜 못 고르는지 알 수 없어, 이유 문구를 같이 띄운다. */
+  .og-rr.off{opacity:.55;cursor:not-allowed;background:var(--ap-g0,#FAFAFC)}
+  .og-rr.off:hover{border-color:var(--ap-g2,#E8E8ED)}
+  .og-rr.off input{cursor:not-allowed}
+  .og-soon{font-size:11px;font-weight:700;color:var(--글자-주황,#C93400);
+    background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 7px;margin-left:4px}
   .og-rr.on{border-color:var(--color-primary);background:var(--연한-파랑,rgba(0,113,227,.08))}
   .og-rr.on .og-rt{color:var(--color-primary)}
   .og-axes-none{font-size:12.5px;color:var(--color-text-tertiary);padding:8px 0}
@@ -477,6 +510,10 @@
   /* [2026-08-12 사장님 C1 확정] 체크칸 + 고른 묶음 띠 */
   .og-pick{width:1px;white-space:nowrap;text-align:center;padding-right:0}
   .og-pick input{margin:0;cursor:pointer}
+  /* [2026-08-13 감사] 체크 입력칸은 13×13px 뿐이라 손끝 목표(44px)에 한참 모자랐다.
+     라벨로 감싸 **여백을 눌러도 켜지게** 한다 — 마크업만 늘고 보이는 건 그대로. */
+  .og-pick label{display:inline-flex;align-items:center;justify-content:center;
+    min-width:32px;min-height:32px;margin:-9px;padding:9px;cursor:pointer}
   .og-pickbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
     background:var(--연한-파랑,rgba(0,113,227,.08));border:1px solid var(--color-border);
     border-radius:10px;padding:11px 14px}
@@ -485,6 +522,9 @@
   .og-pclr{border:1px solid var(--color-border);background:var(--surface,#fff);
     color:var(--color-text-secondary);border-radius:8px;padding:8px 12px;
     font-family:inherit;font-size:13px;cursor:pointer}
+  .og-del-go{background:var(--color-danger,#DC2626);color:#fff;border:0;border-radius:8px;
+    padding:8px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .og-del-go:disabled{opacity:.55;cursor:default}
   .og-actcell{position:relative;white-space:nowrap}
   /* [2026-08-05 사장님] ⋯(U+22EF)가 이 사이트 글꼴에서 빈칸으로 렌더돼 단추가
      안 보였다(전각 + 와 같은 부류·확대 캡처 실측). 어디서나 그려지는 가운뎃점
@@ -539,6 +579,17 @@
   .og-wrap { grid-template-columns: minmax(0, 1fr); }
   .og-b { min-height: 44px; }
   .og-more { min-height: 44px; padding: 0 12px; }
+  /* 🔴 [2026-08-13 감사 실측] 폰(375px)에서 **문서 전체가 146px 가로로 굴렀다.**
+     범인은 서랍(`.og-rail`) — `width:max-content` 라 가장 긴 상태 이름
+     「상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용」의 nowrap 폭(497px)이
+     그대로 화면 밖으로 나갔다(실측 scrollWidth 521 > clientWidth 375).
+     · 문구를 줄이거나 자르지 않는다 — 사장님이 지으신 말이고, 자르면 화면이 거짓말한다.
+     · `width:max-content` 자체도 안 건드린다(PC 규격 · test_screen_truthfulness).
+     → 폰에서만 **줄바꿈을 허용**한다. 두 줄이 되어도 글자는 다 보인다. */
+  .og-rail { width: auto; max-width: 100%; min-width: 0; }
+  .stg-row .lb { white-space: normal; }
+  /* 체크칸 손끝 목표 — 입력칸 자체는 13px 이라 라벨로 44px 를 만든다(감사 실측). */
+  .og-pick label { min-width: 44px; min-height: 44px; }
 }
 </style>
 
@@ -584,6 +635,8 @@
   }
   kindsBox.addEventListener('click', function (e) {
     var b = e.target.closest('.og-rr'); if (!b) return;
+    // [2026-08-13] 「준비 중」 종류는 고를 수 없다 — 서버도 400 으로 막는다(두 곳 같은 규칙).
+    if (b.getAttribute('data-off')) return;
     pickedKind = b.getAttribute('data-kind');
     // 종류를 바꾸면 축 고른 것은 버린다 — 남겨 두면 안 맞는 축이 딸려 간다.
     pickedAxes = null;
@@ -875,6 +928,70 @@
         })
         .catch(function (e) {
           mbErr.textContent = '만들지 못했습니다 — ' + e; b.disabled = false;
+        });
+    });
+  }
+
+  // ── [2026-08-12 사장님] 여러 묶음 골라 한 번에 지우기 ──────────────────
+  //   창고 물건이 88개나 쌓여 한 줄씩은 불가능하다.
+  //   🔴 되돌릴 수 없다 — 확인창에 **몇 개·옵션 몇 개**를 그대로 적고,
+  //      막힌 것이 있으면 왜 막혔는지 하나하나 알린다(조용히 건너뛰지 않는다).
+  var 고른함 = new Map();
+  var delbar = document.getElementById('og-delbar');
+  if (delbar) {
+    var dn = document.getElementById('og-dn'), doo = document.getElementById('og-do');
+    function drawDel() {
+      dn.textContent = 고른함.size;
+      var s = 0; 고른함.forEach(function (v) { s += (+v.opts || 0); });
+      doo.textContent = s;
+      delbar.hidden = 고른함.size === 0;
+    }
+    document.querySelectorAll('.og-bk').forEach(function (ck) {
+      ck.addEventListener('click', function (e) { e.stopPropagation(); });
+      ck.addEventListener('change', function () {
+        var c = ck.getAttribute('data-code');
+        if (ck.checked) 고른함.set(c, {name: ck.getAttribute('data-name'),
+                                       opts: ck.getAttribute('data-opts')});
+        else 고른함.delete(c);
+        drawDel();
+      });
+    });
+    document.getElementById('og-delclr').addEventListener('click', function () {
+      고른함.clear();
+      document.querySelectorAll('.og-bk').forEach(function (c) { c.checked = false; });
+      drawDel();
+    });
+    document.getElementById('og-delgo').addEventListener('click', function () {
+      var b = document.getElementById('og-delgo');
+      var 이름들 = [], 옵션합 = 0;
+      고른함.forEach(function (v) { 이름들.push(v.name); 옵션합 += (+v.opts || 0); });
+      var NL = String.fromCharCode(10);   // 확인창 줄바꿈 (따옴표 안 escape 안 씀)
+      var 줄 = ['묶음 ' + 고른함.size + '개를 지웁니다.',
+                '안에 있는 옵션 ' + 옵션합 + '개와 그 재고 기록도 같이 사라지고,',
+                '되돌릴 수 없습니다.', ''];
+      줄 = 줄.concat(이름들.slice(0, 6));
+      if (이름들.length > 6) 줄.push('… 외 ' + (이름들.length - 6) + '개');
+      줄.push('', '지울까요?');
+      if (!confirm(줄.join(NL))) return;
+      b.disabled = true; b.textContent = '지우는 중…';
+      fetch('/optgen/api/option-box/bulk-delete', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({codes: Array.from(고른함.keys())}),
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j.ok) { alert(j.error || '지우지 못했습니다.'); b.disabled = false; b.textContent = '고른 묶음 지우기'; return; }
+          var NL2 = String.fromCharCode(10);
+          var m = j.deleted + '개를 지웠습니다.';
+          if (j.failed) {
+            m += NL2 + NL2 + '지우지 못한 ' + j.failed + '개 —' + NL2 +
+                 j.errors.slice(0, 8).map(function (e) {
+                   return '· ' + e.code + ' : ' + e.error; }).join(NL2);
+          }
+          alert(m);
+          location.reload();
+        })
+        .catch(function (e) {
+          alert('지우지 못했습니다 — ' + e); b.disabled = false; b.textContent = '고른 묶음 지우기';
         });
     });
   }

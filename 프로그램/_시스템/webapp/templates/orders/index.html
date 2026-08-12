@@ -186,10 +186,12 @@
     .o7 .warnbar{display:none;margin-top:8px;background:var(--연한-빨강,#FEF2F2);border:1px solid var(--연한-빨강,#FCA5A5);border-radius:8px;padding:8px 12px;font-size:12px;color: var(--글자-빨강, var(--red,#991B1B));}
     /* 등록해 뒀는데 주문이 하나도 안 들어오는 계정 — 조용히 사라지지 않게 */
     .o7 .acovbar{display:none;margin-top:8px;background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE9B5);border-radius:8px;padding:12px 12px;font-size:12px;color: var(--글자-주황, var(--amber));line-height:1.75;}
-    .o7 .acovbar.on{display:block;}
+    /* 🔴 아래 여백 — 2026-08-13 순서에서 경고 밑이 가로탭(밑줄 띠)이라, 여백이 없으면
+       경고 상자와 탭 밑줄이 맞닿아 한 덩어리로 보인다. 안 뜰 땐 display:none 이라 무해. */
+    .o7 .acovbar.on{display:block;margin-bottom:12px;}
     .o7 .acovbar b{font-weight:800;}
     .o7 .acovbar .sub{color:var(--sub);font-size:11px;}
-    .o7 .warnbar.on{display:block;}
+    .o7 .warnbar.on{display:block;margin-bottom:12px;}
     .o7 .warnbar .wt{font-weight:800;margin-bottom:4px;}
     .o7 .warnbar ul{margin:0;padding-left:16px;line-height:1.57;}
     .o7 .warnbar .hint{margin-top:4px;color: var(--글자-빨강, var(--red,#7F1D1D));opacity:.85;}
@@ -551,6 +553,31 @@
     .o7 .pplist th{font-weight:600;color:var(--sub);background:var(--bg,#F9FAFB);}
     .o7 .pdx-mg{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .pdx-mg.pdx-neg{color: var(--글자-빨강, var(--red,#F04452));}
+    /* 열 너비 손잡이 — 머리 칸 오른쪽 경계. 평소엔 안 보이고 마우스가 가면 나타난다. */
+    .o7 th.fcol{position:relative;}
+    .o7 .colgrip{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;
+                 z-index:2;user-select:none;}
+    .o7 th.fcol:hover .colgrip{background:linear-gradient(to right,transparent,var(--blue));opacity:.35;}
+    body.col-resizing{cursor:col-resize;user-select:none;}
+    /* 폭을 정한 열은 넘치는 글자를 줄임표로 — 안 그러면 좁혀도 줄바꿈으로 다시 넓어진다. */
+    .o7 table[style*="fixed"] td{overflow:hidden;text-overflow:ellipsis;}
+    .o7 .ffbar{display:flex;align-items:center;gap:10px;margin:2px 0 8px;}
+    .o7 .ffbtn{border:1px solid var(--line);background:var(--surface,#fff);border-radius:9px;
+      padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);}
+    .o7 .ffbtn:hover{border-color:var(--blue);}
+    .o7 .ffbtn[disabled]{opacity:.5;cursor:default;}
+    .o7 .ffbar-msg{font-size:12px;color:var(--sub);}
+    /* 주문 이행 가능(노션 A-1) — 판정 + 「언제 긁은 값인가」를 한 칸에. */
+    .o7 .ffc{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px;white-space:nowrap;}
+    .o7 .ffc.ffc-go{color: var(--글자-초록, var(--green,#15803D));background:var(--연한-초록,#DCFCE7);}
+    .o7 .ffc.ffc-no{color:#B91C1C;background:var(--연한-빨강,#FEE2E2);}
+    .o7 .ffc.ffc-clm{color: var(--글자-주황,#B45309);background:var(--연한-노랑,#FEF3C7);}
+    .o7 .ffc.ffc-nourl{color: var(--글자-파랑,#1B64DA);background:var(--연한-파랑,#EEF4FF);}
+    .o7 .ffc.ffc-unk,.o7 .ffc.ffc-none{color:var(--sub);background:var(--n100,#F2F4F6);font-weight:400;}
+    .o7 .ffc-ago{display:block;font-size:10px;color: var(--글자-희미, var(--faint));margin-top:1px;white-space:nowrap;}
+    /* 묶음 사이 여백 열 — 폭만 차지하고 아무것도 안 그린다(사장님 11·22번). */
+    .o7 th[data-col^="_gap"],.o7 td.gapcol{width:10px;min-width:10px;max-width:10px;
+      background:var(--n100,#F5F7F9);border-left:1px solid var(--line);border-right:1px solid var(--line);padding:0;}
     /* 실마진(노션 b-3) — 숫자는 굵게, 재료의 출처는 옆에 작은 딱지로. 숨기지 않는다. */
     .o7 .mg-val{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .mg-val.mg-neg{color: var(--글자-빨강, var(--red,#F04452));}
@@ -985,21 +1012,23 @@
              title="상품명·주문번호·송장번호·계정·주소 — 아무거나 찾습니다"></div>
       <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
-      {# ══ 화면 순서 (2026-08-12 사장님 확정) ═══════════════════════════════════
-         ① 주문 불러오는 중  ② 마켓·계정별 불러오기 현황  ③ 주문현황 카드
-         ④ 가로탭(마켓 상태·주문 관리·돈 확인)  ⑤ 주문내역 표
-         🔴 옛 순서는 「탭 → 매입 엑셀 카드 → 숫자 카드 → 마켓줄 → 표」였다.
-           무엇으로 거를지가 지금 상황보다 먼저 나와, 화면에 들어오자마자
-           오늘 몇 건·얼마인지를 알 수 없었다. #}
+      {# ══ 화면 순서 (2026-08-13 사장님 확정 — 올려주신 이미지 4장 그대로) ═══════
+         ① 주문 불러오는 중  ② 주문현황 카드  ③ 계정 경고
+         ④ 가로탭(마켓 상태·주문 관리·돈 확인)  ⑤ 마켓 칩·계정 칩  ⑥ 주문내역 표
+         🔴 2026-08-12 순서는 「마켓 칩 → 경고 → 카드 → 가로탭 → 표」였다. 마켓 칩도
+           **거르는 장치**인데 그것만 카드 위에 있어, 화면 맨 윗줄이 필터로 채워졌다.
+           → 카드를 맨 위로, 거르는 장치(가로탭 → 마켓 칩)는 한데 모아 그 아래로.
+         🔴 그보다 옛 순서는 「탭 → 매입 엑셀 카드 → 숫자 카드 → 마켓줄 → 표」.
+         🔴 이 줄 순서가 곧 화면 순서다(#mktView 는 그냥 블록 흐름). 한 블록만 옮겨도
+           조용히 되돌아가므로 tests/orders/test_orders_layout_order.py 가 잠가 둔다. #}
       {# ① 불러오는 중 — 맨 위. 다 불러오면 스스로 사라진다. #}
       <div class="loadbar" id="loadbar"></div>
-      {# ② 마켓·계정별 불러오기 현황 (마켓 칩 · 계정 칩 · 조용한 계정 경고 · 경고줄) #}
-      <div class="mkline" id="mkline"></div>
-      <div class="acctline" id="acctline"></div>
+      {# ② 주문현황 카드 — 주문·발송대기·주문금액·매출·정산예정 #}
+      <div class="kpis" id="kpis"></div>
+      {# ③ 계정 경고 — 조용한 계정(주황) · 못 불러온 계정(빨강). 있을 때만 뜬다.
+         🔴 카드 바로 밑에 둔다 — 못 불러온 계정이 있으면 위 숫자가 실제보다 적다. #}
       <div class="acovbar" id="acovbar"></div>
       <div class="warnbar" id="warnbar"></div>
-      {# ③ 주문현황 카드 — 주문·발송대기·주문금액·매출·정산예정 #}
-      <div class="kpis" id="kpis"></div>
       {# ④ 가로탭 3종 #}
       {% if tab != 'ship' %}{# 주문 3분류 — 이행 / 미이행 / 클레임. 판정이 오기 전엔 숨는다 #}
       <div class="fftabs" id="ffTabs" style="display:none"></div>
@@ -1011,6 +1040,19 @@
       {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
          판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
       <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {# ⑤ 마켓·계정별 불러오기 현황 (마켓 칩 · 계정 칩) — 거르는 장치라 가로탭 바로 밑.
+         🔴 주문 내역·송장 작업 두 탭이 같이 쓴다(조건 밖). #}
+      <div class="mkline" id="mkline"></div>
+      <div class="acctline" id="acctline"></div>
+      {# 「주문 이행 가능 판단」 — 2번 열을 지금 다시 채운다(사장님 확정 2026-08-12).
+         🔴 크롤은 사장님 PC 확장이 하므로 이 단추는 **저장된 소싱처 값으로 다시 판정**한다.
+           그래서 몇 초면 끝나고, 칸마다 「언제 긁은 값인지」가 같이 적힌다. #}
+      {% if tab != 'ship' %}
+      <div class="ffbar" id="ffBar">
+        <button type="button" class="ffbtn" id="ffJudge">🔄 주문 이행 가능 판단</button>
+        <span class="ffbar-msg" id="ffJudgeMsg"></span>
+      </div>
+      {% endif %}
       {# ⑤ 표 바로 위 — 실매입가(더망고 매입 엑셀). 설계서 §5.2 + 2026-08-06 확정 2안.
          🔴 [2026-08-12] 큰 카드가 표 위 자리를 늘 차지하던 것을 접었다. 대신
            **표 위에 파일을 끌어오면 표 전체가 놓을 자리로 바뀐다**(아래 #dropov-pp).
@@ -1172,44 +1214,45 @@
     // 화면 패널 컬럼(사용자 지정 순서, 2026-07-08 샵마인 대조). t=화면 라벨(없으면 c).
     // 정렬: 숫자·금액 우측(num) / 배지·상태 가운데(ctr) / 나머지 좌측(txt).
     var PANEL_COLS=[
-      // ── 「주문 관리」 상태(화면 전용) — 사장님이 만든 항목을 줄마다 지정. 사장님 확정 2026-08-06.
-      //  🔴 **맨 왼쪽 첫 열**이다(스크롤해도 눈에 먼저 들어와야 한다는 확정 사항).
-      //  SHIP 게이트를 넣지 않는다 → 주문 내역·송장 작업 두 탭에 같은 값이 동시에 뜬다.
+      /* ══ 열 순서 — 2026-08-12 사장님이 1~32 번호로 직접 정하심 ══════════════
+         빈 번호(11·22)는 **묶음 사이 여백**이다(주문 사람 정보 앞 / 돈 앞).
+         🔴 「매입가」 입력칸은 사장님 목록엔 번호가 없지만 **빼면 실매입가를 적을
+           곳이 사라진다**(4번 「주문후 실마진」의 재료다) → 4번 바로 옆에 남겼다.
+         🔴 「주문 판매가」는 뺐다 — 라이브 373건 전부 「단가」와 같아 두 벌이었다
+           (사장님 확인: "차이 있음? 없으면 통합"). 23번 단가 하나로 합친다.
+         🔴 「매입가 (올릴 때 / 지금)」도 뺐다 — 3번 「주문전 예상 마진」이 같은
+           재료로 답을 이미 말한다(숫자 두 벌로 보여 주면 어느 쪽이 진짜인지 묻게 된다). */
+      // 1. 사장님이 만든 상태
       {c:'_ostatus',a:'ctr',t:'주문 관리'},
-      {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
-      {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
-      {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
-      // 노션 ⑤「바로가기 버튼」 — 우리 상품으로 매칭된 행에만 뜬다(화면 전용 칸).
-      {c:'_links',a:'ctr',t:'바로가기'},
-      {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
-      {c:'단가',a:'num'},
-      // ── 실매입가(화면 전용) — 네모 입력칸. 설계서 §5.1 ──
-      //  「진짜 사온 값」을 여기서 바로 적는다. 값이 없으면 아래 3순위(예상가)를
-      //  흐린 placeholder 로 보여주되, 어느 단계 값인지 배지로 늘 밝힌다.
+      // 2. 주문 이행 가능 — 소싱처 재고·가격 기준(신설). 마지막 크롤 시각을 같이 적는다.
+      {c:'_ffcol',a:'ctr',t:'주문 이행 가능'},
+      // 3~4. 마진 두 벌 — **주문 전(소싱처 값으로 예상)** 과 **주문 후(실제 사온 값)**
+      {c:'_pdx_margin',a:'num',t:'주문전 예상 마진'},
+      {c:'_margin',a:'num',t:'주문후 실마진'},
       {c:'_pp_purchase',a:'num',t:'매입가'},
-      // ── 공급방식(화면 전용) — 이 주문을 무재고로 보냈나 사입으로 보냈나. 사장님 확정 2026-08-06.
-      //  기본 무재고. 🔴 여기 표시만으로 재고를 깎지 않는다 — 차감은 포장하며 바코드 찍을 때.
-      //  SHIP 게이트를 넣지 않는다 → 주문 내역·송장 작업 두 탭에 같은 값이 동시에 뜬다.
+      // 5~10.
       {c:'_supply',a:'ctr',t:'공급방식'},
-      // ── M4 주문 시점 가격 차이 3칸(화면 전용, 서버 열 아님) ──
-      {c:'_pdx_purchase',a:'num',t:'매입가 (올릴 때 / 지금)'},
-      {c:'_pdx_sale',a:'num',t:'주문 판매가'},
-      {c:'_pdx_margin',a:'num',t:'지금 사면 마진'},
-      {c:'실결제금액',a:'num'},
-      {c:'배송비',a:'num',t:'고객배송비'},
-      {c:'정산예정금액',a:'num',t:'정산예상금'},
+      {c:'주문상태',a:'ctr'},{c:'송장입력',a:'ctr'},
+      {c:'주문일',a:'txt'},{c:'판매처',a:'ctr'},{c:'쇼핑몰별칭',a:'txt',t:'계정'},
+      // 11. 여백
+      {c:'_gap1',a:'ctr',t:''},
+      // 12~15.
+      {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
+      {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
+      // 16~21. 사람 — 구매자·구매자 연락처는 **수령자와 다를 때만** 적는다(같으면 「-」)
+      {c:'구매자',a:'txt'},{c:'구매자번호',a:'txt',t:'구매자 연락처'},
+      {c:'수령자',a:'txt'},{c:'수령자전화번호',a:'txt',t:'수령자 연락처'},
+      {c:'우편번호',a:'txt'},{c:'주소',a:'txt'},
+      // 22. 여백
+      {c:'_gap2',a:'ctr',t:''},
+      // 23~31. 돈
+      {c:'단가',a:'num'},{c:'실결제금액',a:'num'},{c:'배송비',a:'num',t:'고객배송비'},
+      {c:'정산예정금액',a:'num',t:'정산예정금'},
       {c:'정산예정금(배송비포함)',a:'num'},
-      // ── 실마진(화면 전용) — 노션 주문관리 b-3. 「정산예정금(배송비포함) − 매입금액」.
-      //  🔴 재료가 둘 다 있어야 계산한다. 매입가가 없으면 **「매입가 없음」** 이라 적고
-      //    0 으로 채우지 않는다(0 으로 두면 정산액 전액이 마진으로 보인다).
-      //  🔴 정산액이 추정이면 「추정」 딱지 — 마우스를 올리면 사유와 근거가 뜬다.
-      //    서버는 행마다 `_settle_source` 를 실어 보내는데 이 표가 여태 한 번도 안 읽었다.
-      {c:'_margin',a:'num',t:'실마진'},
       {c:'총주문금액',a:'num'},{c:'옵션추가금',a:'num'},
       {c:'마켓수수료',a:'num'},{c:'수수료율',a:'num'},
-      {c:'구매자',a:'txt'},{c:'구매자번호',a:'txt',t:'구매자전화번호'},
-      {c:'수령자',a:'txt'},{c:'수령자전화번호',a:'txt'},
-      {c:'우편번호',a:'txt'},{c:'주소',a:'txt'}
+      // 32.
+      {c:'_links',a:'ctr',t:'바로가기'}
     ];
     // 「배송방식」·「배송검사」는 더망고를 올려야 값이 생긴다. 2026-07-30 축소로
     //  더망고를 화면에서 뺐으므로 두 칸은 늘 「—」다 → 아예 안 보여준다(빈 칸 금지).
@@ -1308,6 +1351,14 @@
       if(col==='_pdx_sale')return pdxSaleFilterKey(r);
       if(col==='_pdx_margin')return pdxMarginFilterKey(r);
       if(col==='_margin')return marginFilterKey(r);
+      if(col==='_ffcol')return ffColLabel(r).text;
+      if(col==='_gap1'||col==='_gap2')return '';
+      // 🔴 [2026-08-12 사장님] 주문상태 ▼ 필터가 **마켓 원본값**으로 나왔다
+      //   (결제완료·구매확정·배송완료…가 마켓마다 다른 말로 흩어짐). 화면은 12개
+      //   통일 상태로 보여 주면서 필터만 원본이라 **같은 화면 안에서 기준이 어긋났다**.
+      if(col==='주문상태')return unifyStatus(r['주문상태']||'').canon;
+      if(col==='구매자')return _txt(sameAsRecv(r,'구매자','수령자'));
+      if(col==='구매자번호')return _txt(sameAsRecv(r,'구매자번호','수령자전화번호'));
       if(col==='_links')return linkFilterKey(r);
       var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
@@ -1332,6 +1383,26 @@
     })();
 
     // ── 빠른 기간 버튼 ──
+    /* ── 화면 설정 저장 (2026-08-12 사장님) ─────────────────────────────────────
+       "기간 직접 만들었는데 자꾸 사라져. 프로그램 재배포 때문인건지?"
+       🔴 재배포 때문이 아니었다 — 열 구성·빠른 기간·엑셀 양식이 **브라우저 안에만**
+         있었다(라이브 확인: 셋 다 「없음」). 브라우저를 바꾸거나 다른 기기에서 보면
+         사라진다. → 서버에 둔다. 팀 전체가 같이 쓴다(사장님 확정).
+       🔴 브라우저 저장본은 **지우지 않는다** — 서버가 잠깐 안 될 때 화면이 빈손이
+         되면 안 된다. 서버 값이 오면 그걸 쓰고, 없으면 브라우저 값을 올려 준다. */
+    var VP={cols:null,widths:null,quick:null,presets:null}, vpReady=false;
+    function vpSave(patch){
+      Object.keys(patch||{}).forEach(function(k){VP[k]=patch[k];});
+      return fetch('/orders/api/view-prefs',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          // 저장 실패를 조용히 넘기면 사장님이 같은 설정을 몇 번이고 다시 고친다.
+          if(!j||!j.ok)console.warn('화면 설정 저장 실패:',(j&&j.error)||'알 수 없음');
+          return j;
+        })
+        .catch(function(e){console.warn('화면 설정 저장 실패:',e);});
+    }
     var QLS='moum_quick_ranges_v1';
     var QDEFAULT=[
       {name:'오늘', kind:'today'},
@@ -1344,7 +1415,10 @@
       {name:'이번 달', kind:'thisMonth'},
       {name:'지난달', kind:'lastMonth'}
     ];
-    function loadQuick(){try{var s=JSON.parse(localStorage.getItem(QLS));if(Array.isArray(s)&&s.length)return s;}catch(e){}return QDEFAULT.map(function(x){return Object.assign({},x);});}
+    function loadQuick(){
+      if(Array.isArray(VP.quick)&&VP.quick.length)return VP.quick;   // 서버(팀 공유) 우선
+      try{var s=JSON.parse(localStorage.getItem(QLS));if(Array.isArray(s)&&s.length)return s;}catch(e){}
+      return QDEFAULT.map(function(x){return Object.assign({},x);});}
     var quick=loadQuick();
     var cur={from:'', to:'', label:''};   // 현재 조회 기간
     function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -2068,6 +2142,62 @@
     /* 표를 통째로 다시 그리지 않고 이 한 칸만 갈아끼운다 — 사장님이 매입가를 손으로
        고치면 실마진도 **그 자리에서** 따라 바뀌어야 한다(ppRedraw 가 부른다).
        재료가 매입가 칸과 같으므로 같은 uid 로 찾는다. */
+    /* 태그를 걷어낸 글자만 — 필터 목록은 사람이 읽는 말로 묶여야 한다. */
+    function _txt(h){return String(h).replace(/<[^>]*>/g,'').trim();}
+    /* 구매자 ↔ 수령자 — 같으면 「-」. 다를 때만 적는다(사장님 확정 2026-08-12). */
+    function sameAsRecv(r,mine,recv){
+      var a=String(r[mine]||'').replace(/[\s-]/g,''), b=String(r[recv]||'').replace(/[\s-]/g,'');
+      if(!r[mine])return '<span class="muted">—</span>';
+      if(a&&a===b)return '<span class="muted" title="수령자와 같습니다">-</span>';
+      return esc(r[mine]);
+    }
+    /* ── 주문 이행 가능 (노션 A-1 · 사장님 확정 2026-08-12) ────────────────────
+       가능 / 불가능(S 재고없음 · P 역마진) / 클레임 / 소싱처 URL 없음 / 확인 불가.
+
+       🔴 소싱처 주소가 없는 건 「확인 불가」가 아니다 — 우리가 못 본 게 아니라
+         **볼 주소 자체가 없는** 것이다. 사장님이 짚은 두 경우를 호버로 구분해 적는다:
+           ① 오프라인에서 사입해 재고를 두고 파는 상품
+           ② 마켓엔 팔지만 아직 우리 프로그램에 연동이 안 된 상품
+       🔴 판정은 **마지막으로 긁은 값** 기준이다(크롤은 사장님 PC 확장이 한다).
+         그래서 크롤 시각을 같이 적는다 — 없으면 3일 전 재고를 오늘 것인 척 보여준다. */
+    var FF_URL_WHY={
+      ours_no_url:'우리 프로그램엔 있는데 소싱처 주소가 없어요 — 오프라인에서 사입해 재고를 두고 파는 상품일 수 있습니다.',
+      not_linked:'아직 우리 프로그램에 연동되지 않은 상품이에요 — 마켓에서는 팔고 있지만 소싱처 가격 크롤·판매처 업로드까지 이어지지 않았습니다.'
+    };
+    function ffAgo(iso){
+      if(!iso)return '';
+      var d=new Date(iso); if(isNaN(d))return '';
+      var m=Math.floor((Date.now()-d.getTime())/60000);
+      if(m<1)return '방금';
+      if(m<60)return m+'분 전';
+      if(m<1440)return Math.floor(m/60)+'시간 전';
+      return Math.floor(m/1440)+'일 전';
+    }
+    function ffColLabel(r){
+      var d=ffOf(r);
+      if(!d)return {text:'판정 전',cls:'ffc-none',why:'아직 판정하지 않았어요 — 「주문 이행 가능 판단」을 누르면 채워집니다.'};
+      if(d.group==='claim')return {text:'클레임',cls:'ffc-clm',why:'취소·반품·교환 건이라 이행 판정 대상이 아니에요.'};
+      if(d.group==='fulfill')return {text:'가능',cls:'ffc-go',
+        why:'소싱처에 재고가 있고, 정산예정금이 매입가보다 큽니다 — 지금 사서 보내면 됩니다.'};
+      if(d.reason==='S')return {text:'불가능 · S',cls:'ffc-no',why:'S = 소싱처가 품절이에요.'};
+      if(d.reason==='P')return {text:'불가능 · P',cls:'ffc-no',
+        why:'P = 역마진이에요 — 지금 사면 정산받을 돈보다 매입가가 큽니다.'};
+      if(d.reason==='no_source_url')return {text:'소싱처 URL 없음',cls:'ffc-nourl',
+        why:FF_URL_WHY[d.no_url_why]||'이 주문에 연결된 소싱처 주소가 없어요.'};
+      if(d.reason==='not_ours')return {text:'소싱처 URL 없음',cls:'ffc-nourl',why:FF_URL_WHY.not_linked};
+      return {text:'확인 불가',cls:'ffc-unk',
+        why:'우리 상품인데 재고나 매입가를 못 구했어요 — 지어내지 않고 이렇게 둡니다.'};
+    }
+    function ffColCell(r){
+      var d=ffOf(r), L=ffColLabel(r);
+      var ago=d?ffAgo(d.crawled_at):'';
+      var NL=String.fromCharCode(10);
+      var tip=L.why+(d&&d.crawled_at
+        ? (NL+'· 소싱처를 마지막으로 확인한 때: '+String(d.crawled_at).slice(0,16).replace('T',' ')+' ('+ago+')')
+        : (L.cls==='ffc-nourl' ? '' : NL+'· 소싱처를 확인한 기록이 없어요'));
+      return '<span class="ffc '+L.cls+'" title="'+esc(tip).replace(/"/g,'&quot;')+'">'+esc(L.text)+'</span>'
+           + (ago?('<span class="ffc-ago">'+esc(ago)+'</span>'):'');
+    }
     function marginRedraw(uid,r){
       var wrap=document.getElementById('tablewrap'); if(!wrap)return;
       var td=wrap.querySelector('td[data-mguid="'+uid.replace(/"/g,'')+'"]');
@@ -2719,7 +2849,13 @@
         return (d&&d.order_sale_price!=null)?pdxWon(d.order_sale_price)
           :((r['단가']!==''&&r['단가']!=null)?pdxWon(num(r['단가'])):'<span class="pdx-dash">—</span>');}
       if(col==='_links')return linkCell(r);
+      if(col==='_ffcol')return ffColCell(r);
+      if(col==='_gap1'||col==='_gap2')return '';
       if(col==='_margin')return marginCell(r);
+      // 구매자·구매자 연락처는 **수령자와 다를 때만** 적는다(사장님 확정) —
+      //  대부분 같은 사람이라 같은 이름이 두 번 서서 표만 넓어졌다.
+      if(col==='구매자')return sameAsRecv(r,'구매자','수령자');
+      if(col==='구매자번호')return sameAsRecv(r,'구매자번호','수령자전화번호');
       if(col==='_pdx_margin')return pdxMarginCell(r);
       if(col==='배송방식')return dmMethodCell(r);
       if(col==='배송검사')return dmCheckCell(r);
@@ -2838,6 +2974,54 @@
       if(!invSel[k])return '';
       return (invMap[k]&&invMap[k].src==='xl')?' r-xl':' r-hand';
     }
+    /* ── 열 너비 조절 (2026-08-12 사장님: "불필요하게 칼럼 넓은건 수정하고 싶어") ──
+       머리 칸 오른쪽 경계를 잡아 끈다. 놓는 순간 서버에 저장돼 **다음에 와도, 다른
+       브라우저에서도, 팀원에게도** 그대로다. 두 번 누르면 그 열만 원래대로.
+       🔴 표는 가로 스크롤 컨테이너 안이라 `table-layout:fixed` 가 아니면 지정한 폭이
+         무시된다 — 폭을 하나라도 정하면 fixed 로 바꾼다. */
+    var colW=null;                      // {열이름: px} — 서버에서 온다
+    function applyColW(){
+      var t=document.querySelector('#tablewrap table'); if(!t||!t.rows[0])return;
+      var any=colW&&Object.keys(colW).length;
+      t.style.tableLayout=any?'fixed':'';
+      [].slice.call(t.rows[0].cells).forEach(function(th){
+        var c=th.getAttribute('data-col'); if(!c)return;
+        var w=colW&&colW[c];
+        th.style.width=w?(w+'px'):'';
+        th.style.maxWidth=w?(w+'px'):'';
+      });
+    }
+    function bindColResize(){
+      var t=document.querySelector('#tablewrap table'); if(!t||!t.rows[0])return;
+      [].slice.call(t.rows[0].cells).forEach(function(th){
+        var c=th.getAttribute('data-col'); if(!c)return;
+        var grip=document.createElement('span');
+        grip.className='colgrip';
+        grip.title='끌어서 열 너비를 바꿉니다 (두 번 누르면 원래대로)';
+        th.appendChild(grip);
+        grip.addEventListener('mousedown',function(e){
+          e.preventDefault(); e.stopPropagation();   // 머리 클릭(값 거르기)과 겹치지 않게
+          var x0=e.clientX, w0=th.getBoundingClientRect().width;
+          document.body.classList.add('col-resizing');
+          function mv(ev){
+            var w=Math.max(40,Math.round(w0+(ev.clientX-x0)));
+            colW=colW||{}; colW[c]=w; applyColW();
+          }
+          function up(){
+            document.removeEventListener('mousemove',mv);
+            document.removeEventListener('mouseup',up);
+            document.body.classList.remove('col-resizing');
+            vpSave({widths:colW});     // 놓는 순간 저장 — 다시 안 고쳐도 된다
+          }
+          document.addEventListener('mousemove',mv);
+          document.addEventListener('mouseup',up);
+        });
+        grip.addEventListener('dblclick',function(e){
+          e.preventDefault(); e.stopPropagation();
+          if(colW&&colW[c]){delete colW[c];applyColW();vpSave({widths:colW});}
+        });
+      });
+    }
     function renderTable(fr){
       if(!fr.length){
         // 아직 불러오는 중이면 '없어요'가 아니라 '불러오는 중'(거짓 표시 방지)
@@ -2861,7 +3045,8 @@
           //  다시 그리지 않고 이 칸만 갈아끼우기 위해서다(marginRedraw).
           var mid=(pc.c==='_margin')?(' data-mguid="'+esc(ppUid(r))+'"'):'';
           return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))
-            +(pc.c==='_ostatus'?' ost-first':'')+'"'+mid+'>'+cellHTML(pc.c,r)+'</td>';
+            +(pc.c==='_ostatus'?' ost-first':'')
+            +(pc.c.indexOf('_gap')===0?' gapcol':'')+'"'+mid+'>'+cellHTML(pc.c,r)+'</td>';
         }).join('')+'</tr>';}).join('');
       // 범례 — 「해야 할 일」 칸을 뺀 대신, 색이 무슨 뜻인지 표 아래에서 설명한다.
       var legend='<div class="pdx-legend"><b>색이 상황을 말합니다</b><br>'
@@ -2874,6 +3059,8 @@
       var lg=document.getElementById('pdxLegend'); if(lg)lg.innerHTML=legend;
       [].slice.call(document.querySelectorAll('#tablewrap th.fcol')).forEach(function(th){
         th.addEventListener('click',function(e){openColPop(th.getAttribute('data-col'),th);e.stopPropagation();});});
+      // 저장된 열 너비를 입히고, 경계에 끌 손잡이를 단다(표를 다시 그릴 때마다).
+      applyColW(); bindColResize();
       bindInvCells(fr);
       bindPurchaseCells();
       bindSupplyCells();
@@ -3664,16 +3851,20 @@
       //    (서버 combined_order_rows 가 단일비행이라 재시도가 조회를 두 배로 만들지 않음)
       var retried={};
       function fetchOne(mk,fresh){
-        function retryOrFail(failFn){
-          if(!retried[mk]){retried[mk]=1;
+        // 🔴 noRetry — 「기다리면 나아지는 실패」와 「재시도가 더 나쁘게 만드는 실패」를 가른다.
+        //   앞단 시간초과(524)는 옥션·G마켓이 5초/1회 대기줄에 밀려 100초를 넘긴 것이다.
+        //   여기서 15초 뒤 또 부르면 그 대기줄을 **한 번 더** 채워 원인을 키운다.
+        function retryOrFail(failFn,noRetry){
+          if(!noRetry&&!retried[mk]){retried[mk]=1;
             setTimeout(function(){if(seq===loadSeq)fetchOne(mk);},15000);return;}
           loadDone++;
           failFn();
           if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
           rebuild();
         }
+        var httpStatus=0;
         fetch('/orders/preview.json?market='+encodeURIComponent(mk)+(fresh?'&fresh=1':'')+'&'+qparam(),{cache:'no-store'})
-          .then(function(r){return r.json();})
+          .then(function(r){httpStatus=r.status;return r.json();})
           .then(function(j){
             if(seq!==loadSeq)return;                 // 새 조회가 시작됐으면 옛 응답 버림
             if(!j.ok){ // 실패: 저장본이 있으면 유지하되 정직하게 경고(저장본을 최신인 척 하지 않음)
@@ -3690,8 +3881,17 @@
           })
           .catch(function(){
             if(seq!==loadSeq)return;
+            // 524·504 = 앞단이 기다리다 끊은 것(응답이 오류 HTML 이라 r.json() 이 터진다).
+            //   옥션·G마켓은 5초/1회 제한이라 조회가 원래 오래 걸린다 — 사유를 그대로 말한다.
+            var slow=(httpStatus===524||httpStatus===504);
             retryOrFail(function(){mkState[mk]='fail';
-              pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];});
+              pwarn[mk]=[slow
+                ? '['+mk+'] 조회가 시간 안에 못 끝났어요(HTTP '+httpStatus+'). 이 마켓은 '
+                  +'5초에 1번만 조회할 수 있어 오래 걸립니다 — 기간을 좁혀 다시 눌러 주세요.'
+                  +(parts[mk]?' 저장본 표시 중.':'')
+                : '['+mk+'] 네트워크 오류로 불러오지 못했어요.'
+                  +(httpStatus?' (HTTP '+httpStatus+')':'')+(parts[mk]?' 저장본 표시 중.':'')];},
+              slow);
           });
       }
       mks.forEach(function(mk){fetchOne(mk);});
@@ -3925,6 +4125,33 @@
         if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])upload(e.dataTransfer.files[0]);});
       ppSyncMode();
     })();
+    /* 「주문 이행 가능 판단」 — 지금 화면의 주문을 저장된 소싱처 값으로 다시 판정한다.
+       🔴 새로 긁지 않는다. 크롤은 사장님 PC 확장이 하고 서버는 저장분만 읽기 때문이다.
+         그래서 결과에 **몇 건이 언제 긁은 값인지**를 같이 말한다 — 안 그러면 사장님이
+         「방금 확인했다」고 믿게 된다. */
+    (function(){
+      var btn=document.getElementById('ffJudge'); if(!btn)return;
+      var msg=document.getElementById('ffJudgeMsg');
+      btn.addEventListener('click',function(){
+        if(!rows.length){msg.textContent='먼저 주문을 불러와 주세요.';return;}
+        btn.disabled=true; msg.textContent='판정하는 중…';
+        loadFulfillment(loadSeq,function(){
+          btn.disabled=false;
+          var n={go:0,no:0,clm:0,nourl:0,unk:0,none:0}, oldest=null;
+          filtered().forEach(function(r){
+            var L=ffColLabel(r), d=ffOf(r);
+            if(L.cls==='ffc-go')n.go++; else if(L.cls==='ffc-no')n.no++;
+            else if(L.cls==='ffc-clm')n.clm++; else if(L.cls==='ffc-nourl')n.nourl++;
+            else if(L.cls==='ffc-unk')n.unk++; else n.none++;
+            if(d&&d.crawled_at&&(!oldest||d.crawled_at<oldest))oldest=d.crawled_at;
+          });
+          msg.innerHTML='가능 <b>'+n.go+'</b> · 불가능 <b>'+n.no+'</b> · 클레임 <b>'+n.clm+'</b>'
+            +' · 소싱처 URL 없음 <b>'+n.nourl+'</b> · 확인 불가 <b>'+n.unk+'</b>'
+            +(oldest?(' <span style="color:var(--글자-주황,#B45309)">— 가장 오래된 소싱처 확인은 '
+                      +esc(ffAgo(oldest))+'</span>'):'');
+        });
+      });
+    })();
     // ── 주문 3분류 판정 — 표에 행이 늘 때마다(scheduleFill) ─────────────────
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ffMap 을 비워 **탭 자체를 감춘다** —
     //  옛 판정을 최신인 척 남겨 두면 팔 수 있는 주문이 미이행으로 보인다.
@@ -3947,6 +4174,15 @@
     // ── 배경 프리페치: 인접 기간을 미리 데워(캐시) 다음 클릭을 즉시로 ──
     // 사용자가 오늘→어제→그제→2~3일전 매번 새 기간을 눌러 캐시가 안 걸리던 문제 해결.
     // 각 기간은 진짜 preview.json 조회 그대로(파생·추정 없음) = 100% 정확. 순차·완만(429 억제).
+    // 🔴 미리 데우면 **안 되는** 마켓 (2026-08-12 라이브 실측으로 추가)
+    //   옥션·G마켓 주문조회는 마켓 규정이 계정당 **5초에 1회**인데, 조회 한 번에
+    //   대기 걸리는 호출이 6개 나간다(주문상태 5가지 + 입금확인중) → 하루치 52.6초.
+    //   프리페치는 8일 이하 기간 ≈7개를 미리 데우므로 옥션만 42호출·210초가 대기줄에
+    //   쌓이고, 사장님이 실제로 누른 조회가 그 뒤에 서서 앞단 100초 한도를 넘겨
+    //   `524: A timeout occurred` 로 끊겼다(화면엔 「불러오지 못했어요」만 떴다).
+    //   실패 뒤 15초 자동 재시도가 대기줄을 또 채워 더 나빠졌다.
+    //   미리 데워 아끼는 시간보다 **차례를 빼앗겨 실제 조회가 죽는 손해**가 훨씬 크다.
+    var PREFETCH_SKIP={auction:1,gmarket:1};
     var prefetchTok=0, prefetchTimer=null;
     function schedulePrefetch(){
       if(prefetchTimer)clearTimeout(prefetchTimer);
@@ -3961,7 +4197,8 @@
     }
     function prefetchNeighbors(){
       var myTok=++prefetchTok;                     // 이전 프리페치 취소
-      var mks=selMk(); if(!mks.length)return;
+      var mks=selMk().filter(function(mk){return !PREFETCH_SKIP[mk];});
+      if(!mks.length)return;                       // 느린 마켓뿐이면 미리 데우지 않는다
       var ranges=shortRanges(), i=0;
       (function step(){
         if(myTok!==prefetchTok)return;             // 사용자가 새로 조회 → 양보(취소)
@@ -4011,6 +4248,42 @@
     (function(){var di=quick.reduce(function(a,q,i){return q.def?i:a;},-1);pick0(di>=0?di:0);})();
     function pick0(i){activeIdx=i;var r=rangeOf(quick[i]);cur={from:r.from,to:r.to,label:quick[i].name};qfromEl.value=r.from;qtoEl.value=r.to;}
     renderQChips();
+    /* ── 서버에 저장된 화면 설정 받아 오기 (팀 공유) ────────────────────────────
+       🔴 화면은 이미 브라우저 값으로 한 번 그려져 있다. 서버 값이 오면 **덮어쓴다** —
+         빈 화면을 기다리게 하지 않으려는 것이다(늦게 와도 화면이 안 멈춘다).
+       🔴 서버에 아무것도 없고 브라우저엔 있으면, 그 브라우저 값을 **서버로 올려 준다** —
+         사장님이 예전에 만들어 둔 기간 버튼이 옮겨 가는 길이다(한 번만 일어난다). */
+    (function(){
+      fetch('/orders/api/view-prefs',{cache:'no-store'})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j||!j.ok)return;
+          VP=j.prefs||{}; vpReady=true;
+          var up={};
+          // 빠른 기간
+          if(Array.isArray(VP.quick)&&VP.quick.length){
+            quick=VP.quick;
+            var di=quick.reduce(function(a,q,i){return q.def?i:a;},-1);
+            pick0(di>=0?di:0); renderQChips();
+            if(activeIdx>=0)pickQuick(activeIdx);
+          }else{
+            try{var lq=JSON.parse(localStorage.getItem(QLS));
+                if(Array.isArray(lq)&&lq.length)up.quick=lq;}catch(e){}
+          }
+          // 열 너비
+          if(VP.widths&&Object.keys(VP.widths).length){colW=VP.widths;applyColW();}
+          // 엑셀 양식
+          if(Array.isArray(VP.presets)&&VP.presets.length){
+            presets=VP.presets;
+            if(typeof renderPresetSel==='function')renderPresetSel();
+          }else{
+            try{var lp=JSON.parse(localStorage.getItem(PLS));
+                if(Array.isArray(lp)&&lp.length)up.presets=lp;}catch(e){}
+          }
+          if(Object.keys(up).length)vpSave(up);   // 브라우저에만 있던 것을 서버로 옮긴다
+        })
+        .catch(function(){/* 서버가 잠깐 안 돼도 화면은 브라우저 값으로 그대로 돈다 */});
+    })();
     // 찾기 칸 — 「주문 내역」은 왼쪽 도구칸에, 「송장 작업」은 표 바로 위에 있다.
     var st;[].slice.call(document.querySelectorAll('#srch,#shipSrch')).forEach(function(el){
       el.addEventListener('input',function(e){srch=e.target.value;clearTimeout(st);st=setTimeout(render,200);});});
@@ -4061,7 +4334,9 @@
     qov.addEventListener('click',function(e){if(e.target===qov)qov.classList.remove('on');});
     document.getElementById('qreset').addEventListener('click',function(){quick=QDEFAULT.map(function(x){return Object.assign({},x);});renderQList();});
     document.getElementById('qsave').addEventListener('click',function(){
-      localStorage.setItem(QLS,JSON.stringify(quick));qov.classList.remove('on');
+      localStorage.setItem(QLS,JSON.stringify(quick));   // 서버가 잠깐 안 될 때의 대비
+      vpSave({quick:quick});
+      qov.classList.remove('on');
       if(activeIdx>=quick.length)activeIdx=0;
       renderQChips();
       if(activeIdx>=0)pickQuick(activeIdx);else applyDirect();});
@@ -4099,7 +4374,7 @@
     document.getElementById('cfgbtn').addEventListener('click',function(){editIdx=activeIdxP;cols=presets[editIdx].cols;renderPresetBar();renderColRows();ov.classList.add('on');});
     ov.addEventListener('click',function(e){if(e.target===ov)ov.classList.remove('on');});
     document.getElementById('cfgreset').addEventListener('click',function(){presets=defaultPresets();activeIdxP=0;editIdx=0;cols=presets[0].cols;renderPresetBar();renderColRows();});
-    document.getElementById('cfgsave').addEventListener('click',function(){localStorage.setItem(PLS,JSON.stringify(presets));ov.classList.remove('on');renderPresetSel();syncBtn();});
+    document.getElementById('cfgsave').addEventListener('click',function(){localStorage.setItem(PLS,JSON.stringify(presets));vpSave({presets:presets});ov.classList.remove('on');renderPresetSel();syncBtn();});
     renderPresetSel();
     // ── 컬럼 헤더 필터(엑셀식 체크 토글 + 모두 선택) ──
     var pop=document.getElementById('colpop');

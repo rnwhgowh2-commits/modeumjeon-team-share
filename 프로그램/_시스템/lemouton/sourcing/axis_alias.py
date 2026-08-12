@@ -43,11 +43,16 @@ class AliasConflict(Exception):
 
     `holder` = 그 표기를 붙잡고 있는 우리 값. 화면이 「누구한테서 빼앗을지」를
     말하려면 이 값이 필요하다(2026-08-12).
+
+    🔴 [2026-08-13 감사] `holders` 도 같이 준다 — 이 표엔 DB 유일 제약이 없어
+       같은 표기를 **두 줄 이상**이 붙잡고 있을 수 있다. 하나만 놓아 주면 빼앗기가
+       다시 막히고, 그 두 번째 예외가 `except` 안에서 터져 **500** 이 됐다(실측).
     """
 
-    def __init__(self, message: str, holder: str = ''):
+    def __init__(self, message: str, holder: str = '', holders=None):
         super().__init__(message)
         self.holder = holder
+        self.holders = list(holders or ([holder] if holder else []))
 
 
 class SourceAxisAlias(Base):
@@ -165,14 +170,17 @@ def set_alias(session: Session, *, source_key: str, axis_name: str,
         origin = "manual"
 
     # 1:1 — 같은 표기를 다른 우리 값이 쓰고 있으면 막는다(재고 이중계상 차단)
-    taken = (session.query(SourceAxisAlias)
-             .filter_by(source_key=source_key, axis_name=axis_name,
-                        source_value_norm=norm, is_absent=False)
-             .first())
-    if taken is not None and taken.our_value != our_value:
+    # 🔴 `.first()` 가 아니라 **전부** 본다 — 이 표엔 DB 유일 제약이 없어 같은 표기를
+    #   두 줄 이상이 붙잡고 있을 수 있다. 하나만 알려 주면 빼앗기가 다시 막힌다.
+    others = [r for r in session.query(SourceAxisAlias)
+              .filter_by(source_key=source_key, axis_name=axis_name,
+                         source_value_norm=norm, is_absent=False).all()
+              if r.our_value != our_value]
+    if others:
+        names = [r.our_value for r in others]
         raise AliasConflict(
-            f"「{source_value}」 은(는) 이미 「{taken.our_value}」 이(가) 쓰고 있습니다. "
-            f"먼저 그 줄에서 놓아야 합니다.", holder=taken.our_value)
+            f"「{source_value}」 은(는) 이미 「{'」·「'.join(names)}」 이(가) 쓰고 있습니다. "
+            f"먼저 그 줄에서 놓아야 합니다.", holder=names[0], holders=names)
 
     row = _row(session, source_key, axis_name, our_value)
     if row is None:

@@ -107,9 +107,23 @@ def _ymd(v) -> str:
     return t
 
 
-#: 금액 열 후보 — 앞에 있을수록 우선. 「최종지급액」이 노션이 지목한 값이다.
-_AMOUNT_ALIASES = ("최종지급액", "최종정산금액", "지급예정금액", "정산예정금액",
-                   "정산금액", "지급액", "정산예정액", "최종지급금액")
+#: 금액 열 후보 — 앞에 있을수록 우선.
+#  🔴🔴 [2026-08-12 실물 확인] 쿠팡이 실제로 주는 상세 엑셀
+#    (MSF_PAYMENT_REVENUE_DETAIL)에는 **「최종지급액」 열이 아예 없다.**
+#    주문별 **「정산금액」**(지급비율 적용 **전** 금액)만 있고, 화면의 최종지급액은
+#      최종지급액 = Σ정산금액 × 지급비율(70%/30%)
+#    이다. 라이브 3회차 전부 원 단위까지 일치했다:
+#      08-14  434,926 ×70% = 304,448
+#      08-24  777,335 ×70% = 544,134 (화면 467,014 + 77,120)
+#      08-31  590,219 ×70% = 413,153
+#    → 노션 문구("최종지급액 합산")만 믿고 열 이름을 찾으면 **영영 못 찾는다**.
+#      실제 파일을 보고 고친 것이다.
+_AMOUNT_ALIASES = ("정산금액", "최종지급액", "최종정산금액", "지급예정금액",
+                   "정산예정금액", "지급액", "정산예정액", "최종지급금액")
+#: 「정산금액」을 읽었을 때는 **지급비율을 곱해야** 화면 숫자가 된다.
+#  파일에 비율 열이 없으므로 사장님이 화면에서 본 비율을 알려 줘야 한다.
+_BASE_AMOUNT_COLS = ("정산금액",)
+_RATIO_ALIASES = ("지급비율", "지급률", "정산비율")
 #: 그 밖에 알아보면 좋은 열(있으면 쓴다 — 없다고 실패하지 않는다)
 _DATE_ALIASES = ("정산일", "지급일", "정산예정일", "지급예정일", "매출인식일", "결제일")
 _ORDER_ALIASES = ("주문번호", "오픈마켓주문번호", "묶음배송번호", "상품주문번호")
@@ -161,6 +175,9 @@ def parse_sheet(file_bytes: bytes) -> dict:
             f"{cols[:40]} 입니다. 「최종지급액」·「정산예정금액」 같은 열이 있는 시트를 "
             "올려 주세요(머리글이 첫 줄이 아니면 그 줄까지 포함해 저장해 주세요).")
     date_col = _pick(cols, _DATE_ALIASES)
+    ratio_col = _pick(cols, _RATIO_ALIASES)
+    #: 이 파일의 금액이 **지급비율 적용 전**인가 — 그렇다면 합계를 그대로 쓰면 안 된다.
+    is_base = amount_col in _BASE_AMOUNT_COLS
     order_col = _pick(cols, _ORDER_ALIASES)
     fast_col = _pick(cols, _FAST_ALIASES)
     rows, total, fast_total, dates = [], 0, 0, []
@@ -179,6 +196,7 @@ def parse_sheet(file_bytes: bytes) -> dict:
             rows.append({"금액": amt, "날짜": d, "빠른정산": f or 0,
                          "주문번호": str(r.get(order_col) or "").strip() if order_col else ""})
     return {"columns": cols, "amount_col": amount_col, "date_col": date_col,
+            "ratio_col": ratio_col, "is_base_amount": is_base,
             "order_col": order_col, "fast_col": fast_col,
             "건수": int(df.shape[0]), "금액건수": len(
                 [1 for r in df.to_dict("records") if _num(r.get(amount_col)) is not None]),
@@ -278,6 +296,67 @@ def judge(market_total: int, ours: dict, *, rows: int,
                    + " — 기준일·기간을 마켓 화면과 같게 뽑았는지 먼저 확인하세요")}
 
 
+def by_order(parsed: dict) -> dict:
+    """엑셀 → {주문번호: 금액합}. 주문번호 열이 없으면 빈 dict."""
+    out: dict = {}
+    if not parsed.get("order_col"):
+        return out
+    for r in parsed.get("rows") or []:
+        no = str(r.get("주문번호") or "").strip()
+        if not no:
+            continue
+        out[no] = out.get(no, 0) + int(r.get("금액") or 0)
+    return out
+
+
+def compare_orders(parsed: dict, lines: list, *, tol: int = 2) -> dict:
+    """**주문 단위** 대조 — 총액 대조보다 훨씬 강하다.
+
+    🔴 [2026-08-12 실물 확인] 쿠팡 상세 엑셀의 「정산금액」은 지급비율 적용 **전**
+      금액이고, 우리 `정산예정금액` 도 같은 성격(그 주문의 정산 전액)이다.
+      즉 **같은 종류의 숫자**라 주문번호로 바로 맞댈 수 있다 — 화면의 최종지급액
+      (=Σ정산금액×지급비율)과 맞추려고 비율을 물을 필요가 없다.
+
+    반환: 일치/차이/우리에없음/마켓에없음 + 차이 목록(상한 있음).
+    """
+    from lemouton.markets.order_export import _to_int
+    mk = by_order(parsed)
+    if not mk:
+        return {"가능": False, "왜": "엑셀에 주문번호 열이 없어 주문 단위로 못 맞댑니다."}
+    ours: dict = {}
+    for ln in lines:
+        row = ln["row"]
+        if str(row.get("_kind") or "") == "change":
+            continue
+        no = str(row.get("오픈마켓주문번호") or "").strip()
+        if not no:
+            continue
+        ours[no] = ours.get(no, 0) + (_to_int(row.get("정산예정금액"), 0) or 0)
+    same = diff = 0
+    only_market, only_ours = [], []
+    gaps = []
+    for no, amt in mk.items():
+        if no not in ours:
+            only_market.append({"주문번호": no, "마켓": amt})
+            continue
+        d = ours[no] - amt
+        if abs(d) <= tol:
+            same += 1
+        else:
+            diff += 1
+            if len(gaps) < 100:
+                gaps.append({"주문번호": no, "마켓": amt, "우리": ours[no], "차이": d})
+    for no in ours:
+        if no not in mk and len(only_ours) < 100:
+            only_ours.append(no)
+    return {"가능": True, "마켓주문수": len(mk), "일치": same, "차이": diff,
+            "마켓에만": only_market[:100], "마켓에만_수": len(only_market),
+            "우리에만_수": len(only_ours),
+            "차이목록": gaps,
+            "마켓합": sum(mk.values()),
+            "우리합": sum(ours.get(n, 0) for n in mk)}
+
+
 def reconcile(item_key: str, parsed: dict, lines: list, rules: dict, *,
               today: dt.date, rg_summary=None, fast_summary=None,
               wallet_summary=None) -> dict:
@@ -295,7 +374,10 @@ def reconcile(item_key: str, parsed: dict, lines: list, rules: dict, *,
     if wb:
         explains["셀러월렛 미인출 잔액"] = wb
     v = judge(parsed["합계"], ours, rows=parsed.get("금액건수") or 0, explains=explains)
+    #: 주문번호가 있으면 **주문 단위**로도 맞댄다 — 총액만 맞고 안이 틀린 경우를 잡는다.
+    per_order = compare_orders(parsed, lines)
     return {
+        "주문단위": per_order,
         "항목": item_key, "라벨": spec["라벨"], "마켓화면": spec["마켓화면"],
         "기준일규칙": spec["기준일"],
         "마켓값": parsed["합계"], "마켓건수": parsed.get("금액건수") or 0,
