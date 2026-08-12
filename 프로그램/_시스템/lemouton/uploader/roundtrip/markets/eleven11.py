@@ -50,7 +50,9 @@ class Eleven11Ops:
     def _price(self):
         fn = self._get_price
         if fn is None:
-            from shared.platforms.eleven11.prices import get_product_price as fn
+            # ⚠️ 가격 **조회**는 products.py 에 있다(쓰기만 prices.py). 헷갈려 prices 에서
+            #    집었다가 라이브에서 ImportError 로 죽었다(2026-08-12).
+            from shared.platforms.eleven11.products import get_product_price as fn
         try:
             return fn(str(self.product_id), client=self.client)
         except Exception:  # noqa: BLE001
