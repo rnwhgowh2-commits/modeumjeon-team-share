@@ -136,6 +136,9 @@
     .wire{font-size:11px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
           cursor:help}
     .wire.on{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    /* 「일부만」 — 반쪽은 작동하고 반쪽은 아직인 항목. 초록(다 됨)과 헷갈리면 안 되므로
+       주황 계열로 가른다. 마우스를 올리면 어디까지 되는지 말해 준다. */
+    .wire.half{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E));cursor:help}
     /* 보조 설명줄 — `--sub` 는 밝은 화면에서 2.91 로 흐리다. 본문 보조색을 쓴다. */
     .req-why{font-size:11px;color:var(--글자-보조,#6B7684);line-height:1.6;margin-bottom:10px}
     .req-why b{color:var(--ink,#191F28)}
@@ -375,6 +378,13 @@
          13항목 중 11개에 회색 배지를 달면 화면이 경고로 뒤덮인다(위 안내 한 줄로 갈음). #}
       {% if wire.get(it.key) and wire[it.key].state == 'wired' %}
       <span class="wire on" title="{{ wire[it.key].note }}">전송됨</span>
+      {% elif wire.get(it.key) and wire[it.key].note != stored_only_note %}
+      {# [2026-08-13] 「저장만」인데 **사연이 따로 있는** 항목만 배지를 단다.
+         🔴 저장만 항목 전부에 달면 화면이 회색 배지로 뒤덮여 아무도 안 읽는다.
+           그렇다고 안 달면, 이미지처럼 **반쪽은 실제로 작동하는** 항목을
+           사장님이 「아무것도 안 한다」고 오해한다(제외 브랜드가 전송을 막는데도).
+           그래서 「기본 설명과 다른 사연이 있는 것」만 예외로 보여준다. #}
+      <span class="wire half" title="{{ wire[it.key].note }}">일부만</span>
       {% endif %}
       {% if not is_common %}
       {# 이 값이 어디서 왔나 — 공통에서 받았는지 여기서 고쳤는지 #}

@@ -403,3 +403,65 @@ def test_옵션이_없으면_막는다(s, monkeypatch):
     _with_stock(monkeypatch, {})
     got = TP.build_for_set(s, set_id=ps.id, market='coupang')
     assert got['blocking'] and '보낼 것이 없습니다' in got['blocking'][0]
+
+
+# ── [2026-08-13] 🔴 이미지 규칙만 저장해도 전 마켓 전송이 막히던 것 ──────────
+#   구성 사본(SetProcessView)에 `images_json` 칸이 아예 없었다. 그래서 가공 엔진이
+#   「이미지가 한 장도 없습니다」로 판정하고 **막았다**(blocking=True).
+#   실제로는 옵션에 사진이 있는데도 그랬다 — 사장님이 정책에 이미지 항목을
+#   저장하는 순간 그 상품이 어느 마켓에도 못 나가는 상태였다.
+
+def _option_with_image(s, code, sku, color, size, stock, image_url):
+    from lemouton.sourcing.models import Option
+    o = Option(canonical_sku=sku, model_code=code,
+               color_code=color, color_display=color,
+               size_code=size, size_display=size,
+               boxhero_stock_total=stock, is_active=True,
+               image_url=image_url)
+    s.add(o)
+    s.flush()
+    return o
+
+
+def test_이미지_규칙만_저장해도_전송이_막히면_안_된다(s):
+    """🔴 사진이 있는데도 「한 장도 없다」며 막던 자리."""
+    _model(s)
+    _option_with_image(s, 'M1', 'SKU1', '블랙', 'M', 5, 'https://img/1.jpg')
+    ps = _set(s, skus=('SKU1',))
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy(s)
+    _save(s, p, 'coupang', 'price', {'sourcing_mode': 'margin_rate', 'sourcing_rate': 20})
+    _save(s, p, 'coupang', 'images', {'mode': 'rep_only'})
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+
+    got = TP.build_for_set(s, set_id=ps.id, market='coupang')
+    막힌사유 = [b for b in got['blocking'] if '이미지' in b]
+    assert not 막힌사유, f'사진이 있는데 막혔다: {막힌사유}'
+
+
+def test_구성_사본이_옵션_사진을_들고_있다(s):
+    """가공 엔진이 읽을 수 있어야 규칙이 먹는다 — 칸이 없으면 규칙이 헛돈다."""
+    _model(s)
+    _option_with_image(s, 'M1', 'SKU1', '블랙', 'M', 5, 'https://img/1.jpg')
+    _option_with_image(s, 'M1', 'SKU2', '화이트', 'M', 3, 'https://img/2.jpg')
+    ps = _set(s, skus=('SKU1', 'SKU2'))
+    view = TP.set_view(s, set_id=ps.id)
+    urls = json.loads(getattr(view, 'images_json', '[]') or '[]')
+    assert urls, '구성 사본에 사진이 하나도 없다'
+    assert 'https://img/1.jpg' in urls
+
+
+def test_사진이_정말_없으면_그때는_막는다(s):
+    """막는 것 자체는 옳다 — 사진 없이 올릴 수 있는 마켓은 없다."""
+    _model(s)
+    _option(s, 'M1', 'SKU1', '블랙', 'M', 5)      # image_url 없음
+    ps = _set(s, skus=('SKU1',))
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy(s)
+    _save(s, p, 'coupang', 'price', {'sourcing_mode': 'margin_rate', 'sourcing_rate': 20})
+    _save(s, p, 'coupang', 'images', {'mode': 'rep_only'})
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    got = TP.build_for_set(s, set_id=ps.id, market='coupang')
+    assert any('이미지' in b for b in got['blocking']), '사진이 없는데 안 막았다'

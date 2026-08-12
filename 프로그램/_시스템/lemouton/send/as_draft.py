@@ -147,7 +147,7 @@ def upsert(session, *, set_id: int, market: str, view=None):
     #   🔴 새로 만들지 않는다 — 여기 담는 것은 **공개 주소**뿐이고, 스스가 요구하는
     #     네이버 CDN 으로 옮기는 일은 등록 직전 `image_prep.prepare_cdn_images` 가
     #     LIVE 게이트 뒤에서 한다(그게 이미 있는 경로다).
-    d.images_json = json.dumps(_option_images(session, set_id), ensure_ascii=False)
+    d.images_json = json.dumps(option_images(session, set_id), ensure_ascii=False)
 
     # 🔴 고시정보(notice_json)는 **여기서 채우지 않는다** — 전역·소싱처별 기본값을
     #   `notice_defaults.apply_notice_defaults` 가 **컴파일 직전에** 병합한다.
@@ -156,8 +156,11 @@ def upsert(session, *, set_id: int, market: str, view=None):
     return d
 
 
-def _option_images(session, set_id: int) -> list:
+def option_images(session, set_id: int) -> list:
     """구성에 담긴 옵션들의 사진 주소 — 순서대로, 중복 없이.
+
+    🔴 [2026-08-13] **공개 이름이다** — 정책 사본(policy/to_payload.set_view)도 같은
+      함수를 쓴다. 여기서만 고치면 「사본이 본 사진」과 「초안에 실리는 사진」이 갈린다.
 
     ★ 첫 장이 대표가 된다. 구성이 정한 옵션 순서를 그대로 따르므로, 대표로 쓸
       사진을 바꾸려면 옵션 순서를 바꾸면 된다.
