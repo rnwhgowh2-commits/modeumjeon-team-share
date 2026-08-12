@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import io
+import math as _math
 from typing import Optional
 
 from lemouton.markets import line_uid as _line_uid
@@ -1442,13 +1443,24 @@ def _cp_estimate_settle(unit, qty, ship, seller_dc=0, fee_rate=None):
     except (TypeError, ValueError):
         dc = 0
     base = max(0, u * q - dc)
-    factor = CP_FEE_FACTOR
+    rate = 1 - CP_FEE_FACTOR
     if fee_rate is not None:
         try:
-            factor = 1 - float(fee_rate)
+            rate = float(fee_rate)
         except (TypeError, ValueError):
-            factor = CP_FEE_FACTOR
-    return round((base + s) * factor)
+            rate = 1 - CP_FEE_FACTOR
+    # 🔴 [2026-08-13] 쿠팡과 **같은 순서·같은 반올림**으로 센다.
+    #   쿠팡:  수수료 = 반올림(기준 × 요율)  →  정산 = 기준 − 수수료
+    #   옛 우리 식: round(기준 × (1 − 요율))  ← 한 번에 곱해 자리가 어긋났다.
+    #   게다가 파이썬 `round()` 는 **은행가 반올림**이라 `.5` 를 짝수 쪽으로 보낸다.
+    #   쿠팡 정산 엑셀 실측: `기준 × 11.55%` 가 정확히 `.5` 로 떨어지는 **28행 전부
+    #   쿠팡이 올림**(내림 0건). 그 자리에서 우리는 정산을 1원 크게 잡아
+    #   「받을 돈」이 상시 과대였다. 전수 재현율 98/138 → **124/138**.
+    #   (남은 14행은 그 상품 실요율이 11.548~11.549% — 고정값의 한계.
+    #    요율을 아는 상품은 `fee_rate` 로 넘겨 정확히 맞춘다.)
+    gross = base + s
+    fee = _math.floor(gross * rate + 0.5)
+    return gross - fee
 
 
 def _cp_learn_fee_rates(rows, item_settle):
