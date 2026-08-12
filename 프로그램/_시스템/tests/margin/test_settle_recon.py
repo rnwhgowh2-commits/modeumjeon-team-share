@@ -183,3 +183,35 @@ def test_노션_기준일_규칙_4항목이_전부_있다():
     assert SR.ITEMS["smartstore"]["window_days"] == 30      # 정산예정일 1달
     assert SR.ITEMS["coupang_rg"]["fast_excluded"] is True  # 빠른정산금 제외됨
     assert SR.ITEMS["coupang_unconfirmed"]["fast_excluded"] is False
+
+
+# ══ [2026-08-12 실물 확인] 쿠팡 상세 엑셀은 주문번호를 준다 → 주문 단위 대조 ═══
+#  총액만 맞고 안이 틀린 경우를 잡는다. 우리 「정산예정금액」과 쿠팡 「정산금액」은
+#  둘 다 지급비율 적용 **전** 금액이라 같은 종류다(그래서 바로 맞댈 수 있다).
+
+def test_주문번호가_있으면_주문_단위로_맞댄다():
+    b = _xlsx([{"주문번호": "A1", "정산금액": 1000, "정산예정일": "2026-08-24"},
+               {"주문번호": "A2", "정산금액": 2000, "정산예정일": "2026-08-24"}])
+    parsed = SR.parse_sheet(b)
+    assert parsed["amount_col"] == "정산금액"
+    assert parsed["is_base_amount"] is True      # 지급비율 적용 전 금액이다
+    lines = [_line(), _line()]
+    lines[0]["row"].update({"오픈마켓주문번호": "A1", "정산예정금액": 1000})
+    lines[1]["row"].update({"오픈마켓주문번호": "A2", "정산예정금액": 1777})
+    r = SR.compare_orders(parsed, lines)
+    assert r["가능"] and r["일치"] == 1 and r["차이"] == 1
+    assert r["차이목록"][0]["주문번호"] == "A2"
+    assert r["차이목록"][0]["차이"] == -223
+
+
+def test_마켓에만_있는_주문을_드러낸다():
+    """우리가 아예 못 받아 온 주문 — 조용히 빠지면 「일치」로 보인다."""
+    b = _xlsx([{"주문번호": "Z9", "정산금액": 500}])
+    r = SR.compare_orders(SR.parse_sheet(b), [])
+    assert r["마켓에만_수"] == 1 and r["일치"] == 0
+
+
+def test_주문번호_열이_없으면_못한다고_말한다():
+    b = _xlsx([{"정산금액": 500}])
+    r = SR.compare_orders(SR.parse_sheet(b), [])
+    assert r["가능"] is False and "주문번호" in r["왜"]
