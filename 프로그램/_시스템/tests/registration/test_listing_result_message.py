@@ -141,16 +141,15 @@ def test_결과없음_글귀가_규칙에_실려_온다():
     """
     from lemouton.sources.listing_discover import dom_rule_for
 
-    for key in ('lotteon', 'lotteimall', 'hmall'):
+    for key in ('musinsa', 'lotteon', 'lotteimall', 'hmall', 'lemouton'):
         assert dom_rule_for(key)['empty_text'], f'{key} 「결과 없음」 글귀가 없다'
 
 
 def test_결과없음_글귀를_모르는_곳은_비워_둔다():
     """★ 글귀가 없다고 0건으로 만들지는 않는다 — 있을 때만 「없다」고 확정한다.
-    무신사·SSF 는 결과 0건이면 정말 0건이 나오는 것을 실측했다."""
+    SSF 는 결과 0건이면 **정말 0건**이 나오는 것을 실측했다(추천이 안 깔린다)."""
     from lemouton.sources.listing_discover import dom_rule_for
 
-    assert dom_rule_for('musinsa')['empty_text'] is None
     assert dom_rule_for('ssf')['empty_text'] is None
 
 
