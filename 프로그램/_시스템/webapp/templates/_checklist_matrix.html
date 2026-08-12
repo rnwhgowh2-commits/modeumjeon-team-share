@@ -21,10 +21,15 @@
 
 .ckroot .cklegend{display:flex;gap:10px;font-size:11px;color:var(--sub);margin:6px 0 10px;flex-wrap:wrap;align-items:center;line-height:1.65;}
 .ckroot .cklegend b{font-size:11px;color:#4E5968;font-weight:800;}
-.ckroot .ckwrap{display:grid;grid-template-columns:1fr 280px;gap:10px;align-items:start;}
+/* 사장님 지시(2026-08-13) — 오른쪽 고정판을 없애고 그 폭을 표에 준다. */
+.ckroot .ckwrap{display:block;}
+/* 표를 넓게 — `.dm2`(max-width:950px · zoom 1.58) 안에 갇히면 25열이 눌려 안 읽힌다.
+   좌우로 같은 만큼 넘겨 화면을 꽉 쓴다. 1180 x 1.58 = 1864px 이라 1920 화면에 들어간다.
+   🔴 `.dm2` 의 max-width 나 zoom 이 바뀌면 이 두 숫자도 같이 봐야 한다. */
+.ckroot{width:1180px;max-width:none;margin-left:-115px;}
 .ckroot .cktbl-scroll{overflow-x:auto;border:1px solid var(--line2);border-radius:8px;background:#fff;}
 .ckroot .cktbl{border-collapse:separate;border-spacing:0;font-size:11px;width:max-content;min-width:100%;}
-.ckroot .cktbl th,.ckroot .cktbl td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 6px;}
+.ckroot .cktbl th,.ckroot .cktbl td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:9px 7px;}
 /* 표 머리글 — 11px · 800 · #4E5968 · 바탕 없음(sticky 라 흰 판만 깔아 밑줄이 비치지 않게 한다) */
 .ckroot .cktbl thead th{background:#fff;font-size:11px;font-weight:800;color:#4E5968;line-height:1.65;
   position:sticky;top:0;z-index:2;text-align:center;vertical-align:middle;}
@@ -32,22 +37,21 @@
 .ckroot .cktbl .cks{font-size:11px;font-weight:800;color:#4E5968;max-width:80px;min-width:54px;line-height:1.65;}
 .ckroot .ckrule{color:#1B64DA;font-size:11px;margin-left:2px;}
 /* 마켓 이름 열은 옆으로 밀어도 계속 보여야 한다 */
-.ckroot .ckfix{position:sticky;left:0;z-index:3;background:#fff;text-align:left;min-width:112px;box-shadow:1px 0 0 var(--line2);}
+.ckroot .ckfix{position:sticky;left:0;z-index:3;background:#fff;text-align:left;min-width:128px;box-shadow:1px 0 0 var(--line2);}
 .ckroot thead .ckfix{z-index:4;background:#fff;}
 .ckroot .ckmk{display:block;font-weight:700;font-size:12.5px;line-height:1.65;}
 .ckroot .ckbar{display:inline-block;width:52px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;vertical-align:middle;margin-right:4px;}
 .ckroot .ckbar-in{display:block;height:100%;background:var(--ok);}
 .ckroot .cknum{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;font-family:var(--mono);}
 .ckroot .cksl{color:var(--faint);margin:0 1px;}
-.ckroot .ckdot{text-align:center;cursor:pointer;font-size:12.5px;width:40px;position:relative;}
+.ckroot .ckdot{text-align:center;cursor:pointer;font-size:14px;width:46px;height:38px;position:relative;}
 .ckroot .ckdot.armed{box-shadow:inset 0 0 0 2px #F59E0B;}
 .ckroot .ckdot.pinned{box-shadow:inset 0 0 0 2px var(--ink);}
 .ckroot .ckwarn{position:absolute;top:1px;right:2px;font-style:normal;font-size:11px;font-weight:800;color:#DC2626;line-height:1;}
-.ckroot .ckpanel{border:1px solid var(--line2);border-radius:8px;background:#fff;padding:12px;position:sticky;top:8px;min-height:240px;}
-.ckroot .ckph{font-size:11px;color:var(--sub);line-height:1.65;}
 .ckroot .ckerr{font-size:12.5px;color:#B91C1C;background:#FEF2F2;border:1px solid #FBD5D5;border-radius:8px;padding:9px 12px;line-height:1.65;}
 
-/* ── 정보창(떠 있는 것) — 바깥틀 이름은 ckpop, 오른쪽 고정판은 ckpanel. 속 부품(ckcard)만 공용 ──
+/* ── 정보창(떠 있는 것) — 바깥틀 이름은 ckpop, 속 부품은 ckcard ──
+   (오른쪽 고정판은 2026-08-13 사장님 지시로 없앴다. 붙잡기는 정보창이 맡는다.)
    글자 크기는 아래 「확대 밖 보정」 블록에서 1.58배로 다시 적는다. 여기 12.5px 는 보정 전 기준값이다. */
 .ckpop{display:none;position:fixed;z-index:99999;background:#fff;border:1px solid #d1d6db;border-radius:14px;
   max-height:74vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;text-align:left;
@@ -92,7 +96,7 @@
       확대 밖에 있는 만큼 **스스로 1.58배**로 적어 둔다. zoom 을 쓰면 offsetWidth 가
       확대 전 값이라 place() 의 자리 계산이 어긋난다 — 쓰지 마라.
       `.dm2` 의 zoom 을 바꾸면 이 숫자도 같이 바꿔야 한다.
-   🔴 오른쪽 고정판(.ckpanel)은 `.dm2` 안이라 이미 제대로 커진다 — 여기 걸리면 안 된다.
+   🔴 이 보정은 `.ckpop`(확대 밖) 에만 건다. `.ckcard` 에 걸면 확대 안 부품까지 두 배가 된다.
       그래서 `.ckcard …` 가 아니라 반드시 `.ckpop …` 으로만 덮는다.
    글자는 세 가지뿐이라는 뜻은 그대로다 : 11→17.5 · 12.5→19.75 · 14→22 ── */
 .ckpop{font-size:19.75px;width:742px;padding:22px 25px;border-radius:22px;
@@ -168,11 +172,16 @@
   pop.className = 'ckpop ckcard';
 
   var openTimer = null, hideTimer = null, armed = null, curKey = null, lastAnchor = null;
+  /* 눌러서 붙잡은 칸. 붙잡힌 동안에는 마우스를 떼도 정보창이 안 닫힌다.
+     (오른쪽 고정판을 없앤 뒤 그 역할을 정보창이 맡는다 — 2026-08-13) */
+  var pinnedKey = null;
   var DATA = null;          /* 서버가 준 것 그대로 — 조각 안에 박아 두지 않는다 */
 
   function disarm() { if (armed) { armed.classList.remove('armed'); armed = null; } }
-  function hideNow() { pop.classList.remove('on'); curKey = null; }
+  function hideNow() { pop.classList.remove('on'); curKey = null; pinnedKey = null;
+    document.querySelectorAll('.ckdot.pinned').forEach(function (x) { x.classList.remove('pinned'); }); }
   function scheduleHide() {
+    if (pinnedKey) return;          /* 붙잡힌 동안엔 안 닫는다 */
     clearTimeout(hideTimer);
     hideTimer = setTimeout(hideNow, CLOSE_DELAY);
   }
@@ -303,6 +312,7 @@
   }
   /* 빠르게 훑을 때 가로채지 않도록 140ms 뒤에 연다. 열리기 직전 앵커에 .armed 로 표시한다. */
   function arm(anchor, key) {
+    if (pinnedKey) return;          /* 붙잡혀 있으면 다른 칸에 올려도 안 바뀐다 */
     if (curKey === key) { clearTimeout(hideTimer); hideTimer = null; return; }
     clearTimeout(openTimer); disarm();
     armed = anchor; anchor.classList.add('armed');
@@ -337,19 +347,28 @@
   }
 
   function headHTML(cols, rowHead) {
-    var g1 = '<tr><th class="ckfix" rowspan="2">' + esc(rowHead) + '</th>', i = 0;
+    /* 묶음이 한 칸뿐이고 이름이 묶음과 같으면 두 줄로 나누지 않는다 —
+       나누면 같은 글자가 위아래로 두 번 찍혀 자리만 먹는다(사장님 화면에서 확인). */
+    var r1 = '<tr><th class="ckfix" rowspan="2">' + esc(rowHead) + '</th>';
+    var r2 = '<tr>';
+    var i = 0;
     while (i < cols.length) {
       var j = i;
       while (j + 1 < cols.length && cols[j + 1].group === cols[i].group) j++;
-      g1 += '<th class="ckg" colspan="' + (j - i + 1) + '">' + esc(cols[i].group) + '</th>';
+      var span = j - i + 1;
+      if (span === 1 && cols[i].group === cols[i].name) {
+        r1 += '<th class="cks" rowspan="2" title="' + esc(cols[i].name) + '">' + esc(cols[i].name)
+          + (cols[i].rule ? '<span class="ckrule">▸</span>' : '') + '</th>';
+      } else {
+        r1 += '<th class="ckg" colspan="' + span + '">' + esc(cols[i].group) + '</th>';
+        for (var k = i; k <= j; k++) {
+          r2 += '<th class="cks" title="' + esc(cols[k].name) + '">' + esc(cols[k].name)
+            + (cols[k].rule ? '<span class="ckrule">▸</span>' : '') + '</th>';
+        }
+      }
       i = j + 1;
     }
-    g1 += '</tr>';
-    var g2 = '<tr>' + cols.map(function (c) {
-      return '<th class="cks" title="' + esc(c.name) + '">' + esc(c.name)
-        + (c.rule ? '<span class="ckrule">▸</span>' : '') + '</th>';
-    }).join('') + '</tr>';
-    return g1 + g2;
+    return r1 + '</tr>' + r2 + '</tr>';
   }
 
   function bodyHTML(rows, cols, cells) {
@@ -372,13 +391,6 @@
     }).join('');
   }
 
-  function paneReset(p) {
-    p.className = 'ckpanel';
-    p.removeAttribute('style');
-    p.innerHTML = '<div class="ckph"><b>오른쪽 고정판</b><br>'
-      + '칸에 마우스를 올리면 정보창이 뜨고, 누르면 여기에 고정됩니다.</div>';
-  }
-
   function draw(root, d) {
     DATA = d;
     var cols = d.columns || [], rows = d.rows || [], cells = d.cells || {};
@@ -399,22 +411,19 @@
     root.querySelector('.cktbl thead').innerHTML = headHTML(cols, rowHead);
     root.querySelector('.cktbl tbody').innerHTML = bodyHTML(rows, cols, cells);
 
-    var pane = root.querySelector('.ckpanel');
     root.querySelectorAll('.ckdot[data-k]').forEach(function (td) {
       td.addEventListener('mouseenter', function () { arm(td, td.getAttribute('data-k')); });
+      /* 고정판을 없앴으니(사장님 지시) 「붙잡기」는 정보창이 맡는다.
+         누르면 마우스를 떼도 안 닫힌다 — 읽거나 주소를 복사할 동안 그대로 있어야 한다.
+         다시 누르거나 다른 칸을 누르면 풀린다. */
       td.addEventListener('click', function () {
+        var k = td.getAttribute('data-k');
+        var wasPinned = td.classList.contains('pinned');
         root.querySelectorAll('.ckdot.pinned').forEach(function (x) { x.classList.remove('pinned'); });
+        if (wasPinned) { pinnedKey = null; scheduleHide(); return; }
         td.classList.add('pinned');
-        /* 오른쪽 고정판은 좁은 칸이라 늘 세로 흐름형으로 그린다 — 표형을 넣으면 눌려서 못 읽는다. */
-        pane.className = 'ckpanel ckcard';
-        pane.style.cssText = 'position:sticky;top:8px;display:block;width:auto;max-height:none;box-shadow:none;overflow:auto;';
-        pane.innerHTML = '<button class="cp" data-unpin="1" style="float:right">고정 해제</button>'
-          + render(td.getAttribute('data-k'));
-        pane.querySelector('[data-unpin]').addEventListener('click', function (ev) {
-          ev.stopPropagation();
-          root.querySelectorAll('.ckdot.pinned').forEach(function (x) { x.classList.remove('pinned'); });
-          paneReset(pane);
-        });
+        pinnedKey = k;
+        show(td, k);
       });
     });
   }
@@ -426,8 +435,6 @@
     '<div class="cklegend"></div>',
     '<div class="ckwrap">',
     '<div class="cktbl-scroll"><table class="cktbl"><thead></thead><tbody></tbody></table></div>',
-    '<div class="ckpanel"><div class="ckph"><b>오른쪽 고정판</b><br>',
-    '칸에 마우스를 올리면 정보창이 뜨고, 누르면 여기에 고정됩니다.</div></div>',
     '</div>',
     '</div>'
   ].join('');

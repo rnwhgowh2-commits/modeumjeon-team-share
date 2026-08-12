@@ -125,9 +125,14 @@ def test_contract_functions_are_exposed():
     assert "window.ckInit" in html
 
 
-def test_pop_and_panel_have_different_outer_names():
+def test_pinning_moved_to_the_card_after_panel_was_removed():
+    """오른쪽 고정판을 없앤 뒤(2026-08-13 사장님 지시) 「붙잡기」는 정보창이 맡는다.
+
+    🔴 붙잡기가 사라지면, 주소를 복사하려고 마우스를 떼는 순간 카드가 닫힌다.
+    """
     html = _matrix()
-    assert "ckpop" in html and "ckpanel" in html
+    assert "ckpanel" not in html, "없앤 고정판이 남아 있다"
+    assert "pinnedKey" in html, "붙잡기가 어디에도 없다"
 
 
 def test_popup_is_scaled_for_being_outside_the_zoom():
@@ -153,7 +158,7 @@ def test_zoom_is_never_used_on_the_popup():
 
 
 def test_pinned_panel_is_not_scaled_twice():
-    """🔴 고정판은 `.dm2` 안이라 이미 커진다 — 1.58배 보정이 걸리면 두 배로 커진다."""
+    """🔴 1.58배 보정은 확대 밖(.ckpop)에만 건다 — .ckcard 에 걸면 확대 안 부품까지 두 배가 된다."""
     import re
     html = _matrix()
     for line in html.split("\n"):
@@ -169,3 +174,21 @@ def test_card_leaves_room_to_flip_instead_of_covering_the_cell():
     assert "max-height:56vh" in html
     assert "CARD_VH=0.56" in html, "CSS 의 56vh 와 JS 상수가 갈라지면 조용히 어긋난다"
     assert "maxHeight" in html, "자리에 맞춰 높이를 잘라 주지 않으면 칸을 덮는다"
+
+
+def test_table_is_widened_beyond_the_950px_host():
+    """🔴 25열이 950px 안에 갇히면 눌려서 안 읽힌다(사장님 화면에서 확인)."""
+    html = _matrix()
+    assert "width:1180px" in html and "margin-left:-115px" in html
+
+
+def test_header_does_not_print_the_same_word_twice():
+    """묶음이 한 칸뿐이고 이름이 같으면 rowspan 으로 합친다 — 안 합치면 같은 글자가 두 번 찍힌다."""
+    html = _matrix()
+    assert 'rowspan="2"' in html
+    assert "cols[i].group === cols[i].name" in html
+
+
+# NOTE 정적 검사로 「선언 없이 쓰는 이름」을 잡아 보려 했으나 규칙이 거짓양성을 냈다.
+#   실제로 이 부류(`pinnedKey` 미선언)를 잡아낸 것은 **브라우저에서 눌러 본 것**이다 —
+#   시험 88개도 `node --check` 도 통과했었다. 화면 확인을 건너뛰지 말 것.
