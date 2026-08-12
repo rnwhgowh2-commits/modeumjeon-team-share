@@ -342,8 +342,17 @@ def box(code: str):
         nm = m.model_name_display or m.model_name_raw or m.model_code
         opts = (s.query(Option).filter_by(model_code=code)
                 .order_by(Option.display_no, Option.canonical_sku).all())
-        from lemouton.matrix.option_name import full_name
+        # [2026-08-12 노션 옵션 b★] 옵션마다 **모델명이 비지 않게** 한다.
+        #   모델 축이 있으면 그 값, 없으면(색상모음전) 매트릭스 이름이 곧 모델명이다.
+        #   축 이름은 저장된 단계 설계에서 읽는다 — 새 칸을 만들지 않는다.
+        from lemouton.sourcing.models import BundleOptionStep
+        axis_names = [a for (a,) in s.query(BundleOptionStep.axis_name)
+                      .filter_by(model_code=code)
+                      .order_by(BundleOptionStep.step_no).all()]
+        from lemouton.matrix.option_name import full_name, model_name_of
         rows = [{'no': o.display_no, 'name': full_name(nm, o),
+                 'sku': o.canonical_sku,
+                 'model_name': model_name_of(nm, o, axis_names),
                  'color': o.color_display or o.color_code,
                  'size': o.size_display or o.size_code,
                  'active': bool(o.is_active),

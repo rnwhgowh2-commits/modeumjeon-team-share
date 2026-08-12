@@ -42,13 +42,18 @@
     <div class="lc-bar" id="lc-bar" hidden></div>
     <div class="ob-lh">만들어진 옵션 <span class="ob-cnt">{{ box.options }}</span></div>
     <table class="ob-tb" id="ob-tb">
-      <tr><th>옵션번호</th><th>옵션명</th><th>색상</th><th>사이즈</th>
+      {# [2026-08-12 노션 옵션 b★] 「옵션별로 SKU 부여 · 브랜드/모델명 입력」이
+         눈으로 확인되게 열을 늘렸다. 데이터는 이미 있었고 화면에만 없었다. #}
+      <tr><th>옵션번호</th><th>옵션명</th><th>브랜드</th><th>모델명</th>
+          <th>색상</th><th>사이즈</th>
           <th class="c">판매</th><th class="c">사입</th><th class="r">사입 재고</th>
           <th class="c">소싱처</th><th class="c">마지막 확인</th><th class="r">최저 매입가</th></tr>
       {% for r in box.rows %}
       <tr data-color="{{ r.color or '' }}" data-size="{{ r.size or '' }}">
-        <td class="mono">{{ r.no or '—' }}</td>
+        <td class="mono" title="프로그램 안에서 쓰는 열쇠 {{ r.sku }}">{{ r.no or '—' }}</td>
         <td><b>{{ r.name }}</b></td>
+        <td>{{ box.brand or '—' }}</td>
+        <td>{{ r.model_name or '—' }}</td>
         <td>{{ r.color or '—' }}</td>
         <td>{{ r.size or '—' }}</td>
         <td class="c">{% if r.active %}켜짐{% else %}<span class="off">꺼짐</span>{% endif %}</td>
