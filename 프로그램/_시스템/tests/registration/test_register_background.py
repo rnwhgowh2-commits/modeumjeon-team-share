@@ -369,8 +369,18 @@ def test_확인_버튼은_그_마켓_상품조회를_상품명으로_부른다(c
     assert body['scanned'] == 1 and '상품명' in body['scope'], body
 
 
-def test_조회_실패는_없다가_아니라_원문_사유로_502(client, monkeypatch):
-    """조회가 터진 것을 「상품 없음」으로 칠하면 유령 상품을 못 찾는다."""
+def test_조회_실패는_없다가_아니라_원문_사유로_내려온다(client, monkeypatch):
+    """조회가 터진 것을 「상품 없음」으로 칠하면 유령 상품을 못 찾는다.
+
+    🔴 2026-08-12 — 상태코드가 **502 → 424** 로 바뀌었다. 라우트가 바뀐 게 아니라
+      `app.py` 의 `_unswallow_gateway_json` 이 JSON 응답의 502·504 를 424 로 갈아
+      끼운다. 앞단(Cloudflare/Caddy)이 502·504 본문을 자기 오류 HTML 로 통째
+      갈아치워, 화면의 `r.json()` 이 터지고 **진짜 사유가 유실됐기 때문**이다.
+      원래 뜻은 `X-Upstream-Status` 헤더에 남는다.
+      이 시험의 알맹이는 상태코드 숫자가 아니라 **「없다」로 칠하지 않고 원문
+      사유를 그대로 넘긴다**는 것 — 그래서 그 셋을 다 본다.
+      화면(`bulk_manual.js` 의 market-lookup)은 `body.ok` 로만 판정하므로
+      숫자 변경의 부작용이 없다."""
     import webapp.routes.bulk.drafts as D
     import lemouton.uploader.market_fetch as MF
     import shared.platforms.eleven11.products as P11
@@ -384,7 +394,8 @@ def test_조회_실패는_없다가_아니라_원문_사유로_502(client, monke
 
     monkeypatch.setattr(P11, 'search_products', boom)
     r = client.get(f'/bulk/api/drafts/{did}/market-lookup?market=eleven11')
-    assert r.status_code == 502
+    assert r.status_code == 424, '앞단이 안 삼키는 4xx 로 나가야 사유가 화면까지 산다'
+    assert r.headers.get('X-Upstream-Status') == '502', '원래 뜻(502)이 사라졌다'
     assert r.get_json()['ok'] is False
     assert '서버 오류' in r.get_json()['error']     # 원문을 버리지 않는다
 
