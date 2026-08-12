@@ -119,16 +119,18 @@
       {# [2026-08-12 노션 옵션 a] 사장님이 정하신 순서 그대로 —
          ①종류 → ②옵션축 → ③브랜드 → ④매트릭스의 이름. #}
       <label class="og-lb"><span class="og-step">1</span> 어떤 모음전인가요</label>
-      <div class="og-kinds" id="ob-kinds">
+      <div class="og-rg" id="ob-kinds">
         {% for p in axis_presets %}
-        <button type="button" class="og-kind" data-kind="{{ p.kind }}">
-          <b>{{ p.label }}</b><span>{{ p.desc }}</span>
-        </button>
+        <label class="og-rr{% if loop.first %} on{% endif %}" data-kind="{{ p.kind }}">
+          <input type="radio" name="ob-kind" value="{{ p.kind }}"{% if loop.first %} checked{% endif %}>
+          <span><b class="og-rt">{{ p.label }}</b>
+            <span class="og-rd">{{ p.desc }}</span></span>
+        </label>
         {% endfor %}
       </div>
 
       <label class="og-lb"><span class="og-step">2</span> 옵션축</label>
-      <div class="og-axes" id="ob-axes">
+      <div class="og-rg" id="ob-axes">
         <span class="og-axes-none">위에서 모음전 종류를 먼저 고르세요</span>
       </div>
 
@@ -331,20 +333,22 @@
   .og-step{display:inline-flex;width:18px;height:18px;border-radius:50%;
     background:var(--color-bg-muted);color:var(--color-text-tertiary);
     align-items:center;justify-content:center;font-size:11px;margin-right:6px}
-  .og-kinds{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:var(--sp-3)}
-  .og-kind{text-align:left;border:1.5px solid var(--color-border);border-radius:10px;
-    padding:10px 12px;background:var(--surface,#fff);font-family:inherit;cursor:pointer}
-  .og-kind b{display:block;font-size:14px;margin-bottom:2px}
-  .og-kind span{font-size:12px;color:var(--color-text-tertiary);line-height:1.5}
-  .og-kind.on{border-color:var(--color-primary);
-    background:var(--연한-파랑,rgba(0,113,227,.06))}
-  .og-kind.on b{color:var(--color-primary)}
-  .og-axes{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--sp-3);min-height:36px}
+  /* [2026-08-12 사장님 A1 확정] 종류·옵션축 둘 다 **세로 라디오**.
+     설명이 같이 보여 처음 쓰는 사람도 안 헷갈린다(시안 v14 A1).
+     🔴 안 고른 칸은 **회색**으로 못 박는다 — `--color-border` 가 파랑 계열로 풀려
+        고른 칸과 구분이 안 되는 것을 시안에서 실측으로 잡았다. */
+  .og-rg{display:flex;flex-direction:column;gap:8px;margin-bottom:var(--sp-3);
+    min-height:36px}
+  .og-rr{display:flex;align-items:flex-start;gap:9px;border:1.5px solid var(--ap-g2,#E8E8ED);
+    border-radius:10px;padding:10px 12px;cursor:pointer;background:var(--surface,#fff)}
+  .og-rr:hover{border-color:var(--ap-g3,#D2D2D7)}
+  .og-rr input{margin:2px 0 0;accent-color:var(--color-primary);flex:none;cursor:pointer}
+  .og-rt{display:block;font-size:14px;font-weight:600}
+  .og-rd{display:block;font-size:12px;color:var(--color-text-tertiary);
+    line-height:1.5;margin-top:2px}
+  .og-rr.on{border-color:var(--color-primary);background:var(--연한-파랑,rgba(0,113,227,.08))}
+  .og-rr.on .og-rt{color:var(--color-primary)}
   .og-axes-none{font-size:12.5px;color:var(--color-text-tertiary);padding:8px 0}
-  .og-ax{border:1.5px solid var(--color-border);border-radius:999px;padding:7px 14px;
-    background:var(--surface,#fff);font-family:inherit;font-size:13px;cursor:pointer}
-  .og-ax.on{border-color:var(--color-primary);color:var(--color-primary);font-weight:700;
-    background:var(--연한-파랑,rgba(0,113,227,.06))}
   /* [B1] 서랍 정렬 고르기 — 검색칸과 같은 규격, 밑여백만 없앤다 */
   .og-sort{margin-bottom:0}
   /* [2026-08-12] 「숨긴 묶음 보기」 — 브랜드 줄(.og-b)과 같은 규격으로 나란히 */
@@ -556,29 +560,48 @@
   var kindsBox = document.getElementById('ob-kinds');
   var axesBox = document.getElementById('ob-axes');
 
+  // [2026-08-12 사장님 A1 확정] 축도 **세로 라디오**로 그린다.
+  //   설명 한 줄(쓰임새)을 같이 달아 처음 쓰는 사람도 무엇을 고르는지 알게 한다.
+  var AX_SUB = {'색상': '사이즈가 하나뿐인 물건',
+                '색상 × 사이즈': '색상마다 사이즈가 있는 보통 신발·의류',
+                '모델': '모델만 여러 개',
+                '모델 × 색상': '모델마다 색이 있는 것',
+                '모델 × 색상 × 사이즈': '모델·색·사이즈가 다 있는 것'};
+  function esc0(s) { return String(s).replace(/[&<>"]/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function drawAxes() {
-    var p = PRESETS.filter(function (x) { return x.kind === pickedKind; })[0];
-    if (!p) { axesBox.innerHTML = '<span class="og-axes-none">위에서 모음전 종류를 먼저 고르세요</span>'; return; }
-    axesBox.innerHTML = p.options.map(function (o) {
-      var on = pickedAxes && pickedAxes.join(' ') === o.axes.join(' ');
-      return '<button type="button" class="og-ax' + (on ? ' on' : '') +
-             '" data-axes="' + o.axes.join(',') + '">' + o.n + '축 · ' +
-             o.axes.join(' × ') + '</button>';
+    var pr = PRESETS.filter(function (x) { return x.kind === pickedKind; })[0];
+    if (!pr) { axesBox.innerHTML = '<span class="og-axes-none">위에서 모음전 종류를 먼저 고르세요</span>'; return; }
+    axesBox.innerHTML = pr.options.map(function (o) {
+      var key = o.axes.join(' × ');
+      var on = pickedAxes && pickedAxes.join(' ') === o.axes.join(' ');
+      return '<label class="og-rr' + (on ? ' on' : '') +
+             '" data-axes="' + esc0(o.axes.join(',')) + '">' +
+             '<input type="radio" name="ob-ax"' + (on ? ' checked' : '') + '>' +
+             '<span><b class="og-rt">' + o.n + '축 · ' + esc0(key) + '</b>' +
+             '<span class="og-rd">' + esc0(AX_SUB[key] || '') + '</span></span></label>';
     }).join('');
   }
   kindsBox.addEventListener('click', function (e) {
-    var b = e.target.closest('.og-kind'); if (!b) return;
+    var b = e.target.closest('.og-rr'); if (!b) return;
     pickedKind = b.getAttribute('data-kind');
     // 종류를 바꾸면 축 고른 것은 버린다 — 남겨 두면 안 맞는 축이 딸려 간다.
     pickedAxes = null;
-    kindsBox.querySelectorAll('.og-kind').forEach(function (x) { x.classList.toggle('on', x === b); });
+    kindsBox.querySelectorAll('.og-rr').forEach(function (x) {
+      var on = x === b;
+      x.classList.toggle('on', on);
+      var r = x.querySelector('input'); if (r) r.checked = on;
+    });
     drawAxes();
   });
   axesBox.addEventListener('click', function (e) {
-    var b = e.target.closest('.og-ax'); if (!b) return;
+    var b = e.target.closest('.og-rr'); if (!b) return;
     pickedAxes = b.getAttribute('data-axes').split(',');
     drawAxes();
   });
+  // 첫 종류는 라디오가 이미 골라진 채로 뜬다 — 축도 바로 보여 준다.
+  pickedKind = (PRESETS[0] || {}).kind || null;
+  drawAxes();
 
   btn.addEventListener('click', function () {
     errEl.textContent = '';
