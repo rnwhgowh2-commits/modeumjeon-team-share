@@ -8,12 +8,26 @@
     <h1 class="page-header__title">옵션생성 &amp; 상품생성</h1>
   </div>
 
+  {# [2026-08-12 노션 하위탭 a · 사장님 A1 확정] 2단 위상 —
+     위에서 「옵션 생성 / 상품 생성」을 고르고, 아래에서 「직접 / 내마켓 불러오기」.
+     옵션을 먼저 만들고 상품은 나중이라는 순서가 눈에 보이게 한다. #}
   <div class="og-tabs">
-    {% for t in subtabs %}
-      <a class="og-tab {% if t.key == tab %}on{% endif %}"
-         href="/optgen?tab={{ t.key }}">{{ t.label }}</a>
+    {% for g, glabel, items in subtab_groups %}
+      {% set on = items | selectattr('key', 'equalto', tab) | list | length > 0 %}
+      <a class="og-tab {% if on %}on{% endif %}"
+         href="/optgen?tab={{ items[0].key }}">{{ glabel }}</a>
     {% endfor %}
   </div>
+  {% for g, glabel, items in subtab_groups %}
+    {% if items | selectattr('key', 'equalto', tab) | list | length > 0 and items | length > 1 %}
+    <div class="og-subtabs">
+      {% for t in items %}
+        <a class="og-sub {% if t.key == tab %}on{% endif %}"
+           href="/optgen?tab={{ t.key }}" title="{{ t.label }}">{{ t.short }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endfor %}
 
   {% if tab == 'market' %}
   {% include 'optgen/_market_pane.html' %}
@@ -241,6 +255,14 @@
     color:var(--color-text-tertiary);border-bottom:2px solid transparent;
     text-decoration:none}
   .og-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+  /* [2026-08-12 A1] 아랫단 — 윗단이 「무슨 일인지」, 아랫단이 「어떤 방법인지」.
+     알약 모양으로 갈라 놓아 윗단 탭과 헷갈리지 않게 한다. */
+  .og-tabs{margin-bottom:var(--sp-3)}
+  .og-subtabs{display:flex;gap:6px;margin:0 0 var(--sp-6,32px) 4px}
+  .og-sub{padding:6px 13px;font-size:13px;border-radius:999px;text-decoration:none;
+    border:1px solid var(--color-border);color:var(--color-text-secondary)}
+  .og-sub.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--color-primary);
+    border-color:var(--color-primary);font-weight:700}
   .og-d{font-size:14px;color:var(--color-text-secondary);margin-bottom:var(--sp-3)}
   .og-now{font-size:13px;color:var(--color-text-tertiary);
     background:var(--color-bg-muted);border-radius:8px;padding:10px 12px;

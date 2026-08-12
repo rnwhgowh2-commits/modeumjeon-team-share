@@ -33,14 +33,36 @@ def _model_code_children():
 #  ⚠️ 여기 없는 탭은 화면에 아예 안 뜬다(catalog·bulk 와 같은 함정).
 #  ⚠️ 상단 메뉴 펼침에도 같은 3개가 떠야 한다 — 그쪽 원천은 `api_sidebar._STAGE_SPEC`
 #     의 `s_collect`. **두 곳을 같이 고치지 않으면 메뉴만 옛것으로 남는다.**
+#  [2026-08-12 노션 하위탭 a · 사장님 A1 확정] 위상을 2단으로 나눈다.
+#    위 = 옵션 생성 / 상품 생성   아래 = 직접 / 내마켓 불러오기
+#    🔴 `label`·`key`·순서는 **한 글자도 안 바꾼다** — 상단 메뉴(api_sidebar)와
+#       같은 3개인지 tests/test_optgen_subtabs3.py 가 label 로 대조한다.
+#       `group`·`short` 는 화면이 2단으로 그리기 위해 옆에 붙이는 값이다.
 SUBTABS = [
     {'key': 'direct', 'label': '모음전 옵션 생성 (직접)',
+     'group': 'option', 'short': '직접',
      'desc': '색상·사이즈를 직접 적어 옵션을 만듭니다'},
     {'key': 'market', 'label': '모음전 옵션 생성 (내마켓 불러오기)',
+     'group': 'option', 'short': '내마켓 불러오기',
      'desc': '이미 마켓에서 팔고 있는 상품에서 이름·브랜드를 가져옵니다'},
     {'key': 'product', 'label': '모음전 상품 생성',
+     'group': 'product', 'short': '모음전 상품 생성',
      'desc': '만들어 둔 옵션을 담아 파는 단위를 만듭니다'},
 ]
+
+#: 위 단 — 순서는 SUBTABS 에 나온 순서 그대로(따로 적어 두면 갈린다).
+GROUP_LABEL = {'option': '옵션 생성', 'product': '상품 생성'}
+
+
+def subtab_groups():
+    """[(그룹키, 그룹이름, [그 그룹의 하위탭…]), …] — 화면이 2단으로 그릴 재료."""
+    out: list = []
+    for t in SUBTABS:
+        g = t.get('group') or t['key']
+        if not out or out[-1][0] != g:
+            out.append((g, GROUP_LABEL.get(g, g), []))
+        out[-1][2].append(t)
+    return out
 
 #: 옛 주소 → 지금 탭. 저장해 둔 바로가기·옛 링크가 조용히 빈 화면으로 가지 않게 한다.
 _TAB_ALIAS = {'option': 'direct', 'import': 'market'}
@@ -250,7 +272,8 @@ def index():
                   'all': len(boxes)}
     return render_template('optgen/index.html',
                            active_app='bundles', active='optgen_' + tab,
-                           subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats,
+                           subtabs=SUBTABS, subtab_groups=subtab_groups(),
+                           tab=tab, boxes=boxes, mats=mats,
                            made=made, markets=IMPORT_MARKETS,
                            stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
                            stage_cls=STAGE_CLS, mat_counts=mat_counts,
