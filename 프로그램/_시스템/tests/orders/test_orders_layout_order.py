@@ -191,3 +191,21 @@ def test_구매자는_수령자와_같으면_한줄로_줄인다():
     assert "if(col==='구매자번호')return sameAsRecv(r,'구매자번호','수령자전화번호');" in SRC
     # 필터 목록도 화면과 같은 값을 봐야 한다(화면은 「-」인데 필터가 이름이면 어긋난다)
     assert "if(col==='구매자')return _txt(sameAsRecv(" in SRC
+
+
+def test_주문_이행_가능_판단_단추가_표_위에_있다():
+    """사장님: "「주문 이행 가능 판단」 이렇게 누르면 실시간으로 열에 넣어줘"."""
+    assert 'id="ffJudge"' in LIST
+    assert '주문 이행 가능 판단' in LIST
+    # 표(#droprel) 보다 위에 있어야 누르고 바로 결과를 본다
+    assert LIST.index('id="ffJudge"') < LIST.index('id="droprel"')
+    # 송장 작업 탭엔 두지 않는다(그 탭은 3분류 축이 따로 있다)
+    assert 'id="ffJudge"' not in SHIP
+
+
+def test_판단_단추는_다시_긁지_않고_저장값으로_판정한다():
+    """🔴 크롤은 사장님 PC 확장이 한다 — 서버가 소싱처를 새로 못 긁는다.
+    그래서 결과에 「가장 오래된 소싱처 확인」을 같이 말해야 「방금 확인했다」는
+    오해가 안 생긴다."""
+    assert 'loadFulfillment(loadSeq,function()' in SRC
+    assert '가장 오래된 소싱처 확인은' in SRC

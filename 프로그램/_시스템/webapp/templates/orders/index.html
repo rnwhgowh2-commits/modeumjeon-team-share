@@ -551,6 +551,12 @@
     .o7 .pplist th{font-weight:600;color:var(--sub);background:var(--bg,#F9FAFB);}
     .o7 .pdx-mg{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .pdx-mg.pdx-neg{color: var(--글자-빨강, var(--red,#F04452));}
+    .o7 .ffbar{display:flex;align-items:center;gap:10px;margin:2px 0 8px;}
+    .o7 .ffbtn{border:1px solid var(--line);background:var(--surface,#fff);border-radius:9px;
+      padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);}
+    .o7 .ffbtn:hover{border-color:var(--blue);}
+    .o7 .ffbtn[disabled]{opacity:.5;cursor:default;}
+    .o7 .ffbar-msg{font-size:12px;color:var(--sub);}
     /* 주문 이행 가능(노션 A-1) — 판정 + 「언제 긁은 값인가」를 한 칸에. */
     .o7 .ffc{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px;white-space:nowrap;}
     .o7 .ffc.ffc-go{color: var(--글자-초록, var(--green,#15803D));background:var(--연한-초록,#DCFCE7);}
@@ -1022,6 +1028,15 @@
       {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
          판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
       <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {# 「주문 이행 가능 판단」 — 2번 열을 지금 다시 채운다(사장님 확정 2026-08-12).
+         🔴 크롤은 사장님 PC 확장이 하므로 이 단추는 **저장된 소싱처 값으로 다시 판정**한다.
+           그래서 몇 초면 끝나고, 칸마다 「언제 긁은 값인지」가 같이 적힌다. #}
+      {% if tab != 'ship' %}
+      <div class="ffbar" id="ffBar">
+        <button type="button" class="ffbtn" id="ffJudge">🔄 주문 이행 가능 판단</button>
+        <span class="ffbar-msg" id="ffJudgeMsg"></span>
+      </div>
+      {% endif %}
       {# ⑤ 표 바로 위 — 실매입가(더망고 매입 엑셀). 설계서 §5.2 + 2026-08-06 확정 2안.
          🔴 [2026-08-12] 큰 카드가 표 위 자리를 늘 차지하던 것을 접었다. 대신
            **표 위에 파일을 끌어오면 표 전체가 놓을 자리로 바뀐다**(아래 #dropov-pp).
@@ -4007,6 +4022,33 @@
         e.preventDefault(); dz.classList.remove('pp-over');
         if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])upload(e.dataTransfer.files[0]);});
       ppSyncMode();
+    })();
+    /* 「주문 이행 가능 판단」 — 지금 화면의 주문을 저장된 소싱처 값으로 다시 판정한다.
+       🔴 새로 긁지 않는다. 크롤은 사장님 PC 확장이 하고 서버는 저장분만 읽기 때문이다.
+         그래서 결과에 **몇 건이 언제 긁은 값인지**를 같이 말한다 — 안 그러면 사장님이
+         「방금 확인했다」고 믿게 된다. */
+    (function(){
+      var btn=document.getElementById('ffJudge'); if(!btn)return;
+      var msg=document.getElementById('ffJudgeMsg');
+      btn.addEventListener('click',function(){
+        if(!rows.length){msg.textContent='먼저 주문을 불러와 주세요.';return;}
+        btn.disabled=true; msg.textContent='판정하는 중…';
+        loadFulfillment(loadSeq,function(){
+          btn.disabled=false;
+          var n={go:0,no:0,clm:0,nourl:0,unk:0,none:0}, oldest=null;
+          filtered().forEach(function(r){
+            var L=ffColLabel(r), d=ffOf(r);
+            if(L.cls==='ffc-go')n.go++; else if(L.cls==='ffc-no')n.no++;
+            else if(L.cls==='ffc-clm')n.clm++; else if(L.cls==='ffc-nourl')n.nourl++;
+            else if(L.cls==='ffc-unk')n.unk++; else n.none++;
+            if(d&&d.crawled_at&&(!oldest||d.crawled_at<oldest))oldest=d.crawled_at;
+          });
+          msg.innerHTML='가능 <b>'+n.go+'</b> · 불가능 <b>'+n.no+'</b> · 클레임 <b>'+n.clm+'</b>'
+            +' · 소싱처 URL 없음 <b>'+n.nourl+'</b> · 확인 불가 <b>'+n.unk+'</b>'
+            +(oldest?(' <span style="color:var(--글자-주황,#B45309)">— 가장 오래된 소싱처 확인은 '
+                      +esc(ffAgo(oldest))+'</span>'):'');
+        });
+      });
     })();
     // ── 주문 3분류 판정 — 표에 행이 늘 때마다(scheduleFill) ─────────────────
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ffMap 을 비워 **탭 자체를 감춘다** —
