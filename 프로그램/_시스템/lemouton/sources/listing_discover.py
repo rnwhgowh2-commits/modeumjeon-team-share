@@ -109,6 +109,14 @@ _NEXT_URL_RE = {
 #: 소싱처별 「다음」 단추 — 눌러 가며 여러 장을 걷는다(주소로도 스크롤로도 못 넘기는 곳).
 #: 🔴 모르는 곳은 **비워 둔다.** 선택자를 추측해 넣으면 「더 있음」이 늘 켜지거나
 #:   늘 꺼져서 둘 다 거짓말이 된다.
+#: 🔴 **같은 소싱처인데 주소 종류에 따라 페이지 넘김이 다른** 경우.
+#:   여기 걸리는 주소는 페이지 파라미터를 **안 붙인다**(붙이면 같은 1쪽을 반복한다).
+#: ★ 실측(2026-08-08) — SSF 는 카테고리 목록에서만 `currentPage` 가 먹고,
+#:   검색 결과에서는 1쪽·2쪽·`page=2` 가 **상품 60개까지 완전히 겹쳤다.**
+_NO_PAGE_PATH = {
+    'ssf': re.compile(r'/search/result'),
+}
+
 _MORE_SELECT = {
     'lotteon': 'a.srchPaginationNext',      # 실측: 「다음」 — 눌러서 상품이 바뀜
     'lotteimall': 'a.next.ico',             # 실측: 「다음」 단추 존재
@@ -256,6 +264,10 @@ def page_urls_for(listing_url: str, *, source_key: str,
     if page_from is None and page_to is None:
         return [listing_url]
     param = _PAGE_PARAM.get(key)
+    # 같은 소싱처라도 이 주소 모양이면 페이지 넘김이 안 먹는다(SSF 검색 결과).
+    bad = _NO_PAGE_PATH.get(key)
+    if param and bad and bad.search(listing_url or ''):
+        param = None
     if not param:
         # 🔴 예전엔 여기서 예외를 냈다 — 그러면 범위를 적은 순간 **첫 장조차 못 걷는다.**
         #   주소로 못 넘기는 곳이라도 첫 장은 걷을 수 있고, 단추로 넘기는 곳이면

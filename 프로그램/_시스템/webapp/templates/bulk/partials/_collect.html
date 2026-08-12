@@ -258,6 +258,14 @@
         <button class="sf-btn pri" id="sf-save">만들기</button>
         <button class="sf-btn" id="sf-cancel">그만두기</button>
         <span class="sf-hint" id="sf-msg">만든 뒤 「지금 수집」을 눌러야 훑기 시작합니다</span>
+        {# 🔴 소싱처마다 「여러 쪽을 걷을 수 있나」가 다르다 — 실측(2026-08-08).
+           안 되는 곳에 쪽수를 적으면 같은 1쪽을 반복하므로 미리 알린다. #}
+        <span class="sf-hint" style="display:block;margin-top:6px;line-height:1.7">
+          여러 쪽 걷기 —
+          무신사 <b>됨</b> · 롯데온 <b>됨</b> · 롯데아이몰 <b>됨</b> · 르무통 <b>됨</b>
+          · SSF는 <b>카테고리 목록만</b>(검색 주소는 첫 쪽 60개)
+          · 현대H몰은 <b>첫 쪽만</b>
+        </span>
       </div>
     </div>`;
 
