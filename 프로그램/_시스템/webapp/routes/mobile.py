@@ -584,20 +584,25 @@ def api_action():
             tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
-            # 🔴 조정은 **절대값으로 저장한다** — 「실사해 보니 5개였다」가 조정이다.
-            #   재고 SSOT(`shared/inventory_stock.fold_tx_rows`)가 2026-08-13 감사에서
-            #   `adjust → total = q`(그 값으로 정한다)로 통일됐는데, **여기만 차이값을
-            #   저장하고 있었다.** 그래서 읽는 쪽이 그 차이값을 「센 수」로 읽었다:
-            #     재고 1 에서 「조정 5」 → 차이 4 저장 → SSOT 는 재고를 **4** 로 읽음.
-            #   실사한 수와 프로그램의 수가 달라지는, 조용한 재고 오류였다.
-            #   (같은 표의 행이 두 가지 뜻을 갖던 옛 사고의 마지막 잔재 — 모듈
-            #    독스트링의 "쓰는 쪽도 두 곳이 정반대였다" 가 여기서 아직 참이었다.)
+            # 🔴 조정은 **차이값(증감분)으로 저장한다** — 사장님 확정(2026-08-13).
+            #   창구는 「실사해 보니 5개」를 그대로 받는다(작업자에게 뺄셈을 안 시킨다).
+            #   차이 계산은 여기서 한다 — 저장은 그 차이다.
+            #
+            #   왜 차이값인가: ① 합(SUM)으로 셀 수 있고 ② **위치별 재고와 합이 맞는다.**
+            #   절대값으로 남기면 A창고 실사 5 가 B창고 재고까지 덮어 전체가 5 가 된다.
+            #   근거 = shared/inventory_stock.py 모듈 독스트링 + fold_tx_rows(읽는 쪽).
+            #
+            #   ⚠️ 잠깐 절대값으로 바뀐 적이 있다(같은 날). 읽는 쪽이 절대값으로
+            #      통일됐다고 본 것인데 **사실이 아니었다** — 읽는 쪽은 계속 차이값이었다.
+            #      그래서 「입고2·출고1 뒤 조정 5」가 6 으로 읽혔다. 되돌린다.
+            #      같은 규칙을 쓰는 데스크탑 경로 = inventory/inbound.create_adjustment
+            #      (거기도 차이값이다 — 두 창구가 같은 뜻이어야 한다).
             from shared.inventory_stock import get_stock_batch
             current = int(get_stock_batch(s, [sku], location_id=location_id).get(sku, 0))
-            delta = int(qty) - current          # 사람에게 보여줄 변화량(저장값 아님)
+            delta = int(qty) - current
             if delta == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
-            tx_qty = int(qty)                   # ← 저장은 센 수 그대로(절대값)
+            tx_qty = delta                      # ← 저장은 차이값
             tx_memo = memo or f"[모바일 조정] {current} → {qty}"
 
         tx = InventoryTx(

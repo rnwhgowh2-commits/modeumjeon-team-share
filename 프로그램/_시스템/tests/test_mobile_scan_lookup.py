@@ -110,12 +110,20 @@ def test_action_adjust_delta_from_ssot(client, seeded):
     assert j["new_total_stock"] == 5
 
 
-def test_adjust는_센_수_그대로_저장한다(client, seeded):
+def test_adjust는_차이값으로_저장한다(client, seeded):
     """🔴 저장값까지 못 박는다 — 응답만 보면 「어떻게 저장됐는지」를 안 본다.
 
-    재고 SSOT(`fold_tx_rows`)는 `adjust → total = q`(절대값)다. 여기서 차이값(4)을
-    저장하면 읽는 쪽이 그 4 를 「센 수」로 읽어 **실사 5 인데 재고 4** 가 된다.
-    2026-08-13 라이브 배포를 막고 있던 실제 사고가 이것이었다.
+    **사장님 확정(2026-08-13): 조정은 차이값(증감분)으로 통일한다.**
+      · 창구는 「실사해 보니 5개」를 그대로 받는다(작업자에게 뺄셈을 안 시킨다)
+      · 저장은 그 차이(5 − 현재 1 = 4)
+      · 읽는 쪽(fold_tx_rows)이 더해서 5 를 낸다
+
+    왜 차이값인가 — 절대값으로 남기면 **A창고 실사가 B창고 재고까지 덮는다**.
+    합으로 셀 수 있어야 위치별 재고와 총합이 맞는다.
+
+    🔴 잠깐 절대값으로 바뀐 적이 있다(같은 날). 「읽는 쪽이 절대값으로 통일됐다」고
+       본 것인데 사실이 아니었고, 읽는 쪽은 계속 차이값이었다 → 「입고2·출고1 뒤
+       조정 5」가 **6** 으로 읽혀 배포가 통째로 막혔다. 그 재발을 여기서 잡는다.
     """
     from lemouton.inventory.models import InventoryTx
     from shared.db import SessionLocal
@@ -130,6 +138,24 @@ def test_adjust는_센_수_그대로_저장한다(client, seeded):
                 .filter_by(option_canonical_sku=seeded["sku"], status="completed")
                 .order_by(InventoryTx.id).all())
     adj = [q for t, q in rows if t == "adjust"]
-    assert adj == [5], f"조정은 센 수 그대로 저장해야 한다(차이값 아님): {rows}"
-    # 그리고 그 저장값을 SSOT 규칙으로 접으면 실사한 수가 그대로 나와야 한다.
+    assert adj == [4], f"조정은 차이값으로 저장해야 한다(센 수 아님): {rows}"
+    # 그리고 그 저장값을 읽는 쪽 규칙으로 접으면 **실사한 수**가 나와야 한다.
     assert fold_tx_rows(rows) == 5
+
+
+def test_적는_쪽과_읽는_쪽이_같은_뜻이어야_한다():
+    """🔴 이 사고의 본질 — 한 표의 같은 종류 행이 두 가지 뜻을 가졌다.
+
+    모바일 창구와 데스크탑 창구(create_adjustment)가 **같은 규칙**이어야 한다.
+    한쪽만 바꾸면 어느 읽는 쪽도 옳을 수 없다.
+    """
+    import inspect
+    from lemouton.inventory import inbound
+    from webapp.routes import mobile
+
+    desk = inspect.getsource(inbound.create_adjustment)
+    assert "delta" in desk and "qty=delta" in desk.replace(" ", ""), \
+        "데스크탑 조정이 차이값을 안 남긴다"
+
+    mob = inspect.getsource(mobile).split("else:  # adjust")[1].split("tx = InventoryTx")[0]
+    assert "tx_qty = delta" in mob, f"모바일 조정이 차이값을 안 남긴다: {mob[-300:]}"
