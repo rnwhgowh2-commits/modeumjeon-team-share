@@ -52,9 +52,9 @@ def test_무신사도_여러_장을_걷는다():
 
 
 def test_넘기는_법을_모르는_곳도_첫_장만():
-    """현대H몰 — 주소 파라미터도 「다음」 단추도 못 찾았다.
-    예외를 내지 않는다: 첫 장은 걷을 수 있다."""
-    assert click_pages_for('hmall', 1, 5) == 1
+    """규칙이 없는 소싱처는 예외를 내지 않는다 — 첫 장은 걷을 수 있다.
+    ★ 예전엔 H몰이 이 자리였는데, `page=` 로 넘어가는 것을 실측해 옮겼다."""
+    assert click_pages_for('ss_lemouton', 1, 5) == 1
 
 
 def test_SSF는_주소로_넘긴다():
@@ -84,8 +84,9 @@ def test_주소로_넘기는_곳은_예전_그대로():
 
 
 def test_둘_다_모르는_곳은_주소를_그대로_한_장():
-    """예외로 막으면 첫 장조차 못 걷는다 — 걷을 수 있는 데까지는 걷는다."""
-    got = page_urls_for('https://www.hmall.com/md/pde/search?searchTerm=나이키',
-                        source_key='hmall', page_from=1, page_to=3)
+    """예외로 막으면 첫 장조차 못 걷는다 — 걷을 수 있는 데까지는 걷는다.
+    ★ 예전엔 H몰이 이 자리였는데 `page=` 가 먹는 것을 실측해 다른 곳으로 바꿨다."""
+    got = page_urls_for('https://smartstore.naver.com/lemouton/category/ALL',
+                        source_key='ss_lemouton', page_from=1, page_to=3)
 
-    assert got == ['https://www.hmall.com/md/pde/search?searchTerm=나이키'], got
+    assert got == ['https://smartstore.naver.com/lemouton/category/ALL'], got
