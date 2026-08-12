@@ -27,9 +27,17 @@ from lemouton.uploader.roundtrip.snapshot import Snapshot
 #: 스펙 미확보라 되돌려 쓸 수 없는 축 — 읽히더라도 시험 대상에서 뺀다.
 _UNWRITABLE = ("name", "detail_html", "image_urls")
 
+#: 🔴 [2026-08-12 라이브 실측] 재고 상한. 9,999 인 상품에 10,000 을 보냈더니
+#:    「옵션재고 번호 …의 수량 업데이트 실패」로 거부됐다(prd 9532353519).
+#:    상한이면 +1 대신 -1 로 흔든다(runner 가 처리한다).
+STOCK_BOUNDS = (0, 9999)
+
 
 @dataclass
 class Eleven11Ops:
+    #: 러너가 읽어 가는 재고 허용범위(위 상수 참조).
+    STOCK_BOUNDS = STOCK_BOUNDS
+
     product_id: str
     client: object
     _get_stocks: object = None
@@ -50,7 +58,9 @@ class Eleven11Ops:
     def _price(self):
         fn = self._get_price
         if fn is None:
-            from shared.platforms.eleven11.prices import get_product_price as fn
+            # ⚠️ 가격 **조회**는 products.py 에 있다(쓰기만 prices.py). 헷갈려 prices 에서
+            #    집었다가 라이브에서 ImportError 로 죽었다(2026-08-12).
+            from shared.platforms.eleven11.products import get_product_price as fn
         try:
             return fn(str(self.product_id), client=self.client)
         except Exception:  # noqa: BLE001

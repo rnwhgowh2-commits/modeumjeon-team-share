@@ -54,22 +54,44 @@ def test_서버키_판정은_시스템_정본과_같아야_한다(client, monkey
         "시스템은 무장인데 이 라우트만 서버키가 꺼졌다고 본다"
 
 
-def test_막힌_마켓은_이유를_밝히고_거부한다(client, monkeypatch):
-    """「지원 안 함」만 말하면 사장님은 왜인지 모른다 — 근거를 그대로 말한다.
+def test_옥션은_무거운_3축만_막고_이유를_밝힌다(client, monkeypatch):
+    """[2026-08-12] 차단을 **마켓 단위 → 축 단위**로 좁혔다.
 
-    2026-08-08: 11번가는 **지원 마켓이 됐다**(가격·재고 전용 API 가 이미 있었다).
-    지금 막혀 있는 건 옥션·G마켓뿐이고, 그건 사고 때문이다.
+    원인은 마켓이 아니라 **어느 API 를 쓰느냐**였다. 전체 상품수정 PUT 이 재심사를
+    불렀고, 가격·재고는 전용 API 라 브랜드 상품도 멀쩡히 왕복한다(라이브 실측).
+    상품명·상세·이미지는 전용 API 가 없어 아직 막는다 — 이유를 그대로 말해야 한다.
     """
     monkeypatch.setenv("MOUM_LIVE_UPLOAD", "1")
 
     r = client.post("/api/live-send-test/roundtrip",
-                    json={"market": "auction", "origin_product_no": 1, "arm": "1"})
+                    json={"market": "auction", "origin_product_no": 1, "arm": "1",
+                          "axes": ["sale_price", "detail_html"]})
 
     body = r.get_json()
     assert body["ok"] is False
     refusal = body.get("refusal") or ""
-    assert "옥션" in refusal
     assert "재심사" in refusal, "왜 못 하는지가 없다"
+    assert body.get("막힌축") == ["detail_html"], f"어느 축인지 안 짚었다: {body}"
+
+
+def test_옥션_축을_안_주면_5축이라_막는다(client, monkeypatch):
+    """기본값이 위험한 쪽으로 열리면 안 된다 — 축 미지정 = 5축 전부 = 무거운 축 포함."""
+    monkeypatch.setenv("MOUM_LIVE_UPLOAD", "1")
+
+    r = client.post("/api/live-send-test/roundtrip",
+                    json={"market": "gmarket", "origin_product_no": 1, "arm": "1"})
+
+    assert r.get_json()["ok"] is False
+
+
+def test_옥션_가격재고는_이제_열려_있다(client):
+    """전용 API(esm.186·esm.26)로 라이브 왕복 성공 — 더는 마켓 통째로 막지 않는다."""
+    r = client.post("/api/live-send-test/roundtrip",
+                    json={"market": "auction", "origin_product_no": 1, "arm": "1",
+                          "axes": ["sale_price", "stock"]})
+
+    refusal = r.get_json().get("refusal") or ""
+    assert "MOUM_LIVE_UPLOAD" in refusal, f"가격·재고가 아직 막혀 있다: {refusal}"
 
 
 def test_11번가는_이제_지원_마켓이다(client):

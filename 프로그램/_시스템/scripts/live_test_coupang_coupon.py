@@ -73,21 +73,37 @@ def _taken_items(client, vid):
     🔴 실측(2026-08-06) — 한 옵션은 쿠폰 하나에만 붙는다:
       [CIR08]「해당 옵션은 이미 다른 쿠폰(89450797)에 발행되어져 있습니다」.
       사장님 기존 쿠폰이 쓰는 옵션을 골랐다가 거부당했다. 비켜 가야 한다.
+
+    🔴🔴 **한 페이지만 읽으면 안 된다** — 2026-08-06 실측에서 50개만 읽고
+      「비켜 갔다」고 말했는데 정작 고른 옵션이 51번째 이후에 있어 또 거부당했다.
+      조용한 절반 읽기는 「다 봤다」로 읽힌다. 끝까지 넘긴다.
     """
     taken = set()
-    resp = client.request(
-        'GET', f'/v2/providers/fms/apis/api/v2/vendors/{vid}/coupons',
-        query='status=APPLIED&page=1&size=50&sort=desc')
-    for c in (((resp or {}).get('data') or {}).get('content') or []):
-        cid = c.get('couponId')
-        if cid is None:
-            continue
-        r = client.request(
-            'GET', f'/v2/providers/fms/apis/api/v1/vendors/{vid}/coupons/{cid}/items',
-            query='status=APPLIED&page=1&size=50&sort=desc')
-        for it in (((r or {}).get('data') or {}).get('content') or []):
-            if it.get('vendorItemId') is not None:
-                taken.add(str(it['vendorItemId']))
+    for cpage in range(1, 11):
+        resp = client.request(
+            'GET', f'/v2/providers/fms/apis/api/v2/vendors/{vid}/coupons',
+            query=f'status=APPLIED&page={cpage}&size=50&sort=desc')
+        coupons = ((resp or {}).get('data') or {}).get('content') or []
+        if not coupons:
+            break
+        for c in coupons:
+            cid = c.get('couponId')
+            if cid is None:
+                continue
+            for ipage in range(1, 41):          # 옵션은 수백 개일 수 있다
+                r = client.request(
+                    'GET',
+                    f'/v2/providers/fms/apis/api/v1/vendors/{vid}'
+                    f'/coupons/{cid}/items',
+                    query=f'status=APPLIED&page={ipage}&size=50&sort=desc')
+                items = ((r or {}).get('data') or {}).get('content') or []
+                if not items:
+                    break
+                for it in items:
+                    if it.get('vendorItemId') is not None:
+                        taken.add(str(it['vendorItemId']))
+        if len(coupons) < 50:
+            break
     return taken
 
 
