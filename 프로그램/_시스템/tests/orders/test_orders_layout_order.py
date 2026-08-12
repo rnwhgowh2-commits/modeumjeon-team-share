@@ -209,3 +209,34 @@ def test_판단_단추는_다시_긁지_않고_저장값으로_판정한다():
     오해가 안 생긴다."""
     assert 'loadFulfillment(loadSeq,function()' in SRC
     assert '가장 오래된 소싱처 확인은' in SRC
+
+
+# ══ [2026-08-12] 열 너비 조절 + 설정 서버 저장 ═══════════════════════════════
+#  사장님: "열 조절할 수 있도록해줘 / 한번 수정하면 재배포나 탭 옮겼다 와도 저장하도록."
+
+def test_열_경계에_끌_손잡이가_붙는다():
+    assert 'colgrip' in SRC and "cursor:col-resize" in SRC
+    assert 'function bindColResize()' in SRC
+    # 표를 다시 그릴 때마다 다시 달아야 한다(표는 innerHTML 로 통째로 갈린다)
+    assert 'applyColW(); bindColResize();' in SRC
+
+
+def test_너비를_놓는_순간_서버에_저장한다():
+    """브라우저에만 두면 브라우저를 바꾸는 순간 사라진다(이번 신고의 원인)."""
+    assert 'vpSave({widths:colW});' in SRC
+
+
+def test_설정_저장은_서버_창구를_쓴다():
+    assert "fetch('/orders/api/view-prefs'" in SRC
+    assert 'vpSave({quick:quick});' in SRC
+    assert 'vpSave({presets:presets});' in SRC
+
+
+def test_브라우저_저장본은_지우지_않는다():
+    """🔴 서버가 잠깐 안 될 때 화면이 빈손이 되면 안 된다 — 두 곳에 같이 둔다."""
+    assert 'localStorage.setItem(QLS,JSON.stringify(quick));' in SRC
+
+
+def test_브라우저에만_있던_설정은_서버로_옮겨진다():
+    """사장님이 예전에 만들어 둔 기간 버튼이 옮겨 가는 길(한 번만 일어난다)."""
+    assert 'if(Object.keys(up).length)vpSave(up);' in SRC

@@ -551,6 +551,14 @@
     .o7 .pplist th{font-weight:600;color:var(--sub);background:var(--bg,#F9FAFB);}
     .o7 .pdx-mg{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .pdx-mg.pdx-neg{color: var(--글자-빨강, var(--red,#F04452));}
+    /* 열 너비 손잡이 — 머리 칸 오른쪽 경계. 평소엔 안 보이고 마우스가 가면 나타난다. */
+    .o7 th.fcol{position:relative;}
+    .o7 .colgrip{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;
+                 z-index:2;user-select:none;}
+    .o7 th.fcol:hover .colgrip{background:linear-gradient(to right,transparent,var(--blue));opacity:.35;}
+    body.col-resizing{cursor:col-resize;user-select:none;}
+    /* 폭을 정한 열은 넘치는 글자를 줄임표로 — 안 그러면 좁혀도 줄바꿈으로 다시 넓어진다. */
+    .o7 table[style*="fixed"] td{overflow:hidden;text-overflow:ellipsis;}
     .o7 .ffbar{display:flex;align-items:center;gap:10px;margin:2px 0 8px;}
     .o7 .ffbtn{border:1px solid var(--line);background:var(--surface,#fff);border-radius:9px;
       padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);}
@@ -1367,6 +1375,26 @@
     })();
 
     // ── 빠른 기간 버튼 ──
+    /* ── 화면 설정 저장 (2026-08-12 사장님) ─────────────────────────────────────
+       "기간 직접 만들었는데 자꾸 사라져. 프로그램 재배포 때문인건지?"
+       🔴 재배포 때문이 아니었다 — 열 구성·빠른 기간·엑셀 양식이 **브라우저 안에만**
+         있었다(라이브 확인: 셋 다 「없음」). 브라우저를 바꾸거나 다른 기기에서 보면
+         사라진다. → 서버에 둔다. 팀 전체가 같이 쓴다(사장님 확정).
+       🔴 브라우저 저장본은 **지우지 않는다** — 서버가 잠깐 안 될 때 화면이 빈손이
+         되면 안 된다. 서버 값이 오면 그걸 쓰고, 없으면 브라우저 값을 올려 준다. */
+    var VP={cols:null,widths:null,quick:null,presets:null}, vpReady=false;
+    function vpSave(patch){
+      Object.keys(patch||{}).forEach(function(k){VP[k]=patch[k];});
+      return fetch('/orders/api/view-prefs',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          // 저장 실패를 조용히 넘기면 사장님이 같은 설정을 몇 번이고 다시 고친다.
+          if(!j||!j.ok)console.warn('화면 설정 저장 실패:',(j&&j.error)||'알 수 없음');
+          return j;
+        })
+        .catch(function(e){console.warn('화면 설정 저장 실패:',e);});
+    }
     var QLS='moum_quick_ranges_v1';
     var QDEFAULT=[
       {name:'오늘', kind:'today'},
@@ -1379,7 +1407,10 @@
       {name:'이번 달', kind:'thisMonth'},
       {name:'지난달', kind:'lastMonth'}
     ];
-    function loadQuick(){try{var s=JSON.parse(localStorage.getItem(QLS));if(Array.isArray(s)&&s.length)return s;}catch(e){}return QDEFAULT.map(function(x){return Object.assign({},x);});}
+    function loadQuick(){
+      if(Array.isArray(VP.quick)&&VP.quick.length)return VP.quick;   // 서버(팀 공유) 우선
+      try{var s=JSON.parse(localStorage.getItem(QLS));if(Array.isArray(s)&&s.length)return s;}catch(e){}
+      return QDEFAULT.map(function(x){return Object.assign({},x);});}
     var quick=loadQuick();
     var cur={from:'', to:'', label:''};   // 현재 조회 기간
     function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -2935,6 +2966,54 @@
       if(!invSel[k])return '';
       return (invMap[k]&&invMap[k].src==='xl')?' r-xl':' r-hand';
     }
+    /* ── 열 너비 조절 (2026-08-12 사장님: "불필요하게 칼럼 넓은건 수정하고 싶어") ──
+       머리 칸 오른쪽 경계를 잡아 끈다. 놓는 순간 서버에 저장돼 **다음에 와도, 다른
+       브라우저에서도, 팀원에게도** 그대로다. 두 번 누르면 그 열만 원래대로.
+       🔴 표는 가로 스크롤 컨테이너 안이라 `table-layout:fixed` 가 아니면 지정한 폭이
+         무시된다 — 폭을 하나라도 정하면 fixed 로 바꾼다. */
+    var colW=null;                      // {열이름: px} — 서버에서 온다
+    function applyColW(){
+      var t=document.querySelector('#tablewrap table'); if(!t||!t.rows[0])return;
+      var any=colW&&Object.keys(colW).length;
+      t.style.tableLayout=any?'fixed':'';
+      [].slice.call(t.rows[0].cells).forEach(function(th){
+        var c=th.getAttribute('data-col'); if(!c)return;
+        var w=colW&&colW[c];
+        th.style.width=w?(w+'px'):'';
+        th.style.maxWidth=w?(w+'px'):'';
+      });
+    }
+    function bindColResize(){
+      var t=document.querySelector('#tablewrap table'); if(!t||!t.rows[0])return;
+      [].slice.call(t.rows[0].cells).forEach(function(th){
+        var c=th.getAttribute('data-col'); if(!c)return;
+        var grip=document.createElement('span');
+        grip.className='colgrip';
+        grip.title='끌어서 열 너비를 바꿉니다 (두 번 누르면 원래대로)';
+        th.appendChild(grip);
+        grip.addEventListener('mousedown',function(e){
+          e.preventDefault(); e.stopPropagation();   // 머리 클릭(값 거르기)과 겹치지 않게
+          var x0=e.clientX, w0=th.getBoundingClientRect().width;
+          document.body.classList.add('col-resizing');
+          function mv(ev){
+            var w=Math.max(40,Math.round(w0+(ev.clientX-x0)));
+            colW=colW||{}; colW[c]=w; applyColW();
+          }
+          function up(){
+            document.removeEventListener('mousemove',mv);
+            document.removeEventListener('mouseup',up);
+            document.body.classList.remove('col-resizing');
+            vpSave({widths:colW});     // 놓는 순간 저장 — 다시 안 고쳐도 된다
+          }
+          document.addEventListener('mousemove',mv);
+          document.addEventListener('mouseup',up);
+        });
+        grip.addEventListener('dblclick',function(e){
+          e.preventDefault(); e.stopPropagation();
+          if(colW&&colW[c]){delete colW[c];applyColW();vpSave({widths:colW});}
+        });
+      });
+    }
     function renderTable(fr){
       if(!fr.length){
         // 아직 불러오는 중이면 '없어요'가 아니라 '불러오는 중'(거짓 표시 방지)
@@ -2972,6 +3051,8 @@
       var lg=document.getElementById('pdxLegend'); if(lg)lg.innerHTML=legend;
       [].slice.call(document.querySelectorAll('#tablewrap th.fcol')).forEach(function(th){
         th.addEventListener('click',function(e){openColPop(th.getAttribute('data-col'),th);e.stopPropagation();});});
+      // 저장된 열 너비를 입히고, 경계에 끌 손잡이를 단다(표를 다시 그릴 때마다).
+      applyColW(); bindColResize();
       bindInvCells(fr);
       bindPurchaseCells();
       bindSupplyCells();
@@ -4136,6 +4217,42 @@
     (function(){var di=quick.reduce(function(a,q,i){return q.def?i:a;},-1);pick0(di>=0?di:0);})();
     function pick0(i){activeIdx=i;var r=rangeOf(quick[i]);cur={from:r.from,to:r.to,label:quick[i].name};qfromEl.value=r.from;qtoEl.value=r.to;}
     renderQChips();
+    /* ── 서버에 저장된 화면 설정 받아 오기 (팀 공유) ────────────────────────────
+       🔴 화면은 이미 브라우저 값으로 한 번 그려져 있다. 서버 값이 오면 **덮어쓴다** —
+         빈 화면을 기다리게 하지 않으려는 것이다(늦게 와도 화면이 안 멈춘다).
+       🔴 서버에 아무것도 없고 브라우저엔 있으면, 그 브라우저 값을 **서버로 올려 준다** —
+         사장님이 예전에 만들어 둔 기간 버튼이 옮겨 가는 길이다(한 번만 일어난다). */
+    (function(){
+      fetch('/orders/api/view-prefs',{cache:'no-store'})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j||!j.ok)return;
+          VP=j.prefs||{}; vpReady=true;
+          var up={};
+          // 빠른 기간
+          if(Array.isArray(VP.quick)&&VP.quick.length){
+            quick=VP.quick;
+            var di=quick.reduce(function(a,q,i){return q.def?i:a;},-1);
+            pick0(di>=0?di:0); renderQChips();
+            if(activeIdx>=0)pickQuick(activeIdx);
+          }else{
+            try{var lq=JSON.parse(localStorage.getItem(QLS));
+                if(Array.isArray(lq)&&lq.length)up.quick=lq;}catch(e){}
+          }
+          // 열 너비
+          if(VP.widths&&Object.keys(VP.widths).length){colW=VP.widths;applyColW();}
+          // 엑셀 양식
+          if(Array.isArray(VP.presets)&&VP.presets.length){
+            presets=VP.presets;
+            if(typeof renderPresetSel==='function')renderPresetSel();
+          }else{
+            try{var lp=JSON.parse(localStorage.getItem(PLS));
+                if(Array.isArray(lp)&&lp.length)up.presets=lp;}catch(e){}
+          }
+          if(Object.keys(up).length)vpSave(up);   // 브라우저에만 있던 것을 서버로 옮긴다
+        })
+        .catch(function(){/* 서버가 잠깐 안 돼도 화면은 브라우저 값으로 그대로 돈다 */});
+    })();
     // 찾기 칸 — 「주문 내역」은 왼쪽 도구칸에, 「송장 작업」은 표 바로 위에 있다.
     var st;[].slice.call(document.querySelectorAll('#srch,#shipSrch')).forEach(function(el){
       el.addEventListener('input',function(e){srch=e.target.value;clearTimeout(st);st=setTimeout(render,200);});});
@@ -4186,7 +4303,9 @@
     qov.addEventListener('click',function(e){if(e.target===qov)qov.classList.remove('on');});
     document.getElementById('qreset').addEventListener('click',function(){quick=QDEFAULT.map(function(x){return Object.assign({},x);});renderQList();});
     document.getElementById('qsave').addEventListener('click',function(){
-      localStorage.setItem(QLS,JSON.stringify(quick));qov.classList.remove('on');
+      localStorage.setItem(QLS,JSON.stringify(quick));   // 서버가 잠깐 안 될 때의 대비
+      vpSave({quick:quick});
+      qov.classList.remove('on');
       if(activeIdx>=quick.length)activeIdx=0;
       renderQChips();
       if(activeIdx>=0)pickQuick(activeIdx);else applyDirect();});
@@ -4224,7 +4343,7 @@
     document.getElementById('cfgbtn').addEventListener('click',function(){editIdx=activeIdxP;cols=presets[editIdx].cols;renderPresetBar();renderColRows();ov.classList.add('on');});
     ov.addEventListener('click',function(e){if(e.target===ov)ov.classList.remove('on');});
     document.getElementById('cfgreset').addEventListener('click',function(){presets=defaultPresets();activeIdxP=0;editIdx=0;cols=presets[0].cols;renderPresetBar();renderColRows();});
-    document.getElementById('cfgsave').addEventListener('click',function(){localStorage.setItem(PLS,JSON.stringify(presets));ov.classList.remove('on');renderPresetSel();syncBtn();});
+    document.getElementById('cfgsave').addEventListener('click',function(){localStorage.setItem(PLS,JSON.stringify(presets));vpSave({presets:presets});ov.classList.remove('on');renderPresetSel();syncBtn();});
     renderPresetSel();
     // ── 컬럼 헤더 필터(엑셀식 체크 토글 + 모두 선택) ──
     var pop=document.getElementById('colpop');
