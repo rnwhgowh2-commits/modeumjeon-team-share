@@ -46,24 +46,37 @@ SUBTABS = [
 _TAB_ALIAS = {'option': 'direct', 'import': 'market'}
 
 
-def _boxes(session, limit: int = 50):
+def _boxes(session):
     """만들어 둔 옵션함 목록 — 만들어 놓고 못 찾으면 만든 의미가 없다.
 
     판매용 모음전은 섞지 않는다. 섞이면 어느 게 아직 안 파는 건지 알 수 없다.
+
+    🔴 [2026-08-12 노션 옵션 e] 예전엔 `model_code` 내림차순 **상위 50개**만 봤다.
+       한글 「단」이 영문 「U」보다 뒤라 내림차순 맨 앞을 `단독_…` 이 전부 차지했고,
+       라이브에서 **50줄이 전부 재고관리 낱개 제품**이라 사장님이 직접 만드신
+       옵션 매트릭스가 **하나도 안 보였다**. 머리줄 숫자 「50」도 전체가 아니라
+       상한값이라 화면이 거짓말을 하고 있었다.
+       → 상한을 없애고 **최근 만든 순**으로 세우며, 평소 볼 일 없는 것은 `hid` 로
+         표시해 화면이 기본으로 감춘다(`/matrix` 가 이미 쓰는 그 규칙 그대로).
     """
     from sqlalchemy import func
     from lemouton.sourcing.models import Model, Option
     rows = (session.query(Model.model_code, Model.model_name_display,
-                          Model.model_name_raw, Model.brand,
+                          Model.model_name_raw, Model.brand, Model.created_at,
                           func.count(Option.canonical_sku))
             .outerjoin(Option, Option.model_code == Model.model_code)
             .filter(Model.is_option_box.is_(True))
             .group_by(Model.model_code, Model.model_name_display,
-                      Model.model_name_raw, Model.brand)
-            .order_by(Model.model_code.desc())
-            .limit(limit).all())
-    return [{'code': c, 'name': (d or r or c), 'brand': b, 'options': n}
-            for c, d, r, b, n in rows]
+                      Model.model_name_raw, Model.brand, Model.created_at)
+            # 만든 날짜가 없는 옛 줄은 뒤로 — `NULLS LAST` 는 SQLite 에 없어
+            # 「비었나」를 첫 정렬 키로 쓴다(False=0 이 먼저).
+            .order_by(Model.created_at.is_(None),
+                      Model.created_at.desc(), Model.model_code.desc())
+            .all())
+    return [{'code': c, 'name': (d or r or c), 'brand': b, 'options': n,
+             # 숨김 = 재고 단독(단독_) + 빈 묶음(옵션 0) — `/matrix` 와 같은 뜻·같은 규칙
+             'hid': bool((c or '').startswith(_LEGACY_PREFIX) or n == 0)}
+            for c, d, r, b, _ts, n in rows]
 
 
 def _matrices(session, limit: int = 100):
@@ -215,12 +228,19 @@ def index():
         mat_counts['s%d' % st] = sum(1 for m in mats if m.get('show') == str(st))
     for k in ('none', 'made', 'derived'):
         mat_counts[k] = sum(1 for m in mats if m.get('show') == k)
+    # 🔴 [2026-08-12] 머리줄 숫자는 **화면에 실제로 보이는 것**을 센다.
+    #    예전엔 `boxes|length` 였는데 목록이 50개에서 잘려 **언제나 「50」**이었다
+    #    — 전체 개수가 아니라 상한값을 전체인 양 보여준 것이다.
+    box_counts = {'shown': sum(1 for b in boxes if not b.get('hid')),
+                  'hidden': sum(1 for b in boxes if b.get('hid')),
+                  'all': len(boxes)}
     return render_template('optgen/index.html',
                            active_app='bundles', active='optgen_' + tab,
                            subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats,
                            made=made, markets=IMPORT_MARKETS,
                            stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
-                           stage_cls=STAGE_CLS, mat_counts=mat_counts)
+                           stage_cls=STAGE_CLS, mat_counts=mat_counts,
+                           box_counts=box_counts)
 
 
 @bp.get('/product/<int:mo_id>')

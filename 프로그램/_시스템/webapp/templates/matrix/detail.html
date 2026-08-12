@@ -28,7 +28,12 @@
     .cnt{font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:999px}
 
     /* V2 격자 */
-    .mxsel{border-collapse:collapse;font-size:11px;width:100%}
+    /* [2026-08-12 노션 상품 a-2] `width:100%` 였을 때 사이즈가 3개뿐이면 남는 폭을
+       첫 열(색상＼사이즈)이 다 먹어 **394px**(표 전체 787px)이 됐다 — 라이브 실측.
+       칸 폭은 내용에 맞추고, 넘치면 감싼 상자(overflow:auto)가 안에서만 굴러간다. */
+    .mxsel{border-collapse:collapse;font-size:11px;width:auto}
+    .mxsel thead th:first-child,.mxsel tbody th{width:1px;white-space:nowrap}
+    .mxsel thead th:not(:first-child),.mxsel td{min-width:54px}
     .mxsel th{background:var(--n100,#F2F4F6);padding:8px 4px;border:1px solid var(--line,#E5E8EB);font-weight:600;
               color:var(--글자-기본,#4E5968);white-space:nowrap;user-select:none}
     .mxsel th.pick{cursor:pointer}
@@ -150,7 +155,11 @@
     </div>
 
     {% if editable %}
-    <div class="card">
+    {# [2026-08-12 노션 상품 c-3] 아무것도 안 골랐을 때는 감춘다 —
+       늘 떠 있으면 「지금 뭘 하라는 건지」가 흐려진다(사장님 지적).
+       기준은 **0개일 때만 숨김**. `create_derived` 는 1개짜리 파생도 허용하므로
+       2개 이상으로 막으면 되던 기능이 준다. #}
+    <div class="card" id="dcard" hidden>
       <div class="card-t">✂️ 고른 것만 새 묶음으로</div>
       <div class="fld"><label>파생 묶음 이름</label>
         <input id="dname" placeholder="예: 인기색 4종"></div>
@@ -419,6 +428,9 @@ function upd(){
     mk.disabled = sel.size === 0 || all;
     mk.textContent = all ? '전부 고르면 원본과 같아요' : '고른 것만 파생 만들기 →';
   }
+  /* [2026-08-12 노션 상품 c-3] 고른 게 있을 때만 파생 카드를 보인다 */
+  const dcard = document.getElementById('dcard');
+  if (dcard) dcard.hidden = sel.size === 0;
 }
 build(); upd();
 

@@ -25,7 +25,9 @@
      단추 → 가운데 만들기 창. 목록이 화면의 주인공이 된다. #}
   {% if tab in ('direct', 'market') %}
   <div class="og-list">
-    <div class="og-lh">옵션 매트릭스 <span class="og-cnt">{{ boxes|length }}</span>
+    {# 🔴 [2026-08-12 노션 옵션 e] 예전엔 `boxes|length` 였는데 목록이 50개에서 잘려
+       **언제나 「50」**이었다 — 상한값을 전체인 양 보여준 것이다. 이제 보이는 수를 센다. #}
+    <div class="og-lh">옵션 매트릭스 <span class="og-cnt" id="og-boxn">{{ box_counts.shown }}</span>
       {% if tab == 'direct' %}
       <button class="og-new" type="button" id="ob-open">+ 옵션 매트릭스 생성</button>
       {% endif %}
@@ -46,6 +48,15 @@
           <option value="name">이름 순</option>
           <option value="opts">옵션 많은 순</option>
         </select>
+        {# [2026-08-12 노션 옵션 e] 평소 볼 일 없는 묶음을 꺼내 보는 체크 —
+           /matrix 가 이미 쓰는 그 규칙·그 설명 그대로. #}
+        {% if box_counts.hidden %}
+        <label class="og-hid-row" title="평소 이 화면에서 볼 일이 없어 숨겨 둔 묶음을 꺼내 봅니다.&#10;· 아직 상품 안 만든 묶음 — 재고관리에서 「모음전에도 등록」을 체크하지 않고 등록한 물건입니다. 창고에는 있지만 아직 팔 상품으로 만들지 않았습니다.&#10;· 빈 묶음 — 옵션이 하나도 안 담긴 묶음.">
+          <input type="checkbox" id="og-hid">
+          <span>숨긴 묶음 보기</span>
+          <span class="og-bc">{{ box_counts.hidden }}</span>
+        </label>
+        {% endif %}
       </aside>
       <div>
         <div class="og-cap" id="og-cap" hidden></div>
@@ -54,6 +65,7 @@
           {% for b in boxes %}
           <tr class="og-row" data-href="/optgen/box/{{ b.code }}"
               data-brand="{{ b.brand or '' }}" data-name="{{ b.name }}" data-opts="{{ b.options }}"
+              data-hid="{{ 1 if b.hid else 0 }}"
               data-find="{{ b.code }} {{ b.name }} {{ b.brand or '' }}">
             <td class="mono">{{ b.code }}</td>
             <td><b>{{ b.name }}</b></td>
@@ -242,6 +254,12 @@
     font-size:15px;color:var(--color-text-tertiary);cursor:pointer;font-family:inherit}
   /* [B1] 서랍 정렬 고르기 — 검색칸과 같은 규격, 밑여백만 없앤다 */
   .og-sort{margin-bottom:0}
+  /* [2026-08-12] 「숨긴 묶음 보기」 — 브랜드 줄(.og-b)과 같은 규격으로 나란히 */
+  .og-hid-row{display:flex;align-items:center;gap:8px;padding:8px 12px;
+    margin-top:var(--sp-3);border-top:1px solid var(--color-border);
+    font-size:14px;color:var(--color-text-secondary);cursor:pointer}
+  .og-hid-row input{margin:0;cursor:pointer}
+  .og-hid-row .og-bc{margin-left:auto}
   .og-cnt{font-size:13px;font-weight:600;color:var(--color-text-tertiary);
     background:var(--color-bg-muted);border-radius:999px;padding:2px 9px;margin-left:6px}
   .og-tb{width:100%;border-collapse:collapse;font-size:14px;
@@ -301,7 +319,14 @@
   .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
   .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
   .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
-  .og-rail{width:max-content;min-width:230px;max-width:440px;
+  /* [2026-08-12 노션 상품 a-1 · 사장님 확정 「사이드바를 키운다」]
+     440px 에서 라벨이 쓸 수 있는 폭은 카드 두 겹(서랍 + 판) 패딩을 빼면 318px 뿐인데
+     가장 긴 상태 이름(「상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용」)은 375px 라
+     nowrap 글자가 칸 밖으로 삐져나오고 문서 전체가 가로로 굴렀다(라이브 실측).
+     문구를 줄이거나 자르지 않는다 — 사장님이 지으신 말이고, 자르면 화면이 거짓말한다.
+     🔴 `width:max-content` 와 `.og-wrap` 의 `minmax(0,1fr)` 은 그대로 둔다
+        (tests/design/test_screen_truthfulness.py 가 지키는 규격 — 옛 버그를 막는 자리). */
+  .og-rail{width:max-content;min-width:230px;max-width:520px;
     background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;padding:var(--sp-3)}
   .og-find{margin-bottom:0}
@@ -476,27 +501,47 @@
     var rows = [].slice.call(document.querySelectorAll('.og-row'));
     var brandsBox = document.getElementById('og-brands');
     var cap = document.getElementById('og-cap');
-    var total = rows.length, selBrand = null, q = '';
+    var selBrand = null, q = '';
     var selStage = '';                 // 「어디까지 왔나」에서 고른 상태('' = 전체)
+    // [2026-08-12] 숨긴 묶음(단독_·빈 묶음) 보기 — 옵션 탭에만 있다.
+    var hidBox = document.getElementById('og-hid');
+    var boxN = document.getElementById('og-boxn');
+    // 🔴 숨긴 줄은 **세지도 않는다**. 세어 놓고 안 보여주면 브랜드 옆 숫자가
+    //    「플리츠플리즈 40」인데 눌러도 0줄인 거짓말이 된다(/matrix 가 겪은 그것).
+    function hidOK(r) {
+      return r.getAttribute('data-hid') !== '1' || (hidBox && hidBox.checked);
+    }
+    function pool() { return rows.filter(hidOK); }
+    var total = pool().length;
 
     function escHtml(t) {
       return String(t).replace(/[&<>"]/g, function (c) {
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
     }
-    var counts = {};
-    rows.forEach(function (r) {
-      var b = r.getAttribute('data-brand') || '';
-      counts[b] = (counts[b] || 0) + 1;
+    function buildBrands() {
+      var counts = {};
+      pool().forEach(function (r) {
+        var b = r.getAttribute('data-brand') || '';
+        counts[b] = (counts[b] || 0) + 1;
+      });
+      var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+      // data-b: '*' = 전체 / '' = 브랜드 없음 / 그 외 = 브랜드 이름
+      brandsBox.innerHTML =
+        '<div class="og-b on" data-b="*"><span>전체</span><span class="og-bc">' + total + '</span></div>' +
+        names.map(function (b) {
+          return '<div class="og-b" data-b="' + escHtml(b) + '"><span>' +
+                 (b ? escHtml(b) : '브랜드 없음') + '</span><span class="og-bc">' +
+                 counts[b] + '</span></div>';
+        }).join('');
+    }
+    buildBrands();
+    if (hidBox) hidBox.addEventListener('change', function () {
+      total = pool().length;
+      if (boxN) boxN.textContent = total;   // 머리줄 숫자도 같이 — 두 숫자가 갈리면 안 된다
+      selBrand = null;                      // 고른 브랜드가 사라질 수 있으니 푼다
+      buildBrands();
+      apply();
     });
-    var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
-    // data-b: '*' = 전체 / '' = 브랜드 없음 / 그 외 = 브랜드 이름
-    brandsBox.innerHTML =
-      '<div class="og-b on" data-b="*"><span>전체</span><span class="og-bc">' + total + '</span></div>' +
-      names.map(function (b) {
-        return '<div class="og-b" data-b="' + escHtml(b) + '"><span>' +
-               (b ? escHtml(b) : '브랜드 없음') + '</span><span class="og-bc">' +
-               counts[b] + '</span></div>';
-      }).join('');
 
     /* 「어디까지 왔나」 줄 누르기 — 상품관리와 같은 규칙(한 번에 하나) */
     var stgBox = document.getElementById('og-stages');
@@ -514,7 +559,7 @@
         var okB = selBrand === null || (r.getAttribute('data-brand') || '') === selBrand;
         var okQ = !q || (r.getAttribute('data-find') || '').toLowerCase().indexOf(q) >= 0;
         var okS = !selStage || (r.getAttribute('data-stage') || '') === selStage;
-        var on = okB && okQ && okS;
+        var on = okB && okQ && okS && hidOK(r);
         r.style.display = on ? '' : 'none';
         if (on) shown++;
       });
@@ -547,6 +592,8 @@
     find.addEventListener('input', function () {
       q = find.value.trim().toLowerCase(); apply();
     });
+    // 🔴 들어오자마자 한 번 돌린다 — 안 그러면 숨겨야 할 줄이 첫 화면에 그대로 뜬다.
+    apply();
   }
 
   // [확정 C3] 줄 아무 데나 누르면 다음으로 — 단, 「⋯」와 그 안은 빼고.
