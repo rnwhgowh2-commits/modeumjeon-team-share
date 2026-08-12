@@ -276,7 +276,8 @@ def test_옛_값만_있는_정책도_열린다(client):
     assert '소싱품' in r.get_data(as_text=True)
 
 
-# ── 「상품 정책 적용」 하위탭 (노션 하위탭 ②) ────────────────────────────
+# ── 「정책 적용」 하위탭 (노션 하위탭 ②) ────────────────────────────────
+#   [2026-08-12] 노션 「a. 상품 정책 적용 → 정책 적용」 개명 반영.
 
 def _model(client, code, brand='르무통'):
     """※ Model.brand 는 **기본값이 '르무통'** 이고 NOT NULL 이다
@@ -294,9 +295,38 @@ def test_적용_화면이_열린다(client):
     r = client.get('/policies/apply')
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert '상품 정책 적용' in body
-    assert '① 상품 고르기' in body
-    assert '② 정책 고르기' in body
+    assert '정책 적용' in body
+    assert '상품 정책 적용' not in body, '옛 이름이 남아 있다'
+    # [2026-08-12 확정 D3] 번호는 동그라미 배지로 뺐다 — 글자는 그대로 남는다
+    assert '상품 고르기' in body and '정책 고르기' in body
+    assert '<span class="stepno">①</span>' in body
+    assert '<span class="stepno wait" id="stepno2">②</span>' in body
+
+
+# ── [2026-08-12 사장님 확정 D3] 「① 상품 → ② 정책」 직렬 느낌 ──────────────
+#   노션: 「사용자 입장에서 둘이 병렬 같아서 직렬(순서) 느낌이 나도록 할 것」
+
+def test_상품을_고르기_전에는_정책판이_자고_있다(client):
+    """번호만 크게 쓰면 「읽어야」 아는 순서다 — 재워 둬야 읽지 않아도 느껴진다."""
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'class="ap-col asleep" id="polcol"' in body, '정책 판이 처음부터 깨어 있다'
+    assert '왼쪽에서 상품을 먼저 고르면 여기가 깨어납니다' in body
+
+
+def test_상품을_고르면_정책판이_깨어난다(client):
+    """깨우는 자리는 upd() 한 곳뿐이어야 한다 — 흩어 놓으면 한쪽만 안 깨는 상태가 난다."""
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert "classList.toggle('asleep', !awake)" in body
+    assert 'const awake = n > 0;' in body
+
+
+def test_자는_동안에도_정책_만들러는_갈_수_있다(client):
+    """🔴 판 전체를 막으면 정책이 하나도 없을 때 만들러 갈 길이 사라진다 —
+    빈 화면 안내문이 바로 그 단추를 가리키므로, 막으면 안내가 거짓말이 된다."""
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert '.ap-col.asleep .ap-list{filter:grayscale(1);pointer-events:none}' in body, \
+        '목록만 막아야 한다'
+    assert '.ap-col.asleep .ap-bar' not in body, '찾기·만들러 가기 줄까지 막았다'
 
 
 def test_적용_화면에_정책이_나온다(client):
@@ -426,3 +456,89 @@ def test_마진율_안_정한_마켓은_지어내지_않는다(client):
         assert r['ready'] is False
         assert r['price'] is None
         assert r['reason'], '왜 못 냈는지 말해야 한다'
+
+
+# ── [2026-08-12 사장님 확정 B2] 「체크한 마켓만 가공 활성화」 (노션 정책생성 a) ──
+
+def _set_markets(client, pid, markets):
+    r = client.post(f'/api/policies/{pid}/markets', json={'markets': markets})
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+
+def test_안_켠_마켓은_흐려지고_자물쇠가_붙는다(client):
+    pid = _new_policy(client, '켠것만')
+    _set_markets(client, pid, ['smartstore', 'coupang'])
+    body = client.get(f'/policies/{pid}').get_data(as_text=True)
+    assert 'mkoff' in body, '안 켠 마켓 표시가 없다'
+    assert '🔒' in body
+    assert '안 켠 마켓입니다' in body
+
+
+def test_안_켠_마켓도_탭에_남는다(client):
+    """🔴 숨기면 거기 채워 둔 값을 다시 고칠 길이 사라진다 —
+    껐다 켜면 살아나야 한다는 게 사장님 뜻이라 「없애기」가 아니라 「위상 낮추기」다."""
+    pid = _new_policy(client, '탭유지')
+    _set_markets(client, pid, ['smartstore'])
+    body = client.get(f'/policies/{pid}').get_data(as_text=True)
+    for label in ('쿠팡', 'G마켓', '옥션', '11번가', '롯데온'):
+        assert label in body, f'{label} 탭이 사라졌다'
+    assert f'/policies/{pid}?m=coupang' in body, '꺼진 마켓으로 갈 길이 막혔다'
+
+
+def test_껐다_켜도_적어_둔_값은_그대로다(client):
+    """끄는 것은 「안 쓴다」이지 「지운다」가 아니다."""
+    from lemouton.policy.service import values_for
+    pid = _new_policy(client, '값보존')
+    _fill_common(client, pid)
+    client.post(f'/api/policies/{pid}/push', json={'markets': ['coupang']})
+    _set_markets(client, pid, ['smartstore'])          # 쿠팡을 끈다
+    s = client._Session()
+    try:
+        assert values_for(s, pid, 'coupang'), '끄는 순간 값이 사라졌다'
+    finally:
+        s.close()
+    _set_markets(client, pid, ['smartstore', 'coupang'])   # 다시 켠다
+    s = client._Session()
+    try:
+        assert values_for(s, pid, 'coupang'), '다시 켰는데 값이 안 돌아왔다'
+    finally:
+        s.close()
+
+
+def test_채움_합계는_켠_마켓만_센다(client):
+    """🔴 꺼 둔 마켓을 분모에 두면 100% 가 영영 안 찬다 —
+    화면은 「할 일이 남았다」고 말하는데 실제로 할 일은 없는 상태가 된다."""
+    from lemouton.policy.service import readiness
+    pid = _new_policy(client, '합계')
+    _set_markets(client, pid, ['smartstore', 'coupang'])
+    s = client._Session()
+    try:
+        rd = readiness(s, pid)
+        want = rd['smartstore']['total'] + rd['coupang']['total']
+        all_total = sum(v['total'] for v in rd.values())
+    finally:
+        s.close()
+    body = client.get(f'/policies/{pid}').get_data(as_text=True)
+    assert f'<b>{want}</b>' in body, f'켠 2곳 합({want})이 안 보인다'
+    assert '켠 <b>2</b>곳만 셉니다' in body
+    assert all_total != want, '시험이 아무것도 안 보고 있다(켠 것과 전체가 같다)'
+
+
+def test_전부_켜져_있으면_군더더기_안내가_없다(client):
+    """안 켠 곳이 없으면 자물쇠 안내는 군더더기다."""
+    pid = _new_policy(client, '전부켬')      # 새 정책 = 안 정함 = 전부 켜짐
+    body = client.get(f'/policies/{pid}').get_data(as_text=True)
+    assert '안 켠 마켓입니다' not in body
+    # 🔴 'mkoff' 로만 보면 안 된다 — 그 낱말은 **CSS 규칙에도 늘 있어서**
+    #   마켓이 다 켜져 있어도 잡힌다(이 시험이 실제로 그렇게 헛돌았다).
+    #   화면 마크업에만 나오는 자물쇠 조각으로 본다.
+    assert '<span class="mklock">' not in body, '켜져 있는데 자물쇠가 붙었다'
+    assert '켠 <b>6</b>곳만 셉니다' in body
+
+
+def test_목록의_가격_쓸_수_있음도_켠_마켓만_센다(client):
+    """목록 화면의 「쓸 수 있음 N마켓」이 꺼 둔 곳까지 세면 부풀려 보인다."""
+    pid = _new_policy(client, '목록집계')
+    _set_markets(client, pid, ['smartstore'])
+    body = client.get('/policies').get_data(as_text=True)
+    assert '쓸 수 있음 6마켓' not in body, '꺼 둔 마켓까지 셌다'

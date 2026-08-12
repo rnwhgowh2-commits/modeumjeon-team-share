@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}상품 정책 적용 — 모음전 자동화{% endblock %}
+{% block title %}정책 적용 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-policy-apply">
   <style>
@@ -21,6 +21,23 @@
 
     /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 적용」 순서다. */
     .ap-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+
+    /* ── [2026-08-12 · 사장님 확정 D3] 「① 상품 다음 ② 정책」 순서 느낌 ──────────
+       노션: 「1번/2번 앞에 적혀 있지만 사용자 입장에서 둘이 병렬 같아서 직렬(순서)
+       느낌이 나도록 할 것」.
+       🔴 번호를 크게 쓰는 것만으로는 안 된다 — 그건 **읽어야** 아는 순서다.
+         상품을 고르기 전에는 오른쪽 판을 재워 두면 읽지 않아도 차례가 느껴진다. */
+    .stepno{display:inline-flex;align-items:center;justify-content:center;
+            width:22px;height:22px;border-radius:50%;flex:none;margin-right:7px;
+            background:var(--바탕-파랑, var(--primary,#3182F6));color:#fff;
+            font-size:12px;font-weight:800}
+    .stepno.wait{background:var(--line,#C6CBD3)}
+    .ap-col .h .t{display:flex;align-items:center}
+    .ap-col.asleep{opacity:.55}
+    /* 🔴 정책 목록만 못 누르게 한다. 판 전체를 막으면 「정책 만들러 가기」까지 막혀,
+       정책이 하나도 없는 사장님이 만들러 갈 길이 사라진다(빈 화면 안내문이
+       바로 그 단추를 가리킨다 — 막으면 안내가 거짓말이 된다). */
+    .ap-col.asleep .ap-list{filter:grayscale(1);pointer-events:none}
     .ap-col{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
             border-radius:12px;overflow:hidden;min-width:0}
     .ap-col .h{padding:12px 16px;border-bottom:1px solid var(--line,#E5E8EB);
@@ -123,7 +140,7 @@
   </style>
 
   <div class="ap-head">
-    <h1>상품 정책 적용</h1>
+    <h1>정책 적용</h1>
   </div>
   <div class="ap-desc">왼쪽에서 상품을 고르고, 오른쪽에서 정책을 골라 한 번에 붙입니다.</div>
   <div class="msg" id="msg"></div>
@@ -138,7 +155,7 @@
   <div class="ap-two">
     {# ── 왼쪽 : 상품 고르기 ── #}
     <div class="ap-col">
-      <div class="h"><div class="t">① 상품 고르기</div>
+      <div class="h"><div class="t"><span class="stepno">①</span>상품 고르기</div>
         <div class="d">이름·번호·브랜드로 찾거나, 브랜드 단추로 걸러냅니다</div></div>
       <div class="ap-bar">
         <input type="search" id="mq" placeholder="상품 이름·번호·브랜드로 찾기" autocomplete="off">
@@ -158,9 +175,10 @@
     </div>
 
     {# ── 오른쪽 : 정책 고르기 ── #}
-    <div class="ap-col">
-      <div class="h"><div class="t">② 정책 고르기</div>
-        <div class="d">하나만 고를 수 있습니다 — 한 구성에 정책 하나이기 때문입니다</div></div>
+    {# 상품을 고르기 전에는 재워 둔다(asleep) — 아래 upd() 가 깨운다. #}
+    <div class="ap-col asleep" id="polcol">
+      <div class="h"><div class="t"><span class="stepno wait" id="stepno2">②</span>정책 고르기</div>
+        <div class="d" id="poldesc">왼쪽에서 상품을 먼저 고르면 여기가 깨어납니다</div></div>
       <div class="ap-bar">
         <input type="search" id="pq" placeholder="정책 이름으로 찾기" autocomplete="off">
         <a class="btn2 ghost" href="/policies" style="text-decoration:none">정책 만들러 가기</a>
@@ -425,12 +443,23 @@ function chosenPolicy() {
   return document.querySelector('#plist input[type=radio]:checked');
 }
 
+/* [2026-08-12 확정 D3] 상품을 하나라도 고르면 오른쪽 판이 깨어난다.
+   🔴 깨우고 재우는 자리는 여기 하나뿐이어야 한다 — 고르기·검색·다시 그리기가
+     모두 upd() 를 거치므로, 다른 데 흩어 놓으면 한쪽만 안 깨는 상태가 생긴다. */
+const POL_DESC_AWAKE = '하나만 고를 수 있습니다 — 한 구성에 정책 하나이기 때문입니다';
+const POL_DESC_ASLEEP = '왼쪽에서 상품을 먼저 고르면 여기가 깨어납니다';
+
 function upd() {
   const pol = chosenPolicy();
   const n = picked.size + pickedSets.size;
   document.getElementById('mn').textContent = n;
   document.getElementById('pn').textContent = pol ? pol.dataset.nm : '안 고름';
   document.getElementById('go').disabled = !(n && pol);
+
+  const awake = n > 0;
+  document.getElementById('polcol').classList.toggle('asleep', !awake);
+  document.getElementById('stepno2').classList.toggle('wait', !awake);
+  document.getElementById('poldesc').textContent = awake ? POL_DESC_AWAKE : POL_DESC_ASLEEP;
 }
 
 /* ── 구성 만들기 창 ──────────────────────────────────────── */

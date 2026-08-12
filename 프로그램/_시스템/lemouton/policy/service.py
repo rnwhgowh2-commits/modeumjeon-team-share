@@ -116,13 +116,18 @@ def values_for(session, policy_id: int, market: str) -> dict:
     return out
 
 
-def readiness(session, policy_id: int) -> dict:
+def readiness(session, policy_id: int, markets: list[str] | None = None) -> dict:
     """마켓별 채움 현황 — {market: {filled, total, price_ready, missing:[...]}}.
 
     price_ready=False 면 그 마켓 가격 계산에 이 정책을 쓰면 안 된다.
+
+    markets 를 주면 그 마켓만 센다(기본은 전 마켓 — 기존 호출부는 그대로 동작).
+      [2026-08-12] 노션 「체크한 것만 가공 활성화」 — 안 켠 마켓까지 세면
+      **분모에 영영 안 채울 칸이 남아 100% 가 안 찬다.** 화면이 「할 일이 남았다」고
+      계속 말하는데 실제로 할 일은 없는 상태가 된다.
     """
     out = {}
-    for mk in MARKET_KEYS:
+    for mk in (markets if markets is not None else MARKET_KEYS):
         got = values_for(session, policy_id, mk)
         keys = item_keys_for(mk)
         missing = [k for k in PRICE_REQUIRED_ITEMS if not got.get(k)]

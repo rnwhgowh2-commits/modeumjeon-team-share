@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-06T09:51:08",
+  "updated_at": "2026-08-12T17:23:38",
   "standalone": [
     {
       "id": "i_home",
@@ -59,16 +59,7 @@
       "name": "상품 가공",
       "color": "#F59E0B",
       "collapsed": false,
-      "items": [
-        {
-          "emoji": "💲",
-          "name": "가격 정책",
-          "url": "/templates",
-          "active_key": "templates",
-          "badge_key": null,
-          "id": "i_templates"
-        }
-      ]
+      "items": []
     },
     {
       "id": "s_auto",
@@ -210,6 +201,14 @@
       "color": "#6B7280",
       "collapsed": false,
       "items": [
+        {
+          "emoji": "🔗",
+          "name": "옵션 맵핑 템플릿",
+          "url": "/templates",
+          "active_key": "templates",
+          "badge_key": null,
+          "id": "i_templates"
+        },
         {
           "emoji": "🗒",
           "name": "소싱처 관리",
