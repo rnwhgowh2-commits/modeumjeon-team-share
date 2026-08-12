@@ -3200,6 +3200,80 @@ def settle_recon_run():
         s.close()
 
 
+@bp.route('/settle-recon/run-live', methods=['POST', 'GET'])
+def settle_recon_run_live():
+    """엑셀 없이 대조 — 마켓 API 에서 **마켓 값을 우리가 직접 읽어** 우리 값과 맞댄다.
+
+    🔴 왜(2026-08-13) — 스마트스토어 대조는 「기준일 규칙만 코드에 넣고 실행은 한 번도
+      안 한」 상태였다. 사장님께 정산 엑셀을 부탁하기 전에, 이미 있는 자동 경로
+      (스스 정산 API)를 쓰는 게 맞다. 로켓그로스 엑셀 184개를 요청했던 실수와 같은 부류다.
+
+    `?item=smartstore&alias=` — 지금은 스마트스토어만. 결과는 엑셀 경로와 **같은 표**에
+    저장돼 지난번 판정과 이어진다.
+    """
+    from lemouton.margin import settle_recon as _sr
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    from lemouton.margin.settle_plan_rules import load_rules, wallet_summary
+
+    item = (request.args.get('item') or request.form.get('item') or 'smartstore').strip()
+    if item != 'smartstore':
+        return jsonify(ok=False, error=(
+            f'자동 대조는 아직 스마트스토어만 됩니다(요청: {item}). '
+            '쿠팡은 정산 엑셀 업로드(/settle-recon/run) 를 쓰세요.')), 400
+    alias = (request.args.get('alias') or request.form.get('alias') or '').strip()
+    today = _dt.date.today()
+    try:
+        cli = _client_for_diag('smartstore', alias)
+        parsed = _sr.market_actual_smartstore(
+            today=today, window_days=_sr.ITEMS[item]['window_days'], client=cli)
+    except ValueError as e:      # 조용한 0원 금지 — 사유를 그대로 올린다
+        return jsonify(ok=False, error=str(e)), 502
+    except Exception as e:       # noqa: BLE001
+        return jsonify(ok=False,
+                       error=f'{type(e).__name__}: {str(e)[:300]}'), 502
+
+    rules = load_rules()
+    lines = _settle_plan_lines([_sr.ITEMS[item]['market']])
+    try:
+        from lemouton.margin import settle_fast_ledger as FL
+        fast = FL.summary()
+    except Exception:   # noqa: BLE001
+        fast = {}
+    try:
+        wallet = wallet_summary(rules)
+    except Exception:   # noqa: BLE001
+        wallet = {}
+    res = _sr.reconcile(item, parsed, lines, rules, today=today,
+                        fast_summary=fast, wallet_summary=wallet)
+    res['자동'] = True
+    res['출처'] = parsed.get('출처') or ''
+    res['마켓_배송비정산합'] = parsed.get('배송비정산합')
+    res['마켓_정산구분별'] = parsed.get('정산구분별')
+    res['조회오류'] = parsed.get('오류') or []
+
+    s = SessionLocal()
+    try:
+        prev = (s.query(SettleReconRun).filter(SettleReconRun.item == item)
+                .order_by(SettleReconRun.id.desc()).first())
+        run = SettleReconRun(item=item, filename='(마켓 API 자동)',
+                             market_total=int(res['마켓값'] or 0),
+                             ours_total=int(res['우리값'] or 0),
+                             verdict=res['판정'],
+                             parsed={k: v for k, v in parsed.items() if k != 'rows'},
+                             result=res)
+        s.add(run)
+        for o in (s.query(SettleReconRun).order_by(SettleReconRun.id.desc())
+                  .offset(29).all()):
+            s.delete(o)
+        s.commit()
+        return jsonify(ok=True, ran_at=run.ran_at.isoformat(), result=res,
+                       parsed={k: v for k, v in parsed.items() if k != 'rows'},
+                       prev=(prev.result if prev else None),
+                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
 @bp.route('/settle-recon/latest')
 def settle_recon_latest():
     """항목별 마지막 대조 결과 — 탭에 들어오면 지난번 판정이 바로 보인다."""

@@ -2132,6 +2132,30 @@
                      +'마켓 정산 조회가 아직 이 주문을 안 잡았을 수 있어요.'}
     };
     function mgSettleSrc(r){return SETTLE_SRC[String(r['_settle_source']||'')]||SETTLE_SRC.none;}
+    /* ── 정산액 두 칸(27·28)에도 근거 딱지 (노션 주문관리 ⑥ · 2026-08-13) ─────────
+       🔴 여태 이 두 칸은 `MONEY_COLS` 분기로 떨어져 **숫자만** 찍혔다 — 배지가 설 자리
+         자체가 없었다. 그래서 같은 화면에서 실마진 칸엔 「추정」이 붙는데 그 재료인
+         정산액은 실측처럼 검게 보였다(한 화면 안에서 말이 어긋난다).
+       🔴 딱지를 붙이는 규칙은 실마진 칸과 **같은 원천**(SETTLE_SRC)을 쓴다. 두 벌로
+         나뉘면 한쪽만 고쳐져 또 어긋난다.
+       🔴 「없음」은 값이 없을 때만 뜻이 있다 — 숫자가 있는데 근거만 빈 행에 「없음」을
+         붙이면 멀쩡한 값을 못 믿게 만든다. 값이 있으면 딱지를 생략한다. */
+    var SETTLE_MONEY_COLS={'정산예정금액':1,'정산예정금(배송비포함)':1};
+    function settleMoneyCell(col,r,v){
+      var has=(v!==''&&v!=null);
+      var src=mgSettleSrc(r);
+      if(!has){
+        return '<span class="muted" title="'+esc(src.why).replace(/"/g,'&quot;')+'">—</span>';
+      }
+      var txt=Number(num(v)).toLocaleString();
+      var chip=(src.chip&&src.chip!=='없음')
+        ? '<span class="mg-chip mg-est">'+esc(src.chip)+'</span>' : '';
+      var why=src.why;
+      if(col==='정산예정금(배송비포함)'){
+        why+='\n· 이 칸 = 상품 정산 + 배송비 정산(마켓이 배송비에서도 수수료를 뗍니다).';
+      }
+      return '<span title="'+esc(why).replace(/"/g,'&quot;')+'">'+txt+'</span>'+chip;
+    }
     /* 매입가로 **쓸 수 있는 값** — 없으면 null. 예상(estimate)도 값은 쓰되 딱지를 붙인다.
        (계산을 아예 막으면 사장님이 대략도 못 보신다. 대신 무엇으로 잰 값인지는 못 박는다.) */
     function mgBuy(r){
@@ -2873,6 +2897,7 @@
       }
       if(col==='송장입력')return invCellHTML(r,v);
       if(col==='수량')return esc(v||'');
+      if(SETTLE_MONEY_COLS[col])return settleMoneyCell(col,r,v);
       if(MONEY_COLS[col])return (v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
       if((col==='배송메시지'||col==='수령자'||col==='구매자')&&!v)return '<span class="muted">—</span>';
       return esc(v||'');
