@@ -97,14 +97,23 @@ def test_옥션도_사이트부담_지원할인이_필수다():
 
 # ── 배선 진단 ──────────────────────────────────────────────────────────
 
-def test_지금_밖으로_나가는_항목은_판매가와_배송뿐():
-    assert R.wiring_of('price')[0] == R.WIRED
-    assert R.wiring_of('shipping')[0] == R.WIRED
-    for k in ('name', 'category', 'options', 'images', 'detail', 'notice',
-              'brand', 'origin', 'kc', 'banned_words', 'tags'):
+def test_아직_안_나가는_항목은_저장만이라고_말한다():
+    """[2026-08-12 정정] 이 시험은 **틀린 사실을 지키고 있었다.**
+
+    옛 이름이 `…판매가와_배송뿐` 이었고 상품명·옵션·상세설명을 「저장만」이라고
+    못 박아 뒀다. 그런데 그 사이 `to_payload → apply_rules → as_draft` 배선이 생겨
+    그 셋은 **실제로 마켓 초안에 실려 나가고 있었다.** 시험이 옛 사실을 잠가 두는
+    바람에 화면도 계속 「저장만」이라고 말했다 — 사장님이 「어차피 안 나간다」고
+    읽고 안 채웠으면 그대로 나갔을 값이다.
+
+    🔴 그래서 지금은 **안 나가는 것만** 여기서 지키고, 나가는 것은 아래
+      `test_초안으로_옮겨지는_칸은_전송됨이라고_적혀_있다` 가 **as_draft 원본을 읽어**
+      판정한다. 사람이 손으로 적은 목록끼리 대조하면 또 같이 낡는다.
+    """
+    for k in ('category', 'images', 'notice', 'origin', 'kc', 'tags'):
         st, note = R.wiring_of(k)
         assert st == R.STORED_ONLY, k
-        assert '저장만' in note
+        assert note.strip(), k
 
 
 def test_요약은_필수인데_안_정한_항목을_센다():
@@ -157,12 +166,19 @@ def test_화면에_필수_배지가_뜬다(client):
 
 
 def test_화면이_전송_안_되는_항목을_말한다(client):
-    """13항목을 다 채워도 지금 나가는 건 둘뿐 — 화면이 그 사실을 말해야 한다."""
+    """항목을 다 채워도 아직 안 나가는 것이 있다 — 화면이 그 사실을 말해야 한다.
+
+    [2026-08-12] 전에는 화면 글자 「저장만」을 그대로 찾았는데, 그러면 **문구를
+    고치는 순간 시험이 깨진다**(뜻은 그대로인데도). 지금은 「안 나가는 게 있다」는
+    뜻이 화면에 있는지와, 나가는 항목에 초록 배지가 붙는지를 본다.
+    🔴 「나가는 것은 판매가와 배송비뿐」 같은 **목록을 화면 글자에 박아 두지 않는다** —
+      배선이 늘면 그 문장이 곧 거짓말이 된다(실제로 그렇게 됐다).
+    """
     pid = _정책하나(client)
     html = client.get(f'/policies/{pid}?m=smartstore').get_data(as_text=True)
-    assert '판매가' in html and '배송' in html
-    assert '저장만 됩니다' in html or '저장만' in html
+    assert '아직 마켓으로 나가지 않습니다' in html
     assert 'wire on' in html             # 「전송됨」 초록 배지
+    assert '배송비뿐입니다' not in html, '옛 문구가 남아 있다 — 지금은 사실이 아니다'
 
 
 def test_롯데온_화면은_확인불가라고_말한다(client):
@@ -224,3 +240,61 @@ def test_쿠팡_병행수입과_11번가_판매방식은_필수다():
     from lemouton.policy import required as R
     assert R.status_of('coupang', '_parallel_import')[0] == R.REQUIRED
     assert R.status_of('eleven11', '_sell_method')[0] == R.REQUIRED
+
+
+# ── [2026-08-12] 「전송됨/저장만」 표시가 사실인가 ────────────────────────────
+#   🔴 이 표는 실제로 틀어져 있었다. 판매가·배송비 둘만 「전송됨」이라 적혀 있었는데,
+#     그 사이 배선이 생겨 상품명·브랜드·옵션·상세설명도 나가고 있었다.
+#     사장님이 「어차피 안 나간다」고 읽고 안 채웠으면 그대로 마켓에 나갔을 값이다.
+#   판정 근거 = `send/as_draft.upsert` 가 사본에서 **실제로 옮겨 담는 칸**.
+
+def _as_draft_copied_fields() -> set:
+    """as_draft 가 `getattr(view, …)` 로 옮겨 담는 초안 칸 이름."""
+    import re
+    from pathlib import Path
+    src = Path('lemouton/send/as_draft.py').read_text(encoding='utf-8')
+    return set(re.findall(r'd\.(\w+)\s*=\s*getattr\(view', src))
+
+
+#: 초안 칸 → 그 칸을 만드는 정책 항목
+_FIELD_TO_ITEM = {
+    'name': 'name',
+    'brand': 'brand',
+    'options_json': 'options',
+    'detail_html': 'detail',
+}
+
+
+def test_초안으로_옮겨지는_칸은_전송됨이라고_적혀_있다():
+    from lemouton.policy import required as R
+    copied = _as_draft_copied_fields()
+    assert copied, 'as_draft 에서 옮겨 담는 칸을 하나도 못 읽었다 — 시험이 헛돈다'
+    for field in copied:
+        item = _FIELD_TO_ITEM.get(field)
+        assert item, f'초안 칸 「{field}」 가 새로 생겼다 — 어느 정책 항목인지 정하고 이 표에 넣어라'
+        state, note = R.wiring_of(item)
+        assert state == R.WIRED, \
+            f'「{item}」 은 실제로 마켓 초안에 실리는데 화면은 「{state}」 라고 말한다'
+        assert note.strip()
+
+
+def test_판매가와_배송비도_전송됨이다():
+    """가격 엔진이 읽는다 — 초안 칸과는 다른 경로라 따로 지킨다."""
+    from lemouton.policy import required as R
+    assert R.wiring_of('price')[0] == R.WIRED
+    assert R.wiring_of('shipping')[0] == R.WIRED
+
+
+def test_이미지는_저장만이라고_정직하게_말한다():
+    """🔴 초안은 이미지를 **옵션에서 다시 모아** 붙인다 — 이 규칙은 안 읽는다."""
+    from lemouton.policy import required as R
+    state, note = R.wiring_of('images')
+    assert state == R.STORED_ONLY
+    assert '옵션에서 다시' in note
+
+
+def test_아직_안_나가는_항목은_그대로_저장만이다():
+    from lemouton.policy import required as R
+    for key in ('notice', 'kc', 'tags', 'category', 'listing', 'price_compare', 'ids'):
+        assert R.wiring_of(key)[0] == R.STORED_ONLY, \
+            f'「{key}」 를 나간다고 적었는데 읽는 코드가 있는지 확인하라'
