@@ -1057,3 +1057,10 @@ def api_verify_status(sid: int, job_id: int):
         finally:
             s.close()
     return jsonify(ok=True, job=job)
+
+
+@bp.route("/checklist.json")
+def checklist_data():
+    """소싱처 개발 체크리스트. 근거표(required.py)가 없어 손보정 비중이 크다."""
+    from lemouton.policy.checklist import build_sourcing
+    return jsonify(build_sourcing())
