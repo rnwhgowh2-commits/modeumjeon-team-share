@@ -109,8 +109,11 @@ def enrich_prices(session, client, *, account_key: str,
                        account_key, total_rows, limit)
 
     filled = failed = cat_filled = 0
-    touched = 0
+    # 🔴 중간 커밋 기준은 **훑은 상품 수**다(바뀐 칸 수가 아니라). 칸 수로 세면 한 상품이
+    #   2~3칸을 바꿔 49→51 처럼 건너뛰며 「50마다」가 영영 안 걸릴 수 있다.
+    seen = 0
     for m in rows:
+        seen += 1
         try:
             detail = get_product_detail(m.market_product_id, client=client)
         except Exception as e:                          # noqa: BLE001
@@ -124,17 +127,14 @@ def enrich_prices(session, client, *, account_key: str,
         if code and m.category_code != code:
             m.category_code = code
             cat_filled += 1
-            touched += 1
         if name and m.category_name != name:
             m.category_name = name
-            touched += 1
         sales = [it.get('slPrc') for it in (detail.get('itmLst') or [])
                  if isinstance(it.get('slPrc'), (int, float))]
         if sales:
             m.sale_price = int(min(sales))              # 값 없으면 NULL 유지(날조 금지)
             filled += 1
-            touched += 1
-        if touched and touched % 50 == 0:
+        if seen % 50 == 0:
             session.commit()
     session.commit()
     return {'filled': filled, 'failed': failed, 'category_filled': cat_filled,
