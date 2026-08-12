@@ -1424,6 +1424,21 @@ def settle_plan_agg():
     return jsonify(out)
 
 
+def _settle_ship_part(row: dict) -> int:
+    """N열(`정산예정금(배송비포함)`) 안에 들어 있는 **배송비 몫**.
+
+    🔴 N열이 무엇을 더했는지와 **똑같아야** 한다(order_export._finalize_rows).
+      마켓이 배송비 정산 실값을 주면 그 값(`_ship_settle`), 아니면 고객배송비.
+      여기만 고객배송비로 쪼개면 상품·배송비 두 칸이 동시에 틀린다 —
+      합계는 맞아서 눈에 안 띄고, 사장님이 마켓 화면과 맞대 볼 때만 드러난다.
+    🔴 0 은 「모름」이 아니라 「배송비 정산 0원」이다 → `is not None` 으로만 가른다.
+    """
+    real = _oe._to_int(row.get("_ship_settle"))
+    if real is not None:
+        return real
+    return _oe._to_int(row.get("배송비"), 0) or 0
+
+
 @bp.route('/api/settle-plan/detail')
 def settle_plan_detail():
     """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|not_started|undated|
@@ -1482,7 +1497,7 @@ def settle_plan_detail():
                        if e["date"] and SP.bucket_key(e["date"], unit) == bucket]
                 if not evs:
                     continue
-        ship = _oe._to_int(row.get("배송비"), 0) or 0
+        ship = _settle_ship_part(row)
         dates = [e["date"] for e in evs if e["date"]]
         srcs = {e["date_source"] for e in evs if e["date_source"]}
         # 쿠팡 분할지급이면 이 목록에 걸린 **조각 금액**만 보여준다(주문 전체가 아니라).
@@ -1617,7 +1632,7 @@ def settle_plan_export():
             if not evs:
                 continue
         row = ln["row"]
-        ship = _oe._to_int(row.get("배송비"), 0) or 0
+        ship = _settle_ship_part(row)
         part = sum(e["amount"] for e in evs) if evs else amount
         is_part = bool(evs) and part != amount
         rc = next((e.get("reason") for e in evs if e.get("reason")), "")
