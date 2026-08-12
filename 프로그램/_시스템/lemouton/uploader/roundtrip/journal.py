@@ -91,6 +91,21 @@ class RoundtripJournal:
         }
         self._flush()
 
+    def record_sent(self, changes: dict) -> None:
+        """**우리가 보낸 시험값**을 남긴다. 손복구가 짐작 대신 이걸로 대조한다.
+
+        🔴 [2026-08-13] 예전엔 손복구가 「이게 우리 시험값인가」를 주소 모양(`roundtrip/probe_`)
+           이나 낱말(「(시험중)」)로 짐작했다. 스마트스토어는 시험사진을 **네이버 CDN** 에
+           올려 주소에 그 표식이 안 붙는다 → 못 알아보고 건너뛴 뒤 「시험 흔적 없음」
+           도장까지 찍었다. 보낸 값을 그대로 적어 두면 짐작할 일이 없다.
+        """
+        if not self._payload:
+            return
+        self._payload["sent"] = {
+            k: (list(v) if isinstance(v, tuple) else v) for k, v in (changes or {}).items()
+        }
+        self._flush()
+
     def close(self, ok: bool, note: str = "") -> None:
         if not self._payload:
             return
