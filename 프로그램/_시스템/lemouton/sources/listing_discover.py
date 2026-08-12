@@ -59,7 +59,12 @@ _PRODUCT_LINK = {
                    'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no={id}'),
     # hmall: 🔴 **링크가 아니다.** 상품 카드가 `<a href>` 가 아니라서 링크만 찾으면
     #   영영 0건이다(실측: 검색 결과 29개 링크 중 상품 0건). 번호는 속성에만 있다.
-    'hmall': (re.compile(r'data-slitm-cd="(\d+)"'),
+    # hmall: 🔴 **화면이 아니라 받은 글에서 읽는다**(2026-08-08 라이브에서 드러남).
+    #   `page=3` 을 열어 보니 화면(DOM `[data-slitm-cd]`)은 **1쪽 36개**,
+    #   받은 글(HTML `"slitmCd":`)은 **3쪽 36개**, **겹침 0**이었다 —
+    #   서버는 3쪽을 보내는데 브라우저 안 앱이 다시 1쪽을 불러 화면을 덮어쓴다.
+    #   그래서 6쪽을 시켜도 결과가 36개(1쪽 분량)뿐이었다.
+    'hmall': (re.compile(r'"slitmCd"\s*:\s*"?(\d{6,})'),
               'https://www.hmall.com/md/pda/itemPtc?slitmCd={id}'),
     # lemouton(카페24): `/product/detail.html?product_no=140`
     #   🔴 카페24 템플릿 자리표시자 `product_no={$*product_no}` 가 HTML 에 그대로
@@ -134,6 +139,12 @@ _NO_PAGE_PATH = {
     'ssf': re.compile(r'/search/result'),
 }
 
+#: **화면이 아니라 받은 글(HTML)에서** 상품번호를 읽어야 하는 소싱처.
+#: 🔴 H몰은 서버가 보낸 쪽과 화면이 그리는 쪽이 다르다(위 주석 참조).
+#: ★ 다른 곳은 화면에서 읽는다 — 화면에서 읽는 편이 「눈에 보이는 것과 같다」는
+#:   장점이 있다(화면에 없는 배너·광고가 안 딸려 온다). 추측으로 넓히지 않는다.
+_HTML_SCAN = {'hmall'}
+
 _MORE_SELECT = {
     'lotteon': 'a.srchPaginationNext',      # 실측: 「다음」 — 눌러서 상품이 바뀜
     'lotteimall': 'a.next.ico',             # 실측: 「다음」 단추 존재
@@ -181,6 +192,7 @@ def dom_rule_for(source_key: str) -> dict:
     pat, _tpl = _rule(key)          # 모르는 곳이면 여기서 예외
     sel, attr = _DOM_SELECT[key]
     return {'sel': sel, 'attr': attr, 'id_re': pat.pattern,
+            'html_scan': (key in _HTML_SCAN) or None,
             'more_sel': _MORE_SELECT.get(key),
             'next_url_re': _NEXT_URL_RE.get(key),
             'empty_text': _EMPTY_TEXT.get(key)}

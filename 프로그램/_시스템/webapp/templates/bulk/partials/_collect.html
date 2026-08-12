@@ -222,7 +222,9 @@
           >${found}</div><div class="sf-l">찾음</div></div>
         <div class="sf-num"><div class="sf-n new">${neu}</div><div class="sf-l">새 것</div></div>
         <div class="sf-num"><div class="sf-n made">${made}</div><div class="sf-l">상품</div></div>
-        <div class="sf-when">${esc(ago(f.last_run_at))}</div>
+        <div class="sf-when">${esc(ago(f.last_run_at))}${
+          f.last_ext_version ? `<div style="font-size:10px;opacity:.7">확장 ${esc(f.last_ext_version)}</div>` : ''
+        }</div>
         <div class="sf-act">
           <button class="sf-btn" data-run="${f.id}" ${running ? 'disabled' : ''}>
             ${running ? '훑는 중' : '지금 수집'}</button>
