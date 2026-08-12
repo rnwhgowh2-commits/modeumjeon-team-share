@@ -815,7 +815,7 @@ def test_markets_가_등록_카테고리를_실어_보낸다(client, world):
                             account_key='default', market_product_id='SS-CAT',
                             name='스스 상품', category_code='50002322',
                             category_name='패션의류>여성의류>티셔츠'))
-        # 롯데온 — 캐시는 있는데 카테고리만 없다(마켓이 안 줘서)
+        # 롯데온 — 캐시는 있는데 카테고리만 아직 안 채워짐(상세 훑기가 안 닿음)
         s.add(MarketProduct(group_id=grp.id, market='lotteon',
                             account_key='default', market_product_id='LO-CAT',
                             name='롯데온 상품'))
@@ -827,12 +827,15 @@ def test_markets_가_등록_카테고리를_실어_보낸다(client, world):
         ss = by['smartstore']
         assert ss['reg_category'] == '50002322'
         assert ss['reg_category_name'] == '패션의류>여성의류>티셔츠'
-        assert ss['category_unsupported'] is False
+        assert ss['category_via_detail'] is False
         lo = by['lotteon']
         assert lo['reg_category'] is None and lo['reg_category_name'] is None
-        assert lo['category_unsupported'] is True, \
-            '롯데온 목록 API 는 카테고리를 아예 안 준다 — 「불러오면 채워져요」는 거짓말'
-        assert by['coupang']['category_unsupported'] is False
+        # [2026-08-12 정정] 롯데온은 **목록**에 카테고리가 없을 뿐, 상세엔 온다
+        #  (scatNo·dcatLst — 등록이 그 두 필드를 복사해 라이브 성공). 그래서
+        #  「마켓이 안 알려줘요」가 아니라 「아직 안 채워짐(상세를 봐야 안다)」이다.
+        assert lo['category_via_detail'] is True, \
+            '롯데온만 채워지는 경로가 다르다(목록이 아니라 상세) — 화면이 그렇게 말해야 한다'
+        assert by['coupang']['category_via_detail'] is False
     finally:
         s.rollback()
         if grp is not None:
@@ -850,7 +853,10 @@ def test_마켓_등록탭_표에_카테고리_열이_있다():
     assert '<th class="l">등록 카테고리</th>' in twr
     assert 'regCategory(m)' in twr
     assert 'colspan="12"' in twr and 'colspan="11"' not in twr
-    assert '마켓이 카테고리를 안 알려줘요' in twr, '없는 이유를 정직하게 말한다'
+    # 값이 없을 때 **왜 없는지**를 갈라 말한다 — 롯데온은 채우는 경로가 달라 문구도 다르다.
+    assert '아직 안 채워짐' in twr and 'category_via_detail' in twr, \
+        '없는 이유를 정직하게 말한다'
+    assert '「내마켓 불러오기」를 다시 하면 채워져요' in twr
 
 
 def test_판매집계가_쓰는_칸을_전부_가져온다():

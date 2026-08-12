@@ -1287,12 +1287,17 @@ def tower_markets_api(code: str):
                 'reg_name': (mp.name if mp else None),
                 'reg_status': (mp.status if mp else None),
                 # 마켓에 실제로 등록된 카테고리(캐시). 없으면 null — 화면이 「왜 없는지」를
-                #  구분해서 말한다. 🔴 롯데온은 목록 API 가 카테고리를 아예 안 준다
-                #  (지도 lotteon.product.list idTraps · 2026-08-06 프로브 실측)
-                #  → 영원히 null 이므로 「불러오면 채워진다」고 하면 거짓말이 된다.
+                #  구분해서 말한다.
+                # 🔴 [2026-08-12 정정] 롯데온을 「영영 못 받음」으로 두던 것을 거둔다.
+                #   목록 API 에 없는 건 맞지만 **상세(product/detail)에는 scatNo·dcatLst 가
+                #   온다**(등록이 그 두 필드를 복사해 라이브 성공 — products.py
+                #   _REGISTER_TEMPLATE_FIELDS · 2026-07-21). 이제 판매가를 채우는 그 상세
+                #   호출에서 카테고리도 같이 거둔다(catalog/lotteon_prices.category_of).
+                #   → 아직 안 채워진 롯데온 줄은 「불러오기를 다시 하면 채워져요」가 **참**이다.
                 'reg_category': (mp.category_code if mp else None),
                 'reg_category_name': (mp.category_name if mp else None),
-                'category_unsupported': (mk == 'lotteon'),
+                # 롯데온만 채워지는 경로가 다르다(목록이 아니라 상세) → 화면이 그렇게 말한다.
+                'category_via_detail': (mk == 'lotteon'),
                 'last_send': _iso(max(lasts)) if lasts else None,
                 'options': [{
                     'sku': r.canonical_sku,

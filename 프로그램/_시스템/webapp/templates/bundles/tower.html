@@ -956,9 +956,11 @@ function renderT3(j){
 }
 
 /* 등록 카테고리 한 칸 — 값이 없을 때 **왜 없는지**를 갈라 말한다.
-   🔴 롯데온은 상품 목록 API 응답에 카테고리 필드가 아예 없다(spdNo·spdNm·slStatCd·
-     승인상태뿐 — 2026-08-06 프로브 실측). 「다시 불러오면 채워져요」는 롯데온에겐
-     영원히 거짓말이라, 마켓이 안 준다는 사실을 그대로 말한다.
+   🔴 [2026-08-12 정정] 롯데온을 「끝까지 못 받는다」로 두던 옛 문구를 거둔다.
+     목록 API 에 없는 건 맞지만 **상세(product/detail)에는 scatNo·dcatLst 가 온다**
+     (등록이 그 두 필드를 복사해 라이브 성공 — 2026-07-21). 이제 판매가를 채우는 그
+     상세 훑기가 카테고리도 같이 거둔다. 다만 **훑기가 아직 안 닿았을 수 있어**
+     롯데온은 「어떻게 채워지는지」를 따로 말한다(다른 마켓과 채우는 경로가 다르다).
    🔴 코드밖에 못 받는 마켓(쿠팡·11번가)은 코드만 보여준다 — 이름을 지어내지 않는다. */
 function regCategory(m){
   if (!m.registered) return dim('—');
@@ -968,8 +970,8 @@ function regCategory(m){
     if (nm && code) return nm + ' <span class="twr-u">' + code + '</span>';
     return nm || code;
   }
-  if (m.category_unsupported)
-    return '<span title="롯데온 상품 목록 API 응답에 카테고리 필드가 없습니다(spdNo·spdNm·판매상태·승인상태뿐). 없는 값을 지어내지 않습니다." style="color:var(--ap-g45,#6E6E73)">마켓이 카테고리를 안 알려줘요</span>';
+  if (m.category_via_detail)
+    return dim('아직 안 채워짐 — 롯데온은 상품 하나하나 상세를 봐야 알 수 있어요(가격 훑기가 돌면 같이 채워집니다)');
   return dim('확인 불가 — 「내마켓 불러오기」를 다시 하면 채워져요');
 }
 
