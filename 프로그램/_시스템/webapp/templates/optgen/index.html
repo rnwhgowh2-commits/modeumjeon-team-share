@@ -72,7 +72,7 @@
         </label>
         {% endif %}
       </aside>
-      <div>
+      <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
         <table class="og-tb og-c3">
           <tr><th>번호</th><th>이름</th><th>브랜드</th><th class="r">옵션</th><th class="r"></th></tr>
@@ -192,7 +192,7 @@
         <div class="og-rail-t">브랜드</div>
         <div id="og-brands"></div>
       </aside>
-      <div>
+      <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
         <table class="og-tb og-c3">
           {# [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 체크칸을 늘 보이게 —
@@ -379,6 +379,11 @@
   /* ── [2026-08-04 사장님 확정 E1+타이핑] 왼쪽 서랍 + 추려지는 표 ── */
   .og-wrap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-4);
     align-items:start}
+  /* 🔴 [2026-08-12 라이브 실측] 표가 화면 밖으로 나가 **문서 전체가 가로로 굴렀다**.
+     서랍(497)+표(944)가 화면(1265)을 넘긴 것 — 상품명이 길수록 표가 벌어진다.
+     로컬은 줄이 서너 개뿐이라 안 났고 라이브에서만 났다(줄 수가 다르면 폭도 다르다).
+     화면은 그대로 두고 **표만 안에서 굴러가게** 한다(가로 넘침 규칙과 같은 처방). */
+  .og-tbwrap{min-width:0;overflow-x:auto}
   .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
   .stg-head{font-weight:600}
   .stg-head .n{font-variant-numeric:tabular-nums}
