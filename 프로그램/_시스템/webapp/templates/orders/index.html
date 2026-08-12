@@ -5625,6 +5625,28 @@
     .spn .modal input[type=text]{width:180px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;}
     .spn .modal .foot{text-align:right;margin-top:12px;}
     .spn .btn.p{background:var(--바탕-파랑,var(--blue));color:#fff;border:none;font-weight:600;}
+    /* c-4 마켓 정산 대조 */
+    .spn .rcn{margin-top:22px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);padding:14px 16px;}
+    .spn .rcn-h{font-size:13.5px;font-weight:700;margin-bottom:10px;}
+    .spn .rcn-h .note{display:inline;font-weight:400;margin-left:6px;}
+    .spn .rcn-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;}
+    .spn .rcn-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--n100,#F8FAFB);}
+    .spn .rcn-card .t{font-size:13px;font-weight:700;}
+    .spn .rcn-card .how{font-size:11.5px;color:var(--sub);line-height:1.55;margin-top:4px;}
+    .spn .rcn-card .how b{color:var(--ink);}
+    .spn .rcn-dz{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border:1px dashed var(--line);
+                 border-radius:8px;background:var(--surface,#fff);cursor:pointer;font-size:12px;}
+    .spn .rcn-dz:hover{border-color:var(--blue);}
+    .spn .rcn-out{margin-top:10px;font-size:12px;}
+    .spn .rcn-num{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0;font-variant-numeric:tabular-nums;}
+    .spn .rcn-num div span{color:var(--sub);font-size:11px;display:block;}
+    .spn .rcn-num div b{font-size:15px;}
+    .spn .vd{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;}
+    .spn .vd.match{color:var(--글자-초록,#15803D);background:var(--연한-초록,#DCFCE7);}
+    .spn .vd.tol{color:var(--글자-파랑,#1B64DA);background:var(--연한-파랑,#EEF4FF);}
+    .spn .vd.def{color:var(--글자-주황,#B45309);background:var(--연한-노랑,#FEF3C7);}
+    .spn .vd.diff{color:#B91C1C;background:var(--연한-빨강,#FEE2E2);}
+    .spn .vd.unknown{color:var(--sub);background:var(--n100,#F1F3F5);}
   </style>
   <div class="spn">
     <div class="bar-row">
@@ -5658,6 +5680,15 @@
     <div id="spn-table"><div class="state">불러오는 중…</div></div>
     <div class="note">금액은 마진계산기와 같은 원천입니다. <span class="chip real">실측</span>=마켓이 준 날짜·금액 ·
       <span class="chip est">추정</span>=규칙으로 계산(「⚙️ 계산 규칙」에서 확인·수정). 칸을 누르면 계정별 → 주문별로 펼쳐집니다.</div>
+
+    {# ══ c-4 마켓 정산 대조 — 마켓 화면 엑셀 ↔ 우리 정산예정금액 ══════════════
+       사장님: "실마켓 계정 접속해서 실제 정산받는 금액과 비교 및 정합성 검사."
+       🔴 기준일을 잘못 뽑으면 대조 자체가 거짓이라, 항목을 고르면 **마켓에서 어떻게
+         뽑아야 하는지**를 화면이 먼저 말해 준다(노션 규칙 그대로). #}
+    <div class="rcn" id="spn-recon">
+      <div class="rcn-h">📋 마켓 정산 대조 <span class="note">마켓 정산 화면에서 받은 엑셀을 올리면 우리 숫자와 나란히 놓고 차이·원인을 보여드려요</span></div>
+      <div class="rcn-items" id="rcn-items"><div class="state">불러오는 중…</div></div>
+    </div>
   </div>
   <div class="spn"><div class="modal-dim" id="spn-rules-modal"><div class="modal">
     <h4>⚙️ 정산주기 계산 규칙</h4>
@@ -6357,6 +6388,80 @@
         })
         .catch(function(e){alert('저장 실패: '+e);});
     }
+
+    /* ── c-4 마켓 정산 대조 ──────────────────────────────────────────────────
+       🔴 기준일을 잘못 뽑으면 대조 자체가 거짓이라, 항목마다 **마켓에서 어떻게 뽑는지**
+         를 먼저 적는다. 결과에도 「우리가 이 파일을 어떻게 읽었는지」(열 이름·기간·건수)
+         를 같이 보여줘야 숫자를 믿을 수 있다. */
+    var rcnItems=[], rcnLatest={};
+    function rcnResultHtml(res, parsed, ranAt){
+      if(!res)return '';
+      var v=res['판정']||'unknown';
+      var h='<div class="rcn-out"><span class="vd '+esc(v)+'">'+esc(res['판정한글']||v)+'</span>'
+        +(ranAt?(' <span class="note">'+esc(String(ranAt).slice(0,16).replace('T',' '))+'</span>'):'')
+        +'<div class="rcn-num">'
+        +'<div><span>마켓 화면</span><b>'+fmt(res['마켓값'])+'</b></div>'
+        +'<div><span>우리 값</span><b>'+(res['우리값']==null?'—':fmt(res['우리값']))+'</b></div>'
+        +'<div><span>차이</span><b>'+(res['차이']==null?'—':fmt(res['차이']))+'</b></div>'
+        +'</div>'
+        +'<div class="how">'+esc(res['왜']||'')+'</div>'
+        +(res['우리구성']?('<div class="how">우리 값 = '+esc(res['우리구성'])+' · '+fmt(res['우리건수'])+'건</div>'):'');
+      // 「우리가 파일을 이렇게 읽었다」 — 숫자를 믿으려면 근거가 보여야 한다.
+      if(parsed||res['읽은열']){
+        h+='<div class="how">파일 읽음 — 금액 열 <b>'+esc(res['읽은열']||(parsed&&parsed.amount_col)||'?')+'</b>'
+          +' · '+fmt(res['마켓건수'])+'줄 · 기간 '+esc(res['마켓기간']||'?')+'</div>';
+      }
+      return h+'</div>';
+    }
+    function rcnCardHtml(it){
+      var L=rcnLatest[it.key]||null;
+      return '<div class="rcn-card" data-k="'+esc(it.key)+'">'
+        +'<div class="t">'+esc(it['라벨'])+'</div>'
+        +'<div class="how"><b>어디서</b> '+esc(it['마켓화면'])+'<br><b>기준일</b> '+esc(it['기준일'])+'</div>'
+        +'<label class="rcn-dz">📥 <span>엑셀 고르기 · 끌어놓기</span>'
+        +'<input type="file" accept=".xlsx,.xls" style="display:none" data-k="'+esc(it.key)+'"></label>'
+        +'<div class="rcn-slot">'+(L?rcnResultHtml(L.result,L.parsed,L.ran_at):'')+'</div>'
+        +'</div>';
+    }
+    function rcnRender(){
+      if(!rcnItems.length){$('#rcn-items').innerHTML='<div class="state">대조 항목을 불러오지 못했습니다.</div>';return;}
+      $('#rcn-items').innerHTML=rcnItems.map(rcnCardHtml).join('');
+      document.querySelectorAll('#rcn-items input[type=file]').forEach(function(inp){
+        inp.onchange=function(){ if(inp.files&&inp.files[0]) rcnUpload(inp.dataset.k, inp.files[0]); };
+      });
+    }
+    function rcnUpload(key, file){
+      var card=document.querySelector('#rcn-items .rcn-card[data-k="'+key+'"]');
+      var slot=card&&card.querySelector('.rcn-slot');
+      if(slot)slot.innerHTML='<div class="rcn-out note">읽는 중…</div>';
+      var fd=new FormData(); fd.append('item',key); fd.append('file',file);
+      fetch('/orders/settle-recon/run',{method:'POST',body:fd})
+        .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+        .then(function(x){
+          if(!x.j||!x.j.ok){
+            // 🔴 못 읽었으면 **왜**를 그대로 보여준다 — 0원으로 넘어가 「일치」라 하지 않는다.
+            if(slot)slot.innerHTML='<div class="rcn-out"><span class="vd diff">읽기 실패</span>'
+              +'<div class="how">'+esc((x.j&&x.j.error)||'알 수 없는 오류')+'</div></div>';
+            return;
+          }
+          rcnLatest[key]={result:x.j.result,parsed:x.j.parsed,ran_at:x.j.ran_at};
+          if(slot)slot.innerHTML=rcnResultHtml(x.j.result,x.j.parsed,x.j.ran_at);
+        })
+        .catch(function(e){
+          if(slot)slot.innerHTML='<div class="rcn-out"><span class="vd diff">실패</span>'
+            +'<div class="how">'+esc(e.message||e)+'</div></div>';
+        });
+    }
+    (function rcnInit(){
+      Promise.all([
+        fetch('/orders/settle-recon/items').then(function(r){return r.json();}).catch(function(){return null;}),
+        fetch('/orders/settle-recon/latest').then(function(r){return r.json();}).catch(function(){return null;})
+      ]).then(function(a){
+        rcnItems=(a[0]&&a[0].ok&&a[0].items)||[];
+        rcnLatest=(a[1]&&a[1].ok&&a[1].latest)||{};
+        rcnRender();
+      });
+    })();
 
     // ── 로드 ────────────────────────────────────────────────────────────────
     function load(){
