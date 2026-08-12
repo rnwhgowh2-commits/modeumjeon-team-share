@@ -49,6 +49,16 @@ WIRING_NONE = "none"
 WIRING_NONE_NOTE = "프로그램에 담을 칸이 아직 없습니다"
 
 
+def _wiring_key(col: dict) -> str:
+    """그 **열**이 보는 배선 이름. 없으면 항목 이름 그대로.
+
+    🔴 한 항목에 여러 열이 붙는다 — 판매가(5열)와 할인가/쿠폰(6열)이 둘 다 `price` 다.
+      항목으로만 배선을 보면 **할인 열이 판매가의 초록불을 빌려 쓴다**(2026-08-13 실측:
+      6마켓 중 5곳이 「나감」으로 떴는데 할인은 어디로도 안 나간다).
+    """
+    return col.get("wiring_item") or col.get("item")
+
+
 def _spec(market: str, col: dict) -> str:
     """그 마켓의 엑셀 메모. 모르는 마켓 이름이면 **터뜨린다.**
 
@@ -76,7 +86,7 @@ def cell_state(market: str, col: dict, marks: dict | None = None) -> str:
     status, _evidence, _note = _req.status_of(market, item)
     if status == _req.UNKNOWN:
         return TODO                       # 「없다」가 아니라 「모른다」 — 지어내지 않는다
-    if _req.wiring_of(item)[0] != _req.WIRED:
+    if _req.wiring_of(_wiring_key(col))[0] != _req.WIRED:
         return STORED                     # 채워도 안 나간다
     key = f"{market}:{col['col']}"
     if ((marks or {}).get(key) or {}).get("verified"):
@@ -179,7 +189,7 @@ def build(columns_file: str = "dev_checklist_columns.json",
         for col in cols:
             item = col.get("item")
             # 배선은 마켓과 무관하다(항목 하나당 하나) — 빠진 칸에서도 참말을 할 수 있다.
-            wiring = _req.wiring_of(item) if item else (WIRING_NONE, WIRING_NONE_NOTE)
+            wiring = _req.wiring_of(_wiring_key(col)) if item else (WIRING_NONE, WIRING_NONE_NOTE)
             if market not in (col.get("specs") or {}):
                 # 열 정의에 그 마켓이 없다 → 미착수로 두고 왜인지 적는다 (표는 그린다)
                 state, spec_text, conflict = TODO, "", ""

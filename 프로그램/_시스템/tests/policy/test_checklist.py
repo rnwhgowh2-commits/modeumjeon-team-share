@@ -689,3 +689,25 @@ def test_all_eight_crawlers_are_registered_today():
     """오늘의 사실을 못 박는다 — 하나라도 빠지면 그 소싱처는 아무것도 시작 안 된 것이다."""
     for key, label in C.SOURCES:
         assert C._crawler_registered(key), f"{label}({key}) 크롤러가 build_crawlers 에 없다"
+
+
+def test_discount_column_does_not_borrow_the_price_wiring():
+    """🔴 한 항목에 여러 열이 붙는다 — 판매가(5열)와 할인가/쿠폰(6열)이 둘 다 `price` 다.
+
+    항목으로만 배선을 보면 **할인 열이 판매가의 초록불을 빌려 쓴다.**
+    실측(2026-08-13): 6마켓 중 5곳이 「나감」으로 떴는데 할인은 어디로도 안 나간다
+    (`policy/discount.py` 를 부르는 운영 코드 0곳).
+    """
+    cells = C.build()["cells"]
+    for mk in ("coupang", "smartstore", "eleven11", "auction", "gmarket"):
+        c = cells[f"{mk}:6"]
+        assert c["wiring"] != "wired", f"{mk} 할인 열이 아직 「나감」이다: {c['wiring_note']}"
+        assert "0곳" in c["wiring_note"], f"{mk} 할인 열 설명이 판매가 것이다: {c['wiring_note']}"
+    # 판매가(5열)는 그대로 나가야 한다 — 같이 죽이면 안 된다
+    assert cells["smartstore:5"]["wiring"] == "wired"
+
+
+def test_column_may_point_at_a_different_wiring_than_its_item():
+    """열이 `wiring_item` 을 선언하면 그걸 쓰고, 없으면 항목 이름을 쓴다."""
+    assert C._wiring_key({"item": "price", "wiring_item": "discount"}) == "discount"
+    assert C._wiring_key({"item": "price"}) == "price"
