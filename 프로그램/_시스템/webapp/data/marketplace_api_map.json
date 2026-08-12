@@ -169833,6 +169833,126 @@
    "idTraps": [
     "★전일 확정분 요약일 뿐 — 구매확정 전 예정액은 여기 없다(그건 selleroffice.settle.status 의 dtlSearchStlmntType=N)."
    ]
+  },
+  {
+   "id": "eleven11.900",
+   "market": "eleven11",
+   "fnKey": "eleven11:900",
+   "tabs": [
+    "상품 수정"
+   ],
+   "category": "상품",
+   "nm": "판매가 변경(단건)",
+   "dir": "send",
+   "st": "ok",
+   "endpoint": "GET https://api.11st.co.kr/rest/prodservices/product/price/{prdNo}/{selPrc}",
+   "req": {
+    "method": "GET",
+    "protocol": "https",
+    "url": "https://api.11st.co.kr/rest/prodservices/product/price/[prdNo]/[selPrc]",
+    "params": [
+     {
+      "name": "경로.prdNo",
+      "desc": "상품번호 · string [필수]",
+      "example": "9532353519"
+     },
+     {
+      "name": "경로.selPrc",
+      "desc": "바꿀 판매가(원) · int [필수]",
+      "example": "97100"
+     }
+    ],
+    "description": "등록된 상품의 판매가를 바꾼다. 경로에 값을 넣는 방식이라 본문이 없다(GET 이지만 쓰기 API)."
+   },
+   "res": {
+    "fields_count": 3,
+    "sample": "<ResultProduct><resultCode>200</resultCode><resultMessage>정상적으로 처리되었습니다</resultMessage></ResultProduct>",
+    "errorResponse_fields": 0
+   },
+   "fields": [
+    {
+     "key": "resultCode",
+     "meaning": "결과코드 · 200=성공",
+     "example": "200"
+    },
+    {
+     "key": "resultMessage",
+     "meaning": "결과내용",
+     "example": "정상적으로 처리되었습니다"
+    }
+   ],
+   "success": "resultCode==200",
+   "idTraps": [
+    "🔴 **GET 인데 쓰기 API** 다 — 조회로 착각해 재시도하면 값이 또 바뀐다.",
+    "🔴 가격 **조회**는 여기가 아니라 products.get_product_price(GET prodmarket/{prdNo} 의 selPrc)다. prices.py 에서 조회 함수를 찾다가 ImportError 로 죽은 이력(2026-08-12)."
+   ],
+   "persistIds": [],
+   "codeRef": "shared/platforms/eleven11/prices.py:update_price",
+   "docApiNo": ""
+  },
+  {
+   "id": "eleven11.901",
+   "market": "eleven11",
+   "fnKey": "eleven11:901",
+   "tabs": [
+    "상품 수정"
+   ],
+   "category": "재고",
+   "nm": "옵션 재고수량 변경(재고번호 단위)",
+   "dir": "send",
+   "st": "ok",
+   "endpoint": "PUT https://api.11st.co.kr/rest/prodservices/stockqty/{prdStckNo}",
+   "req": {
+    "method": "PUT",
+    "protocol": "https",
+    "url": "https://api.11st.co.kr/rest/prodservices/stockqty/[prdStckNo]",
+    "params": [
+     {
+      "name": "경로.prdStckNo",
+      "desc": "옵션 재고번호 · string [필수] · stocks 조회가 주는 값",
+      "example": "1"
+     },
+     {
+      "name": "본문.prdNo",
+      "desc": "상품번호 · string [필수]",
+      "example": "9532353519"
+     },
+     {
+      "name": "본문.stckQty",
+      "desc": "바꿀 재고수량 · int [필수]",
+      "example": "10"
+     }
+    ],
+    "description": "옵션 하나의 재고수량만 바꾼다. 재고번호는 다중 상품 재고 정보 조회(eleven11.40)로 얻는다."
+   },
+   "res": {
+    "fields_count": 3,
+    "sample": "",
+    "errorResponse_fields": 0
+   },
+   "fields": [
+    {
+     "key": "resultCode",
+     "meaning": "결과코드",
+     "example": "200"
+    },
+    {
+     "key": "resultMessage",
+     "meaning": "결과내용",
+     "example": "옵션재고 번호 1,2(상품번호:9532353519)의 수량 업데이트 실패."
+    }
+   ],
+   "success": "resultCode==200",
+   "idTraps": [
+    "🔴 **재고 상한 9,999**. 이미 9,999 인 상품에 10,000 을 보내면 「옵션재고 번호 …의 수량 업데이트 실패」로 거부된다(2026-08-12 라이브 실측 prd=9532353519). 실패 문구가 수량 얘기를 안 해서 식별자 문제로 오진하기 쉽다.",
+    "🔴 **옵션 전체교체 API(update_stock)를 쓰면 안 된다** — 한 옵션만 보내면 형제 옵션이 지워진다. 반드시 이 재고번호 단위 API 를 쓴다.",
+    "🔴 열쇠는 상품번호가 아니라 **재고번호(prdStckNo)** 다. 상품번호를 넣으면 대상을 못 찾는다."
+   ],
+   "persistIds": [
+    "prdStckNo"
+   ],
+   "codeRef": "shared/platforms/eleven11/inventory.py:update_stock_by_stock_no",
+   "docApiNo": ""
   }
  ],
  "autoConfirm": {

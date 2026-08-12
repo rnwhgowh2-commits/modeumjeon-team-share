@@ -27,9 +27,17 @@ from lemouton.uploader.roundtrip.snapshot import Snapshot
 #: 스펙 미확보라 되돌려 쓸 수 없는 축 — 읽히더라도 시험 대상에서 뺀다.
 _UNWRITABLE = ("name", "detail_html", "image_urls")
 
+#: 🔴 [2026-08-12 라이브 실측] 재고 상한. 9,999 인 상품에 10,000 을 보냈더니
+#:    「옵션재고 번호 …의 수량 업데이트 실패」로 거부됐다(prd 9532353519).
+#:    상한이면 +1 대신 -1 로 흔든다(runner 가 처리한다).
+STOCK_BOUNDS = (0, 9999)
+
 
 @dataclass
 class Eleven11Ops:
+    #: 러너가 읽어 가는 재고 허용범위(위 상수 참조).
+    STOCK_BOUNDS = STOCK_BOUNDS
+
     product_id: str
     client: object
     _get_stocks: object = None
