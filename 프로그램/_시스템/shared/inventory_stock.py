@@ -9,22 +9,24 @@
 - get_stock_batch(skus) 로 한 번에 N SKU 조회 (N+1 회피)
 - get_stock_summary() 도 1 쿼리로 전체 통계 계산
 
-🔴 조정(adjust)의 뜻 — **절대값이다** (2026-08-13 감사에서 통일)
-  「실사해 보니 5개였다」가 조정이다. 그래서 그 시점의 재고를 **그 값으로 정한다**.
-  근거 셋 — ① `create_adjustment(new_qty=…)` (ADR-002) ② 조정 목록 화면이 `= N`
-  으로 보여 준다 ③ 작업자가 차이를 계산하지 않고 센 수를 그대로 적는다.
+🔴 조정(adjust)의 뜻 — **차이값이다** (2026-08-13 사장님 확정)
+  창구는 「실사해 보니 5개」를 그대로 받는다(작업자에게 뺄셈을 안 시킨다).
+  원장에는 **그 차이(5 − 지금재고)** 를 남긴다. 차이 계산은 창구 안에서 한다.
 
-  ⚠️ 예전엔 **읽는 쪽 두 곳이 정반대**였다:
-      · lemouton/inventory/cogs.py  → 절대값(set)
-      · 이 파일의 `_stock_expr`     → delta 합
-    「입고 100 → 실사 조정 5」에서 한쪽은 5, 다른쪽은 105 를 돌려줬다(100개 과대).
-    **쓰는 쪽도 두 곳이 정반대**였다(`inbound.create_adjustment` 절대값 /
-    `api_inventory_link` 는 차이값) — 그래서 같은 표의 행이 두 가지 뜻을 가졌다.
-    지금은 쓰기·읽기 모두 **절대값 하나**로 맞췄고, 규칙은 `fold_tx_rows()` 한 곳이다.
+  ━━ 왜 차이값인가 — 절대값이면 **위치별 합이 전체와 안 맞는다** ━━━━━━━━━
+    절대값은 SUM 으로 표현할 수 없어, 전체는 「접어서(fold)」 세고 위치별은
+    「더해서(SUM)」 센다. 그러면 같은 데이터가 두 가지로 읽힌다:
+        창고A 입고 10 · 조정 5  →  전체 5 · 창고A 15   (합 15 ≠ 전체 5)
+    창고별 합이 전체와 다르면 **없는 재고를 팔게 된다.**
+    차이값이면 조정도 그냥 더하는 값이라 전체·위치별이 같은 규칙으로 계산돼
+    자동으로 맞고, SUM 한 번으로 끝나 특수 처리도 필요 없다.
+    시험 = tests/inventory/test_adjust_location_consistency.py
 
-  성능 — SUM 으로는 「set」을 표현할 수 없다. 그래서 조정이 **있는 SKU 만**
-  차례대로 접고(`fold_tx_rows`), 나머지는 지금처럼 한 번의 SUM 으로 센다.
-  (라이브 조정 행은 2026-08-13 기준 1건 — 느린 길로 가는 SKU 는 사실상 없다)
+  ⚠️ 2026-08-13 하루에 이 규약이 **세 번 뒤집혔다.** 매번 한두 군데만 고쳐서
+    같은 표의 행이 두 가지 뜻을 가졌고, 두 번 다 **에러 없이 숫자만 틀렸다**
+    (재고 4, 그다음 6, 그다음 −2). 고칠 때는 반드시 **다섯 군데를 한 번에**:
+      ① 이 파일 fold_tx_rows  ② _stock_expr  ③ inbound.create_adjustment
+      ④ webapp/routes/mobile.py  ⑤ 시험 두 파일
 """
 from __future__ import annotations
 
@@ -60,7 +62,7 @@ def fold_tx_rows(rows) -> int:
 
     · in     → +
     · out    → −
-    · adjust → **그 값으로 정한다(set)** — 위 모듈 독스트링 참조
+    · adjust → **더한다(차이값·부호 그대로)** — 위 모듈 독스트링 참조
     · move   → 총합에는 영향 없음(위치만 바뀐다)
 
     🔴 `cogs.recalc_stock_total` 도 이 함수를 쓴다. 두 곳이 각자 세면 갈린다 —
@@ -74,7 +76,7 @@ def fold_tx_rows(rows) -> int:
         elif tx_type == 'out':
             total -= abs(q)
         elif tx_type == 'adjust':
-            total = q                      # 실사 결과 = 그 시점 재고
+            total += q                     # 차이값 — 부호 그대로 더한다
     return total
 
 
@@ -187,14 +189,11 @@ def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None
     for sk, s in mq.group_by(InventoryTx.option_canonical_sku).all():
         prod_stock[sk] = prod_stock.get(sk, 0) + int(s or 0)
 
-    # 3) 🔴 조정(adjust)은 **절대값**이라 SUM 으로 표현할 수 없다 — 조정이 낀 SKU 만
-    #    차례대로 접어 덮어쓴다(모듈 독스트링 참조). 조정이 없으면 위 SUM 그대로다.
-    #    ※ 위치별 조회(location_id)에서는 「그 위치의 실사」라는 뜻이 정의돼 있지 않아
-    #      건드리지 않는다 — 없는 뜻을 지어내지 않는다.
-    if location_id is None:
-        adj = _skus_with_adjust(session, product_skus)
-        if adj:
-            prod_stock.update(_exact_stock(session, adj))
+    # 3) 🟢 [2026-08-13] 조정이 **차이값**이 되면서 여기 있던 우회로가 필요 없어졌다.
+    #    예전엔 조정이 절대값이라 SUM 으로 표현이 안 돼, 조정이 낀 SKU 만 따로
+    #    「접어서」 덮어썼다. 그런데 위치별 조회는 그 뜻이 없어 그냥 SUM 했고,
+    #    그래서 **전체와 위치별 합이 갈렸다**(창고A 10·조정 5 → 전체 5, 창고A 15).
+    #    차이값은 그냥 더하는 값이라 위 SUM 하나로 전체·위치별이 같이 맞는다.
 
     # 옵션 → (연결 재고제품) 재고 매핑
     return {opt: prod_stock.get(psku_map[opt], 0) for opt in option_skus}
