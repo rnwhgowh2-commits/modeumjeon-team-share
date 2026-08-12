@@ -2451,8 +2451,29 @@ def api_axis_mapping_set(code):
                                our_value=our_value, source_value=source_value,
                                origin=origin)
         except ax.AliasConflict as e:
+            # [2026-08-12 노션 옵션 c] 「이미 쓰고 있다」에서 **막히지 않게** 한다.
+            #   🔴 이 표는 소싱처 전역이라 매트릭스를 지워도 행이 남는다. 그런데 화면은
+            #      지금 매트릭스의 축 값 줄만 그리므로, 남은 행(유령)은 화면에 안 나타나
+            #      **놓아줄 방법이 없다** — 사장님이 실제로 막히신 자리.
+            #   그래서 「누가 붙잡고 있고, 그게 지금 쓰이는 값인지」를 같이 알려주고,
+            #   `takeover:true` 로 다시 부르면 **한 트랜잭션에서 놓고 잡는다**(1:1 유지).
+            holder = getattr(e, 'holder', '') or ''
+            if body.get('takeover') and holder:
+                s.rollback()
+                ax.clear_alias(s, source_key, axis_name, holder)
+                row = ax.set_alias(s, source_key=source_key, axis_name=axis_name,
+                                   our_value=our_value, source_value=source_value,
+                                   origin=origin)
+                s.commit()
+                return jsonify({'ok': True, 'cleared': False, 'took_from': holder,
+                                'our_value': row.our_value,
+                                'source_value': row.source_value, 'origin': row.origin})
+            users = ax.users_of(s, axis_name, holder) if holder else []
             s.rollback()
-            return jsonify({'ok': False, 'error': str(e)}), 409
+            return jsonify({'ok': False, 'error': str(e),
+                            'conflict': {'holder': holder,
+                                         'holder_used_by': users,
+                                         'ghost': not users}}), 409
         except ValueError as e:
             s.rollback()
             return jsonify({'ok': False, 'error': str(e)}), 400
