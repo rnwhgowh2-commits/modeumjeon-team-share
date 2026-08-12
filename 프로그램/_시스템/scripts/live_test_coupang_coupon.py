@@ -179,6 +179,7 @@ def _candidate_items(client, taken, limit=25, want=12):
     finally:
         s.close()
 
+    print(f'    캐시에서 꺼낸 판매중지 상품 {len(rows)}개를 훑습니다')
     out = []
     for pid, nm in rows:
         try:
@@ -187,6 +188,10 @@ def _candidate_items(client, taken, limit=25, want=12):
             print(f'    {pid} 상세 실패: {str(e)[:60]}')
             continue
         pname = d.get('sellerProductName') or nm or str(pid)
+        n_items = len(d.get('items') or [])
+        if not n_items:
+            # 🔴 왜 후보가 안 나오는지 말한다 — 「못 찾았습니다」만 찍으면 원인을 모른다
+            print(f'    {pid} 옵션 0개(상태 {d.get("statusName")}) — 건너뜁니다')
         for it in (d.get('items') or []):
             mp = it.get('marketplaceItemData') or {}
             iid = it.get('vendorItemId') or mp.get('vendorItemId')
@@ -199,7 +204,10 @@ def _candidate_items(client, taken, limit=25, want=12):
                 continue                # 확실히 물린 것은 애초에 뺀다
             out.append((int(iid), int(pr), pname))
             if len(out) >= want:
+                print(f'    후보 {len(out)}개 확보')
                 return out
+        if n_items:
+            print(f'    {pid} 옵션 {n_items}개 중 쓸 수 있는 것 누적 {len(out)}개')
     return out
 
 
