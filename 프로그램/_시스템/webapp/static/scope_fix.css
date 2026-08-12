@@ -27,6 +27,8 @@
 
 /* templates/sourcing_guide/crawl_check.html */
 .ds.ds-light .ccpage { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
+/* templates/_checklist_matrix.html */
+.ds.ds-light .ckroot { --bg: #FFFFFF; --faint: var(--ap-g3); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
 /* templates/orders/index.html */
 .ds.ds-light .cskb { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --red: var(--ap-red); --sub: #6E6E73; }
 /* templates/data_guide.html */

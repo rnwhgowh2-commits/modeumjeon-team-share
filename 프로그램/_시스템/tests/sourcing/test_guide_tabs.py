@@ -206,3 +206,39 @@ def test_detail_js_stale_signal_on_save():
     js = (TPL / "detail.js").read_text(encoding="utf-8")
     assert js.count("moum_matrix_stale") >= 2, \
         "detail.js 에 moum_matrix_stale 가 최소 2곳(따라쓰기+저장) 이상 없음 (E)"
+
+
+# ── 9 개발 체크리스트 탭 ──────────────────────────────────────────────────
+
+def test_map_has_ninth_tab():
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    assert 'data-s="s9"' in html
+    assert "개발 체크리스트" in html
+
+
+def test_map_includes_the_shared_checklist_fragment():
+    """🔴 {% raw %} 안에 넣으면 글자로 찍힌다 — include 가 살아 있는지 못 박는다."""
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    assert '{% include "_checklist_matrix.html" %}' in html
+    assert "window.ckInit('/sourcing-guide/checklist.json'" in html
+    assert "rowHead:'소싱처'" in html, "머리 이름을 안 넘기면 「판매처」로 뜬다"
+
+
+def test_map_keyboard_shortcut_reaches_the_ninth_tab():
+    """탭이 9개가 됐는데 단축키가 1~8 이면 마지막 탭만 손이 안 닿는다."""
+    html = (TPL / "map.html").read_text(encoding="utf-8")
+    assert "/^[1-9]$/" in html
+
+
+def test_sourcing_checklist_json(client):
+    r = client.get("/sourcing-guide/checklist.json")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert len(data["rows"]) == 8
+    assert len(data["columns"]) >= 18
+
+
+def test_sourcing_checklist_json_has_no_silent_banner(client):
+    """저장소에 든 열 정의·손보정이 멀쩡하면 배너는 조용해야 한다."""
+    data = client.get("/sourcing-guide/checklist.json").get_json()
+    assert data["drift"] == [], data["drift"]
