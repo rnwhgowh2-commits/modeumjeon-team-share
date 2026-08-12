@@ -128,6 +128,55 @@ def _first_vendor_item(client, skip=None):
     return None, None, None
 
 
+def _candidate_items(client, taken, limit=25, want=12):
+    """붙여 볼 후보 옵션들 — (옵션ID, 판매가, 상품명).
+
+    🔴🔴 실측(2026-08-06) — **목록에 없는 옵션도 그 쿠폰에 묶여 있다.**
+      `status=APPLIED` 로 1,841개를 모았는데 거기 없던 93697560813 이
+      [CIR08]「이미 다른 쿠폰(89450797)에 발행」으로 거부됐다.
+      그 쿠폰은 2026-02-08~2028-11-04 짜리 넓은 프로모션이라, 개별로 나열되지
+      않은 옵션까지 덮는 것으로 보인다.
+      → **미리 읽어 피하는 방식엔 한계가 있다.** 후보를 여러 개 뽑아 두고
+        붙여 보다 거부되면 다음 것으로 넘어간다(해 보고 배우기).
+    """
+    from shared.db import SessionLocal
+    from lemouton.catalog.models import MarketProduct
+    from shared.platforms.coupang.products import get_product
+
+    s = SessionLocal()
+    try:
+        rows = (s.query(MarketProduct.market_product_id, MarketProduct.name)
+                .filter_by(market='coupang', account_key=ACCOUNT)
+                .filter(MarketProduct.status != 'sale')
+                .filter(MarketProduct.deleted_at.is_(None))
+                .order_by(MarketProduct.id.desc()).limit(limit).all())
+    finally:
+        s.close()
+
+    out = []
+    for pid, nm in rows:
+        try:
+            d = get_product(pid, client=client)
+        except Exception as e:                          # noqa: BLE001
+            print(f'    {pid} 상세 실패: {str(e)[:60]}')
+            continue
+        pname = d.get('sellerProductName') or nm or str(pid)
+        for it in (d.get('items') or []):
+            mp = it.get('marketplaceItemData') or {}
+            iid = it.get('vendorItemId') or mp.get('vendorItemId')
+            pr = it.get('salePrice')
+            if not isinstance(pr, (int, float)):
+                pr = (mp.get('priceData') or {}).get('salePrice')
+            if not iid or not isinstance(pr, (int, float)):
+                continue
+            if str(iid) in taken:
+                continue                # 확실히 물린 것은 애초에 뺀다
+            out.append((int(iid), int(pr), pname))
+            if len(out) >= want:
+                return out
+    return out
+
+
 def _find_free_product(client, taken, limit=25):
     """안 물린 옵션이 하나라도 있는 **판매중지** 상품을 찾는다.
 
@@ -183,19 +232,12 @@ def do_create(client, vid):
         return 1
 
     taken = _taken_items(client, vid)
-    print(f'  (남의 쿠폰이 쓰는 옵션 {len(taken)}개는 비켜 갑니다)')
-    # 🔴 실측(2026-08-06) — 지정한 시험 상품의 **옵션 98개가 전부** 사장님 쿠폰에 물려
-    #   있었다(물린 옵션 1,841개). 한 상품만 보고 포기하면 검증 자체를 못 한다 →
-    #   같은 계정의 **판매중지 상품**을 차례로 훑어 안 물린 옵션 하나를 찾는다.
-    #   판매중지만 고르는 이유는 처음과 같다 — 고객이 살 수 없어 금전 위험 0.
-    item_id, price, pname = _first_vendor_item(client, skip=taken)
-    if not item_id:
-        print(f'  ⚠️ 지정 상품 {PRODUCT} 은 옵션이 전부 물려 있어 다른 상품을 찾습니다')
-        item_id, price, pname = _find_free_product(client, taken)
-    if not item_id:
-        print(f'■ 이 계정에서 쓸 수 있는 옵션을 못 찾았습니다 '
-              f'(훑어본 판매중지 상품 전부가 이미 쿠폰에 물려 있음)')
-        return 1
+    print(f'  (목록에 물린 것으로 나온 옵션 {len(taken)}개는 애초에 뺍니다)')
+    cands = _candidate_items(client, taken)
+    if not cands:
+        print('■ 붙여 볼 옵션 후보를 못 찾았습니다'); return 1
+    print(f'  후보 옵션 {len(cands)}개 확보 — 붙여 보며 되는 것을 찾습니다')
+    item_id, price, pname = cands[0]
 
     start = P.tomorrow_midnight()
     end = start[:10] + ' 23:59:59'
@@ -224,23 +266,31 @@ def do_create(client, vid):
         return 1
     print(f'② 쿠폰 생성됨 couponId={coupon_id}')
 
-    rids = P.add_items(client, vid, coupon_id, [item_id])
-    print(f'③ 옵션 붙이기 접수 — {rids}')
+    # 🔴 붙여 보고 거부되면 **다음 후보로** — 목록만 읽어선 물린 옵션을 다 못 거른다
     attached = False
-    for r2 in rids:
-        for _ in range(10):
-            time.sleep(3)
-            st = P.check_request(client, vid, r2)
-            status = st['status']
-            print(f'  상태 {status} · 성공 {st["succeeded"]} · 실패 {st["failed"]}'
-                  + (f' · 실패사유 {st["failed_items"]}' if st['failed'] else ''))
-            # 🔴 FAIL 도 **끝난 것**이다 — done 만 보고 돌면 실패를 성공처럼 끝낸다
-            #   (2026-08-06 실제로 그렇게 보고했다: 붙이기 실패인데 「오늘 할 일 끝」).
-            if st['done'] or status in ('FAIL', 'FAILED', 'ERROR'):
-                attached = bool(st['done'] and st['succeeded'] and not st['failed'])
+    for cand_id, cand_price, cand_name in cands:
+        rids = P.add_items(client, vid, coupon_id, [cand_id])
+        print(f'③ 옵션 {cand_id} 붙이기 접수 — {rids}')
+        ok_this = False
+        for r2 in rids:
+            for _ in range(10):
+                time.sleep(3)
+                st = P.check_request(client, vid, r2)
+                status = st['status']
+                print(f'  상태 {status} · 성공 {st["succeeded"]} · 실패 {st["failed"]}'
+                      + (f' · 사유 {st["failed_items"]}' if st['failed'] else ''))
+                # 🔴 FAIL 도 **끝난 것**이다 — done 만 보고 돌면 실패를 성공처럼 끝낸다
+                #   (2026-08-06 실제로 그렇게 보고했다: 붙이기 실패인데 「오늘 할 일 끝」).
+                if st['done'] or status in ('FAIL', 'FAILED', 'ERROR'):
+                    ok_this = bool(st['done'] and st['succeeded'] and not st['failed'])
+                    break
+            if ok_this:
                 break
-        if attached:
+        if ok_this:
+            item_id, price, pname = cand_id, cand_price, cand_name
+            attached = True
             break
+        print('    → 이 옵션은 안 됩니다. 다음 후보로 넘어갑니다.')
 
     if not attached:
         # 붙지 않은 쿠폰을 남기면 윙에 빈 쿠폰이 쌓인다 — 그 자리에서 내린다.
