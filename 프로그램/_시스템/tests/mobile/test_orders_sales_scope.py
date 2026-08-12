@@ -147,43 +147,38 @@ def test_폰_잔글씨_문구가_공용_정의와_같다(client):
     assert out["caps"] == out["pc"][:2], "폰 2줄이 PC 3줄의 앞 두 줄과 달라졌다(두 화면 다른 말)"
 
 
-# ── ④ 마켓 할인 카드(2026-08-06 사장님 확정 1번)a) — PC 와 같은 값 ──────────
-def test_폰에도_마켓할인_카드가_있고_공용_함수를_쓴다(client):
-    """PC 6칸에만 있고 폰에 없으면 「폰이랑 다르다」가 난다 — 같은 함수로 못 박는다."""
+# ── ④ 마켓 할인 (2026-08-08 A안) — 칸을 빼고 매출 잔글씨 + 눌러서 내역 ────────
+def test_폰에도_할인_칸이_없고_매출_잔글씨로_간다(client):
+    """🔴 옆 칸에 「−207만」으로 세웠더니 **또 빼는 돈**으로 읽혔다(사장님 지적).
+
+    매출은 이미 할인이 빠진 값이라, 「N만 반영됨」으로 매출 밑에 적는다.
+    PC 와 **같은 함수**(discountHint)가 문구를 만든다 — 한쪽만 고치면 두 화면이 갈린다.
+    """
     글 = _tpl()
-    assert "SCOPE.discountSummary(sub)" in 글, \
-        "폰이 마켓 할인을 공용 함수로 안 구한다(자기 셈을 짓고 있다)"
-    assert 'id="mo-kpi-disc"' in _html(client), "폰 화면에 마켓 할인 칸이 없다"
-    # 모수가 매출과 같아야 「매출 = 정가 − 이만큼」으로 읽힌다
-    assert re.search(r"var dc=SCOPE\.discountSummary\(sub\);", 글), \
-        "마켓 할인이 매출과 다른 모수(sub 아님)를 쓴다"
+    본문 = _html(client)
+    assert 'id="mo-kpi-disc"' not in 본문, "폰에 아직 마켓 할인 칸이 남아 있다"
+    assert "SCOPE.discountHint(dc)" in 글, "매출 잔글씨를 공용 함수가 안 만든다"
+    assert "SCOPE.CAPS.salesPhone" in 글, "매출 잔글씨 원천이 공용 정의가 아니다"
 
 
-def test_폰_마켓할인_잔글씨가_공용_정의와_같다(client):
-    out = _node_run(r"""
-      const S=require(process.argv[1]);
-      console.log(JSON.stringify({caps:S.CAPS.discount}));
-    """)
-    p = _Cap("mo-kpi-disc-c")
-    p.feed(_html(client))
-    assert p.줄 is not None, "마켓 할인 카드에 잔글씨 칸(mo-kpi-disc-c)이 없다"
-    assert p.줄 == out["caps"], "폰 문구가 공용 정의(CAPS.discount)와 다르다: %s" % p.줄
-
-
-def test_폰_마켓할인은_모르면_0원이라_안_한다():
-    """정가·실결제를 하나도 못 구했는데 「0 원」이면 「할인이 없다」는 단정이 된다."""
+def test_폰_할인_내역은_공용_자료를_쓴다(client):
+    """폰이 판매처별 할인을 다시 세면 PC 와 숫자가 갈린다."""
     글 = _tpl()
-    assert "(!dc.counted&&dc.blank)?'-'" in 글.replace(" ", ""), \
-        "아는 행이 0 인데도 0 원을 그린다 — '-' 로 말해야 한다"
-    assert "SCOPE.discountCaps(dc)" in 글, \
-        "폰이 잔글씨를 다시 짓고 있다 — 쿠팡 쿠폰 안내가 PC 와 갈라진다"
+    assert "SCOPE.discountByMarket(sub)" in 글,         "폰이 판매처별 할인을 직접 세고 있다(공용 정의로 넘겨야 한다)"
 
 
-def test_폰_할인칸은_두칸_격자다():
-    """세 칸으로 쪼개면 폭 375 에서 「−1,234,567 원」이 19px 로 안 들어간다."""
+def test_폰_내역창은_눌러서_열고_바깥을_누르면_닫힌다(client):
+    """🔴 폰엔 마우스가 없다 — 호버로 만들면 아예 못 연다.
+
+    창은 `document.body` + `position:fixed` 로 띄우고(카드 overflow 에 안 잘리게),
+    화면 아래쪽이면 위로 뒤집는다. 스크롤하면 닫는다(좌표가 낡는다).
+    """
     글 = _tpl()
-    m = re.search(r"\.mo-kpi\.two\{([^}]*)\}", 글)
-    assert m and "1fr 1fr" in m.group(1), "마켓 할인·정산예정금 두 칸 격자 규칙이 없다"
+    assert "document.body.appendChild" in 글, "창을 body 에 안 붙였다(카드에 잘린다)"
+    assert re.search(r"\.dcpop\{[^}]*position:fixed", 글), "position:fixed 가 아니다"
+    assert "_dcPop.contains(e.target)" in 글, "바깥을 눌러도 안 닫힌다"
+    assert "innerHeight" in 글 and "r.top-h-7" in 글.replace(" ", ""),         "화면 아래에서 위로 뒤집는 처리가 없다"
+    assert re.search(r"addEventListener\('scroll',\s*_dcHide", 글), "스크롤하면 닫아야 한다"
 
 
 def test_폰_잔글씨는_11px_하한을_지킨다():

@@ -1060,3 +1060,75 @@ def test_스스_M열은_상품정산만_배송비정산을_안_섞는다():
     oe._finalize_rows([r])
     assert r["정산예정금(배송비포함)"] == 58430 + (r["배송비"] or 0), (
         "N열이 배송비 이중 가산됐다: %s (배송비 %s)" % (r["정산예정금(배송비포함)"], r["배송비"]))
+
+
+def test_스스_추정은_같은_조회의_실정산에서_실효율을_배운다():
+    """🔴 고정 6% 는 등급이 바뀌면 통째로 틀어진다 — 실제로 바뀌었다.
+
+    라이브 실측(2026-08-07, 저장분 2,050건 역산):
+      · 2025-12~2026-02  6.63%/4.63%  = Npay **일반 3.630%** + 판매수수료 3% / 마케팅 1%
+      · 2026-03~         6.00%/4.00%  = Npay **중소3 3.003%** + 판매수수료 3% / 마케팅 1%
+      2026-02 경 국세청 매출 등급이 「일반 → 중소3」으로 재산정되며 요율이 통째로 바뀌었다.
+      또 유입경로(네이버쇼핑 검색 vs 마케팅 링크)에 따라 판매수수료가 3% / 1% 로 갈려,
+      최근 실값의 **15%가 4%대**다. 고정 6% 는 그만큼 정산을 적게 잡는다.
+
+    그래서 추정은 **같은 조회에 들어온 실정산에서 실효율을 역산**해 쓴다(자기교정).
+    이 시험은 실값이 8% 인 세상을 만들어, 추정 행이 6% 가 아니라 8% 로 따라오는지 본다.
+    """
+    class C:
+        def request(self, method, path, query="", body=None):
+            if "last-changed-statuses" in path:
+                return {"data": {"lastChangeStatuses": [
+                    {"productOrderId": "P%d" % i} for i in range(1, 8)]}}
+            if path.endswith("/product-orders/query"):
+                out = []
+                for i in range(1, 8):
+                    out.append({
+                        "order": {"orderId": "O%d" % i, "orderDate": "2026-07-05T09:00:00"},
+                        "productOrder": {"productOrderId": "P%d" % i, "productName": "코트",
+                                         "quantity": 1, "unitPrice": 100000,
+                                         "totalPaymentAmount": 100000,
+                                         "shippingAddress": {}},
+                    })
+                return {"data": out}
+            if "pay-settle/settle/case" in path:
+                # P1~P6 만 실정산 — 전부 92,000 (= 8% 수수료). P7 은 미정산.
+                return {"elements": [{"productOrderId": "P%d" % i,
+                                      "settleExpectAmount": 92000} for i in range(1, 7)],
+                        "pagination": {"totalPages": 1}}
+            return {"data": {}}
+
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = {r["오픈마켓주문번호"]: r for r in oe.smartstore_order_rows(since, until, client=C())}
+    assert rows["P1"]["정산예정금액"] == 92000 and rows["P1"]["_settle_source"] == "real"
+    p7 = rows["P7"]
+    assert p7["_settle_source"] == "estimated"
+    assert p7["정산예정금액"] == 92000, (
+        "추정이 실값에서 안 배웠다 — 94,000 이면 고정 6%% 그대로다: %s" % p7["정산예정금액"])
+
+
+def test_스스_배울_표본이_적으면_기존_기본율을_쓴다():
+    """표본 1~2건으로 배우면 이상한 한 건이 전체 추정을 틀어놓는다."""
+    class C:
+        def request(self, method, path, query="", body=None):
+            if "last-changed-statuses" in path:
+                return {"data": {"lastChangeStatuses": [{"productOrderId": "P1"},
+                                                        {"productOrderId": "P2"}]}}
+            if path.endswith("/product-orders/query"):
+                return {"data": [{
+                    "order": {"orderId": "O%s" % i, "orderDate": "2026-07-05T09:00:00"},
+                    "productOrder": {"productOrderId": "P%s" % i, "productName": "코트",
+                                     "quantity": 1, "unitPrice": 100000,
+                                     "totalPaymentAmount": 100000, "shippingAddress": {}},
+                } for i in (1, 2)]}
+            if "pay-settle/settle/case" in path:
+                return {"elements": [{"productOrderId": "P1", "settleExpectAmount": 50000}],
+                        "pagination": {"totalPages": 1}}
+            return {"data": {}}
+
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = {r["오픈마켓주문번호"]: r for r in oe.smartstore_order_rows(since, until, client=C())}
+    assert rows["P2"]["정산예정금액"] == 94000, (
+        "표본 1건(50%%)을 배워 추정이 무너졌다: %s" % rows["P2"]["정산예정금액"])

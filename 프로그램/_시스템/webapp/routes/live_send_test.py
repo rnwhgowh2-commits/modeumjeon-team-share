@@ -1333,7 +1333,9 @@ _ESM_BLOCKED = ("옥션·G마켓 왕복은 사고로 막아 뒀습니다 — 상
                 "조회(roundtrip-probe)는 계속 됩니다.")
 
 #: **전송**이 허용된 마켓. 옥션·G마켓은 사고로 빠져 있다.
-ROUNDTRIP_MARKETS = ("smartstore", "coupang", "lotteon")
+#: 🟢 11번가 — 가격·재고 **전용 API 가 이미 우리 코드에 있었다**(2026-08-08).
+#:    「지도에 없다」던 건 상품수정(5축) 얘기고, 가격·재고는 별도 엔드포인트다.
+ROUNDTRIP_MARKETS = ("smartstore", "coupang", "lotteon", "eleven11")
 
 #: **조회**가 허용된 마켓 — 마켓에 아무것도 안 쓰므로 차단과 무관하게 열어 둔다.
 #: 🔴 차단을 조회에까지 걸었더니 원인 진단조차 못 했다(2026-08-07).
@@ -1343,9 +1345,6 @@ ROUNDTRIP_READ_MARKETS = ROUNDTRIP_MARKETS + ("auction", "gmarket")
 ROUNDTRIP_NOT_YET = {
     "auction": _ESM_BLOCKED,
     "gmarket": _ESM_BLOCKED,
-    "eleven11": ("11번가는 상품 수정 API 가 데이터 코드 지도에 아직 없습니다"
-                 "(등록만 확보 · 공개 문서엔 구매자용 API 만 있어 셀러 문서는 로그인 필요). "
-                 "문서 수집 후 지원합니다."),
 }
 
 
@@ -1359,6 +1358,8 @@ def _roundtrip_client(market: str, env_prefix):
         return MF._coupang_client(env_prefix)
     if market == "lotteon":
         return MF._lotteon_client(env_prefix)
+    if market == "eleven11":
+        return MF._eleven11_client(env_prefix)
     raise ValueError(f"왕복 시험 미지원 마켓: {market}")
 
 
@@ -1407,15 +1408,16 @@ def api_roundtrip_candidates():
                 #   손으로 body 를 조립하면 pageNo·rowsPerPage 누락(returnCode 9000)이나
                 #   응답 형태 차이(data 가 list/dict 양쪽)를 또 밟는다 — 이미 겪은 이력이다.
                 from shared.platforms.lotteon.products import list_products
-                from lemouton.uploader.roundtrip.sale_status import is_stopped
+                from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+                _lo_check = is_on_sale if want_on_sale else is_stopped
                 total = 0
                 for page in range(1, pages + 1):
-                    rows = list_products(client=client, page_no=page,
-                                         rows_per_page=100, sale_status="STP")
+                    rows = list_products(
+                        client=client, page_no=page, rows_per_page=100,
+                        sale_status=("SALE" if want_on_sale else "STP"))
                     total += len(rows)
-                    from lemouton.uploader.roundtrip.sale_status import is_stopped
                     for r in rows:
-                        if not is_stopped("lotteon", (r or {}).get("slStatCd")):
+                        if not _lo_check("lotteon", (r or {}).get("slStatCd")):
                             continue
                         spd = (r or {}).get("spdNo")
                         if not spd:
@@ -1462,6 +1464,34 @@ def api_roundtrip_candidates():
                     if not token or not rows:
                         break
                 row["scanned_total"] = total
+            elif market == "eleven11":
+                # 11번가 — 다중 상품 조회. 판매상태 103=판매중 / 105·106·108=중지.
+                #   🔴 요청 필터를 믿지 않고 **응답 행의 selStatCd** 로 다시 거른다
+                #      (ESM 이 요청 필터를 무시했던 부류를 선제 차단).
+                from shared.platforms.eleven11.products import search_products
+                from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+                _e_check = is_on_sale if want_on_sale else is_stopped
+                total = 0
+                for page in range(pages):
+                    rows = search_products(
+                        client=client, limit=100,
+                        start=page * 100 + 1, end=(page + 1) * 100,
+                        sale_status=("103" if want_on_sale else "105"))
+                    total += len(rows)
+                    for r in rows:
+                        st = (r or {}).get("selStatCd")
+                        if not _e_check("eleven11", st):
+                            continue
+                        prd = (r or {}).get("prdNo")
+                        if not prd:
+                            continue
+                        found.append({"origin_product_no": str(prd),
+                                      "channel_product_no": None,
+                                      "name": r.get("prdNm"),
+                                      "status": str(st or "")})
+                    if not rows:
+                        break
+                row["scanned_total"] = total
             else:
                 # ESM — 🔴 sellStatus 요청 필터는 **무시된다**(지도 2026-08-02 실측).
                 #   응답 **행의 sellStatus 가 진실**이라 클라이언트에서 걸러야 한다.
@@ -1474,14 +1504,17 @@ def api_roundtrip_candidates():
                 site_key = "iac" if market == "auction" else "gmkt"
                 for page in range(1, pages + 1):
                     resp = search_goods(client=client, market=market,
-                                        sell_status="21", page_index=page, page_size=100)
+                                        sell_status=("11" if want_on_sale else "21"),
+                                        page_index=page, page_size=100)
                     if row["scanned_total"] is None:
                         row["scanned_total"] = (resp or {}).get("totalItems")
                     items = (resp or {}).get("items") or []
                     for it in items:
                         st = (it or {}).get("sellStatus")
                         dist[str((st or {}).get(site_key) or "?")] += 1
-                    found.extend(esm_suspended_from_search(items, market=market))
+                    found.extend(esm_suspended_from_search(
+                        items, market=market,
+                        want="sale" if want_on_sale else "stopped"))
                     if not items:
                         break
                 # 진단 — 요청 필터가 무시되는 게 눈에 보이게 상태 분포를 함께 준다.
@@ -1527,7 +1560,11 @@ def api_roundtrip():
         return jsonify({"ok": False, "armed": False, "sent": 0,
                         "market": market, "refusal": msg, **extra})
 
-    if market not in ROUNDTRIP_MARKETS:
+    # 차단은 **실수 방지**용이다 — 원인을 규명하려면 의도적으로 풀 수 있어야 한다.
+    #   unblock=1 은 사람이 사유를 알고 켜는 스위치(기본은 계속 막힘).
+    unblocked = str(p.get("unblock") or "") == "1"
+    allowed = ROUNDTRIP_MARKETS + (ROUNDTRIP_READ_MARKETS if unblocked else ())
+    if market not in allowed:
         return _refuse(ROUNDTRIP_NOT_YET.get(
             market, f"{market} 은 아직 왕복 시험을 지원하지 않아요."))
     if not raw_no:
@@ -1595,6 +1632,14 @@ def api_roundtrip():
             from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
             product_no = str(raw_no)
             ops = make_lotteon_ops(product_no, client=client)
+            image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
+        elif market == "eleven11":
+            # 11번가 — 가격·재고 **전용 API**(GET price/{prdNo}/{selPrc} ·
+            #   PUT stockqty/{prdStckNo}). 상품명·상세·이미지는 수정 스펙 미확보라
+            #   어댑터가 스스로 missing 으로 내놓는다(지어내지 않는다).
+            from lemouton.uploader.roundtrip.markets.eleven11 import make_eleven11_ops
+            product_no = str(raw_no)
+            ops = make_eleven11_ops(product_no, client=client)
             image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
         else:
             # ESM — 수정은 **마스터 goodsNo** 로만. 사이트 상품번호를 줘도 변환해서 쓰고,
@@ -1699,6 +1744,12 @@ def api_roundtrip_probe():
             elif market == "coupang":
                 from lemouton.uploader.roundtrip.markets.coupang import make_coupang_ops
                 ops = make_coupang_ops(int(product_id), client=client)
+            elif market == "lotteon":
+                from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
+                ops = make_lotteon_ops(str(product_id), client=client)
+            elif market == "eleven11":
+                from lemouton.uploader.roundtrip.markets.eleven11 import make_eleven11_ops
+                ops = make_eleven11_ops(str(product_id), client=client)
             else:
                 from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
                 ops = make_esm_ops(product_id, market=market, client=client)
@@ -1748,9 +1799,24 @@ def api_roundtrip_journals():
                 j = _json.loads(f.read_text(encoding="utf-8"))
             except Exception:  # noqa: BLE001
                 continue
+            # 🔴 원복실패는 결국 **사람이 손으로 되돌린다** — 그때 필요한 건 "실패했다"가
+            #    아니라 「원래 얼마였나」다. 저널엔 있는데 목록이 안 줘서 파일을 못 열면
+            #    복구를 못 한다(2026-08-08). 무거운 축(상세·이미지)은 길이만 준다.
+            def _brief(node):
+                out = {}
+                for k, v in (node or {}).items():
+                    if isinstance(v, str) and len(v) > 120:
+                        out[k] = f"({len(v)}자) {v[:80]}…"
+                    elif isinstance(v, (list, tuple)):
+                        out[k] = f"({len(v)}개) {list(v)[:2]}"
+                    else:
+                        out[k] = v
+                return out
+
             rows.append({"file": f.name, "path": str(f), "market": j.get("market"),
                          "product_id": j.get("product_id"), "status": j.get("status"),
-                         "note": j.get("note"), "written_at": j.get("written_at")})
+                         "note": j.get("note"), "written_at": j.get("written_at"),
+                         "원래값": _brief(j.get("before"))})
     bad = [r for r in rows if "실패" in str(r.get("status") or "")]
     return jsonify({"ok": True, "총": len(rows), "원복실패": len(bad),
                     "실패목록": bad, "전체": rows})

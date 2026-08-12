@@ -416,6 +416,33 @@ class LotteonSettlement(Base):
     source = Column(String(12), default="manual", nullable=False)   # manual|auto
 
 
+class LotteonSettlePaid(Base):
+    """롯데온 지급내역(중개거래정산관리 크롤) — 「언제 실제로 입금됐나」.
+
+    🔴 왜 이 표가 있나(2026-08-07 실브라우저 실측) — 롯데온은 정산 OpenAPI 8종·정산예정금액조회·
+       정산요약·셀러머니를 다 뒤져도 **실지급일이 없다**(pymtTgtAmt 는 지급'대상'=예정액).
+       그래서 롯데온만 「받았을 것(확인 불가) 2,604만 + 입금일 지남 1,337만」이 판정 불가였다.
+       셀러오피스 「중개거래정산관리 > 지급내역」의 `seCmptDt`(정산완료일)가 유일한 답이다.
+       소스: GET soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail
+
+    ★ 롯데온은 **일정산** — 주문 단위가 아니라 **구매확정일(seStdDt) 단위**로 묶여 며칠 뒤 지급된다
+      (예 07-10 확정분 → 07-13 지급). 그래서 키가 (판매자ID, 정산기준일)이고, 주문에 붙일 때는
+      그 주문의 구매확정일로 이 표를 찾아 `se_cmpt_dt` 를 「받은 날」로 쓴다(쿠팡 회차와 같은 방식).
+    ★ Wing·롯데온 셀러오피스 세션 쿠키가 필요해 **서버에서 못 부른다** — 로컬 크롤 → push.
+    """
+    __tablename__ = "lotteon_settle_paid"
+    tr_no = Column(String(20), primary_key=True)          # 판매자ID(LO~)
+    se_std_dt = Column(String(10), primary_key=True)      # 정산기준일=구매확정일 YYYY-MM-DD
+    se_cmpt_dt = Column(String(10))                       # ★정산완료일 = 실제 입금된 날
+    fnl_pymt_bgt_amt = Column(Integer, default=0)         # ★최종정산지급액(그날 실지급)
+    pymt_tgt_amt = Column(Integer, default=0)             # 지급대상금액(차감 전)
+    se_typ = Column(String(20))                           # 정산유형(일정산 등)
+    account = Column(String(40))                          # 계정 별칭
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+    source = Column(String(12), default="manual", nullable=False)
+
+
 class RocketGrowthSettlement(Base):
     """쿠팡 로켓그로스 정산 회차(Wing 화면 API 크롤) — 회차별 지급액·빠른정산 선인출.
 

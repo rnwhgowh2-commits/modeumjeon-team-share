@@ -88,6 +88,8 @@ ROWS = [
 # 주문금액 = 표의 `주문금액` 열 합(제외 없음, 빈칸 1건 건너뜀)
 주문금액_정답 = 12500 + 43000 + 30000 + 84000 + 42500 + 51000 + 63000 + 70000  # = 396000
 주문금액_빈칸 = 1
+# 취소·반품 제외 후 주문금액(2026-08-08 A안 — 매출·할인과 같은 모수)
+주문금액_제외후 = 12500 + 43000 + 30000 + 84000                                # = 169,500
 # 옛 계산(`단가` 개당가 총합)으로 되돌리면 나오는 값 — 같아지면 되돌아간 것이다.
 옛_단가총합 = 10000 + 20000 + 30000 + 80000 + 40000 + 50000 + 60000 + 70000    # = 360000
 # 마켓 할인 = 제외 후 (단가×수량 − 실결제금액). 수량 2 행만 20,000 차이가 난다.
@@ -184,24 +186,27 @@ def test_매출과_정산예정이_값으로_맞는다():
 
 # ── ⑥ 주문금액 · ⑦ 마켓 할인 — 값으로 ───────────────────────────────────────
 def test_주문금액은_표의_주문금액_열을_그대로_더한다():
-    """카드와 표가 같은 이름이면 같은 값이어야 한다(같은 이름 두 정의 = 모순)."""
+    """카드와 표가 같은 이름이면 같은 값이어야 한다(같은 이름 두 정의 = 모순).
+
+    🔴 2026-08-08 — 모수도 매출·할인과 같아졌다(취소·반품 제외).
+    """
     out = _run(r"""
       const S=require(process.argv[1]);
       const rows=JSON.parse(process.argv[2]);
       const a=S.amountSummary(rows);
       console.log(JSON.stringify({
         sum:a.sum, counted:a.counted, blank:a.blank,
-        // 취소 행도 들어가야 한다 — 주문금액은 「제외 없음」이 성격이다
+        // 취소 행은 이제 빠진다 — 매출·할인과 같은 모수
         cancel_only: S.amountSummary([rows.find(r=>r['주문상태']==='취소완료')]).sum
       }));
     """, json.dumps(ROWS, ensure_ascii=False))
-    assert out["sum"] == 주문금액_정답, "주문금액 값이 어긋남: %s" % out["sum"]
+    assert out["sum"] == 주문금액_제외후, "주문금액 값이 어긋남: %s" % out["sum"]
     assert out["sum"] != 옛_단가총합, (
         "옛 계산(`단가` 개당가 총합)으로 되돌아갔다 — 수량·배송비가 통째로 빠진다")
-    assert out["blank"] == 주문금액_빈칸 and out["counted"] == len(ROWS) - 주문금액_빈칸, (
+    assert out["blank"] == 주문금액_빈칸 and out["counted"] == 4, (
         "모르는 값을 0 으로 삼키거나 세지 않았다: %s" % out)
-    assert out["cancel_only"] == 42500, (
-        "주문금액에서 취소 행이 빠졌다 — 이 카드는 「제외 없음」이다")
+    assert out["cancel_only"] == 0, (
+        "취소완료 행이 주문금액에 남았다 — 매출·할인과 같은 모수여야 한다")
 
 
 def test_마켓할인은_제외후_정가와_실결제의_차다():
@@ -263,18 +268,24 @@ def test_옥션_G마켓은_할인을_0이_아니라_확인불가로_센다():
         "확인 불가로 뺐더니 주문금액 − 할인 = 매출 이 깨졌다: %s" % out)
 
 
-def test_옥션_G마켓이_섞이면_카드가_확인불가라고_말한다():
-    """0 으로 보이면 「이 마켓은 할인이 없구나」로 읽힌다 — 화면이 사유를 말해야 한다."""
+def test_옥션_G마켓_확인불가는_잔글씨_문구로_남는다():
+    """0 으로 보이면 「이 마켓은 할인이 없구나」로 읽힌다 — 호버 창이 사유를 말해야 한다.
+
+    카드에서 할인이 빠졌으므로(2026-08-08 A안) 이 문구의 자리는 `discountCaps` 다 —
+    호버 창이 그 줄을 그대로 쓴다.
+    """
     행 = [{"주문상태": "배송중", "판매처": "옥션", "단가": 50000, "수량": 1, "배송비": 0,
            "실결제금액": 50000, "주문금액": 50000}]
-    cap = {c["l"]: c["cap"] for c in _cards(행, wait=0)}
-    붙은줄 = [줄 for 줄 in cap["마켓 할인"] if "확인 불가" in 줄]
-    assert 붙은줄 and "1건" in 붙은줄[0], (
-        "옥션 행이 있는데 카드가 확인 불가를 안 밝힌다: %s" % cap["마켓 할인"])
-    # 두 마켓이 없으면 군더더기 줄이 안 붙는다
-    cap2 = {c["l"]: c["cap"] for c in _cards(ROWS)}
-    assert not [줄 for 줄 in cap2["마켓 할인"] if "확인 불가" in 줄], (
-        "옥션·G마켓이 없는데 줄이 붙었다: %s" % cap2["마켓 할인"])
+    out = _run(r"""
+      const S=require(process.argv[1]);
+      const rows=JSON.parse(process.argv[2]);
+      console.log(JSON.stringify({with:S.discountCaps(S.discountSummary(rows)),
+                                  없음:S.discountCaps(S.discountSummary([]))}));
+    """, json.dumps(행, ensure_ascii=False))
+    붙은줄 = [줄 for 줄 in out["with"] if "확인 불가" in 줄]
+    assert 붙은줄 and "1건" in 붙은줄[0], "옥션 행이 있는데 확인 불가를 안 밝힌다: %s" % out["with"]
+    assert not [줄 for 줄 in out["없음"] if "확인 불가" in 줄], (
+        "옥션·G마켓이 없는데 줄이 붙었다: %s" % out["없음"])
 
 
 def test_쿠팡_쿠폰은_실결제에_이미_빠져있고_두번_세지_않는다():
@@ -322,9 +333,12 @@ def test_쿠팡도_주문금액_할인_매출이_이어진다():
         "쿠팡에서 주문금액 − 할인 ≠ 매출 (%s − %s ≠ %s)"
         % (out["amt"], out["disc"], out["sales"]))
     # 더 이상 「쿠팡 쿠폰 …」 예외 안내가 붙지 않는다(붙으면 거짓말이 된다)
-    cap = {c["l"]: c["cap"] for c in _cards(쿠팡, wait=0)}
-    assert not [줄 for 줄 in cap["마켓 할인"] if "쿠팡" in 줄], (
-        "쿠폰이 매출에서 빠졌는데 「매출엔 안 빠짐」 안내가 남아 있다: %s" % cap["마켓 할인"])
+    caps = _run(r"""
+      const S=require(process.argv[1]);
+      console.log(JSON.stringify(S.discountCaps(S.discountSummary(JSON.parse(process.argv[2])))));
+    """, json.dumps(쿠팡, ensure_ascii=False))
+    assert not [줄 for 줄 in caps if "쿠팡" in 줄], (
+        "쿠폰이 매출에서 빠졌는데 「매출엔 안 빠짐」 안내가 남아 있다: %s" % caps)
 
 
 def test_주문금액_마켓할인_매출이_한_줄로_이어진다():
@@ -403,26 +417,15 @@ def _cards(rows=None, wait=발송대기_수):
     return p.cards
 
 
-def test_카드는_여섯칸이고_숫자가_맞는다():
-    """마켓 할인은 주문금액과 매출 **사이** — 세 숫자를 눈으로 이어 읽는 자리다."""
+def test_카드_숫자가_맞는다():
+    """할인은 카드에서 빠지고 매출 잔글씨로 갔다(2026-08-08 A안)."""
     cards = _cards()
-    assert [c["l"] for c in cards] == ["주문", "발송대기", "주문금액",
-                                       "마켓 할인", "매출", "정산예정"], (
-        "카드 구성·차례가 어긋남: %s" % [c["l"] for c in cards])
     값 = {c["l"]: c["v"] for c in cards}
     assert 값["주문"] == "%d건" % len(ROWS)
     assert 값["발송대기"] == "%d건" % 발송대기_수
-    assert 값["주문금액"] == "40만", "주문금액 표시가 어긋남: %s" % 값["주문금액"]   # 396,000
-    assert 값["마켓 할인"] == "−2만", "할인은 빼는 값이라 부호가 보여야 한다: %s" % 값["마켓 할인"]
+    assert 값["주문금액"] == "17만", "주문금액 표시가 어긋남: %s" % 값["주문금액"]   # 169,500
     assert 값["매출"] == "15만", "매출 표시가 어긋남: %s" % 값["매출"]          # 149,500
     assert 값["정산예정"] == "14만", "정산예정 표시가 어긋남: %s" % 값["정산예정"]  # 135,500
-
-
-def test_할인이_0이면_부호를_안_붙인다():
-    """0 앞에 −를 붙이면 「−0만」이라 읽는 사람이 멈칫한다."""
-    할인없음 = [r for r in ROWS if r.get("수량") != 2]
-    값 = {c["l"]: c["v"] for c in _cards(할인없음)}
-    assert 값["마켓 할인"] == "0만", "할인 0 인데 부호가 붙었다: %s" % 값["마켓 할인"]
 
 
 def test_잔글씨_A안이_카드마다_붙는다():
@@ -431,10 +434,8 @@ def test_잔글씨_A안이_카드마다_붙는다():
         "매출 잔글씨 3줄이 없다: %s" % cap["매출"])
     assert cap["정산예정"][:3] == ["취소·반품 제외", "교환 정산 포함", "배송비 포함"], (
         "정산예정 잔글씨 3줄이 없다: %s" % cap["정산예정"])
-    assert cap["주문금액"][:2] == ["단가×수량+배송비", "제외 없음"], (
+    assert cap["주문금액"][:2] == ["단가×수량+배송비", "취소·반품 제외"], (
         "주문금액 카드가 무엇을 더한 값인지 안 밝힌다: %s" % cap["주문금액"])
-    assert cap["마켓 할인"][:2] == ["취소·반품 제외", "정가−실결제"], (
-        "마켓 할인 카드가 무엇의 차인지 안 밝힌다: %s" % cap["마켓 할인"])
     assert cap["주문"] == [] and cap["발송대기"] == [], "건수 카드엔 잔글씨가 없다"
 
 
@@ -443,12 +444,9 @@ def test_모르는_값은_카드마다_마지막줄로_말한다():
     cap = {c["l"]: c["cap"] for c in _cards()}
     assert len(cap["주문금액"]) == 3 and "1건" in cap["주문금액"][2], (
         "주문금액 빈칸 1건인데 카드가 아무 말도 안 한다: %s" % cap["주문금액"])
-    assert len(cap["마켓 할인"]) == 3 and "1건" in cap["마켓 할인"][2], (
-        "마켓 할인 빈칸 1건인데 카드가 아무 말도 안 한다: %s" % cap["마켓 할인"])
     빈칸없음 = [r for r in ROWS if r["주문금액"] != ""]
     cap2 = {c["l"]: c["cap"] for c in _cards(빈칸없음)}
-    assert len(cap2["주문금액"]) == 2 and len(cap2["마켓 할인"]) == 2, (
-        "빈칸이 없는데 군더더기 줄이 붙었다: %s" % cap2)
+    assert len(cap2["주문금액"]) == 2, "빈칸이 없는데 군더더기 줄이 붙었다: %s" % cap2
 
 
 def test_정산예정_빈칸은_숨기지_않고_넷째줄로_말한다():
@@ -486,14 +484,14 @@ def test_PC_화면이_공용_정의를_불러_쓴다():
         "renderKPI 가 아직 상품분(`정산예정금액`)을 더한다 — 배송비가 빠진다")
 
 
-def test_PC_카드칸은_여섯이고_잔글씨_규칙이_있다():
+def test_PC_카드칸은_다섯이고_잔글씨_규칙이_있다():
     글 = _pc()
     m = re.search(r"\.o7 \.kpis\{([^}]*)\}", 글)
-    assert m and "repeat(6,1fr)" in m.group(1).replace(" ", ""), \
-        "카드 6칸 격자 규칙이 없다: %s" % (m.group(1) if m else None)
-    # 6칸을 1180px 까지 그대로 두면 카드 하나가 190px 밑으로 눌려 잔글씨 3줄이 넘친다.
+    assert m and "repeat(5,1fr)" in m.group(1).replace(" ", ""), \
+        "카드 5칸 격자 규칙이 없다: %s" % (m.group(1) if m else None)
+    # 좁은 창에서 그대로 두면 카드가 눌려 잔글씨가 넘친다 — 접히는 규칙이 있어야 한다.
     assert re.search(r"@media\(max-width:1480px\)\{\.o7 \.kpis\{grid-template-columns:", 글), \
-        "중간 폭(≤1480)에서 6칸이 접히는 규칙이 없다 — 잔글씨가 카드를 넘친다"
+        "중간 폭(≤1480)에서 접히는 규칙이 없다 — 잔글씨가 카드를 넘친다"
     c = re.search(r"\.o7 \.kpi \.cap\{([^}]*)\}", 글)
     assert c, "잔글씨(.cap) 규칙이 없다 — 3줄이 24px 숫자 크기로 나온다"
     px = re.search(r"font-size:\s*([\d.]+)px", c.group(1))
@@ -501,3 +499,135 @@ def test_PC_카드칸은_여섯이고_잔글씨_규칙이_있다():
     # 좁은 창에서 5칸이 그대로면 카드가 눌린다 — 접히는 규칙이 있어야 한다
     assert re.search(r"@media\(max-width:768px\)\{\.o7 \.kpis\{grid-template-columns:", 글), \
         "폰 폭(≤768)에서 카드가 접히는 규칙이 없다"
+
+
+# ── ⑨ A안 — 할인은 카드에서 빼고 매출 밑 한 줄로 (2026-08-08 사장님 확정) ──────
+def test_카드는_다시_다섯칸이고_할인은_매출_잔글씨로_간다():
+    """🔴 왜 되돌리나 — 「−207만」이 **또 빼는 돈**으로 읽혔다(사장님 지적).
+
+    매출은 이미 할인이 빠진 값이라, 할인을 옆 칸에 따로 세우면 두 번 빼는 것처럼 보인다.
+    「마켓 할인 N만 반영됨」으로 **이미 반영됐음**을 말하는 자리로 옮긴다.
+    """
+    cards = _cards()
+    assert [c["l"] for c in cards] == ["주문", "발송대기", "주문금액", "매출", "정산예정"], (
+        "카드 구성이 어긋남: %s" % [c["l"] for c in cards])
+    매출캡 = [c["cap"] for c in cards if c["l"] == "매출"][0]
+    붙은줄 = [줄 for 줄 in 매출캡 if "반영" in 줄]
+    assert 붙은줄, "매출 잔글씨에 할인 반영 줄이 없다: %s" % 매출캡
+    assert "만" in 붙은줄[0], "할인 금액이 안 적혔다: %s" % 붙은줄
+
+
+def test_주문금액도_취소_반품을_뺀다():
+    """🔴 지금까지 주문금액만 「제외 없음」이라 세 숫자가 안 이어졌다(실측 3658−207≠2485).
+
+    매출·할인과 같은 모수로 맞춘다. 「제외 없음」 잔글씨도 사라져야 한다.
+    """
+    out = _run(r"""
+      const S=require(process.argv[1]);
+      const rows=JSON.parse(process.argv[2]);
+      console.log(JSON.stringify({
+        sum:S.amountSummary(rows).sum,
+        cancel_only:S.amountSummary([rows.find(r=>r['주문상태']==='취소완료')]).sum}));
+    """, json.dumps(ROWS, ensure_ascii=False))
+    남는행합 = 12500 + 43000 + 30000 + 84000          # 취소·반품 뺀 주문금액 열 합
+    assert out["sum"] == 남는행합, "주문금액이 아직 취소·반품을 포함한다: %s" % out["sum"]
+    assert out["cancel_only"] == 0, "취소완료 행이 주문금액에 남았다"
+    cap = {c["l"]: c["cap"] for c in _cards()}["주문금액"]
+    assert "제외 없음" not in cap, "잔글씨가 아직 「제외 없음」이라 말한다: %s" % cap
+    assert "취소·반품 제외" in cap[0] or "취소·반품 제외" in cap, (
+        "무엇을 뺐는지 안 밝힌다: %s" % cap)
+
+
+def test_마켓별_할인_내역을_돌려준다():
+    """호버 창이 쓸 자료 — 판매처별 할인·건수 + 많이 깎인 주문 + 확인 불가 건수."""
+    행 = [
+        {"주문상태": "배송중", "판매처": "스마트스토어", "단가": 50000, "수량": 1, "배송비": 0,
+         "실결제금액": 40000, "주문금액": 50000, "상품명": "코트"},
+        {"주문상태": "배송중", "판매처": "스마트스토어", "단가": 20000, "수량": 1, "배송비": 0,
+         "실결제금액": 18000, "주문금액": 20000, "상품명": "셔츠"},
+        {"주문상태": "배송중", "판매처": "롯데온", "단가": 30000, "수량": 1, "배송비": 0,
+         "실결제금액": 27000, "주문금액": 30000, "상품명": "바지"},
+        {"주문상태": "배송중", "판매처": "옥션", "단가": 90000, "수량": 1, "배송비": 0,
+         "실결제금액": 90000, "주문금액": 90000, "상품명": "가방"},
+        {"주문상태": "취소완료", "판매처": "스마트스토어", "단가": 70000, "수량": 1, "배송비": 0,
+         "실결제금액": 60000, "주문금액": 70000, "상품명": "취소된것"},
+    ]
+    out = _run(r"""
+      const S=require(process.argv[1]);
+      console.log(JSON.stringify(S.discountByMarket(JSON.parse(process.argv[2]))));
+    """, json.dumps(행, ensure_ascii=False))
+    이름 = [m["market"] for m in out["markets"]]
+    assert 이름 == ["스마트스토어", "롯데온"], "할인 많은 순서가 아니거나 마켓이 어긋남: %s" % 이름
+    스스 = out["markets"][0]
+    assert 스스["sum"] == 12000 and 스스["count"] == 2, 스스
+    assert [t["name"] for t in 스스["top"]] == ["코트", "셔츠"], "많이 깎인 순서가 아니다: %s" % 스스
+    assert out["esmUnknown"] == 1, "옥션·G마켓을 확인 불가로 안 셌다: %s" % out
+    assert out["total"] == 15000, out
+    assert not [m for m in out["markets"] if m["market"] == "옥션"], (
+        "확인 불가 마켓이 금액 표에 섞였다")
+
+
+def test_PC_화면에_호버창_규칙이_배선돼_있다():
+    """🔴 `hover-info-card` 규칙 1~5 — 하나라도 빠지면 창이 꺼지거나 잘린다.
+
+    ① 창을 `document.body` 에 붙이고 `position:fixed` (표 스크롤에 안 잘리게)
+    ② 마우스가 떠나도 250ms 기다린 뒤 닫기 (창으로 건너가는 도중 안 꺼지게)
+    ③ 창에 들어오면 닫기 취소 · ④ 창에서 나가면 다시 예약
+    ⑤ 앵커 오른쪽 끝 정렬 · 넘치면 위로 뒤집기 · 스크롤하면 닫기
+    """
+    글 = _pc()
+    본문 = 글[글.index("function _dcShow"):글.index("function _dcShow") + 3000]
+    assert "document.body.appendChild" in 글, "① 창을 body 에 안 붙였다(표에 잘린다)"
+    assert re.search(r"\.dcpop\{[^}]*position:fixed", 글), "① position:fixed 가 아니다"
+    assert "250" in 본문 or "_DC_CLOSE" in 글, "② 닫기 250ms 지연이 없다"
+    assert "_dcPop.addEventListener('mouseenter'" in 글.replace('"', "'"),         "③ 창에 들어와도 닫기가 안 멈춘다"
+    assert "_dcPop.addEventListener('mouseleave'" in 글.replace('"', "'"),         "④ 창에서 나갈 때 닫기 재예약이 없다"
+    assert "innerHeight" in 본문 and "r.top" in 본문, "⑤ 화면 아래에서 위로 뒤집는 처리가 없다"
+    assert re.search(r"addEventListener\('scroll',\s*_dcHide", 글.replace('"', "'")),         "스크롤하면 닫아야 한다(fixed 좌표가 낡는다)"
+
+
+def test_PC_호버창은_공용_자료를_쓴다():
+    """마켓별 내역을 화면이 다시 세면 카드 숫자와 갈린다 — 공용 함수 하나만 본다."""
+    글 = _pc()
+    assert "MOUM_ORDER_SCOPE.discountByMarket" in 글,         "화면이 마켓별 할인을 직접 세고 있다(공용 정의로 넘겨야 한다)"
+
+
+# ── ⑩ 「누가 깎아 줬나」 — 셀러 : 마켓 부담 (2026-08-08 사장님 요청) ──────────
+def test_마켓별_셀러부담율과_할인종류를_돌려준다():
+    """🔴 「우리가 낸 할인」과 「마켓이 내준 할인」은 손익이 완전히 다르다.
+
+    지도 확정 필드로 마켓마다 갈래가 온다:
+      · 스스   총(_dc_total) − 셀러(_dc_seller) = 마켓  (네이버는 마켓분을 따로 안 준다)
+      · 11번가 sellerDscPrc / tmallDscPrc 를 **둘 다** 준다
+      · 쿠팡   즉시+다운로드 쿠폰(셀러) / coupangDiscount(쿠팡 부담)
+      · 롯데온 sptDcPgmCmsnSum(셀러) / prSfcoShrAmtSum(롯데)
+    """
+    행 = [
+        # 스스 — 총 10,000 중 셀러 6,000 → 우리 60%
+        {"주문상태": "배송중", "판매처": "스마트스토어", "단가": 50000, "수량": 1, "배송비": 0,
+         "실결제금액": 40000, "주문금액": 50000, "상품명": "코트",
+         "_dc_seller": 6000, "_dc_total": 10000,
+         "_dc_kinds": {"즉시할인": 7000, "상품할인쿠폰": 3000, "복수구매할인": 0}},
+        # 쿠팡 — 셀러 1,000 / 쿠팡 3,000 → 우리 25%
+        {"주문상태": "배송중", "판매처": "쿠팡", "단가": 30000, "수량": 1, "배송비": 0,
+         "실결제금액": 29000, "주문금액": 30000, "상품명": "신발",
+         "_dc_seller": 1000, "_dc_market": 3000,
+         "_dc_kinds": {"즉시할인쿠폰": 1000, "다운로드쿠폰": 0}},
+        # 갈래를 안 주는 행 — 0% 로 적으면 「마켓이 다 냈다」는 거짓말이 된다
+        {"주문상태": "배송중", "판매처": "11번가", "단가": 20000, "수량": 1, "배송비": 0,
+         "실결제금액": 18000, "주문금액": 20000, "상품명": "셔츠"},
+    ]
+    out = _run(r"""
+      const S=require(process.argv[1]);
+      console.log(JSON.stringify(S.discountByMarket(JSON.parse(process.argv[2]))));
+    """, json.dumps(행, ensure_ascii=False))
+    m = {x["market"]: x for x in out["markets"]}
+    assert m["스마트스토어"]["sellerRate"] == 60, (
+        "스스는 총−셀러로 마켓분을 구해야 한다: %s" % m["스마트스토어"])
+    assert m["쿠팡"]["sellerRate"] == 25, "쿠팡 부담 갈래가 어긋남: %s" % m["쿠팡"]
+    assert m["11번가"]["sellerRate"] is None, (
+        "갈래를 모르는데 숫자를 지어냈다 — 0%%면 「마켓이 다 냈다」가 된다: %s" % m["11번가"])
+    종류 = [k["name"] for k in m["스마트스토어"]["kindList"]]
+    assert 종류 == ["즉시할인", "상품할인쿠폰"], (
+        "할인 종류가 금액 큰 순이 아니거나 0원 항목이 섞였다: %s" % 종류)
+    assert not m["11번가"]["kindList"], "종류를 모르는데 만들어 냈다"

@@ -54,17 +54,35 @@ def test_서버키_판정은_시스템_정본과_같아야_한다(client, monkey
         "시스템은 무장인데 이 라우트만 서버키가 꺼졌다고 본다"
 
 
-def test_지원하지_않는_마켓은_이유를_밝히고_거부한다(client, monkeypatch):
-    """「지원 안 함」만 말하면 사장님은 왜인지 모른다 — 지도 근거를 그대로 말한다."""
+def test_막힌_마켓은_이유를_밝히고_거부한다(client, monkeypatch):
+    """「지원 안 함」만 말하면 사장님은 왜인지 모른다 — 근거를 그대로 말한다.
+
+    2026-08-08: 11번가는 **지원 마켓이 됐다**(가격·재고 전용 API 가 이미 있었다).
+    지금 막혀 있는 건 옥션·G마켓뿐이고, 그건 사고 때문이다.
+    """
     monkeypatch.setenv("MOUM_LIVE_UPLOAD", "1")
 
     r = client.post("/api/live-send-test/roundtrip",
-                    json={"market": "eleven11", "origin_product_no": 1, "arm": "1"})
+                    json={"market": "auction", "origin_product_no": 1, "arm": "1"})
 
     body = r.get_json()
     assert body["ok"] is False
-    assert "11번가" in (body.get("refusal") or "")
-    assert "지도" in (body.get("refusal") or ""), "왜 못 하는지가 없다"
+    refusal = body.get("refusal") or ""
+    assert "옥션" in refusal
+    assert "재심사" in refusal, "왜 못 하는지가 없다"
+
+
+def test_11번가는_이제_지원_마켓이다(client):
+    """가격·재고 전용 API 가 우리 코드에 이미 있었다 — 어댑터만 없어서 막혀 있었다.
+
+    🔴 「지도에 상품수정 API 가 없다」는 **5축(상품명·상세·이미지)** 얘기였다.
+       한 축이 없다고 마켓 전체를 미지원으로 적으면, 되는 축까지 영영 안 쓴다.
+    """
+    r = client.post("/api/live-send-test/roundtrip",
+                    json={"market": "eleven11", "origin_product_no": 1, "arm": "1"})
+
+    refusal = r.get_json().get("refusal") or ""
+    assert "MOUM_LIVE_UPLOAD" in refusal, f"11번가가 미지원으로 막혔다: {refusal}"
 
 
 def test_스스_쿠팡_롯데온은_지원_마켓이다(client):
@@ -144,3 +162,18 @@ def test_전송이_막힌_마켓도_후보조회는_된다(client):
         assert r.status_code == 200, f"{mk} 후보조회가 막혔다"
         body = r.get_json()
         assert "지원하지 않아요" not in str(body.get("error") or "")
+
+
+def test_막힌_마켓도_명시적으로_풀면_보낸다(client, monkeypatch):
+    """차단은 실수 방지용이다 — 원인을 규명하려면 **의도적으로** 풀 수 있어야 한다.
+    다만 기본은 계속 막힘(unblock 없이는 전송 0건)."""
+    monkeypatch.setenv("MOUM_LIVE_UPLOAD", "1")
+
+    blocked = client.post("/api/live-send-test/roundtrip",
+                          json={"market": "auction", "origin_product_no": 1, "arm": "1"})
+    assert "재심사" in (blocked.get_json().get("refusal") or "")
+
+    opened = client.post("/api/live-send-test/roundtrip",
+                         json={"market": "auction", "origin_product_no": 1,
+                               "arm": "1", "unblock": "1"})
+    assert "재심사" not in (opened.get_json().get("refusal") or ""), "명시적으로 풀었는데 막혔다"

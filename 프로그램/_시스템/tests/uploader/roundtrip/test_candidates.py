@@ -141,3 +141,20 @@ def test_판매중을_고를_때도_한_채널이라도_다르면_뺀다():
     ]})
 
     assert suspended_from_search(page, want="sale") == []
+
+
+def test_ESM도_판매중_11_을_고를_수_있다():
+    """🔴 esm.186 원문: 「판매중지 상품은 가격 수정되지 않습니다」
+    → ESM 가격 왕복은 **판매중(11)** 상품에만 성립한다."""
+    rows = [_row("A", iac="21"), _row("B", iac="11"), _row("C", iac="22")]
+
+    got = esm_suspended_from_search(rows, market="auction", want="sale")
+
+    assert [g["origin_product_no"] for g in got] == ["B"]
+    assert got[0]["status"] == "11"
+
+
+def test_ESM_기본은_여전히_판매중지_21():
+    rows = [_row("A", iac="21"), _row("B", iac="11")]
+
+    assert [g["origin_product_no"] for g in esm_suspended_from_search(rows, market="auction")] == ["A"]

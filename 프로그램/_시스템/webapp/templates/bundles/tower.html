@@ -434,7 +434,7 @@ if(zc) zc.addEventListener('click', function(){
 var TABS = [
   {id:'t1', name:'한눈에'},
   {id:'t6', name:'판매 이력'},
-  {id:'t2', name:'옵션 매트릭스 (가격+재고)'},
+  {id:'t2', name:'옵션 매트릭스 (최저가만)'},
   {id:'t3', name:'소싱처 수집 이력'},
   {id:'t4', name:'마켓 등록·정책'},
   {id:'t5', name:'가격/재고 변동 이력'},
@@ -830,9 +830,15 @@ function renderT2(j){
   var byKey = {};
   j.cells.forEach(function(c){ byKey[c.color + '|' + c.size] = c; });
   var matrixId = open.tr.dataset.matrix;
-  var h = '<div class="tcard"><div class="tcard-t">옵션 매트릭스 (가격 + 재고)' +
+  /* [2026-08-08] 소싱처 수를 **센다** — 「9곳」으로 박으면 상품마다 달라 거짓이 된다. */
+  var 소싱처 = {};
+  j.cells.forEach(function(c){ (c.sources||[]).forEach(function(s){ if(s.label) 소싱처[s.label]=1; }); });
+  var 소싱처수 = Object.keys(소싱처).length;
+  var h = '<div class="tcard"><div class="tcard-t">옵션 매트릭스 (최저가만)' +
     '<span class="cap">칸 = 최저 최종매입가 · 재고 · <b style="color:var(--ap-링크파랑,#0066CC)">최저 소싱처</b> — 누르면 소싱처 전체 비교</span>' +
     '<span class="sp"></span>' +
+    '<a class="twr-btn pri sm" href="/bundles/' + encodeURIComponent(open.tr.dataset.code) + '/all">🧾 소싱처 ' +
+      (소싱처수 ? 소싱처수 + '곳 ' : '') + '전부 보기 →</a>' +
     '<a class="twr-btn gho sm" href="/inventory/">🏷 사입 재고 (재고관리)</a>' +
     (matrixId ? '<a class="twr-btn pri sm" href="/optgen/product/' + matrixId + '">✏️ 매트릭스 수정 (생성 탭)</a>' : '') +
     '</div>';
