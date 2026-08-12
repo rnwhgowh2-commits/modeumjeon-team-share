@@ -105,7 +105,10 @@
   .lc0{color:var(--color-text-tertiary)}
   .im-empty{padding:24px;text-align:center;color:var(--color-text-tertiary);
     border:1.5px dashed var(--color-border);border-radius:12px;font-size:14px;
-    margin-top:var(--sp-4);max-width:1100px}
+    /* 🔴 [2026-08-13] 여기만 1100 으로 남겨 두면 **검색 결과가 0건일 때**
+       위 검색카드(1700)와 오른쪽 끝이 최대 600px 어긋난다(창 1920 실측).
+       고치려던 그 어긋남이 방향만 바뀌어 남는다 — 같은 값을 쓴다. */
+    margin-top:var(--sp-4);max-width:var(--화면-상한)}
 </style>
 
 <style>

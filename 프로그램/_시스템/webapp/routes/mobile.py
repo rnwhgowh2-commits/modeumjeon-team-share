@@ -584,20 +584,21 @@ def api_action():
             tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
-            # 🔴 조정은 **절대값으로 저장한다** — 「실사해 보니 5개였다」가 조정이다.
-            #   재고 SSOT(`shared/inventory_stock.fold_tx_rows`)가 2026-08-13 감사에서
-            #   `adjust → total = q`(그 값으로 정한다)로 통일됐는데, **여기만 차이값을
-            #   저장하고 있었다.** 그래서 읽는 쪽이 그 차이값을 「센 수」로 읽었다:
-            #     재고 1 에서 「조정 5」 → 차이 4 저장 → SSOT 는 재고를 **4** 로 읽음.
-            #   실사한 수와 프로그램의 수가 달라지는, 조용한 재고 오류였다.
-            #   (같은 표의 행이 두 가지 뜻을 갖던 옛 사고의 마지막 잔재 — 모듈
-            #    독스트링의 "쓰는 쪽도 두 곳이 정반대였다" 가 여기서 아직 참이었다.)
+            # 🔴 조정은 **차이값(델타)으로 저장한다** — PC(`inbound.create_adjustment`)와
+            #   재고 SSOT(`shared/inventory_stock`)가 2026-08-13 에 델타로 최종 통일됐다.
+            #   받는 값은 그대로 「실사해 보니 몇 개」(결과 수량)다 — 사장님께 뺄셈을
+            #   시키지 않는다. 뺄셈은 여기서 한다.
+            #
+            #   🔴 하루 사이에 규약이 절대값 → 델타로 **두 번 바뀌었고**, 그때 이 자리만
+            #      절대값으로 남아 재고 1 에서 「5로 조정」이 1+5=**6** 이 됐다
+            #      (라이브 배포를 전면 중단시킨 그 시험 `assert 6 == 5`).
+            #      쓰는 곳이 세 군데(PC·폰·연동)라 **한 곳만 고치면 또 갈린다** —
+            #      셋 다 델타인지 시험이 지킨다.
             from shared.inventory_stock import get_stock_batch
             current = int(get_stock_batch(s, [sku], location_id=location_id).get(sku, 0))
-            delta = int(qty) - current          # 사람에게 보여줄 변화량(저장값 아님)
-            if delta == 0:
+            tx_qty = int(qty) - current          # 저장 = 차이값(PC 와 같은 규약)
+            if tx_qty == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
-            tx_qty = int(qty)                   # ← 저장은 센 수 그대로(절대값)
             tx_memo = memo or f"[모바일 조정] {current} → {qty}"
 
         tx = InventoryTx(
@@ -624,8 +625,8 @@ def api_action():
             tx_id=tx.id,
             action=action,
             # 화면엔 **변화량**을 보여준다(「4개 늘었다」). 저장값과 뜻이 다른 자리라
-            #  조정만 delta 를 쓴다 — 입고·출고는 저장값이 곧 변화량이다.
-            applied_qty=(delta if action == "adjust" else tx_qty),
+            #  이제 조정도 저장값이 곧 변화량이다(델타로 통일) — 따로 셈하지 않는다.
+            applied_qty=tx_qty,
             new_total_stock=int(new_total),
             location_name=loc.name,
             actor=actor,
