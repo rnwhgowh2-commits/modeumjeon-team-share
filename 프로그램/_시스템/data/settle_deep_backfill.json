@@ -1,6 +1,6 @@
 {
- "last_date": "2026-08-08",
- "idx": 2,
+ "last_date": "2026-08-12",
+ "idx": 3,
  "history": [
   {
    "date": "2026-08-07",
@@ -12,6 +12,13 @@
   {
    "date": "2026-08-08",
    "market": "eleven11",
+   "updated": 0,
+   "settle_rows": 0,
+   "errors": 0
+  },
+  {
+   "date": "2026-08-12",
+   "market": "lotteon",
    "updated": 0,
    "settle_rows": 0,
    "errors": 0
