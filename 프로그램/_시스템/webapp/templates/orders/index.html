@@ -5428,7 +5428,10 @@
     // 시안 확정(2026-08-06 사장님): A3 제목 앞 색 점 · B3 점선 상자로 「이미 끝난 것」 묶기.
     //  막대 조각 색 = 그 카드 점 색(눈으로 이어지게).
     var CLR={confirmed:'#8FD3A6',unconfirmed:'#7EA8F8',overdue:'#F5B544',undated:'#D5DAE0',
-             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438',fast:'#9E77ED'};
+             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438',fast:'#9E77ED',
+             /* 「정산 시작 전」 — 지남(주황)과 헷갈리면 안 되므로 미확정(파랑) 계열의
+                옅은 색. 경고가 아니라 「그냥 아직 안 왔다」는 뜻이다. */
+             not_started:'#B9D0FB'};
     function dot(c){return '<i style="display:inline-block;width:9px;height:9px;border-radius:2px;'
       +'background:'+c+';margin-right:5px;vertical-align:middle"></i>';}
     // 「지남」 카드 밑 한 줄 — 무엇 때문인지(가장 큰 사유)를 바로 알려준다.
@@ -5479,10 +5482,12 @@
         +'<div class="stack">'
         +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:'+CLR.confirmed+'"></div>'
         +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:'+CLR.unconfirmed+'"></div>'
+        +'<div style="width:'+pc(k.not_started||0)+'%;background:'+CLR.not_started+'"></div>'
         +'<div style="width:'+pc(k.overdue||0)+'%;background:'+CLR.overdue+'"></div>'
         +'<div style="width:'+pc(k.undated||0)+'%;background:'+CLR.undated+'"></div></div>'
         +'<div class="legend"><span>'+dot(CLR.confirmed)+'확정 '+fmt(k.confirmed_future)+'</span>'
         +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
+        +((k.not_started||0)?('<span>'+dot(CLR.not_started)+'정산 시작 전 '+fmt(k.not_started)+'</span>'):'')
         +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
         +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div>'
         +((fw||wb)?('<div class="fastnote">'+dot(CLR.fast)+'이미 받으신 돈은 <b>빼고</b> 계산했어요'
@@ -5494,6 +5499,13 @@
         +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
+        // 🔴 [2026-08-12] 「정산 시작 전」을 「입금일 지남」에서 갈라냈다 —
+        //   사장님 신고(쿠팡 배송완료가 왜 지남?·롯데온 구매확정인데 확정 전이라 나옴).
+        //   추정 날짜가 이른 것이지 돈이 밀린 게 아니다. 돈은 총액에 그대로 있다.
+        +((k.not_started||0)?('<div class="kpi" id="spn-notstarted-card" style="cursor:pointer">'
+             +'<div class="t">'+dot(CLR.not_started)+'아직 정산 시작 전</div>'
+             +'<div class="v">'+fmt(k.not_started)+'</div>'
+             +'<div class="s">구매확정 전이라 정산이 시작 안 됐어요 — 늦은 게 아닙니다</div></div>'):'')
         +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
         +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
         // 🚀 로켓그로스 별도 카드(사장님 지시). 위 총액에는 **더해져** 있다.
@@ -5524,6 +5536,7 @@
         +'<div class="donettl">✔️ 이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
         +'<div class="kpis">'+done+'</div></div>';
       [['spn-overdue-card','overdue','⚠️ 입금일 지남 · 미확인'],
+       ['spn-notstarted-card','not_started','⏳ 아직 정산 시작 전 (구매확정 전 — 늦은 게 아님)'],
        ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
        ['spn-paid-card','paid','🏦 이미 받은 것으로 확인 (마켓이 입금 알려줌)'],
        ['spn-assumed-card','assumed_paid','💤 이미 받았을 것 (확인 불가 · 합계 제외)'],
@@ -5632,6 +5645,13 @@
 
     // ── D2 인라인 드릴다운 (마켓 칸 → 계정별 → 주문별) ─────────────────────
     // 한 표 · 받는 날 최근순 (마켓·계정은 위 칩으로 거른다 — 주문내역과 같은 방식)
+    /* 「왜 그 자리에 있나」 칸을 붙일 부류 — 서버가 사유(reason)를 실어 보내는 것들.
+       🔴 「정산 시작 전」도 사유가 온다. 예전엔 overdue 하나만 하드코딩돼 있어
+          새 부류를 만들면 사유가 조용히 사라졌다. */
+    /* 「N일 지남」의 뜻이 부류마다 다르다 — 지남은 **마켓이 준 날**이 지난 것이고,
+       정산 시작 전은 **우리 추정일**이 지난 것뿐이다. 같은 말로 적으면 거짓이 된다. */
+    function _overWord(cat,d){ return cat==='not_started' ? ('추정일 '+d+'일 지남') : (d+'일 지남'); }
+    function _hasReason(cat){ return cat==='overdue' || cat==='not_started'; }
     function flatTable(rows, cat){
       if(!rows.length) return '<div class="state">해당 주문이 없습니다.</div>';
       var h='<table class="gd"><tr>'
@@ -5639,7 +5659,7 @@
         +'<th class="txt">주문 · 상품</th>'
         +'<th class="n">상품정산</th><th class="n">배송비정산</th><th class="n">총(배송비포함)</th>'
         +'<th class="c">근거</th>'
-        +(cat==='overdue'?'<th class="txt">왜 안 들어왔나</th>':'')+'</tr>';
+        +(_hasReason(cat)?'<th class="txt">왜 안 들어왔나</th>':'')+'</tr>';
       rows.forEach(function(r){
         h+='<tr><td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
           +'<td class="c"><span class="mk '+(MKCLS[r.market]||'gm')+'">'+esc(MKL[r.market]||r.market)+'</span></td>'
@@ -5651,9 +5671,9 @@
           +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
           +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
           +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td>'
-          +(cat==='overdue'
+          +(_hasReason(cat)
             ? '<td class="txt" style="max-width:380px"><b>'+esc(RLBL[r['사유코드']]||'')+'</b>'
-              +(r['지난일수']?' <span class="note">('+r['지난일수']+'일 지남)</span>':'')
+              +(r['지난일수']?' <span class="note">('+_overWord(cat,r['지난일수'])+')</span>':'')
               +'<div class="note">'+esc(r['확인방법']||'')+'</div></td>'
             : '')+'</tr>';
       });
@@ -5670,7 +5690,7 @@
           +'<table><tr><th class="txt" style="font-size:11px;color:var(--sub)">주문번호 · 상품</th>'
           +'<th class="n" style="font-size:11px;color:var(--sub)">상품정산</th><th class="n" style="font-size:11px;color:var(--sub)">배송비정산</th>'
           +'<th class="n" style="font-size:11px;color:var(--sub)">총(배송비포함)</th><th class="c" style="font-size:11px;color:var(--sub)">받는 날</th><th class="c" style="font-size:11px;color:var(--sub)">근거</th>'
-          +(cat==='overdue'?'<th class="txt" style="font-size:11px;color:var(--sub)">왜 안 들어왔나</th>':'')+'</tr>';
+          +(_hasReason(cat)?'<th class="txt" style="font-size:11px;color:var(--sub)">왜 안 들어왔나</th>':'')+'</tr>';
         list.forEach(function(r){
           h+='<tr><td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')
             +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
@@ -5679,9 +5699,9 @@
             +'<td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
             +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
             +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td>'
-            +(cat==='overdue'
+            +(_hasReason(cat)
               ? '<td class="txt" style="max-width:420px"><b>'+esc(RLBL[r['사유코드']]||'')+'</b>'
-                +(r['지난일수']?' <span class="note">('+r['지난일수']+'일 지남)</span>':'')
+                +(r['지난일수']?' <span class="note">('+_overWord(cat,r['지난일수'])+')</span>':'')
                 +'<div class="note">'+esc(r['확인방법']||'')+'</div></td>'
               : '')+'</tr>';
         });
@@ -5786,7 +5806,7 @@
         +' <a class="btn" style="float:right;text-decoration:none;font-size:12px;padding:5px 12px" '
         +'href="/orders/api/settle-plan/export.xlsx?category='+extraOpen.cat+'">⬇ 엑셀로 전건 받기</a>'
         +(extraRows.length>=2000?'<div class="note" style="color:var(--글자-주황,#B45309)">⚠️ 화면에는 2,000건까지만 보여요 — 전부 보시려면 엑셀로 받으세요</div>':'')
-        +(extraOpen.cat==='overdue'?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
+        +(_hasReason(extraOpen.cat)?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
         +'<div style="margin-top:8px">'+chipHtml()+'</div>'
         // 🔴 마켓·계정은 **칩으로 거르고** 목록은 한 표에 **받는 날 최근순**(사장님 지시).
         //   계정별로 묶으면 계정 순서가 앞서 「최근순」이 깨진다(라이브 실측으로 발견).

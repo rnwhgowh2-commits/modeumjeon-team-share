@@ -226,13 +226,19 @@ def test_이미_받은_주문은_받은_날을_보여준다(monkeypatch):
     assert row["date_source"] == "real"        # 마켓이 알려준 날이라 실측
 
 
-def test_입금일_지남_목록에_사유와_확인방법이_실린다(monkeypatch):
-    """숫자만 보면 뭘 해야 할지 알 수 없다 — 원인과 확인법을 같이 준다."""
+def test_정산시작전_목록에_사유와_확인방법이_실린다(monkeypatch):
+    """숫자만 보면 뭘 해야 할지 알 수 없다 — 원인과 확인법을 같이 준다.
+
+    🔴 [2026-08-12] 이 건은 「입금일 지남」이 아니라 「정산 시작 전」이다 —
+       구매확정 전인데 **우리 추정** 날짜만 지난 것이라 돈이 밀린 게 아니다."""
     ln = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
     ln["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
     _patch_lines(monkeypatch, [ln])
     c = _make_client()
-    rows = c.get("/orders/api/settle-plan/detail?category=overdue").get_json()["rows"]
+    assert c.get("/orders/api/settle-plan/detail?category=overdue"
+                 ).get_json()["rows"] == []
+    rows = c.get("/orders/api/settle-plan/detail?category=not_started"
+                 ).get_json()["rows"]
     assert len(rows) == 1
     r = rows[0]
     assert r["사유코드"] == "not_confirmed_yet"
@@ -242,9 +248,12 @@ def test_입금일_지남_목록에_사유와_확인방법이_실린다(monkeypa
 
 
 def test_사유_요약도_집계에_들어간다(monkeypatch):
-    """카드 옆에 「무엇 때문에 이만큼인지」를 한눈에."""
-    a = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
-    a["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
+    """카드 옆에 「무엇 때문에 이만큼인지」를 한눈에.
+
+    ★ 「지남」 사유 요약은 **진짜 지난 것만** 센다 — 마켓이 준 날짜(real)가 지난 건들.
+      추정일만 지난 건 not_started 로 빠져 이 요약에 안 들어간다."""
+    # 마켓이 준 날짜가 지났는데 아직 구매확정 전 = 진짜 지남(사유: 확정 전)
+    a = _line(status="배송완료", market="lotteon", date="2026-08-01", incl=5000)
     b = _line(status="구매확정", market="eleven11", date="2026-08-01", incl=3000)
     _patch_lines(monkeypatch, [a, b])
     c = _make_client()
@@ -253,6 +262,30 @@ def test_사유_요약도_집계에_들어간다(monkeypatch):
     assert rs["not_confirmed_yet"]["금액"] == 5000
     assert rs["no_confirm_channel"]["금액"] == 3000
     assert rs["not_confirmed_yet"]["건수"] == 1
+
+
+def test_롯데온_수취완료는_확정예정으로_집계된다(monkeypatch):
+    """사장님 신고 — 롯데온은 구매확정인데 「아직 구매확정 전」이라 떴다.
+    롯데온의 확정 상태값은 「수취완료」(odPrgsStepCd=15)다."""
+    ln = _line(status="수취완료", market="lotteon", date="2099-08-20", incl=8000)
+    _patch_lines(monkeypatch, [ln])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan").get_json()
+    assert agg["kpi"]["confirmed_future"] == 8000
+    assert agg["kpi"]["unconfirmed_future"] == 0
+
+
+def test_정산시작전도_KPI와_목록이_일치한다(monkeypatch):
+    """새 부류를 만들 때마다 KPI 와 드릴다운이 갈리는 사고가 났다 — 같이 잠근다."""
+    ln = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
+    ln["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
+    _patch_lines(monkeypatch, [ln])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan").get_json()
+    rows = c.get("/orders/api/settle-plan/detail?category=not_started"
+                 ).get_json()["rows"]
+    assert agg["kpi"]["not_started"] == sum(r["총정산예정"] for r in rows) == 5000
+    assert agg["kpi"]["total_uncollected"] == 5000     # 사라지는 돈 0원
 
 
 # ══ [2026-08-06 개선] 정산율 감시 · 엑셀 내보내기 ════════════════════════════

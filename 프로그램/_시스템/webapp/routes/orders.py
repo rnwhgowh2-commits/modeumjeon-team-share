@@ -1306,8 +1306,8 @@ def settle_plan_agg():
 
 @bp.route('/api/settle-plan/detail')
 def settle_plan_detail():
-    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|undated|assumed_paid|
-    risk|paid)·market·account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 배지.
+    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|not_started|undated|
+    assumed_paid|risk|paid)·market·account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 배지.
 
     🔴 집계와 **같은 판정(SP.resolve)** 을 쓴다 — 예전엔 여기만 classify 로 걸러
        「KPI 5.5억 · 목록 0건」이 라이브에 나갔다(2026-08-06).
@@ -1395,10 +1395,11 @@ def settle_plan_detail():
 
 
 #: 내보내기·목록이 함께 쓰는 부류 이름 — 한 곳에서만 정의(둘이 갈리면 조용히 어긋난다)
-_SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "undated",
+_SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "not_started", "undated",
                   "assumed_paid", "risk", "paid")
 _SP_CAT_KO = {"confirmed": "확정예정", "unconfirmed": "미확정예정",
-              "overdue": "입금일지남", "undated": "받는날미정",
+              "overdue": "입금일지남", "not_started": "정산시작전",
+              "undated": "받는날미정",
               "assumed_paid": "이미받았을것", "risk": "반품취소진행", "paid": "이미받음"}
 
 

@@ -39,12 +39,38 @@ _RISK_MARKERS = ("반품요청", "반품진행", "반품접수", "교환요청",
 #  보고 있었는데 classify 만 「구매확정」 하나만 봐서 **같은 프로그램 안에서 기준이 어긋났다**.
 _CONFIRMED_WORDS = ("구매확정", "구매결정")
 _CONFIRMED = "구매확정"      # 하위호환(기존 참조)
+# 🔴 [2026-08-12 사장님 신고] 마켓마다 확정을 부르는 말이 또 다르다 — **마켓별로 좁힌다**.
+#  롯데온 odPrgsStepCd 에는 구매확정 코드가 **아예 없고** 「수취완료」(15)가 그 자리다
+#  (order_export._STATUS_KO). 그래서 롯데온은 confirmed 부류가 **구조적으로 0건**이었고,
+#  ①확정건에도 auto_confirm_days(7)가 덧붙어 예정일이 7일 이르게 잡히고
+#  ②overdue_reason 이 늘 not_confirmed_yet 하나로 고정됐다(주석 실측 「롯데온 212건」).
+#  ★ 전 마켓에 「수취완료」를 풀면 안 된다 — 다른 마켓에선 확정 전 단계일 수 있다.
+_CONFIRMED_BY_MARKET = {"lotteon": ("수취완료",)}
 # 송장 입력 후·확정 전 단계 — 스펙 2)번 부류의 근거 상태.
 _SHIPPED_MARKERS = ("배송중", "배송완료", "발송완료", "수취완료")
 
 
-def _is_confirmed(status: str) -> bool:
-    return any(w in status for w in _CONFIRMED_WORDS)
+def _is_confirmed(status: str, market: str = "") -> bool:
+    words = _CONFIRMED_WORDS + _CONFIRMED_BY_MARKET.get(market, ())
+    return any(w in status for w in words)
+
+
+def line_confirmed(line: dict) -> bool:
+    """이 주문 줄이 **구매확정됐는가** — 한 곳에서만 판정한다.
+
+    서열: ①마켓 정산조회에 잡힌 증거 ②상태 문자열(마켓별 낱말).
+
+    ①이 왜 먼저인가 — 롯데온 `SettleItmdSales` 는 **정산기준일 = 구매확정일**이라
+    거기 잡혔다는 것 자체가 「구매확정됐다」는 마켓의 증언이다. 상태 문자열은 우리가
+    별도 API(140 진행단계)로 따로 받아 오는 값이라 시차가 있고, 추측이 섞인다.
+
+    🔴 `_settle_confirmed` 는 **True 만** 저장한다(order_ingest). 응답에 구매확정
+    **날짜**는 없으므로 날짜를 지어내지 않고 「확정됐다」는 사실만 적는다.
+    """
+    row = line.get("row") or {}
+    if row.get("_settle_confirmed") is True:
+        return True
+    return _is_confirmed(str(row.get("주문상태") or ""), line.get("market") or "")
 
 
 def _norm_date(s) -> str | None:
@@ -86,7 +112,7 @@ def classify(line: dict, *, today: dt.date) -> str:
         return "risk"
     if _norm_date(row.get("_settle_paid_date")):
         return "paid"                       # 마켓이 「송금했다」고 알려준 것만
-    if _is_confirmed(st):
+    if line_confirmed(line):
         return "confirmed"
     if any(m in st for m in _SHIPPED_MARKERS):
         return "unconfirmed"
@@ -129,7 +155,7 @@ def _estimated_payout(line: dict, rules: dict) -> str | None:
         # 빠른정산 = 발송(집화) 기준 선지급. 관측시각 ≈ 발송 이후이므로 anchor 그대로.
         return (anchor + dt.timedelta(days=int(m.get("fast_cycle_days") or 1))).isoformat()
     days = int(m.get("cycle_days") or 0)
-    if not _is_confirmed(st):
+    if not line_confirmed(line):
         days += int(m.get("auto_confirm_days") or 0)
         if "배송중" in st or "발송완료" in st:
             days += int(m.get("transit_days") or 0)
@@ -186,8 +212,7 @@ def overdue_reason(line: dict, *, market: str) -> str:
       no_confirm_channel 104건 (11번가)
         = 마켓이 준 송금예정일이 지났는데, 그 마켓은 입금 완료를 알려주지 않는다.
     """
-    st = str(line["row"].get("주문상태") or "")
-    if not _is_confirmed(st):
+    if not line_confirmed(line):
         return "not_confirmed_yet"
     if market not in _PAID_CONFIRM_MARKETS:
         return "no_confirm_channel"
@@ -217,17 +242,24 @@ def resolve(line: dict, rules: dict, *, today: dt.date) -> dict:
     🔴 aggregate(집계)와 detail(드릴다운)이 **같은 이 함수**를 쓴다. 예전엔 둘이 따로
        판정해 「KPI 5.5억 · 드릴다운 0건」이 라이브에 나갔다(2026-08-06).
 
-    bucket ∈ confirmed | unconfirmed | overdue | undated | assumed_paid
+    bucket ∈ confirmed | unconfirmed | overdue | not_started | undated | assumed_paid
       · undated      = 날짜를 정할 근거가 없음(실값도 기준점도 없음) — **기한 경과 아님**
+      · not_started  = **아직 정산이 시작도 안 됨** — 구매확정 전인데 우리 **추정** 날짜만
+        지난 것. 돈이 밀린 게 아니라 추정일이 이른 것이다(2026-08-12 사장님 신고:
+        "쿠팡 배송완료인데 왜 입금일 지남에 있음?"). 총액에는 그대로 넣되(받을 돈은
+        맞다) 「지남·미확인」 경고에서 빼 별도 줄로 적는다.
       · assumed_paid = 예정일이 한참(규칙표 assume_paid_after_days) 지남 → 이미 받았다고
         본다. 지급 완료를 알려주는 마켓이 사실상 없어(ESM·쿠팡 날짜 null 실측) 「안 받았다」
         고 단정할 수 없기 때문이다. 총액에서 빼되 화면에 별도로 적는다(숨기지 않는다).
+        🔴 not_started 보다 **먼저** 본다 — 한참 지난 건 총액을 억 단위로 부풀리는 쪽이
+        더 위험하다(이 안전장치를 새 부류가 밀어내면 안 된다).
     """
     cat = classify(line, today=today)
     if cat in ("excluded", "risk", "paid"):
         return {"category": cat, "events": []}
     evs = payout_events(line, rules, today=today)
     limit = int(rules.get("assume_paid_after_days") or ASSUME_PAID_AFTER_DAYS)
+    confirmed = line_confirmed(line)
     for ev in evs:
         if ev["date"] is None:
             ev["bucket"] = "undated"
@@ -235,13 +267,17 @@ def resolve(line: dict, rules: dict, *, today: dt.date) -> dict:
         d = dt.date.fromisoformat(ev["date"])
         if d >= today:
             ev["bucket"] = cat
-        elif (today - d).days > limit:
+            continue
+        if (today - d).days > limit:
             ev["bucket"] = "assumed_paid"
-        else:
-            ev["bucket"] = "overdue"
-            # 왜 지났는지를 같이 들려 보낸다 — 숫자만으론 뭘 해야 할지 알 수 없다.
-            ev["reason"] = overdue_reason(line, market=line["market"])
-            ev["days_over"] = (today - d).days
+            continue
+        # 마켓이 준 날짜(real)가 지난 것만 진짜 「지남」이다. 확정 전 주문의 **추정**
+        #  날짜는 우리 규칙이 이르게 잡은 것일 뿐이라 「지남」이라 부르면 거짓말이 된다.
+        ev["bucket"] = ("overdue" if (ev["date_source"] == "real" or confirmed)
+                        else "not_started")
+        # 왜 그 자리에 있는지를 같이 들려 보낸다 — 숫자만으론 뭘 해야 할지 알 수 없다.
+        ev["reason"] = overdue_reason(line, market=line["market"])
+        ev["days_over"] = (today - d).days
     return {"category": cat, "events": evs}
 
 
@@ -259,15 +295,18 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
     """지급예정일 축 집계 — 본표(미래 확정/미확정) + 별도 줄들.
 
     🔴 사라지는 돈 0원 원칙 — 어느 부류든 kpi·extras 로 항상 노출한다.
-    total_uncollected = 미래예정 + 기한경과 + 날짜미정.
+    total_uncollected = 미래예정 + 기한경과 + 정산시작전 + 날짜미정.
       · risk(반품·취소 진행)와 assumed_paid(이미 받았을 것)는 **합산 제외**하고 따로 적는다.
+      · not_started(정산 시작 전)는 **합산에 넣는다** — 받을 돈이 맞고, 다만 「지남」이
+        아닐 뿐이다. 총액에서 빼면 자금계획이 거꾸로 쪼그라든다.
     """
     kpi = {"confirmed_future": 0, "unconfirmed_future": 0, "overdue": 0,
-           "undated": 0, "assumed_paid": 0, "risk": 0, "paid": 0,
+           "not_started": 0, "undated": 0, "assumed_paid": 0, "risk": 0, "paid": 0,
            "total_uncollected": 0}
     counts = {"real_dates": 0, "estimated_dates": 0, "undated": 0}
     buckets: dict = {}
-    extras = {"overdue": {}, "undated": {}, "assumed_paid": {}, "risk": {}}
+    extras = {"overdue": {}, "not_started": {}, "undated": {},
+              "assumed_paid": {}, "risk": {}}
     reasons: dict = {}      # 「지남」이 무엇 때문인지 — 카드 옆 한눈 요약
 
     def _acc(d, market, account, amt):
@@ -298,7 +337,7 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
             else:
                 counts["undated"] += 1
             b_name = ev["bucket"]
-            if b_name in ("overdue", "undated", "assumed_paid"):
+            if b_name in ("overdue", "not_started", "undated", "assumed_paid"):
                 kpi[b_name] += ev["amount"]
                 _acc(extras[b_name], market, account, ev["amount"])
                 if b_name == "overdue" and ev.get("reason"):
@@ -317,7 +356,7 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
             a[b_name] += ev["amount"]
             b["total"] += ev["amount"]
     kpi["total_uncollected"] = (kpi["confirmed_future"] + kpi["unconfirmed_future"]
-                                + kpi["overdue"] + kpi["undated"])
+                                + kpi["overdue"] + kpi["not_started"] + kpi["undated"])
     return {"kpi": kpi, "meta": counts, "extras": extras,
             "overdue_reasons": reasons,
             "buckets": [{"key": k, **v} for k, v in sorted(buckets.items())]}
