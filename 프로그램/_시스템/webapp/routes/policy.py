@@ -115,6 +115,7 @@ def policy_detail(pid: int):
             #     다시 고칠 길이 사라진다(껐다 켜면 살아나야 한다는 게 사장님 뜻).
             #     흐리게 + 자물쇠로 **위상만 낮춘다.**
             'enabled': set(_on_markets),
+            'market_label': dict(MARKETS).get(market, COMMON_LABEL),
             # 채움 합계 — **켠 마켓만** 센다. 셈을 템플릿에 넣으면 검사가 어려워
             #   여기서 만들어 넘긴다.
             'fill_sum': _fill_sum,
