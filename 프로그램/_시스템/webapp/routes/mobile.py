@@ -536,8 +536,9 @@ def api_action():
     }
 
     조정 (adjust):
-      - 현재 해당 위치 재고를 qty 로 맞춤
-      - delta = qty - 현재재고 → 그 delta 를 새 trans 로 기록
+      - 「실사해 보니 qty 개」 — 원장에 **센 수(절대값)** 를 그대로 적는다
+        (2026-08-13 통일. 규칙 원천 = shared/inventory_stock.py `fold_tx_rows`)
+      - 응답의 applied_qty 는 **얼마나 바뀌었나**(qty − 현재재고)
     """
     data = request.get_json(silent=True) or {}
     sku = (data.get("sku") or "").strip()
@@ -583,13 +584,18 @@ def api_action():
             tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
-            # 해당 위치의 현재 재고 — SSOT 부호 규약 (raw 합으로 계산하면 출고가
-            # 있는 SKU 에서 delta 가 틀어져 조정 결과 자체가 오염된다)
+            # 🔴 조정 = 「실사해 보니 N개」 **절대값**으로 적는다 (2026-08-13 통일).
+            #   규칙 원천 = shared/inventory_stock.py `fold_tx_rows`.
+            #   데스크탑 두 경로(inbound.create_adjustment · api_inventory_link)는
+            #   이미 절대값인데 **폰만 차이값**을 적고 있었다 → 「세어 보니 5개」가
+            #   원장엔 「4로 정함」으로 남아 재고가 4가 됐다(에러 없는 재고 손실).
+            #   화면에 보여 주는 `applied_qty` 는 그대로 **얼마나 바뀌었나**(차이)다.
             from shared.inventory_stock import get_stock_batch
             current = int(get_stock_batch(s, [sku], location_id=location_id).get(sku, 0))
-            tx_qty = int(qty) - int(current)
-            if tx_qty == 0:
+            delta = int(qty) - int(current)
+            if delta == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
+            tx_qty = int(qty)                     # 원장에는 **센 수** 그대로
             tx_memo = memo or f"[모바일 조정] {current} → {qty}"
 
         tx = InventoryTx(
@@ -615,7 +621,8 @@ def api_action():
         return _ok(
             tx_id=tx.id,
             action=action,
-            applied_qty=tx_qty,
+            # 조정은 원장에 절대값을 적지만, 화면에는 「얼마나 바뀌었나」를 보여 준다.
+            applied_qty=(delta if action == "adjust" else tx_qty),
             new_total_stock=int(new_total),
             location_name=loc.name,
             actor=actor,

@@ -108,3 +108,30 @@ def test_action_adjust_delta_from_ssot(client, seeded):
     assert j["ok"] is True, j
     assert j["applied_qty"] == 4
     assert j["new_total_stock"] == 5
+
+
+def test_폰_조정은_센_수를_그대로_원장에_적는다(client, seeded):
+    """🔴 조정 = 「실사해 보니 N개」 **절대값**으로 2026-08-13 통일됐다
+    (shared/inventory_stock.py 독스트링 · inbound.create_adjustment ·
+     api_inventory_link 셋 다 절대값). 그런데 **폰만 차이값**을 적고 있었다.
+
+    실제 피해: 사장님이 「세어 보니 5개」를 넣으면 원장엔 「4로 정함」이 남아
+    재고가 4가 된다. 에러는 안 난다 — 조용한 재고 손실.
+    """
+    from shared.db import SessionLocal
+    from lemouton.inventory.models import InventoryTx
+
+    r = client.post("/mobile/api/action", json={
+        "sku": seeded["sku"], "action": "adjust", "qty": 5,
+        "location_id": seeded["loc_id"], "memo": "실사",
+    })
+    j = r.get_json()
+    assert j["ok"] is True, j
+    with SessionLocal() as s:
+        tx = (s.query(InventoryTx)
+              .filter_by(option_canonical_sku=seeded["sku"], tx_type="adjust")
+              .order_by(InventoryTx.id.desc()).first())
+        assert tx is not None, "조정 행이 안 남았다"
+        assert tx.qty == 5, ("원장에 센 수(5)가 아니라 차이값이 적혔다: %s" % tx.qty)
+    assert j["new_total_stock"] == 5
+    assert j["applied_qty"] == 4, "화면에는 얼마나 바뀌었는지(차이)를 보여 준다"
