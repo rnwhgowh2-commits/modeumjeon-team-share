@@ -1389,11 +1389,17 @@ def refresh_settlement_coupang(*, since=None, until=None,
     # 계정별로 (주문번호,옵션ID)→상품정산액 지도를 모은다. 같은 셀러 중복은 접힌다.
     item_map: dict = {}
     date_map: dict = {}      # {orderId: {정산예정일, _settle_final_date?, _recognition_date}}
+    # 🔴 [2026-08-13] 배송비 정산 실값 {orderId: deliveryFee.settlementAmount}.
+    #   여태 받아서 **버렸다**(`imap, _deliv, dmap = ...`). 그 결과 `order_export` 를
+    #   고쳐도 **이미 저장된 주문**은 영영 옛 값(N = M + 고객배송비)이었다 —
+    #   화면·마진계산기·정산탭이 읽는 건 저장분이라, 라이브에선 고침이 안 보였다.
+    #   라이브 실측 1100194049219: 배송비정산 4,000(옛) → 3,868(실값)이 되어야 한다.
+    deliv_map: dict = {}
     hist_rows: list = []     # 지급내역 회차 — 인식일 구간으로 조인(아래 참조)
     for name, cli in _esm_settlement_clients("coupang"):
         stat["accounts"] += 1
         try:
-            imap, _deliv, dmap = _coupang_settle_map(since, until, cli)
+            imap, dvmap, dmap = _coupang_settle_map(since, until, cli)
         except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
             msg = f"[coupang·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}"
             logger.warning(msg)
@@ -1403,6 +1409,8 @@ def refresh_settlement_coupang(*, since=None, until=None,
             item_map.setdefault(k, v)             # (oid,vid) 키 — 첫 계정 우선
         for k, v in dmap.items():
             date_map.setdefault(k, v)
+        for k, v in dvmap.items():
+            deliv_map.setdefault(k, v)            # 첫 계정 우선 — item_map 과 같은 규약
         # ── 지급내역조회: 「입금됐나」를 아는 유일한 창구 ────────────────────
         #  🔴 2026-08-06 실측 — revenue-history 의 settlementDate 는 안 온다(1,820행 0건).
         #    그래서 「받을 날 지남·입금 확인 불가」가 쿠팡만 6,158만 쌓였다. 이 API 는
@@ -1463,6 +1471,7 @@ def refresh_settlement_coupang(*, since=None, until=None,
     try:
         from lemouton.markets.models_orders import MarketOrderLine
         from lemouton.markets.order_export import _finalize_rows
+        from lemouton.markets.order_export import _to_int as _oe_to_int
         lines = (session.query(MarketOrderLine)
                  .filter(MarketOrderLine.market == "coupang").all())
         for o in lines:
@@ -1499,6 +1508,19 @@ def refresh_settlement_coupang(*, since=None, until=None,
                     changed = True
                 if m["expect_date"] and row.get("정산예정일") != m["expect_date"]:
                     row["정산예정일"] = m["expect_date"]
+                    changed = True
+            # ── 배송비 정산 실값 — N열 전용(M열엔 절대 안 섞는다) ────────────
+            #  🔴 정산 실값을 아는 주문이면 `_settle_source` 와 **무관하게** 채운다
+            #    (이미 real 인 옛 저장분이 바로 고쳐야 할 대상이다 — 위 지급일과 같은
+            #     백필 성격). 없으면 손대지 않는다: 「모른다」와 「0원」은 다르다.
+            #  🔴 배송건당 1회 — 저장분은 배송건 **첫 행에만** `배송비`가 남아 있다.
+            #    배송비 0 인 행에 실값을 얹으면 다품 주문에서 줄 수만큼 더해진다.
+            dv = deliv_map.get(oid)
+            if dv is not None:
+                _carry = _oe_to_int(row.get("배송비"), 0) or 0
+                want = int(dv) if _carry else 0
+                if row.get("_ship_settle") != want:
+                    row["_ship_settle"] = want
                     changed = True
             if str(row.get("_settle_source") or "") != "real":
                 amt = item_map.get((oid, vid))
