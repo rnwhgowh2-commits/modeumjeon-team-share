@@ -1949,6 +1949,66 @@ def orders_diag_coupang_rg():
                          '없으면 로켓그로스 정산은 별도라 금액 산출 방법을 따로 정해야 함'))
 
 
+@bp.route('/diag/stale-delivered')
+def orders_diag_stale_delivered():
+    """[진단·수동실행] 「배송완료」에 굳은 옛 주문 되살리기 — 왜 안 줄어드나 눈으로.
+
+    🔴 왜 필요한가(2026-08-12) — 자동 틱을 얹은 지 4일인데 롯데온 미확정이 622→579건,
+      43건밖에 안 줄었다. 3~4월 319건(1,792만)은 그대로다. 여기서 갈리는 가설이 셋인데
+      **로그를 못 보면 어느 쪽인지 모른다**:
+        ① 우리 틱이 아예 안 돈다        ② 되조회해도 마켓이 여전히 배송완료라 답한다
+        ③ 오래된 주문이라 단건 조회에서 not_found 다
+      ②·③ 이면 「우리가 낡은 것」이 아니라 **마켓 쪽 사실**이므로 되살리기를 아무리
+      돌려도 안 줄어든다 — 그때는 다른 방법(정산 창구 조인)으로 가야 한다.
+
+    `?market=lotteon&limit=50&dry=1`
+      · `dry=1` — **마켓을 부르지 않고** 대상만 센다(월별 분포). 안전한 첫 걸음.
+      · `dry=0` — 실제로 되조회하고 전이(moves)·not_found 를 그대로 돌려준다.
+        자동 틱보다 크게 잡아 밀린 것을 한 번에 밀어낼 수도 있다.
+    """
+    from flask import jsonify
+
+    from lemouton.markets.order_ingest import (_STALE_STATUSES,
+                                               refresh_stale_delivered)
+    market = (request.args.get('market') or 'lotteon').strip()
+    try:
+        limit = max(1, min(400, int(request.args.get('limit') or 50)))
+    except ValueError:
+        limit = 50
+    min_age = int(request.args.get('min_age_days') or 30)
+    max_age = int(request.args.get('max_age_days') or 180)
+    dry = (request.args.get('dry') or '1') not in ('0', 'false', 'no')
+    if dry:
+        from shared.db import SessionLocal
+        from lemouton.markets.models_orders import MarketOrderLine as L
+        now = _dt.datetime.now(_oe.KST)
+        newest = (now - _dt.timedelta(days=min_age)).strftime('%Y-%m-%d')
+        oldest = (now - _dt.timedelta(days=max_age)).strftime('%Y-%m-%d')
+        with SessionLocal() as s:
+            rows = (s.query(L).filter(L.market == market,
+                                      L.status.in_(_STALE_STATUSES),
+                                      L.order_date >= oldest,
+                                      L.order_date <= newest).all())
+            by, tried = {}, 0
+            for o in rows:
+                k = (o.order_date or '?')[:7]
+                by[k] = by.get(k, 0) + 1
+                if (o.row or {}).get('_stalestat_tried_at'):
+                    tried += 1
+            return jsonify(ok=True, dry=True, market=market,
+                           창=f'{oldest}~{newest}', 대상건수=len(rows),
+                           월별=by, 이미시도한건수=tried,
+                           주문번호수=len({o.order_no for o in rows}),
+                           해석='이미시도한건수가 대상건수와 비슷한데 안 줄면 = 마켓이 '
+                                '여전히 배송완료라고 답하는 것(우리 문제가 아님)')
+    try:
+        rep = refresh_stale_delivered(market, min_age_days=min_age,
+                                      max_age_days=max_age, limit=limit)
+    except Exception as e:                              # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f'{type(e).__name__}: {str(e)[:300]}'), 500
+    return jsonify(ok=True, dry=False, market=market, **rep)
+
+
 @bp.route('/diag/eleven11-settle')
 def orders_diag_eleven11_settle():
     """[읽기 전용] 11번가 정산내역조회 raw — **어떤 필드가 실제로 오는지** 눈으로.
