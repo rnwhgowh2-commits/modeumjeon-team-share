@@ -158,11 +158,9 @@
       if (rowExcluded(r)) return;
       var mk = r['판매처'] || '(모름)';
       if (ESM_UNKNOWN[mk]) { esmUnknown++; return; }
-      var u = r['단가'], p = r['실결제금액'];
-      if (isBlank(u) || isBlank(p)) { blank++; return; }
-      var q = parseInt(r['수량'], 10);
-      if (!isFinite(q) || q < 1) q = 1;
-      var d = num(u) * q - num(p);
+      var g = 정가(r), p = r['실결제금액'];
+      if (g === null || isBlank(p)) { blank++; return; }
+      var d = g - num(p);
       var b = by[mk] || (by[mk] = { market: mk, sum: 0, count: 0, top: [],
                                     seller: 0, mkt: 0, known: 0, kinds: {} });
       b.sum += d; b.count++; total += d;
@@ -214,16 +212,28 @@
    *     할인 차감 **전**이라 여기서 따로 더해 줬는데, 그 줄을 지우지 않으면
    *     쿠팡 할인이 정확히 두 배로 잡힌다. 지웠다 — 되살리지 말 것.
    *  🔴 이제 쿠팡도 매출에서 쿠폰이 빠지므로 주문금액 − 할인 = 매출 이 전 마켓 성립한다. */
+  /** 할인을 재는 「정가」 = 총주문금액(단가×수량 + **옵션추가금**).
+   *  🔴 2026-08-12 — 옛 코드는 `단가×수량` 만 봐서 옵션가를 통째로 빼먹었다.
+   *     실결제엔 옵션가가 들어 있으므로 할인이 **음수**로 나왔다(라이브 스스 81행 중 16행).
+   *     총주문금액이 없으면(옛 저장분) 단가×수량+옵션추가금으로 직접 만든다.
+   *     그마저 못 만들면 null — 지어내지 않고 「모르는 건수」로 센다. */
+  function 정가(r) {
+    r = r || {};
+    if (!isBlank(r['총주문금액'])) return num(r['총주문금액']);
+    if (isBlank(r['단가'])) return null;
+    var q = parseInt(r['수량'], 10);
+    if (!isFinite(q) || q < 1) q = 1;
+    return num(r['단가']) * q + (isBlank(r['옵션추가금']) ? 0 : num(r['옵션추가금']));
+  }
+
   function discountSummary(rows) {
     var sum = 0, counted = 0, blank = 0, esmUnknown = 0;
     (rows || []).forEach(function (r) {
       if (rowExcluded(r)) return;
       if (ESM_UNKNOWN[(r || {})['판매처']]) { esmUnknown++; return; }
-      var u = (r || {})['단가'], p = (r || {})['실결제금액'];
-      if (isBlank(u) || isBlank(p)) { blank++; return; }   // 둘 중 하나만 없어도 못 센다
-      var q = parseInt((r || {})['수량'], 10);
-      if (!isFinite(q) || q < 1) q = 1;
-      sum += num(u) * q - num(p);
+      var g = 정가(r), p = (r || {})['실결제금액'];
+      if (g === null || isBlank(p)) { blank++; return; }   // 둘 중 하나만 없어도 못 센다
+      sum += g - num(p);
       counted++;
     });
     return { sum: sum, counted: counted, blank: blank, esmUnknown: esmUnknown };

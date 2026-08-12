@@ -1328,24 +1328,31 @@ def api_suspend_eleven11():
 #:    거부됐다. 저널 손복구도 거부. **되돌릴 수 없는 변경이 남았다.**
 #:    처음엔 상품명·브랜드가 방아쇠라고 봤는데, 가격 한 축만 보낸 G마켓도 같아서
 #:    **PUT 자체가 원인**임이 드러났다. 원인 규명 전까지 전송을 막는다(조회는 계속 된다).
-_ESM_BLOCKED = ("옥션·G마켓 왕복은 사고로 막아 뒀습니다 — 상품수정 전송이 **재심사**를 "
-                "유발해 상품이 잠기고, 원복도 손복구도 거부됩니다(2026-08-07 실측 2건). "
-                "조회(roundtrip-probe)는 계속 됩니다.")
+#: 🟢 [2026-08-12 해소] 원인은 마켓이 아니라 **어느 API 를 쓰느냐**였다.
+#:    전체 상품수정 PUT(esm.20)이 재심사를 부른 것이고, 가격·재고 **전용 API**
+#:    (esm.186 / esm.26)로 보내면 브랜드 상품도 멀쩡히 왕복한다 — 라이브 실측:
+#:      · 옥션  6495431339  59,300→59,400→59,300 · 재고 10→11→10  (잠김 없음)
+#:      · G마켓 6495432102  35,300→35,400→35,300 · 재고 10→11→10  (잠김 없음)
+#:    그래서 차단을 **마켓 단위에서 축 단위로** 좁힌다. 아직 막는 건 아래 3축뿐이다.
+_ESM_HEAVY_AXES = ("name", "detail_html", "image_urls")
+_ESM_HEAVY_BLOCKED = (
+    "옥션·G마켓의 상품명·상세·이미지 왕복은 아직 막혀 있습니다 — 이 3축은 전용 API 가 "
+    "없어 **전체 상품수정 PUT** 뿐인데, 그 전송 자체가 재심사를 유발해 상품이 잠기고 "
+    "원복도 손복구도 거부됩니다(2026-08-07 실측 2건). "
+    "가격·재고는 전용 API 라 정상 왕복합니다(2026-08-12 실측).")
 
-#: **전송**이 허용된 마켓. 옥션·G마켓은 사고로 빠져 있다.
+#: **전송**이 허용된 마켓.
 #: 🟢 11번가 — 가격·재고 **전용 API 가 이미 우리 코드에 있었다**(2026-08-08).
 #:    「지도에 없다」던 건 상품수정(5축) 얘기고, 가격·재고는 별도 엔드포인트다.
-ROUNDTRIP_MARKETS = ("smartstore", "coupang", "lotteon", "eleven11")
+ROUNDTRIP_MARKETS = ("smartstore", "coupang", "lotteon", "eleven11",
+                     "auction", "gmarket")
 
 #: **조회**가 허용된 마켓 — 마켓에 아무것도 안 쓰므로 차단과 무관하게 열어 둔다.
 #: 🔴 차단을 조회에까지 걸었더니 원인 진단조차 못 했다(2026-08-07).
-ROUNDTRIP_READ_MARKETS = ROUNDTRIP_MARKETS + ("auction", "gmarket")
+ROUNDTRIP_READ_MARKETS = ROUNDTRIP_MARKETS
 
 #: 아직 못 붙인 마켓 — **없는 것을 있는 척 하지 않는다.** 거부할 때 이유를 그대로 말한다.
-ROUNDTRIP_NOT_YET = {
-    "auction": _ESM_BLOCKED,
-    "gmarket": _ESM_BLOCKED,
-}
+ROUNDTRIP_NOT_YET: dict[str, str] = {}
 
 
 def _roundtrip_client(market: str, env_prefix):
@@ -1569,6 +1576,15 @@ def api_roundtrip():
             market, f"{market} 은 아직 왕복 시험을 지원하지 않아요."))
     if not raw_no:
         return _refuse("상품번호(origin_product_no)가 필요해요.")
+
+    # 🔴 옥션·G마켓은 **축 단위**로 막는다 — 가격·재고(전용 API)는 열려 있고,
+    #    전체 상품수정 PUT 뿐인 3축만 계속 막는다. 요청 축을 안 주면 5축 전부라
+    #    이때도 막아야 한다(기본값이 위험 쪽으로 열리면 안 된다).
+    if market in ("auction", "gmarket") and not unblocked:
+        want = tuple(p.get("axes") or ()) or _ESM_HEAVY_AXES
+        hit = [a for a in _ESM_HEAVY_AXES if a in want]
+        if hit:
+            return _refuse(_ESM_HEAVY_BLOCKED, 막힌축=hit)
 
     # ── 2중 잠금 ────────────────────────────────────────────────────────────
     armed_req = str(p.get("arm") or "") == "1"
