@@ -36,7 +36,8 @@ _UNWRITABLE = ("name", "detail_html", "image_urls")
 #: 못 찾으면 확인불가. **지어낸 값을 쓰지 않는다.**
 _DETAIL_KEYS = ("pdDtlDesc", "pdDtlCntn", "dtlDesc", "detailContent", "pdDtlHtml")
 _IMAGE_LIST_KEYS = ("imgLst", "pdImgLst", "images")
-_IMAGE_URL_KEYS = ("imgUrl", "url", "imgPathNm", "imgNm")
+#: 🔴 실측 확정(2026-08-12) — 실제 열쇠는 `origImgFileNm` 이다. 나머지는 추측 후보였다.
+_IMAGE_URL_KEYS = ("origImgFileNm", "imgUrl", "url", "imgPathNm", "imgNm")
 
 
 def _pick(d: dict, keys):
@@ -48,18 +49,36 @@ def _pick(d: dict, keys):
 
 
 def _images_of(detail: dict):
+    """이미지 목록. 없으면 None(확인불가) — 빈 튜플로 「사진 없음」을 지어내지 않는다.
+
+    🔴 [2026-08-12 라이브] 이미지는 **단품(itm) 안**에 있다:
+           itmLst[].itmImgLst[].origImgFileNm
+       그런데 상품 최상위에서 `imgLst`/`pdImgLst`/`images` 를 찾고 있었고, 그런 열쇠가
+       없으니 「이 마켓은 이미지를 안 준다」로 굳어 있었다. 상세조회는 필드를 150개나
+       주는데 우리가 안 본 것이다 — 「마켓이 안 준다」고 적기 전에 열쇠를 전수로 본다.
+    """
     node = _pick(detail, _IMAGE_LIST_KEYS)
+    if not isinstance(node, list) or not node:
+        # 단품 안을 본다. 대표 단품(첫 행)의 이미지가 그 상품의 사진이다.
+        for itm in (detail.get("itmLst") or []):
+            if isinstance(itm, dict) and itm.get("itmImgLst"):
+                node = itm["itmImgLst"]
+                break
     if not isinstance(node, list) or not node:
         return None
     out = []
     for it in node:
         if isinstance(it, str) and it.strip():
-            out.append(it.strip())
+            out.append((False, it.strip()))
         elif isinstance(it, dict):
             u = _pick(it, _IMAGE_URL_KEYS)
             if u:
-                out.append(str(u).strip())
-    return tuple(out) or None
+                # 대표(rprtImgYn='Y')를 맨 앞으로 — 순서가 뒤바뀌면 원복했는데
+                # 대표 사진이 달라진다.
+                rep = str(it.get("rprtImgYn") or "").upper() == "Y"
+                out.append((rep, str(u).strip()))
+    out.sort(key=lambda x: not x[0])
+    return tuple(u for _, u in out) or None
 
 
 @dataclass

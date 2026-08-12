@@ -169909,32 +169909,42 @@
     "상품 수정"
    ],
    "category": "재고",
-   "nm": "옵션 재고수량 변경(재고번호 단위)",
+   "nm": "상품 재고수량 변경처리",
    "dir": "send",
    "st": "ok",
-   "endpoint": "PUT https://api.11st.co.kr/rest/prodservices/stockqty/{prdStckNo}",
+   "endpoint": "PUT http://api.11st.co.kr/rest/prodservices/stockqty/{prdStckNo}",
    "req": {
     "method": "PUT",
-    "protocol": "https",
-    "url": "https://api.11st.co.kr/rest/prodservices/stockqty/[prdStckNo]",
+    "protocol": "http",
+    "url": "http://api.11st.co.kr/rest/prodservices/stockqty/[prdStckNo]",
     "params": [
      {
       "name": "경로.prdStckNo",
-      "desc": "옵션 재고번호 · string [필수] · stocks 조회가 주는 값",
-      "example": "1"
+      "desc": "재고번호 · String [필수]",
+      "example": "440634790"
      },
      {
       "name": "본문.prdNo",
-      "desc": "상품번호 · string [필수]",
-      "example": "9532353519"
+      "desc": "상품번호 · String [필수]",
+      "example": "47965658"
+     },
+     {
+      "name": "본문.prdStckNo",
+      "desc": "재고번호 · String [필수] · 경로와 같은 값",
+      "example": "440634790"
      },
      {
       "name": "본문.stckQty",
-      "desc": "바꿀 재고수량 · int [필수]",
-      "example": "10"
+      "desc": "재고수량 · String [필수]",
+      "example": "99"
+     },
+     {
+      "name": "본문.optWght",
+      "desc": "상품무게 · String [필수] · 그대로 되돌려 보낸다",
+      "example": "3"
      }
     ],
-    "description": "옵션 하나의 재고수량만 바꾼다. 재고번호는 다중 상품 재고 정보 조회(eleven11.40)로 얻는다."
+    "description": "재고번호 단위로 옵션 하나의 재고수량만 바꾼다. 재고번호는 재고정보 조회(eleven11.40 / eleven11.906)로 얻는다."
    },
    "res": {
     "fields_count": 3,
@@ -169943,27 +169953,415 @@
    },
    "fields": [
     {
-     "key": "resultCode",
-     "meaning": "결과코드",
-     "example": "200"
+     "key": "productNo",
+     "meaning": "상품재고번호",
+     "example": "434450294"
     },
     {
-     "key": "resultMessage",
+     "key": "message",
      "meaning": "결과내용",
-     "example": "옵션재고 번호 1,2(상품번호:9532353519)의 수량 업데이트 실패."
+     "example": "옵션재고 번호 434450294(상품번호:47965658)의 수량이 업데이트 되었습니다. 변경된 수량 : 99"
+    },
+    {
+     "key": "resultCode",
+     "meaning": "결과코드 · 200=성공 / 400=잘못된 요청 / 404=해당 상품·재고번호 없음 / 500=비지니스 Error / -1000=서버 점검중",
+     "example": "200"
     }
    ],
    "success": "resultCode==200",
    "idTraps": [
-    "🔴 열쇠는 **prdStckNo(재고번호)** 다. sellerStockCd(판매자 관리코드)나 mixOptNo 로 대신 채우면 「옵션재고 번호 1,2(상품번호:…)의 수량 업데이트 실패」로 거부된다 — 실패 문구가 **수량 얘기를 해서** 수량 문제로 오진하기 쉽다(2026-08-12 라이브 2회 실측, prd=9532353519). prdStckNo 는 eleven11.40 응답의 <prdStckNo> 다.",
-    "🔴 **상품무게(optWght)를 그대로 되돌려 보내야** 한다 — 빼면 무게가 지워진다(echo-back).",
-    "🔴 **옵션 전체교체 API(update_stock)를 쓰면 안 된다** — 한 옵션만 보내면 형제 옵션이 지워진다. 그래서 우리 코드의 update_stock 은 일부러 NotImplementedError 를 낸다."
+    "🔴🔴 열쇠는 **prdStckNo(재고번호)** 다. 조회 응답의 `mixOptNo`(옵션번호)나 `sellerStockCd`(셀러재고번호)를 넣으면 안 된다. 실측(2026-08-12 prd=9532353519)에서 mixOptNo 값 `1,2` 를 넣어 두 번 거부당했다 — 실패 문구가 「옵션재고 번호 1,2(상품번호:…)의 **수량** 업데이트 실패」라 **수량 문제로 오진하기 쉽다**. 실제 prdStckNo 는 `9053248`·`440634790` 처럼 큰 단일 숫자다.",
+    "🔴 `optWght`(상품무게)도 **필수**다. 조회값을 그대로 되돌려 보낸다 — 빼면 무게가 바뀐다.",
+    "🔴 추가구성상품의 재고는 이 API 로 조회도 변경도 **안 된다**(문서 명시).",
+    "⚠️ [2026-08-12 오보 정정] 이 문서엔 **재고 상한이 없다**. 예전에 여기 「상한 9,999」라고 적었던 건 위 식별자 오진 때 지어낸 추측이었다 — 문서 예제 재고는 500·62·99 이고 상한 언급이 없다. 근거 없는 제약을 지도에 적으면 되는 것도 안 하게 된다."
    ],
    "persistIds": [
     "prdStckNo",
     "optWght"
    ],
    "codeRef": "shared/platforms/eleven11/inventory.py:update_stock_by_stock_no",
+   "docApiNo": ""
+  },
+  {
+   "id": "eleven11.902",
+   "market": "eleven11",
+   "fnKey": "eleven11:902",
+   "tabs": [
+    "상품 수정"
+   ],
+   "category": "상품",
+   "nm": "상품수정/신규상품수정",
+   "dir": "send",
+   "st": "code",
+   "endpoint": "PUT http://api.11st.co.kr/rest/prodservices/product/{prdNo}",
+   "req": {
+    "method": "PUT",
+    "protocol": "http",
+    "url": "http://api.11st.co.kr/rest/prodservices/product/[prdNo]",
+    "headers": [
+     {
+      "name": "openapikey",
+      "desc": "셀러오피스 발급 OPENAPI KEY · HttpHeaders 에 필수"
+     }
+    ],
+    "params": [
+     {
+      "name": "경로.prdNo",
+      "desc": "상품번호 · String [필수]",
+      "example": "9532353519"
+     },
+     {
+      "name": "본문.prdNm",
+      "desc": "상품명 · String [필수] · 100자 · 특수문자는 CDATA",
+      "example": ""
+     },
+     {
+      "name": "본문.htmlDetail",
+      "desc": "상세설명 · String [필수] · html 은 CDATA 로 묶는다 · iframe 가능 · 외부링크 제한",
+      "example": ""
+     },
+     {
+      "name": "본문.prdImage01",
+      "desc": "대표 이미지 URL · String [필수] · 11번가가 내려받아 600x600 리사이즈 · jpg/jpeg/png/webp · 원본 Content-Type 없으면 실패",
+      "example": ""
+     },
+     {
+      "name": "본문.prdImage02~04",
+      "desc": "추가 이미지 1~3 URL · String [선택] · 지우려면 빈 element 로",
+      "example": ""
+     },
+     {
+      "name": "본문.prdImage09",
+      "desc": "카드뷰 이미지2 · String [선택] · 2:1 비율",
+      "example": ""
+     },
+     {
+      "name": "본문.selPrc",
+      "desc": "판매가 · String [필수] · 10원 단위 · 10억 미만 · 수정 시 최대 +50%/-80%",
+      "example": ""
+     },
+     {
+      "name": "본문.originDispCtgrNo",
+      "desc": "카테고리 번호 수정 · [필수] · 🔴 값이 1이면 카테고리 수정이 수행된다",
+      "example": ""
+     },
+     {
+      "name": "본문.optUpdateYn",
+      "desc": "옵션 수정여부 · [선택] · 생략 시 N(옵션 미수정). Y 면 전체 상품 수정으로 처리",
+      "example": "N"
+     },
+     {
+      "name": "본문.cuponcheck",
+      "desc": "기본즉시할인 · S=기존값 유지(상품수정 전용)",
+      "example": "S"
+     },
+     {
+      "name": "본문(그 외)",
+      "desc": "selMthdCd·dispCtgrNo·prdTypCd·hsCode·brand·rmaterialTypCd·suplDtyfrPrdClfCd·yearEndTaxYn·forAbrdBuyClf·minorSelCnYn·ProductCertGroup·dlvCnAreaCd·dlvWyCd·dlvEtprsCd·dlvSendCloseTmpltNo·dlvCstInstBasiCd·addrSeqOut·addrSeqIn·rtngdDlvCst·exchDlvCst·asDetail·rtngExchDetail·dlvClf·prdWght·ntShortNm·ProductNotification 등 **필수 30여 개**",
+      "example": ""
+     }
+    ],
+    "description": "등록된 상품을 수정한다. 요청/응답 모두 XML, 본문 인코딩 EUC-KR. 등록(POST)과 달리 **PUT** 이다."
+   },
+   "res": {
+    "fields_count": 3,
+    "sample": "<?xml version=\"1.0\" encoding=\"euc-kr\" standalone=\"yes\"?><ClientMessage><message>…</message><productNo>52844137</productNo><resultCode>200</resultCode></ClientMessage>",
+    "errorResponse_fields": 2
+   },
+   "fields": [
+    {
+     "key": "message",
+     "meaning": "결과 메시지 · 에러는 전부 메시지로 온다",
+     "example": "상품등록이 정상적으로 진행 되었습니다."
+    },
+    {
+     "key": "productNo",
+     "meaning": "상품번호",
+     "example": "52844137"
+    },
+    {
+     "key": "resultCode",
+     "meaning": "결과코드 · 200=일반상품 성공 / 210=신규상품 성공 / 500=에러",
+     "example": "200"
+    }
+   ],
+   "success": "resultCode in (200,210). 🔴 HTTP 200 이어도 resultCode·message 를 반드시 본다.",
+   "idTraps": [
+    "🔴🔴 **전체 교체다.** 문서 원문: 「상품수정은 기존에 등록된 상품위에 수정될 데이터를 덮어쓰는 형태입니다. **기존 데이터는 사라지고 수정되는 정보로 교체됩니다.**」 → 상품명 한 줄을 바꾸려 해도 필수 30여 개를 전부 정확히 되돌려 보내야 하고, 하나라도 빠지면 **그 값이 지워진다**. 부분 수정이라고 생각하고 쓰면 상품이 망가진다.",
+    "🔴 **PUT 이다.** 등록은 POST — Method 를 그대로 쓰면 새 상품이 생긴다.",
+    "🔴 `originDispCtgrNo` 는 값이 1이면 **카테고리가 수정된다**. 등록 시엔 이 요소를 아예 넣지 않아야 한다. 신규상품은 카테고리 수정 불가.",
+    "🔴 `optUpdateYn` 생략 시 기본 N(옵션 미수정). Y 로 보내면 **전체 상품 수정**으로 처리돼 무거워진다.",
+    "🔴 `cuponcheck=S`(기존값 유지)는 **상품수정에서만** 쓸 수 있다 — 즉시할인을 건드리지 않으려면 이 값이어야 한다.",
+    "🔴 `addrSeqOut`/`addrSeqIn`(출고지·반품지)을 생략하면 **수정 당시의 기본주소로 재설정**된다. 문서가 코드 입력을 권장한다.",
+    "🔴 판매가는 수정 시 **최대 +50% 인상 / -80% 인하**까지만 된다. 왕복 시험의 +100원은 안전한 범위.",
+    "🔴 이미지는 URL 을 주면 11번가가 **내려받아** 600x600 으로 리사이즈한다. 원본 응답에 Content-Type 이 없으면 조용히 실패한다.",
+    "🎯 상세설명·옵션·가격은 **전용 수정 API 가 따로 있다**(「상품상세설명 수정」·「상품 옵션 수정」·「상품가격/즉시할인 수정」). 전체 교체 위험을 피하려면 그쪽을 쓴다."
+   ],
+   "persistIds": [
+    "prdNo",
+    "dispCtgrNo",
+    "addrSeqOut",
+    "addrSeqIn",
+    "dlvSendCloseTmpltNo"
+   ],
+   "codeRef": "",
+   "docApiNo": ""
+  },
+  {
+   "id": "eleven11.903",
+   "market": "eleven11",
+   "fnKey": "eleven11:903",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "상품상세 설명 조회",
+   "dir": "send",
+   "st": "ok",
+   "endpoint": "GET http://api.11st.co.kr/rest/prodservices/getProductDetailCont/{prdNo}",
+   "req": {
+    "method": "GET",
+    "protocol": "http",
+    "url": "http://api.11st.co.kr/rest/prodservices/getProductDetailCont/[prdNo]",
+    "params": [
+     {
+      "name": "경로.prdNo",
+      "desc": "상품번호 · String [필수]",
+      "example": "9532353519"
+     }
+    ],
+    "description": "상품상세 설명(HTML)을 조회한다. 요청 본문 없음."
+   },
+   "res": {
+    "fields_count": 1,
+    "sample": "<?xml version=\"1.0\" encoding=\"euc-kr\" standalone=\"yes\"?><ProductDetailCont><prdDescContClob>컨텐츠 수정</prdDescContClob></ProductDetailCont>",
+    "errorResponse_fields": 1
+   },
+   "fields": [
+    {
+     "key": "prdDescContClob",
+     "meaning": "상품상세 컨텐츠(HTML) · String [필수]",
+     "example": "컨텐츠 수정"
+    }
+   ],
+   "success": "<ProductDetailCont><prdDescContClob> 가 온다. 에러는 <Products><message> 로 온다.",
+   "idTraps": [
+    "🎯 상세는 **전용 조회 API 가 따로 있다**. 상품조회(prodmarket)엔 안 실려 온다 — 거기 없다고 「이 마켓은 상세를 안 준다」로 단정하면 안 된다.",
+    "🔴 성공/실패 봉투가 다르다 — 성공은 `ProductDetailCont`, 에러는 `Products><message`. 봉투 이름으로 갈라야 한다."
+   ],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": ""
+  },
+  {
+   "id": "eleven11.904",
+   "market": "eleven11",
+   "fnKey": "eleven11:904",
+   "tabs": [
+    "상품 수정"
+   ],
+   "category": "상품",
+   "nm": "상품상세 설명 수정",
+   "dir": "send",
+   "st": "ok",
+   "endpoint": "POST http://api.11st.co.kr/rest/prodservices/updateProductDetailCont/{prdNo}",
+   "req": {
+    "method": "POST",
+    "protocol": "http",
+    "url": "http://api.11st.co.kr/rest/prodservices/updateProductDetailCont/[prdNo]",
+    "params": [
+     {
+      "name": "경로.prdNo",
+      "desc": "상품번호 · String [필수]",
+      "example": "9532353519"
+     },
+     {
+      "name": "본문.prdDescContClob",
+      "desc": "상품상세 컨텐츠 내용 · String [필수] · ProductDetailCont 봉투 안",
+      "example": "<p>내용</p>"
+     }
+    ],
+    "description": "상세설명만 바꾼다. 본문 XML: <ProductDetailCont><prdDescContClob>…</prdDescContClob></ProductDetailCont>"
+   },
+   "res": {
+    "fields_count": 1,
+    "sample": "<?xml version=\"1.0\" encoding=\"euc-kr\" standalone=\"yes\"?><Product/>",
+    "errorResponse_fields": 1
+   },
+   "fields": [
+    {
+     "key": "message",
+     "meaning": "결과내용",
+     "example": ""
+    }
+   ],
+   "success": "🔴 성공 응답이 빈 <Product/> 다 — 결과코드가 없다. 보냈다고 믿지 말고 **조회(eleven11.903)로 되읽어** 확인해야 한다.",
+   "idTraps": [
+    "🎯 이걸 쓰면 상품수정(eleven11.902)의 **전체 교체 위험을 피한다**. 상세 한 축만 바꿀 땐 반드시 이쪽.",
+    "🔴🔴 **성공 응답이 빈 `<Product/>`** — resultCode 도 message 도 없다. 성공 판정 근거가 응답에 없으므로 **되읽기가 유일한 검증 수단**이다.",
+    "🔴 등록·수정 다른 API 는 POST/PUT 이 갈리는데 이건 **POST** 다(조회는 GET)."
+   ],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": ""
+  },
+  {
+   "id": "eleven11.905",
+   "market": "eleven11",
+   "fnKey": "eleven11:905",
+   "tabs": [
+    "상품 수정"
+   ],
+   "category": "상품",
+   "nm": "옵션 수정 / 표준옵션 수정",
+   "dir": "send",
+   "st": "code",
+   "endpoint": "POST http://api.11st.co.kr/rest/prodservices/updateProductOption/{prdNo}",
+   "req": {
+    "method": "POST",
+    "protocol": "http",
+    "url": "http://api.11st.co.kr/rest/prodservices/updateProductOption/[prdNo]",
+    "params": [
+     {
+      "name": "경로.prdNo",
+      "desc": "상품번호 · String [필수]",
+      "example": ""
+     },
+     {
+      "name": "본문.ProductOption[]",
+      "desc": "옵션 목록 · useYn(Y=사용/N=품절) · colOptPrice(옵션가) · colValue0(옵션값) · colCount(재고) · colSellerStockCd(셀러재고번호)",
+      "example": ""
+     },
+     {
+      "name": "본문.ProductOptionExt[]",
+      "desc": "멀티옵션 · colOptCount(조합옵션 재고) · optWght · optionMappingKey",
+      "example": ""
+     },
+     {
+      "name": "본문.optionAllQty / optionAllAddPrc / optionAllAddWght",
+      "desc": "멀티옵션 **일괄** 재고·옵션가·무게. 멀티옵션은 옵션별 개별 설정이 API 로 불가",
+      "example": ""
+     }
+    ],
+    "description": "옵션/표준옵션을 수정한다. 옵션 목록을 통째로 보낸다."
+   },
+   "res": {
+    "fields_count": 0,
+    "sample": "",
+    "errorResponse_fields": 1
+   },
+   "fields": [
+    {
+     "key": "message",
+     "meaning": "결과내용",
+     "example": "OpenAPI Key 에 해당하는 유저가 없습니다."
+    }
+   ],
+   "success": "응답 스펙이 사실상 비어 있다 — 되읽기로만 확인 가능",
+   "idTraps": [
+    "🔴🔴 **옵션 목록을 통째로 보낸다.** 한 옵션만 실어 보내면 나머지 옵션이 지워진다. 재고 하나만 바꿀 땐 이걸 쓰지 말고 **재고수량 변경(eleven11.901)** 을 쓴다 — 그래서 우리 코드의 update_stock 은 일부러 NotImplementedError 를 낸다.",
+    "🔴 멀티옵션은 **옵션별 재고·옵션가 설정이 API 로 불가**하다(일괄만 가능). 옵션가는 0원만 입력 가능.",
+    "🔴 옵션가는 기본 판매가의 +100%/-50% 범위. 옵션가 0원인 옵션이 **반드시 1개 이상** 있어야 한다.",
+    "🔴 옵션값에 `' \" % & < > # †` 는 못 쓴다."
+   ],
+   "persistIds": [
+    "colSellerStockCd",
+    "optionMappingKey"
+   ],
+   "codeRef": "",
+   "docApiNo": ""
+  },
+  {
+   "id": "eleven11.906",
+   "market": "eleven11",
+   "fnKey": "eleven11:906",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "재고",
+   "nm": "상품 재고정보 조회(단건)",
+   "dir": "send",
+   "st": "ok",
+   "endpoint": "GET http://api.11st.co.kr/rest/prodmarketservice/prodmarket/stck/{prdNo}",
+   "req": {
+    "method": "GET",
+    "protocol": "http",
+    "url": "http://api.11st.co.kr/rest/prodmarketservice/prodmarket/stck/[prdNo]",
+    "params": [
+     {
+      "name": "경로.prdNo",
+      "desc": "상품번호 · String [필수]",
+      "example": "45597077"
+     }
+    ],
+    "description": "상품 하나의 재고정보를 조회한다. 다중조회(eleven11.40, POST)보다 가볍다."
+   },
+   "res": {
+    "fields_count": 13,
+    "sample": "",
+    "errorResponse_fields": 0
+   },
+   "fields": [
+    {
+     "key": "prdStckNo",
+     "meaning": "🎯 재고번호 — **재고수량 변경의 열쇠**",
+     "example": "440634790"
+    },
+    {
+     "key": "stckQty",
+     "meaning": "재고수량",
+     "example": "62"
+    },
+    {
+     "key": "selQty",
+     "meaning": "판매수량",
+     "example": "39"
+    },
+    {
+     "key": "optWght",
+     "meaning": "추가무게 — 재고 변경 시 되돌려 보내야 함",
+     "example": "3"
+    },
+    {
+     "key": "prdStckStatCd",
+     "meaning": "재고상태 · 01=사용 / 02=품절",
+     "example": "01"
+    },
+    {
+     "key": "mixOptNo",
+     "meaning": "⚠️ 옵션번호 — 재고번호가 **아니다**. 예: '1,2'",
+     "example": "1,2"
+    },
+    {
+     "key": "sellerStockCd",
+     "meaning": "셀러재고번호 — 재고번호가 **아니다**",
+     "example": "CD01101"
+    },
+    {
+     "key": "mixOptNm",
+     "meaning": "옵션명",
+     "example": "사이즈,색상"
+    },
+    {
+     "key": "mixDtlOptNm",
+     "meaning": "상세옵션명",
+     "example": "one,와인"
+    },
+    {
+     "key": "addPrc",
+     "meaning": "옵션가격",
+     "example": "0"
+    }
+   ],
+   "success": "ns2:ProductStocks 안에 ProductStock 이 온다",
+   "idTraps": [
+    "🔴 한 응답에 **재고번호처럼 보이는 값이 셋**이다 — prdStckNo(진짜) · mixOptNo(옵션번호) · sellerStockCd(셀러코드). 재고 변경엔 **prdStckNo 뿐**이고, 나머지를 쓰면 「수량 업데이트 실패」로 오진을 부른다(2026-08-12 실측).",
+    "🔴 응답에 네임스페이스 접두사 `ns2:` 가 붙는다 — 로컬명으로 벗겨 읽는다."
+   ],
+   "persistIds": [
+    "prdStckNo"
+   ],
+   "codeRef": "shared/platforms/eleven11/stocks_query.py",
    "docApiNo": ""
   }
  ],
