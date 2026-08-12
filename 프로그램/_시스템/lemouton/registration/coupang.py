@@ -47,10 +47,16 @@ def _build_payload(*, bundle, options, sale_price: int, inputs: CoupangRegistrat
         if not o.market_visible_coupang:
             continue
         item_name = f"{o.color_code}-{o.size_code}"
+        # 🔴 [2026-08-13 사장님 확정] 정상가 = 할인가. 종전엔 정상가에 판매가를,
+        #   할인가에 옵션별 쿠팡 가격을 넣어, 옵션가가 더 싸면 쿠팡 화면에
+        #   **우리가 준 적 없는 할인(취소선)**이 붙었다.
+        #   ★ 대량등록 경로(registration/options.py::build_coupang_items)는 이미
+        #     둘을 같게 내보낸다 — 여기를 맞춰 한 벌로 만든다(원천 분열 해소).
+        _price = int(o.option_coupang_price_override or sale_price)
         items.append({
             "itemName": item_name,
-            "originalPrice": int(sale_price),
-            "salePrice": int(o.option_coupang_price_override or sale_price),
+            "originalPrice": _price,
+            "salePrice": _price,
             "maximumBuyCount": "0",
             "maximumBuyForPerson": "0",
             "outboundShippingTimeDay": "1",
