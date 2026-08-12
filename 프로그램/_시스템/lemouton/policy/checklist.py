@@ -221,6 +221,128 @@ def build(columns_file: str = "dev_checklist_columns.json",
     return {"columns": cols, "rows": rows, "cells": cells, "drift": banners}
 
 
+# ══════════════════════════════════════════════════════════════════════════
+#  소싱처판 — 근거표(required.py)가 없다. 자동으로 아는 것은 「크롤러가 있나」 하나뿐.
+# ══════════════════════════════════════════════════════════════════════════
+
+#: 소싱처 8곳. 이름은 `source_registry.SOURCES`(빌트인 6) + 크롤 가이드(현대H몰·롯데아이몰).
+#:
+#: 🔴 `lotteon` 을 「롯데홈쇼핑」이라 적으면 안 된다. `accounts.py` 의 소싱처 씨앗 목록만
+#:   그렇게 적혀 있는데, 같은 파일의 `SOURCING_SITES` 는 `lotteon`=롯데온(lotteon.com) ·
+#:   `lotteimall`=롯데홈쇼핑(lottehomeshopping.com) 으로 가른다.
+#:   `_detect_site_from_url` 도 `lotteon.com`→lotteon / `lotteimall.com`→lotteimall 이다.
+#:   여기서 「롯데홈쇼핑」을 쓰면 바로 아래 `lotteimall` 줄과 이름이 겹쳐 어느 줄인지 못 가린다.
+SOURCES = [("lemouton", "르무통 공홈"), ("ss_lemouton", "스마트스토어 르무통"),
+           ("musinsa", "무신사"), ("ssf", "SSF샵"), ("lotteon", "롯데온"),
+           ("ssg", "SSG"), ("hmall", "현대H몰"), ("lotteimall", "롯데아이몰")]
+
+_SOURCING_COLUMNS = "dev_checklist_sourcing.json"
+_SOURCING_MARKS = "dev_checklist_sourcing_marks.json"
+
+#: 소싱처엔 「마켓 문서가 요구하는가」에 해당하는 근거표가 없다 — 그 사실을 그대로 적는다.
+#: 🔴 「해당없음」으로 지어내지 않는다. 화면은 required=='unknown' 일 때만
+#:   「없다는 뜻이 아니라 모른다는 뜻입니다」를 띄운다.
+_SOURCING_NO_EVIDENCE = ("소싱처엔 마켓 등록 근거표(required.py) 같은 것이 없습니다 — "
+                         "이 판은 손보정으로 채웁니다")
+_HAS_CRAWLER_NOTE = "크롤러가 등록돼 있습니다 — 값을 읽어 오는 데까지는 됩니다"
+_NO_CRAWLER_NOTE = "이 소싱처의 크롤러가 아직 없습니다"
+
+
+def _crawler_registered(source_key: str) -> bool:
+    """그 소싱처의 크롤러가 실제로 등록돼 있나. 없으면 아무것도 시작 안 된 것.
+
+    🔴 못 알아보면 False 가 아니라 **모른다**로 다뤄야 하지만, 지금은 등록 여부만 본다.
+      그래서 import·호출 실패를 **삼키지 않는다**. 삼켜서 False 로 떨어뜨리면 8소싱처
+      184칸이 전부 ⬜미착수로 뒤집히는데 화면엔 아무 이유도 안 뜬다 —
+      「크롤러가 없다」와 「확인을 못 했다」는 다른 사실이다.
+      터뜨려서 호출자(`build_sourcing`)가 배너로 말하게 한다.
+    """
+    from lemouton.sourcing.crawlers import build_crawlers
+    return source_key in (build_crawlers() or {})
+
+
+def _sourcing_drift(marks: dict, cols: list, known: dict) -> list[str]:
+    """소싱처 손보정이 표와 어긋나면 사람 말로 돌려준다.
+
+    판매처 `drift` 처럼 `cell_state` 에 판정을 맡길 수 없다(근거표가 없어 판정 축이 다르다).
+    그래도 **키가 표를 못 가리키는 경우**는 같은 급으로 잡는다 — 그 손보정은 화면에
+    영영 안 뜨는데 파일에는 남아 있어 「달아 뒀다」고 착각하게 만든다.
+    """
+    by_col = {str(c["col"]) for c in cols}
+    out = []
+    for key, mark in (marks or {}).items():
+        if not isinstance(mark, dict) or not (mark.get("verified") or mark.get("impossible")):
+            continue
+        source, sep, raw = key.partition(":")
+        if source not in known:
+            out.append(f"손보정에 모르는 소싱처 이름이 있습니다: {key} — "
+                       f"쓸 수 있는 이름: {', '.join(known)}")
+            continue
+        # 🔴 글자로 견준다. `int()` 로 견주면 `musinsa:03` 이 통과해 버리는데
+        #   화면 키는 `musinsa:3` 이라 그 손보정은 영영 안 읽힌다.
+        if not sep or raw not in by_col:
+            out.append(f"손보정의 열 번호를 표에서 찾지 못했습니다: {key} — "
+                       f"「<소싱처>:<열번호>」 로, 열번호는 앞에 0 을 붙이지 말고 적습니다")
+    return out
+
+
+def build_sourcing() -> dict:
+    """소싱처판. `build()` 와 **같은 모양**을 돌려준다 — 화면 조각이 한 벌이기 때문이다.
+
+    자동으로 아는 것은 「크롤러가 등록돼 있나」 하나뿐이고 나머지는 손보정이다.
+    🔴 손보정 파일은 판매처 것과 반드시 갈라 쓴다(`_SOURCING_MARKS`).
+    """
+    cols = load_columns(_SOURCING_COLUMNS)
+    marks, unreadable = load_marks(_SOURCING_MARKS)
+    banners = [unreadable] if unreadable else []
+    banners += _missing_specs(cols, SOURCES)
+
+    try:
+        registered = {k: _crawler_registered(k) for k, _ in SOURCES}
+    except Exception as e:                       # noqa: BLE001 — 삼키는 게 아니라 배너로 옮긴다
+        registered = {k: False for k, _ in SOURCES}
+        banners.append(f"크롤러 등록 여부를 확인하지 못했습니다 — {e}. "
+                       f"아래 표의 「크롤러 있음」 판정은 믿지 마십시오")
+
+    cells, rows = {}, []
+    for key, label in SOURCES:
+        has_crawler = registered.get(key, False)
+        counts = {k: 0 for k in (NA, IMPOSSIBLE, TODO, STORED, WIRED, DONE)}
+        for col in cols:
+            mark = marks.get(f"{key}:{col['col']}") or {}
+            if mark.get("impossible"):
+                state = IMPOSSIBLE           # ⚫ 원래 안 되는 것 — 영원한 빨간불로 두지 않는다
+            elif mark.get("verified"):
+                state = DONE
+            elif has_crawler:
+                state = STORED
+            else:
+                state = TODO
+            counts[state] += 1
+            cells[f"{key}:{col['col']}"] = {
+                "state": state,
+                "spec": ((col.get("specs") or {}).get(key) or "").strip(),
+                # 근거표가 없다 = 「요구 안 한다」가 아니라 「모른다」
+                "required": _req.UNKNOWN,
+                "evidence": "",
+                "note": mark.get("note") or _SOURCING_NO_EVIDENCE,
+                # 🔴 빈 문자열로 내보내지 않는다 — 화면이 `!= 'wired'` 로 뭉뚱그리면
+                #   크롤러조차 없는 칸이 「저장은 된다」는 거짓말로 뜬다.
+                "wiring": STORED if has_crawler else WIRING_NONE,
+                "wiring_note": _HAS_CRAWLER_NOTE if has_crawler else _NO_CRAWLER_NOTE,
+                "api": "",
+                "conflict": "",
+                # 검증완료가 아닌 칸에는 검증일을 싣지 않는다(판매처와 같은 규칙)
+                "verified": (mark.get("verified") or "") if state == DONE else "",
+            }
+        # 분모 = 채울 수 있는 칸. ⚫불가는 done 이 될 길이 없으니 뺀다(안 빼면 100%가 안 찬다).
+        counts["total"] = len(cols) - counts[NA] - counts[IMPOSSIBLE]
+        rows.append({"market": key, "label": label, "counts": counts})
+
+    banners += _sourcing_drift(marks, cols, dict(SOURCES))
+    return {"columns": cols, "rows": rows, "cells": cells, "drift": banners}
+
+
 #: 검증완료를 달았는데 그 칸이 done 이 아닌 이유 — 사장님이 무엇을 고쳐야 할지 바로 알게 한다
 _WHY_NOT_DONE = {
     NA: "그 마켓엔 해당 없는 항목입니다",

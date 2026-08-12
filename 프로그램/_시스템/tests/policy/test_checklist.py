@@ -530,3 +530,160 @@ def test_zero_padded_column_number_is_explained_not_a_crash():
     problems = C.drift({"smartstore:05": {"verified": "2026-08-12"}})
     assert problems and "형식" in problems[0], problems
     assert "0 을 붙이지" in problems[0], problems
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  소싱처판 — 근거표가 없어 손보정 비중이 크다. 판이 섞이는 것이 가장 무섭다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_sourcing_specs_cover_eight_sources():
+    cols = C.load_columns("dev_checklist_sourcing.json")
+    keys = {k for k, _ in C.SOURCES}
+    for c in cols:
+        assert set(c["specs"]) == keys, f"{c['name']} 의 소싱처 목록이 다름"
+
+
+def test_sourcing_column_numbers_are_unique():
+    C.load_columns("dev_checklist_sourcing.json")   # 겹치면 ValueError 로 터진다
+
+
+def test_sourcing_columns_carry_the_eight_groups():
+    """설계서 §2-2 의 8묶음이 그대로 있어야 한다 — 묶음이 빠지면 표 머리글이 뭉갠다."""
+    cols = C.load_columns("dev_checklist_sourcing.json")
+    groups = []
+    for c in cols:
+        if not groups or groups[-1] != c["group"]:
+            groups.append(c["group"])
+    assert len(groups) == 8, f"묶음이 8개가 아니다: {groups}"
+    assert len(groups) == len(set(groups)), f"같은 묶음이 떨어져 있다(머리글이 쪼개진다): {groups}"
+
+
+def test_sourcing_items_are_all_none():
+    """소싱처엔 가공정책 항목이 대응하지 않는다 — 억지로 붙이면 없는 배선을 있다고 말한다."""
+    for c in C.load_columns("dev_checklist_sourcing.json"):
+        assert c["item"] is None, f"{c['name']} 에 item 이 붙어 있다: {c['item']}"
+
+
+def test_sourcing_lotteon_is_not_named_after_lotteimall():
+    """🔴 `lotteon` 을 「롯데홈쇼핑」이라 적으면 `lotteimall` 줄과 이름이 겹친다."""
+    names = dict(C.SOURCES)
+    assert names["lotteon"] == "롯데온"
+    assert names["lotteimall"] != names["lotteon"]
+    assert len(set(names.values())) == len(names), "소싱처 이름이 겹친다"
+
+
+def test_build_sourcing_has_same_shape_as_build():
+    a, b = C.build(), C.build_sourcing()
+    assert set(a) == set(b)
+    assert set(next(iter(a["cells"].values()))) == set(next(iter(b["cells"].values())))
+
+
+def test_build_sourcing_has_a_row_per_source_and_a_cell_per_column():
+    data = C.build_sourcing()
+    assert [r["market"] for r in data["rows"]] == [k for k, _ in C.SOURCES]
+    assert len(data["cells"]) == len(data["columns"]) * len(data["rows"])
+
+
+def test_sourcing_marks_do_not_mix_with_marketplace(monkeypatch):
+    """🔴 판이 섞이면 있는 경고를 놓치거나 없는 경고를 띄운다."""
+    import lemouton.policy.checklist as CK
+    seen = []
+    orig = CK.load_marks
+    monkeypatch.setattr(CK, "load_marks", lambda name="dev_checklist_marks.json": (seen.append(name), orig(name))[1])
+    CK.build_sourcing()
+    assert "dev_checklist_sourcing_marks.json" in seen
+    assert "dev_checklist_marks.json" not in seen
+
+
+def test_sourcing_state_follows_crawler_then_marks(monkeypatch):
+    """크롤러 있으면 🟡저장만 · 손보정 검증완료면 🟢 · 불가면 ⚫. 순서를 바꾸면 뜻이 뒤집힌다."""
+    import lemouton.policy.checklist as CK
+    monkeypatch.setattr(CK, "load_marks", lambda name=None:
+                        ({"musinsa:3": {"verified": "2026-08-12"},
+                          "ssf:3": {"impossible": True, "note": "원래 안 되는 칸"}}, ""))
+    cells = CK.build_sourcing()["cells"]
+    assert cells["musinsa:3"]["state"] == "done"
+    assert cells["musinsa:3"]["verified"] == "2026-08-12"
+    assert cells["ssf:3"]["state"] == "impossible"
+    assert cells["ssf:3"]["verified"] == "", "불가 칸에 날짜가 실리면 화면이 모순이다"
+    assert cells["lemouton:3"]["state"] == "stored", "크롤러가 있는데 미착수로 떨어졌다"
+
+
+def test_sourcing_cells_never_carry_a_nameless_wiring():
+    """🔴 빈 문자열이면 화면이 `!= 'wired'` 로 뭉뚱그려 「저장은 된다」는 거짓말이 뜬다."""
+    cells = C.build_sourcing()["cells"]
+    assert {v["wiring"] for v in cells.values()} <= {"wired", "stored", "none"}
+    assert all(v["wiring_note"] for v in cells.values())
+
+
+def test_sourcing_required_says_unknown_not_blank():
+    """근거표가 없는 것은 「요구 안 한다」가 아니라 「모른다」다."""
+    cells = C.build_sourcing()["cells"]
+    assert all(v["required"] == "unknown" for v in cells.values())
+    assert all(v["note"] for v in cells.values()), "왜 모르는지가 비었다"
+
+
+def test_sourcing_denominator_counts_only_fillable_cells(monkeypatch):
+    """⚫불가는 done 이 될 길이 없다 — 분모에 남기면 100%가 영영 안 찬다."""
+    import lemouton.policy.checklist as CK
+    monkeypatch.setattr(CK, "load_marks", lambda name=None:
+                        ({"ssf:3": {"impossible": True}}, ""))
+    row = [r for r in CK.build_sourcing()["rows"] if r["market"] == "ssf"][0]
+    c = row["counts"]
+    assert c["impossible"] == 1
+    assert c["total"] == c["todo"] + c["stored"] + c["wired"] + c["done"]
+
+
+def test_sourcing_drift_flags_an_unknown_source_name(monkeypatch):
+    """판매처 손보정을 소싱처 표가 읽으면 전건이 거짓 경보가 된다 — 이름부터 잡는다."""
+    import lemouton.policy.checklist as CK
+    monkeypatch.setattr(CK, "load_marks", lambda name=None:
+                        ({"smartstore:3": {"verified": "2026-08-12"}}, ""))
+    drift = CK.build_sourcing()["drift"]
+    assert drift and "모르는 소싱처" in drift[0]
+    assert "musinsa" in drift[0], "그 판에서 쓸 수 있는 이름을 알려 줘야 한다"
+
+
+def test_sourcing_drift_flags_a_column_the_table_cannot_show(monkeypatch):
+    """🔴 `musinsa:03` 은 파일엔 남는데 화면 키(`musinsa:3`)와 달라 영영 안 읽힌다."""
+    import lemouton.policy.checklist as CK
+    monkeypatch.setattr(CK, "load_marks", lambda name=None:
+                        ({"musinsa:03": {"verified": "2026-08-12"},
+                          "ssf:999": {"verified": "2026-08-12"}}, ""))
+    drift = CK.build_sourcing()["drift"]
+    assert len(drift) == 2, drift
+    assert all("열 번호를 표에서 찾지 못했습니다" in d for d in drift), drift
+
+
+def test_sourcing_marks_file_in_repo_is_readable():
+    marks, why = C.load_marks("dev_checklist_sourcing_marks.json")
+    assert isinstance(marks, dict)
+    assert why == "", f"저장소에 든 소싱처 손보정 파일이 깨져 있다: {why}"
+
+
+def test_sourcing_says_so_when_it_cannot_check_the_crawlers(monkeypatch):
+    """🔴 크롤러 확인 실패를 삼키면 184칸이 통째로 ⬜로 뒤집히는데 이유가 안 뜬다."""
+    import lemouton.policy.checklist as CK
+
+    def _boom(_key):
+        raise ImportError("크롤러 꾸러미를 못 읽음")
+
+    monkeypatch.setattr(CK, "_crawler_registered", _boom)
+    data = CK.build_sourcing()
+    assert any("확인하지 못했습니다" in d for d in data["drift"]), data["drift"]
+    assert all(c["state"] == "todo" for c in data["cells"].values())
+
+
+def test_crawler_registered_does_not_swallow_import_failure(monkeypatch):
+    """`_crawler_registered` 자체는 조용히 False 로 떨어지면 안 된다."""
+    import lemouton.policy.checklist as CK
+    import lemouton.sourcing.crawlers as CR
+    monkeypatch.setattr(CR, "build_crawlers", lambda: (_ for _ in ()).throw(RuntimeError("망가짐")))
+    with pytest.raises(RuntimeError):
+        CK._crawler_registered("musinsa")
+
+
+def test_all_eight_crawlers_are_registered_today():
+    """오늘의 사실을 못 박는다 — 하나라도 빠지면 그 소싱처는 아무것도 시작 안 된 것이다."""
+    for key, label in C.SOURCES:
+        assert C._crawler_registered(key), f"{label}({key}) 크롤러가 build_crawlers 에 없다"

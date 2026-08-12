@@ -1,0 +1,6 @@
+{
+  "_설명": "소싱처판 손보정. 사람이 다는 값만 둔다 — 코드로 알 수 없는 것(실구매 왕복 검증일·원래 안 되는 칸의 사유). 🔴 판매처 손보정(dev_checklist_marks.json)과 절대 섞지 않는다. 섞이면 있는 경고를 놓치거나 없는 경고를 띄운다.",
+  "_형식": "\"marks\": { \"<소싱처>:<열번호>\": {\"verified\": \"YYYY-MM-DD\", \"impossible\": true, \"note\": \"…\"} }",
+  "_소싱처이름": "lemouton · ss_lemouton · musinsa · ssf · lotteon · ssg · hmall · lotteimall (열번호는 앞에 0 을 붙이지 말 것)",
+  "marks": {}
+}
