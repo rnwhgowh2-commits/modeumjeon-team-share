@@ -465,3 +465,125 @@ def test_사진이_정말_없으면_그때는_막는다(s):
     s.flush()
     got = TP.build_for_set(s, set_id=ps.id, market='coupang')
     assert any('이미지' in b for b in got['blocking']), '사진이 없는데 안 막았다'
+
+
+# ── [2026-08-13 2단계] 정책이 만든 값이 **초안까지** 가는가 ──────────────────
+#   가공 엔진은 이미 배송비·반품비·원산지를 사본에 얹는다. 그런데 초안으로 옮기는
+#   줄이 없어 상품 칸 기본값(3,000 / 5,000 / 국내산)이 그대로 마켓에 나갔다.
+#   🔴 배송비는 판매가 계산에도 쓰인다 — 정책 2,500인데 3,000으로 등록되면 금액이 갈린다.
+
+def _policy_with(s, market, items):
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy(s)
+    for k, cfg in items.items():
+        _save(s, p, market, k, cfg)
+    return p
+
+
+def test_사본은_정책_배송비를_들고_있다(s):
+    """엔진은 이미 제 일을 한다 — 끊긴 건 그다음이다."""
+    _model(s)
+    _option_with_image(s, 'M1', 'SKU1', '블랙', 'M', 5, 'https://img/1.jpg')
+    ps = _set(s, skus=('SKU1',))
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy_with(s, 'coupang', {
+        'price': {'sourcing_mode': 'margin_rate', 'sourcing_rate': 20},
+        'shipping': {'fee_mode': 'paid', 'fee_amount': 2500, 'return_fee': 4000},
+    })
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    view = TP.build_for_set(s, set_id=ps.id, market='coupang')['view']
+    assert getattr(view, 'delivery_fee', None) == 2500
+    assert getattr(view, 'return_fee', None) == 4000
+
+
+def _draft_fields(s, ps, market='coupang'):
+    """정책 → 사본 → **초안 칸**까지. 판매가와 무관하게 옮기는 규칙만 본다.
+
+    🔴 `as_draft.upsert` 를 통째로 부르면 판매가가 없어 건너뛰기로 빠져나간다 —
+      그러면 시험이 아무것도 안 본다(처음에 그렇게 짰다가 잡았다).
+    """
+    from lemouton.send import as_draft as AD
+    view = TP.build_for_set(s, set_id=ps.id, market=market)['view']
+    return AD.policy_fields_from(view)
+
+
+def test_초안까지_정책_배송비가_간다(s):
+    """🔴 여기가 끊겨 있었다 — 상품 칸 기본값 3,000원이 그대로 마켓에 나갔다."""
+    _model(s)
+    _option_with_image(s, 'M1', 'SKU1', '블랙', 'M', 5, 'https://img/1.jpg')
+    ps = _set(s, skus=('SKU1',))
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy_with(s, 'coupang', {
+        'price': {'sourcing_mode': 'margin_rate', 'sourcing_rate': 20},
+        'shipping': {'fee_mode': 'paid', 'fee_amount': 2500, 'return_fee': 4000},
+    })
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    got = _draft_fields(s, ps)
+    assert got.get('delivery_fee') == 2500, f'정책 2,500원인데 초안엔 {got.get("delivery_fee")}'
+    assert got.get('return_fee') == 4000
+
+
+def test_정책이_배송비를_안_정하면_기본값을_건드리지_않는다(s):
+    """🔴 정책이 말 안 한 것을 0원(무료배송)으로 만들면 배송비를 우리가 떠안는다."""
+    _model(s)
+    _option_with_image(s, 'M1', 'SKU1', '블랙', 'M', 5, 'https://img/1.jpg')
+    ps = _set(s, skus=('SKU1',))
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy_with(s, 'coupang', {
+        'price': {'sourcing_mode': 'margin_rate', 'sourcing_rate': 20},
+    })                                    # 배송 규칙 없음
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    got = _draft_fields(s, ps)
+    assert 'delivery_fee' not in got, '정책이 말 안 했는데 초안 배송비를 건드린다'
+    assert 'return_fee' not in got
+
+
+def test_무료배송은_0원으로_제대로_옮겨진다(s):
+    """0 은 「값 없음」이 아니라 「무료배송」이다 — 빈 값으로 거르면 유료로 나간다."""
+    _model(s)
+    _option_with_image(s, 'M1', 'SKU1', '블랙', 'M', 5, 'https://img/1.jpg')
+    ps = _set(s, skus=('SKU1',))
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy_with(s, 'coupang', {
+        'price': {'sourcing_mode': 'margin_rate', 'sourcing_rate': 20},
+        'shipping': {'fee_mode': 'free'},
+    })
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    got = _draft_fields(s, ps)
+    assert got.get('delivery_fee') == 0, '무료배송이 0원으로 안 옮겨졌다'
+
+
+def test_초안까지_정책_원산지가_간다(s):
+    """🔴 해외 상품이 전부 「국내산」으로 등록되던 자리."""
+    _model(s)
+    _option_with_image(s, 'M1', 'SKU1', '블랙', 'M', 5, 'https://img/1.jpg')
+    ps = _set(s, skus=('SKU1',))
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy_with(s, 'coupang', {
+        'price': {'sourcing_mode': 'margin_rate', 'sourcing_rate': 20},
+        'origin': {'mode': 'fixed', 'fixed_value': '0200038'},
+    })
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    got = _draft_fields(s, ps)
+    assert got.get('origin_area_code') == '0200038',         f'정책은 0200038 인데 {got.get("origin_area_code")!r} — 국내산 기본값이 나간다'
+
+
+def test_사본에_있는_화면용_값까지_옮기지는_않는다(s):
+    """통째로 옮기면 초안에 엉뚱한 값이 박힌다 — 정한 칸만 옮긴다."""
+    _model(s)
+    _option_with_image(s, 'M1', 'SKU1', '블랙', 'M', 5, 'https://img/1.jpg')
+    ps = _set(s, skus=('SKU1',))
+    from lemouton.policy.models import SetPolicyLink
+    p = _policy_with(s, 'coupang', {'price': {'sourcing_mode': 'margin_rate',
+                                              'sourcing_rate': 20},
+                                    'shipping': {'fee_mode': 'paid', 'fee_amount': 2500}})
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    got = _draft_fields(s, ps)
+    assert 'source_category_path' not in got
+    assert 'set_id' not in got and 'model_code' not in got

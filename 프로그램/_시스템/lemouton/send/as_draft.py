@@ -131,6 +131,10 @@ def upsert(session, *, set_id: int, market: str, view=None):
     d.brand = getattr(view, 'brand', '') or ''
     d.options_json = getattr(view, 'options_json', '[]')
     d.detail_html = getattr(view, 'detail_html', '') or ''
+    # [2026-08-13 2단계] 정책이 만든 운영값을 초안으로 옮긴다 —
+    #   여기가 끊겨 있어 상품 칸 기본값(3,000·5,000·국내산)이 그대로 마켓에 나갔다.
+    for k, v in policy_fields_from(view).items():
+        setattr(d, k, v)
     d.source_site = ''                      # 구성은 소싱처가 여럿이라 한 곳을 못 적는다
     d.source_category_path = (m.category if m else '') or ''
 
@@ -154,6 +158,33 @@ def upsert(session, *, set_id: int, market: str, view=None):
     #   미리 써 넣으면 「사장님이 넣은 값」과 「기본값이 채운 값」이 뭉개진다.
     session.flush()
     return d
+
+
+#: 정책이 만든 운영값 → 초안 칸. 값 이름이 같아 그대로 옮긴다.
+#:   🔴 여기 있는 칸만 옮긴다. 사본에는 화면용 값(source_category_path 등)도 있어
+#:     통째로 옮기면 초안에 엉뚱한 값이 박힌다.
+_POLICY_FIELDS = ('delivery_fee', 'return_fee', 'origin_area_code')
+
+
+def policy_fields_from(view) -> dict:
+    """사본에서 초안으로 옮길 운영값만 골라낸다.
+
+    🔴 **정책이 값을 만들었을 때만 옮긴다.** 정책이 말하지 않은 칸을 건드리면
+      상품에 저장된 값(또는 기본값)을 지우게 된다 — 배송비를 지우면 빈 칸이
+      「무료배송」으로 읽혀 그 돈을 우리가 떠안는다.
+
+    🔴 **0 은 값이다.** 배송비 0 = 무료배송이라, `if v` 로 거르면 무료배송이
+      유료로 나간다. `None`·빈 문자열만 「안 정함」으로 본다.
+    """
+    out = {}
+    for k in _POLICY_FIELDS:
+        v = getattr(view, k, None)
+        if v is None:
+            continue
+        if isinstance(v, str) and not v.strip():
+            continue
+        out[k] = v
+    return out
 
 
 def option_images(session, set_id: int) -> list:

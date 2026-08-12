@@ -27,19 +27,26 @@ FROM_DEFAULT = 'default'  # 초안(상품) 칸의 기본값이 그대로 나간�
 class Fixed:
     """정해져 나가는 값 하나."""
 
-    __slots__ = ('label', 'value', 'source', 'where', 'policy_item', 'note')
+    __slots__ = ('label', 'value', 'source', 'where', 'policy_item', 'note',
+                 'policy_wins')
 
-    def __init__(self, label, value, source, where, policy_item='', note=''):
+    def __init__(self, label, value, source, where, policy_item='', note='',
+                 policy_wins=False):
         self.label = label            # 사장님이 읽는 이름
         self.value = value            # 실제로 나가는 값(사람 말로)
         self.source = source          # FROM_CODE | FROM_DEFAULT
         self.where = where            # 파일:라인 — 근거
         self.policy_item = policy_item  # 대응하는 정책 항목 key ('' 면 정책에 칸 없음)
         self.note = note
+        # 🔴 [2026-08-13 2단계] 정책에 값을 넣으면 **그 값이 이기는** 칸.
+        #   여기 표시를 안 하면 화면이 「정책 2,500 / 실제 3,000」이라고
+        #   **반대 방향으로 거짓말**한다 — 이미 정책값이 나가고 있는데도.
+        self.policy_wins = policy_wins
 
     def as_dict(self) -> dict:
         return {'label': self.label, 'value': self.value, 'source': self.source,
-                'where': self.where, 'policy_item': self.policy_item, 'note': self.note}
+                'where': self.where, 'policy_item': self.policy_item,
+                'note': self.note, 'policy_wins': self.policy_wins}
 
 
 #: 마켓 → 정해져 나가는 값들
@@ -75,7 +82,8 @@ FIXED: dict[str, list] = {
     'smartstore': [
         Fixed('원산지', '국내산', FROM_DEFAULT,
               'registration/models.py:52', 'origin',
-              '🔴 상품 칸의 기본값이라, 정책에서 다른 나라로 정해도 이 값이 나갑니다.'),
+              '정책에서 「고정값」으로 정하면 그 값이 나갑니다 — 안 정하면(자동) 이 값입니다.',
+              policy_wins=True),
         Fixed('수입사', '- (하이픈)', FROM_CODE,
               'compile_smartstore.py:86'),
         Fixed('가격비교 노출', '노출함', FROM_CODE,
@@ -91,10 +99,12 @@ COMMON_DEFAULTS: list = [
           '🔴 모음전 경로에서는 신발·가방도 「의류」 고시로 나갑니다.'),
     Fixed('배송비', '3,000원', FROM_DEFAULT,
           'registration/models.py:54', 'shipping',
-          '🔴 모음전 경로에서 정책값이 상품으로 안 옮겨져 이 기본값이 나갑니다. '
-          '배송비는 판매가 계산에도 쓰여 금액이 갈립니다.'),
+          '정책에서 정하면 그 금액이 나갑니다 — 안 정하면 이 값입니다.',
+          policy_wins=True),
     Fixed('반품 배송비', '5,000원', FROM_DEFAULT,
-          'registration/models.py:55', 'shipping'),
+          'registration/models.py:55', 'shipping',
+          '정책에서 정하면 그 금액이 나갑니다 — 안 정하면 이 값입니다.',
+          policy_wins=True),
 ]
 
 #: 아직 확인하지 못한 마켓 — 「없다」가 아니라 「안 열어 봤다」
@@ -136,6 +146,8 @@ def conflicts(market: str, values: dict) -> list:
         key = row.get('policy_item')
         if not key or key not in (values or {}):
             continue                      # 정책에 안 채웠으면 어긋남이 아니다
+        if row.get('policy_wins'):
+            continue                      # 정책이 이기는 칸은 어긋날 수가 없다
         got = _policy_text(key, row['label'], values[key])
         if got and got != row['value']:
             out.append({'label': row['label'], 'policy': got,
@@ -162,11 +174,15 @@ def by_item(market: str, values: dict) -> dict:
         if not key:
             continue                      # 정책에 대응 칸이 없는 값은 접힌 표에만 나온다
         got = _policy_text(key, row['label'], vals.get(key) or {})
+        # 🔴 정책이 이기는 칸은, 정책에 값이 있으면 **그 값이 실제로 나간다.**
+        #   이 갈래가 없으면 화면이 「정책 2,500 / 실제 3,000」이라고 반대로
+        #   거짓말한다 — 2단계에서 이미 정책값이 나가게 됐는데도.
+        actual = got if (row.get('policy_wins') and got) else row['value']
         out.setdefault(key, []).append({
             'label': row['label'],
             'policy': got,                # None = 안 정함
-            'actual': row['value'],
-            'same': bool(got) and got == row['value'],
+            'actual': actual,
+            'same': bool(got) and got == actual,
             'where': row['where'],
         })
     return out

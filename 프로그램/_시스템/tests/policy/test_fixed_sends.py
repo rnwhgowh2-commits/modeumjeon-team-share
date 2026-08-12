@@ -97,13 +97,17 @@ def test_정책에_안_채웠으면_어긋남이_아니다():
 
 
 def test_배송비와_반품비를_따로_본다():
-    """🔴 「배송」 한 항목에 둘이 같이 있다 — 항목 이름만으로 고르면 첫 번째만 걸린다."""
-    got = FS.conflicts('coupang', {'shipping': {'fee_amount': 2500, 'return_fee': 4000}})
-    labels = {c['label'] for c in got}
-    assert '배송비' in labels, '배송비 어긋남을 못 잡았다'
-    assert '반품 배송비' in labels, '반품비 어긋남을 못 잡았다'
-    배송 = [c for c in got if c['label'] == '배송비'][0]
-    assert 배송['policy'] == '2,500원' and 배송['actual'] == '3,000원'
+    """🔴 「배송」 한 항목에 둘이 같이 있다 — 항목 이름만으로 고르면 첫 번째만 걸린다.
+
+    [2026-08-13 2단계] 배송비·반품비는 이제 **정책이 이긴다** → 어긋남이 아니다.
+    대신 항목별 표(by_item)가 「정책 2,500 / 실제 2,500」으로 보여준다.
+    """
+    got = FS.by_item('coupang', {'shipping': {'fee_amount': 2500, 'return_fee': 4000}})
+    rows = {r['label']: r for r in got['shipping']}
+    assert rows['배송비']['actual'] == '2,500원', '정책값이 나가는데 기본값이라고 한다'
+    assert rows['배송비']['same'] is True
+    assert rows['반품 배송비']['actual'] == '4,000원'
+    assert FS.conflicts('coupang', {'shipping': {'fee_amount': 2500}}) == [],         '정책이 이기는 칸을 어긋남이라고 했다'
 
 
 def test_값_모양이_이상해도_화면이_안_죽는다():
@@ -145,3 +149,22 @@ def test_정책에_칸이_없는_값은_항목별에_안_넣는다():
     labels = {x['label'] for rows in got.values() for x in rows}
     assert '해외구매 여부' not in labels
     assert '과세구분' in labels
+
+
+def test_정책이_이기는_칸은_정책값이_실제값이다():
+    """[2026-08-13 2단계] 원산지·배송비·반품비는 정책이 이긴다.
+
+    🔴 이 갈래가 없으면 화면이 「정책 2,500 / 실제 3,000」이라고 **반대로**
+      거짓말한다 — 이미 정책값이 나가고 있는데도.
+    """
+    got = FS.by_item('smartstore', {'origin': {'mode': 'fixed', 'fixed_value': '0200038'}})
+    # 원산지는 읽기 규칙이 없어 비교값을 못 뽑는다 — 그때는 기본값을 보여준다
+    org = [r for r in got.get('origin', []) if r['label'] == '원산지'][0]
+    assert org['actual'] in ('국내산', '0200038')
+
+
+def test_정책을_안_정하면_기본값이_실제값이다():
+    got = FS.by_item('coupang', {})
+    ship = {r['label']: r for r in got['shipping']}
+    assert ship['배송비']['actual'] == '3,000원'
+    assert ship['배송비']['policy'] is None

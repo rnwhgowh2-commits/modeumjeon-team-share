@@ -110,10 +110,19 @@ def test_아직_안_나가는_항목은_저장만이라고_말한다():
       `test_초안으로_옮겨지는_칸은_전송됨이라고_적혀_있다` 가 **as_draft 원본을 읽어**
       판정한다. 사람이 손으로 적은 목록끼리 대조하면 또 같이 낡는다.
     """
-    for k in ('category', 'images', 'notice', 'origin', 'kc', 'tags'):
+    # [2026-08-13 2단계] 원산지는 이제 초안까지 간다 → 여기서 뺐다.
+    #   🔴 사실이 바뀌면 시험도 같이 옮긴다 — 안 옮기면 시험이 옛 사실을 잠근다.
+    for k in ('category', 'images', 'notice', 'kc', 'tags'):
         st, note = R.wiring_of(k)
         assert st == R.STORED_ONLY, k
         assert note.strip(), k
+
+
+def test_원산지와_배송비는_이제_나간다():
+    """[2026-08-13 2단계] 정책값이 초안까지 간다 — 전에는 상품 칸 기본값이 나갔다."""
+    assert R.wiring_of('origin')[0] == R.WIRED
+    assert R.wiring_of('shipping')[0] == R.WIRED
+    assert '반품' in R.wiring_of('shipping')[1], '반품비도 나간다는 사실이 빠졌다'
 
 
 def test_요약은_필수인데_안_정한_항목을_센다():
