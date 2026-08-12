@@ -46,8 +46,13 @@ _PRODUCT_LINK = {
     #     상품번호가 죄다 `bundle` 이 되어 **묶음 전부가 한 건으로 뭉개진다.**
     'lotteon': (re.compile(r'/p/product/(?!bundle\b)([A-Za-z0-9_]+)'),
                 'https://www.lotteon.com/p/product/{id}'),
-    # lotteimall: `/goods/viewGoodsDetail.lotte?goods_no=3272278659`
-    'lotteimall': (re.compile(r'viewGoodsDetail\.lotte\?[^"\'<>]*?goods_no=(\d+)'),
+    # lotteimall: 🔴 **링크를 보면 안 된다.** `a[href*=viewGoodsDetail]` 로 잡히는 25건은
+    #   전부 메뉴 속 추천 배너(`recom_swiper`·`plan_banner`)다 — 검색 결과가 아니다.
+    #   실증(2026-08-08): 「검색된 상품이 없습니다」가 뜨는 검색어에서도 그 링크가
+    #   **25건 그대로** 나왔다. 그대로 뒀으면 검색할 때마다 엉뚱한 상품 25건이
+    #   크롤 대기에 들어가 초안까지 됐다.
+    #   진짜 결과는 `data-goods-no` 속성이다(나이키 60건 · 결과 없음 0건, 실측 대조).
+    'lotteimall': (re.compile(r'data-goods-no="(\d+)"'),
                    'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no={id}'),
     # hmall: 🔴 **링크가 아니다.** 상품 카드가 `<a href>` 가 아니라서 링크만 찾으면
     #   영영 0건이다(실측: 검색 결과 29개 링크 중 상품 0건). 번호는 속성에만 있다.
@@ -76,26 +81,38 @@ _PAGE_PARAM = {
 #: 🔴 확장에 규칙을 **박아 두지 않는다.** 예전엔 `a[href*="/products/"]` 가 확장 안에
 #:   박혀 있어 소싱처를 넣어도 무신사 말고는 0건이었다. 규칙을 아는 곳은 서버 하나다
 #:   (소싱처를 붙일 때마다 「확장 다시 불러오기」를 부탁하지 않기 위해서다).
-#: 소싱처별 「화면을 몇 번 내려 볼까」.
-#: 🔴 페이지 넘김이 안 되는 곳(무한 스크롤)은 **내려야 더 나온다.** 안 내리면
-#:   첫 화면분만 걷힌다 — 실측: 롯데온 48 · 롯데아이몰 26 · SSF 검색 27.
-#: ★ 페이지 넘김이 되는 곳은 조금만 내린다(주소로 넘기는 편이 확실하고 빠르다).
-#: ★ 상한이 있다는 것 자체는 숨기지 않는다 — 다 못 봤으면 확장이 `capped` 로 말한다.
-_SCROLL_ROUNDS = {
-    'musinsa': 3,
-    'ssf': 3,
-    'lemouton': 3,
-    'lotteon': 12,
-    'lotteimall': 12,
-    'hmall': 12,
+#: 소싱처별 「더 있다」를 알아보는 선택자 — 이게 화면에 있으면 **첫 장만 가져온 것**.
+#: 🔴 [2026-08-08 실측 정정] 처음엔 「무한 스크롤이라 내리면 더 나온다」고 보고 스크롤을
+#:   넣었는데 **틀렸다.** 롯데온 48→48 · 롯데아이몰 24→24 · 현대H몰 40→40 —
+#:   화면을 끝까지 내려도(H몰은 안쪽 스크롤 상자까지 확인) 개수가 그대로였다.
+#:   셋 다 **단추를 눌러 넘기는** 방식이다(롯데온 「2」를 눌러 상품이 바뀌는 것 확인).
+#: ★ 지금 할 수 있는 정직한 일은 **「더 있다」를 말해 주는 것**이다. 단추를 눌러 가며
+#:   여러 장을 걷는 일은 다음 걸음 — 그때까지 「48개가 전부」라고 믿게 두지 않는다.
+#: 🔴 모르는 곳은 **비워 둔다.** 선택자를 추측해 넣으면 「더 있음」이 늘 켜지거나
+#:   늘 꺼져서 둘 다 거짓말이 된다.
+#: 「검색 결과가 없다」고 화면이 말할 때 쓰는 글귀.
+#: 🔴🔴 [2026-08-08 실측] 소싱처 대부분이 **결과가 0건이어도 추천 상품을 화면에 깐다.**
+#:   그걸 우리 규칙이 상품으로 집어 간다 — 롯데온 25건 · 롯데아이몰 25건 · 현대H몰 12건.
+#:   막지 않으면 **오타 한 번에 엉뚱한 상품 수십 건이 크롤 대기에 들어가 초안까지 된다.**
+#:   (롯데아이몰은 규칙 자체를 `data-goods-no` 로 바꿔 이미 0건이지만, 겹겹으로 막는다.)
+#: ★ 글귀는 화면에 그대로 보이는 말이라 소싱처가 UI 를 바꾸면 안 맞을 수 있다 —
+#:   그래서 **이게 없다고 0건으로 만들지는 않는다.** 있을 때만 「없다」고 확정한다.
+_EMPTY_TEXT = {
+    'lotteon': '검색결과가 없습니다',
+    'lotteimall': '검색된 상품이 없습니다',
+    'hmall': '검색결과가 없습니다',
 }
-_SCROLL_ROUNDS_DEFAULT = 3
+
+_MORE_SELECT = {
+    'lotteon': 'a.srchPaginationNext',      # 실측: 「다음」 — 눌러서 상품이 바뀜
+    'lotteimall': 'a.next.ico',             # 실측: 「다음」 단추 존재
+}
 
 _DOM_SELECT = {
     'musinsa':    ('a[href*="/products/"]', 'href'),
     'ssf':        ('a[href*="/good"]', 'href'),
     'lotteon':    ('a[href*="/p/product/"]', 'href'),
-    'lotteimall': ('a[href*="viewGoodsDetail"]', 'href'),
+    'lotteimall': ('[data-goods-no]', 'data-goods-no'),
     'hmall':      ('[data-slitm-cd]', 'data-slitm-cd'),
     'lemouton':   ('a[href*="product_no="]', 'href'),
 }
@@ -129,7 +146,8 @@ def dom_rule_for(source_key: str) -> dict:
     pat, _tpl = _rule(key)          # 모르는 곳이면 여기서 예외
     sel, attr = _DOM_SELECT[key]
     return {'sel': sel, 'attr': attr, 'id_re': pat.pattern,
-            'scroll_rounds': _SCROLL_ROUNDS.get(key, _SCROLL_ROUNDS_DEFAULT)}
+            'more_sel': _MORE_SELECT.get(key),
+            'empty_text': _EMPTY_TEXT.get(key)}
 
 
 def product_url_for(product_id, *, source_key: str) -> str:

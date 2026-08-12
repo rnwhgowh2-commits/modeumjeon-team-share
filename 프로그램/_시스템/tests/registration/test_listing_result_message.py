@@ -109,21 +109,53 @@ def test_끝까지_봤으면_멈춤_표시가_없다(client):
     assert got.get('last_capped') is False, got
 
 
-def test_훑기_규칙에_스크롤_횟수가_실려_온다(client):
-    """무한 스크롤 소싱처는 내려야 더 나온다 — 몇 번 내릴지는 서버가 정한다."""
+def test_훑기_규칙에_더있음_표시가_실려_온다(client):
+    """🔴 [2026-08-08 실측 정정] 처음엔 「무한 스크롤이라 내리면 더 나온다」고 보고
+    스크롤 횟수를 실어 보냈는데 **틀렸다.** 롯데온·롯데아이몰·현대H몰 모두 화면을
+    끝까지 내려도 개수가 그대로였다(48→48 · 24→24 · 40→40, 안쪽 스크롤 상자까지 확인).
+    셋 다 **단추로 넘기는** 방식이다.
+
+    그래서 지금 할 수 있는 정직한 일은 하나다 — **「더 있다」를 알아보고 말하는 것.**
+    페이지의 「다음」 단추가 살아 있으면 우리가 첫 장만 가져온 것이다."""
     fid = _make(client)
     client.post(f'/bulk/api/search-filters/{fid}/run')
 
     due = client.get('/api/crawl/due-listings').get_json()
     job = [j for j in due['listings'] if j['filter_id'] == fid][0]
 
-    assert isinstance(job.get('scroll_rounds'), int), job
-    assert job['scroll_rounds'] >= 1, job
+    assert 'more_sel' in job, job          # 없으면 None 이라도 와야 한다
 
 
-def test_무한스크롤_소싱처가_더_많이_내린다():
-    """페이지 넘김이 되는 곳은 조금만, 안 되는 곳은 많이 — 안 그러면 첫 화면만 걷힌다."""
+def test_단추로_넘기는_소싱처는_더있음_선택자가_있다():
+    """실측한 곳만 넣는다 — 롯데온 `a.srchPaginationNext`(눌러서 상품이 바뀌는 것 확인)."""
     from lemouton.sources.listing_discover import dom_rule_for
 
-    assert (dom_rule_for('lotteon')['scroll_rounds']
-            > dom_rule_for('musinsa')['scroll_rounds'])
+    assert dom_rule_for('lotteon')['more_sel'], '롯데온 「다음」 선택자가 없다'
+
+
+def test_결과없음_글귀가_규칙에_실려_온다():
+    """🔴🔴 소싱처 대부분이 **결과가 0건이어도 추천 상품을 화면에 깐다.**
+    실측(2026-08-08) — 「없습니다」 화면인데 우리 규칙에 잡힌 수:
+      롯데온 25 · 롯데아이몰 25 · 현대H몰 12.
+    막지 않으면 **오타 한 번에 엉뚱한 상품 수십 건이 크롤 대기에 들어가 초안까지 된다.**
+    """
+    from lemouton.sources.listing_discover import dom_rule_for
+
+    for key in ('lotteon', 'lotteimall', 'hmall'):
+        assert dom_rule_for(key)['empty_text'], f'{key} 「결과 없음」 글귀가 없다'
+
+
+def test_결과없음_글귀를_모르는_곳은_비워_둔다():
+    """★ 글귀가 없다고 0건으로 만들지는 않는다 — 있을 때만 「없다」고 확정한다.
+    무신사·SSF 는 결과 0건이면 정말 0건이 나오는 것을 실측했다."""
+    from lemouton.sources.listing_discover import dom_rule_for
+
+    assert dom_rule_for('musinsa')['empty_text'] is None
+    assert dom_rule_for('ssf')['empty_text'] is None
+
+
+def test_모르는_곳은_지어내지_않는다():
+    """선택자를 추측해 넣으면 「더 있음」이 늘 켜지거나 늘 꺼져 둘 다 거짓말이 된다."""
+    from lemouton.sources.listing_discover import dom_rule_for
+
+    assert dom_rule_for('musinsa')['more_sel'] is None

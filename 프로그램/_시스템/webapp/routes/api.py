@@ -212,12 +212,9 @@ def crawl_due_listings():
             out.append({'filter_id': f.id, 'source_key': f.source_key,
                         'page_urls': pages, 'max_items': f.max_items,
                         'sel': rule['sel'], 'attr': rule['attr'],
-<<<<<<< HEAD
                         'id_re': rule['id_re'],
-                        'scroll_rounds': rule['scroll_rounds']})
-=======
-                        'id_re': rule['id_re']})
->>>>>>> origin/main
+                        'more_sel': rule['more_sel'],
+                        'empty_text': rule['empty_text']})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()

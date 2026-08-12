@@ -186,7 +186,7 @@
       : (f.last_error
           ? `<span class="sf-chip err" title="${esc(f.last_error)}">못 봄</span>`
           : (f.last_capped
-              ? '<span class="sf-chip warn" title="정해진 만큼만 화면을 내려 봤습니다 — 더 있을 수 있습니다">더 있음</span>'
+              ? '<span class="sf-chip warn" title="소싱처에 「다음 페이지」가 남아 있습니다 — 지금은 첫 장만 가져옵니다">더 있음</span>'
               : (f.last_run_at ? '<span class="sf-chip ok">끝남</span>'
                                : '<span class="sf-chip idle">대기</span>')));
     // 🔴 아직 한 번도 안 훑었으면 0 이 아니라 「—」.
