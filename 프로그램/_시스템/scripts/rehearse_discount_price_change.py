@@ -79,7 +79,7 @@ def main() -> int:
 
     from lemouton.policy.as_template import PREFIX_TO_MARKET, policy_as_template
     from lemouton.pricing.unified import compute_market_price, compute_sale_price_unified
-    from lemouton.policy.discount import exposed_price
+    from lemouton.policy.discount import exposed_price, seller_share
     from lemouton.uploader.reconcile import compute_margin_amount
 
     MARKET_TO_PREFIX = {v: k for k, v in PREFIX_TO_MARKET.items()}
@@ -134,7 +134,10 @@ def main() -> int:
                 except Exception as e:           # noqa: BLE001
                     errs.append(f"{p.name} / {mk} / {매입}: {e}")
                     continue
-                고객_후 = 후.breakdown.get("exposed_price", 후.final_price)
+                # 🔴 고객이 내는 값은 **전체 할인**을 뺀 값이다. 엔진의
+                #   net_basis_price(우리 수입 기준)와 헷갈리면 마켓이 일부
+                #   부담할 때 표가 거짓말을 한다.
+                고객_후 = exposed_price(후.final_price, 할인)
                 마진_후 = compute_margin_amount(후, 매입)
 
                 # 고치기 전 = 할인을 모르는 상태 (엔진에 할인을 안 넘긴 계산)
@@ -149,7 +152,13 @@ def main() -> int:
                     fixed_price=getattr(tpl, f"{prefix}_external_sale_price", 0) or 0)
                 고객_전 = exposed_price(pol_전.final_price, 할인)
                 수수료 = float(getattr(tpl, f"{prefix}_fee_rate", None) or 0)
-                마진_전 = int(round(고객_전 * (1 - 수수료))) - 매입
+                # 🔴 마진은 **우리 수입 기준**(판매가 − 우리 부담 몫)으로 잰다.
+                #   고객가로 재면 마켓이 낸 몫까지 우리 손해로 세어, 마켓 부담
+                #   정책이 멀쩡한데도 「적자였다」고 거짓 보고한다.
+                단위_몫, 우리몫 = seller_share(price)
+                기준_전 = exposed_price(pol_전.final_price,
+                                        {"value": 우리몫, "unitType": 단위_몫})
+                마진_전 = int(round(기준_전 * (1 - 수수료))) - 매입
 
                 rows.append({
                     "정책": p.name, "마켓": mk, "상품수": 상품수, "매입": 매입,

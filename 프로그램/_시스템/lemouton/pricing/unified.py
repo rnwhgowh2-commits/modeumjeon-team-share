@@ -118,8 +118,17 @@ def _grossup(raw: float, unit: str, value) -> tuple[float, bool]:
     return raw + v, False
 
 
-def _exposed(final: int, unit: str, value) -> int:
-    """고객이 실제로 보는 값(할인 적용가). 화면이 따로 계산하지 않게 여기서 낸다."""
+def _net_basis(final: int, unit: str, value) -> int:
+    """**우리 수입 기준가** = 판매가 − 판매자 부담 할인액. 마진은 이 값으로 잰다.
+
+    🔴 이것은 「고객이 내는 값」이 **아니다.** 마켓이 할인을 같이 부담하면
+      고객은 전체 할인만큼 싸게 사고, 마켓이 낸 몫은 우리에게 들어온다 —
+      그래서 우리 수입 기준은 고객가보다 크다. 판매자 100% 부담일 때만
+      두 숫자가 우연히 같아진다(그래서 못 알아채기 쉽다).
+
+      고객이 내는 값이 필요하면 `policy/discount.exposed_price` 를 쓴다.
+      그쪽이 **전체 할인**을 안다.
+    """
     try:
         v = float(value or 0)
     except (TypeError, ValueError):
@@ -190,7 +199,7 @@ def compute_sale_price_unified(
                 # 🔴 지정가는 **올려 잡지 않는다**(사람이 친 값 그대로) — 다만 할인이
                 #   걸려 있으면 고객이 내는 돈은 그만큼 적다. 마진을 정직하게 재려면
                 #   그 값을 알려 줘야 한다. 안 그러면 마진이 부풀어 가드가 헛돈다.
-                'exposed_price': _exposed(final, seller_discount_unit,
+                'net_basis_price': _net_basis(final, seller_discount_unit,
                                           seller_discount_value),
             },
         )
@@ -226,11 +235,11 @@ def compute_sale_price_unified(
         status = _apply_guardrail(final, guardrail)
         breakdown['guardrail_status'] = status
         # 🔴 모드마다 따로 채우면 하나를 빠뜨린다 — 나가기 직전에 보장한다.
-        #   고객가(exposed_price)가 없으면 마진 계산이 표시 판매가로 재서 부풀어 보인다.
+        #   기준가(net_basis_price)가 없으면 마진을 표시 판매가로 재서 부풀어 보인다.
         breakdown.setdefault('seller_discount_unit', seller_discount_unit)
         breakdown.setdefault('seller_discount_value', seller_discount_value)
-        breakdown.setdefault('exposed_price',
-                             _exposed(final, seller_discount_unit, seller_discount_value))
+        breakdown.setdefault('net_basis_price',
+                             _net_basis(final, seller_discount_unit, seller_discount_value))
         return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
     # ── mode='rate' — 마진율 = **판매가 대비** (2026-07-20 변경) ──
@@ -297,14 +306,14 @@ def compute_sale_price_unified(
         'seller_discount_unit': seller_discount_unit,
         'seller_discount_value': seller_discount_value,
         'margin_basis': int(round(base)),        # 마진을 어느 값 기준으로 쟀나
-        'exposed_price': _exposed(final, seller_discount_unit, seller_discount_value),
+        'net_basis_price': _net_basis(final, seller_discount_unit, seller_discount_value),
     }
     # 🔴 모드마다 따로 채우면 하나를 빠뜨린다 — 나가기 직전에 보장한다.
-    #   고객가(exposed_price)가 없으면 마진 계산이 표시 판매가로 재서 부풀어 보인다.
+    #   기준가(net_basis_price)가 없으면 마진을 표시 판매가로 재서 부풀어 보인다.
     breakdown.setdefault('seller_discount_unit', seller_discount_unit)
     breakdown.setdefault('seller_discount_value', seller_discount_value)
-    breakdown.setdefault('exposed_price',
-                         _exposed(final, seller_discount_unit, seller_discount_value))
+    breakdown.setdefault('net_basis_price',
+                         _net_basis(final, seller_discount_unit, seller_discount_value))
     return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
 
@@ -427,16 +436,16 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
     #   마켓이 내는 몫까지 얹으면 고객에게 괜히 비싸 보이고, 덜 얹으면 적자가 된다.
     #   🔴 부담 주체를 안 정했으면 **판매자**로 본다 — 모르면 보수적으로.
     #     「마켓」으로 잘못 두면 판매가를 안 올려 그대로 손해다.
-    d_unit = str(g(f'{prefix}_discount_unit') or 'WON').upper()
-    d_value = g(f'{prefix}_discount_value') or 0
+    #   🔴 규칙 자체는 `policy/discount.seller_share` 한 곳에만 둔다 —
+    #     여기서 다시 쓰면 미리보기 화면과 실제 업로드가가 갈린다.
+    from lemouton.policy.discount import seller_share
     burden = str(g(f'{prefix}_discount_burden') or 'seller').lower()
-    if burden == 'market':
-        seller_value = 0                      # 우리가 내는 몫이 없다 → 올리지 않는다
-    elif burden == 'split':
-        pct = g(f'{prefix}_discount_burden_pct')
-        seller_value = (float(d_value) * (float(pct) / 100.0)) if pct else 0
-    else:
-        seller_value = float(d_value)         # seller(기본) — 우리가 다 낸다
+    d_unit, seller_value = seller_share({
+        'discount_unit': g(f'{prefix}_discount_unit'),
+        'discount_value': g(f'{prefix}_discount_value'),
+        'discount_burden': burden,
+        'discount_burden_pct': g(f'{prefix}_discount_burden_pct'),
+    })
 
     return {
         'mode': str(mode).lower(),

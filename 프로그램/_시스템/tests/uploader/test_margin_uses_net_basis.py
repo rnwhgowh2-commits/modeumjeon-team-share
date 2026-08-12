@@ -31,7 +31,7 @@ def test_할인이_있으면_고객이_내는_값으로_잰다():
     r = compute_sale_price_unified(매입, 0.0945, 0.06,
                                    seller_discount_unit="PERCENT", seller_discount_value=20)
     got = compute_margin_amount(r, 매입)
-    노출 = r.breakdown["exposed_price"]
+    노출 = r.breakdown["net_basis_price"]
     옳은값 = int(round(노출 * (1 - 0.06))) - 매입
     부풀린값 = int(round(r.final_price * (1 - 0.06))) - 매입
     assert got == 옳은값, f"고객가 기준이어야 한다: {got:,} vs {옳은값:,}"
@@ -56,5 +56,5 @@ def test_모든_모드가_고객가를_알려_준다():
     for kw in ({}, {"mode": "amount", "margin_amount": 5000},
                {"mode": "fixed", "fixed_price": 70000}):
         r = compute_sale_price_unified(매입, 0.0945, 0.06, **kw)
-        assert "exposed_price" in r.breakdown, f"{kw} 모드에 고객가가 없다"
-        assert r.breakdown["exposed_price"] > 0
+        assert "net_basis_price" in r.breakdown, f"{kw} 모드에 고객가가 없다"
+        assert r.breakdown["net_basis_price"] > 0

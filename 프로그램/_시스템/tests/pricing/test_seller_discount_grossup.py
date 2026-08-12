@@ -99,8 +99,8 @@ def test_근거를_breakdown_에_남긴다():
     assert b["seller_discount_unit"] == "PERCENT"
     assert b["seller_discount_value"] == 20
     assert b["margin_basis"] > 0, "마진을 어느 값 기준으로 쟀는지"
-    assert b["exposed_price"] > 0, "고객이 실제로 보는 값"
-    assert b["exposed_price"] < r.final_price, "노출가는 판매가보다 작아야 한다"
+    assert b["net_basis_price"] > 0, "고객이 실제로 보는 값"
+    assert b["net_basis_price"] < r.final_price, "노출가는 판매가보다 작아야 한다"
 
 
 def test_지정가_모드는_올려_잡지_않는다():

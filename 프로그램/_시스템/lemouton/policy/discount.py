@@ -58,6 +58,48 @@ def discount_of(rules) -> dict | None:
     return {'value': value, 'unitType': unit}
 
 
+def seller_share(price_cfg) -> tuple[str, float]:
+    """(단위, **판매자가 실제로 내는 몫**) — 판매가를 올려 잡을 근거는 이것뿐이다.
+
+    사장님 확정(2026-08-13): 마진 기준가 = 판매가 − **판매자 부담** 할인액.
+    마켓이 같이 내는 몫은 우리 수입이라 빼지 않는다.
+
+    🔴 이 규칙은 **여기 한 곳에만** 둔다. 실제 업로드가(`resolve_market_policy`)와
+      사장님이 보는 미리보기(`policy/preview.py`)가 각자 계산하면 두 화면이 갈리고,
+      이 저장소에서 그건 곧 금전 사고다.
+
+    🔴 모를 땐 **판매자 부담**으로 본다 — 「마켓 부담」으로 잘못 보면 판매가를
+      안 올려 그대로 손해가 난다. 반반인데 몫을 안 적은 경우도 마찬가지다.
+
+    Args:
+        price_cfg: 가공정책 「판매가」 항목 그대로
+            (`discount_unit` · `discount_value` · `discount_burden` ·
+             `discount_burden_pct`).
+
+    Returns:
+        (단위, 우리 몫). 할인이 아니면 (단위, 0.0).
+    """
+    cfg = price_cfg or {}
+    # 🔴 「할인인가」 판정은 `discount_of` 하나로 — 여기서 다시 쓰면 판정이 갈린다.
+    got = discount_of({'price': cfg})
+    if not got:
+        return (str(cfg.get('discount_unit') or 'WON').upper(), 0.0)
+
+    unit, value = got['unitType'], float(got['value'])
+    burden = str(cfg.get('discount_burden') or 'seller').lower()
+    if burden == 'market':
+        return (unit, 0.0)                  # 우리가 내는 몫이 없다 → 안 올린다
+    if burden == 'split':
+        pct = cfg.get('discount_burden_pct')
+        try:
+            if pct is not None:
+                return (unit, value * (float(pct) / 100.0))
+        except (TypeError, ValueError):
+            pass
+        return (unit, value)                # 몫을 안 적었다 → 보수적으로 전액
+    return (unit, value)                    # seller(기본)
+
+
 def problem_for(market: str, discount) -> str | None:
     """이 마켓이 이 값을 받아 줄까 — 못 받으면 **사람 말로** 이유를 돌려준다.
 
