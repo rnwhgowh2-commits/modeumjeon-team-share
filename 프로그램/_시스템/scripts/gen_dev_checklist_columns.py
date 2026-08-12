@@ -23,6 +23,12 @@ ITEM_BY_COL = {
     19: "kc", 20: "notice", 21: "tags",
     22: "ids", 23: "ids", 24: None, 25: "shipping", 26: None,
 }
+# 화면에서만 다르게 부르는 이름. 엑셀 원문은 그대로 두고 표시만 바꾼다.
+#   26(Z)열 — 엑셀에선 U~Y 묶음과 이름이 똑같이 「기타」라 머리글에 「기타」가 두 번 찍힌다.
+#   Z열은 위너 가격·로켓그로스·스마일캐시처럼 **그 마켓에만 있는 것**이라 성격이 다르다.
+#   사장님 확정 2026-08-13 — 「마켓 고유」로 부른다.
+NAME_OVERRIDE = {26: "마켓 고유"}
+
 ROWS = [(3, "lotteon"), (4, "coupang"), (5, "smartstore"),
         (6, "eleven11"), (7, "auction"), (8, "gmarket")]
 
@@ -53,8 +59,8 @@ def build(xlsx_path):
         name, rule = _split_rule(cell(2, col) or cell(1, col))
         columns.append({
             "col": col,
-            "group": group,
-            "name": name or group,
+            "group": NAME_OVERRIDE.get(col, group),
+            "name": NAME_OVERRIDE.get(col, name or group),
             "rule": rule or _split_rule(cell(1, col))[1],
             "item": ITEM_BY_COL[col],
             "specs": {mk: cell(row, col) for row, mk in ROWS},
