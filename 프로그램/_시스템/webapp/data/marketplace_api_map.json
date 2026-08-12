@@ -170185,7 +170185,7 @@
    },
    "res": {
     "fields_count": 1,
-    "sample": "<?xml version=\"1.0\" encoding=\"euc-kr\" standalone=\"yes\"?><Product/>",
+    "sample": "<?xml version=\"1.0\" encoding=\"euc-kr\" standalone=\"yes\"?><Product><message>상품 상세 내용이 수정되었습니다.</message></Product>   ← 라이브 실측(문서 예제는 빈 <Product/> 라 틀렸다)",
     "errorResponse_fields": 1
    },
    "fields": [
@@ -170195,10 +170195,12 @@
      "example": ""
     }
    ],
-   "success": "🔴 성공 응답이 빈 <Product/> 다 — 결과코드가 없다. 보냈다고 믿지 말고 **조회(eleven11.903)로 되읽어** 확인해야 한다.",
+   "success": "최상위 봉투가 `Product`(단수)면 성공, `Products`(복수)면 에러. 🔴 성공에도 message 가 온다 — 문구로 판정하지 말 것. 최종 확인은 되읽기(eleven11.903).",
    "idTraps": [
     "🎯 이걸 쓰면 상품수정(eleven11.902)의 **전체 교체 위험을 피한다**. 상세 한 축만 바꿀 땐 반드시 이쪽.",
-    "🔴🔴 **성공 응답이 빈 `<Product/>`** — resultCode 도 message 도 없다. 성공 판정 근거가 응답에 없으므로 **되읽기가 유일한 검증 수단**이다.",
+    "🔴🔴 **성공에도 `message` 가 온다** — 「상품 상세 내용이 수정되었습니다.」(라이브 실측 2026-08-12). 문서의 성공 예제는 빈 `<Product/>` 지만 같은 문서 「출력 결과 필드」표엔 message 가 **필수(O)** 로 적혀 있다. 예제만 보고 「message 있으면 실패」로 짰다가 왕복이 통째로 죽었다. ⚠️ **예제와 필드표가 어긋나면 필드표가 더 정확하다**(예제는 자주 낡는다).",
+    "🔴 성공/실패는 **봉투 이름**으로 가른다 — 성공 `Product`(단수) · 에러 `Products`(복수). 한 글자 차이다. 낱말 판정은 마켓이 문구를 바꾸면 조용히 깨진다.",
+    "🔴 상세엔 태그가 들어가므로 본문을 `<![CDATA[ ]]>` 로 감싼다. 본문 인코딩은 euc-kr(선언도 맞춰야 500 이 안 난다).",
     "🔴 등록·수정 다른 API 는 POST/PUT 이 갈리는데 이건 **POST** 다(조회는 GET)."
    ],
    "persistIds": [],

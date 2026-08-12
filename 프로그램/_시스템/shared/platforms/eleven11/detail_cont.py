@@ -33,6 +33,17 @@ def _localname(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
+def _root_name(xml_text: str) -> Optional[str]:
+    """최상위 봉투 이름. 🔴 성공은 `Product`, 에러는 `Products`(복수) — 한 글자 차이다."""
+    cleaned = _re.sub(r"<\?xml[^>]*\?>", "", xml_text or "", count=1).strip()
+    if not cleaned:
+        return None
+    try:
+        return _localname(_ET.fromstring(cleaned).tag)
+    except _ET.ParseError:
+        return None
+
+
 def _find_text(xml_text: str, name: str) -> Optional[str]:
     cleaned = _re.sub(r"<\?xml[^>]*\?>", "", xml_text or "", count=1).strip()
     if not cleaned:
@@ -75,9 +86,15 @@ def update_detail_html(
 ) -> None:
     """상품상세 설명을 바꾼다. 실패는 예외.
 
-    ⚠️ 성공 응답이 빈 `<Product/>` 라 **여기서는 성공을 판정할 수 없다.**
-       호출부가 반드시 `get_detail_html` 로 되읽어 확인해야 한다.
-       (에러일 때만 `<Products><message>` 가 온다 — 그건 여기서 잡는다)
+    🔴 [2026-08-12 라이브] **성공에도 message 가 온다.**
+       「상품 상세 내용이 수정되었습니다.」를 실패로 읽어 왕복이 통째로 죽었다.
+       문서의 성공 예제는 빈 `<Product/>` 였는데, 같은 문서 「출력 결과 필드」표엔
+       `message`(결과내용)가 **필수(O)** 로 적혀 있다 — 예제만 보고 필드표를 안 봤다.
+       ⚠️ 예제와 필드표가 어긋나면 **필드표가 더 정확하다**(예제는 자주 낡는다).
+
+    성공/실패는 **봉투 이름으로 가른다** — 성공 `Product`, 에러 `Products`(복수).
+    낱말 판정은 하지 않는다(마켓이 문구를 바꾸면 조용히 깨진다).
+    ⚠️ 그래도 최종 확인은 호출부의 되읽기다 — 그게 유일하게 확실한 검증 수단이다.
     """
     prd = str(product_id or "").strip()
     if not prd:
@@ -90,6 +107,6 @@ def update_detail_html(
     body = ('<?xml version="1.0" encoding="euc-kr"?>'
             f"<ProductDetailCont><{_FIELD}><![CDATA[{html}]]></{_FIELD}></ProductDetailCont>")
     resp = client.request(method="POST", path=_PATH_PUT.format(prd_no=prd), body=body)
-    msg = _find_text(resp or "", "message")
-    if msg:
+    if _root_name(resp or "") == "Products":       # 복수 = 에러 봉투
+        msg = _find_text(resp or "", "message") or ""
         raise RuntimeError(f"11번가 상세수정 실패 prdNo={prd}: {msg[:200]}")
