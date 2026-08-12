@@ -115,6 +115,17 @@ TABLE: dict[str, dict[str, tuple]] = {
         'kc': _c("요청.productCertificationInfos — 인증 정보 목록 (object[]) · "
                  "'어린이제품 인증 대상' 카테고리 상품인 경우 필수"),
         'tags': _o('요청.sellerTags — 판매자 입력 태그 (object[])'),
+        # ── [2026-08-12] 사장님 엑셀 「마켓별 상품등록 정보」 대조로 추가 ──
+        'listing': _r('요청.minorPurchasable — 미성년자 구매 가능 여부 (boolean) [필수] / '
+                      '요청.taxType — 부가가치세 타입 코드 (string) · 코드: [TAX, DUTYFREE, SMALL] / '
+                      '요청.saleType — 상품 판매 유형 코드 (string) · 코드: [NEW, OLD] / '
+                      '요청.saleStartDate·saleEndDate — 판매 시작/종료 일시',
+                      '묶음 안에서 [필수] 표기가 붙은 것은 미성년자 구매 가능 여부 하나입니다.'),
+        'price_compare': _r('요청.naverShoppingRegistration — 네이버 쇼핑 등록 여부 '
+                            '(boolean) [필수] · 네이버 쇼핑 광고주가 아닌 경우에는 '
+                            'false 로 저장됩니다.'),
+        'ids': _o('요청.modelName — 상품 모델명 (string) / 요청.modelId — 상품 모델 ID / '
+                  '요청.sellerBarcode — 판매자 바코드 (string). 셋 다 필수 표기가 없습니다.'),
         'banned_words': _o('마켓 등록 API 에 없는 칸입니다 — 우리 쪽 거르개입니다.'),
     },
 
@@ -143,7 +154,22 @@ TABLE: dict[str, dict[str, tuple]] = {
         'kc': _c('items.certifications.certificationType — 인증정보Type  인증대상이 '
                  '아닌 카테고리일 경우 : NOT_REQUIRED'),
         'tags': _o('items.searchTags — 검색어  1개당 20자 이내, 최대 20개'),
+        # ── [2026-08-12] 사장님 엑셀 대조로 추가 ──
+        'listing': _r('요청.items.taxType — 과세여부 [필수] · TAX=과세(기본값)/FREE=비과세 / '
+                      '요청.items.adultOnly — 19세이상 [필수] · ADULT_ONLY/EVERYONE(기본값) / '
+                      '요청.saleStartedAt — 판매시작일시 [필수] / 요청.saleEndedAt — '
+                      '판매종료일시 · "*2099년 까지 길게 선택"',
+                      '🔴 쿠팡은 판매종료일시가 필수라 「설정 안 함」이 없습니다 — 문서가 '
+                      '2099년까지 길게 잡으라고 안내합니다. 제조사(요청.manufacture)는 '
+                      '「정확히 못 적으면 brand 와 동일하게 입력 가능」입니다.'),
+        'price_compare': _o('쿠팡 상품등록 API 에는 가격비교 노출 칸이 없습니다 — '
+                            '사장님 엑셀에도 X 로 적혀 있습니다.'),
+        'ids': _o('요청.items.modelNo — 모델번호 / 요청.items.barcode — 바코드 / '
+                  '요청.items.emptyBarcode — 바코드 없음(없으면 true) / '
+                  '요청.items.emptyBarcodeReason — 사유(100자). 필수 표기는 없습니다.',
+                  '바코드가 없으면 「없음」이라고 밝히는 칸이 따로 있습니다.'),
         'banned_words': _o('마켓 등록 API 에 없는 칸입니다 — 우리 쪽 거르개입니다.'),
+        '_parallel_import': _r('요청.items.parallelImported — 병행수입여부 [필수] · PARALLEL_IMPORTED=병행수입 / NOT_PARALLEL_IMPORTED=병행수입 아님'),
         '_winner': _o('쿠팡 등록 API 에 위너 가격 칸은 없습니다 — 등록 뒤 가격 운영 '
                       '규칙입니다.'),
         '_max_per_person': _r('items.maximumBuyForPerson [필수] — 인당 최대 구매 수량  '
@@ -187,7 +213,21 @@ TABLE: dict[str, dict[str, tuple]] = {
                  '(2026-07-21 라이브 검증). 카테고리에 따라 갈릴 수 있어 「확실」이 '
                  '아닙니다.'),
         'tags': _o('11번가 등록 API 에 태그 필수 표기가 없습니다.'),
+        # ── [2026-08-12] 사장님 엑셀 대조로 추가 ──
+        'listing': _r('suplDtyfrPrdClfCd — 부가세/면세상품코드 [필수] · 01=과세 / '
+                      'compPrdVatCd — 부가세 [필수] / minorSelCnYn — 미성년자 구매가능 '
+                      '[필수] · Y=가능 / prdStatCd — 상품상태 [필수] · 01=새상품 계열',
+                      '11번가는 과세·미성년자·상품상태가 모두 [필수] 입니다. '
+                      '제조사(company)는 「제조사/수입사 모두 없을 시 "없음"으로」 입니다.'),
+        'price_compare': _o('prcCmpExpYn — 가격비교 사이트 노출 여부 · '
+                            '「가격비교사이트 노출은 선택사항이며」 라고 적혀 있습니다. / '
+                            'prcDscCmpExpYn — 가격비교 사이트 할인 적용(선택).'),
+        'ids': _c('modelNm — 모델명 · 「모델명이 없을 시 "없음"으로 입력합니다」 / '
+                  'modelCd — 모델코드',
+                  '필수 표기는 없지만 빈칸을 받지 않아 「없음」이라고 적어야 합니다. '
+                  '바코드 칸은 11번가 등록 요청 필드에서 찾지 못했습니다.'),
         'banned_words': _o('마켓 등록 API 에 없는 칸입니다 — 우리 쪽 거르개입니다.'),
+        '_sell_method': _r('selMthdCd — 판매방식 [필수] · 01=고정가판매 / 04=예약판매 / 05=중고판매'),
     },
 
     # ── 롯데온 : 지도가 요약본 — 카테고리 계열만 확인된다 ──────────────────
@@ -211,6 +251,10 @@ TABLE: dict[str, dict[str, tuple]] = {
         'origin': _u(LOTTEON_UNKNOWN_REASON),
         'kc': _u(LOTTEON_UNKNOWN_REASON),
         'tags': _u(LOTTEON_UNKNOWN_REASON),
+        # ── [2026-08-12] 사장님 엑셀 대조 — 롯데온은 지도가 요약본이라 전부 확인 불가 ──
+        'listing': _L,
+        'price_compare': _L,
+        'ids': _L,
         'banned_words': _o('마켓 등록 API 에 없는 칸입니다 — 우리 쪽 거르개입니다.'),
         '_site_discount': _u(LOTTEON_UNKNOWN_REASON),
     },
@@ -244,6 +288,18 @@ _ESM = {
     'kc': _u('ESM 등록 전문에서 KC 인증 칸을 찾지 못했습니다 — 고시정보(officialNotice) '
              '안에 들어가는 것으로 보이나 스펙에 명시가 없어 「확인 불가」로 둡니다.'),
     'tags': _u('ESM 등록 전문에서 태그 칸을 찾지 못했습니다.'),
+    # ── [2026-08-12] 사장님 엑셀 대조로 추가 ──
+    'listing': _r('itemAddtionalInfo > isVatFree [필수] — 부가세여부. true=면세/false=과세 / '
+                  'itemAddtionalInfo > sellingPeriod > Gmkt [필수] · > Iac [필수] — 판매기간. '
+                  '-1(무제한), 15, 30, 60, 90 / itemAddtionalInfo > goodsStatus — 상품상태. '
+                  '1=신상품 2=중고상품 / itemAddtionalInfo > isAdultProduct — 미성년자 구매 여부',
+                  '판매기간은 -1 을 넣으면 무제한입니다. 제조사 칸은 못 찾았고 '
+                  '제조일(manufacturedDate)만 있습니다.'),
+    'price_compare': _o('addtionalInfo > pcs > isUse — 가격비교사이트 상품 노출 여부. '
+                        'true=노출함 / addtionalInfo > pcs > isUseIacPcsCoupon — '
+                        '(옥션용) 가격비교사이트 쿠폰적용여부. 필수 표기는 없습니다.'),
+    'ids': _o('itemBasicInfo > catalog > modelName — 모델명 / '
+              'itemBasicInfo > catalog > barCode — 바코드 입력. 필수 표기는 없습니다.'),
     'banned_words': _o('마켓 등록 API 에 없는 칸입니다 — 우리 쪽 거르개입니다.'),
     # 🔴 지도에는 **옥션·G마켓 둘 다** 필수(Y)다. `fields.py:EXTRA_ITEMS` 의
     #   `_site_discount` 는 only=['gmarket','lotteon'] 이라 **옥션이 빠져 있다**.
@@ -257,8 +313,10 @@ TABLE['gmarket'] = dict(_ESM)
 
 # ── 배선 진단 — 정책에 채운 값이 실제로 마켓까지 가는가 ──────────────────
 #
-# 🔴 여기가 정책 화면의 진짜 함정이다. 13항목을 다 채워도, 지금 **밖으로 나가는 것은
-#   판매가와 배송비뿐**이다. 나머지는 저장만 되고 읽는 코드가 없다.
+# 🔴 여기가 정책 화면의 진짜 함정이다. 항목을 다 채워도 **아직 안 나가는 것이 있다.**
+#   [2026-08-12 정정] 전에는 「나가는 것은 판매가와 배송비뿐」이라고 적혀 있었는데,
+#   그 사이 배선이 생겨 상품명·브랜드·옵션·상세설명도 나가고 있었다. 주석이 틀린 채
+#   남으면 다음 사람이 또 그대로 믿는다 — 그래서 아래 표를 시험이 원본과 대조한다.
 #   화면이 이 사실을 말하지 않으면 사장님은 채워 놓고 「왜 안 바뀌지」로 헤맨다.
 #
 #   판매가·배송비가 나가는 길: lemouton/policy/as_template.py 의 `_PolicyTemplate`
@@ -291,11 +349,31 @@ TO_VERIFY_BY_LIVE = [
 WIRED = 'wired'          # 정책값이 실제로 밖으로 나간다
 STORED_ONLY = 'stored'   # 저장만 된다 — 읽는 코드가 없다
 
+# 🔴 [2026-08-12 실측 정정] 전에는 판매가·배송비 둘만 적혀 있었다. 그 사이
+#   `policy/to_payload.py` → `registration/process_apply.apply_rules()` →
+#   `send/as_draft.upsert()` 배선이 생겨 **상품명·브랜드·옵션·상세설명도 실제로
+#   나가고 있었다.** 화면은 그것들을 「저장만 됩니다」라고 말하고 있었다 —
+#   사장님이 「어차피 안 나간다」고 읽고 안 채웠으면 그대로 마켓에 나갔을 값들이다.
+#   ★ 판정 근거 = `as_draft.upsert` 가 사본에서 **실제로 옮겨 담는 칸**.
+#     그 목록과 이 표가 갈리지 않도록 `test_required_marks.py` 가 묶어 둔다.
 WIRING: dict[str, tuple[str, str]] = {
+    'name': (WIRED, '여기서 조립한 상품명이 그대로 마켓 초안의 이름이 됩니다 '
+                    '(send/as_draft.py).'),
+    'brand': (WIRED, '브랜드 표기가 상품명 조립에 쓰입니다 — 브랜드 칸 자체는 '
+                     '상품에 저장된 값이 그대로 나갑니다.'),
+    'banned_words': (WIRED, '금지어가 상품명에서 걸러진 뒤 나갑니다. '
+                            '수집 금지어는 소싱처 단위로 따로 막습니다.'),
+    'options': (WIRED, '옵션 구성이 그대로 마켓 초안의 옵션이 됩니다.'),
+    'detail': (WIRED, '상세설명이 그대로 마켓 초안의 상세페이지가 됩니다.'),
     'price': (WIRED, '가격 엔진이 이 값으로 판매가를 계산합니다 '
                      '(policy/as_template.py).'),
-    'shipping': (WIRED, '배송비만 가격 계산에 쓰입니다 — 배송방법·출하지 같은 나머지 '
-                        '칸은 아직 나가지 않습니다 (policy/as_template.py).'),
+    'shipping': (WIRED, '배송비만 판매가 계산에 쓰입니다 — 배송방법·출하지·반품비 '
+                        '같은 나머지 칸은 아직 나가지 않습니다.'),
+    'images': (STORED_ONLY, '이미지는 마켓 초안을 만들 때 **옵션에서 다시 모아** '
+                            '붙입니다 — 이 규칙은 아직 읽지 않습니다 '
+                            '(send/as_draft.py 의 _option_images).'),
+    'origin': (STORED_ONLY, '가공 엔진까지는 반영되는데 마켓 초안이 그 칸을 아직 '
+                            '옮겨 담지 않습니다 — 지금은 나가지 않습니다.'),
 }
 STORED_ONLY_NOTE = (
     '지금은 저장만 됩니다 — 이 값을 읽어 마켓으로 보내는 곳이 아직 없습니다. '

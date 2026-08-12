@@ -399,3 +399,47 @@ def test_주문일축_목록은_매출_대체를_숨기지_않는다(monkeypatch
               "?axis=order&bucket=2026-08-01&unit=day").get_json()
     assert d["rows"][0]["매출액"] == 12000
     assert d["rows"][0]["매출액대체"] is True
+
+
+# ══ [2026-08-12] 노션 c-4 — 마켓 정산 대조 라우트 ════════════════════════════
+
+def _xlsx(rows):
+    import io as _io
+    import pandas as pd
+    buf = _io.BytesIO()
+    pd.DataFrame(rows).to_excel(buf, index=False)
+    return buf.getvalue()
+
+
+def test_대조항목이_기준일_규칙과_함께_나온다(monkeypatch):
+    """기준일을 잘못 뽑으면 대조 자체가 거짓 — 화면이 규칙을 그대로 보여줘야 한다."""
+    _patch_lines(monkeypatch, [])
+    c = _make_client()
+    j = c.get("/orders/settle-recon/items").get_json()
+    keys = {x["key"] for x in j["items"]}
+    assert keys == {"coupang_rg", "coupang_confirmed",
+                    "coupang_unconfirmed", "smartstore"}
+    rg = [x for x in j["items"] if x["key"] == "coupang_rg"][0]
+    assert "매출인식일 2달" in rg["기준일"]
+
+
+def test_모르는_항목은_거부한다(monkeypatch):
+    _patch_lines(monkeypatch, [])
+    c = _make_client()
+    r = c.post("/orders/settle-recon/run",
+               data={"item": "없는항목", "file": (__import__("io").BytesIO(b"x"), "a.xlsx")},
+               content_type="multipart/form-data")
+    assert r.status_code == 400
+
+
+def test_금액열을_못_찾으면_422로_본_열이름을_말한다(monkeypatch):
+    """🔴 조용히 0원으로 넘어가 「대조했는데 일치」라고 하면 안 된다."""
+    import io as _io
+    _patch_lines(monkeypatch, [])
+    c = _make_client()
+    r = c.post("/orders/settle-recon/run",
+               data={"item": "coupang_confirmed",
+                     "file": (_io.BytesIO(_xlsx([{"엉뚱한열": 1}])), "a.xlsx")},
+               content_type="multipart/form-data")
+    assert r.status_code == 422
+    assert "엉뚱한열" in r.get_json()["error"]

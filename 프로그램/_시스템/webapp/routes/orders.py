@@ -138,16 +138,25 @@ def margin_embed():
     return resp
 
 
-def _parse_markets(args):
-    """markets(콤마·다중) 또는 market(단일). supported_markets() 로 필터(순서 유지·중복 제거)."""
+def _parse_markets(args, dropped=None):
+    """markets(콤마·다중) 또는 market(단일). supported_markets() 로 필터(순서 유지·중복 제거).
+
+    🔴 걸러진 마켓 이름을 `dropped` 리스트에 담아 준다(2026-08-12). 옛 판은 조용히
+      버리기만 해서, 옥션을 분명히 지정했는데도 화면엔 「선택된 마켓이 없어요」만
+      떴다 — 「아무것도 안 골랐다」와 「고른 게 안 열렸다」가 같은 얼굴이었다.
+    """
     raw = args.get('markets') or args.get('market') or 'smartstore'
     out, seen = [], set()
     _sup = _oe.supported_markets()
     for m in raw.split(','):
         m = m.strip()
-        if m in _sup and m not in seen:
+        if not m or m in seen:
+            continue
+        if m in _sup:
             seen.add(m)
             out.append(m)
+        elif dropped is not None:
+            dropped.append(m)
     return out
 
 
@@ -464,10 +473,21 @@ def _mask_addr(s):
 def orders_preview():
     """주문 미리보기(JSON·다중마켓 최신순) — 개인정보 마스킹. 화면 표시용. 원본은 엑셀."""
     from flask import jsonify
-    markets = _parse_markets(request.args)
+    dropped = []
+    markets = _parse_markets(request.args, dropped)
     days = _parse_days(request.args)
     since, until = _parse_range(request.args)
     if not markets:
+        # 🔴 「고른 게 없다」와 「고른 게 안 열렸다」를 갈라 말한다. 옥션·G마켓은
+        #   고정 목록이 아니라 **라이브 검증 결과**로 열리므로, 그 확인이 실패하면
+        #   여기로 떨어진다 — 옛 문구는 그 사실을 통째로 숨겼다(라이브 400 사고).
+        if dropped:
+            _ko = "·".join(_oe.market_label(m) for m in dropped)
+            return jsonify(ok=False, dropped=dropped,
+                           error=f"{_ko} 은(는) 아직 조회가 열리지 않았어요 — "
+                                 f"판매처관리에서 「🧪 라이브 검증」을 마쳐 주세요. "
+                                 f"(검증을 마쳤는데도 이 말이 뜨면 검증 상태를 "
+                                 f"확인하지 못한 것이니 잠시 뒤 다시 눌러 주세요.)"), 400
         return jsonify(ok=False, error="선택된 마켓이 없어요."), 400
     warnings = []   # 일부 계정 조회 실패(IP 미등록 등) → 나머지는 보여주되 배너로 명시
     # ★롯데온 정산 크롤이 멈췄으면 여기서도 알린다 — 정산예정금이 추정치로 남는 원인이라
@@ -2937,6 +2957,128 @@ def shopmine_recon_latest():
                                'detail': latest.result},
                        prev=(prev.summary if prev else None),
                        prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
+# ── 주문 내역 화면 설정 (열 순서·너비·빠른 기간·엑셀 양식) — 팀 공유 ──────────
+#  사장님(2026-08-12): "기간 직접 만들었는데 자꾸 사라져."
+#  원인은 재배포가 아니라 **브라우저 안에만 저장**돼 있던 것. 서버로 옮긴다.
+#  단 컨테이너 data/ 는 배포마다 사라지므로 state_store 를 쓴다(모듈 주석 참조).
+
+@bp.route('/api/view-prefs', methods=['GET', 'POST'])
+def order_view_prefs():
+    """GET = 저장된 설정 / POST = 보낸 칸만 덮어쓰기(부분 저장).
+
+    🔴 실패를 조용히 삼키지 않는다 — 저장이 안 됐는데 성공한 척하면 사장님이
+      같은 설정을 몇 번이고 다시 고치게 된다.
+    """
+    from lemouton.markets import order_view_prefs as _vp
+    if request.method == 'GET':
+        return jsonify(ok=True, prefs=_vp.load())
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify(ok=False, error='보낸 값이 올바르지 않습니다.'), 400
+    try:
+        return jsonify(ok=True, prefs=_vp.save(body))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except RuntimeError as e:
+        return jsonify(ok=False, error=str(e)), 500
+
+
+# ── 마켓 정산 대조 (노션 주문관리 c-4) ────────────────────────────────────────
+#  마켓 정산 화면에서 내려받은 엑셀 ↔ 우리 정산예정금액. 규칙·엔진 = margin/settle_recon.py
+
+@bp.route('/settle-recon/items')
+def settle_recon_items():
+    """대조 항목 목록 + 기준일 규칙 — 화면이 「마켓에서 이렇게 뽑으세요」를 그대로 보여준다."""
+    from lemouton.margin import settle_recon as _sr
+    return jsonify(ok=True, items=[{'key': k, **v} for k, v in _sr.ITEMS.items()])
+
+
+@bp.route('/settle-recon/run', methods=['POST'])
+def settle_recon_run():
+    """마켓 정산 엑셀 업로드 → 우리 값과 대조 → 결과 저장(지난번 대비 추적).
+
+    🔴 열 이름을 추측하지 않는다 — 금액 열을 못 찾으면 파일에서 본 열 이름을 그대로
+      돌려주며 422 로 실패한다. 조용히 0원으로 넘어가면 「대조했는데 일치」가 된다.
+    """
+    from lemouton.margin import settle_recon as _sr
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    from lemouton.margin.settle_plan_rules import load_rules, wallet_summary
+
+    item = (request.form.get('item') or '').strip()
+    if item not in _sr.ITEMS:
+        return jsonify(ok=False,
+                       error=f'모르는 대조 항목입니다: {item or "(없음)"}'), 400
+    f = request.files.get('file')
+    if not f:
+        return jsonify(ok=False, error='파일이 없습니다.'), 400
+    try:
+        parsed = _sr.parse_sheet(f.read())
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 422
+    except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
+        return jsonify(ok=False, error=f'엑셀을 읽지 못했습니다: {type(e).__name__}: {e}'), 400
+
+    rules = load_rules()
+    lines = _settle_plan_lines([_sr.ITEMS[item]['market']])
+    try:
+        from lemouton.margin import rg_settlement as RG
+        rg = RG.summary()
+    except Exception:   # noqa: BLE001 — 로켓그로스가 없어도 나머지는 대조된다
+        rg = {}
+    try:
+        from lemouton.margin import settle_fast_ledger as FL
+        fast = FL.summary()
+    except Exception:   # noqa: BLE001
+        fast = {}
+    try:
+        wallet = wallet_summary(rules)
+    except Exception:   # noqa: BLE001
+        wallet = {}
+    res = _sr.reconcile(item, parsed, lines, rules, today=_dt.date.today(),
+                        rg_summary=rg, fast_summary=fast, wallet_summary=wallet)
+
+    s = SessionLocal()
+    try:
+        prev = (s.query(SettleReconRun).filter(SettleReconRun.item == item)
+                .order_by(SettleReconRun.id.desc()).first())
+        run = SettleReconRun(item=item, filename=f.filename or '',
+                             market_total=int(res['마켓값'] or 0),
+                             ours_total=int(res['우리값'] or 0),
+                             verdict=res['판정'],
+                             parsed={k: v for k, v in parsed.items() if k != 'rows'},
+                             result=res)
+        s.add(run)
+        # 저장 상한 30회 — Supabase 무료 티어(500MB) 보호. 오래된 실행부터 삭제.
+        for o in (s.query(SettleReconRun).order_by(SettleReconRun.id.desc())
+                  .offset(29).all()):
+            s.delete(o)
+        s.commit()
+        return jsonify(ok=True, ran_at=run.ran_at.isoformat(), result=res,
+                       parsed=parsed,
+                       prev=(prev.result if prev else None),
+                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
+@bp.route('/settle-recon/latest')
+def settle_recon_latest():
+    """항목별 마지막 대조 결과 — 탭에 들어오면 지난번 판정이 바로 보인다."""
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    s = SessionLocal()
+    try:
+        out = {}
+        for r in (s.query(SettleReconRun)
+                  .order_by(SettleReconRun.id.desc()).limit(60).all()):
+            if r.item in out:
+                continue
+            out[r.item] = {'ran_at': r.ran_at.isoformat(), 'filename': r.filename,
+                           'result': r.result, 'parsed': r.parsed}
+        return jsonify(ok=True, latest=out)
     finally:
         s.close()
 

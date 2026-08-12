@@ -39,11 +39,37 @@ def _models(s, *codes):
 
 # ── 항목표가 대량등록과 같은 원천인가 ─────────────────────────────────────
 
-def test_기본_항목은_대량등록_가공규칙_13항목_그대로다():
-    """베껴 두면 대량등록에서 항목이 바뀔 때 여기가 뒤처진다."""
+def test_기본_항목은_대량등록_가공규칙_그대로다():
+    """베껴 두면 대량등록에서 항목이 바뀔 때 여기가 뒤처진다.
+
+    [2026-08-12] 사장님 엑셀 「마켓별 상품등록 정보」 대조로 3항목이 늘었다
+    (등록 기본값·가격비교 노출·모델번호/바코드) → 13 → 16.
+    🔴 개수를 박아 두는 이유는 「몇 개인가」가 아니라 **두 원천이 안 갈리는가**다.
+    """
     from lemouton.registration.process_policy import ITEM_KEYS
     assert [it['key'] for it in base_items()] == list(ITEM_KEYS)
-    assert len(ITEM_KEYS) == 13
+    assert len(ITEM_KEYS) == 16
+
+
+def test_엑셀_대조로_추가한_3항목이_있다():
+    """사장님 엑셀에는 있는데 우리에만 없던 칸들 — 다시 빠지면 안 된다."""
+    keys = {it['key'] for it in base_items()}
+    assert {'listing', 'price_compare', 'ids'} <= keys
+
+
+def test_등록_기본값은_사장님이_정한_값으로_미리_채워진다():
+    """사장님 지시 — 「거의 유사한 것들은 기본설정으로 해두면 될듯해」.
+
+    🔴 판매기간 기본값이 「설정 안 함」이면 안 된다 — 쿠팡은 판매종료일시가 필수라
+       그 값으로는 등록이 안 된다(문서가 2099년까지 길게 잡으라고 안내).
+    """
+    it = next(x for x in base_items() if x['key'] == 'listing')
+    d = {f['key']: f['default'] for f in it['fields']}
+    assert d['tax_type'] == '과세'
+    assert d['product_condition'] == '새상품'
+    assert d['minor_purchase'] == '전연령 구매 가능'
+    assert d['manufacturer_mode'] == '브랜드와 동일'
+    assert d['sale_period'] == '가장 길게', '「설정 안 함」은 쿠팡에서 등록이 안 된다'
 
 
 def test_상품명_항목에_가공규칙_칸들이_그대로_있다():

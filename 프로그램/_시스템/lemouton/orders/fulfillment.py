@@ -39,9 +39,17 @@ REASON_LOSS = 'P'                # 역마진
 REASON_NOT_OURS = 'not_ours'     # 모음전으로 관리하지 않는 상품 — 고칠 것이 없다
 REASON_UNKNOWN = 'unknown'       # 우리 상품인데 자동 판정 불가 — 눈으로 확인
 REASON_OTHER = 'other'           # 사람이 지정한 그 밖의 사유
+#: 🔴 [2026-08-12 사장님] 소싱처 주소가 없으면 「확인 불가」가 아니다 — 우리가 못 본 게
+#:   아니라 **볼 주소 자체가 없는** 것이다. 사장님이 짚은 두 경우:
+#:     ① 오프라인에서 사입해 재고를 두고 파는 상품 (소싱처가 애초에 없다)
+#:     ② 마켓엔 팔고 있지만 아직 우리 프로그램에 연동이 안 된 상품
+#:   둘 다 「크롤하면 알 수 있는데 안 했다」가 아니라서, 같은 말로 뭉개면 사장님이
+#:   고칠 게 없는 줄을 계속 들여다보게 된다.
+REASON_NO_SOURCE_URL = 'no_source_url'
 
 GROUP_LABEL = {GROUP_FULFILL: '이행', GROUP_UNFULFILL: '미이행', GROUP_CLAIM: '클레임'}
 REASON_LABEL = {REASON_STOCK: '재고없음', REASON_LOSS: '역마진',
+                REASON_NO_SOURCE_URL: '소싱처 URL 없음',
                 REASON_NOT_OURS: '우리 상품 아님',
                 REASON_UNKNOWN: '확인 불가', REASON_OTHER: '기타'}
 
@@ -163,6 +171,10 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
     #   상품주문링크, 상품관리」. 무재고라 **소싱처링크 = 상품주문링크**다
     #   (그 페이지에서 우리가 산다) — 같은 주소를 두 버튼으로 두지 않는다.
     stock_by_sku, links_by_sku = {}, {}
+    # 🔴 [2026-08-12] 「언제 긁은 값인가」 — 이게 없으면 3일 전 재고를 오늘 재고인 척
+    #   보여주게 된다. 크롤은 사장님 PC 크롬 확장이 하고 서버는 저장분만 읽으므로,
+    #   판정은 **항상 마지막 크롤 시점의 값**이다. 그 사실을 화면이 말해야 한다.
+    crawl_by_sku = {}
     model_by_sku = {}
     if skus:
         model_by_sku = {o.canonical_sku: o.model_code
@@ -195,6 +207,14 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
                     'sources': srcs,
                     'product': '/bundles/' + str(model_by_sku[o['sku']]),
                 }
+                # 가장 최근에 성공한 크롤 시각. 성공한 게 하나도 없으면 None —
+                #  「모른다」를 0 이나 지금 시각으로 채우지 않는다.
+                _ats = [c.get('last_fetched_at') for c in (o.get('sources') or [])
+                        if c.get('last_fetched_at') and c.get('last_status') == 'ok']
+                crawl_by_sku[o['sku']] = {
+                    'crawled_at': max(_ats) if _ats else None,
+                    'source_urls': len(srcs),
+                }
 
     # ── 5) 판정 ─────────────────────────────────────────────────────────────
     for r in rest:
@@ -205,10 +225,15 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
         stock = stock_by_sku.get(sku) if sku else None
         profit = (settle - purchase) if (settle is not None and purchase is not None) else None
 
+        _cr = crawl_by_sku.get(sku) if sku else None
         d = {'sku': sku, 'stock': stock, 'purchase': purchase,
              'settle': settle, 'profit': profit,
              # 바로가기 — 우리 상품으로 매칭된 행만 있다. 없으면 화면이 안 그린다.
-             'links': links_by_sku.get(sku) if sku else None}
+             'links': links_by_sku.get(sku) if sku else None,
+             # 「언제 긁은 값인가」 — 판정과 **한 묶음**으로 보내야 화면이 같이 적는다.
+             'crawled_at': (_cr or {}).get('crawled_at'),
+             'source_urls': (_cr or {}).get('source_urls'),
+             }
         if stock == 'out':
             d.update(group=GROUP_UNFULFILL, reason=REASON_STOCK)
         elif profit is not None and profit < 0:
@@ -219,6 +244,14 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
             # 모음전으로 관리하지 않는 상품이다 — 고칠 것이 없다.
             # 「확인 불가」로 뭉개면 남의 상품 주문이 전부 문제처럼 보인다.
             d.update(group=GROUP_UNFULFILL, reason=REASON_NOT_OURS)
+        elif (_cr or {}).get('source_urls') == 0:
+            # 🔴 [2026-08-12 사장님] 여기까지 왔는데 소싱처 주소가 **0개**면, 우리가
+            #   못 본 게 아니라 **볼 주소 자체가 없는** 것이다. 「확인 불가」로 뭉개면
+            #   사장님이 고칠 게 없는 줄을 계속 들여다보게 된다.
+            #   ★ 재고·역마진 판정보다 **뒤**에 둔다 — 주소가 없어도 재고를 아는 경우가
+            #     있고(옵션에 재고만 저장된 상태), 그때는 그 판정이 더 정확하다.
+            d.update(group=GROUP_UNFULFILL, reason=REASON_NO_SOURCE_URL,
+                     no_url_why='ours_no_url')
         else:
             # 우리 상품인데 재고를 못 읽었거나 매입가·정산예정금을 못 구했다.
             # 「보낼 수 있다」고도 「못 보낸다」고도 말하지 않는다.
@@ -230,8 +263,8 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
 def summarize(result: dict) -> dict:
     """탭 머리에 붙일 건수 — {이행, 미이행, 클레임, 사유별}."""
     counts = {GROUP_FULFILL: 0, GROUP_UNFULFILL: 0, GROUP_CLAIM: 0}
-    reasons = {REASON_STOCK: 0, REASON_LOSS: 0, REASON_NOT_OURS: 0,
-               REASON_UNKNOWN: 0, REASON_OTHER: 0}
+    reasons = {REASON_STOCK: 0, REASON_LOSS: 0, REASON_NO_SOURCE_URL: 0,
+               REASON_NOT_OURS: 0, REASON_UNKNOWN: 0, REASON_OTHER: 0}
     for d in (result or {}).values():
         g = d.get('group')
         if g in counts:

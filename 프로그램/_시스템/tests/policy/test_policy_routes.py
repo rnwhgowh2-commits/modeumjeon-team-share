@@ -542,3 +542,63 @@ def test_목록의_가격_쓸_수_있음도_켠_마켓만_센다(client):
     _set_markets(client, pid, ['smartstore'])
     body = client.get('/policies').get_data(as_text=True)
     assert '쓸 수 있음 6마켓' not in body, '꺼 둔 마켓까지 셌다'
+
+
+# ── [2026-08-12 사장님 확정 C2] 마켓 탭에서 바로 켜고 끄기 (더망고 캡처 반영) ──
+
+def test_마켓_탭에_켜고_끄는_체크박스가_있다(client):
+    """전에는 켜고 끄려면 정책 목록으로 돌아가야 했다."""
+    pid = _new_policy(client, '탭체크')
+    body = client.get(f'/policies/{pid}?m=coupang').get_data(as_text=True)
+    assert 'id="mkon"' in body
+    assert '[쿠팡 정책설정]' in body
+    assert '상품정보를 보내지 않습니다' in body
+
+
+def test_마켓_공통_탭에는_체크박스가_없다(client):
+    """「마켓 공통」은 진짜 마켓이 아니라 값을 담아두는 자리다 — 켜고 끌 대상이 아니다."""
+    pid = _new_policy(client, '공통엔없음')
+    body = client.get(f'/policies/{pid}?m=common').get_data(as_text=True)
+    assert 'id="mkon"' not in body
+
+
+def test_꺼진_마켓은_체크가_풀려_있고_화면이_흐려진다(client):
+    pid = _new_policy(client, '꺼짐표시')
+    _set_markets(client, pid, ['smartstore'])
+    off = client.get(f'/policies/{pid}?m=coupang').get_data(as_text=True)
+    assert 'mk-off' in off, '흐리게 만드는 표시가 없다'
+    assert 'id="mkon" checked' not in off
+    on = client.get(f'/policies/{pid}?m=smartstore').get_data(as_text=True)
+    assert 'id="mkon" checked' in on
+
+
+def test_꺼져_있어도_값을_고칠_수_있다(client):
+    """🔴 「흐리게만」이다 — 값이 보이는데 손댈 수 없으면 둘 다 잃는다.
+    끄는 것은 「안 보낸다」이지 「못 고친다」가 아니다."""
+    pid = _new_policy(client, '꺼져도수정')
+    _set_markets(client, pid, ['smartstore'])
+    body = client.get(f'/policies/{pid}?m=coupang').get_data(as_text=True)
+    assert 'pointer-events:none' not in body.split('.mk-off')[1][:400], '입력을 막았다'
+    assert '꺼 둔 동안에도 <b>고칠 수 있습니다.</b>' in body
+    # 실제로 저장도 되어야 한다
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import save_item, values_for
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        save_item(s, policy=p, market='coupang', item_key='price',
+                  config={'sourcing_rate': 30})
+        s.commit()
+        assert values_for(s, pid, 'coupang'), '꺼진 마켓에 저장이 막혔다'
+    finally:
+        s.close()
+
+
+def test_체크박스는_켠_마켓_목록을_통째로_보낸다(client):
+    """이 마켓만 넣고 빼서 통째로 보낸다 — 화면에서 셈하면 어긋난다."""
+    pid = _new_policy(client, '통째전송')
+    _set_markets(client, pid, ['smartstore'])
+    body = client.get(f'/policies/{pid}?m=coupang').get_data(as_text=True)
+    assert "const ENABLED = " in body
+    assert "'/api/policies/' + PID + '/markets'" in body
+    assert 'ck.checked = !ck.checked' in body, '실패해도 안 되돌린다'

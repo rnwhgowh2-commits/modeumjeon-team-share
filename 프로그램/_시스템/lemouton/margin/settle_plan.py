@@ -64,11 +64,19 @@ def line_confirmed(line: dict) -> bool:
     거기 잡혔다는 것 자체가 「구매확정됐다」는 마켓의 증언이다. 상태 문자열은 우리가
     별도 API(140 진행단계)로 따로 받아 오는 값이라 시차가 있고, 추측이 섞인다.
 
-    🔴 `_settle_confirmed` 는 **True 만** 저장한다(order_ingest). 응답에 구매확정
-    **날짜**는 없으므로 날짜를 지어내지 않고 「확정됐다」는 사실만 적는다.
+    🔴 `_settle_confirmed` 는 **True 만** 저장한다(order_ingest) — False 를 쓰면
+    다음 회차(창 밖 주문)에서 확정을 지워 버린다.
+    🔴 [2026-08-12 정정] 「응답에 구매확정 날짜가 없다」던 앞선 판단은 **틀렸다**.
+    라이브 진단으로 원본 필드를 눈으로 보니 `seStdDt`(정산기준일=구매확정일)가
+    36개 필드 중에 줄곧 있었다. 이제 그 날짜를 `_settle_confirmed_date` 로 적고,
+    롯데온 지급내역(같은 날짜 축)에서 실입금일까지 찾아 붙인다.
     """
     row = line.get("row") or {}
     if row.get("_settle_confirmed") is True:
+        return True
+    # 🔴 [2026-08-12] 이제 **구매확정일 자체**가 온다(롯데온 seStdDt). 날짜가 있으면
+    #   그게 가장 단단한 증거다 — 언제 확정됐는지까지 아는 것이다.
+    if _norm_date(row.get("_settle_confirmed_date")):
         return True
     return _is_confirmed(str(row.get("주문상태") or ""), line.get("market") or "")
 

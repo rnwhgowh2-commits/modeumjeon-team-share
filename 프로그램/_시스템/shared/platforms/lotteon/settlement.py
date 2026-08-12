@@ -183,13 +183,49 @@ def parse_itmd_lines(resp: dict) -> dict:
     return out
 
 
+def parse_itmd_line_dates(resp: dict) -> dict:
+    """SettleItmdSales data → {(odNo, odSeq): seStdDt} **구매확정일**.
+
+    🔴 [2026-08-12] 이 필드가 응답에 **줄곧 있었는데 우리가 안 읽고 있었다**
+      (라이브 진단 실측: ajstDcAmt·…·seStdDt·… 36개 필드 중 하나).
+      seStdDt = 정산기준일 = **구매확정일**이고, 롯데온 지급내역(실입금일)이 바로
+      이 날짜 단위로 묶여 있다(lotteon_paid.paid_date_map 의 키). 그래서 이 값이
+      없으면 「롯데온은 입금 확인 창구가 없다」가 되고, 있으면 조인이 된다.
+
+    ★ 같은 라인의 procSeq 가 여럿이면 **가장 이른 날**을 쓴다 — 부분취소 등으로 뒤에
+      붙은 회차가 원래 확정일을 밀어내면 안 된다.
+    """
+    out: dict = {}
+    for r in ((resp or {}).get("data") or []):
+        od = str(r.get("odNo") or "")
+        if not od or not _is_product_line(r):
+            continue
+        d = str(r.get("seStdDt") or "").strip()[:10].replace("/", "-")
+        if len(d) == 8 and d.isdigit():
+            d = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+        if len(d) != 10:
+            continue                       # 날짜가 아니면 담지 않는다(날조 금지)
+        key = (od, str(r.get("odSeq") or ""))
+        if key not in out or d < out[key]:
+            out[key] = d
+    return out
+
+
 def itmd_line_map(since: datetime, until: datetime, *,
-                  client: Optional[LotteonClient] = None) -> dict:
-    """[since, until] 구매확정 주문의 {(odNo, odSeq): pymtAmt} — 라인(벌) 단위 지급액."""
+                  client: Optional[LotteonClient] = None,
+                  with_dates: bool = False):
+    """[since, until] 구매확정 주문의 {(odNo, odSeq): pymtAmt} — 라인(벌) 단위 지급액.
+
+    with_dates=True 면 `(금액맵, 구매확정일맵)` 두 개를 돌려준다 — 같은 응답에서
+    같이 뽑는다(창을 두 번 부르면 롯데온을 두 번 두들기고 경계도 어긋난다).
+    """
     client = client or LotteonClient()
     cfg = getattr(client, "_cfg", None) or _CFG
     rows = _fetch_all_itmd_rows(cfg, since, until, client=client)
-    return parse_itmd_lines({"data": rows})
+    amts = parse_itmd_lines({"data": rows})
+    if with_dates:
+        return amts, parse_itmd_line_dates({"data": rows})
+    return amts
 
 
 def _fetch_all_itmd_rows(cfg: dict, since: datetime, until: datetime, *, client) -> list:
