@@ -249,6 +249,11 @@
               {% if m.code %}
               <div class="og-menu" hidden>
                 <a class="og-mi" href="/optgen/box/{{ m.code }}">옵션 고치기 →</a>
+                {# [2026-08-12 사장님 확정 1안] 옵션함 쪽에 이미 있던 지우기를 여기에도.
+                   🔴 판정·막는 조건은 옵션함 지우기(api_delete_option_box)를 **그대로** 쓴다 —
+                      판매용 상품·만든 상품 있음·갈라진 묶음 있음이면 서버가 막고 까닭을 말한다. #}
+                <button class="og-mi og-mi-del" type="button" data-del="{{ m.code }}"
+                        data-name="{{ m.name }}" data-opts="{{ m.options }}">지우기</button>
               </div>
               {% endif %}
             </td>
