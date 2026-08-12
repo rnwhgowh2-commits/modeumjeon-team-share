@@ -126,9 +126,10 @@ def test_재고번호가_없으면_보내지_않는다():
 
 
 def test_쓸_수_없는_축은_거부한다():
+    """상품명은 전용 API 가 없다 — 상품수정(PUT)은 **전체 교체**라 안 쓴다."""
     f = FakeEleven11()
 
-    with pytest.raises(RuntimeError, match="상품명|미확보"):
+    with pytest.raises(RuntimeError, match="전체 교체"):
         _ops(f).apply({"name": "새이름"})
 
 
