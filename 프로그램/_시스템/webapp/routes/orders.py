@@ -38,7 +38,11 @@ SUBTABS = [
     # [2026-07-16] 정산·매출(sales) 탭 삭제(사용자 요청). tab=sales 진입은 list 로 폴백.
     {'key': 'cs', 'label': 'CS', 'desc': '취소·반품·교환 + 고객문의 조회·처리'},
     {'key': 'register', 'label': '신규 상품 등록', 'desc': '모음전 상품을 마켓에 신규 등록'},
-    {'key': 'margin', 'label': '마진 계산기', 'desc': '가격·수수료·배송비 입력 → 실 마진 시뮬'},
+    # [2026-08-12] 역할 나눔(설계서 §9) — 실매입가 입력·이상마진·블랙스팟은 「주문 내역」으로
+    #   옮겼다. 🔴 탭은 없애지 않는다: 이 화면에만 있는 기간 집계(일별·월별·브랜드별·
+    #   금액대별·상품별·마켓별·소싱처별)가 옮겨진 적이 없어서 없애면 통째로 사라진다.
+    {'key': 'margin', 'label': '마진 계산기',
+     'desc': '기간 집계·분석 (일별·월별·브랜드별·마켓별·소싱처별) — 실매입가 입력은 주문 내역에서'},
     {'key': 'recon', 'label': '샵마인 대조', 'desc': '샵마인 정답지 엑셀 ↔ 우리 적재분 전수 대조 (누락·필드차이)'},
     # [2026-08-06] 정산예정금액 — 기간별 미래 정산예정금(자금계획). 🔴 옛 sales 탭 id 재사용
     #   금지(사이드바 _REMOVED_IDS 가 i_sales 를 지운다) — 새 id=settle_plan.
@@ -684,7 +688,7 @@ def purchase_price_save():
     s = SessionLocal()
     try:
         row = _pp.upsert(s, line_uid=line_uid, price=raw,
-                         source=_pp.SOURCE_MANUAL, memo=memo)
+                         source=_pp.SOURCE_MANUAL, memo=memo, input_by=_who())
         # 저장이든 삭제(0·빈칸)든 실현 마진이 달라진다 — 둘 다 캐시를 버린다.
         _invalidate_tower_sales(f'실매입가 저장 uid={line_uid}')
         if row is None:
@@ -698,6 +702,102 @@ def purchase_price_save():
     except Exception as e:   # noqa: BLE001
         import logging
         logging.getLogger(__name__).exception("실매입가 저장 실패 uid=%s", line_uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+def _who():
+    """지금 로그인한 사람(이메일). 못 알면 None — 「모른다」를 지어내지 않는다."""
+    try:
+        from flask_login import current_user
+        return getattr(current_user, 'email', None)
+    except Exception:   # noqa: BLE001 — 로그인 매니저 없는 테스트 앱
+        return None
+
+
+@bp.get('/api/purchase-price/history')
+def purchase_price_history():
+    """한 주문 줄의 실매입가 변경 이력. `?line_uid=...&limit=50`
+
+    화면(매입가 칸의 「이력」)이 그대로 그린다. 이력이 없으면 빈 목록 —
+    **「변경 없음」과 「이력 기능 도입 전」을 화면이 구분해 말한다**(items 가 비면 안내문).
+    """
+    from lemouton.markets import purchase_price as _pp
+
+    uid = (request.args.get('line_uid') or '').strip()
+    if not uid:
+        return jsonify(ok=False, error="line_uid 가 없어요."), 400
+    try:
+        limit = max(1, min(200, int(request.args.get('limit') or 50)))
+    except (TypeError, ValueError):
+        limit = 50
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, line_uid=uid, items=_pp.history(s, uid, limit=limit))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("매입가 이력 조회 실패 uid=%s", uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/purchase-price/bulk')
+def purchase_price_bulk():
+    """고른 여러 줄에 **같은** 실매입가를 한꺼번에. payload: {line_uids:[...], price, memo?}
+
+    · 상태 열 일괄 지정(`/api/line-status/bulk`)과 **같은 규약**이다 — 열쇠는 반드시
+      `line_uid`. 🔴 주문번호로 묶으면 다품목 주문의 형제 줄까지 같은 값이 박힌다.
+    · `price` 가 비었거나 0 이면 **고른 줄의 실매입가를 지운다**(= 「입력 안 함」).
+      한 줄 저장과 같은 규칙이라 「빈칸으로 저장 = 지움」이 화면마다 갈리지 않는다.
+    · 🔴 한 줄이 실패해도 나머지를 되돌리지 않는다 — 대신 실패한 줄을 **그대로 돌려준다**
+      (조용한 실패 금지). 화면이 「N줄 저장 · M줄 실패」로 말한다.
+    """
+    from lemouton.markets import purchase_price as _pp
+
+    payload = request.get_json(silent=True) or {}
+    uids = payload.get('line_uids') or []
+    if not isinstance(uids, list) or not uids:
+        return jsonify(ok=False, error="선택된 주문 줄이 없어요."), 400
+    if len(uids) > 2000:
+        return jsonify(ok=False, error="한 번에 2,000줄까지예요 — 나눠서 저장해 주세요."), 400
+    raw = payload.get('price')
+    if raw not in (None, ''):
+        try:                          # 숫자가 아니면 조용히 0(=삭제)으로 흘리지 않는다
+            float(str(raw).replace(',', '').strip())
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="매입가는 숫자로 적어 주세요."), 400
+    memo = payload.get('memo')
+    memo = str(memo)[:255] if memo not in (None, '') else None
+    who = _who()
+    s = SessionLocal()
+    try:
+        saved, deleted, failed = 0, 0, []
+        for u in uids:
+            uid = str(u or '').strip()
+            if not uid:
+                continue
+            try:
+                row = _pp.upsert(s, line_uid=uid, price=raw,
+                                 source=_pp.SOURCE_MANUAL, memo=memo,
+                                 input_by=who)
+                if row is None:
+                    deleted += 1
+                else:
+                    saved += 1
+            except Exception as e:   # noqa: BLE001 — 한 줄 실패가 나머지를 막지 않는다
+                failed.append({'line_uid': uid, 'error': f"{type(e).__name__}: {str(e)[:120]}"})
+        if saved or deleted:
+            _invalidate_tower_sales(f'실매입가 일괄 저장 {saved}줄 · 지움 {deleted}줄')
+        return jsonify(ok=True, saved=saved, deleted=deleted, failed=failed,
+                       price=(None if not saved else _pp._to_price(raw)),
+                       tier=(None if not saved else _pp.TIER_REAL),
+                       label=(_pp.LABEL_UNKNOWN if not saved
+                              else _pp.TIER_LABEL[_pp.TIER_REAL]))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("실매입가 일괄 저장 실패 n=%d", len(uids))
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
     finally:
         s.close()

@@ -325,6 +325,25 @@
     .o7 .pp-in.pp-real{border-color:var(--blue,#3182F6);}
     .o7 .pp-in.pp-saving{opacity:.6;}
     .o7 .pp-in.pp-bad{border-color: var(--글자-빨강, var(--red,#F04452));}
+    /* 매입가 변경 이력 — 값이 바뀐 줄에만 뜨는 작은 단추. 창은 body 에 fixed 로 띄운다
+       (표가 옆으로 스크롤돼서 셀 안에 두면 잘린다 — hover-info-card 규칙과 같은 이유). */
+    .o7 .pp-hist{border:none;background:none;padding:0 2px;font-size:10px;cursor:pointer;
+      color: var(--글자-희미, var(--faint,#8B95A1));line-height:1;font-family:inherit;}
+    .o7 .pp-hist:hover{color: var(--글자-파랑, var(--blue,#3182F6));}
+    .pp-hpop{position:fixed;z-index:400;background:var(--surface,#fff);
+      border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:12px 14px;
+      min-width:280px;max-width:380px;max-height:320px;overflow:auto;
+      box-shadow:0 8px 24px rgba(20,25,35,.12);font-size:11px;color:var(--ink,#191F28);}
+    .pp-hpop .hh{font-size:12px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+    .pp-hpop .hh .x{margin-left:auto;border:none;background:var(--n100,#F2F4F6);width:22px;height:22px;
+      border-radius:6px;cursor:pointer;font-size:12px;color:var(--글자-기본,#4E5968);font-family:inherit;}
+    .pp-hpop table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;}
+    .pp-hpop th{text-align:center;font-size:10px;font-weight:600;color:var(--sub,#8B95A1);
+      padding:4px 6px;border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap;}
+    .pp-hpop td{text-align:center;padding:4px 6px;border-bottom:1px solid var(--line2,#F1F3F5);white-space:nowrap;}
+    .pp-hpop td.v{font-weight:600;}
+    .pp-hpop .none{color: var(--글자-빨강, var(--red,#F04452));}
+    .pp-hpop .why{margin-top:8px;font-size:10px;color:var(--sub,#8B95A1);line-height:1.6;}
     /* 공급방식(무재고/사입) — 네모(일괄 선택) + 드롭다운. 사입은 파랑으로 눈에 띄게 */
     .o7 .sm-cell{display:inline-flex;align-items:center;gap:4px;line-height:1.35;}
     .o7 .sm-ck{width:13px;height:13px;accent-color:var(--blue,#3182F6);cursor:pointer;}
@@ -1969,11 +1988,83 @@
       else {tag='확인 불가';tcls='pp-t-none';}
       var icls=(tier==='real'?' pp-real':'')+(st==='saving'?' pp-saving':'')
               +(st==='err'?' pp-bad':'');
+      /* 이력 단추 — 실매입가가 들어 있는 줄에만. 「어제 본 마진과 오늘 마진이 다른데
+         왜인지 알 수 없다」를 막는 창구다(특히 엑셀 재업로드가 수기 값을 덮어쓴 경우). */
+      var hbtn=(tier==='real')
+        ? '<button type="button" class="pp-hist" data-uid="'+esc(uid)+'" '
+          +'title="이 줄의 매입가가 언제 얼마에서 얼마로 바뀌었는지 봅니다">🕘 이력</button>' : '';
       return '<span class="pp-cell"><input class="pp-in'+icls+'" data-uid="'+esc(uid)+'" '
            + 'inputmode="numeric" value="'+esc(real)+'" placeholder="'+esc(ph)+'" '
            + 'title="진짜 사온 값을 적으세요. 비우고 나가면 지워집니다(=입력 안 함).">'
-           + '<span class="pp-tag '+tcls+'">'+esc(tag)+'</span></span>';
+           + '<span class="pp-tag '+tcls+'">'+esc(tag)+'</span>'+hbtn+'</span>';
     }
+    /* ── 매입가 변경 이력 창 (설계서 §9) ──────────────────────────────────
+       🔴 값을 지어내지 않는다 — 서버가 준 이력만 그린다. 한 줄도 없으면
+         「바뀐 적 없음」이라 말하되, **이력을 켜기 전에 넣은 값은 안 남는다**는
+         사실도 같이 적는다(없는 걸 「안 바뀌었다」로 단정하지 않는다). */
+    var ppHPop=null;
+    var PP_REASON={manual:'수기 입력',mango:'더망고 엑셀(주문 내역)',
+                   margin:'더망고 엑셀(마진 계산기)'};
+    function ppHistClose(){ if(ppHPop){ppHPop.remove();ppHPop=null;} }
+    function ppHistWon(v){ return (v==null)?'<span class="none">없음</span>'
+                                          :Number(v).toLocaleString()+'원'; }
+    function ppHistWhen(iso){
+      if(!iso)return '—';
+      var d=new Date(iso); if(isNaN(d))return esc(String(iso).slice(0,16));
+      var p=function(n){return (n<10?'0':'')+n;};
+      return p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+    }
+    function ppHistOpen(uid,anchor){
+      ppHistClose();
+      var pop=document.createElement('div');
+      pop.className='pp-hpop';
+      pop.innerHTML='<div class="hh">🕘 매입가 변경 이력<button type="button" class="x">✕</button></div>'
+                   +'<div class="why">불러오는 중…</div>';
+      document.body.appendChild(pop); ppHPop=pop;
+      var r=anchor.getBoundingClientRect();
+      // 오른쪽 정렬 + 아래로. 화면 밖으로 나가면 위로 뒤집는다(hover-info-card 규칙).
+      pop.style.left=Math.max(8,Math.min(window.innerWidth-pop.offsetWidth-8,r.right-pop.offsetWidth))+'px';
+      pop.style.top=((r.bottom+8+pop.offsetHeight>window.innerHeight)
+                     ?Math.max(8,r.top-8-pop.offsetHeight):r.bottom+8)+'px';
+      pop.querySelector('.x').addEventListener('click',ppHistClose);
+      fetch('/orders/api/purchase-price/history?line_uid='+encodeURIComponent(uid),{cache:'no-store'})
+        .then(function(x){return x.json();})
+        .then(function(j){
+          if(ppHPop!==pop)return;
+          if(!j||!j.ok){
+            pop.querySelector('.why').innerHTML='✗ '+esc((j&&j.error)||'이력을 불러오지 못했어요.');
+            return;
+          }
+          var it=j.items||[];
+          if(!it.length){
+            pop.querySelector('.why').innerHTML=
+              '아직 바뀐 적이 없어요.<br>※ 이력 기능을 켜기 전(2026-08-12 이전)에 넣은 값은 남아 있지 않습니다.';
+            return;
+          }
+          var h='<table><thead><tr><th>언제</th><th>이전</th><th>이후</th><th>경로</th><th>누가</th></tr></thead><tbody>';
+          it.forEach(function(x){
+            h+='<tr><td>'+ppHistWhen(x.changed_at)+'</td>'
+              +'<td class="v">'+ppHistWon(x.old_price)+'</td>'
+              +'<td class="v">'+ppHistWon(x.new_price)+'</td>'
+              +'<td>'+esc(PP_REASON[x.reason]||x.reason||'—')+'</td>'
+              +'<td>'+esc(x.changed_by||'—')+'</td></tr>';
+          });
+          h+='</tbody></table>';
+          if(it[0]&&it[0].ref)h+='<div class="why">최근 출처: '+esc(it[0].ref)+'</div>';
+          pop.innerHTML='<div class="hh">🕘 매입가 변경 이력<button type="button" class="x">✕</button></div>'+h;
+          pop.querySelector('.x').addEventListener('click',ppHistClose);
+        })
+        .catch(function(){
+          if(ppHPop===pop)pop.querySelector('.why').textContent='✗ 네트워크 오류로 이력을 못 불러왔어요.';
+        });
+    }
+    document.addEventListener('click',function(e){
+      if(!ppHPop)return;
+      if(ppHPop.contains(e.target))return;
+      if(e.target.closest&&e.target.closest('.pp-hist'))return;
+      ppHistClose();
+    });
+    window.addEventListener('resize',ppHistClose);
     /* ── 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력 (설계서 §6.1) ──
        🔴 판정은 서버가 한 번만 한다(`/orders/api/purchase-price/resolve` 응답의 flags).
          규칙의 단일 원천은 `lemouton/orders/margin_flags.py` — 마진 계산기
@@ -2795,14 +2886,22 @@
                return '<option value="'+o.id+'">'+esc(o.name)+'</option>';}).join('')
            +'<option value="__none">비우기</option></select>')
         : '';
+      /* 🔴 매입가 일괄 입력도 **같은 줄에 얹는다**(설계서 §9 「여러 줄 한 번에」).
+           고른 줄 전부에 **같은 값**이 들어간다 — 그래서 확인을 한 번 받는다.
+           빈칸으로 「적용」하면 지운다(한 줄 저장과 같은 규칙 — 화면마다 갈리면 안 된다). */
+      var ppPick=' · 매입가 <input type="text" class="supbtn" id="ppBulkIn" inputmode="numeric" '
+        +'style="width:82px;text-align:right;font-variant-numeric:tabular-nums" '
+        +'placeholder="원" title="고른 줄 전부에 같은 값이 들어갑니다. 비우고 적용하면 지웁니다.">'
+        +'<button type="button" class="supbtn" id="ppBulkGo">적용</button>';
       bar.innerHTML='<div class="supbar-in"><b>'+n+'줄</b> 선택됨 — 한꺼번에 '
         +'<button type="button" class="supbtn" data-m="stock">사입으로</button>'
         +'<button type="button" class="supbtn" data-m="dropship">무재고로</button>'
-        +ostPick
+        +ostPick+ppPick
         +'<button type="button" class="supbtn ghost" data-m="clear">선택 해제</button>'
         +'<span class="supmsg" id="supmsg"></span></div>';
       [].slice.call(bar.querySelectorAll('.supbtn')).forEach(function(b){
-        if(b.tagName==='SELECT')return;
+        if(b.tagName==='SELECT'||b.tagName==='INPUT')return;
+        if(b.id==='ppBulkGo')return;
         b.addEventListener('click',function(){
           var m=b.getAttribute('data-m');
           if(m==='clear'){smSel={};render();return;}
@@ -2814,6 +2913,55 @@
         if(!ob.value)return;
         ostBulk(ob.value==='__none'?null:Number(ob.value));
       });
+      var pin=bar.querySelector('#ppBulkIn'), pgo=bar.querySelector('#ppBulkGo');
+      if(pgo)pgo.addEventListener('click',function(){ ppBulk(pin?pin.value:''); });
+      if(pin)pin.addEventListener('keydown',function(e){
+        if(e.key==='Enter'){e.preventDefault();ppBulk(pin.value);}});
+    }
+    /* 고른 여러 줄에 **같은** 실매입가를 한꺼번에 (열쇠는 line_uid — 공급방식·상태와 같은 규약).
+       🔴 되돌리기 어려운 일이라 먼저 묻는다. 특히 **비우고 적용 = 지움**이라
+         「N줄의 매입가를 지웁니다」라고 지울 때는 다르게 말한다. */
+    function ppBulk(raw){
+      var uids=Object.keys(smSel); if(!uids.length)return;
+      var txt=String(raw==null?'':raw).replace(/[, ]/g,'').trim();
+      if(txt&&!/^\d+$/.test(txt)){
+        var m0=document.getElementById('supmsg');
+        if(m0)m0.textContent='✗ 매입가는 숫자로 적어 주세요.';
+        return;
+      }
+      var q=txt
+        ? ('고른 '+uids.length+'줄의 실매입가를 모두 '+Number(txt).toLocaleString()+'원으로 저장할까요?\n\n'
+           +'※ 줄마다 실제 사온 값이 다르면 마진이 틀어집니다.')
+        : ('고른 '+uids.length+'줄의 실매입가를 모두 **지울까요**?\n\n'
+           +'※ 지우면 그 줄은 다시 「예상(최종매입가·사입가)」으로 돌아갑니다.');
+      if(!window.confirm(q))return;
+      var msg=document.getElementById('supmsg'); if(msg)msg.textContent='저장 중…';
+      fetch('/orders/api/purchase-price/bulk',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({line_uids:uids,price:txt===''?null:Number(txt)})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            if(msg)msg.textContent='✗ '+((o.j&&o.j.error)||'저장하지 못했어요.');
+            return;
+          }
+          var failed={}; (o.j.failed||[]).forEach(function(f){failed[f.line_uid]=1;});
+          uids.forEach(function(u){
+            if(failed[u])return;
+            // 지운 줄은 「확인 불가」로 비워 둔다 — 예상가는 다시 물어봐야 안다
+            //  (지운 값을 남겨 두면 안 지워진 것처럼 보인다).
+            ppMap[u]=(o.j.price==null)?{price:null,tier:null,label:'확인 불가'}
+                                      :{price:o.j.price,tier:o.j.tier,label:o.j.label};
+          });
+          smSel={};
+          if(msg)msg.textContent='✓ '+(o.j.saved||0)+'줄 저장'
+            +((o.j.deleted)?(' · '+o.j.deleted+'줄 지움'):'')
+            +((o.j.failed&&o.j.failed.length)?(' · 실패 '+o.j.failed.length+'줄'):'');
+          render();
+          // 지웠으면 2·3순위를 다시 물어야 하고, 적었으면 탭 판정이 바뀐다.
+          if(o.j.price==null)loadPurchasePrice(loadSeq); else ppRefreshFlags();
+        })
+        .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
     }
     /* 고른 여러 줄에 상태를 한꺼번에. 열쇠는 반드시 line_uid(공급방식 일괄과 같은 규약). */
     function ostBulk(optionId){
@@ -2884,6 +3032,12 @@
         inp.addEventListener('keydown',function(e){
           if(e.key==='Enter'){e.preventDefault();inp.blur();}
           if(e.key==='Escape'){inp.value=before;inp.blur();}});
+      });
+      [].slice.call(wrap.querySelectorAll('.pp-hist')).forEach(function(b){
+        b.addEventListener('click',function(e){
+          e.stopPropagation();
+          ppHistOpen(b.getAttribute('data-uid'),b);
+        });
       });
     }
     // ── 송장: 셀 이벤트 · 툴바 · 업로드 · 전송 ────────────────────────
