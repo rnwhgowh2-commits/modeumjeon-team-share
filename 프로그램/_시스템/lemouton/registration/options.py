@@ -298,6 +298,36 @@ def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
     return groups, combos, excluded
 
 
+#: 바코드 없음 사유 — 쿠팡 한도 100자. 사실만 적는다(지어내지 않는다).
+_NO_BARCODE_REASON = '제조사 표준 바코드(GTIN)를 아직 받지 못했습니다. 사내 관리용 번호만 있어 보내지 않습니다.'
+
+
+def coupang_barcode_fields(barcode) -> dict:
+    """[2026-08-13] 쿠팡 items 의 바코드 3칸을 규약대로 만든다.
+
+    쿠팡 문서 원문(marketplace_api_map.json · coupang.products.product-creation):
+        items.barcode            "상품에 **부착된 유효한 표준상품 코드**"
+        items.emptyBarcode       "바코드가 없으면 true"
+        items.emptyBarcodeReason "바코드 없음에 대한 사유 (최대 100자)"
+
+    🔴 우리 `Option.barcode` 는 기본이 `gen_barcode()` = **200 접두 EAN-13** 이다.
+      200~299(020~029·040~049 도)는 GS1 이 어느 제조사에도 안 주는 **매장 내부 전용**
+      대역이라 세계에서 유일하지 않다. 그 번호를 보내면 **거짓 표준코드를 등록**하는
+      셈이라 안 보낸다 — 대신 쿠팡이 마련해 둔 「없음 + 사유」로 사실대로 밝힌다.
+
+    🔴 종전엔 `barcode: ""` 만 보냈다. 코드도 아니고 없다는 선언도 아닌 값이었다.
+
+    사장님이 직접 넣은 진짜 제조사 바코드(내부 대역 아님 + 체크섬 통과)만 그대로 보낸다.
+    형식이 깨진 값은 **고쳐서 보내지 않는다** — 없다고 밝힌다.
+    """
+    from shared.sku_format import is_internal_barcode, is_valid_barcode
+    code = str(barcode or '').strip()
+    if code and not is_internal_barcode(code) and is_valid_barcode(code):
+        return {'barcode': code}
+    return {'barcode': '', 'emptyBarcode': True,
+            'emptyBarcodeReason': _NO_BARCODE_REASON}
+
+
 def build_coupang_items(opts, *, sale_price, image_url):
     """옵션 목록 → (쿠팡 items[], excluded). 옵션 추가금은 절대가에 가산한다.
 
@@ -329,5 +359,9 @@ def build_coupang_items(opts, *, sale_price, image_url):
             'externalVendorSku': o['sku'],
             'images': images,
             'attributes': attrs,
+            # 대량등록 초안엔 바코드 칸 자체가 없다 → 늘 「없음 + 사유」가 된다.
+            #   ★ 쪽문 경로(registration/coupang.py)와 **같은 함수**를 쓴다 —
+            #     두 벌이 되면 어느 문으로 등록했느냐로 값이 갈린다.
+            **coupang_barcode_fields(o.get('barcode')),
         })
     return items, excluded

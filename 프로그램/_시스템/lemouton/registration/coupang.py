@@ -42,6 +42,7 @@ class CoupangRegistrationInputs:
 
 def _build_payload(*, bundle, options, sale_price: int, inputs: CoupangRegistrationInputs) -> dict:
     """Model + Options + 입력값으로 쿠팡 등록 페이로드 빌드 (옵션마다 1 item)."""
+    from lemouton.registration.options import coupang_barcode_fields
     items = []
     for o in options:
         if not o.market_visible_coupang:
@@ -68,7 +69,10 @@ def _build_payload(*, bundle, options, sale_price: int, inputs: CoupangRegistrat
             "overseasPurchased": "NOT_OVERSEAS_PURCHASED",
             "pccNeeded": "false",
             "externalVendorSku": o.canonical_sku,
-            "barcode": "",
+            # 🔴 [2026-08-13] 종전엔 `"barcode": ""` — 코드도 아니고 없다는 선언도 아니었다.
+            #   우리 Option.barcode 는 기본이 200 접두 EAN-13(매장 내부 전용 대역)이라
+            #   표준상품코드가 아니다. 규약은 options.py 한 곳에 있다(재구현 금지).
+            **coupang_barcode_fields(getattr(o, "barcode", None)),
             "modelNo": bundle.model_code,
             "extraProperties": {},
             "certifications": [],
