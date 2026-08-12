@@ -120,6 +120,10 @@
     .dcpop .grp .ghd .num{font-variant-numeric:tabular-nums;}
     .dcpop .grp .ghd i{font-style:normal;color:var(--sub);font-weight:600;font-size:11px;margin-left:7px;}
     .dcpop .grp .ghd.unk{color:var(--sub);}
+    .dcpop .bear{font-size:11px;color:var(--sub);margin-top:4px;line-height:1.5;}
+    .dcpop .bear b{color:var(--글자-파랑,#1B64DA);}
+    .dcpop .bear .unk{color:var(--글자-주황,#B26A00);}
+    .dcpop .bear .kind{display:block;color:var(--sub);}
     .dcpop .grp .unote{font-size:11px;color:var(--sub);margin-top:5px;line-height:1.5;}
     .dcpop .glist{list-style:none;margin:5px 0 0;padding:0;}
     .dcpop .glist li{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;
@@ -1480,7 +1484,14 @@
            +' <span class="sub">— 많이 깎인 주문順</span></div>';
       (d.markets||[]).forEach(function(m){
         h+='<div class="grp"><div class="ghd"><span>'+esc(m.market)+'</span>'
-          +'<span class="num">'+_dcWon(m.sum)+'<i>'+m.count+'건</i></span></div><ul class="glist">';
+          +'<span class="num">'+_dcWon(m.sum)+'<i>'+m.count+'건</i></span></div>';
+        h+='<div class="bear">'+(m.sellerRate==null
+             ? '<span class="unk">누가 냈는지 확인 불가</span>'
+             : '우리 부담 <b>'+m.sellerRate+'%</b> · 마켓 부담 '+(100-m.sellerRate)+'%')
+          +((m.kindList&&m.kindList.length)
+             ? ' <span class="kind">'+m.kindList.map(function(k){
+                 return esc(k.name)+' '+_dcWon(k.amount);}).join(' · ')+'</span>' : '')
+          +'</div><ul class="glist">';
         (m.top||[]).forEach(function(t){
           h+='<li><span class="nm">'+esc(t.name)+'</span>'
             +'<span class="num">'+_dcWon(t.amount)+'</span></li>';});

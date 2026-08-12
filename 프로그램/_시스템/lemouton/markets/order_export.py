@@ -502,6 +502,18 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "_pd_market_product_id": _g(po, "productId"),
             "_pd_market_product_id_alt": _g(po, "originalProductId"),
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
+            # ── 할인 부담 갈래(2026-08-08) — 「누가 깎아 줬나」를 화면이 말할 수 있게 ──
+            #  지도 확정: productDiscountAmount(총) · sellerBurdenDiscountAmount(판매자 부담).
+            #  마켓 부담 = 총 − 판매자 부담(네이버가 따로 안 준다 — 뺄셈이 유일한 길).
+            #  종류는 **총액 기준** 항목을 쓴다(판매자부담 종류별도 있지만 합이 총과 안 맞을 수 있어
+            #  화면엔 「무엇으로 깎였나」만 보여 준다).
+            "_dc_seller": _g(po, "sellerBurdenDiscountAmount", default=""),
+            "_dc_total": _g(po, "productDiscountAmount", default=""),
+            "_dc_kinds": {
+                "즉시할인": _g(po, "productImediateDiscountAmount", default=""),
+                "상품할인쿠폰": _g(po, "productProductDiscountAmount", default=""),
+                "복수구매할인": _g(po, "productMultiplePurchaseDiscountAmount", default=""),
+            },
             "옵션추가금": _g(po, "optionPrice", default=""),
             # 이미 등록된 송장은 마켓이 정본 — 안 읽어오면 사용자가 손으로 다시 치게 되고,
             # 그 값이 실제와 어긋나도 화면상 알 길이 없다(2026-07-10 실제 발생).
@@ -699,6 +711,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             # 209 정산 성분(2026-07-15 실검증 매핑) — 아래 정산 조인에서 compute_settlement 입력.
             "_lo_slAmt": _g(od, "slAmt", default=""),              # 상품가
             "_lo_seller_dc": _g(od, "sptDcPgmCmsnSum", default=""),  # 셀러부담 할인
+            # ── 할인 부담 갈래(2026-08-08) — 지도 확정 필드를 그대로 ──
+            #  sptDcPgmCmsnSum=셀러부담 합(정산 차감) · prSfcoShrAmtSum=롯데부담 합
+            #  (정산대상에서 빼고 수수료에서도 뺌) · fvrAmtSum=혜택(할인) 합계.
+            #  프로모션 종류(prTypCd)는 주문 안에 여러 벌로 중첩돼 와 줄 단위로 못 가른다 → 안 넣는다.
+            "_dc_seller": _g(od, "sptDcPgmCmsnSum", default=""),
+            "_dc_market": _g(od, "prSfcoShrAmtSum", default=""),
             "_lo_platform_dc": _g(od, "prSfcoShrAmtSum", default=""),  # 롯데부담 할인
             "_lo_dvcst": _g(od, "dvCst", default=""),              # 수수료적용배송비
             "_lo_spdno": _g(od, "spdNo", default=""),              # 상품번호(제휴 학습 키)
@@ -1181,6 +1199,17 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         # 쿠팡 vendorItem=옵션 단위 상품 — 단가에 옵션가 포함 → 추가금 구조적 0.
                         "옵션추가금": 0,
                         "_cp_seller_dc": _sdc,   # 정산 추정용(내부) — 판매자부담할인
+                        # ── 할인 부담 갈래(2026-08-08) — 화면이 「누가 깎아 줬나」를 말한다 ──
+                        #  지도 확정: discountPrice(총) = instantCouponDiscount(즉시할인 쿠폰)
+                        #  + downloadableCouponDiscount(다운로드 쿠폰) + coupangDiscount(쿠팡 지원).
+                        #  앞 둘이 판매자 부담, 마지막이 쿠팡 부담이다.
+                        "_dc_seller": _sdc,
+                        "_dc_market": (lambda v: v if isinstance(v, int) else "")(
+                            _won(it.get("coupangDiscount"))),
+                        "_dc_kinds": {
+                            "즉시할인쿠폰": _sdc_a if isinstance(_sdc_a, int) else "",
+                            "다운로드쿠폰": _sdc_b if isinstance(_sdc_b, int) else "",
+                        },
                         "정산예정금액": "",
                         "주문상태": _status_ko("coupang", box.get("status") or st),
                         "주문상태원본": box.get("status") or st,
@@ -2553,6 +2582,12 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             #   '확인 불가'로 남는다(조용히 엉뚱한 옵션에 붙지 않는다).
             "_pd_market_option_id": _g11(od, "prdStckNo"),
             "_pd_market_product_id": _g11(od, "prdNo"),
+            # ── 할인 부담 갈래(2026-08-08) — 지도 확정: 11번가는 둘을 **따로** 준다 ──
+            #  sellerDscPrc=판매자 할인금액 · tmallDscPrc=11번가 할인금액.
+            #  (실결제 보정에 쓰는 tmallApplyDscAmt 는 '적용'값이라 표기값과 다를 수 있어
+            #   부담 갈래는 표기 기준 두 필드를 그대로 쓴다 — 섞으면 합이 안 맞는다.)
+            "_dc_seller": _g11(od, "sellerDscPrc"),
+            "_dc_market": _g11(od, "tmallDscPrc"),
             # 실결제 = ordPayAmt − 배송비 + (tmall 표기할인 − 적용할인) — 샵마인 K열 규약.
             #  ①배송비 제외(2026-07-23 대조 17건 실측). ②11번가 할인은 '표기'(tmallDscPrc)와
             #  '적용'(tmallApplyDscAmt)이 다를 수 있고 ordPayAmt 는 표기 기준 차감이라,
