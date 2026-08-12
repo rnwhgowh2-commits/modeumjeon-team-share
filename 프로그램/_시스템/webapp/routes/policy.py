@@ -484,8 +484,13 @@ def policy_apply_page():
         pbrands = brand_counts(s)
     finally:
         s.close()
+    # [2026-08-12 노션 상품 c-1] `?model=<코드>` 로 들어오면 그 상품을 미리 골라 둔다.
+    #   🔴 검색칸도 같이 채운다 — 상품 목록은 300줄 상한이라, 체크만 해 두면
+    #      「체크했다는데 목록에 없다」가 된다.
+    pick = [c for c in request.args.getlist('model') if c]
     return render_template('policy/apply.html', active='policy_apply',
-                           policies=policies, pbrands=pbrands)
+                           policies=policies, pbrands=pbrands,
+                           pick=pick, pick_q=(pick[0] if len(pick) == 1 else ''))
 
 
 # ════════════════════════════════════════════════════════════════════════

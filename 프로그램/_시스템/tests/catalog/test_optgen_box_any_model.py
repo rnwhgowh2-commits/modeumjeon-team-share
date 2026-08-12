@@ -58,7 +58,7 @@ def test_파는_것은_판매중으로_보인다(client, sellable):
 
 def test_옵션함은_아직_판매_안_함으로_보인다(client):
     code = client.post('/optgen/api/option-box',
-                       json={'name': '표시확인용'}).get_json()['code']
+                       json={'name': '표시확인용', 'brand': '르무통'}).get_json()['code']
     html = client.get(f'/optgen/box/{code}').get_data(as_text=True)
     assert '아직 판매 안 함' in html
     client.delete(f'/optgen/api/option-box/{code}')
