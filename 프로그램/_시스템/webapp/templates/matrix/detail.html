@@ -75,6 +75,13 @@
     .dlist a{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
              padding:8px 12px;margin:0 4px 4px 0;text-decoration:none;color:inherit;font-size:12px}
     .dlist a:hover{border-color:var(--primary,#3182F6);background:var(--n100,#F7FBFF)}
+    /* 색은 **이미 있는 이름만** 쓴다 — 없는 이름을 쓰면 어두운 화면에서
+       예비값(흰색)이 튀어나온다(2026-08-12 감시 시험이 잡음). */
+    .mxd-del{margin-left:auto;border:1px solid var(--color-danger,#DC2626);background:transparent;
+             color:var(--color-danger,#DC2626);border-radius:980px;padding:7px 15px;
+             font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap}
+    .mxd-del:hover{background:var(--danger-bg,#FFF6F6)}
+    .mxd-del:disabled{opacity:.5;cursor:default}
   </style>
 
   {# [2026-08-06 확정 1번a] 같은 화면 재료를 두 탭이 나눠 쓴다 —
@@ -88,6 +95,12 @@
     <h1>{{ mo.name }}</h1>
     <span class="mxd-badge {{ 'o' if mo.kind == 'origin' else 'd' }}">{{ '원본' if mo.kind == 'origin' else '파생' }}</span>
     <span class="mxd-no">{{ mo.no or '번호 대기' }}</span>
+    {# [2026-08-12 사장님 확정 1안] 지우기는 **작업하는 화면(조립대)에만** 둔다.
+       상품관리 쪽 옵션관리는 코드가 「보기 전용」이라 못 박은 화면이라 넣지 않는다. #}
+    {% if assembly and mo.model_code %}
+    <button class="mxd-del" type="button" data-del="{{ mo.model_code }}"
+            data-name="{{ mo.name }}" data-opts="{{ rows|length }}">🗑 이 묶음 지우기</button>
+    {% endif %}
   </div>
   <div class="mxd-sub">
     옵션 {{ rows|length }}개
@@ -546,5 +559,27 @@ if (ASSEMBLY && EDITABLE){
     }
   });
 }
+
+/* [2026-08-12] 지우기 처리 — 목록(옵션생성)과 **같은 코드**를 쓴다.
+   두 벌이 되면 반드시 갈린다(막는 조건·알림 문구가 달라진다). */
+  document.querySelectorAll('[data-del]').forEach(function (d) {
+    d.addEventListener('click', function () {
+      var code = d.getAttribute('data-del');
+      var nm = d.getAttribute('data-name');
+      var n = d.getAttribute('data-opts');
+      if (!confirm('「' + nm + '」 (' + code + ') 를 지웁니다.\n'
+                   + '안에 있는 옵션 ' + n +
+                   '개도 같이 사라지고 되돌릴 수 없습니다.\n\n지울까요?')) return;
+      d.disabled = true;
+      fetch('/optgen/api/option-box/' + encodeURIComponent(code), {method: 'DELETE'})
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          // 조용히 넘어가지 않는다 — 왜 못 지웠는지 그대로 알린다.
+          if (!j.ok) { alert(j.error || '지우지 못했습니다.'); d.disabled = false; return; }
+          location.reload();
+        })
+        .catch(function (e) { alert('지우지 못했습니다 — ' + e); d.disabled = false; });
+    });
+  });
 </script>
 {% endblock %}
