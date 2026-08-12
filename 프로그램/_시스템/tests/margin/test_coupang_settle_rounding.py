@@ -75,10 +75,34 @@ def test_쿠팡부담할인은_안_뺀다():
 
 
 def test_요율을_아는_상품은_그_요율로_정확히():
-    """카테고리마다 요율이 달라, 아는 상품은 실요율로 맞춘다(고정값 한계 보완)."""
+    """정산 확정분에서 배운 **부가세 포함** 실효 요율은 그대로 쓴다(1.1 을 또 곱하지 않는다)."""
     # 88,900 × 11.549% = 10,267.06 → 반올림 10,267 → 정산 78,633 (엑셀 실측)
     got = _cp_estimate_settle(88900, 1, 0, fee_rate=0.11549)
     assert got == 88900 - 10267
+
+
+# ── 사장님이 준 쿠팡 시험 결과 그대로 ─────────────────────────
+
+def test_사장님_식_그대로_센다():
+    """수수료 = 반올림( 버림(기준 × 요율(VAT별도)) × 1.1 ).
+
+    🔴 순서가 중요하다. 11.55% = 10.5% × 1.1 이지만 **버림 자리가 달라** 값이 갈린다.
+       88,900: 버림(88,900×10.5%)=9,334 → ×1.1=10,267.4 → 10,267  (쿠팡 실제)
+               한 번에 ×11.55% 면 10,267.95 → 10,268 로 **1원 크다**
+    """
+    from lemouton.markets.order_export import cp_fee
+    assert cp_fee(88900) == 10267
+    assert cp_fee(59000) == 6815          # 버림(6,195)×1.1 = 6,814.5 → 올림
+    assert _cp_estimate_settle(88900, 1, 0) == 88900 - 10267
+
+
+def test_배송료는_요율이_따로다():
+    """배송료 행은 3.0%(VAT별도) — 상품과 같은 요율로 물리면 안 된다."""
+    from lemouton.markets.order_export import (
+        CP_SHIP_FEE_RATE_EX_VAT, cp_fee,
+    )
+    # 버림(4,000 × 3%) = 120 → ×1.1 = 132 → 정산 3,868 (사장님 시험 결과·엑셀 실측)
+    assert cp_fee(4000, CP_SHIP_FEE_RATE_EX_VAT) == 132
 
 
 def test_단가가_없으면_지어내지_않는다():
@@ -86,14 +110,17 @@ def test_단가가_없으면_지어내지_않는다():
     assert _cp_estimate_settle('', 1, 0) == ''
 
 
-def test_엑셀_전수로_재현율이_올라간다():
-    """🔴 낱개 몇 건이 아니라 **전수**로 좋아졌는지 본다.
+def test_엑셀_전수가_한_행도_안_틀린다():
+    """🔴 낱개 몇 건이 아니라 **전수**로 못 박는다 — 상품 299 + 배송료 156 = 455행.
 
+    요율은 엑셀의 「서비스이용율(%,VAT별도)」 열이 행마다 알려 준다(상품 10.5 / 배송료 3.0 / 0).
     쿠팡 정산 엑셀이 없는 환경(CI)에서는 건너뛴다 — 사장님 PC 의 다운로드 파일이다.
     """
     import glob
-    import math
+
     import pytest
+
+    from lemouton.markets.order_export import cp_fee
     fs = sorted(glob.glob(
         'C:/Users/seung/Downloads/MSF_PAYMENT_REVENUE_DETAIL-2026-08-12*.xlsx'))
     if not fs:
@@ -101,15 +128,14 @@ def test_엑셀_전수로_재현율이_올라간다():
     import pandas as pd
     d = (pd.concat([pd.read_excel(f) for f in fs], ignore_index=True)
          .drop_duplicates())
-    p = d[~d['옵션 ID'].astype(str).str.contains('기본배송료', na=False)]
-    p = p[p['판매액'] > 0]
-    맞음 = 0
-    for _, r in p.iterrows():
-        할인가 = int(r['판매액']) - int(r['판매자 할인쿠폰(A+B)'])
-        if _cp_estimate_settle(할인가, 1, 0) == int(r['정산금액']):
-            맞음 += 1
-    옛식 = sum(1 for _, r in p.iterrows()
-              if round((int(r['판매액']) - int(r['판매자 할인쿠폰(A+B)'])) * 0.8845)
-              == int(r['정산금액']))
-    assert 맞음 > 옛식, f'재현율이 안 좋아졌다: 새 {맞음} vs 옛 {옛식} / 전체 {len(p)}'
-    assert 맞음 >= 124, f'재현 {맞음}/{len(p)} — 실측 기준 124 이상이어야 한다'
+    배송 = d['옵션 ID'].astype(str).str.contains('기본배송료', na=False)
+    틀림 = []
+    for 이름, t in (('상품', d[~배송]), ('배송료', d[배송])):
+        for _, r in t.iterrows():
+            기준 = int(r['판매액']) - (int(r['판매자 할인쿠폰(A+B)'])
+                                      if 이름 == '상품' else 0)
+            요율 = float(r['서비스이용율(%,VAT별도)']) / 100.0
+            f = cp_fee(기준, 요율)
+            if f != int(r['판매수수료']) or 기준 - f != int(r['정산금액']):
+                틀림.append((이름, 기준, 요율, f, int(r['판매수수료'])))
+    assert 틀림 == [], f'{len(틀림)}행이 쿠팡 값과 다르다 (앞 3건): {틀림[:3]}'
