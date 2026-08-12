@@ -403,6 +403,22 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
         fee_rate = default_fee_rate(prefix)
     shipping_fee = g(f'{prefix}_delivery_fee', 0) or 0
 
+    # ── 할인 · 누가 부담하나 (사장님 확정 2026-08-13) ──────────────────────────
+    #   판매가를 올려 잡을 근거는 **판매자가 실제로 내는 몫**뿐이다.
+    #   마켓이 내는 몫까지 얹으면 고객에게 괜히 비싸 보이고, 덜 얹으면 적자가 된다.
+    #   🔴 부담 주체를 안 정했으면 **판매자**로 본다 — 모르면 보수적으로.
+    #     「마켓」으로 잘못 두면 판매가를 안 올려 그대로 손해다.
+    d_unit = str(g(f'{prefix}_discount_unit') or 'WON').upper()
+    d_value = g(f'{prefix}_discount_value') or 0
+    burden = str(g(f'{prefix}_discount_burden') or 'seller').lower()
+    if burden == 'market':
+        seller_value = 0                      # 우리가 내는 몫이 없다 → 올리지 않는다
+    elif burden == 'split':
+        pct = g(f'{prefix}_discount_burden_pct')
+        seller_value = (float(d_value) * (float(pct) / 100.0)) if pct else 0
+    else:
+        seller_value = float(d_value)         # seller(기본) — 우리가 다 낸다
+
     return {
         'mode': str(mode).lower(),
         'rate': float(rate),
@@ -410,6 +426,9 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
         'fixed_price': int(fixed),
         'fee_rate': float(fee_rate),
         'shipping_fee': int(shipping_fee),
+        'seller_discount_unit': d_unit,
+        'seller_discount_value': seller_value,
+        'discount_burden': burden,
     }
 
 
@@ -433,4 +452,7 @@ def compute_market_price(
         mode=pol['mode'],
         margin_amount=pol['amount'],
         fixed_price=pol['fixed_price'],
+        # 🔴 여기서 안 넘기면 엔진을 고쳐도 값이 영영 0 으로 간다.
+        seller_discount_unit=pol['seller_discount_unit'],
+        seller_discount_value=pol['seller_discount_value'],
     )
