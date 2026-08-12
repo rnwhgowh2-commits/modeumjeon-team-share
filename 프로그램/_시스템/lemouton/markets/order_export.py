@@ -511,8 +511,13 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             #    모르는 값을 배송비로 메우면 「받을 돈」이 있는 것처럼 보인다.
             #    빠진 건수는 화면이 「정산예정 모르는 N건」으로 이미 말한다.
         _ss_st = _ss_status(_g(po, "productOrderStatus"), _g(po, "placeOrderStatus"))
+        # 🔴 [2026-08-12] 배송비 정산 실값 — M 에는 안 넣고 별도 키로 실어 N열에서만 쓴다.
+        #   쿠팡과 같은 처리(주석 :443 「배송비 정산(97%)」이 그 실값이다). 여태 버려서
+        #   N열이 고객배송비를 전액 더했고, 배송비 수수료(스스 3%)만큼 상시 과대였다.
+        _ss_ship_settle = deliv_settle.get(oid)
         _row = {
             "_shipkey": ("smartstore", oid),   # 배송건(주문) 단위 배송비 정규화용
+            **({"_ship_settle": _ss_ship_settle} if _ss_ship_settle is not None else {}),
             "주문일": _g(od, "orderDate", "paymentDate"),   # 시간 포함(_finalize 에서 통일)
             "판매처": "스마트스토어",
             "상품명": _g(po, "productName"),
@@ -1295,10 +1300,15 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         #  버려지면 주문↔소싱처를 연결할 방법이 사라져 전 행이 '확인 불가'가 된다.
         if vid:
             r["_pd_market_option_id"] = vid
-        # ★M열 = 상품 정산만(2026-07-23 샵마인 45건 전수 실측: 샵 M=상품분, N=M+고객배송비
-        #  **전액**). 배송비 정산(97%)을 M에 더하면 N열(_finalize 가 M+고객배송비로 계산)이
-        #  이중 가산돼 +4,014 씩 어긋났다(3건 실측). 배송비 실정산액(deliv_settle)은 마진
-        #  계산 등 다른 소비처가 없어 M에서 뺀 채 버려도 정보 손실은 N열 규약 안에서 흡수된다.
+        # ★M열 = 상품 정산만(2026-07-23 샵마인 45건 전수 실측: 샵 M=상품분).
+        #  배송비 정산을 M에 더하면 N열이 이중 가산돼 +4,014 씩 어긋났다(3건 실측).
+        #  🔴 [2026-08-12 정정] 옛 주석은 「배송비 실정산액은 N열 규약 안에서 흡수된다」고
+        #     했는데 **틀린 전제**였다. 쿠팡은 배송비에서도 수수료를 뗀다(엑셀 실물 124건
+        #     전부 4,000→132→3,868). 버리면 그 132원만큼 N열이 상시 과대다.
+        #     → M 에는 여전히 안 넣고, **별도 키(_ship_settle)로 실어** N열에서만 쓴다.
+        _cp_ship_settle = deliv_settle.get(oid)
+        if _cp_ship_settle is not None:
+            r["_ship_settle"] = _cp_ship_settle
         # 지급일 실값(settlementDate·finalSettlementDate) — 정산예정금액 탭의 기간 배치용.
         _cp_dts = settle_dates.get(oid) or {}
         for _dk in ("정산예정일", "_settle_final_date"):
@@ -3191,11 +3201,29 @@ def _finalize_rows(rows: list) -> list:
         r.pop("_odseq", None)              # 140 진행단계 조인 임시키 제거(출력 누출 방지)
         sk = r.pop("_shipkey", None)
         ship = _to_int(r.get("배송비"), 0) or 0
+        # 🔴 [2026-08-12] 배송비도 수수료를 뗀다 — 마켓이 준 **배송비 정산 실값**을 쓴다.
+        #   사장님이 준 쿠팡 정산 엑셀 실물 대조: 배송료 124건 **전부** 4,000 → 수수료 132
+        #   (3.30%) → 정산 3,868. 예외 0건. 여태 N열이 고객배송비를 **전액** 더해
+        #   배송비 붙는 주문마다 정확히 +132원씩 「받을 돈」이 부풀어 있었다.
+        #   ★ 요율(3.3%)을 박지 않는다 — 마켓·계정마다 다를 수 있다. 실값이 없으면
+        #     종전대로 고객배송비 전액(추정)을 쓴다. 모르는 값을 지어내지 않는다.
+        #   ★ M열(정산예정금액)엔 절대 넣지 않는다 — 예전에 스스에서 M 에 섞었다가
+        #     여기서 또 더해 이중 계상 사고가 났다(2026-08-07 · 2,910원 과다 ·
+        #     수수료율이 1.32% 로 오표시). 별도 키로 두고 N열에서만 쓴다.
+        #   ★ 값을 **지우지 않는다** — 저장분(`order_store`)은 행을 통째로 담고,
+        #     다시 읽을 때 `_finalize_rows` 가 또 돈다(:3651). 여기서 pop 하면 저장분엔
+        #     안 남아 다음 조회에서 고객배송비로 되돌아간다(고친 보람이 사라진다).
+        #     대신 **배송건을 맡지 않는 줄에서만 지워** 재실행이 멱등하게 한다.
+        ship_settle = _to_int(r.get("_ship_settle"))
         if sk is not None and sk in seen:
             ship = 0                       # 이미 계산한 배송건 → 0
+            r.pop("_ship_settle", None)    # 이 배송건은 앞 줄이 맡는다(중복 가산 금지)
+            ship_settle = None
         elif sk is not None:
             seen.add(sk)
         r["배송비"] = ship
+        # N열에 더할 배송비 — 실값이 있으면 그것, 없으면 고객배송비(추정).
+        ship_for_settle = ship_settle if ship_settle is not None else ship
 
         # ── 샵마인 대조 파생(2026-07-08): 총주문금액·마켓수수료·수수료율 ──
         opt_add = _to_int(r.get("옵션추가금"), 0) or 0
@@ -3278,8 +3306,9 @@ def _finalize_rows(rows: list) -> list:
         elif not zero_cancel:                # 취소완료 0 확정은 위에서 이미 채움
             r["마켓수수료"] = ""
             r["수수료율"] = ""
-        # 정산예정금(배송비포함) = 정산예정금액 + 고객배송비(무료배송이면 동일)
-        r["정산예정금(배송비포함)"] = (settle + ship) if settle is not None else ""
+        # 정산예정금(배송비포함) = 정산예정금액 + 배송비 정산분
+        #   배송비 정산 실값이 있으면 그것(수수료 뗀 값), 없으면 고객배송비 전액(추정).
+        r["정산예정금(배송비포함)"] = (settle + ship_for_settle) if settle is not None else ""
         # 새 열 기본값 보장(빌더 미설정 시).
         r.setdefault("실결제금액", "")
         r.setdefault("옵션추가금", "")
