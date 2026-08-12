@@ -536,8 +536,9 @@ def api_action():
     }
 
     조정 (adjust):
-      - 현재 해당 위치 재고를 qty 로 맞춤
-      - delta = qty - 현재재고 → 그 delta 를 새 trans 로 기록
+      - 「실사해 보니 qty 개」 — 원장에 **센 수(절대값)** 를 그대로 적는다
+        (2026-08-13 통일. 규칙 원천 = shared/inventory_stock.py `fold_tx_rows`)
+      - 응답의 applied_qty 는 **얼마나 바뀌었나**(qty − 현재재고)
     """
     data = request.get_json(silent=True) or {}
     sku = (data.get("sku") or "").strip()

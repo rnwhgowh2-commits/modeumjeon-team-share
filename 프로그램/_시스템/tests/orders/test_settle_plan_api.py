@@ -16,8 +16,17 @@ def _make_client():
     return app.test_client()
 
 
+# 🔴 「미확정」 줄의 지급예정일은 **관측 시각(status_at)에서 규칙으로 추정**한다.
+#   그래서 기준점을 과거로 고정해 두면 오늘이 그 날짜를 지나가는 순간 「앞으로 받을 돈」에서
+#   빠져 시험이 저절로 깨진다 — 2026-08-13 에 실제로 그렇게 깨졌고, 아무도 코드를
+#   안 고쳤는데 **모두의 배포가 막혔다**. 「미래」를 봐야 하는 줄은 기준점도 미래로 둔다
+#   (확정 줄이 이미 2099-08-20 을 쓰는 것과 같은 이유).
+FUTURE_AT = _dt.datetime(2099, 8, 1, 12, 0)
+PAST_AT = _dt.datetime(2026, 8, 1, 12, 0)
+
+
 def _line(status="구매확정", market="gmarket", incl=10000, src="real",
-          date=None, account="계정A", **row_extra):
+          date=None, account="계정A", status_at=PAST_AT, **row_extra):
     row = {"주문상태": status, "정산예정금(배송비포함)": incl, "정산예정금액": incl,
            "_settle_source": src, "주문일": "2026-08-01 10:00",
            "오픈마켓주문번호": "ONO1", "상품명": "코트", "옵션": "블랙/95",
@@ -26,7 +35,7 @@ def _line(status="구매확정", market="gmarket", incl=10000, src="real",
         row["정산예정일"] = date
     row.update(row_extra)
     return {"row": row, "market": market, "account": account,
-            "status_at": _dt.datetime(2026, 8, 1, 12, 0)}
+            "status_at": status_at}
 
 
 def _patch_lines(monkeypatch, lines):
@@ -37,7 +46,7 @@ def _patch_lines(monkeypatch, lines):
 def test_집계_지급예정일축(monkeypatch):
     _patch_lines(monkeypatch, [
         _line(date="2099-08-20", incl=100),
-        _line(status="배송중", src="estimated", incl=200),
+        _line(status="배송중", src="estimated", incl=200, status_at=FUTURE_AT),
     ])
     c = _make_client()
     r = c.get("/orders/api/settle-plan?axis=payout&unit=week")
