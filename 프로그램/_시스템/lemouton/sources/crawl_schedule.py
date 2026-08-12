@@ -61,16 +61,39 @@ def effective_interval_seconds(base_interval_seconds: float,
     return base * relax * slow
 
 
+def recheck_pending(last_fetched_at, recheck_requested_at) -> bool:
+    """「확인 요청」이 아직 안 풀렸나 — 요청 뒤로 아직 한 번도 안 긁혔으면 True.
+
+    🔴 표식을 **지우는 코드를 두지 않는다.** 크롤이 끝나면 `last_fetched_at` 이 요청
+      시각을 넘어서면서 저절로 풀린다. 지우는 길이 따로 있으면 「지웠는데 안 지워졌다」
+      (또는 그 반대)가 생기고, 그건 조용히 안 도는 부류의 사고가 된다.
+    """
+    if recheck_requested_at is None:
+        return False
+    if last_fetched_at is None:
+        return True
+    return _as_naive_utc(last_fetched_at) < _as_naive_utc(recheck_requested_at)
+
+
 def overdue_seconds(now: datetime, last_fetched_at,
                     base_interval_seconds: float,
-                    crawl_weight, no_change_streak, slowdown=None) -> float:
+                    crawl_weight, no_change_streak, slowdown=None,
+                    recheck_requested_at=None) -> float:
     """연체 초. 클수록 더 오래 밀림. 한 번도 안 긁음 = 무한대(최우선).
 
-    계수 0 = 크롤 제외 → 한 번도 안 긁었어도 영원히 마감 안 됨(−무한대)."""
+    계수 0 = 크롤 제외 → 한 번도 안 긁었어도 영원히 마감 안 됨(−무한대).
+
+    [2026-08-13 노션 ⑤] `recheck_requested_at` = 「주문 이행 가능 판단」이 지금 다시
+    확인해 달라고 찍은 표식. 아직 안 풀렸으면 **때가 안 됐어도 마감**으로 본다
+    (사장님이 지금 판단하려고 누른 것이라 가장 앞으로 간다).
+    🔴 계수 0(크롤 제외)만은 뒤집지 않는다 — 「안 긁는다」는 사장님이 정한 뜻이다.
+    """
     _w = 1 if crawl_weight is None else int(crawl_weight)
     _norm_slowdown(slowdown)      # 잘못된 값은 여기서도 즉시 거부
     if _w <= 0:
         return float("-inf")
+    if recheck_pending(last_fetched_at, recheck_requested_at):
+        return float("inf")
     if last_fetched_at is None:
         return float("inf")
     n = _as_naive_utc(now)
@@ -82,9 +105,11 @@ def overdue_seconds(now: datetime, last_fetched_at,
 
 
 def is_due(now, last_fetched_at, base_interval_seconds,
-           crawl_weight, no_change_streak, slowdown=None) -> bool:
+           crawl_weight, no_change_streak, slowdown=None,
+           recheck_requested_at=None) -> bool:
     return overdue_seconds(now, last_fetched_at, base_interval_seconds,
-                           crawl_weight, no_change_streak, slowdown) >= 0
+                           crawl_weight, no_change_streak, slowdown,
+                           recheck_requested_at) >= 0
 
 
 def due_products(session, *, base_interval_seconds: float, now: datetime) -> list:
@@ -108,7 +133,8 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
         #   이게 없으면 「3일에 1회」를 브랜드·소싱처 단위로 걸 수 없었다.
         od = overdue_seconds(now, p.last_fetched_at, base_interval_seconds,
                              resolve(p), p.no_change_streak,
-                             resolve.slowdown(p))
+                             resolve.slowdown(p),
+                             getattr(p, "recheck_requested_at", None))
         if od >= 0:
             scored.append((od, p))
     scored.sort(key=lambda t: t[0], reverse=True)   # 연체 큰 순
@@ -435,8 +461,16 @@ def weighted_due_products(session) -> list:
     _MIN = _dt.min
     remaining = []
     for p, quota, served in _lap_view(session):
-        if served < quota:
-            remaining.append((served / quota, _as_naive_utc(p.last_fetched_at) or _MIN, p.id, p))
+        # [2026-08-13 노션 ⑤] 「확인 요청」은 **이번 랩 몫을 이미 채웠어도** 다시 낸다.
+        #   🔴 이 경로는 `last_fetched_at` 을 아예 안 본다(가중 라운드로빈). 벽시계
+        #     쪽만 고치면 기준주기 0(연속 모드) 설정에서 기능이 통째로 안 돈다 —
+        #     에러도 없이. 그래서 두 경로 모두에 끼운다.
+        req = recheck_pending(p.last_fetched_at,
+                              getattr(p, "recheck_requested_at", None))
+        if served < quota or req:
+            # 요청분은 채움비를 −1 로 둬 어떤 정상 URL 보다도 앞에 선다.
+            fill = -1.0 if req else (served / quota)
+            remaining.append((fill, _as_naive_utc(p.last_fetched_at) or _MIN, p.id, p))
     remaining.sort(key=lambda t: (t[0], t[1], t[2]))
     return [t[3] for t in remaining]
 
