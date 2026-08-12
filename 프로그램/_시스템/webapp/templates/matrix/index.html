@@ -16,7 +16,7 @@
     .mx-empty{padding:48px 16px;text-align:center;color:var(--sub,#8B95A1);background:var(--surface,#ffffff);
               border:1px dashed var(--n300,var(--line,#E5E8EB));border-radius:12px}
     /* ── [2026-08-04 카드형→격자] 왼쪽 사이드바 + 줄 목록 (시안 B1 확정) ── */
-    .gl-app{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
+    .gl-app{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:start}
     /* ── 「어디까지 왔나」 판 — 상품관리(bundles/tower.html) 규칙을 그대로 가져왔다.
      두 화면이 같은 모양이어야 오가며 봐도 안 헷갈린다(사장님 지시). */
   .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
@@ -60,7 +60,8 @@
   .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
   .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
 
-  .gl-sb{position:sticky;top:16px;background:var(--surface,#ffffff);
+  .gl-sb{position:sticky;top:16px;width:max-content;min-width:240px;max-width:440px;
+           background:var(--surface,#ffffff);
            border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 14px;font-size:13px}
     .sb-sec{margin-bottom:18px}
     .sb-sec:last-child{margin-bottom:0}
