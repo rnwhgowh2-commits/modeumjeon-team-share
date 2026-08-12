@@ -66,6 +66,15 @@ _PRODUCT_LINK = {
     #     남아 있다. **숫자만** 잡지 않으면 목록마다 가짜 상품이 한 건씩 섞인다.
     'lemouton': (re.compile(r'product_no=(\d+)'),
                  'https://lemouton.co.kr/product/detail.html?product_no={id}'),
+    # ssg: `/item/itemView.ssg?itemId=1000552535854&siteNo=…&salestrNo=…`
+    #   상품 주소 모양은 `sourcing/crawlers/ssg.py` 첫 줄에 적힌 그대로다
+    #   (그 크롤러가 라이브에서 SSG 상품을 실제로 긁는다 — 지어낸 값이 아니다).
+    #   🔴 **다만 검색 결과 화면을 내 눈으로 못 봤다** — SSG 는 앱 브라우저·크롬 연결
+    #     둘 다 정책 차단이고 서버로 받아도 403 이다(2026-08-08 확인).
+    #     그래서 확장이 사장님 크롬에서 대신 재 보게 하고, 첫 결과를 사장님 화면
+    #     숫자와 대조하기 전에는 **「검증됨」이라 적지 않는다.**
+    'ssg': (re.compile(r'itemView[.]ssg[?][^"<>]*?itemId=(\d+)'),
+            'https://www.ssg.com/item/itemView.ssg?itemId={id}'),
 }
 
 #: 소싱처별 페이지 파라미터 이름. 없으면 페이지 넘김을 모르는 것.
@@ -85,6 +94,8 @@ _PAGE_PARAM = {
     #   ★ `pageNo=` 는 안 먹는다(1쪽과 같음) — 이름을 확인 안 하면 같은 쪽을 반복한다.
     #   ★ 진짜 마우스 휠로 굴려도 `[data-slitm-cd]` 는 같은 36개였다(화면만 갈아 끼움).
     'hmall': 'page',
+    # ssg: 사장님이 2쪽으로 넘긴 뒤의 주소를 그대로 주셨다 — `&page=2`.
+    'ssg': 'page',
     # 르무통은 검색·카테고리 둘 다 `page` 로 **진짜 넘어간다**(1쪽·2쪽 상품 25개가 달랐다).
     'lemouton': 'page',
 }
@@ -138,6 +149,7 @@ _DOM_SELECT = {
     'lotteimall': ('[data-goods-no]', 'data-goods-no'),
     'hmall':      ('[data-slitm-cd]', 'data-slitm-cd'),
     'lemouton':   ('a[href*="product_no="]', 'href'),
+    'ssg':        ('a[href*="itemView.ssg"]', 'href'),
 }
 
 
