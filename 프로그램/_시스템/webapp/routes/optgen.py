@@ -17,6 +17,45 @@ from shared.db import SessionLocal
 bp = Blueprint('optgen', __name__, url_prefix='/optgen')
 
 
+def _option_children():
+    """`options.canonical_sku` 를 가리키는 표들 — **표 정의에서 뽑는다.**
+
+    🔴 손으로 나열하면 반드시 빠진다(모델 쪽에서 이미 겪은 실수와 같은 부류).
+       이 표들을 먼저 안 치우면 PostgreSQL 이 옵션 삭제를 거부한다.
+    """
+    from shared.db import Base
+    return [t for t in Base.metadata.sorted_tables
+            if any(fk.target_fullname == 'options.canonical_sku'
+                   for c in t.columns for fk in c.foreign_keys)]
+
+
+def _purge_option_traces(session, skus: list[str]) -> dict:
+    """옵션을 지우기 전에 그 옵션을 가리키는 것들을 치운다.
+
+    🔴 재고 이력(`inventory_txs`)은 옵션과 **정식으로 묶여 있지 않다**(그냥 문자열 칸).
+       그래서 옵션만 지우면 이력이 **유령으로 남고**, 나중에 같은 SKU 가 다시 발급되면
+       (`gen_sku` 는 지금 있는 옵션만 피한다) **없던 재고가 되살아난다.**
+       사장님이 「재고는 다시 채운다」고 확정하셨으므로 여기서 같이 치운다.
+    """
+    from lemouton.inventory.models import InventoryTx
+    out = {}
+    if not skus:
+        return out
+    for t in reversed(_option_children()):
+        for c in t.columns:
+            if any(fk.target_fullname == 'options.canonical_sku'
+                   for fk in c.foreign_keys):
+                n = session.execute(t.delete().where(c.in_(skus))).rowcount or 0
+                if n:
+                    out[t.name] = out.get(t.name, 0) + n
+    n = (session.query(InventoryTx)
+         .filter(InventoryTx.option_canonical_sku.in_(skus))
+         .delete(synchronize_session=False))
+    if n:
+        out['inventory_txs'] = n
+    return out
+
+
 def _model_code_children():
     """`models.model_code` 를 가리키는 표들 — **표 정의에서 뽑는다.**
 
@@ -562,6 +601,9 @@ def api_delete_option_box(code: str):
 
         skus = [r[0] for r in s.query(Option.canonical_sku)
                 .filter_by(model_code=code).all()]
+        # 옵션을 가리키는 것들을 먼저 치운다 — 안 그러면 PostgreSQL 이 삭제를 거부하고,
+        # 재고 이력은 유령으로 남아 나중에 같은 SKU 에 되살아난다(위 함수 주석).
+        purged_traces = _purge_option_traces(s, skus)
         if skus:
             (s.query(OptionSourceUrlLink)
              .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
@@ -604,7 +646,35 @@ def api_delete_option_box(code: str):
     finally:
         s.close()
     return jsonify({'ok': True, 'code': code,
-                    'deleted_options': n_opt, 'deleted_urls': n_url})
+                    'deleted_options': n_opt, 'deleted_urls': n_url,
+                    'purged': purged_traces})
+
+
+@bp.post('/api/option-box/bulk-delete')
+def api_bulk_delete_boxes():
+    """여러 묶음을 한 번에 지운다 — body: {"codes": [...]}
+
+    🔴 지우는 건 되돌릴 수 없다. **한 개 지우기와 똑같은 검사**를 거친다
+       (판매용 모음전 금지 · 이 묶음으로 만든 상품 있으면 금지 · 파생 있으면 금지).
+       하나가 막혀도 나머지는 지운다 — 대신 **왜 막혔는지 그대로 돌려준다.**
+       조용히 건너뛰면 「지웠다」는 말이 거짓이 된다.
+    """
+    body = request.get_json(silent=True) or {}
+    codes = [str(c) for c in (body.get('codes') or []) if str(c).strip()]
+    if not codes:
+        return jsonify({'ok': False, 'error': '지울 묶음을 골라 주세요.'}), 400
+    done, failed = [], []
+    for c in codes:
+        r = api_delete_option_box(c)
+        payload = r[0] if isinstance(r, tuple) else r
+        j = payload.get_json() if hasattr(payload, 'get_json') else {}
+        if j.get('ok'):
+            done.append({'code': c, 'options': j.get('deleted_options', 0),
+                         'purged': j.get('purged') or {}})
+        else:
+            failed.append({'code': c, 'error': j.get('error') or '지우지 못했습니다.'})
+    return jsonify({'ok': True, 'deleted': len(done), 'failed': len(failed),
+                    'done': done, 'errors': failed})
 
 
 #: 검색으로 고를 수 있는 마켓 — 화면 라벨. 캐시에 있는 것만 고를 수 있다.
