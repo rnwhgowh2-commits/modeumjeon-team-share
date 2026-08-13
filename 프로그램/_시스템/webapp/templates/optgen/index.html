@@ -134,17 +134,11 @@
          ①종류 → ②옵션축 → ③브랜드 → ④매트릭스의 이름. #}
       <label class="og-lb"><span class="og-step">1</span> 어떤 모음전인가요</label>
       <div class="og-rg" id="ob-kinds">
-        {# 🔴 [2026-08-13] `disabled` 종류는 **숨기지 않고 이유를 적는다.**
-           없애면 「빠뜨렸나」가 되고, 그냥 두면 골라서 틀린 데이터를 만든다. #}
         {% for p in axis_presets %}
-        <label class="og-rr{% if loop.first %} on{% endif %}{% if p.disabled %} off{% endif %}"
-               data-kind="{{ p.kind }}"{% if p.disabled %} data-off="1"
-               title="{{ blocked_axis_reason }}"{% endif %}>
-          <input type="radio" name="ob-kind" value="{{ p.kind }}"
-                 {%- if loop.first %} checked{% endif %}
-                 {%- if p.disabled %} disabled{% endif %}>
-          <span><b class="og-rt">{{ p.label }}{% if p.disabled %} <span class="og-soon">준비 중</span>{% endif %}</b>
-            <span class="og-rd">{% if p.disabled %}{{ blocked_axis_reason }}{% else %}{{ p.desc }}{% endif %}</span></span>
+        <label class="og-rr{% if loop.first %} on{% endif %}" data-kind="{{ p.kind }}">
+          <input type="radio" name="ob-kind" value="{{ p.kind }}"{% if loop.first %} checked{% endif %}>
+          <span><b class="og-rt">{{ p.label }}</b>
+            <span class="og-rd">{{ p.desc }}</span></span>
         </label>
         {% endfor %}
       </div>
@@ -375,13 +369,6 @@
   .og-rt{display:block;font-size:14px;font-weight:600}
   .og-rd{display:block;font-size:12px;color:var(--color-text-tertiary);
     line-height:1.5;margin-top:2px}
-  /* [2026-08-13] 아직 못 여는 종류 — 숨기지 않고 「준비 중」으로 말한다.
-     opacity 만 낮추면 왜 못 고르는지 알 수 없어, 이유 문구를 같이 띄운다. */
-  .og-rr.off{opacity:.55;cursor:not-allowed;background:var(--ap-g0,#FAFAFC)}
-  .og-rr.off:hover{border-color:var(--ap-g2,#E8E8ED)}
-  .og-rr.off input{cursor:not-allowed}
-  .og-soon{font-size:11px;font-weight:700;color:var(--글자-주황,#C93400);
-    background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 7px;margin-left:4px}
   .og-rr.on{border-color:var(--color-primary);background:var(--연한-파랑,rgba(0,113,227,.08))}
   .og-rr.on .og-rt{color:var(--color-primary)}
   .og-axes-none{font-size:12.5px;color:var(--color-text-tertiary);padding:8px 0}
@@ -638,8 +625,6 @@
   }
   kindsBox.addEventListener('click', function (e) {
     var b = e.target.closest('.og-rr'); if (!b) return;
-    // [2026-08-13] 「준비 중」 종류는 고를 수 없다 — 서버도 400 으로 막는다(두 곳 같은 규칙).
-    if (b.getAttribute('data-off')) return;
     pickedKind = b.getAttribute('data-kind');
     // 종류를 바꾸면 축 고른 것은 버린다 — 남겨 두면 안 맞는 축이 딸려 간다.
     pickedAxes = null;

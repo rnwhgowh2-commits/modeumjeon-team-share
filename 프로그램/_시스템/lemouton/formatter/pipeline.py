@@ -87,6 +87,48 @@ def run_formatter(
         decisions_by_model[opt.model_code].append(merged)
         send_stock_by_sku[sku] = resolved
 
+    # 🔴 [2026-08-13] 마켓 옵션 이름은 `색상 + 사이즈` 두 칸으로만 만든다
+    #   (formatter/esm.py·coupang.py·lotteon.py). 모델모음전 3축은 모델 값이 그 두 칸
+    #   어디에도 안 들어가므로, **모델이 달라도 (색상,사이즈)가 같으면 이름이 겹친다.**
+    #     메이트 블랙 250 → 「블랙 250」 / 스위트 블랙 250 → 「블랙 250」
+    #   그대로 보내면 손님이 못 고르고, 들어온 주문이 어느 모델인지 알 수 없다.
+    #
+    #   만드는 단계는 멀쩡하다(축 값·SKU·옵션명 전부 다르다) — **전송에서만** 겹친다.
+    #   그래서 만들기를 막지 않고 여기서 막는다. 재고 확인 불가와 같은 처방:
+    #   틀린 값을 보내느니 그 옵션만 보류하고 **왜인지 말한다.**
+    #   「마켓별 옵션 1/2/3축 구성 정책」(상품가공)이 생기면 이 막이는 풀 수 있다.
+    for _mc, _decs in list(decisions_by_model.items()):
+        _seen: dict[tuple, list] = {}
+        for _d in _decs:
+            _seen.setdefault((_d.get('color_display') or _d.get('color_code') or '',
+                              _d.get('size_display') or _d.get('size_code') or ''),
+                             []).append(_d)
+        _dupe = [g for g in _seen.values() if len(g) > 1]
+        if not _dupe:
+            continue
+        _hold = {d['canonical_sku'] for g in _dupe for d in g}
+        for _k, _g in _seen.items():
+            if len(_g) > 1:
+                alerts.append({
+                    'type': 'option_name_collision',
+                    'level': 'warning',
+                    'model_code': _mc,
+                    'canonical_sku': sorted(d['canonical_sku'] for d in _g),
+                    # 🔴 마켓 탓으로 적지 말 것. 스마트스토어는 조합형 3축을 받는다
+                    #   (개발자센터 원문: 「최대 등록 가능한 옵션 개수는 조합형은 3개」).
+                    #   겹치는 이유는 **이 상품을 2갈래로 올리도록 정해 뒀기 때문**이다.
+                    'message': ('마켓 옵션 이름이 겹쳐 전송 보류 — 「%s」 이(가) %d줄입니다. '
+                                '모델 축이 있는 상품인데 색상·사이즈 두 갈래로 올리도록 '
+                                '돼 있어, 모델이 달라도 같은 옵션으로 올라갑니다. '
+                                '상품가공 「옵션 축 구성」을 '
+                                '「모델명 · 색상 · 사이즈」 3갈래로 바꾸면 풀립니다.'
+                                % (' '.join(x for x in _k if x) or '(빈 이름)', len(_g))),
+                })
+        decisions_by_model[_mc] = [d for d in _decs
+                                   if d['canonical_sku'] not in _hold]
+        if not decisions_by_model[_mc]:
+            del decisions_by_model[_mc]
+
     smartstore_payloads: dict[str, dict] = {}
     coupang_payloads: dict[str, dict] = {}
     lotteon_payloads: dict[str, dict] = {}

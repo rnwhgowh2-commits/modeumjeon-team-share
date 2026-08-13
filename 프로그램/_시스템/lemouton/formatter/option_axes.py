@@ -12,11 +12,21 @@ from __future__ import annotations
 from typing import Iterable
 
 
-VALID_SOURCES = ("color_code", "size_code", "model_code")
+#: 축에 넣을 수 있는 값들.
+#: 🔴 [2026-08-13] `model_name` 을 더했다 — **모델 축의 값**(메이트·스위트).
+#:    예전엔 `model_code` 뿐이었는데 그건 **묶음 코드(U…)** 라 옵션마다 똑같다.
+#:    그래서 축을 3개로 늘려도 셋째 칸에 넣을 값이 없었다(실측: 두 줄이 한 줄로 접힘).
+#:    값은 `Option.axis_values_json` 에 이미 있었고, **가리킬 이름이 없었을 뿐**이다.
+#:    채워 주는 곳 = 옵션 행을 만드는 쪽(`model_name` 키). 없으면 빈 값으로 둔다.
+VALID_SOURCES = ("color_code", "size_code", "model_code", "model_name")
 
 
 def _value_of(option_row: dict, source: str) -> str:
-    """source 이름으로 옵션 행에서 값 추출."""
+    """source 이름으로 옵션 행에서 값 추출.
+
+    🔴 모르는 이름은 **거절**한다(조용히 「?」로 채우면 마켓에 빈 옵션이 올라간다).
+       값이 없는 것과 이름이 틀린 것은 다른 일이다 — 값 없음은 「?」, 오타는 에러.
+    """
     if source not in VALID_SOURCES:
         raise ValueError(f"unknown source: {source}")
     return (option_row.get(source) or "").strip() or "?"
