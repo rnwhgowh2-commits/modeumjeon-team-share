@@ -735,6 +735,163 @@ def restore_eleven11_blank_orders(days: int = 45, limit: int = 8,
                                 retry_hours=retry_hours, session=session)
 
 
+_DCFILL_STAMP = "_dcfill_tried_at"             # 판매자할인 회수 간격 표식(row JSON 안)
+# 배송이 시작된 뒤의 상태 — 이 상태들만 목록조회가 할인 갈래를 안 준다.
+#   결제완료·배송준비중은 목록(complete·packaging)이 이미 sellerDscPrc 를 준다.
+_DCFILL_STATUSES = ("배송중", "배송완료", "구매확정")
+
+
+def refresh_eleven11_seller_dc(days: int = 180, limit: int = 6,
+                               retry_hours: int = 24, *, session=None) -> dict:
+    """11번가 **판매자부담 할인**을 단건조회로 회수한다(그 두 칸만 얹는다).
+
+    🔴 왜 필요한가(2026-08-13) — 매출 = 정가 + 배송비 − 판매자부담 할인 인데,
+      11번가는 **배송중·배송완료·구매확정 목록조회가 `sellerDscPrc` 를 아예 안 준다**
+      (라이브 실측 150/157행). 파서(`_iter_path`)는 자식 태그를 그대로 담으므로 우리가
+      버리는 게 아니라 마켓이 안 주는 것이다. 그 행들은 매출이 옛 기준(실결제+배송비)에
+      머물러 있고, 실결제엔 **11번가가 부담한 할인까지** 빠져 있어 매출이 과소다.
+      저장분 실측: 180일 341주문·1,345,440원이 「우리 부담인지 마켓 부담인지 모름」 상태.
+
+    🔴 단건조회(eleven11.110)는 배송후 주문에도 실값을 준다 — **라이브 4건 실증**
+      (2026-08-13): 배송완료·구매확정 모두 `sellerDscPrc`·`tmallDscPrc` 가 왔고,
+      63,100 − 3,150(마켓) = 59,950 으로 저장분 실결제와 정확히 맞았다.
+      ★그때 대표 계정으로만 물으면 **0건**이 나온다 — 계정이 7개다. 계정 순회가 필수.
+
+    ★ 「칸만 얹는다」 — `_store.save`(라인 통째 덮어쓰기)를 **쓰지 않는다**.
+      by-no 로 새로 만든 행에는 배송비·수량(`ordQty`=잔여수량)·정산 스냅샷이 함께 실려,
+      이미 `_settle_source='real'` 인 행을 되돌리거나 배송비를 흔들 수 있다.
+      (같은 이유로 `refresh_stale_delivered` 의 자동 실행이 철회된 전례가 있다.)
+      우리가 필요한 건 두 칸뿐이므로 나머지는 건드리지 않는다.
+
+    ★ 🔴 「0원」과 「모름」을 가른다 — 마켓이 값을 **안 주면 아무것도 쓰지 않는다**.
+      여기서 0 을 써 버리면 「모름」이 「할인 0원」으로 굳어, 그 차액이 전부 마켓 부담이라고
+      단정하는 셈이 된다. 마켓이 실제로 "0" 을 주면 그건 **판정**이므로 쓴다.
+
+    ★ 🔴 계정 **순차** — 11번가는 rate 가 IP 전역이라 병렬 조회 시 429 로 전체가 죽는다
+      (`refresh_settlement_eleven11` 과 같은 규율). 주문 사이 sleep 0.3.
+    ★ 🔴 조회창 7일을 **늘리지 않는다** — by-no 경로에선 안 쓰이지만(조기반환), 같은 인자라
+      「어차피 안 쓰니 늘리자」는 유혹이 생긴다. 늘리면 목록 경로가 에러 없이 0건이 된다.
+    ★ 굶김 방지: 못 구하는 주문이 앞자리를 차지하지 않게 시도 시각을 새기고 retry_hours
+      안에는 건너뛴다(성공하면 `_dc_seller` 가 차서 애초에 대상에서 빠진다).
+
+    Returns 집계 dict — `no_value`(마켓도 할인을 안 줌)와 `not_found`(계정 어디에도 없음)를
+    **합치지 않는다**. 후자면 회수 0건의 원인이 주문이 아니라 자격증명이다.
+    """
+    import time as _time
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return {"targets": 0, "filled": 0}
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from sqlalchemy.orm.attributes import flag_modified
+
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import (_account_client, _active_accounts,
+                                                   _finalize_rows, eleven11_order_rows)
+        date_lo = (_dt.datetime.now(KST) - _dt.timedelta(days=days)).strftime("%Y-%m-%d")
+        retry_cut = _dt.datetime.utcnow() - _dt.timedelta(hours=retry_hours)
+        rows = (session.query(MarketOrderLine)
+                .filter(MarketOrderLine.market == "eleven11",
+                        MarketOrderLine.status.in_(_DCFILL_STATUSES),
+                        MarketOrderLine.order_date >= date_lo)
+                .order_by(MarketOrderLine.order_date.desc()).all())
+        onos, targets = [], []
+        for o in rows:
+            row = o.row or {}
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 행 — 할인 갈래를 안 만든다
+            if str(row.get("_dc_seller") or "").strip():
+                continue                          # 이미 받아 둔 행
+            if _line_is_blank(row):
+                continue                          # 단가가 없으면 회수해도 매출 기준이 안 바뀐다
+            #  (그 행들은 같은 틱의 restore_blank_orders 가 먼저 채우고 다음 바퀴에 잡힌다)
+            tried = str(row.get(_DCFILL_STAMP) or "")
+            if tried:
+                try:
+                    if _dt.datetime.fromisoformat(tried) > retry_cut:
+                        continue                  # 최근에 시도함 — 다음 주문에 자리를 준다
+                except ValueError:
+                    pass                          # 표식이 깨졌으면 그냥 시도한다
+            if not o.order_no:
+                continue
+            targets.append(o)
+            if o.order_no not in onos:
+                onos.append(o.order_no)
+                if len(onos) >= limit:
+                    break
+        # 마지막 주문번호의 형제 라인(다품)도 함께 겨눈다 — 한 번 부른 응답을 다 쓴다.
+        targets = [o for o in targets if o.order_no in set(onos)]
+        if not onos:
+            return {"targets": 0, "filled": 0, "no_value": 0, "not_found": []}
+
+        stamp = _dt.datetime.utcnow().isoformat(timespec="seconds")
+        for o in targets:
+            o.row = {**(o.row or {}), _DCFILL_STAMP: stamp}
+            flag_modified(o, "row")
+        session.commit()
+
+        # ── 조회: 계정 순차(병렬 금지) ─────────────────────────────────────────
+        now = _dt.datetime.now(KST)
+        accounts = _active_accounts("eleven11") or [(None, None)]
+        remaining = list(onos)
+        dcmap: dict = {}                          # (ordNo, ordPrdSeq) → (셀러, 마켓)
+        errors: list = []
+        for prefix, _name in accounts:
+            if not remaining:
+                break
+            cli = _account_client("eleven11", prefix) if prefix else _account_client("eleven11")
+            if cli is None:
+                continue
+            for no in list(remaining):
+                try:
+                    raw = eleven11_order_rows(now - _dt.timedelta(days=7), now, client=cli,
+                                              include_settlement=False, order_nos=[no])
+                except Exception as e:            # noqa: BLE001 — 이 계정 키로는 조회불가
+                    errors.append(f"{no}: {type(e).__name__}")
+                    raw = []
+                if not raw:
+                    continue
+                for r in raw:
+                    k = (str(r.get("오픈마켓주문번호") or "").strip(),
+                         str((r.get("_send_ids") or {}).get("ord_prd_seq") or ""))
+                    dcmap[k] = (r.get("_dc_seller"), r.get("_dc_market"))
+                remaining.remove(no)
+                _time.sleep(0.3)                  # 11번가 병렬·연타 금지
+
+        # ── 쓰기: 두 칸만 얹는다 ──────────────────────────────────────────────
+        filled = no_value = 0
+        for o in targets:
+            row = dict(o.row or {})
+            k = (str(row.get("오픈마켓주문번호") or "").strip(),
+                 str((row.get("_send_ids") or {}).get("ord_prd_seq") or ""))
+            got = dcmap.get(k)                    # ★(ordNo, ordPrdSeq) 라인 단위 — ordNo 단독
+            if got is None:                       #   조인은 다품 주문에 할인을 브로드캐스트한다
+                continue
+            sdc, mdc = got
+            if not str(sdc or "").strip():
+                no_value += 1                     # 마켓도 안 줌 → 「모름」 유지(0 으로 안 친다)
+                continue
+            new_row = dict(row)
+            new_row["_dc_seller"] = sdc
+            if str(mdc or "").strip():
+                new_row["_dc_market"] = mdc
+            _finalize_rows([new_row])             # `_매출기준액`·`_매출기준출처` 재도출
+            o.row = new_row
+            flag_modified(o, "row")
+            filled += 1
+        session.commit()
+        return {"targets": len(targets), "orders": len(onos), "filled": filled,
+                "no_value": no_value, "not_found": remaining,
+                "errors": errors[:5]}
+    finally:
+        if own:
+            session.close()
+
+
 _STALESTAT_STAMP = "_stalestat_tried_at"       # 굳은 상태 재조회 간격 표식(row JSON 안)
 # 「이 상태로 오래 있으면 이상하다」 — 배송이 끝났으면 대개 8일 안에 자동 구매확정된다.
 _STALE_STATUSES = ("배송완료", "배송중", "배송준비중")
