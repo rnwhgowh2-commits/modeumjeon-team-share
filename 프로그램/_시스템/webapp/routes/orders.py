@@ -548,10 +548,19 @@ def orders_diag_esm_timing():
         days = 1
     until = _dt.datetime.now()
     since = until - _dt.timedelta(days=days)
+    # 🔴 주문조회는 **계정 키로 만든 클라이언트**가 있어야 돈다. 안 붙이면
+    #   `AttributeError: 'NoneType' object has no attribute 'request_orders'` 로 터진다
+    #   (2026-08-13 라이브에서 바로 겪음 — 시험이 esm_order_rows 를 가짜로 갈아
+    #    끼워 이 구멍을 못 봤다).
+    cli = _oe._account_client(market)
+    if cli is None:
+        return jsonify(ok=False, error=f"{_oe.market_label(market)} API 키(자격증명)가 "
+                                       f"등록돼 있지 않아 잴 수 없어요."), 200
     diag, warns = {"counts": {}, "errors": {}}, []
     t0 = _t.monotonic()
     try:
-        rows = _oe.esm_order_rows(market, since, until, diag=diag, warnings=warns)
+        rows = _oe.esm_order_rows(market, since, until, client=cli,
+                                  diag=diag, warnings=warns)
     except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
         return jsonify(ok=False, 총초=round(_t.monotonic() - t0, 1),
                        error=f"{type(e).__name__}: {str(e)[:300]}",
@@ -2496,6 +2505,109 @@ def orders_diag_eleven11_settle():
                    표본=samples, 원본머리=str(xml_text or "")[:400])
 
 
+@bp.route('/diag/e11-seller-dc')
+def orders_diag_e11_seller_dc():
+    """[읽기 전용·마켓 안 부름] 11번가 판매자할인을 못 받은 주문이 얼마나 밀려 있나.
+
+    🔴 왜 필요한가(2026-08-13) — 배송중·배송완료·구매확정 주문은 **목록조회가
+      `sellerDscPrc` 를 아예 안 준다**(라이브 실측 150/157행). 그래서 그 행들의 매출이
+      「정가 − 판매자할인」으로 못 넘어가고 옛 기준(실결제+배송비)에 머문다.
+      회수는 단건조회(eleven11.110)로만 되는데 **주문당 1콜**이라, 한도를 정하려면
+      백로그가 몇 건인지부터 세어야 한다. 이 창구는 저장분만 읽는다(마켓 호출 0).
+
+    `?days=180` — 주문일 기준 창(최대 730).
+    돌려주는 것: 대상 건수·주문번호 수·월별 분포·이미 시도한 건수·단가까지 빈 행 수.
+      ★`정체불명금액` = Σ(총주문금액 − 실결제금액). 이 돈이 우리 부담인지 마켓 부담인지
+        아직 모르는 몫이다 — 「할인 0원」이 아니라 「모름」이다.
+    """
+    from flask import jsonify
+
+    from shared.db import SessionLocal
+    from lemouton.markets.models_orders import MarketOrderLine as L
+
+    try:
+        days = max(1, min(730, int(request.args.get('days') or 180)))
+    except ValueError:
+        days = 180
+    now = _dt.datetime.now(_oe.KST)
+    oldest = (now - _dt.timedelta(days=days)).strftime('%Y-%m-%d')
+    # 배송이 시작된 뒤 상태만 — 결제완료·배송준비중은 목록조회가 이미 할인을 준다.
+    STS = ('배송중', '배송완료', '구매확정')
+
+    def _i(v):
+        try:
+            return int(float(str(v).replace(',', '')))
+        except (TypeError, ValueError):
+            return 0
+
+    with SessionLocal() as s:
+        rows = (s.query(L).filter(L.market == 'eleven11',
+                                  L.status.in_(STS),
+                                  L.order_date >= oldest).all())
+        by, tried, blank, gap, nos = {}, 0, 0, 0, set()
+        for o in rows:
+            r = o.row or {}
+            if str(r.get('_dc_seller') or '').strip():
+                continue                      # 이미 받아 둔 행
+            k = (o.order_date or '?')[:7]
+            by[k] = by.get(k, 0) + 1
+            nos.add(o.order_no)
+            if r.get('_dcfill_tried_at'):
+                tried += 1
+            if not str(r.get('단가') or '').strip():
+                blank += 1                    # 단가가 없으면 회수해도 매출 기준이 안 바뀐다
+            gap += _i(r.get('총주문금액')) - _i(r.get('실결제금액'))
+        return jsonify(ok=True, 창=f'{oldest}~{now:%Y-%m-%d}',
+                       조회한행=len(rows), 대상건수=sum(by.values()),
+                       주문번호수=len(nos), 월별=dict(sorted(by.items())),
+                       이미시도한건수=tried, 단가까지빈행=blank,
+                       정체불명금액=gap,
+                       안내='주문당 1콜 — 주문번호수가 곧 필요한 호출 수다.')
+
+
+@bp.route('/diag/e11-order-raw')
+def orders_diag_e11_order_raw():
+    """[읽기 전용·저장 안 함] 11번가 단건조회(eleven11.110) 원본 필드 — 값이 오나 눈으로.
+
+    🔴 왜 필요한가(2026-08-13) — 지도에 `sellerDscPrc` 가 있다는 것은 **「칸이 있다」**이지
+      **「값이 온다」**가 아니다. 배송완료·구매확정 주문에서도 실값을 채워 주는지 확인하지
+      않고 회수 스윕을 지으면, 못 구하는 주문을 계속 두드리기만 하는 코드가 된다.
+      (같은 함정의 반대 방향 사고가 이미 있었다 — 「마켓이 안 준다」고 보고했는데 실은
+       우리가 버리고 있던 건.)
+
+    `?ordno=202608130001234&alias=` — 주문번호 하나. 금액·번호 계열 필드만 돌려준다
+    (고객정보는 담지 않는다). 저장분에 아무것도 쓰지 않는다.
+    """
+    from flask import jsonify
+
+    from shared.platforms.eleven11.orders import fetch_order
+
+    ordno = (request.args.get('ordno') or '').strip()
+    if not ordno:
+        return jsonify(ok=False, error='ordno(주문번호)가 필요해요.'), 400
+    alias = (request.args.get('alias') or '').strip()
+    cli = _client_for_diag('eleven11', alias)
+    try:
+        ods = fetch_order(ordno, client=cli)
+    except Exception as e:                    # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f'{type(e).__name__}: {str(e)[:300]}'), 500
+    # 관심 필드 — 할인 갈래 + 배송비(지도와 코드가 서로 다르게 말하는 자리) + 금액.
+    WANT = ('sellerDscPrc', 'sellerDscPrcPerSeq', 'lstSellerDscPrc',
+            'tmallDscPrc', 'tmallDscPrcPerSeq', 'tmallApplyDscAmt',
+            'ordPayAmt', 'ordAmt', 'selPrc', 'ordQty',
+            'dlvCst', 'lstDlvCst', 'bmDlvCst', 'bndlDlvYN',
+            'ordPrdSeq', 'ordNo', 'ordPrdStat', 'ordPrdStatNm', 'stlPlnAmt')
+    out = []
+    for od in ods:
+        out.append({k: od.get(k) for k in WANT if k in od})
+    return jsonify(ok=True, ordno=ordno, alias=alias or '(대표)',
+                   라인수=len(ods),
+                   전체키목록=sorted({k for od in ods for k in od}),
+                   sellerDscPrc_왔나=any(str(od.get('sellerDscPrc') or '').strip()
+                                        for od in ods),
+                   관심필드=out)
+
+
 @bp.route('/diag/ss-settle')
 def orders_diag_ss_settle():
     """[읽기 전용] 스마트스토어 정산조회 raw — 한 주문의 settleExpectAmount 행 전부.
@@ -3174,7 +3286,10 @@ def shopmine_recon_run():
             return jsonify(ok=False, error=str(e)), 422
         except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
             return jsonify(ok=False, error=f'대조 실패: {type(e).__name__}: {e}'), 400
-        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided')}
+        # 🔴 `defs`(노랑 표본)는 목록이라 **detail 쪽**에 둔다 — summary 에 두면
+        #   실행 30회치가 그대로 쌓여 Supabase 무료 티어를 먹는다.
+        #   집계인 `def_reasons` 는 작으므로 summary 에 남아 화면 요약에 쓰인다.
+        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided', 'defs')}
         summary = {k: v for k, v in res.items() if k not in detail}
         prev = (s.query(ShopmineReconRun)
                 .order_by(ShopmineReconRun.id.desc()).first())

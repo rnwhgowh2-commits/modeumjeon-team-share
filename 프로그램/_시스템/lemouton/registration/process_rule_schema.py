@@ -283,8 +283,9 @@ SCHEMAS: dict = {
             #   우리 옵션번호는 언제나 하나다 — 바뀌는 건 **구매자에게 보이는 갈래 수**뿐.
             _F("axis", "옵션 축 구성", "choice", default="two",
                choices=("one", "two", "three"),
-               hint="one = 한 갈래(「블랙 260」) · two = 색상·사이즈 두 갈래(기본) · "
-                    "three = 모델명·색상·사이즈 (옵션에 모델명 칸이 없어 아직 못 씁니다)"),
+               hint="one = 한 갈래(「메이트 블랙 260」) · two = 색상·사이즈 두 갈래(기본) · "
+                    "three = 모델명·색상·사이즈 세 갈래 (스마트스토어만 — "
+                    "다른 마켓은 두 갈래로 나갑니다)"),
         )),
     "shipping": ItemSchema(
         "shipping", ITEM_LABELS["shipping"], "§7-10 배송·반품·AS",

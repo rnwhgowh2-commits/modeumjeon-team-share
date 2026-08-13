@@ -713,14 +713,21 @@ def test_discount_column_does_not_borrow_the_price_wiring():
     """🔴 한 항목에 여러 열이 붙는다 — 판매가(5열)와 할인가/쿠폰(6열)이 둘 다 `price` 다.
 
     항목으로만 배선을 보면 **할인 열이 판매가의 초록불을 빌려 쓴다.**
-    실측(2026-08-13): 6마켓 중 5곳이 「나감」으로 떴는데 할인은 어디로도 안 나간다
-    (`policy/discount.py` 를 부르는 운영 코드 0곳).
+    실측(2026-08-13): 6마켓 중 5곳이 「나감」으로 떴는데 할인은 어디로도 안 나갔다.
+
+    ⚠️ 그 뒤 main(#1018)이 **쿠팡만** 실제로 뚫었다(즉시할인쿠폰). 그래도 상태는
+      「저장만」이 맞다 — 여섯 중 하나만 나가는데 「나감」으로 적으면 나머지
+      다섯이 조용히 묻힌다. 안내가 그 사실을 정확히 말하는지도 함께 본다.
     """
     cells = C.build()["cells"]
     for mk in ("coupang", "smartstore", "eleven11", "auction", "gmarket"):
         c = cells[f"{mk}:6"]
         assert c["wiring"] != "wired", f"{mk} 할인 열이 아직 「나감」이다: {c['wiring_note']}"
-        assert "0곳" in c["wiring_note"], f"{mk} 할인 열 설명이 판매가 것이다: {c['wiring_note']}"
+        note = c["wiring_note"]
+        assert "판매가 계산" in note, f"{mk} 할인 열 설명이 판매가 것이다: {note}"
+        # 🔴 어디로 나가고 어디로 안 나가는지 **둘 다** 말해야 한다
+        assert "쿠팡" in note and "못 찾았습니다" in note, \
+            f"{mk} 나가는 곳/안 나가는 곳을 안 가른다: {note}"
     # 판매가(5열)는 그대로 나가야 한다 — 같이 죽이면 안 된다
     assert cells["smartstore:5"]["wiring"] == "wired"
 
