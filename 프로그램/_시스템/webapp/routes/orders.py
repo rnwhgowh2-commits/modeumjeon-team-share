@@ -1480,14 +1480,26 @@ def settle_plan_agg():
     out['셀러월렛'] = wallet
     # 🚀 로켓그로스 — 쿠팡 마켓플레이스와 **완전히 별도**라 지금까지 「받을 돈」에서 통째로
     #   빠져 있었다(2026-08-07 실측: 매출내역에 0건·정산 회차에도 안 섞임).
-    #   Wing 화면 API 를 로컬 크롤이 긁어 넣는다. 받을 돈 = 지급액 − 빠른정산 선인출.
+    #   Wing 화면 API 를 로컬 크롤이 긁어 넣는다.
     #   🔴 기간 칸에는 못 나눈다 — 회차 단위라 주문별 지급예정일이 없다. 총액에만 더한다.
+    #   🔴🔴 [2026-08-13] 「받을 돈」 = **Σ최종지급액(정산일 오늘 이후 ~ 한 달)** 이다.
+    #     옛 `지급액 − 빠른정산`(기간 제한 없음)은 **이미 받은 회차까지 세어** 화면이
+    #     9,508,138 을 보여줬다 — 쿠팡 화면 실제 값은 7,818,202(사장님 Wing 25회차로
+    #     원 단위 확인). 그 차이 1,689,936 이 「앞으로 받을 돈」 총액에 그대로 얹혔다.
+    #     대조 엔진(settle_recon)만 고치고 **이 화면 숫자를 안 고쳐** 라이브가 틀린 채였다.
+    #     규칙 정본 = `rg_settlement.ahead_summary()`.
     try:
         from lemouton.margin import rg_settlement as RG
         rg = RG.summary()
+        _ahead = RG.ahead_summary()
+        rg['앞으로받을돈'] = int(_ahead.get('금액') or 0)
+        rg['앞으로회차수'] = int(_ahead.get('회차수') or 0)
+        rg['이미받은회차합'] = int(_ahead.get('이미받은회차합') or 0)
+        rg['창'] = _ahead.get('창') or ''
     except Exception:   # noqa: BLE001 — 로켓그로스가 없어도 나머지 집계는 나가야 한다
         rg = {"지급액": 0, "빠른정산": 0, "받을돈": 0, "최종지급": 0,
-              "회차수": 0, "계정별": []}
+              "회차수": 0, "계정별": [], "앞으로받을돈": 0, "앞으로회차수": 0,
+              "이미받은회차합": 0, "창": ""}
     out['로켓그로스'] = rg
     kpi = out.get('kpi') or {}
     if isinstance(kpi, dict):
@@ -1495,9 +1507,10 @@ def settle_plan_agg():
         if base is None:
             base = int(kpi.get('total_uncollected') or 0)
         kpi['wallet_balance'] = wallet['합계']
-        kpi['rocket_growth'] = int(rg.get('받을돈') or 0)
-        kpi['net_uncollected'] = max(
-            0, int(base) - int(wallet['합계']) + int(rg.get('받을돈') or 0))
+        # 🔴 화면·총액 둘 다 **같은 값**을 써야 한다 — 하나만 고치면 카드와 총액이 갈린다.
+        _rg_ahead = int(rg.get('앞으로받을돈') or 0)
+        kpi['rocket_growth'] = _rg_ahead
+        kpi['net_uncollected'] = max(0, int(base) - int(wallet['합계']) + _rg_ahead)
     return jsonify(out)
 
 
@@ -3691,6 +3704,43 @@ def settle_recon_run_manual():
                        prev_ran_at=(prev.ran_at.isoformat() if prev else None))
     finally:
         s.close()
+
+
+@bp.route('/lotteon-paid/context')
+def orders_lotteon_paid_context():
+    """[읽기 전용] 롯데온 입금내역 가져오기에 필요한 것 + **최근 가져온 내역**.
+
+    🔴 왜 `trNo` 를 서버가 주나(2026-08-13 라이브 실패) — 확장이 셀러오피스 **화면에서**
+      판매자ID 를 긁게 해 뒀는데 라이브에서 `trNo not found` 로 실패했다. 화면 구조에
+      기대는 방식이라 로그인 상태·페이지에 따라 못 찾는다. 우리는 그 번호를 **계정
+      설정에 이미 갖고 있다**(`client._cfg['tr_no']` — 상품·가격·재고 호출 필수값).
+      아는 값을 화면에서 다시 긁을 이유가 없다.
+
+    🔴 왜 「최근 가져온 내역」인가(사장님 지적) — 단추를 눌러도 **언제 · 얼마나 들어왔는지**
+      알 길이 없었다. 그러면 「눌렀는데 된 건가?」를 영영 확인할 수 없다.
+    """
+    from lemouton.margin import lotteon_paid as LP
+    accounts, errs = [], []
+    try:
+        for prefix, name in (_oe._active_accounts('lotteon') or [(None, '')]):
+            try:
+                cli = _oe._account_client('lotteon', prefix)
+                tr = str((getattr(cli, '_cfg', {}) or {}).get('tr_no') or '').strip()
+            except Exception as e:      # noqa: BLE001 — 한 계정이 막혀도 나머지는 준다
+                errs.append(f"{name or '(대표)'}: {type(e).__name__}")
+                continue
+            if tr:
+                accounts.append({'계정': name or '(대표)', 'trNo': tr})
+    except Exception as e:              # noqa: BLE001
+        errs.append(f"{type(e).__name__}: {str(e)[:120]}")
+    try:
+        summary = LP.summary()
+    except Exception as e:              # noqa: BLE001
+        summary = {'오류': f'{type(e).__name__}: {str(e)[:120]}'}
+    return jsonify(
+        ok=True, 계정=accounts, 오류=errs, 최근가져온내역=summary,
+        해석=('trNo 는 계정 설정에 이미 있는 값이다 — 확장이 화면에서 긁다 실패하면 '
+              '(trNo not found) 이 값을 실어 보내면 된다.'))
 
 
 @bp.route('/settle-recon/latest')
