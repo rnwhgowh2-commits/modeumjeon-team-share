@@ -225,6 +225,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  // ── [2026-08-13] 롯데온 지급내역(실입금일) ────────────────────────────────────
+  //   🔴 `handleLotteonPaidCrawl` 은 2026-08-07 에 이미 만들어져 있었는데 **여기 등록이
+  //     빠져 있었다.** 그래서 화면에서 부를 방법이 없었고, 롯데온만 「이미 받았다」가
+  //     라이브에서 **0건**이었다(받는 날 1,175건 전부 추정 — 쿠팡·스스·11번가는 실값).
+  //     함수는 지어 놓고 문고리를 안 단 상태였다. 「조용히 안 도는」 부류의 사고다.
+  if (type === "lotteon.paid.crawl") {
+    handleLotteonPaidCrawl(msg.payload || {})
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   // 전용 탭 닫기(전체 순회 종료 후 정리)
   if (type === "lotteon.closetab") {
     (async () => {
