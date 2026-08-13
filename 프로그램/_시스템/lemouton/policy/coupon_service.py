@@ -137,6 +137,85 @@ def policy_targets(session, channels) -> dict:
     return {'will': will, 'skip': skip}
 
 
+def _channels_of_policy(session, policy_id: int) -> list:
+    """그 정책이 물린 상품들의 쿠팡 채널. 상품 단위·구성 단위 둘 다 본다."""
+    from lemouton.policy.models import BundlePolicyLink, SetPolicyLink
+    from lemouton.sets.models import ProductSet
+    set_ids = {r[0] for r in session.query(SetPolicyLink.set_id)
+               .filter(SetPolicyLink.policy_id == policy_id).all()}
+    codes = [r[0] for r in session.query(BundlePolicyLink.model_code)
+             .filter(BundlePolicyLink.policy_id == policy_id).all()]
+    if codes:
+        set_ids |= {r[0] for r in session.query(ProductSet.id)
+                    .filter(ProductSet.model_code.in_(codes)).all()}
+    if not set_ids:
+        return []
+    return (session.query(SetChannel)
+            .filter(SetChannel.market == 'coupang',
+                    SetChannel.set_id.in_(sorted(set_ids))).all())
+
+
+def coupon_plan(session, policy_id: int) -> dict:
+    """확인창(사장님 확정 B5)이 보여 줄 것 — **몇 개가 바뀌고 몇 개는 안 건드리나**.
+
+    🔴 비정책 상품은 `skip` 으로 **갈라 놓는다**. 같이 세면 사장님이 12개가 바뀌는 줄
+      아는데 실제론 9개다. 「안 건드리는 이유」도 같이 준다.
+    🔴 지금 값과 바뀔 값을 **둘 다** 준다 — 확인창이 「−100 → −250」을 보여줘야 한다.
+    """
+    from lemouton.policy.discount import discount_of
+    from lemouton.policy.service import values_for
+    from lemouton.sets.models import ProductSet
+
+    want = discount_of(values_for(session, policy_id, 'coupang'))
+    if not want:
+        return {'will': [], 'skip': [], 'next_value': None,
+                'message': '이 정책엔 즉시할인이 없어 쿠폰을 걸 것이 없습니다.'}
+
+    chans = _channels_of_policy(session, policy_id)
+    names = dict(session.query(ProductSet.id, ProductSet.model_code)
+                 .filter(ProductSet.id.in_([c.set_id for c in chans] or [0])).all())
+
+    def _row(ch, reason=''):
+        rec = record_of(ch)
+        ov = override_of(ch)
+        cur = ov['value'] if ov['mode'] == 'own' else rec.get('value')
+        return {'channel_id': ch.id, 'set_id': ch.set_id,
+                'name': names.get(ch.set_id) or f'구성 {ch.set_id}',
+                'account': ch.account_key,
+                'now': cur, 'next': int(want['value']), 'reason': reason}
+
+    plan = policy_targets(session, chans)
+    return {
+        'will': [_row(c) for c in plan['will']],
+        'skip': [_row(c, '이 상품만의 값(비정책)이라 정책을 바꿔도 안 따라갑니다')
+                 for c in plan['skip']],
+        'next_value': int(want['value']),
+        'message': '',
+    }
+
+
+def apply_coupon_plan(session, policy_id: int, *, channel_ids, now=None,
+                      by='정책 확인창') -> dict:
+    """확인창에서 **고른 것만** 다시 건다.
+
+    🔴 「전부」가 아니라 고른 것만 — 안 고른 상품까지 걸면 사장님이 안 시킨 일이 난다.
+    🔴 비정책 상품은 골라도 **안 건드린다**. 목록에서 갈라 놓은 방어를 「고르기」로
+      우회할 수 있으면 그 방어는 없는 것이다.
+    """
+    want = {int(x) for x in (channel_ids or [])}
+    if not want:
+        return {'ok': True, 'queued': 0, 'message': '고른 상품이 없습니다.'}
+    chans = [c for c in _channels_of_policy(session, policy_id) if c.id in want]
+    plan = policy_targets(session, chans)
+    ok = sum(1 for ch in plan['will']
+             if request_for_channel(session, ch, now=now, by=by)['ok'])
+    skipped = len(plan['skip'])
+    msg = f'{ok}곳을 다시 겁니다.'
+    if skipped:
+        msg += f' {skipped}곳은 비정책이라 안 건드렸습니다.'
+    return {'ok': True, 'queued': ok, 'skipped_own': skipped, 'message': msg}
+
+
 def request_for_channels(session, channels, *, now=None, by='단추') -> dict:
     """고른 채널들만 대기열에 넣는다(B5 — 전부가 아니라 고른 것만)."""
     ok = 0
