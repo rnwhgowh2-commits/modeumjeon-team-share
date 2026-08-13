@@ -108,3 +108,39 @@ def test_정책부터_쿠팡_payload_까지_실제로_이어진다():
     view, _, _ = apply_rules(Full(), {'listing': {'minor_purchase': '19세 이상만'}})
     p, _ = compile_coupang(view, category_code=1, vendor=vendor)
     assert p['items'][0]['adultOnly'] == 'ADULT_ONLY'
+
+
+# ── 모음전 경로: 사본 → **초안 행** → 컴파일 (다리가 하나 더 있다) ──────────
+
+def test_모음전은_초안_행을_컴파일한다_사본이_아니다():
+    """🔴 대량등록은 사본을 그대로 컴파일하지만, 모음전은 사본을 **초안 행에 옮겨 담고**
+    그 행을 컴파일한다(`send/runner.py` → `as_draft.upsert` → `register_draft`).
+
+    그래서 사본에만 실린 값은 **옮겨 담는 목록에 없으면 조용히 사라진다.**
+    배송비·반품비·원산지가 그랬고, 미성년자 구매도 같은 자리다.
+    """
+    from lemouton.send.as_draft import policy_fields_from
+
+    view, _, _ = apply_rules(_Draft(), {'listing': {'minor_purchase': '19세 이상만'}})
+    assert view.minor_purchasable is False, '사본에는 실렸다'
+
+    got = policy_fields_from(view)
+    assert 'minor_purchasable' in got, \
+        '초안 행으로 옮겨 담지 않는다 — 모음전은 전연령으로 나간다'
+    assert got['minor_purchasable'] is False
+
+
+def test_False_를_안_정함으로_읽지_않는다():
+    """🔴 「19세 이상만」은 False 다 — `if v` 로 거르면 그 값만 영영 안 옮겨진다."""
+    from lemouton.send.as_draft import policy_fields_from
+
+    class V:
+        minor_purchasable = False
+        delivery_fee = 0            # 0 = 무료배송, 이것도 값이다
+        return_fee = None
+        origin_area_code = ''
+
+    got = policy_fields_from(V())
+    assert got.get('minor_purchasable') is False
+    assert got.get('delivery_fee') == 0
+    assert 'return_fee' not in got and 'origin_area_code' not in got

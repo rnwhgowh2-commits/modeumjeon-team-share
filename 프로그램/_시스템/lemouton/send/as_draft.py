@@ -163,7 +163,14 @@ def upsert(session, *, set_id: int, market: str, view=None):
 #: 정책이 만든 운영값 → 초안 칸. 값 이름이 같아 그대로 옮긴다.
 #:   🔴 여기 있는 칸만 옮긴다. 사본에는 화면용 값(source_category_path 등)도 있어
 #:     통째로 옮기면 초안에 엉뚱한 값이 박힌다.
-_POLICY_FIELDS = ('delivery_fee', 'return_fee', 'origin_area_code')
+#:
+#: 🔴🔴 **모음전은 사본을 그대로 컴파일하지 않는다.** 사본을 초안 행에 옮겨 담고
+#:   그 행을 컴파일한다(`send/runner.py:272` → `upsert` → `register_draft`).
+#:   그래서 사본에만 실린 값은 **이 목록에 없으면 조용히 사라진다** —
+#:   대량등록에서는 되는데 모음전에서만 안 되는 얼굴을 한다.
+#:   값을 새로 이었으면 여기에도 넣었는지 반드시 확인할 것.
+_POLICY_FIELDS = ('delivery_fee', 'return_fee', 'origin_area_code',
+                  'minor_purchasable')
 
 
 def policy_fields_from(view) -> dict:
