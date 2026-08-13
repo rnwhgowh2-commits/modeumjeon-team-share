@@ -5942,6 +5942,8 @@
     .spn .acts{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
     .spn .act{display:inline-flex;align-items:center;gap:6px;}
     .spn .act .note{font-size:12px;}
+    /* 결과 글이 비어 있으면 자리도 없애야 단추 간격이 고르다(빈 칸이 6px 씩 벌린다). */
+    .spn .act .note:empty{display:none;}
     /* 「누르면 뭐가 바뀌나」 호버 창 — `hover-info-card` 규칙 1(body + fixed). */
     .howpop{display:none;position:fixed;z-index:99999;width:330px;max-width:92vw;
       background:var(--surface,#ffffff);color:var(--ink,#191F28);
