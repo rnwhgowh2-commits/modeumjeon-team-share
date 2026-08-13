@@ -47,7 +47,10 @@ class ProductDraft(Base):
     cdn_images_json = Column(Text, default='[]')      # 스스 업로드 후 CDN URL
     detail_html = Column(Text, default='')
 
-    options_json = Column(Text, default='[]')         # [{color,size,stock,extra_price,sku}]
+    # [2026-08-13] `model` 이 늘었다 — 3갈래(모델명·색상·사이즈) 전송의 첫 갈래.
+    #   담기는 길은 하나뿐이다: `policy/to_payload._options_json` → `send/as_draft`.
+    #   크롤·손입력 초안에는 없다(소싱처 옵션에 모델 축 칸이 없다).
+    options_json = Column(Text, default='[]')         # [{model,color,size,stock,extra_price,sku}]
 
     origin_area_code = Column(String(32), default='0200037')  # 국내산 기본
     importer = Column(String(120), default='')

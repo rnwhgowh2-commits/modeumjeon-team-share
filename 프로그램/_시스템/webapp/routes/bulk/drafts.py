@@ -87,9 +87,13 @@ def create_draft():
     #   options.py 의 빌더가 진짜 검증기이므로 그것을 그대로 호출해 미리 걸러낸다.
     raw_opts = p.get('options') or []
     if raw_opts:
-        from lemouton.registration.options import build_smartstore_options, OptionError
+        # 🔴 [2026-08-13] `build_smartstore_options` 를 axis 없이 부르면 기본이 2갈래라,
+        #   **전송이 받아들이는 3갈래 행을 저장이 거절**했다(실측). 게다가 그 거절문이
+        #   안내하는 해법(「상품가공에서 3갈래로」)은 이 게이트가 **안 읽는 설정**이다.
+        #   저장 시점엔 아직 어느 축으로 올릴지 모른다 → 축 무관 판정만 한다.
+        from lemouton.registration.options import validate_rows_for_save, OptionError
         try:
-            build_smartstore_options(raw_opts, sale_price=sale_price)
+            validate_rows_for_save(raw_opts, sale_price=sale_price)
         except OptionError as e:
             return _err(f'옵션 오류: {e}')
 
@@ -255,10 +259,11 @@ def update_draft(draft_id: int):
         if 'options' in p:
             raw_opts = p.get('options') or []
             if raw_opts:
+                # 위와 같은 까닭 — 저장 시점엔 축을 모른다(축 무관 판정만).
                 from lemouton.registration.options import (
-                    build_smartstore_options, OptionError)
+                    validate_rows_for_save, OptionError)
                 try:
-                    build_smartstore_options(
+                    validate_rows_for_save(
                         raw_opts, sale_price=d.sale_price)
                 except OptionError as e:
                     return _err(f'옵션 오류: {e}')

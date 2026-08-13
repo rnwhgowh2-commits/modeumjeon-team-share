@@ -142,6 +142,8 @@ def _load_options(session, source_product):
 def to_draft_options(source_options):
     """SourceOption 목록 → 드래프트 옵션 스키마 ``[{color,size,stock,extra_price,sku}]``.
 
+    (`model` 은 없다 — 아래 참조)
+
     ■ 재고는 **그대로** 옮긴다 (options.py 의 규약과 같은 뜻)
         n>0  판매가능 / 0 품절 / -1 확인불가 / None 미크롤
       셋 다 등록에서 빠지지만 **사유가 다르다.** `or 0` 로 뭉개면 「아직 안 긁었다」가
@@ -149,6 +151,13 @@ def to_draft_options(source_options):
 
     ■ extra_price 는 항상 0
       옵션 추가금은 판매가 정책이다. current_price(매입가) 를 옮기면 안 된다(모듈 주석).
+
+    ■ model(모델명) 은 **없다** — 지어내지 않는다
+      3갈래(모델명·색상·사이즈) 전송의 첫 갈래인데, 소싱처 옵션(`SourceOption`)에는
+      모델 축 칸이 **아예 없다**. 소싱처는 우리 모음전이 어떤 축으로 짜였는지 모른다.
+      모델명이 담기는 길은 하나뿐이다 — `policy/to_payload._options_json`(구성 경로).
+      그래서 크롤로 만든 상품은 3갈래로 못 올린다. 그때 사유를 정확히 말하는 곳 =
+      `registration/options.build_smartstore_options` 의 3축 검사.
 
     ■ sku 는 비운다
       SourceOption.external_option_id 는 **소싱처의 옵션 ID** 다. 그걸 마켓의
