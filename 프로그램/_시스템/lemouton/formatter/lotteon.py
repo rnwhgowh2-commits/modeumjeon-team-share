@@ -56,8 +56,12 @@ def build_lotteon_payload(
             if external_stock_by_sku:
                 stock += external_stock_by_sku.get(sku, 0)
 
-        color = d.get("color_display", d.get("color_code", ""))
-        size = d.get("size_display", d.get("size_code", ""))
+        # 🔴 [2026-08-13] `d.get("x_display", d.get("x_code",""))` 였다 —
+        #   `merged` 는 `color_display` 키를 **항상 만들고 값이 None 일 수 있어**
+        #   기본값이 발동하지 않는다 → 이름이 「None None」 이 된다.
+        #   `smartstore.py` 는 이미 `or` 로 고쳐져 있었다 — 나머지를 맞춘다.
+        color = (d.get("color_display") or d.get("color_code") or "")
+        size = (d.get("size_display") or d.get("size_code") or "")
         option_name = f"{color} {size}".strip()
 
         options.append({

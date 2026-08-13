@@ -87,6 +87,30 @@ def run_formatter(
         decisions_by_model[opt.model_code].append(merged)
         send_stock_by_sku[sku] = resolved
 
+    # 🔴 [2026-08-13] 여기 있던 `option_name_collision` 막이를 **걷어냈다.**
+    #
+    #   왜 넣었었나 — 모델모음전 3축은 옵션 이름(색상+사이즈)이 겹치니 보류하자.
+    #   왜 걷어내나 — **두 가지가 다 틀렸다.**
+    #
+    #   ① 겹쳐도 사고가 안 난다. 이 경로가 만드는 `option_name` 을 **읽는 코드가 0곳**이다.
+    #      전송은 `uploader/orchestrator._extract_uploads` 가 하는데 그건
+    #      `option_id`·`add_price`·`stock` 만 읽는다. 마켓 옵션 **이름은 안 보낸다** —
+    #      `platforms/smartstore/edit_product.py` 가 「None 인 인자는 손대지 않는다」라
+    #      마켓에 있던 이름이 그대로 보존된다.
+    #
+    #   ② 막이가 되레 **라이브 전송을 통째로 멈출 수 있었다.**
+    #      `uploader/dryrun.py:34` 가
+    #        warnings = len(level != 'info' 인 것) + len(alerts)
+    #      로 **warning 을 두 번 센다.** 임계는 `orchestrator.py` 의 5.
+    #      → 겹치는 묶음 3개면 6 > 5 → `should_hold` → **전 마켓·전 상품 uploaded=0.**
+    #      틀린 값을 막으려다 맞는 값까지 못 나가게 하는 막이였다.
+    #
+    #   진짜 막힘은 **연동(linker)** 에 있다 — 3축으로 등록한 상품은
+    #   `platforms/smartstore/get_options.py` 가 `optionName3` 을 버려서
+    #   `uploader/linker.py` 가 못 짝지어 `unmatched` 가 되고, 그래서 가격·재고가
+    #   **에러 없이 영영 안 나간다.** 거기를 고쳐야 한다(별건).
+    #   시험 = tests/test_formatter_axis_collision.py 가 이 사실을 못 박는다.
+
     smartstore_payloads: dict[str, dict] = {}
     coupang_payloads: dict[str, dict] = {}
     lotteon_payloads: dict[str, dict] = {}

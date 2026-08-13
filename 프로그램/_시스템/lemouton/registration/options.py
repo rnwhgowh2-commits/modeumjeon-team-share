@@ -36,6 +36,8 @@ import math
 
 _SIZE_GROUP = '사이즈'
 _COLOR_GROUP = '색상'
+#: 3축의 첫 갈래 — 구매자 드롭다운에 이 이름 그대로 보인다.
+_MODEL_GROUP = '모델명'
 
 # 알파 사이즈 순서.
 # ★ 이 배열 순서가 곧 구매자가 보는 드롭다운 순서다 — optionCombinationSortType 을
@@ -129,8 +131,23 @@ def _size_key(size):
     return (2, 0.0, s)
 
 
-def _normalize(opts):
-    """자유형 입력 → 검증된 행 목록. 값이 이상하면 여기서 전부 실패시킨다."""
+def _normalize(opts, *, split_model=False):
+    """자유형 입력 → 검증된 행 목록. 값이 이상하면 여기서 전부 실패시킨다.
+
+    split_model: 이 전송이 **모델명을 옵션 이름에 싣는가**.
+
+      🔴 불변식은 하나다 — **마켓에 나가는 옵션 이름이 서로 달라야 한다.**
+         그래서 중복 검사 키는 「모델 칸이 있느냐」가 아니라
+         **「이번 전송이 모델을 이름에 싣느냐」** 로 정한다.
+         · 싣는다(3갈래·1갈래 합침) → (모델, 색상, 사이즈) 가 유일해야 한다
+         · 안 싣는다(2갈래·쿠팡)   → (색상, 사이즈) 가 유일해야 한다.
+           모델이 달라도 마켓엔 같은 이름으로 나가므로 **겹치면 막아야 한다.**
+
+      🔴 이 인자가 없으면 사고가 난다(2026-08-13 실측). 키를 무조건
+         (모델,색상,사이즈)로 넓혔더니, 3축 상품을 쿠팡으로 보낼 때
+         `블랙-260` 두 줄이 **에러 없이 통과**했다. 공용 정규화기라 쓰는 곳
+         두 군데(스스·쿠팡)를 다 세어야 한다.
+    """
     # 그릇부터 믿지 않는다. options_json 은 제약 없는 Text 컬럼이고, 등록 라우트가
     # 클라이언트 payload 를 검증 없이 json.dumps 해서 넣는다 — {"options": ["블랙"]}
     # 이 저장은 멀쩡히 되고 한참 뒤 등록 시점에 AttributeError(=500) 로 터진다.
@@ -155,16 +172,33 @@ def _normalize(opts):
         if size:
             _size_key(size)  # 정렬 시점 말고 여기서 먼저 터지게 (nan 조기 차단)
 
-        key = (color, size)
+        # [2026-08-13] 중복 검사 키 = **이번 전송이 실제로 내보내는 이름 조합.**
+        #   #988 에서 고친 매트릭스 중복 키와 같은 계열이다 — 축이 3개인데 2개로 셌다.
+        #   ★ 검사를 없앤 게 아니다. 모델을 안 싣는 전송에서는 예전 그대로 (색상,사이즈).
+        model = _text(o.get('model'))
+        key = (model, color, size) if split_model else (color, size)
         if key in seen:
             # 재고를 합치지 않는다 — 사용자가 표현한 적 없는 의도를 지어내는 셈이다.
+            보임 = '/'.join(p for p in key if p) or '(빈 이름)'
+            앞 = opts[seen[key]] if isinstance(opts[seen[key]], dict) else {}
+            먼저모델 = _text(앞.get('model'))
+            if not split_model and model and 먼저모델 and model != 먼저모델:
+                # 🔴 여기가 진짜 사고 자리 — 사장님 눈엔 다른 옵션인데
+                #   이 마켓엔 같은 이름으로 나간다. 사유를 정확히 말한다.
+                raise OptionValueInvalid(
+                    f'모델이 다른 옵션이 이 마켓에서는 같은 이름이 됩니다: '
+                    f'{보임} (「{먼저모델}」 {seen[key] + 1}번째 · 「{model}」 {i + 1}번째). '
+                    f'이 전송은 색상·사이즈 두 갈래로만 나가서 모델명이 실리지 않습니다 — '
+                    f'상품가공 「옵션 축 구성」을 「모델명 · 색상 · 사이즈」 3갈래로 '
+                    f'바꾸거나, 모델을 나눠서 올리세요.')
             raise OptionValueInvalid(
-                f'같은 옵션이 두 번 들어왔습니다: {color}/{size} '
+                f'같은 옵션이 두 번 들어왔습니다: {보임} '
                 f'({seen[key] + 1}번째 · {i + 1}번째). 어느 쪽이 맞는지는 사용자만 압니다.')
         seen[key] = i
 
         extra = _num(o.get('extra_price'), '옵션 추가금')
         rows.append({
+            'model': model,
             'color': color,
             'size': size,
             'stock': _num(o.get('stock'), '재고'),
@@ -202,7 +236,10 @@ def _split(rows):
             reason = REASON_SOLD_OUT
         else:
             reason = REASON_UNKNOWN
-        excluded.append({'color': r['color'], 'size': r['size'],
+        # 모델명도 같이 싣는다 — 3축 상품에서 색상·사이즈만 적으면 빠진 두 줄이
+        # 화면에 똑같이 보여, 사장님이 어느 모델이 빠졌는지 알 수 없다.
+        excluded.append({'model': r.get('model', ''),
+                         'color': r['color'], 'size': r['size'],
                          'stock': stock, 'reason': reason})
 
     if not sellable:
@@ -251,12 +288,22 @@ def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
 
     sale_price: 상품 판매가. payload 에 싣지는 않지만(스스는 옵션가만 받는다)
                 판매가+옵션가 합계가 0원 이하인지 검사하는 데 필요하다.
-    axis: 'two'(기본) 색상·사이즈 두 갈래 / 'one' 한 갈래로 합침("블랙 260").
+    axis: 'two'(기본) 색상·사이즈 두 갈래 / 'one' 한 갈래로 합침("메이트 블랙 260")
+          / 'three' 모델명·색상·사이즈 세 갈래.
           모르는 값은 'two' 로 본다 — 축 구성은 구매자가 보는 드롭다운이라
           지어낸 모양으로 올리지 않는다.
-          ※ 'three'(모델명 축)는 여기서 받지 않는다. 옵션 행에 모델명 칸이 없어서
-            (options_json = color·size·stock·extra_price·sku) 만들 수가 없다.
-            호출자(process_apply)가 미리 걸러 사유를 남긴다.
+
+          🔴 [2026-08-13] 'three' 를 **연다.** 예전엔 여기서 거절했고 사유가
+             「옵션 행에 모델명 칸이 없어서」였다 — 마켓 탓이 아니라 우리 칸이
+             없던 것이다. 칸을 만들었다(`policy/to_payload._options_json` 의 `model`,
+             값은 `matrix/option_name.model_name_of`).
+             마켓 근거(근거 서열 2 = 스스 개발자센터 원문, 판매처 지도에 수록):
+               `optionCombinations` — 「최대 등록 가능한 옵션 개수는
+               조합형은 3개, 지점형은 4개입니다.」
+             ⚠️ 다만 카테고리가 **표준형 옵션**을 요구하면 3축 조합형은 못 쓴다
+               (같은 원문: 「표준형 옵션, 단독형 옵션, 조합형 옵션은 함께 사용할 수
+               없습니다」). 판정은 `GET /v1/options/standard-options` 의
+               `useStandardOption`·`optionSetRequired` — 아직 안 부른다.
     excluded: [{'color','size','stock','reason'}] — 등록에서 빠진 행.
               상위가 사용자에게 보여줘야 한다 (조용한 실패 금지).
 
@@ -269,11 +316,27 @@ def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
     base = _num(sale_price, '판매가')
     if base is None:
         raise OptionValueInvalid('판매가가 없습니다.')
-    rows, excluded = _split(_normalize(opts))
+    # 모델명을 이름에 싣는 전송(3갈래·1갈래 합침)에서만 중복 키를 넓힌다.
+    rows, excluded = _split(_normalize(opts,
+                                       split_model=axis in (AXIS_ONE, AXIS_THREE)))
     # optionName1/GroupName1 만 [필수], 2는 선택 → 사이즈 없는 상품(색상만)은 1축으로.
     has_size = bool(rows and rows[0]['size'])
     one = (axis == AXIS_ONE)
-    if one:
+    three = (axis == AXIS_THREE)
+    if three:
+        # 🔴 3축인데 모델명이 빈 행이 있으면 **거절한다.** 「?」·모델코드로 채우면
+        #   그 값이 구매자 드롭다운에 그대로 노출된다(우리 배열 값 = 구매자가 보는 값).
+        빈 = [i + 1 for i, o in enumerate(rows) if not o.get('model')]
+        if 빈:
+            raise OptionValueInvalid(
+                f'3갈래(모델명·색상·사이즈)로 올리려는데 모델명이 빈 옵션이 있습니다: '
+                f'{", ".join(map(str, 빈))}번째. 값을 임의로 지어내지 마세요 — '
+                f'구매자 화면에 그대로 노출됩니다.')
+        groups = {'optionGroupName1': _MODEL_GROUP,
+                  'optionGroupName2': _COLOR_GROUP}
+        if has_size:
+            groups['optionGroupName3'] = _SIZE_GROUP
+    elif one:
         groups = {'optionGroupName1': _ONE_GROUP}
     elif has_size:
         groups = {'optionGroupName1': _COLOR_GROUP, 'optionGroupName2': _SIZE_GROUP}
@@ -282,20 +345,97 @@ def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
     combos = []
     for o in rows:
         _final_price(base, o)   # 합계 검사만 — 스스에 싣는 건 옵션가(추가금)다
+        if one:
+            # 1축이면 축 값을 한 값으로 합친다("메이트 블랙 260").
+            #  없는 축은 빈 칸이 뒤에 붙지 않게 걸러 낸다.
+            첫칸 = ' '.join(v for v in (o.get('model'), o['color'], o['size']) if v)
+        elif three:
+            첫칸 = o['model']
+        else:
+            첫칸 = o['color']
         combo = {
-            # 1축이면 색상·사이즈를 한 값으로 합친다("블랙 260").
-            #  사이즈가 없는 상품은 색상 그대로 — 빈 칸이 뒤에 붙지 않게 한다.
-            'optionName1': (f"{o['color']} {o['size']}".strip() if one else o['color']),
+            'optionName1': 첫칸,
             'stockQuantity': o['stock'],
             'price': o['extra_price'],
             'usable': True,
         }
-        if has_size and not one:
+        if three:
+            combo['optionName2'] = o['color']
+            if has_size:
+                combo['optionName3'] = o['size']
+        elif has_size and not one:
             combo['optionName2'] = o['size']
         if o['sku']:
             combo['sellerManagerCode'] = o['sku']
         combos.append(combo)
     return groups, combos, excluded
+
+
+#: 바코드 없음 사유 — 쿠팡 한도 100자. 사실만 적는다(지어내지 않는다).
+_NO_BARCODE_REASON = '제조사 표준 바코드(GTIN)를 아직 받지 못했습니다. 사내 관리용 번호만 있어 보내지 않습니다.'
+
+
+def coupang_barcode_fields(barcode) -> dict:
+    """[2026-08-13] 쿠팡 items 의 바코드 3칸을 규약대로 만든다.
+
+    쿠팡 문서 원문(marketplace_api_map.json · coupang.products.product-creation):
+        items.barcode            "상품에 **부착된 유효한 표준상품 코드**"
+        items.emptyBarcode       "바코드가 없으면 true"
+        items.emptyBarcodeReason "바코드 없음에 대한 사유 (최대 100자)"
+
+    🔴 우리 `Option.barcode` 는 기본이 `gen_barcode()` = **200 접두 EAN-13** 이다.
+      200~299(020~029·040~049 도)는 GS1 이 어느 제조사에도 안 주는 **매장 내부 전용**
+      대역이라 세계에서 유일하지 않다. 그 번호를 보내면 **거짓 표준코드를 등록**하는
+      셈이라 안 보낸다 — 대신 쿠팡이 마련해 둔 「없음 + 사유」로 사실대로 밝힌다.
+
+    🔴 종전엔 `barcode: ""` 만 보냈다. 코드도 아니고 없다는 선언도 아닌 값이었다.
+
+    사장님이 직접 넣은 진짜 제조사 바코드(내부 대역 아님 + 체크섬 통과)만 그대로 보낸다.
+    형식이 깨진 값은 **고쳐서 보내지 않는다** — 없다고 밝힌다.
+    """
+    from shared.sku_format import is_internal_barcode, is_valid_barcode
+    code = str(barcode or '').strip()
+    if code and not is_internal_barcode(code) and is_valid_barcode(code):
+        return {'barcode': code}
+    return {'barcode': '', 'emptyBarcode': True,
+            'emptyBarcodeReason': _NO_BARCODE_REASON}
+
+
+def coupang_search_tags(bundle, options) -> list:
+    """[2026-08-13] 쿠팡 검색태그 — 구매자가 **검색할 말**만, 한도 안에서.
+
+    종전엔 `[모음전 코드, 색상]` 딱 2개였다. 모음전 코드는 우리 내부 관리번호라
+    구매자가 검색할 말이 아니다 — 20칸 중 1칸을 버리는 셈이었다.
+
+    담는 말 = **정책 §7-11 `_auto_tags` 와 같은 갈래**: 브랜드 → 카테고리 → 색상들.
+    **있는 값만** 쓴다(빈칸을 지어내지 않는다).
+    ★ 상품명 전체는 안 넣는다 — 정책이 안 넣는 값이고, 문장에 가까워 검색어로 안 쓰인다.
+      규칙을 두 벌로 만들면 「정책 미리보기」와 「실제로 나간 태그」가 갈린다.
+
+    🔴 한도는 지도에서 확인된 것만 (`market_limits.TAG_MAX_COUNT/TAG_MAX_LEN`) —
+      쿠팡 `items.searchTags` = "1개당 20자 이내, 최대 20개".
+      개수만 맞추면 긴 태그에서 쿠팡이 거부한다.
+    🔴 길이를 넘는 태그는 **자르지 않고 뺀다.** 잘라 만든 말은 구매자가 검색하지 않는
+      엉뚱한 말이라, 넣어 두면 한도만 갉아먹는다.
+    """
+    from lemouton.registration.market_limits import TAG_MAX_COUNT, TAG_MAX_LEN
+    말 = []
+    for v in (getattr(bundle, 'brand', ''), getattr(bundle, 'category', '')):
+        if str(v or '').strip():
+            말.append(str(v).strip())
+    for o in options or []:
+        c = str(getattr(o, 'color_code', '') or '').strip()
+        if c:
+            말.append(c)
+    cap_len = TAG_MAX_LEN.get('coupang')
+    out = []
+    for t in 말:
+        if cap_len and len(t) > cap_len:
+            continue                       # 자르지 않고 뺀다
+        if t not in out:
+            out.append(t)
+    cap_n = TAG_MAX_COUNT.get('coupang')
+    return out[:cap_n] if cap_n else out
 
 
 def build_coupang_items(opts, *, sale_price, image_url):
@@ -329,5 +469,9 @@ def build_coupang_items(opts, *, sale_price, image_url):
             'externalVendorSku': o['sku'],
             'images': images,
             'attributes': attrs,
+            # 대량등록 초안엔 바코드 칸 자체가 없다 → 늘 「없음 + 사유」가 된다.
+            #   ★ 쪽문 경로(registration/coupang.py)와 **같은 함수**를 쓴다 —
+            #     두 벌이 되면 어느 문으로 등록했느냐로 값이 갈린다.
+            **coupang_barcode_fields(o.get('barcode')),
         })
     return items, excluded

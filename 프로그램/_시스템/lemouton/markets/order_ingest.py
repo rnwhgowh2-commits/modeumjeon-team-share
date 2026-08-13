@@ -740,6 +740,49 @@ _STALESTAT_STAMP = "_stalestat_tried_at"       # 굳은 상태 재조회 간격 
 _STALE_STATUSES = ("배송완료", "배송중", "배송준비중")
 
 
+def _ship_settle_plan(lines, deliv: dict, oid_of) -> dict:
+    """[2026-08-13] 스윕용 — 배송건별 **담당 줄**을 정해 `{id(행): 실을 값}` 을 만든다.
+
+    🔴 왜 스윕이 따로 정해야 하나 — 스윕은 행을 **한 줄씩** `_finalize_rows([row])` 에
+      넣는다. `_shipkey`(배송건 열쇠)는 저장할 때 이미 pop 돼 행에 없으므로,
+      `_finalize_rows` 의 「배송건당 1회」 중복 제거가 **한 번도 안 걸린다**.
+      스윕이 담당을 안 정해 주면 다품 주문에서 배송비 정산이 줄 수만큼 곱해진다.
+
+    담당 = **이미 고객배송비를 지고 있는 줄**. 저장할 때 `_finalize_rows` 가 배송비와
+      `_ship_settle` 을 같은 줄(`sk` 가 처음 나온 줄)에 몰아 뒀으므로, 그 줄이 곧
+      예전 담당이다 — 담당이 옮겨 다니지 않아야 저장분 병합에서 두 번 세어지지 않는다.
+      아무도 안 지고 있으면(무료배송) 이미 `_ship_settle` 을 가진 줄, 그것도 없으면
+      안정 정렬(line_uid) 첫 줄. **정렬 없이 DB 순서에 맡기면 조회마다 담당이 바뀐다.**
+
+    🔴 나머지 줄엔 `0` — pop 이 아니라 **명시 대입**한다. `order_store._merge_row` 는
+      새 payload 에 없는 키를 못 지워, pop 하면 저장분에 옛 값이 살아남는다
+      (2026-08-12 에 인라인 경로에서 실제로 잡힌 함정 · `2e2cc8a7`).
+    """
+    from lemouton.markets import line_uid as _L
+    from lemouton.markets.order_export import _to_int
+    by_oid: dict = {}
+    for o in lines:
+        row = o.row or {}
+        if str(row.get("_kind") or "") == "change":
+            continue                          # 클레임 정산은 딴 경로 — 손대지 않는다
+        oid = oid_of(row)
+        if not oid or oid not in deliv:
+            continue
+        by_oid.setdefault(oid, []).append(o)
+    plan: dict = {}
+    for oid, group in by_oid.items():
+        group.sort(key=lambda g: str((g.row or {}).get(_L.FIELD) or ""))
+        owner = next((g for g in group
+                      if (_to_int((g.row or {}).get("배송비"), 0) or 0) > 0), None)
+        if owner is None:
+            owner = next((g for g in group
+                          if (_to_int((g.row or {}).get("_ship_settle"), 0) or 0) > 0),
+                         group[0])
+        for g in group:
+            plan[id(g)] = deliv[oid] if g is owner else 0
+    return plan
+
+
 def refresh_stale_delivered(market: str, min_age_days: int = 30,
                             max_age_days: int = 180, limit: int = 30,
                             retry_hours: int = 72, *, session=None) -> dict:
@@ -1458,7 +1501,7 @@ def refresh_settlement_coupang(*, since=None, until=None,
             logger.warning(msg)
             stat["errors"].append(msg)
     stat["settle_rows"] = len(item_map)
-    if not item_map and not date_map:
+    if not item_map and not date_map and not deliv_map:
         return stat
 
     own = False
@@ -1474,15 +1517,38 @@ def refresh_settlement_coupang(*, since=None, until=None,
         from lemouton.markets.order_export import _to_int as _oe_to_int
         lines = (session.query(MarketOrderLine)
                  .filter(MarketOrderLine.market == "coupang").all())
+        # 쿠팡은 저장분의 `오픈마켓주문번호` 가 곧 배송건 열쇠(`_shipkey` 의 orderId)다.
+        #  전 행을 다 보고 담당을 정하므로, 조인 키(vid)가 없어 아래에서 건너뛰는 행도
+        #  「안 맡는 줄 0」을 제대로 받는다.
+        ship_plan = _ship_settle_plan(
+            lines, deliv_map,
+            lambda row: str(row.get("오픈마켓주문번호") or "").strip())
         for o in lines:
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue                          # 클레임 정산은 여기서 손대지 않는다
+            changed = False
+            # ── 배송비 정산 실값 — M 이 아니라 N열에서만 쓰인다(별도 키) ──
+            #   🔴 조인 키(vid) 검사보다 **먼저** 한다. 배송비 담당은 옵션ID와 무관하고,
+            #     여기서 건너뛰면 「안 맡는 줄 0」이 안 써져 옛 값이 살아남는다.
+            _want_ship = ship_plan.get(id(o))
+            # ⚠️ main(PR #1001)이 이 함수에선 `_to_int` 를 `_oe_to_int` 로 들여온다.
+            #   옆 함수(스스)는 `_to_int` 그대로라, 같은 줄을 복사하면 여기서만 NameError 로
+            #   스윕이 통째로 죽는다 — 시험이 없으면 라이브에서야 알게 된다.
+            if (_want_ship is not None
+                    and _oe_to_int(row.get("_ship_settle")) != _want_ship):
+                row["_ship_settle"] = _want_ship
+                changed = True
             oid = str(row.get("오픈마켓주문번호") or "").strip()
             vid = str(row.get("_pd_market_option_id") or "").strip()
             if not oid or not vid:
-                continue                          # 조인 키 없음 — 날조 방지
-            changed = False
+                if not changed:
+                    continue                      # 조인 키 없음 — 날조 방지
+                _finalize_rows([row])
+                o.row = row
+                o.last_seen_at = _store._now()
+                stat["updated"] += 1
+                continue
             # ── 지급일은 real 여부와 무관하게 채운다(백필 겸용) — 금액 규약은 불변 ──
             #  settlementDate=1차 지급예정 / finalSettlementDate=유보 30% 지급예정.
             #  정산예정금액 탭이 분할지급을 실값으로 기간 배치한다(2026-08-06).
@@ -1666,15 +1732,34 @@ def refresh_settlement_smartstore(*, since=None, until=None,
         # (주문일↔결제일 하루 어긋남으로 놓치지 않게 날짜로 좁히지 않는다 — 쿠팡과 동일).
         lines = (session.query(MarketOrderLine)
                  .filter(MarketOrderLine.market == "smartstore").all())
-        _deliv_used: set = set()
+        # 🔴 [2026-08-13] `deliv`(배송비 정산 실값)를 만들어 놓고 **한 번도 안 읽고 있었다.**
+        #   스스 저장분의 `오픈마켓주문번호` 는 **상품주문번호(poid)** 라 배송건 열쇠가 아니다
+        #   — 정산조회가 준 `poid2oid` 로 부모 주문(orderId)까지 되짚어야 묶인다.
+        #   ⚠️ 이번 조회 창에 안 잡힌 형제 상품주문은 poid2oid 에 없어 묶이지 않는다.
+        #     그 행들은 인라인 경로가 이미 0 을 명시 대입해 뒀다(`2e2cc8a7`)라 이중가산은 없다.
+        ship_plan = _ship_settle_plan(
+            lines, deliv,
+            lambda row: poid2oid.get(str(row.get("오픈마켓주문번호") or "").strip()))
         for o in lines:
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue
+            changed = False
+            # ── 배송비 정산 실값 — M 이 아니라 N열에서만(별도 키). 정산조회에 아직
+            #   상품분이 안 뜬 형제 행도 「안 맡는 줄 0」을 받아야 하므로 먼저 한다.
+            _want_ship = ship_plan.get(id(o))
+            if _want_ship is not None and _to_int(row.get("_ship_settle")) != _want_ship:
+                row["_ship_settle"] = _want_ship
+                changed = True
             poid = str(row.get("오픈마켓주문번호") or "").strip()
             if not poid or poid not in prod:
-                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
-            changed = False
+                if not changed:
+                    continue                      # 정산조회에 없음 = 아직 미정산(그대로 둠)
+                _finalize_rows([row])
+                o.row = row
+                o.last_seen_at = _store._now()
+                stat["updated"] += 1
+                continue
             # ── 지급일은 real 여부와 무관하게 채운다(백필 겸용) — 금액 규약은 불변 ──
             #  settleExpectDate=정산예정일 / settleCompleteDate=실지급 확인(2026-08-06 탭).
             for k, v in (pdate.get(poid) or {}).items():

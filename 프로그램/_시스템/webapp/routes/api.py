@@ -207,6 +207,12 @@ def crawl_due_listings():
                 _lo, _hi = LD.window_for(f.page_from, f.page_to, _cur)
                 pages = LD.page_urls_for(f.listing_url, source_key=f.source_key,
                                          page_from=_lo, page_to=_hi)
+                # 🔴 **못 걸은 쪽을 맨 앞에 세운다.** 크롬이 바쁠 때 탭이 죽어
+                #   빠진 쪽이다 — 「나중에」로 미루면 영영 안 걷힌다(H몰 16% 실측).
+                _miss = [u for u in
+                         (getattr(f, 'missed_urls', None) or '').splitlines() if u.strip()]
+                if _miss:
+                    pages = _miss + [u for u in pages if u not in set(_miss)]
             except ValueError:
                 # 규칙을 모르는 소싱처 — 만들 때 막지만, 옛 데이터가 있을 수 있다.
                 #   조용히 빼면 「눌렀는데 아무 일도 안 남」이 된다. 사유를 실어 보낸다.
@@ -309,6 +315,18 @@ def crawl_listing_result():
         # 「더 있는데 멈췄다」는 실패와 다른 사실이다. 뭉치면 「끝까지 다 봤다」로 읽혀
         # 사장님이 없는 상품을 없다고 믿게 된다.
         f.last_capped = bool(body.get('capped'))
+        # 🔴 **못 걸은 쪽을 기억한다** — 다음 회차가 그것부터 건다.
+        #   이번에 성공한 쪽은 목록에서 뺀다(성공했는데 계속 다시 걸면 헛돈다).
+        if hasattr(f, 'missed_urls'):
+            _was = [u for u in (f.missed_urls or '').splitlines() if u.strip()]
+            _now = [str(u).strip() for u in (body.get('missed') or []) if str(u or '').strip()]
+            # 이번에 시도해 본 쪽 = 지난번 못 걸은 것 중 이번 목록에 있던 것.
+            #   그중 다시 실패한 것만 남긴다.
+            _keep = [u for u in _was if u in set(_now)]
+            for u in _now:
+                if u not in set(_keep):
+                    _keep.append(u)
+            f.missed_urls = ('\n'.join(_keep[:200]) or None)   # 상한 — 끝없이 쌓지 않는다
         # 🔴 **이어서 걷기 위치를 옮긴다.** 「더 있음」이면 다음 회차가 그 다음 창부터
         #   걷고, 끝까지 걸었으면 처음으로 되돌린다(새 상품은 앞쪽에 들어온다).
         #   ★ 주소로 쪽을 넘기는 곳만 이어걷기가 된다 — 「다음」 단추로 넘기는 곳은
@@ -330,8 +348,17 @@ def crawl_listing_result():
         #   ③ 필터를 꺼 두면(enabled=False) 예약하지 않는다
         # 🔴 ②가 핵심 안전장치다. 이게 없으면 소싱처가 늘 「더 있다」고 답할 때
         #   영원히 두들겨 차단당한다.
-        if (f.last_capped and new_n > 0 and bool(getattr(f, 'enabled', True))
-                and not (body.get('error') or '').strip()):
+        # ★ 못 걸은 쪽이 **줄어들고 있으면** 실패가 있어도 이어간다 — 그건 나아가는
+        #   중이다. 안 줄면(같은 쪽이 계속 실패) 멈춘다.
+        _miss_now = len([u for u in (getattr(f, 'missed_urls', None) or '').splitlines()
+                         if u.strip()])
+        _miss_shrank = hasattr(f, 'missed_urls') and 0 < _miss_now < len(_was)
+        # 🔴 실패 사유가 있으면 멈춘다 — **다만 못 걸은 쪽이 줄고 있으면 예외**다.
+        #   그건 고장이 아니라 **줍는 중**이다(H몰이 빠진 쪽을 되찾는 경우).
+        _broken = bool((body.get('error') or '').strip()) and not _miss_shrank
+        _progress = (new_n > 0) or _miss_shrank
+        if (f.last_capped and _progress and not _broken
+                and bool(getattr(f, 'enabled', True))):
             f.run_requested_at = now          # 곧바로 이어서
         s.commit()
         return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
@@ -3120,11 +3147,30 @@ def get_option_payload_preview(gid: int):
                 .filter(Option.model_code.in_(model_codes))
                 .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
                 .all()) if model_codes else []
+        # 🔴 [2026-08-13] `model_name` 을 같이 싣는다 — 모델 축(3축)의 **값**이다.
+        #   `model_code` 는 묶음 코드(U…)라 옵션마다 똑같아서, 축을 3개로 늘려도
+        #   셋째 칸에 넣을 값이 없었다(실측: 두 줄이 한 줄로 접힘).
+        #   값은 `Option.axis_values_json` 에 이미 있었고 **가리킬 이름이 없었을 뿐**이다.
+        #   축 이름은 저장된 단계 설계에서 읽는다 — 새 칸을 만들지 않는다.
+        from lemouton.sourcing.models import BundleOptionStep
+        from lemouton.matrix.option_name import model_name_of
+        nm_by_code = {m.model_code: (m.model_name_display or m.model_name_raw
+                                     or m.model_code) for m in g.models}
+        ax_by_code: dict[str, list[str]] = {}
+        if model_codes:
+            for code, axis_name in (s.query(BundleOptionStep.model_code,
+                                            BundleOptionStep.axis_name)
+                                    .filter(BundleOptionStep.model_code.in_(model_codes))
+                                    .order_by(BundleOptionStep.model_code,
+                                              BundleOptionStep.step_no).all()):
+                ax_by_code.setdefault(code, []).append(axis_name)
         opt_dicts = [{
             'canonical_sku': o.canonical_sku,
             'color_code': o.color_code,
             'size_code': o.size_code,
             'model_code': o.model_code,
+            'model_name': model_name_of(nm_by_code.get(o.model_code, ''), o,
+                                        ax_by_code.get(o.model_code) or []),
         } for o in opts]
         try:
             payloads = build_payloads_for_group(cfg, opt_dicts)
@@ -3788,15 +3834,6 @@ def bundle_options_combo(code: str):
         return _err('steps(단계 설계)가 필요해요.')
     if len(steps) > 3:
         return _err('단계는 최대 3개까지예요.')
-    # 🔴 [2026-08-13 감사] 축이 **실제로 저장되는 곳은 여기**다. 만들기 창의 프리셋만
-    #   막아 두면 큰 창에서 축 이름을 고쳐 그대로 빠져나간다(감사 실측: 200 으로 저장됨).
-    #   모델 축은 값을 담을 칸이 없어 마켓 옵션 이름이 겹친다 — 두 입구가 같은 함수를 쓴다.
-    #   ※ 프리셋 전체를 여기서 강제하지는 않는다 — 축 이름 자유는 설계서 §5.1 이고,
-    #     라이브에 「단계1·단계2」 매트릭스가 실재해 그것까지 막으면 저장이 죽는다.
-    from webapp.routes.optgen import BLOCKED_AXIS_REASON, blocked_axis
-    if blocked_axis([(st or {}).get('axis_name') for st in steps
-                     if isinstance(st, dict)]):
-        return _err(BLOCKED_AXIS_REASON)
 
     from lemouton.sourcing.option_service import create_combination_options
     s = SessionLocal()

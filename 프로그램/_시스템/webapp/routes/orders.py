@@ -1966,6 +1966,96 @@ def orders_diag_esm_settlement():
                    결과=out, 실패=errors)
 
 
+@bp.route('/diag/esm-delivery-settle')
+def orders_diag_esm_delivery_settle():
+    """[읽기 전용] 옥션·G마켓 **배송비 정산조회**(getsettledeliveryfee, 지도 esm:42) 원본.
+
+    왜 필요한가(2026-08-13) — 우리는 이 창구를 **한 번도 안 불렀다**
+    (`shared/platforms/__init__.py` 에 경로만 「후속」으로 적혀 있고 호출부 0곳).
+    그래서 두 가지가 통째로 빈다:
+      ① 배송비 정산 **실값** — N열(`정산예정금(배송비포함)`)이 고객배송비를 **전액** 더한다.
+         쿠팡은 실값(`_ship_settle`)을 쓰는데 ESM 만 옛 폴백이라, ESM 은 배송비 수수료
+         (`DelFeeCommission`)만큼 상시 과대일 수 있다 — 그게 사실인지 눈으로 본다.
+      ② **반품·교환 배송비** — 지도 `DelFeeType` 코드표에 40 반품배송비 / 50 추가반품배송비
+         / 60 무료반품배송비 / 70 교환배송비 가 있다. 사장님 확정(2026-08-13)
+         「반품완료여도 반품·교환 배송비는 우리가 받는다」의 **실값 창구**가 바로 여기다.
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD&srch=D1,D3,D6&alias=`
+      · SrchType(지도 esm:42): D1 입금확인일 · D3 매출마감일 · D6 송금일 · D7 환불일
+        · D8 입금확인일+환불일 · D10 글로벌셀러 예치금 송금일 (D4·D5 는 **없다**)
+      · 🔴 당일·미래 날짜로 조회하면 Error 414 — 어제까지로 물어야 한다(지도 코드표).
+    응답은 금액·날짜·배송비번호뿐 — 고객정보는 담지 않는다.
+    """
+    from flask import jsonify
+    from collections import Counter
+    market = (request.args.get('market') or 'gmarket').strip()
+    if market not in ('gmarket', 'auction'):
+        return jsonify(ok=False, error='옥션·G마켓 전용이에요.'), 400
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    srchs = [s.strip().upper() for s in (request.args.get('srch') or 'D1').split(',')
+             if s.strip()]
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        rows_cap = max(1, min(int(request.args.get('rows') or 500), 500))
+    except (TypeError, ValueError):
+        rows_cap = 500
+    try:
+        sample = max(0, min(int(request.args.get('sample') or 5), 40))
+    except (TypeError, ValueError):
+        sample = 5
+    site = 'G' if market == 'gmarket' else 'A'
+    path = "/account/v1/settle/getsettledeliveryfee"
+
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return 0.0
+
+    out, errors = {}, {}
+    for srch in srchs:
+        try:
+            cli = _client_for_diag(market, alias)
+            if cli is None:
+                errors[srch] = "계정 클라이언트 없음(키 미등록)"
+                continue
+            resp = cli.post(path, {"SiteType": site, "SrchType": srch,
+                                   "SrchStartDate": f"{since:%Y-%m-%d}",
+                                   "SrchEndDate": f"{until:%Y-%m-%d}",
+                                   "PageNo": 1, "PageRowCnt": rows_cap}) or {}
+        except Exception as e:   # noqa: BLE001 — 기준일 하나가 막혀도 나머지는 보여준다
+            errors[srch] = f"{type(e).__name__}: {str(e)[:300]}"
+            continue
+        data = resp.get("Data") or []
+        # 배송비 유형별로 나눠 본다 — 「원배송비」와 「반품·교환배송비」는 뜻이 완전히 다르다.
+        by_type: dict = {}
+        for r in data:
+            t = str(r.get("DelFeeType") or "")
+            e = by_type.setdefault(t, {"건수": 0, "DelFeeAmt합": 0.0,
+                                       "DelFeeCommission합": 0.0})
+            e["건수"] += 1
+            e["DelFeeAmt합"] += _f(r.get("DelFeeAmt"))
+            e["DelFeeCommission합"] += _f(r.get("DelFeeCommission"))
+        out[srch] = {
+            "ResultCode": resp.get("ResultCode"),
+            "Message": resp.get("Message"),
+            "TotalCount": resp.get("TotalCount"),
+            "TotalDelFeeAmt": resp.get("TotalDelFeeAmt"),
+            "받은행수": len(data),
+            "유형별": by_type,
+            "Kind분포": dict(Counter(str(r.get("Kind")) for r in data)),
+            "합_DelFeeAmt": round(sum(_f(r.get("DelFeeAmt")) for r in data), 2),
+            "합_DelFeeCommission": round(sum(_f(r.get("DelFeeCommission"))
+                                             for r in data), 2),
+            "표본": data[:sample],
+        }
+    return jsonify(ok=True, market=market, alias=alias or "(대표)", path=path,
+                   기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   결과=out, 실패=errors)
+
+
 @bp.route('/diag/esm-order-raw')
 def orders_diag_esm_order_raw():
     """[읽기 전용] 옥션·G마켓 주문조회 raw 금액 필드 — 판매자 할인을 잴 수 있나.
@@ -2503,6 +2593,109 @@ def orders_diag_eleven11_settle():
                    alias=alias or "(대표)", 라인키목록=sorted(keys),
                    stlDy_있나=("stlDy" in keys), stlPlnDy_있나=("stlPlnDy" in keys),
                    표본=samples, 원본머리=str(xml_text or "")[:400])
+
+
+@bp.route('/diag/e11-seller-dc')
+def orders_diag_e11_seller_dc():
+    """[읽기 전용·마켓 안 부름] 11번가 판매자할인을 못 받은 주문이 얼마나 밀려 있나.
+
+    🔴 왜 필요한가(2026-08-13) — 배송중·배송완료·구매확정 주문은 **목록조회가
+      `sellerDscPrc` 를 아예 안 준다**(라이브 실측 150/157행). 그래서 그 행들의 매출이
+      「정가 − 판매자할인」으로 못 넘어가고 옛 기준(실결제+배송비)에 머문다.
+      회수는 단건조회(eleven11.110)로만 되는데 **주문당 1콜**이라, 한도를 정하려면
+      백로그가 몇 건인지부터 세어야 한다. 이 창구는 저장분만 읽는다(마켓 호출 0).
+
+    `?days=180` — 주문일 기준 창(최대 730).
+    돌려주는 것: 대상 건수·주문번호 수·월별 분포·이미 시도한 건수·단가까지 빈 행 수.
+      ★`정체불명금액` = Σ(총주문금액 − 실결제금액). 이 돈이 우리 부담인지 마켓 부담인지
+        아직 모르는 몫이다 — 「할인 0원」이 아니라 「모름」이다.
+    """
+    from flask import jsonify
+
+    from shared.db import SessionLocal
+    from lemouton.markets.models_orders import MarketOrderLine as L
+
+    try:
+        days = max(1, min(730, int(request.args.get('days') or 180)))
+    except ValueError:
+        days = 180
+    now = _dt.datetime.now(_oe.KST)
+    oldest = (now - _dt.timedelta(days=days)).strftime('%Y-%m-%d')
+    # 배송이 시작된 뒤 상태만 — 결제완료·배송준비중은 목록조회가 이미 할인을 준다.
+    STS = ('배송중', '배송완료', '구매확정')
+
+    def _i(v):
+        try:
+            return int(float(str(v).replace(',', '')))
+        except (TypeError, ValueError):
+            return 0
+
+    with SessionLocal() as s:
+        rows = (s.query(L).filter(L.market == 'eleven11',
+                                  L.status.in_(STS),
+                                  L.order_date >= oldest).all())
+        by, tried, blank, gap, nos = {}, 0, 0, 0, set()
+        for o in rows:
+            r = o.row or {}
+            if str(r.get('_dc_seller') or '').strip():
+                continue                      # 이미 받아 둔 행
+            k = (o.order_date or '?')[:7]
+            by[k] = by.get(k, 0) + 1
+            nos.add(o.order_no)
+            if r.get('_dcfill_tried_at'):
+                tried += 1
+            if not str(r.get('단가') or '').strip():
+                blank += 1                    # 단가가 없으면 회수해도 매출 기준이 안 바뀐다
+            gap += _i(r.get('총주문금액')) - _i(r.get('실결제금액'))
+        return jsonify(ok=True, 창=f'{oldest}~{now:%Y-%m-%d}',
+                       조회한행=len(rows), 대상건수=sum(by.values()),
+                       주문번호수=len(nos), 월별=dict(sorted(by.items())),
+                       이미시도한건수=tried, 단가까지빈행=blank,
+                       정체불명금액=gap,
+                       안내='주문당 1콜 — 주문번호수가 곧 필요한 호출 수다.')
+
+
+@bp.route('/diag/e11-order-raw')
+def orders_diag_e11_order_raw():
+    """[읽기 전용·저장 안 함] 11번가 단건조회(eleven11.110) 원본 필드 — 값이 오나 눈으로.
+
+    🔴 왜 필요한가(2026-08-13) — 지도에 `sellerDscPrc` 가 있다는 것은 **「칸이 있다」**이지
+      **「값이 온다」**가 아니다. 배송완료·구매확정 주문에서도 실값을 채워 주는지 확인하지
+      않고 회수 스윕을 지으면, 못 구하는 주문을 계속 두드리기만 하는 코드가 된다.
+      (같은 함정의 반대 방향 사고가 이미 있었다 — 「마켓이 안 준다」고 보고했는데 실은
+       우리가 버리고 있던 건.)
+
+    `?ordno=202608130001234&alias=` — 주문번호 하나. 금액·번호 계열 필드만 돌려준다
+    (고객정보는 담지 않는다). 저장분에 아무것도 쓰지 않는다.
+    """
+    from flask import jsonify
+
+    from shared.platforms.eleven11.orders import fetch_order
+
+    ordno = (request.args.get('ordno') or '').strip()
+    if not ordno:
+        return jsonify(ok=False, error='ordno(주문번호)가 필요해요.'), 400
+    alias = (request.args.get('alias') or '').strip()
+    cli = _client_for_diag('eleven11', alias)
+    try:
+        ods = fetch_order(ordno, client=cli)
+    except Exception as e:                    # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f'{type(e).__name__}: {str(e)[:300]}'), 500
+    # 관심 필드 — 할인 갈래 + 배송비(지도와 코드가 서로 다르게 말하는 자리) + 금액.
+    WANT = ('sellerDscPrc', 'sellerDscPrcPerSeq', 'lstSellerDscPrc',
+            'tmallDscPrc', 'tmallDscPrcPerSeq', 'tmallApplyDscAmt',
+            'ordPayAmt', 'ordAmt', 'selPrc', 'ordQty',
+            'dlvCst', 'lstDlvCst', 'bmDlvCst', 'bndlDlvYN',
+            'ordPrdSeq', 'ordNo', 'ordPrdStat', 'ordPrdStatNm', 'stlPlnAmt')
+    out = []
+    for od in ods:
+        out.append({k: od.get(k) for k in WANT if k in od})
+    return jsonify(ok=True, ordno=ordno, alias=alias or '(대표)',
+                   라인수=len(ods),
+                   전체키목록=sorted({k for od in ods for k in od}),
+                   sellerDscPrc_왔나=any(str(od.get('sellerDscPrc') or '').strip()
+                                        for od in ods),
+                   관심필드=out)
 
 
 @bp.route('/diag/ss-settle')
@@ -3183,7 +3376,10 @@ def shopmine_recon_run():
             return jsonify(ok=False, error=str(e)), 422
         except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
             return jsonify(ok=False, error=f'대조 실패: {type(e).__name__}: {e}'), 400
-        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided')}
+        # 🔴 `defs`(노랑 표본)는 목록이라 **detail 쪽**에 둔다 — summary 에 두면
+        #   실행 30회치가 그대로 쌓여 Supabase 무료 티어를 먹는다.
+        #   집계인 `def_reasons` 는 작으므로 summary 에 남아 화면 요약에 쓰인다.
+        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided', 'defs')}
         summary = {k: v for k, v in res.items() if k not in detail}
         prev = (s.query(ShopmineReconRun)
                 .order_by(ShopmineReconRun.id.desc()).first())
