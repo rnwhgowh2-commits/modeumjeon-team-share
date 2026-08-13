@@ -29,6 +29,35 @@ def _err(msg, code=400):
 #: 화면에 보여줄 소싱처 이름. 없으면 키를 그대로 쓴다(지어내지 않는다).
 _SOURCE_LABEL = {'musinsa': '무신사'}
 
+_EXT_VER_CACHE = {}
+
+
+def expected_ext_version():
+    """저장소에 있는 **확장의 최신 판 번호.** 못 읽으면 None.
+
+    🔴 왜 필요한가 (2026-08-13 사장님 겪음)
+      화면은 「확장 0.7.94」라고만 보여 줬다. 그게 **낡은 판인지 최신인지**를
+      알 방법이 없어서, 사장님이 `chrome://extensions` 에서 ↻ 를 눌러도
+      아무 일이 없는 헛걸음을 했다.
+      (그때 로드 폴더가 이미 최신과 같아서 누를 것이 없었다.)
+
+    ★ 이 값과 `last_ext_version` 이 다르면 화면이 **「새 판 있음」**이라 말한다.
+      같으면 아무 말도 안 한다 — 늘 뜨는 경고는 아무 말도 안 하는 것과 같다.
+    """
+    import json
+    from pathlib import Path
+    if 'v' in _EXT_VER_CACHE:
+        return _EXT_VER_CACHE['v']
+    v = None
+    try:
+        p = (Path(__file__).resolve().parents[3]
+             / 'extension' / 'moum-crawler' / 'manifest.json')
+        v = (json.loads(p.read_text(encoding='utf-8')) or {}).get('version') or None
+    except Exception:       # noqa: BLE001 — 못 읽어도 화면은 떠야 한다
+        v = None
+    _EXT_VER_CACHE['v'] = v
+    return v
+
 
 def _auto_name(session, source_key, listing_url):
     """`무신사_나이키_001` — 사장님이 이름을 안 지어도 목록에서 구분되게.
@@ -60,6 +89,9 @@ def _row(f):
         'last_error': getattr(f, 'last_error', None) or None,
         'last_capped': bool(getattr(f, 'last_capped', False)),
         'last_ext_version': getattr(f, 'last_ext_version', None) or None,
+        # 「이어서 걷는 중」 — 다음 회차가 시작할 쪽. None = 처음부터.
+        #   🔴 이 값을 화면이 모르면 사장님은 「또 눌러야 하나」를 알 수 없다.
+        'next_page_from': getattr(f, 'next_page_from', None) or None,
         'apply_policy_id': f.apply_policy_id,
     }
 
@@ -117,6 +149,8 @@ def list_search_filters():
                                   .filter(ProductDraft.search_filter_id == f.id,
                                           ProductDraft.deleted_at.is_(None)).count())
             d['apply_policy_name'] = _policy_name(s, f.apply_policy_id)
+            # 「지금 최신 판」 — 화면이 「낡았다/최신이다」를 스스로 말할 수 있게.
+            d['ext_version_expected'] = expected_ext_version()
             out.append(d)
         return jsonify({'ok': True, 'filters': out})
     finally:

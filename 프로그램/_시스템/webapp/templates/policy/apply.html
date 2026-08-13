@@ -43,14 +43,14 @@
     .ap-col .h{padding:12px 16px;border-bottom:1px solid var(--line,#E5E8EB);
                background:var(--n100,#F7FAFF)}
     .ap-col .h .t{font-size:14px;font-weight:700}
-    .ap-col .h .d{font-size:11px;color:var(--sub,#8B95A1);margin-top:2px}
+    .ap-col .h .d{font-size:12px;color:var(--sub,#8B95A1);margin-top:2px}
     .ap-bar{padding:12px 16px;display:flex;gap:8px;flex-wrap:wrap;
             border-bottom:1px solid var(--n100,#F2F4F6)}
     .ap-bar input[type=search]{flex:1;min-width:160px;border:1px solid var(--line,#E5E8EB);
       border-radius:8px;padding:8px 12px;font-family:inherit;font-size:12px}
     .chips{padding:0 16px 12px;display:flex;gap:6px;flex-wrap:wrap}
     .chip2{border:1.5px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);
-           border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;
+           border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;
            color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit}
     .chip2.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .chip2 .n{font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1);margin-left:4px}
@@ -58,7 +58,7 @@
     .ap-list{max-height:520px;overflow:auto}
     .ap-list table{width:100%;border-collapse:collapse;font-size:12px}
     .ap-list th{position:sticky;top:0;z-index:1;background:var(--n100,#F2F4F6);
-                font-size:11px;font-weight:700;color:var(--글자-기본,#4E5968);
+                font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);
                 padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB);
                 text-align:left;white-space:nowrap}
     .ap-list td{padding:8px 12px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
@@ -70,7 +70,7 @@
       accent-color:var(--primary,#3182F6);cursor:pointer}
     /* [2026-08-02] 10.5px 였다 — 규칙 하한(11px)보다 작아 눈에 안 잡힌다(40곳).
      애플 실측 하한이 11px 이라 그 선까지 올린다(모양은 그대로). */
-    .tag{font-size:11.5px;font-weight:700;padding:0 8px;border-radius:999px;white-space:nowrap}
+    .tag{font-size:12px;font-weight:700;padding:0 8px;border-radius:999px;white-space:nowrap}
     .tag.def{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
     .tag.br{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
     .tag.no{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
@@ -91,7 +91,7 @@
               margin-left:6px}
     .comp{display:inline-block;background:var(--n100,#F2F4F6);
           color:var(--글자-보조,#4E5968);border-radius:5px;padding:1px 8px;
-          font-size:11px;font-weight:700}
+          font-size:12px;font-weight:700}
     /* 🔴 회색(--surface2)으로 칠했더니 보통 줄과 **거의 같은 색**이었다
          (라이브 실측 1.089 — 사장님이 「구분되는 색이 너무 안 보임」).
        회색 대신 **「구성 N개」 딱지와 같은 보라 계열**로 칠하고 위아래를 선으로 닫는다.
@@ -103,7 +103,7 @@
     .ap-list tr.sub td{background:rgba(175,82,222,.16)}
     .ap-list tr.hasset td{border-top:1.5px solid rgba(175,82,222,.55)}
     .ap-list tr.subend td{border-bottom:1.5px solid rgba(175,82,222,.55)}
-    .ap-list td.ind2{padding-left:32px;color:var(--글자-기본,#4E5968);font-size:11.5px}
+    .ap-list td.ind2{padding-left:32px;color:var(--글자-기본,#4E5968);font-size:12px}
     /* 줄 끝 「⋯」 — 평소엔 아주 흐리다가 마우스를 올려야 진해진다 */
     .endcell{position:relative}
     .endcell .dots{float:right;color:var(--글자-희미,#6E6E73);font-weight:700;cursor:pointer;
@@ -112,7 +112,7 @@
     .endcell .dots.on{color:var(--primary,#3182F6)}
     .menurow td{background:var(--surface,#ffffff)!important;padding:0 12px 8px 48px!important}
     .menu{display:inline-block;border:1px solid var(--line,#E5E8EB);border-radius:8px;
-          background:var(--surface,#ffffff);box-shadow:0 6px 16px rgba(0,0,0,.12);
+          background:var(--surface,#ffffff);
           overflow:hidden;min-width:250px}
     .mi{padding:9px 14px;font-size:12px;color:var(--글자-기본,#4E5968);
         border-bottom:1px solid var(--n100,#F2F4F6);cursor:pointer}
@@ -124,7 +124,7 @@
     .ovl{position:fixed;inset:0;background:rgba(25,31,40,.35);display:flex;
          align-items:center;justify-content:center;z-index:60}
     .modal{background:var(--surface,#ffffff);border-radius:14px;width:560px;
-           max-width:92vw;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+           max-width:92vw;padding:20px 22px;}
     .m-h{font-size:16px;font-weight:700;margin-bottom:6px}
     .m-d{font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:16px}
     .m-f{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12.5px;
@@ -135,7 +135,7 @@
       font-family:inherit;font-size:12.5px}
     .m-r{display:flex;align-items:center;gap:5px;cursor:pointer}
     .m-w{background:var(--연한-보라,#F6F5FE);border-radius:8px;padding:9px 12px;
-         font-size:11.5px;color:var(--글자-기본,#534AB7);line-height:1.7;margin:14px 0}
+         font-size:12px;color:var(--글자-기본,#534AB7);line-height:1.7;margin:14px 0}
     .m-btns{display:flex;justify-content:flex-end;gap:8px}
   </style>
 
@@ -311,7 +311,7 @@ function drawRows() {
   rows.forEach((r) => {
     const bl = r.bundles || [];
     const name = '<td><b>' + esc(r.no || r.model_code) + '</b>%TAG%'
-      + (r.no ? '<div style="font-size:11px;color:var(--sub,#8B95A1)">'
+      + (r.no ? '<div style="font-size:12px;color:var(--sub,#8B95A1)">'
                 + esc(r.model_code) + '</div>' : '') + '</td>';
     /* [2026-08-02 §4] 이 상품의 「가격 매기기」 조각으로 바로 — 붙인 정책이
        실제로 얼마가 되는지 여기서 확인한다. 구성이 여럿이어도 상품 하나짜리 링크다. */
@@ -483,7 +483,7 @@ function openAdd(code) {
       + '지금 구성과 <b>똑같이</b></label>'
       + '<label class="m-r"><input type="radio" name="cp" value="empty"> 나중에 고르기</label></div>'
     : '<div class="m-f"><span class="m-l">담을 옵션</span>'
-      + '<span style="color:var(--sub,#8B95A1);font-size:11.5px">'
+      + '<span style="color:var(--sub,#8B95A1);font-size:12px">'
       + '이 상품은 아직 구성이 없어 <b>빈 구성</b>으로 만들어집니다 — 담을 옵션은 나중에 골라 주세요.</span></div>';
 
   const box = document.createElement('div');

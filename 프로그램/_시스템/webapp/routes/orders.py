@@ -2302,6 +2302,63 @@ def orders_diag_coupang_order_settle():
               '같으면 N열(정산예정금(배송비포함))이 이 실값을 쓰는 것이 옳다는 증거.'))
 
 
+@bp.route('/diag/rg-rounds')
+def orders_diag_rg_rounds():
+    """[읽기 전용] 로켓그로스 회차 표 — Wing 화면과 **같은 표로** 맞대려고.
+
+    🔴 왜(2026-08-13 사장님 지적) — 화면 「지급 예상금액」이 우리 숫자와 다르다.
+      *"선정산 받은거 제외안해도돼? 내 생각엔 최종지급액 합산되어야하는거 아닌지?"*
+      맞는 의심이다. 우리는 `받을돈 = 지급액 − 빠른정산` 으로 세는데, 화면 목록의
+      열 이름은 **「최종지급액」**(`final_amount`)이다. 둘이 같은 것인지 **아직 증명된 적이
+      없다** — 그래서 회차별로 나란히 놓고 봐야 한다.
+
+    🔴 합계만 비교하면 「우연히 비슷」과 「정말 같음」을 못 가른다. 회차(정산일·비율)마다
+      지급액·빠른정산·최종지급액을 다 보여준다.
+
+    `?account=` — 계정 필터(선택). 응답은 금액·날짜뿐(고객정보 없음).
+    """
+    from lemouton.sourcing.models_v2 import RocketGrowthSettlement as M
+    acc = (request.args.get('account') or '').strip()
+    today = _dt.date.today().isoformat()
+    s = SessionLocal()
+    try:
+        q = s.query(M)
+        if acc:
+            q = q.filter(M.account == acc)
+        rows = sorted(q.all(), key=lambda o: (o.settlement_date or '', o.ratio or 0))
+        out = [{
+            '정산일': o.settlement_date or '', '지급비율': o.ratio,
+            '매출인식일': f"{o.period_start or ''}~{o.period_end or ''}",
+            '계정': o.account or '(대표)',
+            '판매액': int(o.sales_amount or 0),
+            '지급액': int(o.payable_amount or 0),
+            '빠른정산_이미받음': int(o.fast_withdrawn or 0),
+            '최종지급액': int(o.final_amount or 0),
+            '정산일_지남': bool((o.settlement_date or '') and o.settlement_date <= today),
+        } for o in rows]
+        _pay = sum(r['지급액'] for r in out)
+        _fast = sum(r['빠른정산_이미받음'] for r in out)
+        _fin = sum(r['최종지급액'] for r in out)
+        _future = [r for r in out if not r['정산일_지남']]
+        return jsonify(
+            ok=True, 오늘=today, 회차수=len(out), 계정=acc or '(전체)',
+            합계={
+                'Σ지급액': _pay,
+                'Σ빠른정산_이미받음': _fast,
+                '지급액−빠른정산 (지금 우리가 쓰는 값)': max(0, _pay - _fast),
+                'Σ최종지급액 (화면 목록의 그 열)': _fin,
+                'Σ최종지급액_오늘이후_정산일만 (노션 규칙)':
+                    sum(r['최종지급액'] for r in _future),
+                '오늘이후_회차수': len(_future),
+            },
+            회차별=out,
+            해석=('화면 「지급 예상금액」이 위 넷 중 무엇과 같은지로 규칙이 정해진다. '
+                  '같은 게 하나도 없으면 화면 숫자의 정의를 모르는 것이므로 '
+                  '「대조 성공」이라 말하면 안 된다.'))
+    finally:
+        s.close()
+
+
 @bp.route('/diag/stale-delivered')
 def orders_diag_stale_delivered():
     """[진단·수동실행] 「배송완료」에 굳은 옛 주문 되살리기 — 왜 안 줄어드나 눈으로.
