@@ -539,9 +539,18 @@
             <span>{{ fee_alt.alt_label }} — 체크하면 <b>{{ fee_alt.alt_pct }}%</b></span>
           </label>
           {% endif %}
+          {# 🔴 [2026-08-13] 이 칸은 **안 정했을 때도 기준값을 채워서 보여 준다**(위 value).
+             그래서 화면만 보면 「이 정책이 저장해 둔 값」인지 「기준값을 그냥 비춘 것」인지
+             구분이 안 된다. 둘은 전혀 다르다 — 저장된 값은 **기준을 고쳐도 안 바뀐다.**
+             실제로 「기준을 13%로 고쳤는데 왜 판매가가 그대로냐」를 가를 수 없었다.
+             그래서 어느 쪽인지 말해 준다. #}
           <div class="hint">
-            {%- if fee_default_pct is not none %}이 마켓 기본 <b>{{ fee_default_pct }}%</b> — {% endif -%}
-            {{ _fee.hint }}
+            {%- if cfg.get('fee_rate') is not none -%}
+              <b>이 정책에 저장된 값</b>입니다 — 마켓 기준을 고쳐도 이 값이 이깁니다{% if fee_default_pct is not none %}(지금 기준 {{ fee_default_pct }}%){% endif %}.
+            {%- else -%}
+              아직 안 정하셨습니다 — 지금은 마켓 기준 <b>{{ fee_default_pct if fee_default_pct is not none else '?' }}%</b> 가 쓰입니다. 저장하면 그 순간 이 값으로 <b>굳어</b> 기준이 바뀌어도 안 따라갑니다.
+            {%- endif -%}
+            <br>{{ _fee.hint }}
             {%- if fee_note %} · {{ fee_note }}{% endif -%}
           </div>
           <div class="hint"><a href="/policies/fees">마켓별 수수료 기준 고치기 →</a></div>
