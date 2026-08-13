@@ -1803,7 +1803,7 @@ def _esm_claim_contact(row: dict, od: dict) -> None:
     _put("구매자", str(sender.get("Name") or "").strip())   # 발송인(수거지) = 구매자
 
 
-def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=False,
+def _esm_all_orders(market, since, until, *, client, diag=None, warnings=None, orders_only=False,
                     claims_only=False, claim_to_now=True):
     """주문조회 + 주문조회가 안 주는 것 전부(입금확인중·취소·반품·교환·미수령).
 
@@ -1874,6 +1874,14 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
         log.warning("[%s] 클레임 조회 실패(%.1f초 만에, 주문은 유지): %s: %s",
                     market, _tm.monotonic() - _t_clm, type(e).__name__, e)
         diag["errors"]["클레임조회"] = f"{type(e).__name__}: {e}"[:200]
+        # 🔴 조용히 넘어가면 **취소·반품·교환이 통째로 빠진 채 정상처럼** 보인다
+        #   (2026-08-13: 그 때문에 「마켓이 동시 호출을 거부했는지」를 화면만 봐선
+        #    가릴 수 없었다). 주문은 살리되 무엇이 빠졌는지는 반드시 말한다.
+        if warnings is not None:
+            warnings.append(
+                f"[{market_label(market)}] 취소·반품·교환(클레임) 조회에 실패했어요 — "
+                f"주문은 보이지만 **클레임 상태가 최신이 아닐 수 있습니다**. "
+                f"사유: {type(e).__name__}: {e}"[:300])
         return
     _clm_sec = _tm.monotonic() - _t_clm
     diag["counts"]["클레임조회초"] = round(_clm_sec, 1)
@@ -1989,7 +1997,7 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
 def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                    client=None, include_settlement: bool = True, diag=None,
                    orders_only: bool = False, claims_only: bool = False,
-                   claim_to_now: bool = True) -> list:
+                   claim_to_now: bool = True, warnings=None) -> list:
     """옥션·G마켓(ESM 2.0) 주문조회 → 행(dict) 리스트. RequestOrders 응답 매핑.
 
     market = "auction" | "gmarket". 정산예정금액 = 판매대금 정산조회(getsettleorder)를 주문번호
@@ -2000,6 +2008,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
     label = {"auction": "옥션", "gmarket": "G마켓"}.get(market, market)
     rows = []
     for od in _esm_all_orders(market, since, until, client=client, diag=diag,
+                              warnings=warnings,
                               orders_only=orders_only, claims_only=claims_only,
                               claim_to_now=claim_to_now):
         addr = (str(_g(od, "DelFrontAddress")) + " " + str(_g(od, "DelBackAddress"))).strip()
@@ -2564,15 +2573,15 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
 
 
 def auction_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
-                       include_settlement: bool = True) -> list:
+                       include_settlement: bool = True, warnings=None) -> list:
     return esm_order_rows("auction", since, until, client=client,
-                          include_settlement=include_settlement)
+                          include_settlement=include_settlement, warnings=warnings)
 
 
 def gmarket_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
-                       include_settlement: bool = True) -> list:
+                       include_settlement: bool = True, warnings=None) -> list:
     return esm_order_rows("gmarket", since, until, client=client,
-                          include_settlement=include_settlement)
+                          include_settlement=include_settlement, warnings=warnings)
 
 
 def _eleven11_fill_shipping_ordt(rows: list) -> list:
@@ -3048,8 +3057,11 @@ def order_rows(market: str, days: int = 7, client=None,
     since, until = _ensure_kst(since), _ensure_kst(until)
 
     def _rows_for(cli, alias):
+        # 🔴 옥션·G마켓만 warnings 를 넘긴다 — 클레임 조회가 조용히 빠지는 걸 막는 배선.
+        #   다른 마켓 빌더는 이 인자를 안 받으므로 시그니처를 건드리지 않는다.
+        _kw = {"warnings": warnings} if market in ("auction", "gmarket") else {}
         raw = _BUILDERS[market](since, until, client=cli,
-                                include_settlement=include_settlement)
+                                include_settlement=include_settlement, **_kw)
         # ★ line_uid 는 여기서 심는다 — _finalize_rows 가 _odseq·_shipkey 를 pop 하므로
         #   그 뒤에는 키 조각이 이미 사라진다(빌더 반환 직후·finalize 이전이 유일한 시점).
         _line_uid.stamp(market, raw)
