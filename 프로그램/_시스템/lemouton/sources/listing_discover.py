@@ -287,6 +287,54 @@ def click_pages_for(source_key: str, page_from=None, page_to=None) -> int:
     return min(hi - lo + 1, MAX_PAGES)
 
 
+def can_resume(source_key: str, listing_url: str) -> bool:
+    """**이어서 걷기가 되는 소싱처인가.**
+
+    주소로 쪽을 넘기는 곳만 된다. 「다음」 단추로 넘기는 곳(롯데온·아이몰)은
+    늘 1쪽에서 시작해 눌러 가야 해서 **중간부터 시작할 방법이 없다.**
+    그런 곳은 한 회차에 더 멀리 가는 수밖에 없다(확장이 걸음마다 따로 훑는다).
+    """
+    key = str(source_key or '').strip().lower()
+    param = _PAGE_PARAM.get(key)
+    if not param:
+        return False
+    bad = _NO_PAGE_PATH.get(key)
+    if bad and bad.search(listing_url or ''):
+        return False          # SSF 검색 주소처럼 쪽이 안 먹는 모양
+    return True
+
+
+def next_window(page_from, page_to, cursor, *, more: bool):
+    """이번 회차에 걸을 창 → **다음 회차가 시작할 쪽.**
+
+    Args:
+        page_from/page_to: 사장님이 적은 「몇 쪽부터~까지」(한 회차에 걷는 창).
+        cursor: 지금까지의 이어걷기 위치(None = 처음부터).
+        more: 이번 회차가 「더 있음」이라 답했나.
+
+    Returns:
+        다음 회차의 시작 쪽. **None 이면 처음부터** 다시 본다.
+
+    🔴 끝까지 걸었으면 처음으로 되돌린다 — 새 상품은 앞쪽에 들어오므로
+      한 바퀴 돌면 다시 1쪽부터 보는 것이 맞다. 커서를 그대로 두면
+      **영영 앞쪽 새 상품을 못 본다.**
+    """
+    lo = max(1, int(cursor or page_from or 1))
+    win = max(1, int(page_to or lo) - int(page_from or 1) + 1)
+    win = min(win, MAX_PAGES)
+    if not more:
+        return None
+    return lo + win
+
+
+def window_for(page_from, page_to, cursor):
+    """이번 회차에 실제로 걸을 (시작 쪽, 끝 쪽)."""
+    lo = max(1, int(cursor or page_from or 1))
+    win = max(1, int(page_to or lo) - int(page_from or 1) + 1)
+    win = min(win, MAX_PAGES)
+    return lo, lo + win - 1
+
+
 def page_urls_for(listing_url: str, *, source_key: str,
                   page_from=None, page_to=None) -> list[str]:
     """리스팅 URL + 페이지 범위 → 실제로 열 주소 목록.
