@@ -501,6 +501,9 @@ def _apply_lightweight_migrations() -> None:
         #   「나이키 신발」은 456쪽 16,413개다 — 60쪽이면 13% 밖에 못 걷고,
         #   못 걷은 만큼 팔 상품이 줄어든다. 상한은 지키되 회차를 거듭해 끝까지 간다.
         ("search_filters", "next_page_from", "INTEGER"),
+        # 2026-08-13: 못 걸은 쪽 — 크롬이 바쁠 때 탭이 죽어 통째로 빠지던 것.
+        #   어느 쪽이었는지 기억해야 다시 걸 수 있다(H몰 463쪽 중 16%가 그렇게 비었다).
+        ("search_filters", "missed_urls", "TEXT"),
         # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),

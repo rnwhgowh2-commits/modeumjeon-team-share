@@ -109,7 +109,13 @@ def test_새로_걷은_것이_0이면_멈춘다(client):
 
 
 def test_실패_사유가_있으면_멈춘다(client):
-    """고장 난 채로 계속 두들기지 않는다."""
+    """고장 난 채로 계속 두들기지 않는다.
+
+    ★ [2026-08-13] **예외 하나가 생겼다** — 못 걸은 쪽이 **줄고 있으면** 이어간다.
+      그건 고장이 아니라 **줍는 중**이기 때문이다(H몰이 빠진 쪽을 되찾는 경우).
+      자세한 것은 `test_missed_pages_retried.py`.
+      여기서는 못 걸은 쪽이 **없는** 경우를 본다 — 그때는 그냥 고장이다.
+    """
     fid = _make(client)
     client.post(f'/bulk/api/search-filters/{fid}/run')
     _report(client, fid, ['900005'], capped=True, error='훑는 중 시간 초과')
