@@ -146,9 +146,15 @@ def policy_detail(pid: int):
             # 🔴 `NOTES` 만 쓰면 적어 둔 마켓만 말하고 나머지는 **침묵**한다.
             #   11번가는 「포함인지 모른다」가 사실인데 빈칸이면 「포함 안 됨」으로
             #   읽혀, 사장님이 2% 를 따로 얹으려 할 수 있다. 모른다고 말한다.
+            # 🔴🔴 **어긋남이 있으면 그것부터** 말한다 — 롯데온 18% 는 실정산
+            #   공식(13+3.3+2)과 갈린다. 「제휴 2% 포함」만 보여 주면 사장님은
+            #   숫자가 확인된 줄 아신다.
             'fee_note': ('' if market == COMMON_KEY
-                         else (fee_defaults.NOTES.get(market)
-                               or fee_defaults.affiliate_note(market))),
+                         else (fee_defaults.rate_evidence_note(market)
+                               if (fee_defaults.RATE_EVIDENCE.get(market) or {})
+                                   .get('disagrees_with')
+                               else (fee_defaults.NOTES.get(market)
+                                     or fee_defaults.affiliate_note(market)))),
         }
     finally:
         s.close()
