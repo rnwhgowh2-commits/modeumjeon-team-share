@@ -645,7 +645,11 @@
           <select data-k="{{ f.key }}" data-t="choice">
             <option value="">— 안 정함 —</option>
             {% for c in f.choices %}
-            <option value="{{ c }}" {{ 'selected' if (v if v is not none else f.default) == c }}>{{ c }}</option>
+            {# [2026-08-13] `{{ c }}` 생짜로 찍고 있었다 — 사장님 화면에 `one`·`two`·
+               `three`·`WON` 같은 영어가 그대로 보였다. 라벨 단일 원천 =
+               `process_rule_schema.CHOICE_LABELS` (스키마가 `choice_labels` 로 실어 준다).
+               없는 값이면 값 그대로 — 지어내지 않는다. #}
+            <option value="{{ c }}" {{ 'selected' if (v if v is not none else f.default) == c }}>{{ (f.choice_labels or {}).get(c, c) }}</option>
             {% endfor %}
           </select>
           {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
