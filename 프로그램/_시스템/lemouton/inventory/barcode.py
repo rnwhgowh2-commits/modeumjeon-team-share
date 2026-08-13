@@ -27,14 +27,14 @@ INTERNAL_PREFIX = '2'
 _SERIAL_LEN = 11
 _MAX_SERIAL = 10 ** _SERIAL_LEN - 1
 
-#: 자체 바코드를 그대로 보내도 되는 마켓.
-#:   🔴 「모르는 마켓」은 여기 넣지 않는다 — 「모른다」와 「보내도 된다」는 다르다.
-#:   · smartstore: 칸 이름이 `sellerBarcode`(판매자 바코드)라 판매자 값이 맞다.
-#:   · coupang: 공식 GTIN 만 받는다(위 공지) → 여기 없음.
-#:   · auction/gmarket: `catalog.barCode` 가 판매자 값을 받는지 확인 못 했다.
-#:   · eleven11: 등록 API 에 바코드 칸이 없다(239칸 전수 확인).
-#:   · lotteon: 등록 문서가 요약본이라 확인 불가.
-_SELF_OK = ('smartstore',)
+#: 자체 바코드를 마켓으로 내보내는 곳.
+#:
+#: 🔴 [2026-08-13 사장님 확정] **비어 있다 — 어느 마켓에도 안 보낸다.**
+#:   자체 생성 값은 라벨 인쇄·재고 스캔용이고, 마켓에 보낼 이유가 지금은 없다.
+#:   (스마트스토어는 칸 이름이 `sellerBarcode`(판매자 바코드)라 기술적으로는 되지만,
+#:    사장님이 「지금 불필요하다」로 정하셨다. 나중에 필요해지면 여기에 'smartstore'
+#:    한 줄만 넣으면 된다 — 판단이 이 한 곳에 모여 있다.)
+_SELF_OK = ()
 
 #: 공식 바코드라면 보내는 마켓. 확인한 것만.
 _OFFICIAL_OK = ('coupang', 'smartstore', 'auction', 'gmarket')

@@ -83,11 +83,20 @@ def test_쿠팡엔_공식만_보낸다():
     assert BC.for_market('', 'coupang') == ''
 
 
-def test_스스엔_우리_것도_보낸다():
-    """스스 칸 이름이 「판매자 바코드」(sellerBarcode)라 우리 값이 맞다."""
+def test_자체_생성은_어느_마켓에도_안_나간다():
+    """🔴 [2026-08-13 사장님 확정] 라벨·재고용이지 마켓에 보낼 값이 아니다.
+
+    스스는 칸 이름이 「판매자 바코드」라 기술적으로는 되지만 「지금 불필요」로 정하셨다.
+    판단이 `_SELF_OK` 한 곳에 모여 있어, 필요해지면 한 줄만 넣으면 된다.
+    """
     mine = BC.make_internal(3)
-    assert BC.for_market(mine, 'smartstore') == mine
+    for mk in ('coupang', 'smartstore', 'auction', 'gmarket', 'eleven11', 'lotteon'):
+        assert BC.for_market(mine, mk) == '', mk
+
+
+def test_공식_바코드는_확인된_마켓으로_나간다():
     assert BC.for_market('8801234567890', 'smartstore') == '8801234567890'
+    assert BC.for_market('8801234567890', 'coupang') == '8801234567890'
 
 
 def test_모르는_마켓은_보내지_않는다():

@@ -355,12 +355,14 @@ def test_모델명이_비면_그_칸을_안_넣는다():
     assert 'modelName' not in got
 
 
-def test_자체_생성_바코드도_보낸다():
-    """스스 칸 이름이 「판매자 바코드」(sellerBarcode)라 우리 값이 맞다."""
+def test_공식_바코드만_보내고_자체_생성은_안_보낸다():
+    """🔴 [2026-08-13 사장님 확정] 자체 생성분은 라벨·재고용 — 마켓엔 안 보낸다.
+
+    스스 칸 이름이 「판매자 바코드」라 기술적으로는 되지만 「지금 불필요」로 정하셨다.
+    """
     from lemouton.inventory import barcode as BC
-    mine = BC.make_internal(11)
-    assert _da(barcode=mine)['sellerCodeInfo']['sellerBarcode'] == mine
     assert _da(barcode='8801234567890')['sellerCodeInfo']['sellerBarcode'] == '8801234567890'
+    assert 'sellerCodeInfo' not in _da(barcode=BC.make_internal(11))
 
 
 def test_바코드가_없으면_그_칸을_안_넣는다():
