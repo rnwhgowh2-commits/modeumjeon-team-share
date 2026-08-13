@@ -60,10 +60,37 @@ def test_카테고리가_없으면_등록을_막는다(market, mod, fn):
 
 
 def test_체크리스트가_카테고리를_나감으로_말한다():
-    """🔴 이게 이 시험의 본론 — 표가 거짓말을 하고 있었다."""
-    state, note = wiring_of('category')
-    assert state == WIRED, f'카테고리가 아직 「{state}」로 잡힌다 — 실제로는 나간다'
+    """🔴 이게 이 시험의 본론 — 표가 거짓말을 하고 있었다.
+
+    🔴 **키가 둘인 이유** — 「정책 항목 category」와 「마켓 칸 카테고리」는 다르다.
+      정책이 든 건 스위치 둘(자동 매핑·실패했을 때)뿐이고 초안이 안 옮겨 담는다.
+      마켓에 나가는 **값**은 등록 때 반드시 실린다. 하나로 뭉개면 한쪽이 거짓말이
+      된다(실제로 뭉갰다가 CI 가 8건으로 잡아 줬다).
+    """
+    state, note = wiring_of('category_field')
+    assert state == WIRED, f'카테고리 칸이 아직 「{state}」로 잡힌다 — 실제로는 나간다'
     assert note.strip(), '왜 나가는지 설명이 없다'
+
+
+def test_정책_항목은_여전히_저장만이다():
+    """🔴 정책의 카테고리 **스위치**는 초안이 안 옮겨 담는다 — 그건 저장만이 맞다."""
+    from lemouton.policy.required import STORED_ONLY
+    state, note = wiring_of('category')
+    assert state == STORED_ONLY
+    assert '등록할 때 반드시 나갑니다' in note or '카테고리 값 자체는' in note, \
+        '정책 스위치만 저장만이라는 사실이 안 적혀 있어, 값도 안 나가는 줄 읽힌다'
+
+
+def test_체크리스트_열이_갈라진_키를_가리킨다():
+    """🔴 열이 옛 키를 가리키면 표는 그대로 거짓말한다 — 정의 파일까지 확인한다."""
+    import io
+    import json
+    from lemouton.policy import checklist as C
+
+    cols = json.load(io.open(f'{C._DATA}/dev_checklist_columns.json', encoding='utf-8'))
+    col4 = next(c for c in cols['columns'] if c['col'] == 4)
+    assert col4.get('wiring_item') == 'category_field', \
+        f"카테고리 열이 아직 「{col4.get('wiring_item') or col4.get('item')}」 를 본다"
 
 
 def test_설명이_롯데온의_다른_방식을_말한다():
@@ -71,7 +98,7 @@ def test_설명이_롯데온의_다른_방식을_말한다():
 
     한 문장으로 뭉뚱그리면 사장님이 롯데온 칸에 카테고리 번호를 넣으신다.
     """
-    _, note = wiring_of('category')
+    _, note = wiring_of('category_field')
     assert '롯데온' in note, '롯데온이 다르다는 말이 없다'
     assert '본보기' in note or 'spdNo' in note or '기존 상품' in note, \
         '롯데온에 무엇을 넣어야 하는지 안 적혀 있다'
