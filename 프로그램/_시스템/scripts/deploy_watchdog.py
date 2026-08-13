@@ -53,10 +53,21 @@ STATE = Path.home() / ".moum_deploy_watchdog.json"
 LOG = Path.home() / ".moum_deploy_watchdog.log"
 
 
+# 예약 실행은 pythonw.exe(콘솔 없는 파이썬)로 돈다. 부모에 콘솔이 없으면 윈도우가
+# 자식 콘솔 앱(gh.exe·git.exe)마다 **새 검은 창을 띄운다** — capture_output 을 줘도
+# 막히지 않는다(파이프는 stdio 만 돌릴 뿐 콘솔 할당과 무관). 10분마다 gh·git 을
+# 예닐곱 번 부르니 사장님 화면에 창이 계속 튀어나온다. CREATE_NO_WINDOW 로 막는다.
+# creationflags 는 리눅스에서 넘기기만 해도 ValueError 라 CI 가 깨진다 → 윈도우에서만 붙인다.
+_HIDE_WINDOW_KWARGS: dict = (
+    {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+)
+
+
 def _run(args: list[str], cwd: Path | None = None) -> tuple[int, str]:
     p = subprocess.run(
         args, cwd=str(cwd) if cwd else None,
         capture_output=True, text=True, encoding="utf-8", errors="replace",
+        **_HIDE_WINDOW_KWARGS,
     )
     return p.returncode, (p.stdout or "") + (p.stderr or "")
 
