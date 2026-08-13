@@ -109,6 +109,18 @@
   .twr-tab .b{display:inline-block;min-width:16px;text-align:center;background:var(--연한-빨강,rgba(255,59,48,.10));color:var(--글자-빨강,#D70015);border-radius:980px;font-size:12px;padding:1px 6px;margin-left:4px}
   .twr-body{padding:24px}
   .twr-load{padding:40px 0;text-align:center;color:var(--ap-g4,#86868B);font-size:12px}
+  /* ── 「사올 때」 배치 (사장님 확정 S5) ─────────────────────────────────
+     위: 소싱처 수집 이력 · 가격/재고 변동 이력 을 나란히
+     아래: 옵션 매트릭스를 통째로.
+     🔴 매트릭스는 색×사이즈 표라 좁은 칸에 넣으면 눌린다 — 그래서 아래 전폭. */
+  .buy-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .buy-full{margin-top:18px}
+  .buy-h{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;
+         align-items:center;gap:8px}
+  .buy-h .buy-s{font-size:11.5px;font-weight:400;color:var(--ap-g45,#6E6E73)}
+  .buy-slot{min-height:40px}
+  /* 좁은 화면에선 나란히가 되레 답답하다 — 한 줄로 편다 */
+  @media (max-width:1100px){ .buy-two{grid-template-columns:1fr} }
   /* ── 펼침 안 카드·표 ── */
   .tcard{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:18px;padding:24px}
   .tcard + .tcard{margin-top:12px}
@@ -431,14 +443,19 @@ if(zc) zc.addEventListener('click', function(){
   applyFilter();
 });
 
-/* ── 줄 아래 전폭 펼침 — 탭 6개 ── */
+/* ── 줄 아래 전폭 펼침 — 탭 4개 (사장님 확정) ────────────────────────────
+   한눈에 / 사올 때 / 팔 때 / 판매·정산
+   🔴 **표·그래프는 하나도 안 뺐다.** 탭만 접었다:
+       사올 때   = 옛 「소싱처 수집 이력」 + 「가격/재고 변동 이력」 + 「옵션 매트릭스」
+       팔 때     = 옛 「마켓 등록·정책」  (renderT4 그대로)
+       판매·정산 = 옛 「판매 이력」        (renderT6 그대로)
+   🔴 그리는 함수 여섯 개는 **한 줄도 안 고쳤다** — 고치면 화면과 값이 갈린다.
+     대신 `body()` 가 그때그때 다른 칸을 돌려주게 해서(`into()`) 세 판을 제자리에 넣는다. */
 var TABS = [
   {id:'t1', name:'한눈에'},
-  {id:'t6', name:'판매 이력'},
-  {id:'t2', name:'옵션 매트릭스 (최저가만)'},
-  {id:'t3', name:'소싱처 수집 이력'},
-  {id:'t4', name:'마켓 등록·정책'},
-  {id:'t5', name:'가격/재고 변동 이력'},
+  {id:'buy', name:'사올 때'},
+  {id:'t4', name:'팔 때'},
+  {id:'t6', name:'판매·정산'},
 ];
 var open = null;   // {tr, exp, code, cache:{}, tab}
 
@@ -505,7 +522,20 @@ function expand(tr){
   show('t1');
 }
 
-function body(){ return open ? open.exp.querySelector('.twr-body') : null; }
+/* 🔴 그리는 함수(renderT1~T6)는 전부 `body()` 에 그린다 — 한 줄도 안 고치려고,
+   **`body()` 가 그때그때 다른 칸을 돌려주게** 한다. `_slot` 이 그 「지금 그릴 칸」이다.
+   「사올 때」는 한 탭에 판이 셋이라 이게 없으면 셋이 같은 칸에 겹쳐 그려진다. */
+var _slot = null;
+function body(){
+  if(_slot) return _slot;
+  return open ? open.exp.querySelector('.twr-body') : null;
+}
+/* 그 칸에 그린 뒤 **반드시 되돌린다**. finally 로 두는 이유 — 그리다 터지면
+   자리가 남아 다음 탭이 엉뚱한 칸에 그려진다(에러 하나가 화면 전체를 어긋내는 길). */
+function into(el, fn, data){
+  _slot = el;
+  try { fn(data); } finally { _slot = null; }
+}
 
 function show(tabId){
   if(!open) return;
@@ -513,6 +543,7 @@ function show(tabId){
   open.exp.querySelectorAll('.twr-tab').forEach(function(x){
     x.classList.toggle('on', x.dataset.t === tabId);
   });
+  if(tabId === 'buy'){ showBuy(); return; }
   var render = {t1:renderT1, t2:renderT2, t3:renderT3, t4:renderT4, t5:renderT5, t6:renderT6}[tabId];
   var cached = open.cache[tabId];
   if(cached){ render(cached); return; }
@@ -532,6 +563,54 @@ function show(tabId){
     if(open && open.tab === tabId) body().innerHTML = '<div class="twr-load">불러오지 못했어요 — 잠시 뒤 다시 열어 주세요.</div>';
   });
 }
+
+/* ── 「사올 때」 — 옛 판 셋을 한 탭에 (사장님 확정 배치 S5) ─────────────────
+   위: 소싱처 수집 이력 · 가격/재고 변동 이력 을 **나란히**
+   아래: 옵션 매트릭스를 **통째로** (칸이 넓어야 색×사이즈 표가 안 눌린다)
+   🔴 판을 하나라도 빼면 이 재편의 뜻이 사라진다 — 셋을 다 부른다.
+   🔴 창구가 셋이라 따로 불러오고, 하나가 실패해도 나머지는 그린다
+     (한 곳 실패로 세 판이 통째로 빈 화면이 되면 안 된다). */
+function showBuy(){
+  body().innerHTML =
+    '<div class="buy-two">' +
+      '<section><div class="buy-h">소싱처 수집 이력</div>' +
+        '<div class="buy-slot" data-buy="t3"></div></section>' +
+      '<section><div class="buy-h">가격/재고 변동 이력</div>' +
+        '<div class="buy-slot" data-buy="t5"></div></section>' +
+    '</div>' +
+    '<div class="buy-full"><div class="buy-h">옵션 매트릭스' +
+      '<span class="buy-s">옵션마다 어디서 얼마에 사는지</span></div>' +
+      '<div class="buy-slot" data-buy="t2"></div></div>';
+
+  var myCode = open.code;
+  [['t3', 'sources', renderT3],
+   ['t5', 'summary', renderT5],
+   ['t2', 'matrix',  renderT2]].forEach(function(spec){
+    var key = spec[0], path = spec[1], render = spec[2];
+    var el = body().querySelector('.buy-slot[data-buy="' + key + '"]');
+    if(!el) return;
+    var cached = open.cache[key];
+    if(cached){ into(el, render, cached); return; }
+    el.innerHTML = '<div class="twr-load">불러오는 중…</div>';
+    fetch(api(path)).then(function(r){ return r.json(); }).then(function(j){
+      /* 다른 상품으로 옮겼거나 다른 탭으로 갔으면 그리지 않는다(늦게 온 응답 방지) */
+      if(!open || open.code !== myCode || open.tab !== 'buy') return;
+      var slot = body().querySelector('.buy-slot[data-buy="' + key + '"]');
+      if(!slot) return;
+      if(!j.ok){
+        slot.innerHTML = '<div class="twr-load">' + esc(j.error || '불러오지 못했어요.') + '</div>';
+        return;
+      }
+      open.cache[key] = j;
+      if(key === 't5') open.cache.t1 = open.cache.t1 || j;   // 같은 창구를 쓴다
+      into(slot, render, j);
+    }).catch(function(){
+      var slot = open && open.tab === 'buy'
+        ? body().querySelector('.buy-slot[data-buy="' + key + '"]') : null;
+      if(slot) slot.innerHTML = '<div class="twr-load">불러오지 못했어요 — 잠시 뒤 다시 열어 주세요.</div>';
+    });
+  });
+}
 function api(path){ return '/bundles/api/tower/' + encodeURIComponent(open.code) + '/' + path; }
 
 /* ── ① 한눈에 ── */
@@ -540,7 +619,7 @@ function renderT1(j){
   var h = '<div class="kpis">';
   h += '<div class="kpi blue"><div class="k">최근 30일 판매</div><div class="v">' +
        (k.sold_qty === null ? '—' : fmt(k.sold_qty) + '<span class="un">개</span>') + '</div>' +
-       '<div class="d">매출 ' + fmt(k.sold_revenue) + '원 · <a href="#" class="tlink" data-go="t6">판매 이력 →</a></div></div>';
+       '<div class="d">매출 ' + fmt(k.sold_revenue) + '원 · <a href="#" class="tlink" data-go="t6">판매·정산 →</a></div></div>';
   h += '<div class="kpi"><div class="k">판매가 (대표)</div><div class="v">' +
        (k.rep_price ? fmt(k.rep_price) + '<span class="un">원</span>' : '—') + '</div>' +
        '<div class="d">최저 매입 ' + (k.buy ? fmt(k.buy) + '원' : '확인 불가') + '</div></div>';
@@ -557,7 +636,7 @@ function renderT1(j){
 
   h += '<div class="tcard" style="margin-top:12px"><div class="tcard-t">마켓별 판매가 · 예상 마진 ' +
        '<span class="cap">수수료 반영 후 · 정책 기준</span><span class="sp"></span>' +
-       '<a href="#" class="tlink" data-go="t4">자세한 계산은 「마켓 등록·정책」 탭 →</a></div>';
+       '<a href="#" class="tlink" data-go="t4">자세한 계산은 「팔 때」 탭 →</a></div>';
   if(j.markets && j.markets.length){
     h += '<table class="atb"><tr><th>마켓</th><th>최종 노출가</th><th>수수료</th><th>예상 마진</th><th>마진율</th><th>비고</th></tr>';
     j.markets.forEach(function(m){
