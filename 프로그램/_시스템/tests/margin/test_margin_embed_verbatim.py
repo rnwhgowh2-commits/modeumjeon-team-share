@@ -45,6 +45,14 @@ _SEAM_TOKENS = (
     "/api/download", "/api/margin/export",  # 내보내기 엔드포인트
     "analysis_id: (window.analysisData",    # 내보내기 body 주입
     "buyLoaded",                            # 분석버튼 게이트 (buyLoaded&&sellLoaded ↔ buyLoaded)
+    # 매출 정의 통일(2026-08-13) — 매출 = 정가 + 배송비 − 판매자부담 할인.
+    #   ① 기간 평균 배너만 판매가(단가×수량)로 세어 상단 카드와 숫자가 달랐다 → saleAmt 로.
+    #   ② 총매출 카드 부제가 「판매가」인데 값은 매출 기준이라 뜻이 어긋났다 → 표기 정정.
+    #   두 씨앗 모두 원본 줄을 **지우므로**, 지워지는 줄의 토큰도 함께 등록한다.
+    #   ③ saleAmt·recomputeRow 도 같은 정의로. 새로 넣는 줄은 전용 마커를 단다.
+    "[모음전 매출기준]",
+    "Number(x['판매가']||0)||0", "_sumCard('총매출'",
+    "const _rateBase",
     "/api/blackspot/fetch_order_no", "_mMissRow",  # 소싱처 주문번호 추출 — 무상태 서버에 memo 동봉
     "const summary", "analyzeAndRender", "_mSupp",  # 추출 성공 UX — 거짓 카운트 제거 + 반영칸 프리필
     "margin_ext_check.js", "_moumExtCheckFetch", "/api/check-sourcing",  # [E2] 소싱처 주문상태 = 서버 Playwright 제거 → 로컬 크롬확장

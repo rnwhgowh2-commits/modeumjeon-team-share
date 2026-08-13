@@ -74,7 +74,9 @@ _TAG_RANK = {"none": 0, "zero_cancel": 1, "estimated": 2, "real": 3, "store": 3}
 # 그래서 매출 DF 로 되짚어 matched 행에 다시 붙인다 — 주문내역과 같은 숫자를 보여주기 위한
 # 유일한 경로다. `상품금액`(단가×수량)·`총주문금액`(+옵션추가금)은 matcher 의 `판매가`가
 # 옵션추가금을 못 담는 것을 드러내는 대조값이기도 하다.
-_CARRY_FIELDS = ("배송비", "옵션추가금", "상품금액", "총주문금액")
+#  `_매출기준액`(= 총주문금액 + 배송비 − 판매자부담할인)은 주문내역이 **한 번만** 만드는
+#  매출의 단일 원천이다. 마진계산기는 다시 계산하지 않고 이 값을 받아 쓴다(2026-08-13).
+_CARRY_FIELDS = ("배송비", "옵션추가금", "상품금액", "총주문금액", "_매출기준액")
 
 
 def _pick(tags):
@@ -239,19 +241,25 @@ def _json_safe(rec: dict, coerce_numeric: bool, counter: list) -> dict:
 
 
 def _recompute_margin_rate(matched) -> None:
-    """마진율을 매출=고객 결제금액(실결제+배송비) 기준으로 다시 만든다(제자리 수정).
+    """마진율 분모를 매출 기준액으로 다시 만든다(제자리 수정).
 
-    matcher(원본 바이트 동치)는 마진율=순마진/판매가(정가). 사장님 확정: 매출은 고객이
-    실제 낸 돈이므로 분모를 실결제+배송비로 바꾼다. 순마진은 매출 기준과 무관(정산−매입)
-    이라 손대지 않는다. 실결제 없으면 판매가로 폴백(화면 saleAmt 규칙과 동일).
+    matcher(원본 바이트 동치)는 마진율=순마진/판매가(정가).
+    사장님 확정 2026-08-13: 매출 = 정가 + 배송비 − **판매자부담** 할인.
+      · 마켓이 부담한 할인은 마켓이 대신 내주므로 매출에서 빼지 않는다.
+      · 그 값은 주문내역이 `_매출기준액` 한 칸으로 만들어 둔다 — 여기선 **받아 쓰기만** 한다.
+    순마진은 매출 기준과 무관(정산−매입)이라 손대지 않는다.
+    `_매출기준액`이 없거나 0(판매자할인 모름·옛 저장분)이면 옛 기준(실결제+배송비)→판매가로
+    폴백한다 — 화면 saleAmt 규칙과 동일.
     """
     for r in matched:
         try:
             net = float(pd.to_numeric(r.get("순마진", 0), errors="coerce") or 0)
             paid = float(pd.to_numeric(r.get("실결제금액", 0), errors="coerce") or 0)
             ship = float(pd.to_numeric(r.get("배송비", 0), errors="coerce") or 0)
-            base = (paid + ship) if paid > 0 else float(
-                pd.to_numeric(r.get("판매가", 0), errors="coerce") or 0)
+            # 매출 = 주문내역이 만든 `_매출기준액`(정가+배송비−판매자할인). 0·없음이면 옛 기준.
+            sale = float(pd.to_numeric(r.get("_매출기준액", 0), errors="coerce") or 0)
+            base = sale if sale > 0 else ((paid + ship) if paid > 0 else float(
+                pd.to_numeric(r.get("판매가", 0), errors="coerce") or 0))
             r["마진율"] = round(net / base * 100, 2) if base > 0 else 0
         except (TypeError, ValueError):
             continue
