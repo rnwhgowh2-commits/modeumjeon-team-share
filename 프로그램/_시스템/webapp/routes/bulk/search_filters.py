@@ -32,6 +32,13 @@ _SOURCE_LABEL = {'musinsa': '무신사'}
 _EXT_VER_CACHE = {}
 
 
+def _manifest_path():
+    """확장 manifest 의 자리. **시험이 다른 파일로 바꿔 끼울 수 있게** 따로 뺐다."""
+    from pathlib import Path
+    return (Path(__file__).resolve().parents[3]
+            / 'extension' / 'moum-crawler' / 'manifest.json')
+
+
 def expected_ext_version():
     """저장소에 있는 **확장의 최신 판 번호.** 못 읽으면 None.
 
@@ -41,22 +48,70 @@ def expected_ext_version():
       아무 일이 없는 헛걸음을 했다.
       (그때 로드 폴더가 이미 최신과 같아서 누를 것이 없었다.)
 
-    ★ 이 값과 `last_ext_version` 이 다르면 화면이 **「새 판 있음」**이라 말한다.
-      같으면 아무 말도 안 한다 — 늘 뜨는 경고는 아무 말도 안 하는 것과 같다.
+    ★ 이 값이 `last_ext_version` 보다 **새 것일 때만** 화면이 「새 판 있음」이라
+      말한다(`ext_version_outdated`). 늘 뜨는 경고는 아무 말도 안 하는 것과 같다.
+
+    🔴🔴 [2026-08-13 라이브 실측] 캐시에 **만료가 없어서** 배포한 뒤에도 옛 값을
+      말했다. main 의 manifest 는 0.8.03 이고 배포도 success 인데 라이브 API 는
+      워커 6개 전부 0.8.02 를 「최신」이라 답했다 — 프로세스가 살아 있는 한
+      한 번 읽은 값을 영원히 붙들고 있었기 때문이다.
+      → **파일이 바뀌면 다시 읽는다**(수정시각+크기를 캐시 열쇠로 삼는다).
+      ★ 「한 번 읽고 영원히 기억한다」는 배포가 있는 곳에선 거짓말이 된다.
     """
     import json
-    from pathlib import Path
-    if 'v' in _EXT_VER_CACHE:
-        return _EXT_VER_CACHE['v']
+    p = None
+    key = None
+    try:
+        p = _manifest_path()
+        st = p.stat()
+        key = (str(p), st.st_mtime_ns, st.st_size)
+    except Exception:       # noqa: BLE001 — 파일이 없어도 화면은 떠야 한다
+        key = None
+    if key is not None and key in _EXT_VER_CACHE:
+        return _EXT_VER_CACHE[key]
     v = None
     try:
-        p = (Path(__file__).resolve().parents[3]
-             / 'extension' / 'moum-crawler' / 'manifest.json')
         v = (json.loads(p.read_text(encoding='utf-8')) or {}).get('version') or None
     except Exception:       # noqa: BLE001 — 못 읽어도 화면은 떠야 한다
         v = None
-    _EXT_VER_CACHE['v'] = v
+    if key is not None:
+        # 열쇠가 바뀌면 옛 항목은 쓸모가 없다 — 무한히 쌓이지 않게 갈아 끼운다.
+        _EXT_VER_CACHE.clear()
+        _EXT_VER_CACHE[key] = v
     return v
+
+
+def _ver_tuple(v):
+    """`"0.8.10"` → `(0, 8, 10)`. 숫자로 못 읽으면 None.
+
+    🔴 **글자로 견주면 안 된다** — `"0.8.9" > "0.8.10"` 이 참이 된다(9 > 1).
+    """
+    parts = str(v or '').strip().split('.')
+    if not parts or not all(x.isdigit() for x in parts):
+        return None
+    return tuple(int(x) for x in parts)
+
+
+def ext_version_outdated(loaded, expected):
+    """**지금 켜져 있는 확장이 저장소보다 낡았나.** 낡았을 때만 True.
+
+    🔴 왜 서버가 판정하나 (2026-08-13 라이브)
+      화면이 `expected !== loaded` 로 견줬다. 그래서 확장이 **더 새 판**일 때도
+      「확장 0.8.03 · 새 판 0.8.02 있음」이라 떠서, 누를 것이 없는데 사장님더러
+      `chrome://extensions` 에서 ↻ 를 누르라고 했다.
+      ★ 견주는 법을 아는 곳은 **한 곳**이어야 한다. 화면·서버 두 곳이 각자
+        견주면 언젠가 서로 다른 답을 낸다.
+
+    ★ 모르면 겁주지 않는다 — 한 번도 안 돈 필터(`loaded` 없음)나 manifest 를
+      못 읽은 경우(`expected` 없음)는 **False**. 「모른다」와 「낡았다」는 다르다.
+    """
+    if not loaded or not expected:
+        return False
+    a, b = _ver_tuple(loaded), _ver_tuple(expected)
+    if a is None or b is None:
+        # 숫자로 못 읽는 판 번호 — 그래도 다르면 알려는 준다(옛 방식으로 물러섬).
+        return str(loaded) != str(expected)
+    return b > a
 
 
 def _auto_name(session, source_key, listing_url):
@@ -150,7 +205,12 @@ def list_search_filters():
                                           ProductDraft.deleted_at.is_(None)).count())
             d['apply_policy_name'] = _policy_name(s, f.apply_policy_id)
             # 「지금 최신 판」 — 화면이 「낡았다/최신이다」를 스스로 말할 수 있게.
-            d['ext_version_expected'] = expected_ext_version()
+            #   🔴 견주는 일까지 서버가 한다. 화면이 글자로 견주다 확장이 더 새
+            #     판일 때 거짓 경보를 냈다(2026-08-13 라이브).
+            _exp = expected_ext_version()
+            d['ext_version_expected'] = _exp
+            d['ext_version_outdated'] = ext_version_outdated(
+                d.get('last_ext_version'), _exp)
             out.append(d)
         return jsonify({'ok': True, 'filters': out})
     finally:
