@@ -528,6 +528,40 @@ def orders_preview():
                    warnings=warnings)
 
 
+@bp.route('/diag/esm-timing')
+def orders_diag_esm_timing():
+    """옥션·G마켓 조회가 **어디서 시간을 쓰는지** 재는 창구(읽기 전용).
+
+    🔴 왜 있나 — 2026-08-13 클레임 49회를 동시에 보내도록 고쳤는데 오히려 느려 보였다.
+      그런데 「클레임에 몇 초 썼는지」가 서버 기록에만 있어 화면에서 원인을 가릴 수
+      없었다. 되돌릴지 유지할지 정하려면 이 숫자가 있어야 한다.
+      마켓을 실제로 부르므로(5초/1회 제한) 진단용으로만 쓴다.
+    """
+    import time as _t
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    if market not in ('auction', 'gmarket'):
+        return jsonify(ok=False, error="market 은 옥션(auction)·G마켓(gmarket)만 돼요."), 400
+    try:
+        days = max(1, min(int(request.args.get('days') or 1), 31))
+    except (TypeError, ValueError):
+        days = 1
+    until = _dt.datetime.now()
+    since = until - _dt.timedelta(days=days)
+    diag, warns = {"counts": {}, "errors": {}}, []
+    t0 = _t.monotonic()
+    try:
+        rows = _oe.esm_order_rows(market, since, until, diag=diag, warnings=warns)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, 총초=round(_t.monotonic() - t0, 1),
+                       error=f"{type(e).__name__}: {str(e)[:300]}",
+                       counts=diag.get("counts"), errors=diag.get("errors")), 200
+    return jsonify(ok=True, market=market, days=days,
+                   총초=round(_t.monotonic() - t0, 1), 행수=len(rows),
+                   counts=diag.get("counts") or {}, errors=diag.get("errors") or {},
+                   warnings=warns)
+
+
 @bp.route('/flow-daily.json')
 def orders_flow_daily():
     """배송흐름 최근 N일 요약 — 날짜별 송장 입력 / 배송 중 / 배송 완료.
