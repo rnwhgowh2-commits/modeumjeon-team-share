@@ -1218,6 +1218,48 @@ def tower_sources(code: str):
         s.close()
 
 
+def _coupon_status(s, code: str) -> dict:
+    """쿠팡 쿠폰 — 지금 어떤 상태인지 화면이 가를 수 있게.
+
+    돌려주는 것:
+      coupon_state : none(아직) | queued(대기 중) | applied(걸림) | failed(실패)
+      coupon_have  : 쿠팡에 **실제로 걸린** 값(쿠폰이 만든 것)
+      coupon_want  : 우리가 **걸려는** 값(정책 또는 이 상품만의 값)
+      coupon_own   : 「비정책」인가 — 정책을 바꿔도 안 따라가는 상품인가
+      coupon_from  : 다음날 0시부터 — 언제부터 적용되나
+      coupon_msg   : 실패했으면 왜인지(사람 말)
+
+    🔴 `have` 와 `want` 를 **따로** 준다. 둘이 다를 수 있고(예: 아직 안 걸림),
+      그 차이가 곧 「지금 할인이 나가고 있나」의 답이다. 하나로 합치면 못 가른다.
+    """
+    from lemouton.policy import coupon_service as CS
+    out = {'coupon_state': 'none', 'coupon_have': None, 'coupon_want': None,
+           'coupon_own': False, 'coupon_from': None, 'coupon_msg': ''}
+    try:
+        chans = CS.channels_of_model(s, code)
+    except Exception:                                   # noqa: BLE001
+        return out
+    if not chans:
+        return out
+    ch = chans[0]                     # 구성이 여럿이면 첫 구성 — 표는 마켓당 한 줄이다
+    rec = CS.record_of(ch)
+    ov = CS.override_of(ch)
+    queued = bool((ch.api_fields or {}).get(CS.REQUEST_KEY))
+    want = CS.effective_discount(s, ch)
+    out['coupon_own'] = (ov['mode'] == 'own')
+    out['coupon_want'] = (want or {}).get('value')
+    out['coupon_have'] = rec.get('value') if rec.get('ok') else None
+    out['coupon_from'] = rec.get('starts_at')
+    out['coupon_msg'] = rec.get('message') or ''
+    if queued:
+        out['coupon_state'] = 'queued'
+    elif rec.get('ok'):
+        out['coupon_state'] = 'applied'
+    elif rec:
+        out['coupon_state'] = 'failed'
+    return out
+
+
 @bp.get('/bundles/api/tower/<path:code>/markets')
 def tower_markets_api(code: str):
     """탭④ 마켓 등록·정책 — 정책 계산(preview)·등록 실태(MarketRegistration)·
@@ -1326,6 +1368,9 @@ def tower_markets_api(code: str):
             if mk == 'coupang' and cp:
                 item['exposed'] = cp.get('exposed')
                 item['coupon'] = cp.get('coupon')
+            if mk == 'coupang':
+                # 🔴 쿠폰은 **쿠팡만** 있다 — 다른 마켓에 붙이면 화면이 없는 기능을 광고한다.
+                item.update(_coupon_status(s, code))
             out.append(item)
         return jsonify({'ok': True, 'markets': out,
                         'policy': ({'id': pol.id, 'name': pol.name}

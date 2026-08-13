@@ -763,6 +763,42 @@ def api_coupon_status(model_code: str):
         s.close()
 
 
+@bp.post('/api/bundles/<path:model_code>/coupang-coupon/override')
+def api_coupon_override(model_code: str):
+    """「정책 / 비정책」 스위치 (사장님 확정 A2).
+
+    body: {mode:'policy'|'own', value:int|null}
+
+    🔴 「비정책」으로 돌리면 **정책을 바꿔도 이 상품은 안 따라간다.** 그게 이 스위치의
+      전부다 — 상품에 따로 정해 둔 값이 조용히 날아가지 않게 하는 것.
+    🔴 값이 10원 단위가 아니면 여기서 **사람 말로** 막는다. 마켓까지 가면
+      「입력한 데이터가 유효하지 않습니다」만 돌아와 무엇이 잘못인지 알 수 없다.
+    """
+    from lemouton.policy import coupon_service as CS
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        chans = CS.channels_of_model(s, model_code)
+        if not chans:
+            return jsonify({'ok': False,
+                            'message': '이 상품은 아직 쿠팡에 연동된 구성이 없습니다.'}), 400
+        mode = str(body.get('mode') or 'policy')
+        rec = None
+        for ch in chans:
+            rec = CS.set_override(s, ch, mode=mode, value=body.get('value'))
+        return jsonify({'ok': True, 'override': rec,
+                        'message': ('이 상품만의 값으로 씁니다 — 정책을 바꿔도 안 따라갑니다.'
+                                    if mode == 'own' else '정책 값을 따릅니다.')})
+    except ValueError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'message': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[쿠팡쿠폰] 스위치 저장 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'message': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
 @bp.post('/api/bundles/<path:model_code>/coupang-coupon')
 def api_coupon_apply(model_code: str):
     """단추 — 이 상품에 쿠폰을 걸어 달라고 요청한다(실제 걸기는 1분 틱이 한다).

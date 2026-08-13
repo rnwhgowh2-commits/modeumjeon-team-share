@@ -121,6 +121,38 @@
   .buy-slot{min-height:40px}
   /* 좁은 화면에선 나란히가 되레 답답하다 — 한 줄로 편다 */
   @media (max-width:1100px){ .buy-two{grid-template-columns:1fr} }
+  /* ── 쿠폰 칸(C4) + 「정책/비정책」 스위치(A2) ─────────────────────────── */
+  .cpn-c{display:flex;flex-direction:column;gap:3px;align-items:center;line-height:1.5}
+  .cpn-r2{display:flex;align-items:center;gap:4px;justify-content:center;font-size:11px}
+  .cpn-q{display:inline-flex;align-items:center;border-radius:980px;padding:2px 8px;
+         font-size:11px;font-weight:700;line-height:1.55;white-space:nowrap}
+  .cpn-q.none{background:var(--ap-g1,#F5F5F7);color:var(--ap-g45,#6E6E73)}
+  .cpn-q.wait{background:#FFF8E1;color:#8A6100}
+  .cpn-q.on{background:#E9F8EE;color:#1B7F3B}
+  .cpn-q.bad{background:#FDECEC;color:#C1121F}
+  .cpn-q.own{background:#FFF3E6;color:#B25000}
+  .cpn-p{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);
+         border-radius:14px;padding:14px 16px;margin-top:14px}
+  .cpn-p-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .cpn-logo{width:20px;height:20px;border-radius:5px;background:#E94F35;color:#fff;
+            font-size:12px;font-weight:800;display:grid;place-items:center;flex:none}
+  .cpn-p-b{margin-top:10px;font-size:12.5px;display:flex;align-items:center;gap:8px;
+           flex-wrap:wrap}
+  .cpn-p-n{margin-top:8px;font-size:11.5px;color:var(--ap-g45,#6E6E73);line-height:1.7}
+  .cpn-in{width:96px;border:1.5px solid var(--ap-g3,#D2D2D7);border-radius:8px;
+          padding:5px 9px;font-size:12.5px;text-align:right;font-family:inherit;
+          font-variant-numeric:tabular-nums}
+  .cpn-in[disabled]{background:var(--ap-g1,#F5F5F7);color:var(--ap-g45,#6E6E73)}
+  /* 미끄럼 스위치 — 파랑이면 정책, 주황이면 이 상품만 */
+  .cpn-sw{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;
+          font-weight:700;cursor:pointer;margin-left:auto}
+  .cpn-sw input{display:none}
+  .cpn-sw i{width:34px;height:19px;border-radius:980px;background:#1B64DA;
+            position:relative;flex:none;transition:.15s}
+  .cpn-sw i::after{content:'';position:absolute;top:2px;left:17px;width:15px;height:15px;
+                   border-radius:50%;background:#fff;transition:.15s}
+  .cpn-sw.free i{background:#C2410C}
+  .cpn-sw.free i::after{left:2px}
   /* ── 펼침 안 카드·표 ── */
   .tcard{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:18px;padding:24px}
   .tcard + .tcard{margin-top:12px}
@@ -1091,6 +1123,99 @@ function regCategory(m){
   return dim('확인 불가 — 「내마켓 불러오기」를 다시 하면 채워져요');
 }
 
+/* ── 쿠폰 칸 (사장님 확정 C4) ────────────────────────────────────────────
+   윗줄 = 쿠팡에 **지금 실제로 걸린** 값 / 아랫줄 = 우리가 **걸려는** 값과 상태.
+   🔴 **같으면 한 줄, 다를 때만 두 줄**. 늘 두 줄이면 표가 쓸데없이 복잡하고,
+     늘 한 줄이면 「걸려는 값은 100원인데 실제론 안 걸림」을 못 본다.
+   🔴 「대기 중」과 「걸림」은 **절대 같아 보이면 안 된다** — 넣기만 하고 안 걸린 걸
+     걸린 줄 알면 사장님이 할인이 나가는 줄 알고 판다. */
+function couponCell(m){
+  if(m.market !== 'coupang') return dim('—');          /* 쿠폰은 쿠팡만 */
+  var have = (m.coupon !== null && m.coupon !== undefined) ? m.coupon : m.coupon_have;
+  var want = m.coupon_want;
+  var st = m.coupon_state || 'none';
+  var chip = {
+    none:   '<span class="cpn-q none">아직</span>',
+    queued: '<span class="cpn-q wait">대기 중</span>',
+    applied:'<span class="cpn-q on">걸림</span>',
+    failed: '<span class="cpn-q bad">실패</span>'
+  }[st] || '';
+  var own = m.coupon_own ? '<span class="cpn-q own">이 상품만</span>' : '';
+  var top = (have !== null && have !== undefined)
+    ? '<span style="color:var(--글자-빨강,#D70015)">−' + fmt(have) + '</span>'
+    : dim('아직 없음');
+  /* 같은 값이면 아랫줄을 안 만든다 — 걸린 값이 곧 걸려는 값이니 할 말이 없다 */
+  var same = (have !== null && have !== undefined && Number(have) === Number(want));
+  if(same && st === 'applied'){
+    return '<div class="cpn-c">' + top + '<div class="cpn-r2">' + chip + own +
+      (m.coupon_from ? '<span class="twr-u">' + esc(String(m.coupon_from).slice(5,10)) +
+        ' 0시~</span>' : '') + '</div></div>';
+  }
+  var wantTxt = (want !== null && want !== undefined && want > 0)
+    ? '<span class="twr-u">' + fmt(want) + '원</span>' : '';
+  return '<div class="cpn-c">' + top + '<div class="cpn-r2">' + chip + own + wantTxt +
+    '</div></div>';
+}
+
+/* ── 쿠폰 칸 아래 판 — 「정책 / 비정책」 스위치 (사장님 확정 A2) ────────────
+   🔴 정책일 땐 입력칸을 **잠근다**. 열어 두면 고쳐도 안 먹거나, 고치는 순간
+     조용히 정책을 벗어나 다음 정책 변경이 이 상품을 건너뛰게 된다. */
+function couponPanel(m){
+  if(!m || m.market !== 'coupang') return '';
+  var own = !!m.coupon_own;
+  var val = (m.coupon_want !== null && m.coupon_want !== undefined) ? m.coupon_want : '';
+  return '<div class="cpn-p"><div class="cpn-p-h">' +
+    '<span class="cpn-logo">C</span><b>쿠팡 즉시할인쿠폰</b>' +
+    '<label class="cpn-sw' + (own ? ' free' : '') + '" title="비정책으로 두면 정책을 바꿔도 이 상품은 안 따라갑니다">' +
+      '<input type="checkbox" id="cpn-own"' + (own ? ' checked' : '') + '>' +
+      '<i></i><span>' + (own ? '비정책' : '정책') + '</span></label>' +
+    '<button class="twr-btn pri sm" id="cpn-go" type="button">쿠폰 걸기</button>' +
+    '</div>' +
+    '<div class="cpn-p-b">깎을 값 <input id="cpn-val" class="cpn-in" value="' +
+      esc(String(val)) + '"' + (own ? '' : ' disabled') + '> 원' +
+      '<span class="twr-u">' + (own
+        ? '이 상품에만 씁니다 — 정책을 바꿔도 안 따라갑니다.'
+        : '정책 값을 그대로 씁니다. 이 상품만 바꾸려면 스위치를 「비정책」으로.') +
+      '</span></div>' +
+    '<div class="cpn-p-n">⏰ 쿠팡 쿠폰은 <b>오늘 켤 수 없습니다</b> — 거는 날의 ' +
+      '<b>다음날 0시</b>부터 적용됩니다.' +
+      (m.coupon_msg ? ' <span class="twr-u">' + esc(m.coupon_msg) + '</span>' : '') +
+    '</div></div>';
+}
+
+/* 스위치·단추를 서버에 잇는다.
+   🔴 화면만 바꾸고 서버에 안 보내면 새로 고치는 순간 되돌아간다 — 사장님은
+     「바꿨는데 안 먹는다」로 겪는다. 저장이 끝난 뒤 **다시 불러** 화면과 저장분을 맞춘다. */
+function wireCoupon(){
+  var sw = body().querySelector('#cpn-own');
+  var val = body().querySelector('#cpn-val');
+  var go = body().querySelector('#cpn-go');
+  if(!sw) return;
+  var code = open ? open.code : '';
+  function save(){
+    var mode = sw.checked ? 'own' : 'policy';
+    fetch('/api/bundles/' + encodeURIComponent(code) + '/coupang-coupon/override', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({mode: mode, value: (val && val.value) || null})
+    }).then(function(r){ return r.json(); }).then(function(x){
+      if(!x.ok){ alert(x.message || '저장하지 못했어요.'); show('t4'); return; }
+      open.cache.t4 = null;
+      show('t4');
+    }).catch(function(){ alert('저장 요청이 실패했어요.'); });
+  }
+  sw.addEventListener('change', save);
+  if(val) val.addEventListener('change', function(){ if(sw.checked) save(); });
+  if(go) go.addEventListener('click', function(){
+    go.disabled = true;
+    fetch('/api/bundles/' + encodeURIComponent(code) + '/coupang-coupon', {method:'POST'})
+      .then(function(r){ return r.json(); }).then(function(x){
+        alert(x.message || (x.ok ? '대기열에 넣었습니다.' : '넣지 못했어요.'));
+        open.cache.t4 = null;
+        show('t4');
+      }).catch(function(){ go.disabled = false; alert('요청이 실패했어요.'); });
+  });
+}
+
 /* ── ④ 마켓 등록·정책 ── */
 function renderT4(j){
   var h = '<div class="tcard"><div class="tcard-t">마켓 등록 · 정책 <span class="cap">마켓별 정책 → 판매가 계산 → 등록 정보 → 옵션별 상세</span></div>';
@@ -1105,7 +1230,7 @@ function renderT4(j){
           : '<span style="color:var(--글자-주황,#C93400)">가격 비어 있음</span> <a class="tlink" style="font-size:12px" href="/policies/' + m.policy.id + '">채우기 →</a>')
         : '<span style="color:var(--글자-주황,#C93400)">정책 없음</span> <a class="tlink" style="font-size:12px" href="/policies">만들기 →</a>') + '</td>' +
       '<td>' + (m.policy_price ? fmt(m.policy_price) : '—') + '</td>' +
-      '<td>' + (m.coupon ? '<span style="color:var(--글자-빨강,#D70015)">−' + fmt(m.coupon) + '</span>' : dim('—')) + '</td>' +
+      '<td>' + couponCell(m) + '</td>' +
       '<td' + (exposed ? ' style="font-weight:600"' : '') + '>' + (exposed ? fmt(exposed) : '—') + '</td>' +
       '<td>' + dim(m.fee_pct !== null && m.fee_pct !== undefined ? m.fee_pct + '%' : '—') + '</td>' +
       '<td>' + (m.margin !== null && m.margin !== undefined
@@ -1136,7 +1261,11 @@ function renderT4(j){
   });
   h += '</table>';
   h += '<div class="tnote">노출가 = 정책 판매가 − 즉시할인쿠폰(쿠팡은 마켓 캐시 실측값) · 마진 = preview 계산(정책 수수료·최저 매입가 기준) · 「옵션별 ▾」 = 그 마켓에 실제 전송된 옵션 단위 값 · <a href="/market-send">📤 미등록 마켓에 보내러 가기 →</a></div></div>';
+  /* 쿠폰 판 — 표 밑에 한 장(사장님 확정 A2) */
+  var _cp = (j.markets || []).filter(function(x){ return x.market === 'coupang'; })[0];
+  h += couponPanel(_cp);
   body().innerHTML = h;
+  wireCoupon();
   body().querySelectorAll('.t4opt').forEach(function(b){
     b.addEventListener('click', function(){
       var row = body().querySelector('.t4optrow[data-i="' + this.dataset.i + '"]');
