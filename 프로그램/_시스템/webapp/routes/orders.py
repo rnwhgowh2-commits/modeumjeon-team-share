@@ -3286,7 +3286,10 @@ def shopmine_recon_run():
             return jsonify(ok=False, error=str(e)), 422
         except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
             return jsonify(ok=False, error=f'대조 실패: {type(e).__name__}: {e}'), 400
-        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided')}
+        # 🔴 `defs`(노랑 표본)는 목록이라 **detail 쪽**에 둔다 — summary 에 두면
+        #   실행 30회치가 그대로 쌓여 Supabase 무료 티어를 먹는다.
+        #   집계인 `def_reasons` 는 작으므로 summary 에 남아 화면 요약에 쓰인다.
+        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided', 'defs')}
         summary = {k: v for k, v in res.items() if k not in detail}
         prev = (s.query(ShopmineReconRun)
                 .order_by(ShopmineReconRun.id.desc()).first())

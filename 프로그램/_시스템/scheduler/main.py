@@ -652,9 +652,53 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       id='order_backfill', max_instances=1, coalesce=True,
                       misfire_grace_time=300)
         logger.info('scheduler: order_backfill watcher every 1min (레거시)')
+    # ── 쿠팡 쿠폰: 대기열 처리 + 자동연장 (2026-08-13 사장님 확정) ──────────
+    #  🔴 「대기열에 넣었다」 ≠ 「처리된다」 — 이 틱이 **처리기**다. 없으면 단추가
+    #    거짓말이 된다(라이브에서 실제로 겪은 사고).
+    #  쿠폰 한 번 걸기는 만들기·확인·붙이기·확인이고, 거부되면 300원까지 최대 21번
+    #  되풀이한다 — 몇 분이 걸려 화면이 못 기다린다. 그래서 여기서 돈다.
+    #  요청도 연장 대상도 없으면 조회 두 번에 끝난다.
+    if (os.environ.get('MOUM_COUPANG_COUPON_TICK', '1') == '1'
+            and sched.get_job('coupang_coupon') is None):
+        sched.add_job(_coupang_coupon_tick, 'interval', minutes=1,
+                      id='coupang_coupon', max_instances=1, coalesce=True,
+                      misfire_grace_time=300)
+        logger.info('scheduler: coupang_coupon queue+renew every 1min')
     if not sched.running:
         sched.start()
     return sched
+
+
+def _coupang_coupon_tick() -> None:
+    """쿠폰 걸기 요청과 만료 임박 쿠폰을 처리한다. 할 일이 없으면 즉시 끝.
+
+    🔴 한 틱에 처리할 수를 묶는다 — 쿠폰 하나가 최대 21번 왕복이라, 안 묶으면 한 틱이
+      몇십 분을 붙잡고 다음 틱과 겹친다(max_instances=1 이라 조용히 밀린다).
+    """
+    try:
+        from lemouton.policy import coupon_service as CS
+        from lemouton.sets.set_link_service import _resolve_env_prefix
+        from lemouton.uploader import market_fetch as MF
+        from shared.db import SessionLocal
+
+        s = SessionLocal()
+        try:
+            if not CS.pending_requests(s) and not CS.due_renewals(s):
+                return
+
+            def _client(ch):
+                # 🔴 그 상품이 등록된 **그 계정**의 열쇠로 걸어야 한다 — 기본 계정으로
+                #   걸면 다른 계정엔 그 옵션이 없어 전부 거부된다.
+                return MF._coupang_client(
+                    _resolve_env_prefix(s, ch.market, ch.account_key))
+
+            stat = CS.run_pending(s, client_for=_client, limit=3)
+            if any(stat.values()):
+                logger.info('coupang_coupon tick: %s', stat)
+        finally:
+            s.close()
+    except Exception:                                   # noqa: BLE001
+        logger.exception('coupang_coupon tick failed')
 
 
 def _order_backfill_tick() -> None:
