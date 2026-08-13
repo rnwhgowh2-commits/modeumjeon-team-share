@@ -336,7 +336,10 @@
     font-weight:700;cursor:pointer}
   .og-btn:disabled{opacity:.55;cursor:default}
   .og-err{font-size:13px;color:var(--color-danger,var(--red,#DC2626));margin-top:8px;min-height:18px}
-  .og-list{margin-top:var(--sp-5);max-width:1100px}
+  /* 🔴 [2026-08-13 라이브 실측] 1100 에 묶여 있어 **표가 잘렸다** — 왼쪽 서랍이
+     497 을 먹으면 표에 587 밖에 안 남는데 표는 944 가 필요했다(창은 1870 이었다).
+     서랍을 글자에 맞춰 넓힌 뒤 생긴 일이라, 화면이 쓸 수 있는 폭을 같이 넓힌다. */
+  .og-list{margin-top:var(--sp-5);max-width:var(--화면-상한)}
   .og-lh{font-size:16px;font-weight:700;margin-bottom:var(--sp-3);
     display:flex;align-items:center}
   /* [2026-08-04 사장님 확정 A4] 목록 머리줄 오른쪽 「+ 옵션 매트릭스 생성」 단추 */
@@ -349,7 +352,7 @@
     z-index:900;align-items:center;justify-content:center}
   .og-back.open{display:flex}
   .og-mbox{position:relative;background:var(--바탕-떠있는,#fff);border-radius:16px;
-    padding:24px 26px;width:420px;max-width:92vw;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+    padding:24px 26px;width:420px;max-width:92vw;}
   .og-mt{font-size:16px;font-weight:700;margin-bottom:6px}
   .og-md{font-size:13px;color:var(--color-text-secondary);margin-bottom:14px;
     line-height:1.6}
@@ -358,7 +361,7 @@
   /* [2026-08-12 노션 옵션 a] 만들기 창 4단계 — 번호로 순서가 보이게 */
   .og-step{display:inline-flex;width:18px;height:18px;border-radius:50%;
     background:var(--color-bg-muted);color:var(--color-text-tertiary);
-    align-items:center;justify-content:center;font-size:11px;margin-right:6px}
+    align-items:center;justify-content:center;font-size:12px;margin-right:6px}
   /* [2026-08-12 사장님 A1 확정] 종류·옵션축 둘 다 **세로 라디오**.
      설명이 같이 보여 처음 쓰는 사람도 안 헷갈린다(시안 v14 A1).
      🔴 안 고른 칸은 **회색**으로 못 박는다 — `--color-border` 가 파랑 계열로 풀려
@@ -465,7 +468,7 @@
     background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;padding:var(--sp-3)}
   .og-find{margin-bottom:0}
-  .og-rail-t{font-size:11px;font-weight:700;color:var(--color-text-tertiary);
+  .og-rail-t{font-size:12px;font-weight:700;color:var(--color-text-tertiary);
     margin:var(--sp-3) 0 var(--sp-1)}
   .og-b{display:flex;justify-content:space-between;align-items:center;
     padding:8px 12px;border-radius:8px;font-size:14px;cursor:pointer}
@@ -483,7 +486,7 @@
   .og-c3 tr.og-row:hover td{background:var(--연한-파랑,rgba(0,113,227,.06))}
   .og-c3 .c{text-align:center}
   .og-badge{display:inline-block;border-radius:8px;padding:2px 8px;
-    font-size:11px;font-weight:700;white-space:nowrap}
+    font-size:12px;font-weight:700;white-space:nowrap}
   .og-badge.sale{background:var(--color-ok-bg,#E7F7EE);color:var(--color-ok,#15803D)}
   .og-badge.wait{background:var(--n200,#E8E8ED);color:var(--color-text-secondary)}
   .og-badge.split{background:var(--color-warn-bg,#FEF6E7);color:var(--color-warn,#B45309)}
@@ -495,13 +498,13 @@
   .og-badge.stgb{white-space:nowrap;display:inline-block;line-height:1.35}
   /* 이 묶음으로 만든 상품 — 배지 아래 작은 줄. 누르면 상품관리에서 그 상품을 찾아 준다. */
   .og-made-links{margin-top:4px;display:flex;flex-direction:column;gap:2px}
-  .og-made-links a{font-size:11.5px;color:var(--글자-파랑,#0066CC);text-decoration:none;
+  .og-made-links a{font-size:12px;color:var(--글자-파랑,#0066CC);text-decoration:none;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
   .og-made-links a:hover{text-decoration:underline}
   /* [2026-08-12 노션 상품 c-1] 상품 줄 오른쪽 정책 바로가기 칩 */
   .og-made-one{display:flex;align-items:center;gap:6px}
   .og-pol{flex:none;border:1px solid var(--color-border);border-radius:6px;
-    padding:0 5px;font-size:11px;line-height:1.7;text-decoration:none}
+    padding:0 5px;font-size:12px;line-height:1.7;text-decoration:none}
   .og-pol:hover{border-color:var(--color-primary);text-decoration:none}
   .og-badge.stgb.sale{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#1D7A3D)}
   .og-badge.stgb.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--글자-파랑,#0066CC)}
@@ -537,7 +540,7 @@
      보인다는 지적. 이동은 줄 자체(마우스 올리면 파래짐)가 담당한다. */
   .og-menu{position:absolute;right:var(--sp-2);top:28px;z-index:20;min-width:130px;
     background:var(--바탕-떠있는,#fff);border:1px solid var(--color-border);
-    border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.10);padding:4px}
+    border-radius:8px;padding:4px}
   .og-mi{display:block;width:100%;text-align:left;border:0;background:transparent;
     font-family:inherit;font-size:14px;padding:8px 12px;border-radius:8px;
     cursor:pointer;text-decoration:none;color:var(--color-text-secondary)}

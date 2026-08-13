@@ -22,7 +22,7 @@
       <tbody>
         {% for r in timeline %}<tr style="border-bottom:1px solid var(--n100,#F2F4F6)">
           <td style="padding:8px 8px;font-size:12px">{{ r.tx.created_at.strftime('%Y-%m-%d %H:%M') if r.tx.created_at else '—' }}</td>
-          <td style="padding:8px 8px"><span style="font-size:11px;padding:0px 4px;border-radius:0px;background:{% if r.tx.tx_type=='in' %}var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D){% elif r.tx.tx_type=='out' %}var(--연한-빨강,#FEE2E2));color: var(--글자-빨강, var(--red,#991B1B){% elif r.tx.tx_type=='adjust' %}var(--연한-파랑,#DBEAFE));color:var(--primary,#1E40AF){% else %}var(--연한-보라,#F3E8FF);color:#6B21A8{% endif %};font-weight:600">{{ r.tx.tx_type }}</span></td>
+          <td style="padding:8px 8px"><span style="font-size:12px;padding:0px 4px;border-radius:0px;background:{% if r.tx.tx_type=='in' %}var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D){% elif r.tx.tx_type=='out' %}var(--연한-빨강,#FEE2E2));color: var(--글자-빨강, var(--red,#991B1B){% elif r.tx.tx_type=='adjust' %}var(--연한-파랑,#DBEAFE));color:var(--primary,#1E40AF){% else %}var(--연한-보라,#F3E8FF);color:#6B21A8{% endif %};font-weight:600">{{ r.tx.tx_type }}</span></td>
           <td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace">{% if r.tx.tx_type=='in' %}+{{ r.tx.qty }}{% elif r.tx.tx_type=='out' %}-{{ r.tx.qty }}{% else %}={{ r.tx.qty }}{% endif %}</td>
           <td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:600">{{ r.cumulative }}</td>
         </tr>{% else %}<tr><td colspan="4" style="padding:32px;text-align:center;color:var(--faint,#9CA3AF)">거래 내역 없음</td></tr>{% endfor %}
