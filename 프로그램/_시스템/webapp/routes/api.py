@@ -224,7 +224,12 @@ def crawl_due_listings():
                         'empty_text': rule['empty_text'],
                         # 단추로 넘기는 곳은 「몇 번 누를지」로 답한다(같은 칸을 쓴다).
                         'click_pages': LD.click_pages_for(
-                            f.source_key, f.page_from, f.page_to)})
+                            f.source_key, f.page_from, f.page_to),
+                        # 🔴 「다음」 단추 소싱처의 **이어서 걷기** — 걷기 전에 몇 번
+                        #   눌러 건너뛸지. 늘 1쪽에서 시작해야 하는 곳이라 이 방법뿐이다.
+                        #   ★ 공짜가 아니다(301쪽부터면 300번). 시한에 걸리면 확장이
+                        #     걷은 것을 들고 나오며 「더 있음」이라 말한다.
+                        'click_skip': LD.click_skip_for(f.source_key, _cur)})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()
@@ -314,6 +319,20 @@ def crawl_listing_result():
                     f.page_from, f.page_to, f.next_page_from, more=f.last_capped)
             else:
                 f.next_page_from = None
+        # 🔴🔴 **끝까지 걷는다** — 「더 있음」이고 이번에 **새로 걷은 것이 있으면**
+        #   다음 회차를 곧바로 예약한다. 사람이 「지금 수집」을 수십 번 누르지
+        #   않아도 된다(현대H몰 456쪽 = 8회차, 아이몰은 그 이상).
+        #
+        # ★ 스스로 멈추는 조건이 셋이다 — 끝없이 도는 일이 없다:
+        #   ① 「더 있음」이 꺼지면 멈춘다(다 걸었다)
+        #   ② **새로 걷은 것이 0이면 멈춘다** — 더 있다고 하는데 안 늘면 그건
+        #      「같은 쪽 헛돌기」이거나 이미 다 가진 것이다. 계속 두들기지 않는다
+        #   ③ 필터를 꺼 두면(enabled=False) 예약하지 않는다
+        # 🔴 ②가 핵심 안전장치다. 이게 없으면 소싱처가 늘 「더 있다」고 답할 때
+        #   영원히 두들겨 차단당한다.
+        if (f.last_capped and new_n > 0 and bool(getattr(f, 'enabled', True))
+                and not (body.get('error') or '').strip()):
+            f.run_requested_at = now          # 곧바로 이어서
         s.commit()
         return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
                         'new': new_n})
@@ -3101,11 +3120,30 @@ def get_option_payload_preview(gid: int):
                 .filter(Option.model_code.in_(model_codes))
                 .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
                 .all()) if model_codes else []
+        # 🔴 [2026-08-13] `model_name` 을 같이 싣는다 — 모델 축(3축)의 **값**이다.
+        #   `model_code` 는 묶음 코드(U…)라 옵션마다 똑같아서, 축을 3개로 늘려도
+        #   셋째 칸에 넣을 값이 없었다(실측: 두 줄이 한 줄로 접힘).
+        #   값은 `Option.axis_values_json` 에 이미 있었고 **가리킬 이름이 없었을 뿐**이다.
+        #   축 이름은 저장된 단계 설계에서 읽는다 — 새 칸을 만들지 않는다.
+        from lemouton.sourcing.models import BundleOptionStep
+        from lemouton.matrix.option_name import model_name_of
+        nm_by_code = {m.model_code: (m.model_name_display or m.model_name_raw
+                                     or m.model_code) for m in g.models}
+        ax_by_code: dict[str, list[str]] = {}
+        if model_codes:
+            for code, axis_name in (s.query(BundleOptionStep.model_code,
+                                            BundleOptionStep.axis_name)
+                                    .filter(BundleOptionStep.model_code.in_(model_codes))
+                                    .order_by(BundleOptionStep.model_code,
+                                              BundleOptionStep.step_no).all()):
+                ax_by_code.setdefault(code, []).append(axis_name)
         opt_dicts = [{
             'canonical_sku': o.canonical_sku,
             'color_code': o.color_code,
             'size_code': o.size_code,
             'model_code': o.model_code,
+            'model_name': model_name_of(nm_by_code.get(o.model_code, ''), o,
+                                        ax_by_code.get(o.model_code) or []),
         } for o in opts]
         try:
             payloads = build_payloads_for_group(cfg, opt_dicts)
@@ -3769,15 +3807,6 @@ def bundle_options_combo(code: str):
         return _err('steps(단계 설계)가 필요해요.')
     if len(steps) > 3:
         return _err('단계는 최대 3개까지예요.')
-    # 🔴 [2026-08-13 감사] 축이 **실제로 저장되는 곳은 여기**다. 만들기 창의 프리셋만
-    #   막아 두면 큰 창에서 축 이름을 고쳐 그대로 빠져나간다(감사 실측: 200 으로 저장됨).
-    #   모델 축은 값을 담을 칸이 없어 마켓 옵션 이름이 겹친다 — 두 입구가 같은 함수를 쓴다.
-    #   ※ 프리셋 전체를 여기서 강제하지는 않는다 — 축 이름 자유는 설계서 §5.1 이고,
-    #     라이브에 「단계1·단계2」 매트릭스가 실재해 그것까지 막으면 저장이 죽는다.
-    from webapp.routes.optgen import BLOCKED_AXIS_REASON, blocked_axis
-    if blocked_axis([(st or {}).get('axis_name') for st in steps
-                     if isinstance(st, dict)]):
-        return _err(BLOCKED_AXIS_REASON)
 
     from lemouton.sourcing.option_service import create_combination_options
     s = SessionLocal()
