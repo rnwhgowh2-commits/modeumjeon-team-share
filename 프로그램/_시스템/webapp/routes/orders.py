@@ -1580,7 +1580,12 @@ def settle_plan_detail():
             continue
         evs = r["events"]
         row = ln["row"]
-        if category in ("risk", "paid"):
+        # 🔴 [2026-08-13] `returned` 도 여기다 — **부류**이지 이벤트 표식이 아니다.
+        #   아래 `elif` 는 `bucket == category` 로 거르는데, 반품비 이벤트의 bucket 은
+        #   confirmed/overdue/undated 라서 `bucket=='returned'` 인 이벤트가 **하나도 없다**.
+        #   그대로 뒀으면 카드는 금액을 보여 주는데 눌러도 목록이 **영영 0건**이었다
+        #   (이 저장소가 겪은 「KPI 5.5억 · 목록 0건」과 같은 부류의 사고).
+        if category in ("risk", "returned", "paid"):
             if cat != category:
                 continue
             # 🔴 [2026-08-12 노션 c-2] 「받은 이력」 칸을 눌렀을 때 그 칸의 주문만 준다.
@@ -1739,7 +1744,12 @@ def settle_plan_export():
         if not amount:
             continue
         evs = r["events"]
-        if category in ("risk", "paid"):
+        # 🔴 [2026-08-13] `returned` 도 여기다 — **부류**이지 이벤트 표식이 아니다.
+        #   아래 `elif` 는 `bucket == category` 로 거르는데, 반품비 이벤트의 bucket 은
+        #   confirmed/overdue/undated 라서 `bucket=='returned'` 인 이벤트가 **하나도 없다**.
+        #   그대로 뒀으면 카드는 금액을 보여 주는데 눌러도 목록이 **영영 0건**이었다
+        #   (이 저장소가 겪은 「KPI 5.5억 · 목록 0건」과 같은 부류의 사고).
+        if category in ("risk", "returned", "paid"):
             if cat != category:
                 continue
         else:

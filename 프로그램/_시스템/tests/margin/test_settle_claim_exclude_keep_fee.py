@@ -180,3 +180,23 @@ def test_줄_만드는_곳이_클레임을_이어_준다():
     i = src.index("def _settle_plan_lines")
     blk = src[i:i + 1600]
     assert "annotate_claims" in blk
+
+
+def test_반품교환완료_칸을_누르면_목록이_뜬다(monkeypatch):
+    """🔴 내 앞 커밋의 결함 — 눌러도 **영영 0건**이었다.
+
+    드릴다운은 `bucket == category` 로 거른다. 그런데 반품비 이벤트의 bucket 은
+    confirmed/overdue/undated 라서 `bucket == 'returned'` 인 이벤트가 **하나도 없다**.
+    `returned` 는 이벤트 표식이 아니라 **부류**다 — risk·paid 와 같은 자리에서 걸러야 한다.
+    (이 저장소가 예전에 겪은 「KPI 는 5.5억인데 목록은 0건」과 같은 부류의 사고다.)
+    """
+    import pathlib
+    import webapp.routes.orders as om
+    src = pathlib.Path(om.__file__).read_text(encoding="utf-8")
+    # 🔴 **두 곳** 다 본다 — 화면 목록과 엑셀 내보내기가 같은 줄을 따로 갖고 있다.
+    #   한 곳만 고치면 「화면엔 뜨는데 엑셀엔 없다」가 된다.
+    for fn in ("def settle_plan_detail", "def settle_plan_export"):
+        i = src.index(fn)
+        blk = src[i:i + 4500]
+        assert 'category in ("risk", "returned", "paid")' in blk, (
+            f"{fn} 에서 returned 가 부류 자리에서 안 걸러진다 — 목록이 영영 비어 있다")
