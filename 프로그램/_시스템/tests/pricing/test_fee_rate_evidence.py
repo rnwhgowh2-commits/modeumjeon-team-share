@@ -31,42 +31,44 @@ def test_모든_마켓이_근거를_들고_있다():
         assert RATE_EVIDENCE[market].get('source'), f'{market}: source 가 비었다'
 
 
-def test_롯데온은_알려진_불일치를_숨기지_않는다():
-    ev = RATE_EVIDENCE['lotteon']
-    assert ev.get('disagrees_with'), '롯데온 18% 와 실정산 공식의 어긋남이 안 적혀 있다'
-    assert '13' in str(ev['disagrees_with']), '어긋나는 값(13%)이 안 적혀 있다'
+def test_확정된_요율은_실측으로_적혀_있다():
+    """🔴 [2026-08-13] 롯데온·11번가는 사장님이 확정해 주셨다 — 근거가 생겼다.
+
+    전에는 둘 다 「구두 전달」이었고 롯데온은 실정산 공식과 **어긋나** 있었다
+    (18% vs 13+3.3+2). 그 어긋남을 화면과 이 시험이 드러냈고, 사장님이 13% 로
+    확정해 주시면서 해소됐다. 이제 근거표도 그렇게 말해야 한다.
+    """
+    for market in ('lotteon', 'eleven11'):
+        ev = RATE_EVIDENCE[market]
+        assert ev['kind'] == 'measured', f'{market} 은 이제 확정된 값이다'
+        assert not ev.get('disagrees_with'),             f'{market} 에 해소된 어긋남이 아직 적혀 있다 — 낡은 경고는 진짜 경고를 가린다'
+        assert '2026-08-13' in ev['source'], '언제 확정됐는지 안 적혀 있다'
 
 
 def test_근거가_실측인지_말뿐인지_구분한다():
-    """🔴 「사장님이 불러 준 값」과 「실정산 대조로 확인」은 무게가 다르다."""
+    """🔴 「사장님이 불러 준 값」과 「대조로 확인」은 무게가 다르다."""
     kinds = {ev.get('kind') for ev in RATE_EVIDENCE.values()}
     assert kinds <= {'measured', 'stated', 'unknown'}, f'모르는 근거 종류: {kinds}'
-    assert RATE_EVIDENCE['lotteon']['kind'] != 'measured', \
-        '18% 는 실측이 아니다 — 실측된 것은 13+3.3+2 쪽이다'
 
 
 def test_실정산_공식과_대조한다():
-    """🔴 근거 문서가 아니라 **코드**와 맞대 본다 — 문서는 낡는다."""
+    """🔴 근거 문서가 아니라 **코드**와 맞대 본다 — 문서는 낡는다.
+
+    롯데온 직영(롯데ON 직접 유입) 주문의 상품 실효 요율 = 판매가가 쓰는 값.
+    """
     from lemouton.margin.lotteon_settlement import compute_settlement
 
     상품가 = 100_000
-    # 제휴 켠 주문(사장님: 우리는 항상 켠다) — 배송비 0 으로 두면 상품 요율만 남는다
-    정산 = compute_settlement(상품가, 0, 0, 0, 0, True)
-    실효 = (상품가 - 정산) / 상품가 * 100
-    assert abs(실효 - 15.0) < 0.01, f'실정산 공식의 상품 실효 요율이 15%가 아니다: {실효}'
-    assert abs(SEED['lotteon']['base_pct'] - 실효) > 1.0, \
-        '어긋남이 사라졌다 — 사장님 확인 후 고쳐졌다면 이 시험과 근거표도 함께 갱신할 것'
+    직영 = compute_settlement(상품가, 0, 0, 0, 0, False)
+    실효 = (상품가 - 직영) / 상품가 * 100
+    assert abs(SEED['lotteon']['base_pct'] - 실효) < 0.01,         f'판매가용 요율이 실정산 공식과 다르다: {SEED["lotteon"]["base_pct"]} vs {실효}'
+
+    # 제휴 경유는 2%p 가 더 붙는다 — 그 사실이 근거표에 적혀 있어야 한다
+    제휴 = compute_settlement(상품가, 0, 0, 0, 0, True)
+    assert (직영 - 제휴) == round(상품가 * 0.02), '제휴 2% 전제가 깨졌다'
 
 
-def test_근거_없는_마켓은_그렇다고_적혀_있다():
+def test_아직_대조_못_한_마켓은_그렇다고_적혀_있다():
     """🔴 「모른다」를 「확인됨」으로 적으면 다음 사람이 그 위에 집을 짓는다."""
-    for market in ('eleven11', 'auction', 'gmarket'):
-        assert RATE_EVIDENCE[market]['kind'] in ('stated', 'unknown'), \
-            f'{market} 요율은 실측 근거가 없다 — measured 로 적으면 안 된다'
-
-
-def test_판매가_영향이_숫자로_적혀_있다():
-    """사장님이 판단하시려면 「얼마나 차이 나나」가 있어야 한다."""
-    note = str(RATE_EVIDENCE['lotteon'].get('impact') or '')
-    assert '%' in note and any(c.isdigit() for c in note), \
-        '판매가가 얼마나 차이 나는지 안 적혀 있다'
+    for market in ('auction', 'gmarket'):
+        assert RATE_EVIDENCE[market]['kind'] in ('stated', 'unknown'),             f'{market} 은 아직 정산 공식으로 대조하지 못했다'

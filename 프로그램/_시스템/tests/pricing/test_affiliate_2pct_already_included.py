@@ -5,16 +5,16 @@
 들어가서 제휴 여부로 판단하고 있어」 (2026-08-13)
 
 🔴 조사 결과, 「아직 계산에 안 들어간다」는 표현이 오해를 부른다.
-  `fee_defaults.NOTES` 가 말하듯 **롯데온 18% · 옥션 15% · G마켓 15% 는
-  이미 「제휴 2% 포함」된 값**이다. 여기에 정책의 `fee_add_pct=2` 를 또 더하면
+  옥션 15% · G마켓 15% 는 **이미 「제휴 2% 포함」**된 값이고, 11번가는 미포함이라
+  요율 자체를 13% 로 고쳤다. 어느 쪽이든 정책의 `fee_add_pct=2` 를 **또 더하면**
   수수료가 2%p 과대 계상돼 **판매가가 그만큼 비싸게 나간다**(팔리지 않는 손해).
 
   쿠팡은 등록 API 에 이 개념 자체가 없다.
   스마트스토어 6% 는 항목 합(결제 + 매출연동)이라 연동 몫이 이미 들어 있다.
 
-🔴 **11번가만 근거가 없다.** 11%(1년 이내 8%)에 가격비교 몫이 포함인지
-  확인된 문서가 없다. 모르는 것을 아는 척 더하지 않는다 — 사장님께 여쭙고
-  정해지면 **정책의 수수료율 숫자 자체**를 고친다(계산이 쓰는 값은 언제나
+🔴 **11번가는 미포함이었다** — 사장님 확정(2026-08-13) 「11%(1년 이내 8%)이고
+  가격비교 노출 2% 는 미포함」. 그래서 정책 칸에서 더하는 게 아니라
+  **요율 숫자 자체를 13%(1년 이내 10%)로 고쳤다** (계산이 쓰는 값은 언제나
   정책에 저장된 숫자 하나다 — `fee_defaults` 모듈 주석).
 """
 import pytest
@@ -23,8 +23,13 @@ from lemouton.pricing.fee_defaults import AFFILIATE_IN_BASE, affiliate_note
 
 
 def test_이미_포함된_마켓을_데이터로_안다():
-    """🔴 코드 여기저기에 「롯데온은 포함」이라고 적어 두면 반드시 갈린다."""
-    for m in ('lotteon', 'auction', 'gmarket'):
+    """🔴 코드 여기저기에 적어 두면 반드시 갈린다.
+
+    🔴 [2026-08-13] 11번가가 **미포함**으로 확인되면서 요율 자체를 13%(10%)로
+      고쳤다 — 그래서 이제 「포함」이다. 값을 표에 적는 게 아니라 요율을 고치는 것이
+      이 저장소의 규약이다(계산이 쓰는 값은 언제나 숫자 하나).
+    """
+    for m in ('eleven11', 'auction', 'gmarket'):
         assert AFFILIATE_IN_BASE.get(m) is True, f'{m} 은 이미 포함이다'
 
 
@@ -32,9 +37,15 @@ def test_쿠팡은_개념_자체가_없다():
     assert AFFILIATE_IN_BASE.get('coupang') is False
 
 
-def test_11번가는_모른다고_말한다():
-    """🔴 True/False 로 단정하지 않는다 — 근거가 없다."""
-    assert AFFILIATE_IN_BASE.get('eleven11') is None
+def test_롯데온_13퍼센트는_판매수수료뿐이다():
+    """🔴 제휴 2% 는 **제휴 경유 주문에만** 따로 붙는다 — 13% 안에 없다.
+
+    그래도 정책 칸에서 더하지 않는다(사장님이 13% 로 확정). 실제 마진은
+    정산 실값이 잡는다. 「포함」으로 적어 두면 다음 사람이 2% 를 잊는다.
+    """
+    assert AFFILIATE_IN_BASE.get('lotteon') is False
+    got = affiliate_note('lotteon')
+    assert '제휴' in got and '2' in got, got
 
 
 def test_기존_NOTES_와_어긋나지_않는다():
@@ -45,13 +56,13 @@ def test_기존_NOTES_와_어긋나지_않는다():
             assert AFFILIATE_IN_BASE.get(m) is True, f'{m}: NOTES 와 표가 어긋난다'
 
 
-def test_모르는_마켓엔_안내가_모른다고_적힌다():
+def test_확정된_마켓은_포함이라고_말한다():
     got = affiliate_note('eleven11')
-    assert got and ('확인' in got or '모' in got), got
+    assert got and ('이미' in got or '포함' in got), got
 
 
 def test_이미_포함된_마켓은_더하지_말라고_말한다():
-    got = affiliate_note('lotteon')
+    got = affiliate_note('auction')
     assert got and ('이미' in got or '포함' in got), got
     assert '더하' in got or '중복' in got or '이중' in got, \
         '또 더하면 안 된다는 말이 없다'
