@@ -1,0 +1,192 @@
+=== /apis[29]
+{
+ "id": "lotteon.settlement.integrated",
+ "market": "lotteon",
+ "fnKey": "settlement.integrated",
+ "tabs": [
+  "정산"
+ ],
+ "category": "정산",
+ "nm": "중개셀러 통합정보",
+ "dir": "recv",
+ "st": "code",
+ "endpoint": "POST https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleItmdSales",
+ "req": {
+  "method": "POST",
+  "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleItmdSales",
+  "params": [
+   "startDate*:시작일(yyyymmdd)",
+   "endDate*:종료일(yyyymmdd)"
+  ]
+ },
+ "res": {
+  "note": "data[] 배열 — 매출유형 중개는 구매확정건, 정산기준일=구매확정일"
+ },
+ "fields": [
+  {
+   "key": "salesTypCd",
+   "meaning": "매출유형[A중개/B위탁/D직매입]",
+   "example": ""
+  },
+  {
+   "key": "trNo",
+   "meaning": "거래처번호",
+   "example": ""
+  },
+  {
+   "key": "trCtrtNo",
+   "meaning": "거래처계약번호",
+   "example": ""
+  },
+  {
+   "key": "lrtrNo",
+   "meaning": "하위거래처번호",
+   "example": ""
+  },
+  {
+   "key": "bizpRegNo",
+   "meaning": "사업자등록번호",
+   "example": ""
+  },
+  {
+   "key": "trNm",
+   "meaning": "거래처명",
+   "example": ""
+  },
+  {
+   "key": "tdfDvsCd",
+   "meaning": "과면세[01과세/02면세/03영세/04해당없음]",
+   "example": ""
+  },
+  {
+   "key": "seStdDt",
+   "meaning": "정산기준일자",
+   "example": ""
+  },
+  {
+   "key": "odNo",
+   "meaning": "주문번호",
+   "example": ""
+  },
+  {
+   "key": "odSeq",
+   "meaning": "주문순번(단품별)",
+   "example": ""
+  },
+  {
+   "key": "procSeq",
+   "meaning": "처리순번(최초1·클레임시+1)",
+   "example": ""
+  },
+  {
+   "key": "sbtAmt",
+   "meaning": "차감총금액(업체+상품차감)",
+   "example": ""
+  },
+  {
+   "key": "crdayDpst",
+   "meaning": "적립예치금(지급대상금액 합)",
+   "example": ""
+  },
+  {
+   "key": "fnlDpst",
+   "meaning": "최종예치금(현재시점)",
+   "example": ""
+  },
+  {
+   "key": "scatNm",
+   "meaning": "표준카테고리명",
+   "example": ""
+  },
+  {
+   "key": "slQty",
+   "meaning": "판매건수",
+   "example": ""
+  },
+  {
+   "key": "slAmt",
+   "meaning": "판매단가",
+   "example": ""
+  },
+  {
+   "key": "slrDcAmt",
+   "meaning": "셀러즉시할인",
+   "example": ""
+  },
+  {
+   "key": "pdDcOcoAmt",
+   "meaning": "상품할인(이커머스부담)",
+   "example": ""
+  },
+  {
+   "key": "pdDcSlrAmt",
+   "meaning": "상품할인(셀러부담)",
+   "example": ""
+  },
+  {
+   "key": "dvSeAmt",
+   "meaning": "배송비정산대상",
+   "example": ""
+  },
+  {
+   "key": "dvDcOcoAmt",
+   "meaning": "배송비할인(이커머스부담)",
+   "example": ""
+  },
+  {
+   "key": "dvDcSlrAmt",
+   "meaning": "배송비할인(셀러부담)",
+   "example": ""
+  },
+  {
+   "key": "bseCmsn",
+   "meaning": "기본수수료",
+   "example": ""
+  },
+  {
+   "key": "pcsCmsn",
+   "meaning": "PCS수수료",
+   "example": ""
+  },
+  {
+   "key": "dvCmsn",
+   "meaning": "배송비수수료",
+   "example": ""
+  },
+  {
+   "key": "ajstDcAmt",
+   "meaning": "조정(할인)",
+   "example": ""
+  },
+  {
+   "key": "pymtAmt",
+   "meaning": "지급대상금액",
+   "example": ""
+  },
+  {
+   "key": "pyDttm",
+   "meaning": "결제일",
+   "example": ""
+  },
+  {
+   "key": "dvDttm",
+   "meaning": "배송완료일",
+   "example": ""
+  },
+  {
+   "key": "purDttm",
+   "meaning": "구매확정일",
+   "example": ""
+  },
+  {
+   "key": "rtngDttm",
+   "meaning": "반품완료일",
+   "example": ""
+  }
+ ],
+ "success": "returnCode=SUCCESS/0000 & data. 리턴코드 2000 거래처번호·2001 시작일·2002 종료일 필수. HTTP 401·403·404·429·500.",
+ "idTraps": [],
+ "persistIds": [],
+ "codeRef": "",
+ "docApiNo": 279
+}

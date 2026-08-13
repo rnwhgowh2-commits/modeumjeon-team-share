@@ -1430,11 +1430,17 @@ def _settle_plan_lines(markets=None):
         q = s.query(MarketOrderLine).filter(MarketOrderLine.order_date >= lo)
         if markets:
             q = q.filter(MarketOrderLine.market.in_(list(markets)))
-        return [{"row": dict(o.row or {}), "market": o.market,
-                 "account": o.account or "", "status_at": o.status_at}
-                for o in q.all()]
+        lines = [{"row": dict(o.row or {}), "market": o.market,
+                  "account": o.account or "", "status_at": o.status_at}
+                 for o in q.all()]
     finally:
         s.close()
+    # 🔴 [2026-08-13] 클레임 행을 **주문번호로 원래 주문행에 이어** 표식을 남긴다.
+    #   여기서 하는 이유 — 이 함수가 정산예정금액의 **유일한 줄 만드는 곳**이다.
+    #   집계·드릴다운·엑셀이 전부 여기를 지나므로 한 곳만 손대면 셋이 절대 안 갈린다.
+    #   (예전에 판정이 두 곳에 흩어져 「KPI 5.5억 · 목록 0건」이 라이브에 나갔다.)
+    from lemouton.margin import settle_plan as _sp
+    return _sp.annotate_claims(lines)
 
 
 @bp.route('/api/settle-plan')
@@ -1695,11 +1701,14 @@ def _settle_plan_detail_order(SP, market, account, bucket, unit):
 
 #: 내보내기·목록이 함께 쓰는 부류 이름 — 한 곳에서만 정의(둘이 갈리면 조용히 어긋난다)
 _SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "not_started", "undated",
-                  "assumed_paid", "risk", "paid")
+                  # 🔴 [2026-08-13] returned = 반품·교환이 **끝난** 주문. 받을 돈에서
+                  #   빼되 숨기지 않는다(반품비만 총액에 남는다).
+                  "assumed_paid", "risk", "returned", "paid")
 _SP_CAT_KO = {"confirmed": "확정예정", "unconfirmed": "미확정예정",
               "overdue": "입금일지남", "not_started": "정산시작전",
               "undated": "받는날미정",
-              "assumed_paid": "이미받았을것", "risk": "반품취소진행", "paid": "이미받음"}
+              "assumed_paid": "이미받았을것", "risk": "반품취소진행",
+              "returned": "반품교환완료", "paid": "이미받음"}
 
 
 @bp.route('/api/settle-plan/export.xlsx')
