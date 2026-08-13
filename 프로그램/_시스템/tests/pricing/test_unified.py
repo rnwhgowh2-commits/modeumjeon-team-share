@@ -304,7 +304,7 @@ def test_known_markets_still_resolve():
 def test_new_market_fee_defaults_are_owner_specified():
     """가격 정책(PriceTemplate)의 초기값 = 사장님이 준 마켓별 요율.
 
-    2026-08-13 사장님 재확정: 스스 6 · 쿠팡 11.55 · **롯데온 13** ·
+    2026-08-13 사장님 재확정: 스스 6 · 쿠팡 11.55 · **롯데온 15**(판매 13 + 유입 2) ·
     **11번가 13**(계약 11 + 늘 켜는 가격비교 2 · 1년 이내 계정이면 10) ·
     옥션 15 · G마켓 15.
     (08-02 의 롯데온 18 은 어디서도 뒷받침되지 않아 실정산 공식(0.13)으로 바로잡음)
@@ -340,9 +340,9 @@ def test_all_markets_resolve_policy():
 #: 사장님 확정 2026-08-02 — 마켓별 실제 수수료율.
 #:   스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함) · 11번가 11(1년 이내 계정이면 8) ·
 #:   옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함)
-#:   🔴 [2026-08-13 재확정] 롯데온 0.18 → **0.13**(실정산 공식과 같은 값) ·
+#:   🔴 [2026-08-13 재확정] 롯데온 0.18 → **0.15**(판매 13 + 유입 2) ·
 #:     11번가 0.11 → **0.13**(계약 11% + 늘 켜는 가격비교 2%, 1년 이내는 0.10)
-OWNER_FEES = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.13,
+OWNER_FEES = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.15,
               'eleven11': 0.13, 'auction': 0.15, 'gmarket': 0.15}
 
 
@@ -366,7 +366,7 @@ def test_화면이_보는_퍼센트와_계산이_보는_소수가_같다():
         assert default_fee_pct(market) == round(default_fee_rate(market) * 100, 4)
     assert default_fee_pct('coupang') == 11.55, '쿠팡 소수점이 잘렸다'
     # 🔴 [2026-08-13 재확정] 롯데온 18 → 13 · 11번가 11 → 13
-    assert default_fee_pct('lotteon') == 13.0
+    assert default_fee_pct('lotteon') == 15.0
     assert default_fee_pct('eleven11') == 13
 
 

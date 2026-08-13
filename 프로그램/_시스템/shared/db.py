@@ -720,7 +720,7 @@ def _apply_lightweight_migrations() -> None:
         # 🔴 씨앗(fee_defaults.SEED)만 고치면 **이미 심긴 행은 안 바뀐다.** 그래서
         #   여기서 한 번 정정한다. 두 번 돌아도 안전하다(옛 값이 아니면 안 건드림).
         for _mk, _old, _new, _oa, _na in (
-                ('lotteon', 18.0, 13.0, None, None),
+                ('lotteon', 18.0, 15.0, None, None),
                 ('eleven11', 11.0, 13.0, 8.0, 10.0)):
             try:
                 conn.execute(

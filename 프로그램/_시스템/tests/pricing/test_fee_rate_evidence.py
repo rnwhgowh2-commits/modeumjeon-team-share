@@ -54,17 +54,17 @@ def test_근거가_실측인지_말뿐인지_구분한다():
 def test_실정산_공식과_대조한다():
     """🔴 근거 문서가 아니라 **코드**와 맞대 본다 — 문서는 낡는다.
 
-    롯데온 직영(롯데ON 직접 유입) 주문의 상품 실효 요율 = 판매가가 쓰는 값.
+    롯데온 **제휴 경유** 주문의 상품 실효 요율 = 판매가가 쓰는 값(늘 켜므로).
     """
     from lemouton.margin.lotteon_settlement import compute_settlement
 
     상품가 = 100_000
-    직영 = compute_settlement(상품가, 0, 0, 0, 0, False)
-    실효 = (상품가 - 직영) / 상품가 * 100
+    제휴 = compute_settlement(상품가, 0, 0, 0, 0, True)     # 늘 켜는 쪽이 기준
+    실효 = (상품가 - 제휴) / 상품가 * 100
     assert abs(SEED['lotteon']['base_pct'] - 실효) < 0.01,         f'판매가용 요율이 실정산 공식과 다르다: {SEED["lotteon"]["base_pct"]} vs {실효}'
 
-    # 제휴 경유는 2%p 가 더 붙는다 — 그 사실이 근거표에 적혀 있어야 한다
-    제휴 = compute_settlement(상품가, 0, 0, 0, 0, True)
+    # 직영(롯데ON 직접 유입)은 제휴 2%p 가 안 붙는다
+    직영 = compute_settlement(상품가, 0, 0, 0, 0, False)
     assert (직영 - 제휴) == round(상품가 * 0.02), '제휴 2% 전제가 깨졌다'
 
 

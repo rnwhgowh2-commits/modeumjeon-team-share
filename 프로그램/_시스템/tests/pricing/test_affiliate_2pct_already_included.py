@@ -29,7 +29,7 @@ def test_이미_포함된_마켓을_데이터로_안다():
       고쳤다 — 그래서 이제 「포함」이다. 값을 표에 적는 게 아니라 요율을 고치는 것이
       이 저장소의 규약이다(계산이 쓰는 값은 언제나 숫자 하나).
     """
-    for m in ('eleven11', 'auction', 'gmarket'):
+    for m in ('lotteon', 'eleven11', 'auction', 'gmarket'):
         assert AFFILIATE_IN_BASE.get(m) is True, f'{m} 은 이미 포함이다'
 
 
@@ -37,15 +37,17 @@ def test_쿠팡은_개념_자체가_없다():
     assert AFFILIATE_IN_BASE.get('coupang') is False
 
 
-def test_롯데온_13퍼센트는_판매수수료뿐이다():
-    """🔴 제휴 2% 는 **제휴 경유 주문에만** 따로 붙는다 — 13% 안에 없다.
+def test_롯데온_15퍼센트는_판매13에_유입2를_더한_값이다():
+    """🔴 제휴 2% 는 **제휴 경유 주문에만** 붙는다 — 늘 켜므로 요율에 합쳐 뒀다.
 
-    그래도 정책 칸에서 더하지 않는다(사장님이 13% 로 확정). 실제 마진은
-    정산 실값이 잡는다. 「포함」으로 적어 두면 다음 사람이 2% 를 잊는다.
+    롯데ON 직접 유입 주문은 13% 만 빠져 2%p 더 남는다. 그 사실이 안 적혀 있으면
+    다음 사람이 「늘 15% 빠진다」로 알고 그 위에 집을 짓는다.
     """
-    assert AFFILIATE_IN_BASE.get('lotteon') is False
-    got = affiliate_note('lotteon')
-    assert '제휴' in got and '2' in got, got
+    from lemouton.pricing.fee_defaults import RATE_EVIDENCE, SEED
+    assert SEED['lotteon']['base_pct'] == 15.0
+    note = str(RATE_EVIDENCE['lotteon'].get('note') or '')
+    assert '직접 유입' in note, '직영 주문이 다르다는 말이 없다'
+    assert AFFILIATE_IN_BASE.get('lotteon') is True
 
 
 def test_기존_NOTES_와_어긋나지_않는다():
