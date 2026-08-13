@@ -200,8 +200,13 @@ def crawl_due_listings():
                 #   필터는 `page_urls_for` 가 주소를 그대로 돌려주고 예외를 안 낸다
                 #   → 모르는 소싱처가 그대로 흘러와 **500** 이 난다(폴링 전체가 죽는다).
                 rule = LD.dom_rule_for(f.source_key)
+                # 🔴 **이어서 걷기** — 지난 회차가 「더 있음」이었으면 그 다음 쪽부터.
+                #   한 회차 상한(60쪽)은 소싱처 보호선이라 못 없앤다. 대신 회차를
+                #   거듭해 끝까지 간다(H몰 「나이키 신발」은 456쪽 16,413개다).
+                _cur = getattr(f, 'next_page_from', None)
+                _lo, _hi = LD.window_for(f.page_from, f.page_to, _cur)
                 pages = LD.page_urls_for(f.listing_url, source_key=f.source_key,
-                                         page_from=f.page_from, page_to=f.page_to)
+                                         page_from=_lo, page_to=_hi)
             except ValueError:
                 # 규칙을 모르는 소싱처 — 만들 때 막지만, 옛 데이터가 있을 수 있다.
                 #   조용히 빼면 「눌렀는데 아무 일도 안 남」이 된다. 사유를 실어 보낸다.
@@ -299,6 +304,16 @@ def crawl_listing_result():
         # 「더 있는데 멈췄다」는 실패와 다른 사실이다. 뭉치면 「끝까지 다 봤다」로 읽혀
         # 사장님이 없는 상품을 없다고 믿게 된다.
         f.last_capped = bool(body.get('capped'))
+        # 🔴 **이어서 걷기 위치를 옮긴다.** 「더 있음」이면 다음 회차가 그 다음 창부터
+        #   걷고, 끝까지 걸었으면 처음으로 되돌린다(새 상품은 앞쪽에 들어온다).
+        #   ★ 주소로 쪽을 넘기는 곳만 이어걷기가 된다 — 「다음」 단추로 넘기는 곳은
+        #     늘 1쪽에서 눌러 가야 해서 중간부터 시작할 방법이 없다.
+        if hasattr(f, 'next_page_from'):
+            if LD.can_resume(f.source_key, f.listing_url):
+                f.next_page_from = LD.next_window(
+                    f.page_from, f.page_to, f.next_page_from, more=f.last_capped)
+            else:
+                f.next_page_from = None
         s.commit()
         return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
                         'new': new_n})
