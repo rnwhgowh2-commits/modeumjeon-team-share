@@ -83,6 +83,30 @@ EXTRA_ITEMS: list[dict] = [
              'item_shape': '', 'columns': []},
         ],
     },
+    # ── [2026-08-13 사장님 확정] 자동 가격 조정 — **쿠팡만 해당** ─────────────
+    #   쿠팡 공지(2026-05-22): 상품 생성/수정 API 에 items.autoPricingInfo
+    #   {minSalePrice, active} 가 생겼다. 승인 요청 **전에만** 넣을 수 있고,
+    #   승인 뒤에는 [옵션 단위 가격 변경] API 의 apMinSalePrice·apActive 로 바꾼다.
+    #   🔴 minSalePrice 는 **판매가보다 작아야** 하고, apMinSalePrice·apActive 는
+    #     **함께 보내야** 한다(하나만 보내면 400). 다른 마켓엔 이 칸이 없다.
+    {
+        'key': '_auto_pricing', 'label': '자동 가격 조정',
+        'spec_ref': '쿠팡 items.autoPricingInfo · 공지 2026-05-22',
+        'note': '쿠팡만 있는 항목입니다. 최저가는 판매가보다 낮아야 합니다.',
+        'only': ['coupang'],
+        'fields': [
+            {'key': 'mode', 'label': '자동 가격 조정', 'type': 'choice', 'default': '안 씀',
+             'choices': ['안 씀', '씀 — 최저가를 마진율로 계산', '씀 — 최저가 직접 입력'],
+             'hint': '켜면 쿠팡이 최저가까지 알아서 가격을 내립니다', 'unit': '',
+             'item_shape': '', 'columns': []},
+            {'key': 'min_margin_pct', 'label': '최저 마진율', 'type': 'int', 'default': 0,
+             'choices': [], 'hint': '「마진율로 계산」을 고른 경우에만 씁니다', 'unit': '%',
+             'item_shape': '', 'columns': []},
+            {'key': 'min_price', 'label': '최저 판매가', 'type': 'int', 'default': 0,
+             'choices': [], 'hint': '「직접 입력」을 고른 경우에만 씁니다 — 판매가보다 낮아야 합니다',
+             'unit': '원', 'item_shape': '', 'columns': []},
+        ],
+    },
     {
         'key': '_sell_method', 'label': '판매방식',
         'spec_ref': '엑셀 「상품주요정보」 · 11번가 selMthdCd[필수]',
