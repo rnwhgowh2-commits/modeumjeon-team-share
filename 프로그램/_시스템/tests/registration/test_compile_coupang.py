@@ -21,6 +21,9 @@ class D:
         ], ensure_ascii=False))
         self.delivery_fee = kw.get('delivery_fee', 3000)
         self.return_fee = kw.get('return_fee', 5000)
+        # 🔴 실제 `ProductDraft` 에 있는 칸(default=True)이다. 여기 없으면
+        #   조립기가 그 값을 읽기 시작한 순간 시험만 터진다 — 가짜는 진짜를 닮아야 한다.
+        self.minor_purchasable = kw.get('minor_purchasable', True)
 
 
 VENDOR = {'vendor_id': 'A00012345', 'vendor_user_id': 'lemouton_wing',
@@ -254,3 +257,19 @@ def test_반품지_전화_형식_최소검증():
         compile_coupang(D(), category_code=1, vendor=_v(return_phone='없음'))
     assert '전화' in str(e.value)
     compile_coupang(D(), category_code=1, vendor=_v(return_phone='010-1234-5678'))
+
+
+def test_19세_이상만이_쿠팡_payload_까지_간다():
+    """🔴 [2026-08-13] `adultOnly` 가 'EVERYONE' 으로 **박혀** 있었다.
+
+    정책에서 「19세 이상만」을 고르셔도 무시되고 전연령으로 등록됐다 —
+    성인 상품이면 그대로 미성년자에게 노출된다. 값이 틀린 게 아니라
+    **고른 것이 무시**되던 형태다.
+    """
+    전연령, _ = compile_coupang(D(minor_purchasable=True),
+                                category_code=63951, vendor=VENDOR)
+    성인만, _ = compile_coupang(D(minor_purchasable=False),
+                                category_code=63951, vendor=VENDOR)
+    assert 전연령['items'][0]['adultOnly'] == 'EVERYONE'
+    assert 성인만['items'][0]['adultOnly'] == 'ADULT_ONLY', \
+        '「19세 이상만」이 쿠팡 payload 까지 안 간다'
