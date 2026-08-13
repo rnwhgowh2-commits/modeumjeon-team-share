@@ -90,19 +90,29 @@ def aggregate(result_rows, price_ranges):
     # 금액대는 판매가(수량 반영) 기준 — 버킷 분류 축이므로 정가로 나눈다(매출 기준과 별개).
     df['금액대'] = df['판매가'].apply(_classify)
 
-    # 매출 기준 = 고객 결제금액(실결제+배송비). 판매가(정가)가 아니라 실제 낸 돈.
-    #  사장님 확정 2026-07-25 — per-row(pipeline._recompute_margin_rate)에 이어 집계
-    #  (마켓별·브랜드별·일별…) 매출·마진율도 같은 분모로 통일. 실결제 없으면 판매가 폴백.
-    #  ★화면 집계탭은 이미 saleAmt(실결제+배송비)라, 이 변경으로 엑셀 집계시트가 화면과 맞는다.
+    # 매출 기준 = 정가 + 배송비 − **판매자부담** 할인 (사장님 확정 2026-08-13).
+    #  · 마켓(사이트)이 부담한 할인은 마켓이 대신 내주고 우리는 정가대로 정산받으므로 안 뺀다.
+    #    빼면 매출이 실제보다 작아지고, 분모가 작아져 마진율이 실제보다 높게 보인다.
+    #    라이브 실측 30일: 롯데온 3,205,562원·스스 24,000원이 그렇게 빠지고 있었다.
+    #  · 그 값은 주문내역(order_export)이 `_매출기준액` 한 칸으로 **한 번만** 만든다.
+    #    여기선 다시 계산하지 않고 받아 쓴다 — 두 화면이 각자 계산하면 규약이 바뀐 날
+    #    조용히 갈라진다(2026-07-23 정산액 사고와 같은 함정).
+    #  · 없거나 0(판매자할인 모름·옛 저장분·취소)이면 옛 기준(실결제+배송비)→판매가로 폴백.
+    #  ★per-row 는 pipeline._recompute_margin_rate 가 같은 규칙으로 마진율을 만든다.
     if '배송비' not in df.columns:
         df['배송비'] = 0
     _list = pd.to_numeric(df['판매가'], errors='coerce').fillna(0)
+    _ship = pd.to_numeric(df['배송비'], errors='coerce').fillna(0)
     if '실결제금액' in df.columns:
         _paid = pd.to_numeric(df['실결제금액'], errors='coerce').fillna(0)
-        _ship = pd.to_numeric(df['배송비'], errors='coerce').fillna(0)
-        df['_매출기준'] = (_paid + _ship).where(_paid > 0, _list)
+        _base = (_paid + _ship).where(_paid > 0, _list)
     else:
-        df['_매출기준'] = _list
+        _base = _list
+    if '_매출기준액' in df.columns:
+        _sale = pd.to_numeric(df['_매출기준액'], errors='coerce').fillna(0)
+        df['_매출기준'] = _sale.where(_sale > 0, _base)
+    else:
+        df['_매출기준'] = _base
 
     def _agg(g):
         매출  = g['_매출기준'].sum()
