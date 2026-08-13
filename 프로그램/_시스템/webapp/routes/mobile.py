@@ -531,14 +531,15 @@ def api_action():
       sku: str (canonical_sku),
       action: 'in' | 'out' | 'adjust',
       location_id: int,
-      qty: int,                # in/out: +qty / adjust: 새 절대값
+      qty: int,                # in/out: +qty / adjust: 세어 본 결과 수량
       memo: str (optional),
     }
 
     조정 (adjust):
-      - 「실사해 보니 qty 개」 — 원장에 **센 수(절대값)** 를 그대로 적는다
-        (2026-08-13 통일. 규칙 원천 = shared/inventory_stock.py `fold_tx_rows`)
-      - 응답의 applied_qty 는 **얼마나 바뀌었나**(qty − 현재재고)
+      - 받는 값은 「실사해 보니 qty 개」(결과 수량) — 작업자가 뺄셈하지 않는다
+      - 원장에는 **그 차이(qty − 현재재고)** 를 남긴다
+        (규칙 원천 = shared/inventory_stock.py `fold_tx_rows` — `adjust → total += q`)
+      - 응답의 applied_qty 도 그 차이다
     """
     data = request.get_json(silent=True) or {}
     sku = (data.get("sku") or "").strip()
@@ -584,26 +585,25 @@ def api_action():
             tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
-            # 🔴 조정은 **결과 수량(절대값)으로 저장한다** — 「실사해 보니 N개였다」.
+            # 🔴 조정은 **차이값(증감분)으로 저장한다** — 사장님 확정(2026-08-13).
             #   쓰는 곳 셋이 **모두 같은 뜻**이어야 한다(그래야 읽는 쪽이 옳을 수 있다):
-            #     · lemouton/inventory/inbound.create_adjustment  → 절대값 (ADR-002)
-            #     · webapp/routes/api_inventory_link              → 절대값
-            #     · 여기(모바일)                                   → 절대값  ← 이 줄
-            #   읽는 쪽 정본은 `shared.inventory_stock.fold_tx_rows` (`adjust → total = q`).
+            #     · lemouton/inventory/inbound.create_adjustment  → qty=delta
+            #     · webapp/routes/api_inventory_link              → qty=diff
+            #     · 여기(모바일)                                   → qty−현재재고  ← 이 줄
+            #   읽는 쪽 정본 = `shared.inventory_stock.fold_tx_rows` (`adjust → total += q`).
+            #   받는 값은 그대로 「세어 보니 N개」다 — 작업자에게 뺄셈을 시키지 않는다.
             #
             #   ⚠️ 2026-08-13 이 한 줄이 하루에 **세 번** 뒤집혔다(재고 4 → 6 → 4).
-            #     전부 「에러 없이 숫자만 틀리는」 사고였고, 원인은 매번 같았다 —
-            #     **쓰는 곳 세 개를 다 안 보고** 문서 한 곳만 보고 맞췄기 때문이다.
-            #   🔴 여기를 고치려거든 위 **세 곳을 한꺼번에** 보라. 한 곳만 바꾸면 같은
-            #     표의 같은 종류 행이 두 가지 뜻을 갖고, 그 순간 어느 읽는 쪽도 옳을 수
-            #     없다. `tests/inventory/test_adjust_writer_consistency.py` 가 세 곳을
-            #     한꺼번에 잡는다 — 이 뒤집기를 끝내려고 만든 시험이다.
+            #     전부 「에러 없이 숫자만 틀리는」 사고였다.
+            #   🔴 고치려거든 위 **세 곳을 한꺼번에** 보라. 한 곳만 바꾸면 같은 표의 같은
+            #     종류 행이 두 가지 뜻을 갖고, 그 순간 어느 읽는 쪽도 옳을 수 없다.
+            #     `tests/inventory/test_adjust_writer_consistency.py` 가 세 곳을 같이 잡는다.
             from shared.inventory_stock import get_stock_batch
             current = int(get_stock_batch(s, [sku], location_id=location_id).get(sku, 0))
-            delta = int(qty) - current          # 사람에게 보여줄 변화량(저장값 아님)
+            delta = int(qty) - current
             if delta == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
-            tx_qty = int(qty) - current         # 저장 = 차이값(정본 fold_tx_rows 규약)
+            tx_qty = int(qty) - current          # 저장 = 차이값(정본과 같은 뜻)
             tx_memo = memo or f"[모바일 조정] {current} → {qty}"
 
         tx = InventoryTx(

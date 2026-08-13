@@ -223,7 +223,13 @@
         <div class="sf-num"><div class="sf-n new">${neu}</div><div class="sf-l">새 것</div></div>
         <div class="sf-num"><div class="sf-n made">${made}</div><div class="sf-l">상품</div></div>
         <div class="sf-when">${esc(ago(f.last_run_at))}${
-          f.last_ext_version ? `<div style="font-size:10px;opacity:.7">확장 ${esc(f.last_ext_version)}</div>` : ''
+          f.next_page_from ? `<div style="font-size:10px;opacity:.85" title="한 번에 걸을 수 있는 쪽 수가 정해져 있어(소싱처 보호) 나눠 걷습니다. 「지금 수집」을 다시 누르면 이어서 걷습니다.">이어서 ${f.next_page_from}쪽부터</div>` : ''
+        }${
+          f.last_ext_version ? (
+            (f.ext_version_expected && f.ext_version_expected !== f.last_ext_version)
+              ? `<div style="font-size:10px;color:var(--warn,#b26a00)" title="크롬이 읽는 확장 폴더를 새 판으로 맞춘 뒤 chrome://extensions 에서 ↻ 를 눌러야 바뀝니다. 폴더를 안 맞추고 누르면 아무 일도 일어나지 않습니다.">확장 ${esc(f.last_ext_version)} · 새 판 ${esc(f.ext_version_expected)} 있음</div>`
+              : `<div style="font-size:10px;opacity:.7">확장 ${esc(f.last_ext_version)}</div>`
+          ) : ''
         }</div>
         <div class="sf-act">
           <button class="sf-btn" data-run="${f.id}" ${running ? 'disabled' : ''}>
