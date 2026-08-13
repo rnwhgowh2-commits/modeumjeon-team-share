@@ -1,19 +1,28 @@
 # -*- coding: utf-8 -*-
-"""크롬에 **실제로 로드된** 확장 폴더를 origin/main 판으로 맞춘다.
+"""크롬에 **실제로 로드된** 확장 폴더를 저장소와 맞춘다.
 
-━━ 왜 이 스크립트가 있나 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-크롬이 읽는 폴더는 저장소가 아니라 **데스크톱의 별도 사본**이다. 그래서 배포를
-끝내도 그 폴더를 손으로 바꾸지 않으면 사장님이 `chrome://extensions` 에서 ↻ 를
-눌러도 **옛 판 그대로**다. 2026-08-08 이걸로 두 번 헛걸음했다.
+━━ 🎉 [2026-08-13] 이제 **연결(junction)** 이라 맞출 것이 없다 ━━━━━━━━━━━
+크롬이 읽는 폴더를 **저장소 폴더를 가리키는 연결**로 바꿨다. 사본이 아니라
+**같은 폴더**다. 그래서 코드를 고치면 `chrome://extensions` 의 ↻ 만 누르면
+**바로 반영**된다 — 복사 단계가 아예 사라졌다.
+
+  로드 폴더  C:\\Users\\seung\\Desktop\\moum-crawler-v0.7.63
+     ↓ 연결(junction)
+  저장소     C:\\dev\\_wt_bulksafe\\프로그램\\_시스템\\extension\\moum-crawler
+
+━━ 왜 이렇게까지 했나 (사본이던 시절의 사고) ━━━━━━━━━━━━━━━━━━━━━━━━
+사본이면 배포를 끝내도 그 폴더를 손으로 바꾸지 않는 한 ↻ 를 눌러도 **옛 판
+그대로**다. 이걸로 **네 번** 헛걸음했다.
 
   · 1차 — 배포는 됐는데 폴더가 0.7.88 이라 ↻ 가 무의미
   · 2차 — 새 판(0.7.93·0.7.94)을 만들어 놓고 폴더 교체를 잊음
+  · 3차 — 머지 전이라 폴더에 새 판이 아직 없었는데 ↻ 를 부탁함
+  · 4차 — 같은 일 반복. 사장님이 「새로고침해도 안 올라가」
 
-🔴 **「↻ 를 눌러 주세요」라고 말하기 전에 반드시 이 스크립트를 돌린다.**
-  안 그러면 사장님은 눌러도 아무 일이 없고, 나는 코드를 의심하며 헤맨다.
+★ 사람이 기억해야 하는 절차는 언젠가 잊힌다 — **절차 자체를 없앴다.**
 
 사용:
-    python scripts/sync_loaded_extension.py           # 맞추기
+    python scripts/sync_loaded_extension.py           # 상태 보기(연결이면 할 일 없음)
     python scripts/sync_loaded_extension.py --check   # 어긋났는지 보기만
 """
 from __future__ import annotations
@@ -93,12 +102,33 @@ def _ver(text: str, name: str) -> str:
     return m.group(1) if m else '?'
 
 
+def _is_junction(p: Path) -> bool:
+    """로드 폴더가 **저장소를 가리키는 연결**인가.
+
+    윈도우의 junction 은 `os.path.islink` 가 False 를 돌려준다(심볼릭 링크가
+    아니라 재파싱 지점이라서). `st_reparse_tag` 로 봐야 한다.
+    """
+    import stat
+    try:
+        return bool(p.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    except Exception:       # noqa: BLE001 — 윈도우가 아니거나 못 읽으면 사본으로 본다
+        return False
+
+
 def main() -> int:
     check_only = '--check' in sys.argv
     if not LOADED.is_dir():
         print(f'🔴 로드 폴더가 없습니다: {LOADED}')
         print('   chrome://extensions 의 확장 ID 로 Secure Preferences 에서 "path" 를 찾으세요.')
         return 2
+
+    # 🎉 연결이면 사본이 아니라 **같은 폴더**다 — 맞출 것이 없다.
+    #   코드를 고치면 ↻ 만 누르면 바로 반영된다.
+    if _is_junction(LOADED):
+        v = _ver((LOADED / 'manifest.json').read_text(encoding='utf-8'), 'manifest.json')
+        print(f'✅ 연결돼 있습니다 — 저장소와 같은 폴더입니다 (지금 {v})')
+        print('   맞출 것이 없습니다. chrome://extensions 에서 ↻ 만 누르면 바로 반영됩니다.')
+        return 0
 
     want = {n: _from_main(n) for n in FILES}
     now = {n: (LOADED / n).read_text(encoding='utf-8') for n in FILES}
