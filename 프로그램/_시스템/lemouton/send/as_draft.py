@@ -131,6 +131,10 @@ def upsert(session, *, set_id: int, market: str, view=None):
     d.brand = getattr(view, 'brand', '') or ''
     d.options_json = getattr(view, 'options_json', '[]')
     d.detail_html = getattr(view, 'detail_html', '') or ''
+    # [2026-08-13 2단계] 정책이 만든 운영값을 초안으로 옮긴다 —
+    #   여기가 끊겨 있어 상품 칸 기본값(3,000·5,000·국내산)이 그대로 마켓에 나갔다.
+    for k, v in policy_fields_from(view).items():
+        setattr(d, k, v)
     d.source_site = ''                      # 구성은 소싱처가 여럿이라 한 곳을 못 적는다
     d.source_category_path = (m.category if m else '') or ''
 
@@ -147,7 +151,7 @@ def upsert(session, *, set_id: int, market: str, view=None):
     #   🔴 새로 만들지 않는다 — 여기 담는 것은 **공개 주소**뿐이고, 스스가 요구하는
     #     네이버 CDN 으로 옮기는 일은 등록 직전 `image_prep.prepare_cdn_images` 가
     #     LIVE 게이트 뒤에서 한다(그게 이미 있는 경로다).
-    d.images_json = json.dumps(_option_images(session, set_id), ensure_ascii=False)
+    d.images_json = json.dumps(option_images(session, set_id), ensure_ascii=False)
 
     # 🔴 고시정보(notice_json)는 **여기서 채우지 않는다** — 전역·소싱처별 기본값을
     #   `notice_defaults.apply_notice_defaults` 가 **컴파일 직전에** 병합한다.
@@ -156,8 +160,45 @@ def upsert(session, *, set_id: int, market: str, view=None):
     return d
 
 
-def _option_images(session, set_id: int) -> list:
+#: 정책이 만든 운영값 → 초안 칸. 값 이름이 같아 그대로 옮긴다.
+#:   🔴 여기 있는 칸만 옮긴다. 사본에는 화면용 값(source_category_path 등)도 있어
+#:     통째로 옮기면 초안에 엉뚱한 값이 박힌다.
+#:
+#: 🔴🔴 **모음전은 사본을 그대로 컴파일하지 않는다.** 사본을 초안 행에 옮겨 담고
+#:   그 행을 컴파일한다(`send/runner.py:272` → `upsert` → `register_draft`).
+#:   그래서 사본에만 실린 값은 **이 목록에 없으면 조용히 사라진다** —
+#:   대량등록에서는 되는데 모음전에서만 안 되는 얼굴을 한다.
+#:   값을 새로 이었으면 여기에도 넣었는지 반드시 확인할 것.
+_POLICY_FIELDS = ('delivery_fee', 'return_fee', 'origin_area_code',
+                  'minor_purchasable')
+
+
+def policy_fields_from(view) -> dict:
+    """사본에서 초안으로 옮길 운영값만 골라낸다.
+
+    🔴 **정책이 값을 만들었을 때만 옮긴다.** 정책이 말하지 않은 칸을 건드리면
+      상품에 저장된 값(또는 기본값)을 지우게 된다 — 배송비를 지우면 빈 칸이
+      「무료배송」으로 읽혀 그 돈을 우리가 떠안는다.
+
+    🔴 **0 은 값이다.** 배송비 0 = 무료배송이라, `if v` 로 거르면 무료배송이
+      유료로 나간다. `None`·빈 문자열만 「안 정함」으로 본다.
+    """
+    out = {}
+    for k in _POLICY_FIELDS:
+        v = getattr(view, k, None)
+        if v is None:
+            continue
+        if isinstance(v, str) and not v.strip():
+            continue
+        out[k] = v
+    return out
+
+
+def option_images(session, set_id: int) -> list:
     """구성에 담긴 옵션들의 사진 주소 — 순서대로, 중복 없이.
+
+    🔴 [2026-08-13] **공개 이름이다** — 정책 사본(policy/to_payload.set_view)도 같은
+      함수를 쓴다. 여기서만 고치면 「사본이 본 사진」과 「초안에 실리는 사진」이 갈린다.
 
     ★ 첫 장이 대표가 된다. 구성이 정한 옵션 순서를 그대로 따르므로, 대표로 쓸
       사진을 바꾸려면 옵션 순서를 바꾸면 된다.

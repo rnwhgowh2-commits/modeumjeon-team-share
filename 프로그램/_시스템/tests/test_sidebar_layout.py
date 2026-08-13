@@ -1,5 +1,16 @@
 """[TEST] 사이드바 기능별 6분류 재구성 — 기본 레이아웃 계약 + 숨김/주입 회귀."""
+import pytest
+
 from webapp.routes import api_sidebar
+
+
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setenv('DISABLE_AUTH', '1')
+    import app as appmod
+    flask_app = appmod.create_app()
+    flask_app.config['TESTING'] = True
+    return flask_app.test_client()
 
 
 def _active_keys(layout) -> list[str]:
@@ -214,3 +225,27 @@ def test_get_layout_strips_sources_even_if_saved(monkeypatch, tmp_path):
     assert not any(st.get('id') == 's_mapping' for st in out['stages'])  # 빈 매핑섹션 제거
     assert 'source_registry' not in keys          # 소싱처 사전도 제거(가이드 통합)
     assert 'sourcing_guide' in keys               # 크롤링 가이드 유지
+
+
+def test_편집_화면이_실제_사이드바와_같은_것을_본다(client):
+    """🔴 편집 화면(GET /api/sidebar/layout)은 저장본을 날것으로 줬다.
+
+    저장본에 없고 스펙에서 주입되는 항목(정책 생성·정책 적용)이 편집 화면에서만
+    사라져, 「상품 가공」 서랍이 텅 빈 채로 보였다 — 실제 사이드바에는 둘 다 있는데.
+    옮기기 작업(옵션 맵핑 템플릿 → 기타) 뒤 이 어긋남이 눈에 띄었다.
+    """
+    got = client.get('/api/sidebar/layout').get_json()
+    ids = {i['id'] for st in got['stages'] for i in st['items']}
+    assert 'i_policies' in ids, '편집 화면에 「정책 생성」이 없다'
+    assert 'i_policy_apply' in ids, '편집 화면에 「정책 적용」이 없다'
+
+    proc = [st for st in got['stages'] if st['id'] == 's_process']
+    assert proc and proc[0]['items'], '「상품 가공」 서랍이 비어 보인다'
+
+
+def test_편집_화면에도_중복_id_가_없다(client):
+    """주입이 이미 있는 항목을 또 넣으면 저장 시 유니크 검사에서 400 이 난다."""
+    got = client.get('/api/sidebar/layout').get_json()
+    ids = [i['id'] for st in got['stages'] for i in st['items']]
+    ids += [i['id'] for i in got.get('standalone', [])]
+    assert len(ids) == len(set(ids)), f'중복: {[x for x in ids if ids.count(x) > 1]}'

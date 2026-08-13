@@ -254,3 +254,30 @@ def test_반품지_전화_형식_최소검증():
         compile_coupang(D(), category_code=1, vendor=_v(return_phone='없음'))
     assert '전화' in str(e.value)
     compile_coupang(D(), category_code=1, vendor=_v(return_phone='010-1234-5678'))
+
+
+# ── [2026-08-13 2단계] 미성년자 구매 ────────────────────────────────────────
+
+def test_기본은_전연령():
+    """지도 근거: items.adultOnly = ADULT_ONLY / EVERYONE(기본값) [필수]."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert p['items'][0]['adultOnly'] == 'EVERYONE'
+
+
+def test_19세_이상만이면_ADULT_ONLY_로_나간다():
+    """🔴 여기가 박혀 있어 정책을 「19세 이상만」으로 바꿔도 전연령으로 나갔다.
+
+    미성년자에게 성인상품을 노출하면 마켓이 판매금지 처리한다 — 조용한 사고다.
+    """
+    d = D()
+    d.minor_purchasable = False
+    p, _ = compile_coupang(d, category_code=1, vendor=VENDOR)
+    assert p['items'][0]['adultOnly'] == 'ADULT_ONLY'
+
+
+def test_칸이_아예_없는_옛_초안도_안_터진다():
+    """마이그레이션 전 행에는 이 칸이 없을 수 있다 — 없으면 전연령."""
+    d = D()
+    assert not hasattr(d, 'minor_purchasable')
+    p, _ = compile_coupang(d, category_code=1, vendor=VENDOR)
+    assert p['items'][0]['adultOnly'] == 'EVERYONE'

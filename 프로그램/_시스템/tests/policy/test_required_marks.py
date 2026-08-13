@@ -110,10 +110,19 @@ def test_아직_안_나가는_항목은_저장만이라고_말한다():
       `test_초안으로_옮겨지는_칸은_전송됨이라고_적혀_있다` 가 **as_draft 원본을 읽어**
       판정한다. 사람이 손으로 적은 목록끼리 대조하면 또 같이 낡는다.
     """
-    for k in ('category', 'images', 'notice', 'origin', 'kc', 'tags'):
+    # [2026-08-13 2단계] 원산지는 이제 초안까지 간다 → 여기서 뺐다.
+    #   🔴 사실이 바뀌면 시험도 같이 옮긴다 — 안 옮기면 시험이 옛 사실을 잠근다.
+    for k in ('category', 'images', 'notice', 'kc', 'tags'):
         st, note = R.wiring_of(k)
         assert st == R.STORED_ONLY, k
         assert note.strip(), k
+
+
+def test_원산지와_배송비는_이제_나간다():
+    """[2026-08-13 2단계] 정책값이 초안까지 간다 — 전에는 상품 칸 기본값이 나갔다."""
+    assert R.wiring_of('origin')[0] == R.WIRED
+    assert R.wiring_of('shipping')[0] == R.WIRED
+    assert '반품' in R.wiring_of('shipping')[1], '반품비도 나간다는 사실이 빠졌다'
 
 
 def test_요약은_필수인데_안_정한_항목을_센다():
@@ -285,12 +294,19 @@ def test_판매가와_배송비도_전송됨이다():
     assert R.wiring_of('shipping')[0] == R.WIRED
 
 
-def test_이미지는_저장만이라고_정직하게_말한다():
-    """🔴 초안은 이미지를 **옵션에서 다시 모아** 붙인다 — 이 규칙은 안 읽는다."""
+def test_이미지는_반쪽만_먹는다고_정직하게_말한다():
+    """[2026-08-13] 이미지 규칙은 **반쪽만** 작동한다 — 그렇게 정확히 말해야 한다.
+
+    · 「제외 브랜드」·「사진 없음」은 지금도 전송을 막는다(실제 작동).
+    · 그런데 「몇 장 올릴지」는 안 먹는다 — 초안이 옵션 사진을 다시 모아 쓴다.
+    🔴 그냥 「전송됨」이라 하면 몇 장 규칙도 먹는 줄 알고, 그냥 「저장만」이라 하면
+      제외 브랜드가 안 먹는 줄 안다. 둘 다 거짓이라 문구가 반쪽을 다 말해야 한다.
+    """
     from lemouton.policy import required as R
     state, note = R.wiring_of('images')
     assert state == R.STORED_ONLY
-    assert '옵션에서 다시' in note
+    assert '막습니다' in note, '막는 기능이 있다는 사실이 빠졌다'
+    assert '몇 장' in note, '몇 장 규칙은 안 먹는다는 사실이 빠졌다'
 
 
 def test_아직_안_나가는_항목은_그대로_저장만이다():

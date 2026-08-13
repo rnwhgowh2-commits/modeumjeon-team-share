@@ -1181,8 +1181,17 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
     #      · 브랜드 미확정 → need_brand (사장님이 브랜드를 넣으면 자동으로 풀린다)
     #      · 수집·업로드 금지어, 브랜드 표기 불가 → blocked (그 마켓만 제외)
     #      판정기는 register_draft 가 쓰는 것과 **같은 함수**(prepare_compile_draft)다.
+    #      · 마켓 필수값이 빈 칸 → **여기서 끊지 않는다**(아래 참고)
     proc_skipped = row['process']['skipped']
-    proc_blocked = PA.blocking_reasons(proc_skipped)
+    # 🔴 [2026-08-13] 「필수인데 빈 칸」(MARKET_REQUIRED_EMPTY)을 여기 섞으면
+    #   화면이 「제외(빨강)」라고 말한다. 이 저장소에서 'blocked' 는 **지재권 제한·
+    #   업로드 금지어 전용** 낱말이고, 장부에도 BRAND_RESTRICTED 로 남는다 —
+    #   브랜드가 비었을 뿐인데 「지재권 제한에 걸림」이라는 **거짓 사유**가 쌓인다.
+    #   게다가 여기서 return 하면 3)카테고리·4)예비컴파일에 못 닿아, 무엇이 더
+    #   비었는지·카테고리가 필요한지를 통째로 잃는다(이 화면의 존재 이유가 그것이다).
+    _empty_req = [s for s in proc_skipped if s.get('code') == 'MARKET_REQUIRED_EMPTY']
+    proc_blocked = PA.blocking_reasons([s for s in proc_skipped
+                                        if s.get('code') != 'MARKET_REQUIRED_EMPTY'])
     if proc_blocked:
         row['status'] = ('need_brand'
                          if PA.has_code(proc_skipped, 'NO_BRAND_FOR_RULES')
@@ -1209,10 +1218,13 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
         reason = f'아직 정해지지 않았습니다 — 필요한 값: {_CATEGORY_WHAT[market]}.'
         # 카테고리와 별개로 지금 비어 있는 값도 같이 보여준다 — 형식상 코드로 컴파일러의
         # 카테고리 검사만 통과시켜 뒤쪽 필수값 검사에 닿게 한 결과다(등록에 쓰지 않는다).
+        also = [s['reason'] for s in _empty_req]
         try:
             _compile_probe(draft, market, _PROBE_CATEGORY[market], vendor)
         except CompileError as e:
-            reason += f' (카테고리와 별개로 지금 비어 있는 값: {e})'
+            also.append(str(e))
+        if also:
+            reason += f' (카테고리와 별개로 지금 비어 있는 값: {" / ".join(also)})'
         row['reason'] = reason
         return row
 
@@ -1225,6 +1237,16 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
         row['reason'] = str(e) + (COUPANG_VENDOR_HINT
                                   if market == 'coupang'
                                   and _vendor_incomplete(vendor) else '')
+        return row
+
+    # 🔴🔴 컴파일까지 통과했는데 마켓 필수값이 아직 비어 있으면 **ready 가 아니다.**
+    #   이 줄이 없으면 「점검은 초록인데 등록은 실패」한다 — 스스·쿠팡 컴파일러는
+    #   빈 상품명을 검사하지 않아(sellerProductName='' 로 조립된다) 이 게이트가
+    #   유일한 방어인데, 화면만 「올릴 수 있음」이라고 거짓말하게 된다.
+    #   (register_draft 는 같은 사유를 PROCESS_BLOCKED 로 거절한다 — 두 답이 갈리면 안 된다)
+    if _empty_req:
+        row['status'] = 'missing'
+        row['reason'] = ' / '.join(s['reason'] for s in _empty_req)
         return row
 
     row['reason'] = ''
