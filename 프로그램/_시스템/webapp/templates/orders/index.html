@@ -6088,6 +6088,8 @@
       <button class="btn" id="spn-lo-btn" type="button"
               title="롯데온 셀러오피스에 로그인돼 있어야 해요">🟡 롯데온 입금내역 가져오기</button>
       <span class="note" id="spn-lo-msg" style="font-size:12px"></span>
+      {# 🔴 「최근 가져온 내역」 — 누른 결과가 쌓였는지 화면이 스스로 말해야 한다. #}
+      <div class="note" id="spn-lo-hist" style="font-size:11.5px;width:100%"></div>
     </div>
     <div class="kpis" id="spn-kpi"><div class="state">불러오는 중…</div></div>
     <div id="spn-reasons"></div>
@@ -6220,11 +6222,16 @@
         +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
         +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
         // 🚀 로켓그로스 별도 카드(사장님 지시). 위 총액에는 **더해져** 있다.
-        //   빠른정산 선인출은 이미 뺀 뒤 금액이라 「받을 돈」이 맞다.
+        //   🔴 [2026-08-13] 「앞으로 받을 돈」 = **Σ최종지급액(정산일 오늘 이후 ~ 한 달)**.
+        //     쿠팡 Wing 「지급 예상금액」과 원 단위로 같은 값이다(25회차 실측).
+        //     옛 표기(지급액 − 빠른정산)는 **이미 받은 회차까지 세어** 9,508,138 을
+        //     보여줬다(실제 7,818,202). 그래서 「이미 받은 회차」를 같이 적어 둔다 —
+        //     숫자가 줄어든 이유를 화면이 스스로 말해야 사장님이 안 헷갈린다.
         +(((rg||{}).지급액||0)?('<div class="kpi"><div class="t">🚀 로켓그로스</div>'
              +'<div class="v">'+fmt(rgv)+'</div><div class="s">'
-             +'지급액 '+fmt(rg.지급액)+' − 빠른정산 '+fmt(rg.빠른정산)
-             +' · '+(rg.회차수||0)+'회차'
+             +'앞으로 들어올 회차 '+(rg.앞으로회차수||0)+'건'
+             +(rg.이미받은회차합?(' · 이미 받은 회차 '+fmt(rg.이미받은회차합)+'은 뺐어요'):'')
+             +(rg.창?('<br>'+esc(rg.창)):'')
              +'</div></div>'):'');
       // ── B3: 「이미 끝난 것」은 점선 상자로 묶어 받을 돈과 갈라놓는다 ──
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
@@ -7040,16 +7047,47 @@
     //     받는 날 1,175건 전부 추정이었다(쿠팡 1,711 · 스스 1,758 · 11번가 733 은 실값).
     //   🔴 확장이 긁고 **인증된 이 페이지가** 서버로 넣는다 — 확장 SW 의 fetch 는
     //     mou-m 인증 쿠키를 안 실어 0건이 된다(롯데온에서 이미 겪은 함정).
+    /* 🔴 「최근 가져온 내역」 — 사장님 지적(2026-08-13): 단추를 눌러도 **언제 · 얼마나**
+       들어왔는지 알 길이 없으면 「눌렀는데 된 건가?」를 영영 확인할 수 없다.
+       탭에 들어올 때 한 번, 가져온 뒤 한 번 그린다. 없으면 「아직 없음」이라 말한다. */
+    function loShowHistory(){
+      var h=$('#spn-lo-hist'); if(!h) return;
+      fetch('/orders/lotteon-paid/context',{credentials:'include'})
+        .then(function(x){return x.json();})
+        .then(function(j){
+          var s=(j&&j.최근가져온내역)||{};
+          if(s.오류){ h.textContent='내역을 못 읽었어요 — '+s.오류; return; }
+          if(!s.날짜수){ h.textContent='아직 한 번도 안 가져왔어요.'; return; }
+          h.innerHTML='가지고 있는 정산기준일 <b>'+(s.날짜수||0)+'</b>일치 · '
+            +'지급확정 <b>'+(s.지급확정||0)+'</b>건 · 지급합 <b>'
+            +Number(s.지급합||0).toLocaleString()+'</b>원'
+            +(s.최근완료일?(' · 가장 최근 정산완료일 <b>'+esc(s.최근완료일)+'</b>'):'');
+        })
+        .catch(function(){ h.textContent=''; });
+    }
     (function(){
       var b=$('#spn-lo-btn'), m=$('#spn-lo-msg');
       if(!b) return;
+      loShowHistory();
       b.onclick=async function(){
         if(!window.MoumExt||!window.MoumExt.installed()){
           m.style.color='var(--글자-빨강,#B91C1C)';
           m.textContent='확장(모음전 크롤러)이 없어요 — 크롬 확장을 로드해 주세요'; return; }
         b.disabled=true; m.style.color='var(--sub)'; m.textContent='롯데온 셀러오피스에서 가져오는 중…';
         try{
-          var r=await window.MoumExt.send('lotteon.paid.crawl',{},180000);
+          /* 🔴 판매자ID(trNo)는 **서버가 준다** — 확장이 셀러오피스 화면에서 긁게 했더니
+             라이브에서 「trNo not found」로 실패했다(2026-08-13). 화면 구조에 기대는
+             방식이라 로그인 상태·페이지에 따라 못 찾는다. 우리는 그 번호를 계정 설정에
+             이미 갖고 있다. 아는 값을 화면에서 다시 긁을 이유가 없다. */
+          var ctx=await fetch('/orders/lotteon-paid/context',{credentials:'include'})
+            .then(function(x){return x.json();}).catch(function(){return null;});
+          var accs=(ctx&&ctx.계정)||[];
+          if(!accs.length){
+            m.style.color='var(--글자-빨강,#B91C1C)';
+            m.textContent='실패: 롯데온 판매자ID(trNo)를 찾을 수 없어요 — 판매처 관리에서 '
+              +'롯데온 계정이 등록·활성 상태인지 확인해 주세요';
+            return; }
+          var r=await window.MoumExt.send('lotteon.paid.crawl',{trNo:accs[0].trNo},180000);
           var resp=(r&&r.resp)?r.resp:r;
           if(!resp||!resp.ok){
             var err=(resp&&resp.error)||'알 수 없음';
@@ -7072,6 +7110,7 @@
           m.textContent='✔ '+(resp.collected||0)+'건 가져옴 · 저장 '+((pr&&pr.saved)||0)+'건'
             +(sk?(' · 정산기준일 없어 버림 '+sk+'건'):'')
             +(resp.trNo?(' · '+resp.trNo):'');
+          loShowHistory();                          // 🔴 가져온 뒤 「지금 얼마나 쌓였나」를 바로 보여준다
           load();                                   // 「받았다」 다시 계산
         }catch(e){ m.style.color='var(--글자-빨강,#B91C1C)'; m.textContent='실패: '+e; }
         finally{ b.disabled=false; }
