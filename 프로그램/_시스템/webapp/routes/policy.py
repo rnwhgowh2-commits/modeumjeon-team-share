@@ -143,8 +143,12 @@ def policy_detail(pid: int):
             'fee_alt': (None if market == COMMON_KEY else
                         (lambda d: dict(d, alt_pct=fee_defaults.pretty(d.get('alt_pct'))))
                         (fee_defaults.load().get(market) or {})),
+            # 🔴 `NOTES` 만 쓰면 적어 둔 마켓만 말하고 나머지는 **침묵**한다.
+            #   11번가는 「포함인지 모른다」가 사실인데 빈칸이면 「포함 안 됨」으로
+            #   읽혀, 사장님이 2% 를 따로 얹으려 할 수 있다. 모른다고 말한다.
             'fee_note': ('' if market == COMMON_KEY
-                         else fee_defaults.NOTES.get(market, '')),
+                         else (fee_defaults.NOTES.get(market)
+                               or fee_defaults.affiliate_note(market))),
         }
     finally:
         s.close()
