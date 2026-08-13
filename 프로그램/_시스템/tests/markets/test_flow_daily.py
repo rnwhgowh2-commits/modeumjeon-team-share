@@ -286,7 +286,12 @@ def test_기록_전_주문은_빈칸이다(monkeypatch):
 
 
 class TestStatusStamp:
-    """상태가 **실제로 바뀔 때만** 시각을 찍는다."""
+    """상태가 **실제로 바뀔 때만** 시각을 찍는다.
+
+    🔴 [2026-08-13] `_stamp_status` → `_apply_status` 로 이름이 바뀌었다. 계약은 그대로이고
+      **되돌아가는 값은 안 쓴다**는 막이가 하나 붙었다(롯데온 510줄 31,790,892원이 뒤로
+      가 있었다). 되돌아가는 쪽 시험은 `tests/markets/test_status_no_regress.py` 에 있다.
+    """
 
     class _Obj:
         status = "배송준비중"
@@ -294,20 +299,21 @@ class TestStatusStamp:
         status_at = None
 
     def test_같은_상태면_안_찍는다(self):
-        from lemouton.markets.order_store import _stamp_status
+        from lemouton.markets.order_store import _apply_status
         o = self._Obj()
-        assert _stamp_status(o, "배송준비중") is False
+        assert _apply_status(o, "배송준비중") is False
         assert o.status_at is None
 
     def test_바뀌면_직전_상태와_함께_찍는다(self):
-        from lemouton.markets.order_store import _stamp_status
+        from lemouton.markets.order_store import _apply_status
         o = self._Obj()
-        assert _stamp_status(o, "배송중") is True
+        assert _apply_status(o, "배송중") is True
         assert o.status_prev == "배송준비중" and o.status_at is not None
+        assert o.status == "배송중", "이제 값을 쓰는 것까지 이 함수가 한다"
 
     def test_빈_상태로는_안_덮는다(self):
         """마켓이 상태를 덜 준 조회가 '바뀐 것'으로 둔갑하면 시각이 거짓이 된다."""
-        from lemouton.markets.order_store import _stamp_status
+        from lemouton.markets.order_store import _apply_status
         o = self._Obj()
-        assert _stamp_status(o, "") is False
+        assert _apply_status(o, "") is False
         assert o.status_at is None
