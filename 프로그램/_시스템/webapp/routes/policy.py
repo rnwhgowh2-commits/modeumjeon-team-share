@@ -246,6 +246,29 @@ def api_save_values(pid: int):
         s.close()
 
 
+def _auto_coupon(s, pid: int) -> dict:
+    """정책 자동(사장님 확정 **c**) — 쿠팡이면 쿠폰까지 함께 건다.
+
+    🔴 쿠팡엔 즉시할인을 적을 칸이 없다. 쿠폰을 만들어 옵션에 붙여야 값이 깎인다.
+      정책만 붙이고 끝내면 「할인을 걸었는데 안 깎인다」가 된다.
+    🔴 **즉시할인이 적힌 정책만** 태운다 — 안 그러면 온 상품에 시킨 적 없는
+      기본값 100원 쿠폰이 저절로 걸린다.
+    🔴 여기서 **직접 걸지 않는다.** 한 상품이 최대 21번 왕복이라 화면이 못 기다린다 →
+      대기열에 넣고 스케줄러(1분 틱)가 처리한다.
+    🔴 쿠폰이 실패해도 **정책 붙이기는 성공이다** — 여기서 터뜨리면 정책까지 못 붙는다.
+    """
+    try:
+        from lemouton.policy import coupon_service as CS
+        out = CS.request_for_policy(s, pid)
+        s.commit()
+        return out
+    except Exception as e:      # noqa: BLE001
+        s.rollback()
+        _log.exception('[정책] 쿠팡 쿠폰 대기열 넣기 실패 pid=%s', pid)
+        return {'ok': False, 'queued': 0,
+                'message': f'정책은 붙였지만 쿠팡 쿠폰은 대기열에 못 넣었습니다: {e}'}
+
+
 @bp.post('/api/policies/<int:pid>/apply')
 def api_apply(pid: int):
     """{model_codes:[...]} — 고른 상품들에 이 정책을 붙인다."""
@@ -259,7 +282,7 @@ def api_apply(pid: int):
             return jsonify({'ok': False, 'error': '정책을 찾을 수 없어요.'}), 404
         n = apply_to(s, policy=pol, model_codes=list(p.get('model_codes') or []))
         s.commit()
-        return jsonify({'ok': True, 'applied': n})
+        return jsonify({'ok': True, 'applied': n, 'coupon': _auto_coupon(s, pid)})
     except PolicyError as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
@@ -283,7 +306,7 @@ def api_apply_sets(pid: int):
     try:
         n = attach_to_sets(s, policy_id=pid, set_ids=list(p.get('set_ids') or []))
         s.commit()
-        return jsonify({'ok': True, 'applied': n})
+        return jsonify({'ok': True, 'applied': n, 'coupon': _auto_coupon(s, pid)})
     except PolicyError as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
@@ -691,6 +714,71 @@ def api_bundle_policy_result(model_code: str):
     except Exception as e:      # noqa: BLE001
         _log.exception('[정책] 상품 결과 계산 실패 model=%s', model_code)
         return jsonify({'ok': False, 'error': f'계산하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  쿠팡 즉시할인쿠폰 — 상품 화면 단추 (사장님 확정 c: 정책 자동 + 단추 둘 다)
+# ════════════════════════════════════════════════════════════════════════
+
+@bp.get('/api/bundles/<path:model_code>/coupang-coupon')
+def api_coupon_status(model_code: str):
+    """지금 이 상품의 쿠폰 상태 — 「아직 / 대기 중 / 걸림 / 실패」를 가른다.
+
+    🔴 「대기열에 넣었다」와 「걸렸다」는 다르다. 화면이 둘을 같은 말로 하면
+      사장님은 안 걸린 걸 걸린 줄 안다.
+    """
+    from lemouton.policy import coupon_service as CS
+    from lemouton.policy.coupon_apply import RETRY_MAX_WON
+    s = SessionLocal()
+    try:
+        rows = []
+        for ch in CS.channels_of_model(s, model_code):
+            rec = CS.record_of(ch)
+            queued = bool((ch.api_fields or {}).get(CS.REQUEST_KEY))
+            if queued:
+                state = 'queued'
+            elif rec.get('ok'):
+                state = 'applied'
+            elif rec:
+                state = 'failed'
+            else:
+                state = 'none'
+            rows.append({
+                'channel_id': ch.id, 'set_id': ch.set_id,
+                'account': ch.account_key, 'state': state,
+                'targets': len(CS.targets_for(s, ch)),
+                'coupon_id': rec.get('coupon_id'), 'value': rec.get('value'),
+                'starts_at': rec.get('starts_at'), 'ends_at': rec.get('ends_at'),
+                'tried': rec.get('tried'), 'at': rec.get('at'),
+                'message': rec.get('message') or '',
+                'failed_items': rec.get('failed_items') or [],
+            })
+        return jsonify({'ok': True, 'rows': rows, 'max_won': RETRY_MAX_WON})
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[쿠팡쿠폰] 상태 조회 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'error': f'상태를 읽지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/bundles/<path:model_code>/coupang-coupon')
+def api_coupon_apply(model_code: str):
+    """단추 — 이 상품에 쿠폰을 걸어 달라고 요청한다(실제 걸기는 1분 틱이 한다).
+
+    🔴 여기서 직접 걸지 않는 이유: 거부되면 300원까지 최대 21번 되풀이하고
+      한 번마다 접수 확인을 기다린다 — 몇 분이 걸려 화면이 끊긴다.
+    """
+    from lemouton.policy import coupon_service as CS
+    s = SessionLocal()
+    try:
+        out = CS.request_for_model(s, model_code, by='단추')
+        s.commit()
+        return jsonify(out), (200 if out['ok'] else 400)
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[쿠팡쿠폰] 요청 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'message': f'요청하지 못했어요: {e}'}), 500
     finally:
         s.close()
 
