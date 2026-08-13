@@ -587,3 +587,34 @@ def test_화면_가로_상한이_한_곳에서_정해진다():
                  'webapp/templates/optgen/index.html'):
         css = (뿌리 / 경로).read_text(encoding='utf-8')
         assert 'var(--화면-상한)' in css, f'{경로} 가 공용 상한을 안 쓴다'
+
+
+def test_화면_글자가_12px_아래로_안_내려간다():
+    """🔴 바닥선 12px — 사장님 확정(2026-08-13) 「글자가 너무 작아 안 보인다」.
+
+    전수 조사 당시 12px 미만이 1,330곳이었고 그중 11px 이 1,086곳이었다.
+    자동 스윕(`design_sweep` B단계)이 바닥선을 지키지만, **스윕이 안 도는 자리**가
+    있다 — 공용 CSS 파일, 스윕이 일부러 건너뛰는 위험 파일, 생성물(마진 계산기).
+    그래서 결과를 여기서 한 번 더 못 박는다.
+
+    ⚠️ 새로 11px 을 쓰고 싶어지면 이 시험을 고치기 전에 먼저 생각할 것 —
+       사장님이 「안 보인다」고 하신 크기다.
+    """
+    import pathlib
+    import re
+
+    뿌리 = pathlib.Path(__file__).resolve().parents[2] / 'webapp'
+    작은것 = []
+    for p in list(뿌리.rglob('*.html')) + list(뿌리.rglob('*.css')):
+        try:
+            t = p.read_bytes().decode('utf-8')
+        except (UnicodeDecodeError, OSError):
+            continue
+        for m in re.finditer(r'font-size:\s*([0-9.]+)px', t):
+            if float(m.group(1)) < 12:
+                줄 = t.count('\n', 0, m.start()) + 1
+                작은것.append(f'{p.name}:{줄} — {m.group(1)}px')
+    assert not 작은것, (
+        f'12px 보다 작은 글자가 {len(작은것)}곳 있다 — 사장님이 「안 보인다」고 하신 크기다:\n  '
+        + '\n  '.join(작은것[:20])
+        + (f'\n  … 외 {len(작은것) - 20}곳' if len(작은것) > 20 else ''))

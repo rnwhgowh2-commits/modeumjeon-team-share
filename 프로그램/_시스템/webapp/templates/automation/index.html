@@ -736,7 +736,7 @@
   document.getElementById('in-thr').addEventListener('change',function(){ st.autosend_stock_threshold=Math.max(0,parseInt(this.value,10)||0); this.value=st.autosend_stock_threshold; save({autosend_stock_threshold:st.autosend_stock_threshold}); });
 
   // ── ③ 마켓 계정별 속도 표 ──
-  var _mktStyle='font-size:11px;font-weight:700;color:#fff;background:#854F0B;border-radius:5px;padding:1px 6px;';
+  var _mktStyle='font-size:12px;font-weight:700;color:#fff;background:#854F0B;border-radius:5px;padding:1px 6px;';
   function renderSpeed(){
     fetch('/api/upload/account-speed').then(function(r){return r.json();}).then(function(d){
       var tb=document.getElementById('spd-body'); tb.innerHTML='';
