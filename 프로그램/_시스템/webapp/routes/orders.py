@@ -1966,6 +1966,96 @@ def orders_diag_esm_settlement():
                    결과=out, 실패=errors)
 
 
+@bp.route('/diag/esm-delivery-settle')
+def orders_diag_esm_delivery_settle():
+    """[읽기 전용] 옥션·G마켓 **배송비 정산조회**(getsettledeliveryfee, 지도 esm:42) 원본.
+
+    왜 필요한가(2026-08-13) — 우리는 이 창구를 **한 번도 안 불렀다**
+    (`shared/platforms/__init__.py` 에 경로만 「후속」으로 적혀 있고 호출부 0곳).
+    그래서 두 가지가 통째로 빈다:
+      ① 배송비 정산 **실값** — N열(`정산예정금(배송비포함)`)이 고객배송비를 **전액** 더한다.
+         쿠팡은 실값(`_ship_settle`)을 쓰는데 ESM 만 옛 폴백이라, ESM 은 배송비 수수료
+         (`DelFeeCommission`)만큼 상시 과대일 수 있다 — 그게 사실인지 눈으로 본다.
+      ② **반품·교환 배송비** — 지도 `DelFeeType` 코드표에 40 반품배송비 / 50 추가반품배송비
+         / 60 무료반품배송비 / 70 교환배송비 가 있다. 사장님 확정(2026-08-13)
+         「반품완료여도 반품·교환 배송비는 우리가 받는다」의 **실값 창구**가 바로 여기다.
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD&srch=D1,D3,D6&alias=`
+      · SrchType(지도 esm:42): D1 입금확인일 · D3 매출마감일 · D6 송금일 · D7 환불일
+        · D8 입금확인일+환불일 · D10 글로벌셀러 예치금 송금일 (D4·D5 는 **없다**)
+      · 🔴 당일·미래 날짜로 조회하면 Error 414 — 어제까지로 물어야 한다(지도 코드표).
+    응답은 금액·날짜·배송비번호뿐 — 고객정보는 담지 않는다.
+    """
+    from flask import jsonify
+    from collections import Counter
+    market = (request.args.get('market') or 'gmarket').strip()
+    if market not in ('gmarket', 'auction'):
+        return jsonify(ok=False, error='옥션·G마켓 전용이에요.'), 400
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    srchs = [s.strip().upper() for s in (request.args.get('srch') or 'D1').split(',')
+             if s.strip()]
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        rows_cap = max(1, min(int(request.args.get('rows') or 500), 500))
+    except (TypeError, ValueError):
+        rows_cap = 500
+    try:
+        sample = max(0, min(int(request.args.get('sample') or 5), 40))
+    except (TypeError, ValueError):
+        sample = 5
+    site = 'G' if market == 'gmarket' else 'A'
+    path = "/account/v1/settle/getsettledeliveryfee"
+
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return 0.0
+
+    out, errors = {}, {}
+    for srch in srchs:
+        try:
+            cli = _client_for_diag(market, alias)
+            if cli is None:
+                errors[srch] = "계정 클라이언트 없음(키 미등록)"
+                continue
+            resp = cli.post(path, {"SiteType": site, "SrchType": srch,
+                                   "SrchStartDate": f"{since:%Y-%m-%d}",
+                                   "SrchEndDate": f"{until:%Y-%m-%d}",
+                                   "PageNo": 1, "PageRowCnt": rows_cap}) or {}
+        except Exception as e:   # noqa: BLE001 — 기준일 하나가 막혀도 나머지는 보여준다
+            errors[srch] = f"{type(e).__name__}: {str(e)[:300]}"
+            continue
+        data = resp.get("Data") or []
+        # 배송비 유형별로 나눠 본다 — 「원배송비」와 「반품·교환배송비」는 뜻이 완전히 다르다.
+        by_type: dict = {}
+        for r in data:
+            t = str(r.get("DelFeeType") or "")
+            e = by_type.setdefault(t, {"건수": 0, "DelFeeAmt합": 0.0,
+                                       "DelFeeCommission합": 0.0})
+            e["건수"] += 1
+            e["DelFeeAmt합"] += _f(r.get("DelFeeAmt"))
+            e["DelFeeCommission합"] += _f(r.get("DelFeeCommission"))
+        out[srch] = {
+            "ResultCode": resp.get("ResultCode"),
+            "Message": resp.get("Message"),
+            "TotalCount": resp.get("TotalCount"),
+            "TotalDelFeeAmt": resp.get("TotalDelFeeAmt"),
+            "받은행수": len(data),
+            "유형별": by_type,
+            "Kind분포": dict(Counter(str(r.get("Kind")) for r in data)),
+            "합_DelFeeAmt": round(sum(_f(r.get("DelFeeAmt")) for r in data), 2),
+            "합_DelFeeCommission": round(sum(_f(r.get("DelFeeCommission"))
+                                             for r in data), 2),
+            "표본": data[:sample],
+        }
+    return jsonify(ok=True, market=market, alias=alias or "(대표)", path=path,
+                   기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   결과=out, 실패=errors)
+
+
 @bp.route('/diag/esm-order-raw')
 def orders_diag_esm_order_raw():
     """[읽기 전용] 옥션·G마켓 주문조회 raw 금액 필드 — 판매자 할인을 잴 수 있나.
