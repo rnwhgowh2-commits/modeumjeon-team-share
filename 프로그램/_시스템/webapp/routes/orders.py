@@ -548,10 +548,19 @@ def orders_diag_esm_timing():
         days = 1
     until = _dt.datetime.now()
     since = until - _dt.timedelta(days=days)
+    # 🔴 주문조회는 **계정 키로 만든 클라이언트**가 있어야 돈다. 안 붙이면
+    #   `AttributeError: 'NoneType' object has no attribute 'request_orders'` 로 터진다
+    #   (2026-08-13 라이브에서 바로 겪음 — 시험이 esm_order_rows 를 가짜로 갈아
+    #    끼워 이 구멍을 못 봤다).
+    cli = _oe._account_client(market)
+    if cli is None:
+        return jsonify(ok=False, error=f"{_oe.market_label(market)} API 키(자격증명)가 "
+                                       f"등록돼 있지 않아 잴 수 없어요."), 200
     diag, warns = {"counts": {}, "errors": {}}, []
     t0 = _t.monotonic()
     try:
-        rows = _oe.esm_order_rows(market, since, until, diag=diag, warnings=warns)
+        rows = _oe.esm_order_rows(market, since, until, client=cli,
+                                  diag=diag, warnings=warns)
     except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
         return jsonify(ok=False, 총초=round(_t.monotonic() - t0, 1),
                        error=f"{type(e).__name__}: {str(e)[:300]}",
