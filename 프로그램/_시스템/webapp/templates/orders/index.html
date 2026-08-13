@@ -4192,13 +4192,28 @@
     /* 「주문 이행 가능 판단」 — 지금 화면의 주문을 저장된 소싱처 값으로 다시 판정한다.
        🔴 새로 긁지 않는다. 크롤은 사장님 PC 확장이 하고 서버는 저장분만 읽기 때문이다.
          그래서 결과에 **몇 건이 언제 긁은 값인지**를 같이 말한다 — 안 그러면 사장님이
-         「방금 확인했다」고 믿게 된다. */
+         「방금 확인했다」고 믿게 된다.
+
+       [2026-08-13 노션 ⑤] 판정과 **함께** 「값이 바뀌는 상품」에 확인 요청을 찍는다.
+         사장님 확정: *"변경값 없는건 저장된 크롤값 그대로 + 변경값있는건 새로 긁고 판정"*
+         — 「변경값」 = 그 상품의 가격·재고가 바뀐 것. 표식이 찍힌 URL 은 확장이
+         다음 번에 **맨 먼저** 긁는다. 여기서 긁기를 기다리지 않는다(확장이 할 일). */
     (function(){
       var btn=document.getElementById('ffJudge'); if(!btn)return;
       var msg=document.getElementById('ffJudgeMsg');
+      /* 확인 요청 — 실패해도 판정은 그대로 진행한다(요청은 덤이지 본 일이 아니다). */
+      function askRecheck(cb){
+        fetch('/orders/fulfillment/recheck.json',{method:'POST',cache:'no-store',
+            headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+          .then(function(r){return r.json();})
+          .then(function(j){cb(j&&j.ok?j:null);})
+          .catch(function(){cb(null);});
+      }
       btn.addEventListener('click',function(){
         if(!rows.length){msg.textContent='먼저 주문을 불러와 주세요.';return;}
         btn.disabled=true; msg.textContent='판정하는 중…';
+        var reck=null;
+        askRecheck(function(j){reck=j;});
         loadFulfillment(loadSeq,function(){
           btn.disabled=false;
           var n={go:0,no:0,clm:0,nourl:0,unk:0,none:0}, oldest=null;
@@ -4212,7 +4227,11 @@
           msg.innerHTML='가능 <b>'+n.go+'</b> · 불가능 <b>'+n.no+'</b> · 클레임 <b>'+n.clm+'</b>'
             +' · 소싱처 URL 없음 <b>'+n.nourl+'</b> · 확인 불가 <b>'+n.unk+'</b>'
             +(oldest?(' <span style="color:var(--글자-주황,#B45309)">— 가장 오래된 소싱처 확인은 '
-                      +esc(ffAgo(oldest))+'</span>'):'');
+                      +esc(ffAgo(oldest))+'</span>'):'')
+            /* 🔴 「몇 개를 다시 긁으라고 해 뒀는지」를 말한다. 안 말하면 사장님은
+                 판정이 옛 값으로 됐다는 걸 모른 채 화면만 보게 된다. */
+            +(reck?(' <span style="color:var(--sub)">· 값이 바뀌는 상품 <b>'+(reck['요청']||0)
+                    +'</b>곳에 다시 확인 요청함(다음 크롤에서 먼저 긁힙니다)</span>'):'');
         });
       });
     })();

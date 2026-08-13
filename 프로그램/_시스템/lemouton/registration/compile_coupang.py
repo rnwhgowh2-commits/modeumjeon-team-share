@@ -173,7 +173,12 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
             'maximumBuyForPersonPeriod': '1',   # 필수 — _build_payload 에 있고 우리 초안엔 빠졌던 것
             'outboundShippingTimeDay': '3',
             'unitCount': '1',
-            'adultOnly': 'EVERYONE',
+            # 지도 근거: items.adultOnly [필수] — ADULT_ONLY=19세이상 / EVERYONE=전연령(기본값)
+            # 🔴 여기가 'EVERYONE' 으로 박혀 있어, 정책에서 「19세 이상만」으로 바꿔도
+            #   전연령으로 나갔다. 미성년자에게 성인상품이 노출되면 판매금지 처리된다.
+            #   칸이 없는 옛 초안(getattr 기본 True)은 전연령 그대로.
+            'adultOnly': ('EVERYONE' if getattr(draft, 'minor_purchasable', True)
+                          else 'ADULT_ONLY'),
             'taxType': 'TAX',
             'parallelImported': 'NOT_PARALLEL_IMPORTED',
             'overseasPurchased': 'NOT_OVERSEAS_PURCHASED',

@@ -437,3 +437,41 @@ def test_등록_라우트도_같은_판정으로_막는다(client, seeded):
         assert row.market_product_id is None      # 마켓을 부르지 않았다
     finally:
         s.close()
+
+
+# ── [2026-08-13] 「필수인데 빈 칸」은 제외가 아니라 보충 필요다 ──────────────
+
+def test_11번가_빈_브랜드는_제외가_아니라_보충_필요다(client):
+    """🔴 「필수값 빈 채 전송 막기」 게이트가 이 화면을 덮어 버렸다.
+
+    'blocked'(제외·빨강)는 이 저장소에서 **지재권 제한·업로드 금지어 전용** 낱말이다.
+    브랜드가 비었을 뿐인데 「제외」라고 하면 사장님이 「이 마켓엔 못 올리는 상품」으로
+    읽고, 장부에도 BRAND_RESTRICTED(지재권 제한)라는 **거짓 사유**가 남는다.
+    """
+    did = _empty_draft(client, stock_quantity=3, detail_html='<p>상세</p>')
+    res = client.post(f'/bulk/api/drafts/{did}/preflight',
+                      json={'markets': ['eleven11'], 'category_codes': ALL_CODES})
+    row = _rows(res)['eleven11']
+    assert row['status'] != 'blocked', '빈 칸을 「제외」라고 했다'
+    assert row['status'] == 'missing', row
+
+
+def test_필수_빈칸이어도_카테고리_신호를_잃지_않는다(client):
+    """🔴 조기 return 이 카테고리 판정(3)·예비 컴파일(4)을 통째로 건너뛰었다."""
+    did = _empty_draft(client, stock_quantity=3, detail_html='<p>상세</p>')
+    res = client.post(f'/bulk/api/drafts/{did}/preflight', json={'markets': ['eleven11']})
+    row = _rows(res)['eleven11']
+    assert row['status'] == 'need_category', row
+    assert '브랜드' in row['reason'], '무엇이 비었는지도 같이 말해야 한다'
+
+
+def test_컴파일이_통과해도_필수_빈칸이_남으면_ready_가_아니다(client):
+    """🔴🔴 이 줄이 없으면 **점검은 초록인데 등록은 실패**한다.
+
+    스스·쿠팡 컴파일러는 빈 상품명을 검사하지 않는다 — 그래서 게이트가 유일한 방어다.
+    여기서 흘려보내면 화면이 「올릴 수 있음」이라고 거짓말하고, register_draft 가
+    PROCESS_BLOCKED 로 거절한다.
+    """
+    from lemouton.registration import process_apply as PA
+    got = [i for i in PA._MUST_NOT_BE_EMPTY if i[0] == 'name']
+    assert got, '상품명 게이트가 사라졌다 — 스스·쿠팡 빈 이름 구멍이 다시 열린다'

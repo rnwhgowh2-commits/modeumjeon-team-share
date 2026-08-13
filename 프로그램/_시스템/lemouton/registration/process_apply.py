@@ -900,6 +900,141 @@ def _apply_origin(draft, cfg):
     return over, applied, skipped
 
 
+#: 「판매방식·통관」 중 **초안에 담을 칸이 아직 없는** 것들.
+#:   🔴 지어내서 마켓으로 보내면 금전 사고다 — 마켓별 payload 를 열어 어디에
+#:     넣을지 정하기 전까지는 「못 보냅니다」라고 말만 한다.
+_LISTING_NO_FIELD = (
+    ('tax_type', '과세구분', '과세',
+     '쿠팡은 taxType 이 「과세」로 박혀 나갑니다(compile_coupang.py). '
+     '옥션·G마켓·11번가는 전송 코드를 아직 열지 않았습니다.'),
+    ('product_condition', '상품상태', '새상품',
+     '상품에 「새상품/중고」를 담을 칸이 없습니다.'),
+    ('sale_period', '판매기간', '가장 길게',
+     '쿠팡은 2026-01-01 ~ 2099-12-31 이 박혀 나갑니다(compile_coupang.py:20-21).'),
+    ('manufacturer_mode', '제조사', '브랜드와 동일',
+     '상품에 제조사 칸이 없습니다 — 쿠팡에는 브랜드가 그대로 나갑니다.'),
+)
+
+#: 화면 글자 → 초안 Boolean. 🔴 모르는 글자는 **지어내지 않는다**.
+_MINOR_CHOICES = {'전연령 구매 가능': True, '19세 이상만': False}
+
+
+def _apply_listing(draft, cfg):
+    """판매방식·통관 — 칸이 있는 것만 잇고, 없는 것은 사유로 말한다.
+
+    🔴 이 항목은 원래 **아무도 안 읽었다.** 사장님이 「19세 이상만」으로 바꿔도
+      초안은 그대로였고 화면은 조용했다.
+    """
+    applied, skipped, over = [], [], {}
+    cfg = cfg or {}
+
+    # ── 칸이 있는 것: 미성년자 구매 ─────────────────────────────────────────
+    want = str(cfg.get('minor_purchase') or '').strip()
+    if want:
+        if want not in _MINOR_CHOICES:
+            skipped.append(_skip('listing', 'minor_purchase', 'UNKNOWN_MINOR_CHOICE',
+                                 f'모르는 값입니다: {want!r} — 지어내지 않습니다.', False))
+        else:
+            val = _MINOR_CHOICES[want]
+            cur = getattr(draft, 'minor_purchasable', None)
+            if cur is not val:
+                over['minor_purchasable'] = val
+                applied.append(_applied('listing', 'minor_purchase', cur, val,
+                                        note=f'정책대로 「{want}」으로 맞췄습니다.'))
+
+    # ── 칸이 없는 것: 기본값과 다를 때만 말한다 ────────────────────────────
+    #   기본값까지 사유로 만들면 화면이 경고로 뒤덮여 진짜 경고가 안 읽힌다.
+    for key, label, default, why in _LISTING_NO_FIELD:
+        v = str(cfg.get(key) or '').strip()
+        if not v or v == default:
+            continue
+        skipped.append(_skip('listing', key, 'NO_LISTING_FIELD',
+                             f'「{label}」을 「{v}」으로 정하셨지만 마켓에 보내지 '
+                             f'못했습니다 — {why}', False, gap=True))
+    return over, applied, skipped
+
+
+#: 마켓이 「필수」라고 못 박은 것 중 **비면 진짜로 깨진 상품이 등록되는** 칸.
+#:   (정책 항목 key, 초안 칸 이름, 사람이 읽는 이름)
+#:
+#: 🔴 required.py 가 필수라고 한 것을 **전부 막으면 안 된다.** 대부분은 상품
+#:   기본값이 늘 차 있고(배송비 3,000 등), 몇몇은 정책이 아니라 다른 담당처가
+#:   채운다(고시·카테고리·판매가). 여기 적는 것은 「비면 마켓에 빈 칸이 그대로
+#:   올라가는」 것만이다. 실제로 확인했다 — 상품명·상세설명이 빈 채로
+#:   sellerProductName='' / content='' 로 조립됐다.
+_MUST_NOT_BE_EMPTY = (
+    ('name', 'name', '상품명'),
+    ('brand', 'brand', '브랜드'),
+)
+
+#: 필수인데 비었지만 **막지는 않는** 것 — 칸 자체가 없어서 비는 것들.
+#:   🔴 상세설명은 모음전 경로에 **담을 칸이 아예 없다**(`to_payload.set_view` 의
+#:     `'detail_html': ''` — 「상세는 아직 구성에 칸이 없다」). 여기서 막으면
+#:     모음전 전송이 **통째로 멈춘다.** 「칸이 있는데 비었다」와 「칸이 없다」는
+#:     다른 문제다 — 앞은 막고, 뒤는 말한다.
+_EMPTY_BUT_NO_FIELD = (
+    ('detail', 'detail_html', '상세설명',
+     '모음전 구성에는 상세설명을 담을 칸이 아직 없습니다 — 정책의 「상세설명」 '
+     '항목에 상단·하단 이미지를 넣으면 그것이 상세가 됩니다.'),
+)
+
+#: 마켓 슬러그 → 사장님이 읽는 이름
+_MARKET_LABEL = {'coupang': '쿠팡', 'smartstore': '스마트스토어', 'eleven11': '11번가',
+                 'auction': '옥션', 'gmarket': 'G마켓', 'lotteon': '롯데온'}
+
+
+def _check_market_required(draft, name, over, market):
+    """마켓 필수 칸이 **빈 채로 나가려 하면** 막는다.
+
+    🔴 `policy/required.py` 는 지금까지 화면만 읽었다 — 전송 경로는 한 번도
+      보지 않았다. 「필수라고 화면에 배지까지 달아 놓고 빈 채로 보내는」 것은
+      아는데 안 막은 것이다.
+
+    🔴 「확인 불가」는 막지 않는다. 롯데온은 등록 API 문서를 아직 못 열어 전 항목이
+      unknown 이다 — 모르는 것으로 막으면 라이브 전송이 조용히 멈춘다.
+    """
+    if not market or market not in _MARKET_LABEL:
+        return []                          # 공통 가공엔 마켓 필수 판정이 없다
+    try:
+        from lemouton.policy import required as REQ    # 순환 import 회피(지연)
+    except Exception:                       # noqa: BLE001 — 판정을 못 해도 전송은 살아야 한다
+        logger.exception('[필수검사] required 판정표를 못 읽었습니다 market=%s', market)
+        return []
+
+    mk = _MARKET_LABEL[market]
+    out = []
+    for item, attr, label in _MUST_NOT_BE_EMPTY:
+        try:
+            if REQ.status_of(market, item)[0] != REQ.REQUIRED:
+                continue
+        except Exception:                   # noqa: BLE001
+            continue
+        # 가공 결과가 있으면 그것이 실제로 나가는 값이다(상품명은 여기서 조립된다).
+        val = over[attr] if attr in over else (name if attr == 'name'
+                                               else getattr(draft, attr, None))
+        if not _is_blank(val):
+            continue
+        out.append(_skip(item, attr, 'MARKET_REQUIRED_EMPTY',
+                         f'「{label}」이 비어 있어 {mk}에 보낼 수 없습니다 — '
+                         f'{mk} 등록 API 가 필수로 요구하는 값입니다. '
+                         f'빈 채로 올리면 상품이 거부되거나 빈 칸으로 등록됩니다.',
+                         True))
+
+    # 칸 자체가 없어 비는 것 — 막지 않고 말한다.
+    for item, attr, label, why in _EMPTY_BUT_NO_FIELD:
+        try:
+            if REQ.status_of(market, item)[0] != REQ.REQUIRED:
+                continue
+        except Exception:                   # noqa: BLE001
+            continue
+        val = over[attr] if attr in over else getattr(draft, attr, None)
+        if _is_blank(val):
+            out.append(_skip(item, attr, 'MARKET_REQUIRED_NO_FIELD',
+                             f'「{label}」이 빈 채로 {mk}에 나갑니다 — {mk} 등록 API 는 '
+                             f'이 값을 필수로 요구합니다. {why}', False, gap=True))
+    return out
+
+
 def _apply_kc(draft, cfg):
     """KC 인증 — 담을 칸이 없다. **조용히 넘기지 않고** 무엇이 없어서인지 말한다."""
     skipped = []
@@ -1109,7 +1244,7 @@ def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
     # ── 5) 운영값 — 배송·원산지·KC (§7-10 / §7-6 / §7-7) ────────────────────
     #   빈 칸만 채운다. 사람이 넣은 값은 규칙보다 우선이고, 다르면 사유로 말한다.
     for item, fn in (('shipping', _apply_shipping), ('origin', _apply_origin),
-                     ('kc', _apply_kc)):
+                     ('kc', _apply_kc), ('listing', _apply_listing)):
         cfg = rules.get(item)
         if cfg is None:
             continue
@@ -1117,6 +1252,11 @@ def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
         applied.extend(a)
         skipped.extend(s)
         over.update(fields)
+
+    # ── 6) 마켓 필수 칸이 빈 채로 나가려 하는가 (§전송 게이트) ─────────────
+    #   🔴 가공을 다 마친 **최종 값**으로 본다 — 원본이 비어도 규칙이 채웠으면
+    #     막을 일이 아니고, 원본이 차 있어도 규칙이 비웠으면 막아야 한다.
+    skipped += _check_market_required(draft_like, name, over, market)
 
     if name == original_name and not tags and not over:
         return (draft_like, applied, skipped)

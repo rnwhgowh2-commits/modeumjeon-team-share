@@ -775,7 +775,14 @@ def get_layout_for_template() -> dict:
 
 @bp.get('/layout')
 def api_get_layout():
-    return jsonify(_load())
+    """편집 화면이 읽는 것 — **실제 사이드바와 같은 것**을 준다.
+
+    🔴 전에는 `_load()` 저장본을 날것으로 줬다. 저장본에 없고 스펙에서 주입되는
+      항목(정책 생성·정책 적용)이 편집 화면에서만 사라져, 「상품 가공」 서랍이
+      텅 빈 채로 보였다 — 실제 사이드바에는 둘 다 있는데.
+      편집 화면과 실물이 다르면 사장님이 「없어졌다」로 읽는다.
+    """
+    return jsonify(get_layout_for_template())
 
 
 @bp.put('/layout')

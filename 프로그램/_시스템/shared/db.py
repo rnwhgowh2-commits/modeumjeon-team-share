@@ -510,6 +510,9 @@ def _apply_lightweight_migrations() -> None:
         #   '크롤 제외'라 상품이 영영 안 긁힌다. 그래서 방향을 갈라 별도 배수를 둔다.
         #   ★DEFAULT 1.0 = 예전과 완전히 같은 동작 (기존 행은 아무것도 안 바뀐다).
         ("source_products", "crawl_slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
+        # 2026-08-13: 「주문 이행 가능 판단」이 찍는 **확인 요청** 표식(노션 ⑤).
+        #   NULL = 요청 없음(예전과 완전히 같은 동작). 크롤이 끝나면 저절로 풀린다.
+        ("source_products", "recheck_requested_at", "DATETIME"),
         ("crawl_weight_rules", "slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
         # 2026-07-19: 업로드 속도 「X초에 Y개」 (사장님 확정).
         #   옛 seconds_per_item(1개당 N초)은 한 계정이 초당 1개가 최대라
