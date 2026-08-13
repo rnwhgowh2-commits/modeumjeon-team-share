@@ -92,7 +92,8 @@ RATE_EVIDENCE: dict[str, dict] = {
         'kind': 'stated', 'source': '2026-08-02 사장님 구두 (제휴 2% 포함이라 적힘)',
         'disagrees_with': 'lotteon_settlement.compute_settlement = 13% + 배송 3.3% + 제휴 2% '
                           '(실정산 엑셀 86행 오차0) · settle_plan._EXPECT_FEE_PCT = 13.0%',
-        'impact': '제휴 켠 상품 실효는 15% — 18% 로 내면 판매가가 약 4.2% 비싸게 나간다',
+        'impact': '제휴를 켠 상품의 실효 요율은 15% 라, 18% 로 판매가를 내면 '
+                  '약 4.2% 비싸게 나갑니다',
     },
     'eleven11': {
         'kind': 'stated', 'source': '2026-08-02 사장님 구두 (기본 11% · 1년 이내 계정 8%)',
@@ -115,8 +116,10 @@ def rate_evidence_note(market: str) -> str:
     if not ev:
         return ''
     if ev.get('disagrees_with'):
+        impact = (ev.get('impact') or '').strip()
         return (f"🔴 이 요율은 저장소의 다른 계산과 어긋납니다 — {ev['disagrees_with']}. "
-                f"{ev.get('impact') or ''} 확인 전까지 숫자를 바꾸지 않았습니다.")
+                + (f"{impact}. " if impact else '')
+                + "사장님 확인 전까지 숫자를 바꾸지 않았습니다.")
     if ev.get('kind') == 'measured':
         return f"실제 정산 자료와 대조해 확인한 값입니다 ({ev['source']})."
     return f"{ev['source']} — 실제 정산 자료와는 아직 대조하지 못했습니다."
