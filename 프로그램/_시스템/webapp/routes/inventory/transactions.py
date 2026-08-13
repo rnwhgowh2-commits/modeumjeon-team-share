@@ -910,6 +910,55 @@ def inventory_export():
 
 # ============ 거래 수정/삭제 (박스히어로 1:1) ============
 
+# ── 옛 조정 버그가 남긴 흔적을 세는 도구 (읽기 전용) ──────────────────────────
+#  2026-08-13 이전 `create_adjustment` 는 차이의 기준을 **전 창고 합**으로 잡았다.
+#  창고가 둘 이상이면(사장님은 사무실·로켓그로스 2곳) 한 창고 실사가 그 창고를
+#  음수로 만들고 총합에서 재고를 지웠다. 아래 둘은 **정상 운영에서 나올 수 없는** 값이다.
+
+def _음수_창고재고(session) -> list:
+    """창고별 재고가 음수인 것 — 있을 수 없는 값이다."""
+    from lemouton.inventory.models import InventoryLocation, InventoryTx
+    from shared.inventory_stock import get_stock_by_location_batch
+    skus = [r[0] for r in session.query(InventoryTx.option_canonical_sku)
+            .filter(InventoryTx.status == 'completed').distinct().all() if r[0]]
+    if not skus:
+        return []
+    이름 = {l.id: l.name for l in session.query(InventoryLocation).all()}
+    out = []
+    for sku, per in (get_stock_by_location_batch(session, skus) or {}).items():
+        for loc_id, qty in (per or {}).items():
+            if int(qty or 0) < 0:
+                out.append({"sku": sku, "location": 이름.get(loc_id, str(loc_id)),
+                            "qty": int(qty)})
+    out.sort(key=lambda r: r["qty"])
+    return out
+
+
+def _스냅샷_어긋남(session, 상한: int = 200) -> list:
+    """저장된 스냅샷(boxhero_stock_total)이 원장 합과 다른 것.
+
+    스냅샷은 「신뢰 X」라 화면이 쓰면 안 되는 값이지만, 어긋남 자체가 옛 버그의 흔적이다.
+    """
+    from lemouton.sourcing.models import Option
+    from lemouton.inventory.models import InventoryTx
+    from shared.inventory_stock import get_stock_batch
+    skus = [r[0] for r in session.query(InventoryTx.option_canonical_sku)
+            .filter(InventoryTx.status == 'completed').distinct().all() if r[0]]
+    if not skus:
+        return []
+    원장 = get_stock_batch(session, skus) or {}
+    out = []
+    for o in session.query(Option).filter(Option.canonical_sku.in_(skus)).all():
+        snap = int(o.boxhero_stock_total or 0)
+        led = int(원장.get(o.canonical_sku) or 0)
+        if snap != led:
+            out.append({"sku": o.canonical_sku, "스냅샷": snap, "원장": led,
+                        "차이": snap - led})
+    out.sort(key=lambda r: -abs(r["차이"]))
+    return out[:상한]
+
+
+
 @bp.route('/history/<int:tx_id>/edit', methods=['GET', 'POST'])
 def tx_edit(tx_id: int):
     """거래 수정 (입고서·출고서·조정서·이동서 통합).
@@ -1110,3 +1159,28 @@ def tx_statement(tx_id: int):
             tx=tx, opt=opt, mdl=mdl, loc=loc, loc_to=loc_to)
     finally:
         s.close()
+
+
+@bp.route('/diag/adjust-damage')
+def inventory_diag_adjust_damage():
+    """옛 조정 버그의 흔적을 **세기만** 한다(쓰기 없음).
+
+    창고가 둘 이상일 때 한 창고 실사가 전 창고 합을 기준으로 빠져, 그 창고가
+    음수가 되고 총합에서 재고가 지워졌다(2026-08-13 고침). 얼마나 남았는지 본다.
+    """
+    from flask import jsonify
+    from shared.db import SessionLocal
+    s = SessionLocal()
+    try:
+        음수 = _음수_창고재고(s)
+        어긋남 = _스냅샷_어긋남(s)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 200
+    finally:
+        try:
+            s.close()
+        except Exception:   # noqa: BLE001
+            pass
+    return jsonify(ok=True,
+                   음수재고건수=len(음수), 음수재고=음수[:100],
+                   스냅샷어긋남건수=len(어긋남), 스냅샷어긋남=어긋남[:100])
