@@ -183,7 +183,7 @@
       .oum-green .oum-mtx-grp-h:hover { background:#dcfce7; }
       /* [2026-05-29 시안 v6 E3] 셀에 상태 태그까지 — 세로 stack (체크표시 + 작은 라벨) */
       .oum-cell { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:56px; height:38px; line-height:1.1; border-radius:6px; cursor:pointer; font-size:14px; font-weight:700; position:relative; user-select:none; padding:2px 0; }
-      .oum-cell .tag { font-size:9.5px; font-weight:600; opacity:.92; letter-spacing:.2px; margin-top:1px; }
+      .oum-cell .tag { font-size:12px; font-weight:600; opacity:.92; letter-spacing:.2px; margin-top:1px; }
       /* [2026-05-29] 시안 v6 E3 — 누적 색 시스템 (회색→파랑→초록) + 상태 태그.
          단일 진실 원천: opt-on / url-on 클래스만 의미. */
       .oum-cell.disabled,
@@ -203,7 +203,7 @@
       .oum-rt-tab { background:transparent; border:0; padding:11px 18px; font:inherit; font-size:14.5px; font-weight:700; color:#8B95A1; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; display:inline-flex; align-items:center; gap:7px; }
       .oum-rt-tab.on { color:#03A65A; border-bottom-color:#03A65A; }
       .oum-rt-tab.on[data-rt-tab="url"] { color:#3B82F6; border-bottom-color:#3B82F6; }
-      .oum-rt-tab .cnt { background:#F2F4F6; color:#8B95A1; padding:1px 8px; border-radius:99px; font-size:11.5px; font-weight:700; }
+      .oum-rt-tab .cnt { background:#F2F4F6; color:#8B95A1; padding:1px 8px; border-radius:99px; font-size:12px; font-weight:700; }
       .oum-rt-tab.on .cnt { background:#F0FDF4; color:#03A65A; }
       .oum-rt-tab.on[data-rt-tab="url"] .cnt { background:#EFF6FF; color:#3B82F6; }
       .oum-rt-tab.on[data-rt-tab="axis"] { color:#1B64DA; border-bottom-color:#1B64DA; }
@@ -217,7 +217,7 @@
       /* [2026-08-03] 카드 최소 폭 — 표가 짧으면 덩어리가 같이 줄어 카드가 58px 로
          쪼그라들고 「사전이 붙임」이 두 줄로 접혔다(실측). 좁으면 두 줄로 넘긴다. */
       .ax-kpi { flex:1; min-width:118px; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
-      .ax-kpi .lb { font-size:11.5px; color:#6B7684; }
+      .ax-kpi .lb { font-size:12px; color:#6B7684; }
       .ax-kpi .vl { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; }
       .ax-kpi.g .vl { color:#03A65A; } .ax-kpi.b .vl { color:#1B64DA; }
       .ax-kpi.y .vl { color:#B45309; } .ax-kpi.r .vl { color:#DC2626; }
@@ -238,7 +238,7 @@
       .ax-sel.man { border-color:#3182F6; background:#EFF6FF; color:#1B64DA; }
       .ax-sel.warn { border-color:#F59E0B; background:#FFFBEB; color:#92400E; }
       .ax-sel.none { border-color:#FCA5A5; background:#FEF2F2; color:#B91C1C; }
-      .ax-tag { border-radius:99px; padding:1px 8px; font-size:11px; font-weight:800; background:#DBEAFE; color:#1B64DA; }
+      .ax-tag { border-radius:99px; padding:1px 8px; font-size:12px; font-weight:800; background:#DBEAFE; color:#1B64DA; }
       .ax-na { padding:9px 13px; font-size:12.5px; color:#B45309; background:#FFFBEB; border-radius:0 0 9px 9px; }
       .ax-empty { padding:44px 18px; text-align:center; color:#8B95A1; background:#fff; border:2px dashed #D1D6DB; border-radius:10px; font-size:13px; line-height:1.8; }
       /* ── 격자 (G2 · 2026-08-02 사장님 확정) ── */
@@ -278,7 +278,7 @@
       .axg-sel.dict { border-color:#03A65A; } .axg-sel.man { border-color:#3182F6; color:#1B64DA; font-weight:700; }
       .axg-sel.warn { border-color:#F59E0B; color:#92400E; font-weight:700; } .axg-sel.none { border-color:#FCA5A5; color:#B91C1C; }
       /* 눌러야 하는 것은 눌러 보이게 — 글자만 있으면 누를 수 있는 줄 모른다 */
-      .axg-stamp { display:inline-block; margin-top:5px; font-size:11.5px; font-weight:700;
+      .axg-stamp { display:inline-block; margin-top:5px; font-size:12px; font-weight:700;
                    border:1px solid; border-radius:999px; background:#fff; cursor:pointer;
                    padding:2px 9px; font-family:inherit; line-height:1.5; }
       .axg-stamp.done { color:#0d7656; border-color:#9BE0C4; background:#F0FDF4; }
@@ -363,17 +363,17 @@
       .oum-url-cnt.fail b { color:#dc2626; }
       .oum-url-recrawl { background:#E4002B; color:#fff; border:1px solid #E4002B; border-radius:7px; padding:0 11px; height:33px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
       .oum-url-recrawl:hover { background:#c00; }
-      .oum-url-failmsg { padding:8px 14px; background:#FEF2F2; color:#B91C1C; font-size:11.5px; font-weight:700; line-height:1.5; border-top:1px dashed #fca5a5; }
+      .oum-url-failmsg { padding:8px 14px; background:#FEF2F2; color:#B91C1C; font-size:12px; font-weight:700; line-height:1.5; border-top:1px dashed #fca5a5; }
       /* [2026-06-12] 딜·기획전 허브 — 단품으로 커버됨 (실패 아님, 중립 안내) */
       .oum-url-card.crawl-covered { border-color:#bfdbfe; background:#F5F9FF; }
-      .oum-url-covered { padding:8px 14px; background:#EFF6FF; color:#1D4ED8; font-size:11.5px; font-weight:700; line-height:1.5; border-top:1px dashed #bfdbfe; }
+      .oum-url-covered { padding:8px 14px; background:#EFF6FF; color:#1D4ED8; font-size:12px; font-weight:700; line-height:1.5; border-top:1px dashed #bfdbfe; }
       /* [2026-06-11] 크롤 실패 요약 배너 — 어떤 URL이 왜 실패했는지 한눈에 */
       .oum-failsum { margin:0 0 10px; padding:10px 12px; background:#FEF2F2; border:1px solid #fca5a5; border-radius:9px; }
       .oum-failsum-h { display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:#B91C1C; font-size:13px; font-weight:800; }
-      .oum-failsum-jump { margin-left:auto; background:#E4002B; color:#fff; border:0; border-radius:7px; padding:4px 10px; font-size:11.5px; font-weight:800; cursor:pointer; white-space:nowrap; }
+      .oum-failsum-jump { margin-left:auto; background:#E4002B; color:#fff; border:0; border-radius:7px; padding:4px 10px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
       .oum-failsum-jump:hover { background:#c00; }
       .oum-failsum-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-      .oum-failsum-item { background:#fff; border:1px solid #fca5a5; border-radius:999px; padding:3px 10px; font-size:11.5px; font-weight:700; color:#7f1d1d; }
+      .oum-failsum-item { background:#fff; border:1px solid #fca5a5; border-radius:999px; padding:3px 10px; font-size:12px; font-weight:700; color:#7f1d1d; }
       .oum-failsum-item em { font-style:normal; color:#dc2626; font-weight:800; }
       /* 실패 카드 깜빡임 강조 (자동 스크롤 도착 시) */
       @keyframes oumFailFlash { 0%,100%{ box-shadow:0 0 0 0 rgba(228,0,43,0); } 30%{ box-shadow:0 0 0 4px rgba(228,0,43,.45); } 60%{ box-shadow:0 0 0 4px rgba(228,0,43,.20); } }
@@ -385,7 +385,7 @@
       .oum-dupwarn.cross .oum-dupwarn-h { color:#B91C1C; }
       .oum-dupwarn-h b { font-weight:900; }
       .oum-dupwarn-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-      .oum-dupwarn-item { background:#fff; border:1px solid #FCD34D; border-radius:999px; padding:4px 11px; font-size:11.5px; font-weight:700; color:#78350f; cursor:pointer; }
+      .oum-dupwarn-item { background:#fff; border:1px solid #FCD34D; border-radius:999px; padding:4px 11px; font-size:12px; font-weight:700; color:#78350f; cursor:pointer; }
       .oum-dupwarn-item:hover { background:#FFFBEB; }
       .oum-dupwarn-item.cross { border-color:#fca5a5; color:#7f1d1d; }
       .oum-dupwarn-item em { font-style:normal; color:#dc2626; font-weight:800; }
@@ -877,7 +877,7 @@
 
     function renderMatrix(valid) {
       if (!valid.length) {
-        return `<div style="font-size:11.5px; color:#8b95a1; padding:14px; text-align:center;">값을 입력하면 조합 매트릭스가 나옵니다</div>`;
+        return `<div style="font-size:12px; color:#8b95a1; padding:14px; text-align:center;">값을 입력하면 조합 매트릭스가 나옵니다</div>`;
       }
       if (valid.length === 1) {
         return renderMatrix1D(valid[0]);
@@ -1607,12 +1607,12 @@
     function renderUrlBody(u) {
       const valid = validAxes();
       if (!valid.length || !state.selected.size) {
-        return `<div style="font-size:11.5px; color:#9ca3af; padding:10px;">활성 옵션이 없습니다</div>`;
+        return `<div style="font-size:12px; color:#9ca3af; padding:10px;">활성 옵션이 없습니다</div>`;
       }
       const mappedSet = new Set(u.option_keys || []);
 
       // [2026-05-26] 헤더 클릭 일괄 선택 안내 — 사용자가 헤더 클릭 가능함을 인지하게
-      let html = `<div style="font-size:11px; color:#15803d; padding:4px 8px 8px; display:flex; gap:10px; flex-wrap:wrap;">
+      let html = `<div style="font-size:12px; color:#15803d; padding:4px 8px 8px; display:flex; gap:10px; flex-wrap:wrap;">
         <span>💡 <b>색상/사이즈 헤더 클릭</b> → 그 줄 전체 일괄 ON/OFF</span>
         <span>·</span>
         <span>⌐ 코너 클릭 → 전체</span>

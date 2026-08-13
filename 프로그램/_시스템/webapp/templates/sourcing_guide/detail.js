@@ -446,7 +446,7 @@
             ? '<span style="color:#E5484D;font-weight:800;">✕ 제외</span>'
             : '<span style="color:#8B95A1;font-weight:700;">○ 미적용</span>');
       return `<div class="cf-rc-ln"><span class="lbl">${g.name} &nbsp;${mark}</span>`+
-             `<span class="num" style="font-size:11px;color:#6B7684;font-weight:600;">${g.reason}</span></div>`;
+             `<span class="num" style="font-size:12px;color:#6B7684;font-weight:600;">${g.reason}</span></div>`;
     }).join('');
     const price=(j.final_price!=null)
       ? `<div class="cf-rc-div"></div><div class="cf-rc-ln"><span class="lbl">표면 노출가</span><span class="num">${(j.base_price||0).toLocaleString()}원</span></div>`+
@@ -454,7 +454,7 @@
       : '';
     const save=`<div style="margin-top:11px;display:flex;align-items:center;gap:10px;">`+
       `<button id="sg-kw-save" style="background:#191F28;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">✓ 이 검증 결과 저장</button>`+
-      `<span id="sg-kw-save-msg" style="font-size:11.5px;color:#6B7684;"></span></div>`;
+      `<span id="sg-kw-save-msg" style="font-size:12px;color:#6B7684;"></span></div>`;
     return `<div class="fxpop" style="margin-top:13px;"><div class="body"><div class="cf-receipt">${rows}${price}</div></div></div>${save}`;
   }
   if(kwBtn){
@@ -505,7 +505,7 @@
     if(!kwHl||!kwLinesEl) return;
     const {inc,exc}=_kwSets();
     const lines=kwLinesEl.value.split('\n').filter(l=>l.trim());
-    if(!lines.length){ kwHl.innerHTML='<span class="muted" style="font-size:11.5px;">위에 문구를 붙여넣으면 ③ 키워드가 어디에 걸리는지 색으로 표시됩니다.</span>'; return; }
+    if(!lines.length){ kwHl.innerHTML='<span class="muted" style="font-size:12px;">위에 문구를 붙여넣으면 ③ 키워드가 어디에 걸리는지 색으로 표시됩니다.</span>'; return; }
     kwHl.innerHTML=lines.map(line=>{
       const exHit=exc.find(k=>k&&line.includes(k));
       if(exHit) return `<div class="ln"><span class="hit-exc">${_esc(line)}</span><span class="why exc">← 제외 '${_esc(exHit)}'</span></div>`;
