@@ -9,6 +9,7 @@ market_visible_coupang 로 거른다. 드래프트엔 그 개념이 없어 새�
 """
 import json
 
+from lemouton.policy.listing import coupang_adult_only
 from lemouton.registration.options import build_coupang_items, OptionError
 # ★ 스스 컴파일러(Task 6)가 자유형 JSON 경계 버그 3종을 겪고 compile_common 으로 뽑았다.
 #   쿠팡도 같은 경계를 지나므로 그대로 상속한다 — CompileError·loads_json·coerce_int·
@@ -173,7 +174,10 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
             'maximumBuyForPersonPeriod': '1',   # 필수 — _build_payload 에 있고 우리 초안엔 빠졌던 것
             'outboundShippingTimeDay': '3',
             'unitCount': '1',
-            'adultOnly': 'EVERYONE',
+            # 🔴 [2026-08-13] 여기 'EVERYONE' 이 **상수로 박혀** 있었다. 정책에서
+            #   「19세 이상만」을 고르셔도 무시되고 전연령으로 등록됐다 —
+            #   성인 상품이면 그대로 미성년자에게 노출된다.
+            'adultOnly': coupang_adult_only(draft.minor_purchasable),
             'taxType': 'TAX',
             'parallelImported': 'NOT_PARALLEL_IMPORTED',
             'overseasPurchased': 'NOT_OVERSEAS_PURCHASED',

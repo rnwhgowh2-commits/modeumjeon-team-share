@@ -149,6 +149,15 @@ def upsert(session, *, set_id: int, market: str, view=None):
     #     LIVE 게이트 뒤에서 한다(그게 이미 있는 경로다).
     d.images_json = json.dumps(_option_images(session, set_id), ensure_ascii=False)
 
+    # ── 미성년자 구매 — 정책에서 옮겨 담는다 ────────────────────────────────
+    # 🔴 [2026-08-13] 여기가 비어 있었다. `minor_purchasable` 은 `default=True` 인
+    #   채 아무도 안 채워, 사장님이 「19세 이상만」을 고르셔도 **늘 전연령으로**
+    #   등록됐다. 성인 상품이면 그대로 미성년자에게 노출된다.
+    #   판정은 `policy/listing.minor_purchasable_of` 한 곳에서만 한다.
+    from lemouton.policy.listing import minor_purchasable_of
+    _rules, _pol, _org = TP.rules_for(session, set_id=set_id, market=market)
+    d.minor_purchasable = minor_purchasable_of(_rules)
+
     # 🔴 고시정보(notice_json)는 **여기서 채우지 않는다** — 전역·소싱처별 기본값을
     #   `notice_defaults.apply_notice_defaults` 가 **컴파일 직전에** 병합한다.
     #   미리 써 넣으면 「사장님이 넣은 값」과 「기본값이 채운 값」이 뭉개진다.
