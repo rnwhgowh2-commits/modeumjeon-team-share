@@ -43,6 +43,26 @@ COUPON_KEY = 'coupang_coupon'
 #:     스케줄러에 등록했다. 화면은 `COUPON_KEY` 기록을 읽어 진짜 상태를 말한다.
 REQUEST_KEY = 'coupang_coupon_request'
 
+#: [2026-08-13 사장님 확정] 「정책 / 비정책」 토글이 사는 자리.
+#:   {'mode': 'policy'|'own', 'value': int|None}
+#:   화면 모양은 **미끄럼 스위치(A2)** — 파랑이면 정책, 주황이면 이 상품만.
+#:
+#:   🔴 **비정책으로 돌린 상품은 정책을 바꿔도 안 따라간다.** 이게 이 토글의 전부다.
+#:     안 지키면 사장님이 상품에 따로 정해 둔 값이 **에러도 없이 조용히** 날아가고,
+#:     쿠폰은 돈이라 그 순간 그 상품의 할인액이 바뀌어 나간다.
+#:
+#:   🔴 「정책으로 되돌리기」와 「이 상품은 0원」은 **다른 것**이다:
+#:     {'mode':'own','value':0}  = 이 상품은 안 깎는다(쿠폰을 안 만든다)
+#:     {'mode':'policy'}         = 정책이 정한 값을 따른다
+#:     섞으면 0원으로 만들려다 정책값이 나가거나 그 반대가 된다.
+#:
+#:   ⏳ 상품명·이미지·상세페이지도 **같은 모양**으로 이어 붙일 자리다(사장님 요청).
+#:     지금은 쿠폰만 — 나머지는 담을 칸부터 있어야 한다(상세는 칸 자체가 없다).
+OVERRIDE_KEY = 'coupang_coupon_override'
+
+#: 쿠팡 정액 할인의 단위 — `discount.WON_STEP['coupang']` 과 같은 값이어야 한다.
+_WON_STEP = 10
+
 #: 쿠폰 이름 — 우리가 만든 것을 남의 쿠폰과 가르는 표. 45자 제한(쿠팡 문서).
 COUPON_NAME = '모음전 즉시할인'
 
@@ -53,6 +73,77 @@ RENEW_BEFORE_DAYS = 14
 def record_of(channel) -> dict:
     """그 채널에 남은 쿠폰 기록. 없으면 빈 dict."""
     return dict(((channel.api_fields or {}).get(COUPON_KEY) or {}))
+
+
+def override_of(channel) -> dict:
+    """이 채널의 「정책 / 비정책」 상태. 아무것도 안 했으면 정책 따름."""
+    raw = (channel.api_fields or {}).get(OVERRIDE_KEY) or {}
+    mode = 'own' if str(raw.get('mode')) == 'own' else 'policy'
+    val = raw.get('value')
+    return {'mode': mode, 'value': (int(val) if isinstance(val, int) else None)}
+
+
+def is_own(channel) -> bool:
+    """이 상품만의 값을 쓰고 있나 — 정책 전수 반영에서 빠지는 기준."""
+    return override_of(channel)['mode'] == 'own'
+
+
+def set_override(session, channel, *, mode: str, value=None) -> dict:
+    """토글을 돌린다. mode='policy' 면 값은 지운다(0 으로 만들지 않는다)."""
+    if mode not in ('policy', 'own'):
+        raise ValueError(f'모르는 상태입니다: {mode!r}')
+    rec = {'mode': 'policy', 'value': None}
+    if mode == 'own':
+        if value is not None and value != '':
+            v = int(value)
+            if v < 0:
+                raise ValueError('깎을 값은 0원 이상이어야 합니다')
+            if v % _WON_STEP:
+                # 마켓이 「유효하지 않습니다」만 뱉기 전에 여기서 사람 말로 막는다.
+                raise ValueError(f'쿠팡은 깎을 금액을 {_WON_STEP}원 단위로만 받습니다 '
+                                 f'(예: {v // _WON_STEP * _WON_STEP:,}원)')
+            rec = {'mode': 'own', 'value': v}
+        else:
+            rec = {'mode': 'own', 'value': None}
+    channel.api_fields = {**(channel.api_fields or {}), OVERRIDE_KEY: rec}
+    session.add(channel)
+    session.commit()
+    return rec
+
+
+def effective_discount(session, channel, *, policy_value=None) -> Optional[dict]:
+    """실제로 나갈 값 — 비정책이면 그 값, 아니면 정책 값.
+
+    🔴 비정책 0원은 **None**(안 깎는다)이지 정책값으로 떨어지는 게 아니다.
+    🔴 스위치만 돌리고 값을 안 적었으면(None) 지어내지 않고 정책 값으로 간다.
+    """
+    ov = override_of(channel)
+    if ov['mode'] == 'own' and ov['value'] is not None:
+        return {'value': ov['value'], 'unitType': 'WON'} if ov['value'] > 0 else None
+    if policy_value is None:
+        policy_value = _discount_for(session, channel)
+    return policy_value
+
+
+def policy_targets(session, channels) -> dict:
+    """정책 값을 바꿀 때 **어디까지 다시 걸 것인가**. {'will': [...], 'skip': [...]}
+
+    🔴 비정책 상품은 `skip` 이다 — 정책을 바꿔도 안 따라간다(사장님 확정).
+      화면(확인창 B5)은 이 숫자를 그대로 보여 주고 나서 누르게 한다.
+    """
+    will, skip = [], []
+    for ch in channels or []:
+        (skip if is_own(ch) else will).append(ch)
+    return {'will': will, 'skip': skip}
+
+
+def request_for_channels(session, channels, *, now=None, by='단추') -> dict:
+    """고른 채널들만 대기열에 넣는다(B5 — 전부가 아니라 고른 것만)."""
+    ok = 0
+    for ch in channels or []:
+        if request_for_channel(session, ch, now=now, by=by)['ok']:
+            ok += 1
+    return {'ok': ok > 0, 'queued': ok}
 
 
 def targets_for(session, channel) -> list[str]:
@@ -181,8 +272,19 @@ def apply_or_renew(session, channel, *, client, now: Optional[datetime] = None,
                                f'안 내린 채로 새로 만들면 옵션이 전부 거부됩니다.'}
 
     if discount is None:
-        # 정책이 정한 값이 먼저다 — 할인값을 바꾸려고 다시 거는 것이니 옛 값이 이기면 안 된다.
-        discount = (discount_for or _discount_for)(session, channel)
+        # 🔴 「비정책」이면 **이 상품만의 값**이 이긴다 — 정책값이 나가면 사장님이
+        #   따로 정해 둔 값이 조용히 날아간다(0원 = 안 깎는다도 지켜진다).
+        #   정책이면 정책값이 먼저다 — 값을 바꾸려고 다시 거는 것이니 옛 값이 이기면 안 된다.
+        if is_own(channel):
+            ov = override_of(channel)
+            if ov['value'] is not None:
+                if ov['value'] <= 0:
+                    return {'ok': False, 'attempts': [], 'attached': [],
+                            'failed_items': [],
+                            'message': '이 상품은 「비정책 · 0원」이라 쿠폰을 만들지 않았습니다.'}
+                discount = {'value': ov['value'], 'unitType': 'WON'}
+        if discount is None:
+            discount = (discount_for or _discount_for)(session, channel)
     if discount is None and rec.get('ok') and rec.get('value'):
         # 정책에 값이 없을 때만 **지난번에 통한 값**에서 시작한다(사장님 「배운다」) —
         # 100원부터 21번 다시 헤매지 않는다.
@@ -288,14 +390,20 @@ def request_for_policy(session, policy_id: int, *, now=None,
     chans = (session.query(SetChannel)
              .filter(SetChannel.market == 'coupang',
                      SetChannel.set_id.in_(sorted(set_ids))).all())
-    ok = sum(1 for ch in chans
+    # 🔴 「비정책」으로 돌려 둔 상품은 **건너뛴다** — 정책을 바꿔도 안 따라간다(사장님 확정).
+    plan = policy_targets(session, chans)
+    ok = sum(1 for ch in plan['will']
              if request_for_channel(session, ch, now=now, by=by)['ok'])
-    not_ready = len(chans) - ok
+    not_ready = len(plan['will']) - ok
+    skipped = len(plan['skip'])
     msg = f'쿠폰 걸기를 대기열에 넣었습니다({ok}곳).'
+    if skipped:
+        msg += f' {skipped}곳은 상품에서 따로 정해 둔 값(비정책)이라 안 건드렸습니다.'
     if not_ready:
         msg += (f' {not_ready}곳은 아직 쿠팡 옵션 연동이 안 끝나 못 넣었습니다 — '
                 f'연동이 끝나면 다시 눌러 주세요.')
-    return {'ok': True, 'queued': ok, 'not_ready': not_ready, 'message': msg}
+    return {'ok': True, 'queued': ok, 'not_ready': not_ready,
+            'skipped_own': skipped, 'message': msg}
 
 
 def pending_requests(session) -> list:
