@@ -204,3 +204,63 @@ def test_상품상태는_명시해서_보낸다():
     assert "'offerCondition': 'NEW'" in src
     labels = {r['label'] for r in FS.for_market('coupang')['rows']}
     assert '상품상태' in labels
+
+
+# ── [2026-08-13] 11번가·옥션·G마켓 — 조립 코드를 열었으니 표도 실제와 맞는가 ──
+
+_PLAT = Path('shared/platforms')
+
+
+def test_11번가_고정값이_실제_코드에_그대로_있다():
+    src = (_PLAT / 'eleven11' / 'products.py').read_text(encoding='utf-8')
+    있어야_할_것 = [
+        '<prdStatCd>01</prdStatCd>',            # 상품상태 = 새상품
+        '<selMthdCd>01</selMthdCd>',            # 판매방식 = 고정가판매
+        '<orgnNmVal>상세설명 참조</orgnNmVal>',   # 원산지가 박혀 나간다
+        '<dlvCstInstBasiCd>01</dlvCstInstBasiCd>',   # 배송비 무료
+        '<bndlDlvCnYn>N</bndlDlvCnYn>',         # 묶음배송 불가
+        '_TAX_CODE = {"과세": "01", "면세": "02"}',
+    ]
+    빠진것 = [x for x in 있어야_할_것 if x not in src]
+    assert not 빠진것, f'표에 적었는데 코드에 없다 — 표가 낡았다: {빠진것}'
+
+
+def test_ESM_고정값이_실제_코드에_그대로_있다():
+    src = (_PLAT / 'esm' / 'products.py').read_text(encoding='utf-8')
+    있어야_할_것 = [
+        'period_block = {"Gmkt": -1, "Iac": -1}',      # 판매기간 무제한
+        '"isAdultProduct": bool(is_adult_product)',    # 미성년자 = 정책값
+        '"isVatFree": bool(is_vat_free)',              # 과세구분 = 정책값
+        '"siteDiscount": {"gmkt": False, "iac": False}',
+    ]
+    빠진것 = [x for x in 있어야_할_것 if x not in src]
+    assert not 빠진것, f'표에 적었는데 코드에 없다 — 표가 낡았다: {빠진것}'
+
+
+def test_옥션과_G마켓은_같은_표를_본다():
+    """🔴 같은 ESM 조립기 하나를 쓴다 — 따로 적으면 한쪽만 고쳐져 갈린다."""
+    a = [(r['label'], r['value']) for r in FS.for_market('auction')['rows']]
+    g = [(r['label'], r['value']) for r in FS.for_market('gmarket')['rows']]
+    assert a == g
+
+
+def test_이제_확인_못_한_마켓은_롯데온뿐이다():
+    """11번가·옥션·G마켓은 조립 코드를 전수로 읽었다 — 계속 「안 열어 봤다」면 그것도 거짓말."""
+    assert FS.UNCHECKED == ('lotteon',)
+    for mk in ('eleven11', 'auction', 'gmarket'):
+        assert FS.for_market(mk)['checked'] is True, mk
+
+
+def test_새로_연_마켓도_근거_위치가_전부_적혀_있다():
+    for mk in ('eleven11', 'auction', 'gmarket'):
+        for row in FS.for_market(mk)['rows']:
+            assert row['where'] and '.py:' in row['where'], f'{mk} · {row["label"]}'
+
+
+def test_정책이_이기는_칸은_그렇게_표시돼_있다():
+    """🔴 표시를 빠뜨리면 화면이 「정책 면세 / 실제 과세」라고 **반대로** 거짓말한다."""
+    for mk in ('eleven11', 'auction', 'gmarket'):
+        rows = {r['label']: r for r in FS.for_market(mk)['rows']}
+        assert rows['과세구분']['policy_wins'] is True, mk
+        assert rows['미성년자 구매']['policy_wins'] is True, mk
+        assert FS.conflicts(mk, {'listing': {'tax_type': '면세'}}) == [], mk

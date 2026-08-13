@@ -372,3 +372,41 @@ def test_태그는_20개_20자를_넘기지_않는다():
     got = p['items'][0]['searchTags']
     assert len(got) <= 20
     assert all(len(t) <= 20 for t in got)
+
+
+# ── [2026-08-13] 자동 가격 조정 — 쿠팡 전용 (공지 2026-05-22) ────────────────
+
+def test_자동_가격_조정을_안_쓰면_그_칸_자체를_안_보낸다():
+    """🔴 안 쓰는 기능을 `active: false` 로라도 보내면 「껐다」가 아니라
+      「설정했는데 껐다」가 된다. 정하지 않았으면 칸을 만들지 않는다."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert 'autoPricingInfo' not in p['items'][0]
+
+
+def test_최저가를_정하면_자동_가격_조정이_나간다():
+    """지도 근거: items.autoPricingInfo {minSalePrice: Number, active: Boolean}
+    — 「최초 상품 등록 시 승인 요청 전에만 입력 가능」(우리는 requested=False)."""
+    p, _ = compile_coupang(_full(auto_pricing_min=70000), category_code=1, vendor=VENDOR)
+    got = p['items'][0]['autoPricingInfo']
+    assert got == {'minSalePrice': 70000, 'active': True}
+
+
+def test_최저가가_판매가보다_크면_안_보낸다():
+    """🔴 지도: 「기존 salePrice 보다 작아야 함」 — 어기면 400 으로 등록 자체가 거부된다.
+      값 하나 때문에 상품이 통째로 안 올라가면 안 되므로 그 칸만 포기한다."""
+    for bad in (75800, 80000):     # 판매가 = 75,800
+        p, _ = compile_coupang(_full(auto_pricing_min=bad), category_code=1, vendor=VENDOR)
+        assert 'autoPricingInfo' not in p['items'][0], bad
+
+
+def test_최저가가_0이하면_안_보낸다():
+    for bad in (0, -1):
+        p, _ = compile_coupang(_full(auto_pricing_min=bad), category_code=1, vendor=VENDOR)
+        assert 'autoPricingInfo' not in p['items'][0], bad
+
+
+def test_최저가가_망가져_있어도_등록이_안_막힌다():
+    """태그와 같은 규칙 — 값 모양 때문에 전송이 멈추면 「왜 안 나가지」를 못 찾는다."""
+    for junk in ('abc', None, '', [1]):
+        p, _ = compile_coupang(_full(auto_pricing_min=junk), category_code=1, vendor=VENDOR)
+        assert 'autoPricingInfo' not in p['items'][0], junk

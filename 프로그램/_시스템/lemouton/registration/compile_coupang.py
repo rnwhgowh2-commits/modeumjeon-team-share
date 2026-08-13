@@ -137,6 +137,29 @@ def _barcode_fields(draft) -> dict:
             'emptyBarcodeReason': _NO_BARCODE_REASON}
 
 
+def _auto_pricing(draft, sale_price: int) -> dict:
+    """자동 가격 조정 — 쿠팡만 있는 칸(공지 2026-05-22).
+
+    지도 근거: `items.autoPricingInfo` {minSalePrice: Number, active: Boolean}
+      · 「최초 상품 등록 시 **승인 요청 전에만** 입력 가능」 — 우리 payload 는
+        `requested: False`(초안)라 이 경로가 맞다. 승인 뒤에는 옵션 가격변경 API 의
+        `apMinSalePrice`·`apActive`(둘을 **함께** 보내야 함 — 하나면 400)를 쓴다.
+      · 🔴 「기존 salePrice 보다 작아야 함」 — 어기면 400 으로 **상품 전체가 거부**된다.
+
+    🔴 값이 없거나 규칙에 안 맞으면 **그 칸만 포기한다.** 값 하나 때문에 등록이
+      멈추면 「왜 안 나가지」를 못 찾는다(검색태그와 같은 규칙).
+    🔴 안 쓰는 경우 `active: false` 로라도 보내지 않는다 — 「안 정함」과
+      「정했는데 껐다」는 다른 뜻이고, 쿠팡 화면에도 다르게 남는다.
+    """
+    try:
+        floor = int(getattr(draft, 'auto_pricing_min', None))
+    except (TypeError, ValueError):
+        return {}
+    if floor <= 0 or floor >= sale_price:
+        return {}
+    return {'autoPricingInfo': {'minSalePrice': floor, 'active': True}}
+
+
 def compile_coupang(draft, *, category_code: int, vendor: dict):
     """ProductDraft → (쿠팡 상품 생성 payload, 제외된 옵션 목록).
 
@@ -243,6 +266,7 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
             'pccNeeded': 'false',
         })
         it.update(_barcode_fields(draft))
+        it.update(_auto_pricing(draft, sale_price))
 
     payload = {
         'displayCategoryCode': cat_code,

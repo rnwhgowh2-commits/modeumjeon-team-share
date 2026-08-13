@@ -235,6 +235,11 @@ def _cdata(v) -> str:
     return "<![CDATA[" + str(v if v is not None else "") + "]]>"
 
 
+#: 화면 글자 → 11번가 코드. 지도 근거: suplDtyfrPrdClfCd enum [필수].
+#: 🔴 모르는 글자는 지어내지 않고 기본값(과세)으로 둔다.
+_TAX_CODE = {"과세": "01", "면세": "02"}
+
+
 def get_outbound_areas_xml(*, client: Optional[Eleven11Client] = None) -> str:
     """판매자 출고지/반품지 주소 조회 — 응답 XML **원문** 반환.
 
@@ -267,10 +272,19 @@ def build_register_xml(f: dict) -> str:
         "<rmaterialTypCd>04</rmaterialTypCd>",             # 원산지 의무 표시대상 아님
         "<orgnTypCd>03</orgnTypCd>",                       # 원산지: 기타(원산지명 입력)
         "<orgnNmVal>상세설명 참조</orgnNmVal>",
-        "<suplDtyfrPrdClfCd>01</suplDtyfrPrdClfCd>",       # 과세상품
+        # 지도 근거: suplDtyfrPrdClfCd enum [필수] — 01=과세 / 02=면세 / 03=영세
+        # 🔴 [2026-08-13] 여기가 '01' 로 박혀 있어 정책을 「면세」로 바꿔도 과세로 나갔다.
+        #   「영세」는 사장님 확정으로 선택지에서 뺐다(쿠팡·옥션·G마켓엔 보낼 칸이 없다) —
+        #   옛 저장분에 남아 있어도 지어내지 않고 과세로 둔다.
+        f"<suplDtyfrPrdClfCd>{_TAX_CODE.get(str(f.get('tax_type') or '').strip(), '01')}"
+        f"</suplDtyfrPrdClfCd>",
         "<forAbrdBuyClf>01</forAbrdBuyClf>",               # 일반판매상품
+        # 지도 근거: prdStatCd enum [필수] — 01=새상품 (사장님 확정 = 무조건 새상품)
         "<prdStatCd>01</prdStatCd>",                       # 새상품
-        "<minorSelCnYn>Y</minorSelCnYn>",                  # 미성년자 구매가능
+        # 지도 근거: minorSelCnYn — Y=미성년자 구매가능 / N=불가
+        # 🔴 [2026-08-13] 여기가 'Y' 로 박혀 있어 「19세 이상만」으로 정해도 전연령으로
+        #   나갔다. 성인상품이 미성년자에게 노출되면 판매금지 처리된다(쿠팡 adultOnly 와 같은 부류).
+        f"<minorSelCnYn>{'Y' if f.get('minor_purchasable', True) else 'N'}</minorSelCnYn>",
         f"<prdImage01>{_esc(req('image_url'))}</prdImage01>",
         f"<htmlDetail>{_cdata(req('detail_html'))}</htmlDetail>",
         f"<selPrc>{int(req('price'))}</selPrc>",           # 10원 단위·10억 미만
@@ -296,6 +310,25 @@ def build_register_xml(f: dict) -> str:
     apl_end = f.get("apl_end_dy") or _today.replace(year=_today.year + 3).strftime("%Y/%m/%d")
     parts.append(f"<aplBgnDy>{_esc(apl_bgn)}</aplBgnDy>")
     parts.append(f"<aplEndDy>{_esc(apl_end)}</aplEndDy>")
+    # ── 제조사·모델번호 — 지도 근거: 요청.company · 요청.modelCd (둘 다 [필수] 아님) ──
+    #   company: 「제조사 or 수입사는 텍스트 형태로만 입력」.
+    #   🔴 정책이 「브랜드와 동일」이면 다리가 아무것도 안 넣는다 — 여기서 브랜드로
+    #     갈음한다. 다리에서 복사하면 같은 값을 만드는 곳이 둘이 되어, 브랜드를
+    #     고쳤을 때 제조사만 옛 값으로 남는다(쿠팡 manufacture 와 같은 규칙).
+    #     11번가는 brand 가 필수라(compile_eleven11 이 빈 값을 막는다) 늘 채워진다.
+    company = str(f.get("manufacturer") or "").strip() or str(f.get("brand") or "").strip()
+    if company:
+        parts.append(f"<company>{_cdata(company)}</company>")
+    #   modelCd: 「등록하실 상품 모델의 고유한 식별정보」.
+    #   🔴 빈 값을 보내면 「없음」이 아니라 빈 모델코드로 등록된다 — 있을 때만 보낸다.
+    #   ⚠️ 모델「명」(modelNm)은 우리 초안에 담을 칸이 없다 — 지어내지 않고 안 보낸다.
+    model_no = str(f.get("model_no") or "").strip()
+    if model_no:
+        parts.append(f"<modelCd>{_cdata(model_no)}</modelCd>")
+    # ⚠️ 바코드 — 11번가 등록에는 **칸이 아예 없다**(지도 요청필드 235개 전수 확인:
+    #   barcode·GTIN·EAN·JAN 계열 0개). 「확인 못 함」이 아니라 「없음」이다.
+    # ⚠️ 검색태그 — ProductTag>tagName 은 「로드샵셀러와 아울렛셀러만」 쓸 수 있다(지도).
+    #   우리는 그 셀러 유형이 아니라 보내지 않는다.
     # 옵션(선택형 싱글옵션) — colValue0 에 "색상/사이즈" 조합값(지도 example '파랑/XXL').
     #   멀티옵션은 API 로 옵션별 재고 불가(일괄만)라 싱글옵션이 정답. 옵션 있으면
     #   colCount 가 옵션별 재고, prdSelQty 는 총재고(옵션합)로 둔다.

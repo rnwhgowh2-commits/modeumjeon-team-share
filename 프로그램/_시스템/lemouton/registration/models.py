@@ -67,6 +67,10 @@ class ProductDraft(Base):
     # 🔴 이름이 `tags` 가 아니다 — 가공 엔진이 컴파일러에 넘기는 `process_tags`
     #   (저장 칸이 아닌 값)와 헷갈리면 「저장했는데 안 나간다」가 된다.
     search_tags = Column(Text, default='[]')           # JSON 배열 문자열
+    # 자동 가격 조정 최저가 — **쿠팡만** 있는 칸(공지 2026-05-22).
+    #   🔴 NULL = 「안 씀」. 0 을 기본값으로 걸면 「최저가 0원으로 켜 둠」이 되어
+    #     쿠팡이 400 을 내거나, 더 나쁘게는 바닥 없이 값을 내린다.
+    auto_pricing_min = Column(Integer)
 
     # 스스 detailAttribute 필수 — 라이브 검증된 create_product.py:85-89 payload 에 있음
     minor_purchasable = Column(Boolean, default=True, nullable=False)

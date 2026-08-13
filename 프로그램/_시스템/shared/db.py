@@ -586,6 +586,8 @@ def _apply_lightweight_migrations() -> None:
         ("product_drafts", "model_no", "VARCHAR(80)"),
         ("product_drafts", "barcode", "VARCHAR(64)"),
         ("product_drafts", "search_tags", "TEXT"),
+        # 2026-08-13: 자동 가격 조정 최저가(쿠팡 전용). NULL = 안 씀 — DEFAULT 금지.
+        ("product_drafts", "auto_pricing_min", "INTEGER"),
         # 2026-07-20: 판매처 계정 라이브 검증(실주문 조회 왕복 확인) 기록.
         #   upload_accounts 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
         #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.

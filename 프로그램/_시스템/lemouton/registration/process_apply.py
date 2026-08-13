@@ -972,6 +972,38 @@ def _apply_listing(draft, cfg):
                                     getattr(draft, 'manufacturer', None), fixed,
                                     note='정책에 적은 제조사를 넣었습니다.'))
 
+    # ── 칸이 있는 것: 자동 가격 조정 최저가 (쿠팡 전용) ─────────────────────
+    #   정책 항목은 `_auto_pricing`(fields.py) — mode/min_margin_pct/min_price.
+    ap = cfg.get('_auto_pricing') if isinstance(cfg.get('_auto_pricing'), dict) else cfg
+    ap_mode = str(ap.get('mode') or '').strip()
+    if ap_mode.startswith('씀'):
+        if '직접 입력' in ap_mode:
+            try:
+                floor = int(ap.get('min_price') or 0)
+            except (TypeError, ValueError):
+                floor = 0
+            if floor <= 0:
+                skipped.append(_skip('listing', 'auto_pricing_min', 'NO_AUTO_MIN',
+                                     '자동 가격 조정을 「직접 입력」으로 두셨는데 최저 '
+                                     '판매가가 비어 있습니다 — 최저가 없이 켜면 바닥 없이 '
+                                     '값이 내려가므로 켜지 않았습니다.', False))
+            elif getattr(draft, 'auto_pricing_min', None) != floor:
+                over['auto_pricing_min'] = floor
+                applied.append(_applied('listing', 'auto_pricing_min',
+                                        getattr(draft, 'auto_pricing_min', None), floor,
+                                        note=f'최저 판매가 {floor:,}원으로 켰습니다 '
+                                             f'(쿠팡만 해당).'))
+        else:
+            # 🔴 「최저가를 마진율로 계산」은 **값을 만드는 일**이라 여기서 하지 않는다.
+            #   판매가를 가공 사본에서 만들면 「에러 없이 틀린 숫자」가 된다(이 파일
+            #   맨 위 규칙 — price 는 마진 엔진 몫). 지어내는 대신 못 했다고 말한다.
+            skipped.append(_skip('listing', 'auto_pricing_min', 'AUTO_MIN_BY_MARGIN',
+                                 '자동 가격 조정을 「최저가를 마진율로 계산」으로 '
+                                 '두셨습니다 — 최저가를 마진율로 내는 계산은 아직 잇지 '
+                                 '않아 켜지 않았습니다. 지금은 「최저가 직접 입력」만 '
+                                 '나갑니다(엉뚱한 최저가로 켜면 값이 그만큼 내려갑니다).',
+                                 False, gap=True))
+
     # ── 칸이 없는 것: 기본값과 다를 때만 말한다 ────────────────────────────
     #   기본값까지 사유로 만들면 화면이 경고로 뒤덮여 진짜 경고가 안 읽힌다.
     for key, label, default, why in _LISTING_NO_FIELD:

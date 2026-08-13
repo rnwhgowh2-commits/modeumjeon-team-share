@@ -5,9 +5,10 @@
    초안에는 그대로 전연령이 남았고, 화면은 조용했다 — 값을 못 만드는 것과
    **그 사실을 안 말하는 것은 다른 잘못**이다.
 
-🔴 칸이 있는 것(미성년자 구매)은 잇는다. 칸이 없는 것(과세·상품상태·판매기간·
-   제조사)은 **지어내지 말고 사유로 말한다** — 마켓별 payload 를 열어 보기 전에
-   붙이면 금전 사고가 난다.
+🔴 칸이 있는 것은 잇는다 — 미성년자 구매·과세구분·제조사, 그리고 자동 가격 조정
+   최저가(쿠팡 전용). 칸이 없거나 **값을 새로 만들어야 하는 것**은 지어내지 말고
+   사유로 말한다. 상품상태·판매기간은 고를 것이 아니라 정해진 값이라 정책 항목에서
+   빠졌다(`policy/fixed_sends.py` 의 「정해져 나가는 값」이 보여준다).
 """
 from lemouton.registration.process_apply import apply_rules
 
@@ -198,3 +199,47 @@ def test_다리에_실린_칸이_초안_행으로도_옮겨진다():
     from lemouton.send.as_draft import _POLICY_FIELDS
     for k in ('tax_type', 'manufacturer'):
         assert k in _POLICY_FIELDS, f'{k} 가 초안 행으로 안 옮겨진다'
+
+
+# ── [2026-08-13] 자동 가격 조정 최저가 (쿠팡 전용) ──────────────────────────
+
+def test_최저가_직접_입력이_초안에_닿는다():
+    view, applied, _ = apply_rules(
+        _Draft(auto_pricing_min=None),
+        {'listing': {'_auto_pricing': {'mode': '씀 — 최저가 직접 입력',
+                                       'min_price': 70000}}})
+    assert view.auto_pricing_min == 70000
+    assert [x for x in applied if x['field'] == 'auto_pricing_min']
+
+
+def test_안_쓰면_손대지_않는다():
+    view, applied, skipped = apply_rules(
+        _Draft(auto_pricing_min=None), {'listing': {'_auto_pricing': {'mode': '안 씀'}}})
+    assert getattr(view, 'auto_pricing_min', None) is None
+    assert 'auto_pricing_min' not in _skips(skipped)
+
+
+def test_직접_입력인데_값이_비면_켜지_않고_말한다():
+    """🔴 최저가 없이 켜면 바닥 없이 값이 내려간다 — 켜지 않는 쪽이 안전하다."""
+    view, _, skipped = apply_rules(
+        _Draft(auto_pricing_min=None),
+        {'listing': {'_auto_pricing': {'mode': '씀 — 최저가 직접 입력', 'min_price': 0}}})
+    assert getattr(view, 'auto_pricing_min', None) is None
+    s = _skips(skipped)['auto_pricing_min']
+    assert s['blocking'] is False, '이것 때문에 등록이 멈추면 안 된다'
+
+
+def test_마진율_계산은_지어내지_않고_못_했다고_말한다():
+    """🔴 판매가를 가공 사본에서 만들면 「에러 없이 틀린 숫자」가 된다 — 금전 사고."""
+    view, _, skipped = apply_rules(
+        _Draft(auto_pricing_min=None),
+        {'listing': {'_auto_pricing': {'mode': '씀 — 최저가를 마진율로 계산',
+                                       'min_margin_pct': 5}}})
+    assert getattr(view, 'auto_pricing_min', None) is None
+    s = _skips(skipped)['auto_pricing_min']
+    assert s['blocking'] is False and s.get('gap') is True
+
+
+def test_자동_가격_조정도_초안_행으로_옮겨진다():
+    from lemouton.send.as_draft import _POLICY_FIELDS
+    assert 'auto_pricing_min' in _POLICY_FIELDS
