@@ -63,8 +63,8 @@
       </div>
       <div class="e-col">
         <label class="e-lbl">수량 <span class="req">*</span></label>
-        <input name="qty" type="number" class="e-inp e-mono" value="{{ tx.qty }}" min="0" required>
-        <div class="e-help">{% if tx.tx_type=='adjust' %}절대값 — 해당 위치 재고를 이 수량으로 맞춤{% else %}변동 수량{% endif %}</div>
+        <input name="qty" type="number" class="e-inp e-mono" value="{{ tx.qty }}" required>
+        <div class="e-help">{% if tx.tx_type=='adjust' %}증감분 — 이 조정으로 <b>얼마나 늘고 줄었나</b>(음수 가능). 「재고를 N개로」가 아닙니다{% else %}변동 수량{% endif %}</div>
       </div>
     </div>
 
