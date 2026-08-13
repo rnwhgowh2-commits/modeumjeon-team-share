@@ -85,11 +85,71 @@ def save(rows: list, *, source: str = "manual", session=None) -> int:
             session.close()
 
 
+#: 「지급 예상금액」이 세는 창 — 오늘 다음날부터 이만큼.
+#  🔴 2026-08-13 사장님 화면 실측으로 **원 단위 확정**(아래 ahead_summary 주석 참조).
+RG_AHEAD_DAYS = 31
+
+
+def ahead_summary(*, today=None, window_days: int = RG_AHEAD_DAYS, session=None) -> dict:
+    """쿠팡 화면 「지급 예상금액」과 **같은 규칙**으로 「앞으로 받을 돈」을 센다.
+
+    🔴 규칙을 추측하지 않고 **실측으로 확정했다**(2026-08-13, 사장님 Wing 화면 25회차):
+        Σ최종지급액 (21건 전부)              = 9,045,123
+        Σ최종지급액 (정산일 이미 지남)         = 1,226,921
+        Σ최종지급액 (오늘 이후 ~ 한 달 이내)    = **7,818,202**  ← 화면 숫자와 원 단위 일치
+      더 뒤 회차(09-14·10-01·10-07 합 1,710,221)는 화면 숫자에 **안 들어간다** —
+      그래서 「오늘 이후 전부」가 아니라 **한 달 창**이다.
+
+    🔴 우리가 쓰던 `지급액 − 빠른정산` 은 **틀렸다**(라이브 9,508,138 vs 화면 7,818,202).
+      두 가지가 어긋나 있었다: ① 기간 제한이 없어 **이미 받은 회차**까지 셌다
+      ② 마켓이 이미 계산해 준 `최종지급액` 을 두고 우리가 다시 만들었다.
+      마켓이 주는 완성된 숫자가 있으면 그걸 쓴다 — 재계산은 어긋날 자리만 늘린다.
+
+    🔴 가상계좌 내역이 이 해석을 뒷받침한다(같은 날 실측):
+        07-20 입금 193,790 = 정산일 07-20 회차의 최종지급액
+        08-03 입금 323,725 = 그날 30% 회차 3건 합(127,470+113,202+83,053)
+      입금 즉시 「판매자 자동인출」로 빠져나가 잔액이 늘 0이다.
+
+    ⚠️ 창 길이(31일)는 **하루치 관측**으로 정했다. 대조에서 어긋나기 시작하면 여기부터
+      다시 볼 것 — 그래서 상수로 빼 두었다.
+    """
+    import datetime as _d
+    from lemouton.sourcing.models_v2 import RocketGrowthSettlement as M
+    own = session is None
+    if own:
+        from shared.db import SessionLocal
+        session = SessionLocal()
+    try:
+        t = today or _d.date.today()
+        if isinstance(t, _d.datetime):
+            t = t.date()
+        end = (t + _d.timedelta(days=int(window_days))).isoformat()
+        t_s = t.isoformat()
+        금액, n, 지난 = 0, 0, 0
+        for o in session.query(M).all():
+            sd = str(o.settlement_date or "")
+            fin = int(o.final_amount or 0)
+            if not sd:
+                continue                      # 정산일 없는 회차는 시기를 못 가른다
+            if sd <= t_s:
+                지난 += fin                    # 이미 받은 회차 — 앞으로 받을 돈이 아니다
+            elif sd <= end:
+                금액 += fin
+                n += 1
+        return {"금액": 금액, "회차수": n, "이미받은회차합": 지난,
+                "창": f"{t_s} 다음날 ~ {end}",
+                "구성": f"최종지급액 합(정산일 {t_s} 이후 ~ {end})"}
+    finally:
+        if own:
+            session.close()
+
+
 def summary(*, session=None) -> dict:
     """화면용 요약 — 「받을 돈」과 「이미 받은 돈」을 갈라 준다.
 
-    받을돈 = 지급액 − 빠른정산 선인출(음수는 0). 선인출은 이미 통장에 있는 돈이라
-    안 빼면 로켓그로스만큼 자금계획이 부푼다.
+    ⚠️ 여기 `받을돈`(= 지급액 − 빠른정산)은 **쿠팡 화면 「지급 예상금액」과 다르다.**
+      화면과 맞대려면 `ahead_summary()` 를 쓸 것(2026-08-13 실측으로 확정).
+      이 값은 기간 제한이 없어 이미 받은 회차까지 포함한다.
     """
     from lemouton.sourcing.models_v2 import RocketGrowthSettlement as M
     own = session is None

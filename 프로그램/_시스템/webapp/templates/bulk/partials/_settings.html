@@ -6,23 +6,23 @@
   .st-lim{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
   .st-box{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:10px;padding:16px}
   .st-box h3{font-size:12.5px;font-weight:700;margin:0 0 3px}
-  .st-box .d{font-size:11px;color:var(--sub,#8B95A1);margin-bottom:10px;line-height:1.6}
+  .st-box .d{font-size:12px;color:var(--sub,#8B95A1);margin-bottom:10px;line-height:1.6}
   .st-row{display:flex;align-items:center;gap:8px}
   .st-row input{width:90px;border:1px solid var(--line,#E5E8EB);border-radius:7px;padding:8px 10px;
     font-family:ui-monospace,monospace;font-size:13px;text-align:right}
-  .st-row .u{font-size:11.5px;color:var(--sub,#8B95A1)}
-  .st-row .now{margin-left:auto;font-size:11.5px;color:var(--글자-기본,#4E5968)}
+  .st-row .u{font-size:12px;color:var(--sub,#8B95A1)}
+  .st-row .now{margin-left:auto;font-size:12px;color:var(--글자-기본,#4E5968)}
   .st-row .now b{color:var(--ink,#191F28)}
   .st-tbl{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:10px;overflow:hidden}
   .st-tbl table{width:100%;border-collapse:collapse}
-  .st-tbl th{background:var(--n100,#FBFCFD);font-size:11.5px;font-weight:600;color:var(--sub,#8B95A1);
+  .st-tbl th{background:var(--n100,#FBFCFD);font-size:12px;font-weight:600;color:var(--sub,#8B95A1);
     padding:12px 12px;border-bottom:1px solid var(--line,#E5E8EB);text-align:left;white-space:nowrap}
   .st-tbl td{padding:12px 12px;border-bottom:1px solid var(--n100,#F2F4F6);font-size:12.5px}
   .st-tbl tr:last-child td{border-bottom:0}
   .st-tbl input{width:78px;border:1px solid var(--line,#E5E8EB);border-radius:6px;padding:6px 9px;
     font-family:ui-monospace,monospace;font-size:12px;text-align:right}
   .st-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px}
-  .st-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px}
+  .st-tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 7px;border-radius:4px}
   .st-act{display:flex;gap:8px;align-items:center;margin-top:16px}
   .st-save{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:10px 20px;
     font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
@@ -57,7 +57,7 @@
 
 {# ── 업로드 속도 「X초에 Y개」 (2026-07-20) ───────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">업로드 속도</h2>
-<p style="font-size:11.5px;color: var(--글자-희미, #8B95A1);margin:0 0 12px;line-height:1.7">
+<p style="font-size:12px;color: var(--글자-희미, #8B95A1);margin:0 0 12px;line-height:1.7">
   마켓 API 한도와 계정별 속도를 직접 정합니다.
   실제로는 <b>둘 중 느린 쪽</b>으로 나갑니다 — 마켓 한도를 계정 수로 뚫으면 차단당합니다.
 </p>
@@ -77,17 +77,17 @@
             placeholder="초"> 초에
           <input class="sp-n" type="number" min="1" step="1" value="${n == null ? '' : n}"
             placeholder="개"> 개</td>
-      <td style="color: var(--글자-희미, #8B95A1);font-size:11.5px">${text || '<span style="color:#B45309">미확인</span>'}
+      <td style="color: var(--글자-희미, #8B95A1);font-size:12px">${text || '<span style="color:#B45309">미확인</span>'}
           ${extra || ''}</td>
       <td style="text-align:right"><button class="st-reset sp-save"
-            style="padding:6px 13px;font-size:11.5px">저장</button></td>
+            style="padding:6px 13px;font-size:12px">저장</button></td>
     </tr>`;
   }
 
   function render(d) {
     root.innerHTML = (d.markets || []).map((m) => {
       const seq = m.must_be_sequential
-        ? `<div style="margin-top:5px;color:#B45309;font-size:11px">
+        ? `<div style="margin-top:5px;color:#B45309;font-size:12px">
              <b>한 번에 하나씩</b> — ${esc(m.concurrency_note || '')}</div>` : '';
       const rows = [line('market', m.market, '<b>마켓 API 한도</b>',
         m.market_limit && m.market_limit.window_seconds,
@@ -99,7 +99,7 @@
       return `<div style="margin-bottom:16px">
         <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px">
           <b style="font-size:13px">${esc(m.label)}</b>
-          <span style="font-size:11.5px;color:#8B95A1">실제 나가는 속도
+          <span style="font-size:12px;color:#8B95A1">실제 나가는 속도
             <b style="color:#191F28">${m.effective.per_second}개/초</b>
             ${m.effective.bound_by === 'market'
               ? '<span style="color:#B45309">(마켓 한도에 묶임)</span>'
@@ -170,7 +170,7 @@
 
 {# ── 카테고리 사전 (6마켓) (2026-07-22 M1 Task 10) ───────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📂 카테고리 사전 (6마켓)</h2>
-<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   마켓별 카테고리 전체를 공식 API로 수집해 둡니다. 등록 화면의 카테고리 검색이 이 사전을 씁니다.
   마켓이 카테고리를 개편할 수 있으니 가끔 「재수집」을 눌러 주세요.
   쿠팡·옥션·G마켓은 수만 건이라 시간이 오래 걸립니다 — 중단돼도 다시 누르면 이어서 채웁니다.
@@ -204,20 +204,20 @@
 
   function progressText(r) {
     // 진행 중인데 아직 한 번도 기록 안 됐으면(20초 스로틀이라 초반엔 비어 있음) '집계 전'.
-    if (r.progress_count == null) return '<div style="color: var(--글자-희미, #8B95A1);font-size:11px;margin-top:3px">집계 전</div>';
+    if (r.progress_count == null) return '<div style="color: var(--글자-희미, #8B95A1);font-size:12px;margin-top:3px">집계 전</div>';
     const mins = minutesAgo(r.progress_at);
     const ago = mins == null ? '' : (mins === 0 ? ' · 방금 갱신' : (' · ' + mins + '분 전 갱신'));
-    return '<div style="color: var(--글자-희미, #8B95A1);font-size:11px;margin-top:3px">' + r.progress_count + '건째' + ago + '</div>';
+    return '<div style="color: var(--글자-희미, #8B95A1);font-size:12px;margin-top:3px">' + r.progress_count + '건째' + ago + '</div>';
   }
 
   function render(rows) {
     root.innerHTML = '<div class="st-tbl"><table style="width:100%;'
       + 'border-collapse:collapse"><thead><tr>'
-      + '<th style="text-align:left;padding:8px 6px;font-size:11.5px;color:#8B95A1">마켓</th>'
-      + '<th style="text-align:right;padding:8px 6px;font-size:11.5px;color:#8B95A1">전체</th>'
-      + '<th style="text-align:right;padding:8px 6px;font-size:11.5px;color:#8B95A1">리프</th>'
-      + '<th style="text-align:right;padding:8px 6px;font-size:11.5px;color:#8B95A1">삭제됨</th>'
-      + '<th style="text-align:left;padding:8px 6px;font-size:11.5px;color:#8B95A1">마지막 수집</th>'
+      + '<th style="text-align:left;padding:8px 6px;font-size:12px;color:#8B95A1">마켓</th>'
+      + '<th style="text-align:right;padding:8px 6px;font-size:12px;color:#8B95A1">전체</th>'
+      + '<th style="text-align:right;padding:8px 6px;font-size:12px;color:#8B95A1">리프</th>'
+      + '<th style="text-align:right;padding:8px 6px;font-size:12px;color:#8B95A1">삭제됨</th>'
+      + '<th style="text-align:left;padding:8px 6px;font-size:12px;color:#8B95A1">마지막 수집</th>'
       + '<th style="padding:8px 6px"></th></tr></thead><tbody>'
       + rows.map((r) => {
         const label = esc(NAMES[r.market] || r.market);
@@ -229,16 +229,16 @@
             ? '<span style="color:#1B64DA">수집 중…</span>' + progressText(r)
             : esc(r.last_harvested || '수집 전'));
         const warn = (!r.running && r.last_error)
-          ? '<div style="color:#B91C1C;font-size:11px;margin-top:3px">⚠️ ' + esc(r.last_error) + '</div>'
+          ? '<div style="color:#B91C1C;font-size:12px;margin-top:3px">⚠️ ' + esc(r.last_error) + '</div>'
           : '';
         // [2026-07-23 사고 #5] 「완료」는 완주했을 때만 쓴다. 콜 예산을 다 써서 큐가 남은 채
         // 스스로 끝낸 실행(incomplete)은 "이어받는 중" 으로 정직하게 보여준다 — 「재수집」을
         // 다시 누르면 이어서 채운다(이미 확보한 건 다시 안 훑는다).
         const ok = (!r.running && r.incomplete)
-          ? '<div style="color:#B45309;font-size:11px;margin-top:3px">⏳ 이어받는 중 ('
+          ? '<div style="color:#B45309;font-size:12px;margin-top:3px">⏳ 이어받는 중 ('
               + r.total + '건 확보) — 「재수집」을 다시 누르면 이어서 채웁니다</div>'
           : ((!r.running && r.last_summary)
-            ? '<div style="color:#15803D;font-size:11px;margin-top:3px">✅ 완료 · '
+            ? '<div style="color:#15803D;font-size:12px;margin-top:3px">✅ 완료 · '
                 + esc(summaryText(r.last_summary)) + '</div>'
             : '');
         return '<tr data-row="' + esc(r.market) + '">'
@@ -249,7 +249,7 @@
           + '<td style="padding:9px 6px;font-size:12px">' + last + warn + ok + '</td>'
           + '<td style="text-align:right;padding:9px 6px">'
           + '<button type="button" class="st-reset cat-run" data-m="' + esc(r.market)
-          + '" style="padding:6px 13px;font-size:11.5px"'
+          + '" style="padding:6px 13px;font-size:12px"'
           // 멈춘 실행에서 버튼까지 잠기면 사장님이 손쓸 방법이 없다 — 그게 진짜 막다른 길이었다.
           // 서버가 스테일로 회수해 주므로 눌러도 안전하다.
           + ((r.running && !r.stalled) ? ' disabled' : '') + '>'
@@ -334,7 +334,7 @@
 
 {# ── 🚫 브랜드 제한 (2026-07-23 M2 Task 7) ───────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🚫 브랜드 제한</h2>
-<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   지재권 문제 등으로 특정 브랜드를 특정 마켓(또는 그 마켓의 카테고리 이하)에 못 올리게 막습니다.
   등록 시점에 걸리면 <b>그 마켓 호출 없이</b> 자동 제외되고 사유가 표시됩니다.</p>
 <div id="brand-limit-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
@@ -350,10 +350,10 @@
   function render(rows) {
     const tbl = '<div class="st-tbl"><table style="width:100%;border-collapse:collapse">'
       + '<thead><tr>'
-      + '<th style="text-align:left;padding:8px 6px;font-size:11.5px;color:#8B95A1">브랜드</th>'
-      + '<th style="text-align:left;padding:8px 6px;font-size:11.5px;color:#8B95A1">마켓</th>'
-      + '<th style="text-align:left;padding:8px 6px;font-size:11.5px;color:#8B95A1">카테고리 범위</th>'
-      + '<th style="text-align:left;padding:8px 6px;font-size:11.5px;color:#8B95A1">사유</th>'
+      + '<th style="text-align:left;padding:8px 6px;font-size:12px;color:#8B95A1">브랜드</th>'
+      + '<th style="text-align:left;padding:8px 6px;font-size:12px;color:#8B95A1">마켓</th>'
+      + '<th style="text-align:left;padding:8px 6px;font-size:12px;color:#8B95A1">카테고리 범위</th>'
+      + '<th style="text-align:left;padding:8px 6px;font-size:12px;color:#8B95A1">사유</th>'
       + '<th style="padding:8px 6px"></th></tr></thead><tbody>'
       + (rows.length ? rows.map((r) => '<tr data-id="' + esc(r.id) + '">'
         + '<td style="padding:9px 6px;font-size:12.5px">' + esc(r.brand) + '</td>'
@@ -362,23 +362,23 @@
         + (r.category_prefix ? esc(r.category_prefix) : '<span style="color:#8B95A1">전체</span>') + '</td>'
         + '<td style="padding:9px 6px;font-size:12px;color:#4E5968">' + esc(r.reason) + '</td>'
         + '<td style="text-align:right;padding:9px 6px"><button type="button" class="st-reset bl-del" '
-        + 'data-id="' + esc(r.id) + '" style="padding:6px 13px;font-size:11.5px">삭제</button></td></tr>').join('')
+        + 'data-id="' + esc(r.id) + '" style="padding:6px 13px;font-size:12px">삭제</button></td></tr>').join('')
         : '<tr><td colspan="5" style="padding:12px 6px;color: var(--글자-희미, #8B95A1);font-size:12px">등록된 제한이 없습니다.</td></tr>')
       + '</tbody></table></div>';
 
     const opts = Object.keys(MNAMES).map((k) => '<option value="' + esc(k) + '">'
       + esc(MNAMES[k]) + '</option>').join('');
     const form = '<div style="display:flex;gap:8px;align-items:flex-end;margin-top:14px;flex-wrap:wrap">'
-      + '<label style="font-size:11px;color:#8B95A1">브랜드<br>'
+      + '<label style="font-size:12px;color:#8B95A1">브랜드<br>'
       + '<input id="bl-brand" type="text" placeholder="예: 나이키" style="border:1px solid #E5E8EB;'
       + 'border-radius:7px;padding:8px 10px;font-size:12.5px;width:140px"></label>'
-      + '<label style="font-size:11px;color:#8B95A1">마켓<br>'
+      + '<label style="font-size:12px;color:#8B95A1">마켓<br>'
       + '<select id="bl-market" style="border:1px solid #E5E8EB;border-radius:7px;padding:8px 10px;'
       + 'font-size:12.5px">' + opts + '</select></label>'
-      + '<label style="font-size:11px;color:#8B95A1">카테고리 범위(선택)<br>'
+      + '<label style="font-size:12px;color:#8B95A1">카테고리 범위(선택)<br>'
       + '<input id="bl-prefix" type="text" placeholder="비우면 마켓 전체" style="border:1px solid #E5E8EB;'
       + 'border-radius:7px;padding:8px 10px;font-size:12.5px;width:180px"></label>'
-      + '<label style="font-size:11px;color:#8B95A1">사유<br>'
+      + '<label style="font-size:12px;color:#8B95A1">사유<br>'
       + '<input id="bl-reason" type="text" placeholder="예: 지재권 신고 이력" style="border:1px solid #E5E8EB;'
       + 'border-radius:7px;padding:8px 10px;font-size:12.5px;width:200px"></label>'
       + '<button type="button" id="bl-add" class="st-save" style="padding:9px 18px">추가</button>'
@@ -443,7 +443,7 @@
 
 {# ── 🛒 쿠팡 계정정보 (2026-07-23 M4-2) ──────────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🛒 쿠팡 계정정보</h2>
-<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   쿠팡 등록에는 <b>반품지·출고지 정보</b>가 반드시 붙어야 합니다. 상품마다 다른 값이 아니라
   <b>계정에 한 번만</b> 정해 두는 값이라 여기서 저장하고, 등록할 때 자동으로 채워집니다.
   <b>「쿠팡에서 불러오기」</b>를 누르면 쿠팡에 등록해 두신 반품지·출고지를 그대로 가져옵니다 —
@@ -482,7 +482,7 @@
   }
 
   function field(key, value) {
-    return '<label style="font-size:11px;color: var(--글자-희미, #8B95A1);display:block">' + esc(LABELS[key])
+    return '<label style="font-size:12px;color: var(--글자-희미, #8B95A1);display:block">' + esc(LABELS[key])
       + '<br><input class="cpv-f" data-k="' + esc(key) + '" type="text" '
       + 'value="' + esc(value || '') + '" style="border:1px solid #E5E8EB;border-radius:7px;'
       + 'padding:8px 10px;font-size:12.5px;width:100%;box-sizing:border-box"></label>';
@@ -502,9 +502,9 @@
     // 「이 계정으로 등록이 나가는가」를 먼저 말한다 — 엉뚱한 계정 칸을 채우는 사고 방지.
     const useBadge = !a ? ''
       : (a.in_use
-        ? '<div style="color:#15803D;font-size:11.5px;margin-top:8px">'
+        ? '<div style="color:#15803D;font-size:12px;margin-top:8px">'
           + '🟢 지금 쿠팡 등록은 <b>이 계정</b>으로 나갑니다.</div>'
-        : '<div style="color:#B45309;font-size:11.5px;margin-top:8px">'
+        : '<div style="color:#B45309;font-size:12px;margin-top:8px">'
           + '이 계정은 지금 등록에 쓰이지 않습니다'
           + (activePrefix ? ' — 실제로 쓰이는 계정은 <b>' + esc(activePrefix) + '</b> 입니다.'
                           : '.')
@@ -512,18 +512,18 @@
 
     const state = !a ? ''
       : (a.complete
-        ? '<div style="color:#15803D;font-size:11.5px;margin-top:8px">'
+        ? '<div style="color:#15803D;font-size:12px;margin-top:8px">'
           + '✅ 이 계정은 등록에 필요한 값이 모두 저장돼 있습니다.</div>'
         : (a.saved
-          ? '<div style="color:#B45309;font-size:11.5px;margin-top:8px">'
+          ? '<div style="color:#B45309;font-size:12px;margin-top:8px">'
             + '⚠️ 아직 비어 있는 칸이 있습니다 — 등록이 막힙니다. 비어 있는 칸: <b>'
             + esc((a.missing || []).join(', ')) + '</b></div>'
-          : '<div style="color:#B91C1C;font-size:11.5px;margin-top:8px">'
+          : '<div style="color:#B91C1C;font-size:12px;margin-top:8px">'
             + '아직 저장하지 않았습니다 — 지금 이 계정으로는 쿠팡 등록이 막힙니다.</div>'));
 
     root.innerHTML = '<div class="st-box">'
       + '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'
-      + '<label style="font-size:11px;color:#8B95A1">계정<br>'
+      + '<label style="font-size:12px;color:#8B95A1">계정<br>'
       + '<select id="cpv-acct" style="border:1px solid #E5E8EB;border-radius:7px;'
       + 'padding:8px 10px;font-size:12.5px;min-width:260px">' + opts + '</select></label>'
       + '<button type="button" id="cpv-fetch" class="st-reset" style="padding:9px 16px">'
@@ -623,29 +623,29 @@
     const centers = d.return_centers || [];
     const places = d.outbound_places || [];
     if (!centers.length && !places.length) {
-      box.innerHTML = '<div style="color:#B45309;font-size:11.5px">'
+      box.innerHTML = '<div style="color:#B45309;font-size:12px">'
         + '쿠팡에 등록된 반품지·출고지가 없습니다 — 쿠팡 Wing 에서 먼저 등록해 주세요.</div>';
       return;
     }
     const cRows = centers.map((c, i) => '<button type="button" class="st-reset cpv-c" '
-      + 'data-i="' + i + '" style="padding:6px 11px;font-size:11.5px;margin:0 6px 6px 0">'
+      + 'data-i="' + i + '" style="padding:6px 11px;font-size:12px;margin:0 6px 6px 0">'
       + esc(c.return_charge_name || '(이름 없음)') + ' · ' + esc(c.return_center_code)
       + (c.usable ? '' : ' <span style="color:#B45309">(사용 안 함)</span>')
       + '</button>').join('');
     const pRows = places.map((p, i) => '<button type="button" class="st-reset cpv-p" '
-      + 'data-i="' + i + '" style="padding:6px 11px;font-size:11.5px;margin:0 6px 6px 0">'
+      + 'data-i="' + i + '" style="padding:6px 11px;font-size:12px;margin:0 6px 6px 0">'
       + esc(p.name || '(이름 없음)') + ' · ' + esc(p.outbound_place_code)
       + (p.usable ? '' : ' <span style="color:#B45309">(사용 안 함)</span>')
       + '</button>').join('');
     box.innerHTML = '<div style="background:#FBFCFD;border:1px solid #E5E8EB;border-radius:8px;'
       + 'padding:10px 12px">'
-      + '<div style="font-size:11.5px;color:#4E5968;margin-bottom:6px">'
+      + '<div style="font-size:12px;color:#4E5968;margin-bottom:6px">'
       + '쿠팡에서 가져왔습니다. <b>쓸 것을 눌러</b> 주세요 — 누른 것만 아래 칸에 들어갑니다.</div>'
-      + (centers.length ? '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin:6px 0 4px">반품지</div>'
+      + (centers.length ? '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin:6px 0 4px">반품지</div>'
           + cRows : '')
-      + (places.length ? '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin:6px 0 4px">출고지</div>'
+      + (places.length ? '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin:6px 0 4px">출고지</div>'
           + pRows : '')
-      + (d.note ? '<div style="font-size:11px;color:#B45309;margin-top:6px">' + esc(d.note)
+      + (d.note ? '<div style="font-size:12px;color:#B45309;margin-top:6px">' + esc(d.note)
           + '</div>' : '')
       + '</div>';
 
@@ -713,7 +713,7 @@
 
 {# ── 🗺 카테고리 맵핑 (2026-07-23 M2 Task 7) ─────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🗺 카테고리 맵핑</h2>
-<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   소싱처 카테고리 경로 → 6마켓 카테고리 맵핑 현황입니다. 「제안」은 참고용일 뿐 —
   등록 화면에서 직접 고르거나 승인해야 「확정」이 되고, 다음부터 자동 적용됩니다.
   <b>소싱처 줄을 클릭</b>하면 그 소싱처의 맵핑 목록이 펼쳐지고, 잘못된 줄은 바로 삭제할 수 있습니다.</p>
@@ -737,10 +737,10 @@
   function render(rows) {
     const tbl = '<div class="st-tbl"><table style="width:100%;border-collapse:collapse">'
       + '<thead><tr>'
-      + '<th style="text-align:left;padding:8px 6px;font-size:11.5px;color:#8B95A1">소싱처</th>'
-      + '<th style="text-align:right;padding:8px 6px;font-size:11.5px;color:#8B95A1">제안</th>'
-      + '<th style="text-align:right;padding:8px 6px;font-size:11.5px;color:#8B95A1">확정</th>'
-      + '<th style="text-align:right;padding:8px 6px;font-size:11.5px;color:#8B95A1">재확정 필요</th>'
+      + '<th style="text-align:left;padding:8px 6px;font-size:12px;color:#8B95A1">소싱처</th>'
+      + '<th style="text-align:right;padding:8px 6px;font-size:12px;color:#8B95A1">제안</th>'
+      + '<th style="text-align:right;padding:8px 6px;font-size:12px;color:#8B95A1">확정</th>'
+      + '<th style="text-align:right;padding:8px 6px;font-size:12px;color:#8B95A1">재확정 필요</th>'
       + '</tr></thead><tbody>'
       + (rows.length ? rows.map((r, i) => '<tr class="cm-src" data-src="' + esc(r.source_id) + '" '
         + 'data-i="' + i + '" style="cursor:pointer">'
@@ -759,14 +759,14 @@
       + '</tbody></table></div>';
 
     const form = '<div style="display:flex;gap:8px;align-items:flex-end;margin-top:14px">'
-      + '<label style="font-size:11px;color:#8B95A1">소싱처 id<br>'
+      + '<label style="font-size:12px;color:#8B95A1">소싱처 id<br>'
       + '<input id="cm-source" type="text" placeholder="예: musinsa" style="border:1px solid #E5E8EB;'
       + 'border-radius:7px;padding:8px 10px;font-size:12.5px;width:160px"></label>'
       + '<button type="button" id="cm-run" class="st-reset" style="padding:9px 18px">제안 생성</button>'
       + '<button type="button" id="cm-observe" class="st-reset" style="padding:9px 18px">'
       + '등록 실적에서 회수</button>'
       + '</div>'
-      + '<p style="color: var(--글자-희미, #8B95A1);font-size:11px;margin:8px 0 0;line-height:1.7">'
+      + '<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:8px 0 0;line-height:1.7">'
       + '「등록 실적에서 회수」는 <b>이미 마켓에 올린 상품</b>에서 그때 고른 카테고리를 되받아와'
       + ' 맵핑 제안을 만듭니다 — 이름 유사도 추측보다 훨씬 정확합니다.'
       + ' 상품 수가 많으면 몇 분 걸리고, 진행 상황은 아래에 표시됩니다.'
@@ -838,11 +838,11 @@
       return;
     }
     const head = '<thead><tr>'
-      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">소싱처 분류 경로</th>'
-      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">마켓</th>'
-      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">마켓 카테고리</th>'
-      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">상태</th>'
-      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">근거</th>'
+      + '<th style="text-align:left;padding:6px;font-size:12px;color:#8B95A1">소싱처 분류 경로</th>'
+      + '<th style="text-align:left;padding:6px;font-size:12px;color:#8B95A1">마켓</th>'
+      + '<th style="text-align:left;padding:6px;font-size:12px;color:#8B95A1">마켓 카테고리</th>'
+      + '<th style="text-align:left;padding:6px;font-size:12px;color:#8B95A1">상태</th>'
+      + '<th style="text-align:left;padding:6px;font-size:12px;color:#8B95A1">근거</th>'
       + '<th style="padding:6px"></th></tr></thead>';
     const body = rows.map((r) => '<tr data-row-id="' + esc(r.id) + '">'
       + '<td style="padding:7px 6px;font-size:12px">' + esc(r.source_path) + '</td>'
@@ -855,10 +855,10 @@
       + '<td style="padding:7px 6px;font-size:12px;color:#8B95A1">'
       + esc(METHODS[r.method] || r.method || '—') + '</td>'
       + '<td style="text-align:right;padding:7px 6px"><button type="button" class="st-reset cm-del" '
-      + 'data-row-id="' + esc(r.id) + '" style="padding:5px 11px;font-size:11px">삭제</button></td>'
+      + 'data-row-id="' + esc(r.id) + '" style="padding:5px 11px;font-size:12px">삭제</button></td>'
       + '</tr>').join('');
     const more = (d.total > rows.length)
-      ? '<p style="color:#B45309;font-size:11.5px;margin:6px 0 0">전체 ' + esc(d.total)
+      ? '<p style="color:#B45309;font-size:12px;margin:6px 0 0">전체 ' + esc(d.total)
         + '건 중 ' + esc(rows.length) + '건만 보입니다 — 더 있음</p>'
       : '';
     box.innerHTML = '<div class="st-tbl" style="margin-top:2px">'
@@ -1152,7 +1152,7 @@
 
 {# ── 📋 고시정보 기본값 (2026-07-23 M4-3) ────────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📋 고시정보 기본값</h2>
-<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   스마트스토어는 <b>상품고시정보</b>가 다 채워져야 등록됩니다. 그런데 품질보증기준·A/S책임자
   같은 값은 소싱처를 아무리 긁어도 안 나옵니다 — 그래서 상품마다 손으로 넣어야 했습니다.
   여기서 <b>한 번만</b> 정해 두면 등록·사전 점검이 자동으로 채워 넣습니다.
@@ -1207,15 +1207,15 @@
     // 「꼭 채워야 하는 칸」과 「비워도 네이버 공식 문구가 들어가는 칸」을 구분해 보여준다.
     // 이 구분이 없으면 13칸을 전부 채워야 하는 줄 알고 없는 약속을 지어내게 된다.
     const badge = f.has_official_default
-      ? '<span style="color: var(--글자-희미, #8B95A1);font-size:11px;margin-left:6px">비우면 네이버 공식 문구</span>'
-      : '<span style="color:#B45309;font-size:11px;margin-left:6px">꼭 채워야 함</span>';
+      ? '<span style="color: var(--글자-희미, #8B95A1);font-size:12px;margin-left:6px">비우면 네이버 공식 문구</span>'
+      : '<span style="color:#B45309;font-size:12px;margin-left:6px">꼭 채워야 함</span>';
     // 소싱처 스코프에서 전역에 이미 값이 있으면 알려 준다 — 같은 값을 소싱처마다 또 넣지 않게.
     const hint = (scope !== 'global' && g && !val)
-      ? '<div style="color: var(--글자-희미, #8B95A1);font-size:11px;margin-top:3px">전역 기본값: '
+      ? '<div style="color: var(--글자-희미, #8B95A1);font-size:12px;margin-top:3px">전역 기본값: '
         + esc(g.length > 60 ? g.slice(0, 60) + '…' : g) + '</div>'
       : '';
     return '<div style="margin-bottom:12px">'
-      + '<label style="font-size:11.5px;color:#4E5968;display:block;margin-bottom:4px">'
+      + '<label style="font-size:12px;color:#4E5968;display:block;margin-bottom:4px">'
       + esc(f.label) + badge + '</label>'
       + '<textarea class="nd-f" data-key="' + esc(f.key) + '" rows="2" '
       + 'style="' + IN + ';width:100%;box-sizing:border-box;resize:vertical;'
@@ -1227,9 +1227,9 @@
     const common = (d.fields || []).filter((f) => f.group === 'common');
     const per = (d.fields || []).filter((f) => f.group !== 'common');
     const head = '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">'
-      + '<label style="font-size:11px;color:#8B95A1">적용 범위<br>'
+      + '<label style="font-size:12px;color:#8B95A1">적용 범위<br>'
       + '<select id="nd-scope" style="' + IN + '">' + scopeOptions() + '</select></label>'
-      + '<label style="font-size:11px;color:#8B95A1">고시 유형<br>'
+      + '<label style="font-size:12px;color:#8B95A1">고시 유형<br>'
       + '<select id="nd-type" style="' + IN + '">' + typeOptions() + '</select></label>'
       + '<button type="button" id="nd-save" class="st-save" style="padding:9px 18px">저장</button>'
       + '</div>';
@@ -1288,20 +1288,20 @@
    마켓은 A/S 전화번호·안내가 있어야 상품을 받는다. 회사에 하나뿐인 값이라
    여기 한 번만 정해 두면 모든 등록이 가져다 쓴다. #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📞 A/S 안내 기본값</h2>
-<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   마켓은 <b>A/S 전화번호와 안내</b>가 있어야 상품을 받습니다. 회사에 하나뿐인 값이라
   여기서 <b>한 번만</b> 정해 두면 모든 등록에 자동으로 들어갑니다.
   <br>🔴 <b>비워 두면 신규 등록이 막힙니다</b> — 가짜 번호를 실제 판매 상품에 올리지 않습니다.</p>
 <div id="as-root" style="background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
      border-radius:12px;padding:14px;max-width:640px">
   <div style="margin-bottom:10px">
-    <label style="display:block;font-size:11px;color:#8B95A1;margin-bottom:4px">A/S 전화번호</label>
+    <label style="display:block;font-size:12px;color:#8B95A1;margin-bottom:4px">A/S 전화번호</label>
     <input id="as-phone" type="text" placeholder="02-1234-5678"
            style="width:100%;max-width:260px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
                   padding:8px 12px;font-size:12px;font-family:inherit;
                   background:var(--surface,#fff);color:var(--ink,#191F28)"></div>
   <div style="margin-bottom:10px">
-    <label style="display:block;font-size:11px;color:#8B95A1;margin-bottom:4px">A/S 안내</label>
+    <label style="display:block;font-size:12px;color:#8B95A1;margin-bottom:4px">A/S 안내</label>
     <textarea id="as-guide" placeholder="교환·반품은 수령 후 7일 이내 …"
               style="width:100%;min-height:70px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
                      padding:8px 12px;font-size:12px;font-family:inherit;line-height:1.6;
@@ -1311,7 +1311,7 @@
             style="background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;
                    padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;
                    font-family:inherit;cursor:pointer">저장</button>
-    <span id="as-msg" style="font-size:11.5px"></span></div>
+    <span id="as-msg" style="font-size:12px"></span></div>
 </div>
 
 <script>

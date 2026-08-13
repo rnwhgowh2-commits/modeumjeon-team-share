@@ -736,6 +736,26 @@ SEAMS.append((
 ))
 
 
+def _글자_바닥선_12(text: str) -> str:
+    """<style> 블록 안 `font-size` 가 12px 미만이면 12px 로 올린다.
+
+    🔴 12 이상은 절대 안 건드린다 — 11.5px 를 12.5px 로 만드는 실수를 막는다.
+    🔴 <style> 밖(JS 문자열·인쇄용 pt)은 범위 밖이다.
+    """
+    import re as _re
+
+    def _블록(m):
+        속 = m.group(2)
+
+        def _한자리(mm):
+            공백, 값 = mm.group(1), float(mm.group(2))
+            return mm.group(0) if 값 >= 12 else f'font-size:{공백}12px'
+
+        return m.group(1) + _re.sub(r'font-size:(\s*)([0-9.]+)px', _한자리, 속) + m.group(3)
+
+    return _re.sub(r'(?s)(<style[^>]*>)(.*?)(</style>)', _블록, text)
+
+
 def _색을_토큰으로(text: str) -> str:
     """<style> 블록의 굳은 색을 `var(--토큰, 원래색)` 으로 바꾼다.
 
@@ -778,6 +798,12 @@ def _색을_토큰으로(text: str) -> str:
     #     빌드가 같이 부르면 재빌드해도 안 잃는다.
     from snap_table_spacing import 스타일블록만_여백스냅
     text = 스타일블록만_여백스냅(text, 'margin_embed.html')
+    # 글자 바닥선 — 12px 미만을 12px 로 올린다 (사장님 확정 2026-08-13).
+    #  🔴 여백 스냅과 **같은 이유로 여기서 부른다**. 서빙본만 고치면 재빌드가
+    #     통째로 되돌리고 동치 가드가 깨진다(2026-08-06 에 그렇게 당했다).
+    #  🔴 <style> 블록만 건드린다 — JS 가 문자열로 만드는 값은 손대지 않는다.
+    #     라벨 인쇄용 pt 값처럼 px 이 아닌 것도 정규식이 애초에 안 잡는다.
+    text = _글자_바닥선_12(text)
     return text
 
 

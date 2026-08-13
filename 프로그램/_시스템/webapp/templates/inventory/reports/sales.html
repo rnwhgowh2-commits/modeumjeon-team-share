@@ -29,7 +29,7 @@
       <tbody>
         {% for r in rows %}<tr style="border-bottom:1px solid var(--n100,#F2F4F6)">
           <td style="padding:8px 8px;font-size:12px">{{ r.tx.created_at.strftime('%Y-%m-%d') if r.tx.created_at else '—' }}</td>
-          <td style="padding:8px 8px;font-family:ui-monospace,monospace;font-size:11px">{{ r.tx.option_canonical_sku }}</td>
+          <td style="padding:8px 8px;font-family:ui-monospace,monospace;font-size:12px">{{ r.tx.option_canonical_sku }}</td>
           <td style="padding:8px 8px;text-align:right">{{ r.tx.qty }}</td>
           <td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace">{{ '{:,}'.format(r.revenue) }}</td>
           <td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace;color:#F59E0B">{{ '{:,}'.format(r.cost) }}</td>

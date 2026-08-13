@@ -201,6 +201,14 @@ def test_only_the_seams_differ():
     #   씨앗 검사에 걸린다 — 실제로 2026-08-06 까지 그 상태로 깨져 있었다.
     from snap_table_spacing import 스타일블록만_여백스냅
     기준선본문 = 스타일블록만_여백스냅(기준선본문, 'margin_embed.html')
+    # 글자 바닥선 12px 스냅(사장님 확정 2026-08-13)도 빌드가 마지막에 건다.
+    #   여백 스냅과 **같은 이유로** 기준선에도 걸어야 한다 — 안 걸면 글자크기 줄이
+    #   통째로 「설명 안 되는 변화」가 되어 씨앗 검사에 걸린다.
+    _도구 = str(_SYS / 'tools')
+    if _도구 not in sys.path:
+        sys.path.insert(0, _도구)
+    from build_margin_embed import _글자_바닥선_12
+    기준선본문 = _글자_바닥선_12(기준선본문)
     기준선 = 기준선본문.splitlines()
     served = _norm(SERVED).splitlines()
     diff = difflib.unified_diff(기준선, served, lineterm="", n=0)
