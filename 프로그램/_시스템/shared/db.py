@@ -496,6 +496,11 @@ def _apply_lightweight_migrations() -> None:
         ("search_filters", "last_capped", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-08-08: 훑은 확장의 판 번호 — 「화면만 새로고침」 상태를 알아보려고.
         ("search_filters", "last_ext_version", "VARCHAR(20)"),
+        # 2026-08-13: 이어서 걷기 — 다음 회차가 시작할 쪽.
+        #   한 회차 60쪽 상한은 소싱처 보호선이라 못 없앤다. 그런데 현대H몰
+        #   「나이키 신발」은 456쪽 16,413개다 — 60쪽이면 13% 밖에 못 걷고,
+        #   못 걷은 만큼 팔 상품이 줄어든다. 상한은 지키되 회차를 거듭해 끝까지 간다.
+        ("search_filters", "next_page_from", "INTEGER"),
         # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
@@ -505,6 +510,9 @@ def _apply_lightweight_migrations() -> None:
         #   '크롤 제외'라 상품이 영영 안 긁힌다. 그래서 방향을 갈라 별도 배수를 둔다.
         #   ★DEFAULT 1.0 = 예전과 완전히 같은 동작 (기존 행은 아무것도 안 바뀐다).
         ("source_products", "crawl_slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
+        # 2026-08-13: 「주문 이행 가능 판단」이 찍는 **확인 요청** 표식(노션 ⑤).
+        #   NULL = 요청 없음(예전과 완전히 같은 동작). 크롤이 끝나면 저절로 풀린다.
+        ("source_products", "recheck_requested_at", "DATETIME"),
         ("crawl_weight_rules", "slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
         # 2026-07-19: 업로드 속도 「X초에 Y개」 (사장님 확정).
         #   옛 seconds_per_item(1개당 N초)은 한 계정이 초당 1개가 최대라

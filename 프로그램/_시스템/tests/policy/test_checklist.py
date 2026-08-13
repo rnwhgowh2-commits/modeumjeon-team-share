@@ -180,12 +180,27 @@ def test_build_marks_lotteon_as_evidence_missing():
     assert lotteon["counts"]["todo"] >= 10
 
 
+def _stored_column(market="smartstore"):
+    """지금 **저장만**인 열 하나를 골라 준다 — (열번호, 이름).
+
+    🔴 표본을 손으로 박아 두면 배선이 이어질 때마다 이 시험이 낡는다. 실제로
+      4번(카테고리)·16번(원산지)이 차례로 「나감」이 되면서 두 번 옮겼다.
+      셋째 번은 없게, **지금 상태에서 골라** 쓴다. (「저장만인 칸에 검증완료가
+      달리면 알린다」가 이 시험의 뜻이지, 「어느 항목이 저장만인가」가 아니다.)
+    """
+    for col in C.load_columns():
+        if not (col.get("specs") or {}).get(market):
+            continue
+        if C.cell_state(market, col) == C.STORED:
+            return col["col"], col["name"]
+    pytest.fail("저장만인 열이 하나도 없다 — 표본을 고를 수 없다")
+
+
 def test_drift_flags_verified_on_something_that_never_goes_out():
     """🔴 조용한 통과 금지 — 나가지도 않는 값에 「검증완료」가 달려 있으면 알린다."""
-    # ⚠️ 표본은 **지금도 저장만인 열**. 4번(카테고리)을 쓰다가 2026-08-13 에
-    #   「나감」으로 정정돼 이 시험이 빨간불로 알려 줬다 — 표본을 옮긴 것이 정답이다.
-    problems = C.drift({"smartstore:16": {"verified": "2026-08-12"}})  # 16 = 원산지(저장만 됨)
-    assert problems and "원산지" in problems[0]
+    n, name = _stored_column()
+    problems = C.drift({f"smartstore:{n}": {"verified": "2026-08-12"}})
+    assert problems and name in problems[0], f"{n}번({name}) 을 안 짚었다: {problems}"
 
 
 def test_drift_silent_when_marks_are_sane():
@@ -275,7 +290,8 @@ def test_cells_without_a_program_field_say_none_not_blank():
 def test_verified_is_only_carried_on_done_cells(monkeypatch):
     """🔴 초록이 아닌 칸에 날짜가 실리면 화면이 「반쯤 검증됨」으로 읽힌다."""
     from lemouton.policy import checklist as CK
-    seeded = {"smartstore:16": {"verified": "2026-08-12"},  # 저장만 됨(원산지)
+    저장만, _이름 = _stored_column()                        # 지금 저장만인 열을 고른다
+    seeded = {f"smartstore:{저장만}": {"verified": "2026-08-12"},
               "lotteon:6": {"verified": "2026-08-12"},      # 해당없음
               "coupang:13": {"verified": "2026-08-12"},     # 불가
               "smartstore:5": {"verified": "2026-08-12"}}   # 나감 → 검증완료
@@ -283,7 +299,7 @@ def test_verified_is_only_carried_on_done_cells(monkeypatch):
                         lambda name="dev_checklist_marks.json": (seeded, ""))
     cells = CK.build()["cells"]
     assert cells["smartstore:5"]["verified"] == "2026-08-12"
-    for k in ("smartstore:16", "lotteon:6", "coupang:13"):
+    for k in (f"smartstore:{저장만}", "lotteon:6", "coupang:13"):
         assert cells[k]["verified"] == "", f"{k} 에 날짜가 실렸다 ({cells[k]['state']})"
 
 

@@ -528,6 +528,40 @@ def orders_preview():
                    warnings=warnings)
 
 
+@bp.route('/diag/esm-timing')
+def orders_diag_esm_timing():
+    """옥션·G마켓 조회가 **어디서 시간을 쓰는지** 재는 창구(읽기 전용).
+
+    🔴 왜 있나 — 2026-08-13 클레임 49회를 동시에 보내도록 고쳤는데 오히려 느려 보였다.
+      그런데 「클레임에 몇 초 썼는지」가 서버 기록에만 있어 화면에서 원인을 가릴 수
+      없었다. 되돌릴지 유지할지 정하려면 이 숫자가 있어야 한다.
+      마켓을 실제로 부르므로(5초/1회 제한) 진단용으로만 쓴다.
+    """
+    import time as _t
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    if market not in ('auction', 'gmarket'):
+        return jsonify(ok=False, error="market 은 옥션(auction)·G마켓(gmarket)만 돼요."), 400
+    try:
+        days = max(1, min(int(request.args.get('days') or 1), 31))
+    except (TypeError, ValueError):
+        days = 1
+    until = _dt.datetime.now()
+    since = until - _dt.timedelta(days=days)
+    diag, warns = {"counts": {}, "errors": {}}, []
+    t0 = _t.monotonic()
+    try:
+        rows = _oe.esm_order_rows(market, since, until, diag=diag, warnings=warns)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, 총초=round(_t.monotonic() - t0, 1),
+                       error=f"{type(e).__name__}: {str(e)[:300]}",
+                       counts=diag.get("counts"), errors=diag.get("errors")), 200
+    return jsonify(ok=True, market=market, days=days,
+                   총초=round(_t.monotonic() - t0, 1), 행수=len(rows),
+                   counts=diag.get("counts") or {}, errors=diag.get("errors") or {},
+                   warnings=warns)
+
+
 @bp.route('/flow-daily.json')
 def orders_flow_daily():
     """배송흐름 최근 N일 요약 — 날짜별 송장 입력 / 배송 중 / 배송 완료.
@@ -652,6 +686,40 @@ def orders_fulfillment():
         import logging
         logging.getLogger(__name__).exception("fulfillment 판정 실패 rows=%d", len(rows))
         # 주문 표는 절대 안 깨진다 — 실패하면 화면은 분류 없이 그대로 남는다.
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/fulfillment/recheck.json')
+def orders_fulfillment_recheck():
+    """이행 판단 ② — 「값이 바뀌는 상품」만 다시 긁도록 확인 요청을 찍는다 (노션 ⑤).
+
+    사장님 확정: *"변경값 없는건 저장된 크롤값 그대로 + 변경값있는건 새로 긁고 판정.
+    해당 주문건에 소싱처 url 있는것만 긁으면 돼"* — 「변경값」 = 그 상품의 **가격·재고**가
+    바뀐 것(2026-08-13 확인). 그 신호는 크롤이 이미 남기고 있다(`no_change_streak`).
+
+    🔴 여기서 긁지 않는다 — 크롤은 사장님 PC 확장 몫이다(서버는 IP 가 다르다).
+      표식만 찍고, 두 마감 경로(벽시계·랩)가 그걸 읽어 맨 앞으로 올린다.
+
+    payload: {rows: [주문행, ...]}  →  {ok, 요청, 대상주문, 값이_안_바뀌는_상품, ...}
+    """
+    from lemouton.orders import fulfillment as _ff
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    if not rows:
+        return jsonify(ok=True, 요청=0, 대상주문=0)
+    s = SessionLocal()
+    try:
+        res = _ff.request_recheck(s, rows)
+        s.commit()
+        return jsonify(ok=True, **res)
+    except Exception as e:   # noqa: BLE001
+        s.rollback()
+        import logging
+        logging.getLogger(__name__).exception("확인 요청 실패 rows=%d", len(rows))
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
     finally:
         s.close()
@@ -2266,6 +2334,63 @@ def orders_diag_coupang_order_settle():
         해석=('배송비정산 = deliveryFee.settlementAmount(총배송비 − 배송비수수료 − VAT). '
               '쿠팡 정산 엑셀의 <기본배송료>·<추가배송료> 행 정산금액 합과 같아야 한다. '
               '같으면 N열(정산예정금(배송비포함))이 이 실값을 쓰는 것이 옳다는 증거.'))
+
+
+@bp.route('/diag/rg-rounds')
+def orders_diag_rg_rounds():
+    """[읽기 전용] 로켓그로스 회차 표 — Wing 화면과 **같은 표로** 맞대려고.
+
+    🔴 왜(2026-08-13 사장님 지적) — 화면 「지급 예상금액」이 우리 숫자와 다르다.
+      *"선정산 받은거 제외안해도돼? 내 생각엔 최종지급액 합산되어야하는거 아닌지?"*
+      맞는 의심이다. 우리는 `받을돈 = 지급액 − 빠른정산` 으로 세는데, 화면 목록의
+      열 이름은 **「최종지급액」**(`final_amount`)이다. 둘이 같은 것인지 **아직 증명된 적이
+      없다** — 그래서 회차별로 나란히 놓고 봐야 한다.
+
+    🔴 합계만 비교하면 「우연히 비슷」과 「정말 같음」을 못 가른다. 회차(정산일·비율)마다
+      지급액·빠른정산·최종지급액을 다 보여준다.
+
+    `?account=` — 계정 필터(선택). 응답은 금액·날짜뿐(고객정보 없음).
+    """
+    from lemouton.sourcing.models_v2 import RocketGrowthSettlement as M
+    acc = (request.args.get('account') or '').strip()
+    today = _dt.date.today().isoformat()
+    s = SessionLocal()
+    try:
+        q = s.query(M)
+        if acc:
+            q = q.filter(M.account == acc)
+        rows = sorted(q.all(), key=lambda o: (o.settlement_date or '', o.ratio or 0))
+        out = [{
+            '정산일': o.settlement_date or '', '지급비율': o.ratio,
+            '매출인식일': f"{o.period_start or ''}~{o.period_end or ''}",
+            '계정': o.account or '(대표)',
+            '판매액': int(o.sales_amount or 0),
+            '지급액': int(o.payable_amount or 0),
+            '빠른정산_이미받음': int(o.fast_withdrawn or 0),
+            '최종지급액': int(o.final_amount or 0),
+            '정산일_지남': bool((o.settlement_date or '') and o.settlement_date <= today),
+        } for o in rows]
+        _pay = sum(r['지급액'] for r in out)
+        _fast = sum(r['빠른정산_이미받음'] for r in out)
+        _fin = sum(r['최종지급액'] for r in out)
+        _future = [r for r in out if not r['정산일_지남']]
+        return jsonify(
+            ok=True, 오늘=today, 회차수=len(out), 계정=acc or '(전체)',
+            합계={
+                'Σ지급액': _pay,
+                'Σ빠른정산_이미받음': _fast,
+                '지급액−빠른정산 (지금 우리가 쓰는 값)': max(0, _pay - _fast),
+                'Σ최종지급액 (화면 목록의 그 열)': _fin,
+                'Σ최종지급액_오늘이후_정산일만 (노션 규칙)':
+                    sum(r['최종지급액'] for r in _future),
+                '오늘이후_회차수': len(_future),
+            },
+            회차별=out,
+            해석=('화면 「지급 예상금액」이 위 넷 중 무엇과 같은지로 규칙이 정해진다. '
+                  '같은 게 하나도 없으면 화면 숫자의 정의를 모르는 것이므로 '
+                  '「대조 성공」이라 말하면 안 된다.'))
+    finally:
+        s.close()
 
 
 @bp.route('/diag/stale-delivered')

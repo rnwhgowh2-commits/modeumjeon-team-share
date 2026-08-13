@@ -46,11 +46,19 @@ def test_모르는_값을_성인전용으로_바꾸지_않는다():
 
 # ── ② 정책 → 초안 다리 ─────────────────────────────────────────────────
 def test_초안_만들기가_정책의_미성년자_설정을_옮겨_담는다():
-    """🔴 여기가 끊기면 마켓 쪽을 아무리 고쳐도 늘 기본값이 나간다."""
-    src = inspect.getsource(__import__('lemouton.send.as_draft',
-                                       fromlist=['upsert']).upsert)
-    assert 'minor_purchasable' in src, \
+    """🔴 여기가 끊기면 마켓 쪽을 아무리 고쳐도 늘 기본값이 나간다.
+
+    🔴 **`upsert` 본문 글자를 보지 않는다.** 실제 배선은 사본에서 옮겨 담는
+      목록(`_POLICY_FIELDS`)에 들어 있는지로 정해진다. 본문에 낱말이 있나만
+      세면, 옮기는 경로가 바뀔 때 멀쩡한 코드를 「끊겼다」고 말한다
+      (실제로 그렇게 빨간불이 났다 — 다른 세션이 더 나은 경로로 이어 뒀는데
+      내 시험이 옛 자리만 보고 있었다).
+    """
+    from lemouton.send import as_draft as AD
+    assert 'minor_purchasable' in AD._POLICY_FIELDS, \
         '초안이 정책의 미성년자 설정을 안 옮겨 담는다 — 늘 기본값(전연령)이 나간다'
+    assert 'policy_fields_from' in inspect.getsource(AD.upsert), \
+        '옮겨 담는 함수를 초안 만들기가 부르지 않는다'
 
 
 # ── ③ 초안 → 마켓 ──────────────────────────────────────────────────────

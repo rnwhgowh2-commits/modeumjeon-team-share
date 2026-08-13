@@ -15,12 +15,12 @@
   .kgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px}
   .kgrid>div{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));
     border-radius:9px;padding:10px 11px}
-  .kgrid .l{font-size:11px;color:var(--n500,var(--sub,#8B95A1))}
+  .kgrid .l{font-size:12px;color:var(--n500,var(--sub,#8B95A1))}
   /* [2026-08-05 실측] <small> 브라우저 기본 0.833em → .l 안에서 9.17px 깨알글자.
      .bar 안 <small>(미확인 ?금액)도 12×0.833=10px — 같은 부류라 같이 못 박는다. */
-  .kgrid .l small, .bar small{font-size:11px}
+  .kgrid .l small, .bar small{font-size:12px}
   .kgrid .v{font-size:17px;font-weight:800;margin-top:3px}
-  .kgrid .v small{font-size:11px;color:var(--n500,var(--sub,#8B95A1));font-weight:600}
+  .kgrid .v small{font-size:12px;color:var(--n500,var(--sub,#8B95A1));font-weight:600}
   .bar{display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:8px}
   .bar>span:first-child{width:56px;flex-shrink:0;white-space:nowrap;overflow:hidden;
     text-overflow:ellipsis}
@@ -30,7 +30,7 @@
   .num{font-variant-numeric:tabular-nums;font-weight:800;text-align:right}
   .bar .num{min-width:78px;font-size:12px}
   /* 정직성 표기 — 기간·눈금 설명·부분 데이터 알림 */
-  .st-note{font-size:11px;color:var(--n500,var(--sub,#8B95A1));margin:2px 0 8px}
+  .st-note{font-size:12px;color:var(--n500,var(--sub,#8B95A1));margin:2px 0 8px}
   .st-warn{font-size:12px;color:var(--글자-주황,#92400E);background:var(--연한-노랑,#FEF3C7);
     border-radius:8px;padding:8px 10px;margin-bottom:8px}
   .st-sec{font-size:12px;font-weight:700;color:var(--n800,var(--ink,#333D4B));

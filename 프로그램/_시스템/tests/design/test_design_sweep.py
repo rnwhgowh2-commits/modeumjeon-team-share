@@ -526,14 +526,27 @@ def test_자간_0은_안바뀐다():
     assert B단계(본문) == 본문
 
 
-def test_11px_미만_글자는_11px로_올라간다():
+def test_12px_미만_글자는_12px로_올라간다():
+    """[2026-08-13 사장님] 바닥선 11 → 12. 「판매중」 같은 딱지가 안 보인다는 지적."""
     본문 = '<div style="font-size:9px">x</div>'
-    assert B단계(본문) == '<div style="font-size:11px">x</div>'
+    assert B단계(본문) == '<div style="font-size:12px">x</div>'
 
 
-def test_10_5px도_11px로():
+def test_10_5px도_12px로():
     본문 = '<div style="font-size:10.5px">x</div>'
-    assert B단계(본문) == '<div style="font-size:11px">x</div>'
+    assert B단계(본문) == '<div style="font-size:12px">x</div>'
+
+
+def test_11px도_12px로_올라간다():
+    """🔴 11px 이 1,086곳으로 제일 많았다 — 바닥선을 올린 핵심 이유."""
+    본문 = '<div style="font-size:11px">x</div>'
+    assert B단계(본문) == '<div style="font-size:12px">x</div>'
+
+
+def test_12px는_그대로_둔다():
+    """바닥선이니 12 는 안 건드린다(괜히 올리면 표가 벌어진다)."""
+    본문 = '<div style="font-size:12px">x</div>'
+    assert B단계(본문) == 본문
 
 
 def test_11px_이상은_B단계에서_안건드린다():

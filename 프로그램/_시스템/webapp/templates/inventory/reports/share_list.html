@@ -26,11 +26,11 @@
         {% for l in links %}<tr style="border-bottom:1px solid var(--n100,#F2F4F6)">
           <td style="padding:8px;font-weight:600">#{{ l.id }}</td>
           <td style="padding:8px">{{ l.name or '—' }}</td>
-          <td style="padding:8px;font-family:ui-monospace,monospace;font-size:11px">
+          <td style="padding:8px;font-family:ui-monospace,monospace;font-size:12px">
             <a href="{{ url_for('inventory.share_public', token=l.token) }}" target="_blank" style="color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none">/inventory/share/public/{{ l.token[:16] }}...</a>
           </td>
           <td style="padding:8px;font-size:12px;color:var(--sub,#8B95A1)">{{ l.created_at.strftime('%Y-%m-%d') if l.created_at else '—' }}</td>
-          <td style="padding:8px"><span style="font-size:11px;padding:0px 8px;border-radius:0px;background:{% if l.revoked_at %}var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red,#991B1B){% else %}var(--연한-초록,#DCFCE7));color:var(--green,#15803D){% endif %};font-weight:600">{% if l.revoked_at %}폐기{% else %}활성{% endif %}</span></td>
+          <td style="padding:8px"><span style="font-size:12px;padding:0px 8px;border-radius:0px;background:{% if l.revoked_at %}var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red,#991B1B){% else %}var(--연한-초록,#DCFCE7));color:var(--green,#15803D){% endif %};font-weight:600">{% if l.revoked_at %}폐기{% else %}활성{% endif %}</span></td>
           <td style="padding:8px;text-align:center">
             {% if not l.revoked_at %}<form method="post" action="{{ url_for('inventory.share_revoke', link_id=l.id) }}" style="display:inline" onsubmit="return confirm('폐기?')"><button type="submit" style="background:#EF4444;color:#fff;padding:4px 8px;border:none;border-radius:0px;font-size:12px;cursor:pointer;font-weight:600">폐기</button></form>{% else %}—{% endif %}
           </td>

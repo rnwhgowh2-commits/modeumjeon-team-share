@@ -231,6 +231,8 @@ def set_view(session, *, set_id: int) -> SetProcessView:
     """
     from lemouton.sets.models import ProductSet
     from lemouton.sourcing.models import Model
+    # 함수 안에서 부른다 — as_draft 가 이 파일을 되부르므로 맨 위에서 부르면 순환한다.
+    from lemouton.send.as_draft import option_images
 
     ps = session.get(ProductSet, set_id)
     if ps is None:
@@ -252,6 +254,15 @@ def set_view(session, *, set_id: int) -> SetProcessView:
         'detail_html': '',                 # 상세는 아직 구성에 칸이 없다(3단계 범위 밖)
         'options_json': _options_json(session, ps.id,
                                       _stock_by_sku(session, ps.model_code)),
+        # 🔴 [2026-08-13] 이 칸이 없어서 **전송이 통째로 막혔다.**
+        #   정책에 「이미지」 항목만 저장해 두면, 가공 엔진이 사본에서 사진을 못 찾아
+        #   「이미지가 한 장도 없습니다」로 판정하고 막았다(process_apply.py 의
+        #   `_apply_images` → NO_IMAGES, blocking=True). 옵션에 사진이 **있는데도**
+        #   그랬다 — 사장님이 이미지 규칙을 저장하는 순간 그 상품이 어느 마켓에도
+        #   못 나가는 상태였다.
+        #   ★ 사진 모으는 방법은 `send/as_draft.option_images` 가 정본이다 —
+        #     여기서 다시 만들면 「사본이 본 사진」과 「초안에 실리는 사진」이 갈린다.
+        'images_json': json.dumps(option_images(session, ps.id), ensure_ascii=False),
         'notice_json': '{}',
         'origin_area_code': '',
         'delivery_fee': None,

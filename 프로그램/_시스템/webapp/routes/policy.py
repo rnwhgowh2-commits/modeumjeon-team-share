@@ -66,6 +66,7 @@ def policy_detail(pid: int):
     from lemouton.policy.service import (
         applied_count, enabled_markets, readiness, values_for,
     )
+    from lemouton.policy import fixed_sends as FIXED
     from lemouton.policy import required as REQ
     from lemouton.pricing import fee_defaults
     from lemouton.pricing.unified import default_fee_pct
@@ -116,6 +117,13 @@ def policy_detail(pid: int):
             #     흐리게 + 자물쇠로 **위상만 낮춘다.**
             'enabled': set(_on_markets),
             'market_label': dict(MARKETS).get(market, COMMON_LABEL),
+            # ── [2026-08-13 확정 A1+B2] 정해져 나가는 값 ──────────────────────
+            #   정책 화면에 칸조차 없는데 등록 코드에 박힌 채 마켓으로 나가는 값들.
+            #   🔴 「마켓 공통」 탭에는 안 붙인다 — 어느 마켓 얘긴지 정해지지 않았다.
+            'fixed': (None if market == COMMON_KEY else FIXED.for_market(market)),
+            #   항목별 「정책 ○○ / 실제 ○○」 — 늘 보인다(확정 B2).
+            'fixed_by_item': (None if market == COMMON_KEY
+                              else FIXED.by_item(market, vals)),
             # 채움 합계 — **켠 마켓만** 센다. 셈을 템플릿에 넣으면 검사가 어려워
             #   여기서 만들어 넘긴다.
             'fill_sum': _fill_sum,

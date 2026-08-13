@@ -296,10 +296,15 @@ def ours_for(item_key: str, lines: list, rules: dict, *, today: dt.date,
             return {"가능": False, "금액": 0, "건수": 0,
                     "왜": "로켓그로스 정산 회차를 아직 안 가져왔어요 — "
                           "정산예정금액 탭의 「🚀 로켓그로스 가져오기」를 먼저 눌러 주세요."}
-        # 마켓 화면이 「빠른정산금 제외」라 우리도 선인출을 뺀 값(=받을돈)으로 맞춘다.
-        return {"가능": True, "금액": int(rg.get("받을돈") or 0),
-                "건수": int(rg.get("회차수") or 0),
-                "구성": f"지급액 {rg.get('지급액', 0):,} − 빠른정산 {rg.get('빠른정산', 0):,}"}
+        # 🔴 [2026-08-13 실측 확정] 화면 「지급 예상금액」 = **Σ최종지급액(정산일이 오늘
+        #   이후 ~ 한 달 이내)**. 사장님 Wing 25회차로 원 단위 일치(7,818,202).
+        #   예전엔 `지급액 − 빠른정산`(기간 무제한)을 썼는데 라이브에서 9,508,138 로
+        #   1,689,936 어긋났다 — ① 이미 받은 회차까지 셌고 ② 마켓이 이미 계산해 준
+        #   `최종지급액` 을 두고 우리가 다시 만들었다.
+        from lemouton.margin import rg_settlement as _rg
+        ah = _rg.ahead_summary(today=today)
+        return {"가능": True, "금액": int(ah["금액"]), "건수": int(ah["회차수"]),
+                "구성": ah["구성"]}
 
     until = today + dt.timedelta(days=spec["window_days"])
     want = ({"confirmed", "unconfirmed"} if spec["axis"] == "both"

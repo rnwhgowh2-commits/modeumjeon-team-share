@@ -21,9 +21,6 @@ class D:
         ], ensure_ascii=False))
         self.delivery_fee = kw.get('delivery_fee', 3000)
         self.return_fee = kw.get('return_fee', 5000)
-        # 🔴 실제 `ProductDraft` 에 있는 칸(default=True)이다. 여기 없으면
-        #   조립기가 그 값을 읽기 시작한 순간 시험만 터진다 — 가짜는 진짜를 닮아야 한다.
-        self.minor_purchasable = kw.get('minor_purchasable', True)
 
 
 VENDOR = {'vendor_id': 'A00012345', 'vendor_user_id': 'lemouton_wing',
@@ -259,17 +256,28 @@ def test_반품지_전화_형식_최소검증():
     compile_coupang(D(), category_code=1, vendor=_v(return_phone='010-1234-5678'))
 
 
-def test_19세_이상만이_쿠팡_payload_까지_간다():
-    """🔴 [2026-08-13] `adultOnly` 가 'EVERYONE' 으로 **박혀** 있었다.
+# ── [2026-08-13 2단계] 미성년자 구매 ────────────────────────────────────────
 
-    정책에서 「19세 이상만」을 고르셔도 무시되고 전연령으로 등록됐다 —
-    성인 상품이면 그대로 미성년자에게 노출된다. 값이 틀린 게 아니라
-    **고른 것이 무시**되던 형태다.
+def test_기본은_전연령():
+    """지도 근거: items.adultOnly = ADULT_ONLY / EVERYONE(기본값) [필수]."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert p['items'][0]['adultOnly'] == 'EVERYONE'
+
+
+def test_19세_이상만이면_ADULT_ONLY_로_나간다():
+    """🔴 여기가 박혀 있어 정책을 「19세 이상만」으로 바꿔도 전연령으로 나갔다.
+
+    미성년자에게 성인상품을 노출하면 마켓이 판매금지 처리한다 — 조용한 사고다.
     """
-    전연령, _ = compile_coupang(D(minor_purchasable=True),
-                                category_code=63951, vendor=VENDOR)
-    성인만, _ = compile_coupang(D(minor_purchasable=False),
-                                category_code=63951, vendor=VENDOR)
-    assert 전연령['items'][0]['adultOnly'] == 'EVERYONE'
-    assert 성인만['items'][0]['adultOnly'] == 'ADULT_ONLY', \
-        '「19세 이상만」이 쿠팡 payload 까지 안 간다'
+    d = D()
+    d.minor_purchasable = False
+    p, _ = compile_coupang(d, category_code=1, vendor=VENDOR)
+    assert p['items'][0]['adultOnly'] == 'ADULT_ONLY'
+
+
+def test_칸이_아예_없는_옛_초안도_안_터진다():
+    """마이그레이션 전 행에는 이 칸이 없을 수 있다 — 없으면 전연령."""
+    d = D()
+    assert not hasattr(d, 'minor_purchasable')
+    p, _ = compile_coupang(d, category_code=1, vendor=VENDOR)
+    assert p['items'][0]['adultOnly'] == 'EVERYONE'
