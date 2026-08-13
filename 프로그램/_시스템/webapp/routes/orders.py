@@ -657,6 +657,40 @@ def orders_fulfillment():
         s.close()
 
 
+@bp.post('/fulfillment/recheck.json')
+def orders_fulfillment_recheck():
+    """이행 판단 ② — 「값이 바뀌는 상품」만 다시 긁도록 확인 요청을 찍는다 (노션 ⑤).
+
+    사장님 확정: *"변경값 없는건 저장된 크롤값 그대로 + 변경값있는건 새로 긁고 판정.
+    해당 주문건에 소싱처 url 있는것만 긁으면 돼"* — 「변경값」 = 그 상품의 **가격·재고**가
+    바뀐 것(2026-08-13 확인). 그 신호는 크롤이 이미 남기고 있다(`no_change_streak`).
+
+    🔴 여기서 긁지 않는다 — 크롤은 사장님 PC 확장 몫이다(서버는 IP 가 다르다).
+      표식만 찍고, 두 마감 경로(벽시계·랩)가 그걸 읽어 맨 앞으로 올린다.
+
+    payload: {rows: [주문행, ...]}  →  {ok, 요청, 대상주문, 값이_안_바뀌는_상품, ...}
+    """
+    from lemouton.orders import fulfillment as _ff
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    if not rows:
+        return jsonify(ok=True, 요청=0, 대상주문=0)
+    s = SessionLocal()
+    try:
+        res = _ff.request_recheck(s, rows)
+        s.commit()
+        return jsonify(ok=True, **res)
+    except Exception as e:   # noqa: BLE001
+        s.rollback()
+        import logging
+        logging.getLogger(__name__).exception("확인 요청 실패 rows=%d", len(rows))
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
 # ──────────────────────────────────────────────────────────────
 #  실매입가 — 저장(수기) · 우선순위 조회 · 더망고 매입 엑셀 매칭
 #   설계서 docs/superpowers/specs/2026-08-06-실매입가-주문통합-design.md §5
