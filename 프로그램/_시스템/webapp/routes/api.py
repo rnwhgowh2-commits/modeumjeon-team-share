@@ -224,7 +224,12 @@ def crawl_due_listings():
                         'empty_text': rule['empty_text'],
                         # 단추로 넘기는 곳은 「몇 번 누를지」로 답한다(같은 칸을 쓴다).
                         'click_pages': LD.click_pages_for(
-                            f.source_key, f.page_from, f.page_to)})
+                            f.source_key, f.page_from, f.page_to),
+                        # 🔴 「다음」 단추 소싱처의 **이어서 걷기** — 걷기 전에 몇 번
+                        #   눌러 건너뛸지. 늘 1쪽에서 시작해야 하는 곳이라 이 방법뿐이다.
+                        #   ★ 공짜가 아니다(301쪽부터면 300번). 시한에 걸리면 확장이
+                        #     걷은 것을 들고 나오며 「더 있음」이라 말한다.
+                        'click_skip': LD.click_skip_for(f.source_key, _cur)})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()
