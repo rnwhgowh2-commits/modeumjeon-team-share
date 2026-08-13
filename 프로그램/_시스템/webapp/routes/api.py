@@ -314,6 +314,20 @@ def crawl_listing_result():
                     f.page_from, f.page_to, f.next_page_from, more=f.last_capped)
             else:
                 f.next_page_from = None
+        # 🔴🔴 **끝까지 걷는다** — 「더 있음」이고 이번에 **새로 걷은 것이 있으면**
+        #   다음 회차를 곧바로 예약한다. 사람이 「지금 수집」을 수십 번 누르지
+        #   않아도 된다(현대H몰 456쪽 = 8회차, 아이몰은 그 이상).
+        #
+        # ★ 스스로 멈추는 조건이 셋이다 — 끝없이 도는 일이 없다:
+        #   ① 「더 있음」이 꺼지면 멈춘다(다 걸었다)
+        #   ② **새로 걷은 것이 0이면 멈춘다** — 더 있다고 하는데 안 늘면 그건
+        #      「같은 쪽 헛돌기」이거나 이미 다 가진 것이다. 계속 두들기지 않는다
+        #   ③ 필터를 꺼 두면(enabled=False) 예약하지 않는다
+        # 🔴 ②가 핵심 안전장치다. 이게 없으면 소싱처가 늘 「더 있다」고 답할 때
+        #   영원히 두들겨 차단당한다.
+        if (f.last_capped and new_n > 0 and bool(getattr(f, 'enabled', True))
+                and not (body.get('error') or '').strip()):
+            f.run_requested_at = now          # 곧바로 이어서
         s.commit()
         return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
                         'new': new_n})
