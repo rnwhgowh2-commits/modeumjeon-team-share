@@ -1671,19 +1671,16 @@ def _option_matrix_one(s, code: str, batch: dict):
     # [v3] cluster 정보 (시나리오 C — 1 그룹 N 모델)
     bundle_group_payload = None
     if bundle_group:
-        import json as _json
-        opt_cfg = {}
-        if bundle_group.option_config_json:
-            try:
-                opt_cfg = _json.loads(bundle_group.option_config_json)
-            except Exception:
-                opt_cfg = {}
         bundle_group_payload = {
             'id': bundle_group.id,
             'group_code': bundle_group.group_code,
             'group_name': bundle_group.group_name,
             'cluster_size': len(models_in_group),
-            'option_config': opt_cfg,
+            # [2026-08-13 사장님 확정] `option_config` 를 화면에 안 보낸다 —
+            #   그걸 쓰던 「마켓 옵션 축 구성(고급)」 패널을 지웠다.
+            #   고르셔도 마켓에 나가는 것이 한 글자도 안 바뀌었다(저장만 됐다).
+            #   축을 정하는 곳은 **상품가공 > 정책 생성 > 「옵션 축 구성」** 하나다.
+            #   컬럼 `option_config_json` 은 남긴다 — 이 저장소엔 Alembic 이 없다.
             'models': [
                 {'model_code': mm.model_code,
                  'model_name_display': getattr(mm, 'model_name_display', mm.model_code) or mm.model_code}
