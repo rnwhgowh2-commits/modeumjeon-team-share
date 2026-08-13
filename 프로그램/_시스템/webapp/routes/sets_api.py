@@ -244,6 +244,32 @@ def set_detail_matrix(set_id):
                     "channels": chans, "options": opts_out})
 
 
+#: 매트릭스가 가격을 내주는 마켓 — 그 마켓의 (소싱 카드, 사입 카드) 칸 이름.
+#: 🔴 [2026-08-13] 여기 없는 마켓은 **가격을 지어내지 않는다.**
+#:    예전엔 `market=="smartstore"` 가 아니면 전부 쿠팡 가격을 줬다. 수수료가
+#:    마켓마다 다른데(스스 6% · 쿠팡 11.55% · 롯데온 18% · 11번가 11% ·
+#:    옥션/G마켓 15% — pricing/unified.py:257) 쿠팡 기준 값을 물려주면 그 차이가
+#:    그대로 손해다. 지금은 롯데온 실전송이 잠겨 있어 안 터졌을 뿐이다.
+_PRICE_FIELDS = {
+    "smartstore": ("ss_price", "pur_ss_price"),
+    "coupang": ("cp_price", "pur_cp_price"),
+}
+
+
+def _applied_price(o: dict, market: str, is_pur: bool):
+    """그 마켓에 보낼 가격. 칸이 없는 마켓은 None(전송 보류).
+
+    🔴 [2026-08-13] **적용 카드를 따른다.** 예전엔 재고만 `purchase_priority_resolved`
+       를 보고 가격은 늘 소싱 카드 값을 썼다 — 사입이 적용된 옵션에 소싱 가격이 나가,
+       `uploader/preview.py` 머리말이 못 박은 「표시가 = 업로드가」가 여기서 깨졌다.
+    """
+    fields = _PRICE_FIELDS.get(market)
+    if not fields:
+        return None                       # 모르면 지어내지 않는다 — 호출부가 보류로 잡는다
+    src_key, pur_key = fields
+    return o.get(pur_key) if is_pur else o.get(src_key)
+
+
 def _new_values_for_options(model_codes, skus, market):
     """구성 옵션의 '보낼 재고/가격'(출처 기반) 맵: {canonical_sku: {...}}.
     매트릭스 단일 진실 원천(_option_matrix_data) 그대로 — 출처(사입/소싱)에 따라
@@ -262,7 +288,7 @@ def _new_values_for_options(model_codes, skus, market):
                 # 소싱 재고는 실수량(src_stock_qty). 999/6993 센티넬(src_stock)이
                 #   전송/미리보기 '보낼 값'으로 새면 실전송 시 999개 push (#10). 미상→None.
                 "stock": o.get("purchase_stock") if is_pur else o.get("src_stock_qty"),
-                "price": o.get("ss_price") if market == "smartstore" else o.get("cp_price"),
+                "price": _applied_price(o, market, is_pur),
                 "color": o.get("color_display") or o.get("color_code"),
                 "size": o.get("size_display") or o.get("size_code"),
                 "source": "purchase" if is_pur else "source",
