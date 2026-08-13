@@ -134,17 +134,11 @@
          ①종류 → ②옵션축 → ③브랜드 → ④매트릭스의 이름. #}
       <label class="og-lb"><span class="og-step">1</span> 어떤 모음전인가요</label>
       <div class="og-rg" id="ob-kinds">
-        {# 🔴 [2026-08-13] `disabled` 종류는 **숨기지 않고 이유를 적는다.**
-           없애면 「빠뜨렸나」가 되고, 그냥 두면 골라서 틀린 데이터를 만든다. #}
         {% for p in axis_presets %}
-        <label class="og-rr{% if loop.first %} on{% endif %}{% if p.disabled %} off{% endif %}"
-               data-kind="{{ p.kind }}"{% if p.disabled %} data-off="1"
-               title="{{ blocked_axis_reason }}"{% endif %}>
-          <input type="radio" name="ob-kind" value="{{ p.kind }}"
-                 {%- if loop.first %} checked{% endif %}
-                 {%- if p.disabled %} disabled{% endif %}>
-          <span><b class="og-rt">{{ p.label }}{% if p.disabled %} <span class="og-soon">준비 중</span>{% endif %}</b>
-            <span class="og-rd">{% if p.disabled %}{{ blocked_axis_reason }}{% else %}{{ p.desc }}{% endif %}</span></span>
+        <label class="og-rr{% if loop.first %} on{% endif %}" data-kind="{{ p.kind }}">
+          <input type="radio" name="ob-kind" value="{{ p.kind }}"{% if loop.first %} checked{% endif %}>
+          <span><b class="og-rt">{{ p.label }}</b>
+            <span class="og-rd">{{ p.desc }}</span></span>
         </label>
         {% endfor %}
       </div>
@@ -375,13 +369,6 @@
   .og-rt{display:block;font-size:14px;font-weight:600}
   .og-rd{display:block;font-size:12px;color:var(--color-text-tertiary);
     line-height:1.5;margin-top:2px}
-  /* [2026-08-13] 아직 못 여는 종류 — 숨기지 않고 「준비 중」으로 말한다.
-     opacity 만 낮추면 왜 못 고르는지 알 수 없어, 이유 문구를 같이 띄운다. */
-  .og-rr.off{opacity:.55;cursor:not-allowed;background:var(--ap-g0,#FAFAFC)}
-  .og-rr.off:hover{border-color:var(--ap-g2,#E8E8ED)}
-  .og-rr.off input{cursor:not-allowed}
-  .og-soon{font-size:11px;font-weight:700;color:var(--글자-주황,#C93400);
-    background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 7px;margin-left:4px}
   .og-rr.on{border-color:var(--color-primary);background:var(--연한-파랑,rgba(0,113,227,.08))}
   .og-rr.on .og-rt{color:var(--color-primary)}
   .og-axes-none{font-size:12.5px;color:var(--color-text-tertiary);padding:8px 0}
@@ -538,9 +525,19 @@
   .og-more:hover{border-color:var(--color-text-tertiary)}
   /* [2026-08-06 사장님] 이동 표시 ›는 뺐다 — 「···」와 나란히 있어 단추 두 개로
      보인다는 지적. 이동은 줄 자체(마우스 올리면 파래짐)가 담당한다. */
-  .og-menu{position:absolute;right:var(--sp-2);top:28px;z-index:20;min-width:130px;
+  /* [2026-08-13 사장님] 「···」 메뉴가 목록 상자 안에 갇혀 잘리고, 열 때마다
+     스크롤바가 생기던 것을 고쳤다. 원인은 바로 위 `.og-tbwrap{overflow-x:auto}` —
+     🔴 CSS 규격상 **한 축이 visible 이 아니면 다른 축의 visible 도 auto 로 승격**된다.
+        선언한 적 없는 세로 클리핑이 생긴 것이다(라이브 계산값 overflow-y:auto 실측).
+        폰에는 범인이 하나 더 있다 — `.og-tb{display:block;overflow-x:auto}`(아래 폰 구역).
+     조상을 하나씩 손보는 대신 **조상 밖(body)으로 꺼내 창 기준으로 띄운다** —
+     이 저장소 표준(정본 `bundles/_matrix_v3.html` 의 `_pmFloat`/`_pmShowFloat`).
+     좌표는 JS 가 넣는다(right·top 을 여기서 주면 그 값이 이긴다).
+     그림자는 필수다 — 표 밖에 떠 있어서 테두리만으로는 바탕에 묻힌다. */
+  .og-menu{position:fixed;z-index:99999;min-width:130px;
     background:var(--바탕-떠있는,#fff);border:1px solid var(--color-border);
-    border-radius:8px;padding:4px}
+    border-radius:8px;padding:4px;
+    box-shadow:0 6px 18px rgba(0,0,0,.13)}
   .og-mi{display:block;width:100%;text-align:left;border:0;background:transparent;
     font-family:inherit;font-size:14px;padding:8px 12px;border-radius:8px;
     cursor:pointer;text-decoration:none;color:var(--color-text-secondary)}
@@ -638,8 +635,6 @@
   }
   kindsBox.addEventListener('click', function (e) {
     var b = e.target.closest('.og-rr'); if (!b) return;
-    // [2026-08-13] 「준비 중」 종류는 고를 수 없다 — 서버도 400 으로 막는다(두 곳 같은 규칙).
-    if (b.getAttribute('data-off')) return;
     pickedKind = b.getAttribute('data-kind');
     // 종류를 바꾸면 축 고른 것은 버린다 — 남겨 두면 안 맞는 축이 딸려 간다.
     pickedAxes = null;
@@ -838,20 +833,64 @@
       location.href = r.getAttribute('data-href');
     });
   });
+  // ── 「···」 메뉴 — body 로 옮겨 창 기준(fixed)으로 띄운다 ──────────────
+  //   [2026-08-13 사장님] 「상품 목록 창이 너무 작아서 점세개 누르면 스크롤 생긴다」
+  //   목록 상자 `.og-tbwrap` 에 세로 클리핑이 생겨(위 .og-menu CSS 주석에 까닭)
+  //   메뉴가 잘렸다. 실측: 필터로 1줄만 남으면 상자 78px · 메뉴 77px 중 **14px** 만 보임.
+  //   조상 밖으로 꺼내면 `.og-tbwrap`(PC)·`.og-tb`(폰) 둘 다 무관해진다.
+  //
+  //   🔴 정본(`_matrix_v3.html` `_pmFloat`)과 다른 점 하나 — 저기는 **노드 하나**를
+  //      재사용하지만, 여기 `.og-menu` 는 Jinja 가 **줄마다 하나씩** 찍는다(80줄이면 80개).
+  //      그래서 각자를 body 로 옮기고, 버튼에 그 참조를 붙들어 둔다.
+  //      붙들지 않으면 `btn.parentElement.querySelector('.og-menu')` 가 null 을 돌려
+  //      「···」가 **에러도 없이 아무 일도 안 하게** 된다.
+  function ogCloseMenus() {
+    document.querySelectorAll('.og-menu').forEach(function (m) { m.hidden = true; });
+  }
+  // 좌표 계산은 정본 `_pmShowFloat` 와 같은 규칙 —
+  //   오른쪽 끝 정렬 · 아래로 4px · 화면 아래를 넘으면 **위로 뒤집기** · 가장자리 8px 여백.
+  function ogPlaceMenu(anchor, el) {
+    var r = anchor.getBoundingClientRect();
+    var cw = el.offsetWidth, ch = el.offsetHeight;
+    var left = r.right - cw;
+    // 🔴 오른쪽도 붙잡아야 한다. 이 표는 가로로 넘쳐(실측 clientWidth 704 /
+    //   scrollWidth 859) 「···」 단추가 상자 오른쪽 밖에 있을 수 있는데,
+    //   그때 단추 좌표를 그대로 쓰면 메뉴가 **창 밖 103px** 로 날아간다(실측).
+    //   왼쪽만 붙잡던 정본을 여기서 한 줄 보탠다.
+    if (left + cw > window.innerWidth - 8) left = window.innerWidth - 8 - cw;
+    if (left < 8) left = 8;
+    var top = r.bottom + 4;
+    if (top + ch > window.innerHeight - 8) top = r.top - ch - 4;   // 위로 뒤집기
+    // 🔴 뒤집어도 모자랄 때가 있다 — 단추 자체가 화면 밖일 때다
+    //   (폰 375×812 실측: 단추 top 865.7 → 뒤집어도 메뉴가 아래로 49.7px 나감).
+    //   뒤집기 다음에 **양쪽 다** 붙잡는다. 순서가 중요하다 — 붙잡기가 먼저면
+    //   뒤집기가 그 값을 도로 밀어낸다.
+    if (top + ch > window.innerHeight - 8) top = window.innerHeight - 8 - ch;
+    if (top < 8) top = 8;
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+  }
   document.querySelectorAll('.og-more').forEach(function (btn) {
+    var cell = btn.closest('.og-actcell');
+    var menu = cell && cell.querySelector('.og-menu');
+    if (!menu) return;
+    document.body.appendChild(menu);        // ← 조상 overflow 밖으로
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
-      var menu = btn.parentElement.querySelector('.og-menu');
-      if (!menu) return;
       var wasOpen = !menu.hidden;
-      document.querySelectorAll('.og-menu').forEach(function (m) { m.hidden = true; });
-      menu.hidden = wasOpen;
+      ogCloseMenus();
+      if (!wasOpen) { menu.hidden = false; ogPlaceMenu(btn, menu); }
     });
   });
   document.addEventListener('click', function (e) {
     if (e.target.closest('.og-menu, .og-more')) return;
-    document.querySelectorAll('.og-menu').forEach(function (m) { m.hidden = true; });
+    ogCloseMenus();
   });
+  // 🔴 스크롤하면 닫는다 — fixed 좌표가 낡아 엉뚱한 자리에 남는다.
+  //   `true`(캡처)여야 한다. 목록 상자 안쪽 스크롤은 window 로 **안 올라온다**.
+  //   (같은 처방이 `orders/index.html` 의 `.dcpop` 에도 있다)
+  window.addEventListener('scroll', ogCloseMenus, true);
+  window.addEventListener('resize', ogCloseMenus);
 
   // ── [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 여러 묶음 골라 상품 만들기 ──
   //   왜 필요한가 — 단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 옵션을

@@ -3120,11 +3120,30 @@ def get_option_payload_preview(gid: int):
                 .filter(Option.model_code.in_(model_codes))
                 .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
                 .all()) if model_codes else []
+        # 🔴 [2026-08-13] `model_name` 을 같이 싣는다 — 모델 축(3축)의 **값**이다.
+        #   `model_code` 는 묶음 코드(U…)라 옵션마다 똑같아서, 축을 3개로 늘려도
+        #   셋째 칸에 넣을 값이 없었다(실측: 두 줄이 한 줄로 접힘).
+        #   값은 `Option.axis_values_json` 에 이미 있었고 **가리킬 이름이 없었을 뿐**이다.
+        #   축 이름은 저장된 단계 설계에서 읽는다 — 새 칸을 만들지 않는다.
+        from lemouton.sourcing.models import BundleOptionStep
+        from lemouton.matrix.option_name import model_name_of
+        nm_by_code = {m.model_code: (m.model_name_display or m.model_name_raw
+                                     or m.model_code) for m in g.models}
+        ax_by_code: dict[str, list[str]] = {}
+        if model_codes:
+            for code, axis_name in (s.query(BundleOptionStep.model_code,
+                                            BundleOptionStep.axis_name)
+                                    .filter(BundleOptionStep.model_code.in_(model_codes))
+                                    .order_by(BundleOptionStep.model_code,
+                                              BundleOptionStep.step_no).all()):
+                ax_by_code.setdefault(code, []).append(axis_name)
         opt_dicts = [{
             'canonical_sku': o.canonical_sku,
             'color_code': o.color_code,
             'size_code': o.size_code,
             'model_code': o.model_code,
+            'model_name': model_name_of(nm_by_code.get(o.model_code, ''), o,
+                                        ax_by_code.get(o.model_code) or []),
         } for o in opts]
         try:
             payloads = build_payloads_for_group(cfg, opt_dicts)
@@ -3788,15 +3807,6 @@ def bundle_options_combo(code: str):
         return _err('steps(단계 설계)가 필요해요.')
     if len(steps) > 3:
         return _err('단계는 최대 3개까지예요.')
-    # 🔴 [2026-08-13 감사] 축이 **실제로 저장되는 곳은 여기**다. 만들기 창의 프리셋만
-    #   막아 두면 큰 창에서 축 이름을 고쳐 그대로 빠져나간다(감사 실측: 200 으로 저장됨).
-    #   모델 축은 값을 담을 칸이 없어 마켓 옵션 이름이 겹친다 — 두 입구가 같은 함수를 쓴다.
-    #   ※ 프리셋 전체를 여기서 강제하지는 않는다 — 축 이름 자유는 설계서 §5.1 이고,
-    #     라이브에 「단계1·단계2」 매트릭스가 실재해 그것까지 막으면 저장이 죽는다.
-    from webapp.routes.optgen import BLOCKED_AXIS_REASON, blocked_axis
-    if blocked_axis([(st or {}).get('axis_name') for st in steps
-                     if isinstance(st, dict)]):
-        return _err(BLOCKED_AXIS_REASON)
 
     from lemouton.sourcing.option_service import create_combination_options
     s = SessionLocal()
