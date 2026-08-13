@@ -159,3 +159,24 @@ def test_새_부류가_화면_목록에_들어_있다():
     import webapp.routes.orders as om
     assert "returned" in om._SP_CATEGORIES
     assert om._SP_CAT_KO["returned"]
+
+
+def test_화면에_반품교환완료_카드가_있다():
+    """부류를 만들어도 화면에 자리가 없으면 사장님은 영영 못 본다."""
+    import pathlib
+    tpl = (pathlib.Path(__file__).resolve().parents[2] / "webapp" / "templates"
+           / "orders" / "index.html").read_text(encoding="utf-8")
+    assert "spn-returned-card" in tpl
+    assert "k.returned" in tpl                     # 숫자를 실제로 그린다
+    assert "'returned','↩️ 반품·교환 완료" in tpl   # 눌렀을 때 목록이 뜬다
+    assert "반품비는 남겨 뒀어요" in tpl            # 왜 총액이 안 줄었는지 말해 준다
+
+
+def test_줄_만드는_곳이_클레임을_이어_준다():
+    """🔴 집계·드릴다운·엑셀이 전부 이 함수를 지난다 — 여기서 빠지면 셋이 갈린다."""
+    import pathlib
+    import webapp.routes.orders as om
+    src = pathlib.Path(om.__file__).read_text(encoding="utf-8")
+    i = src.index("def _settle_plan_lines")
+    blk = src[i:i + 1600]
+    assert "annotate_claims" in blk
