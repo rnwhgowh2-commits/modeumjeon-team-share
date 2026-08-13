@@ -114,13 +114,85 @@ def test_막은_횟수를_세어_알린다():
 
 # ── ④ 쓰는 곳이 둘 다 지킨다 ────────────────────────────────────────────────
 
-def test_쓰는_곳_두_곳_모두_이_함수를_지난다():
-    """🔴 클레임 행 경로(:186)와 주문 갱신 경로(:217) 둘 다다.
+#  🔴 아래 두 시험은 **실제로 돌려서** 본다. 글자만 세면 안 된다 —
+#    처음엔 `src.count("_apply_status(") >= 2` 로 썼는데, 반환값을 무시하고 바로
+#    `line.status = st_new` 로 덮는 뮤테이션이 **그대로 통과했다**. 세는 시험은
+#    「불렀나」만 알지 「말을 들었나」는 모른다.
 
-    한 곳만 막으면 다른 쪽으로 그대로 되돌아간다 — 이 저장소가 재고 조정에서
-    똑같이 겪었다(쓰는 곳 세 곳 중 한 곳만 고쳐 하루에 네 번 뒤집힘).
+@pytest.fixture
+def session():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from shared.db import Base
+    import lemouton.markets.models_orders  # noqa: F401  — 테이블 등록
+    eng = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(eng, tables=[
+        Base.metadata.tables["market_order_lines"],
+        Base.metadata.tables["market_claim_events"],
+    ])
+    s = sessionmaker(bind=eng, autoflush=False, expire_on_commit=False)()
+    yield s
+    s.close()
+
+
+def _row(uid="lotteon|L1", **kw):
+    from lemouton.markets import line_uid as L
+    r = {L.FIELD: uid, "판매처": "롯데온", "오픈마켓주문번호": "L1",
+         "주문일": "2026-07-01 10:00:00", "주문상태": "배송완료",
+         "상품명": "티셔츠", "단가": 10000, "수량": 1}
+    r.update(kw)
+    return r
+
+
+def test_주문_갱신_경로가_되돌아가는_값을_안_쓴다(session):
+    """롯데온이 같은 라인을 단계별 여러 행으로 줄 때 나중 행이 앞선 상태를 덮던 그 자리."""
+    OS.save([_row()], session=session)
+    st = OS.save([_row(주문상태="출고지시")], session=session)
+    rows = OS.load(session=session)
+    assert rows[0]["주문상태"] == "배송완료", "되돌아간 상태가 저장됐다"
+    assert st["status_regress_blocked"] == 1, "막았으면 세어서 알려야 한다"
+
+
+def test_클레임_행_경로도_되돌아가는_값을_안_쓴다(session):
+    """🔴 이 경로를 안 막으면 다른 쪽으로 그대로 되돌아간다.
+
+    재고 조정에서 똑같이 겪었다 — 쓰는 곳 세 곳 중 하나만 고쳐 하루에 네 번 뒤집혔다.
     """
-    import inspect
-    src = inspect.getsource(OS.save)
-    assert src.count("_apply_status(") >= 2, "쓰는 곳 중 하나가 아직 막이를 안 지난다"
-    assert "_stamp_status(" not in src, "옛 경로가 남아 있으면 그리로 새어 나간다"
+    OS.save([_row()], session=session)
+    st = OS.save([_row(_kind="change", _change_date="2026-07-02",
+                       주문상태="출고지시", 주문상태원본="11")], session=session)
+    rows = OS.load(session=session)
+    assert rows[0]["주문상태"] == "배송완료", "클레임 행이 원 주문 상태를 되돌렸다"
+    assert st["status_regress_blocked"] == 1
+
+
+def test_클레임_행이_반품은_제대로_반영한다(session):
+    """막이가 반품까지 막으면 버그보다 나쁘다 — 반품된 주문이 영영 배송완료로 남는다."""
+    OS.save([_row()], session=session)
+    st = OS.save([_row(_kind="change", _change_date="2026-07-02",
+                       주문상태="반품요청", 주문상태원본="UC")], session=session)
+    rows = OS.load(session=session)
+    assert rows[0]["주문상태"] == "반품요청"
+    assert st["status_regress_blocked"] == 0
+
+
+def test_앞으로_가는_것은_그대로_저장된다(session):
+    OS.save([_row(주문상태="출고지시")], session=session)
+    st = OS.save([_row(주문상태="배송완료")], session=session)
+    assert OS.load(session=session)[0]["주문상태"] == "배송완료"
+    assert st["status_regress_blocked"] == 0
+
+
+def test_상태만_안_쓰고_나머지_값은_갱신한다(session):
+    """🔴 막이가 다른 값까지 얼리면 정산액·송장이 영영 안 들어온다."""
+    OS.save([_row()], session=session)
+    OS.save([_row(주문상태="출고지시", 송장입력="1234567890")], session=session)
+    r = OS.load(session=session)[0]
+    assert r["주문상태"] == "배송완료"
+    assert r["송장입력"] == "1234567890", "상태를 막으면서 다른 값까지 막았다"
+
+
+def test_옛_경로가_안_남아_있다():
+    """`_stamp_status` 가 남아 있으면 새 코드가 그리로 새어 나간다."""
+    assert not hasattr(OS, "_stamp_status")
