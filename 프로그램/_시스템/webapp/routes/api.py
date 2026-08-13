@@ -207,6 +207,12 @@ def crawl_due_listings():
                 _lo, _hi = LD.window_for(f.page_from, f.page_to, _cur)
                 pages = LD.page_urls_for(f.listing_url, source_key=f.source_key,
                                          page_from=_lo, page_to=_hi)
+                # 🔴 **못 걸은 쪽을 맨 앞에 세운다.** 크롬이 바쁠 때 탭이 죽어
+                #   빠진 쪽이다 — 「나중에」로 미루면 영영 안 걷힌다(H몰 16% 실측).
+                _miss = [u for u in
+                         (getattr(f, 'missed_urls', None) or '').splitlines() if u.strip()]
+                if _miss:
+                    pages = _miss + [u for u in pages if u not in set(_miss)]
             except ValueError:
                 # 규칙을 모르는 소싱처 — 만들 때 막지만, 옛 데이터가 있을 수 있다.
                 #   조용히 빼면 「눌렀는데 아무 일도 안 남」이 된다. 사유를 실어 보낸다.
@@ -309,6 +315,18 @@ def crawl_listing_result():
         # 「더 있는데 멈췄다」는 실패와 다른 사실이다. 뭉치면 「끝까지 다 봤다」로 읽혀
         # 사장님이 없는 상품을 없다고 믿게 된다.
         f.last_capped = bool(body.get('capped'))
+        # 🔴 **못 걸은 쪽을 기억한다** — 다음 회차가 그것부터 건다.
+        #   이번에 성공한 쪽은 목록에서 뺀다(성공했는데 계속 다시 걸면 헛돈다).
+        if hasattr(f, 'missed_urls'):
+            _was = [u for u in (f.missed_urls or '').splitlines() if u.strip()]
+            _now = [str(u).strip() for u in (body.get('missed') or []) if str(u or '').strip()]
+            # 이번에 시도해 본 쪽 = 지난번 못 걸은 것 중 이번 목록에 있던 것.
+            #   그중 다시 실패한 것만 남긴다.
+            _keep = [u for u in _was if u in set(_now)]
+            for u in _now:
+                if u not in set(_keep):
+                    _keep.append(u)
+            f.missed_urls = ('\n'.join(_keep[:200]) or None)   # 상한 — 끝없이 쌓지 않는다
         # 🔴 **이어서 걷기 위치를 옮긴다.** 「더 있음」이면 다음 회차가 그 다음 창부터
         #   걷고, 끝까지 걸었으면 처음으로 되돌린다(새 상품은 앞쪽에 들어온다).
         #   ★ 주소로 쪽을 넘기는 곳만 이어걷기가 된다 — 「다음」 단추로 넘기는 곳은
@@ -330,8 +348,17 @@ def crawl_listing_result():
         #   ③ 필터를 꺼 두면(enabled=False) 예약하지 않는다
         # 🔴 ②가 핵심 안전장치다. 이게 없으면 소싱처가 늘 「더 있다」고 답할 때
         #   영원히 두들겨 차단당한다.
-        if (f.last_capped and new_n > 0 and bool(getattr(f, 'enabled', True))
-                and not (body.get('error') or '').strip()):
+        # ★ 못 걸은 쪽이 **줄어들고 있으면** 실패가 있어도 이어간다 — 그건 나아가는
+        #   중이다. 안 줄면(같은 쪽이 계속 실패) 멈춘다.
+        _miss_now = len([u for u in (getattr(f, 'missed_urls', None) or '').splitlines()
+                         if u.strip()])
+        _miss_shrank = hasattr(f, 'missed_urls') and 0 < _miss_now < len(_was)
+        # 🔴 실패 사유가 있으면 멈춘다 — **다만 못 걸은 쪽이 줄고 있으면 예외**다.
+        #   그건 고장이 아니라 **줍는 중**이다(H몰이 빠진 쪽을 되찾는 경우).
+        _broken = bool((body.get('error') or '').strip()) and not _miss_shrank
+        _progress = (new_n > 0) or _miss_shrank
+        if (f.last_capped and _progress and not _broken
+                and bool(getattr(f, 'enabled', True))):
             f.run_requested_at = now          # 곧바로 이어서
         s.commit()
         return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),

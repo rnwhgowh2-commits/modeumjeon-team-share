@@ -418,6 +418,73 @@ def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
     return groups, combos, excluded
 
 
+#: 바코드 없음 사유 — 쿠팡 한도 100자. 사실만 적는다(지어내지 않는다).
+_NO_BARCODE_REASON = '제조사 표준 바코드(GTIN)를 아직 받지 못했습니다. 사내 관리용 번호만 있어 보내지 않습니다.'
+
+
+def coupang_barcode_fields(barcode) -> dict:
+    """[2026-08-13] 쿠팡 items 의 바코드 3칸을 규약대로 만든다.
+
+    쿠팡 문서 원문(marketplace_api_map.json · coupang.products.product-creation):
+        items.barcode            "상품에 **부착된 유효한 표준상품 코드**"
+        items.emptyBarcode       "바코드가 없으면 true"
+        items.emptyBarcodeReason "바코드 없음에 대한 사유 (최대 100자)"
+
+    🔴 우리 `Option.barcode` 는 기본이 `gen_barcode()` = **200 접두 EAN-13** 이다.
+      200~299(020~029·040~049 도)는 GS1 이 어느 제조사에도 안 주는 **매장 내부 전용**
+      대역이라 세계에서 유일하지 않다. 그 번호를 보내면 **거짓 표준코드를 등록**하는
+      셈이라 안 보낸다 — 대신 쿠팡이 마련해 둔 「없음 + 사유」로 사실대로 밝힌다.
+
+    🔴 종전엔 `barcode: ""` 만 보냈다. 코드도 아니고 없다는 선언도 아닌 값이었다.
+
+    사장님이 직접 넣은 진짜 제조사 바코드(내부 대역 아님 + 체크섬 통과)만 그대로 보낸다.
+    형식이 깨진 값은 **고쳐서 보내지 않는다** — 없다고 밝힌다.
+    """
+    from shared.sku_format import is_internal_barcode, is_valid_barcode
+    code = str(barcode or '').strip()
+    if code and not is_internal_barcode(code) and is_valid_barcode(code):
+        return {'barcode': code}
+    return {'barcode': '', 'emptyBarcode': True,
+            'emptyBarcodeReason': _NO_BARCODE_REASON}
+
+
+def coupang_search_tags(bundle, options) -> list:
+    """[2026-08-13] 쿠팡 검색태그 — 구매자가 **검색할 말**만, 한도 안에서.
+
+    종전엔 `[모음전 코드, 색상]` 딱 2개였다. 모음전 코드는 우리 내부 관리번호라
+    구매자가 검색할 말이 아니다 — 20칸 중 1칸을 버리는 셈이었다.
+
+    담는 말 = **정책 §7-11 `_auto_tags` 와 같은 갈래**: 브랜드 → 카테고리 → 색상들.
+    **있는 값만** 쓴다(빈칸을 지어내지 않는다).
+    ★ 상품명 전체는 안 넣는다 — 정책이 안 넣는 값이고, 문장에 가까워 검색어로 안 쓰인다.
+      규칙을 두 벌로 만들면 「정책 미리보기」와 「실제로 나간 태그」가 갈린다.
+
+    🔴 한도는 지도에서 확인된 것만 (`market_limits.TAG_MAX_COUNT/TAG_MAX_LEN`) —
+      쿠팡 `items.searchTags` = "1개당 20자 이내, 최대 20개".
+      개수만 맞추면 긴 태그에서 쿠팡이 거부한다.
+    🔴 길이를 넘는 태그는 **자르지 않고 뺀다.** 잘라 만든 말은 구매자가 검색하지 않는
+      엉뚱한 말이라, 넣어 두면 한도만 갉아먹는다.
+    """
+    from lemouton.registration.market_limits import TAG_MAX_COUNT, TAG_MAX_LEN
+    말 = []
+    for v in (getattr(bundle, 'brand', ''), getattr(bundle, 'category', '')):
+        if str(v or '').strip():
+            말.append(str(v).strip())
+    for o in options or []:
+        c = str(getattr(o, 'color_code', '') or '').strip()
+        if c:
+            말.append(c)
+    cap_len = TAG_MAX_LEN.get('coupang')
+    out = []
+    for t in 말:
+        if cap_len and len(t) > cap_len:
+            continue                       # 자르지 않고 뺀다
+        if t not in out:
+            out.append(t)
+    cap_n = TAG_MAX_COUNT.get('coupang')
+    return out[:cap_n] if cap_n else out
+
+
 def build_coupang_items(opts, *, sale_price, image_url):
     """옵션 목록 → (쿠팡 items[], excluded). 옵션 추가금은 절대가에 가산한다.
 
@@ -449,5 +516,9 @@ def build_coupang_items(opts, *, sale_price, image_url):
             'externalVendorSku': o['sku'],
             'images': images,
             'attributes': attrs,
+            # 대량등록 초안엔 바코드 칸 자체가 없다 → 늘 「없음 + 사유」가 된다.
+            #   ★ 쪽문 경로(registration/coupang.py)와 **같은 함수**를 쓴다 —
+            #     두 벌이 되면 어느 문으로 등록했느냐로 값이 갈린다.
+            **coupang_barcode_fields(o.get('barcode')),
         })
     return items, excluded
