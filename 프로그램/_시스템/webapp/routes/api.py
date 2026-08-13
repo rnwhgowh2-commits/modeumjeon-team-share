@@ -3075,55 +3075,6 @@ def dissolve_bundle_group(gid: int):
 #   🔴 다만 그 설정은 **저장만 되고 전송에 안 쓰인다**(전수 확인). 별건.
 
 
-@bp.post('/bundle-groups/<int:gid>/option-config')
-def set_bundle_option_config(gid: int):
-    """[v3] 그룹의 마켓별 옵션 축 구성 저장.
-
-    Body: {"option_config": {"smartstore": {"axes": [{"name":"색상","source":"color_code"}, ...]}, "coupang": {...}}}
-    검증:
-      - 마켓별 axes 1~3개 (스스 최대 3, 쿠팡 최대 3)
-      - axis.name 비어있지 않음
-      - axis.source ∈ {color_code, size_code, model_code}
-    """
-    from lemouton.sourcing.models import BundleGroup
-    import json as _json
-    payload = request.get_json(silent=True) or {}
-    cfg = payload.get('option_config') or {}
-    valid_sources = {'color_code', 'size_code', 'model_code'}
-    valid_markets = {'smartstore', 'coupang'}
-    # 검증
-    for mk, mk_cfg in cfg.items():
-        if mk not in valid_markets:
-            return _err(f'알 수 없는 마켓: {mk}', 400)
-        axes = (mk_cfg or {}).get('axes') or []
-        if not isinstance(axes, list) or not (1 <= len(axes) <= 3):
-            return _err(f'{mk} axes 1~3개 필요 (받은 수: {len(axes)})', 400)
-        names_seen = set()
-        sources_seen = set()
-        for i, ax in enumerate(axes):
-            name = (ax or {}).get('name', '').strip()
-            src = (ax or {}).get('source', '')
-            if not name:
-                return _err(f'{mk} axis #{i+1} name 비어있음', 400)
-            if src not in valid_sources:
-                return _err(f'{mk} axis #{i+1} source 잘못됨: {src}', 400)
-            if name in names_seen:
-                return _err(f'{mk} axis name 중복: {name}', 400)
-            if src in sources_seen:
-                return _err(f'{mk} axis source 중복: {src}', 400)
-            names_seen.add(name); sources_seen.add(src)
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        g.option_config_json = _json.dumps(cfg, ensure_ascii=False)
-        s.commit()
-        return _ok(group_id=gid, option_config=cfg)
-    finally:
-        s.close()
-
-
 # ═══════ [제품 공유 v1] 신규 모음전 — 재고제품 검색 + 모음전 생성 ═══════
 
 @bp.get('/inventory/options/<path:sku>/stock-detail')
