@@ -362,6 +362,48 @@ def api_eleven11_fill_blanks():
     return jsonify({"ok": True, **st})
 
 
+@bp.post("/api/orders-ingest/eleven11-fill-seller-dc")
+def api_eleven11_fill_seller_dc():
+    """11번가 판매자할인 회수 — 한 요청에 최대 8주문(주문당 1콜).
+
+    🔴 왜 필요한가(2026-08-13) — 배송중·배송완료·구매확정은 **목록조회가 `sellerDscPrc` 를
+      아예 안 준다**(실측 150/157행). 그 행들은 매출이 「정가 − 판매자할인」으로 못 넘어가고
+      옛 기준(실결제+배송비)에 머무는데, 실결제엔 11번가 부담 할인까지 빠져 있어 매출이 과소다.
+      저장분 백로그 실측: 180일 341주문·1,345,440원.
+
+    body: {days?: 180, limit?: 6}. **반복 호출로 이어서 밀어낸다** — 채워진 행은 대상에서
+    저절로 빠지므로 같은 요청을 다시 보내면 그다음 주문을 잡는다.
+    규모는 `GET /orders/diag/e11-seller-dc?days=…` 로 먼저 잰다(마켓 안 부름).
+
+    돌려주는 것에서 `no_value`(마켓도 할인을 안 줌)와 `not_found`(계정 어디에도 없음)를
+    **합치지 않는다** — 후자면 원인이 주문이 아니라 자격증명이다.
+    """
+    from lemouton.markets.order_ingest import refresh_eleven11_seller_dc
+
+    body = request.get_json(silent=True) or {}
+    try:
+        days = int(body.get("days") or 180)
+        limit = int(body.get("limit") or 6)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days·limit 는 숫자"}), 400
+    if not (1 <= days <= 730) or not (1 <= limit <= 8):
+        return jsonify({"ok": False, "error": "days 1~730 · limit 1~8"}), 400
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        st = ex.submit(refresh_eleven11_seller_dc, days, limit).result(timeout=50)
+    except _TO:
+        return jsonify({"ok": False, "error": "50초 초과 — limit 을 줄여 재시도"}), 504
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("eleven11-fill-seller-dc failed")
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, **st})
+
+
 @bp.post("/api/orders-ingest/coupang-dates-by-id")
 def api_coupang_dates_by_id():
     """쿠팡 취소주문 실주문일 채움 — 발주서 단건(orderId) 조회. body: {ord_nos ≤8}."""
