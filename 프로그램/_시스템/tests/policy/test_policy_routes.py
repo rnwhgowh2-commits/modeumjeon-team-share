@@ -424,6 +424,42 @@ def test_매트릭스_없는_상품은_matrix가_None이다(client):
     assert j['rows'][0]['matrix'] is None
 
 
+def test_상품목록에_소싱처_연동정보가_있다(client):
+    from datetime import datetime, timezone
+    from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
+    from lemouton.sourcing.models import Option
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.flush()
+        sp = SourceProduct(site='musinsa', url='https://example.com/1',
+                           last_fetched_at=datetime(2026, 8, 19, 13, 0,
+                                                     tzinfo=timezone.utc))
+        s.add(sp)
+        s.flush()
+        so = SourceOption(source_product_id=sp.id, color_text='블랙', size_text='260')
+        s.add(so)
+        s.flush()
+        s.add(OptionSourceLink(canonical_sku='M1-BLK-260', source_option_id=so.id))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert '무신사' in row['sourcing']['connected']
+    assert row['sourcing']['collected_at'] == '2026-08-19T13:00:00+00:00'
+
+
+def test_소싱처_연동_없는_상품은_빈_목록이다(client):
+    _model(client, 'M2', '르무통')
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert row['sourcing']['connected'] == []
+    assert row['sourcing']['collected_at'] is None
+
+
 def test_사이드바에_상품_정책_적용이_있다(client):
     body = client.get('/policies').get_data(as_text=True)
     assert '/policies/apply' in body

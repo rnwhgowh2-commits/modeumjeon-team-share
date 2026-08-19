@@ -456,6 +456,39 @@ def api_bundles():
             r['matrix'] = ({'id': mo.id, 'name': mo.name, 'no': mo.display_no,
                             'sku_count': sku_counts.get(r['model_code'], 0)}
                            if mo else None)
+
+        # [이슈 #1058] 소싱처 연동 — 사이트 라벨 + 마지막 수집 시각. 배치 1쿼리
+        #   (300행 목록에서 상품마다 따로 물으면 N+1이 된다 — 소싱처 필터가
+        #   276쿼리였던 전례가 있다). URL 상세(재고·가격)는 호버카드가 따로 부른다.
+        from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
+        from lemouton.sources.site_labels import SITE_LABEL
+        from webapp.routes.bundles_tower import _iso
+        sku_model = dict(s.query(Option.canonical_sku, Option.model_code)
+                         .filter(Option.model_code.in_(page_codes)).all())
+        sourcing_by_model = {c: {'connected': set(), 'collected_at': None}
+                             for c in page_codes}
+        if sku_model:
+            for sku, site, fetched in (
+                    s.query(OptionSourceLink.canonical_sku, SourceProduct.site,
+                            SourceProduct.last_fetched_at)
+                    .join(SourceOption,
+                          SourceOption.id == OptionSourceLink.source_option_id)
+                    .join(SourceProduct,
+                          SourceProduct.id == SourceOption.source_product_id)
+                    .filter(OptionSourceLink.canonical_sku.in_(list(sku_model)))
+                    .all()):
+                mc = sku_model.get(sku)
+                if not mc:
+                    continue
+                st = sourcing_by_model[mc]
+                st['connected'].add(SITE_LABEL.get(site, site))
+                if fetched and (st['collected_at'] is None or fetched > st['collected_at']):
+                    st['collected_at'] = fetched
+        for r in rows:
+            st = sourcing_by_model.get(r['model_code']) \
+                or {'connected': set(), 'collected_at': None}
+            r['sourcing'] = {'connected': sorted(st['connected']),
+                             'collected_at': _iso(st['collected_at'])}
     finally:
         s.close()
     # 많은 순 → 이름 순, 브랜드 없는 것은 맨 뒤(만들다 만 것이 위를 차지하면 안 된다)
