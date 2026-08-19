@@ -39,7 +39,7 @@ def q(conn, sql, **kw):
 def measure(conn):
     print('=== 표별 용량 (큰 순서) ===')
     rows = q(conn, """
-        SELECT relname AS 표,
+        SELECT c.relname AS 표,
                pg_size_pretty(pg_total_relation_size(c.oid)) AS 크기,
                pg_total_relation_size(c.oid) AS bytes,
                COALESCE(s.n_live_tup, 0) AS 줄수
@@ -105,12 +105,22 @@ def apply(conn):
         ) d
         WHERE p.id = d.id
     """)).rowcount
-    conn.commit()
+    # 이 연결은 AUTOCOMMIT — 위 DELETE 는 이미 확정됐다.
+    #   전에는 여기서 conn.commit() 과 'COMMIT' 을 또 걸었는데, 진행 중인 트랜잭션이
+    #   없어서 경고만 나고 아무 일도 안 했다. VACUUM 은 트랜잭션 안에서 못 돌기 때문에
+    #   AUTOCOMMIT 이 필수고, 그래서 커밋을 따로 걸 이유도 없다.
     print('  지운 줄: %s' % f'{n:,}')
-    # 지우기만 하면 표시 용량이 안 줄어든다 — 실제로 반납해야 한다
-    conn.execute(text('COMMIT'))
+    if n == 0:
+        print('  지운 게 없어 공간 반납은 건너뛴다')
+        return 0
+
+    before = q(conn, "SELECT pg_size_pretty(pg_total_relation_size('price_track_history'))")[0][0]
+    # 🔴 지우기만 하면 표시 용량이 안 줄어든다 — 실제로 반납해야 한다.
+    #    VACUUM FULL 은 그 표에 **배타 잠금**을 건다(그동안 그 표를 읽는 화면은 기다린다).
     conn.exec_driver_sql('VACUUM FULL price_track_history')
-    print('  공간 반납 완료 (VACUUM FULL)')
+    after = q(conn, "SELECT pg_size_pretty(pg_total_relation_size('price_track_history'))")[0][0]
+    print('  공간 반납 완료 — price_track_history %s → %s' % (before, after))
+    return n
 
 
 def main():
@@ -131,8 +141,8 @@ def main():
                 if not r or r[0] == 0:
                     print('\n지울 중복이 없습니다.'); return 0
                 print('\n지웁니다 …')
-                with engine.connect() as c2:
-                    c2.execution_options(isolation_level='AUTOCOMMIT')
+                # AUTOCOMMIT 은 연결을 열 때 걸어야 한다 — VACUUM 은 트랜잭션 안에서 못 돈다.
+                with engine.connect().execution_options(isolation_level='AUTOCOMMIT') as c2:
                     apply(c2)
                 with engine.connect() as c3:
                     print()
