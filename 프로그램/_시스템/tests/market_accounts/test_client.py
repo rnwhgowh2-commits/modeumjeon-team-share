@@ -120,3 +120,24 @@ def test_timeout_raises_unavailable(monkeypatch):
     from shared.market_accounts.client import MarketAccountUnavailable
     with pytest.raises(MarketAccountUnavailable, match="연결 실패"):
         mod.get_market_account("coupang")
+
+
+def test_account_label_passed_as_param(monkeypatch):
+    monkeypatch.setenv("SAMBA_WAVE_URL", "https://samba-wave.example.com")
+    monkeypatch.setenv("SAMBA_WAVE_INTERNAL_TOKEN", "tok123")
+
+    import shared.market_accounts.client as mod
+
+    captured = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["params"] = params
+        return _FakeResponse(200, {
+            "market_type": "coupang", "account_label": "부계정",
+            "fields": {},
+        })
+
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+
+    mod.get_market_account("coupang", account_label="부계정")
+    assert captured["params"] == {"market_type": "coupang", "account_label": "부계정"}
