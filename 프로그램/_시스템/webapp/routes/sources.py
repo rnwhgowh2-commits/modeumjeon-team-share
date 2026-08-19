@@ -26,12 +26,15 @@ SITE_LABELS = {
     'ss_lemouton': '스마트스토어 르무통',
 }
 
+# 2026-08-19 디자인 통일 — 색점 글자 대신 '상태 이름 + 아이콘 이름' 만 준다.
+# 화면이 ds-st 부품으로 그린다 (확정 2번: 딱지 없이 아이콘 + 색 글자).
+# (상태이름, 아이콘이름, 보이는글자)
 STATUS_BADGE = {
-    'ok': ('🟢', '정상'),
-    'error': ('🔴', '에러'),
-    'timeout': ('🟡', '지연'),
-    'no_crawler': ('⚪', '크롤러 미지원'),
-    None: ('—', '미수집'),
+    'ok': ('ok', 'check', '정상'),
+    'error': ('no', 'x', '에러'),
+    'timeout': ('unk', 'clock', '지연'),
+    'no_crawler': ('idle', 'minus-circle', '크롤러 미지원'),
+    None: ('idle', 'minus', '미수집'),
 }
 
 
@@ -53,8 +56,9 @@ def index():
             for it in items:
                 badge = STATUS_BADGE.get(it.get('last_status'),
                                          STATUS_BADGE[None])
-                it['status_emoji'] = badge[0]
-                it['status_label'] = badge[1]
+                it['status_state'] = badge[0]
+                it['status_icon'] = badge[1]
+                it['status_label'] = badge[2]
             groups.append({
                 'site_key': site_key,
                 'site_label': SITE_LABELS.get(site_key, site_key),
@@ -101,7 +105,8 @@ def detail(source_id: int):
                            sp=sp, site_label=site_label,
                            sharing_models=sharing_models, options=options,
                            history=history,
-                           status_emoji=badge[0], status_label=badge[1])
+                           status_state=badge[0], status_icon=badge[1],
+                           status_label=badge[2])
 
 
 @bp.post('/<int:source_id>/refetch')

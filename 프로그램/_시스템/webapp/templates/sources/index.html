@@ -63,7 +63,7 @@
           <div style="font-size:13px;color:var(--n700);margin-bottom:4px">{{ it.product_name }}</div>
           {% endif %}
           <div style="font-size: 14px;color:var(--n500);margin-bottom:6px">
-            {{ it.status_emoji }} {{ it.status_label }}
+            <span class="ds-st ds-st--{{ it.status_state }}"><i class="ph-light ph-{{ it.status_icon }}" aria-hidden="true"></i>{{ it.status_label }}</span>
             {% if it.last_fetched_at %} · 마지막 fetch {{ it.last_fetched_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
             {% if it.last_price %} · {{ '{:,}'.format(it.last_price) }}원{% endif %}
             {% if it.last_stock is not none %} · 재고 {{ it.last_stock }}{% endif %}

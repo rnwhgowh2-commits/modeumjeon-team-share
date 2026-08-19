@@ -138,12 +138,13 @@
     const emoji = document.getElementById('theme-toggle-emoji');
     const nameEl = document.getElementById('theme-toggle-name');
     const themes = {
-      'toss': {emoji:'🎨', name:'토스'},
-      'stripe': {emoji:'💜', name:'Stripe'},
+      // 2026-08-19 디자인 통일 — 그림문자 대신 선 아이콘 이름
+      'toss': {icon:'palette', name:'토스'},
+      'stripe': {icon:'paint-brush', name:'Stripe'},
     };
     function updateUI(t) {
       const meta = themes[t] || themes.toss;
-      emoji.textContent = meta.emoji;
+      emoji.innerHTML = '<i class="ph-light ph-' + meta.icon + '" aria-hidden="true"></i>';
       nameEl.textContent = meta.name;
       document.querySelectorAll('.theme-check').forEach(c => {
         c.style.display = c.dataset.for === t ? 'inline' : 'none';

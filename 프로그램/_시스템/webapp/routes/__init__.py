@@ -12,7 +12,10 @@ _MODE_COLOR_HEX = {
     'indigo': '#6366F1', 'cyan': '#06B6D4',
 }
 # 모드 전환 아이콘 기본값 (sidebar.html 하드코딩과 일치)
-_MODE_DEFAULTS = {'bundles': '📦', 'inventory': '🏷'}
+# 2026-08-19 디자인 통일 — 선 아이콘 이름 (Phosphor Light). 그림문자 아님.
+_MODE_DEFAULTS = {'bundles': 'package', 'inventory': 'tag'}
+# 값이 선 아이콘 이름인지 판별 (a-z 와 - 만 있으면 이름, 그림문자면 아님)
+_ICON_NAME_RE = __import__('re').compile(r'^[a-z][a-z0-9-]*$')
 
 
 def _sidebar_mode_icons() -> dict:
@@ -26,12 +29,15 @@ def _sidebar_mode_icons() -> dict:
     for key, default_emoji in _MODE_DEFAULTS.items():
         rec = mode_icons.get(key)
         if rec and rec.get('icon'):
-            result[key] = {
-                'emoji': rec['icon'],
-                'color': _MODE_COLOR_HEX.get(rec.get('color') or 'default', ''),
-            }
+            val = rec['icon']
+            color = _MODE_COLOR_HEX.get(rec.get('color') or 'default', '')
         else:
-            result[key] = {'emoji': default_emoji, 'color': ''}
+            val = default_emoji
+            color = ''
+        # is_icon=True 면 화면이 <i class="ph-light ph-...">, False 면 글자를 그대로 찍는다.
+        # (사장님이 예전에 고른 그림문자가 저장돼 있어도 그대로 보이게 하려는 것)
+        result[key] = {'emoji': val, 'color': color,
+                       'is_icon': bool(_ICON_NAME_RE.match(val or ''))}
     return result
 
 

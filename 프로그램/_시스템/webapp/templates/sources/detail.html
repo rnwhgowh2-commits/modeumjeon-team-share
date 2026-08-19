@@ -23,7 +23,7 @@
     </div>
 
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--n600);margin-top:10px">
-      <div>{{ status_emoji }} <strong>{{ status_label }}</strong></div>
+      <div><span class="ds-st ds-st--{{ status_state }}"><i class="ph-light ph-{{ status_icon }}" aria-hidden="true"></i><strong>{{ status_label }}</strong></span></div>
       {% if sp.last_fetched_at %}
       <div>마지막 fetch: <strong>{{ sp.last_fetched_at.strftime('%Y-%m-%d %H:%M:%S') }}</strong></div>
       {% endif %}
