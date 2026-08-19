@@ -161,7 +161,7 @@ def _pick_cheapest_buyable(sources):
     """옵션의 소싱처들 중 "재고존재(품절X) + 크롤성공(error X) + 가격>0" 최저가.
        없으면 크롤성공+가격있는 것 중 최저(품절은 허용 — 실가격은 유효).
        그것도 없으면 None.
-       winner(★최저)·원가의 단일 정의 — 품절/stale 소싱처가 원가로 잡히는 것 방지.
+       winner(최저)·원가의 단일 정의 — 품절/stale 소싱처가 원가로 잡히는 것 방지.
 
     [2026-06-05] 폴백도 is_crawl_valid 게이트를 통과해야 한다. 기존엔 폴백이
        `crawled_price` 만 봐서, 모든 소싱처가 크롤 실패(error)면 옛 가격(stale)이

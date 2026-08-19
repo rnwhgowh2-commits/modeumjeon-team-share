@@ -137,17 +137,17 @@ def upload_accounts_view():
         for acc in accounts:
             try:
                 creds = S.load_credentials(market=acc.market, env_prefix=acc.env_prefix)
-                cred_status = "✅ 등록"
+                cred_status = " 등록"
                 cred_state = "ok"
                 missing_count = 0
                 masked_id = _first_field_masked(creds)
             except S.SecretsMissingError as e:
-                cred_status = f"⚠️ 누락 ({len(e.missing_keys)} 키)"
+                cred_status = f" 누락 ({len(e.missing_keys)} 키)"
                 cred_state = "missing"
                 missing_count = len(e.missing_keys)
                 masked_id = "—"
             except S.SecretsUnknownMarketError:
-                cred_status = "❌ 미지원 market"
+                cred_status = " 미지원 market"
                 cred_state = "unknown"
                 missing_count = 0
                 masked_id = "—"
@@ -166,7 +166,7 @@ def upload_accounts_view():
                 profile_dir = profile_store.profile_dir(acc.market, acc.env_prefix)
                 if not profile_store.has_profile(acc.market, acc.env_prefix):
                     login_state = "not_logged_in"
-                    login_status = "⚪ 로그인 안됨"
+                    login_status = " 로그인 안됨"
                 elif _has_persistent_auth_cookie(profile_dir, acc.market):
                     cookies_path = profile_dir / "Default" / "Network" / "Cookies"
                     if not cookies_path.exists():
@@ -176,19 +176,19 @@ def upload_accounts_view():
                     login_age = age_days
                     if age_days <= 30:
                         login_state = "logged_in"
-                        login_status = f"🟢 영구 로그인 ({age_days:.0f}일 경과)"
+                        login_status = f" 영구 로그인 ({age_days:.0f}일 경과)"
                     else:
                         login_state = "stale"
-                        login_status = f"🟡 30일 초과 ({age_days:.0f}일 — 재로그인 권장)"
+                        login_status = f" 30일 초과 ({age_days:.0f}일 — 재로그인 권장)"
                 elif _has_session_trace(profile_dir, acc.market):
                     profile_mtime = profile_dir.stat().st_mtime
                     age_days = (datetime.now().timestamp() - profile_mtime) / 86400.0
                     login_age = age_days
                     login_state = "session_only"
-                    login_status = "⚠ 세션 only (재로그인 필요할 수 있음)"
+                    login_status = " 세션 only (재로그인 필요할 수 있음)"
                 else:
                     login_state = "incomplete"
-                    login_status = "⚠ 로그인 미완료"
+                    login_status = " 로그인 미완료"
 
             meta = MARKET_METADATA.get(acc.market, {})
             rows.append({
@@ -348,9 +348,9 @@ def sourcing_accounts_view():
             if not has_session:
                 session_status = "⏸ 미로그인"
             elif is_expired:
-                session_status = "⚠️ 만료 (재로그인 필요)"
+                session_status = " 만료 (재로그인 필요)"
             else:
-                session_status = f"✅ 활성 ({age_days:.0f}일 경과)"
+                session_status = f" 활성 ({age_days:.0f}일 경과)"
             session_rows.append({
                 "id": acc.id,
                 "source": acc.source,
@@ -575,7 +575,7 @@ def list_markets():
     Response: ``{
         "ok": true,
         "markets": [
-            {"key": "smartstore", "label": "스마트스토어", "icon": "🟢",
+            {"key": "smartstore", "label": "스마트스토어", "icon": "",
              "api_type": "OAuth", "key_count": 2, "status": "ready", ...},
             ...
         ]
@@ -667,7 +667,7 @@ def create_upload_account():
             "account_key": acc.account_key,
             "env_prefix": acc.env_prefix,
             "market": acc.market,
-            "message": f"{display_name} 계정 등록 완료. 다음 단계: 🔑 키 입력으로 API 키를 등록하세요.",
+            "message": f"{display_name} 계정 등록 완료. 다음 단계:  키 입력으로 API 키를 등록하세요.",
         })
     except Exception as e:
         s.rollback()
@@ -834,7 +834,7 @@ def test_upload_account_api(account_id: int):
         return jsonify({
             "ok": False,
             "error": f"키 누락 — {', '.join(e.missing_keys)}",
-            "hint": "🔑 키 입력 으로 먼저 등록하세요.",
+            "hint": " 키 입력 으로 먼저 등록하세요.",
         }), 400
     except S.SecretsUnknownMarketError:
         return jsonify({"ok": False, "error": f"미지원 market: {market}"}), 400
@@ -907,7 +907,7 @@ def _test_coupang(creds, display_name: str, env_prefix: str):
         except Exception:
             return jsonify({
                 "ok": True,
-                "message": f"✅ 쿠팡 API 응답 (200, JSON 파싱 실패)",
+                "message": f" 쿠팡 API 응답 (200, JSON 파싱 실패)",
                 "status_code": r.status_code,
                 "elapsed_sec": elapsed,
             })
@@ -1009,7 +1009,7 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
                     f"옵션 {len(opt.options)}개 / 총재고 {stock_total}"
                 )
     except Exception as e:  # noqa: BLE001
-        steps.append(f"⚠️ 상품/재고 조회 단계 실패: {type(e).__name__}: {e}")
+        steps.append(f" 상품/재고 조회 단계 실패: {type(e).__name__}: {e}")
 
     return jsonify({
         "ok": True,
@@ -1343,7 +1343,7 @@ def wizard_start():
             "ok": True,
             "wizard_id": f"wiz_upload_{target_key}",
             "status": "info",
-            "message": "마켓 셀러는 브라우저 로그인 불필요 — '🔑 키 입력' 으로 시크릿만 등록하세요.",
+            "message": "마켓 셀러는 브라우저 로그인 불필요 — ' 키 입력' 으로 시크릿만 등록하세요.",
         })
 
     # type == "sourcing" → Phase 2-C 실 동작
@@ -1700,7 +1700,7 @@ def source_add():
                 s.add(src); s.commit()
                 from flask import flash, redirect, url_for
                 try:
-                    flash(f"✓ '{form['label']}' 소싱처 추가됨 (key: {form['source_key']})", "success")
+                    flash(f" '{form['label']}' 소싱처 추가됨 (key: {form['source_key']})", "success")
                 except Exception:
                     pass
                 return redirect(url_for("accounts.source_add"))

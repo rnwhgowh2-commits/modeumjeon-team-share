@@ -14,9 +14,9 @@ bp = Blueprint('orders', __name__, url_prefix='/orders')
 
 
 SUBTABS = [
-    {'key': 'list', 'label': '📋 주문 내역', 'desc': '마켓별 주문 통합 조회 + 송장 입력'},
-    {'key': 'sales', 'label': '💵 매출 관리', 'desc': '일·월·마켓별 매출 집계'},
-    {'key': 'margin', 'label': '🧮 마진 계산기', 'desc': '가격·수수료·배송비 입력 → 실 마진 시뮬'},
+    {'key': 'list', 'label': ' 주문 내역', 'desc': '마켓별 주문 통합 조회 + 송장 입력'},
+    {'key': 'sales', 'label': ' 매출 관리', 'desc': '일·월·마켓별 매출 집계'},
+    {'key': 'margin', 'label': ' 마진 계산기', 'desc': '가격·수수료·배송비 입력 → 실 마진 시뮬'},
 ]
 
 

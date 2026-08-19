@@ -169,7 +169,7 @@ def delete_template_item(item_id: int):
 
 @bp.post('/templates/<int:source_id>/save-all')
 def save_all_template(source_id: int):
-    """전체 항목 일괄 저장 (UI 의 [💾 저장] 버튼).
+    """전체 항목 일괄 저장 (UI 의 [ 저장] 버튼).
 
     payload: {items: [{id?, benefit_name, benefit_type, value, enabled, sort_order}, ...]}
     기존 항목 중 payload 에 없는 id 는 삭제. id 없으면 신규 추가.
@@ -410,7 +410,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     1. SourceBenefitTemplate (사이트 default) 조회
     2. OptionBenefitOverride (옵션 override) 조회 — 우선 적용
     3. enabled 항목만 누적 차감
-    4. ★ 2026-05-13 — 카드 미반영 토글 (CardDiscountUserPref) 자동 반영:
+    4.  2026-05-13 — 카드 미반영 토글 (CardDiscountUserPref) 자동 반영:
        card_enabled=False 면 benefit_name 안에 카드 issuer (예: '현대카드') 가
        포함된 항목들의 enabled 강제 False (UI 토글과 무관).
     """
@@ -1252,7 +1252,7 @@ def set_value_bundle():
       - bundle_code 의 모든 옵션에 (source_id, sku, benefit_name) override 를 upsert.
       - 같은 이름의 소싱처 템플릿이 있으면 template_id 로 연결 + 태그(category/apply_mode/
         pay_method/channel) 복사 → 엔진이 템플릿을 이 override 로 대체(결제경로 계산 보존).
-      - 매트릭스 ✎ 인라인 수정의 새 저장 경로('이 모음전만' 반영).
+      - 매트릭스  인라인 수정의 새 저장 경로('이 모음전만' 반영).
     """
     data = request.get_json(silent=True) or {}
     try:
@@ -1331,7 +1331,7 @@ def bundle_diff(bundle_code: str, source_id: int):
 
     모음전 옵션의 override 값(스냅샷) ↔ 현재 템플릿 값을 이름으로 비교.
     returns {differs: bool, count: int, items: [{name, current, default, type}]}
-    옵션마다 값이 같다고 가정(✎ 수정이 모음전 전체 적용) → 첫 옵션 기준 비교.
+    옵션마다 값이 같다고 가정( 수정이 모음전 전체 적용) → 첫 옵션 기준 비교.
     """
     s = SessionLocal()
     try:

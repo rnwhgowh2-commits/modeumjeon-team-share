@@ -182,7 +182,7 @@ def _classify_bundle_status(m: Model, opt_count: int, opts_with_naver: int,
         return ('migrate_wip',
                 f'⏳ 옵션 ID 매칭 미완 ({", ".join(miss_opt)})', 'warn')
 
-    return ('active', '✅ 정규 등록 완료', 'ok')
+    return ('active', ' 정규 등록 완료', 'ok')
 
 
 def _build_bundle_prefetch(s, models: list) -> dict:

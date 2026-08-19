@@ -797,13 +797,13 @@ def sync_ss_options(code: str):
 def open_ss_edit(code: str):
     """[E] 모음전 → 스마트스토어 판매자 센터 상품 편집 페이지 자동 진입.
 
-    영구 로그인 세션(persistent_context)을 사용 — 한 번 [🔐 로그인] 한 후로는
+    영구 로그인 세션(persistent_context)을 사용 — 한 번 [ 로그인] 한 후로는
     매번 자동 로그인 상태로 페이지가 열린다.
 
     Flow:
       1. 모음전의 naver_product_id (originProductNo) 조회
       2. bundle_account_registrations 에서 smartstore 계정 찾기 → 없으면 기본 계정 사용
-      3. profile 디렉터리 존재 확인 (없으면 "먼저 [🔐 로그인]" 안내)
+      3. profile 디렉터리 존재 확인 (없으면 "먼저 [ 로그인]" 안내)
       4. detached 프로세스로 Playwright 띄움 → /products/v2/{originProductNo} 로 직행
     """
     s = SessionLocal()
@@ -845,7 +845,7 @@ def open_ss_edit(code: str):
     if not store.has_profile('smartstore', env_prefix):
         return _err(
             f"{display_name} 영구 로그인이 안 돼있어요. "
-            "「판매처 계정」 페이지의 [🔐 로그인] 버튼으로 1회 로그인 먼저 해주세요.",
+            "「판매처 계정」 페이지의 [ 로그인] 버튼으로 1회 로그인 먼저 해주세요.",
             400,
         )
 
@@ -878,13 +878,13 @@ def open_ss_edit(code: str):
 def open_coupang_edit(code: str):
     """[E] 모음전 → 쿠팡 Wing 상품 검색 페이지 자동 진입.
 
-    영구 로그인 세션(persistent_context) 사용 — 한 번 [🔐 로그인] 한 후로는
+    영구 로그인 세션(persistent_context) 사용 — 한 번 [ 로그인] 한 후로는
     매번 자동 로그인 상태로 페이지가 열린다.
 
     Flow:
       1. 모음전의 coupang_product_id (sellerProductId) 조회
       2. bundle_account_registrations 에서 coupang 계정 찾기 → 없으면 기본 활성 계정 사용
-      3. profile 디렉터리 존재 확인 (없으면 "먼저 [🔐 로그인]" 안내)
+      3. profile 디렉터리 존재 확인 (없으면 "먼저 [ 로그인]" 안내)
       4. detached 프로세스로 Playwright 띄움 → vendor-inventory/list?keyword={id} 진입
     """
     s = SessionLocal()
@@ -929,7 +929,7 @@ def open_coupang_edit(code: str):
     if not store.has_profile('coupang', env_prefix):
         return _err(
             f"{display_name} 영구 로그인이 안 돼있어요. "
-            "「판매처 계정」 페이지의 [🔐 로그인] 버튼으로 1회 로그인 먼저 해주세요.",
+            "「판매처 계정」 페이지의 [ 로그인] 버튼으로 1회 로그인 먼저 해주세요.",
             400,
         )
 
@@ -3154,7 +3154,7 @@ def cycle_crawl_all():
             record_end(cid, status=st, details=d, error=err)
             per_child[code] = {'ok': st != 'failed', 'status': st,
                                 'duration_sec': d['duration_sec'], 'saved': d.get('saved', 0)}
-            try: progress_tick('crawl', delta=1, current=f'{code} ✓ ({len(per_child)}/{len(codes)})')
+            try: progress_tick('crawl', delta=1, current=f'{code}  ({len(per_child)}/{len(codes)})')
             except Exception: pass
 
         if codes:
@@ -3263,7 +3263,7 @@ def cycle_upload_all():
             record_end(cid, status=st, details=d, error=err)
             per_child[code] = {'ok': st != 'failed', 'status': st,
                                 'duration_sec': d['duration_sec']}
-            try: _ptick('upload', delta=1, current=f'{code} ✓ ({len(per_child)}/{len(codes)})')
+            try: _ptick('upload', delta=1, current=f'{code}  ({len(per_child)}/{len(codes)})')
             except Exception: pass
 
         if codes:

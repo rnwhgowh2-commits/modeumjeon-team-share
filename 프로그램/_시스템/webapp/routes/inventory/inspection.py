@@ -119,7 +119,7 @@ def inspection_process(po_id):
             if received > 0:
                 any_received = True
                 diff_memo = (f'{memo_base} (예상 {expected} → 실제 {received}'
-                             + (', 차이 ⚠' if received != expected else '') + ')')
+                             + (', 차이 ' if received != expected else '') + ')')
                 try:
                     tx_svc.create_inbound(
                         s, location_id=location_id,
