@@ -9,12 +9,27 @@
   옵션함의 `model_code` 가 곧 `U…` 번호라, 그 코드를 넘기면 **기존 창이 그대로 열린다.**
   창을 새로 만들지 않는다 — 다시 만들면 반드시 갈린다.
 """
+import logging
+
 from flask import (Blueprint, abort, jsonify, redirect, render_template,
                    request, url_for)
 
 from shared.db import SessionLocal
 
 bp = Blueprint('optgen', __name__, url_prefix='/optgen')
+_log = logging.getLogger(__name__)
+
+
+def _err(message: str, status: int = 400, code: str | None = None):
+    """실패는 **왜 안 되는지**를 한국어로 돌려준다 — 조용히 넘어가지 않는다.
+
+    `code` 는 화면이 읽는 값이 아니라 다른 프로그램(호출자)이 실패 갈래를
+    코드로 가릴 때 쓴다. 안 주면 상태코드로 무난한 기본값을 고른다.
+    """
+    if code is None:
+        code = ('NOT_FOUND' if status == 404 else
+                'SERVER_ERROR' if status >= 500 else 'VALIDATION_ERROR')
+    return jsonify({'ok': False, 'error': message, 'code': code}), status
 
 
 def _option_children():
@@ -754,14 +769,14 @@ def api_create_option_box():
        판정 순서(① 축 값 → ② 그 칸)상 뒤엣것이 조용히 가려져 언젠가 갈린다.
     """
     from lemouton.matrix.option_name import split_model_names
-    from lemouton.matrix.service import create_option_box
+    from lemouton.matrix.service import DuplicateNameError, create_option_box
     from lemouton.sourcing.axis_slot import is_model_axis
     from lemouton.sourcing.option_service import save_step_design
     body = request.get_json(silent=True) or {}
     axes = [str(a).strip() for a in (body.get('axes') or []) if str(a).strip()]
     if axes and tuple(axes) not in _ALLOWED_AXES:
-        return jsonify({'ok': False,
-                        'error': f'고를 수 없는 축 구성이에요: {" · ".join(axes)}'}), 400
+        return _err(f'고를 수 없는 축 구성이에요: {" · ".join(axes)}',
+                    code='INVALID_AXES')
     적은모델명 = str(body.get('model_name') or '').strip()
     모델축있음 = any(is_model_axis(a) for a in axes)
     # 모델 축이 있을 때만 나눈다 — 색상 모음전에서 쉼표를 나누면 사장님이 적은 이름을
@@ -784,12 +799,17 @@ def api_create_option_box():
         s.commit()
         out = {'ok': True, 'code': mo.model_code,
                'display_no': mo.display_no, 'name': mo.name}
+    except DuplicateNameError as e:
+        s.rollback()
+        return _err(str(e), code='DUPLICATE_NAME')
     except ValueError as e:
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 400
+        return _err(str(e))
     except Exception as e:                              # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 500
+        _log.exception('[optgen] 옵션함 만들기 실패 name=%r brand=%r',
+                       body.get('name'), body.get('brand'))
+        return _err(str(e), 500)
     finally:
         s.close()
     return jsonify(out)
@@ -919,7 +939,7 @@ def api_initial_stock(code: str):
     body = request.get_json(silent=True) or {}
     raw = body.get('qty') or {}
     if not isinstance(raw, dict):
-        return jsonify({'ok': False, 'error': 'qty 는 {SKU: 수량} 이어야 해요.'}), 400
+        return _err('qty 는 {SKU: 수량} 이어야 해요.')
     want: dict[str, int] = {}
     for sku, n in raw.items():
         try:
@@ -942,8 +962,8 @@ def api_initial_stock(code: str):
                         Option.canonical_sku.in_(list(want))).all()}
         stray = [k for k in want if k not in mine]
         if stray:
-            return jsonify({'ok': False,
-                            'error': f'이 묶음의 옵션이 아니에요: {", ".join(stray[:5])}'}), 400
+            return _err(f'이 묶음의 옵션이 아니에요: {", ".join(stray[:5])}',
+                        code='NOT_MY_OPTION')
 
         # 🔴 읽기 **전에** 옵션 줄을 잠근다 — 동시 요청 이중 계상 막이(위 ② 참조).
         #   SQLite 는 FOR UPDATE 를 모르므로 조용히 건너뛴다(쓰기 직렬화로 대체).
@@ -988,10 +1008,11 @@ def api_initial_stock(code: str):
         s.commit()
     except ValueError as e:
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 400
+        return _err(str(e))
     except Exception as e:                              # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+        _log.exception('[optgen] 초기 재고 반영 실패 code=%s', code)
+        return _err(str(e)[:300], 500)
     finally:
         s.close()
     return jsonify({'ok': True, 'added': len(added), 'skus': added,
@@ -1014,24 +1035,23 @@ def api_delete_option_box(code: str):
     try:
         m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
-            return jsonify({'ok': False, 'error': f'그런 묶음이 없습니다: {code}'}), 404
+            return _err(f'그런 묶음이 없습니다: {code}', 404)
         if not m.is_option_box:
-            return jsonify({'ok': False,
-                            'error': '판매용 모음전은 여기서 지울 수 없습니다. '
-                                     '옵션함(아직 판매 안 함)만 지울 수 있습니다.'}), 400
+            return _err('판매용 모음전은 여기서 지울 수 없습니다. '
+                        '옵션함(아직 판매 안 함)만 지울 수 있습니다.',
+                        code='LIVE_BUNDLE')
 
         mo = s.query(MatrixOption).filter_by(model_code=code).first()
         if mo is not None:
             made = s.query(BundleMatrixLink).filter_by(
                 matrix_option_id=mo.id).count()
             if made:
-                return jsonify({'ok': False,
-                                'error': f'이 묶음으로 만든 상품이 {made}개 있어 지울 수 없습니다. '
-                                         '먼저 그 상품을 정리하세요.'}), 400
+                return _err(f'이 묶음으로 만든 상품이 {made}개 있어 지울 수 없습니다. '
+                            '먼저 그 상품을 정리하세요.', code='HAS_PRODUCTS')
             derived = s.query(MatrixOption).filter_by(origin_id=mo.id).count()
             if derived:
-                return jsonify({'ok': False,
-                                'error': f'이 묶음에서 갈라진 묶음이 {derived}개 있어 지울 수 없습니다.'}), 400
+                return _err(f'이 묶음에서 갈라진 묶음이 {derived}개 있어 지울 수 없습니다.',
+                            code='HAS_DERIVED')
 
         n_opt = s.query(Option).filter_by(model_code=code).count()
         n_url = s.query(BundleSourceUrl).filter_by(model_code=code).count()
@@ -1079,7 +1099,8 @@ def api_delete_option_box(code: str):
         s.commit()
     except Exception as e:                              # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 500
+        _log.exception('[optgen] 옵션함 삭제 실패 code=%s', code)
+        return _err(str(e), 500)
     finally:
         s.close()
     return jsonify({'ok': True, 'code': code,
@@ -1105,7 +1126,7 @@ def api_reset_stock():
     body = request.get_json(silent=True) or {}
     codes = [str(c) for c in (body.get('codes') or []) if str(c).strip()]
     if not codes:
-        return jsonify({'ok': False, 'error': '묶음을 골라 주세요.'}), 400
+        return _err('묶음을 골라 주세요.')
     s = SessionLocal()
     try:
         skus = [r[0] for r in s.query(Option.canonical_sku)
@@ -1140,7 +1161,8 @@ def api_reset_stock():
         s.commit()
     except Exception as e:                          # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+        _log.exception('[optgen] 재고 이력 초기화 실패 codes=%s', codes)
+        return _err(str(e)[:300], 500)
     finally:
         s.close()
     return jsonify({'ok': True, 'boxes': len(codes), 'options': len(skus),
@@ -1159,7 +1181,7 @@ def api_bulk_delete_boxes():
     body = request.get_json(silent=True) or {}
     codes = [str(c) for c in (body.get('codes') or []) if str(c).strip()]
     if not codes:
-        return jsonify({'ok': False, 'error': '지울 묶음을 골라 주세요.'}), 400
+        return _err('지울 묶음을 골라 주세요.')
     done, failed = [], []
     for c in codes:
         r = api_delete_option_box(c)
@@ -1169,7 +1191,10 @@ def api_bulk_delete_boxes():
             done.append({'code': c, 'options': j.get('deleted_options', 0),
                          'purged': j.get('purged') or {}})
         else:
-            failed.append({'code': c, 'error': j.get('error') or '지우지 못했습니다.'})
+            # 🔴 `error_code` — 이 목록의 `code` 는 이미 「어느 묶음인지」로 쓰고 있어
+            #    실패 갈래 값을 거기 겹쳐 넣으면 둘 중 하나가 가려진다.
+            failed.append({'code': c, 'error': j.get('error') or '지우지 못했습니다.',
+                           'error_code': j.get('code') or 'SERVER_ERROR'})
     return jsonify({'ok': True, 'deleted': len(done), 'failed': len(failed),
                     'done': done, 'errors': failed})
 
@@ -1198,10 +1223,12 @@ def api_import_from_market():
         s.commit()
     except ValueError as e:
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 400
+        return _err(str(e))
     except Exception as e:                              # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+        _log.exception('[optgen] 마켓 상품 가져오기 실패 market=%r product_id=%r',
+                       body.get('market'), body.get('market_product_id'))
+        return _err(str(e)[:300], 500)
     finally:
         s.close()
     return jsonify({'ok': True, **out})

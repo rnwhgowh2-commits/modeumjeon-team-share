@@ -22,9 +22,13 @@ def client():
 def box(client):
     """🔴 [2026-08-20 병합 정리] SKU 목록은 box.html 이 아니라
     `/optgen/api/box/<code>/rows` 에서 얻는다(위 파일 머리말 참고 —
-    옵션 조합 창의 재고 서랍이 이 API 로 클라이언트에서 그린다)."""
+    옵션 조합 창의 재고 서랍이 이 API 로 클라이언트에서 그린다).
+
+    🔴 [2026-08-19 ui-verify 감사] 옵션함 이름 중복이 이제 거절된다 — 매번 다른 이름."""
+    import uuid
     code = client.post('/optgen/api/option-box',
-                       json={'name': '재고치우기 검사함', 'brand': '르무통',
+                       json={'name': f'재고치우기 검사함 {uuid.uuid4().hex[:8]}',
+                             'brand': '르무통',
                              'axes': ['색상', '사이즈']}).get_json()['code']
     client.post(f'/api/bundles/{code}/options/combo', json={
         'steps': [{'axis_name': '색상', 'values': ['블랙']},
