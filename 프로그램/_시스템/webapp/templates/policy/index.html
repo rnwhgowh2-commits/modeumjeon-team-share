@@ -83,14 +83,15 @@
              font-size:12px;color:var(--글자-기본,#4E5968)}
     .hv-todo.ok{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
     .hv-todo.warn{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
-    /* ── 「+ 정책 생성」 점선 카드 (시안 v3 확정 — 누르면 만들기 창) ── */
-    .addcard{border:2px dashed #A9C4EA;background:var(--연한-파랑,#F7FAFF);
-             display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;
-             cursor:pointer;min-height:180px}
-    .addcard:hover{border-color:var(--primary,#3182F6)}
-    .ac-line{font-size:17px;font-weight:800;color: var(--글자-파랑, #1B64DA);letter-spacing:0}
-    .ac-plus{font-weight:800;font-size:19px;vertical-align:-1px}
-    .ac-d{font-size:12px;color:var(--글자-보조,#6B7684)}
+    /* ── 「+ 정책 생성」 단추 (2026-08-19 사장님 확정 — 「옵션 매트릭스 생성」과
+       같은 모양으로 축소. 전엔 표 위에 점선 테두리 큰 카드였다 — optgen/index.html
+       의 .og-lh·.og-new 그대로 옮겨왔다, 이름만 이 화면 접두어(pl-)로) ── */
+    .pl-lh{font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center}
+    .pl-lh .n{font-weight:400;color:var(--sub,#8B95A1);margin-left:4px}
+    .pl-addbtn{margin-left:auto;background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:0;
+            border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;
+            font-weight:700;cursor:pointer}
+    .pl-addbtn:hover{filter:brightness(.95)}
     /* ── 만들기 창 ── */
     .np-back{display:none;position:fixed;inset:0;background:rgba(25,31,40,.45);z-index:900;
              align-items:center;justify-content:center}
@@ -108,8 +109,6 @@
     .plus{font-weight:800;margin-right:4px;color:#fff}
     /* ── [2026-08-04 카드형→격자] 줄 목록 표 (시안 B1 확정 — 줄 끝에 버튼 다 보이기) ──
        사이드바(S1)·만들기 창·상태 설명창은 그대로 두고, 카드 격자만 표로 바꿨다. */
-    .addcard.rowline{flex-direction:row;min-height:0;padding:12px 16px;gap:10px;
-                     border-radius:12px;margin-bottom:12px}
     .gl-wrap{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
              border-radius:12px;overflow:hidden}
     table.gl{width:100%;border-collapse:collapse;font-size:13px}
@@ -196,9 +195,8 @@
 
     {# ── 오른쪽 — 만들기 카드 + 정책 줄 목록 (시안 v3 A2+B5 · 카드형→격자 B1 확정) ── #}
     <div class="pl-main">
-      <div class="pl-card addcard rowline" id="addcard">
-        <div class="ac-line"><span class="ac-plus">+</span> 정책 생성</div>
-        <div class="ac-d">누르면 만들기 창이 열려요</div>
+      <div class="pl-lh">정책 목록<span class="n">{{ items|length }}개</span>
+        <button class="pl-addbtn" type="button" id="addcard">+ 정책 생성</button>
       </div>
       {% if items %}
       {# data-align-keep — 전역 표 정렬 장치(table_align.js)가 이 표를 가운데로 덮지 않게.
@@ -259,7 +257,7 @@
         </table>
       </div>
       {% else %}
-      <div class="pl-empty">아직 정책이 없어요. 「+ 정책 생성」 카드를 눌러 만들어 주세요.</div>
+      <div class="pl-empty">아직 정책이 없어요. 「+ 정책 생성」 단추를 눌러 만들어 주세요.</div>
       {% endif %}
       <div class="pl-empty" id="noneshown" style="display:none">지금 고른 조건에 맞는 정책이 없어요 — 왼쪽 체크를 다시 켜 보세요.</div>
     </div>
