@@ -439,3 +439,31 @@ def api_sku_info_gen_barcodes(code: str):
     finally:
         s.close()
     return jsonify({'ok': True, 'barcodes': out})
+
+
+# ════════════════════════════════════════════════════════════════
+#  SKU 연결상태 — SKU 하나하나가 누구인가(번호·브랜드·모델명·색상·사이즈)
+#
+#  판정은 여기 없다 — 전부 `lemouton/matrix/sku_identity.py` 한 곳이다.
+#  품번·바코드·GTIN(위 sku-info)과는 다른 물음이라 창구도 따로 둔다.
+# ════════════════════════════════════════════════════════════════
+
+@bp.get('/api/sku-identity/<path:code>')
+def api_sku_identity(code: str):
+    """묶음 하나의 SKU 줄 목록 — 목록의 「SKU 연결상태」 호버 카드가 쓴다.
+
+    응답: `{ok, code, rows: [{sku, no, brand, model_name, color, size}]}`
+      · `size` 는 매트릭스 전체가 사이즈 1개뿐이면 「FREE」로 나온다.
+      · 값이 없는 칸은 `null` — 지어내지 않는다.
+    """
+    from lemouton.matrix.sku_identity import rows_of
+    from lemouton.sourcing.models import Model
+
+    s = SessionLocal()
+    try:
+        if s.query(Model.model_code).filter_by(model_code=code).first() is None:
+            return _err(f'그런 묶음이 없습니다: {code}', 404)
+        rows = rows_of(s, code)
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'code': code, 'rows': rows})

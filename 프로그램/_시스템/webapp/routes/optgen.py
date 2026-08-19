@@ -311,6 +311,10 @@ def _boxes(session, *, show_made: bool = False):
             # 섞이기 쉬워 앞에 `moum_` 을 붙여 둔다.
             'moum_kind': ax.get('kind'), 'moum_kind_label': ax.get('kind_label'),
             'axis_label': ax.get('axis_label'),
+            # 옵션축 칸(「모델 3개 × 색상 4개 × 사이즈 3개」 칩) — 이름·개수를
+            # 짝지어 둔다. 축이 없으면 빈 목록(화면은 「—」로 그린다).
+            'axis_pairs': list(zip(ax.get('axis_names') or [],
+                                   ax.get('axis_counts') or [])),
             # 🔴 「모델명」은 축 값과 묶음 칸 **두 곳**에서 온다. 순서를 여기서
             #    다시 정하지 않는다 — `option_name.bundle_model_names` 한 곳이
             #    `model_name_of` 와 같은 순서를 지킨다(보는 것 = 나가는 것).
@@ -570,10 +574,18 @@ def index():
                 'code': request.args.get('code') or '',
                 'options': request.args.get('opts') or ''}
     # 「어디까지 왔나」 판 — 상품관리와 같은 4상태(사장님 첫 지시 「사이드바에도 구분하자」)
-    from lemouton.matrix.readiness import PHASE_CLS, PHASE_LABEL, PHASES
+    from lemouton.matrix.readiness import (PHASE_CLS, PHASE_DRAFT, PHASE_LABEL,
+                                          PHASE_READY, PHASES)
     from lemouton.matrix.sku_info import FIELDS as SKU_FIELDS
     from lemouton.matrix.sku_info import LABELS as SKU_LABELS
     from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
+    # 🔴 [2026-08-19 사장님 확정] 「모음전 옵션 생성」 목록의 「상태」 칸만 회색/초록
+    #    2색이다. `PHASE_CLS`(위상 3종 공용, wait=회색·mid=파랑·sale=초록)는 그대로
+    #    두고 **이 화면 렌더링에서만** 로컬로 덮어쓴다 — 이 목록은 상품 생성에 쓴
+    #    옵션함(PHASE_USED)을 이미 빼고 보여주므로 미완료/완료 2종뿐이다.
+    #    `PHASE_CLS` 를 직접 바꾸면 「모음전 상품 생성」 탭의 3단계 막대(미완료·완료·
+    #    상품생성됨)에서 완료와 상품생성됨이 둘 다 초록이 되어 구분이 사라진다.
+    direct_phase_cls = {PHASE_DRAFT: 'wait', PHASE_READY: 'sale'}
     _attach_shown(mats)
     mat_counts = {'all': len(mats)}
     for st in STAGES:
@@ -597,7 +609,8 @@ def index():
                            #    화면이 「상품생성 준비 완료」 같은 글자를 또 적으면
                            #    한쪽만 고쳤을 때 같은 옵션함이 화면마다 다른 이름으로 불린다.
                            phases=PHASES, phase_label=PHASE_LABEL,
-                           phase_cls=PHASE_CLS, show_made=show_made,
+                           phase_cls=PHASE_CLS, direct_phase_cls=direct_phase_cls,
+                           show_made=show_made,
                            # 🔴 「품번·바코드·GTIN」이라는 이름과 **그 순서**도 한 곳에서만
                            #    온다(`matrix/sku_info.FIELDS`·`LABELS`). 화면에 손으로
                            #    적어 두면 칸이 하나 늘거나 이름이 바뀔 때 이 화면만 뒤처져,
