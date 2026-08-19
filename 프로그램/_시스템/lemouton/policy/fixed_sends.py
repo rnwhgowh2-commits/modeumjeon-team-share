@@ -198,6 +198,62 @@ UNCHECKED_REASON = (
 )
 
 
+#: ── [2026-08-13 사장님 확정 시안 v2 · 2번] 「마켓마다 어떤 값으로 나가는지 보기」 ──
+#:   라디오 옆 접힘표가 읽는 표. 사장님이 「면세」를 고를 때 **어느 마켓에 무엇이
+#:   나가는지**를 그 자리에서 볼 수 있어야 한다 — 마켓마다 값이 다르기 때문이다.
+#:
+#:   🔴 이 표도 「지금 코드가 무엇을 보내는가」의 사본이다. 조립기를 고치면 여기도
+#:     고쳐야 하고, 그 대조는 시험이 조립기 원본을 읽어서 한다
+#:     (tests/policy/test_fixed_sends.py::test_마켓별_전송표가_실제_코드와_같다).
+#:   🔴 롯데온은 **「없다」가 아니라 「모른다」**다 — 등록 body 가 본보기 상품 상세를
+#:     그대로 베끼는 구조라 아직 안 열었다. 빈칸으로 두지 말고 그렇게 적는다.
+_UNKNOWN = ''          # 보내는 칸을 모른다 (화면은 '—' 로 그리고 회색으로 둔다)
+_NO_FIELD = None       # 그 마켓에 칸 자체가 없다
+
+SENDS_BY_MARKET: dict[str, list] = {
+    # (마켓 id, 보내는 칸, 보내는 값 설명)
+    'tax_type': [
+        ('coupang', 'items.taxType', '과세=TAX / 면세=FREE'),
+        ('smartstore', 'detailAttribute.taxType', '과세=TAX / 면세=DUTYFREE'),
+        ('eleven11', 'suplDtyfrPrdClfCd', '과세=01 / 면세=02'),
+        ('auction', 'itemAddtionalInfo > isVatFree', '과세=false / 면세=true'),
+        ('gmarket', 'itemAddtionalInfo > isVatFree', '과세=false / 면세=true'),
+        ('lotteon', _UNKNOWN, '등록 문서를 아직 못 열어 확인하지 못했습니다'),
+    ],
+    'minor_purchase': [
+        ('coupang', 'items.adultOnly', '전연령=EVERYONE / 19세 이상만=ADULT_ONLY'),
+        ('smartstore', 'detailAttribute.minorPurchasable', '전연령=true / 19세 이상만=false'),
+        ('eleven11', 'minorSelCnYn', '전연령=Y / 19세 이상만=N'),
+        ('auction', 'itemAddtionalInfo > isAdultProduct', '전연령=false / 19세 이상만=true'),
+        ('gmarket', 'itemAddtionalInfo > isAdultProduct', '전연령=false / 19세 이상만=true'),
+        ('lotteon', _UNKNOWN, '등록 문서를 아직 못 열어 확인하지 못했습니다'),
+    ],
+    'manufacturer_mode': [
+        ('coupang', 'manufacture', '비우면 브랜드가 그대로 나갑니다(쿠팡 문서 권고)'),
+        ('smartstore', 'naverShoppingSearchInfo.manufacturerName', '값이 있을 때만 나갑니다'),
+        ('eleven11', 'company', '비우면 브랜드가 그대로 나갑니다'),
+        ('auction', _NO_FIELD, '옥션 일반 상품에는 제조사 칸이 없습니다'),
+        ('gmarket', _NO_FIELD, 'G마켓 일반 상품에는 제조사 칸이 없습니다'),
+        ('lotteon', _UNKNOWN, '등록 문서를 아직 못 열어 확인하지 못했습니다'),
+    ],
+}
+
+
+def sends_table(field_key: str) -> list:
+    """그 칸이 마켓마다 어떤 이름·값으로 나가는지 — 화면(접힘표)이 쓰는 모양.
+
+    Returns:
+        [{market, label, field, value, state}] — state 는 'ok'|'unknown'|'none'
+    """
+    from lemouton.policy.fields import MARKET_LABEL
+    out = []
+    for mk, field, value in SENDS_BY_MARKET.get(field_key, []):
+        state = 'ok' if field else ('none' if field is _NO_FIELD else 'unknown')
+        out.append({'market': mk, 'label': MARKET_LABEL.get(mk, mk),
+                    'field': field or '—', 'value': value, 'state': state})
+    return out
+
+
 def for_market(market: str) -> dict:
     """그 마켓에 정해져 나가는 값 — 화면이 쓰는 모양.
 
