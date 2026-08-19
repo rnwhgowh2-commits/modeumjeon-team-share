@@ -35,7 +35,15 @@ class MarketAccountCredential:
     필드 shape 은 samba-wave 의 backend/domain/samba/account/credentials.py 가
     market_type 별로 이미 만들어주는 dict 를 그대로 옮긴 것 — 여기서 다시 변환하지 않는다.
     """
-    market_type: str          # "coupang" | "elevenst" | "esm" | "lotteon" | "smartstore" ...
+    # [코드리뷰 반영] 여기 적는 market_type 은 samba-wave DB 에 실제로 저장된 값이어야
+    # 한다("coupang" | "11st" | "smartstore" | "lotteon" | "auction" | "gmarket" 등,
+    # samba-wave backend/domain/samba/account/service.py 의 SUPPORTED_MARKETS 기준).
+    # 모음전 자체 관례는 11번가를 "eleven11"이라 부르는데(shared/platforms/eleven11/),
+    # samba-wave 는 "11st"다 — 값 변환 없이 그대로 넘기면 여기서 어긋난다. 5개 플랫폼
+    # 클라이언트를 이 브리지에 연결하는 다음 사이클에서, 호출부가 반드시 모음전
+    # 이름 → samba-wave 이름으로 변환한 뒤 호출하도록 확정해야 함(아직 미정 — 이
+    # 클래스가 값 검증/변환을 하지 않는다는 걸 명시적으로 남겨둠).
+    market_type: str
     account_label: str
     fields: dict[str, Any]    # 예: coupang → {"accessKey", "secretKey", "vendorId"}
 
@@ -58,12 +66,12 @@ def get_market_account(
     폴백 가격/폴백 계정 없음 — [[feedback_no_fallback_price_on_match_fail]] 과 같은 원칙.
     """
 
-    base_url = os.environ.get("SAMBA_WAVE_URL", "").rstrip("/")
+    base_url = os.environ.get("SAMBA_WAVE_URL", "").strip().rstrip("/")
     if not base_url:
         raise MarketAccountUnavailable(
             "samba-wave 연동 미설정 — SAMBA_WAVE_URL 환경변수가 없습니다"
         )
-    token = os.environ.get("SAMBA_WAVE_INTERNAL_TOKEN", "")
+    token = os.environ.get("SAMBA_WAVE_INTERNAL_TOKEN", "").strip()
     if not token:
         raise MarketAccountUnavailable(
             "samba-wave 연동 미설정 — SAMBA_WAVE_INTERNAL_TOKEN 환경변수가 없습니다"

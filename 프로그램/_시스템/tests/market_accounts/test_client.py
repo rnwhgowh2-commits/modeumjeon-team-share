@@ -102,8 +102,12 @@ def test_connection_error_raises_unavailable(monkeypatch):
     monkeypatch.setattr(mod.requests, "get", raise_conn_error)
 
     from shared.market_accounts.client import MarketAccountUnavailable
-    with pytest.raises(MarketAccountUnavailable, match="연결 실패"):
+    with pytest.raises(MarketAccountUnavailable, match="연결 실패") as exc_info:
         mod.get_market_account("coupang")
+    # 설계서 "원 예외 원인 보존" 요구사항 — match="연결 실패" 만으론 {e} 를
+    # f-string 에서 빼먹거나 from e 를 지워도 통과한다(뮤테이션으로 확인됨).
+    assert "연결 거부" in str(exc_info.value)
+    assert isinstance(exc_info.value.__cause__, mod.requests.exceptions.ConnectionError)
 
 
 def test_timeout_raises_unavailable(monkeypatch):
@@ -118,7 +122,27 @@ def test_timeout_raises_unavailable(monkeypatch):
     monkeypatch.setattr(mod.requests, "get", raise_timeout)
 
     from shared.market_accounts.client import MarketAccountUnavailable
-    with pytest.raises(MarketAccountUnavailable, match="연결 실패"):
+    with pytest.raises(MarketAccountUnavailable, match="연결 실패") as exc_info:
+        mod.get_market_account("coupang")
+    assert "10s 초과" in str(exc_info.value)
+    assert isinstance(exc_info.value.__cause__, mod.requests.exceptions.Timeout)
+
+
+def test_whitespace_only_url_raises_missing_config(monkeypatch):
+    """공백뿐 SAMBA_WAVE_URL 은 "설정 없음"으로 취급 — 잘못된 요청을 실제로 보내
+    "연결 실패"라는 헷갈리는 메시지로 둔갑시키지 않는다(app.py 와 동일 원칙)."""
+    monkeypatch.setenv("SAMBA_WAVE_URL", "   ")
+    monkeypatch.setenv("SAMBA_WAVE_INTERNAL_TOKEN", "tok123")
+
+    import shared.market_accounts.client as mod
+
+    def fail_if_called(*a, **kw):
+        raise AssertionError("공백뿐 URL 로 실제 요청이 나가면 안 됨")
+
+    monkeypatch.setattr(mod.requests, "get", fail_if_called)
+
+    from shared.market_accounts.client import MarketAccountUnavailable
+    with pytest.raises(MarketAccountUnavailable, match="SAMBA_WAVE_URL"):
         mod.get_market_account("coupang")
 
 
