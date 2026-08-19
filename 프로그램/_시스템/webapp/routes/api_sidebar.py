@@ -44,10 +44,11 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_policies':       {'emoji': '🔧', 'name': '정책 생성',        'url': '/policies',              'active_key': 'policies',        'badge_key': None},
     # [2026-08-01] 노션 「상품 가공」 하위탭 ② — 상품 고르고 정책 붙이기
     # [2026-08-12] 노션 「상품가공 > 하위탭 a. 상품 정책 적용 → 정책 적용」.
-    #   🔴 이름이 화면 밖 **안내 문구 2곳**(to_payload.py·send/models.py)에도 박혀 있다.
+    # [2026-08-19 사장님 확정] 「정책 적용」 → 「정책 매칭」(2번째 개명).
+    #   🔴 이름이 화면 밖 **안내 문구**(to_payload.py·send/models.py)에도 박혀 있을 수 있다 —
     #      한 곳만 고치면 「정책 적용에서 붙여 주세요」라고 안내해 놓고 그런 이름의
-    #      메뉴가 없는 상태가 된다 — 같이 고친다.
-    'i_policy_apply':   {'emoji': '🧩', 'name': '정책 적용',      'url': '/policies/apply',        'active_key': 'policy_apply',    'badge_key': None},
+    #      메뉴가 없는 상태가 된다. id·url·active_key 는 그대로 두고 표시 이름만 바꾼다.
+    'i_policy_apply':   {'emoji': '🧩', 'name': '정책 매칭',      'url': '/policies/apply',        'active_key': 'policy_apply',    'badge_key': None},
     # [2026-08-12] 노션 「상품가공 > 하위탭 b-1. 가격 정책 → 옵션 맵핑 템플릿」 + 「b-3. 가로탭
     #   3개 중 가격 템플릿 삭제」. 가격 판이 빠지고 색상·사이즈(=옵션 맵핑)만 남으므로
     #   돈 이모지 💲 는 뜻이 어긋난다 → 🔗.
@@ -103,7 +104,9 @@ _STAGE_SPEC: list[tuple] = [
                                                               'i_optgen_product']),
     # [2026-08-12] 노션 「b-2. 기타 상위탭 아래로 옮기기」 — i_templates 를 s_etc 로.
     #   「상품 가공」에는 노션 하위탭 그대로 「정책 생성 / 정책 적용」 둘만 남는다.
-    ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply']),
+    # [2026-08-19 사장님 확정] 「상품 가공」 → 「상품 정책화」(분류 이름 개명).
+    #   하위탭도 함께: 「정책 적용」→「정책 매칭」(위 i_policy_apply 참조).
+    ('s_process',   '🔧', '상품 정책화',   '#F59E0B', ['i_policies', 'i_policy_apply']),
     ('s_auto',      _SEND_STAGE_EMOJI, _SEND_STAGE_NAME,
                                      '#8B5CF6', ['i_market_send', 'i_automation']),
     ('s_catalog',   '📦', '상품 관리',     '#06B6D4', list(_CATALOG3)),
@@ -479,6 +482,37 @@ def _migrate_catalog_rename(layout: dict) -> bool:
     return changed
 
 
+def _migrate_process_rename(layout: dict) -> bool:
+    """[2026-08-19 사장님 확정] 「상품 가공」 → 「상품 정책화」(분류) +
+       「정책 적용」 → 「정책 매칭」(하위탭) 개명(idempotent, 늘 다시 건다).
+
+    🔴 `i_policy_apply` 는 이미 `_FORCE_RENAME` 대상이지만 그것만으론 부족하다 —
+       `get_layout_for_template()` 은 저장본에 **이미 있는** 항목을 `_item()` 없이
+       그대로 통과시킨다(i_policies·i_automation·s_auto 때 반복된 그 자리,
+       `_migrate_send_rename`·`_migrate_catalog_rename` 참조). 분류(stage) 이름은
+       애초에 `_FORCE_RENAME`(항목 전용) 이 안 닿는 자리라 더더욱 저장본을 직접 고쳐야 한다.
+
+    이름 비교만 하고 옛 이름 문자열은 안 적는다 — 사장님이 손으로 고쳐 둔 다른 이름이
+    있더라도 「의도된 개명」이라 덮는 게 맞다(`_FORCE_RENAME` 과 같은 원칙).
+    """
+    changed = False
+    spec_name = next(n for sid, _e, n, _c, _i in _STAGE_SPEC if sid == 's_process')
+    for st in (layout.get('stages') or []):
+        if st.get('id') != 's_process':
+            continue
+        if st.get('name') != spec_name:
+            st['name'] = spec_name
+            changed = True
+        for it in (st.get('items') or []):
+            if it.get('id') != 'i_policy_apply':
+                continue
+            new_name = _ITEM_DEFS['i_policy_apply']['name']
+            if it.get('name') != new_name:
+                it['name'] = new_name
+                changed = True
+    return changed
+
+
 def _migrate_catalog_order(layout: dict) -> bool:
     """[2026-08-12 노션 b항] 상품 관리 하위탭을 **딱 한 번** 옵션관리 먼저로 재정렬.
 
@@ -654,8 +688,9 @@ def _load() -> dict:
         #   🔴 다른 세션(상품관리 #963)과 **같은 번호(_mig12)로 부딪혔다.**
         #      하나를 지우면 그 메뉴 변경이 조용히 사라진다 — 셋 다 부르고 셋 다 센다.
         _mig14 = _migrate_templates_to_etc(data)
+        _mig15 = _migrate_process_rename(data)  # [2026-08-19] 상품가공→상품 정책화 + 정책 적용→정책 매칭(늘)
         if (_mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8
-                or _mig9 or _mig10 or _mig11 or _mig12 or _mig13 or _mig14):
+                or _mig9 or _mig10 or _mig11 or _mig12 or _mig13 or _mig14 or _mig15):
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime

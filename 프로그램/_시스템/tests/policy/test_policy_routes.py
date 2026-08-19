@@ -295,8 +295,9 @@ def test_적용_화면이_열린다(client):
     r = client.get('/policies/apply')
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert '정책 적용' in body
+    assert '정책 매칭' in body
     assert '상품 정책 적용' not in body, '옛 이름이 남아 있다'
+    assert '>정책 적용<' not in body, '한 세대 전 이름이 남아 있다'
     # [2026-08-12 확정 D3] 번호는 동그라미 배지로 뺐다 — 글자는 그대로 남는다
     assert '상품 고르기' in body and '정책 고르기' in body
     assert '<span class="stepno">①</span>' in body
@@ -602,3 +603,139 @@ def test_체크박스는_켠_마켓_목록을_통째로_보낸다(client):
     assert "const ENABLED = " in body
     assert "'/api/policies/' + PID + '/markets'" in body
     assert 'ck.checked = !ck.checked' in body, '실패해도 안 되돌린다'
+
+
+# ── [2026-08-19] 정책 목록 칼럼 재구성 — 붙은 상품 호버 · 마켓별 상태 · 내보낼 마켓 알약 ──
+
+def test_붙은_상품_호버_데이터에_실제_상품이_들어간다(client):
+    import re, json
+    from lemouton.policy.models import BundlePolicyLink
+    pid = _new_policy(client, '호버대상')
+    _model(client, 'HV1')
+    _model(client, 'HV2')
+    s = client._Session()
+    try:
+        s.add(BundlePolicyLink(model_code='HV1', policy_id=pid))
+        s.add(BundlePolicyLink(model_code='HV2', policy_id=pid))
+        s.commit()
+    finally:
+        s.close()
+    body = client.get('/policies').get_data(as_text=True)
+    m = re.search(r'const APPLIED = \{(.*?)\n\};', body, re.S)
+    assert m, 'APPLIED 데이터 블록을 못 찾았다'
+    raw = '{' + re.sub(r'^\s*(\d+):', lambda mo: f'"{mo.group(1)}":', m.group(1), flags=re.M) + '}'
+    raw = re.sub(r',(\s*\})', r'\1', raw)
+    data = json.loads(raw)
+    assert {p['code'] for p in data[str(pid)]} == {'HV1', 'HV2'}
+    assert f'data-hv="applied-{pid}"' in body
+
+
+def test_붙은_상품이_없으면_호버를_안_단다(client):
+    """'ap-hv' 는 CSS 정의(.ap-hv{...})에도 늘 있으니 — 칸에 실제로 달렸는지(클래스 속성)로 본다."""
+    _new_policy(client, '빈정책')
+    body = client.get('/policies').get_data(as_text=True)
+    assert 'class="hv ap-hv"' not in body
+
+
+def test_마켓별_상태가_완료_작성중_꺼짐을_가른다(client):
+    """근거는 「가격」 칼럼과 같다(readiness) — 두 칼럼이 서로 다른 말을 하면 안 된다."""
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import save_item
+    pid = _new_policy(client, '상태확인')
+    _set_markets(client, pid, ['smartstore', 'coupang'])
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        save_item(s, policy=p, market='coupang', item_key='price', config={'sourcing_rate': 25})
+        s.commit()
+    finally:
+        s.close()
+    body = client.get('/policies').get_data(as_text=True)
+    assert 'v1-pill v1-done" title="쿠팡 · 완료"' in body
+    assert 'v1-pill v1-writing" title="스마트스토어 · 작성중"' in body
+    assert 'v1-pill v1-off" title="G마켓 · 꺼짐"' in body
+
+
+def test_내보낼_마켓은_알약이고_고치기_버튼이_없다(client):
+    _new_policy(client, '알약확인')
+    body = client.get('/policies').get_data(as_text=True)
+    assert 'mk-toggle' in body and 'v2d-pill' in body
+    assert 'mk-edit' not in body
+
+
+# ── [2026-08-19] 기본정책 — 여러 개 동시 지정 + 사이드바 3단 분류 ──
+
+def test_기본정책은_여러_개_동시_지정된다(client):
+    p1 = _new_policy(client, '기본후보1')
+    p2 = _new_policy(client, '기본후보2')
+    j1 = client.post(f'/api/policies/{p1}/default').get_json()
+    j2 = client.post(f'/api/policies/{p2}/default').get_json()
+    assert j1 == {'ok': True, 'is_default': True}
+    assert j2 == {'ok': True, 'is_default': True}
+    body = client.get('/policies').get_data(as_text=True)
+    assert body.count('기본 해제') == 2, '둘 다 기본정책이어야 하는데 하나만 남았다'
+
+
+def test_기본정책_지정을_다시_누르면_풀린다(client):
+    pid = _new_policy(client, '토글확인')
+    j1 = client.post(f'/api/policies/{pid}/default').get_json()
+    assert j1['is_default'] is True
+    j2 = client.post(f'/api/policies/{pid}/default').get_json()
+    assert j2['is_default'] is False
+
+
+def test_사이드바_상태_분류가_3단으로_나온다(client):
+    pid = _new_policy(client, '분류확인')
+    body = client.get('/policies').get_data(as_text=True)
+    assert 'data-s="default"' in body
+    assert 'data-s="ready-applied"' in body
+    assert 'data-s="ready-unapplied"' in body
+    assert 'data-s="writing"' in body
+    assert 'data-stage="writing"' in body   # 빈 정책은 작성중 자리
+
+
+def test_기본정책은_채움_상태와_상관없이_기본정책_자리에_모인다(client):
+    """빈 정책이라도 기본으로 지정하면 「작성중」이 아니라 「기본정책」 자리다."""
+    pid = _new_policy(client, '빈기본')
+    client.post(f'/api/policies/{pid}/default')
+    body = client.get('/policies').get_data(as_text=True)
+    assert 'data-stage="default"' in body
+    assert 'data-stage="writing"' not in body
+    assert 'mkbadge' not in body
+
+
+def test_항목_채우기_버튼이_없고_줄_클릭으로_상세로_간다(client):
+    pid = _new_policy(client, '줄클릭확인')
+    body = client.get('/policies').get_data(as_text=True)
+    assert '항목 채우기' not in body
+    assert f'data-href="/policies/{pid}"' in body
+
+
+def test_여러_개_고르는_체크칸과_한꺼번에_바가_있다(client):
+    _new_policy(client, '체크칸확인')
+    body = client.get('/policies').get_data(as_text=True)
+    assert 'class="pol-ck"' in body
+    assert 'id="polPickbar"' in body and 'hidden' in body
+    assert '한꺼번에 복사' in body and '한꺼번에 지우기' in body
+
+
+# ── [2026-08-19] 정책명 자동 조합 — API 배선 + 만들기 창 ──────────────────
+
+def test_만들기_API가_이름을_안_주면_자동으로_조합한다(client):
+    r = client.post('/api/policies', json={
+        'brand': '르무통', 'category': '스니커즈', 'sourcing': '무신사'})
+    assert r.status_code == 200
+    j = r.get_json()
+    assert j['ok'] is True
+    assert j['name'] == '[모음전] 르무통 스니커즈 무신사'
+
+
+def test_만들기_API가_구분_대량을_받는다(client):
+    r = client.post('/api/policies', json={'brand': '나이키', 'prefix': '대량'})
+    assert r.get_json()['name'] == '[대량] 나이키'
+
+
+def test_만들기_창에_카테고리_소싱처_구분_칸이_있다(client):
+    body = client.get('/policies').get_data(as_text=True)
+    assert 'id="pcategory"' in body and 'id="psourcing"' in body and 'id="pprefix"' in body
+    assert '비워 두면 위 내용으로 자동으로 채워요' in body

@@ -307,7 +307,7 @@ def build_for_set(session, *, set_id: int, market: str, base_view=None) -> dict:
     if policy is None:
         skip = [{'item': 'name', 'field': '', 'label': '정책',
                  'code': 'NO_POLICY',
-                 'reason': '이 구성에 정책이 붙어 있지 않습니다 — 「정책 적용」에서 '
+                 'reason': '이 구성에 정책이 붙어 있지 않습니다 — 「정책 매칭」에서 '
                            '붙여 주세요. 정책이 없으면 어떤 값으로 올릴지 정해지지 '
                            '않아 보내지 않습니다.',
                  'blocking': True}]

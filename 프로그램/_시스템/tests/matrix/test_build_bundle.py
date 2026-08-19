@@ -149,10 +149,10 @@ def test_이_묶음에_없는_옵션은_막는다(db):
 
 def test_기본_정책이_있으면_새_상품에_자동으로_붙는다(db):
     """노션 「기본 셋팅 해두고 전체 적용」."""
-    from lemouton.policy.service import create_policy, policy_of, set_default
+    from lemouton.policy.service import create_policy, policy_of, toggle_default
     m, org = _seed(db, 2)
     p = create_policy(db, name='르무통 기본')
-    set_default(db, policy=p)
+    toggle_default(db, policy=p)
     new, _ = create_bundle_from_matrix(db, matrix=org, name='새것', brand='르무통', on=ON)
     assert policy_of(db, new.model_code).id == p.id
 

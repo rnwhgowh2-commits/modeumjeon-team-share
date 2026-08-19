@@ -263,6 +263,9 @@ def _apply_lightweight_migrations() -> None:
         ("market_policy_values", "from_common_at", "TIMESTAMP"),
         # [2026-07-31] 정책 브랜드 분류 (NULL = 브랜드 없음)
         ("market_policies", "brand", "VARCHAR(128)"),
+        # [2026-08-19] 정책명 자동 조합([대량]/[모음전] + 브랜드 + 카테고리 + 소싱처)용.
+        ("market_policies", "category", "VARCHAR(120)"),
+        ("market_policies", "sourcing", "VARCHAR(120)"),
         # [2026-07-31] 내보낼 마켓 (NULL = 전부 켜짐 · '[]' = 전부 꺼짐)
         ("market_policies", "enabled_markets", "TEXT"),
         # [2026-08-02] 「한 상품에 여러 정책」 — 이 값이 어느 **구성(벌)** 으로 나갔나.

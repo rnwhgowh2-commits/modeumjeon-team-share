@@ -222,7 +222,7 @@ def test_정책이_없으면_막는다(s):
     got = TP.build_for_set(s, set_id=ps.id, market='coupang')
     assert got['policy'] is None
     assert got['blocking'], '정책 없이 통과했다'
-    assert '「정책 적용」' in got['blocking'][0]
+    assert '「정책 매칭」' in got['blocking'][0]
 
 
 def test_그_마켓에_저장된_항목이_없으면_막는다(s):

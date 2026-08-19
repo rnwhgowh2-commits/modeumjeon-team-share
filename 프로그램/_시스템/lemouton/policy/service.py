@@ -24,9 +24,24 @@ class PolicyError(Exception):
     """사용자에게 그대로 보여줄 수 있는 실패 사유."""
 
 
-def create_policy(session, *, name: str, memo: str = '',
-                  brand: str = '') -> MarketPolicy:
+def create_policy(session, *, name: str = '', memo: str = '', brand: str = '',
+                  category: str = '', sourcing: str = '', prefix: str = '') -> MarketPolicy:
+    """정책을 만든다. `name` 을 안 적으면 자동으로 조합한다.
+
+    [2026-08-19 사장님 확정] 정책명 = [대량]or[모음전] + 브랜드 + 카테고리 + 소싱처.
+    조합할 조각(브랜드·카테고리·소싱처)이 **하나도 없으면** 조합하지 않는다 —
+    「[모음전]」 하나만 덩그러니 남는 이름은 뜻이 없어, 그때는 이름을 직접 받는다.
+    사용자가 이름을 직접 적었으면 그 이름을 그대로 쓴다(자동 조합이 덮지 않는다).
+    """
     name = (name or '').strip()
+    brand = (brand or '').strip()
+    category = (category or '').strip()
+    sourcing = (sourcing or '').strip()
+    if not name:
+        parts = [p for p in (brand, category, sourcing) if p]
+        if parts:
+            tag = f'[{prefix.strip()}]' if (prefix or '').strip() else '[모음전]'
+            name = tag + ' ' + ' '.join(parts)
     if not name:
         raise PolicyError('정책 이름을 넣어 주세요.')
     dup = session.scalar(select(MarketPolicy).where(
@@ -34,7 +49,8 @@ def create_policy(session, *, name: str, memo: str = '',
     if dup is not None:
         raise PolicyError(f'「{name}」 이름의 정책이 이미 있어요.')
     p = MarketPolicy(name=name, memo=(memo or '').strip() or None,
-                     brand=(brand or '').strip() or None)
+                     brand=brand or None, category=category or None,
+                     sourcing=sourcing or None)
     session.add(p)
     session.flush()
     return p
@@ -168,18 +184,38 @@ def policy_of(session, model_code: str) -> MarketPolicy | None:
     return p if p is not None and p.deleted_at is None else None
 
 
-def set_default(session, *, policy: MarketPolicy) -> None:
-    """기본 정책은 하나뿐 — 새로 지정하면 이전 것은 풀린다."""
-    for p in session.scalars(select(MarketPolicy).where(MarketPolicy.is_default == 1)):
-        p.is_default = 0
-    policy.is_default = 1
+def toggle_default(session, *, policy: MarketPolicy) -> bool:
+    """기본정책(여러 번 쓰는 템플릿) 지정을 켜고 끈다.
+
+    [2026-08-19 사장님 확정] 「여러개 템플릿 생성 가능」 — 예전엔 기본 하나만 허용해
+    새로 지정하면 이전 것이 풀렸다(대표=1개 제한). 지금은 브랜드·카테고리별로
+    여러 개를 동시에 기본정책으로 둘 수 있어, 단순 토글로 바뀐다.
+    """
+    policy.is_default = 0 if policy.is_default else 1
     session.flush()
+    return bool(policy.is_default)
 
 
 def applied_count(session, policy_id: int) -> int:
     from sqlalchemy import func
     return session.query(func.count()).select_from(BundlePolicyLink).filter(
         BundlePolicyLink.policy_id == policy_id).scalar() or 0
+
+
+def applied_products(session, policy_id: int) -> list[dict]:
+    """이 정책이 붙은 상품 목록 — 목록 화면 호버 카드용(가볍게 code·name 만).
+
+    `applied_count` 와 같은 원천(`BundlePolicyLink`)만 본다 — 숫자와 목록이
+    서로 다른 근거로 갈리면 안 된다(구성별 override 인 SetPolicyLink 는 별개).
+    """
+    from lemouton.sourcing.models import Model
+    rows = session.execute(
+        select(Model.model_code, Model.model_name_display, Model.model_name_raw)
+        .join(BundlePolicyLink, BundlePolicyLink.model_code == Model.model_code)
+        .where(BundlePolicyLink.policy_id == policy_id)
+        .order_by(Model.model_name_display, Model.model_name_raw)
+    ).all()
+    return [{'code': code, 'name': (disp or raw or code)} for code, disp, raw in rows]
 
 
 # ── 브랜드 분류 (노션 「브랜드별로 정책분류」) ─────────────────────────────
