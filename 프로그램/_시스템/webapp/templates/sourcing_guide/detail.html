@@ -236,14 +236,14 @@
         <colgroup><col style="width:104px"><col style="width:118px"><col style="width:72px"><col><col style="width:88px"></colgroup>
         <thead><tr><th>항목</th><th>수집 방식</th><th>인증</th><th>위치 (셀렉터/엔드포인트)</th><th>상태</th></tr></thead>
         <tbody>
-          {% set labels = {'thumbnail':('썸네일','🖼️'),'title':('상품명','🏷️'),'price':('가격','💰'),'benefit':('혜택','🎁'),'option_stock':('옵션·재고','📦'),'detail_image':('상세이미지','🖼️')} %}
+          {% set labels = {'thumbnail':('썸네일','<i class="ph-light ph-image" aria-hidden="true"></i>️'),'title':('상품명','<i class="ph-light ph-tag" aria-hidden="true"></i>️'),'price':('가격','<i class="ph-light ph-coins" aria-hidden="true"></i>'),'benefit':('혜택','<i class="ph-light ph-gift" aria-hidden="true"></i>'),'option_stock':('옵션·재고','<i class="ph-light ph-package" aria-hidden="true"></i>'),'detail_image':('상세이미지','<i class="ph-light ph-image" aria-hidden="true"></i>️')} %}
           {% set mlab = {'html':'HTML 스크래핑','api':'API 크롤링','crawl':'크롤(미분류)','manual':'수동','none':'없음'} %}
           {% set alab = {'open':'비인증','auth':'인증'} %}
-          {% set slab = {'ok':'✅ 정상','warn':'⚠️ 확인필요','none':'—'} %}
+          {% set slab = {'ok':'<i class="ph-light ph-check-circle" aria-hidden="true"></i> 정상','warn':'<i class="ph-light ph-warning" aria-hidden="true"></i>️ 확인필요','none':'—'} %}
           {% for key, lab in labels.items() %}
           {% set f = guide.fields[key] %}
           <tr data-field="{{ key }}" data-method="{{ f.method }}" data-mechanism="{{ f.mechanism }}" data-auth="{{ f.auth }}" data-status="{{ f.status }}">
-            <td style="font-size:13px;font-weight:600;"><span class="fico">{{ lab[1] }}</span>{{ lab[0] }}</td>
+            <td style="font-size:13px;font-weight:600;"><span class="fico">{{ lab[1]|safe }}</span>{{ lab[0] }}</td>
             <td><span class="bdg m-{{ f.mechanism }}">{{ mlab[f.mechanism] }}</span></td>
             <td><span class="bdg a-{{ f.auth }}">{{ alab[f.auth] }}</span></td>
             <td><input class="sg-loc" value="{{ f.locator }}" style="width:100%;"></td>
@@ -326,7 +326,7 @@
       <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용, 위 카드와 동일 benefits 소스) -->
       {% set SMAP = {'always':'상시','conditional':'조건부','optional':'선택','planned':'예정'} %}
       <div class="sg3-logic" style="margin-top:18px;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden">
-        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
+        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28"><i class="ph-light ph-coins" aria-hidden="true"></i> 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
         <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
           <thead>
@@ -366,13 +366,13 @@
 
       <!-- B1 — 모든 모음전에 따라쓰기 (2중 잠금). 스냅샷 모델: 기본값을 전 모음전에 덮어씀. -->
       <div class="sg3-applyall" style="margin-top:16px;border:1.5px solid #F04452;background:#FFF0F1;border-radius:12px;padding:16px 18px">
-        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#191F28;margin-bottom:6px">🔒 모든 모음전에 따라쓰기</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#191F28;margin-bottom:6px"><i class="ph-light ph-lock" aria-hidden="true"></i> 모든 모음전에 따라쓰기</div>
         <div style="font-size:12.5px;color:#4E5968;line-height:1.55;margin-bottom:13px">평소 모음전은 <b>생성 시점의 기본값을 복사</b>해 독립적으로 동작합니다. 이 버튼은 이 소싱처의 현재 기본값을 <b style="color:#F04452">기존 모음전 전부</b>에 덮어씁니다. 각 모음전에서 직접 수정한 값은 사라지며 <b>되돌릴 수 없습니다.</b></div>
         <label style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:#fff;border:1px solid #E5E8EB;border-radius:9px;margin-bottom:10px;font-size:12.5px;cursor:pointer">
           <input type="checkbox" id="aa-confirm" style="width:17px;height:17px;cursor:pointer;flex:0 0 auto">
           <span>네, <b>모든 모음전</b>이 이 소싱처 기본값으로 덮어써지는 것을 이해합니다.</span>
         </label>
-        <button type="button" id="aa-btn" disabled style="width:100%;padding:10px;border:none;border-radius:9px;background:#F4C7CB;color:#fff;font-weight:800;font-size:13px;cursor:not-allowed;font-family:inherit">🔒 따라쓰기 (잠김)</button>
+        <button type="button" id="aa-btn" disabled style="width:100%;padding:10px;border:none;border-radius:9px;background:#F4C7CB;color:#fff;font-weight:800;font-size:13px;cursor:not-allowed;font-family:inherit"><i class="ph-light ph-lock" aria-hidden="true"></i> 따라쓰기 (잠김)</button>
         <div id="aa-toast" style="display:none;margin-top:10px;font-size:12.5px;font-weight:700;color:#0E7C3A"></div>
       </div>
     </div>
@@ -431,9 +431,9 @@
                 <a class="exshot-link" href="{{ ex.screenshot_url }}" target="_blank"><img src="{{ ex.screenshot_url }}"></a>
                 {% else %}
                 <div class="shot">
-                  <span class="cam">📷</span>
+                  <span class="cam"><i class="ph-light ph-camera" aria-hidden="true"></i></span>
                   <span>기준 스크린샷</span>
-                  <button type="button" class="shot-auto" data-ex-index="{{ loop.index0 }}">🤖 자동 캡처</button>
+                  <button type="button" class="shot-auto" data-ex-index="{{ loop.index0 }}"><i class="ph-light ph-robot" aria-hidden="true"></i> 자동 캡처</button>
                   <span class="drop-hint">또는 이미지 드래그앤드랍</span>
                   <span class="dt">{{ ex.name }}</span>
                 </div>
@@ -485,9 +485,9 @@
 
             <!-- 🔑 키워드 게이트 검증 — ③ 포함/제외 키워드 반영 영수증 (시안 2: 좌 문구+하이라이트) -->
             <div class="sg-kwgate" style="margin-top:20px;border-top:1px dashed #E5E8EB;padding-top:15px;">
-              <div class="fxnote" style="margin-bottom:9px;">🔑 <b>키워드 게이트 검증</b> — ③에서 정한 포함/제외 키워드가 실제 상품 혜택에 제대로 먹히는지 확인. (포함/제외 키워드는 오른쪽 ③ 칩 / 여기엔 <b>긁은 문구</b>만)</div>
-              <div class="sg-kw-lbl">📋 긁은 혜택 문구 <span class="x">— 키워드 넣는 칸 아님! 상품 페이지에 적힌 글자 그대로</span></div>
-              <textarea id="sg-kw-lines" placeholder="상품 페이지 혜택 문구를 한 줄에 하나씩 붙여넣기 (키워드 ❌)&#10;예)&#10;등급 할인 불가&#10;상품 쿠폰&#10;구매 적립 / 선할인&#10;10% 추가 적립&#10;결제혜택" style="width:100%;min-height:78px;box-sizing:border-box;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.7;color:#3a424b;resize:vertical;"></textarea>
+              <div class="fxnote" style="margin-bottom:9px;"><i class="ph-light ph-key" aria-hidden="true"></i> <b>키워드 게이트 검증</b> — ③에서 정한 포함/제외 키워드가 실제 상품 혜택에 제대로 먹히는지 확인. (포함/제외 키워드는 오른쪽 ③ 칩 / 여기엔 <b>긁은 문구</b>만)</div>
+              <div class="sg-kw-lbl"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 긁은 혜택 문구 <span class="x">— 키워드 넣는 칸 아님! 상품 페이지에 적힌 글자 그대로</span></div>
+              <textarea id="sg-kw-lines" placeholder="상품 페이지 혜택 문구를 한 줄에 하나씩 붙여넣기 (키워드 )&#10;예)&#10;등급 할인 불가&#10;상품 쿠폰&#10;구매 적립 / 선할인&#10;10% 추가 적립&#10;결제혜택" style="width:100%;min-height:78px;box-sizing:border-box;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.7;color:#3a424b;resize:vertical;"></textarea>
               <div class="sg-kw-lbl" style="margin-top:11px;">③ 키워드 적용 미리보기 <span class="x">포함=<b style="color:#1FA463;">초록</b> / 제외=<b style="color:#C0392B;">빨강취소선</b></span></div>
               <div id="sg-kw-hl" class="sg-hlbox"><span class="muted" style="font-size:11.5px;">위에 문구를 붙여넣으면 ③ 키워드가 어디에 걸리는지 색으로 표시됩니다.</span></div>
               <div class="sg-nvin" style="margin-top:11px;"><input id="sg-kw-base" type="number" placeholder="회원가(표면 노출가) — 매입가 계산용(선택)"><button id="sg-kw-btn">키워드 게이트 검증</button></div>
@@ -506,7 +506,7 @@
               <div class="g exc">제외</div>
               {% if guide.exclude_keywords %}{% for e in guide.exclude_keywords %}<span class="chip exc">{{ e.word }}</span>{% endfor %}{% else %}<span class="chip-empty">— 없음</span>{% endif %}
             </div>
-            <div class="sg-saved-h" style="margin-top:16px;">📑 저장된 검증</div>
+            <div class="sg-saved-h" style="margin-top:16px;"><i class="ph-light ph-files" aria-hidden="true"></i> 저장된 검증</div>
             <div id="sg-saved-list">
               {% for c in guide.verification.get('saved_checks', []) %}
               <div class="sg-saved-item" data-url="{{ c.url or '' }}">

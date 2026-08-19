@@ -97,10 +97,10 @@
               <strong>{{ acc.display_name }}</strong>
               <button class="name-edit-btn"
                       onclick="openEditModal({{ acc.id }}, '{{ acc.market }}', '{{ acc.env_prefix }}', '{{ acc.display_name|e }}', '{{ acc.note|e }}')"
-                      title="계정명·메모 수정" aria-label="수정">✎</button>
+                      title="계정명·메모 수정" aria-label="수정"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></button>
             </div>
             {% if acc.note %}
-              <small class="text-muted">📝 {{ acc.note }}</small><br>
+              <small class="text-muted"><i class="ph-light ph-note-pencil" aria-hidden="true"></i> {{ acc.note }}</small><br>
             {% endif %}
             <small class="text-muted" title="env_prefix: {{ acc.env_prefix }}&#10;account_key: {{ acc.account_key }}" style="cursor:help">ⓘ 식별자</small>
           </td>
@@ -108,28 +108,28 @@
             <div class="status-stack">
               <div class="status-line" title="{{ acc.masked_id }}">
                 {% if acc.cred_state == 'ok' %}
-                  <span class="status-icon ok">✓</span> API 키 등록
+                  <span class="status-icon ok"><i class="ph-light ph-check" aria-hidden="true"></i></span> API 키 등록
                 {% elif acc.cred_state == 'missing' %}
-                  <span class="status-icon warn">⚠</span> 키 누락 ({{ acc.missing_count }})
+                  <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 키 누락 ({{ acc.missing_count }})
                 {% else %}
-                  <span class="status-icon err">✗</span> 미지원
+                  <span class="status-icon err"><i class="ph-light ph-x" aria-hidden="true"></i></span> 미지원
                 {% endif %}
               </div>
               {% if acc.login_state == 'logged_in' %}
               <div class="status-line" title="영구 인증 쿠키 (NID_AUT 등) 발견 — 자동 로그인 가능">
-                <span class="status-icon ok">✓</span> 영구 로그인 ({{ acc.login_age_days }}일 경과)
+                <span class="status-icon ok"><i class="ph-light ph-check" aria-hidden="true"></i></span> 영구 로그인 ({{ acc.login_age_days }}일 경과)
               </div>
               {% elif acc.login_state == 'stale' %}
               <div class="status-line" title="30일 경과 — 재로그인 권장">
-                <span class="status-icon warn">⚠</span> 영구 로그인 ({{ acc.login_age_days }}일 — 재로그인 권장)
+                <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 영구 로그인 ({{ acc.login_age_days }}일 — 재로그인 권장)
               </div>
               {% elif acc.login_state == 'session_only' %}
               <div class="status-line" title="Commerce ID [이메일/판매자 아이디] 로그인 — 세션 종료 시 만료됨. 재로그인 필요할 수 있음. 영구화하려면 [네이버 아이디 + 로그인 상태 유지] path 사용">
-                <span class="status-icon warn">⚠</span> 세션 only (재로그인 필요할 수 있음)
+                <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 세션 only (재로그인 필요할 수 있음)
               </div>
               {% elif acc.login_state == 'incomplete' %}
               <div class="status-line" title="프로필 있으나 인증 흔적 없음 — 로그인 끝까지 안 감">
-                <span class="status-icon warn">⚠</span> 로그인 미완료
+                <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 로그인 미완료
               </div>
               {% elif acc.login_state == 'not_logged_in' %}
               <div class="status-line muted">
@@ -139,7 +139,7 @@
               {% if acc.market == 'smartstore' %}
                 {% if acc.has_login_creds %}
                 <div class="status-line" title="{{ acc.env_prefix }}_LOGIN_ID/PW 가 .env 에 등록됨 — 매번 자동 입력 + 자동 [로그인] 클릭. 디바이스 인증만 사용자.">
-                  <span class="status-icon ok">✓</span> 자동 입력 ON (.env LOGIN_ID/PW)
+                  <span class="status-icon ok"><i class="ph-light ph-check" aria-hidden="true"></i></span> 자동 입력 ON (.env LOGIN_ID/PW)
                 </div>
                 {% else %}
                 <div class="status-line muted" title="자동 입력하려면 .env 에 {{ acc.env_prefix }}_LOGIN_ID 와 {{ acc.env_prefix }}_LOGIN_PW 추가">
@@ -158,26 +158,26 @@
             <div class="action-row" style="justify-content:flex-end;">
               <button class="btn btn-sm btn-primary"
                       onclick="openSecretsModal('{{ acc.market }}', '{{ acc.env_prefix }}', '{{ acc.display_name }}')"
-                      title="API 키 입력">🔑 키</button>
+                      title="API 키 입력"><i class="ph-light ph-key" aria-hidden="true"></i> 키</button>
               {% if acc.cred_state == 'ok' %}
               <button class="btn btn-sm btn-test"
                       onclick="testApiConnection({{ acc.id }}, '{{ acc.display_name|e }}')"
-                      title="API 연결 테스트">🔌 연결</button>
+                      title="API 연결 테스트"><i class="ph-light ph-plug" aria-hidden="true"></i> 연결</button>
               {% endif %}
               {% if acc.market in ('smartstore', 'coupang') %}
               {% if acc.login_state in ('logged_in', 'stale') %}
               <button class="btn btn-sm btn-test"
                       onclick="loginUploadAccount({{ acc.id }}, '{{ acc.display_name|e }}')"
-                      title="이미 로그인된 상태 — 클릭하면 재로그인 창 오픈">✓ 로그인 완료</button>
+                      title="이미 로그인된 상태 — 클릭하면 재로그인 창 오픈"><i class="ph-light ph-check" aria-hidden="true"></i> 로그인 완료</button>
               {% else %}
               <button class="btn btn-sm"
                       onclick="loginUploadAccount({{ acc.id }}, '{{ acc.display_name|e }}')"
-                      title="브라우저 영구 로그인 (한 번만 직접 입력 → 이후 자동)">🔐 로그인</button>
+                      title="브라우저 영구 로그인 (한 번만 직접 입력 → 이후 자동)"><i class="ph-light ph-lock-key" aria-hidden="true"></i> 로그인</button>
               {% endif %}
               {% endif %}
               <button class="btn btn-sm btn-trash"
                       onclick="confirmDeleteAccount({{ acc.id }}, '{{ acc.display_name }}')"
-                      title="계정 삭제" aria-label="삭제">🗑</button>
+                      title="계정 삭제" aria-label="삭제"><i class="ph-light ph-trash" aria-hidden="true"></i></button>
             </div>
           </td>
         </tr>
@@ -463,12 +463,12 @@
     {# 우측 폼 #}
     <section class="v2-form">
       <header class="v2-form-head">
-        <div class="v2-icon-lg" id="v2-icon">🔧</div>
+        <div class="v2-icon-lg" id="v2-icon"><i class="ph-light ph-wrench" aria-hidden="true"></i></div>
         <div>
           <h3 id="v2-modal-title">마켓을 선택하세요</h3>
           <p class="v2-sub" id="v2-subtitle">왼쪽에서 등록할 마켓을 클릭하세요.</p>
         </div>
-        <button class="v2-close" aria-label="닫기" onclick="closeV2Modal()">✕</button>
+        <button class="v2-close" aria-label="닫기" onclick="closeV2Modal()"><i class="ph-light ph-x" aria-hidden="true"></i></button>
       </header>
 
       <div class="v2-form-body" id="v2-form-body" style="display:none">
@@ -491,13 +491,13 @@
 
         {# API 키 — 마켓에 따라 동적 #}
         <div class="v2-section">
-          <span class="v2-label-section">🔑 API 키</span>
+          <span class="v2-label-section"><i class="ph-light ph-key" aria-hidden="true"></i> API 키</span>
           <div id="v2-keys-help" class="v2-help-box"></div>
           <div id="v2-key-fields"></div>
         </div>
 
         <div class="form-hint v2-security-note">
-          🔒 입력값은 로컬 <code>.env</code> 파일에만 저장 (DB·외부 전송 X). 화면 표시 항상 마스킹.
+          <i class="ph-light ph-lock" aria-hidden="true"></i> 입력값은 로컬 <code>.env</code> 파일에만 저장 (DB·외부 전송 X). 화면 표시 항상 마스킹.
         </div>
       </div>
 

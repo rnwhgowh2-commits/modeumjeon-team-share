@@ -34,7 +34,7 @@
   </div>
 
   <div style="background:#F0F9FF;border:1px solid #93C5FD;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:14px;color:#1E40AF;line-height:1.6">
-    <strong>💡 자동 매핑은 [제품 엑셀 업로드] 페이지에서 xlsx 업로드 시 실행</strong>됩니다.
+    <strong><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 자동 매핑은 [제품 엑셀 업로드] 페이지에서 xlsx 업로드 시 실행</strong>됩니다.
     이 페이지는 <strong>fuzzy 점수 70 미만으로 자동 매핑 안 된 옵션을 수동으로 보완</strong>하는 곳.
     <a href="{{ url_for('inventory.data_boxhero_import') }}" style="margin-left:6px;color:#1E40AF;font-weight:600">→ 엑셀 업로드 페이지로 이동</a>
   </div>
@@ -42,7 +42,7 @@
   {% if unmapped_options %}
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden">
     <div style="padding:10px 14px;background:#FFF8E5;border-bottom:1px solid #E5E8EB;font-size:14px;color:#9A6700;font-weight:600">
-      ⚠️ 미매핑 옵션 {{ unmapped_options|length }}건 (최대 200건 표시)
+      <i class="ph-light ph-warning" aria-hidden="true"></i>️ 미매핑 옵션 {{ unmapped_options|length }}건 (최대 200건 표시)
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:#F9FAFB">
@@ -73,7 +73,7 @@
   </div>
   {% else %}
   <div style="background:#ECFDF5;border:1px solid #86EFAC;border-radius:8px;padding:32px;text-align:center;color:#065F46">
-    <div style="font-size:32px;margin-bottom:8px">✓</div>
+    <div style="font-size:32px;margin-bottom:8px"><i class="ph-light ph-check" aria-hidden="true"></i></div>
     <div style="font-size:15px;font-weight:600;margin-bottom:4px">미매핑 옵션 없음</div>
     <div style="font-size:14px">전체 옵션이 SKU와 매핑되어 있습니다.</div>
   </div>

@@ -47,7 +47,7 @@
     </label>
     <button type="submit" style="background:#3182F6;color:#fff;padding:6px 14px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">필터 적용</button>
     <a href="{{ url_for('inventory.matrix_view') }}" style="padding:6px 12px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:12px">초기화</a>
-    <span style="margin-left:auto;font-size:12px;color:#9CA3AF">★ 우선순위: 옵션 → 모델 → 템플릿</span>
+    <span style="margin-left:auto;font-size:12px;color:#9CA3AF"><i class="ph-light ph-star" aria-hidden="true"></i> 우선순위: 옵션 → 모델 → 템플릿</span>
   </form>
 
   {# [perf 2026-05-29] 행 수 제한 안내 — 전체 옵션이 많으면 상위 N개만 렌더 (브라우저 부하↓) #}
@@ -144,10 +144,10 @@
   </div>
 
   <div style="margin-top:14px;font-size:12px;color:#9CA3AF;line-height:1.7">
-    ★ 색상 의미 — 자체(초록 #059669) = 자체 사입 / 외부(보라 #7C3AED) = 소싱처 사입.<br>
-    ★ source_layer 라벨 — 옵션(녹색/보라) = 인라인 오버라이드 적용 / 모델(노랑) = 모델 오버라이드 / 템플릿(회색) = 가격템플릿 default.<br>
-    ★ <strong style="color:#92400E">사입재고 활성화 ON</strong> — 자체 판매가가 활성 가격(주황 강조), 외부 판매가는 취소선. OFF 면 외부 판매가 활성.<br>
-    ★ 옵션 단위 오버라이드는 3계층 중 최우선. "비우기" 클릭 시 모델/템플릿 fallback.
+    <i class="ph-light ph-star" aria-hidden="true"></i> 색상 의미 — 자체(초록 #059669) = 자체 사입 / 외부(보라 #7C3AED) = 소싱처 사입.<br>
+    <i class="ph-light ph-star" aria-hidden="true"></i> source_layer 라벨 — 옵션(녹색/보라) = 인라인 오버라이드 적용 / 모델(노랑) = 모델 오버라이드 / 템플릿(회색) = 가격템플릿 default.<br>
+    <i class="ph-light ph-star" aria-hidden="true"></i> <strong style="color:#92400E">사입재고 활성화 ON</strong> — 자체 판매가가 활성 가격(주황 강조), 외부 판매가는 취소선. OFF 면 외부 판매가 활성.<br>
+    <i class="ph-light ph-star" aria-hidden="true"></i> 옵션 단위 오버라이드는 3계층 중 최우선. "비우기" 클릭 시 모델/템플릿 fallback.
   </div>
 </div>
 

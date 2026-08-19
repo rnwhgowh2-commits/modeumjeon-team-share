@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}🆕 신규 모음전 만들기 — 모음전 자동화{% endblock %}
+{% block title %}<i class="ph-light ph-sparkle" aria-hidden="true"></i> 신규 모음전 만들기 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active">
   <a class="btn btn-ghost" href="/bundles">← 모음전 목록</a>
-  <h1 style="margin-top:6px">🆕 신규 모음전 만들기</h1>
+  <h1 style="margin-top:6px"><i class="ph-light ph-sparkle" aria-hidden="true"></i> 신규 모음전 만들기</h1>
   <p class="greeting">기본 정보를 입력하고, 「옵션 구성」 탭에서 보유 재고를 골라 옵션으로 채웁니다.</p>
 
   {# ===== 2탭 ===== #}
@@ -46,10 +46,10 @@
       <div class="pc-opt-head">
         <strong>옵션</strong><span class="pc-cnt" id="opt-count">0</span>
         <span style="flex:1"></span>
-        <button type="button" class="btn btn-primary" id="open-stock">🔍 재고에서 옵션 추가</button>
+        <button type="button" class="btn btn-primary" id="open-stock"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 재고에서 옵션 추가</button>
       </div>
       <div id="opt-list">
-        <div class="pc-empty" id="opt-empty"><div style="font-size:34px">📦</div>
+        <div class="pc-empty" id="opt-empty"><div style="font-size:34px"><i class="ph-light ph-package" aria-hidden="true"></i></div>
           아직 옵션이 없습니다 — 「재고에서 옵션 추가」로 보유 재고를 골라 담으세요.</div>
       </div>
     </div>
@@ -67,10 +67,10 @@
     <div class="pc-mh">
       <strong>재고관리에서 옵션 추가</strong>
       <span class="pc-ms">좌측 재고 체크 → 「바구니에 담기」 · 우측 담은 옵션이 모음전 옵션이 됩니다</span>
-      <button type="button" class="pc-x" id="modal-close">✕ 닫기</button>
+      <button type="button" class="pc-x" id="modal-close"><i class="ph-light ph-x" aria-hidden="true"></i> 닫기</button>
     </div>
     <div class="pc-msearch">
-      <input id="stock-q" class="pc-srch" placeholder="🔍 브랜드 · 모델명 · 색상 · 사이즈 · SKU · 바코드 — 띄어쓰면 모두 포함(AND)" />
+      <input id="stock-q" class="pc-srch" placeholder="브랜드 · 모델명 · 색상 · 사이즈 · SKU · 바코드 — 띄어쓰면 모두 포함(AND)" />
       <button type="button" class="btn" id="new-product" title="목록에 없는 제품 추가 (다음 단계 기능)">＋ 새 제품</button>
     </div>
     <div class="pc-mbody">
@@ -78,7 +78,7 @@
         <div class="pc-colh">검색 결과 — 재고관리</div>
         <div id="stock-results"><div class="pc-loading">불러오는 중…</div></div>
         <div class="pc-actbar" id="left-actbar" style="display:none">
-          <span>✅ <b id="left-sel">0</b>개 선택</span><span style="flex:1"></span>
+          <span><i class="ph-light ph-check-circle" aria-hidden="true"></i> <b id="left-sel">0</b>개 선택</span><span style="flex:1"></span>
           <button type="button" class="btn btn-primary btn-sm" id="to-basket">선택 → 바구니에 담기</button>
         </div>
       </div>
@@ -86,7 +86,7 @@
         <div class="pc-colh">담은 옵션 <span id="basket-cnt">0</span></div>
         <div id="basket-list"><div class="pc-bk-empty">좌측에서 재고를 골라 담으세요.</div></div>
         <div class="pc-actbar red" id="basket-actbar" style="display:none">
-          <span>🗑 <b id="basket-sel">0</b>개 선택</span><span style="flex:1"></span>
+          <span><i class="ph-light ph-trash" aria-hidden="true"></i> <b id="basket-sel">0</b>개 선택</span><span style="flex:1"></span>
           <button type="button" class="btn btn-sm" id="basket-del">선택 삭제</button>
         </div>
       </div>

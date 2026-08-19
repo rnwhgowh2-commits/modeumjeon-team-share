@@ -3,45 +3,45 @@
 {% block header %}
 <header class="m-header">
   <span style="width: 36px;"></span>
-  <h1>📦 모음전</h1>
-  <a href="/auth/me" class="m-back" style="font-size: 18px;">👤</a>
+  <h1><i class="ph-light ph-package" aria-hidden="true"></i> 모음전</h1>
+  <a href="/auth/me" class="m-back" style="font-size: 18px;"><i class="ph-light ph-user" aria-hidden="true"></i></a>
 </header>
 {% endblock %}
 
 {% block content %}
 <div class="m-btn-grid">
   <a href="/mobile/scan" class="m-action-btn primary">
-    <span class="icon">📷</span>
+    <span class="icon"><i class="ph-light ph-camera" aria-hidden="true"></i></span>
     바코드 스캔
   </a>
   <a href="/mobile/inventory" class="m-action-btn">
-    <span class="icon">📋</span>
+    <span class="icon"><i class="ph-light ph-clipboard" aria-hidden="true"></i></span>
     재고 목록
   </a>
 </div>
 
 <div class="m-btn-grid" style="margin-top: 12px;">
   <a href="/mobile/scan-batch?mode=in" class="m-action-btn success">
-    <span class="icon">📥</span>
+    <span class="icon"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span>
     연속 입고 (여러 SKU 일괄)
   </a>
   <a href="/mobile/scan-batch?mode=out" class="m-action-btn danger">
-    <span class="icon">📤</span>
+    <span class="icon"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i></span>
     연속 출고 (여러 SKU 일괄)
   </a>
 </div>
 
 <div class="m-btn-grid col3" style="margin-top: 12px;">
   <a href="/mobile/scan?action=in" class="m-action-btn success" style="min-height:80px;font-size: 14px">
-    <span class="icon" style="font-size:24px">📥</span>
+    <span class="icon" style="font-size:24px"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span>
     1건 입고
   </a>
   <a href="/mobile/scan?action=out" class="m-action-btn danger" style="min-height:80px;font-size: 14px">
-    <span class="icon" style="font-size:24px">📤</span>
+    <span class="icon" style="font-size:24px"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i></span>
     1건 출고
   </a>
   <a href="/mobile/scan?action=adjust" class="m-action-btn" style="min-height:80px;font-size: 14px">
-    <span class="icon" style="font-size:24px">⚖️</span>
+    <span class="icon" style="font-size:24px"><i class="ph-light ph-scales" aria-hidden="true"></i>️</span>
     조정
   </a>
 </div>

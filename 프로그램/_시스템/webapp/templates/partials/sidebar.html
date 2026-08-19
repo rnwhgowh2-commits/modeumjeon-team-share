@@ -87,14 +87,14 @@
   <div class="add-stage" id="sb3-add-stage">＋ 새 카테고리</div>
 
   {# 편집 모드 토글 (호버 발견성 보완 — 도움말) #}
-  <button type="button" class="sb3-edit-toggle" id="sb3-edit-toggle" title="편집 가이드 보기">✎ 사이드바 편집 가이드</button>
+  <button type="button" class="sb3-edit-toggle" id="sb3-edit-toggle" title="편집 가이드 보기"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 사이드바 편집 가이드</button>
 
   {# [2026-06-03] AWS 서버 요금·상태 위젯 (사이드바 하단). Lightsail 정액제라 키 없이 표시 + /health 실시간 상태. #}
   <div class="sb-cost" title="AWS Lightsail 서울 · 2GB · 정액제(월 ~$12). 현재 무료 기간.">
-    <div class="sb-cost-h"><span>💰 AWS 서버</span><span class="sb-cost-st" id="sb-cost-st">🟢 정상</span></div>
+    <div class="sb-cost-h"><span><i class="ph-light ph-coins" aria-hidden="true"></i> AWS 서버</span><span class="sb-cost-st" id="sb-cost-st"><i class="ph-light ph-circle" aria-hidden="true"></i> 정상</span></div>
     <div class="sb-cost-amt">~$12<span>/월</span> · <b>현재 무료</b></div>
     <div class="sb-cost-sub">Lightsail 2GB · 서울 · 정액제</div>
-    <a href="https://console.aws.amazon.com/billing/home" target="_blank" rel="noopener" class="sb-cost-link" title="AWS 요금 콘솔 열기 (실제 청구액 확인)">💳 AWS 요금 확인 ↗</a>
+    <a href="https://console.aws.amazon.com/billing/home" target="_blank" rel="noopener" class="sb-cost-link" title="AWS 요금 콘솔 열기 (실제 청구액 확인)"><i class="ph-light ph-credit-card" aria-hidden="true"></i> AWS 요금 확인 ↗</a>
   </div>
   <style>
     .sb-cost{ margin:8px 12px 14px; padding:9px 11px; border:1px solid #d1fae5; background:#f0fdf4; border-radius:10px; }
@@ -118,16 +118,16 @@
 {# 드롭다운 (호버 ⋮ 클릭) #}
 <div class="sb3-dropdown" id="sb3-dropdown">
   <div id="sb3-dd-main">
-    <button data-act="emoji"><span class="di">😀</span> 이모지 변경…</button>
-    <button data-act="rename"><span class="di">✎</span> 이름 변경<span class="dk">F2</span></button>
-    <button data-act="color" data-stage-only="1"><span class="di">🎨</span> 색상 변경…</button>
+    <button data-act="emoji"><span class="di"><i class="ph-light ph-smiley" aria-hidden="true"></i></span> 이모지 변경…</button>
+    <button data-act="rename"><span class="di"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></span> 이름 변경<span class="dk">F2</span></button>
+    <button data-act="color" data-stage-only="1"><span class="di"><i class="ph-light ph-palette" aria-hidden="true"></i></span> 색상 변경…</button>
     <div class="ddiv"></div>
     <button data-act="up"><span class="di">↑</span> 위로 이동</button>
     <button data-act="down"><span class="di">↓</span> 아래로 이동</button>
     <div class="ddiv"></div>
-    <button data-act="dup"><span class="di">📋</span> 복제<span class="dk">⌘D</span></button>
+    <button data-act="dup"><span class="di"><i class="ph-light ph-clipboard" aria-hidden="true"></i></span> 복제<span class="dk">⌘D</span></button>
     <div class="ddiv"></div>
-    <button class="danger" data-act="delete"><span class="di">🗑</span> 삭제<span class="dk">Del</span></button>
+    <button class="danger" data-act="delete"><span class="di"><i class="ph-light ph-trash" aria-hidden="true"></i></span> 삭제<span class="dk">Del</span></button>
   </div>
   <div id="sb3-dd-color" class="color-sub" style="display:none">
     <h6>색상 선택</h6>
@@ -138,13 +138,13 @@
 
 {# 우클릭 컨텍스트 #}
 <div class="sb3-ctxmenu" id="sb3-ctxmenu">
-  <button data-act="emoji"><span class="di">😀</span> 이모지<span class="dk">E</span></button>
-  <button data-act="rename"><span class="di">✎</span> 이름<span class="dk">F2</span></button>
-  <button data-act="color" data-stage-only="1"><span class="di">🎨</span> 색상<span class="dk">C</span></button>
+  <button data-act="emoji"><span class="di"><i class="ph-light ph-smiley" aria-hidden="true"></i></span> 이모지<span class="dk">E</span></button>
+  <button data-act="rename"><span class="di"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></span> 이름<span class="dk">F2</span></button>
+  <button data-act="color" data-stage-only="1"><span class="di"><i class="ph-light ph-palette" aria-hidden="true"></i></span> 색상<span class="dk">C</span></button>
   <div class="cdiv"></div>
-  <button data-act="dup"><span class="di">📋</span> 복제<span class="dk">⌘D</span></button>
+  <button data-act="dup"><span class="di"><i class="ph-light ph-clipboard" aria-hidden="true"></i></span> 복제<span class="dk">⌘D</span></button>
   <div class="cdiv"></div>
-  <button class="danger" data-act="delete"><span class="di">🗑</span> 삭제<span class="dk">Del</span></button>
+  <button class="danger" data-act="delete"><span class="di"><i class="ph-light ph-trash" aria-hidden="true"></i></span> 삭제<span class="dk">Del</span></button>
 </div>
 
 {# 아이콘 풀모달 (이모지 + Phosphor 라인 아이콘 + 색상 선택) #}
@@ -153,17 +153,16 @@
     <div class="em-head">
       <h4>아이콘 선택</h4>
       <span class="esub" id="sb3-em-subtitle">항목의 아이콘을 변경합니다</span>
-      <button class="ec" id="sb3-em-close">Esc ✕</button>
+      <button class="ec" id="sb3-em-close">Esc <i class="ph-light ph-x" aria-hidden="true"></i></button>
     </div>
     <div class="em-tabs" id="sb3-em-tabs">
-      <button class="on" data-tab="icon">✎ 라인 아이콘</button>
-      <button data-tab="emoji">😀 이모지</button>
+      <button class="on" data-tab="icon"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 라인 아이콘</button>
     </div>
     <div class="em-search">
-      <input id="sb3-em-search" placeholder="🔍 검색 — 한글/영문/키워드 (예: 집·house·홈·home)">
+      <input id="sb3-em-search" placeholder="검색 — 한글/영문/키워드 (예: 집·house·홈·home)">
       <div class="em-style-toggle" id="sb3-em-style-wrap" style="display:none">
-        <button class="on" data-style="color">🌈 색상</button>
-        <button data-style="bw">⚫ 흑백</button>
+        <button class="on" data-style="color"><i class="ph-light ph-palette" aria-hidden="true"></i> 색상</button>
+        <button data-style="bw"><i class="ph-light ph-circle" aria-hidden="true"></i> 흑백</button>
       </div>
     </div>
     <div class="em-color-row" id="sb3-em-color-row">
@@ -186,10 +185,10 @@
 
 {# 토스트 (실행취소) #}
 <div class="sb3-toast" id="sb3-toast">
-  <span class="ti">✎</span>
+  <span class="ti"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></span>
   <span id="sb3-toast-msg">변경됨</span>
   <button class="tb" id="sb3-toast-undo">되돌리기 (⌘Z)</button>
-  <span class="tx" id="sb3-toast-close">✕</span>
+  <span class="tx" id="sb3-toast-close"><i class="ph-light ph-x" aria-hidden="true"></i></span>
 </div>
 
 <script src="{{ url_for('static', filename='sidebar_emoji_data.js') }}"></script>

@@ -4,7 +4,7 @@
 <div style="padding:24px 32px;max-width:1100px;margin:0 auto">
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-    <h1 style="font-size:20px;font-weight:700">🔍 PO #{{ po.id }} 입고 검사</h1>
+    <h1 style="font-size:20px;font-weight:700"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> PO #{{ po.id }} 입고 검사</h1>
     <span style="font-size:12px;color:#6B7684">{{ po.partner_label or '—' }} · {{ po.created_at.strftime('%Y-%m-%d %H:%M') if po.created_at else '—' }}</span>
     <span style="margin-left:auto;font-size:10.5px;padding:3px 9px;border-radius:3px;background:#DBEAFE;color:#1E40AF;font-weight:600">{{ po.status }}</span>
   </div>
@@ -67,13 +67,13 @@
 
     <div style="display:flex;gap:8px;margin-top:18px">
       <a href="{{ url_for('inventory.inspection_list') }}" style="padding:9px 18px;border:1px solid #D1D6DB;border-radius:5px;text-decoration:none;color:#4E5968;font-size:14px">취소</a>
-      <button type="submit" style="background:#3182F6;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">🔍 검사 처리</button>
+      <button type="submit" style="background:#3182F6;color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 검사 처리</button>
     </div>
   </form>
 
   <div style="margin-top:14px;font-size:12px;color:#9CA3AF;line-height:1.7">
-    ★ 라인별 실제 입고 수량 입력. 0 = 미입고 (Tx 생성 ❌). 차이 발생 시 메모에 자동 기록.<br>
-    ★ 모두 예상=실제 → status='completed' / 일부만 입고 → 'partial' (재검사 가능).
+    <i class="ph-light ph-star" aria-hidden="true"></i> 라인별 실제 입고 수량 입력. 0 = 미입고 (Tx 생성 <i class="ph-light ph-x-circle" aria-hidden="true"></i>). 차이 발생 시 메모에 자동 기록.<br>
+    <i class="ph-light ph-star" aria-hidden="true"></i> 모두 예상=실제 → status='completed' / 일부만 입고 → 'partial' (재검사 가능).
   </div>
 </div>
 

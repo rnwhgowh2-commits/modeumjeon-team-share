@@ -714,8 +714,9 @@ function openEmojiModal(host){
     emCurrent = t.icon;
     emCurrentColor = t.icon_color || (host.dataset.type === 'stage' ? (data.stages.find(s=>s.id===host.dataset.id).color || '#191F28') : '#191F28');
   } else {
-    emCurrentMode = 'emoji';
-    emCurrent = t.emoji || null;
+    // 2026-08-19 — 이모지 탭을 없애서, 예전에 그림문자로 저장한 항목도 선 아이콘 모드로 연다.
+    emCurrentMode = 'icon';
+    emCurrent = t.icon || null;
     emCurrentColor = '#191F28';
   }
   // 모달 UI 갱신

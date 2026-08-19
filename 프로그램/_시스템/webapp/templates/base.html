@@ -9,6 +9,10 @@
 {# 사이드바 v3 — Phosphor light 라인 아이콘 (1,248개, 사용자 선택 시 색상 자유 변경) #}
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}?v={{ STATIC_VER }}">
+{# 디자인 기준 한 벌 — 2026-08-19 확정 18가지의 단일 진실 원천. toss.css 다음에 와야 덮어쓴다.
+   ?v= 를 손으로 붙이지 않는다 — STATIC_VER 는 toss.css 시각이라 ds.css 를 고쳐도 안 바뀐다.
+   app.py 의 _static_auto_version 훅이 파일별 수정시각을 자동으로 붙인다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='ds.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss_add_benefit.css') }}"><!-- v6 D2-A 혜택추가폼 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='stripe.css') }}">
 {# v32 — 아이콘 picker (노션 스타일). v34.10: site-logo (매트릭스 thead 마켓 헤더) selector 추가. #}
@@ -64,7 +68,7 @@
 {% if active_app == 'inventory' %}
 <div id="bell-wrap" style="position:fixed;top:16px;right:130px;z-index:500">
   <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,#E5E8EB);border-radius:999px;cursor:pointer;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
-    🔔
+    <i class="ph-light ph-bell" aria-hidden="true"></i>
     <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:#C53030;color:#fff;border-radius:999px;font-size: 12px;font-weight:700;line-height:16px;text-align:center">0</span>
   </button>
   <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,#E5E8EB);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);overflow:hidden">
@@ -108,22 +112,22 @@
 {# 테마 토글 (우상단 floating) #}
 <div id="theme-toggle-wrap" style="position:fixed;top:16px;right:20px;z-index:500">
   <button id="theme-toggle-btn" type="button" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#fff;border:1.5px solid var(--n200);border-radius:999px;cursor:pointer;font-family:inherit;font-size: 14px;font-weight:700;color:var(--n800);box-shadow:0 2px 8px rgba(0,0,0,0.06)">
-    <span id="theme-toggle-emoji">🎨</span>
+    <span id="theme-toggle-emoji"><i class="ph-light ph-palette" aria-hidden="true"></i></span>
     <span id="theme-toggle-name">토스</span>
     <span style="color:var(--n400);font-size: 12px">▾</span>
   </button>
   <div id="theme-toggle-menu" style="display:none;position:absolute;top:38px;right:0;background:#fff;border:1.5px solid var(--n200);border-radius:10px;padding:6px;min-width:200px;box-shadow:0 8px 20px rgba(0,0,0,0.12)">
     <button class="theme-opt" data-theme="toss" type="button" style="width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;display:flex;align-items:center;gap:8px">
-      <span style="font-size:16px">🎨</span>
+      <span style="font-size:16px"><i class="ph-light ph-palette" aria-hidden="true"></i></span>
       <div style="flex:1"><div style="color:var(--n900)">토스 (현재)</div><div style="font-size: 12px;color:var(--n500);font-weight:500;margin-top:1px">파랑 + 미니멀 + 카드</div></div>
-      <span class="theme-check" data-for="toss" style="color:var(--primary);display:none">✓</span>
+      <span class="theme-check" data-for="toss" style="color:var(--primary);display:none"><i class="ph-light ph-check" aria-hidden="true"></i></span>
     </button>
     {# Stripe 테마 옵션은 Toss-Plus 단일 결정으로 숨김 (v6 — 2026-05-07).
        완전 제거 전 1주 보관. localStorage 'theme'=stripe 인 사용자 보호. #}
     <button class="theme-opt" data-theme="stripe" type="button" style="display:none;width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;align-items:center;gap:8px;margin-top:2px">
-      <span style="font-size:16px">💜</span>
+      <span style="font-size:16px"><i class="ph-light ph-heart" aria-hidden="true"></i></span>
       <div style="flex:1"><div style="color:#0A2540">Stripe Modern</div><div style="font-size: 12px;color:#425466;font-weight:500;margin-top:1px">보라 + 그라데이션 + Inter</div></div>
-      <span class="theme-check" data-for="stripe" style="color:#635BFF;display:none">✓</span>
+      <span class="theme-check" data-for="stripe" style="color:#635BFF;display:none"><i class="ph-light ph-check" aria-hidden="true"></i></span>
     </button>
   </div>
 </div>

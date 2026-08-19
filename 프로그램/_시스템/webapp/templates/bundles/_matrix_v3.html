@@ -55,12 +55,12 @@
       <span id="cluster-name" style="font-size:13px;color:#1e3a8a;font-weight:600"></span>
       <button type="button" id="cluster-dissolve-btn"
               style="margin-left:auto;background:#fff;border:1px solid #f87171;color:#dc2626;padding:5px 12px;border-radius:6px;font-size: 14px;font-weight:700;cursor:pointer">
-        🔓 그룹 해체
+        <i class="ph-light ph-lock-open" aria-hidden="true"></i> 그룹 해체
       </button>
     </div>
     <div id="cluster-models-list" style="display:flex;flex-direction:column;gap:6px"></div>
     <div style="margin-top:8px;font-size: 14px;color:#64748b;line-height:1.5">
-      💡 이 모음전은 <strong>여러 모델</strong>이 묶인 클러스터입니다. 위 [분리] 버튼으로 모델 1개씩, 또는 [그룹 해체]로 전체를 단독 모음전으로 복원할 수 있어요. 가격·재고·소싱처 데이터는 보존됩니다.
+      <i class="ph-light ph-lightbulb" aria-hidden="true"></i> 이 모음전은 <strong>여러 모델</strong>이 묶인 클러스터입니다. 위 [분리] 버튼으로 모델 1개씩, 또는 [그룹 해체]로 전체를 단독 모음전으로 복원할 수 있어요. 가격·재고·소싱처 데이터는 보존됩니다.
     </div>
   </div>
 
@@ -596,22 +596,22 @@
 
   {# 다중 선택 시 sticky 일괄 툴바 (4-모드 dropdown 포함) #}
   <div class="bulk-bar" id="price-bulk-bar" style="display:none">
-    <strong id="price-bulk-count">✓ N개 선택</strong>
+    <strong id="price-bulk-count"><i class="ph-light ph-check" aria-hidden="true"></i> N개 선택</strong>
     <span class="divider"></span>
     <button class="btn btn-sm" data-bulk="auto-on">자동 ON</button>
     <button class="btn btn-sm" data-bulk="auto-off">자동 OFF</button>
     <button class="btn btn-sm" data-bulk="margin">마진/수수료</button>
-    <button class="btn btn-sm" data-bulk="manual">💰 수기 가격</button>
+    <button class="btn btn-sm" data-bulk="manual"><i class="ph-light ph-coins" aria-hidden="true"></i> 수기 가격</button>
     <button class="btn btn-sm" data-bulk="stock">재고</button>
     {# 4-모드 URL dropdown #}
     <div style="position:relative;display:inline-block" id="url-bulk-wrap">
-      <button class="btn btn-sm" id="url-bulk-btn">📎 URL ▾</button>
+      <button class="btn btn-sm" id="url-bulk-btn"><i class="ph-light ph-paperclip" aria-hidden="true"></i> URL ▾</button>
       <div id="url-bulk-menu" style="display:none;position:absolute;top:30px;left:0;background:#fff;border:1.5px solid var(--n200);border-radius:8px;padding:6px;min-width:200px;box-shadow:0 8px 16px rgba(0,0,0,0.1);z-index:20">
         <div style="padding:6px 10px;font-size: 12px;color:var(--n500);font-weight:700">URL 4-모드</div>
         <button class="btn btn-sm" data-bulk="url-replace" style="width:100%;justify-content:flex-start;border:none;margin:2px 0">전체 교체</button>
-        <button class="btn btn-sm" data-bulk="url-add" style="width:100%;justify-content:flex-start;border:none;margin:2px 0">➕ 추가</button>
-        <button class="btn btn-sm" data-bulk="url-delete" style="width:100%;justify-content:flex-start;border:none;margin:2px 0">🗑 삭제</button>
-        <button class="btn btn-sm" data-bulk="url-update" style="width:100%;justify-content:flex-start;border:none;margin:2px 0">✎ 수정 (find→replace)</button>
+        <button class="btn btn-sm" data-bulk="url-add" style="width:100%;justify-content:flex-start;border:none;margin:2px 0"><i class="ph-light ph-plus" aria-hidden="true"></i> 추가</button>
+        <button class="btn btn-sm" data-bulk="url-delete" style="width:100%;justify-content:flex-start;border:none;margin:2px 0"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
+        <button class="btn btn-sm" data-bulk="url-update" style="width:100%;justify-content:flex-start;border:none;margin:2px 0"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 수정 (find→replace)</button>
       </div>
     </div>
     <button class="btn btn-sm btn-success" data-bulk="crawl">선택 크롤</button>
@@ -651,7 +651,7 @@
 
     {# [2026-05-24 B-2] 가격 템플릿 — 최상단 행 (사올때/팔때 기본값 묶음). 큰 탭 대신 인라인 #}
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-bottom:14px; border-bottom:1px dashed #e5e8eb;">
-      <span style="font-size:24px; flex-shrink:0;">📋</span>
+      <span style="font-size:24px; flex-shrink:0;"><i class="ph-light ph-clipboard" aria-hidden="true"></i></span>
       <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px;">가격 템플릿</span>
       {# [2026-05-25] 가격 템플릿 — 커스텀 드롭다운 (스크롤 영역 + 고정 footer "＋ 추가") #}
       <div id="bp-tpl-dropdown" data-code="{{ bundle.model_code }}"
@@ -683,11 +683,11 @@
         </div>
       </div>
       <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
-        {% if applied_price %}✓ 적용 중{% else %}<span style="color:#9ca3af;">미적용</span>{% endif %}
+        {% if applied_price %}<i class="ph-light ph-check" aria-hidden="true"></i> 적용 중{% else %}<span style="color:#9ca3af;">미적용</span>{% endif %}
       </span>
       <a href="/templates/" target="_blank" rel="noopener"
          style="margin-left:auto; font-size:14px; color:#4E5968; text-decoration:none; padding:8px 14px; border:1.5px solid #e5e8eb; border-radius:8px; font-weight:600; background:#fff;"
-         title="템플릿 관리 (새 탭)">⚙ 템플릿 관리</a>
+         title="템플릿 관리 (새 탭)"><i class="ph-light ph-gear" aria-hidden="true"></i> 템플릿 관리</a>
     </div>
     <script>
       // [2026-05-25] 가격 템플릿 커스텀 드롭다운 — open/close/select/save + ＋ footer
@@ -766,7 +766,7 @@
 
     {# 사올 때 (매입) — 매입가 상한 + 매트릭스 재계산. 정책은 가격 템플릿 모달에서 관리 (2026-05-25). #}
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
-      <span style="font-size:24px; flex-shrink:0;">📥</span>
+      <span style="font-size:24px; flex-shrink:0;"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span>
       <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px;">사올 때 (매입)</span>
       <div class="bp-chip" data-bp-chip="ceiling">
         <span class="bp-k">상한</span> ≤ <b class="bp-v" id="bp-ceiling-v">108,984원</b> <span class="bp-ar">▼</span>
@@ -1091,7 +1091,7 @@
      중복이던 'sm-crawl-all'(전체 크롤 N셀) 제거 → 전체 크롤은 상단 초록 CTA 1개만. #}
   <div class="sm-action-bar">
     <button type="button" class="sm-btn sm-btn-success" id="sm-crawl-sel" disabled>선택 크롤 (<span id="sm-crawl-sel-count">0</span>)</button>
-    <button type="button" class="sm-btn sm-btn-ghost" id="sm-sel-toggle">☐ 전체 선택</button>
+    <button type="button" class="sm-btn sm-btn-ghost" id="sm-sel-toggle"><i class="ph-light ph-square" aria-hidden="true"></i> 전체 선택</button>
     <button type="button" class="sm-btn sm-btn-ghost" id="sm-sel-clear">해제</button>
     <span class="sm-sel-hint" id="sm-sel-hint">옵션 row 또는 트리 leaf 체크 → 선택 후 「선택 크롤」 / 해제</span>
   </div>
@@ -1099,7 +1099,7 @@
     <div class="lg"><div class="sw g"></div>완료</div>
     <div class="lg"><div class="sw b"></div>진행 중</div>
     <div class="lg"><div class="sw r"></div>실패</div>
-    <div class="lg"><div class="sw lo"></div>★ 최저가</div>
+    <div class="lg"><div class="sw lo"></div><i class="ph-light ph-star" aria-hidden="true"></i> 최저가</div>
     <div class="lg"><div class="sw sel"></div>선택됨</div>
   </div>
 
@@ -1380,9 +1380,9 @@
   </script>
 
   <div style="font-size: 14px;color:var(--n500);margin-top:8px;line-height:1.7">
-    💡 <strong>자동 토글</strong> = ON: 가격 템플릿 자동계산 / OFF: 수기 인라인 편집. <code>fx</code> 클릭 = 자동계산 산출과정 popover.<br>
-    💡 <strong>소싱처 카드</strong> 안 <code>🔄</code> = 단일 URL 크롤 / <code>✎</code> = URL 수정 / <code>🗑</code> = URL 삭제 / <code>+</code> = 같은 소싱처에 URL 추가 (다중).<br>
-    💡 <strong>4-모드 일괄</strong> = 다중선택 → 위 [📎 URL ▾] 메뉴: 교체 / ➕추가 / 🗑삭제 / ✎수정 — 모든 선택 옵션에 동시 적용.
+    <i class="ph-light ph-lightbulb" aria-hidden="true"></i> <strong>자동 토글</strong> = ON: 가격 템플릿 자동계산 / OFF: 수기 인라인 편집. <code>fx</code> 클릭 = 자동계산 산출과정 popover.<br>
+    <i class="ph-light ph-lightbulb" aria-hidden="true"></i> <strong>소싱처 카드</strong> 안 <code><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i></code> = 단일 URL 크롤 / <code><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></code> = URL 수정 / <code><i class="ph-light ph-trash" aria-hidden="true"></i></code> = URL 삭제 / <code>+</code> = 같은 소싱처에 URL 추가 (다중).<br>
+    <i class="ph-light ph-lightbulb" aria-hidden="true"></i> <strong>4-모드 일괄</strong> = 다중선택 → 위 [<i class="ph-light ph-paperclip" aria-hidden="true"></i> URL ▾] 메뉴: 교체 / <i class="ph-light ph-plus" aria-hidden="true"></i>추가 / <i class="ph-light ph-trash" aria-hidden="true"></i>삭제 / <i class="ph-light ph-pencil-simple" aria-hidden="true"></i>수정 — 모든 선택 옵션에 동시 적용.
   </div>
 </div>
 
@@ -1392,7 +1392,7 @@
     <div class="iad-head">
       <h5>재고관리에 제품 추가 — <span id="iad-head-sku" style="color:#191F28;font-family:ui-monospace,monospace">SKU</span></h5>
       <span class="iad-save-badge" id="iad-save-badge"><span class="iad-dot"></span><span id="iad-save-txt">대기 중</span></span>
-      <button class="iad-close" id="iad-close" type="button">✕</button>
+      <button class="iad-close" id="iad-close" type="button"><i class="ph-light ph-x" aria-hidden="true"></i></button>
     </div>
     <div class="iad-body">
       {# 자동 매핑 — 풀폭 (4 필드 2-col 안에서 grid) #}
@@ -1424,7 +1424,7 @@
           <div class="iad-row"><span class="iad-lab">분류</span><span class="iad-val"><input id="iad-sub-category" data-iad-field="sub_category" placeholder="예: 캐주얼 / 메이트"></span></div>
         </div>
         <div class="iad-grp">
-          <h6>💰 가격</h6>
+          <h6><i class="ph-light ph-coins" aria-hidden="true"></i> 가격</h6>
           <div class="iad-row"><span class="iad-lab">매입가</span><span class="iad-val"><input id="iad-purchase-price" data-iad-field="purchase_price" type="number" class="mono"><span class="iad-unit">원</span></span></div>
           <div class="iad-row"><span class="iad-lab">판매가</span><span class="iad-val"><input id="iad-sale-price" data-iad-field="sale_price" type="number" class="mono"><span class="iad-unit">원</span></span></div>
           <div class="iad-row"><span class="iad-lab"></span><span class="iad-val"><span class="iad-auto-check">매트릭스에서 자동 채움</span></span></div>
@@ -1436,20 +1436,20 @@
           <div class="iad-row"><span class="iad-lab">보관 위치</span><span class="iad-val"><select id="iad-location" data-iad-field="location_id"><option value="">— 선택 —</option></select></span></div>
         </div>
         <div class="iad-grp">
-          <h6>식별 + 🚚 공급</h6>
-          <div class="iad-row"><span class="iad-lab">바코드</span><span class="iad-val"><input id="iad-barcode" data-iad-field="barcode" placeholder="자동 또는 직접"><button type="button" id="iad-barcode-gen" class="iad-mini-btn">🔄</button></span></div>
+          <h6>식별 + <i class="ph-light ph-truck" aria-hidden="true"></i> 공급</h6>
+          <div class="iad-row"><span class="iad-lab">바코드</span><span class="iad-val"><input id="iad-barcode" data-iad-field="barcode" placeholder="자동 또는 직접"><button type="button" id="iad-barcode-gen" class="iad-mini-btn"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i></button></span></div>
           <div class="iad-row"><span class="iad-lab">매입처</span><span class="iad-val"><input id="iad-supplier" data-iad-field="supplier" placeholder="㈜르무통"></span></div>
           <div class="iad-row"><span class="iad-lab">매입 일자</span><span class="iad-val"><input id="iad-purchase-date" data-iad-field="purchase_date" type="date"></span></div>
         </div>
       </div>
       {# 메모 — 풀폭 #}
       <div class="iad-grp">
-        <h6>📝 메모</h6>
+        <h6><i class="ph-light ph-note-pencil" aria-hidden="true"></i> 메모</h6>
         <div class="iad-row full"><span class="iad-lab">메모</span><span class="iad-val"><textarea id="iad-memo" data-iad-field="memo" placeholder="자유 메모..."></textarea></span></div>
       </div>
     </div>
     <div class="iad-foot">
-      <span class="iad-hint">💡 입력 시 500ms 후 자동 저장 (draft 보존)</span>
+      <span class="iad-hint"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 입력 시 500ms 후 자동 저장 (draft 보존)</span>
       <button class="iad-btn iad-btn-ghost" id="iad-cancel" type="button">취소 (draft 유지)</button>
       <button class="iad-btn iad-btn-primary" id="iad-complete" type="button">재고관리에 추가 ▶</button>
     </div>
@@ -1460,13 +1460,13 @@
 <div class="stock-memo-overlay" id="stock-memo-overlay" hidden>
   <div class="stock-memo-drawer" id="stock-memo-drawer" role="dialog" aria-modal="true">
     <div class="smd-head">
-      <h5>📝 재고 조정 메모</h5>
-      <button class="smd-close" id="smd-close" type="button">✕</button>
+      <h5><i class="ph-light ph-note-pencil" aria-hidden="true"></i> 재고 조정 메모</h5>
+      <button class="smd-close" id="smd-close" type="button"><i class="ph-light ph-x" aria-hidden="true"></i></button>
     </div>
     <div class="smd-body">
       <div class="smd-sub" id="smd-sub">옵션 정보</div>
       <div class="smd-stack">
-        <div class="smd-row"><span>📅 일자</span><b id="smd-date">2026-05-11</b></div>
+        <div class="smd-row"><span><i class="ph-light ph-calendar" aria-hidden="true"></i> 일자</span><b id="smd-date">2026-05-11</b></div>
         <div class="smd-row"><span>변경 전</span><b id="smd-prev">10개</b></div>
         <div class="smd-row"><span>변경 후</span><b id="smd-after" style="color:#92400E">8개</b></div>
         <div class="smd-row diff"><span>차이</span><b id="smd-diff">−2개</b></div>
@@ -1496,7 +1496,7 @@
         <h3 id="j1-title">제목</h3>
         <div class="target" id="j1-target"></div>
       </div>
-      <button class="j1-close" id="j1-close" type="button">✕</button>
+      <button class="j1-close" id="j1-close" type="button"><i class="ph-light ph-x" aria-hidden="true"></i></button>
     </div>
     <div class="j1-body" id="j1-body"></div>
     <div class="j1-foot">
@@ -5006,7 +5006,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       ? '<span class="opt-size-chip free">FREE</span>'
       : '<span class="opt-size-chip">' + escapeHtml(size) + '</span>';
     // [2026-06-03] 옵션명 가운데 + 2줄(색 / 사이즈·⚙). ⚙ 상세설정 버튼을 2번째 줄에 함께 배치.
-    const gear = '<button type="button" class="opt-detail-btn" data-act="opt-detail" data-sku="' + escapeHtml(o.sku) + '" title="⚙ 상세설정">⚙</button>';
+    const gear = '<button type="button" class="opt-detail-btn" data-act="opt-detail" data-sku="' + escapeHtml(o.sku) + '" title="상세설정">⚙</button>';
     return '<strong class="opt-color">' + name + '</strong><span class="opt-row2">' + chip + gear + '</span>';
   }
 
@@ -5022,7 +5022,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     return `<div class="ipl-wrap"><div class="ipl-cell">
       <div class="ipl-isearch-box">
         <input type="text" class="ipl-isearch" data-ipl-search="${escapeHtml(o.sku)}"
-               placeholder="🔍 브랜드·모델·색상·사이즈·SKU·바코드" autocomplete="off">
+               placeholder="브랜드·모델·색상·사이즈·SKU·바코드" autocomplete="off">
       </div>
       <button type="button" class="ipl-browse" data-act="ipl-browse" data-sku="${escapeHtml(o.sku)}">🔍 찾아보기</button>
     </div></div>`;

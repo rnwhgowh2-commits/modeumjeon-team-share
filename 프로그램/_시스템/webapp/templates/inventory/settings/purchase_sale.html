@@ -19,7 +19,7 @@
   {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}#FEF2F2{% else %}#ECFDF5{% endif %};border:1px solid {% if cat=='error' %}#FCA5A5{% else %}#86EFAC{% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}#991B1B{% else %}#065F46{% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
   <form method="post" action="{{ url_for('inventory.settings_purchase_sale_save') }}" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:24px;margin-bottom:14px">
-    <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:0 0 14px">🔢 자동 번호 생성</h3>
+    <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:0 0 14px"><i class="ph-light ph-list-numbers" aria-hidden="true"></i> 자동 번호 생성</h3>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       {% for code, label, default in [('po','발주서 (PO)','PO'),('so','판매서 (SO)','SO'),('ro','반품서 (RO)','RO')] %}
         <div>
@@ -34,7 +34,7 @@
       {% endfor %}
     </div>
 
-    <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:24px 0 14px">💰 세금 기본값</h3>
+    <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:24px 0 14px"><i class="ph-light ph-coins" aria-hidden="true"></i> 세금 기본값</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
       <div>
         <label style="display:block;font-size:14px;color:#292A2F;margin-bottom:5px;font-weight:600">기본 세금 정책</label>
@@ -52,7 +52,7 @@
       </div>
     </div>
 
-    <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:24px 0 14px">🛠 커스텀 필드</h3>
+    <h3 style="font-size:14px;font-weight:600;color:#292A2F;margin:24px 0 14px"><i class="ph-light ph-wrench" aria-hidden="true"></i> 커스텀 필드</h3>
     <div style="display:grid;gap:6px;margin-bottom:10px">
       {% for fld in pref.get('custom_fields', []) %}
         <div style="display:grid;grid-template-columns:1fr 1fr 100px auto;gap:6px;align-items:center">
@@ -75,7 +75,7 @@
     </div>
   </form>
 
-  <div style="margin-top:14px;font-size:12px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 — 자동번호 prefix·시작값, 세금 기본값, 커스텀 필드 정의. 발주·판매·반품서 새로 만들 때 자동 적용.</div>
+  <div style="margin-top:14px;font-size:12px;color:#8F91A0;line-height:1.7"><i class="ph-light ph-star" aria-hidden="true"></i> 박스히어로 1:1 — 자동번호 prefix·시작값, 세금 기본값, 커스텀 필드 정의. 발주·판매·반품서 새로 만들 때 자동 적용.</div>
 </div>
 <script>
 function addCf(){

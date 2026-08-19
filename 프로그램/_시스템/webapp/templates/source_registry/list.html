@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
 {% from 'partials/brand_macros.html' import brand_icon %}
-{% block title %}⚙ 소싱처 사전 — 모음전 자동화{% endblock %}
+{% block title %}<i class="ph-light ph-gear" aria-hidden="true"></i> 소싱처 사전 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active">
-  <h1>⚙ 소싱처 사전 관리</h1>
+  <h1><i class="ph-light ph-gear" aria-hidden="true"></i> 소싱처 사전 관리</h1>
   <p class="greeting">옵션 매트릭스에서 사용할 소싱처를 자유롭게 등록·정렬. 메인 URL 1개만 입력. 옵션별 상세 URL 은 모음전 편집에서.</p>
 
   {# B 식 패널 헤더 (앱 형태) #}
@@ -38,8 +38,8 @@
           {% if it.main_url %}
           <a href="{{ it.main_url }}" target="_blank" rel="noopener" title="메인 URL 열기" class="btn btn-sm" style="padding:6px 8px">↗</a>
           {% endif %}
-          <button class="btn btn-sm" data-action="rename" data-id="{{ it.id }}" data-name="{{ it.name }}" title="이름 변경">✎</button>
-          <button class="btn btn-sm" data-action="delete" data-id="{{ it.id }}" data-name="{{ it.name }}" data-usage="{{ it.usage_count }}" style="color:var(--color-danger,#dc2626)" title="삭제">🗑</button>
+          <button class="btn btn-sm" data-action="rename" data-id="{{ it.id }}" data-name="{{ it.name }}" title="이름 변경"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></button>
+          <button class="btn btn-sm" data-action="delete" data-id="{{ it.id }}" data-name="{{ it.name }}" data-usage="{{ it.usage_count }}" style="color:var(--color-danger,#dc2626)" title="삭제"><i class="ph-light ph-trash" aria-hidden="true"></i></button>
         </div>
       </div>
       {% else %}
@@ -63,7 +63,7 @@
       <input id="new-url" class="field-input mono" placeholder="https://..." style="flex:1;min-width:280px">
       <button class="btn btn-primary" id="add-src">+ 추가</button>
     </div>
-    <div style="margin-top:10px;font-size: 14px;color:var(--n500)">💡 인식 가능 브랜드: 스마트스토어·쿠팡·11번가·G마켓·옥션·Cafe24·무신사·르무통·SSF·SSG·롯데·인터파크·29CM·W컨셉</div>
+    <div style="margin-top:10px;font-size: 14px;color:var(--n500)"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 인식 가능 브랜드: 스마트스토어·쿠팡·11번가·G마켓·옥션·Cafe24·무신사·르무통·SSF·SSG·롯데·인터파크·29CM·W컨셉</div>
   </div>
 </section>
 

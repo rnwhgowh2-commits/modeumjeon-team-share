@@ -10,7 +10,7 @@
   <div class="bundle-section">
     <div class="bundle-section-head">
       <span class="bundle-section-num done">1</span>
-      <h2>📍 사이트별 옵션 ID</h2>
+      <h2><i class="ph-light ph-map-pin" aria-hidden="true"></i> 사이트별 옵션 ID</h2>
     </div>
     {# v34.9 — 라벨 옆에 brand-app-logo 박스 (brand 색 동기화 받음) #}
     {% set _site_glyphs = {'lemouton':'르','musinsa':'M','ssf':'SS','lotteon':'롯','ss_lemouton':'N'} %}
@@ -78,7 +78,7 @@
     <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
       <table class="opt-table">
         <thead>
-          <tr><th>마켓</th><th>계정</th><th>옵션 ID</th><th>노출</th></tr>
+          <tr><th>마켓</th><th>계정</th><th>옵션 ID</th><th class="center">노출</th></tr>
         </thead>
         <tbody>
           {% for ar in account_rows %}
@@ -102,7 +102,7 @@
 
   {# 저장 #}
   <div style="position:sticky;bottom:0;background:var(--bg);padding:14px 0">
-    <button class="btn btn-large btn-primary" id="save-option-detail">💾 저장</button>
+    <button class="btn btn-large btn-primary" id="save-option-detail"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 저장</button>
     <a class="btn btn-large" href="/bundles/{{ bundle.model_code }}">취소</a>
   </div>
 </section>

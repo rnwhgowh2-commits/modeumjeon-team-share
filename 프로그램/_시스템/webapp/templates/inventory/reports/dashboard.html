@@ -29,11 +29,11 @@
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
     {% for href, title, desc, color in [
       (url_for('inventory.reports_inventory'), '재고 현황 분석', '모델·색상·사이즈별 집계', '#3182F6'),
-      (url_for('inventory.reports_sales'), '💰 매출 분석', 'COGS snapshot 기반 마진', '#10B981'),
-      (url_for('inventory.reports_past_quantity'), '📈 과거 수량 추적', '옵션별 시계열', '#7C3AED'),
+      (url_for('inventory.reports_sales'), '<i class="ph-light ph-coins" aria-hidden="true"></i> 매출 분석', 'COGS snapshot 기반 마진', '#10B981'),
+      (url_for('inventory.reports_past_quantity'), '<i class="ph-light ph-trend-up" aria-hidden="true"></i> 과거 수량 추적', '옵션별 시계열', '#7C3AED'),
       (url_for('inventory.reports_summary'), '요약 보고서', 'KPI 통합', '#F59E0B'),
-      (url_for('inventory.reports_custom'), '🛠 커스텀 보고서', '옵션 선택형', '#6B7280'),
-      (url_for('inventory.matrix_view'), '옵션 매트릭스', 'R2 ★★★ 사입 마진 3계층', '#DC2626'),
+      (url_for('inventory.reports_custom'), '<i class="ph-light ph-wrench" aria-hidden="true"></i> 커스텀 보고서', '옵션 선택형', '#6B7280'),
+      (url_for('inventory.matrix_view'), '옵션 매트릭스', 'R2 <i class="ph-light ph-star" aria-hidden="true"></i><i class="ph-light ph-star" aria-hidden="true"></i><i class="ph-light ph-star" aria-hidden="true"></i> 사입 마진 3계층', '#DC2626'),
     ] %}
       <a href="{{ href }}" style="display:block;background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;text-decoration:none;color:#191F28;border-left:4px solid {{ color }}">
         <div style="font-size:14px;font-weight:600;margin-bottom:4px">{{ title }}</div>

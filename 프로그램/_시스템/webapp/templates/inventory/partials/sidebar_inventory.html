@@ -13,26 +13,26 @@
     </a>
   </div>
 
-  <a href="/inventory/" class="nav-item {% if active == 'items' %}active{% endif %}">📋 제품목록</a>
+  <a href="/inventory/" class="nav-item {% if active == 'items' %}active{% endif %}"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 제품목록</a>
 
   <div class="nav-group-title">거래</div>
-  <a href="/inventory/inbound" class="nav-item {% if active == 'inbound' %}active{% endif %}">📥 입고</a>
-  <a href="/inventory/outbound" class="nav-item {% if active == 'outbound' %}active{% endif %}">📤 출고</a>
-  <a href="/inventory/adjust" class="nav-item {% if active == 'adjust' %}active{% endif %}">⚖ 조정</a>
-  <a href="/inventory/move" class="nav-item {% if active == 'move' %}active{% endif %}">🔄 이동</a>
-  <a href="/inventory/history" class="nav-item {% if active == 'history' %}active{% endif %}">📜 히스토리</a>
-  <a href="/inventory/pending" class="nav-item {% if active == 'pending' %}active{% endif %}">📝 임시 저장</a>
+  <a href="/inventory/inbound" class="nav-item {% if active == 'inbound' %}active{% endif %}"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 입고</a>
+  <a href="/inventory/outbound" class="nav-item {% if active == 'outbound' %}active{% endif %}"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 출고</a>
+  <a href="/inventory/adjust" class="nav-item {% if active == 'adjust' %}active{% endif %}"><i class="ph-light ph-scales" aria-hidden="true"></i> 조정</a>
+  <a href="/inventory/move" class="nav-item {% if active == 'move' %}active{% endif %}"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i> 이동</a>
+  <a href="/inventory/history" class="nav-item {% if active == 'history' %}active{% endif %}"><i class="ph-light ph-scroll" aria-hidden="true"></i> 히스토리</a>
+  <a href="/inventory/pending" class="nav-item {% if active == 'pending' %}active{% endif %}"><i class="ph-light ph-note-pencil" aria-hidden="true"></i> 임시 저장</a>
 
-  <div class="nav-group-title">★ 모음전 차별점</div>
-  <a href="/inventory/matrix" class="nav-item {% if active == 'matrix' %}active{% endif %}">📊 옵션 매트릭스 <span class="nav-badge">R2</span></a>
-  <a href="/inventory/sku-mapping" class="nav-item {% if active == 'sku-mapping' %}active{% endif %}">🔗 SKU 매핑</a>
-  <a href="/inventory/inspection" class="nav-item {% if active == 'inspection' %}active{% endif %}">✓ 입고 검사</a>
+  <div class="nav-group-title"><i class="ph-light ph-star" aria-hidden="true"></i> 모음전 차별점</div>
+  <a href="/inventory/matrix" class="nav-item {% if active == 'matrix' %}active{% endif %}"><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 옵션 매트릭스 <span class="nav-badge">R2</span></a>
+  <a href="/inventory/sku-mapping" class="nav-item {% if active == 'sku-mapping' %}active{% endif %}"><i class="ph-light ph-link" aria-hidden="true"></i> SKU 매핑</a>
+  <a href="/inventory/inspection" class="nav-item {% if active == 'inspection' %}active{% endif %}"><i class="ph-light ph-check" aria-hidden="true"></i> 입고 검사</a>
 
   {# ▾ accordion 그룹 — 박스히어로 1:1 #}
   {% set ps_active = active in ['purchase','sale','return'] %}
   <div class="nav-group" data-group="ps" data-open="{{ '1' if ps_active else '0' }}">
     <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
-      <span>💵 구매 및 판매</span><span class="nav-chevron">▾</span>
+      <span><i class="ph-light ph-money" aria-hidden="true"></i> 구매 및 판매</span><span class="nav-chevron">▾</span>
     </button>
     <div class="nav-group-body" style="display:{% if ps_active %}block{% else %}none{% endif %}">
       <a href="/inventory/purchase" class="nav-sub {% if active == 'purchase' %}active{% endif %}">구매</a>
@@ -55,7 +55,7 @@
   {% set ex_active = active in ['alerts','share','count'] %}
   <div class="nav-group" data-group="ex" data-open="{{ '1' if ex_active else '0' }}">
     <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
-      <span>➕ 추가기능</span><span class="nav-chevron">▾</span>
+      <span><i class="ph-light ph-plus" aria-hidden="true"></i> 추가기능</span><span class="nav-chevron">▾</span>
     </button>
     <div class="nav-group-body" style="display:{% if ex_active %}block{% else %}none{% endif %}">
       <a href="/inventory/alerts" class="nav-sub {% if active == 'alerts' %}active{% endif %}">재고 부족 알림</a>
@@ -67,7 +67,7 @@
   {% set rep_active = active in ['dashboard','reports'] %}
   <div class="nav-group" data-group="rep" data-open="{{ '1' if rep_active else '0' }}">
     <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
-      <span>📊 분석</span><span class="nav-chevron">▾</span>
+      <span><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 분석</span><span class="nav-chevron">▾</span>
     </button>
     <div class="nav-group-body" style="display:{% if rep_active %}block{% else %}none{% endif %}">
       <a href="/inventory/reports/summary" class="nav-sub {% if active == 'reports' and request.path.endswith('summary') %}active{% endif %}">입출고 요약</a>
@@ -82,7 +82,7 @@
   {% set d_active = active in ['data-items','data-bundles','data-locations','data-attrs','data-partners','data-pt','data-import'] %}
   <div class="nav-group" data-group="d" data-open="{{ '1' if d_active else '0' }}">
     <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
-      <span>💾 데이터 관리</span><span class="nav-chevron">▾</span>
+      <span><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 데이터 관리</span><span class="nav-chevron">▾</span>
     </button>
     <div class="nav-group-body" style="display:{% if d_active %}block{% else %}none{% endif %}">
       <a href="/inventory/data/items" class="nav-sub {% if active == 'data-items' %}active{% endif %}">제품</a>
@@ -91,8 +91,8 @@
       <a href="/inventory/data/attributes" class="nav-sub {% if active == 'data-attrs' %}active{% endif %}">속성</a>
       <a href="/inventory/data/partners" class="nav-sub {% if active == 'data-partners' %}active{% endif %}">거래처</a>
       <a href="/inventory/data/price-templates" class="nav-sub {% if active == 'data-pt' %}active{% endif %}">가격 템플릿</a>
-      <a href="/mapping/" class="nav-sub {% if active == 'mapping' %}active{% endif %}" title="모음전 상품 ↔ 재고관리 SKU">🔗 맵핑</a>
-      <a href="/mapping/match/playground" class="nav-sub" style="padding-left:48px;font-size:12px;color:#7A8290" title="자동 매칭 흐름 데모">🔍 자동 매칭 데모</a>
+      <a href="/mapping/" class="nav-sub {% if active == 'mapping' %}active{% endif %}" title="모음전 상품 ↔ 재고관리 SKU"><i class="ph-light ph-link" aria-hidden="true"></i> 맵핑</a>
+      <a href="/mapping/match/playground" class="nav-sub" style="padding-left:48px;font-size:12px;color:#7A8290" title="자동 매칭 흐름 데모"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 자동 매칭 데모</a>
       <a href="/inventory/data/boxhero-import" class="nav-sub {% if active == 'data-import' %}active{% endif %}">엑셀 업로드</a>
     </div>
   </div>
@@ -100,7 +100,7 @@
   {% set s_active = active == 'settings' %}
   <div class="nav-group" data-group="s" data-open="{{ '1' if s_active else '0' }}">
     <button type="button" class="nav-group-header" onclick="toggleGroup(this)">
-      <span>⚙ 설정</span><span class="nav-chevron">▾</span>
+      <span><i class="ph-light ph-gear" aria-hidden="true"></i> 설정</span><span class="nav-chevron">▾</span>
     </button>
     <div class="nav-group-body" style="display:{% if s_active %}block{% else %}none{% endif %}">
       <a href="/inventory/settings" class="nav-sub {% if active == 'settings' and request.path.endswith('settings') %}active{% endif %}">팀 설정</a>

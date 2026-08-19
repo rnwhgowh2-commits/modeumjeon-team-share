@@ -62,7 +62,7 @@
 <div class="h-shell">
   <div class="h-head">
     <h1>히스토리</h1>
-    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:#fff;border:1px solid #E5E8EB;color:#191F28;padding:7px 14px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">📁 엑셀 내보내기</a>
+    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:#fff;border:1px solid #E5E8EB;color:#191F28;padding:7px 14px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600"><i class="ph-light ph-folder" aria-hidden="true"></i> 엑셀 내보내기</a>
   </div>
 
   <form method="get" class="h-filterbar">
@@ -98,7 +98,7 @@
       <div class="tx-group {{ g.tx_type }}" data-tx-ids="{{ g.tx_ids|join(',') }}">
         <div class="tx-head">
           <div class="tx-ic">
-            {% if g.tx_type=='in' %}↓{% elif g.tx_type=='out' %}↑{% elif g.tx_type=='adjust' %}⚖{% else %}→{% endif %}
+            {% if g.tx_type=='in' %}↓{% elif g.tx_type=='out' %}↑{% elif g.tx_type=='adjust' %}<i class="ph-light ph-scales" aria-hidden="true"></i>{% else %}→{% endif %}
           </div>
           <div>
             <div class="title">
@@ -113,25 +113,25 @@
           <div class="more-menu">
             <button class="more-btn" onclick="toggleMore(this, event)">더 보기 ▾</button>
             <div class="more-dropdown">
-              <a href="/inventory/history/{{ g.tx_ids[0] }}/statement" target="_blank">📃 거래명세서</a>
-              <a href="/inventory/api/option/{{ first.sku }}/label" target="_blank">🏷 라벨 인쇄</a>
-              <a href="/inventory/history/export.xlsx?tx_ids={{ g.tx_ids|join(',') }}">📊 엑셀 내보내기</a>
+              <a href="/inventory/history/{{ g.tx_ids[0] }}/statement" target="_blank"><i class="ph-light ph-file-text" aria-hidden="true"></i> 거래명세서</a>
+              <a href="/inventory/api/option/{{ first.sku }}/label" target="_blank"><i class="ph-light ph-tag" aria-hidden="true"></i> 라벨 인쇄</a>
+              <a href="/inventory/history/export.xlsx?tx_ids={{ g.tx_ids|join(',') }}"><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 엑셀 내보내기</a>
               <hr>
-              <a onclick="window.print()">🖨 내역 인쇄</a>
-              <a onclick="window.print()">📄 PDF로 내보내기</a>
+              <a onclick="window.print()"><i class="ph-light ph-printer" aria-hidden="true"></i> 내역 인쇄</a>
+              <a onclick="window.print()"><i class="ph-light ph-file" aria-hidden="true"></i> PDF로 내보내기</a>
             </div>
           </div>
         </div>
 
         <div class="tx-meta">
           {% if g.tx_type == 'in' %}
-            <span><b>📍</b> <span class="loc-chip loc-to">To {{ g.location_name }}</span></span>
+            <span><b><i class="ph-light ph-map-pin" aria-hidden="true"></i></b> <span class="loc-chip loc-to">To {{ g.location_name }}</span></span>
           {% elif g.tx_type == 'out' %}
-            <span><b>📍</b> <span class="loc-chip loc-from">From {{ g.location_name }}</span></span>
+            <span><b><i class="ph-light ph-map-pin" aria-hidden="true"></i></b> <span class="loc-chip loc-from">From {{ g.location_name }}</span></span>
           {% elif g.tx_type == 'move' and g.location_to_name %}
-            <span><b>📍</b> <span class="loc-chip loc-from">From {{ g.location_name }}</span> → <span class="loc-chip loc-to">To {{ g.location_to_name }}</span></span>
+            <span><b><i class="ph-light ph-map-pin" aria-hidden="true"></i></b> <span class="loc-chip loc-from">From {{ g.location_name }}</span> → <span class="loc-chip loc-to">To {{ g.location_to_name }}</span></span>
           {% else %}
-            <span><b>📍</b> <span class="loc-chip loc-to">{{ g.location_name }}</span></span>
+            <span><b><i class="ph-light ph-map-pin" aria-hidden="true"></i></b> <span class="loc-chip loc-to">{{ g.location_name }}</span></span>
           {% endif %}
           {% if g.partner_label %}<span><b>거래처</b> {{ g.partner_label }}</span>{% endif %}
           {% if g.memo %}<span><b>메모</b> {{ g.memo[:80] }}{% if g.memo|length > 80 %}…{% endif %}</span>{% endif %}
@@ -141,12 +141,12 @@
           {% for it in g['items'] %}
             {% set isign = '+' if it.qty > 0 else '' %}
             <div class="item-row" data-tx-id="{{ it.tx_id }}">
-              <div class="img-ph">📦</div>
+              <div class="img-ph"><i class="ph-light ph-package" aria-hidden="true"></i></div>
               <div class="nm"><div class="sku">{{ it.sku }}</div></div>
               <div class="qty {% if it.qty > 0 %}pos{% elif it.qty < 0 %}neg{% endif %}">{{ isign }}{{ it.qty }}</div>
               <div class="row-acts">
-                <a href="/inventory/history/{{ it.tx_id }}/edit" title="수정">✎ 수정</a>
-                <button class="del" onclick="delItem({{ it.tx_id }}, this)" title="삭제">🗑 삭제</button>
+                <a href="/inventory/history/{{ it.tx_id }}/edit" title="수정"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 수정</a>
+                <button class="del" onclick="delItem({{ it.tx_id }}, this)" title="삭제"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
               </div>
             </div>
           {% endfor %}

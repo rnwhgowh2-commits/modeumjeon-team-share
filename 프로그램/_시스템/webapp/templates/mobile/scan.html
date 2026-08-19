@@ -135,7 +135,7 @@
   <video id="scan-video" autoplay playsinline muted onclick="tapFocus(event)"></video>
   <div class="scan-overlay">
     <div class="scan-line"></div>
-    <div class="scan-hint" id="scan-hint">📷 바코드를 비춰주세요 · 흐릿하면 화면 탭</div>
+    <div class="scan-hint" id="scan-hint"><i class="ph-light ph-camera" aria-hidden="true"></i> 바코드를 비춰주세요 · 흐릿하면 화면 탭</div>
   </div>
   {# 통계 — 카메라 안 우측 상단 #}
   <div class="scan-stats" id="scan-stats">
@@ -145,13 +145,13 @@
   </div>
   {# 컨트롤 — 카메라 안 하단 #}
   <div class="scan-ctrl">
-    <button id="btn-torch" title="플래시" onclick="toggleTorch()">🔦</button>
+    <button id="btn-torch" title="플래시" onclick="toggleTorch()"><i class="ph-light ph-flashlight" aria-hidden="true"></i></button>
     <div class="zoom" id="zoom-wrap" style="display:none">
-      <span>🔍</span>
+      <span><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
       <input type="range" id="zoom-range" min="1" max="3" step="0.1" value="1">
       <span id="zoom-val">1x</span>
     </div>
-    <button id="btn-cam" title="카메라 전환" onclick="switchCam()">🔄</button>
+    <button id="btn-cam" title="카메라 전환" onclick="switchCam()"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i></button>
   </div>
 </div>
 

@@ -291,7 +291,7 @@
         <a href="javascript:history.back()" class="m-back" title="뒤로">‹</a>
       {% endif %}
       {# 홈 — /mobile #}
-      <a href="/mobile" class="m-back" title="홈" style="font-size:18px;width:32px;height:32px">🏠</a>
+      <a href="/mobile" class="m-back" title="홈" style="font-size:18px;width:32px;height:32px"><i class="ph-light ph-house" aria-hidden="true"></i></a>
     </div>
     <h1>{% block header_title %}{{ self.title() }}{% endblock %}</h1>
     <span style="width: 80px;"></span>
@@ -307,7 +307,7 @@
 
   <!-- 설치 프롬프트 -->
   <div id="install-banner" class="m-install-banner">
-    <span style="font-size: 24px;">📱</span>
+    <span style="font-size: 24px;"><i class="ph-light ph-device-mobile" aria-hidden="true"></i></span>
     <div class="text">
       홈화면에 추가하면 앱처럼 빠르게 사용할 수 있어요
     </div>

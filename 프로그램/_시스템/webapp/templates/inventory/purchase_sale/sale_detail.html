@@ -4,7 +4,7 @@
 <div style="padding:24px 32px;max-width:1200px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
     <a href="{{ url_for('inventory.sale_list') }}" style="font-size:14px;color:#3182F6;text-decoration:none">← 판매 목록</a>
-    <h1 style="font-size:22px;font-weight:700;margin:0">💰 판매 #{{ so.id }}</h1>
+    <h1 style="font-size:22px;font-weight:700;margin:0"><i class="ph-light ph-coins" aria-hidden="true"></i> 판매 #{{ so.id }}</h1>
     <span style="margin-left:auto;font-size:12px;padding:3px 10px;border-radius:4px;background:#FEE2E2;color:#991B1B;font-weight:600">{{ so.status }}</span>
   </div>
   <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;margin-bottom:14px"><h2 style="font-size:14px;font-weight:600;margin:0 0 12px">판매 정보</h2><table style="width:100%;font-size:14px;line-height:1.9"><tr><td style="color:#6B7684;width:120px">판매 번호</td><td><strong>#{{ so.id }}</strong></td></tr><tr><td style="color:#6B7684">생성일</td><td>{{ so.created_at.strftime('%Y-%m-%d %H:%M:%S') if so.created_at else '—' }}</td></tr><tr><td style="color:#6B7684">고객</td><td><strong>{{ so.partner_label or '—' }}</strong></td></tr><tr><td style="color:#6B7684">작성자</td><td>{{ so.created_by or '운영자' }}</td></tr><tr><td style="color:#6B7684">메모</td><td>{{ so.memo or '—' }}</td></tr></table></div>

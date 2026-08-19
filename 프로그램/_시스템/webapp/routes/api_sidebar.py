@@ -25,60 +25,60 @@ def _default_layout() -> dict:
         'version': 1,
         'updated_at': None,
         'standalone': [
-            {'id': 'i_home', 'emoji': '⌂', 'name': '홈',
+            {'id': 'i_home', 'emoji': '', 'icon': 'house', 'name': '홈',
              'url': '/', 'active_key': 'home', 'badge_key': None},
         ],
         'stages': [
-            {'id': 's_bundles', 'emoji': '📦', 'name': '모음전 상품관리', 'color': '#3182F6',
+            {'id': 's_bundles', 'emoji': '', 'icon': 'package', 'name': '모음전 상품관리', 'color': '#3182F6',
              'collapsed': False, 'items': [
-                {'id': 'i_new', 'emoji': '➕', 'name': '신규 모음전 등록',
+                {'id': 'i_new', 'emoji': '', 'icon': 'plus-circle', 'name': '신규 모음전 등록',
                  'url': '/bundles/new', 'active_key': 'bundles_new', 'badge_key': None},
-                {'id': 'i_bundles', 'emoji': '📋', 'name': '모음전 상품관리',
+                {'id': 'i_bundles', 'emoji': '', 'icon': 'list-checks', 'name': '모음전 상품관리',
                  'url': '/bundles', 'active_key': 'bundles', 'badge_key': None},
-                {'id': 'i_migrate', 'emoji': '🔗', 'name': '기존 마켓 연동',
+                {'id': 'i_migrate', 'emoji': '', 'icon': 'link', 'name': '기존 마켓 연동',
                  'url': '/bundles/migrate', 'active_key': 'bundles_migrate', 'badge_key': None},
             ]},
-            {'id': 's_mapping', 'emoji': '🔗', 'name': '매핑 현황', 'color': '#FF9500',
+            {'id': 's_mapping', 'emoji': '', 'icon': 'graph', 'name': '매핑 현황', 'color': '#FF9500',
              'collapsed': False, 'items': [
-                {'id': 'i_sources', 'emoji': '🏠', 'name': '소싱처 운영센터',
+                {'id': 'i_sources', 'emoji': '', 'icon': 'buildings', 'name': '소싱처 운영센터',
                  'url': '/sources', 'active_key': 'sources', 'badge_key': None},
-                {'id': 'i_queue', 'emoji': '🔍', 'name': '미맵핑 큐',
+                {'id': 'i_queue', 'emoji': '', 'icon': 'magnifying-glass', 'name': '미맵핑 큐',
                  'url': '/queue', 'active_key': 'queue', 'badge_key': 'unmapped'},
-                {'id': 'i_mapping', 'emoji': '🔗', 'name': '맵핑',
+                {'id': 'i_mapping', 'emoji': '', 'icon': 'link', 'name': '맵핑',
                  'url': '/mapping/', 'active_key': 'mapping', 'badge_key': None},
             ]},
-            {'id': 's_crawl', 'emoji': '🛒', 'name': '크롤링&업로드', 'color': '#03C75A',
+            {'id': 's_crawl', 'emoji': '', 'icon': 'shopping-cart-simple', 'name': '크롤링&업로드', 'color': '#03C75A',
              'collapsed': False, 'items': [
-                {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
+                {'id': 'i_crawl_guide', 'emoji': '', 'icon': 'notebook', 'name': '크롤링 가이드',
                  'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None},
-                {'id': 'i_src_dict', 'emoji': '📖', 'name': '소싱처 사전',
+                {'id': 'i_src_dict', 'emoji': '', 'icon': 'book-open', 'name': '소싱처 사전',
                  'url': '/source-registry', 'active_key': 'source_registry', 'badge_key': None},
-                {'id': 'i_dlq', 'emoji': '⚠️', 'name': '업로드 실패함',
+                {'id': 'i_dlq', 'emoji': '', 'icon': 'warning-circle', 'name': '업로드 실패함',
                  'url': '/dlq', 'active_key': 'dlq', 'badge_key': 'failed'},
-                {'id': 'i_mk_acct', 'emoji': '🏪', 'name': '판매처 계정',
+                {'id': 'i_mk_acct', 'emoji': '', 'icon': 'storefront', 'name': '판매처 계정',
                  'url': '/accounts/upload', 'active_key': 'accounts_upload', 'badge_key': None},
             ]},
-            {'id': 's_buy', 'emoji': '🛍', 'name': '구매', 'color': '#EF4444',
+            {'id': 's_buy', 'emoji': '', 'icon': 'bag', 'name': '구매', 'color': '#EF4444',
              'collapsed': False, 'items': [
-                {'id': 'i_track', 'emoji': '📈', 'name': '가격·재고 추적',
+                {'id': 'i_track', 'emoji': '', 'icon': 'trend-up', 'name': '가격·재고 추적',
                  'url': '/track', 'active_key': 'track', 'badge_key': None},
             ]},
-            {'id': 's_sell', 'emoji': '💰', 'name': '판매', 'color': '#A855F7',
+            {'id': 's_sell', 'emoji': '', 'icon': 'coins', 'name': '판매', 'color': '#A855F7',
              'collapsed': False, 'items': [
-                {'id': 'i_templates', 'emoji': '📄', 'name': '템플릿',
+                {'id': 'i_templates', 'emoji': '', 'icon': 'file-text', 'name': '템플릿',
                  'url': '/templates', 'active_key': 'templates', 'badge_key': None},
-                {'id': 'i_orders', 'emoji': '📦', 'name': '주문 내역',
+                {'id': 'i_orders', 'emoji': '', 'icon': 'package', 'name': '주문 내역',
                  'url': '/orders/?tab=list', 'active_key': 'orders_list', 'badge_key': None},
-                {'id': 'i_sales', 'emoji': '💵', 'name': '매출 관리',
+                {'id': 'i_sales', 'emoji': '', 'icon': 'money', 'name': '매출 관리',
                  'url': '/orders/?tab=sales', 'active_key': 'orders_sales', 'badge_key': None},
-                {'id': 'i_margin', 'emoji': '📊', 'name': '마진 계산기',
+                {'id': 'i_margin', 'emoji': '', 'icon': 'chart-bar', 'name': '마진 계산기',
                  'url': '/orders/?tab=margin', 'active_key': 'orders_margin', 'badge_key': None},
             ]},
-            {'id': 's_etc', 'emoji': '⚙️', 'name': '기타', 'color': '#6B7280',
+            {'id': 's_etc', 'emoji': '', 'icon': 'gear', 'name': '기타', 'color': '#6B7280',
              'collapsed': False, 'items': [
-                {'id': 'i_trash', 'emoji': '🗑', 'name': '휴지통·변경 이력',
+                {'id': 'i_trash', 'emoji': '', 'icon': 'trash', 'name': '휴지통·변경 이력',
                  'url': '/trash', 'active_key': 'trash', 'badge_key': None},
-                {'id': 'i_alerts', 'emoji': '🔔', 'name': '알림 채널 설정',
+                {'id': 'i_alerts', 'emoji': '', 'icon': 'bell', 'name': '알림 채널 설정',
                  'url': '/alerts', 'active_key': 'alerts', 'badge_key': None},
             ]},
         ],
@@ -156,12 +156,12 @@ def _validate(layout: dict) -> tuple[bool, str]:
 
 # 로드맵 탭 — 저장된 레이아웃에 없으면 렌더 시 standalone 끝에 주입(저장은 안 함).
 #   기존 사용자 레이아웃을 건드리지 않고 모두에게 항상 보이게 함.
-_ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
+_ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '', 'icon': 'map-trifold', 'name': '로드맵',
                  'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
 
 # 크롤링 가이드 탭 — s_crawl 기본 레이아웃에 이미 포함됨.
 # 이 상수는 구형 커스텀 레이아웃(i_crawl_guide 없는 저장분)에 대한 폴백 주입용.
-_CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '크롤링 가이드',
+_CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '', 'icon': 'notebook', 'name': '크롤링 가이드',
                      'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None}
 
 

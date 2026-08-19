@@ -40,7 +40,7 @@
             <td style="padding:11px 8px;text-align:right">
               <a href="{{ url_for('inventory.data_bundle_edit', bundle_id=b.id) }}" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:5px 10px;border-radius:4px;font-size:12px;text-decoration:none;margin-right:4px">편집</a>
               <form method="post" action="{{ url_for('inventory.data_bundle_delete', bundle_id=b.id) }}" style="display:inline" onsubmit="return confirm('묶음 {{ b.sku }} 삭제?')">
-                <button type="submit" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;padding:5px 10px;border-radius:4px;font-size:12px;cursor:pointer">🗑</button>
+                <button type="submit" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;padding:5px 10px;border-radius:4px;font-size:12px;cursor:pointer"><i class="ph-light ph-trash" aria-hidden="true"></i></button>
               </form>
             </td>
           </tr>
@@ -52,8 +52,8 @@
   </div>
 
   <div style="margin-top:14px;padding:14px 18px;background:#EEF1FE;border:1px solid #4F67FF;border-radius:6px;font-size:14px;color:#1E40AF">
-    💡 <strong>박스히어로 1:1 — 묶음 동작 정의</strong><br>
-    묶음 SKU는 자체 재고 ❌. 출고 시 구성 SKU의 재고에서 자동 차감 (수량 × 묶음 수량).<br>
+    <i class="ph-light ph-lightbulb" aria-hidden="true"></i> <strong>박스히어로 1:1 — 묶음 동작 정의</strong><br>
+    묶음 SKU는 자체 재고 <i class="ph-light ph-x-circle" aria-hidden="true"></i>. 출고 시 구성 SKU의 재고에서 자동 차감 (수량 × 묶음 수량).<br>
     바코드 인쇄 — 묶음 SKU 단위 생성 가능 (좌측 메뉴 → 바코드 인쇄 → 묶음).
   </div>
 </div>

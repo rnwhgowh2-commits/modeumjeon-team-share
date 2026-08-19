@@ -2,7 +2,7 @@
 {% block title %}소싱처 운영센터 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-sources">
-  <h1>📍 소싱처 운영센터</h1>
+  <h1><i class="ph-light ph-map-pin" aria-hidden="true"></i> 소싱처 운영센터</h1>
   <p class="greeting">모든 URL의 단일 진실 원천. 같은 URL은 한 번만 수집됩니다.</p>
 
   {# KPI #}
@@ -13,11 +13,11 @@
         <div style="font-size:24px;font-weight:700">{{ kpi.total }}</div>
       </div>
       <div>
-        <div style="font-size: 14px;color:var(--n500)">🟢 정상</div>
+        <div style="font-size: 14px;color:var(--n500)"><i class="ph-light ph-circle" aria-hidden="true"></i> 정상</div>
         <div style="font-size:24px;font-weight:700;color:var(--success, #16a34a)">{{ kpi.ok }}</div>
       </div>
       <div>
-        <div style="font-size: 14px;color:var(--n500)">🔴 에러</div>
+        <div style="font-size: 14px;color:var(--n500)"><i class="ph-light ph-circle" aria-hidden="true"></i> 에러</div>
         <div style="font-size:24px;font-weight:700;color:var(--danger, #dc2626)">{{ kpi.error }}</div>
       </div>
       <div>
@@ -26,7 +26,7 @@
       </div>
       {% if kpi.no_crawler %}
       <div>
-        <div style="font-size: 14px;color:var(--n500)">⚪ 크롤러 미지원</div>
+        <div style="font-size: 14px;color:var(--n500)"><i class="ph-light ph-circle" aria-hidden="true"></i> 크롤러 미지원</div>
         <div style="font-size:24px;font-weight:700;color:var(--n400)">{{ kpi.no_crawler }}</div>
       </div>
       {% endif %}
@@ -35,7 +35,7 @@
 
   {# 검색 + 신규 사이트 #}
   <div class="qsearch" style="margin-bottom:14px">
-    <span class="qsearch-icon">🔍</span>
+    <span class="qsearch-icon"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
     <input id="src-search" placeholder="URL · 사이트 · 상태 검색..."
            oninput="filterSources(this.value)" />
   </div>

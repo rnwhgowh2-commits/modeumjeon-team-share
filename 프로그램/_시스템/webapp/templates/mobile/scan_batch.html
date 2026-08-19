@@ -1,5 +1,5 @@
 {% extends "mobile/_base.html" %}
-{% block title %}{% if mode == 'in' %}📥 연속 입고 스캔{% else %}📤 연속 출고 스캔{% endif %}{% endblock %}
+{% block title %}{% if mode == 'in' %}<i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 연속 입고 스캔{% else %}<i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 연속 출고 스캔{% endif %}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -138,20 +138,20 @@
     <video id="scan-video" autoplay playsinline muted onclick="tapFocus(event)"></video>
     <div class="sb-cam-overlay">
       <div class="sb-scan-line"></div>
-      <div class="sb-cam-hint" id="scan-hint">📷 바코드를 비춰주세요</div>
+      <div class="sb-cam-hint" id="scan-hint"><i class="ph-light ph-camera" aria-hidden="true"></i> 바코드를 비춰주세요</div>
       <div class="sb-cam-stats" id="scan-stats">
         <span id="stat-engine">…</span>
         <span id="stat-tries">0회</span>
       </div>
       <div class="sb-cam-ctrl">
-        <button id="btn-torch" onclick="toggleTorch()">🔦</button>
+        <button id="btn-torch" onclick="toggleTorch()"><i class="ph-light ph-flashlight" aria-hidden="true"></i></button>
       </div>
     </div>
   </div>
 
   {# 모드 + 위치 선택 #}
   <div class="sb-mode {{ mode }}">
-    <span class="ic">{% if mode == 'in' %}📥{% else %}📤{% endif %}</span>
+    <span class="ic">{% if mode == 'in' %}<i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i>{% else %}<i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i>{% endif %}</span>
     <span class="lbl">{% if mode == 'in' %}연속 입고{% else %}연속 출고{% endif %}</span>
     <span class="locsel">
       <select id="location-sel"><option value="">위치 선택…</option></select>
@@ -162,7 +162,7 @@
   {# 스크롤 list #}
   <div class="sb-list" id="cart-list">
     <div class="sb-empty" id="cart-empty">
-      <div class="ic">{% if mode == 'in' %}📥{% else %}📤{% endif %}</div>
+      <div class="ic">{% if mode == 'in' %}<i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i>{% else %}<i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i>{% endif %}</div>
       <div>바코드를 스캔하면 여기 추가됩니다.</div>
       <div style="font-size: 14px;margin-top:6px;color:#9CA3AF">같은 SKU 다시 스캔 = 수량 +1</div>
     </div>
@@ -172,7 +172,7 @@
   <div class="sb-foot">
     <span class="total"><span id="cart-skus">0</span> SKU · 총 <b id="cart-total">0</b>개</span>
     <button class="btn {{ mode }}" id="save-btn" onclick="saveAll()" disabled>
-      ✓ {% if mode == 'in' %}입고 저장{% else %}출고 저장{% endif %}
+      <i class="ph-light ph-check" aria-hidden="true"></i> {% if mode == 'in' %}입고 저장{% else %}출고 저장{% endif %}
     </button>
   </div>
 </div>

@@ -4,18 +4,18 @@
 {% block content %}
 <header class="page-header sj-header">
   <div>
-    <h1>🔐 소싱처 계정</h1>
+    <h1><i class="ph-light ph-lock-key" aria-hidden="true"></i> 소싱처 계정</h1>
     <p class="subtitle">각 소싱처 로그인에 사용될 ID/PW를 입력하세요</p>
   </div>
   <div class="sj-actions">
-    <button class="btn btn-sm sj-btn-outline" type="button" onclick="sjHelpOpen()">❓ 계정 추가 방법</button>
+    <button class="btn btn-sm sj-btn-outline" type="button" onclick="sjHelpOpen()"><i class="ph-light ph-question" aria-hidden="true"></i> 계정 추가 방법</button>
     <label class="sj-checkbox">
       <input type="checkbox" id="sj-select-all-master" onchange="sjToggleSelectAll(this.checked)"> 전체선택
     </label>
-    <button class="btn btn-sm sj-btn-outline" onclick="sjVerifySelected()">✓ 선택 로그인</button>
-    <button class="btn btn-sm sj-btn-outline" onclick="sjVerifyAll()">✓ 전체 확인</button>
-    <button class="btn btn-sm sj-btn-warning" onclick="autoLoginAll()" id="btn-login-all">🔑 전체 자동 로그인</button>
-    <button class="btn btn-sm btn-primary" onclick="sjSaveAll()">💾 전체 저장</button>
+    <button class="btn btn-sm sj-btn-outline" onclick="sjVerifySelected()"><i class="ph-light ph-check" aria-hidden="true"></i> 선택 로그인</button>
+    <button class="btn btn-sm sj-btn-outline" onclick="sjVerifyAll()"><i class="ph-light ph-check" aria-hidden="true"></i> 전체 확인</button>
+    <button class="btn btn-sm sj-btn-warning" onclick="autoLoginAll()" id="btn-login-all"><i class="ph-light ph-key" aria-hidden="true"></i> 전체 자동 로그인</button>
+    <button class="btn btn-sm btn-primary" onclick="sjSaveAll()"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 전체 저장</button>
   </div>
 </header>
 
@@ -46,7 +46,7 @@
 {# v8 C4 — 소싱처별 혜택 템플릿 한 줄 표 (chip + 모달 편집) #}
 <section class="card sb-section" style="margin-top:18px;padding:18px 22px">
   <header style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-    <h2 style="margin:0;font-size:17px;font-weight:800">💰 소싱처별 혜택 템플릿</h2>
+    <h2 style="margin:0;font-size:17px;font-weight:800"><i class="ph-light ph-coins" aria-hidden="true"></i> 소싱처별 혜택 템플릿</h2>
     <span style="font-size: 14px;color:var(--n500)">사이트 default — 모든 옵션 적용 (옵션 override 우선)</span>
   </header>
   <div class="sb-tbl-wrap" style="background:#fff;border:1px solid var(--n300);border-radius:10px;overflow:hidden">
@@ -61,7 +61,7 @@
     </table>
   </div>
   <div style="margin-top:10px;padding:10px 14px;background:var(--n50);border-radius:7px;font-size: 14px;color:var(--n700)">
-    💡 chip 클릭 = 토글 (on/off) · "편집" 버튼 = 모달 (CRUD) · 옵션 단위 override 는 매트릭스 셀 fx 에서
+    <i class="ph-light ph-lightbulb" aria-hidden="true"></i> chip 클릭 = 토글 (on/off) · "편집" 버튼 = 모달 (CRUD) · 옵션 단위 override 는 매트릭스 셀 fx 에서
   </div>
 </section>
 
@@ -70,15 +70,15 @@
   <div class="sb-modal-overlay" onclick="sbCloseModal()"></div>
   <div class="sb-modal-body">
     <header style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid var(--primary-dim,#E8F2FE)">
-      <span id="sb-modal-icon" style="font-size:20px">⚙</span>
+      <span id="sb-modal-icon" style="font-size:20px"><i class="ph-light ph-gear" aria-hidden="true"></i></span>
       <h3 id="sb-modal-title" style="margin:0;font-size:17px;font-weight:800;color:#7C3AED">혜택 관리</h3>
-      <button onclick="sbCloseModal()" style="margin-left:auto;background:#fff;border:1px solid var(--n300);border-radius:5px;padding:5px 11px;cursor:pointer;font-size: 14px">✕ 닫기</button>
+      <button onclick="sbCloseModal()" style="margin-left:auto;background:#fff;border:1px solid var(--n300);border-radius:5px;padding:5px 11px;cursor:pointer;font-size: 14px"><i class="ph-light ph-x" aria-hidden="true"></i> 닫기</button>
     </header>
     <div id="sb-modal-list" style="margin-bottom:14px"></div>
     <button onclick="sbAddRow()" style="padding:10px;border:1.5px dashed #7C3AED;border-radius:7px;color:#7C3AED;font-weight:700;font-size:13px;cursor:pointer;background:#fff;width:100%;font-family:inherit;text-align:center">＋ 새 혜택 추가</button>
     <footer style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--n100)">
       <button onclick="sbCloseModal()" style="padding:8px 14px;border-radius:7px;font-weight:700;font-size: 14px;cursor:pointer;border:1.5px solid var(--n300);background:#fff;color:var(--n700);font-family:inherit">취소</button>
-      <button onclick="sbSaveModal()" style="padding:8px 14px;border-radius:7px;font-weight:700;font-size: 14px;cursor:pointer;background:#7C3AED;color:#fff;border:none;font-family:inherit">💾 저장 (사이트 전체 적용)</button>
+      <button onclick="sbSaveModal()" style="padding:8px 14px;border-radius:7px;font-weight:700;font-size: 14px;cursor:pointer;background:#7C3AED;color:#fff;border:none;font-family:inherit"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 저장 (사이트 전체 적용)</button>
     </footer>
   </div>
 </div>
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 {# 일괄 자동 로그인 진행 패널 #}
 <div id="batch-login-panel" class="batch-panel" hidden>
   <div class="batch-head">
-    <strong>⚡ 일괄 자동 로그인 진행 중</strong>
+    <strong><i class="ph-light ph-lightning" aria-hidden="true"></i> 일괄 자동 로그인 진행 중</strong>
     <button class="btn btn-sm" onclick="hideBatchPanel()">━ 최소화</button>
   </div>
   <div class="batch-progress">
@@ -270,18 +270,18 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
   <div class="sj-help-overlay" onclick="sjHelpClose()"></div>
   <div class="sj-help-body" role="dialog" aria-modal="true" aria-labelledby="sj-help-title">
     <header class="sj-help-head">
-      <h3 id="sj-help-title">🔐 소싱처 계정 추가 방법</h3>
-      <button type="button" class="sj-help-x" onclick="sjHelpClose()" aria-label="닫기">✕</button>
+      <h3 id="sj-help-title"><i class="ph-light ph-lock-key" aria-hidden="true"></i> 소싱처 계정 추가 방법</h3>
+      <button type="button" class="sj-help-x" onclick="sjHelpClose()" aria-label="닫기"><i class="ph-light ph-x" aria-hidden="true"></i></button>
     </header>
     <ol class="sj-help-steps">
       <li><b>STEP 1</b> 추가할 사이트 그룹에서 <b>「+ 추가」</b> 클릭 → 빈 입력 행 생성</li>
       <li><b>STEP 2</b> (네이버·카카오 로그인 사이트면) 로그인 방식 선택 — <b>직접 / 네이버 / 카카오</b></li>
       <li><b>STEP 3</b> <b>ID · PW · 명의자</b> 입력</li>
-      <li><b>STEP 4</b> <b>💾 저장</b> 클릭 → 행에 계정 등록</li>
-      <li><b>STEP 5</b> <b>🔑 자동 로그인</b> 클릭 → Chrome 미니창에서 로그인 (캡차·2단계 인증은 직접 처리)</li>
-      <li><b>STEP 6</b> <b>🟢 초록 점</b>이면 완료 · <b>⭐</b> 클릭 시 대표 크롤 계정으로 지정</li>
+      <li><b>STEP 4</b> <b><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 저장</b> 클릭 → 행에 계정 등록</li>
+      <li><b>STEP 5</b> <b><i class="ph-light ph-key" aria-hidden="true"></i> 자동 로그인</b> 클릭 → Chrome 미니창에서 로그인 (캡차·2단계 인증은 직접 처리)</li>
+      <li><b>STEP 6</b> <b><i class="ph-light ph-circle" aria-hidden="true"></i> 초록 점</b>이면 완료 · <b><i class="ph-light ph-star" aria-hidden="true"></i></b> 클릭 시 대표 크롤 계정으로 지정</li>
     </ol>
-    <p class="sj-help-tip">💡 한 사이트에 여러 계정(명의자)도 등록 가능 — 그룹 헤더의 「+ 추가」를 다시 누르세요.</p>
+    <p class="sj-help-tip"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 한 사이트에 여러 계정(명의자)도 등록 가능 — 그룹 헤더의 「+ 추가」를 다시 누르세요.</p>
   </div>
 </div>
 {% endblock %}
@@ -440,7 +440,7 @@ function sjRowHtml(site, acc) {
       <input type="text" class="sj-id" placeholder="ID" value="${acc.id_masked || ''}" data-field="id" autocomplete="off" spellcheck="false">
       <input type="password" class="sj-pw" placeholder="${'•'.repeat(Math.min(acc.pw_length || 0, 14))} (변경 시 입력)" data-field="pw" data-pw-length="${acc.pw_length || 0}" autocomplete="new-password">
       <input type="text" class="sj-owner" placeholder="명의자" value="${acc.account_key.replace(/_\\d+$/, '')}" data-field="owner">
-      <span class="sj-status-dot ${acc.cookie_status === 'logged_in' ? 'ok' : (acc.cookie_status === 'in_progress' ? 'fail' : 'warn')}" title="${acc.cookie_status === 'logged_in' ? '🟢 로그인 완료 (쿠키 ' + (acc.cookie_size_kb || 0) + 'KB)' : acc.cookie_status === 'in_progress' ? '🔴 시도했으나 실패 (쿠키 빈 상태)' : '🟡 시도 전'}"></span>
+      <span class="sj-status-dot ${acc.cookie_status === 'logged_in' ? 'ok' : (acc.cookie_status === 'in_progress' ? 'fail' : 'warn')}" title="${acc.cookie_status === 'logged_in' ? ' 로그인 완료 (쿠키 ' + (acc.cookie_size_kb || 0) + 'KB)' : acc.cookie_status === 'in_progress' ? ' 시도했으나 실패 (쿠키 빈 상태)' : ' 시도 전'}"></span>
       <button class="sj-icon-btn sj-default-star ${isDefaultCrawl ? 'on' : ''}" title="${starTitle}" onclick="sjToggleDefault(this)" style="font-size:16px">${starIcon}</button>
       <button class="sj-icon-btn" title="복사" onclick="sjCopyId(this)">📋</button>
       <button class="sj-icon-btn" title="자동 로그인" onclick="sjLoginRow(this)">🔑</button>

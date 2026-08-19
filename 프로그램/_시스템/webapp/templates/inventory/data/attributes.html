@@ -35,15 +35,15 @@
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       {% set existing_names = attrs|map(attribute='name')|list %}
-      {% for std in [('색상','text','🎨'), ('사이즈','text','📏'), ('카테고리','text','📁'), ('브랜드','text','®'), ('모델','text','#')] %}
+      {% for std in [('색상','text','<i class="ph-light ph-palette" aria-hidden="true"></i>'), ('사이즈','text','<i class="ph-light ph-ruler" aria-hidden="true"></i>'), ('카테고리','text','<i class="ph-light ph-folder" aria-hidden="true"></i>'), ('브랜드','text','®'), ('모델','text','#')] %}
         {% if std[0] not in existing_names %}
           <form method="post" action="{{ url_for('inventory.data_attributes_create') }}" style="display:inline">
             <input type="hidden" name="name" value="{{ std[0] }}">
             <input type="hidden" name="type" value="{{ std[1] }}">
-            <button type="submit" style="background:#fff;border:1px solid #4F67FF;color:#4F67FF;padding:6px 12px;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ {{ std[2] }} {{ std[0] }}</button>
+            <button type="submit" style="background:#fff;border:1px solid #4F67FF;color:#4F67FF;padding:6px 12px;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ {{ std[2]|safe }} {{ std[0] }}</button>
           </form>
         {% else %}
-          <button type="button" disabled style="background:#F1F1F4;border:1px solid #E5E8EB;color:#8F91A0;padding:6px 12px;border-radius:5px;font-size:14px;cursor:default">✓ {{ std[2] }} {{ std[0] }}</button>
+          <button type="button" disabled style="background:#F1F1F4;border:1px solid #E5E8EB;color:#8F91A0;padding:6px 12px;border-radius:5px;font-size:14px;cursor:default"><i class="ph-light ph-check" aria-hidden="true"></i> {{ std[2]|safe }} {{ std[0] }}</button>
         {% endif %}
       {% endfor %}
     </div>
@@ -57,7 +57,7 @@
       <button type="submit" style="background:#4F67FF;color:#fff;padding:9px 16px;border:none;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer">+ 추가</button>
     </form>
     <div style="margin-top:8px;font-size:12px;color:#8F91A0">
-      💡 <strong>type 가이드</strong> — text(자유 입력) · number(숫자만) · date(날짜) · barcode(바코드 스캔 인식) · file(이미지·PDF 첨부)
+      <i class="ph-light ph-lightbulb" aria-hidden="true"></i> <strong>type 가이드</strong> — text(자유 입력) · number(숫자만) · date(날짜) · barcode(바코드 스캔 인식) · file(이미지·PDF 첨부)
     </div>
   </div>
 
@@ -75,20 +75,20 @@
         {% for a in filtered %}<tr style="border-bottom:1px solid #F1F1F4">
           <td style="padding:9px 8px;color:#8F91A0">{{ a.sort_order }}</td>
           <td style="padding:9px 8px;font-weight:500;color:#292A2F">
-            {% if a.name == '색상' %}🎨 {% elif a.name == '사이즈' %}📏 {% elif a.name == '카테고리' %}📁 {% elif a.name == '브랜드' %}® {% elif a.name == '모델' %}# {% endif %}{{ a.name }}
+            {% if a.name == '색상' %}<i class="ph-light ph-palette" aria-hidden="true"></i> {% elif a.name == '사이즈' %}<i class="ph-light ph-ruler" aria-hidden="true"></i> {% elif a.name == '카테고리' %}<i class="ph-light ph-folder" aria-hidden="true"></i> {% elif a.name == '브랜드' %}® {% elif a.name == '모델' %}# {% endif %}{{ a.name }}
           </td>
           <td style="padding:9px 8px"><span style="background:#F1F1F4;padding:2px 8px;border-radius:8px;font-size:12px;color:#292A2F;font-family:ui-monospace,monospace">{{ a.type }}</span></td>
           <td style="padding:9px 8px;font-size:12px;color:#8F91A0">
             {% if a.name == '색상' and a.type == 'text' %}<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#FF6B6B,#4F67FF,#22C55E);border:1px solid #CBCCD3"></span> color picker (UI 자동)</span>
-            {% elif a.type == 'barcode' %}📷 바코드 스캔 인식
-            {% elif a.type == 'file' %}📎 파일 업로드 (이미지·PDF)
+            {% elif a.type == 'barcode' %}<i class="ph-light ph-camera" aria-hidden="true"></i> 바코드 스캔 인식
+            {% elif a.type == 'file' %}<i class="ph-light ph-paperclip" aria-hidden="true"></i> 파일 업로드 (이미지·PDF)
             {% else %}—{% endif %}
           </td>
-          <td style="padding:9px 8px;text-align:right"><form method="post" action="{{ url_for('inventory.data_attributes_delete', attr_id=a.id) }}" style="display:inline" onsubmit="return confirm('삭제?')"><button type="submit" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;padding:5px 10px;border-radius:4px;font-size:12px;cursor:pointer">🗑</button></form></td>
+          <td style="padding:9px 8px;text-align:right"><form method="post" action="{{ url_for('inventory.data_attributes_delete', attr_id=a.id) }}" style="display:inline" onsubmit="return confirm('삭제?')"><button type="submit" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;padding:5px 10px;border-radius:4px;font-size:12px;cursor:pointer"><i class="ph-light ph-trash" aria-hidden="true"></i></button></form></td>
         </tr>{% else %}<tr><td colspan="5" style="padding:48px;text-align:center;color:#8F91A0">{% if tab_filter == 'all' %}속성 없음 — 위 표준 5종 중 추가하거나 직접 추가{% else %}이 탭에 속성 없음{% endif %}</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-  <div style="margin-top:14px;font-size:12px;color:#8F91A0;line-height:1.7">★ 박스히어로 1:1 — 5 type (텍스트/숫자/날짜/바코드/파일) + 표준 5종 quick-add (색상·사이즈·카테고리·브랜드·모델). 고정 필드 (SKU·모델명·구매가·판매가)는 수정 ❌.</div>
+  <div style="margin-top:14px;font-size:12px;color:#8F91A0;line-height:1.7"><i class="ph-light ph-star" aria-hidden="true"></i> 박스히어로 1:1 — 5 type (텍스트/숫자/날짜/바코드/파일) + 표준 5종 quick-add (색상·사이즈·카테고리·브랜드·모델). 고정 필드 (SKU·모델명·구매가·판매가)는 수정 <i class="ph-light ph-x-circle" aria-hidden="true"></i>.</div>
 </div>
 {% endblock %}

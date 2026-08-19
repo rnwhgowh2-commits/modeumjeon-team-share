@@ -5,10 +5,10 @@
 
 {# 차원 이름 → 아이콘 매핑 (기본 사전) #}
 {% set dim_icons = {
-  '모델':'📦', '브랜드':'🏷', '카테고리':'📁',
-  '색상':'🎨', '컬러':'🎨',
-  '사이즈':'📏', '치수':'📏', '용량':'⚖',
-  '재질':'🧵', '소재':'🧵', '패턴':'✨', '두께':'📐',
+  '모델':'<i class="ph-light ph-package" aria-hidden="true"></i>', '브랜드':'<i class="ph-light ph-tag" aria-hidden="true"></i>', '카테고리':'<i class="ph-light ph-folder" aria-hidden="true"></i>',
+  '색상':'<i class="ph-light ph-palette" aria-hidden="true"></i>', '컬러':'<i class="ph-light ph-palette" aria-hidden="true"></i>',
+  '사이즈':'<i class="ph-light ph-ruler" aria-hidden="true"></i>', '치수':'<i class="ph-light ph-ruler" aria-hidden="true"></i>', '용량':'<i class="ph-light ph-scales" aria-hidden="true"></i>',
+  '재질':'<i class="ph-light ph-needle" aria-hidden="true"></i>', '소재':'<i class="ph-light ph-needle" aria-hidden="true"></i>', '패턴':'<i class="ph-light ph-sparkle" aria-hidden="true"></i>', '두께':'<i class="ph-light ph-ruler" aria-hidden="true"></i>',
 } %}
 
 <div style="padding:36px 40px;max-width:1500px;margin:0 auto;color:#191F28">
@@ -42,10 +42,10 @@
   {# ===== 카테고리 탭 — 아이콘 + 폰트 1.5배 ===== #}
   <div style="display:flex;align-items:flex-end;gap:4px;border-bottom:3px solid #E5E8EB;margin-bottom:0;flex-wrap:wrap">
     {% for dim in dimensions %}
-      {% set icon = dim_icons.get(dim.name, '🏷') %}
+      {% set icon = dim_icons.get(dim.name, '<i class="ph-light ph-tag" aria-hidden="true"></i>') %}
       <button type="button" class="cat-tab" data-cat="dim-{{ dim.id }}"
               style="background:transparent;border:0;border-bottom:4px solid transparent;padding:18px 28px;font-size:22px;color:#6B7684;cursor:pointer;font-family:inherit;font-weight:500;display:inline-flex;align-items:center;gap:10px;margin-bottom:-3px;transition:color .15s,border-color .15s{% if loop.first %};color:#1B64DA;font-weight:700;border-bottom-color:#3182F6{% endif %}">
-        <span style="font-size:24px">{{ icon }}</span>
+        <span style="font-size:24px">{{ icon|safe }}</span>
         <span>{{ dim.name }}</span>
         <span style="font-size:15px;color:#9CA3AF;font-weight:400">{{ dim.canonicals|length }}</span>
       </button>
@@ -59,14 +59,14 @@
 
   {# ===== 탭별 콘텐츠 ===== #}
   {% for dim in dimensions %}
-  {% set icon = dim_icons.get(dim.name, '🏷') %}
+  {% set icon = dim_icons.get(dim.name, '<i class="ph-light ph-tag" aria-hidden="true"></i>') %}
   <div class="cat-pane" id="pane-dim-{{ dim.id }}" style="display:{% if loop.first %}block{% else %}none{% endif %};background:#fff;border:1px solid #E5E8EB;border-top:0;border-radius:0 0 10px 10px;padding:22px 26px">
 
     {# 새 기준명 추가 행 #}
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:18px;padding:18px 22px;background:#F0F7FF;border:1px solid #BFDBFE;border-radius:10px">
       <form method="post" action="{{ url_for('mapping.canonical_create') }}" style="display:flex;gap:12px;flex:1;align-items:center">
         <input type="hidden" name="dimension_id" value="{{ dim.id }}">
-        <span style="font-size:24px">{{ icon }}</span>
+        <span style="font-size:24px">{{ icon|safe }}</span>
         <input name="value" placeholder="+ 새 기준명 (예: 블루 · 230 · 르무통 클래식)" required
                style="flex:1;padding:13px 16px;border:1px solid #BFDBFE;border-radius:7px;font-size:17px;font-family:inherit;background:#fff">
         <button type="submit" style="background:#3182F6;color:#fff;border:0;border-radius:7px;padding:13px 26px;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit">추가</button>

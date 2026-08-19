@@ -51,12 +51,12 @@
 
   <div class="subtabs">
     <a class="subtab" href="/sourcing-guide/">전체보기</a>
-    <a class="subtab" href="/sourcing-guide/how-to">➕ 신규 소싱처 추가</a>
-    <a class="subtab on" href="/sourcing-guide/install">🧩 크롤러 설치</a>
+    <a class="subtab" href="/sourcing-guide/how-to"><i class="ph-light ph-plus" aria-hidden="true"></i> 신규 소싱처 추가</a>
+    <a class="subtab on" href="/sourcing-guide/install"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i> 크롤러 설치</a>
   </div>
 
   <div class="why">
-    <span class="ic">💡</span>
+    <span class="ic"><i class="ph-light ph-lightbulb" aria-hidden="true"></i></span>
     <span class="tx">무신사·롯데온은 <b>로그인·SPA</b>라 서버가 직접 못 긁어요. 그래서 <b>내 로그인 크롬</b>이 대신 긁는 확장이 필요합니다. 한 번만 설치하면 끝 — 크롤한 가격·재고는 모두 <b>www.mou-m.com</b>에 저장돼 팀 전체가 함께 봅니다.</span>
   </div>
 
@@ -67,65 +67,65 @@
 
   <div class="chk" id="criChk">
     <div class="ci" data-step="0">
-      <div class="box">✓</div>
+      <div class="box"><i class="ph-light ph-check" aria-hidden="true"></i></div>
       <div>
-        <div class="st-t">📥 <span class="nm">확장 파일 다운로드</span></div>
+        <div class="st-t"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> <span class="nm">확장 파일 다운로드</span></div>
         <div class="st-d">아래 버튼으로 「모음전 크롤러」 압축파일(zip)을 받습니다.</div>
         {% if ext_available %}
         <a class="dl-btn" href="/sourcing-guide/install/download" onclick="event.stopPropagation()">
-          <span class="ico">📥</span> 모음전 크롤러 다운로드 <span class="sz">(.zip)</span>
+          <span class="ico"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span> 모음전 크롤러 다운로드 <span class="sz">(.zip)</span>
         </a>
         {% else %}
-        <div class="dl-off">⚠️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>
+        <div class="dl-off"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>
         {% endif %}
       </div>
     </div>
 
     <div class="ci" data-step="1">
-      <div class="box">✓</div>
+      <div class="box"><i class="ph-light ph-check" aria-hidden="true"></i></div>
       <div>
-        <div class="st-t">🗂️ <span class="nm">압축 풀기</span></div>
+        <div class="st-t"><i class="ph-light ph-folders" aria-hidden="true"></i>️ <span class="nm">압축 풀기</span></div>
         <div class="st-d">받은 zip을 우클릭 → <b>"압축 풀기"</b>. <code>moum-crawler</code> 폴더가 생깁니다.</div>
       </div>
     </div>
 
     <div class="ci" data-step="2">
-      <div class="box">✓</div>
+      <div class="box"><i class="ph-light ph-check" aria-hidden="true"></i></div>
       <div>
-        <div class="st-t">🧩 <span class="nm">크롬 확장 페이지 열기</span></div>
+        <div class="st-t"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i> <span class="nm">크롬 확장 페이지 열기</span></div>
         <div class="st-d">크롬 주소창에 <code>chrome://extensions</code> 입력 → 오른쪽 위 <b>「개발자 모드」</b> 켜기.</div>
       </div>
     </div>
 
     <div class="ci" data-step="3">
-      <div class="box">✓</div>
+      <div class="box"><i class="ph-light ph-check" aria-hidden="true"></i></div>
       <div>
-        <div class="st-t">📂 <span class="nm">확장 불러오기</span></div>
+        <div class="st-t"><i class="ph-light ph-folder-open" aria-hidden="true"></i> <span class="nm">확장 불러오기</span></div>
         <div class="st-d"><b>「압축해제된 확장 프로그램을 로드합니다」</b> 클릭 → 방금 푼 <code>moum-crawler</code> 폴더 선택. 목록에 "모음전 크롤러"가 뜨면 설치 완료.</div>
       </div>
     </div>
 
     <div class="ci" data-step="4">
-      <div class="box">✓</div>
+      <div class="box"><i class="ph-light ph-check" aria-hidden="true"></i></div>
       <div>
-        <div class="st-t">🔑 <span class="nm">무신사·롯데온 로그인</span></div>
+        <div class="st-t"><i class="ph-light ph-key" aria-hidden="true"></i> <span class="nm">무신사·롯데온 로그인</span></div>
         <div class="st-d">같은 크롬에서 무신사·롯데온에 <b>로그인</b>해 둡니다. (회원가를 읽으려면 필수 — 로그아웃 상태면 비회원가로 긁힙니다.)</div>
       </div>
     </div>
 
     <div class="ci" data-step="5">
-      <div class="box">✓</div>
+      <div class="box"><i class="ph-light ph-check" aria-hidden="true"></i></div>
       <div>
-        <div class="st-t">🚀 <span class="nm">크롤 실행</span></div>
-        <div class="st-d"><code>www.mou-m.com</code> 접속(IP 주소 ❌) → 상품에서 <b>「전체 크롤」</b>. 이제 무신사·롯데온 카드도 0% → 채워집니다.</div>
+        <div class="st-t"><i class="ph-light ph-rocket" aria-hidden="true"></i> <span class="nm">크롤 실행</span></div>
+        <div class="st-d"><code>www.mou-m.com</code> 접속(IP 주소 <i class="ph-light ph-x-circle" aria-hidden="true"></i>) → 상품에서 <b>「전체 크롤」</b>. 이제 무신사·롯데온 카드도 0% → 채워집니다.</div>
       </div>
     </div>
   </div>
 
-  <div class="endbar">✅ 설치 후 「전체 크롤」을 누르면 무신사·롯데온이 내 PC에서 긁혀 www.mou-m.com에 저장됩니다.</div>
+  <div class="endbar"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 설치 후 「전체 크롤」을 누르면 무신사·롯데온이 내 PC에서 긁혀 www.mou-m.com에 저장됩니다.</div>
 
   <div class="help">
-    <h3>🛟 안 될 때</h3>
+    <h3><i class="ph-light ph-lifebuoy" aria-hidden="true"></i> 안 될 때</h3>
     <div class="qa"><b>Q. 설치했는데 계속 "확장 필요"가 떠요.</b><br>주소가 <b>www.mou-m.com</b>인지 확인하세요. IP 주소(54.x)에서는 확장이 작동하지 않습니다.</div>
     <div class="qa"><b>Q. 무신사 가격이 비싸게 나와요.</b><br>무신사에 로그인됐는지 확인하세요. 로그아웃 상태면 비회원가로 읽힙니다.</div>
     <div class="qa"><b>Q. 잘 깔렸는지 확인하고 싶어요.</b><br>www.mou-m.com 새로고침 → <b>F12</b> → Console에 <code>document.documentElement.getAttribute('data-moum-ext')</code> 입력 → 버전 번호가 나오면 성공.</div>

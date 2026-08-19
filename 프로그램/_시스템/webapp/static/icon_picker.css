@@ -231,7 +231,7 @@
 .icp-foot .icp-acts .icp-pick:hover { background: #1B64DA; }
 .icp-foot .icp-acts .icp-pick:disabled { opacity: .55; cursor: not-allowed; }
 
-/* 트리거 — 호버 시 ✎ 버튼 + 우클릭 가능 표시 */
+/* 트리거 — 호버 시 수정 버튼 + 우클릭 가능 표시 */
 [data-icon-edit] {
   position: relative;
   cursor: default;
@@ -241,7 +241,7 @@
   outline-offset: 2px;
   border-radius: 4px;
 }
-/* ✎ 수정 버튼 (호버 시 JS 가 동적 추가) */
+/* 수정 수정 버튼 (호버 시 JS 가 동적 추가) */
 .icp-edit-btn {
   position: absolute;
   top: -10px; right: -10px;

@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}📜 변경 이력 — 모음전 자동화{% endblock %}
+{% block title %}<i class="ph-light ph-scroll" aria-hidden="true"></i> 변경 이력 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-audit">
   <a class="btn btn-ghost" href="/trash">← 휴지통</a>
-  <h1 style="margin-top:6px">📜 변경 이력</h1>
+  <h1 style="margin-top:6px"><i class="ph-light ph-scroll" aria-hidden="true"></i> 변경 이력</h1>
   <p class="greeting">
     {% if filter_table or filter_id %}
     필터: <span class="mono">{{ filter_table or '전체' }}</span> · <span class="mono">{{ filter_id or '전체' }}</span>
@@ -34,8 +34,8 @@
           <td class="mono" style="font-size: 14px">{{ it.target_id }}</td>
           <td>
             {% if it.action == 'create' %}<span class="badge badge-ok">+ 생성</span>
-            {% elif it.action == 'update' %}<span class="badge badge-info">✎ 수정</span>
-            {% elif it.action == 'delete' %}<span class="badge" style="background:#fee;color:#a00">🗑 삭제</span>
+            {% elif it.action == 'update' %}<span class="badge badge-info"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 수정</span>
+            {% elif it.action == 'delete' %}<span class="badge" style="background:#fee;color:#a00"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</span>
             {% elif it.action == 'restore' %}<span class="badge badge-ok">↩ 복구</span>
             {% else %}<span class="badge">{{ it.action }}</span>{% endif %}
           </td>

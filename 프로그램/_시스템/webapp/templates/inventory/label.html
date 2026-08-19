@@ -58,7 +58,7 @@
 <body>
 
 <div class="tb">
-  <strong>🏷 라벨 인쇄</strong>
+  <strong><i class="ph-light ph-tag" aria-hidden="true"></i> 라벨 인쇄</strong>
   <span class="info">{{ opt.canonical_sku }}</span>
 
   <label style="margin-left:18px">라벨 용지</label>
@@ -101,17 +101,17 @@
   <label style="margin-left:8px">시작 위치</label>
   <input type="number" id="start" value="1" min="1" style="width:60px;text-align:center" onchange="redraw()">
 
-  <button class="primary" onclick="window.print()">🖨 인쇄</button>
+  <button class="primary" onclick="window.print()"><i class="ph-light ph-printer" aria-hidden="true"></i> 인쇄</button>
   <button class="ghost" onclick="window.close()">닫기</button>
   <span class="info">인쇄 대화상자에서 <b>"여백: 없음"</b> + <b>"실제 크기"</b> 선택. 어긋나면 <b>Custom</b> 으로 자측정 보정</span>
 
   <!-- Custom 입력 폼 (preset=custom 시 표시) -->
   <div id="custom-box" style="display:none;width:100%;background:#F9FAFB;border:1px dashed #CBCCD3;border-radius:8px;padding:12px 14px;margin-top:8px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="font-size:12px;color:#191F28;font-weight:700">⚙ Custom — 보유 용지 자측정 입력 (mm)</div>
+      <div style="font-size:12px;color:#191F28;font-weight:700"><i class="ph-light ph-gear" aria-hidden="true"></i> Custom — 보유 용지 자측정 입력 (mm)</div>
       <div style="display:flex;gap:6px">
-        <button class="ghost" onclick="saveCustom()" style="padding:4px 10px;font-size:12px">💾 저장</button>
-        <button class="ghost" onclick="loadCustom()" style="padding:4px 10px;font-size:12px">📂 불러오기</button>
+        <button class="ghost" onclick="saveCustom()" style="padding:4px 10px;font-size:12px"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 저장</button>
+        <button class="ghost" onclick="loadCustom()" style="padding:4px 10px;font-size:12px"><i class="ph-light ph-folder-open" aria-hidden="true"></i> 불러오기</button>
         <button class="ghost" onclick="resetCustom()" style="padding:4px 10px;font-size:12px;color:#F04452">↺ 초기화</button>
       </div>
     </div>
@@ -127,7 +127,7 @@
     </div>
     <div id="custom-check" style="font-size:12px;color:#6B7684;font-family:'SF Mono',monospace"></div>
     <details style="margin-top:8px">
-      <summary style="font-size:12px;color:#3182F6;cursor:pointer;font-weight:600">📐 측정 방법 도움말</summary>
+      <summary style="font-size:12px;color:#3182F6;cursor:pointer;font-weight:600"><i class="ph-light ph-ruler" aria-hidden="true"></i> 측정 방법 도움말</summary>
       <div style="font-size:12px;color:#4E5968;margin-top:6px;line-height:1.6;padding-left:8px">
         ① 자로 라벨 한 칸 가로(W)·세로(H) 측정<br>
         ② 종이 상단부터 첫 라벨 윗변까지 = 상단여백 (mt)<br>

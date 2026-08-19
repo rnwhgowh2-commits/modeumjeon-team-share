@@ -9,9 +9,9 @@
     <span title="행 클릭 → 인라인 popover 편집" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <button type="button" onclick="openNewItemModal()" style="background:#4F67FF;border:none;color:#fff;padding:7px 14px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600">+ 제품 추가</button>
-      <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">📥 제품 엑셀 업로드</a>
-      <button type="button" onclick="exportFilteredXlsx()" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer">⬇ 엑셀 내보내기</button>
-      <button type="button" onclick="document.getElementById('wipeModal').style.display='flex'" style="background:#fff;border:1px solid #FCA5A5;color:#DC2626;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600">🗑 전체 삭제</button>
+      <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 제품 엑셀 업로드</a>
+      <button type="button" onclick="exportFilteredXlsx()" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer"><i class="ph-light ph-arrow-down" aria-hidden="true"></i> 엑셀 내보내기</button>
+      <button type="button" onclick="document.getElementById('wipeModal').style.display='flex'" style="background:#fff;border:1px solid #FCA5A5;color:#DC2626;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600"><i class="ph-light ph-trash" aria-hidden="true"></i> 전체 삭제</button>
     </div>
   </div>
 
@@ -55,8 +55,8 @@
 
   {# [Phase 3-1 A2] 다중 선택 일괄 액션바 — 1건 이상 체크 시 표시 #}
   <div id="bulkActionBar" style="display:none;background:#191F28;color:#fff;border-radius:8px;padding:11px 18px;margin-bottom:14px;align-items:center;gap:10px;font-size:14px">
-    ✅ <span id="bulkCount" style="background:#fff;color:#191F28;padding:2px 10px;border-radius:4px;font-weight:700">0건</span> 선택됨 —
-    <button type="button" onclick="openBulkBundleModal()" style="background:#FFB454;color:#191F28;border:none;padding:6px 14px;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer">🎁 모음전 일괄 등록</button>
+    <i class="ph-light ph-check-circle" aria-hidden="true"></i> <span id="bulkCount" style="background:#fff;color:#191F28;padding:2px 10px;border-radius:4px;font-weight:700">0건</span> 선택됨 —
+    <button type="button" onclick="openBulkBundleModal()" style="background:#FFB454;color:#191F28;border:none;padding:6px 14px;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer"><i class="ph-light ph-gift" aria-hidden="true"></i> 모음전 일괄 등록</button>
     <button type="button" onclick="clearBulkSelection()" style="background:transparent;border:1px solid #fff;color:#fff;padding:6px 14px;border-radius:5px;font-size:12.5px;cursor:pointer">선택 해제</button>
     <span style="flex:1"></span>
     <span style="color:#C9CDD2;font-size:11.5px">같은 모델·색상·사이즈만 다르면 매트릭스 자동 추론</span>
@@ -130,7 +130,7 @@
             {% if opt.image_url %}
               <img src="{{ opt.image_url }}" style="width:38px;height:38px;object-fit:cover;border-radius:4px;border:1px solid #E5E8EB" alt="">
             {% else %}
-              <div style="width:38px;height:38px;background:#F2F4F6;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:14px">👟</div>
+              <div style="width:38px;height:38px;background:#F2F4F6;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:14px"><i class="ph-light ph-sneaker" aria-hidden="true"></i></div>
             {% endif %}
           </td>
           {% set _disp_sku = opt.boxhero_sku if (opt.canonical_sku and not opt.canonical_sku.startswith('SKU-') and opt.boxhero_sku) else opt.canonical_sku %}
@@ -156,11 +156,11 @@
           {% endfor %}
           <td style="padding:9px 10px;text-align:center">
             <span class="ref-badge" onclick="event.stopPropagation();toggleRefRow(this.closest('tr').querySelector('.ref-toggle'))"
-                  style="display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:800;cursor:pointer;{% if _usage > 0 %}background:#EAF3FF;color:#3182F6{% else %}background:#F2F4F6;color:#B0B8C1{% endif %}">🔗 {{ _usage }}</span>
+                  style="display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:800;cursor:pointer;{% if _usage > 0 %}background:#EAF3FF;color:#3182F6{% else %}background:#F2F4F6;color:#B0B8C1{% endif %}"><i class="ph-light ph-link" aria-hidden="true"></i> {{ _usage }}</span>
           </td>
           <td style="padding:9px 10px;text-align:center;white-space:nowrap">
             <button type="button" title="이 행 복사 — 색상·사이즈만 수정" onclick="event.stopPropagation();openCopyRow(this.closest('tr'))" style="background:#EAF3FF;color:#3182F6;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">⧉</button>
-            <button type="button" title="제품 삭제" onclick="event.stopPropagation();openDeleteDialog(this.closest('tr'))" style="background:#FEECEC;color:#F04438;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">🗑</button>
+            <button type="button" title="제품 삭제" onclick="event.stopPropagation();openDeleteDialog(this.closest('tr'))" style="background:#FEECEC;color:#F04438;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer"><i class="ph-light ph-trash" aria-hidden="true"></i></button>
           </td>
         </tr>
         {% else %}
@@ -182,7 +182,7 @@
   <div style="margin-top:18px;font-size:12px;color:#8F91A0;line-height:1.6">
     <strong>인라인 편집:</strong> 행 클릭 → 인라인 popover 편집 (모델명·브랜드·컬러·사이즈·이미지). 사이즈 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">FREE</code>, 컬러 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">ONE Color</code> 로 표시됩니다.<br>
     <strong>제품 추가:</strong> 행 <strong>⧉ 복사</strong> — 한 행을 복제해 색상·사이즈만 수정. <strong>편집 popover</strong> 안 ⊞ 일괄 생성 — 색상×사이즈 매트릭스로 한 번에.<br>
-    <strong>사용처:</strong> 행 좌측 <strong>▸</strong> 또는 🔗 배지 클릭 → 그 제품을 쓰는 모음전·옵션 인라인 트리. 삭제 시 사용처 경고 표시.
+    <strong>사용처:</strong> 행 좌측 <strong>▸</strong> 또는 <i class="ph-light ph-link" aria-hidden="true"></i> 배지 클릭 → 그 제품을 쓰는 모음전·옵션 인라인 트리. 삭제 시 사용처 경고 표시.
   </div>
 </div>
 
@@ -252,7 +252,7 @@
   <div style="background:#fff;border-radius:12px;width:520px;max-width:92vw;box-shadow:0 20px 56px rgba(0,0,0,0.35);overflow:hidden">
     <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
       <strong style="font-size:17px;color:#191F28">⧉ 제품 복사</strong>
-      <button type="button" onclick="closeCopyModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:7px;padding:6px 11px;font-size:13px;color:#6B7684;font-weight:700;cursor:pointer">✕ 닫기</button>
+      <button type="button" onclick="closeCopyModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:7px;padding:6px 11px;font-size:13px;color:#6B7684;font-weight:700;cursor:pointer"><i class="ph-light ph-x" aria-hidden="true"></i> 닫기</button>
     </div>
     <div style="padding:18px 22px">
       <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:9px;padding:11px 14px;font-size:14px;margin-bottom:16px">
@@ -293,7 +293,7 @@
   <div style="background:#fff;border-radius:14px;width:1020px;max-width:95vw;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.4);overflow:hidden">
     <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:11px">
       <strong style="font-size:18px;color:#191F28">⊞ 일괄 생성 — 색상 × 사이즈 매트릭스</strong>
-      <button type="button" onclick="closeMatrixModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:8px;padding:8px 13px;font-size:14px;color:#6B7684;font-weight:700;cursor:pointer">✕ 닫기</button>
+      <button type="button" onclick="closeMatrixModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:8px;padding:8px 13px;font-size:14px;color:#6B7684;font-weight:700;cursor:pointer"><i class="ph-light ph-x" aria-hidden="true"></i> 닫기</button>
     </div>
     <div style="padding:18px 22px;overflow:auto;flex:1">
       <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:9px;padding:12px 15px;font-size:14px;margin-bottom:14px">
@@ -311,7 +311,7 @@
       </div>
       <div id="mtxTableWrap" style="overflow:auto"></div>
       <div id="mtxInfo" style="background:#FFF8E6;border:1px solid #F2DFA8;color:#7A5A12;border-radius:9px;padding:11px 15px;font-size:13px;margin-top:12px">
-        ✓ 체크한 <b id="mtxCount">0</b>개 조합이 생성됩니다 · SKU·바코드는 조합마다 자동 발급 · 재고제품·연결 함께 생성
+        <i class="ph-light ph-check" aria-hidden="true"></i> 체크한 <b id="mtxCount">0</b>개 조합이 생성됩니다 · SKU·바코드는 조합마다 자동 발급 · 재고제품·연결 함께 생성
       </div>
       <div id="mtxError" style="display:none;color:#B91C1C;font-size:13px;margin-top:8px"></div>
     </div>
@@ -328,7 +328,7 @@
 <div id="deleteModal" style="display:none;position:fixed;inset:0;background:rgba(15,20,30,0.5);z-index:160;align-items:center;justify-content:center" onclick="if(event.target.id==='deleteModal')closeDeleteModal()">
   <div style="background:#fff;border-radius:14px;width:660px;max-width:93vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.4);overflow:hidden">
     <div style="padding:17px 22px;display:flex;align-items:center;gap:11px">
-      <span style="font-size:24px">⚠️</span>
+      <span style="font-size:24px"><i class="ph-light ph-warning" aria-hidden="true"></i>️</span>
       <strong style="font-size:18px;color:#191F28">삭제 전 — 이 제품이 쓰이는 곳</strong>
     </div>
     <div style="padding:4px 22px 18px;overflow:auto;flex:1">
@@ -872,16 +872,16 @@ function onWipeInput(e){
 <div id="wipeModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:200;align-items:center;justify-content:center" onclick="if(event.target.id==='wipeModal')closeWipeModal()">
   <div style="background:#fff;border-radius:10px;width:480px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,0.3);border:2px solid #FCA5A5">
     <div style="padding:18px 22px;border-bottom:1px solid #FEE2E2;background:#FEF2F2;border-radius:8px 8px 0 0">
-      <h3 style="font-size:16px;font-weight:700;margin:0;color:#991B1B">⚠️ 제품 마스터 전체 삭제</h3>
+      <h3 style="font-size:16px;font-weight:700;margin:0;color:#991B1B"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 제품 마스터 전체 삭제</h3>
     </div>
     <form method="post" action="{{ url_for('inventory.data_items_wipe') }}" style="padding:20px 22px">
       <p style="font-size:14px;color:#292A2F;line-height:1.7;margin:0 0 14px 0">
         <strong style="color:#DC2626">모든 모델·옵션·재고 트랜잭션이 삭제</strong>됩니다.<br>
         실행 전 <strong>data 폴더 자동 백업</strong>이 생성되므로, 실수해도 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px;font-size:12px">백업/</code> 폴더에서 복원 가능합니다.<br>
-        삭제 후 <strong>[📥 박스히어로 엑셀 업로드]</strong>로 재로드하세요.
+        삭제 후 <strong>[<i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 박스히어로 엑셀 업로드]</strong>로 재로드하세요.
       </p>
       <div style="background:#FFFBEB;border:1px solid #FCD34D;padding:12px 14px;border-radius:6px;margin-bottom:10px;font-size:14px;color:#92400E;line-height:1.7">
-        👇 <strong>아래 입력란을 클릭한 뒤, 키보드로 <code style="background:#FFF;padding:2px 6px;border-radius:3px;font-size:14px;border:1px solid #FCD34D;color:#991B1B;font-weight:700">DELETE ALL</code> 을 직접 타이핑</strong>해 주세요.<br>
+        <i class="ph-light ph-hand-pointing" aria-hidden="true"></i> <strong>아래 입력란을 클릭한 뒤, 키보드로 <code style="background:#FFF;padding:2px 6px;border-radius:3px;font-size:14px;border:1px solid #FCD34D;color:#991B1B;font-weight:700">DELETE ALL</code> 을 직접 타이핑</strong>해 주세요.<br>
         <span style="font-size:12px;color:#A16207">※ 박스 안의 회색 글자는 안내문(placeholder)이고 실제 입력이 아닙니다.</span>
       </div>
       <label for="wipeConfirmInput" style="display:block;font-size:12px;font-weight:600;color:#525866;margin-bottom:6px">확인 입력란</label>
@@ -889,7 +889,7 @@ function onWipeInput(e){
       <div id="wipeStatusHint" style="font-size:12px;color:#9CA3AF;margin-top:-10px;margin-bottom:14px">아직 입력되지 않았습니다.</div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" onclick="closeWipeModal()" style="padding:9px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:14px;cursor:pointer">취소</button>
-        <button id="wipeSubmitBtn" type="submit" disabled style="padding:9px 16px;background:#DC2626;border:none;color:#fff;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer" onmouseover="if(!this.disabled)this.style.background='#B91C1C'" onmouseout="if(!this.disabled)this.style.background='#DC2626'">🗑 자동 백업 후 전체 삭제</button>
+        <button id="wipeSubmitBtn" type="submit" disabled style="padding:9px 16px;background:#DC2626;border:none;color:#fff;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer" onmouseover="if(!this.disabled)this.style.background='#B91C1C'" onmouseout="if(!this.disabled)this.style.background='#DC2626'"><i class="ph-light ph-trash" aria-hidden="true"></i> 자동 백업 후 전체 삭제</button>
       </div>
     </form>
   </div>
@@ -905,12 +905,12 @@ function onWipeInput(e){
 <div id="bulkBundleModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1100;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:580px;max-width:92vw;max-height:88vh;overflow:auto;box-shadow:0 16px 48px rgba(0,0,0,0.18)">
     <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
-      <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28;flex:1">🎁 모음전 일괄 등록</h3>
+      <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28;flex:1"><i class="ph-light ph-gift" aria-hidden="true"></i> 모음전 일괄 등록</h3>
       <button type="button" onclick="closeBulkBundleModal()" style="background:transparent;border:none;font-size:22px;color:#8B95A1;cursor:pointer">×</button>
     </div>
     <div style="padding:18px 22px">
       <div style="background:#EFF6FF;border:1px solid #BCD2FF;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#1E3A8A">
-        <strong>📦 선택된 옵션:</strong> <span id="bbm_count">0</span>건<br>
+        <strong><i class="ph-light ph-package" aria-hidden="true"></i> 선택된 옵션:</strong> <span id="bbm_count">0</span>건<br>
         <span id="bbm_preview" style="font-size:11.5px;color:#3B4DD1"></span>
       </div>
 
@@ -934,13 +934,13 @@ function onWipeInput(e){
       </div>
 
       <div id="bbm_axes_preview" style="background:#F9FAFB;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11.5px">
-        <div style="font-weight:700;color:#191F28;margin-bottom:6px">🪄 자동 추론 단계 설계</div>
+        <div style="font-weight:700;color:#191F28;margin-bottom:6px"><i class="ph-light ph-magic-wand" aria-hidden="true"></i> 자동 추론 단계 설계</div>
         <div id="bbm_axes_body" style="color:#4E5968"></div>
       </div>
 
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" onclick="closeBulkBundleModal()" style="padding:8px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:13px;cursor:pointer">취소</button>
-        <button id="bbm_submit" type="button" onclick="submitBulkBundle()" style="padding:8px 18px;background:#03A65A;border:none;color:#fff;border-radius:5px;font-size:13px;font-weight:700;cursor:pointer">🎁 일괄 등록</button>
+        <button id="bbm_submit" type="button" onclick="submitBulkBundle()" style="padding:8px 18px;background:#03A65A;border:none;color:#fff;border-radius:5px;font-size:13px;font-weight:700;cursor:pointer"><i class="ph-light ph-gift" aria-hidden="true"></i> 일괄 등록</button>
       </div>
     </div>
   </div>
@@ -1007,11 +1007,11 @@ function onWipeInput(e){
 
       {# 🎨 옵션 일괄 생성 매트릭스 — 색상·사이즈에 쉼표 또는 합산 ≥ 2 일 때 자동 노출 #}
       <div id="matrixSection" style="display:none;background:#FFFAF0;border:1px solid #F5D899;border-radius:6px;padding:12px 14px;margin-bottom:12px">
-        <div style="font-size:12.5px;color:#7C5A14;font-weight:700;margin-bottom:6px">🎨 옵션 일괄 생성 매트릭스</div>
+        <div style="font-size:12.5px;color:#7C5A14;font-weight:700;margin-bottom:6px"><i class="ph-light ph-palette" aria-hidden="true"></i> 옵션 일괄 생성 매트릭스</div>
         <div style="font-size:11.5px;color:#92400E;margin-bottom:10px;line-height:1.5">• 체크박스로 ON/OFF · 행/열 헤더의 "전체"로 일괄 토글 · 셀에 초기 재고 입력<br>• 셀 수량은 <b>기본 위치</b>로 입고 처리 (다른 위치로 보내려면 등록 후 재고 이동)</div>
         <div id="matrixWrap" style="overflow-x:auto"></div>
         <div id="matrixCounter" style="background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:5px;padding:9px 13px;font-size:12.5px;color:#1B64DA;display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-          <span>🧮 생성될 SKU <span style="color:#525866;font-weight:400;font-size:11px">(체크된 셀만)</span></span>
+          <span><i class="ph-light ph-calculator" aria-hidden="true"></i> 생성될 SKU <span style="color:#525866;font-weight:400;font-size:11px">(체크된 셀만)</span></span>
           <span><b id="matrixSkuCount" style="font-family:ui-monospace,monospace;font-size:14px">0</b> 개 · 합계 재고 <b id="matrixQtyTotal" style="font-family:ui-monospace,monospace;font-size:14px">0</b></span>
         </div>
       </div>
@@ -1031,13 +1031,13 @@ function onWipeInput(e){
       {# 📍 위치별 초기 재고 (DB 의 InventoryLocation 활성 행 자동 렌더 — 위치 추가/삭제 시 자동 반영). 매트릭스 모드에서는 숨김 — 셀 수량이 기본 위치로 들어감 #}
       <div id="niLocSection" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:7px;padding:12px 14px;margin-bottom:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#191F28">
-          <span>📍 위치별 초기 재고 <span style="color:#6B7684;font-weight:400;font-size:10.5px;margin-left:6px">(전체 합산 = 총 재고)</span></span>
-          <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="font-size:11px;color:#3182F6;text-decoration:none;font-weight:500">⚙ 위치 관리 →</a>
+          <span><i class="ph-light ph-map-pin" aria-hidden="true"></i> 위치별 초기 재고 <span style="color:#6B7684;font-weight:400;font-size:10.5px;margin-left:6px">(전체 합산 = 총 재고)</span></span>
+          <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="font-size:11px;color:#3182F6;text-decoration:none;font-weight:500"><i class="ph-light ph-gear" aria-hidden="true"></i> 위치 관리 →</a>
         </div>
         <div id="niLocList">
           {% for loc in locs %}
             <div style="display:grid;grid-template-columns:24px 1fr 110px 36px;gap:8px;align-items:center;padding:7px 4px;{% if not loop.last %}border-bottom:1px solid #EAEFF5;{% endif %}">
-              <div style="color:#F59E0B;text-align:center">📍</div>
+              <div style="color:#F59E0B;text-align:center"><i class="ph-light ph-map-pin" aria-hidden="true"></i></div>
               <div style="font-size:13px;color:#191F28">
                 <b style="display:block">{{ loc.name }}</b>
                 <small style="color:#8B95A1;font-size:10.5px">id={{ loc.id }}{% if loc.is_default %} · 기본{% endif %}</small>
@@ -1069,19 +1069,19 @@ function onWipeInput(e){
       </div>
 
       <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:6px;padding:9px 12px;margin-bottom:14px;font-size:12px;color:#6B7684;line-height:1.6">
-        💡 위치별 수량을 비우면 재고 <b>0</b> 으로 시작. 추가 후 좌측 메뉴 <b>입고</b> 에서도 수량 추가 가능.<br>
-        💡 위치 행은 <b>재고관리 → 위치 관리</b> 에서 추가/삭제 시 자동 반영.
+        <i class="ph-light ph-lightbulb" aria-hidden="true"></i> 위치별 수량을 비우면 재고 <b>0</b> 으로 시작. 추가 후 좌측 메뉴 <b>입고</b> 에서도 수량 추가 가능.<br>
+        <i class="ph-light ph-lightbulb" aria-hidden="true"></i> 위치 행은 <b>재고관리 → 위치 관리</b> 에서 추가/삭제 시 자동 반영.
       </div>
 
       {# [2026-05-28] Phase 2-2 — 모음전 등록 옵션 (기본 OFF, 사용자 룰) #}
       <div style="background:#F0FDF4;border:1.5px solid #03A65A;border-radius:8px;padding:11px 14px;margin-top:10px;font-size:12.5px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#065F46;font-weight:600">
           <input type="checkbox" name="register_as_bundle" value="on" style="width:16px;height:16px;cursor:pointer">
-          🎁 모음전에도 등록
+          <i class="ph-light ph-gift" aria-hidden="true"></i> 모음전에도 등록
         </label>
         <div style="margin-top:4px;font-size:11.5px;color:#047857;padding-left:24px;line-height:1.5">
           체크 X → 단독 옵션 (재고관리에만 표시).<br>
-          체크 ✓ → 정상 모음전 모델 등록 (옵션 매트릭스 사용 가능).
+          체크 <i class="ph-light ph-check" aria-hidden="true"></i> → 정상 모음전 모델 등록 (옵션 매트릭스 사용 가능).
         </div>
       </div>
 
@@ -1709,7 +1709,7 @@ function submitBulkBundle(){
         <div style="text-align:center">
           <div style="position:relative;width:130px;height:130px;margin:0 auto">
             <div id="phxDropZone" style="width:100%;height:100%;background:#F9FAFB;border:2px dashed #CBCCD3;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9CA3AF;font-size:11px;overflow:hidden;cursor:pointer;transition:border-color .15s,background .15s">
-              <span id="phxImgPlaceholder" style="text-align:center;padding:0 6px;line-height:1.4">📤<br>드래그하거나<br>클릭해서 업로드</span>
+              <span id="phxImgPlaceholder" style="text-align:center;padding:0 6px;line-height:1.4"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i><br>드래그하거나<br>클릭해서 업로드</span>
               <img id="phxImg" style="display:none;width:100%;height:100%;object-fit:cover">
             </div>
             {# [2부-1] 사진 삭제 버튼 — 사진 있을 때만 노출 #}

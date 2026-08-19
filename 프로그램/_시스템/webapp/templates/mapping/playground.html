@@ -4,21 +4,21 @@
 <div style="padding:20px 28px;max-width:1700px;margin:0 auto">
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-    <h1 style="font-size:20px;font-weight:700;margin:0;color:#292A2F">🔍 자동 매칭 데모</h1>
+    <h1 style="font-size:20px;font-weight:700;margin:0;color:#292A2F"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 자동 매칭 데모</h1>
     <span style="font-size: 14px;color:#8F91A0">모음전 옵션 → 자동 매칭 → 검토 → 수동 picker → 학습</span>
     <a href="{{ url_for('mapping.index') }}" style="margin-left:auto;font-size: 14px;color:#3182F6;text-decoration:none">→ 키워드 사전 페이지</a>
   </div>
   <p style="font-size: 14px;color:#6B7684;margin:0 0 14px;max-width:1000px;line-height:1.55">
-    옵션 행 N개의 마켓 표기를 입력 → [🔍 자동 매칭] → 점수 기반으로 ✓ 자동 / ⚠ 검토 / ✕ 미매핑 3-상태 결정 → 미매핑 행에서 차원별 캐노니컬 직접 선택 → 학습 토스트로 사전 즉시 반영.
+    옵션 행 N개의 마켓 표기를 입력 → [<i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 자동 매칭] → 점수 기반으로 <i class="ph-light ph-check" aria-hidden="true"></i> 자동 / <i class="ph-light ph-warning" aria-hidden="true"></i> 검토 / <i class="ph-light ph-x" aria-hidden="true"></i> 미매핑 3-상태 결정 → 미매핑 행에서 차원별 캐노니컬 직접 선택 → 학습 토스트로 사전 즉시 반영.
   </p>
 
   {# 매칭 결과 진행 바 #}
   <div id="matchBar" style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size: 14px">
     <span class="cnt">전체 <b id="cntTotal" style="font-size:15px;font-weight:700">0</b></span>
-    <span class="cnt" style="color:#0E8056">자동 ✓ <b id="cntAuto" style="font-size:15px;font-weight:700;color:#0E8056">0</b></span>
-    <span class="cnt" style="color:#92400E">검토 ⚠ <b id="cntReview" style="font-size:15px;font-weight:700;color:#92400E">0</b></span>
-    <span class="cnt" style="color:#DC2626">미매핑 ✕ <b id="cntNone" style="font-size:15px;font-weight:700;color:#DC2626">0</b></span>
-    <button type="button" id="runMatchBtn" style="margin-left:auto;background:#3182F6;color:#fff;border:0;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer">🔍 자동 매칭 실행</button>
+    <span class="cnt" style="color:#0E8056">자동 <i class="ph-light ph-check" aria-hidden="true"></i> <b id="cntAuto" style="font-size:15px;font-weight:700;color:#0E8056">0</b></span>
+    <span class="cnt" style="color:#92400E">검토 <i class="ph-light ph-warning" aria-hidden="true"></i> <b id="cntReview" style="font-size:15px;font-weight:700;color:#92400E">0</b></span>
+    <span class="cnt" style="color:#DC2626">미매핑 <i class="ph-light ph-x" aria-hidden="true"></i> <b id="cntNone" style="font-size:15px;font-weight:700;color:#DC2626">0</b></span>
+    <button type="button" id="runMatchBtn" style="margin-left:auto;background:#3182F6;color:#fff;border:0;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 자동 매칭 실행</button>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 280px;gap:12px">
@@ -54,13 +54,13 @@
       </table>
       <div style="padding:10px 14px;border-top:1px solid #F1F1F4;background:#FAFBFC">
         <button type="button" id="addRowBtn" style="background:transparent;border:1px solid #CBCCD3;color:#525866;border-radius:5px;padding:5px 12px;font-size: 14px;cursor:pointer">+ 행 추가</button>
-        <button type="button" id="seedExamplesBtn" style="background:transparent;border:1px solid #93C5FD;color:#3182F6;border-radius:5px;padding:5px 12px;font-size: 14px;cursor:pointer;margin-left:6px">📝 예시 채우기</button>
+        <button type="button" id="seedExamplesBtn" style="background:transparent;border:1px solid #93C5FD;color:#3182F6;border-radius:5px;padding:5px 12px;font-size: 14px;cursor:pointer;margin-left:6px"><i class="ph-light ph-note-pencil" aria-hidden="true"></i> 예시 채우기</button>
       </div>
     </div>
 
     {# 우측 — V5 학습된 매핑 아코디언 (간소화) #}
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:14px;height:fit-content;position:sticky;top:14px;font-size: 14px">
-      <div style="font-weight:700;color:#191F28;margin-bottom:8px">🔗 학습된 매핑</div>
+      <div style="font-weight:700;color:#191F28;margin-bottom:8px"><i class="ph-light ph-link" aria-hidden="true"></i> 학습된 매핑</div>
       <div style="font-size: 12px;color:#9CA3AF;margin-bottom:8px">차원별 별칭 (수동/학습)</div>
       {% for d in dimensions %}
         <details {% if loop.first %}open{% endif %} style="border-bottom:1px solid #F1F1F4;padding:6px 0">
@@ -88,7 +88,7 @@
 
   {# 학습 토스트 (JS 가 동적 노출) #}
   <div id="learnToast" style="display:none;position:fixed;bottom:24px;right:24px;background:#191F28;color:#fff;border-radius:8px;padding:14px 18px;box-shadow:0 8px 24px rgba(0,0,0,0.25);font-size: 14px;align-items:center;gap:12px;z-index:200;max-width:480px">
-    <span style="font-size:18px">💡</span>
+    <span style="font-size:18px"><i class="ph-light ph-lightbulb" aria-hidden="true"></i></span>
     <div id="learnToastBody" style="flex:1"></div>
     <button type="button" id="learnIgnore" style="background:transparent;border:1px solid #525866;color:#cdd3d8;border-radius:5px;padding:4px 10px;font-size: 14px;cursor:pointer">무시</button>
     <button type="button" id="learnSave" style="background:#FCD34D;border:0;color:#191F28;border-radius:5px;padding:4px 12px;font-size: 14px;font-weight:700;cursor:pointer">사전에 저장</button>

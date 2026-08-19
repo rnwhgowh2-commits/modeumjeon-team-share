@@ -12,10 +12,10 @@
       <button type="button" onclick="document.getElementById('headerMore').classList.toggle('open')" style="background:#4F67FF;color:#fff;padding:7px 8px;border:none;border-radius:5px;font-size:12px;cursor:pointer;font-weight:700">▾</button>
       <div id="headerMore" style="position:relative">
         <div style="display:none;position:absolute;top:36px;right:0;background:#fff;border:1px solid #CBCCD3;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.08);min-width:180px;z-index:50;padding:6px 0">
-          <a href="{{ url_for('inventory.data_items') }}#import" style="display:block;padding:8px 14px;font-size:14px;color:#292A2F;text-decoration:none">📁 엑셀 가져오기</a>
-          <a href="{{ url_for('inventory.data_items') }}#export" style="display:block;padding:8px 14px;font-size:14px;color:#292A2F;text-decoration:none">📥 엑셀 내보내기</a>
+          <a href="{{ url_for('inventory.data_items') }}#import" style="display:block;padding:8px 14px;font-size:14px;color:#292A2F;text-decoration:none"><i class="ph-light ph-folder" aria-hidden="true"></i> 엑셀 가져오기</a>
+          <a href="{{ url_for('inventory.data_items') }}#export" style="display:block;padding:8px 14px;font-size:14px;color:#292A2F;text-decoration:none"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 엑셀 내보내기</a>
           <a href="#" onclick="alert('바코드 일괄 인쇄')" style="display:block;padding:8px 14px;font-size:14px;color:#292A2F;text-decoration:none">바코드 인쇄</a>
-          <a href="#" onclick="if(confirm('LCP 알고리즘으로 모든 SKU 의 색상에서 모델명 prefix 자동 strip + Model.model_name_display 채움. 진행하시겠습니까?'))document.getElementById('autoCleanForm').submit();return false;" style="display:block;padding:8px 14px;font-size:14px;color:#292A2F;text-decoration:none">🧹 색상 자동 정리</a>
+          <a href="#" onclick="if(confirm('LCP 알고리즘으로 모든 SKU 의 색상에서 모델명 prefix 자동 strip + Model.model_name_display 채움. 진행하시겠습니까?'))document.getElementById('autoCleanForm').submit();return false;" style="display:block;padding:8px 14px;font-size:14px;color:#292A2F;text-decoration:none"><i class="ph-light ph-broom" aria-hidden="true"></i> 색상 자동 정리</a>
           <form id="autoCleanForm" method="post" action="{{ url_for('inventory.data_items_auto_clean_colors') }}" style="display:none"></form>
         </div>
       </div>
@@ -298,8 +298,8 @@
       {# 1부-1 다중 선택 액션바 #}
       <div id="bulkActionBar" style="display:none;background:#191F28;color:#fff;padding:9px 16px;align-items:center;gap:9px;font-size:13px">
         <input type="checkbox" id="bulkSelectAll" onclick="toggleBulkSelectAll(this)" style="cursor:pointer;width:14px;height:14px">
-        ✅ <span id="bulkCount" style="background:#fff;color:#191F28;padding:2px 9px;border-radius:4px;font-weight:700">0건</span>
-        <button type="button" onclick="openBulkBundleModal()" style="background:#FFB454;color:#191F28;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer">🎁 모음전 일괄 등록</button>
+        <i class="ph-light ph-check-circle" aria-hidden="true"></i> <span id="bulkCount" style="background:#fff;color:#191F28;padding:2px 9px;border-radius:4px;font-weight:700">0건</span>
+        <button type="button" onclick="openBulkBundleModal()" style="background:#FFB454;color:#191F28;border:none;padding:5px 12px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer"><i class="ph-light ph-gift" aria-hidden="true"></i> 모음전 일괄 등록</button>
         <button type="button" onclick="clearBulkSelection()" style="background:transparent;border:1px solid #fff;color:#fff;padding:5px 12px;border-radius:4px;font-size:12px;cursor:pointer">선택 해제</button>
       </div>
 
@@ -332,7 +332,7 @@
               {% if o.image_url %}
                 <img src="{{ o.image_url }}" style="width:40px;height:40px;object-fit:cover;border-radius:5px;border:1px solid #E5E8EB" alt="">
               {% else %}
-                <div style="width:40px;height:40px;background:#F2F4F6;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:16px">👟</div>
+                <div style="width:40px;height:40px;background:#F2F4F6;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:16px"><i class="ph-light ph-sneaker" aria-hidden="true"></i></div>
               {% endif %}
             </div>
             {# 제품명 + 메타 #}
@@ -364,7 +364,7 @@
         {% if d.opt.image_url %}
           <img src="{{ d.opt.image_url }}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid #E5E8EB;flex-shrink:0" alt="">
         {% else %}
-          <div style="width:50px;height:50px;background:#F2F4F6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:20px;flex-shrink:0">👟</div>
+          <div style="width:50px;height:50px;background:#F2F4F6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:20px;flex-shrink:0"><i class="ph-light ph-sneaker" aria-hidden="true"></i></div>
         {% endif %}
         <div style="flex:1;min-width:0">
           <div style="font-size:14px;color:#191F28;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ _d_pname }}</div>
@@ -411,21 +411,21 @@
       <div style="border:1px solid #E5E8EB;border-radius:6px;overflow:hidden;margin-bottom:8px">
         {% for loc_id, info in d.loc_stock.items() %}
           <div onclick="openHistMod('{{ d.opt.canonical_sku }}', {{ loc_id }}, '{{ info.name }}')" style="display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid #F1F1F4;font-size:14px;color:#292A2F;cursor:pointer" onmouseover="this.style.background='#F9FAFB'" onmouseout="this.style.background=''">
-            <span style="color:#F59E0B;font-size:14px">📍</span>
+            <span style="color:#F59E0B;font-size:14px"><i class="ph-light ph-map-pin" aria-hidden="true"></i></span>
             <span style="flex:1">{{ info.name }}</span>
             <span style="font-family:ui-monospace,monospace;font-weight:600;color:{% if info.stock > 0 %}#4F67FF{% else %}#8F91A0{% endif %}">{{ info.stock }}</span>
             <span style="color:#4F67FF;font-size:12px;font-weight:700">›</span>
           </div>
         {% endfor %}
       </div>
-      <a href="javascript:openHistMod('{{ d.opt.canonical_sku }}', null, '전체')" style="display:block;text-align:center;padding:6px;border:1px solid #CBCCD3;color:#4F67FF;text-decoration:none;font-size:12px;border-radius:5px;margin-bottom:10px;font-weight:600">📜 전체 거래 이력 보기 →</a>
+      <a href="javascript:openHistMod('{{ d.opt.canonical_sku }}', null, '전체')" style="display:block;text-align:center;padding:6px;border:1px solid #CBCCD3;color:#4F67FF;text-decoration:none;font-size:12px;border-radius:5px;margin-bottom:10px;font-weight:600"><i class="ph-light ph-scroll" aria-hidden="true"></i> 전체 거래 이력 보기 →</a>
 
       {# ★ 이 제품으로 즉시 입고/출고/조정/이동 액션 (prefill — 박스히어로 1:1 UX) #}
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:14px">
-        <a href="{{ url_for('inventory.inbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#16A34A;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📥 입고</a>
-        <a href="{{ url_for('inventory.outbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#DC2626;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📤 출고</a>
-        <a href="{{ url_for('inventory.adjust_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#F59E0B;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">⚖ 조정</a>
-        <a href="{{ url_for('inventory.move_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#7C3AED;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">🔄 이동</a>
+        <a href="{{ url_for('inventory.inbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#16A34A;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 입고</a>
+        <a href="{{ url_for('inventory.outbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#DC2626;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 출고</a>
+        <a href="{{ url_for('inventory.adjust_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#F59E0B;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700"><i class="ph-light ph-scales" aria-hidden="true"></i> 조정</a>
+        <a href="{{ url_for('inventory.move_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#7C3AED;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i> 이동</a>
       </div>
 
       {# 거래 이력 모달 #}
@@ -436,7 +436,7 @@
               <h2 id="histTitle" style="font-size:16px;font-weight:800;margin:0 0 4px;color:#191F28">거래 이력</h2>
               <div id="histSub" style="font-size:12px;color:#8B95A1"></div>
             </div>
-            <button onclick="closeHistMod()" style="background:#fff;border:1px solid #E5E8EB;color:#4E5968;padding:5px 10px;border-radius:5px;cursor:pointer">✕ 닫기</button>
+            <button onclick="closeHistMod()" style="background:#fff;border:1px solid #E5E8EB;color:#4E5968;padding:5px 10px;border-radius:5px;cursor:pointer"><i class="ph-light ph-x" aria-hidden="true"></i> 닫기</button>
           </div>
           <div id="histList" style="flex:1;overflow-y:auto"></div>
         </div>
@@ -475,14 +475,14 @@
       function closeHistMod(){ document.getElementById('histModal').style.display='none'; }
       </script>
 
-      <a href="{{ url_for('inventory.reports_past_quantity', sku=d.opt.canonical_sku) }}" style="display:block;text-align:center;margin-top:8px;padding:7px;border:1px solid #D1D6DB;color:#4E5968;text-decoration:none;font-size:12px;border-radius:5px">📈 과거 수량 시계열</a>
+      <a href="{{ url_for('inventory.reports_past_quantity', sku=d.opt.canonical_sku) }}" style="display:block;text-align:center;margin-top:8px;padding:7px;border:1px solid #D1D6DB;color:#4E5968;text-decoration:none;font-size:12px;border-radius:5px"><i class="ph-light ph-trend-up" aria-hidden="true"></i> 과거 수량 시계열</a>
     </div>
     {% endif %}
   </div>
 
   <div style="margin-top:14px;font-size:12px;color:#9CA3AF;line-height:1.7">
-    ★ 좌측 list 클릭 → 우측 상세 패널 (위치별 재고 + 외부 SKU 매핑 + 거래 4종 단축).<br>
-    ★ 묶어보기 = 모델별 그룹핑 / 재고보유 = stock {{ '>' }} 0 필터.
+    <i class="ph-light ph-star" aria-hidden="true"></i> 좌측 list 클릭 → 우측 상세 패널 (위치별 재고 + 외부 SKU 매핑 + 거래 4종 단축).<br>
+    <i class="ph-light ph-star" aria-hidden="true"></i> 묶어보기 = 모델별 그룹핑 / 재고보유 = stock {{ '>' }} 0 필터.
   </div>
 </div>
 
@@ -706,12 +706,12 @@
 <div id="bulkBundleModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1100;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:580px;max-width:92vw;max-height:88vh;overflow:auto;box-shadow:0 16px 48px rgba(0,0,0,0.18)">
     <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
-      <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28;flex:1">🎁 모음전 일괄 등록</h3>
+      <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28;flex:1"><i class="ph-light ph-gift" aria-hidden="true"></i> 모음전 일괄 등록</h3>
       <button type="button" onclick="closeBulkBundleModal()" style="background:transparent;border:none;font-size:22px;color:#8B95A1;cursor:pointer">×</button>
     </div>
     <div style="padding:18px 22px">
       <div style="background:#EFF6FF;border:1px solid #BCD2FF;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#1E3A8A">
-        <strong>📦 선택된 옵션:</strong> <span id="bbm_count">0</span>건<br>
+        <strong><i class="ph-light ph-package" aria-hidden="true"></i> 선택된 옵션:</strong> <span id="bbm_count">0</span>건<br>
         <span id="bbm_preview" style="font-size:11.5px;color:#3B4DD1"></span>
       </div>
       <div style="margin-bottom:10px">
@@ -733,12 +733,12 @@
         <input id="bbm_article_no" type="text" placeholder="예: FV5420-002 (영숫자+하이픈)" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace">
       </div>
       <div id="bbm_axes_preview" style="background:#F9FAFB;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11.5px">
-        <div style="font-weight:700;color:#191F28;margin-bottom:6px">🪄 자동 추론 단계 설계</div>
+        <div style="font-weight:700;color:#191F28;margin-bottom:6px"><i class="ph-light ph-magic-wand" aria-hidden="true"></i> 자동 추론 단계 설계</div>
         <div id="bbm_axes_body" style="color:#4E5968"></div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" onclick="closeBulkBundleModal()" style="padding:8px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:13px;cursor:pointer">취소</button>
-        <button id="bbm_submit" type="button" onclick="submitBulkBundle()" style="padding:8px 18px;background:#03A65A;border:none;color:#fff;border-radius:5px;font-size:13px;font-weight:700;cursor:pointer">🎁 일괄 등록</button>
+        <button id="bbm_submit" type="button" onclick="submitBulkBundle()" style="padding:8px 18px;background:#03A65A;border:none;color:#fff;border-radius:5px;font-size:13px;font-weight:700;cursor:pointer"><i class="ph-light ph-gift" aria-hidden="true"></i> 일괄 등록</button>
       </div>
     </div>
   </div>

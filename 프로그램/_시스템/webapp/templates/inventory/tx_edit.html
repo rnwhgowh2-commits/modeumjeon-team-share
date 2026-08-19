@@ -32,10 +32,10 @@
   {% set type_label = {'in':'입고서','out':'출고서','adjust':'조정서','move':'이동서'}.get(tx.tx_type, '거래') %}
   <div class="e-head">
     <h1 class="{{ tx.tx_type }}">{{ type_label }} 수정</h1>
-    <button type="button" class="btn btn-danger" onclick="if(confirm('정말 삭제하시겠습니까? 재고가 자동 재계산됩니다.')) deleteTx({{ tx.id }})">🗑 삭제</button>
+    <button type="button" class="btn btn-danger" onclick="if(confirm('정말 삭제하시겠습니까? 재고가 자동 재계산됩니다.')) deleteTx({{ tx.id }})"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
   </div>
 
-  {% if error %}<div class="e-alert err">⚠ {{ error }}</div>{% endif %}
+  {% if error %}<div class="e-alert err"><i class="ph-light ph-warning" aria-hidden="true"></i> {{ error }}</div>{% endif %}
 
   <form method="post" class="e-card">
     <div class="e-row">
@@ -96,7 +96,7 @@
     </div>
 
     <div class="e-actions">
-      <button type="submit" class="btn btn-primary">💾 저장</button>
+      <button type="submit" class="btn btn-primary"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 저장</button>
       <a href="{{ url_for('inventory.history') }}" class="btn btn-ghost">← 돌아가기</a>
     </div>
   </form>

@@ -37,14 +37,14 @@
 
     {% if sp.last_error_msg %}
     <div class="card" style="border-left:3px solid var(--danger);margin-top:10px;background:#fff5f5">
-      <strong>⚠ 마지막 에러</strong>
+      <strong><i class="ph-light ph-warning" aria-hidden="true"></i> 마지막 에러</strong>
       <div class="mono" style="font-size: 14px;color:var(--n700);margin-top:6px">{{ sp.last_error_msg }}</div>
     </div>
     {% endif %}
 
     <div class="btn-row" style="margin-top:14px">
       <button class="btn" data-action="refetch-source" data-id="{{ sp.id }}">수동 fetch</button>
-      <button class="btn" style="color:var(--danger)" data-action="delete-source" data-id="{{ sp.id }}">🗑 삭제</button>
+      <button class="btn" style="color:var(--danger)" data-action="delete-source" data-id="{{ sp.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
     </div>
   </div>
 
@@ -106,7 +106,7 @@
   <div class="bundle-section">
     <div class="bundle-section-head">
       <span class="bundle-section-num {% if history %}done{% endif %}">4</span>
-      <h2>📈 가격·재고 시계열 (최근 30개)</h2>
+      <h2><i class="ph-light ph-trend-up" aria-hidden="true"></i> 가격·재고 시계열 (최근 30개)</h2>
     </div>
 
     {% if history %}
