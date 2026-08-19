@@ -95,9 +95,80 @@ _SEND_STAGE_NAME = '상품수집&전송'
 #     순서를 두 곳에 적으면 다음에 한 곳만 고쳐서 또 어긋난다(_SEND2 와 같은 이유).
 _CATALOG3: tuple[str, ...] = ('i_matrix', 'i_bundles', 'i_catalog')
 
-#: 저장본 세대. 9 = 상품관리 하위탭 1회 재정렬 완료(_migrate_catalog_order).
+#: 저장본 세대. 10 = 메뉴 선 아이콘 심기 완료(_migrate_icons).
+#  9 = 상품관리 하위탭 1회 재정렬 완료(_migrate_catalog_order).
 #  🔴 이 표시가 없으면 재정렬이 매 요청마다 돌아 사장님 드래그를 되돌린다.
-_SCHEMA = 9
+_SCHEMA = 10
+
+#: 메뉴 아이콘 — 그림문자 대신 쓰는 선 아이콘 이름(Phosphor).
+#  🔴 화면(partials/sidebar.html)은 `{% if it.icon %}` 로 **아이콘을 먼저** 본다.
+#     그래서 여기만 채우면 그림문자는 화면에서 사라진다(저장본의 emoji 는 그대로 둔다 —
+#     옛 마이그레이션들이 emoji 값을 비교해 판단하므로 없애면 조용히 헛돈다).
+#  🔴 저장본이 이긴다. 코드 기본값만 고치면 라이브 화면은 안 바뀐다 →
+#     _SCHEMA 를 올리고 _migrate_icons 가 저장본에도 심는다.
+_ICONS: dict[str, str] = {
+    'i_home': 'house',
+    's_collect': 'squares-four',
+    'i_optgen_direct': 'pencil-simple',
+    'i_optgen_market': 'storefront',
+    'i_optgen_product': 'package',
+    'i_bulk': 'stack',
+    's_process': 'wrench',
+    'i_policies': 'note-pencil',
+    'i_policy_apply': 'puzzle-piece',
+    's_auto': 'upload-simple',
+    'i_market_send': 'paper-plane-tilt',
+    'i_automation': 'gear',
+    's_catalog': 'package',
+    'i_bundles': 'clipboard-text',
+    'i_matrix': 'grid-four',
+    'i_catalog': 'storefront',
+    's_order': 'receipt',
+    'i_orders': 'list-bullets',
+    'i_ship': 'truck',
+    'i_cs': 'chat-circle',
+    'i_settle_plan': 'coins',
+    's_stats': 'chart-bar',
+    'i_margin': 'calculator',
+    's_inventory': 'tag',
+    'i_inventory': 'tag',
+    's_etc': 'dots-three-circle',
+    'i_templates': 'link',
+    'i_crawl_guide': 'buildings',
+    'i_mk_acct': 'storefront',
+    'i_live_send_test': 'rocket-launch',
+    'i_trash': 'trash',
+    'i_alerts': 'bell',
+    'i_data_guide': 'book-open',
+    'i_notion_report': 'calendar',
+}
+
+
+def _icon_of(node_id: str) -> str:
+    """메뉴 id → 선 아이콘 이름. 모르는 id 는 빈 값(화면이 옛 표시로 떨어진다)."""
+    return _ICONS.get(node_id, '')
+
+
+def _migrate_icons(layout: dict) -> bool:
+    """저장본의 모든 메뉴에 선 아이콘을 심는다 (세대 10, 1회).
+
+    사용자가 손수 고른 아이콘(icon 이 이미 있음)은 건드리지 않는다.
+    """
+    if int(layout.get('schema') or 0) >= _SCHEMA:
+        return False
+    n = 0
+    for it in (layout.get('standalone') or []):
+        if not it.get('icon') and _icon_of(it.get('id') or ''):
+            it['icon'] = _icon_of(it['id']); n += 1
+    for st in (layout.get('stages') or []):
+        if not st.get('icon') and _icon_of(st.get('id') or ''):
+            st['icon'] = _icon_of(st['id']); n += 1
+        for it in (st.get('items') or []):
+            if not it.get('icon') and _icon_of(it.get('id') or ''):
+                it['icon'] = _icon_of(it['id']); n += 1
+    layout['schema'] = _SCHEMA      # 아이콘이 하나도 안 심겨도 표시는 남긴다(재실행 방지)
+    return n > 0
+
 
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
 _STAGE_SPEC: list[tuple] = [
@@ -173,8 +244,9 @@ def _item(item_id: str, saved: dict | None = None) -> dict:
     """항목 1개 생성. 저장본이 있으면 사용자가 고친 이모지·이름을 보존(개명 대상 제외)."""
     base = dict(_ITEM_DEFS[item_id])
     base['id'] = item_id
+    base.setdefault('icon', _icon_of(item_id))
     if saved and item_id not in _FORCE_RENAME:
-        for k in ('emoji', 'name'):
+        for k in ('emoji', 'icon', 'name'):
             if saved.get(k):
                 base[k] = saved[k]
     return base
@@ -186,7 +258,8 @@ def _build_stages(saved_items: dict[str, dict] | None = None) -> list[dict]:
     out = []
     for sid, emoji, name, color, item_ids in _STAGE_SPEC:
         out.append({
-            'id': sid, 'emoji': emoji, 'name': name, 'color': color, 'collapsed': False,
+            'id': sid, 'emoji': emoji, 'icon': _icon_of(sid),
+            'name': name, 'color': color, 'collapsed': False,
             'items': [_item(i, saved_items.get(i)) for i in item_ids],
         })
     return out
@@ -475,6 +548,8 @@ def _migrate_catalog_rename(layout: dict) -> bool:
             spec = _ITEM_DEFS.get(it.get('id'))
             if not spec or it.get('id') not in _CATALOG3:
                 continue
+            # 🔴 여기에 'icon' 을 넣으면 안 된다 — _ITEM_DEFS 에는 icon 칸이 없어
+            #    spec[k] 가 KeyError 로 터진다(아이콘은 _ICONS 표가 따로 갖고 있다).
             for k in ('emoji', 'name'):
                 if it.get(k) != spec[k]:
                     it[k] = spec[k]
@@ -684,6 +759,7 @@ def _load() -> dict:
         _mig10 = _migrate_settle_plan(data)   # [2026-08-06] 정산예정금액 메뉴(1회)
         _mig11 = _migrate_send_rename(data)   # [2026-08-06] s_auto → 「상품수집&전송」 개명
         _mig12 = _migrate_catalog_rename(data)  # [2026-08-12] 상품관리 하위탭 개명(늘)
+        _mig14 = _migrate_icons(data)          # [2026-08-19] 메뉴 선 아이콘 심기(1회)
         _mig13 = _migrate_catalog_order(data)   # [2026-08-12] 상품관리 하위탭 재정렬(1회)
         # [2026-08-12] 상품가공 — 옵션 맵핑 템플릿 → 기타(1회).
         #   🔴 다른 세션(상품관리 #963)과 **같은 번호(_mig12)로 부딪혔다.**
@@ -788,7 +864,8 @@ def get_layout_for_template() -> dict:
             if st is None:
                 if not _missing[sid]:
                     continue
-                st = {'id': sid, 'emoji': emoji, 'name': name, 'color': color, 'collapsed': False, 'items': []}
+                st = {'id': sid, 'emoji': emoji, 'icon': _icon_of(sid), 'name': name,
+                      'color': color, 'collapsed': False, 'items': []}
             else:
                 st = dict(st)
             if _missing[sid]:
