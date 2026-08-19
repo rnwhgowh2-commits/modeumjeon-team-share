@@ -329,7 +329,13 @@
       {% if made.code %}<a class="og-made-a ghost" href="/bundles/{{ made.code }}">만든 상품 보기</a>{% endif %}
     </div>
     {% endif %}
-    <div class="og-lh">어느 옵션 묶음으로 만들까요 <span class="og-cnt">{{ mats|length }}</span></div>
+    {# [이슈 #1074] 옵션 탭 "+ 옵션 매트릭스 생성"과 같은 자리·같은 모양의 진입점.
+       실제 만들기는 아래 표에서 고른 매트릭스로 하므로(og-pgo 재사용), 늘 보이되
+       하나도 안 골랐으면 안내만 한다 — 옵션 0개 상품은 목록에 못 뜨는 기존 규칙과
+       부딪치지 않기 위해 빈 상품은 만들지 않는다(사장님 확정). #}
+    <div class="og-lh">어느 옵션 묶음으로 만들까요 <span class="og-cnt">{{ mats|length }}</span>
+      <button class="og-new" type="button" id="pb-open">+ 새 상품 생성</button>
+    </div>
     {% if mats %}
     {# [2026-08-04 사장님 확정] 옵션 탭과 같은 표 규격 — 상태는 색 배지(마켓 상품
        찾기 표와 같은 규칙), 줄 누르면 격자로, 옵션 고치기는 「⋯」 안. #}
@@ -452,12 +458,18 @@
         <button class="og-mx" type="button" id="mb-close" aria-label="닫기">✕</button>
         <div class="og-mt">📦 고른 묶음으로 상품 만들기</div>
         <div class="og-md" id="mb-sum"></div>
-        <label class="og-lb">상품 이름</label>
-        <input class="og-in" id="mb-name" placeholder="예: 르무통 메이트 스니커즈" maxlength="120">
+        {# [이슈 #1074 · 사장님 확정 순서] 브랜드 → 상품 이름 → 카테고리. 이 창은
+           「고른 묶음으로 상품 만들기」·「+ 새 상품 생성」 두 진입점이 같이 쓴다 —
+           칸 순서를 여기 한 곳만 바꾸면 둘 다 같이 맞는다. #}
         <label class="og-lb">브랜드 <span style="font-weight:400;color:var(--color-text-tertiary)">(하나만)</span></label>
         <input class="og-in" id="mb-brand" placeholder="예: 르무통" maxlength="60">
-        <label class="og-lb">카테고리</label>
-        <input class="og-in" id="mb-cat" placeholder="예: 스니커즈" maxlength="60">
+        <label class="og-lb">상품 이름 <span style="font-weight:400;color:var(--color-text-tertiary)">(마켓에 보낼 이름)</span></label>
+        <input class="og-in" id="mb-name" placeholder="예: 르무통 메이트 스니커즈" maxlength="120">
+        {# 드롭다운(기존 카테고리) + 자동완성(타이핑 검색), 새 이름도 그대로 입력 가능 —
+           목록은 bundles/new.html 과 같은 원천(Model.category distinct, categories= 로 전달됨). #}
+        <label class="og-lb">카테고리 <span style="font-weight:400;color:var(--color-text-tertiary)">(프로그램용)</span></label>
+        <input class="og-in" id="mb-cat" list="mb-cat-list" placeholder="예: 스니커즈" maxlength="60" autocomplete="off">
+        <datalist id="mb-cat-list">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
         <button class="og-btn" type="button" id="mb-make">상품 만들기</button>
         <div class="og-err" id="mb-err"></div>
       </div>
@@ -1684,7 +1696,7 @@
 
     var mbBack = document.getElementById('mb-back');
     var mbErr = document.getElementById('mb-err');
-    document.getElementById('og-pgo').addEventListener('click', function () {
+    function openBuildModal() {
       var names = []; picked.forEach(function (v) { names.push(v.name); });
       document.getElementById('mb-sum').innerHTML =
         '고른 묶음 <b>' + picked.size + '개</b>를 한 상품으로 담습니다.<br>' +
@@ -1693,7 +1705,22 @@
       mbErr.textContent = '';
       mbBack.classList.add('open');
       document.getElementById('mb-name').focus();
-    });
+    }
+    document.getElementById('og-pgo').addEventListener('click', openBuildModal);
+    // [이슈 #1074] 헤더의 "+ 새 상품 생성" — 표에서 미리 고른 매트릭스가 있으면
+    // 「고른 묶음으로 상품 만들기」와 똑같은 창을 그대로 연다. 하나도 안 골랐으면
+    // (또는 이 화면에 매트릭스가 아예 없어 og-pickbar 조차 없으면) 만들 재료가
+    // 없다는 뜻이므로 안내만 하고 빈 상품은 만들지 않는다.
+    var pbOpen = document.getElementById('pb-open');
+    if (pbOpen) {
+      pbOpen.addEventListener('click', function () {
+        if (!picked || picked.size === 0) {
+          alert('먼저 표에서 옵션 매트릭스를 골라주세요.');
+          return;
+        }
+        openBuildModal();
+      });
+    }
     document.getElementById('mb-close').addEventListener('click', function () {
       mbBack.classList.remove('open');
     });
@@ -1730,6 +1757,15 @@
           mbErr.textContent = '만들지 못했습니다 — ' + e; b.disabled = false;
         });
     });
+  } else {
+    // [이슈 #1074] 매트릭스가 아예 없는 화면 — og-pickbar·mb-back 자체가 없다.
+    // 아래 빈 상태 안내("먼저 옵션을 만드세요")와 같은 뜻을 버튼에서도 알린다.
+    var pbOpenEmpty = document.getElementById('pb-open');
+    if (pbOpenEmpty) {
+      pbOpenEmpty.addEventListener('click', function () {
+        alert('먼저 옵션 매트릭스를 만들어주세요 — 「모음전 옵션 생성 (직접)」에서 시작합니다.');
+      });
+    }
   }
 
   // ── [2026-08-12 사장님] 여러 묶음 골라 한 번에 삭제 ──────────────────
