@@ -144,6 +144,18 @@ h1 { font-size: 24px; font-weight: 600; letter-spacing: .01em; line-height: 1.29
     border-radius: var(--r-lg); padding: 56px 64px;
   }
 }
+/* 화면/레이아웃 시안일 때만 쓰는 미리보기 — 그 시안이 적용된 화면을 주변 맥락(헤더·표
+   등)까지 포함해 독립 미니 문서로 렌더링한다. iframe+srcdoc 로 격리해서 이 템플릿 자체의
+   CSS(.card, .group 등 흔한 클래스명)와 부딪히지 않게 한다. */
+.modal-preview { width: 100%; margin: 0 0 16px; }
+.modal-preview-frame {
+  display: block; width: 100%; aspect-ratio: 16 / 10;
+  border: 1px solid var(--border); border-radius: var(--r-card);
+  background: #fff;
+}
+@media (min-width: 640px) {
+  .modal-preview { max-width: 1100px; margin: 0 auto 16px; }
+}
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .modal-group-label { font-size: 13px; font-weight: 600; color: var(--text-sub); }
 .modal-close {
@@ -381,6 +393,10 @@ function renderModal() {
           '<button type="button" class="modal-close" data-action="modal-close" aria-label="닫기">✕</button>' +
         "</div>" +
         '<div class="modal-body">' +
+          (d.previewHtml ?
+            '<div class="modal-preview"><iframe class="modal-preview-frame" sandbox="" ' +
+            'title="' + escapeHtml(d.title) + ' 화면 미리보기" srcdoc="' + escapeHtml(d.previewHtml) + '"></iframe></div>'
+            : "") +
           '<div class="card-badge">' + d.id + "</div>" +
           '<div class="modal-title">' + escapeHtml(d.title) + "</div>" +
           (d.desc ? '<div class="modal-desc">' + escapeHtml(d.desc) + "</div>" : "") +
