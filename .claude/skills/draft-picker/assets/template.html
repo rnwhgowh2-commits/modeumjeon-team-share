@@ -120,6 +120,42 @@ h1 { font-size: 24px; font-weight: 600; letter-spacing: .01em; line-height: 1.29
   border-radius: var(--r-sm); font-size: 13px; line-height: 1.33; font-family: inherit;
 }
 .more-like-btn:disabled { opacity: .55; }
+
+/* 카드를 탭하면 여는 상세 팝업 — 좁은 그리드 칸 안에서는 다 못 읽으니, 팝업 안에서는
+   한 시안씩 전체 폭으로 크게 보여주고 화살표(또는 스와이프)로 옆 시안까지 넘겨본다. */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .5);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; z-index: 1000;
+}
+.modal-panel {
+  width: 100%; max-width: 440px; max-height: calc(100vh - 32px); overflow-y: auto;
+  background: var(--surface); border-radius: var(--r-lg); padding: 20px;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.modal-group-label { font-size: 13px; font-weight: 600; color: var(--text-sub); }
+.modal-close {
+  flex: none; width: 32px; height: 32px; border-radius: 50%; border: none;
+  background: var(--bg); color: var(--text-sub); font-size: 15px; line-height: 1;
+}
+.modal-body { padding: 8px 0 20px; }
+.modal-title { font-size: 21px; font-weight: 600; letter-spacing: .01em; line-height: 1.3; margin-bottom: 6px; text-wrap: balance; }
+.modal-desc { color: var(--text-sub); font-size: 15px; line-height: 1.6; }
+.modal-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 6px; }
+.modal-arrow {
+  flex: none; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 18px;
+}
+.modal-arrow:disabled { opacity: .35; }
+.modal-pos { font-size: 13px; color: var(--text-sub); font-variant-numeric: tabular-nums; min-width: 44px; text-align: center; }
+.modal-swipe-hint { text-align: center; font-size: 12px; color: var(--text-sub); margin-bottom: 20px; }
+.modal-actions { display: flex; flex-direction: column; gap: 8px; }
+.modal-select-btn {
+  min-height: 48px; border: none; border-radius: var(--r-pill);
+  background: var(--accent); color: var(--accent-text); font-size: 16px; font-weight: 600; font-family: inherit;
+}
+.modal-select-btn.is-selected { background: var(--confirm-bg); }
+
 .group-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .group-actions button {
   flex: 1 1 auto; min-height: 44px; padding: 10px 12px;
@@ -224,6 +260,12 @@ var state = loadState();
 var artifactApi = null;
 var fallbackMode = false;
 
+// 팝업(모달) 상태 — 어느 시안을 크게 보여주는 중인지. 새로고침마다 사라져도 되는 화면
+// 위치일 뿐이라 state 안에 안 넣고 저장(publish)도 안 한다 — otherOpen 과 달리 이건
+// 아예 별도 변수: prev/next 로 넘길 때마다 재발행하면 그때마다 화면이 새로고침돼 버려서
+// (publish 는 항상 전체 문서 교체) 매끄러운 넘기기가 안 된다.
+var modal = { open: false, groupId: null, index: 0 };
+
 // ── 유틸 ──
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -236,6 +278,13 @@ function findGroup(id) {
     if (state.groups[i].id === id) return state.groups[i];
   }
   return null;
+}
+
+function indexOfDraft(g, draftId) {
+  for (var i = 0; i < g.drafts.length; i++) {
+    if (g.drafts[i].id === draftId) return i;
+  }
+  return 0;
 }
 
 function hasRequest(g, type, draftId) {
@@ -268,18 +317,58 @@ function buildSummaryText() {
 }
 
 // ── 렌더 ──
+// 카드(그리드/리스트의 축소판)는 훑어보기 전용 — 탭하면 고르는 게 아니라 팝업을 연다.
+// 좁은 칸 안에 제목·설명·버튼을 다 욱여넣으면 이번에 지적받은 "내용을 상세히 못 본다"
+// 문제가 다시 생기므로, 실제 고르기·상세 설명·더보기는 전부 팝업(renderModal) 쪽으로 옮겼다.
 function renderCard(g, d) {
   var selected = g.selected === d.id;
-  var moreDisabled = hasRequest(g, "more_like", d.id);
   return (
     '<div class="card ' + (selected ? "selected" : "") + '" role="button" tabindex="0" ' +
-    'data-action="select" data-group="' + g.id + '" data-draft="' + d.id + '">' +
+    'data-action="open-modal" data-group="' + g.id + '" data-draft="' + d.id + '">' +
       '<div class="card-badge">' + d.id + "</div>" +
       '<div class="card-title">' + escapeHtml(d.title) + "</div>" +
       (d.desc ? '<div class="card-desc">' + escapeHtml(d.desc) + "</div>" : "") +
       (selected ? '<div class="check">✓ 선택됨</div>' : "") +
-      '<button type="button" class="more-like-btn" data-action="more-like" data-group="' + g.id + '" data-draft="' + d.id + '" ' +
-      (moreDisabled ? "disabled" : "") + ">🔍 " + d.id + "번 시안 더 보기" + (moreDisabled ? " · 요청됨" : "") + "</button>" +
+    "</div>"
+  );
+}
+
+function renderModal() {
+  if (!modal.open) return "";
+  var g = findGroup(modal.groupId);
+  if (!g) return "";
+  var d = g.drafts[modal.index];
+  var selected = g.selected === d.id;
+  var moreDisabled = hasRequest(g, "more_like", d.id);
+  var atFirst = modal.index === 0;
+  var atLast = modal.index === g.drafts.length - 1;
+  return (
+    '<div class="modal-overlay" data-action="modal-backdrop">' +
+      '<div class="modal-panel" data-action="modal-panel" role="dialog" aria-modal="true" aria-label="' + escapeHtml(d.title) + '">' +
+        '<div class="modal-head">' +
+          '<span class="modal-group-label">' + escapeHtml(g.label) + "</span>" +
+          '<button type="button" class="modal-close" data-action="modal-close" aria-label="닫기">✕</button>' +
+        "</div>" +
+        '<div class="modal-body">' +
+          '<div class="card-badge">' + d.id + "</div>" +
+          '<div class="modal-title">' + escapeHtml(d.title) + "</div>" +
+          (d.desc ? '<div class="modal-desc">' + escapeHtml(d.desc) + "</div>" : "") +
+          (selected ? '<div class="check">✓ 선택됨</div>' : "") +
+        "</div>" +
+        '<div class="modal-nav">' +
+          '<button type="button" class="modal-arrow" data-action="modal-prev" ' + (atFirst ? "disabled" : "") + ' aria-label="이전 시안">‹</button>' +
+          '<span class="modal-pos">' + (modal.index + 1) + " / " + g.drafts.length + "</span>" +
+          '<button type="button" class="modal-arrow" data-action="modal-next" ' + (atLast ? "disabled" : "") + ' aria-label="다음 시안">›</button>' +
+        "</div>" +
+        (g.drafts.length > 1 ? '<div class="modal-swipe-hint">손가락으로 좌우로 넘겨도 돼요</div>' : "") +
+        '<div class="modal-actions">' +
+          '<button type="button" class="more-like-btn" data-action="more-like" data-group="' + g.id + '" data-draft="' + d.id + '" ' +
+          (moreDisabled ? "disabled" : "") + ">🔍 " + d.id + "번 시안 더 보기" + (moreDisabled ? " · 요청됨" : "") + "</button>" +
+          '<button type="button" class="modal-select-btn' + (selected ? " is-selected" : "") + '" data-action="select" data-group="' + g.id + '" data-draft="' + d.id + '">' +
+            (selected ? "✓ 선택됨 (다시 탭하면 해제)" : "✅ 이 시안 선택") +
+          "</button>" +
+        "</div>" +
+      "</div>" +
     "</div>"
   );
 }
@@ -311,7 +400,7 @@ function renderBody() {
   return (
     "<h1>" + escapeHtml(state.title) + "</h1>" +
     '<p class="lead">마음에 드는 시안을 탭해서 골라주세요.</p>' +
-    '<p class="hint">다 고르셨으면 맨 아래 확인을 눌러주세요. "더보기" 버튼은 그 자리에서 바로 새 시안을 만들진 않고, 요청만 기록해서 다음에 반영합니다.</p>' +
+    '<p class="hint">카드를 탭하면 크게 펼쳐 보여줘요 — 거기서 옆 시안으로 넘겨보고 마음에 드는 걸 고르면 됩니다. "더보기" 버튼은 그 자리에서 바로 새 시안을 만들진 않고, 요청만 기록해서 다음에 반영합니다.</p>' +
     state.groups.map(renderGroup).join("") +
     '<div class="summary-box"><h2>📋 현재 선택 요약</h2><pre>' + escapeHtml(summary) + "</pre></div>" +
     '<div class="confirm-bar">' +
@@ -323,7 +412,8 @@ function renderBody() {
         '<div class="fallback-banner">⚠️ 이 화면에서는 자동 저장이 안 됩니다. 아래 내용을 전체 복사해서 채팅에 붙여넣어 주세요.' +
         '<textarea class="copy-box" readonly>' + escapeHtml(summary) + "</textarea></div>"
         : '<div class="save-status" id="save-status"></div>') +
-    "</div>"
+    "</div>" +
+    renderModal()
   );
 }
 
@@ -378,6 +468,32 @@ function save() {
   }).catch(onPublishError);
 }
 
+// ── 팝업 열기/닫기/넘기기 — 전부 로컬(paint)만, save 는 안 부른다 (이유는 modal 변수 선언부 주석 참고) ──
+function openModal(groupId, index) {
+  modal.open = true;
+  modal.groupId = groupId;
+  modal.index = index;
+  document.body.style.overflow = "hidden"; // 팝업 떠 있는 동안 뒤 페이지 스크롤 방지
+  paint();
+}
+
+function closeModal() {
+  modal.open = false;
+  modal.groupId = null;
+  modal.index = 0;
+  document.body.style.overflow = "";
+  paint();
+}
+
+function modalStep(delta) {
+  var g = findGroup(modal.groupId);
+  if (!g) return;
+  var next = modal.index + delta;
+  if (next < 0 || next >= g.drafts.length) return; // 양 끝에서는 더 안 넘어감
+  modal.index = next;
+  paint();
+}
+
 // ── 이벤트 ──
 var otherSaveTimer = null;
 
@@ -388,9 +504,21 @@ function onAppClick(e) {
   var g = el.dataset.group ? findGroup(el.dataset.group) : null;
   var draftId = el.dataset.draft ? Number(el.dataset.draft) : null;
 
-  if (action === "select") {
+  if (action === "open-modal") {
+    openModal(g.id, indexOfDraft(g, draftId));
+  } else if (action === "modal-close" || action === "modal-backdrop") {
+    closeModal();
+  } else if (action === "modal-panel") {
+    // 팝업 안쪽(배경 아님) 클릭 — 닫히면 안 되므로 아무 것도 안 함(data-action 은 이벤트가
+    // 배경까지 안 번지게 붙잡아 두는 용도).
+  } else if (action === "modal-prev") {
+    modalStep(-1);
+  } else if (action === "modal-next") {
+    modalStep(1);
+  } else if (action === "select") {
     g.selected = g.selected === draftId ? null : draftId;
     state.confirmed = false;
+    closeModal(); // 고르면 팝업 닫고 그리드로 돌아가 선택 표시를 바로 보여준다
     save();
   } else if (action === "more-like") {
     addRequest(g, "more_like", draftId);
@@ -412,6 +540,28 @@ function onAppClick(e) {
   }
 }
 
+// 팝업 안에서 손가락으로 좌우로 넘기기
+var touchStartX = null;
+function onAppTouchStart(e) {
+  if (!modal.open) return;
+  touchStartX = e.changedTouches[0].clientX;
+}
+function onAppTouchEnd(e) {
+  if (!modal.open || touchStartX === null) return;
+  var dx = e.changedTouches[0].clientX - touchStartX;
+  touchStartX = null;
+  if (Math.abs(dx) < 40) return; // 살짝 스친 정도는 무시
+  modalStep(dx < 0 ? 1 : -1); // 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전
+}
+
+// 팝업 열려 있을 때 키보드로도 넘기기(PC)
+function onKeyDown(e) {
+  if (!modal.open) return;
+  if (e.key === "Escape") closeModal();
+  else if (e.key === "ArrowLeft") modalStep(-1);
+  else if (e.key === "ArrowRight") modalStep(1);
+}
+
 function onAppInput(e) {
   var el = e.target.closest('[data-action="other-input"]');
   if (!el) return;
@@ -424,6 +574,9 @@ function onAppInput(e) {
 
 document.getElementById("app").addEventListener("click", onAppClick);
 document.getElementById("app").addEventListener("input", onAppInput);
+document.getElementById("app").addEventListener("touchstart", onAppTouchStart, { passive: true });
+document.getElementById("app").addEventListener("touchend", onAppTouchEnd, { passive: true });
+document.addEventListener("keydown", onKeyDown);
 
 // ── 시작 ──
 paint(); // capability 응답을 기다리지 않고 즉시 화면부터 보여준다
