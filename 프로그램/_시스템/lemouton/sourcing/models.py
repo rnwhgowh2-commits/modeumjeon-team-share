@@ -272,6 +272,27 @@ class Option(Base):
     boxhero_sku = Column(String(64))
     barcode = Column(String(64))  # 박스히어로 EAN-13 바코드 (라벨 인쇄용)
 
+    # ── [2026-08-14 사장님] SKU 하나하나의 번호 세 가지 — 품번 · 바코드 · GTIN ──
+    #
+    # 🔴 `Option.article_no`(여기)와 `Model.article_no`(모델 표)는 **다른 것**이다.
+    #    · `Model.article_no` = 묶음(모델) 전체에 하나 붙는 품번. 우리 엑셀 양식의 5번째 칸.
+    #    · `Option.article_no` = **색상·사이즈까지 갈라진 낱개 SKU 마다** 붙는 품번.
+    #      브랜드가 「블랙 260」과 「블랙 265」에 서로 다른 품번을 매기기 때문에
+    #      모델 칸 하나로는 담을 수 없다. 그래서 칸을 새로 판다.
+    #    안 가르면 무슨 사고가 나나 — 모델 품번을 옵션 품번인 양 마켓에 보내면
+    #    한 상품의 모든 사이즈가 **같은 번호**로 나가고, 브랜드·마켓이 그 번호로 물건을
+    #    맞춰 볼 때 사이즈가 뒤섞인다.
+    #
+    # 🔴 셋 다 **NULL = 「아직 안 적음」** 이다. 기본값(빈 문자열·'-')을 주면 안 된다.
+    #    빈 문자열을 넣는 순간 「적었는데 비웠다」와 「아직 안 적었다」가 화면에서
+    #    같은 모습이 되고, 「몇 개 채웠나」 세는 곳이 안 채운 것을 채운 걸로 센다.
+    #
+    # GTIN 은 세계 공용 상품 번호(GTIN-8/12/13/14)라 **최대 14자리**다.
+    # 우리가 만드는 `shared/sku_format.gen_barcode()` 번호(200~ 로 시작)는
+    # 가게 안에서만 쓰는 번호라 GTIN 칸에 넣으면 안 된다 — 그쪽 주석에 까닭이 있다.
+    article_no = Column(String(64))
+    gtin = Column(String(14))
+
     # ★ STEP 7 Task 0.2 — 박스히어로 재고관리 (R2 옵션 매트릭스, ADR-002)
     boxhero_stock_total = Column(Integer, default=0)               # 자동 집계 (위치별 합)
     boxhero_avg_purchase_price = Column(Integer, default=0)        # 이동평균 매입가

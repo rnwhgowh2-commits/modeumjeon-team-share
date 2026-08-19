@@ -371,6 +371,15 @@ def _apply_lightweight_migrations() -> None:
         ("options", "barcode", "VARCHAR(64)"),
         # 2026-05-19: 품번 (우리 양식 5번째 컬럼) — Model 마스터에 저장
         ("models", "article_no", "VARCHAR(64)"),
+        # [2026-08-14] SKU 하나하나의 품번·GTIN — 「옵션 조합 생성 및 수정」 창에서 받는다.
+        #   🔴 바로 위 `models.article_no`(모델 하나에 하나)와 **다른 칸**이다.
+        #      브랜드가 사이즈마다 다른 품번을 매기므로 모델 칸으로는 못 담는다.
+        #      까닭과 관계는 `lemouton/sourcing/models.py` 의 `Option.article_no` 주석에.
+        #   🔴 기본값을 주지 않는다 — **NULL = 「아직 안 적음」**. 빈 문자열이 들어가면
+        #      「안 적음」과 「적었다 지움」이 화면에서 같아지고, 진척(「품번 12/15」)을
+        #      세는 곳이 안 채운 것을 채운 걸로 센다.
+        ("options", "article_no", "VARCHAR(64)"),
+        ("options", "gtin", "VARCHAR(14)"),
         # 2026-05-21: 가격 템플릿 마켓별 반품비·교환비 (모달 가로탭 재구성)
         ("price_templates", "ss_return_fee", "INTEGER DEFAULT 0"),
         ("price_templates", "ss_exchange_fee", "INTEGER DEFAULT 0"),
