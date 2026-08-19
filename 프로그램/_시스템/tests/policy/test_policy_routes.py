@@ -347,6 +347,73 @@ def test_갈아끼움_경고가_있다(client):
     assert '갈아 끼워집니다' in body
 
 
+# ── 정책 고르기 카드(#1059) — 블록형 전환 ────────────────────────────────────
+
+def _enable_market(client, pid, markets):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import set_enabled_markets
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        set_enabled_markets(s, policy=p, markets=markets)
+        s.commit()
+    finally:
+        s.close()
+
+
+def test_가격을_아직_못_채운_정책은_카드가_잠긴다(client):
+    """켠 마켓이 있어도 가격을 하나도 못 채웠으면 「미완성」 — 라디오도 disabled."""
+    pid = _new_policy(client, '미완성정책')
+    _enable_market(client, pid, ['coupang'])
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'class="polcard locked"' in body
+    assert '🔒 미완성' in body
+    assert f'value="{pid}" data-nm="미완성정책"\n                   disabled>' in body
+
+
+def test_가격을_채운_정책은_잠기지_않는다(client):
+    pid = _new_policy(client, '완성정책')
+    _enable_market(client, pid, ['coupang'])
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import save_item
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        save_item(s, policy=p, market='coupang', item_key='price', config={'sourcing_rate': 25})
+        s.commit()
+    finally:
+        s.close()
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'class="polcard locked"' not in body
+    assert '🔒 미완성' not in body
+    assert f'value="{pid}" data-nm="완성정책"\n                   >' in body, 'disabled 가 없어야 한다'
+
+
+def test_카드에_내보낼_마켓_뱃지가_있다(client):
+    pid = _new_policy(client, '마켓뱃지확인')
+    _enable_market(client, pid, ['coupang', 'smartstore'])
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'mkbadge' in body
+
+
+def test_적용_상품_호버_틀이_있다(client):
+    """호버 내용은 <template> 로 미리 그려 둔다 — JS 가 새로 조립하지 않는다."""
+    pid = _new_policy(client, '호버확인')
+    _enable_market(client, pid, ['coupang'])
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import save_item
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        save_item(s, policy=p, market='coupang', item_key='price', config={'sourcing_rate': 25})
+        s.commit()
+    finally:
+        s.close()
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert f'<template class="pc-pophtml" data-hvkey="ap{pid}">' in body
+    assert '적용 상품이 없어요' in body
+
+
 def test_상품목록_API가_브랜드_수를_준다(client):
     _model(client, 'M1', '르무통')
     _model(client, 'M2', '르무통')
