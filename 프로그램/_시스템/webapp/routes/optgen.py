@@ -1207,6 +1207,32 @@ def api_import_from_market():
     return jsonify({'ok': True, **out})
 
 
+@bp.post('/api/import-from-market-merge')
+def api_import_from_market_merge():
+    """마켓 상품 여러 개 → 「모델」 축 매트릭스 1개로 태어난다(지금은 스마트스토어만).
+
+    🔴 실패하면 아무것도 안 만든다(rollback) — 반쪽짜리 옵션함 금지. 단건
+       가져오기(`/api/import-from-market`)와 같은 계약.
+    """
+    from lemouton.matrix.import_from_market import import_market_products_merged
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        out = import_market_products_merged(
+            s, items=body.get('items') or [],
+            name=body.get('name') or '', brand=body.get('brand') or '')
+        s.commit()
+    except ValueError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+    finally:
+        s.close()
+    return jsonify(out)
+
+
 @bp.get('/import')
 def import_from_market():
     """내마켓 불러오기 — 이제 하위탭 ②(`/optgen?tab=market`) 안에 있다.

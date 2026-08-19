@@ -59,6 +59,33 @@ def test_같은_이름을_두_번_만들어도_안_겹친다(session):
     assert a.display_no != b.display_no
 
 
+def test_band을_안_주면_기존과_똑같다(session):
+    """직접 생성 호출부는 안 건드린다 — band 기본값은 예전 번호와 동일해야 한다."""
+    from lemouton.matrix.service import create_option_box
+    mo = create_option_box(session, name='직접생성', brand='르무통')
+    assert mo.display_no[-6] == '0'          # 예전 그대로 000001 꼴
+
+
+def test_band을_주면_순번_앞자리로_출처가_갈린다(session):
+    """내마켓 불러오기(band=1)는 직접 생성(band 없음)과 번호 앞자리로 구별된다."""
+    from lemouton.matrix.service import create_option_box
+    direct = create_option_box(session, name='직접생성', brand='르무통')
+    market = create_option_box(session, name='내마켓생성', brand='르무통', band=1)
+    assert direct.display_no[-6] == '0'
+    assert market.display_no[-6] == '1'
+    assert direct.model_code[:-6] == market.model_code[:-6]   # 접두+생성일은 그대로
+
+
+def test_band이_달라도_같은_체계_안에서_절대_안_겹친다(session):
+    """직접 여러 개 + 내마켓 여러 개를 섞어 만들어도 U번호가 하나도 안 겹친다."""
+    from lemouton.matrix.service import create_option_box
+    made = []
+    for i in range(30):
+        made.append(create_option_box(session, name=f'직접{i}', brand='르무통').display_no)
+        made.append(create_option_box(session, name=f'마켓{i}', brand='르무통', band=1).display_no)
+    assert len(made) == len(set(made))
+
+
 def test_옵션함에_옵션을_붙일_수_있다(session):
     """이게 목적 — 상품을 안 만들고도 옵션이 저장된다."""
     from lemouton.matrix.service import create_option_box

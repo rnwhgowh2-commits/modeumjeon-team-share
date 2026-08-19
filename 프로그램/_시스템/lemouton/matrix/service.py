@@ -163,7 +163,8 @@ def edit_target(session, mo: MatrixOption) -> dict:
 def create_option_box(session, *, name: str, brand: str = '',
                       category: str | None = None,
                       memo: str | None = None,
-                      model_name: str | None = None) -> MatrixOption:
+                      model_name: str | None = None,
+                      band: int | None = None) -> MatrixOption:
     """옵션함을 만든다 — 「상품 없이 옵션만」의 입구. 설계서 규칙 1·3.
 
     겉(사장님이 보는 것) — 매트릭스 옵션 하나가 생기고 `U…` 번호가 붙는다.
@@ -184,6 +185,12 @@ def create_option_box(session, *, name: str, brand: str = '',
                `option_name.model_name_of` 의 판정 순서(① 축 값 → ② 이 칸)상
                조용히 가려져 있다가, 축이 바뀌는 날 두 값이 갈린다.
             비었으면 **None** 으로 남긴다 — 「따로 안 정함」과 「빈 이름」은 다르다.
+        band: 순번 앞자리로 출처를 가른다(`shared/display_no.py` 의 band 그대로).
+            🔴 기본값 `None` — 이러면 예전과 똑같은 `U…` 순번 한 줄(scope `'U'`)을
+               그대로 쓴다. 여기서 뭘 넣어도 **기존 호출부(직접 생성)는 절대 안 건드린다**
+               (band 인자를 아예 안 주므로). 「내마켓 불러오기」처럼 출처를 구별해야
+               하는 새 호출부만 `band=1` 같은 값을 넘긴다 — 그러면 완전히 새 scope
+               (`'U:1'`)에서 1부터 채번되어 기존 번호와 절대 안 겹친다.
     """
     from shared.display_no import PREFIX_MATRIX_ORIGIN, format_no, reserve
     from lemouton.sourcing.models import Model
@@ -201,8 +208,8 @@ def create_option_box(session, *, name: str, brand: str = '',
     if not br:
         raise ValueError('브랜드를 적어주세요 — 비워 두면 엉뚱한 브랜드로 잡힙니다.')
 
-    seq = reserve(session, PREFIX_MATRIX_ORIGIN)
-    no = format_no(PREFIX_MATRIX_ORIGIN, seq)
+    seq = reserve(session, PREFIX_MATRIX_ORIGIN, band=band)
+    no = format_no(PREFIX_MATRIX_ORIGIN, seq, band=(band or 0))
 
     session.add(Model(model_code=no, model_name_raw=nm, model_name_display=nm,
                       brand=br, category=category,
