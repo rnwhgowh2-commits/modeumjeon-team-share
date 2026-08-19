@@ -387,9 +387,12 @@ def _matrices(session, limit: int = 100):
     from lemouton.matrix.models import MatrixOption
     from lemouton.sourcing.models import Model, Option
     # [2026-08-04] brand 추가 — 왕쪽 서럍(브랜드로 추리기)이 상품 탭에서도 돌아야 한다.
+    # [이슈 #1090] bundle_model_name 추가 — 색상 모음전이 묶음 칸에 따로 적어 둔
+    #   모델명도 「옵션 매트릭스」 칼럼에 보여야 한다(`_boxes()`와 같은 재료).
     rows = (session.query(MatrixOption.id, MatrixOption.display_no,
                           MatrixOption.name, MatrixOption.kind,
                           Model.is_option_box, Model.brand,
+                          Model.bundle_model_name,
                           func.count(Option.canonical_sku),
                           MatrixOption.model_code)
             .outerjoin(Model, Model.model_code == MatrixOption.model_code)
@@ -397,40 +400,65 @@ def _matrices(session, limit: int = 100):
             .filter(MatrixOption.deleted_at.is_(None))
             .group_by(MatrixOption.id, MatrixOption.display_no, MatrixOption.name,
                       MatrixOption.kind, Model.is_option_box, Model.brand,
-                      MatrixOption.model_code)
+                      Model.bundle_model_name, MatrixOption.model_code)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
     out = [{'id': i, 'no': no or '—', 'name': display_name(nm, mc), 'kind': k,
-            'box': bool(box), 'brand': br, 'options': n, 'code': mc}
-           for i, no, nm, k, box, br, n, mc in rows if n]
+            'box': bool(box), 'brand': br, 'bundle_model_name': bmn,
+            'options': n, 'code': mc}
+           for i, no, nm, k, box, br, bmn, n, mc in rows if n]
     _attach_stage(session, out)
     _attach_made(session, out)
-    _attach_phase(session, out)
+    _attach_matrix_facts(session, out)
     return out
 
 
-def _attach_phase(session, mats):
-    """옵션함 줄에 「상품 만들 준비 됐나」 위상을 붙인다.
+def _attach_matrix_facts(session, mats):
+    """옵션함 줄에 위상·축 요약·모음전 종류·모델명·소싱처를 **한 번에** 붙인다.
+
+    [이슈 #1090] 옛 `_attach_phase`(위상만) 를 대신한다 — 「모음전 옵션 생성(직접)」
+    탭이 #1056/#1062 로 갖춘 칼럼(모음전 구성·옵션축·SKU 연결상태·소싱처)을
+    「모음전 상품 생성」 탭에도 옮겨 붙이는 김에, 위상까지 **같은 `_box_facts`
+    한 번의 호출**로 같이 받는다 — 따로 부르면 조회가 두 배가 된다
+    (`_box_facts` 자신의 「조회 5개」 계약을 두 번 쓰는 셈이라).
 
     🔴 판정도 라벨도 **`lemouton/matrix/readiness.py` 한 곳**에서만 온다. 여기서
        「옵션이 있으면 준비 완료」처럼 다시 정하면, 같은 옵션함이 이 탭과 옵션함
-       목록에서 서로 다른 상태로 보인다.
+       목록에서 서로 다른 상태로 보인다. 축·소싱처도 `_boxes()`가 쓰는 것과
+       **같은 배치 조회**를 그대로 써서 두 탭이 같은 숫자를 보게 한다.
 
     🔴 **옵션함만** 묻는다. 판매 상품은 이 물음의 대상이 아니다
        (그쪽은 `_attach_stage` 의 4상태 — 정의역이 서로소다).
     """
-    codes = [m['code'] for m in mats if m.get('code') and m.get('box')]
+    from lemouton.matrix.option_name import bundle_model_names
+    from lemouton.sourcing.source_url_stats import source_labels
+
+    box_mats = [m for m in mats if m.get('code') and m.get('box')]
+    codes = [m['code'] for m in box_mats]
     if not codes:
         return
-    위상 = _box_facts(session, codes,
-                     {m['code']: int(m.get('options') or 0)
-                      for m in mats if m.get('code')})['phase']
-    for m in mats:
-        p = 위상.get(m.get('code'))
-        if p is None:
-            continue                # 옵션함이 아닌 줄 — 위상을 지어내지 않는다
-        # 🔴 라벨은 안 담는다 — 화면이 `readiness.PHASE_LABEL` 에서 찾아 쓴다(원천 하나).
-        m['phase'] = p['phase']
-        m['missing'] = p['missing']
+    사실 = _box_facts(session, codes,
+                     {m['code']: int(m.get('options') or 0) for m in box_mats})
+    축, 소싱처, URL수, 맵핑, 위상 = (사실['axes'], 사실['sources'], 사실['urls'],
+                                 사실['map'], 사실['phase'])
+    # 소싱처 이름은 요청당 한 번만 — 줄마다 부르면 그게 곧 N+1 이다.
+    키들 = sorted({k for v in 소싱처.values() for k, _n in v})
+    이름 = source_labels(키들) if 키들 else {}
+    for m in box_mats:
+        c = m['code']
+        p = 위상.get(c)
+        if p is not None:
+            # 🔴 라벨은 안 담는다 — 화면이 `readiness.PHASE_LABEL` 에서 찾아 쓴다(원천 하나).
+            m['phase'] = p['phase']
+            m['missing'] = p['missing']
+        ax = 축.get(c) or {}
+        # 「모음전 종류」는 저장하지 않고 축에서 즉석 판정한다(`axis_summary` 규칙 그대로).
+        m['moum_kind_label'] = ax.get('kind_label')
+        m['axis_pairs'] = list(zip(ax.get('axis_names') or [], ax.get('axis_counts') or []))
+        m['model_names'] = bundle_model_names(ax.get('model_names'), m.get('bundle_model_name'))
+        m['sources'] = [{'key': k, 'label': 이름.get(k) or k, 'n': cnt}
+                        for k, cnt in (소싱처.get(c) or ())]
+        m['urls'] = URL수.get(c, 0)
+        m['map'] = 맵핑.get(c)
 
 
 #: 코드 앞글자 「단독_」 — 옛날에 「재고관리에만 두는 물건」을 문자열로 흉내 낸 흔적.
@@ -482,6 +510,9 @@ def _attach_made(session, mats):
     for mo_id, code, name, no in rows:
         made.setdefault(mo_id, []).append({
             'code': code, 'name': display_name(name, code), 'no': no,
+            # [이슈 #1090] 「상품&정책 연결상태」 막대가 켜진 칸을 세는 값 —
+            #   글자(policy_tip)를 다시 파싱하지 않는다.
+            'has_policy': code in has_policy,
             'policy_url': (f'/policies/product/{quote(code)}' if code in has_policy
                            else f'/policies/apply?model={quote(code)}'),
             'policy_tip': ('이 상품의 정책·가격 보기' if code in has_policy

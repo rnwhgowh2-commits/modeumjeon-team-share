@@ -341,47 +341,10 @@
        찾기 표와 같은 규칙), 줄 누르면 격자로, 옵션 고치기는 「⋯」 안. #}
     <div class="og-wrap">
       <aside class="og-rail">
-        {# [2026-08-06 사장님 첫 지시 「사이드바에도 구분하자」] 상품관리와 같은 판. #}
-        <div class="stg-block" id="og-stages">
-          <div class="stg-head stg-row on" data-s="">
-            <span class="lb">어디까지 왔나</span><span class="n">전체 {{ mat_counts.all }}</span>
-          </div>
-          <div class="stg-bar">
-            {%- for st in stages %}<i class="g{{ st }}"
-              style="width:{{ (mat_counts['s' ~ st] * 100 / mat_counts.all)|round(1) if mat_counts.all else 0 }}%"></i>{% endfor -%}
-            {# 회색 토막 = 아직 상품이 아닌 옵션함 몫(위상 3종을 합친 수).
-               🔴 예전엔 「아직 상품 생성 안 함」 하나만 셌는데, 그러면 상품을 만든
-                  옵션함 줄이 막대 어디에도 안 들어가 막대와 목록의 합이 갈렸다. #}
-            <i class="g0" style="width:{{ (mat_counts.box * 100 / mat_counts.all)|round(1) if mat_counts.all else 0 }}%"></i>
-          </div>
-          {% for st in stages %}
-          <div class="stg-row t{{ st }}" data-s="{{ st }}">
-            <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ mat_counts['s' ~ st] }}</span>
-          </div>
-          {% endfor %}
-          {# [2026-08-14] 옵션함 갈래 = 위상(준비 미완료 / 준비 완료 / 상품 생성에 사용됨).
-             🔴 이름·색을 여기 적지 않는다 — `lemouton/matrix/readiness.py` 한 곳에서만 온다.
-                예전엔 「상품 만듦」·「아직 상품 생성 안 함」을 손으로 적어 뒀는데, 그 두
-                글자는 「상품을 만들었나」만 물어서 **아직 축도 안 짠 옵션함**과 **지금 바로
-                상품을 만들 수 있는 옵션함**이 화면에서 같은 글자로 보였다. #}
-          {# 판의 글자색도 배지와 **같은 갈래 이름**(wait·mid·sale)을 쓴다 —
-             같은 뜻이 판에서는 회색인데 표에서는 초록이면 화면이 두 말을 하는 셈이다. #}
-          {# 🔴 [2026-08-14 검수] **개수가 0인 위상 줄은 안 그린다** — 예전 이 자리의
-             「상품 만듦」 줄이 지키던 관례(`if mat_counts.made` 로 감쌌었다)를 되살린 것이다.
-             왜 되살리나. 없는 상태를 0으로 늘어놓으면 판이 「고를 수 있는 것」이 아니라
-             용어 사전이 된다(눌러도 0줄). 특히 「상품 생성에 사용됨 0」은 사장님 확정
-             (그 옵션함은 **옵션 생성 목록**에서 뺀다)과 겹쳐 읽혀 「여기선 쓴다는 건가」로
-             헷갈린다. 라벨 자체는 남긴다 — 상품 생성 탭은 다른 목록이라 실제로 그
-             줄이 생기고, 그때는 숫자와 함께 떠야 한다. #}
-          {% for p in phases %}{% if mat_counts[p] %}
-          <div class="stg-row {{ phase_cls[p] }}" data-s="{{ p }}">
-            <span class="lb">{{ phase_label[p] }}</span><span class="n">{{ mat_counts[p] }}</span>
-          </div>
-          {% endif %}{% endfor %}
-          {% if mat_counts.derived %}<div class="stg-row t0" data-s="derived">
-            <span class="lb">갈라진 묶음</span><span class="n">{{ mat_counts.derived }}</span>
-          </div>{% endif %}
-        </div>
+        {# [이슈 #1090 · 사장님 확정] 「어디까지 왔나」 진행률 판 삭제 —
+           이 탭은 항목1(모든 옵션매트릭스 노출) 확정으로 「할 일이 남은 것만」이
+           아니라 **전부** 보여야 하므로, 위상별로 좁혀 보는 판이 더는 안 맞는다.
+           브랜드 필터·검색창은 그대로 둔다. #}
         <input class="og-in og-find" id="og-find" autocomplete="off"
                placeholder="브랜드·묶음 이름으로 찾기">
         <div class="og-rail-t">브랜드</div>
@@ -389,40 +352,81 @@
       </aside>
       <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
-        <table class="og-tb og-c3">
+        <table class="og-tb og-c3 og-tb4">
           {# [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 체크칸을 늘 보이게 —
-             단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 개를 골라야 한다. #}
-          <tr><th class="og-pick"></th><th>번호</th><th>이름</th><th>브랜드</th>
-            <th class="c">상태</th><th class="r">옵션</th><th class="r"></th></tr>
+             단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 개를 골라야 한다.
+             [이슈 #1090] 칼럼 재구성 — 번호·이름·브랜드 3칸을 「옵션 매트릭스」 한 칸으로
+             합치고, 「모음전 옵션 생성(직접)」 탭(#1056/#1062)이 갖춘 모음전 구성·옵션축·
+             SKU 연결상태·소싱처 4칸을 그대로 옮겨 붙인다. 「상태」(위상 배지)는 이 탭에서는
+             안 보여준다 — 항목1 확정으로 모든 매트릭스가 늘 뜨므로 위상으로 좁혀 볼 이유가
+             없고, 미완료 사유는 SKU 연결상태 호버 안으로 흡수했다(아래 og-idbadge). 대신
+             「상품&정책 연결상태」를 신설 — 이 매트릭스로 만든 상품 수·정책 적용 진행을 보여준다. #}
+          <tr><th class="og-pick"></th>
+            <th class="og-ctr">NO</th>
+            <th>옵션 매트릭스</th>
+            <th>모음전 구성</th>
+            <th class="og-ctr">옵션축</th>
+            <th class="og-ctr">SKU 연결상태</th>
+            <th class="og-ctr">상품&amp;정책 연결상태</th>
+            <th class="og-ctr">소싱처</th>
+            <th></th></tr>
           {# [2026-08-06 확정 1번a] 줄 클릭 = 조립대(/optgen/product/…) — 이 탭 소속.
              /matrix/… 로 보내면 상단 탭이 「상품 관리」로 점프하는 어긋남이 있었다. #}
           {% for m in mats %}
           <tr class="og-row" data-href="/optgen/product/{{ m.id }}"
               data-brand="{{ m.brand or '' }}"
-              data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}"
-              data-stage="{{ m.show }}">
+              data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}">
             {# [2026-08-13] 라벨로 감싼다 — 입력칸은 13px 뿐이라 여백을 눌러도 켜지게. #}
             <td class="og-pick"><label><input type="checkbox" class="og-ck"
                  data-id="{{ m.id }}" data-name="{{ m.name }}"
                  data-opts="{{ m.options }}" aria-label="{{ m.name }} 고르기"></label></td>
-            <td class="mono">{{ m.no }}</td>
-            <td><b>{{ m.name }}</b></td>
-            <td>{{ m.brand or '—' }}</td>
-            {# [2026-08-06 사장님 확정] 상품관리와 **같은 4가지 상태**. 예전엔
-               「옵션함이 아니면 판매 중」이라 마켓에 안 올라간 묶음까지 판매 중으로 나왔다. #}
-            {# 🔴 옵션함 줄은 **위상**을 말한다 — 「상품을 만들었나」만이 아니라
-               「지금 상품을 만들 수 있나」까지. 글자·색은 `readiness` 한 곳에서 온다.
-               판(위 사이드바)이 세는 값과 **같은 표**를 쓰므로 둘이 갈릴 수 없다. #}
-            <td class="c">{% if m.show == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
-              {%- elif m.show in phases %}<span class="og-badge stgb {{ phase_cls[m.show] }}">{{ phase_label[m.show] }}</span>
-              {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}
-              {# 🔴 `/bundles?q=…` 로 보내면 **아무 데도 안 간다** — 그 화면의 찾기는 화면 안
-                 JS 전용이라 주소의 q 를 안 읽는다(90행 그대로 뜬다). 상품 화면으로 바로. #}
-              {# [2026-08-12 노션 상품 c-1] 만든 상품 줄마다 정책 바로가기 —
-                 정책은 옵션이 아니라 **상품**에 붙으므로 상품 줄에 단다.
-                 붙었으면 보러, 안 붙었으면 붙이러(상태에 따라 갈린다). #}
-              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<div class="og-made-one"><a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a><a class="og-pol" href="{{ d.policy_url }}" title="{{ d.policy_tip }}">🔧</a></div>{% endfor %}</div>{% endif %}</td>
-            <td class="r">{{ m.options }}</td>
+            <td class="og-ctr">{{ loop.index }}</td>
+            {# ── 옵션 매트릭스 (병합, 2행 압축) — 옆 탭(direct)과 같은 모양 ── #}
+            <td class="og-name">
+              <div><b title="{{ m.name }}">{{ m.name }}</b></div>
+              <div class="og-frac">{{ m.no }}{% if m.kind %}<span
+                  class="og-badge stgb wait og-kind"
+                  >{{ '원본' if m.kind == 'origin' else '파생' }}</span>{% endif -%}
+                {%- if m.brand %} · {{ m.brand }}{% endif -%}
+                {%- if m.model_names %} · {% for mm in m.model_names[:8] -%}
+                  {{ mm }}{% if not loop.last %}, {% endif -%}
+                {%- endfor %}{% if m.model_names | length > 8 %} <span
+                  class="axis-chip">+{{ m.model_names | length - 8 }}</span>{% endif -%}
+                {%- endif %}</div>
+            </td>
+            <td>{% if m.moum_kind_label %}{{ m.moum_kind_label }}{% else %}<span
+                class="og-dash" title="아직 어떤 모음전인지 안 정했습니다.">—</span>{% endif %}</td>
+            <td class="og-ctr og-axiscell">{% if m.axis_pairs %}<span class="axis-chip-row">{% for aname, acnt in m.axis_pairs -%}
+                <span class="axis-chip">{{ aname }} <b>{{ acnt }}</b></span>
+                {%- endfor %}</span>{% else %}<span class="og-dash"
+                title="아직 축을 안 짰습니다.">—</span>{% endif %}</td>
+            {# SKU 연결상태 — 개수 배지 + 호버. [이슈 #1090] 미완료 사유(옵션 없음·축 없음·
+               소싱처 URL 없음 등)를 이 호버 안으로 흡수 — `data-missing` 이 있으면 호버
+               맨 위에 경고 줄로 먼저 보여준다(og새호버카드 그리기 함수가 처리). #}
+            <td class="og-ctr og-skucell"><span class="og-idbadge" data-code="{{ m.code }}"
+                data-name="{{ m.name }}"
+                {%- if m.missing %} data-missing="{{ m.missing | join(' · ') }}"{% endif %} tabindex="0"
+                title="마우스를 올리면 SKU별 정보가 보입니다">SKU <b>{{ m.options }}</b>개</span></td>
+            {# 상품&정책 연결상태 — [이슈 #1090 · 사장님 확정 「막대 채우기」]
+               1행 = 이 매트릭스로 만든 상품 수(초록 배지, 0개면 회색 「대기중」).
+               2행 = 정책 적용 진행 막대 — 칸 수 = 만든 상품 수, 채워진 칸(초록) = 그 중
+               정책이 붙은 상품 수. 파생으로 상품을 여러 번 만들어도(항목1) 개수가
+               정확히 보인다 — 단순 초록/회색 2색 배지로는 「일부만 정책 있음」을
+               표현할 방법이 없어 막대로 정했다(사장님 시안 확인 2번).
+               상품별 이름·바로가기·정책 단추는 기존 og-made-links 를 그대로 둔다 —
+               「고른 배지만 남기고 이동 경로를 없앤다」는 요청이 아니었다. #}
+            <td class="og-ctr og-polcell">{% if m.made %}<span class="og-badge stgb sale">상품 생성 {{ m.made | length }}개</span>
+              {%- set 정책수 = m.made | selectattr('has_policy') | list | length -%}
+              <span class="og-polbar" title="정책 적용 {{ 정책수 }}/{{ m.made | length }}">{% for d in m.made %}<i class="{{ 'on' if d.has_policy else '' }}"></i>{% endfor %}</span>
+              <span class="og-polbar-n">{{ 정책수 }}/{{ m.made | length }}</span>
+              <div class="og-made-links">{% for d in m.made %}<div class="og-made-one"><a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a><a class="og-pol" href="{{ d.policy_url }}" title="{{ d.policy_tip }}">🔧</a></div>{% endfor %}</div>
+              {%- else %}<span class="og-badge stgb wait">대기중</span>{% endif %}</td>
+            {# 소싱처 — 개수 배지 + 호버(소싱처별 URL·바로가기 + 맵핑 진척 요약). #}
+            <td class="og-ctr og-srccell"><span class="og-srcbadge" data-code="{{ m.code }}"
+                data-name="{{ m.name }}"
+                data-mapped="{% if m.map and m.map.complete is not none %}{{ m.map.skus_done }}/{{ m.map.skus }}{% endif %}"
+                data-labels='{{ m.sources | default([]) | tojson | forceescape }}' tabindex="0"
+                title="마우스를 올리면 소싱처별 주소가 보입니다">소싱처 <b>{{ m.sources | default([]) | length }}</b>곳</span></td>
             <td class="r og-actcell">
               {% if m.code %}
               <button class="og-more" type="button" aria-label="더 할 일">···</button>
@@ -869,6 +873,15 @@
   .og-pol{flex:none;border:1px solid var(--color-border);border-radius:6px;
     padding:0 5px;font-size:12px;line-height:1.7;text-decoration:none}
   .og-pol:hover{border-color:var(--color-primary);text-decoration:none}
+  /* [이슈 #1090] 상품&정책 연결상태 — 정책 적용 진행 막대. `.stg-bar` 와 같은
+     색 뜻(초록=됨·회색=아직)을 쓴다 — 화면 어디서나 초록의 뜻이 같아야 한다. */
+  .og-polcell{white-space:nowrap}
+  .og-polbar{display:inline-flex;gap:2px;vertical-align:middle;margin-left:4px}
+  .og-polbar i{display:inline-block;width:12px;height:7px;border-radius:2px;
+    background:var(--ap-g2,#E8E8ED)}
+  .og-polbar i.on{background:var(--ap-green,#34C759)}
+  .og-polbar-n{font-size:11px;color:var(--ap-g4,#86868B);
+    font-variant-numeric:tabular-nums;margin-left:3px}
   .og-badge.stgb.sale{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#1D7A3D)}
   .og-badge.stgb.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--글자-파랑,#0066CC)}
   .og-badge.stgb.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#9A5B00)}
@@ -1608,6 +1621,11 @@
     그리기: function (a, d) {
       var 이름 = a.getAttribute('data-name') || '';
       var h = '<div class="pmc-h"><span class="pmc-name">' + esc(이름) + '</span></div>';
+      // [이슈 #1090] 「모음전 상품 생성」 탭에서만 `data-missing` 이 실린다 — 준비
+      //   미완료 사유를 이 호버 안으로 흡수했다(옆 탭은 이 값이 없어 그냥 안 뜬다).
+      var 미완료 = a.getAttribute('data-missing') || '';
+      if (미완료) h += '<div class="hc-row" style="color:var(--글자-주황,#9A5B00)">아직 안 된 것 — '
+        + esc(미완료) + '</div><div class="hc-div"></div>';
       if (!d) return h + '<div class="pmc-note">불러오는 중…</div>';
       if (d.error) return h + '<div class="pmc-note">' + esc(d.error) + '</div>';
       var rows = d.rows || [];
