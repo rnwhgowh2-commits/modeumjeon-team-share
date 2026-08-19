@@ -1476,9 +1476,15 @@
     var 열기지연 = 140;
     var 곳간 = {};        // code → 서버가 준 자료 (한 묶음당 한 번만 묻는다)
     var 받는중 = {};
-
+    var 콜백대기 = {};    // code → 응답 오면 부를 그리기끝 함수들
+    // 🔴 미리받기(mouseover)와 늦은 그리기(열자, 열기지연 뒤)가 같은 code 를 거의
+    //    동시에 부른다 — 먼저 온 호출이 아직 응답 대기 중이면 나중 호출은 여기
+    //    막혀 콜백이 등록도 안 되고 사라졌다(먼저 등록된 빈 콜백만 불림). 그래서
+    //    카드가 응답이 늦게 오면 "불러오는 중"에서 영원히 안 바뀌었다 — 콜백을
+    //    하나만 쥐지 않고 대기열에 쌓아 뒀다가 응답 오면 전부 부른다.
     function 받아오기(code, 그리기끝) {
       if (곳간[code]) { 그리기끝(); return; }
+      (콜백대기[code] = 콜백대기[code] || []).push(그리기끝);
       if (받는중[code]) return;
       받는중[code] = true;
       fetch(opts.주소(code))
@@ -1486,13 +1492,16 @@
         .then(function (j) {
           곳간[code] = (j && j.ok) ? j
             : {error: '값을 불러오지 못했습니다 — ' + ((j && j.error) || '서버 응답 없음')};
-          그리기끝();
         })
         .catch(function (e) {
           곳간[code] = {error: '값을 불러오지 못했습니다 — ' + (e && e.message || e)};
-          그리기끝();
         })
-        .finally(function () { 받는중[code] = false; });
+        .finally(function () {
+          받는중[code] = false;
+          var 대기목록 = 콜백대기[code] || [];
+          콜백대기[code] = [];
+          대기목록.forEach(function (cb) { cb(); });
+        });
     }
     function 예약취소() {
       if (열기) { clearTimeout(열기); 열기 = null; }
