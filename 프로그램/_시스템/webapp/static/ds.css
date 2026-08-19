@@ -306,3 +306,71 @@ th:hover > .ds-funnel { color: #C4CBD3; }
 .x-pill, .x-pill-ok, .x-pill-mute { font-size: var(--ds-f-l) !important; }
 .btn-cancel, .btn-go { font-size: 14px !important; border-radius: var(--ds-r-s) !important; }
 .sg-ov .subtab, .df-wrap .subtab, .sgh .subtab, .cri .subtab { font-size: 19px !important; }
+
+/* ============================================================
+   11. 알림·팝업·부연설명 (확정 10·11·12번)
+   ------------------------------------------------------------
+   확정 내용
+     10번 C — 경고는 화면 맨 위에 고정(안 사라짐) / 알림은 오른쪽 아래 잠깐
+     11번 B — 부연 설명은 마우스 올리면 뜬다
+     12번 B — 팝업은 오른쪽에서 밀려나오는 서랍 (뒤 표를 보면서 고칠 수 있게)
+   ============================================================ */
+
+/* ── 경고 띠 — 화면 맨 위 고정. 고칠 때까지 안 사라진다 ── */
+#ds-warnbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+  display: none; flex-direction: column; gap: 1px;
+}
+#ds-warnbar.on { display: flex; }
+#ds-warnbar .ds-warn-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 20px; font-size: var(--ds-f-t); font-weight: 600;
+  background: #FDECEE; color: #B01F30; border-bottom: 1px solid #F7C2C9;
+}
+#ds-warnbar .ds-warn-row i { font-size: 17px; }
+#ds-warnbar .ds-warn-x {
+  margin-left: auto; background: none; border: 0; cursor: pointer;
+  color: inherit; font-family: inherit; font-size: var(--ds-f-t); font-weight: 600;
+}
+body.ds-has-warn { padding-top: 42px; }
+
+/* ── 알림 — 오른쪽 아래, 잠깐 (기존 toast 자리를 그대로 씀) ── */
+#ds-toasts {
+  position: fixed; right: 24px; bottom: 24px; z-index: 880;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+#ds-toasts .ds-toast {
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 15px; border-radius: var(--ds-r-s);
+  font-size: var(--ds-f-t); font-weight: 600;
+  background: var(--ds-t); color: #fff; box-shadow: 0 8px 22px rgba(0,0,0,.22);
+}
+#ds-toasts .ds-toast.ok { background: var(--ds-ok); }
+
+/* ── 팝업 = 오른쪽 서랍 (표준 .modal 을 쓰는 화면에 적용) ── */
+.modal-bg.visible { align-items: stretch; justify-content: flex-end; padding: 0; }
+.modal-bg.visible > .modal {
+  width: 420px; max-width: 92vw; max-height: 100vh; height: 100vh;
+  border-radius: 0; margin: 0;
+  box-shadow: -10px 0 28px rgba(0,0,0,.14);
+  display: flex; flex-direction: column;
+}
+.modal-bg.visible > .modal > .modal-body { flex: 1; overflow-y: auto; }
+/* 넓은 편집이 필요한 팝업은 서랍을 넓게 (업로드 등) */
+.modal-bg.visible > .modal.modal-upload { width: 560px; }
+
+/* ── 부연 설명 = 마우스 올리면 ────────────────────────────────
+   ⚠️ 입력칸에 붙은 설명(.form-row 안)만 숨긴다.
+   따로 서 있는 안내문(보안 고지 등)은 올릴 대상이 없어서
+   숨기면 영영 안 보인다 — 실화면에서 실제로 그럴 뻔했다. 그대로 둔다. */
+.form-row { position: relative; }
+.form-row > .form-hint {
+  display: none;
+  position: absolute; left: 130px; top: calc(100% + 6px); z-index: 30;
+  max-width: 420px;
+  background: var(--ds-t); color: #fff; border-radius: var(--ds-r-s);
+  padding: 9px 12px; font-size: var(--ds-f-l); line-height: 1.6;
+  box-shadow: 0 8px 20px rgba(0,0,0,.2);
+}
+.form-row:hover > .form-hint,
+.form-row > .form-hint:hover { display: block; }

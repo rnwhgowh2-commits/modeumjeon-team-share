@@ -496,5 +496,70 @@
 </script>
 
 {% block scripts %}{% endblock %}
+
+{# 2026-08-19 디자인 통일 (확정 10번 C) — 경고는 화면 맨 위 고정, 알림은 오른쪽 아래 잠깐.
+   화면마다 따로 있는 showToast 를 감싸서 '오류' 만 위로 돌린다. 나머지 동작은 그대로. #}
+<div id="ds-warnbar" role="alert" aria-live="assertive"></div>
+<div id="ds-toasts" aria-live="polite"></div>
+<script>
+(function(){
+  var bar = document.getElementById('ds-warnbar');
+  var box = document.getElementById('ds-toasts');
+  if (!bar || !box) return;
+
+  function esc(s){ var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+
+  // 경고 — 고칠 때까지 안 사라진다
+  window.dsWarn = function(msg){
+    var row = document.createElement('div');
+    row.className = 'ds-warn-row';
+    row.innerHTML = '<i class="ph-light ph-warning" aria-hidden="true"></i><span>' + esc(msg) + '</span>'
+                  + '<button type="button" class="ds-warn-x">닫기</button>';
+    row.querySelector('.ds-warn-x').addEventListener('click', function(){
+      row.remove();
+      if (!bar.children.length) { bar.classList.remove('on'); document.body.classList.remove('ds-has-warn'); }
+      fit();
+    });
+    bar.appendChild(row);
+    bar.classList.add('on');
+    document.body.classList.add('ds-has-warn');
+    fit();
+  };
+
+  // 경고가 여러 줄이면 그만큼 본문을 밀어야 내용이 안 가린다 (고정값이면 가려짐)
+  function fit(){
+    var h = bar.classList.contains('on') ? Math.ceil(bar.getBoundingClientRect().height) : 0;
+    document.body.style.paddingTop = h ? h + 'px' : '';
+  }
+  window.addEventListener('resize', fit);
+
+  // 알림 — 잠깐 떴다 사라진다
+  window.dsToast = function(msg, kind){
+    var t = document.createElement('div');
+    t.className = 'ds-toast' + (kind === 'ok' || kind === 'success' ? ' ok' : '');
+    t.textContent = msg;
+    box.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 3200);
+  };
+
+  // 화면마다 있는 showToast 를 감싼다 — 오류만 위 고정 띠로
+  function wrap(){
+    var prev = window.showToast;
+    if (prev && prev.__dsWrapped) return;
+    var next = function(msg, kind){
+      var k = String(kind || '').toLowerCase();
+      if (k.indexOf('err') >= 0 || k.indexOf('danger') >= 0 || k.indexOf('fail') >= 0) {
+        return window.dsWarn(msg);
+      }
+      if (typeof prev === 'function') return prev.apply(this, arguments);
+      return window.dsToast(msg, kind);
+    };
+    next.__dsWrapped = true;
+    window.showToast = next;
+  }
+  wrap();
+  window.addEventListener('load', wrap);   // 나중에 정의되는 화면도 잡는다
+})();
+</script>
 </body>
 </html>
