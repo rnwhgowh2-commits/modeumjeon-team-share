@@ -20,13 +20,13 @@
 - Modify: `shared/market_accounts/client.py`
 - Test: `tests/market_accounts/test_client.py` (신규)
 
-- [ ] **Step 1: 테스트 디렉터리 생성**
+- [x] **Step 1: 테스트 디렉터리 생성**
 
 ```bash
 mkdir -p tests/market_accounts && touch tests/market_accounts/__init__.py
 ```
 
-- [ ] **Step 2: 실패하는 테스트 작성**
+- [x] **Step 2: 실패하는 테스트 작성**
 
 `tests/market_accounts/test_client.py`:
 ```python
@@ -51,12 +51,12 @@ def test_missing_token_raises(monkeypatch):
         get_market_account("coupang")
 ```
 
-- [ ] **Step 3: 실패 확인**
+- [x] **Step 3: 실패 확인**
 
 Run: `pytest tests/market_accounts/test_client.py -v`
 Expected: FAIL — `NotImplementedError` (현재 스텁이 바로 이걸 던짐)
 
-- [ ] **Step 4: 최소 구현**
+- [x] **Step 4: 최소 구현**
 
 `shared/market_accounts/client.py`의 `get_market_account` 함수 전체를 아래로 교체(위쪽 dataclass·예외 클래스는 그대로 유지):
 
@@ -144,12 +144,12 @@ def get_market_account(
     )
 ```
 
-- [ ] **Step 5: 통과 확인**
+- [x] **Step 5: 통과 확인**
 
 Run: `pytest tests/market_accounts/test_client.py -v`
 Expected: `test_missing_url_raises` PASS, `test_missing_token_raises` PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add shared/market_accounts/client.py tests/market_accounts/
@@ -163,7 +163,7 @@ git commit -m "feat(계정브리지): 환경변수 미설정 시 명시적 예�
 **Files:**
 - Test: `tests/market_accounts/test_client.py`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `tests/market_accounts/test_client.py`에 추가:
 ```python
@@ -210,12 +210,12 @@ def test_success_maps_fields(monkeypatch):
 안에서 `import requests`가 함수 최상단이 아니라 **모듈 최상단**에 있어야 한다
 (함수 내부 import면 매번 새로 바인딩되어 monkeypatch 가 안 먹는다).
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 Run: `pytest tests/market_accounts/test_client.py::test_success_maps_fields -v`
 Expected: FAIL — `AttributeError: module 'shared.market_accounts.client' has no attribute 'requests'` (아직 모듈 최상단 import 아님)
 
-- [ ] **Step 3: import 위치 수정**
+- [x] **Step 3: import 위치 수정**
 
 `shared/market_accounts/client.py` 최상단 (`from __future__ import annotations` 바로 아래)에 추가:
 ```python
@@ -230,12 +230,12 @@ import requests
 logger = logging.getLogger(__name__)
 ```
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
 
 Run: `pytest tests/market_accounts/test_client.py -v`
 Expected: 지금까지 만든 3개 테스트 전부 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add shared/market_accounts/client.py tests/market_accounts/test_client.py
@@ -249,7 +249,7 @@ git commit -m "feat(계정브리지): 정상 조회 200 응답 필드 매핑 + �
 **Files:**
 - Test: `tests/market_accounts/test_client.py`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 추가:
 ```python
@@ -285,12 +285,12 @@ def test_5xx_raises_unavailable(monkeypatch):
         mod.get_market_account("coupang")
 ```
 
-- [ ] **Step 2: 확인**
+- [x] **Step 2: 확인**
 
 Run: `pytest tests/market_accounts/test_client.py -v`
 Expected: 이미 Task 1 구현에 404/비-200 처리가 들어있으므로 **이번엔 바로 PASS** — RED 없이 GREEN이면 그대로 다음 단계(이미 만족하는 요구사항을 테스트로 고정하는 것도 유효한 스텝).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/market_accounts/test_client.py
@@ -304,7 +304,7 @@ git commit -m "test(계정브리지): 404·5xx 응답 회귀 고정"
 **Files:**
 - Test: `tests/market_accounts/test_client.py`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 추가:
 ```python
@@ -340,13 +340,13 @@ def test_timeout_raises_unavailable(monkeypatch):
         mod.get_market_account("coupang")
 ```
 
-- [ ] **Step 2: 확인**
+- [x] **Step 2: 확인**
 
 Run: `pytest tests/market_accounts/test_client.py -v`
 Expected: `requests.exceptions.ConnectionError`/`Timeout` 모두 `requests.RequestException`의
 서브클래스라 Task 1 구현의 `except requests.RequestException` 이 이미 잡는다 — PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/market_accounts/test_client.py
@@ -360,7 +360,7 @@ git commit -m "test(계정브리지): 연결실패·타임아웃 회귀 고정"
 **Files:**
 - Test: `tests/market_accounts/test_client.py`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 추가:
 ```python
@@ -385,17 +385,17 @@ def test_account_label_passed_as_param(monkeypatch):
     assert captured["params"] == {"market_type": "coupang", "account_label": "부계정"}
 ```
 
-- [ ] **Step 2: 확인**
+- [x] **Step 2: 확인**
 
 Run: `pytest tests/market_accounts/test_client.py -v`
 Expected: Task 1 구현이 이미 `account_label` 있으면 params 에 넣으므로 PASS.
 
-- [ ] **Step 3: 전체 회귀 실행**
+- [x] **Step 3: 전체 회귀 실행**
 
 Run: `pytest tests/market_accounts/ -v`
 Expected: 8개 테스트 전부 PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/market_accounts/test_client.py
@@ -416,7 +416,7 @@ git commit -m "test(계정브리지): account_label 쿼리파라미터 회귀 �
 이 테스트는 템플릿 렌더링만 확인하면 되므로 `create_app()`을 부르지 않고, 순수
 Jinja2 `Environment`로 템플릿 파일 하나만 렌더링해 DB 의존을 없앤다.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `tests/test_samba_wave_modeswitch.py`:
 ```python
@@ -456,14 +456,14 @@ def test_modeswitch_link_uses_samba_wave_url_when_set():
     assert 'href="/bulk/"' not in html
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 Run: `pytest tests/test_samba_wave_modeswitch.py -v`
 Expected: FAIL — 템플릿에 `samba_wave_url` 을 참조하는 부분이 아직 없어(현재는 `href="/bulk/"`
 고정) 두 번째 테스트만 실패. 첫 번째 테스트는 이미 통과할 수 있음(현재 동작이 곧 원하는
 기본값이므로) — 그래도 정상, 두 번째 테스트의 FAIL 로 이 스텝의 목적(RED 확인)은 달성됨.
 
-- [ ] **Step 3: context processor 추가**
+- [x] **Step 3: context processor 추가**
 
 `app.py`의 `_inject_brand_color_overrides` (약 368행) 바로 아래에 추가:
 ```python
@@ -483,7 +483,7 @@ Expected: FAIL — 템플릿에 `samba_wave_url` 을 참조하는 부분이 아�
 >     return (os.environ.get('SAMBA_WAVE_URL') or '').strip() or None
 > ```
 
-- [ ] **Step 4: 템플릿 수정**
+- [x] **Step 4: 템플릿 수정**
 
 `webapp/templates/partials/_modeswitch.html` 11행:
 ```html
@@ -494,18 +494,18 @@ Expected: FAIL — 템플릿에 `samba_wave_url` 을 참조하는 부분이 아�
   <a href="{{ samba_wave_url or '/bulk/' }}" class="sb-mode {% if active_app == 'bulk' %}on{% endif %}">
 ```
 
-- [ ] **Step 5: 통과 확인**
+- [x] **Step 5: 통과 확인**
 
 Run: `pytest tests/test_samba_wave_modeswitch.py -v`
 Expected: 둘 다 PASS
 
-- [ ] **Step 6: 전체 회귀 확인**
+- [x] **Step 6: 전체 회귀 확인**
 
 Run: `pytest tests/ -v -x --timeout=120` (전체 스위트 — `app.py` 변경이 다른 라우트
 초기화를 깨지 않았는지 확인. DB 미연결로 skip 되는 테스트는 정상, 새로운 FAIL 이
 없는지만 본다)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app.py webapp/templates/partials/_modeswitch.html tests/test_samba_wave_modeswitch.py
@@ -518,22 +518,42 @@ git commit -m "feat(대량등록): 설정값 있을 때만 samba-wave 링크로 
 
 **Files:** 없음 — 검증만
 
-- [ ] **Step 1: 로컬 서버 기동**
+- [x] **Step 1: 로컬 서버 기동**
 
-Run: `python app.py` (또는 프로젝트 기존 실행 스크립트)
+계획대로 `python app.py` 시도 → **실패**. 이 워크트리엔 `.env`가 없어 메인 저장소에서
+복사했는데, 그 `.env`가 가리키는 Supabase 프로젝트 자체가 응답 없음(사전에 알려진
+이슈 — 이번 작업과 무관):
+```
+sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to server at
+"aws-1-ap-northeast-1.pooler.supabase.com" ... FATAL: (ENOTFOUND) tenant/user
+postgres.faxhbkootagxnwqjakee not found
+```
+`create_app()`은 DB 연결이 필수라 이 문제를 못 피해간다. **DB 문제를 이유로 브라우저
+검증을 건너뛰지 않고**, 실제 코드(`app.py`의 진짜 `_resolve_samba_wave_url` 함수 +
+진짜 `_modeswitch.html` 파일)를 그대로 쓰되 DB가 필요 없는 미니 Flask 앱을 임시로
+만들어(`/tmp` 스크래치 — 저장소에 없음) 진짜 HTTP 요청/응답 경로로 검증했다.
 
-- [ ] **Step 2: 설정 없는 기본 상태 확인**
+- [x] **Step 2: 설정 없는 기본 상태 확인**
 
-브라우저로 `/` 접속 → 대량등록 아이콘 hover/클릭 → `/bulk/`로 이동하는지 (기존과 동일) 확인.
+`http://127.0.0.1:5099/harness/bulk` (SAMBA_WAVE_URL 미설정) 을 인앱 브라우저로 접속,
+`read_page`로 DOM 직독: `link href="/bulk/"` (대량등록), `href="/"` (모음전),
+`href="/inventory/"` (재고관리) — 전부 기존 그대로.
 
-- [ ] **Step 3: 설정값 넣고 재기동**
+- [x] **Step 3: 설정값 넣고 재기동**
 
-`SAMBA_WAVE_URL=https://example.com python app.py` 로 재기동 → `/` 접속 → 대량등록
-링크가 `https://example.com`을 가리키는지 (페이지 소스 또는 hover 상태표시줄로) 확인.
+`SAMBA_WAVE_URL=https://samba-wave.example.com` 로 두 번째 인스턴스(포트 5098) 기동 →
+`http://127.0.0.1:5098/harness/bulk` 접속 → `read_page` 직독: 대량등록 링크가
+`href="https://samba-wave.example.com"` 로 정확히 바뀜, 모음전·재고관리 두 링크는
+그대로(`/`·`/inventory/`) — 딱 한 줄만 바뀌었다는 코드리뷰 결과와 일치.
 
-- [ ] **Step 4: 원복**
+- [x] **Step 4: 원복**
 
-환경변수 없이 재기동해 원래 상태로 되돌려놓기.
+두 harness 프로세스 모두 종료(`TaskStop`). 워크트리 코드 자체는 애초에 안 건드림
+(harness 는 스크래치 디렉터리의 별도 파일 — `git status` 로 워크트리 변경 없음 확인).
+
+**참고**: 공백뿐 값(`"   "`) 케이스는 실제 `_resolve_samba_wave_url()` 를 직접 호출해
+`None` 반환을 재확인(코드리뷰가 잡은 버그의 수정 확인 — 브라우저 케이스는 이미 위
+2단계로 값 전달 배선 자체가 검증됨).
 
 ---
 
