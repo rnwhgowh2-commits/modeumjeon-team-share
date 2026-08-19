@@ -471,8 +471,17 @@ Expected: FAIL — 템플릿에 `samba_wave_url` 을 참조하는 부분이 아�
     # samba-wave 실배포 전까지 라이브 동작 무변화.
     @app.context_processor
     def _inject_samba_wave_url():
-        return {'samba_wave_url': os.environ.get('SAMBA_WAVE_URL') or None}
+        return {'samba_wave_url': _resolve_samba_wave_url()}
 ```
+
+> **[코드리뷰 반영 — 실제 구현은 이 형태]** 위 초안(`os.environ.get(...) or None`)은
+> 공백만 있는 값(`"   "`)이 truthy 라 그대로 통과해 `href="   "`로 새는 결함이 있었다.
+> 실제 구현은 `create_app()` 밖, `app.py` 모듈 최상단에 별도 함수로 뺐다 —
+> `create_app()`(실DB 필요) 없이 이 로직만 단독 테스트 가능하게 하기 위함이기도 하다:
+> ```python
+> def _resolve_samba_wave_url() -> str | None:
+>     return (os.environ.get('SAMBA_WAVE_URL') or '').strip() or None
+> ```
 
 - [ ] **Step 4: 템플릿 수정**
 
