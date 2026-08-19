@@ -484,6 +484,12 @@ def create_app() -> Flask:
         except Exception:
             return {'brand_color_overrides': {}}
 
+    # 대량등록 모드 → samba-wave 로 전환하는 스위치. 값 없으면(기본) 기존 /bulk/ 그대로 —
+    # samba-wave 실배포 전까지 라이브 동작 무변화.
+    @app.context_processor
+    def _inject_samba_wave_url():
+        return {'samba_wave_url': os.environ.get('SAMBA_WAVE_URL') or None}
+
     # 옛 링크 호환 — /markets/<market> → /accounts/upload?market=<market>
     from flask import redirect as _redirect
     @app.get('/markets/<market>')
