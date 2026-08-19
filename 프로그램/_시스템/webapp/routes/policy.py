@@ -604,8 +604,10 @@ def api_selling_detail(code: str):
                           .all()):
                 if mk not in by_market or ts > by_market[mk]:
                     by_market[mk] = ts
+            mk_label = {k: label for k, label, _g in TOWER_MARKETS}
             history = sorted(
-                ({'market': mk, 'at': _iso(ts)} for mk, ts in by_market.items()),
+                ({'market': mk, 'label': mk_label.get(mk, mk), 'at': _iso(ts)}
+                 for mk, ts in by_market.items()),
                 key=lambda x: x['at'] or '', reverse=True)
         pol = policy_of(s, code)
         by_mk = {}

@@ -627,6 +627,8 @@ def test_판매처_상세_이력에_동기화_시각이_있다(client):
     j = client.get('/api/policies/product/M1/selling-detail').get_json()
     hist = {h['market']: h['at'] for h in j['history']}
     assert hist.get('coupang') == '2026-08-19T13:20:00+00:00'
+    labels = {h['market']: h['label'] for h in j['history']}
+    assert labels.get('coupang') == '쿠팡'
 
 
 def test_사이드바에_상품_정책_적용이_있다(client):
