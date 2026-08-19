@@ -110,13 +110,14 @@ def _판(수프, code):
 #  ① 일곱 칸
 # ═══════════════════════════════════════════════════════════════════════════
 
-def test_표_머리가_일곱_칸이다(client, 표본):
-    """🔴 사장님이 고르신 것은 **일곱 칸**이다 — 늘거나 줄면 다른 배치가 된다."""
+def test_표_머리가_여덟_칸이다(client, 표본):
+    """🔴 [2026-08-19] 「SKU 정보 상태」 열이 늘어 **여덟 칸**이 됐다 — 늘거나 줄면 다른 배치가 된다."""
     머리 = [th.get_text(strip=True) for th in _표(_수프(client)).select('thead th')]
     # 맨 앞(고르기)과 맨 뒤(ⓘ·「···」)는 값 칸이 아니라 빈 머리다.
     assert 머리[0] == '' and 머리[-1] == '', f'앞뒤 조작 칸이 사라졌다: {머리}'
     assert 머리[1:-1] == ['옵션 매트릭스 번호', '옵션 매트릭스 이름', '브랜드',
-                          '모음전 구성', 'SKU 구성수', '맵핑', '상태'], 머리
+                          '모음전 구성', 'SKU 구성수', '맵핑', '상태',
+                          'SKU 정보 상태'], 머리
 
 
 def test_모든_줄의_칸_수가_머리와_같다(client, 표본):
@@ -183,13 +184,22 @@ def test_판에_들어가는_값은_표에_다시_안_적는다(client, 표본):
 #  ③ 상태 — 이름·색의 원천은 하나
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _상태칸(수프, code):
+    """🔴 [2026-08-19] 「SKU 정보 상태」 열이 뒤에 늘어 상태 칸은 이제 `[-3]`이다.
+
+    또 열이 느는 날 이 함수 한 곳만 고치면 되게, 자리를 여기 한 곳에 모아 둔다
+    (`_맵핑칸`과 같은 이유).
+    """
+    return _줄(수프, code).select('td')[-3]
+
+
 def test_상태_이름과_색이_readiness_에서만_온다(client, 표본):
     from lemouton.matrix.readiness import (PHASE_CLS, PHASE_LABEL, PHASE_DRAFT,
                                            PHASE_READY)
     수프 = _수프(client)
     본 = {'준비완료': PHASE_READY, '주소없음': PHASE_DRAFT}
     for 열쇠, 위상 in 본.items():
-        배지 = _줄(수프, 표본['코드'][열쇠]).select('td')[-2].select_one('.og-badge')
+        배지 = _상태칸(수프, 표본['코드'][열쇠]).select_one('.og-badge')
         assert 배지 is not None, f'{열쇠} 줄에 상태 배지가 없다'
         assert 배지.get_text(strip=True) == PHASE_LABEL[위상], (
             f'{열쇠} 상태 글자가 정본과 다르다: {배지.get_text(strip=True)}')
@@ -211,7 +221,7 @@ def test_미완료_줄은_왜_미완료인지_말한다(client, 표본):
     """🔴 사유가 없으면 배지가 손볼 곳을 안 알려 준다 — 배지만으로는 쓸모가 없다."""
     수프 = _수프(client)
     code = 표본['코드']['주소없음']
-    배지 = _줄(수프, code).select('td')[-2].select_one('.og-badge')
+    배지 = _상태칸(수프, code).select_one('.og-badge')
     assert '소싱처 URL 없음' in (배지.get('title') or ''), (
         f'상태 배지가 사유를 안 알려 준다: {배지.get("title")!r}')
     # 마우스를 안 올려도 보이도록 판에도 글자로 남는다.
@@ -223,7 +233,7 @@ def test_다_갖춘_줄에는_사유를_안_붙인다(client, 표본):
     """할 일이 없는 줄에 「아직 안 된 것」이 붙으면 없는 일감을 만든다."""
     수프 = _수프(client)
     code = 표본['코드']['준비완료']
-    assert not _줄(수프, code).select('td')[-2].select_one('.og-badge').get('title')
+    assert not _상태칸(수프, code).select_one('.og-badge').get('title')
     assert '아직 안 된 것' not in _판(수프, code).get_text(' ', strip=True)
 
 
@@ -232,7 +242,8 @@ def test_다_갖춘_줄에는_사유를_안_붙인다(client, 표본):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _맵핑칸(수프, code):
-    return _줄(수프, code).select('td')[-3]
+    # 🔴 [2026-08-19] 「SKU 정보 상태」 열이 뒤에 늘어 맵핑 칸은 이제 `[-4]`이다.
+    return _줄(수프, code).select('td')[-4]
 
 
 def test_맵핑은_분수로_보인다(client, 표본):
