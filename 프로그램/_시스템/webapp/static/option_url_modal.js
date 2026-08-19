@@ -62,6 +62,12 @@
 
   function keyOf(vals) { return JSON.stringify(vals); }
 
+  // ── SKU 번호 세 가지(㉰) — 이름·순서는 `lemouton/matrix/sku_info.py`
+  //    `FIELDS`·`LABELS` 와 반드시 같아야 한다. 이 파일은 정적 자산이라 Jinja 로
+  //    서버 값을 못 받는다 — 그래서 여기 한 번만 옮겨 적는다(바꾸려면 두 곳 다 고칠 것).
+  const SKU_FIELDS = ['article_no', 'barcode', 'gtin'];
+  const SKU_LABELS = { article_no: '품번', barcode: '바코드', gtin: 'GTIN' };
+
   // ─── 스타일 1회 주입 ───
   function injectStyle() {
     if (document.getElementById('oum-style')) return;
@@ -497,6 +503,68 @@
       .oum-cat-addbtn { background:#10b981; color:#fff; border:0; border-radius:13.5px; padding:21px 42px; font:inherit; font-size:24px; font-weight:800; cursor:pointer; }
       .oum-cat-addbtn:hover { background:#15803d; }
       .oum-cat-addbtn.done, .oum-cat-addbtn:disabled { background:#F2F4F6; color:#9CA3AF; cursor:default; }
+
+      /* ── [2026-08-14 사장님 확정 ㉰] SKU 번호 격자 — 줄 = SKU · 칸 = 품번·바코드·GTIN ──
+         🔴 공란은 **미입력**이다. 안 채웠다고 막지 않는다 — 나중에 채운다.
+         🔴 이 판은 'scheduleRerender' 가 '#oum-left' 를 통째로 갈아끼울 때 같이 지워진다.
+            그래서 적어 넣은 값은 DOM 이 아니라 'state.skuVals' 에 산다(아래 JS 주석 참조). */
+      .oum-sku { margin-top:24px; background:#fff; border:1.5px solid #e5e8eb; border-radius:18px; overflow:hidden; }
+      .oum-sku-h { display:flex; align-items:center; gap:15px; padding:21px 24px; border-bottom:1px solid #eef1f4; flex-wrap:wrap; }
+      .oum-sku-t { font-size:24px; font-weight:700; color:#191F28; }
+      .oum-sku-n { font-size:19.5px; color:#8b95a1; }
+      .oum-sku-gen { margin-left:auto; background:#fff; border:1.5px solid #d1d6db; border-radius:12px; padding:12px 21px; font:inherit; font-size:21px; font-weight:700; color:#4e5968; cursor:pointer; }
+      .oum-sku-gen:hover { border-color:#3B82F6; color:#3B82F6; }
+      .oum-sku-gen:disabled { opacity:.45; cursor:default; }
+      .oum-sku-note { padding:15px 24px 0; font-size:19.5px; color:#8b95a1; line-height:1.6; }
+      .oum-sku-msg { margin:15px 24px 0; padding:13.5px 18px; border-radius:12px; font-size:19.5px; line-height:1.6; background:#F0FDF4; color:#15803d; }
+      .oum-sku-msg.bad { background:#FEF2F2; color:#B91C1C; }
+      .oum-sku-box { max-height:660px; overflow:auto; margin-top:15px; }
+      .oum-sku-tb { width:100%; border-collapse:collapse; font-size:21px; }
+      .oum-sku-tb th { position:sticky; top:0; background:#FAFBFC; color:#6b7684; font-size:19.5px; font-weight:700; text-align:left; padding:13.5px 15px; border-bottom:1px solid #eef1f4; z-index:1; }
+      .oum-sku-tb td { padding:9px 15px; border-bottom:1px solid #f4f6f8; vertical-align:top; }
+      .oum-sku-lb { font-weight:700; color:#191F28; white-space:nowrap; }
+      .oum-sku-id { font-family:ui-monospace,monospace; font-size:18px; color:#8b95a1; }
+      .oum-sku-tb input { width:100%; box-sizing:border-box; border:1.5px solid #e5e8eb; border-radius:10px; padding:10.5px 13.5px; font:inherit; font-size:21px; background:#fff; }
+      .oum-sku-tb input:focus { outline:none; border-color:#3B82F6; }
+      .oum-sku-tb input.bad { border-color:#E5484D; background:#FEF2F2; }
+      /* 🔴 거부 사유는 **그 칸 밑에** 적는다. 위에 몰아 두면 어느 줄 얘긴지 못 찾는다. */
+      .oum-sku-why { color:#B91C1C; font-size:17.5px; line-height:1.5; margin-top:6px; }
+      .oum-sku-empty { padding:36px 24px; text-align:center; color:#9ca3af; font-size:21px; line-height:1.7; }
+      /* 저장 단추 — 「자체 바코드 생성」(보조·테두리)과 갈라 보이게 원색 채움 */
+      .oum-sku-f { display:flex; justify-content:flex-end; padding:18px 24px; border-top:1px solid #eef1f4; }
+      .oum-sku-save { background:#3B82F6; color:#fff; border:0; border-radius:12px; padding:13.5px 27px; font:inherit; font-size:21px; font-weight:700; cursor:pointer; }
+      .oum-sku-save:hover { background:#2563EB; }
+      .oum-sku-save:disabled { opacity:.45; cursor:default; }
+      /* ── 미구성 SKU 등록 — 축 값 우클릭 (W12) ────────────────────── */
+      .oum-ctxmenu { position:fixed; z-index:10050; background:#fff; border:1px solid #e5e8eb; border-radius:12px;
+        box-shadow:0 12px 32px rgba(0,0,0,.18); padding:6px; min-width:270px; font-size:21px; }
+      .oum-ctxmenu button { display:block; width:100%; text-align:left; background:none; border:0; border-radius:9px;
+        padding:13.5px 15px; font:inherit; font-size:inherit; color:#191F28; cursor:pointer; }
+      .oum-ctxmenu button:hover { background:#F0F5FF; color:#3B82F6; }
+      .oum-ctxmenu .oum-ctx-hd { padding:9px 15px 6px; font-size:16.5px; color:#8b95a1;
+        border-bottom:1px solid #f4f6f8; margin-bottom:6px; }
+      .oum-adopt-bg { position:fixed; inset:0; background:rgba(0,0,0,.32); z-index:10060;
+        display:flex; align-items:center; justify-content:center; }
+      .oum-adopt-box { background:#fff; border-radius:18px; width:900px; max-width:92vw; max-height:80vh;
+        display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.2); }
+      .oum-adopt-hd { padding:24px 27px; border-bottom:1px solid #e5e8eb; }
+      .oum-adopt-hd h3 { margin:0 0 6px; font-size:24px; font-weight:700; color:#191F28; }
+      .oum-adopt-hd p { margin:0; font-size:17px; color:#6b7684; line-height:1.5; }
+      .oum-adopt-hd b { color:#191F28; }
+      .oum-adopt-q { margin:15px 0 0; width:100%; box-sizing:border-box; border:1.5px solid #e5e8eb; border-radius:10px;
+        padding:12px 15px; font:inherit; font-size:19.5px; }
+      .oum-adopt-q:focus { outline:none; border-color:#3B82F6; }
+      .oum-adopt-list { overflow-y:auto; flex:1; padding:9px; }
+      .oum-adopt-row { display:flex; align-items:center; gap:12px; padding:13.5px 15px; border-radius:12px; cursor:pointer; }
+      .oum-adopt-row:hover { background:#F7F9FC; }
+      .oum-adopt-row .nm { font-weight:700; color:#191F28; font-size:19.5px; }
+      .oum-adopt-row .meta { font-size:15px; color:#8b95a1; margin-top:2px; }
+      .oum-adopt-row .go { margin-left:auto; color:#3B82F6; font-size:15px; font-weight:700; white-space:nowrap; }
+      .oum-adopt-empty { padding:48px 24px; text-align:center; color:#9ca3af; font-size:18px; line-height:1.7; }
+      .oum-adopt-ft { padding:15px 27px; border-top:1px solid #eef1f4; display:flex; justify-content:space-between; align-items:center; }
+      .oum-adopt-close { background:none; border:1.5px solid #e5e8eb; border-radius:10px; padding:10.5px 21px;
+        font:inherit; font-size:16.5px; color:#6b7684; cursor:pointer; }
+      .oum-adopt-msg { font-size:15px; color:#B91C1C; }
     `;
     document.head.appendChild(s);
   }
@@ -558,6 +626,15 @@
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
       tempIdSeq: 1,
+      // ── SKU 번호 격자(㉰) — 품번·바코드·GTIN. 이미 저장된 SKU(=Option 행)에만 적는다.
+      //   🔴 값은 여기(state.skuVals)에만 산다. `scheduleRerender` 가 `#oum-left` 를
+      //      통째로 갈아끼워도 render 는 이 값을 다시 읽어 넣으므로 입력이 안 날아간다.
+      skuRows: [],              // 서버가 준 줄 목록 [{sku, no, label, article_no, barcode, gtin, active}]
+      skuVals: {},              // {sku: {article_no, barcode, gtin}} — 화면이 지금 들고 있는 값
+      skuErrors: {},            // {'sku:field': 거부사유} — 마지막 저장 시도 결과
+      skuMsg: null,             // {ok, text} — 저장/생성 결과 배너
+      skuSaving: false,
+      skuGenBusy: false,
     };
 
     // 모달 마크업
@@ -722,6 +799,24 @@
       }
     } catch (e) { console.warn('sources load fail', e); }
 
+    // ── SKU 번호(품번·바코드·GTIN) — 이미 저장된 옵션(Option 행)에만 붙는다.
+    //   판정·저장 규칙은 전부 서버(`lemouton/matrix/sku_info.py`) 한 곳 — 여기서는
+    //   받고·보여주고·보낼 뿐이다.
+    try {
+      const r2 = await fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}`);
+      const j2 = await r2.json();
+      if (j2 && j2.ok) {
+        state.skuRows = j2.rows || [];
+        state.skuRows.forEach(o => {
+          state.skuVals[o.sku] = {
+            article_no: o.article_no || '',
+            barcode: o.barcode || '',
+            gtin: o.gtin || '',
+          };
+        });
+      }
+    } catch (e) { console.warn('sku-info load fail', e); }
+
     // 소싱처 라벨 매핑 (사용자 친화) — [2026-06-30 단일명부] 명부 라벨로 덮어씀
     const SRC_LABELS = {
       lemouton: '르무통 공홈', musinsa: '무신사', ssf: 'SSF샵', ssg: 'SSG',
@@ -859,7 +954,293 @@
         <div class="sum">${valid.length ? `✓ 옵션 <b>${onCnt}개</b> 활성 / ${totalCnt - onCnt}개 비활성 — 우측에 적용?` : '먼저 축을 입력하세요'}</div>
       </div>`;
 
+      // ── [2026-08-19 사장님 확정 ㉰] SKU 번호 격자 — 품번·바코드·GTIN ──
+      html += renderSkuGrid();
+
       left.innerHTML = html;
+    }
+
+    // ─── SKU 번호 격자(㉰) — 줄 = 이미 저장된 SKU, 칸 = 품번·바코드·GTIN ───
+    function renderSkuGrid() {
+      const rows = state.skuRows || [];
+      const total = rows.length;
+
+      let head = `<div class="oum-sku-h">
+        <span class="oum-sku-t">🔢 SKU 번호 (품번 · 바코드 · GTIN)</span>`;
+      if (total) {
+        const parts = SKU_FIELDS.map(f => {
+          const n = rows.filter(o => ((state.skuVals[o.sku] || {})[f] || '').trim()).length;
+          return `${SKU_LABELS[f]} ${n}/${total}`;
+        });
+        head += `<span class="oum-sku-n">${parts.join(' · ')}</span>`;
+      }
+      head += `<button class="oum-sku-gen" id="oum-sku-gen" type="button"
+                 ${total ? '' : 'disabled'} ${state.skuGenBusy ? 'disabled' : ''}>
+                 ${state.skuGenBusy ? '만드는 중…' : '자체 바코드 생성 (빈 칸만)'}</button>`;
+      head += '</div>';
+
+      const note = `<div class="oum-sku-note">공란은 <b>아직 안 적음</b>입니다(값이 없다고 저장을 막지 않습니다).
+        바코드 · GTIN 은 다른 SKU 와 겹치면 그 칸만 저장되지 않습니다 — 마켓에서 상품이 뒤섞이는 걸 막기 위해서입니다.</div>`;
+
+      const msg = state.skuMsg
+        ? `<div class="oum-sku-msg${state.skuMsg.ok ? '' : ' bad'}">${esc(state.skuMsg.text)}</div>`
+        : '';
+
+      let body;
+      if (!total) {
+        body = `<div class="oum-sku-empty">아직 저장된 SKU 가 없습니다 — 위 매트릭스에서 조합을 켜고
+          [옵션 + URL 저장]을 먼저 눌러야 여기서 품번 · 바코드 · GTIN 을 채울 수 있습니다.</div>`;
+      } else {
+        const trs = rows.map(o => {
+          const v = state.skuVals[o.sku] || {};
+          const tds = SKU_FIELDS.map(f => {
+            const err = state.skuErrors[o.sku + ':' + f];
+            const ph = f === 'article_no' ? '미입력' : (f === 'barcode' ? 'EAN-13 13자리' : '8·12·13·14자리');
+            return `<td>
+              <input type="text" data-sku-field data-sku-sku="${esc(o.sku)}" data-sku-fname="${f}"
+                     class="${err ? 'bad' : ''}" placeholder="${ph}" value="${esc(v[f] || '')}">
+              ${err ? `<div class="oum-sku-why">${esc(err)}</div>` : ''}
+            </td>`;
+          }).join('');
+          return `<tr>
+            <td><div class="oum-sku-lb">${esc(o.label || o.no || o.sku)}</div><div class="oum-sku-id">${esc(o.sku)}</div></td>
+            ${tds}
+          </tr>`;
+        }).join('');
+        body = `<div class="oum-sku-box"><table class="oum-sku-tb">
+          <thead><tr><th>옵션</th><th>품번</th><th>바코드</th><th>GTIN</th></tr></thead>
+          <tbody>${trs}</tbody>
+        </table></div>`;
+      }
+
+      const footer = `<div class="oum-sku-f">
+        <button class="oum-sku-save" id="oum-sku-save" type="button" ${total ? '' : 'disabled'} ${state.skuSaving ? 'disabled' : ''}>
+          ${state.skuSaving ? '저장 중…' : 'SKU 번호 저장'}</button>
+      </div>`;
+
+      return `<div class="oum-sku">${head}${note}${msg}${body}${footer}</div>`;
+    }
+
+    // 자체 바코드 생성 — **빈 칸만** 채운다. 사용자가 손으로 적어 둔(아직 저장 전) 값은
+    // 이 화면(state.skuVals)이 갖고 있어서, 서버는 판단 못 하고 화면이 골라 보낸다.
+    function skuGenBarcodes() {
+      const empties = (state.skuRows || [])
+        .map(o => o.sku)
+        .filter(sku => !((state.skuVals[sku] || {}).barcode || '').trim());
+      if (!empties.length) {
+        state.skuMsg = { ok: true, text: '이미 모든 SKU 에 바코드가 있습니다 — 채울 빈 칸이 없습니다.' };
+        renderLeft();
+        return;
+      }
+      state.skuGenBusy = true;
+      renderLeft();
+      fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}/gen-barcodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skus: empties }),
+      })
+        .then(r => r.json())
+        .then(j => {
+          if (j && j.ok) {
+            const made = j.barcodes || {};
+            let n = 0;
+            Object.keys(made).forEach(sku => {
+              if (!state.skuVals[sku]) state.skuVals[sku] = {};
+              // 🔴 「빈 것만」— 응답이 오는 사이 손으로 적었으면 덮지 않는다.
+              if (!(state.skuVals[sku].barcode || '').trim()) {
+                state.skuVals[sku].barcode = made[sku];
+                n++;
+              }
+            });
+            state.skuMsg = { ok: true, text: n
+              ? `바코드 ${n}개를 만들었습니다 — 아직 저장 전입니다. [SKU 번호 저장]을 눌러야 실제로 저장됩니다.`
+              : '만든 번호가 없습니다.' };
+          } else {
+            state.skuMsg = { ok: false, text: '바코드를 만들지 못했습니다 — ' + ((j && j.error) || '서버 응답 없음') };
+          }
+        })
+        .catch(e => {
+          state.skuMsg = { ok: false, text: '바코드를 만들지 못했습니다 — ' + (e && e.message || e) };
+        })
+        .finally(() => {
+          state.skuGenBusy = false;
+          renderLeft();
+        });
+    }
+
+    // SKU 번호 저장 — 맞는 칸은 들어가고, 틀린/겹친 칸은 사유가 그 칸 밑에 남는다
+    // (되돌리기 없음 — 까닭은 `lemouton/matrix/sku_info.py` 머리말 참조).
+    function skuSaveGrid() {
+      const rows = state.skuRows || [];
+      if (!rows.length) return;
+      const items = rows.map(o => {
+        const v = state.skuVals[o.sku] || {};
+        const it = { sku: o.sku };
+        SKU_FIELDS.forEach(f => { it[f] = v[f] || ''; });
+        return it;
+      });
+      state.skuSaving = true;
+      renderLeft();
+      fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+        .then(r => r.json())
+        .then(j => {
+          state.skuErrors = {};
+          (j.rejected || []).forEach(r => { state.skuErrors[r.sku + ':' + r.field] = r.reason; });
+          const warnN = (j.warnings || []).length;
+          if (j.ok) {
+            state.skuMsg = { ok: true, text: `저장했습니다 (${j.saved || 0}칸)`
+              + (warnN ? ` · 주의 ${warnN}건 — 아래 칸을 확인하세요` : '') };
+          } else {
+            state.skuMsg = { ok: false, text: `일부를 저장하지 못했습니다 — 거부 ${(j.rejected || []).length}건, `
+              + `저장 ${j.saved || 0}칸. 빨간 칸의 사유를 확인하세요.` };
+          }
+        })
+        .catch(e => {
+          state.skuMsg = { ok: false, text: '저장하지 못했습니다 — ' + (e && e.message || e) };
+        })
+        .finally(() => {
+          state.skuSaving = false;
+          renderLeft();
+        });
+    }
+
+    // ── 미구성 SKU 등록 — 축 값 우클릭 (W12) ─────────────────────────
+    // 재고관리에서 「모음전으로도 판다」 없이 낱개로만 등록된 SKU(=미구성 SKU)를
+    // 지금 짜는 축 값 조합 자리로 그대로 이사시킨다. 판정·이사는 서버
+    // (lemouton/matrix/unbuilt.py·webapp/routes/optgen_sku.py) 하나뿐 — 여기는
+    // 고르기 UI만 담당하고 조건을 다시 적지 않는다(그 파일 머리말 규칙과 같은 이유).
+    // 🔴 adopt-sku 는 호출 즉시 서버에 커밋된다(좌측 매트릭스의 다른 셀과 달리
+    //    [옵션 + URL 저장]을 눌러야 반영되는 초안이 아니다) — 이사는 실수 방지를 위해
+    //    그 자리에서 바로 끝내는 편이 "저장을 깜빡해 미구성 SKU만 사라진" 혼란을 막는다.
+    let _ctxMenuEl = null;
+    function _closeCtxMenu() {
+      if (_ctxMenuEl) { _ctxMenuEl.remove(); _ctxMenuEl = null; }
+    }
+
+    function showAdoptMenu(x, y, axisValues) {
+      _closeCtxMenu();
+      const m = document.createElement('div');
+      m.className = 'oum-ctxmenu';
+      const label = axisValues.filter(Boolean).join(' · ') || '(빈 조합)';
+      m.innerHTML = `<div class="oum-ctx-hd">${esc(label)}</div>
+        <button type="button" data-act="adopt">📥 미구성 SKU 등록…</button>`;
+      document.body.appendChild(m);
+      // 화면 밖으로 안 나가게 — 먼저 붙이고 실제 크기로 다시 자리를 잡는다
+      const w = m.offsetWidth, h = m.offsetHeight;
+      m.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 12)) + 'px';
+      m.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 12)) + 'px';
+      _ctxMenuEl = m;
+      m.querySelector('[data-act="adopt"]').addEventListener('click', () => {
+        _closeCtxMenu();
+        openAdoptPicker(axisValues);
+      });
+      // 같은 클릭으로 바로 닫히지 않도록 다음 이벤트 루프에 걸어 둔다
+      setTimeout(() => {
+        document.addEventListener('click', _closeCtxMenu, { once: true });
+        document.addEventListener('contextmenu', _closeCtxMenu, { once: true });
+      }, 0);
+    }
+
+    function openAdoptPicker(axisValues) {
+      const label = axisValues.filter(Boolean).join(' · ') || '(빈 조합)';
+      const bg = document.createElement('div');
+      bg.className = 'oum-adopt-bg';
+      bg.innerHTML = `<div class="oum-adopt-box">
+        <div class="oum-adopt-hd">
+          <h3>미구성 SKU 등록</h3>
+          <p><b>${esc(label)}</b> 자리에 넣을, 재고관리에 낱개로만 등록된 SKU를 고르세요.
+            고르면 그 SKU가 그대로 이 매트릭스로 옮겨오고(같은 SKU·재고이력 유지),
+            원래 있던 옵션함에서는 빠집니다.</p>
+          <input class="oum-adopt-q" type="text" placeholder="이름 · SKU · 브랜드로 찾기">
+        </div>
+        <div class="oum-adopt-list"><div class="oum-adopt-empty">찾는 중…</div></div>
+        <div class="oum-adopt-ft"><span class="oum-adopt-msg"></span>
+          <button type="button" class="oum-adopt-close">닫기</button></div>
+      </div>`;
+      document.body.appendChild(bg);
+      bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
+      bg.querySelector('.oum-adopt-close').addEventListener('click', () => bg.remove());
+
+      const listEl = bg.querySelector('.oum-adopt-list');
+      const msgEl = bg.querySelector('.oum-adopt-msg');
+      const qEl = bg.querySelector('.oum-adopt-q');
+
+      let _seq = 0;
+      function search(q) {
+        const mySeq = ++_seq;
+        listEl.innerHTML = '<div class="oum-adopt-empty">찾는 중…</div>';
+        fetch(`/optgen/api/unbuilt-skus?limit=30&q=${encodeURIComponent(q || '')}`)
+          .then(r => r.json())
+          .then(j => {
+            if (mySeq !== _seq) return;   // 늦게 도착한 옛 응답은 버린다(빠른 타이핑 대비)
+            if (!j || !j.ok) {
+              listEl.innerHTML = '<div class="oum-adopt-empty">불러오지 못했습니다.</div>';
+              return;
+            }
+            if (!j.items.length) {
+              listEl.innerHTML = `<div class="oum-adopt-empty">${q
+                ? '찾는 말과 맞는 미구성 SKU가 없습니다.'
+                : '아직 미구성 SKU가 없습니다 — 재고관리에서 낱개로 등록한 물건이 여기 뜹니다.'}</div>`;
+              return;
+            }
+            listEl.innerHTML = '';
+            j.items.forEach(it => {
+              const row = document.createElement('div');
+              row.className = 'oum-adopt-row';
+              row.innerHTML = `<div><div class="nm">${esc(it.name)}</div>
+                <div class="meta">${esc(it.sku)}${it.brand ? ' · ' + esc(it.brand) : ''} · 재고 ${it.stock}개</div></div>
+                <div class="go">이 자리로 →</div>`;
+              row.addEventListener('click', () => adopt(it.sku, row));
+              listEl.appendChild(row);
+            });
+          })
+          .catch(() => {
+            if (mySeq === _seq) listEl.innerHTML = '<div class="oum-adopt-empty">불러오지 못했습니다.</div>';
+          });
+      }
+
+      function adopt(sku, rowEl) {
+        msgEl.textContent = '';
+        rowEl.style.opacity = '.5';
+        fetch(`/optgen/api/box/${encodeURIComponent(bundleCode)}/adopt-sku`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sku, axis_values: axisValues }),
+        })
+          .then(r => r.json())
+          .then(j => {
+            if (!j || !j.ok) {
+              msgEl.textContent = (j && j.error) || '등록하지 못했습니다.';
+              rowEl.style.opacity = '';
+              return;
+            }
+            // 다시 불러오지 않고 이 자리만 "이미 있음"으로 반영 — 나머지 상태(URL 매핑 등)는 그대로 둔다
+            const key = keyOf(axisValues);
+            state.selected.add(key);
+            state.seen.add(key);
+            state.skuByKey = state.skuByKey || {};
+            state.skuByKey[key] = j.sku;
+            keyBySku[j.sku] = key;
+            bg.remove();
+            rerender();
+          })
+          .catch(e => {
+            msgEl.textContent = '등록하지 못했습니다 — ' + (e && e.message || e);
+            rowEl.style.opacity = '';
+          });
+      }
+
+      let _deb = null;
+      qEl.addEventListener('input', () => {
+        clearTimeout(_deb);
+        _deb = setTimeout(() => search(qEl.value.trim()), 250);
+      });
+      search('');
+      qEl.focus();
     }
 
     function filterCombos(axisName, val) {
@@ -1971,9 +2352,30 @@
         rerender();
         return;
       }
+      // SKU 번호 — 자체 바코드 생성 (빈 칸만 채운다 · 든 값은 안 덮는다)
+      if (e.target.closest('#oum-sku-gen')) {
+        skuGenBarcodes();
+        return;
+      }
+      // SKU 번호 — 저장
+      if (e.target.closest('#oum-sku-save')) {
+        skuSaveGrid();
+        return;
+      }
       } catch (err) {
         console.error('[oum] click handler error:', err);
       }
+    });
+
+    // 매트릭스 셀 우클릭 — 미구성 SKU 등록 (W12). 브라우저 기본 메뉴 대신 이걸 띄운다.
+    $('#oum-left').addEventListener('contextmenu', e => {
+      const cell = e.target.closest('[data-cell-key]');
+      if (!cell) return;
+      e.preventDefault();
+      let axisValues;
+      try { axisValues = JSON.parse(cell.dataset.cellKey); } catch (err) { return; }
+      if (!Array.isArray(axisValues)) return;
+      showAdoptMenu(e.clientX, e.clientY, axisValues);
     });
 
     // ─── [순서 v33] 칩 드래그앤드랍 수동 순서 변경 (axis.values 재배열) ───
@@ -2076,6 +2478,17 @@
     });
 
     $('#oum-left').addEventListener('input', e => {
+      // SKU 번호 격자 — 값은 state 에만 쓰고 **rerender 하지 않는다**. renderLeft() 가
+      // 통째로 갈아끼워도 다음에 다시 그릴 때 이 값을 읽어 넣으므로 입력이 안 끊긴다.
+      const skuF = e.target.closest('[data-sku-field]');
+      if (skuF) {
+        const sku = skuF.dataset.skuSku;
+        const f = skuF.dataset.skuFname;
+        if (!state.skuVals[sku]) state.skuVals[sku] = {};
+        state.skuVals[sku][f] = e.target.value;
+        return;
+      }
+
       const nm = e.target.closest('[data-axis-name]');
       const vl = e.target.closest('[data-axis-values]');
 

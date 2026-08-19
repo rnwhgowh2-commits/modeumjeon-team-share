@@ -72,6 +72,41 @@ def is_valid_barcode(s: str | None) -> bool:
     return chk == expect
 
 
+# ============ GTIN (세계 공용 상품 번호) ============
+
+#: GTIN 은 자릿수가 네 가지다 — GTIN-8 / 12(UPC) / 13(EAN) / 14(박스 단위).
+#: 마켓이 「표준상품코드」로 받는 값이 이것이라, 자릿수를 우리가 하나로 못 박으면
+#: 실제로 브랜드가 준 번호를 못 적는다.
+_GTIN_LENGTHS = (8, 12, 13, 14)
+
+
+def gtin_check_digit(body: str) -> int:
+    """GTIN 검사숫자 — **오른쪽에서부터** 3·1·3·1 로 가중해 더한 뒤 10 의 보수.
+
+    🔴 왼쪽부터 세면 안 된다. `is_valid_barcode`(EAN-13 전용)는 몸통이 12자리(짝수)라
+       왼쪽부터 1·3·1·3 을 매겨도 우연히 같은 답이 나오지만, GTIN-8(몸통 7자리)처럼
+       홀수 자리에서는 가중치가 통째로 뒤집혀 **멀쩡한 번호를 틀렸다고 막는다.**
+    """
+    total = 0
+    for i, ch in enumerate(reversed(body)):
+        total += int(ch) * (3 if i % 2 == 0 else 1)
+    return (10 - total % 10) % 10
+
+
+def is_valid_gtin(s: str | None) -> bool:
+    """GTIN-8/12/13/14 형식 + 검사숫자 검증.
+
+    검사숫자까지 보는 이유 — 숫자 하나를 잘못 옮겨 적어도 자릿수는 맞는다.
+    그 값이 그대로 마켓에 나가면 **남의 상품 번호**가 되어 상품이 뒤섞인다.
+    """
+    if not s:
+        return False
+    t = str(s).strip()
+    if len(t) not in _GTIN_LENGTHS or not t.isdigit():
+        return False
+    return int(t[-1]) == gtin_check_digit(t[:-1])
+
+
 # ============ 품번 ============
 
 ARTICLE_RE = re.compile(r'^[A-Za-z0-9_\-]+$')
