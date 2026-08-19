@@ -24,10 +24,22 @@ def test_주소로_넘기는_곳은_이어걷기가_된다():
     assert LD.can_resume('lemouton', 'https://lemouton.co.kr/product/list.html?cate_no=60') is True
 
 
-def test_단추로_넘기는_곳은_이어걷기가_안_된다():
-    """🔴 되는 척하면 2회차가 1쪽부터 다시 걷고 「이어 걸었다」고 거짓말한다."""
-    assert LD.can_resume('lotteon', 'https://www.lotteon.com/search/search/search.ecn?q=x') is False
-    assert LD.can_resume('lotteimall', 'https://www.lotteimall.com/search/searchMain.lotte?q=x') is False
+def test_단추로_넘기는_곳도_이어걷기가_된다():
+    """🔴 [2026-08-13 뒤집음] 처음엔 「안 된다」고 못 박았다 — 늘 1쪽에서 눌러
+    가야 해서 중간부터 시작할 수단이 없다고 봤기 때문이다.
+
+    그러면 한 회차 상한(60쪽=3,600개)이 **영원한 천장**이 된다. 아이몰
+    「나이키 신발」은 46,009개(767쪽)라 **92%를 영영 못 걷는다.**
+
+    ★ 방법이 있었다 — **걷지 않고 누르기만** 하면 된다(`click_skip_for`).
+      301쪽부터 걸으려면 300번 누르고 시작한다. 훑지 않으니 훨씬 빠르다.
+      자세한 것은 `test_click_resume_skip.py`.
+
+    ★★ 배운 것 — **「구조상 안 된다」는 판정도 낡는다.** 「그 수단이 없다」와
+       「내가 아직 못 찾았다」는 다른 사실이다.
+    """
+    assert LD.can_resume('lotteon', 'https://www.lotteon.com/search/search/search.ecn?q=x') is True
+    assert LD.can_resume('lotteimall', 'https://www.lotteimall.com/search/searchMain.lotte?q=x') is True
 
 
 def test_SSF_검색주소는_이어걷기가_안_된다():

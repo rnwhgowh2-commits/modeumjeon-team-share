@@ -196,6 +196,31 @@ def _options_json(session, set_id: int, stock_by_sku: dict | None = None) -> str
         return '[]'
     rows = (session.query(Option).filter(Option.canonical_sku.in_(skus)).all())
     by_sku = {o.canonical_sku: o for o in rows}
+
+    # 🔴 [2026-08-13] 옵션 행에 **모델명 칸**(`model`)을 만든다.
+    #   여기 칸이 없어서 3축(모델·색상·사이즈) 전송이 막혀 있었다 — 막은 이유가
+    #   `registration/options.py` 와 `process_apply.option_axis` 에 그대로 적혀 있다:
+    #   「옵션에 모델명을 담는 칸이 없습니다」. 마켓 탓이 아니라 **우리 칸이 없던 것**이다.
+    #   마켓은 받는다 — 판매처 지도 근거(서열 2, 스스 개발자센터 원문):
+    #     smartstore `optionCombinations` — 「최대 등록 가능한 옵션 개수는
+    #     조합형은 3개, 지점형은 4개입니다.」
+    #   ★ 새 저장 칸은 만들지 않는다. `model_name_of` 가 그때그때 만든다 —
+    #     같은 사실을 두 곳에 저장하면 언젠가 갈린다(그 함수 독스트링).
+    from lemouton.matrix.option_name import model_name_of
+    from lemouton.sourcing.models import BundleOptionStep, Model
+    codes = sorted({o.model_code for o in rows if o.model_code})
+    nm_by_code, ax_by_code = {}, {}
+    if codes:
+        for m in session.query(Model).filter(Model.model_code.in_(codes)).all():
+            nm_by_code[m.model_code] = (m.model_name_display or m.model_name_raw
+                                        or m.model_code)
+        for code, axis_name in (session.query(BundleOptionStep.model_code,
+                                              BundleOptionStep.axis_name)
+                                .filter(BundleOptionStep.model_code.in_(codes))
+                                .order_by(BundleOptionStep.model_code,
+                                          BundleOptionStep.step_no).all()):
+            ax_by_code.setdefault(code, []).append(axis_name)
+
     out = []
     for sku in skus:                       # 구성이 정한 순서를 지킨다
         o = by_sku.get(sku)
@@ -205,6 +230,8 @@ def _options_json(session, set_id: int, stock_by_sku: dict | None = None) -> str
             'sku': o.canonical_sku,
             'color': o.color_display or o.color_code or '',
             'size': o.size_display or o.size_code or '',
+            'model': model_name_of(nm_by_code.get(o.model_code, ''), o,
+                                   ax_by_code.get(o.model_code) or []),
             'image_url': o.image_url or '',
             'active': bool(o.is_active),
         }

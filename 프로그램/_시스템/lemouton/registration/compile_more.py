@@ -53,12 +53,44 @@ def _normalize_options(draft, price: int):
                 f'옵션({color}/{size}) 추가금 포함가가 10원 단위가 아닙니다'
                 f'({price + extra}원) — ESM·11번가 규격.')
         out.append({'color': color, 'size': size, 'stock': int(stock),
-                    'extra_price': int(extra), 'sku': str(o.get('sku') or '').strip()})
+                    'extra_price': int(extra), 'sku': str(o.get('sku') or '').strip(),
+                    'model': str(o.get('model') or '').strip()})
     if not out and excluded:
         raise CompileError(
             '유효한 옵션이 하나도 없습니다(전부 재고 0/미입력) — 등록을 막습니다: '
             + '; '.join(f"{e['color']}/{e['size']}" for e in excluded[:5]))
+    _막이_모델이_다른데_이름이_같다(out)
     return out, excluded
+
+
+def _막이_모델이_다른데_이름이_같다(rows):
+    """🔴 이 마켓들(옥션·G마켓·11번가·롯데온)은 옵션 이름을 **색상·사이즈로만** 만든다.
+
+    모델모음전 3축 옵션이 오면 「메이트 블랙 260」과 「스위트 블랙 260」이
+    둘 다 `블랙/260` 이 된다. 사장님 눈엔 다른 옵션인데 마켓엔 **같은 이름 두 줄**이
+    올라간다 — 손님이 못 고르고, 들어온 주문이 어느 모델인지 알 수 없다.
+    (11번가는 문서에 「한 상품안에서 옵션값은 중복이 될수 없습니다」라고 못 박혀 있다.
+     옥션·G마켓·롯데온의 실제 거절 여부는 **미실측 — 확인불가**)
+
+    🔴 `registration/options._normalize` 를 그대로 재사용하면 **안 된다.** 거긴
+       중복을 **재고 거르기 전에** 세서, 「블랙/260 재고0 + 블랙/260 재고5」처럼
+       오늘 멀쩡히 등록되는 초안(품절 재입고를 두 줄로 적은 것)을 새로 막는다(실측).
+       그래서 여기서는 **팔 수 있는 줄만** 보고, **모델이 실제로 갈릴 때만** 막는다.
+
+    ★ 모델 칸이 없는 옛 옵션은 model='' 이라 이 막이에 안 걸린다(회귀 없음).
+    """
+    본 = {}
+    for r in rows:
+        본.setdefault((r['color'], r['size']), []).append(r)
+    for (색, 사이즈), 묶음 in 본.items():
+        모델들 = {r.get('model', '') for r in 묶음}
+        if len(묶음) > 1 and len(모델들 - {''}) > 1:
+            이름 = '/'.join(p for p in (색, 사이즈) if p) or '(빈 이름)'
+            raise CompileError(
+                f'모델이 다른 옵션이 이 마켓에서는 같은 이름이 됩니다: {이름} '
+                f'({" · ".join("「" + m + "」" for m in sorted(모델들) if m)}). '
+                f'옥션·G마켓·11번가·롯데온은 옵션 이름을 색상·사이즈로만 만들어 '
+                f'모델명이 실리지 않습니다 — 모델을 나눠서 올리세요.')
 
 
 def _base_spec(draft) -> tuple:

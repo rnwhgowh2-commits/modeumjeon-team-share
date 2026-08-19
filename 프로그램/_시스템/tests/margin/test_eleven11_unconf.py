@@ -31,15 +31,21 @@ def _sess():
     return sessionmaker(bind=eng, autoflush=False, expire_on_commit=False)()
 
 
-def _line(sess, uid, *, settle=None, src="store"):
+def _line(sess, uid, *, settle=None, src="store", **extra):
     from lemouton.markets.models_orders import MarketOrderLine as L
     row = {"판매처": "11번가", "주문상태": "배송완료"}
     if settle is not None:
         row["정산예정금(배송비포함)"] = settle
         row["_settle_source"] = src
+    row.update(extra)
     sess.add(L(line_uid=uid, market="eleven11",
                order_no=uid.split("|")[1], row=row))
     sess.commit()
+
+
+def _stored(sess):
+    from lemouton.markets.models_orders import MarketOrderLine as L
+    return dict(sess.query(L).one().row)
 
 
 def test_parse_실측행_그대로():
@@ -87,11 +93,87 @@ def test_적용_store를_real로_덮는다():
 
 
 def test_적용_같은값이면_다시_안쓴다():
+    """무의미한 쓰기 방지 — 단, 「같다」는 **우리가 쓰는 칸 전부**가 같을 때다.
+
+    🔴 2026-08-13 정정 — 옛 시험은 N열만 맞으면 「같다」로 봤다. 그래서 M열이 빈
+      옛 행이 영영 안 고쳐졌고, 저장분 보강이 도는 순간 그 행의 N 이 빈칸이 됐다
+      (아래 `test_N은_같은데_M이_비었으면_채운다`). 그래서 M·_stl_net 도 채워 둔다.
+    """
     s = _sess()
-    _line(s, "eleven11|20260806090786705|1", settle=47894, src="real")
+    _line(s, "eleven11|20260806090786705|1", settle=47894, src="real",
+          정산예정금액=47894, _stl_net=True, 배송비=0)
     rows, _ = EU.parse_rows({"list": [LIVE]})
     rep = EU.apply_rows(rows, session=s)
     assert (rep["적용"], rep["값동일"]) == (0, 1)
+
+
+# ── 🔴 저장분 보강이 실값을 조용히 지우던 것 ────────────────────
+
+def test_적용값이_저장분_보강을_견딘다():
+    """🔴 이 파일에서 제일 중요한 시험 — 실값이 **조용히 지워지고 있었다**.
+
+    여태 N열(정산예정금(배송비포함))에만 직접 쓰고 M열(정산예정금액)은 안 건드렸다.
+    그런데 저장분 보강(`order_export` 의 `enrich`)이 `_finalize_rows` 를 **다시 돌린다**.
+    거기서 N 은 `M + 배송비` 로 새로 만들어진다 →
+      · M 이 비어 있으면 N 이 **빈칸**이 된다
+      · M 에 추정치가 있으면 그 추정치 + 배송비로 **덮인다**
+    둘 다 사장님이 화면에서 본 마켓 실값이 사라지는 것이다.
+    """
+    from lemouton.markets.order_export import _finalize_rows
+    s = _sess()
+    _line(s, "eleven11|20260806090786705|1", settle=50000, src="store",
+          배송비=2500, 단가=58400, 수량=1)
+    rows, _ = EU.parse_rows({"list": [LIVE]})
+    EU.apply_rows(rows, session=s)
+
+    row = _stored(s)
+    assert row["정산예정금(배송비포함)"] == 47894      # 붙인 직후
+    _finalize_rows([row])                              # 저장분 보강 흉내
+    assert row["정산예정금(배송비포함)"] == 47894, \
+        f'저장분 보강이 마켓 실값을 덮었다: {row["정산예정금(배송비포함)"]}'
+
+
+def test_M열을_11번가_규약대로_같이_채운다():
+    """구매확정 **후** 빌더가 이미 쓰는 규약 그대로 — M = 실값 − 배송비, `_stl_net=True`.
+
+    (order_export 11번가 빌더: `정산예정금액 = stlPlnAmt − 배송비`.
+     stlAmt 도 stlPlnAmt 와 같이 배송비를 품고 있다 — 이 모듈 머리글 실측 참고.)
+    🔴 규약이 두 벌이 되면 같은 주문이 경로에 따라 다른 값이 된다(원천 분열).
+    """
+    s = _sess()
+    _line(s, "eleven11|20260806090786705|1", settle=50000, src="store", 배송비=2500)
+    rows, _ = EU.parse_rows({"list": [LIVE]})
+    EU.apply_rows(rows, session=s)
+
+    row = _stored(s)
+    assert row["정산예정금액"] == 47894 - 2500
+    assert row["_stl_net"] is True, '구 저장분과 구분할 표식이 없다'
+
+
+def test_배송비가_없으면_M과_N이_같다():
+    s = _sess()
+    _line(s, "eleven11|20260806090786705|1", settle=50000, src="store")
+    rows, _ = EU.parse_rows({"list": [LIVE]})
+    EU.apply_rows(rows, session=s)
+
+    row = _stored(s)
+    assert row["정산예정금액"] == 47894
+    assert row["정산예정금(배송비포함)"] == 47894
+
+
+def test_N은_같은데_M이_비었으면_채운다():
+    """🔴 「값 같으면 안 쓴다」가 **깨진 옛 행을 영영 보호**하면 안 된다.
+
+    N 만 실값이고 M 이 빈 행이 저장분에 그대로 있다. 그 행은 저장분 보강이 도는
+    순간 N 이 빈칸이 된다. 다음 수집 때 고쳐 줘야 한다.
+    """
+    s = _sess()
+    _line(s, "eleven11|20260806090786705|1", settle=47894, src="real")   # M 없음
+    rows, _ = EU.parse_rows({"list": [LIVE]})
+    rep = EU.apply_rows(rows, session=s)
+
+    assert rep["적용"] == 1, 'M 이 빈 채로 「값 같음」 처리해 버렸다'
+    assert _stored(s)["정산예정금액"] == 47894
 
 
 def test_미매칭이_응답에_남는다():

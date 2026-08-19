@@ -207,6 +207,12 @@ def crawl_due_listings():
                 _lo, _hi = LD.window_for(f.page_from, f.page_to, _cur)
                 pages = LD.page_urls_for(f.listing_url, source_key=f.source_key,
                                          page_from=_lo, page_to=_hi)
+                # 🔴 **못 걸은 쪽을 맨 앞에 세운다.** 크롬이 바쁠 때 탭이 죽어
+                #   빠진 쪽이다 — 「나중에」로 미루면 영영 안 걷힌다(H몰 16% 실측).
+                _miss = [u for u in
+                         (getattr(f, 'missed_urls', None) or '').splitlines() if u.strip()]
+                if _miss:
+                    pages = _miss + [u for u in pages if u not in set(_miss)]
             except ValueError:
                 # 규칙을 모르는 소싱처 — 만들 때 막지만, 옛 데이터가 있을 수 있다.
                 #   조용히 빼면 「눌렀는데 아무 일도 안 남」이 된다. 사유를 실어 보낸다.
@@ -224,7 +230,12 @@ def crawl_due_listings():
                         'empty_text': rule['empty_text'],
                         # 단추로 넘기는 곳은 「몇 번 누를지」로 답한다(같은 칸을 쓴다).
                         'click_pages': LD.click_pages_for(
-                            f.source_key, f.page_from, f.page_to)})
+                            f.source_key, f.page_from, f.page_to),
+                        # 🔴 「다음」 단추 소싱처의 **이어서 걷기** — 걷기 전에 몇 번
+                        #   눌러 건너뛸지. 늘 1쪽에서 시작해야 하는 곳이라 이 방법뿐이다.
+                        #   ★ 공짜가 아니다(301쪽부터면 300번). 시한에 걸리면 확장이
+                        #     걷은 것을 들고 나오며 「더 있음」이라 말한다.
+                        'click_skip': LD.click_skip_for(f.source_key, _cur)})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()
@@ -304,6 +315,18 @@ def crawl_listing_result():
         # 「더 있는데 멈췄다」는 실패와 다른 사실이다. 뭉치면 「끝까지 다 봤다」로 읽혀
         # 사장님이 없는 상품을 없다고 믿게 된다.
         f.last_capped = bool(body.get('capped'))
+        # 🔴 **못 걸은 쪽을 기억한다** — 다음 회차가 그것부터 건다.
+        #   이번에 성공한 쪽은 목록에서 뺀다(성공했는데 계속 다시 걸면 헛돈다).
+        if hasattr(f, 'missed_urls'):
+            _was = [u for u in (f.missed_urls or '').splitlines() if u.strip()]
+            _now = [str(u).strip() for u in (body.get('missed') or []) if str(u or '').strip()]
+            # 이번에 시도해 본 쪽 = 지난번 못 걸은 것 중 이번 목록에 있던 것.
+            #   그중 다시 실패한 것만 남긴다.
+            _keep = [u for u in _was if u in set(_now)]
+            for u in _now:
+                if u not in set(_keep):
+                    _keep.append(u)
+            f.missed_urls = ('\n'.join(_keep[:200]) or None)   # 상한 — 끝없이 쌓지 않는다
         # 🔴 **이어서 걷기 위치를 옮긴다.** 「더 있음」이면 다음 회차가 그 다음 창부터
         #   걷고, 끝까지 걸었으면 처음으로 되돌린다(새 상품은 앞쪽에 들어온다).
         #   ★ 주소로 쪽을 넘기는 곳만 이어걷기가 된다 — 「다음」 단추로 넘기는 곳은
@@ -314,6 +337,29 @@ def crawl_listing_result():
                     f.page_from, f.page_to, f.next_page_from, more=f.last_capped)
             else:
                 f.next_page_from = None
+        # 🔴🔴 **끝까지 걷는다** — 「더 있음」이고 이번에 **새로 걷은 것이 있으면**
+        #   다음 회차를 곧바로 예약한다. 사람이 「지금 수집」을 수십 번 누르지
+        #   않아도 된다(현대H몰 456쪽 = 8회차, 아이몰은 그 이상).
+        #
+        # ★ 스스로 멈추는 조건이 셋이다 — 끝없이 도는 일이 없다:
+        #   ① 「더 있음」이 꺼지면 멈춘다(다 걸었다)
+        #   ② **새로 걷은 것이 0이면 멈춘다** — 더 있다고 하는데 안 늘면 그건
+        #      「같은 쪽 헛돌기」이거나 이미 다 가진 것이다. 계속 두들기지 않는다
+        #   ③ 필터를 꺼 두면(enabled=False) 예약하지 않는다
+        # 🔴 ②가 핵심 안전장치다. 이게 없으면 소싱처가 늘 「더 있다」고 답할 때
+        #   영원히 두들겨 차단당한다.
+        # ★ 못 걸은 쪽이 **줄어들고 있으면** 실패가 있어도 이어간다 — 그건 나아가는
+        #   중이다. 안 줄면(같은 쪽이 계속 실패) 멈춘다.
+        _miss_now = len([u for u in (getattr(f, 'missed_urls', None) or '').splitlines()
+                         if u.strip()])
+        _miss_shrank = hasattr(f, 'missed_urls') and 0 < _miss_now < len(_was)
+        # 🔴 실패 사유가 있으면 멈춘다 — **다만 못 걸은 쪽이 줄고 있으면 예외**다.
+        #   그건 고장이 아니라 **줍는 중**이다(H몰이 빠진 쪽을 되찾는 경우).
+        _broken = bool((body.get('error') or '').strip()) and not _miss_shrank
+        _progress = (new_n > 0) or _miss_shrank
+        if (f.last_capped and _progress and not _broken
+                and bool(getattr(f, 'enabled', True))):
+            f.run_requested_at = now          # 곧바로 이어서
         s.commit()
         return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
                         'new': new_n})
@@ -3006,115 +3052,27 @@ def dissolve_bundle_group(gid: int):
         s.close()
 
 
-@bp.get('/bundle-groups/<int:gid>/option-config')
-def get_bundle_option_config(gid: int):
-    """[v3] 그룹의 마켓별 옵션 축 구성 조회."""
-    from lemouton.sourcing.models import BundleGroup
-    import json as _json
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        cfg = {}
-        if g.option_config_json:
-            try:
-                cfg = _json.loads(g.option_config_json)
-            except Exception:
-                cfg = {}
-        return _ok(group_id=gid, group_code=g.group_code, option_config=cfg)
-    finally:
-        s.close()
-
-
-@bp.post('/bundle-groups/<int:gid>/option-config')
-def set_bundle_option_config(gid: int):
-    """[v3] 그룹의 마켓별 옵션 축 구성 저장.
-
-    Body: {"option_config": {"smartstore": {"axes": [{"name":"색상","source":"color_code"}, ...]}, "coupang": {...}}}
-    검증:
-      - 마켓별 axes 1~3개 (스스 최대 3, 쿠팡 최대 3)
-      - axis.name 비어있지 않음
-      - axis.source ∈ {color_code, size_code, model_code}
-    """
-    from lemouton.sourcing.models import BundleGroup
-    import json as _json
-    payload = request.get_json(silent=True) or {}
-    cfg = payload.get('option_config') or {}
-    valid_sources = {'color_code', 'size_code', 'model_code'}
-    valid_markets = {'smartstore', 'coupang'}
-    # 검증
-    for mk, mk_cfg in cfg.items():
-        if mk not in valid_markets:
-            return _err(f'알 수 없는 마켓: {mk}', 400)
-        axes = (mk_cfg or {}).get('axes') or []
-        if not isinstance(axes, list) or not (1 <= len(axes) <= 3):
-            return _err(f'{mk} axes 1~3개 필요 (받은 수: {len(axes)})', 400)
-        names_seen = set()
-        sources_seen = set()
-        for i, ax in enumerate(axes):
-            name = (ax or {}).get('name', '').strip()
-            src = (ax or {}).get('source', '')
-            if not name:
-                return _err(f'{mk} axis #{i+1} name 비어있음', 400)
-            if src not in valid_sources:
-                return _err(f'{mk} axis #{i+1} source 잘못됨: {src}', 400)
-            if name in names_seen:
-                return _err(f'{mk} axis name 중복: {name}', 400)
-            if src in sources_seen:
-                return _err(f'{mk} axis source 중복: {src}', 400)
-            names_seen.add(name); sources_seen.add(src)
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        g.option_config_json = _json.dumps(cfg, ensure_ascii=False)
-        s.commit()
-        return _ok(group_id=gid, option_config=cfg)
-    finally:
-        s.close()
-
-
-@bp.get('/bundle-groups/<int:gid>/option-payload-preview')
-def get_option_payload_preview(gid: int):
-    """[v3] axes config 로 생성될 마켓별 페이로드 미리보기.
-
-    옵션 데이터(canonical_sku, color_code, size_code, model_code) 를 그룹의 모든 모델에서 모아
-    option_axes.build_payloads_for_group 으로 마켓별 페이로드 생성. 신규 등록 전 검증용.
-    """
-    from lemouton.sourcing.models import BundleGroup
-    from lemouton.formatter.option_axes import build_payloads_for_group
-    import json as _json
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        cfg = {}
-        if g.option_config_json:
-            try: cfg = _json.loads(g.option_config_json)
-            except Exception: cfg = {}
-        # 그룹의 모든 모델 옵션 수집
-        model_codes = [m.model_code for m in g.models]
-        opts = (s.query(Option)
-                .filter(Option.model_code.in_(model_codes))
-                .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
-                .all()) if model_codes else []
-        opt_dicts = [{
-            'canonical_sku': o.canonical_sku,
-            'color_code': o.color_code,
-            'size_code': o.size_code,
-            'model_code': o.model_code,
-        } for o in opts]
-        try:
-            payloads = build_payloads_for_group(cfg, opt_dicts)
-        except Exception as e:
-            return _err(f'페이로드 빌드 실패: {e}', 400)
-        return _ok(group_id=gid, option_count=len(opt_dicts),
-                   option_config=cfg, payloads=payloads)
-    finally:
-        s.close()
+# 🔴 [2026-08-13] 여기 있던 두 라우트를 지웠다 —
+#   `GET  /bundle-groups/<gid>/option-config`          (화면 호출자 0건)
+#   `GET  /bundle-groups/<gid>/option-payload-preview` (화면 호출자 0건)
+#
+#   미리보기 라우트가 쓰던 `lemouton/formatter/option_axes.py` 도 같이 지웠다.
+#   그것은 옵션 페이로드 빌더의 **세 번째 벌**이었고, 실전송
+#   (`registration/options.py`)과 **안전 규칙이 정반대**였다:
+#     · 중복 조합 → 실전송은 사유와 함께 거절 / 그쪽은 `continue` 로 조용히 삭제
+#       (그 줄의 재고가 통째로 증발한다)
+#     · 빈 축 값  → 실전송은 거절 / 그쪽은 **「?」로 지어냄**(구매자 화면에 그대로 노출)
+#     · 재고·가격 → 실전송은 3상태를 갈라 제외+보고 / 그쪽은 없으면 0 폴백
+#     · 마켓 규격 → 그쪽 `optionTypes`·쿠팡 `stockQuantity` 는 지도에 **0건**
+#   미리보기가 실제 나가는 것과 다른 그림을 보여 주면 그게 더 위험하다.
+#
+#   미리보기가 정말 필요하면 **실전송 빌더로** 만들면 된다 —
+#   `policy/to_payload._options_json` 이 만든 옵션 행을 그대로
+#   `registration/options.build_smartstore_options(..., axis=정책axis)` 에 넣으면
+#   **실제 나가는 payload 그 자체**가 나온다. 원천을 늘리지 않는 길이 이미 있다.
+#
+#   POST `/option-config` 는 남겼다 — 매트릭스 패널이 부른다.
+#   🔴 다만 그 설정은 **저장만 되고 전송에 안 쓰인다**(전수 확인). 별건.
 
 
 # ═══════ [제품 공유 v1] 신규 모음전 — 재고제품 검색 + 모음전 생성 ═══════
@@ -3769,15 +3727,6 @@ def bundle_options_combo(code: str):
         return _err('steps(단계 설계)가 필요해요.')
     if len(steps) > 3:
         return _err('단계는 최대 3개까지예요.')
-    # 🔴 [2026-08-13 감사] 축이 **실제로 저장되는 곳은 여기**다. 만들기 창의 프리셋만
-    #   막아 두면 큰 창에서 축 이름을 고쳐 그대로 빠져나간다(감사 실측: 200 으로 저장됨).
-    #   모델 축은 값을 담을 칸이 없어 마켓 옵션 이름이 겹친다 — 두 입구가 같은 함수를 쓴다.
-    #   ※ 프리셋 전체를 여기서 강제하지는 않는다 — 축 이름 자유는 설계서 §5.1 이고,
-    #     라이브에 「단계1·단계2」 매트릭스가 실재해 그것까지 막으면 저장이 죽는다.
-    from webapp.routes.optgen import BLOCKED_AXIS_REASON, blocked_axis
-    if blocked_axis([(st or {}).get('axis_name') for st in steps
-                     if isinstance(st, dict)]):
-        return _err(BLOCKED_AXIS_REASON)
 
     from lemouton.sourcing.option_service import create_combination_options
     s = SessionLocal()

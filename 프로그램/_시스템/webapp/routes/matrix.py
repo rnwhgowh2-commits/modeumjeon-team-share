@@ -495,8 +495,11 @@ def matrix_detail(mo_id: int):
     """
     ctx = detail_context(mo_id)
     if ctx is None:
+        # 🔴 종전엔 「모음전 코드: 매트릭스 옵션」으로 떴다 — 이름표도 값도 틀렸다.
+        #   여기서 못 찾은 것은 **옵션 묶음 번호**(mo_id) 하나뿐이다.
         return render_template('errors/option_not_found.html', active='matrix',
-                               requested_code='매트릭스 옵션',
+                               requested_code='',
+                               sku_label='옵션 묶음 번호',
                                requested_sku=str(mo_id)), 404
     return render_template('matrix/detail.html', active='matrix',
                            assembly=False, detail_base='/matrix/', **ctx)

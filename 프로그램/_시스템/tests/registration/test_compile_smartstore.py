@@ -105,6 +105,42 @@ def test_compile_includes_option_combinations():
     assert len(oi['optionCombinations']) == 2
 
 
+def test_compile_3축이_컴파일러_끝까지_흐른다():
+    """[2026-08-13] 왕복 — 정책이 정한 축이 **실제 payload 까지** 도착하는가.
+
+    🔴 엔진만 고치고 다리를 안 세면 라이브는 한 원도 안 바뀐다(이 저장소 반복 사고).
+       사슬: 상품가공 정책 `axis` → `process_apply` 가 사본에 `process_option_axis`
+       → `compile_smartstore` 가 그걸 읽어 `build_smartstore_options(axis=...)`.
+    마켓 근거: 스스 원문 「최대 등록 가능한 옵션 개수는 조합형은 3개」.
+    """
+    d = D(options_json=json.dumps([
+        {'color': '블랙', 'size': '250', 'stock': 3, 'extra_price': 0,
+         'sku': 'A1', 'model': '메이트'},
+        {'color': '블랙', 'size': '250', 'stock': 2, 'extra_price': 0,
+         'sku': 'A2', 'model': '스위트'},
+    ], ensure_ascii=False))
+    d.process_option_axis = 'three'
+    body, _ = compile_smartstore(d, category_code='1')
+    oi = body['originProduct']['detailAttribute']['optionInfo']
+    assert oi['optionCombinationGroupNames'] == {
+        'optionGroupName1': '모델명', 'optionGroupName2': '색상',
+        'optionGroupName3': '사이즈'}
+    combos = oi['optionCombinations']
+    assert len(combos) == 2, combos          # 모델만 달라도 두 줄로 남는다
+    assert [c['optionName1'] for c in combos] == ['메이트', '스위트']
+
+
+def test_compile_축을_안_정하면_예전_그대로_두_갈래다():
+    """기본값은 안 바뀐다 — 라이브 상품 대부분이 이 길로 간다."""
+    d = D(options_json=json.dumps([
+        {'color': '블랙', 'size': '250', 'stock': 3, 'sku': 'A1', 'model': '메이트'},
+    ], ensure_ascii=False))
+    body, _ = compile_smartstore(d, category_code='1')
+    oi = body['originProduct']['detailAttribute']['optionInfo']
+    assert oi['optionCombinationGroupNames'] == {
+        'optionGroupName1': '색상', 'optionGroupName2': '사이즈'}
+
+
 def test_compile_reports_excluded_options_not_silently(D_unused=None):
     """★ 품절·확인불가로 빠진 옵션을 조용히 버리지 않고 돌려준다.
 

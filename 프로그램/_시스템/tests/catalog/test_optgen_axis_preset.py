@@ -27,28 +27,33 @@ def _make(client, **kw):
 
 
 @pytest.mark.parametrize('axes', [['모델'], ['모델', '색상'],
-                                  ['모델', '색상', '사이즈'], ['색상', '모델명']])
-def test_모델_축은_아직_못_만든다(client, axes):
-    """🔴 [2026-08-13 감사] 모델 값을 담을 칸이 없다 —
-       1축은 color_code, 2축은 size_code 에 모델명이 들어가고,
-       3축은 어디에도 안 들어가 **마켓 옵션 이름이 겹친다**(실측).
-       격자·마켓 축 정책이 정해질 때까지 만들기 자체를 막는다."""
+                                  ['모델', '색상', '사이즈']])
+def test_모델_모음전_세_축을_다_만들_수_있다(client, axes):
+    """[2026-08-13 사장님 확정] 모델 모음전을 **연다.**
+
+    🔴 한때 「준비 중」으로 막아 뒀는데 **막는 자리가 틀렸다.**
+       옵션을 3축으로 만드는 것 자체는 온전하다 — 축 값 3개가 다 남고
+       SKU·옵션명도 서로 다르다(실측).
+       겹치는 건 **마켓 전송**뿐이다(옵션 이름이 색상+사이즈 두 칸이라).
+       그래서 막이는 전송에 둔다 → tests/test_formatter_axis_collision.py
+    마켓별로 몇 축으로 쪼개 보낼지는 **상품가공 「정책 생성」** 몫이다(노션 그대로).
+    """
     r = _make(client, axes=axes)
-    assert r.status_code == 400, r.get_data(as_text=True)
-    assert '모델' in (r.get_json() or {}).get('error', '')
+    assert r.status_code == 200, r.get_data(as_text=True)
+    code = r.get_json()['code']
+    j = client.get(f'/api/bundles/{code}/source-urls').get_json()
+    assert [s['axis_name'] for s in (j.get('axis_steps') or [])] == axes
 
 
-def test_큰_창에서도_모델_축은_못_만든다(client):
-    """🔴 축이 **실제로 저장되는 곳**은 큰 창(조합 생성)이다.
-       만들기 창만 막으면 여기로 그대로 빠져나간다 — 감사에서 실측된 구멍."""
-    code = _make(client, axes=['색상', '사이즈']).get_json()['code']
+def test_큰_창에서도_모델_축을_저장할_수_있다(client):
+    """축이 **실제로 저장되는 곳**은 큰 창(조합 생성)이다 — 여기도 열려 있어야 한다."""
+    code = _make(client, axes=['모델', '색상']).get_json()['code']
     r = client.post(f'/api/bundles/{code}/options/combo', json={
         'steps': [{'axis_name': '모델', 'values': ['메이트']},
                   {'axis_name': '색상', 'values': ['블랙']}],
         'selected': [['메이트', '블랙']],
     })
-    assert r.status_code >= 400, r.get_data(as_text=True)
-    assert '모델' in (r.get_json() or {}).get('error', '')
+    assert r.status_code == 200, r.get_data(as_text=True)
 
 
 def test_옛_축이름은_큰_창에서_계속_저장된다(client):
@@ -60,19 +65,6 @@ def test_옛_축이름은_큰_창에서_계속_저장된다(client):
         'selected': [['가', '나']],
     })
     assert r.status_code == 200, r.get_data(as_text=True)
-
-
-def test_색상모음전_2축도_저장된다(client):
-    code = _make(client, axes=['색상', '사이즈']).get_json()['code']
-    j = client.get(f'/api/bundles/{code}/source-urls').get_json()
-    assert [s['axis_name'] for s in (j.get('axis_steps') or [])] == ['색상', '사이즈']
-
-
-def test_프리셋에_없는_축_구성은_거절한다(client):
-    """조용히 받아 두면 화면에 없는 구성이 데이터에만 생긴다."""
-    r = _make(client, axes=['재질', '용량'])
-    assert r.status_code == 400
-    assert '축 구성' in (r.get_json() or {}).get('error', '')
 
 
 def test_브랜드가_비면_거절한다(client):

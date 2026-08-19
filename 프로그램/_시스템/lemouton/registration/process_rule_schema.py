@@ -55,8 +55,46 @@ class Field:
     def to_dict(self) -> dict:
         return {"key": self.key, "label": self.label, "type": self.type,
                 "default": self.default, "choices": list(self.choices),
+                # 🔴 [2026-08-13] 라벨을 스키마에 실어 보낸다 — 화면이 두 곳이라
+                #   각자 목록을 들고 있으면 한쪽만 갱신돼 영어가 샌다(실제로 샜다).
+                "choice_labels": {c: CHOICE_LABELS.get(c, c) for c in self.choices},
                 "hint": self.hint, "unit": self.unit,
                 "item_shape": self.item_shape, "columns": list(self.columns)}
+
+
+#: 선택지를 사장님 화면에 우리말로 보여 주는 표. **단일 원천.**
+#:
+#: 🔴 [2026-08-13] 왜 여기 있나 — 3갈래 옵션 축을 열고 보니 정작 사장님 화면엔
+#:    `one`·`two`·`three` 가 **영어 그대로** 나왔다. 전수로 세니 13개가 그랬다.
+#:    라벨 목록이 화면 파일 안(`bulk/policy_detail.html` 의 JS)에만 있었고,
+#:    또 다른 화면(`policy/detail.html`)은 `{{ c }}` 로 **생짜로 찍고** 있었다.
+#:    → 표를 스키마 옆으로 옮겨 두 화면이 같은 것을 보게 한다.
+#: ★ 뜻은 각 `_F(...)` 의 `hint` 원문 그대로 옮긴다 — 지어내지 않는다.
+#: ★ 값 자체가 한글인 선택지(「과세」·「새상품」 등)는 여기 없어도 그대로 보인다.
+CHOICE_LABELS = {
+    # 글자 다듬기
+    "upper": "대문자", "as_is": "원본 그대로",
+    "korean": "국문", "english": "영문", "both": "국문+영문",
+    "front": "맨 앞", "back": "맨 뒤", "none": "안 붙임",
+    # 가격
+    "margin_rate": "마진율(%)", "margin_amount": "마진금액 (매입가 + 금액)",
+    "fixed_amount": "고정 금액", "fixed_price": "지정가 (이 값으로 못 박음)",
+    "cheapest": "가장 싼 곳", "priciest": "가장 비싼 곳", "average": "평균",
+    "max": "가장 비싼 값으로", "min": "가장 싼 값으로",
+    "WON": "정액 (원)", "PERCENT": "정률 (%)",
+    # 옵션 축 — 마켓에 나가는 그룹 이름과 **같은 글자**로 둔다
+    #   (`options.py` 의 _ONE_GROUP·_MODEL_GROUP·_COLOR_GROUP·_SIZE_GROUP)
+    "one": "한 갈래 (메이트 블랙 260)", "two": "색상 · 사이즈",
+    "three": "모델명 · 색상 · 사이즈",
+    "into_price": "판매가에 합침",
+    # 이미지
+    "rep_only": "대표만", "rep_plus_extra": "대표 + 추가", "range": "N~M번째",
+    "recombine": "이미지 재조합", "original": "원본 통째", "frame": "프레임 템플릿",
+    # 그 밖
+    "auto": "자동(크롤·브랜드)", "fixed": "고정값", "hold": "보류 (안 올림)",
+    "default_category": "기본 카테고리로", "small_to_big": "작은 → 큰",
+    "free": "무료", "paid": "유료(1개당)", "free_over": "N원 이상 무료",
+}
 
 
 @dataclass(frozen=True)
@@ -271,8 +309,9 @@ SCHEMAS: dict = {
             #   우리 옵션번호는 언제나 하나다 — 바뀌는 건 **구매자에게 보이는 갈래 수**뿐.
             _F("axis", "옵션 축 구성", "choice", default="two",
                choices=("one", "two", "three"),
-               hint="one = 한 갈래(「블랙 260」) · two = 색상·사이즈 두 갈래(기본) · "
-                    "three = 모델명·색상·사이즈 (옵션에 모델명 칸이 없어 아직 못 씁니다)"),
+               hint="one = 한 갈래(「메이트 블랙 260」) · two = 색상·사이즈 두 갈래(기본) · "
+                    "three = 모델명·색상·사이즈 세 갈래 (스마트스토어만 — "
+                    "다른 마켓은 두 갈래로 나갑니다)"),
         )),
     "shipping": ItemSchema(
         "shipping", ITEM_LABELS["shipping"], "§7-10 배송·반품·AS",

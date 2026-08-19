@@ -2130,7 +2130,7 @@ function _periodTotals() {
     if (isUserExclude) return;
     if (r['_주문미이행'] && !r['_매입흔적']) return;
     if (MR.isMarginUncomputable(r)) return;
-    s += MR.rowSale(r, function(x){ return Number(x['판매가']||0)||0; });
+    s += MR.rowSale(r, saleAmt);  /* [모음전 매출기준] 상단 카드·집계탭과 같은 정의 */
     m += MR.rowMargin(r);
     n += 1;
   });
@@ -2909,8 +2909,11 @@ function esc(s) {
 
 /* 판매가 = 단가 × 수량. 구 데이터는 판매가 필드 없을 수 있어 계산 fallback */
 function saleAmt(r) {
-  var _paid = r ? Number(r['실결제금액']) : 0;  /* [모음전] 매출 = 고객 실결제 + 배송비 */
-  if (isFinite(_paid) && _paid > 0) return _paid + (Number(r['배송비']) || 0);  /* [모음전] _paid 기준 매출 */
+  if (!r) return 0;  /* [모음전 매출기준] r 접근 전 가드 */
+  var _sale = Number(r['_매출기준액']);  /* [모음전 매출기준] 정가+배송비−판매자할인 */
+  if (isFinite(_sale) && _sale > 0) return _sale;  /* [모음전 매출기준] 단일 원천 */
+  var _paid = Number(r['실결제금액']);  /* [모음전 매출기준] 폴백 — 할인 모름·옛 저장분 */
+  if (isFinite(_paid) && _paid > 0) return _paid + (Number(r['배송비']) || 0);  /* [모음전 매출기준] */
   if (!r) return 0;
   var s = Number(r['판매가']);
   if (isFinite(s) && s > 0) return s;
@@ -3342,8 +3345,16 @@ function recomputeRow(r) {
   r['판매가'] = 판매가;
   r['순마진'] = 정산 - 매입가;
   /* ★ 마진율 기준 — 판매가(단가×수량) 우선, 단가 미입력(판매가 0)이면 정산 기준 fallback */
-  var _paid = Number(r['실결제금액']) || 0, _ship = Number(r['배송비']) || 0;  /* [모음전] 매출=실결제+배송비 */
-  const _rateBase = _paid > 0 ? (_paid + _ship) : (판매가 > 0 ? 판매가 : 정산);  /* [모음전] 매출 기준 */
+  var _ship = Number(r['배송비']) || 0, _paid = Number(r['실결제금액']) || 0;  /* [모음전 매출기준] */
+  var _opt = Number(r['옵션추가금']) || 0;  /* [모음전 매출기준] 정가=단가×수량+옵션추가금 */
+  var _gross0 = Number(r['총주문금액']) || 0, _sale0 = Number(r['_매출기준액']) || 0;  /* [모음전 매출기준] */
+  if (_gross0 > 0 && _sale0 > 0) {  /* [모음전 매출기준] 편집으로 낡은 값을 다시 만든다 */
+    var _sellerDc = Math.max(0, (_gross0 + _ship) - _sale0);  /* [모음전 매출기준] 판매자부담 */
+    r['_매출기준액'] = Math.max(0, (판매가 + _opt) + _ship - _sellerDc);  /* [모음전 매출기준] */
+  }  /* [모음전 매출기준] */
+  var _sale = Number(r['_매출기준액']) || 0;  /* [모음전 매출기준] */
+  const _rateBase = _sale > 0 ? _sale  /* [모음전 매출기준] */
+                  : (_paid > 0 ? (_paid + _ship) : (판매가 > 0 ? 판매가 : 정산));  /* [모음전 매출기준] 폴백 */
   r['마진율'] = _rateBase > 0 ? Math.round((r['순마진'] / _rateBase * 100) * 100) / 100 : 0;
   r['이상가'] = (매입가 > 판매가 * 3 && 판매가 > 0) || 매입가 > 500000;
 }
@@ -4629,7 +4640,7 @@ function renderSummary(d) {
      + '</div>';
   /* ── 5카드 ── */
   h += '<div class="sum-cards">'
-     + _sumCard('총매출','판매가', fmt(매출)+'원')
+     + _sumCard('총매출','정가−판매자할인', fmt(매출)+'원')  /* [모음전 매출기준] 표기 */
      + _sumCard('총정산','실수령', fmt(s['총정산']||0)+'원', 'settle')
      + _sumCard('총매입','− 구매가', fmt(매입)+'원')
      + _sumCard('순마진','= 정산−매입', fmt(순마진)+'원', 순마진<0?'red':'green')

@@ -72,6 +72,42 @@ def shipping_fee_of(values: dict) -> int:
     return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
 
 
+def margin_lines(*, price, purchase, fee_pct, discount) -> dict:
+    """[2026-08-13 사장님 확정] 마진을 **두 줄**로 — 정가 기준 / 할인가 기준.
+
+    사장님 정의:
+        「할인가 = 판매가 − 즉시할인 − 쿠폰적용. **정산되는 기준이 되는 금액이 할인가**」
+    쿠팡 정산 엑셀 상품행 299건 전수로 확인됐다(`정산금액 = 할인가 − 수수료`, 예외 0).
+    쿠팡에서 「즉시할인」은 즉시할인쿠폰으로 구현되므로 둘은 같은 값이다.
+
+    종전엔 정가 기준 한 줄뿐이라, 즉시할인을 걸어 두면 **실제로 남는 돈보다 크게** 보였다.
+
+    🔴 수수료는 **할인가에** 물린다 — 정가에 물리면 마진이 실제보다 커 보인다.
+    🔴 즉시할인이 없으면 `discounted` 는 `None` — 정가와 같은 값을 두 줄로 보여주면
+      「할인이 걸린 것처럼」 읽힌다.
+    🔴 매입가·수수료율을 모르면 마진은 `None`(「확인 불가」) — 0 으로 채우지 않는다.
+    """
+    from lemouton.policy.discount import exposed_price
+
+    def _one(p):
+        if p is None:
+            return None
+        row = {'price': int(p), 'margin': None, 'margin_rate': None}
+        if purchase is None or fee_pct is None:
+            return row                      # 모르면 「확인 불가」 — 0 으로 안 채운다
+        fee = round(int(p) * float(fee_pct) / 100.0)
+        m = int(p) - int(purchase) - fee
+        row['margin'] = m
+        row['margin_rate'] = round(m / int(p) * 100, 1) if p else None
+        return row
+
+    out = {'list': _one(price), 'discounted': None}
+    dc = exposed_price(price, discount)
+    if discount and dc is not None and dc != price:
+        out['discounted'] = _one(dc)
+    return out
+
+
 def preview_for_model(session, *, model_code: str, values: dict, market: str,
                       matrix_loader=None) -> dict:
     """상품 하나를 이 정책으로 계산하면 — 옵션별 표.

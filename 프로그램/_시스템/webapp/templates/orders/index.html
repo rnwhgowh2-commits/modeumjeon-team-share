@@ -3255,10 +3255,31 @@
         });
       });
     }
+    /* 🔴 일괄 저장 결과는 **선택이 풀린 뒤에도 남아야 한다**.
+         일괄 3종(공급방식·상태·매입가)은 저장이 끝나면 선택을 비우고 render() 를 부르는데,
+         그 순간 이 줄이 통째로 새로 그려져 「✓ 2줄 저장 · 실패 1줄」이 **즉시 사라졌다**
+         (2026-08-12 라이브에서 일괄 저장을 실제로 돌려 보다 잡음 — 값은 들어갔는데
+         몇 줄이 됐고 몇 줄이 실패했는지 화면이 말해 주지 못했다. 특히 **실패 건수**가
+         안 보이는 게 위험하다). 그래서 결과 문구를 render 를 견디는 곳에 따로 둔다. */
+    var supLast='', supLastTimer=null;
+    function supSay(text){
+      supLast=text||'';
+      if(supLastTimer)clearTimeout(supLastTimer);
+      if(supLast)supLastTimer=setTimeout(function(){supLast='';renderSupBar();},12000);
+      renderSupBar();
+    }
     function renderSupBar(){
       var bar=document.getElementById('supbar'); if(!bar)return;
       var n=Object.keys(smSel).length;
-      if(!n){bar.innerHTML='';return;}
+      if(!n){
+        bar.innerHTML=supLast
+          ? ('<div class="supbar-in"><span class="supmsg">'+esc(supLast)+'</span>'
+             +'<button type="button" class="supbtn ghost" id="supX">닫기</button></div>')
+          : '';
+        var x=bar.querySelector('#supX');
+        if(x)x.addEventListener('click',function(){supSay('');});
+        return;
+      }
       /* 🔴 「주문 관리」 상태 일괄 지정도 **이 줄에 얹는다** — 표에 이미 있는 네모(다중선택)를
            그대로 쓴다. 새 선택 배선을 또 만들면 「어느 네모가 무엇을 고른 건지」가 갈린다.
            항목을 하나도 안 만들었으면 그 칸만 빠진다(없는 걸 고르라 할 수 없다). */
@@ -3336,10 +3357,11 @@
                                       :{price:o.j.price,tier:o.j.tier,label:o.j.label};
           });
           smSel={};
-          if(msg)msg.textContent='✓ '+(o.j.saved||0)+'줄 저장'
+          var done='✓ '+(o.j.saved||0)+'줄 저장'
             +((o.j.deleted)?(' · '+o.j.deleted+'줄 지움'):'')
             +((o.j.failed&&o.j.failed.length)?(' · 실패 '+o.j.failed.length+'줄'):'');
           render();
+          supSay(done);      // 선택이 풀려 줄이 새로 그려져도 결과는 남는다
           // 지웠으면 2·3순위를 다시 물어야 하고, 적었으면 탭 판정이 바뀐다.
           if(o.j.price==null)loadPurchasePrice(loadSeq); else ppRefreshFlags();
         })
@@ -3361,9 +3383,9 @@
           var st=o.j.statuses||{};
           uids.forEach(function(u){ if(st[u])ostMap[u]=st[u]; else delete ostMap[u]; });
           smSel={};
-          if(msg)msg.textContent='✓ '+o.j.saved+'줄 저장됨'
-            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):'');
           render();
+          supSay('✓ '+o.j.saved+'줄 저장됨'
+            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):''));
         })
         .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
     }
@@ -3382,9 +3404,9 @@
           var failed={}; (o.j.failed||[]).forEach(function(f){failed[f.line_uid]=1;});
           uids.forEach(function(u){ if(!failed[u])smMap[u]=o.j.mode; });
           smSel={};
-          if(msg)msg.textContent='✓ '+o.j.saved+'줄 저장됨'
-            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):'');
           render();
+          supSay('✓ '+o.j.saved+'줄 저장됨'
+            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):''));
         })
         .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
     }
@@ -5936,6 +5958,27 @@
     .spn{--ink:#191F28;--sub:#8B95A1;--line:#E5E8EB;--line2:#F1F3F5;
          --blue:var(--primary,#3182F6);--blue2:#84CAFF;--green:#16A34A;--amber:#B45309;--red:#DC2626;}
     .spn .bar-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+    /* 🔴 동작 단추 묶음 — 낱개로 두면 위 줄의 `space-between` 이 자식 수만큼 틈을 벌려
+       화면 끝까지 흩어진다(사장님 지적 2026-08-13). 묶어서 오른쪽에 붙이면 틈은
+       「기간 토글 ↔ 동작」 한 곳만 남는다. */
+    .spn .acts{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    .spn .act{display:inline-flex;align-items:center;gap:6px;}
+    .spn .act .note{font-size:12px;}
+    /* 결과 글이 비어 있으면 자리도 없애야 단추 간격이 고르다(빈 칸이 6px 씩 벌린다). */
+    .spn .act .note:empty{display:none;}
+    /* 「누르면 뭐가 바뀌나」 호버 창 — `hover-info-card` 규칙 1(body + fixed). */
+    .howpop{display:none;position:fixed;z-index:99999;width:330px;max-width:92vw;
+      background:var(--surface,#ffffff);color:var(--ink,#191F28);
+      border:1px solid var(--line2,#E5E8EB);border-radius:14px;padding:12px 14px;
+      box-shadow:0 10px 26px rgba(0,0,0,.16);font-size:12px;line-height:1.62;
+      text-align:left;white-space:normal;cursor:default;}
+    .howpop.on{display:block;}
+    .howpop .ht{font-weight:700;font-size:12.5px;margin-bottom:6px;}
+    .howpop ol{margin:0;padding-left:17px;}
+    .howpop ol li{margin:2px 0;}
+    .howpop .hb{margin-top:8px;padding-top:8px;border-top:1px solid var(--line2,#F1F3F5);}
+    .howpop .hb b{font-weight:700;}
+    .howpop .hneed{margin-top:6px;color:var(--sub,#8B95A1);}
     .spn .tg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface,#ffffff);}
     .spn .tg button{border:none;background:none;padding:7px 14px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--sub);}
     .spn .tg button.on{background:var(--ink);color:#fff;font-weight:600;}
@@ -6068,26 +6111,37 @@
           <button data-v="month">월별</button>
         </div>
       </div>
-      <button class="btn" id="spn-rules-btn" type="button">⚙️ 계산 규칙</button>
-      {# 🚀 로켓그로스는 쿠팡 OpenAPI 로 못 얻는다(2026-08-07 실측) — Wing 화면을 로컬 크롤러가
-         읽어 와야 한다. 사장님이 Wing 에 로그인돼 있으면 이 단추 하나로 끝난다. #}
-      <button class="btn" id="spn-rg-btn" type="button" title="쿠팡 Wing 에 로그인돼 있어야 해요">🚀 로켓그로스 가져오기</button>
-      <span class="note" id="spn-rg-msg" style="font-size:12px"></span>
-      {# 🔵 11번가 구매확정 전 정산예정액 — 하루 전엔 「마켓이 안 준다」고 봤는데 틀렸다.
-         조회 축을 **결제일**로 바꾸면 발주확인·배송완료 건도 금액과 함께 나온다
-         (2026-08-08 화면 실증 10건 464,691원). 셀러오피스 세션이 필요해 로컬 크롤. #}
-      <button class="btn" id="spn-el-btn" type="button"
-              title="11번가 셀러오피스에 로그인돼 있어야 해요">🔵 11번가 미확정 가져오기</button>
-      <span class="note" id="spn-el-msg" style="font-size:12px"></span>
-      {# 🟡 [2026-08-13] 롯데온 **실입금일** — 라이브 실측으로 드러난 구멍이다.
-         롯데온만 「이미 받았다」가 **0건**이고 받는 날이 1,175건 전부 추정이었다.
-         원인: 서버 창구(POST /api/margin/lotteon-paid)도 확장 크롤 함수도 이미 있는데
-         **아무도 부르지 않았다**(확장 메시지 등록 0 · 화면 단추 0). 문 뒤에 방을 지어
-         놓고 문고리를 안 단 상태였다. 정산 OpenAPI 8종엔 실지급일이 없어 셀러오피스
-         「중개거래정산관리 > 지급내역」의 seCmptDt 가 유일한 답이다(2026-08-07 실측). #}
-      <button class="btn" id="spn-lo-btn" type="button"
-              title="롯데온 셀러오피스에 로그인돼 있어야 해요">🟡 롯데온 입금내역 가져오기</button>
-      <span class="note" id="spn-lo-msg" style="font-size:12px"></span>
+      {# 🔴 [2026-08-13] 동작 단추는 **한 묶음**이다. 낱개로 두었더니 줄의 `space-between`
+         이 자식 수만큼 틈을 벌려 화면 끝까지 흩어졌다(사장님: "왜렇게 칸이 띄어져 있는지?").
+         묶음 하나만 오른쪽에 붙이면 틈은 「기간 토글 ↔ 동작」 **한 곳**만 남는다.
+         🔴 이름 앞 이모티콘·색 동그라미(⚙️🚀🔵🟡)도 뺐다 — 뜻이 없는 장식이라,
+           색이 많을수록 정작 중요한 것(경고·실패)이 안 보인다. #}
+      <div class="acts">
+        <span class="act"><button class="btn" id="spn-rules-btn" type="button"
+                data-how="rules">계산 규칙</button></span>
+        {# 로켓그로스는 쿠팡 OpenAPI 로 못 얻는다(2026-08-07 실측) — Wing 화면을 로컬 크롤러가
+           읽어 와야 한다. 사장님이 Wing 에 로그인돼 있으면 이 단추 하나로 끝난다. #}
+        <span class="act"><button class="btn" id="spn-rg-btn" type="button"
+                data-how="rg">로켓그로스 가져오기</button>
+          <span class="note" id="spn-rg-msg"></span></span>
+        {# 11번가 구매확정 전 정산예정액 — 하루 전엔 「마켓이 안 준다」고 봤는데 틀렸다.
+           조회 축을 **결제일**로 바꾸면 발주확인·배송완료 건도 금액과 함께 나온다
+           (2026-08-08 화면 실증 10건 464,691원). 셀러오피스 세션이 필요해 로컬 크롤. #}
+        <span class="act"><button class="btn" id="spn-el-btn" type="button"
+                data-how="el">11번가 미확정 가져오기</button>
+          <span class="note" id="spn-el-msg"></span></span>
+        {# [2026-08-13] 롯데온 **실입금일** — 라이브 실측으로 드러난 구멍이다.
+           롯데온만 「이미 받았다」가 **0건**이고 받는 날이 1,175건 전부 추정이었다.
+           원인: 서버 창구(POST /api/margin/lotteon-paid)도 확장 크롤 함수도 이미 있는데
+           **아무도 부르지 않았다**(확장 메시지 등록 0 · 화면 단추 0). 문 뒤에 방을 지어
+           놓고 문고리를 안 단 상태였다. 정산 OpenAPI 8종엔 실지급일이 없어 셀러오피스
+           「중개거래정산관리 > 지급내역」의 seCmptDt 가 유일한 답이다(2026-08-07 실측). #}
+        <span class="act"><button class="btn" id="spn-lo-btn" type="button"
+                data-how="lo">롯데온 입금내역 가져오기</button>
+          <span class="note" id="spn-lo-msg"></span></span>
+      </div>
+      {# 🔴 「최근 가져온 내역」 — 누른 결과가 쌓였는지 화면이 스스로 말해야 한다. #}
+      <div class="note" id="spn-lo-hist" style="font-size:11.5px;width:100%"></div>
     </div>
     <div class="kpis" id="spn-kpi"><div class="state">불러오는 중…</div></div>
     <div id="spn-reasons"></div>
@@ -6095,7 +6149,7 @@
     <div id="spn-extra"></div>
     <div id="spn-table"><div class="state">불러오는 중…</div></div>
     <div class="note">금액은 마진계산기와 같은 원천입니다. <span class="chip real">실측</span>=마켓이 준 날짜·금액 ·
-      <span class="chip est">추정</span>=규칙으로 계산(「⚙️ 계산 규칙」에서 확인·수정). 칸을 누르면 계정별 → 주문별로 펼쳐집니다.</div>
+      <span class="chip est">추정</span>=규칙으로 계산(「계산 규칙」에서 확인·수정). 칸을 누르면 계정별 → 주문별로 펼쳐집니다.</div>
 
     {# ══ c-4 마켓 정산 대조 — 마켓 화면 엑셀 ↔ 우리 정산예정금액 ══════════════
        사장님: "실마켓 계정 접속해서 실제 정산받는 금액과 비교 및 정합성 검사."
@@ -6107,7 +6161,7 @@
     </div>
   </div>
   <div class="spn"><div class="modal-dim" id="spn-rules-modal"><div class="modal">
-    <h4>⚙️ 정산주기 계산 규칙</h4>
+    <h4>정산주기 계산 규칙</h4>
     <div class="note" style="margin:0 0 10px">마켓이 지급 날짜를 알려주지 않은 주문만 이 규칙으로 추정합니다. 「실측과 차이」는
       실제 지급일 이력과 규칙을 비교한 결과예요. 빠른정산 쓰는 계정은 계정 이름을 적어 주세요(쉼표로 여러 개).</div>
     <div id="spn-rules-body"><div class="state">불러오는 중…</div></div>
@@ -6140,6 +6194,9 @@
     //  막대 조각 색 = 그 카드 점 색(눈으로 이어지게).
     var CLR={confirmed:'#8FD3A6',unconfirmed:'#7EA8F8',overdue:'#F5B544',undated:'#D5DAE0',
              paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438',fast:'#9E77ED',
+             /* 🔴 [2026-08-13] 반품·교환 **완료** — 진행 중(빨강)과 갈라야 한다.
+                진행 중은 아직 모르는 것, 완료는 이미 끝난 것이다. */
+             returned:'#98A2B3',
              /* 「정산 시작 전」 — 지남(주황)과 헷갈리면 안 되므로 미확정(파랑) 계열의
                 옅은 색. 경고가 아니라 「그냥 아직 안 왔다」는 뜻이다. */
              not_started:'#B9D0FB'};
@@ -6220,16 +6277,24 @@
         +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
         +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
         // 🚀 로켓그로스 별도 카드(사장님 지시). 위 총액에는 **더해져** 있다.
-        //   빠른정산 선인출은 이미 뺀 뒤 금액이라 「받을 돈」이 맞다.
+        //   🔴 [2026-08-13] 「앞으로 받을 돈」 = **Σ최종지급액(정산일 오늘 이후 ~ 한 달)**.
+        //     쿠팡 Wing 「지급 예상금액」과 원 단위로 같은 값이다(25회차 실측).
+        //     옛 표기(지급액 − 빠른정산)는 **이미 받은 회차까지 세어** 9,508,138 을
+        //     보여줬다(실제 7,818,202). 그래서 「이미 받은 회차」를 같이 적어 둔다 —
+        //     숫자가 줄어든 이유를 화면이 스스로 말해야 사장님이 안 헷갈린다.
         +(((rg||{}).지급액||0)?('<div class="kpi"><div class="t">🚀 로켓그로스</div>'
              +'<div class="v">'+fmt(rgv)+'</div><div class="s">'
-             +'지급액 '+fmt(rg.지급액)+' − 빠른정산 '+fmt(rg.빠른정산)
-             +' · '+(rg.회차수||0)+'회차'
+             +'앞으로 들어올 회차 '+(rg.앞으로회차수||0)+'건'
+             +(rg.이미받은회차합?(' · 이미 받은 회차 '+fmt(rg.이미받은회차합)+'은 뺐어요'):'')
+             +(rg.창?('<br>'+esc(rg.창)):'')
              +'</div></div>'):'');
       // ── B3: 「이미 끝난 것」은 점선 상자로 묶어 받을 돈과 갈라놓는다 ──
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>'
+        // 🔴 [2026-08-13 사장님 확정] 반품·교환이 **끝난** 주문 — 받을 돈에서 뺐다.
+        //   다만 **반품비는 우리가 받는 돈**이라 위 「앞으로 받을 돈」에 남아 있다.
+        +'<div class="kpi" id="spn-returned-card" style="cursor:pointer"><div class="t">'+dot(CLR.returned)+'반품·교환 완료</div><div class="v">'+fmt(k.returned)+'</div><div class="s">받을 돈에서 뺐어요 · 반품비는 남겨 뒀어요 — 눌러서 확인</div></div>'
         // ⚡ 별도 카드 — 「빠른정산으로 미리 받은 돈」(사장님 요청). 위 「앞으로 받을 돈」에는
         //   이미 빠져 있으므로 여기서는 **받은 사실만** 담백하게 보여준다.
         +(fastTot?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
@@ -6240,7 +6305,7 @@
         +(wb?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'셀러월렛에 안 찾아간 돈</div>'
              +'<div class="v">'+fmt(wb)+'</div><div class="s">인출만 하면 되는 돈 · '
              +(((wallet||{}).계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액)
-               +(a.적은날?(' ('+a.적은날+')'):'');}).join(' · ')||'「⚙️ 계산 규칙」에서 적음')
+               +(a.적은날?(' ('+a.적은날+')'):'');}).join(' · ')||'「계산 규칙」에서 적음')
              +'</div></div>'):'');
       $('#spn-kpi').innerHTML=h;
       $('#spn-done').innerHTML='<div class="donebox">'
@@ -6251,7 +6316,8 @@
        ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
        ['spn-paid-card','paid','🏦 이미 받은 것으로 확인 (마켓이 입금 알려줌)'],
        ['spn-assumed-card','assumed_paid','💤 이미 받았을 것 (확인 불가 · 합계 제외)'],
-       ['spn-risk-card','risk','🔺 반품·취소 진행 중 (합계 제외)']].forEach(function(x){
+       ['spn-risk-card','risk','🔺 반품·취소 진행 중 (합계 제외)'],
+       ['spn-returned-card','returned','↩️ 반품·교환 완료 (상품값 합계 제외 · 반품비만 남김)']].forEach(function(x){
         var el=$('#'+x[0]);
         if(el) el.onclick=function(){toggleExtra(x[1],x[2]);};
       });
@@ -6971,6 +7037,98 @@
         document.querySelectorAll('#spn-unit button').forEach(function(x){x.classList.toggle('on',x===b);});
         load();};
     });
+    /* ══ 「누르면 뭐가 바뀌나」 호버 창 ═══════════════════════════════════════
+       🔴 사장님 지적(2026-08-13): *"호버로 누르면 어떤게 반영되는지? (과정은 어떻게
+         되는지?)"* — 옛 `title` 은 「로그인돼 있어야 해요」 한 줄뿐이라, **누른 뒤
+         무엇이 달라지는지**를 아무 데서도 알 수 없었다. 그래서 눌러 보고 숫자가
+         안 바뀌면 「안 된 건가 원래 그런 건가」를 가릴 수 없었다.
+       🔴 `hover-info-card` 규칙을 따른다 — 안에 누를 것이 없어 CSS 툴팁으로도 되지만,
+         단추 4개가 **붙어 있어** 지나가는 단추가 창을 가로챈다(규칙 6). 그래서
+         열기 140ms 지연을 넣고, 잘림 방지로 body+fixed 를 쓴다.
+       🔴 「바뀌는 것」은 **화면의 어느 숫자인지**로 적는다. 「저장됩니다」는 사장님이
+         확인할 수가 없다 — 볼 자리를 알려 줘야 확인이 된다. */
+    var _HOW={
+      rules:{
+        t:'계산 규칙 — 「받는 날」을 우리가 매기는 방법',
+        단계:['마켓·계정마다 정산주기(구매확정 +n일 등)를 적어 둡니다',
+             '마켓이 지급 날짜를 <b>안 알려준 주문만</b> 이 규칙으로 날짜를 매깁니다',
+             '실제 지급일 이력과 견줘 「실측과 차이」를 보여 줍니다'],
+        바뀌는것:'<b>추정</b> 딱지가 붙은 칸의 <b>받는 날</b>. 날짜가 옮겨지면 주·월 묶음도 '
+                +'따라 옮겨집니다. <b>금액 자체는 안 바뀝니다.</b>',
+        필요:'로그인·확장 없이 바로 열립니다',
+      },
+      rg:{
+        t:'로켓그로스 가져오기 — 쿠팡 Wing 화면에서',
+        단계:['크롬 확장이 쿠팡 Wing 「로켓그로스 정산현황」을 읽습니다',
+             '이 페이지가 회차 목록(정산일·지급비율·빠른정산·최종지급액)을 서버에 저장합니다',
+             '표와 카드를 다시 계산합니다'],
+        바뀌는것:'위 <b>「로켓그로스」 카드</b> — 정산일이 <b>오늘 이후 한 달 안</b>인 회차의 '
+                +'최종지급액 합입니다. <b>이미 받은 회차는 빼고</b> 셉니다. '
+                +'맨 위 <b>「앞으로 받을 돈」</b> 총액에도 그대로 들어갑니다.',
+        필요:'크롬 확장 + 쿠팡 Wing 로그인',
+      },
+      el:{
+        t:'11번가 미확정 가져오기 — 셀러오피스에서',
+        단계:['확장이 11번가 셀러오피스에서 <b>결제일 기준 90일</b>치를 읽습니다',
+             '서버가 우리 주문번호와 맞춰 정산예정액을 채웁니다',
+             '표와 카드를 다시 계산합니다'],
+        바뀌는것:'<b>구매확정 전</b> 11번가 주문의 정산예정금액. 이게 없으면 그 주문들은 '
+                +'금액 0 으로 서 있습니다. 우리 주문에 없는 건수도 <b>숨기지 않고</b> 적어 드립니다.',
+        필요:'크롬 확장 + 11번가 셀러오피스 로그인',
+      },
+      lo:{
+        t:'롯데온 입금내역 가져오기 — 「이미 받았다」를 아는 유일한 창구',
+        단계:['서버가 롯데온 판매자ID(trNo)를 확장에 넘깁니다',
+             '확장이 셀러오피스 「중개거래정산관리 &gt; 지급내역」을 읽습니다',
+             '이 페이지가 서버에 저장하고 표와 카드를 다시 계산합니다'],
+        바뀌는것:'롯데온의 <b>실제 입금일</b>. 이 날짜가 있어야 <b>「이미 받았다」와 '
+                +'「앞으로 받을 돈」이 갈립니다.</b> 지금 롯데온은 받는 날이 <b>전부 추정</b>이라, '
+                +'이미 받은 돈까지 앞으로 받을 돈에 서 있습니다.',
+        필요:'크롬 확장 + 롯데온 셀러오피스 로그인',
+      },
+    };
+    var _HOW_CLOSE=250,_HOW_OPEN=140,_HOW_GAP=7,_HOW_EDGE=8;
+    var _howHideT=null,_howOpenT=null,_howKey=null;
+    var _howPop=document.body.appendChild(
+      Object.assign(document.createElement('div'),{className:'howpop'}));
+    _howPop.addEventListener('mouseenter',function(){        // 규칙 3 — 읽는 중 안 꺼지게
+      clearTimeout(_howHideT);_howHideT=null;
+      clearTimeout(_howOpenT);_howOpenT=null;});
+    _howPop.addEventListener('mouseleave',_howSchedHide);    // 규칙 4
+    function _howSchedHide(){clearTimeout(_howHideT);        // 규칙 2 — 250ms
+      _howHideT=setTimeout(function(){_howPop.classList.remove('on');_howKey=null;},_HOW_CLOSE);}
+    function _howHtml(d){
+      return '<div class="ht">'+d.t+'</div><ol>'
+        +d.단계.map(function(s){return '<li>'+s+'</li>';}).join('')+'</ol>'
+        +'<div class="hb"><b>바뀌는 것</b> — '+d.바뀌는것+'</div>'
+        +'<div class="hneed">필요 · '+d.필요+'</div>';
+    }
+    function _howShow(a,k){
+      clearTimeout(_howHideT);_howHideT=null;_howKey=k;
+      _howPop.innerHTML=_howHtml(_HOW[k]);
+      _howPop.classList.add('on');                      // 크기를 재려면 먼저 보여야 한다
+      var r=a.getBoundingClientRect(),w=_howPop.offsetWidth,h=_howPop.offsetHeight;
+      var left=Math.max(_HOW_EDGE,Math.min(r.right-w,innerWidth-w-_HOW_EDGE));  // 규칙 5
+      var top=r.bottom+_HOW_GAP;
+      if(top+h>innerHeight-_HOW_EDGE)top=r.top-h-_HOW_GAP;      // 아래가 모자라면 위로
+      _howPop.style.left=left+'px';_howPop.style.top=Math.max(_HOW_EDGE,top)+'px';
+    }
+    document.addEventListener('mouseover',function(e){
+      var a=e.target.closest&&e.target.closest('[data-how]');
+      if(!a||!_HOW[a.getAttribute('data-how')])return;
+      var k=a.getAttribute('data-how');
+      if(_howKey===k){clearTimeout(_howHideT);_howHideT=null;return;}
+      clearTimeout(_howOpenT);                          // 규칙 6 — 단추 4개가 붙어 있다
+      _howOpenT=setTimeout(function(){_howShow(a,k);},_HOW_OPEN);
+    });
+    document.addEventListener('mouseout',function(e){
+      if(e.target.closest&&e.target.closest('[data-how]')){
+        clearTimeout(_howOpenT);_howOpenT=null;_howSchedHide();}
+    });
+    // fixed 좌표가 낡아 엉뚱한 자리에 남는다 — 스크롤하면 닫는다.
+    addEventListener('scroll',function(){clearTimeout(_howOpenT);
+      _howPop.classList.remove('on');_howKey=null;},{passive:true});
+
     $('#spn-rules-btn').onclick=openRules;
     // 🚀 로켓그로스 가져오기 — 확장이 Wing 세션으로 긁고, **인증된 이 페이지가** 서버로 넣는다
     //   (확장 SW 의 fetch 는 mou-m 인증 쿠키를 안 실어 0건이 된다 — 롯데온에서 겪은 함정).
@@ -7040,16 +7198,47 @@
     //     받는 날 1,175건 전부 추정이었다(쿠팡 1,711 · 스스 1,758 · 11번가 733 은 실값).
     //   🔴 확장이 긁고 **인증된 이 페이지가** 서버로 넣는다 — 확장 SW 의 fetch 는
     //     mou-m 인증 쿠키를 안 실어 0건이 된다(롯데온에서 이미 겪은 함정).
+    /* 🔴 「최근 가져온 내역」 — 사장님 지적(2026-08-13): 단추를 눌러도 **언제 · 얼마나**
+       들어왔는지 알 길이 없으면 「눌렀는데 된 건가?」를 영영 확인할 수 없다.
+       탭에 들어올 때 한 번, 가져온 뒤 한 번 그린다. 없으면 「아직 없음」이라 말한다. */
+    function loShowHistory(){
+      var h=$('#spn-lo-hist'); if(!h) return;
+      fetch('/orders/lotteon-paid/context',{credentials:'include'})
+        .then(function(x){return x.json();})
+        .then(function(j){
+          var s=(j&&j.최근가져온내역)||{};
+          if(s.오류){ h.textContent='내역을 못 읽었어요 — '+s.오류; return; }
+          if(!s.날짜수){ h.textContent='아직 한 번도 안 가져왔어요.'; return; }
+          h.innerHTML='가지고 있는 정산기준일 <b>'+(s.날짜수||0)+'</b>일치 · '
+            +'지급확정 <b>'+(s.지급확정||0)+'</b>건 · 지급합 <b>'
+            +Number(s.지급합||0).toLocaleString()+'</b>원'
+            +(s.최근완료일?(' · 가장 최근 정산완료일 <b>'+esc(s.최근완료일)+'</b>'):'');
+        })
+        .catch(function(){ h.textContent=''; });
+    }
     (function(){
       var b=$('#spn-lo-btn'), m=$('#spn-lo-msg');
       if(!b) return;
+      loShowHistory();
       b.onclick=async function(){
         if(!window.MoumExt||!window.MoumExt.installed()){
           m.style.color='var(--글자-빨강,#B91C1C)';
           m.textContent='확장(모음전 크롤러)이 없어요 — 크롬 확장을 로드해 주세요'; return; }
         b.disabled=true; m.style.color='var(--sub)'; m.textContent='롯데온 셀러오피스에서 가져오는 중…';
         try{
-          var r=await window.MoumExt.send('lotteon.paid.crawl',{},180000);
+          /* 🔴 판매자ID(trNo)는 **서버가 준다** — 확장이 셀러오피스 화면에서 긁게 했더니
+             라이브에서 「trNo not found」로 실패했다(2026-08-13). 화면 구조에 기대는
+             방식이라 로그인 상태·페이지에 따라 못 찾는다. 우리는 그 번호를 계정 설정에
+             이미 갖고 있다. 아는 값을 화면에서 다시 긁을 이유가 없다. */
+          var ctx=await fetch('/orders/lotteon-paid/context',{credentials:'include'})
+            .then(function(x){return x.json();}).catch(function(){return null;});
+          var accs=(ctx&&ctx.계정)||[];
+          if(!accs.length){
+            m.style.color='var(--글자-빨강,#B91C1C)';
+            m.textContent='실패: 롯데온 판매자ID(trNo)를 찾을 수 없어요 — 판매처 관리에서 '
+              +'롯데온 계정이 등록·활성 상태인지 확인해 주세요';
+            return; }
+          var r=await window.MoumExt.send('lotteon.paid.crawl',{trNo:accs[0].trNo},180000);
           var resp=(r&&r.resp)?r.resp:r;
           if(!resp||!resp.ok){
             var err=(resp&&resp.error)||'알 수 없음';
@@ -7072,6 +7261,7 @@
           m.textContent='✔ '+(resp.collected||0)+'건 가져옴 · 저장 '+((pr&&pr.saved)||0)+'건'
             +(sk?(' · 정산기준일 없어 버림 '+sk+'건'):'')
             +(resp.trNo?(' · '+resp.trNo):'');
+          loShowHistory();                          // 🔴 가져온 뒤 「지금 얼마나 쌓였나」를 바로 보여준다
           load();                                   // 「받았다」 다시 계산
         }catch(e){ m.style.color='var(--글자-빨강,#B91C1C)'; m.textContent='실패: '+e; }
         finally{ b.disabled=false; }
@@ -7384,8 +7574,28 @@
               +(blank?('<span class="chip c-m">'+blank+'</span>'):'')+'</td>';
           }).join('')+'</tr>'; }).join('')+'</tbody></table></div></div>';
 
+      /* [2026-08-13 사장님 확정 b] 노랑(정의차이)이 **왜** 노란지를 화면이 말한다.
+         종전엔 「정의차이 N건」 숫자만 있어, 「1건=5만원 정합성」 화면인데 무엇이
+         틀어졌는지 알 길이 없었다. 사유는 서버가 그 줄 실값으로 확인한 것만 붙인다. */
+      var RSUM={};
+      Object.keys(sum.def_reasons||{}).forEach(function(mk){
+        Object.keys(sum.def_reasons[mk]).forEach(function(f){
+          Object.keys(sum.def_reasons[mk][f]).forEach(function(why){
+            var e=sum.def_reasons[mk][f][why];
+            var t=RSUM[why]||(RSUM[why]={건수:0,금액합:0});
+            t.건수+=e.건수||0; t.금액합+=e.금액합||0; });});});
+      var rkeys=Object.keys(RSUM).sort(function(a,b){return RSUM[b].건수-RSUM[a].건수;});
+      if(rkeys.length){
+        h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">'
+          +'<span class="chip c-y">정의차이</span> 왜 다른가 <span style="font-weight:400;font-size:12px;color:var(--sub)">— 설명이 되는 차이입니다(작업필요 아님)</span></div>'
+          +'<div class="tw"><table><thead><tr><th>사유</th><th class="rt">건수</th><th class="rt">금액 차이 합</th></tr></thead><tbody>'
+          +rkeys.map(function(w){ return '<tr><td>'+esc(w)+'</td><td class="rt">'+fmt(RSUM[w].건수)+'</td>'
+            +'<td class="rt">'+fmt(RSUM[w].금액합)+'</td></tr>'; }).join('')
+          +'</tbody></table></div></div>';
+      }
+
       det=det||{};
-      var mm=det.mismatch||[], ms=det.missing||[], ud=det.undecided||[];
+      var mm=det.mismatch||[], ms=det.missing||[], ud=det.undecided||[], df=det.defs||[];
       function capNote(list,total){ return total>list.length?('<div class="note" style="padding:0 16px 12px">상세는 '+list.length+'건까지 표시 — 전체 '+total+'건(요약 수치는 전수)</div>'):''; }
       h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">🔴 필드 불일치 상세 (작업필요 '+fmt(sum.mismatch_total)+'건)</div>'
         +(mm.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>주문번호</th><th>계정</th><th>필드</th><th class="rt">샵마인</th><th class="rt">우리</th><th>상품</th></tr></thead><tbody>'
@@ -7393,6 +7603,17 @@
             +'<td class="rt r">'+((x.field==='date')?esc(x.shop):fmt(x.shop))+'</td><td class="rt">'+((x.field==='date')?esc(x.ours):fmt(x.ours))+'</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.product)+'</td></tr>';}).join('')
           +'</tbody></table></div>'+capNote(mm,sum.mismatch_total)
           : '<div class="state g">🎉 필드 불일치 0건</div>')+'</div>';
+      /* 노랑도 어느 주문인지 확인할 수 있어야 한다 — 종전엔 빨강만 표본이 있었다. */
+      if(df.length){
+        h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">'
+          +'<span class="chip c-y">정의차이</span> 상세</div>'
+          +'<div class="tw"><table><thead><tr><th>마켓</th><th>주문번호</th><th>계정</th><th>필드</th><th class="rt">샵마인</th><th class="rt">우리</th><th>사유</th></tr></thead><tbody>'
+          +df.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td class="mono">'+esc(x.order_no)+'</td>'
+            +'<td>'+esc(x.sm_alias)+'</td><td><b>'+esc(FLD[x.field]||x.field)+'</b></td>'
+            +'<td class="rt">'+fmt(x.shop)+'</td><td class="rt">'+fmt(x.ours)+'</td>'
+            +'<td style="max-width:320px">'+esc(x.reason)+'</td></tr>';}).join('')
+          +'</tbody></table></div></div>';
+      }
       h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">🔴 누락 주문 상세 ('+fmt(sum.existence&&sum.existence.missing)+'주문 / '+fmt(sum.missing_total)+'행)</div>'
         +(ms.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>샵마인 계정</th><th>우리 계정</th><th>주문번호</th><th>주문일</th><th>상품</th><th class="rt">실결제</th><th>샵 상태</th></tr></thead><tbody>'
           +ms.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td>'+esc(x.sm_alias)+'</td><td>'+esc(x.our_account||'—')+'</td><td class="mono">'+esc(x.order_no)+'</td><td>'+esc(x.date)+'</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.product)+'</td><td class="rt">'+fmt(x.paid)+'</td><td>'+esc(x.status)+'</td></tr>';}).join('')

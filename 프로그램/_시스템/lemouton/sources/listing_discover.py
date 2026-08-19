@@ -154,7 +154,13 @@ _HTML_SCAN = {'hmall', 'ssg'}
 
 _MORE_SELECT = {
     'lotteon': 'a.srchPaginationNext',      # 실측: 「다음」 — 눌러서 상품이 바뀜
-    'lotteimall': 'a.next.ico',             # 실측: 「다음」 단추 존재
+    # 🔴🔴 [2026-08-13 라이브 실측] 아이몰의 `a.next.ico`(「다음」)는 **다음 쪽이 아니라
+    #   「다음 10쪽 묶음」**이다. 한 번 눌렀더니 1쪽 → **11쪽**으로 뛰었다.
+    #   그래서 60번 눌러도 1·11·21… 쪽만 걷고 **아홉 쪽씩 통째로 건너뛰었다.**
+    #   (라이브: 60번 눌러 705개 — 60쪽×60개=3,600 이어야 할 자리)
+    # ★ 「지금 쪽(`a.on`) 바로 다음 것」을 누르면 한 쪽씩 정확히 넘어간다(12→13 실측).
+    #   묶음 끝(20쪽)에서는 그 다음이 「다음」 단추라 21쪽으로 이어진다 — 한 벌로 끝난다.
+    'lotteimall': '.wrap_page a.on + a',
 }
 
 #: 확장(로컬 PC)이 페이지 안에서 쓸 규칙 — 어떤 요소의 어느 값을 볼 것인가.
@@ -290,11 +296,18 @@ def click_pages_for(source_key: str, page_from=None, page_to=None) -> int:
 def can_resume(source_key: str, listing_url: str) -> bool:
     """**이어서 걷기가 되는 소싱처인가.**
 
-    주소로 쪽을 넘기는 곳만 된다. 「다음」 단추로 넘기는 곳(롯데온·아이몰)은
-    늘 1쪽에서 시작해 눌러 가야 해서 **중간부터 시작할 방법이 없다.**
-    그런 곳은 한 회차에 더 멀리 가는 수밖에 없다(확장이 걸음마다 따로 훑는다).
+    ① 주소로 쪽을 넘기는 곳 — 주소에 쪽 번호를 넣으면 되니 당연히 된다.
+    ② 「다음」 단추로 넘기는 곳(롯데온·아이몰) — **눌러서 건너뛰면 된다.**
+       늘 1쪽에서 시작해야 하는 건 맞지만, 걷지 않고 **누르기만** 하면 빠르다.
+       🔴 공짜가 아니다 — 300쪽부터 걸으려면 299번을 눌러야 한다. 시한에 걸리면
+         확장이 걷은 것을 들고 나오며 「더 있음」이라 말한다(조용히 잘리지 않는다).
+
+    ★ 어느 쪽도 아닌 곳(무신사의 다음쪽 주소 · SSF 검색)은 중간부터 시작할 수단이
+      아예 없다 — 그런 곳은 한 회차에 끝까지 간다(무신사 1,218 실증).
     """
     key = str(source_key or '').strip().lower()
+    if _MORE_SELECT.get(key):
+        return True                     # 눌러서 건너뛸 수 있다
     param = _PAGE_PARAM.get(key)
     if not param:
         return False
@@ -302,6 +315,18 @@ def can_resume(source_key: str, listing_url: str) -> bool:
     if bad and bad.search(listing_url or ''):
         return False          # SSF 검색 주소처럼 쪽이 안 먹는 모양
     return True
+
+
+def click_skip_for(source_key: str, cursor) -> int:
+    """「다음」 단추 소싱처에서 **걷기 전에 몇 번 눌러 건너뛸지.**
+
+    이어걷기 커서가 301쪽이면 300번 눌러 건너뛴 뒤 301쪽부터 걷는다.
+    주소로 넘기는 곳은 0(건너뛸 필요가 없다).
+    """
+    key = str(source_key or '').strip().lower()
+    if not _MORE_SELECT.get(key):
+        return 0
+    return max(0, int(cursor or 1) - 1)
 
 
 def next_window(page_from, page_to, cursor, *, more: bool):

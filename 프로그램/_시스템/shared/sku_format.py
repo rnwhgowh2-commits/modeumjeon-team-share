@@ -49,6 +49,20 @@ def gen_barcode() -> str:
     return digits + str((10 - chk % 10) % 10)
 
 
+#: EAN-13 「매장 내부 전용」(restricted distribution) 접두 대역.
+#   GS1 이 어느 제조사에도 할당하지 않는 자유 대역이라 **세계에서 유일하지 않다** —
+#   같은 번호를 다른 가게가 쓸 수 있다. `gen_barcode()` 가 200 을 쓰는 이유이자,
+#   이 번호를 마켓에 「표준상품코드」라고 보내면 안 되는 이유다.
+_INTERNAL_PREFIXES = tuple([f'{n:03d}' for n in range(200, 300)]
+                           + [f'{n:03d}' for n in range(20, 30)]
+                           + [f'{n:03d}' for n in range(40, 50)])
+
+
+def is_internal_barcode(s: str | None) -> bool:
+    """우리(또는 어느 매장)가 내부용으로 만든 번호인가 — 제조사 표준코드가 아닌가."""
+    return bool(s) and str(s).strip().startswith(_INTERNAL_PREFIXES)
+
+
 def is_valid_barcode(s: str | None) -> bool:
     """EAN-13 형식 + 체크섬 검증."""
     if not s or len(s) != 13 or not s.isdigit():

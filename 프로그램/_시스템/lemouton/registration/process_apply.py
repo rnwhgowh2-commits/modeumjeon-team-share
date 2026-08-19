@@ -591,12 +591,22 @@ def option_axis(cfg):
     applied, skipped = [], []
     axis = (cfg or {}).get('axis') or AXIS_TWO
     if axis == AXIS_THREE:
-        skipped.append(_skip('options', 'axis', 'NO_MODEL_AXIS',
-                             '「모델명·색상·사이즈 3갈래」로는 아직 올릴 수 없습니다 — '
-                             '옵션에 모델명을 담는 칸이 없습니다(옵션은 색상·사이즈·재고·'
-                             '추가금·SKU 만 담습니다). 색상·사이즈 2갈래로 올립니다.',
-                             False, gap=True))
-        axis = AXIS_TWO
+        # 🔴 [2026-08-13] 강등을 **푼다.** 예전 사유는 「옵션에 모델명을 담는 칸이
+        #   없습니다」였는데, 마켓 탓이 아니라 우리 칸이 없던 것이었다.
+        #   칸을 만들었다 — `policy/to_payload._options_json` 의 `model`.
+        #   마켓 근거(스스 개발자센터 원문, 판매처 지도 수록):
+        #     「최대 등록 가능한 옵션 개수는 조합형은 3개, 지점형은 4개입니다.」
+        #   🔴 [2026-08-13 정정] 한때 「카테고리가 표준형을 요구하면 못 쓴다」고
+        #     적었으나 **검증 안 된 추론**이었다. 지도 `optionInfo` 원문에 표준형이
+        #     아예 없고(「단독형·조합형·직접입력형 중 최소 한 개」),
+        #     `docs/.../2026-07-17-대량등록-Phase1A.md:903` 이 이미
+        #     「표준형은 강제가 아니다 — 조합형으로 진행이 맞다」로 결론냈다.
+        #     사전 판정 게이트는 짓지 않는다 — 없는 제약을 만들지 않는다.
+        applied.append(_applied('options', 'axis', '색상 · 사이즈',
+                                '모델명 · 색상 · 사이즈',
+                                note='세 갈래로 쪼개 올립니다 — 쪼개져도 옵션번호는 '
+                                     '하나입니다(메이트 블랙 265). '
+                                     '스마트스토어에만 드러납니다.'))
     elif axis not in (AXIS_ONE, AXIS_TWO):
         skipped.append(_skip('options', 'axis', 'UNKNOWN_AXIS',
                              f'모르는 축 구성입니다: {axis!r} — 구매자가 보는 드롭다운이라 '

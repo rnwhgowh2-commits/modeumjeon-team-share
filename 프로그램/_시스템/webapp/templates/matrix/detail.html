@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}{{ mo.name }} — 매트릭스 옵션{% endblock %}
+{% block title %}{{ mo.name }} — 옵션관리{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-matrix-detail">
   <style>
@@ -125,7 +125,7 @@
   {% if assembly %}
   <a class="mxd-back" href="/optgen?tab=product">← 모음전 상품 생성 목록</a>
   {% else %}
-  <a class="mxd-back" href="/matrix">← 매트릭스 옵션 목록</a>
+  <a class="mxd-back" href="/matrix">← 옵션관리 목록</a>
   {% endif %}
   <div class="mxd-h">
     <h1>{{ mo.name }}</h1>

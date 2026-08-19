@@ -326,8 +326,7 @@ def index():
                            made=made, markets=IMPORT_MARKETS,
                            stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
                            stage_cls=STAGE_CLS, mat_counts=mat_counts,
-                           box_counts=box_counts, axis_presets=AXIS_PRESETS,
-                           blocked_axis_reason=BLOCKED_AXIS_REASON)
+                           box_counts=box_counts, axis_presets=AXIS_PRESETS)
 
 
 @bp.get('/product/by-code/<path:code>')
@@ -375,9 +374,11 @@ def product_assembly(mo_id: int):
     from webapp.routes.matrix import detail_context
     ctx = detail_context(mo_id)
     if ctx is None:
+        # 🔴 matrix.py 의 같은 404 와 짝 — 한 곳만 고치면 다른 곳이 남는다.
         return render_template('errors/option_not_found.html',
                                active='optgen_product',
-                               requested_code='매트릭스 옵션',
+                               requested_code='',
+                               sku_label='옵션 묶음 번호',
                                requested_sku=str(mo_id)), 404
     return render_template('matrix/detail.html',
                            active_app='bundles', active='optgen_product',
@@ -394,44 +395,23 @@ AXIS_PRESETS = [
      'desc': '한 모델을 색상(과 사이즈)으로 펼칩니다',
      'options': [{'n': 1, 'axes': ['색상']},
                  {'n': 2, 'axes': ['색상', '사이즈']}]},
-    # 🔴 [2026-08-13 감사 후속] 모델 모음전은 **아직 못 고르게** 둔다 (`disabled`).
-    #   숨기지 않는다 — 사장님이 노션에 적으신 항목이라, 없애면 「빠뜨렸나」가 된다.
-    #   화면에 이유를 그대로 적고 고르지만 못하게 한다.
-    #
-    #   왜 못 여나 — 축 이름으로 칸을 정하게 고쳤지만(68fe4179) 모델 값이 갈 자리가 없다:
-    #     · 1축 ['모델']        → color_code 에 모델명 (고치려던 바로 그 증상)
-    #     · 2축 ['모델','색상'] → size_code 에 모델명 (마켓에 사이즈로 나간다)
-    #     · 3축                 → 어느 칸에도 안 들어간다 → 마켓 옵션 이름이
-    #       「블랙 250」으로 **겹쳐** 서로 다른 모델이 한 줄로 보인다(실측)
-    #   여는 데 필요한 것 두 가지 — 둘 다 사장님 결정이 있어야 한다:
-    #     ① 조립대 격자에 모델 축을 어떻게 그릴지 (지금은 색상×사이즈 2축 격자뿐)
-    #     ② 마켓별 옵션 1/2/3축 구성 정책 (노션 「마켓별 옵션 1/2/3축 구성 정책」)
-    #   (라이브 매트릭스 185개 전수 확인 결과 모델 축 사용 0건 — 지금 닫아도 잃는 것이 없다)
-    {'kind': 'model', 'label': '모델 모음전', 'disabled': True,
+    # [2026-08-13 사장님 확정] 모델 모음전 — **연다.**
+    #   🔴 예전엔 「준비 중」으로 막아 뒀는데 **막는 자리가 틀렸다.**
+    #      옵션을 3축으로 만드는 것 자체는 온전하다(실측: 축 값 3개·SKU·옵션명 전부 다름).
+    #      겹치는 건 **마켓 전송**뿐이다 — 마켓 옵션 이름이 색상+사이즈 두 칸이라
+    #      모델이 달라도 「블랙 250」으로 같아진다.
+    #      → 위험이 있는 자리(전송)에 막이를 두고 만들기는 연다.
+    #        막이 = `lemouton/formatter/pipeline.py` 의 `option_name_collision`.
+    #   마켓별로 몇 축으로 쪼개 보낼지는 **상품가공 「정책 생성」** 몫이다(노션 그대로).
+    {'kind': 'model', 'label': '모델 모음전',
      'desc': '여러 모델을 한 상품에 담습니다',
      'options': [{'n': 1, 'axes': ['모델']},
                  {'n': 2, 'axes': ['모델', '색상']},
                  {'n': 3, 'axes': ['모델', '색상', '사이즈']}]},
 ]
 
-#: 아직 받지 않는 축 이름 — 위 주석 참조. 큰 창(조합 생성)에서도 같은 규칙을 쓴다.
-#: 🔴 이름 하나만 여기 적어 두면 두 입구가 갈리지 않는다.
-BLOCKED_AXIS_REASON = (
-    '「모델」 축은 아직 쓸 수 없어요 — 모델 값을 담을 칸이 없어 마켓에 올릴 때 '
-    '서로 다른 모델이 같은 옵션으로 겹칩니다. 격자·마켓 축 정책이 정해지면 열립니다.'
-)
-
-
-def blocked_axis(axis_names) -> bool:
-    """모델 축이 섞여 있나 — 만들기 창과 큰 창 **두 곳이 같은 함수**를 쓴다."""
-    from lemouton.sourcing.axis_slot import is_model_axis
-    return any(is_model_axis(a) for a in (axis_names or []))
-
 #: 프리셋에서 고를 수 있는 축 조합 — 화면이 보낸 값이 이 안에 있는지 검사한다.
-#: 🔴 `disabled` 프리셋은 **뺀다** — 화면엔 이유와 함께 보이지만 고를 수는 없다.
-#:    한 곳에서 빼야 화면·API 가 갈리지 않는다.
-_ALLOWED_AXES = {tuple(o['axes']) for p in AXIS_PRESETS if not p.get('disabled')
-                 for o in p['options']}
+_ALLOWED_AXES = {tuple(o['axes']) for p in AXIS_PRESETS for o in p['options']}
 
 
 @bp.post('/api/option-box')
@@ -448,8 +428,6 @@ def api_create_option_box():
     from lemouton.sourcing.option_service import save_step_design
     body = request.get_json(silent=True) or {}
     axes = [str(a).strip() for a in (body.get('axes') or []) if str(a).strip()]
-    if blocked_axis(axes):
-        return jsonify({'ok': False, 'error': BLOCKED_AXIS_REASON}), 400
     if axes and tuple(axes) not in _ALLOWED_AXES:
         return jsonify({'ok': False,
                         'error': f'고를 수 없는 축 구성이에요: {" · ".join(axes)}'}), 400

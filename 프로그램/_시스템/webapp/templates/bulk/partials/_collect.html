@@ -223,11 +223,14 @@
         <div class="sf-num"><div class="sf-n new">${neu}</div><div class="sf-l">새 것</div></div>
         <div class="sf-num"><div class="sf-n made">${made}</div><div class="sf-l">상품</div></div>
         <div class="sf-when">${esc(ago(f.last_run_at))}${
-          f.next_page_from ? `<div style="font-size:12px;opacity:.85" title="한 번에 걸을 수 있는 쪽 수가 정해져 있어(소싱처 보호) 나눠 걷습니다. 「지금 수집」을 다시 누르면 이어서 걷습니다.">이어서 ${f.next_page_from}쪽부터</div>` : ''
+          f.next_page_from ? `<div style="font-size:12px;opacity:.85" title="한 번에 걸을 수 있는 쪽 수가 정해져 있어(소싱처 보호) 나눠 걷습니다. 더 있으면 스스로 이어서 걷고, 새로 걷을 것이 없으면 멈춥니다.">이어서 ${f.next_page_from}쪽부터${f.run_requested_at ? ' · 자동' : ''}</div>` : ''
         }${
           f.last_ext_version ? (
-            (f.ext_version_expected && f.ext_version_expected !== f.last_ext_version)
-              ? `<div style="font-size:12px;color:var(--warn,#b26a00)" title="크롬이 읽는 확장 폴더를 새 판으로 맞춘 뒤 chrome://extensions 에서 ↻ 를 눌러야 바뀝니다. 폴더를 안 맞추고 누르면 아무 일도 일어나지 않습니다.">확장 ${esc(f.last_ext_version)} · 새 판 ${esc(f.ext_version_expected)} 있음</div>`
+            /* 🔴 견주는 일은 **서버가** 한다(ext_version_outdated). 여기서 글자로
+               견줬더니 확장이 더 새 판(0.8.03)일 때도 「새 판 0.8.02 있음」이라
+               떠서, 누를 것이 없는데 ↻ 를 누르라고 했다(2026-08-13 라이브). */
+            f.ext_version_outdated
+              ? `<div style="font-size:12px;color:var(--warn,#b26a00)" title="chrome://extensions 에서 ↻ 를 누르면 새 판으로 바뀝니다.">확장 ${esc(f.last_ext_version)} · 새 판 ${esc(f.ext_version_expected)} 있음</div>`
               : `<div style="font-size:12px;opacity:.7">확장 ${esc(f.last_ext_version)}</div>`
           ) : ''
         }</div>
