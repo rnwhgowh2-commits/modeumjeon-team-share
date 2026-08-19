@@ -77,6 +77,54 @@
     .tag.cur{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .tag.none2{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
 
+    /* ── [이슈 #1058] 상품 고르기 8칸 확장 ─────────────────────────────── */
+    .ap-list td.wrap{white-space:normal}
+    .mtx-name{font-weight:700}
+    .mtx-no{color:var(--sub,#8B95A1);font-size:12px}
+    .mtx-axis{color:var(--글자-보조,#6B7684);font-size:12px;margin-top:2px}
+    .mtx-empty{color:var(--글자-주황,#B45309);font-size:12px}
+    .mtx-empty a{color:var(--primary,#3182F6);text-decoration:none;font-weight:700;margin-left:4px}
+    .prod-brand{color:var(--글자-보조,#6B7684);font-weight:400}
+    .prod-models{color:var(--sub,#8B95A1);font-size:12px;margin-top:2px}
+    .prod-code{color:var(--sub,#8B95A1);font-size:12px;margin-top:2px}
+
+    /* 소싱처·판매처 배지 — ② 축약 텍스트칩(2026-08-19 사장님 확정, 텍스트만·아이콘 없음) */
+    .site-grp{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:3px}
+    .site-grp:last-child{margin-bottom:0}
+    .site-chip{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;flex:none}
+    .site-chip.on{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .site-chip.off{background:var(--surface,#ffffff);color:var(--글자-희미,#C2C8CF);
+                   border:1px solid var(--n100,#EDEFF2)}
+
+    /* 정책 다중 배지 — ① 가로 나열(2026-08-19 사장님 확정) */
+    .pol-badges{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+
+    /* 수집 칸 — 시각 + 호버 트리거 */
+    .collect-cell{position:relative}
+    .collect-time{font-size:12px;color:var(--글자-기본,#4E5968);font-variant-numeric:tabular-nums;
+                  cursor:default;border-bottom:1px dashed var(--line,#D1D6DB);display:inline-block}
+    .collect-none{font-size:12px;color:var(--sub,#8B95A1)}
+
+    /* 호버카드 — ② 위아래 스택(2026-08-19 사장님 확정) */
+    .hv-card{position:fixed;z-index:99999;background:var(--surface,#ffffff);
+             border:1px solid var(--line,#E5E8EB);border-radius:10px;
+             box-shadow:0 8px 24px rgba(0,0,0,.14);padding:14px;width:340px;font-size:12px}
+    .hv-title{font-size:11px;font-weight:700;color:var(--sub,#8B95A1);margin-bottom:6px}
+    .hv-sec + .hv-sec{margin-top:12px;padding-top:12px;border-top:1px solid var(--n100,#F2F4F6)}
+    .hv-row{display:flex;justify-content:space-between;padding:3px 0;color:var(--글자-기본,#4E5968)}
+    .hv-row .t{color:var(--sub,#8B95A1);font-variant-numeric:tabular-nums}
+    .hv-empty{color:var(--sub,#8B95A1);padding:6px 0}
+    .hv-table{width:100%;border-collapse:collapse;font-size:11.5px}
+    .hv-table th{background:var(--n100,#F7FAFF);padding:4px 6px;text-align:right;font-weight:700;
+                 color:var(--글자-보조,#6B7684)}
+    .hv-table th:first-child{text-align:left}
+    .hv-table td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--n100,#F5F6F8);
+                 font-variant-numeric:tabular-nums}
+    .hv-table td:first-child{text-align:left;font-variant-numeric:initial}
+
+    /* 필터 — ① 토글칩 통일형(브랜드 칩과 같은 chip2, 2026-08-19 사장님 확정) */
+    .ap-status{padding:0 16px 10px;display:flex;gap:6px;flex-wrap:wrap}
+
     /* 붙이는 줄 — 화면 아래 고정. 고른 걸 잊지 않게 계속 보인다. */
     .ap-go{position:sticky;bottom:0;z-index:5;margin-top:16px;
            background:var(--surface,#ffffff);border-top:1px solid var(--line,#E5E8EB);
@@ -164,14 +212,21 @@
                value="{{ pick_q|default('', true) }}">
         <button class="btn2 ghost" id="mall" type="button">보이는 것 전부</button>
       </div>
+      <div class="ap-status" id="mstatus">
+        <button class="chip2 on" data-applied="">전체</button>
+        <button class="chip2" data-applied="yes">정책 적용</button>
+        <button class="chip2" data-applied="no">정책 미적용</button>
+      </div>
       <div class="chips" id="mbrands"></div>
       <div class="ap-list">
         <table>
           <thead><tr>
-            <th style="width:34px"></th><th>상품</th><th>브랜드</th><th>지금 붙은 정책</th>
+            <th style="width:34px"></th><th style="width:30px">NO</th><th>상품</th>
+            <th>옵션매트릭스</th><th>소싱처</th><th>정책</th><th>판매처</th>
+            <th>소싱처 수집</th><th>판매처 수집</th>
           </tr></thead>
           <tbody id="mlist">
-            <tr><td colspan="4" class="ap-empty">불러오는 중…</td></tr>
+            <tr><td colspan="9" class="ap-empty">불러오는 중…</td></tr>
           </tbody>
         </table>
       </div>

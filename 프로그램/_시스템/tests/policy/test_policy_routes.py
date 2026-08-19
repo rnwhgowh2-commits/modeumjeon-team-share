@@ -335,6 +335,18 @@ def test_적용_화면에_정책이_나온다(client):
     assert '적용용정책' in body
 
 
+def test_상품고르기_8칸_헤더가_나온다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    for label in ('NO', '옵션매트릭스', '소싱처', '판매처', '소싱처 수집', '판매처 수집'):
+        assert f'<th>{label}</th>' in body or f'<th style="width:30px">{label}</th>' in body
+
+
+def test_상품고르기_정책상태_필터칩이_나온다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'data-applied="yes"' in body
+    assert 'data-applied="no"' in body
+
+
 def test_정책은_하나만_고를_수_있다(client):
     """상품 하나에 정책 하나 — 여러 개를 고르게 하면 거짓 기능이 된다."""
     _new_policy(client, '라디오확인')
