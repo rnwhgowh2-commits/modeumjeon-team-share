@@ -397,6 +397,57 @@ def test_카드에_내보낼_마켓_뱃지가_있다(client):
     assert 'mkbadge' in body
 
 
+def test_켠_마켓은_초록_꺼진_마켓은_회색_뱃지다(client):
+    """[#1072] 활성화=초록딱지·비활성화=회색딱지 — 켠 마켓만 보이고 꺼진 마켓이
+    통째로 빠지던 것을, 전 마켓을 보여주되 on/off 로 갈라 고친다."""
+    pid = _new_policy(client, '마켓온오프확인')
+    _enable_market(client, pid, ['coupang', 'smartstore'])
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert '<span class="mkbadge on">쿠팡</span>' in body
+    assert '<span class="mkbadge on">스마트스토어</span>' in body
+    assert '<span class="mkbadge off">롯데온</span>' in body, '꺼진 마켓도 회색 딱지로 보여야 한다'
+    assert '<span class="mkbadge off">11번가</span>' in body
+    assert '<span class="mkbadge off">G마켓</span>' in body
+    assert '<span class="mkbadge off">옥션</span>' in body
+
+
+def test_켠_마켓이_하나도_없어도_6개_전부_회색으로_보인다(client):
+    """enabled_markets() 는 '안 정하면 전부 켜짐'으로 본다 — 진짜 0개이려면
+    빈 리스트를 명시적으로 넣어야 한다."""
+    pid = _new_policy(client, '전부꺼짐확인')
+    _enable_market(client, pid, [])
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert body.count('class="mkbadge off"') >= 6
+
+
+def test_적용_상품_보기는_상품관리로_간다(client):
+    """[#1072] "항목 보기 →" 가 정책 생성(정책 4번 요구사항 전용 링크)이 아니라
+    상품관리로, 이 정책이 붙은 상품만 걸러서 가야 한다."""
+    pid = _new_policy(client, '상품관리링크확인')
+    _enable_market(client, pid, ['coupang'])
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import save_item
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        save_item(s, policy=p, market='coupang', item_key='price', config={'sourcing_rate': 25})
+        s.commit()
+    finally:
+        s.close()
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert f'href="/bundles?policy={pid}&pname=' in body
+    assert '상품관리에서 보기 →' in body
+    assert f'class="pc-edit">상품관리에서 보기 →' in body
+
+
+def test_잠긴_카드의_정책_생성_링크는_안_바뀐다(client):
+    """[#1072] 4번 요구사항(미완성 정책→정책 생성으로)은 원래 맞게 되어 있었다 — 회귀 확인."""
+    pid = _new_policy(client, '잠긴카드링크확인')
+    _enable_market(client, pid, ['coupang'])
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert f'href="/policies/{pid}" class="btn2 ghost pc-gocreate"' in body
+
+
 def test_적용_상품_호버_틀이_있다(client):
     """호버 내용은 <template> 로 미리 그려 둔다 — JS 가 새로 조립하지 않는다."""
     pid = _new_policy(client, '호버확인')

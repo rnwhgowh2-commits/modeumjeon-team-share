@@ -510,7 +510,7 @@ def policy_apply_page():
     🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
       하면 거짓 기능이 된다(「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤).
     """
-    from lemouton.policy.fields import MARKET_LABEL
+    from lemouton.policy.fields import MARKET_KEYS, MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import (
         applied_count, applied_products, brand_counts, enabled_markets,
@@ -547,6 +547,7 @@ def policy_apply_page():
     pick = [c for c in request.args.getlist('model') if c]
     return render_template('policy/apply.html', active='policy_apply',
                            policies=policies, pbrands=pbrands, market_label=MARKET_LABEL,
+                           market_keys=MARKET_KEYS,
                            pick=pick, pick_q=(pick[0] if len(pick) == 1 else ''))
 
 
