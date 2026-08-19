@@ -372,24 +372,29 @@ def _matrices(session, limit: int = 100):
     from lemouton.matrix.models import MatrixOption
     from lemouton.sourcing.models import Model, Option
     # [2026-08-04] brand 추가 — 왕쪽 서럍(브랜드로 추리기)이 상품 탭에서도 돌아야 한다.
+    # [이슈 #1081] bundle_model_name 추가 — 옵션함 목록(_boxes)과 같은 재료로
+    # 모델명을 채우려면(bundle_model_names) 이 칸이 필요하다.
     rows = (session.query(MatrixOption.id, MatrixOption.display_no,
                           MatrixOption.name, MatrixOption.kind,
                           Model.is_option_box, Model.brand,
                           func.count(Option.canonical_sku),
-                          MatrixOption.model_code)
+                          MatrixOption.model_code, Model.bundle_model_name)
             .outerjoin(Model, Model.model_code == MatrixOption.model_code)
             .outerjoin(Option, Option.model_code == MatrixOption.model_code)
             .filter(MatrixOption.deleted_at.is_(None))
             .group_by(MatrixOption.id, MatrixOption.display_no, MatrixOption.name,
                       MatrixOption.kind, Model.is_option_box, Model.brand,
-                      MatrixOption.model_code)
+                      MatrixOption.model_code, Model.bundle_model_name)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
     out = [{'id': i, 'no': no or '—', 'name': display_name(nm, mc), 'kind': k,
-            'box': bool(box), 'brand': br, 'options': n, 'code': mc}
-           for i, no, nm, k, box, br, n, mc in rows if n]
+            'box': bool(box), 'brand': br, 'options': n, 'code': mc,
+            '_bundle_model_name': bmn}
+           for i, no, nm, k, box, br, n, mc, bmn in rows if n]
     _attach_stage(session, out)
     _attach_made(session, out)
     _attach_phase(session, out)
+    _attach_matrix_facts(session, out)
+    _attach_product_status(session, out)
     return out
 
 
@@ -416,6 +421,71 @@ def _attach_phase(session, mats):
         # 🔴 라벨은 안 담는다 — 화면이 `readiness.PHASE_LABEL` 에서 찾아 쓴다(원천 하나).
         m['phase'] = p['phase']
         m['missing'] = p['missing']
+
+
+def _attach_matrix_facts(session, mats):
+    """[이슈 #1081] 「옵션 매트릭스」 병합칸·모음전 구성·옵션축·SKU/소싱처 개수.
+
+    🔴 옵션함 목록(`_boxes`)과 **같은 재료**(`_box_facts`)를 그대로 쓴다 — 이 탭이
+       따로 세면, 같은 매트릭스가 두 목록에서 다른 축·소싱처 수로 보일 수 있다
+       (이 저장소가 여러 번 겪은 「같은 사실, 다른 화면」 사고).
+
+    🔴 옵션함(box)뿐 아니라 **이미 상품이 된 매트릭스도 같이 묻는다** — `_attach_phase`
+       (위상)와 달리 축·소싱처·SKU 구성은 상품이 됐다고 사라지는 사실이 아니다.
+    """
+    from lemouton.matrix.option_name import bundle_model_names
+    from lemouton.sourcing.source_url_stats import source_labels
+
+    codes = [m['code'] for m in mats if m.get('code')]
+    if not codes:
+        return
+    option_counts = {m['code']: int(m.get('options') or 0) for m in mats if m.get('code')}
+    사실 = _box_facts(session, codes, option_counts)
+    축, 소싱처, URL수, 맵핑, SKU번호 = (사실['axes'], 사실['sources'], 사실['urls'],
+                                    사실['map'], 사실['sku_info'])
+    키들 = sorted({k for v in 소싱처.values() for k, _n in v})
+    이름 = source_labels(키들) if 키들 else {}
+    for m in mats:
+        c = m.get('code')
+        if not c:
+            continue
+        ax = 축.get(c) or {}
+        m['moum_kind_label'] = ax.get('kind_label')
+        m['axis_pairs'] = list(zip(ax.get('axis_names') or [], ax.get('axis_counts') or []))
+        m['model_names'] = bundle_model_names(ax.get('model_names'), m.get('_bundle_model_name'))
+        m['sources'] = [{'key': k, 'label': 이름.get(k) or k, 'n': cnt}
+                        for k, cnt in (소싱처.get(c) or ())]
+        m['urls'] = URL수.get(c, 0)
+        m['map'] = 맵핑.get(c)
+        m['sku_info'] = SKU번호.get(c)
+
+
+def _attach_product_status(session, mats):
+    """[이슈 #1081] 「상품&정책 연결상태」 2행 — 상품 생성 · 정책 적용.
+
+    🔴 새 판정을 만들지 않는다 — 이미 `_attach_made`(어느 상품으로 만들었나)가
+       구해 둔 것과, `policy_models`(상품관리·정책생성 화면과 같은 단일 판정 —
+       상품 ∪ 구성 정책을 같이 본다) 만 합친다.
+
+    상품 생성 = 이 줄 자체가 이미 상품(옵션함이 아님)이거나, 이 옵션함으로 만든
+                상품이 하나라도 있다.
+    정책 적용 = 그 상품(자기 자신 포함) 중 하나라도 정책이 붙어 있다.
+    """
+    from webapp.routes.bundles_tower import policy_models
+
+    codes = set()
+    for m in mats:
+        if m.get('code') and not m.get('box'):
+            codes.add(m['code'])
+        for d in (m.get('made') or []):
+            codes.add(d['code'])
+    policies = policy_models(session, list(codes)) if codes else set()
+    for m in mats:
+        made_list = m.get('made') or []
+        self_is_product = bool(m.get('code')) and not m.get('box')
+        m['made_ok'] = bool(made_list) or self_is_product
+        m['policy_ok'] = (self_is_product and m['code'] in policies) or any(
+            d['code'] in policies for d in made_list)
 
 
 #: 코드 앞글자 「단독_」 — 옛날에 「재고관리에만 두는 물건」을 문자열로 흉내 낸 흔적.
