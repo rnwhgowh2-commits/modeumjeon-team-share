@@ -1,0 +1,433 @@
+<!--
+  draft-picker 템플릿. 사용법은 ../SKILL.md 참고.
+
+  Artifact 발행 시 반드시:
+    - capabilities: { artifact: {} }   ← 이거 없으면 탭이 저장 안 됨(읽기전용 모드로 자동 전환)
+    - favicon: 이모지 1~2개
+    - title(또는 이 파일 <title>): 이번 시안 선택 제목
+
+  아래 <script> 안 DATA 상수만 실제 내용으로 바꿔서 쓴다. CSS·로직은 그대로 둘 것.
+-->
+<title>시안 선택</title>
+<style>
+/*
+  팔레트·타입·여백 스케일 출처: 프로그램/_시스템/webapp/static/tokens.css
+  (이 프로젝트의 실측 기반 디자인 규칙 — 애플 3개 페이지 실측). 아티팩트는
+  외부 스타일시트를 못 불러오므로 링크 대신 실제 값만 그대로 옮겨 쓴다.
+  선택 카드가 배경을 칠하지 않고 테두리만 진해지는 것도 같은 문서의 실측
+  결론("배경색을 칠하지 않는다")을 그대로 따른 것 — 임의 선택이 아니다.
+*/
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --text: #1d1d1f;
+  --text-sub: #6e6e73;
+  --border: #d2d2d7;
+  --border-strong: #86868b;
+  --accent: #0071e3;
+  --accent-text: #ffffff;
+  --focus: #2997ff;
+  --confirm-bg: #1d7a3d;
+  --warn-bg: rgba(255, 149, 0, 0.10);
+  --warn-text: #9a5b00;
+  --r-sm: 8px;
+  --r-card: 12px;
+  --r-lg: 18px;
+  --r-pill: 980px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0a0a;
+    --surface: #1c1c1e;
+    --text: #f5f5f7;
+    --text-sub: #8e8e93;
+    --border: #38383a;
+    --border-strong: #6e6e73;
+    --accent: #2997ff;
+    --accent-text: #0a0a0a;
+    --focus: #2997ff;
+    --confirm-bg: #1d7a3d;
+    --warn-bg: rgba(255, 149, 0, 0.18);
+    --warn-text: #ff9f0a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --surface: #1c1c1e;
+  --text: #f5f5f7;
+  --text-sub: #8e8e93;
+  --border: #38383a;
+  --border-strong: #6e6e73;
+  --accent: #2997ff;
+  --accent-text: #0a0a0a;
+  --focus: #2997ff;
+  --confirm-bg: #1d7a3d;
+  --warn-bg: rgba(255, 149, 0, 0.18);
+  --warn-text: #ff9f0a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.57;
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 24px 16px 8px; }
+h1 { font-size: 24px; font-weight: 600; letter-spacing: .01em; line-height: 1.29; margin: 0 0 4px; text-wrap: balance; }
+.lead { color: var(--text-sub); font-size: 14px; margin: 0 0 4px; }
+.hint { color: var(--text-sub); font-size: 12px; line-height: 1.33; margin: 0 0 24px; }
+.group { margin-bottom: 48px; }
+.group h2 { font-size: 19px; font-weight: 600; letter-spacing: .01em; line-height: 1.3; margin: 0 0 12px; }
+.cards { display: flex; flex-direction: column; gap: 12px; }
+.card {
+  position: relative;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--r-card);
+  padding: 16px;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card { transition: border-color .24s cubic-bezier(.4,0,.6,1), border-width .24s cubic-bezier(.4,0,.6,1); }
+  .confirm-btn { transition: background-color .24s cubic-bezier(.4,0,.6,1); }
+}
+/* 선택 시 테두리만 진해진다 — 배경은 칠하지 않는다(tokens.css 의 실측 규칙 그대로) */
+.card.selected { border-color: var(--accent); border-width: 2px; padding: 15px; }
+.card-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--border); color: var(--text); font-size: 12px; font-weight: 700;
+  margin-bottom: 8px;
+}
+.card.selected .card-badge { background: var(--accent); color: var(--accent-text); }
+.card-title { font-size: 17px; font-weight: 600; line-height: 1.35; margin-bottom: 2px; }
+.card-desc { color: var(--text-sub); font-size: 14px; line-height: 1.57; }
+.check { color: var(--accent); font-size: 13px; font-weight: 700; margin-top: 8px; }
+.more-like-btn {
+  margin-top: 12px; width: 100%; padding: 10px; min-height: 40px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text-sub);
+  border-radius: var(--r-sm); font-size: 13px; line-height: 1.33; font-family: inherit;
+}
+.more-like-btn:disabled { opacity: .55; }
+.group-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.group-actions button {
+  flex: 1 1 auto; min-height: 44px; padding: 10px 12px;
+  border: 1px dashed var(--border); background: transparent; color: var(--text-sub);
+  border-radius: var(--r-sm); font-size: 13px; line-height: 1.33; font-family: inherit;
+}
+.group-actions button:disabled { opacity: .55; }
+.other-box { margin-top: 12px; }
+.other-box textarea {
+  width: 100%; min-height: 64px; padding: 12px; font-size: 16px; /* 16px 고정: 모바일 사파리 자동 확대 방지 */
+  border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text);
+  font-family: inherit;
+}
+.summary-box {
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-lg);
+  padding: 24px; margin: 24px 0 16px;
+}
+.summary-box h2 { font-size: 12px; font-weight: 600; letter-spacing: .02em; margin: 0 0 8px; color: var(--text-sub); }
+.summary-box pre {
+  white-space: pre-wrap; word-break: break-word; margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.33; color: var(--text);
+}
+.fallback-banner {
+  border: 1px solid var(--warn-text); background: var(--warn-bg); color: var(--warn-text);
+  border-radius: var(--r-lg); padding: 16px; font-size: 13px; line-height: 1.33; margin-top: 12px;
+}
+.copy-box {
+  width: 100%; min-height: 120px; margin-top: 8px; font-family: ui-monospace, monospace; font-size: 12px;
+  padding: 8px; border-radius: var(--r-sm); border: 1px solid var(--warn-text); background: var(--surface); color: var(--text);
+}
+.confirm-bar {
+  position: sticky; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, var(--bg) 65%, transparent);
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  margin: 0 -16px;
+}
+.confirm-btn {
+  width: 100%; min-height: 52px; border: none; border-radius: var(--r-pill);
+  background: var(--accent); color: var(--accent-text); font-size: 17px; font-weight: 600;
+  font-family: inherit;
+}
+.confirm-btn.confirmed { background: var(--confirm-bg); }
+.save-status { text-align: center; font-size: 12px; color: var(--text-sub); margin-top: 8px; min-height: 16px; }
+</style>
+<div id="app" class="wrap"></div>
+<script>
+// ── self-capture (아래서 renderDocument()가 자기 자신을 완전한 새 문서로 재구성할 때 씀) ──
+// document.currentScript 는 이 스크립트가 동기 실행되는 동안만 유효하므로 맨 위에서 즉시 캡처한다.
+var SELF_SCRIPT_TEXT = document.currentScript.textContent;
+
+// 예시 데이터 — 실제 사용 시 이 부분만 실제 시안 내용으로 교체한다.
+var DATA = {
+  title: "버튼 스타일 시안 선택",
+  groups: [
+    {
+      id: "g1",
+      label: "1. 주문 확정 버튼 색상",
+      drafts: [
+        { id: 1, title: "블루 그라디언트", desc: "차분하고 신뢰감 있는 느낌" },
+        { id: 2, title: "오렌지 단색", desc: "브랜드 포인트 컬러, 눈에 잘 띔" },
+        { id: 3, title: "다크 네이비", desc: "고급스러운 느낌, 톤다운" }
+      ]
+    },
+    {
+      id: "g2",
+      label: "2. 재고 부족 경고 표시 방식",
+      drafts: [
+        { id: 1, title: "빨간 뱃지 숫자", desc: "카드 우상단에 남은 수량 숫자로 표시" },
+        { id: 2, title: "테두리 강조", desc: "카드 전체 테두리를 빨갛게" }
+      ]
+    }
+  ]
+};
+
+// ── 상태 ──
+// state 는 매 재발행마다 STATE_ISLAND_ID script에 JSON으로 같이 저장된다. publish() 로 저장된
+// 페이지가 다시 로드될 때 이 값을 읽어와야 사장님이 탭한 내용이 새로고침 후에도 남는다 —
+// 그냥 DATA 에서 매번 새로 만들면 새로고침될 때마다 선택이 지워진다(재발행 직후 자동 새로고침 포함).
+var STATE_ISLAND_ID = "draft-picker-state";
+
+function buildInitialState() {
+  var s = JSON.parse(JSON.stringify(DATA));
+  s.groups.forEach(function (g) {
+    g.selected = null;
+    g.otherOpen = false;
+    g.otherText = "";
+    g.requests = []; // { type: 'more_types' | 'more_like', draftId: number|null }
+  });
+  s.confirmed = false;
+  return s;
+}
+
+function loadState() {
+  var island = document.getElementById(STATE_ISLAND_ID);
+  if (island) {
+    try { return JSON.parse(island.textContent); } catch (e) { /* 손상된 경우 기본값으로 */ }
+  }
+  return buildInitialState();
+}
+
+var state = loadState();
+var artifactApi = null;
+var fallbackMode = false;
+
+// ── 유틸 ──
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+function findGroup(id) {
+  for (var i = 0; i < state.groups.length; i++) {
+    if (state.groups[i].id === id) return state.groups[i];
+  }
+  return null;
+}
+
+function hasRequest(g, type, draftId) {
+  var target = draftId === undefined ? null : draftId;
+  return g.requests.some(function (r) { return r.type === type && r.draftId === target; });
+}
+
+function addRequest(g, type, draftId) {
+  var target = draftId === undefined ? null : draftId;
+  if (hasRequest(g, type, target)) return;
+  g.requests.push({ type: type, draftId: target });
+}
+
+function buildSummaryText() {
+  var lines = [];
+  state.groups.forEach(function (g) {
+    var sel = null;
+    for (var i = 0; i < g.drafts.length; i++) { if (g.drafts[i].id === g.selected) sel = g.drafts[i]; }
+    var reqTexts = g.requests.map(function (r) {
+      return r.type === "more_types" ? "다른 타입으로 더보기" : (r.draftId + "번 더보기");
+    });
+    lines.push("■ " + g.label);
+    lines.push("  선택: " + (sel ? sel.id + "번 (" + sel.title + ")" : "(아직 없음)"));
+    lines.push("  기타 의견: " + (g.otherText ? g.otherText : "(없음)"));
+    lines.push("  추가 요청: " + (reqTexts.length ? reqTexts.join(", ") : "없음"));
+  });
+  lines.push("");
+  lines.push("전체 확인: " + (state.confirmed ? "완료" : "아직 안 함"));
+  return lines.join("\n");
+}
+
+// ── 렌더 ──
+function renderCard(g, d) {
+  var selected = g.selected === d.id;
+  var moreDisabled = hasRequest(g, "more_like", d.id);
+  return (
+    '<div class="card ' + (selected ? "selected" : "") + '" role="button" tabindex="0" ' +
+    'data-action="select" data-group="' + g.id + '" data-draft="' + d.id + '">' +
+      '<div class="card-badge">' + d.id + "</div>" +
+      '<div class="card-title">' + escapeHtml(d.title) + "</div>" +
+      (d.desc ? '<div class="card-desc">' + escapeHtml(d.desc) + "</div>" : "") +
+      (selected ? '<div class="check">✓ 선택됨</div>' : "") +
+      '<button type="button" class="more-like-btn" data-action="more-like" data-group="' + g.id + '" data-draft="' + d.id + '" ' +
+      (moreDisabled ? "disabled" : "") + ">🔍 " + d.id + "번 시안 더 보기" + (moreDisabled ? " · 요청됨" : "") + "</button>" +
+    "</div>"
+  );
+}
+
+function renderGroup(g) {
+  var moreTypesDisabled = hasRequest(g, "more_types", null);
+  return (
+    '<section class="group">' +
+      "<h2>" + escapeHtml(g.label) + "</h2>" +
+      '<div class="cards">' + g.drafts.map(function (d) { return renderCard(g, d); }).join("") + "</div>" +
+      '<div class="group-actions">' +
+        '<button type="button" data-action="more-types" data-group="' + g.id + '" ' + (moreTypesDisabled ? "disabled" : "") + ">" +
+          "🔄 다른 타입으로 더보기" + (moreTypesDisabled ? " · 요청됨" : "") +
+        "</button>" +
+        '<button type="button" data-action="toggle-other" data-group="' + g.id + '">' +
+          "✏️ 기타(직접 입력)" + (g.otherOpen ? " 닫기" : "") +
+        "</button>" +
+      "</div>" +
+      (g.otherOpen ?
+        '<div class="other-box"><textarea data-action="other-input" data-group="' + g.id + '" ' +
+        'placeholder="원하는 방향을 짧게 적어주세요">' + escapeHtml(g.otherText) + "</textarea></div>"
+        : "") +
+    "</section>"
+  );
+}
+
+function renderBody() {
+  var summary = buildSummaryText();
+  return (
+    "<h1>" + escapeHtml(state.title) + "</h1>" +
+    '<p class="lead">마음에 드는 시안을 탭해서 골라주세요.</p>' +
+    '<p class="hint">다 고르셨으면 맨 아래 확인을 눌러주세요. "더보기" 버튼은 그 자리에서 바로 새 시안을 만들진 않고, 요청만 기록해서 다음에 반영합니다.</p>' +
+    state.groups.map(renderGroup).join("") +
+    '<div class="summary-box"><h2>📋 현재 선택 요약</h2><pre>' + escapeHtml(summary) + "</pre></div>" +
+    '<div class="confirm-bar">' +
+      '<button type="button" class="confirm-btn ' + (state.confirmed ? "confirmed" : "") + '" ' +
+      'data-action="' + (state.confirmed ? "unconfirm" : "confirm") + '">' +
+        (state.confirmed ? "✅ 확인 완료 · 다시 선택하려면 탭" : "✅ 확인") +
+      "</button>" +
+      (fallbackMode ?
+        '<div class="fallback-banner">⚠️ 이 화면에서는 자동 저장이 안 됩니다. 아래 내용을 전체 복사해서 채팅에 붙여넣어 주세요.' +
+        '<textarea class="copy-box" readonly>' + escapeHtml(summary) + "</textarea></div>"
+        : '<div class="save-status" id="save-status"></div>') +
+    "</div>"
+  );
+}
+
+function renderDocument() {
+  var titleTag = document.querySelector("title") ? document.querySelector("title").outerHTML : "<title>시안 선택</title>";
+  var styleTag = document.querySelector("style").outerHTML;
+  // 주의: 스크립트 종료 태그 문자열을 소스에 그대로 적으면 HTML 파서가 이 태그를 그 자리에서
+  // 조기 종료시킨다(문자열 리터럴이든 주석이든 무관). 그래서 항상 두 조각으로 쪼개서 만든다.
+  var scriptTag = "<script>" + SELF_SCRIPT_TEXT + "<" + "/script>";
+  // state 를 JSON으로 같이 저장 — "기타" 텍스트는 사장님이 자유롭게 입력하므로, 스크립트
+  // 종료 태그와 같은 문자열이 그 안에 섞여 있어도 태그가 깨지지 않도록 '<' 를 전부 이스케이프한다.
+  var stateJson = JSON.stringify(state).replace(/</g, "\\u003c");
+  var stateTag = '<script type="application/json" id="' + STATE_ISLAND_ID + '">' + stateJson + "<" + "/script>";
+  return (
+    "<!doctype html>\n<html lang=\"ko\">\n<head>\n" +
+    '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' +
+    titleTag + "\n" + styleTag + "\n</head>\n<body>\n" +
+    '<div id="app" class="wrap">' + renderBody() + "</div>\n" +
+    stateTag + "\n" + scriptTag + "\n</body>\n</html>"
+  );
+}
+
+function paint() {
+  document.getElementById("app").innerHTML = renderBody();
+}
+
+function setStatus(text) {
+  var el = document.getElementById("save-status");
+  if (el) el.textContent = text;
+}
+
+function onPublishError(err) {
+  var code = err && err.code;
+  if (code === "conflict") return; // 다른 곳에서 먼저 저장됨 — 셸이 알아서 새로고침해줌
+  var readOnlyCodes = ["not_writer", "not_granted", "not_declared", "capability_disabled", "capability_removed"];
+  if (readOnlyCodes.indexOf(code) !== -1) {
+    fallbackMode = true;
+    paint();
+    return;
+  }
+  setStatus("저장 실패 — 아래 요약을 복사해서 알려주세요");
+  fallbackMode = true;
+  paint();
+}
+
+function save() {
+  paint();
+  if (fallbackMode || !artifactApi) return;
+  setStatus("저장 중…");
+  artifactApi.publish(renderDocument()).then(function () {
+    setStatus("저장됨");
+  }).catch(onPublishError);
+}
+
+// ── 이벤트 ──
+var otherSaveTimer = null;
+
+function onAppClick(e) {
+  var el = e.target.closest("[data-action]");
+  if (!el) return;
+  var action = el.dataset.action;
+  var g = el.dataset.group ? findGroup(el.dataset.group) : null;
+  var draftId = el.dataset.draft ? Number(el.dataset.draft) : null;
+
+  if (action === "select") {
+    g.selected = g.selected === draftId ? null : draftId;
+    state.confirmed = false;
+    save();
+  } else if (action === "more-like") {
+    addRequest(g, "more_like", draftId);
+    state.confirmed = false;
+    save();
+  } else if (action === "more-types") {
+    addRequest(g, "more_types", null);
+    state.confirmed = false;
+    save();
+  } else if (action === "toggle-other") {
+    g.otherOpen = !g.otherOpen;
+    paint(); // 접기/펼치기는 로컬 UI일 뿐이라 저장할 내용이 없음
+  } else if (action === "confirm") {
+    state.confirmed = true;
+    save();
+  } else if (action === "unconfirm") {
+    state.confirmed = false;
+    save();
+  }
+}
+
+function onAppInput(e) {
+  var el = e.target.closest('[data-action="other-input"]');
+  if (!el) return;
+  var g = findGroup(el.dataset.group);
+  g.otherText = el.value;
+  state.confirmed = false;
+  clearTimeout(otherSaveTimer);
+  otherSaveTimer = setTimeout(save, 600); // 타이핑 중 매 글자마다 저장(=재발행)하지 않도록 묶어서 저장
+}
+
+document.getElementById("app").addEventListener("click", onAppClick);
+document.getElementById("app").addEventListener("input", onAppInput);
+
+// ── 시작 ──
+paint(); // capability 응답을 기다리지 않고 즉시 화면부터 보여준다
+(function init() {
+  var p = (window.claude && window.claude.use) ? window.claude.use("artifact") : Promise.resolve(null);
+  p.then(function (api) {
+    artifactApi = api;
+    if (!artifactApi) { fallbackMode = true; paint(); }
+  }).catch(function () {
+    fallbackMode = true;
+    paint();
+  });
+})();
+</script>
