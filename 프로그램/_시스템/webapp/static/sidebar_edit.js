@@ -574,9 +574,10 @@ function pushRecent(){
   }
 }
 
-function currentDB(){ return emCurrentMode === 'icon' ? window.SB3_ICON_DB : window.SB3_EMOJI_DB; }
-function currentCats(){ return emCurrentMode === 'icon' ? window.SB3_ICON_CATS : window.SB3_EMOJI_CATS; }
-function currentRecent(){ return emCurrentMode === 'icon' ? recentIcons : recentEmojis; }
+// 2026-08-19 — 이모지 탭 제거로 아이콘 목록만 쓴다 (이모지 자료 파일도 삭제됨)
+function currentDB(){ return window.SB3_ICON_DB; }
+function currentCats(){ return window.SB3_ICON_CATS; }
+function currentRecent(){ return recentIcons; }
 
 function renderCats(){
   emCats.innerHTML = '';
