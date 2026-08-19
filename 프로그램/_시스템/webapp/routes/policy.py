@@ -1,6 +1,8 @@
 """정책 생성 화면 — 목록 · 편집(마켓 공통 + 마켓 가로탭) · 상품에 적용.
 
-노션 「상품 가공 (정책 생성 & 정책 적용)」. 규칙은 lemouton/policy/service.py 가 단일 원천.
+상위탭 「상품 정책화」(구 「상품 가공」) — 하위탭 정책 생성 & 정책 매칭(구 「정책 적용」,
+[2026-08-19] 사장님 확정 재개명). 노션 원문은 「상품 가공 (정책 생성 & 정책 적용)」.
+규칙은 lemouton/policy/service.py 가 단일 원천.
 
 🔴 값이 비어 있는 정책은 **가격 계산에 물리지 않는다**. 화면이 「아직 못 씀」을 보여준다.
 """
@@ -502,7 +504,7 @@ def api_save_fee_defaults():
 
 @bp.route('/policies/apply')
 def policy_apply_page():
-    """「상품 정책 적용」 — 노션 하위탭 ②.
+    """「정책 매칭」(구 「상품 정책 적용」) — 노션 하위탭 ②.
 
     왼쪽에서 상품을 고르고 오른쪽에서 정책을 골라 한 번에 붙인다(그룹핑).
     🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
@@ -709,7 +711,7 @@ def api_bundle_policy_result(model_code: str):
         if not attached:
             return jsonify({'ok': True, 'policies': [], 'rows': [],
                             'reason': '이 상품에 붙은 정책이 없습니다 — '
-                                      '「🧩 상품 정책 적용」에서 먼저 붙여 주세요.'})
+                                      '「🧩 정책 매칭」에서 먼저 붙여 주세요.'})
         pid = int(want) if (want or '').isdigit() else attached[0]['id']
         if pid not in {a['id'] for a in attached}:
             pid = attached[0]['id']

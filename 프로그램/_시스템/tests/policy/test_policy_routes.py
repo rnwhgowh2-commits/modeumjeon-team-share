@@ -276,8 +276,9 @@ def test_옛_값만_있는_정책도_열린다(client):
     assert '소싱품' in r.get_data(as_text=True)
 
 
-# ── 「정책 적용」 하위탭 (노션 하위탭 ②) ────────────────────────────────
+# ── 「정책 매칭」 하위탭 (노션 하위탭 ②) ────────────────────────────────
 #   [2026-08-12] 노션 「a. 상품 정책 적용 → 정책 적용」 개명 반영.
+#   [2026-08-19] 사장님 확정 재개명 「정책 적용 → 정책 매칭」.
 
 def _model(client, code, brand='르무통'):
     """※ Model.brand 는 **기본값이 '르무통'** 이고 NOT NULL 이다
@@ -295,8 +296,8 @@ def test_적용_화면이_열린다(client):
     r = client.get('/policies/apply')
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert '정책 적용' in body
-    assert '상품 정책 적용' not in body, '옛 이름이 남아 있다'
+    assert '정책 매칭' in body
+    assert '정책 적용' not in body, '옛 이름이 남아 있다'
     # [2026-08-12 확정 D3] 번호는 동그라미 배지로 뺐다 — 글자는 그대로 남는다
     assert '상품 고르기' in body and '정책 고르기' in body
     assert '<span class="stepno">①</span>' in body
@@ -579,7 +580,9 @@ def test_꺼져_있어도_값을_고칠_수_있다(client):
     _set_markets(client, pid, ['smartstore'])
     body = client.get(f'/policies/{pid}?m=coupang').get_data(as_text=True)
     assert 'pointer-events:none' not in body.split('.mk-off')[1][:400], '입력을 막았다'
-    assert '꺼 둔 동안에도 <b>고칠 수 있습니다.</b>' in body
+    # [2026-08-19 사장님 확정 시안 1] 이 문장은 물음표 아이콘 title 로 옮겨졌다 —
+    # 상시 굵은 글씨는 없앴지만 내용은 그대로 있어야 한다(감춘 게 아니라 접어 둔 것).
+    assert '꺼 둔 동안에도 고칠 수 있습니다.' in body
     # 실제로 저장도 되어야 한다
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import save_item, values_for
