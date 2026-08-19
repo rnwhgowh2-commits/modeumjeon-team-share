@@ -50,13 +50,43 @@ def test_이름이_비면_거절한다(session):
         create_option_box(session, name='   ', brand='르무통')
 
 
-def test_같은_이름을_두_번_만들어도_안_겹친다(session):
-    """사장님이 같은 이름을 또 쓸 수 있다 — 저장이 터지면 안 된다."""
+def test_같은_브랜드_같은_이름은_거절한다(session):
+    """[2026-08-19 ui-verify 감사] 이름이 겹치면 찾을 때 어느 것인지 헷갈린다.
+
+    🔴 예전엔(브랜드 없이 만들던 시절부터) 조용히 두 번째도 저장됐다 —
+       사장님 확인: 「중복이름 저장 안되게 해야지」로 규칙을 뒤집었다.
+    """
+    from lemouton.matrix.service import DuplicateNameError, create_option_box
+    create_option_box(session, name='메이트', brand='르무통')
+    with pytest.raises(DuplicateNameError):
+        create_option_box(session, name='메이트', brand='르무통')
+
+
+def test_다른_브랜드면_같은_이름도_허용한다(session):
+    """브랜드가 다르면 이름이 같아도 다른 물건일 수 있다 — 전역으로 막지 않는다."""
     from lemouton.matrix.service import create_option_box
-    a = create_option_box(session, name='메이트', brand='르무통')
-    b = create_option_box(session, name='메이트', brand='르무통')
+    a = create_option_box(session, name='베이직 반팔', brand='르무통')
+    b = create_option_box(session, name='베이직 반팔', brand='나이키')
     assert a.model_code != b.model_code
-    assert a.display_no != b.display_no
+
+
+def test_중복이름_에러는_ValueError로도_잡힌다(session):
+    """`DuplicateNameError` 는 `ValueError` 의 하위형 — 기존 400 처리 경로가 그대로 잡는다."""
+    from lemouton.matrix.service import create_option_box
+    create_option_box(session, name='메이트', brand='르무통')
+    with pytest.raises(ValueError):
+        create_option_box(session, name='메이트', brand='르무통')
+
+
+def test_지운_옵션함_이름은_다시_쓸_수_있다(session):
+    """`Model` 행은 지우면 진짜로 사라진다(소프트삭제 아님) — 되살아난 이름과 안 겹친다."""
+    from lemouton.sourcing.models import Model
+    from lemouton.matrix.service import create_option_box
+    mo = create_option_box(session, name='메이트', brand='르무통')
+    session.query(Model).filter_by(model_code=mo.model_code).delete()
+    session.flush()
+    again = create_option_box(session, name='메이트', brand='르무통')
+    assert again.model_code != mo.model_code
 
 
 def test_band을_안_주면_기존과_똑같다(session):

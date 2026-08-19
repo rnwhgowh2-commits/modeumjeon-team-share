@@ -28,9 +28,15 @@ def box(client):
        옵션 조합 창의 「재고 입력」 서랍이 `/optgen/api/box/<code>/rows` 를 따로
        불러와 그린다(box.html 은 그 창을 열기만 하는 껍데기가 됐다). 화면
        HTML 을 긁던 예전 방식 대신 그 API 를 그대로 불러 같은 자료를 얻는다.
+
+    🔴 [2026-08-19 ui-verify 감사] 옵션함 이름이 겹치면 이제 두 번째부터 거절된다
+       (중복이름 저장 금지) — 이 파일의 시험마다 이 fixture 를 새로 부르므로 매번
+       다른 이름을 준다.
     """
+    import uuid
     code = client.post('/optgen/api/option-box',
-                       json={'name': '초기재고 검사함', 'brand': '르무통',
+                       json={'name': f'초기재고 검사함 {uuid.uuid4().hex[:8]}',
+                             'brand': '르무통',
                              'axes': ['색상', '사이즈']}).get_json()['code']
     client.post(f'/api/bundles/{code}/options/combo', json={
         'steps': [{'axis_name': '색상', 'values': ['블랙']},

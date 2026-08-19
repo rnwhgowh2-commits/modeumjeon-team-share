@@ -21,6 +21,14 @@ class MatrixError(Exception):
     """사용자에게 그대로 보여줄 수 있는 실패 사유."""
 
 
+class DuplicateNameError(ValueError):
+    """같은 브랜드에 같은 이름의 옵션함이 이미 있을 때.
+
+    `ValueError` 를 물려받아 기존 `except ValueError` 처리 경로를 그대로 타면서도,
+    호출자(웹 라우트)가 더 구체적인 에러 코드를 붙이고 싶을 때 따로 잡을 수 있다.
+    """
+
+
 # ── 원본 ──────────────────────────────────────────────────────────────────
 
 def ensure_origin(session, model) -> MatrixOption:
@@ -207,6 +215,23 @@ def create_option_box(session, *, name: str, brand: str = '',
     br = (brand or '').strip()
     if not br:
         raise ValueError('브랜드를 적어주세요 — 비워 두면 엉뚱한 브랜드로 잡힙니다.')
+
+    # [2026-08-19 ui-verify 감사] 이름이 겹쳐도 막지 않아 같은 브랜드에 같은 이름의
+    #   옵션함이 여러 개 생길 수 있었다 — 찾을 때(위 주석) 어느 것인지 헷갈린다.
+    #   🔴 범위는 **브랜드+이름**이다. 브랜드가 다르면 이름이 같아도 다른 물건일 수
+    #      있다(제네릭한 이름 「베이직 반팔」이 브랜드마다 있을 수 있음) — 전역으로
+    #      막으면 정상적인 다른 브랜드 상품 등록까지 막힌다.
+    #   🔴 band(직접/내마켓)는 안 가린다 — 출처가 달라도 같은 이름은 여전히 헷갈린다.
+    #   🔴 지운 옵션함과는 안 겹친다 — `Model` 행은 삭제 시 소프트삭제가 아니라
+    #      진짜로 지워지므로(`optgen.api_delete_option_box`), 이 조회에 따로
+    #      제외 조건을 둘 필요가 없다.
+    dup = session.scalar(select(Model.model_code).where(
+        Model.is_option_box.is_(True), Model.brand == br,
+        Model.model_name_display == nm))
+    if dup:
+        raise DuplicateNameError(
+            f'이미 같은 이름의 옵션함이 있습니다: 「{nm}」 ({br}, {dup}) — '
+            '이름을 다르게 적거나, 그 묶음을 이어서 쓰세요.')
 
     seq = reserve(session, PREFIX_MATRIX_ORIGIN, band=band)
     no = format_no(PREFIX_MATRIX_ORIGIN, seq, band=(band or 0))
