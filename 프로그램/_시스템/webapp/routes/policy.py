@@ -62,7 +62,7 @@ def policy_index():
 
 @bp.route('/policies/<int:pid>')
 def policy_detail(pid: int):
-    from lemouton.policy.common_sync import market_summary, origin_of
+    from lemouton.policy.common_sync import market_summary
     from lemouton.policy.fields import COMMON_KEY, COMMON_LABEL, MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import (
@@ -148,7 +148,6 @@ def policy_detail(pid: int):
             'wire': wire_map,
             'req_sum': req_sum,
             'stored_only_note': REQ.STORED_ONLY_NOTE,
-            'origin': origin_of(s, pid, market),
             'summary': market_summary(s, pid),
             'readiness': _rd_all,
             'applied': applied_count(s, pid),
