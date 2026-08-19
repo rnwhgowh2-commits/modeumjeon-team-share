@@ -7,6 +7,8 @@
   ③ 남의 SKU 에는 못 꽂는다
   ④ 건너뛴 것을 조용히 숨기지 않는다
 """
+import os
+
 import pytest
 
 
@@ -20,7 +22,13 @@ def client():
 
 @pytest.fixture
 def box(client):
-    """옵션 2개짜리 옵션함."""
+    """옵션 2개짜리 옵션함.
+
+    🔴 [2026-08-20 병합 정리] SKU 목록은 이제 box.html 에 서버 렌더되지 않는다 —
+       옵션 조합 창의 「재고 입력」 서랍이 `/optgen/api/box/<code>/rows` 를 따로
+       불러와 그린다(box.html 은 그 창을 열기만 하는 껍데기가 됐다). 화면
+       HTML 을 긁던 예전 방식 대신 그 API 를 그대로 불러 같은 자료를 얻는다.
+    """
     code = client.post('/optgen/api/option-box',
                        json={'name': '초기재고 검사함', 'brand': '르무통',
                              'axes': ['색상', '사이즈']}).get_json()['code']
@@ -29,9 +37,8 @@ def box(client):
                   {'axis_name': '사이즈', 'values': ['250', '260']}],
         'selected': [['블랙', '250'], ['블랙', '260']],
     })
-    html = client.get(f'/optgen/box/{code}').get_data(as_text=True)
-    import re
-    skus = re.findall(r'data-sku="(SKU-[A-Z0-9]+)"', html)
+    j = client.get(f'/optgen/api/box/{code}/rows').get_json()
+    skus = [r['sku'] for r in j['rows']]
     return code, sorted(set(skus))
 
 
@@ -147,10 +154,20 @@ def test_0으로_넣은_뒤_다시_넣으면_건너뛴다(client, box):
 
 def test_화면에_체크칸과_일괄넣기와_재고관리_길이_있다(client, box):
     """사장님 확정 — 맨 왼쪽 체크칸(전체/개별) · 표 위 일괄 넣기 ·
-    저장한 값은 여기서 못 고치고 **재고관리에서** 고친다(입구를 하나로)."""
+    저장한 값은 여기서 못 고치고 **재고관리에서** 고친다(입구를 하나로).
+
+    🔴 [2026-08-20 병합 정리] 이 표는 이제 box.html 이 아니라 옵션 조합 창의
+       「재고 입력」 서랍이 클라이언트에서 그린다(정적 자산 — Flask 응답에는
+       안 실린다). 그려지는지는 실브라우저로 확인했고(이번 병합 검증 때 직접
+       열어 봄), 여기서는 그 서랍을 그리는 스크립트 안에 이 세 UI 조각이
+       실제로 남아 있는지를 지킨다 — 누가 지우면 여기서 걸린다.
+    """
     code, _ = box
-    h = client.get(f'/optgen/box/{code}').get_data(as_text=True)
-    assert 'ob-ckall' in h, '머리줄 전체 고르기 체크칸이 없다'
-    assert 'ob-ck' in h, '줄마다 체크칸이 없다'
-    assert 'ob-bulk' in h, '표 위 일괄 넣기 줄이 없다'
-    assert '/inventory/' in h and '재고관리' in h, '재고관리로 가는 길이 없다'
+    js_path = os.path.join(os.path.dirname(__file__), '..', '..',
+                           'webapp', 'static', 'option_url_modal.js')
+    with open(js_path, encoding='utf-8') as f:
+        js = f.read()
+    assert 'oum-stk-ckall' in js, '머리줄 전체 고르기 체크칸이 없다'
+    assert 'oum-stk-ck' in js, '줄마다 체크칸이 없다'
+    assert 'oum-stk-bulk' in js, '표 위 일괄 넣기 줄이 없다'
+    assert '/inventory/' in js and '재고관리' in js, '재고관리로 가는 길이 없다'

@@ -795,65 +795,92 @@ def api_create_option_box():
     return jsonify(out)
 
 
+def _box_info(session, code: str) -> dict | None:
+    """옵션함 하나의 상세 정보 — 화면(box.html)과 모달의 「재고 입력」 드로어가 같이 쓴다.
+
+    🔴 두 벌로 나누면 반드시 갈린다(이 저장소가 여러 번 겪은 사고 패턴) — 그래서
+       Jinja 라우트와 JSON API 가 **이 함수 하나**를 부른다.
+    """
+    from lemouton.sourcing.models import Model, Option
+    # [2026-08-01] 옵션함뿐 아니라 **기존 모음전도** 받는다.
+    #   🔴 라이브에서 드러난 구멍 — 옵션함만 열려 기존 172개는 404 였고,
+    #      그래서 「같은 기능의 입구는 하나」(설계서 규칙 12)를 적용할 수 없었다.
+    #   파는 것과 안 파는 것은 화면에서 갈라 보여준다(아래 sellable).
+    m = session.query(Model).filter_by(model_code=code).first()
+    if m is None:
+        return None
+    nm = m.model_name_display or m.model_name_raw or m.model_code
+    opts = (session.query(Option).filter_by(model_code=code)
+            .order_by(Option.display_no, Option.canonical_sku).all())
+    # [2026-08-12 노션 옵션 b★] 옵션마다 **모델명이 비지 않게** 한다.
+    #   모델 축이 있으면 그 값, 없으면(색상모음전) 매트릭스 이름이 곧 모델명이다.
+    #   축 이름은 저장된 단계 설계에서 읽는다 — 새 칸을 만들지 않는다.
+    from lemouton.sourcing.models import BundleOptionStep
+    axis_names = [a for (a,) in session.query(BundleOptionStep.axis_name)
+                  .filter_by(model_code=code)
+                  .order_by(BundleOptionStep.step_no).all()]
+    # [2026-08-12] 재고 숫자의 출처를 **원장 합계**로 바꾼다.
+    #   `Option.boxhero_stock_total` 은 캐시라, 서비스를 안 거친 경로가 갱신을
+    #   빠뜨리면 화면 숫자와 실재고가 갈린다(shared/inventory_stock.py 독스트링).
+    from shared.inventory_stock import get_stock_batch
+    stock = get_stock_batch(session, [o.canonical_sku for o in opts]) if opts else {}
+    # 🔴 [2026-08-13] 「재고 0」과 「아직 안 셌음」은 **다른 상태**다. 수량만으로는
+    #   못 가르므로 재고 이력이 있는지 따로 본다 — 화면이 0 을 「—」 로 잘못 보이면
+    #   사장님이 이미 센 것을 또 세게 된다.
+    from lemouton.inventory.models import InventoryTx
+    has_tx = {sk for (sk,) in session.query(InventoryTx.option_canonical_sku)
+              .filter(InventoryTx.option_canonical_sku.in_(
+                  [o.canonical_sku for o in opts] or ['']),
+                  InventoryTx.status == 'completed').distinct().all()} if opts else set()
+    # 🔴 [2026-08-13] 여기가 사장님이 모델명을 **눈으로 확인하는 화면**이다.
+    #   `m.bundle_model_name` 을 안 넘기면 화면엔 매트릭스 이름이 뜨는데
+    #   마켓엔 적어 둔 모델명이 나가 「보는 것 ≠ 나가는 것」이 된다.
+    from lemouton.matrix.option_name import full_name, model_name_of
+    rows = [{'no': o.display_no, 'name': full_name(nm, o),
+             'sku': o.canonical_sku,
+             'model_name': model_name_of(
+                 nm, o, axis_names, bundle_model_name=m.bundle_model_name),
+             'color': o.color_display or o.color_code,
+             'size': o.size_display or o.size_code,
+             'active': bool(o.is_active),
+             'stock_on': bool(o.use_purchase_inventory),
+             'stock': int(stock.get(o.canonical_sku) or 0),
+             'tx': o.canonical_sku in has_tx}
+            for o in opts]
+    return {'code': m.model_code, 'name': nm, 'brand': m.brand,
+            'options': len(rows), 'rows': rows,
+            'is_box': bool(m.is_option_box), 'no': m.display_no}
+
+
 @bp.get('/box/<path:code>')
 def box(code: str):
     """옵션함 하나 — 들어오면 색상·사이즈 창이 바로 열린다."""
-    from lemouton.sourcing.models import Model, Option
     s = SessionLocal()
     try:
-        # [2026-08-01] 옵션함뿐 아니라 **기존 모음전도** 받는다.
-        #   🔴 라이브에서 드러난 구멍 — 옵션함만 열려 기존 172개는 404 였고,
-        #      그래서 「같은 기능의 입구는 하나」(설계서 규칙 12)를 적용할 수 없었다.
-        #   파는 것과 안 파는 것은 화면에서 갈라 보여준다(아래 sellable).
-        m = s.query(Model).filter_by(model_code=code).first()
-        if m is None:
+        info = _box_info(s, code)
+        if info is None:
             abort(404)
-        nm = m.model_name_display or m.model_name_raw or m.model_code
-        opts = (s.query(Option).filter_by(model_code=code)
-                .order_by(Option.display_no, Option.canonical_sku).all())
-        # [2026-08-12 노션 옵션 b★] 옵션마다 **모델명이 비지 않게** 한다.
-        #   모델 축이 있으면 그 값, 따로 적어 뒀으면 그 값, 없으면 매트릭스 이름.
-        #   축 이름은 저장된 단계 설계에서 읽는다.
-        #   🔴 [2026-08-13] 여기가 사장님이 모델명을 **눈으로 확인하는 화면**이다.
-        #     `m.bundle_model_name` 을 안 넘기면 화면엔 매트릭스 이름이 뜨는데
-        #     마켓엔 적어 둔 모델명이 나가 「보는 것 ≠ 나가는 것」이 된다.
-        from lemouton.sourcing.models import BundleOptionStep
-        axis_names = [a for (a,) in s.query(BundleOptionStep.axis_name)
-                      .filter_by(model_code=code)
-                      .order_by(BundleOptionStep.step_no).all()]
-        # [2026-08-12] 재고 숫자의 출처를 **원장 합계**로 바꾼다.
-        #   `Option.boxhero_stock_total` 은 캐시라, 서비스를 안 거친 경로가 갱신을
-        #   빠뜨리면 화면 숫자와 실재고가 갈린다(shared/inventory_stock.py 독스트링).
-        from shared.inventory_stock import get_stock_batch
-        stock = get_stock_batch(s, [o.canonical_sku for o in opts]) if opts else {}
-        # 🔴 [2026-08-13] 「재고 0」과 「아직 안 셌음」은 **다른 상태**다. 수량만으로는
-        #   못 가르므로 재고 이력이 있는지 따로 본다 — 화면이 0 을 「—」 로 잘못 보이면
-        #   사장님이 이미 센 것을 또 세게 된다.
-        from lemouton.inventory.models import InventoryTx
-        has_tx = {sk for (sk,) in s.query(InventoryTx.option_canonical_sku)
-                  .filter(InventoryTx.option_canonical_sku.in_(
-                      [o.canonical_sku for o in opts] or ['']),
-                      InventoryTx.status == 'completed').distinct().all()} if opts else set()
-        from lemouton.matrix.option_name import full_name, model_name_of
-        rows = [{'no': o.display_no, 'name': full_name(nm, o),
-                 'sku': o.canonical_sku,
-                 'model_name': model_name_of(
-                     nm, o, axis_names,
-                     bundle_model_name=m.bundle_model_name),
-                 'color': o.color_display or o.color_code,
-                 'size': o.size_display or o.size_code,
-                 'active': bool(o.is_active),
-                 'stock_on': bool(o.use_purchase_inventory),
-                 'stock': int(stock.get(o.canonical_sku) or 0),
-                 'tx': o.canonical_sku in has_tx}
-                for o in opts]
-        info = {'code': m.model_code, 'name': nm, 'brand': m.brand,
-                'options': len(rows), 'rows': rows,
-                'is_box': bool(m.is_option_box), 'no': m.display_no}
     finally:
         s.close()
     return render_template('optgen/box.html',
                            active_app='bundles', active='optgen_direct', box=info)
+
+
+@bp.get('/api/box/<path:code>/rows')
+def api_box_rows(code: str):
+    """옵션함의 옵션 표 — 모달 「📦 재고 입력」 드로어가 연다.
+
+    box.html 과 완전히 같은 자료(`_box_info`)를 JSON 으로 준다 — 어느 화면에서
+    창을 열었든(목록·매트릭스 등) 이 드로어가 스스로 채울 수 있게.
+    """
+    s = SessionLocal()
+    try:
+        info = _box_info(s, code)
+        if info is None:
+            return jsonify({'ok': False, 'error': f'그런 묶음이 없습니다: {code}'}), 404
+    finally:
+        s.close()
+    return jsonify({'ok': True, **info})
 
 
 @bp.post('/api/box/<path:code>/initial-stock')

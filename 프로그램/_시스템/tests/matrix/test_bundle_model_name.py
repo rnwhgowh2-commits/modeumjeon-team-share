@@ -327,14 +327,18 @@ def _set_bundle_model_name(code, value):
 
 
 def test_옵션함_화면이_적어_둔_모델명을_그린다(client, 라이브묶음):
+    """🔴 [2026-08-20 병합 정리] 모델명 칸은 이제 box.html 이 아니라 옵션 조합
+    창의 「재고 입력」 서랍이 `/optgen/api/box/<code>/rows` 로 그린다(box.html
+    은 그 창을 열기만 하는 껍데기). `_box_info()`(두 길 공용)가 만드는 이
+    API 응답으로 「사장님이 보는 것」을 확인한다 — 화면이 실제로 그 값을
+    그리는지는 실브라우저로 직접 확인했다.
+    """
     code, _sku = 라이브묶음
     # 안 적었을 때 — 매트릭스 이름이 뜬다(오늘 그대로). '메이트' 는 아직 없다.
-    html = client.get(f'/optgen/box/{code}').get_data(as_text=True)
-    assert '<td>겨울 신발 24FW</td>' in html
-    assert '메이트' not in html
+    j = client.get(f'/optgen/api/box/{code}/rows').get_json()
+    assert j['rows'][0]['model_name'] == '겨울 신발 24FW'
 
     # 적으면 — 그 값이 뜬다.
     _set_bundle_model_name(code, '메이트')
-    html = client.get(f'/optgen/box/{code}').get_data(as_text=True)
-    assert '<td>메이트</td>' in html, html[:2000]
-    assert '<td>겨울 신발 24FW</td>' not in html
+    j = client.get(f'/optgen/api/box/{code}/rows').get_json()
+    assert j['rows'][0]['model_name'] == '메이트', j

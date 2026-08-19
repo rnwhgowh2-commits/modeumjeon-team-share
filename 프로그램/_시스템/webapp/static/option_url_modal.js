@@ -26,6 +26,12 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // SKU 번호 세 가지 — 순서·이름은 lemouton/matrix/sku_info.py 의 FIELDS·LABELS 와
+  // 반드시 같아야 한다. 이 파일은 정적 자산이라 Jinja 로 서버 값을 못 받는다 —
+  // 그래서 여기 한 번만 옮겨 적는다(바꾸려면 두 곳 다 고칠 것).
+  const SKU_FIELDS = ['article_no', 'barcode', 'gtin'];
+  const SKU_LABELS = { article_no: '품번', barcode: '바코드', gtin: 'GTIN' };
+
   // [2026-05-27] URL → 도메인 강조용 분리 (시안 2 적용)
   //   "https://www.lemouton.co.kr/product/detail.html?product_no=121&..."
   //   → { domain: "lemouton.co.kr", rest: "/product/detail.html?product_no=121&..." }
@@ -62,12 +68,6 @@
 
   function keyOf(vals) { return JSON.stringify(vals); }
 
-  // ── SKU 번호 세 가지(㉰) — 이름·순서는 `lemouton/matrix/sku_info.py`
-  //    `FIELDS`·`LABELS` 와 반드시 같아야 한다. 이 파일은 정적 자산이라 Jinja 로
-  //    서버 값을 못 받는다 — 그래서 여기 한 번만 옮겨 적는다(바꾸려면 두 곳 다 고칠 것).
-  const SKU_FIELDS = ['article_no', 'barcode', 'gtin'];
-  const SKU_LABELS = { article_no: '품번', barcode: '바코드', gtin: 'GTIN' };
-
   // ─── 스타일 1회 주입 ───
   function injectStyle() {
     if (document.getElementById('oum-style')) return;
@@ -75,7 +75,7 @@
     s.id = 'oum-style';
     s.textContent = `
       .oum-bg { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:9999; display:flex; align-items:center; justify-content:center; padding:15px; }
-      .oum-modal { background:#fff; border-radius:21px; width:2880px; max-width:97vw; max-height:96vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.18); font-size:27px; }
+      .oum-modal { background:#fff; border-radius:21px; width:2880px; max-width:97vw; max-height:96vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.18); font-size:27px; position:relative; }
       .oum-mh { padding:40.5px 42px; border-bottom:1px solid #e5e8eb; display:flex; align-items:center; gap:18px; }
       .oum-mh h2 { margin:0; font-size:33px; font-weight:700; }
       .oum-mh .pill { background:#F0FDF4; color:#10b981; font-size:21px; font-weight:700; padding:6.75px 16.5px; border-radius:16.5px; }
@@ -86,6 +86,79 @@
       .oum-btn-pri { background:#3B82F6; color:#fff; }
       .oum-btn-pri:disabled { opacity:.4; cursor:not-allowed; }
       .oum-btn-sec { background:#fff; color:#4e5968; border:1px solid #d1d6db; }
+
+      /* [2026-08-19 사장님 확정] 재고 입력·템플릿 참고·SKU 번호 — 오른쪽에서 열리는 서랍(드로어).
+         기존 2탭(URL 매핑·옵션 맞추기) 화면은 그대로 두고, 이 셋만 필요할 때 겹쳐 연다. */
+      .oum-drawer-toolbar { display:flex; gap:12px; justify-content:flex-end; margin-bottom:21px; }
+      .oum-drawer-backdrop { position:absolute; inset:0; background:rgba(15,20,28,.32); z-index:40; }
+      .oum-drawer-backdrop[hidden] { display:none; }
+      .oum-drawer { position:absolute; top:0; right:0; bottom:0; width:47%; background:#fff; z-index:41;
+        box-shadow:-15px 0 42px rgba(0,0,0,.16); transform:translateX(100%); transition:transform .22s ease;
+        display:flex; flex-direction:column; }
+      .oum-drawer.on { transform:translateX(0); }
+      .oum-drawer-head { padding:27px 33px; font-weight:700; font-size:24px; border-bottom:1px solid #E5E8EB;
+        display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+      .oum-drawer-head .close { color:#9ca3af; font-size:36px; cursor:pointer; background:none; border:0; }
+      .oum-drawer-body { padding:27px 33px; overflow-y:auto; flex:1; }
+
+      /* 서랍 공통 부품 — SKU 격자와 같은 톤(oum-sku-*)을 재사용, 여기는 새로 필요한 것만 */
+      .oum-sku-empty { padding:36px 24px; text-align:center; color:#9ca3af; font-size:21px; line-height:1.7; }
+      .oum-sku-h { display:flex; align-items:center; gap:15px; padding:0 0 15px; flex-wrap:wrap; }
+      .oum-sku-n { font-size:19.5px; color:#8b95a1; }
+      .oum-sku-gen { margin-left:auto; background:#fff; border:1.5px solid #d1d6db; border-radius:12px; padding:12px 21px; font:inherit; font-size:21px; font-weight:700; color:#4e5968; cursor:pointer; }
+      .oum-sku-gen:hover { border-color:#3B82F6; color:#3B82F6; }
+      .oum-sku-gen:disabled { opacity:.45; cursor:default; }
+      .oum-sku-note { padding:0 0 15px; font-size:19.5px; color:#8b95a1; line-height:1.6; }
+      .oum-sku-msg { margin:0 0 15px; padding:13.5px 18px; border-radius:12px; font-size:19.5px; line-height:1.6; background:#F0FDF4; color:#15803d; }
+      .oum-sku-msg.bad { background:#FEF2F2; color:#B91C1C; }
+      .oum-sku-box { max-height:900px; overflow:auto; }
+      .oum-sku-tb { width:100%; border-collapse:collapse; font-size:21px; }
+      .oum-sku-tb th { position:sticky; top:0; background:#FAFBFC; color:#6b7684; font-size:19.5px; font-weight:700; text-align:left; padding:13.5px 15px; border-bottom:1px solid #eef1f4; z-index:1; }
+      .oum-sku-tb td { padding:9px 15px; border-bottom:1px solid #f4f6f8; vertical-align:top; }
+      .oum-sku-lb { font-weight:700; color:#191F28; white-space:nowrap; }
+      .oum-sku-id { font-family:ui-monospace,monospace; font-size:18px; color:#8b95a1; }
+      .oum-sku-tb input { width:100%; box-sizing:border-box; border:1.5px solid #e5e8eb; border-radius:10px; padding:10.5px 13.5px; font:inherit; font-size:21px; background:#fff; }
+      .oum-sku-tb input:focus { outline:none; border-color:#3B82F6; }
+      .oum-sku-tb input.bad { border-color:#E5484D; background:#FEF2F2; }
+      .oum-sku-why { color:#B91C1C; font-size:17.5px; line-height:1.5; margin-top:6px; }
+      .oum-sku-f { display:flex; align-items:center; justify-content:flex-end; padding:18px 0 0; border-top:1px solid #eef1f4; margin-top:18px; }
+      .oum-sku-save { background:#3B82F6; color:#fff; border:0; border-radius:12px; padding:13.5px 27px; font:inherit; font-size:21px; font-weight:700; cursor:pointer; }
+      .oum-sku-save:hover { background:#2563EB; }
+      .oum-sku-save:disabled { opacity:.45; cursor:default; }
+
+      /* 📦 재고 입력 서랍 전용 */
+      .oum-stk-dim { color:#9ca3af; }
+      .oum-stk-none { color:#DC2626; font-weight:700; }
+      .oum-stk-bar { display:flex; gap:18px; align-items:flex-start; border-radius:15px; padding:18px 24px; margin:0 0 21px; flex-wrap:wrap; }
+      .oum-stk-bar.bad { background:#FEF2F2; border:1px solid #FECACA; }
+      .oum-stk-bar.ok { background:#F0FDF4; border:1px solid #BBF7D0; }
+      .oum-stk-big { font-size:22.5px; font-weight:700; }
+      .oum-stk-bar.bad .oum-stk-big { color:#B91C1C; }
+      .oum-stk-bar.ok .oum-stk-big { color:#15803D; }
+      .oum-stk-sub { font-size:18.5px; line-height:1.65; margin-top:4.5px; color:#6b7684; }
+      .oum-stk-lh { font-size:24px; font-weight:700; margin-bottom:15px; }
+      .oum-stk-cnt { font-size:19.5px; font-weight:700; color:#8b95a1; background:#F2F4F6; border-radius:999px; padding:3px 13px; margin-left:9px; }
+      .oum-stk-bulk { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:#fff; border:1px solid #e5e8eb; border-radius:12px; padding:13px 18px; margin-bottom:12px; font-size:19.5px; }
+      .oum-stk-bulkhint { color:#8b95a1; font-size:18px; margin-left:auto; }
+      .oum-stk-tb { width:100%; border-collapse:collapse; font-size:19.5px; }
+      .oum-stk-tb th { background:#FAFBFC; color:#6b7684; font-weight:700; padding:12px 15px; text-align:left; font-size:18px; }
+      .oum-stk-tb td { padding:12px 15px; border-top:1px solid #eef1f4; }
+      .oum-stk-tb .r { text-align:right; font-variant-numeric:tabular-nums; }
+      .oum-stk-tb .c { text-align:center; }
+      .oum-stk-tb .ck { width:1px; white-space:nowrap; text-align:center; }
+      .oum-stk-has { color:#191F28; font-weight:700; }
+      .oum-stk-edit { margin-left:9px; font-size:16.5px; color:#8b95a1; text-decoration:underline; }
+      .oum-stk-in { width:108px; border:1.5px solid #e5e8eb; border-radius:9px; padding:6px 10px; font-family:inherit; font-size:19.5px; text-align:right; }
+      .oum-stk-in:focus { outline:0; border-color:#3B82F6; }
+
+      /* 🎨 템플릿 참고 서랍 전용 */
+      .oum-tpl-tabs { display:flex; gap:9px; margin-bottom:18px; }
+      .oum-tpl-tab { background:#fff; border:1.5px solid #e5e8eb; border-radius:12px; padding:12px 24px; font:inherit; font-size:19.5px; font-weight:700; color:#6b7684; cursor:pointer; }
+      .oum-tpl-tab.on { background:#EFF6FF; border-color:#3B82F6; color:#1B64DA; }
+      .oum-tpl-card { border:1.5px solid #e5e8eb; border-radius:15px; padding:18px 21px; margin-bottom:15px; }
+      .oum-tpl-name { font-weight:700; font-size:21px; margin-bottom:9px; }
+      .oum-tpl-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:9px; }
+      .oum-tpl-chip { background:#F2F4F6; border-radius:8px; padding:4.5px 12px; font-size:18px; font-weight:600; color:#4e5968; }
 
       .oum-legend { display:flex; gap:18px; font-size:18px; color:#6b7684; padding:18px 24px; background:#fff; border-radius:12px; margin-bottom:21px; align-items:center; flex-wrap:wrap; border:1px solid #e5e8eb; }
       .oum-legend span { display:inline-flex; align-items:center; gap:7.5px; }
@@ -626,7 +699,20 @@
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
       tempIdSeq: 1,
-      // ── SKU 번호 격자(㉰) — 품번·바코드·GTIN. 이미 저장된 SKU(=Option 행)에만 적는다.
+      // ── [2026-08-19] 오른쪽 서랍 3개 — 필요할 때만 불러온다(연 적 없으면 요청도 안 함) ──
+      drawerLoaded: {},        // {tpl:bool, stock:bool, sku:bool} — 서랍마다 한 번만 불러옴
+      // 📦 재고 입력 서랍
+      stockRows: [],           // 서버가 준 옵션 표 줄 [{sku, no, name, ...}]
+      stockLink: null,         // /api/bundles/<code>/source-urls 응답(연동 확인 배너용)
+      stockQty: {},            // {sku: 화면에 입력한 수량 문자열}
+      stockMsg: null,          // {ok, text}
+      stockSaving: false,
+      stockFilterOn: false,    // 「주소 없는 것만 보기」 토글 — box.html 원본 그대로
+      // 🎨 템플릿 참고 서랍
+      tplData: null,           // /templates/api/data 응답
+      tplPane: 'color',        // 'color' | 'size'
+      tplMsg: null,
+      // ── 🔢 SKU 번호 서랍(㉰) — 품번·바코드·GTIN. 이미 저장된 SKU(=Option 행)에만 적는다.
       //   🔴 값은 여기(state.skuVals)에만 산다. `scheduleRerender` 가 `#oum-left` 를
       //      통째로 갈아끼워도 render 는 이 값을 다시 읽어 넣으므로 입력이 안 날아간다.
       skuRows: [],              // 서버가 준 줄 목록 [{sku, no, label, article_no, barcode, gtin, active}]
@@ -640,14 +726,10 @@
     // 모달 마크업
     const bg = document.createElement('div');
     bg.className = 'oum-bg';
-    // 배경 클릭 닫기 — 자동 저장 fire-and-forget + 마지막 상태 기록
-    //   (snapshotLastState 는 아래에서 정의되므로 클로저 캡처 가능 — addEventListener 호출 시점은 정의 이후)
+    // 배경 클릭 닫기 — 저장을 기다린 뒤 목록으로 돌아간다(아래 _closeToList 와 동일 경로).
+    //   (_closeToList 는 아래에서 정의되므로 클로저 캡처 가능 — addEventListener 호출 시점은 정의 이후)
     bg.addEventListener('click', e => {
-      if (e.target === bg) {
-        try { snapshotLastState(); } catch (err) {}
-        autoSave();
-        bg.remove();
-      }
+      if (e.target === bg) _closeToList();
     });
 
     const modal = document.createElement('div');
@@ -665,11 +747,29 @@
           <span><span class="leg-gray"></span>ON (옵션 켜짐)</span>
           <span style="margin-left:auto; color:#92400E;">💡 좌측에서 옵션 만들고 [URL 매핑에 적용 →] · 매핑 색(파랑/초록)은 우측 탭 안에서</span>
         </div>
+        <div class="oum-drawer-toolbar">
+          <button class="oum-btn oum-btn-sec" data-drawer-open="tpl" type="button">🎨 템플릿 참고</button>
+          <button class="oum-btn oum-btn-sec" data-drawer-open="stock" type="button">📦 재고 입력</button>
+          <button class="oum-btn oum-btn-sec" data-drawer-open="sku" type="button">🔢 SKU 번호 (품번 · 바코드 · GTIN)</button>
+        </div>
         <div class="oum-split">
           <div class="oum-panel oum-blue" id="oum-left"></div>
           <div class="oum-bridge"><div class="arr">→</div><div class="lbl">적용</div></div>
           <div class="oum-panel oum-green" id="oum-right"></div>
         </div>
+      </div>
+      <div class="oum-drawer-backdrop" data-drawer-backdrop hidden></div>
+      <div class="oum-drawer" data-drawer-panel="tpl">
+        <div class="oum-drawer-head">🎨 템플릿 참고<button class="close" data-drawer-close type="button">×</button></div>
+        <div class="oum-drawer-body" id="oum-drawer-tpl-body"></div>
+      </div>
+      <div class="oum-drawer" data-drawer-panel="stock">
+        <div class="oum-drawer-head">📦 재고 입력<button class="close" data-drawer-close type="button">×</button></div>
+        <div class="oum-drawer-body" id="oum-drawer-stock-body"></div>
+      </div>
+      <div class="oum-drawer" data-drawer-panel="sku">
+        <div class="oum-drawer-head">🔢 SKU 번호 (품번 · 바코드 · GTIN)<button class="close" data-drawer-close type="button">×</button></div>
+        <div class="oum-drawer-body" id="oum-drawer-sku-body"></div>
       </div>
       <div class="oum-mf">
         <button class="oum-btn oum-btn-sec" id="oum-cancel" type="button">취소</button>
@@ -954,72 +1054,14 @@
         <div class="sum">${valid.length ? `✓ 옵션 <b>${onCnt}개</b> 활성 / ${totalCnt - onCnt}개 비활성 — 우측에 적용?` : '먼저 축을 입력하세요'}</div>
       </div>`;
 
-      // ── [2026-08-19 사장님 확정 ㉰] SKU 번호 격자 — 품번·바코드·GTIN ──
-      html += renderSkuGrid();
-
       left.innerHTML = html;
     }
 
-    // ─── SKU 번호 격자(㉰) — 줄 = 이미 저장된 SKU, 칸 = 품번·바코드·GTIN ───
-    function renderSkuGrid() {
-      const rows = state.skuRows || [];
-      const total = rows.length;
-
-      let head = `<div class="oum-sku-h">
-        <span class="oum-sku-t">🔢 SKU 번호 (품번 · 바코드 · GTIN)</span>`;
-      if (total) {
-        const parts = SKU_FIELDS.map(f => {
-          const n = rows.filter(o => ((state.skuVals[o.sku] || {})[f] || '').trim()).length;
-          return `${SKU_LABELS[f]} ${n}/${total}`;
-        });
-        head += `<span class="oum-sku-n">${parts.join(' · ')}</span>`;
-      }
-      head += `<button class="oum-sku-gen" id="oum-sku-gen" type="button"
-                 ${total ? '' : 'disabled'} ${state.skuGenBusy ? 'disabled' : ''}>
-                 ${state.skuGenBusy ? '만드는 중…' : '자체 바코드 생성 (빈 칸만)'}</button>`;
-      head += '</div>';
-
-      const note = `<div class="oum-sku-note">공란은 <b>아직 안 적음</b>입니다(값이 없다고 저장을 막지 않습니다).
-        바코드 · GTIN 은 다른 SKU 와 겹치면 그 칸만 저장되지 않습니다 — 마켓에서 상품이 뒤섞이는 걸 막기 위해서입니다.</div>`;
-
-      const msg = state.skuMsg
-        ? `<div class="oum-sku-msg${state.skuMsg.ok ? '' : ' bad'}">${esc(state.skuMsg.text)}</div>`
-        : '';
-
-      let body;
-      if (!total) {
-        body = `<div class="oum-sku-empty">아직 저장된 SKU 가 없습니다 — 위 매트릭스에서 조합을 켜고
-          [옵션 + URL 저장]을 먼저 눌러야 여기서 품번 · 바코드 · GTIN 을 채울 수 있습니다.</div>`;
-      } else {
-        const trs = rows.map(o => {
-          const v = state.skuVals[o.sku] || {};
-          const tds = SKU_FIELDS.map(f => {
-            const err = state.skuErrors[o.sku + ':' + f];
-            const ph = f === 'article_no' ? '미입력' : (f === 'barcode' ? 'EAN-13 13자리' : '8·12·13·14자리');
-            return `<td>
-              <input type="text" data-sku-field data-sku-sku="${esc(o.sku)}" data-sku-fname="${f}"
-                     class="${err ? 'bad' : ''}" placeholder="${ph}" value="${esc(v[f] || '')}">
-              ${err ? `<div class="oum-sku-why">${esc(err)}</div>` : ''}
-            </td>`;
-          }).join('');
-          return `<tr>
-            <td><div class="oum-sku-lb">${esc(o.label || o.no || o.sku)}</div><div class="oum-sku-id">${esc(o.sku)}</div></td>
-            ${tds}
-          </tr>`;
-        }).join('');
-        body = `<div class="oum-sku-box"><table class="oum-sku-tb">
-          <thead><tr><th>옵션</th><th>품번</th><th>바코드</th><th>GTIN</th></tr></thead>
-          <tbody>${trs}</tbody>
-        </table></div>`;
-      }
-
-      const footer = `<div class="oum-sku-f">
-        <button class="oum-sku-save" id="oum-sku-save" type="button" ${total ? '' : 'disabled'} ${state.skuSaving ? 'disabled' : ''}>
-          ${state.skuSaving ? '저장 중…' : 'SKU 번호 저장'}</button>
-      </div>`;
-
-      return `<div class="oum-sku">${head}${note}${msg}${body}${footer}</div>`;
-    }
+    // 🔴 [2026-08-20 병합 정리] SKU 번호 격자는 origin/main 이 왼쪽 패널에 항상 보이는
+    //   형태로 만들었지만(사장님 확정 ㉰), 이 브랜치는 같은 기능을 오른쪽 서랍(C안 —
+    //   사장님이 고른 「사이드 드로어형」 설계)으로 만들었다. 화면 하나에 같은 표가
+    //   두 번 뜨는 걸 막기 위해 왼쪽 패널 렌더는 지우고 서랍 쪽(renderSkuDrawer, 아래)
+    //   하나만 남긴다 — 왼쪽 패널에 다시 필요하면 이 커밋을 되짚어 복원할 것.
 
     // 자체 바코드 생성 — **빈 칸만** 채운다. 사용자가 손으로 적어 둔(아직 저장 전) 값은
     // 이 화면(state.skuVals)이 갖고 있어서, 서버는 판단 못 하고 화면이 골라 보낸다.
@@ -3339,22 +3381,485 @@
       const openedU = state.openUrlId ? (state.urls[state.currentSrc] || []).find(u => u.tempId === state.openUrlId) : null;
       saveLastState(bundleCode, state.currentSrc, openedU ? openedU.dbId : null);
     }
-    // [2026-06-26 S1] X·취소·배경 닫기 — 닫기는 즉시(UX), 저장은 배경에서 계속(전역 fetch라 모달 제거와
-    //   무관하게 완료). 단 실패를 더는 무음 처리하지 않고 닫힌 뒤 알림으로 표면화(재오픈 후 [저장] 유도).
-    function _closeWithSave() {
+    // [2026-08-19 사장님 확정] X·취소·배경 닫기 — 셋 다 저장을 기다린 뒤 옵션함 목록으로 돌아간다.
+    //   🔴 예전엔 닫아도 이 옵션함 화면(box.html)에 그대로 남아 "닫았는데 왜 안 없어지지" 로 보였다.
+    //      이제 화면을 완전히 떠나므로, 저장 요청을 매달아 둔 채 이동하면 유실 위험이 있어
+    //      **저장이 끝날 때까지 기다린 뒤에만** 이동한다(즉시 닫기 UX 는 포기).
+    //   저장이 실패하면 목록으로 보내지 않는다 — 창을 그대로 열어 두고 다시 시도하게 한다
+    //      (반쪽 저장 상태로 화면을 떠나는 것이 더 나쁘다).
+    let _closing = false;
+    function _closeToList() {
+      if (_closing) return;
+      _closing = true;
       snapshotLastState(); hideSharedTip();
-      const p = autoSave();
-      bg.remove();
-      Promise.resolve(p).then(result => {
+      const closeBtn = $('.oum-mh .close'), cancelBtn = $('#oum-cancel');
+      if (closeBtn) closeBtn.disabled = true;
+      if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.textContent = '닫는 중…'; }
+      const _reopen = () => {
+        _closing = false;
+        if (closeBtn) closeBtn.disabled = false;
+        if (cancelBtn) { cancelBtn.disabled = false; cancelBtn.textContent = '취소'; }
+      };
+      Promise.resolve(autoSave()).then(result => {
         if (result && result.ok === false) {
-          alert('⚠️ 변경사항이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n모달을 다시 열어 [저장]을 눌러 주세요.');
+          alert('⚠️ 변경사항이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n다시 시도해 주세요.');
+          _reopen();
+          return;
         }
+        location.href = '/optgen?tab=direct';
       }).catch(e => {
-        alert('⚠️ 저장 실패: ' + (e && e.message || e) + '\n모달을 다시 열어 [저장]해 주세요.');
+        alert('⚠️ 저장 실패: ' + (e && e.message || e) + '\n다시 시도해 주세요.');
+        _reopen();
       });
     }
-    $('.oum-mh .close').addEventListener('click', _closeWithSave);
-    $('#oum-cancel').addEventListener('click', _closeWithSave);
+    $('.oum-mh .close').addEventListener('click', _closeToList);
+    $('#oum-cancel').addEventListener('click', _closeToList);
+
+    // ════════════════════════════════════════════════════════════════════
+    //  [2026-08-19 사장님 확정] 오른쪽 서랍 3개 — 템플릿 참고 · 재고 입력 · SKU 번호
+    //  기존 2탭(URL 매핑·옵션 맞추기) 화면은 그대로 두고, 필요할 때만 겹쳐 연다.
+    //  🔴 한 번도 안 열면 그 서랍의 요청도 안 나간다(drawerLoaded) — 새 옵션함
+    //     만들 때마다 세 번 더 불러오는 낭비를 막는다.
+    // ════════════════════════════════════════════════════════════════════
+    const drawerBackdrop = $('[data-drawer-backdrop]');
+    function closeDrawers() {
+      $$('.oum-drawer').forEach(d => d.classList.remove('on'));
+      if (drawerBackdrop) drawerBackdrop.hidden = true;
+    }
+    $$('[data-drawer-open]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-drawer-open');
+        closeDrawers();
+        const panel = $(`.oum-drawer[data-drawer-panel="${key}"]`);
+        if (panel) panel.classList.add('on');
+        if (drawerBackdrop) drawerBackdrop.hidden = false;
+        if (!state.drawerLoaded[key]) {
+          state.drawerLoaded[key] = true;
+          if (key === 'stock') loadStockDrawer();
+          else if (key === 'tpl') loadTplDrawer();
+          else if (key === 'sku') loadSkuDrawer();
+        }
+      });
+    });
+    $$('[data-drawer-close]').forEach(btn => btn.addEventListener('click', closeDrawers));
+    if (drawerBackdrop) drawerBackdrop.addEventListener('click', closeDrawers);
+
+    // ── 📦 재고 입력 서랍 — box.html 의 초기 재고 입력표 + 소싱처 연동 확인 배너를
+    //    그대로 옮겨온 것. box.html 자체는 더는 이 표를 안 그린다(중복 화면 제거). ──
+    function loadStockDrawer() {
+      const body = $('#oum-drawer-stock-body');
+      if (body) body.innerHTML = '<div class="oum-sku-empty">불러오는 중…</div>';
+      Promise.all([
+        fetch(`/optgen/api/box/${encodeURIComponent(bundleCode)}/rows`).then(r => r.json()),
+        fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`).then(r => r.json()),
+      ]).then(([boxJ, linkJ]) => {
+        state.stockRows = (boxJ && boxJ.ok) ? (boxJ.rows || []) : [];
+        state.stockBrand = (boxJ && boxJ.ok) ? boxJ.brand : '';
+        state.stockLink = (linkJ && linkJ.ok) ? linkJ : null;
+        renderStockDrawer();
+      }).catch(e => {
+        if (body) body.innerHTML = '<div class="oum-stk-bar bad"><div><div class="oum-stk-big">연동 상태를 확인하지 못했습니다</div>'
+          + '<div class="oum-stk-sub">' + esc(e && e.message || e) + ' — 새로고침해 보세요</div></div></div>';
+      });
+    }
+
+    function _stockLinkBySku() {
+      // (색상,사이즈) → 옵션 열쇠로 잇는다 — 표 행은 열쇠를 안 실어서(box.html 의 원래 방식 그대로).
+      const j = state.stockLink;
+      const out = { bySku: {}, dead: [], urlTotal: 0 };
+      if (!j) return out;
+      const urls = [];
+      Object.keys(j.urls || {}).forEach(src => {
+        (j.urls[src] || []).forEach(u => { u._src = src; urls.push(u); });
+      });
+      out.urlTotal = urls.length;
+      urls.forEach(u => {
+        (u.option_ids || []).forEach(sku => {
+          (out.bySku[sku] = out.bySku[sku] || []).push(u);
+        });
+      });
+      out.dead = urls.filter(u => !(u.option_ids || []).length);
+      return out;
+    }
+
+    function renderStockDrawer() {
+      const body = $('#oum-drawer-stock-body');
+      if (!body) return;
+      const rows = state.stockRows || [];
+      const link = _stockLinkBySku();
+
+      // 옵션 열쇠는 표 행에 없으므로 (색상,사이즈) 로 맞춰 잇는다.
+      const keyByAxis = {};
+      const srcOptions = (state.stockLink && state.stockLink.options) || [];
+      srcOptions.forEach(o => {
+        keyByAxis[(o.color_display || o.color_code || '') + '|' + (o.size_display || o.size_code || '')] = o.canonical_sku;
+      });
+
+      let empty = 0;
+      const rowsHtml = rows.map(r => {
+        const sku = keyByAxis[(r.color || '') + '|' + (r.size || '')] || r.sku;
+        const covers = (sku && link.bySku[sku]) || [];
+        if (!covers.length) empty++;
+        // 「주소 없는 것만 보기」— box.html 원본 그대로, 걸러도 셈(empty)은 전체 기준.
+        if (state.stockFilterOn && covers.length) return null;
+        let linkTds;
+        if (!covers.length) {
+          linkTds = `<td class="c"><span class="oum-stk-none">주소 없음</span></td>
+            <td class="c oum-stk-dim">—</td><td class="r oum-stk-dim">확인 불가</td>`;
+        } else {
+          const crawled = covers.filter(u => u.crawled);
+          const okAll = crawled.length && crawled.every(u => u.last_status === 'ok');
+          const stat = !crawled.length ? '크롤 전' : (okAll ? '정상' : '실패 있음');
+          const prices = covers.map(u => u.last_price).filter(p => p != null);
+          linkTds = `<td class="c">${covers.length}곳</td>
+            <td class="c${stat === '정상' ? '' : ' oum-stk-dim'}">${esc(stat)}</td>
+            <td class="r">${prices.length ? Math.min.apply(null, prices).toLocaleString() : '<span class="oum-stk-dim">확인 불가</span>'}</td>`;
+        }
+        const already = !!r.tx;
+        const stockCell = already
+          ? `<b class="oum-stk-has">${r.stock}</b><a class="oum-stk-edit" href="/inventory/?sku=${encodeURIComponent(r.sku)}" title="재고관리에서 고치기">고치기</a>`
+          : `<input class="oum-stk-in" type="number" min="0" step="1" data-stock-sku="${esc(r.sku)}"
+                    value="${esc(state.stockQty[r.sku] || '')}" inputmode="numeric">`;
+        return `<tr data-stock-covered="${covers.length ? '1' : '0'}">
+          <td class="ck"><label><input type="checkbox" class="oum-stk-ck" data-stock-ck="${esc(r.sku)}"
+                aria-label="${esc(r.name)} 고르기" ${already ? 'disabled' : ''}></label></td>
+          <td class="mono">${esc(r.no || '—')}</td>
+          <td><b>${esc(r.name)}</b></td>
+          <td>${esc(state.stockBrand || '—')}</td>
+          <td>${esc(r.model_name || '—')}</td>
+          <td>${esc(r.color || '—')}</td>
+          <td>${esc(r.size || '—')}</td>
+          <td class="c">${r.active ? '켜짐' : '<span class="oum-stk-dim">꺼짐</span>'}</td>
+          <td class="c">${r.stock_on ? '함' : '<span class="oum-stk-dim">안 함</span>'}</td>
+          <td class="r">${stockCell}</td>
+          ${linkTds}
+        </tr>`;
+      }).filter(Boolean).join('');
+
+      const total = rows.length;
+      const bad = empty > 0 || link.dead.length > 0;
+      const deadTxt = link.dead.length
+        ? ` · 주소 ${link.urlTotal}개 중 ${link.dead.length}개는 <b>어느 옵션도 덮지 않습니다</b>` : '';
+      const banner = total ? `<div class="oum-stk-bar ${bad ? 'bad' : 'ok'}">
+          <div><div class="oum-stk-big">${bad
+            ? `아직 팔 수 없는 옵션이 ${empty}개 있습니다`
+            : `옵션 ${total}개 전부 소싱처 주소가 붙어 있습니다`}</div>
+          <div class="oum-stk-sub">${bad
+            ? `옵션 ${total}개 중 ${total - empty}개만 소싱처 주소가 붙었습니다${deadTxt}`
+            : `주소 ${link.urlTotal}개 · 값은 마지막 크롤 기준입니다`}</div></div>
+          ${empty ? `<button class="oum-stk-filter${state.stockFilterOn ? ' on' : ''}" type="button" id="oum-stk-filter">${
+            state.stockFilterOn ? '전체 보기' : '주소 없는 것만 보기'}</button>` : ''}
+        </div>` : '';
+
+      const msg = state.stockMsg
+        ? `<div class="oum-sku-msg${state.stockMsg.ok ? '' : ' bad'}">${esc(state.stockMsg.text)}</div>` : '';
+
+      body.innerHTML = total ? `
+        ${banner}
+        <div class="oum-stk-lh">만들어진 옵션 <span class="oum-stk-cnt">${total}</span></div>
+        <div class="oum-stk-bulk">
+          <span>고른 옵션 <b id="oum-stk-cksel">0</b>개</span>
+          <input class="oum-stk-in" id="oum-stk-bulkq" type="number" min="0" step="1" placeholder="수량" inputmode="numeric">
+          <button class="oum-btn oum-btn-sec" type="button" id="oum-stk-bulkgo">고른 것에 넣기</button>
+          <span class="oum-stk-bulkhint">공란은 안 넣습니다 · <b>0</b>도 적으면 「0개」로 저장됩니다</span>
+        </div>
+        <div class="oum-sku-box"><table class="oum-stk-tb" id="oum-stk-tb">
+          <thead><tr><th class="ck"><label><input type="checkbox" id="oum-stk-ckall" aria-label="전체 고르기"></label></th>
+            <th>옵션번호</th><th>옵션명</th><th>브랜드</th><th>모델명</th><th>색상</th><th>사이즈</th>
+            <th class="c">판매</th><th class="c">사입</th><th class="r">초기 사입 재고</th>
+            <th class="c">소싱처</th><th class="c">마지막 확인</th><th class="r">최저 매입가</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table></div>
+        ${msg}
+        <div class="oum-sku-f">
+          <span class="oum-stk-note" style="margin-right:auto;font-size:16.5px;color:#8b95a1">
+            공란은 안 넣습니다 — 0 을 적으면 「세어 보니 0개」로 남습니다.</span>
+          <button class="oum-sku-save" type="button" id="oum-stk-save" ${state.stockSaving ? 'disabled' : ''}>
+            ${state.stockSaving ? '저장 중…' : '초기 재고 저장'}</button>
+        </div>` : '<div class="oum-sku-empty">아직 만들어진 옵션이 없습니다 — 왼쪽에서 축 값을 채우고 [옵션 + URL 저장]을 먼저 눌러 주세요.</div>';
+    }
+
+    $('#oum-drawer-stock-body').addEventListener('input', e => {
+      const inp = e.target.closest('[data-stock-sku]');
+      if (inp) state.stockQty[inp.dataset.stockSku] = inp.value;
+    });
+    $('#oum-drawer-stock-body').addEventListener('click', e => {
+      if (e.target.closest('#oum-stk-filter')) {
+        state.stockFilterOn = !state.stockFilterOn;
+        renderStockDrawer();
+        return;
+      }
+      if (e.target.closest('#oum-stk-ckall')) {
+        const on = e.target.checked;
+        $$('#oum-drawer-stock-body .oum-stk-ck:not(:disabled)').forEach(c => { c.checked = on; });
+        return;
+      }
+      if (e.target.closest('#oum-stk-bulkgo')) {
+        const v = ($('#oum-stk-bulkq') || {}).value;
+        $$('#oum-drawer-stock-body .oum-stk-ck:checked').forEach(c => {
+          const sku = c.dataset.stockCk;
+          state.stockQty[sku] = (v === '' || v == null) ? '' : String(parseInt(v, 10));
+        });
+        renderStockDrawer();
+        return;
+      }
+      if (e.target.closest('#oum-stk-save')) {
+        const qty = {};
+        Object.keys(state.stockQty).forEach(sku => {
+          const n = parseInt(state.stockQty[sku], 10);
+          if (n >= 0) qty[sku] = n;
+        });
+        if (!Object.keys(qty).length) {
+          state.stockMsg = { ok: false, text: '넣을 수량을 적어주세요.' };
+          renderStockDrawer();
+          return;
+        }
+        state.stockSaving = true;
+        renderStockDrawer();
+        fetch(`/optgen/api/box/${encodeURIComponent(bundleCode)}/initial-stock`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qty }),
+        }).then(r => r.json()).then(j => {
+          if (!j.ok) {
+            state.stockMsg = { ok: false, text: j.error || '저장하지 못했습니다.' };
+          } else {
+            state.stockMsg = { ok: true, text: j.added + '개 옵션에 입고했어요'
+              + (j.skipped && j.skipped.length ? ' · 이미 재고가 있어 ' + j.skipped.length + '개는 건너뜀' : '') };
+            state.stockQty = {};
+            state.drawerLoaded.stock = false;   // 다음에 열 때 최신 상태로 다시 불러온다
+          }
+        }).catch(e => {
+          state.stockMsg = { ok: false, text: '저장하지 못했습니다 — ' + (e && e.message || e) };
+        }).finally(() => {
+          state.stockSaving = false;
+          if (state.drawerLoaded.stock === false) loadStockDrawer();
+          else renderStockDrawer();
+        });
+      }
+    });
+
+    // ── 🎨 색상·사이즈 템플릿 참고 서랍 — 값을 눌러 지금 짜는 축에 바로 적용 ──
+    function loadTplDrawer() {
+      const body = $('#oum-drawer-tpl-body');
+      if (body) body.innerHTML = '<div class="oum-sku-empty">불러오는 중…</div>';
+      fetch('/templates/api/data').then(r => r.json()).then(j => {
+        state.tplData = (j && j.ok) ? j : null;
+        renderTplDrawer();
+      }).catch(e => {
+        if (body) body.innerHTML = '<div class="oum-sku-empty">불러오지 못했습니다 — ' + esc(e && e.message || e) + '</div>';
+      });
+    }
+
+    function _applyTplToAxis(axisName, codes) {
+      // 지금 짜는 축 중 이름이 같은 칸(예: "색상")에 값을 채운다 — 없으면 알려준다.
+      const idx = (state.axes || []).findIndex(a => (a.name || '').trim() === axisName);
+      if (idx < 0) {
+        state.tplMsg = { ok: false, text: `왼쪽에 「${axisName}」 축이 없습니다 — 먼저 그 이름으로 축을 만들어 주세요.` };
+        renderTplDrawer();
+        return;
+      }
+      const input = $(`[data-axis-values="${idx}"]`);
+      if (input) {
+        input.value = codes.join(',');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      state.tplMsg = { ok: true, text: `「${axisName}」 축에 ${codes.length}개 값을 넣었습니다.` };
+      renderTplDrawer();
+    }
+
+    function renderTplDrawer() {
+      const body = $('#oum-drawer-tpl-body');
+      if (!body) return;
+      const d = state.tplData;
+      if (!d) { body.innerHTML = '<div class="oum-sku-empty">템플릿을 불러오지 못했습니다.</div>'; return; }
+      const msg = state.tplMsg
+        ? `<div class="oum-sku-msg${state.tplMsg.ok ? '' : ' bad'}">${esc(state.tplMsg.text)}</div>` : '';
+      const tabs = `<div class="oum-tpl-tabs">
+        <button class="oum-tpl-tab${state.tplPane === 'color' ? ' on' : ''}" data-tpl-pane="color" type="button">🎨 색상</button>
+        <button class="oum-tpl-tab${state.tplPane === 'size' ? ' on' : ''}" data-tpl-pane="size" type="button">📐 사이즈</button>
+      </div>`;
+      let pane;
+      if (state.tplPane === 'color') {
+        const dictRows = (d.color.dict || []).map(c => `<tr><td><strong>${esc(c.code)}</strong></td>
+          <td class="oum-stk-dim">${esc((c.variants || []).join(', '))}</td></tr>`).join('')
+          || '<tr><td colspan="2" class="oum-sku-empty">색상 사전이 비어 있어요.</td></tr>';
+        const tpls = (d.color.templates || []).map(t => `<div class="oum-tpl-card">
+          <div class="oum-tpl-name">${esc(t.name)}</div>
+          <div class="oum-tpl-chips">${(t.codes || []).map(c => `<span class="oum-tpl-chip">${esc(c)}</span>`).join('')}</div>
+          <div class="oum-stk-dim" style="font-size:16.5px;margin:6px 0">${t.apply_count}개 모음전 적용</div>
+          <button class="oum-btn oum-btn-sec" type="button" data-tpl-apply="색상" data-tpl-codes='${esc(JSON.stringify(t.codes || []))}'>이 값으로 「색상」 축 채우기</button>
+        </div>`).join('') || '<div class="oum-sku-empty">색상 템플릿이 없어요.</div>';
+        pane = `<h4 style="margin:12px 0 6px">색상 사전</h4><table class="oum-stk-tb"><tbody>${dictRows}</tbody></table>
+          <h4 style="margin:18px 0 6px">색상 템플릿</h4>${tpls}`;
+      } else {
+        const ruleRows = (d.size.rules || []).map(r => `<tr><td><strong>${esc(r.category)}</strong></td>
+          <td>${esc(r.standard_size)}${r.suggested_variant ? ` (${esc(r.suggested_variant)})` : ''}</td></tr>`).join('')
+          || '<tr><td colspan="2" class="oum-sku-empty">사이즈 사전이 비어 있어요.</td></tr>';
+        const tpls = (d.size.templates || []).map(t => `<div class="oum-tpl-card">
+          <div class="oum-tpl-name">${esc(t.name)}</div>
+          <div class="oum-tpl-chips">${(t.codes || []).map(c => `<span class="oum-tpl-chip">${esc(c)}</span>`).join('')}</div>
+          <div class="oum-stk-dim" style="font-size:16.5px;margin:6px 0">${t.apply_count}개 모음전 적용</div>
+          <button class="oum-btn oum-btn-sec" type="button" data-tpl-apply="사이즈" data-tpl-codes='${esc(JSON.stringify(t.codes || []))}'>이 값으로 「사이즈」 축 채우기</button>
+        </div>`).join('') || '<div class="oum-sku-empty">사이즈 템플릿이 없어요.</div>';
+        pane = `<h4 style="margin:12px 0 6px">사이즈 사전</h4><table class="oum-stk-tb"><tbody>${ruleRows}</tbody></table>
+          <h4 style="margin:18px 0 6px">사이즈 템플릿</h4>${tpls}`;
+      }
+      body.innerHTML = tabs + msg + pane;
+    }
+
+    $('#oum-drawer-tpl-body').addEventListener('click', e => {
+      const paneBtn = e.target.closest('[data-tpl-pane]');
+      if (paneBtn) { state.tplPane = paneBtn.dataset.tplPane; renderTplDrawer(); return; }
+      const applyBtn = e.target.closest('[data-tpl-apply]');
+      if (applyBtn) {
+        let codes = [];
+        try { codes = JSON.parse(applyBtn.dataset.tplCodes || '[]'); } catch (e) { codes = []; }
+        _applyTplToAxis(applyBtn.dataset.tplApply, codes);
+      }
+    });
+
+    // ── 🔢 SKU 번호(품번·바코드·GTIN) 서랍 — 저장된 옵션(=Option 행)에만 적는다 ──
+    //    판정·저장 규칙은 전부 서버(lemouton/matrix/sku_info.py) 한 곳 — 여기서는
+    //    받고·보여주고·보낼 뿐이다.
+    function loadSkuDrawer() {
+      const body = $('#oum-drawer-sku-body');
+      if (body) body.innerHTML = '<div class="oum-sku-empty">불러오는 중…</div>';
+      fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}`).then(r => r.json()).then(j => {
+        if (j && j.ok) {
+          state.skuRows = j.rows || [];
+          state.skuRows.forEach(o => {
+            state.skuVals[o.sku] = {
+              article_no: o.article_no || '', barcode: o.barcode || '', gtin: o.gtin || '',
+            };
+          });
+        }
+        renderSkuDrawer();
+      }).catch(e => {
+        if (body) body.innerHTML = '<div class="oum-sku-empty">불러오지 못했습니다 — ' + esc(e && e.message || e) + '</div>';
+      });
+    }
+
+    function renderSkuDrawer() {
+      const body = $('#oum-drawer-sku-body');
+      if (!body) return;
+      const rows = state.skuRows || [];
+      const total = rows.length;
+
+      let head = '';
+      if (total) {
+        const parts = SKU_FIELDS.map(f => {
+          const n = rows.filter(o => ((state.skuVals[o.sku] || {})[f] || '').trim()).length;
+          return `${SKU_LABELS[f]} ${n}/${total}`;
+        });
+        head = `<div class="oum-sku-h"><span class="oum-sku-n">${parts.join(' · ')}</span>
+          <button class="oum-sku-gen" id="oum-sku-gen" type="button" ${state.skuGenBusy ? 'disabled' : ''}>
+            ${state.skuGenBusy ? '만드는 중…' : '자체 바코드 생성 (빈 칸만)'}</button></div>`;
+      }
+
+      const note = `<div class="oum-sku-note">공란은 <b>아직 안 적음</b>입니다(값이 없다고 저장을 막지 않습니다).
+        바코드 · GTIN 은 다른 SKU 와 겹치면 그 칸만 저장되지 않습니다 — 마켓에서 상품이 뒤섞이는 걸 막기 위해서입니다.</div>`;
+      const msg = state.skuMsg
+        ? `<div class="oum-sku-msg${state.skuMsg.ok ? '' : ' bad'}">${esc(state.skuMsg.text)}</div>` : '';
+
+      let mainBody;
+      if (!total) {
+        mainBody = `<div class="oum-sku-empty">아직 저장된 SKU 가 없습니다 — 왼쪽 매트릭스에서 조합을 켜고
+          [옵션 + URL 저장]을 먼저 눌러야 여기서 품번 · 바코드 · GTIN 을 채울 수 있습니다.</div>`;
+      } else {
+        const trs = rows.map(o => {
+          const v = state.skuVals[o.sku] || {};
+          const tds = SKU_FIELDS.map(f => {
+            const err = state.skuErrors[o.sku + ':' + f];
+            const ph = f === 'article_no' ? '미입력' : (f === 'barcode' ? 'EAN-13 13자리' : '8·12·13·14자리');
+            return `<td><input type="text" data-sku-field data-sku-sku="${esc(o.sku)}" data-sku-fname="${f}"
+                     class="${err ? 'bad' : ''}" placeholder="${ph}" value="${esc(v[f] || '')}">
+              ${err ? `<div class="oum-sku-why">${esc(err)}</div>` : ''}</td>`;
+          }).join('');
+          return `<tr><td><div class="oum-sku-lb">${esc(o.label || o.no || o.sku)}</div><div class="oum-sku-id">${esc(o.sku)}</div></td>${tds}</tr>`;
+        }).join('');
+        mainBody = `<div class="oum-sku-box"><table class="oum-sku-tb">
+          <thead><tr><th>옵션</th><th>품번</th><th>바코드</th><th>GTIN</th></tr></thead>
+          <tbody>${trs}</tbody></table></div>`;
+      }
+
+      const footer = total ? `<div class="oum-sku-f">
+        <button class="oum-sku-save" id="oum-sku-save" type="button" ${state.skuSaving ? 'disabled' : ''}>
+          ${state.skuSaving ? '저장 중…' : 'SKU 번호 저장'}</button>
+      </div>` : '';
+
+      body.innerHTML = head + note + msg + mainBody + footer;
+    }
+
+    $('#oum-drawer-sku-body').addEventListener('input', e => {
+      const f = e.target.closest('[data-sku-field]');
+      if (!f) return;
+      const sku = f.dataset.skuSku, fname = f.dataset.skuFname;
+      if (!state.skuVals[sku]) state.skuVals[sku] = {};
+      state.skuVals[sku][fname] = e.target.value;
+    });
+    $('#oum-drawer-sku-body').addEventListener('click', e => {
+      if (e.target.closest('#oum-sku-gen')) {
+        const empties = (state.skuRows || []).map(o => o.sku)
+          .filter(sku => !((state.skuVals[sku] || {}).barcode || '').trim());
+        if (!empties.length) {
+          state.skuMsg = { ok: true, text: '이미 모든 SKU 에 바코드가 있습니다 — 채울 빈 칸이 없습니다.' };
+          renderSkuDrawer();
+          return;
+        }
+        state.skuGenBusy = true;
+        renderSkuDrawer();
+        fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}/gen-barcodes`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skus: empties }),
+        }).then(r => r.json()).then(j => {
+          if (j && j.ok) {
+            const made = j.barcodes || {};
+            let n = 0;
+            Object.keys(made).forEach(sku => {
+              if (!state.skuVals[sku]) state.skuVals[sku] = {};
+              if (!(state.skuVals[sku].barcode || '').trim()) { state.skuVals[sku].barcode = made[sku]; n++; }
+            });
+            state.skuMsg = { ok: true, text: n
+              ? `바코드 ${n}개를 만들었습니다 — 아직 저장 전입니다. [SKU 번호 저장]을 눌러야 실제로 저장됩니다.`
+              : '만든 번호가 없습니다.' };
+          } else {
+            state.skuMsg = { ok: false, text: '바코드를 만들지 못했습니다 — ' + ((j && j.error) || '서버 응답 없음') };
+          }
+        }).catch(e => {
+          state.skuMsg = { ok: false, text: '바코드를 만들지 못했습니다 — ' + (e && e.message || e) };
+        }).finally(() => { state.skuGenBusy = false; renderSkuDrawer(); });
+        return;
+      }
+      if (e.target.closest('#oum-sku-save')) {
+        const rows = state.skuRows || [];
+        if (!rows.length) return;
+        const items = rows.map(o => {
+          const v = state.skuVals[o.sku] || {};
+          const it = { sku: o.sku };
+          SKU_FIELDS.forEach(f => { it[f] = v[f] || ''; });
+          return it;
+        });
+        state.skuSaving = true;
+        renderSkuDrawer();
+        fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        }).then(r => r.json()).then(j => {
+          state.skuErrors = {};
+          (j.rejected || []).forEach(r => { state.skuErrors[r.sku + ':' + r.field] = r.reason; });
+          const warnN = (j.warnings || []).length;
+          if (j.ok) {
+            state.skuMsg = { ok: true, text: `저장했습니다 (${j.saved || 0}칸)`
+              + (warnN ? ` · 주의 ${warnN}건 — 아래 칸을 확인하세요` : '') };
+          } else {
+            state.skuMsg = { ok: false, text: `일부를 저장하지 못했습니다 — 거부 ${(j.rejected || []).length}건, `
+              + `저장 ${j.saved || 0}칸. 빨간 칸의 사유를 확인하세요.` };
+          }
+        }).catch(e => {
+          state.skuMsg = { ok: false, text: '저장하지 못했습니다 — ' + (e && e.message || e) };
+        }).finally(() => { state.skuSaving = false; renderSkuDrawer(); });
+      }
+    });
 
     // [2026-05-26 BUG-FIX] [저장] 버튼은 이전에 dbId 검사 없이 무조건 POST 했음 → 누를 때마다
     //   같은 URL 카드가 새로 생성되어 누적되는 심각한 버그. autoSave() 로 통일 — dbId 있으면 PUT,
@@ -3420,23 +3925,21 @@
           save.disabled = false; save.textContent = '옵션 + URL 저장';
           return;
         }
-        // [2026-08-02] 저장하고 새로고침한다는 사실을 다음 화면에 남긴다.
-        //   🔴 「옵션 만들기」 화면은 들어오면 이 창을 **자동으로 연다**(optgen/box.html).
-        //      그래서 저장 → 새로고침 → 창이 다시 뜨고, 사장님 눈에는 저장이 안 된 것처럼 보였다.
-        //      (라이브 실측 — 저장은 정상이었고 창만 다시 열렸다.)
-        //   알림도 같이 넘긴다 — 새로고침이 지금 띄운 알림을 지워버리기 때문이다.
+        // [2026-08-19 사장님 확정] 저장을 마치면 옵션함 화면이 아니라 곧장 목록으로 돌아간다.
+        //   🔴 예전엔 이 옵션함 화면(box.html)으로 새로고침했는데, 그 화면은 들어오면 이 창을
+        //      **자동으로 다시 연다** — 그래서 저장 → 새로고침 → 창이 또 뜨고, 사장님 눈에는
+        //      저장이 안 된 것처럼 보였다(라이브 실측 — 저장은 정상, 창만 다시 열렸다).
+        //      이제 그 화면 자체를 거치지 않고 목록으로 바로 가므로 이 문제가 원천적으로 없다.
+        //   알림은 sessionStorage 에 남겨 다음 화면(목록)에서 띄운다 — 페이지 이동이 지금
+        //   띄운 알림을 지워버리기 때문이다(소비 쪽은 toss.js 전역 처리).
         try {
           sessionStorage.setItem('oum:justSaved', JSON.stringify({
             code: bundleCode,
             msg: _saveNotice ? `저장 완료 — ${_saveNotice}` : '저장 완료',
           }));
-        } catch (e) {
-          if (typeof flash === 'function') flash(_saveNotice ? `저장 완료 — ${_saveNotice}` : '저장 완료');
-        }
+        } catch (e) { /* 세션스토리지가 막혀 있어도 저장 자체는 이미 끝났다 — 이동은 계속한다 */ }
         _saveNotice = '';
-        bg.remove();
-        // [v27 2026-06-02] reload 대기 700 → 200ms — 체감 즉시 갱신
-        setTimeout(() => location.reload(), 200);
+        location.href = '/optgen?tab=direct';
       } catch (e) {
         alert('저장 중 오류: ' + e.message);
         save.disabled = false; save.textContent = '옵션 + URL 저장';

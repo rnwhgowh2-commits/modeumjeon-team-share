@@ -14,6 +14,11 @@
     </p>
   </div>
 
+  {# [2026-08-19 사장님 확정] 초기 재고 입력표·소싱처 연동 확인 배너는
+     「옵션 조합 생성 및 수정」 창의 「📦 재고 입력」 드로어로 옮겼다(option_url_modal.js).
+     🔴 여기서 다시 그리지 않는다 — 두 벌이 되면 반드시 갈린다. 이 화면은 그 창을
+     자동으로 여는 통로일 뿐이고, 창을 닫으면(저장·취소 모두) 목록으로 이동한다
+     (여기 남아 있을 일이 정상적으로는 없다). #}
   <div class="ob-card">
     <div class="ob-steps">
       <span class="ob-step on"><b>1</b> 축 짜기</span>
@@ -22,80 +27,12 @@
     </div>
     <p class="ob-desc">
       아래 버튼을 누르면 <b>「옵션 조합 생성 및 수정 + 소싱처 URL 매핑」</b> 창이 열립니다.
-      왼쪽에서 색상·사이즈를 짜고, 오른쪽에 소싱처 주소를 같이 넣으시면 됩니다.
-      {# [2026-08-12 노션 옵션 d] 「사입은 📋 재고관리 매핑 탭에서」 문장 삭제 —
-         그 탭은 2026-08-02 에 없앴다(옵션 1개 = 재고 SKU 1개 확정).
-         없는 탭을 가리키는 안내는 화면이 거짓말하는 것이다.
-         사입 재고는 아래 옵션 표의 「초기 사입 재고」 칸에서 바로 넣는다. #}
+      왼쪽에서 색상·사이즈를 짜고, 오른쪽 위 서랍 단추로 재고 입력·템플릿 참고·SKU 번호도
+      같은 창 안에서 처리할 수 있습니다.
     </p>
     <button class="btn btn-primary" type="button" id="ob-open">옵션 조합 생성 및 수정</button>
     <a class="btn" href="/matrix">만든 옵션 보기 →</a>
   </div>
-
-  {% if box.rows %}
-  <div class="ob-list">
-    {# [2026-08-04] 연동 확인(만들 것 5번) — 옵션이 소싱처 주소로 덮였는지의 성적표.
-       데이터는 이미 있는 창구(/api/bundles/<code>/source-urls)를 그대로 읽는다 —
-       주소마다 덮는 옵션(option_ids)·마지막 크롤 상태·가격이 다 들어 있다.
-       🔴 저장된 값만 보여준다. 「지금 다시 긁기」는 크롤이라 여기 안 넣는다(확정 ①+②).
-       🔴 폴백 금지 — 주소 없는 옵션의 매입가는 「확인 불가」다. 값을 지어내지 않는다. #}
-    <div class="lc-bar" id="lc-bar" hidden></div>
-    <div class="ob-lh">만들어진 옵션 <span class="ob-cnt">{{ box.options }}</span></div>
-    {# [2026-08-13 사장님 확정 1번 2안] 고른 줄에 한 번에 넣기 — **표 바로 위 한 줄**.
-       아래 띠보다 먼저 눈에 들어오고, 체크칸이 바로 아래라 눈이 안 움직인다. #}
-    <div class="ob-bulk" id="ob-bulk">
-      <span>고른 옵션 <b id="ob-cksel">0</b>개</span>
-      <input class="st-in" id="ob-bulkq" type="number" min="0" step="1"
-             placeholder="수량" inputmode="numeric">
-      <button class="btn btn-primary" type="button" id="ob-bulkgo">고른 것에 넣기</button>
-      <span class="ob-bulkhint">공란은 안 넣습니다 · <b>0</b>도 적으면 「0개」로 저장됩니다</span>
-    </div>
-    <table class="ob-tb" id="ob-tb">
-      {# [2026-08-12 노션 옵션 b★] 「옵션별로 SKU 부여 · 브랜드/모델명 입력」이
-         눈으로 확인되게 열을 늘렸다. 데이터는 이미 있었고 화면에만 없었다. #}
-      <tr><th class="ck"><label><input type="checkbox" id="ob-ckall"
-            aria-label="전체 고르기"></label></th><th>옵션번호</th><th>옵션명</th><th>브랜드</th><th>모델명</th>
-          <th>색상</th><th>사이즈</th>
-          <th class="c">판매</th><th class="c">사입</th><th class="r">초기 사입 재고</th>
-          <th class="c">소싱처</th><th class="c">마지막 확인</th><th class="r">최저 매입가</th></tr>
-      {% for r in box.rows %}
-      <tr data-color="{{ r.color or '' }}" data-size="{{ r.size or '' }}">
-        <td class="ck"><label><input type="checkbox" class="ob-ck"
-              data-sku="{{ r.sku }}" aria-label="{{ r.name }} 고르기"
-              {%- if r.stock is not none and r.tx %} disabled{% endif %}></label></td>
-        <td class="mono" title="프로그램 안에서 쓰는 열쇠 {{ r.sku }}">{{ r.no or '—' }}</td>
-        <td><b>{{ r.name }}</b></td>
-        <td>{{ box.brand or '—' }}</td>
-        <td>{{ r.model_name or '—' }}</td>
-        <td>{{ r.color or '—' }}</td>
-        <td>{{ r.size or '—' }}</td>
-        <td class="c">{% if r.active %}켜짐{% else %}<span class="off">꺼짐</span>{% endif %}</td>
-        <td class="c">{% if r.stock_on %}함{% else %}<span class="off">안 함</span>{% endif %}</td>
-        {# [2026-08-12 노션 옵션 d] 초기 재고를 여기서 바로 넣는다.
-           이미 재고가 있으면 숫자만 보여준다 — 「초기」를 두 번 넣으면 이중 계상이다. #}
-        {# [2026-08-13 사장님 확정 2번 2안] 넣은 줄은 **숫자 진하게**, 아직인 줄은 옅은 「—」.
-           🔴 「0개로 확인함」과 「아직 안 셌음」이 같아 보이면 또 넣게 된다 —
-              그래서 0 도 숫자로 남기고, 안 넣은 줄만 「—」 로 둔다.
-           🔴 저장한 값은 여기서 못 고친다(사장님 확정) — 고치는 입구는 재고관리 하나. #}
-        <td class="r">{% if r.tx %}<b class="st-has">{{ r.stock }}</b>
-          <a class="st-edit" href="/inventory/?sku={{ r.sku }}"
-             title="재고관리에서 고치기">고치기</a>
-          {%- else %}<input class="st-in" type="number" min="0" step="1"
-                 data-sku="{{ r.sku }}" placeholder="" inputmode="numeric">{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </table>
-    <div class="st-bar" id="st-bar">
-      <span class="st-note">숫자를 적고 <b>초기 재고 저장</b>을 누르면 재고관리에 기록됩니다.
-        <b>공란은 안 넣습니다</b> — 0 을 적으면 「세어 보니 0개」로 남습니다.
-        한 번 넣은 옵션은 칸 대신 수량이 보이고, 고치려면 <a href="/inventory/">재고관리</a>로 갑니다.</span>
-      <button class="btn btn-primary" type="button" id="st-save">초기 재고 저장</button>
-      <span class="st-msg" id="st-msg"></span>
-    </div>
-    <div class="ob-note">옵션번호는 이 묶음 번호에 순번을 붙인 것입니다.
-      프로그램 안에서만 쓰는 열쇠는 따로 있고 화면에는 보여드리지 않습니다 — 번호가 둘로 보이면 헷갈립니다.</div>
-  </div>
-  {% endif %}
 </div>
 
 <style>
@@ -116,62 +53,6 @@
   .ob-line{width:32px;height:2px;background:var(--color-border);margin:0 4px}
   .ob-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.57;
     margin:0 0 var(--sp-4)}
-  .ob-list{margin-top:var(--sp-5);max-width:1100px}
-  .ob-lh{font-size:16px;font-weight:700;margin-bottom:var(--sp-3)}
-  .ob-cnt{font-size:13px;font-weight:600;color:var(--color-text-tertiary);
-    background:var(--color-bg-muted);border-radius:999px;padding:2px 9px;margin-left:6px}
-  .ob-tb{width:100%;border-collapse:collapse;font-size:14px;
-    background:var(--surface,#fff);border:1px solid var(--color-border);border-radius:12px}
-  .ob-tb th{background:var(--color-bg-muted);color:var(--color-text-secondary);
-    font-weight:700;padding:8px 12px;text-align:left;font-size:13px}
-  .ob-tb td{padding:8px 12px;border-top:1px solid var(--color-border)}
-  .ob-tb .r{text-align:right;font-variant-numeric:tabular-nums}
-  .ob-tb .c{text-align:center}
-  .ob-tb .mono{font-family:ui-monospace,monospace;font-size:13px;
-    color:var(--color-text-tertiary)}
-  .ob-tb .off{color:var(--color-text-tertiary)}
-  /* [2026-08-13 사장님 확정] 체크칸 · 표 위 일괄 넣기 · 넣은 값 표시 */
-  .ob-tb .ck{width:1px;white-space:nowrap;text-align:center}
-  /* 입력칸 자체는 13px 라 손끝 목표에 모자란다 — 라벨로 눌리는 넓이를 넓힌다 */
-  .ob-tb .ck label{display:inline-flex;align-items:center;justify-content:center;
-    min-width:32px;min-height:32px;margin:-8px;padding:8px;cursor:pointer}
-  .ob-bulk{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-    background:var(--surface,#fff);border:1px solid var(--color-border);
-    border-radius:8px;padding:9px 12px;margin-bottom:8px;font-size:13px}
-  .ob-bulk .st-in{width:96px}
-  .ob-bulkhint{color:var(--color-text-tertiary);font-size:12px;margin-left:auto}
-  /* 넣은 값 = 진한 숫자 / 아직인 줄 = 입력칸. 「0개로 확인함」이 안 사라진다 */
-  .st-has{color:var(--color-text-primary,#191F28);font-weight:700}
-  .st-edit{margin-left:6px;font-size:11.5px;color:var(--color-text-tertiary);
-    text-decoration:underline}
-  .st-edit:hover{color:var(--color-primary)}
-  .ob-note{font-size:12.5px;color:var(--color-text-tertiary);margin-top:8px;line-height:1.7}
-  /* [2026-08-12 노션 옵션 d] 초기 재고 입력 */
-  .st-in{width:72px;border:1.5px solid var(--color-border);border-radius:6px;
-    padding:4px 7px;font-family:inherit;font-size:13px;text-align:right}
-  .st-in:focus{outline:0;border-color:var(--color-primary)}
-  .st-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
-  .st-note{flex:1;min-width:260px;font-size:12.5px;color:var(--color-text-tertiary);line-height:1.7}
-  .st-msg{font-size:13px}
-  .st-msg.ok{color:var(--글자-초록,#1D7A3D)}
-  .st-msg.err{color:var(--글자-빨강,#D70015)}
-  /* [2026-08-04] 연동 확인 — 요약 띠 + 표 칸 */
-  .lc-bar{display:flex;gap:12px;align-items:flex-start;border-radius:10px;
-    padding:12px 16px;margin:0 0 var(--sp-3);flex-wrap:wrap}
-  .lc-bar.bad{background:var(--연한-빨강,#FEF2F2);border:1px solid #FECACA}
-  .lc-bar.ok{background:var(--연한-초록,#F0FDF4);border:1px solid #BBF7D0}
-  .lc-big{font-size:15px;font-weight:700}
-  .lc-bar.bad .lc-big{color:var(--red,#B91C1C)}
-  .lc-bar.ok .lc-big{color:var(--green,#15803D)}
-  .lc-sub{font-size:12.5px;line-height:1.65;margin-top:3px}
-  .lc-bar.bad .lc-sub{color:#9F1239}
-  .lc-bar.ok .lc-sub{color:#166534}
-  .lc-btn{margin-left:auto;border:1px solid var(--red,#DC2626);background:transparent;
-    color:var(--red,#DC2626);border-radius:8px;padding:6px 13px;font-family:inherit;
-    font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
-  .lc-btn.on{background:var(--red,#DC2626);color:#fff}
-  .lc-none{color:var(--red,#DC2626);font-weight:700}
-  .lc-dim{color:var(--color-text-tertiary)}
 </style>
 
 <script>
@@ -190,27 +71,7 @@
   //   ⚠️ 페이지가 다 준비된 뒤에 연다 — 그 전에 열면 간헐적으로 창이 사라진다
   //      (라이브에서 실제로 겪었다). 버튼은 언제든 다시 열 수 있으니 안전망이 있다.
   //   ⚠️ 조용히 포기하지 않는다 — 안 열리면 버튼을 눌러야 함을 알려준다.
-  // [2026-08-02] 방금 저장하고 새로고침해 들어온 것이면 **자동으로 열지 않는다.**
-  //   🔴 저장 → 새로고침 → 창이 또 뜨는 바람에 사장님이 「저장이 안 됐나」 하셨다.
-  //      (라이브 실측 — 저장은 정상이었고 창만 다시 열렸다.)
-  //   버튼은 그대로라 다시 고치실 땐 언제든 여실 수 있다.
-  //   저장 알림도 여기서 대신 띄운다 — 새로고침이 그때 띄운 알림을 지워버리기 때문.
-  function justSaved() {
-    try {
-      var raw = sessionStorage.getItem('oum:justSaved');
-      if (!raw) return false;
-      sessionStorage.removeItem('oum:justSaved');       // 한 번만 건너뛴다
-      var v = JSON.parse(raw);
-      if (!v || v.code !== code) return false;          // 다른 상품 것이면 무시
-      if (v.msg && typeof window.flash === 'function') window.flash(v.msg);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
   function autoOpen() {
-    if (justSaved()) return;
     var tries = 0;
     (function tick() {
       if (open()) return;
@@ -223,165 +84,6 @@
   }
   if (document.readyState === 'complete') setTimeout(autoOpen, 60);
   else window.addEventListener('load', function () { setTimeout(autoOpen, 60); });
-
-  // ── [2026-08-12 노션 옵션 d] 초기 재고 저장 ──────────────────────────────
-  //   🔴 조용히 넘어가지 않는다 — 몇 개를 넣었고 무엇을 건너뛰었는지 그대로 말한다.
-  var stSave = document.getElementById('st-save');
-  var stMsg = document.getElementById('st-msg');
-  if (stSave) stSave.addEventListener('click', function () {
-    var qty = {};
-    /* [2026-08-13 사장님 확정] 체크칸 — 머리줄로 전부, 줄마다 개별.
-       🔴 이미 넣은 줄은 체크칸이 꺼져 있다(disabled) — 고르는 뜻이 없다. */
-    var ckAll = document.getElementById('ob-ckall');
-    var ckSel = document.getElementById('ob-cksel');
-    function cks() {
-      return [].slice.call(document.querySelectorAll('.ob-ck:not([disabled])'));
-    }
-    function syncCount() {
-      var on = cks().filter(function (c) { return c.checked; });
-      if (ckSel) ckSel.textContent = on.length;
-      if (ckAll) ckAll.checked = on.length > 0 && on.length === cks().length;
-      return on;
-    }
-    if (ckAll) ckAll.addEventListener('change', function () {
-      cks().forEach(function (c) { c.checked = ckAll.checked; });
-      syncCount();
-    });
-    document.querySelectorAll('.ob-ck').forEach(function (c) {
-      c.addEventListener('change', syncCount);
-    });
-    syncCount();
-
-    /* 고른 줄에 한 번에 넣기 — 칸을 채워 줄 뿐 저장은 아래 「초기 재고 저장」이 한다.
-       🔴 공란으로 두면 지운다(안 넣음). 0 은 그대로 채운다 — 「0개」도 뜻이 있다. */
-    var bulkGo = document.getElementById('ob-bulkgo');
-    if (bulkGo) bulkGo.addEventListener('click', function () {
-      var v = (document.getElementById('ob-bulkq') || {}).value;
-      var on = syncCount();
-      if (!on.length) { return; }
-      on.forEach(function (c) {
-        var row = c.closest('tr');
-        var input = row && row.querySelector('.st-in');
-        if (input) input.value = (v === '' || v === null) ? '' : String(parseInt(v, 10));
-      });
-    });
-
-    document.querySelectorAll('.st-in').forEach(function (el) {
-      var n = parseInt(el.value, 10);
-      if (n > 0) qty[el.getAttribute('data-sku')] = n;
-    });
-    stMsg.className = 'st-msg';
-    if (!Object.keys(qty).length) { stMsg.textContent = '넣을 수량을 적어주세요.'; return; }
-    stSave.disabled = true; stMsg.textContent = '저장하는 중…';
-    fetch('/optgen/api/box/' + encodeURIComponent(code) + '/initial-stock', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({qty: qty}),
-    }).then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j.ok) { stMsg.className = 'st-msg err'; stMsg.textContent = j.error || '저장하지 못했습니다.'; stSave.disabled = false; return; }
-        stMsg.className = 'st-msg ok';
-        stMsg.textContent = j.added + '개 옵션에 입고했어요' +
-          (j.skipped && j.skipped.length ? ' · 이미 재고가 있어 ' + j.skipped.length + '개는 건너뜀' : '');
-        setTimeout(function () { location.reload(); }, 900);
-      })
-      .catch(function (e) {
-        stMsg.className = 'st-msg err'; stMsg.textContent = '저장하지 못했습니다 — ' + e;
-        stSave.disabled = false;
-      });
-  });
-
-  // ── [2026-08-04] 연동 확인(만들 것 5번) — 저장된 값만 읽어 성적표를 그린다 ──
-  //   창구는 이미 있는 /api/bundles/<code>/source-urls (창이 쓰는 그것) 재사용.
-  //   🔴 실패해도 조용히 사라지지 않는다 — 띠에 「확인 못 함」을 남긴다.
-  var lcBar = document.getElementById('lc-bar');
-  var lcTb = document.getElementById('ob-tb');
-  function lcEsc(t) {
-    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
-  }
-  function drawLinkCheck(j) {
-    if (!lcBar || !lcTb) return;
-    // 주소 펴기 — urls 는 {소싱처: [주소...]} 꼴이다.
-    var urls = [];
-    Object.keys(j.urls || {}).forEach(function (src) {
-      (j.urls[src] || []).forEach(function (u) { u._src = src; urls.push(u); });
-    });
-    // 옵션 열쇠 → 덮는 주소들
-    var bySku = {};
-    urls.forEach(function (u) {
-      (u.option_ids || []).forEach(function (k) {
-        (bySku[k] = bySku[k] || []).push(u);
-      });
-    });
-    var dead = urls.filter(function (u) { return !(u.option_ids || []).length; });
-    // (색상,사이즈) → 옵션 열쇠 (표 행은 열쇠를 안 실으므로 축 값으로 잇는다)
-    var keyByAxis = {};
-    (j.options || []).forEach(function (o) {
-      keyByAxis[(o.color_display || o.color_code || '') + '' +
-                (o.size_display || o.size_code || '')] = o.canonical_sku;
-    });
-    var rows = [].slice.call(lcTb.querySelectorAll('tr')).slice(1);
-    var empty = 0;
-    rows.forEach(function (tr) {
-      var sku = keyByAxis[(tr.getAttribute('data-color') || '') + '' +
-                          (tr.getAttribute('data-size') || '')];
-      var covers = (sku && bySku[sku]) || [];
-      tr._covered = covers.length > 0;
-      if (!covers.length) {
-        empty++;
-        tr.insertAdjacentHTML('beforeend',
-          '<td class="c"><span class="lc-none">주소 없음</span></td>' +
-          '<td class="c lc-dim">—</td><td class="r lc-dim">확인 불가</td>');
-        return;
-      }
-      var crawled = covers.filter(function (u) { return u.crawled; });
-      var okAll = crawled.length && crawled.every(function (u) { return u.last_status === 'ok'; });
-      var stat = !crawled.length ? '크롤 전' : (okAll ? '정상' : '실패 있음');
-      var prices = covers.map(function (u) { return u.last_price; })
-                         .filter(function (p) { return p != null; });
-      tr.insertAdjacentHTML('beforeend',
-        '<td class="c">' + covers.length + '곳</td>' +
-        '<td class="c' + (stat === '정상' ? '' : ' lc-dim') + '">' + stat + '</td>' +
-        '<td class="r">' + (prices.length
-          ? Math.min.apply(null, prices).toLocaleString()
-          : '<span class="lc-dim">확인 불가</span>') + '</td>');
-    });
-    // 요약 띠
-    var total = rows.length;
-    var bad = empty > 0 || dead.length > 0;
-    lcBar.className = 'lc-bar ' + (bad ? 'bad' : 'ok');
-    lcBar.hidden = false;
-    var deadTxt = dead.length
-      ? ' · 주소 ' + urls.length + '개 중 ' + dead.length + '개(' +
-        dead.map(function (u) { return '「' + lcEsc(u.label || u.url || '?') + '」'; }).join(' ') +
-        ')는 <b>어느 옵션도 덮지 않습니다</b>' : '';
-    lcBar.innerHTML = bad
-      ? '<div><div class="lc-big">아직 팔 수 없는 옵션이 ' + empty + '개 있습니다</div>' +
-        '<div class="lc-sub">옵션 ' + total + '개 중 ' + (total - empty) +
-        '개만 소싱처 주소가 붙었습니다' + deadTxt + '</div></div>' +
-        (empty ? '<button class="lc-btn" type="button" id="lc-filter">주소 없는 것만 보기</button>' : '')
-      : '<div><div class="lc-big">옵션 ' + total + '개 전부 소싱처 주소가 붙어 있습니다</div>' +
-        '<div class="lc-sub">주소 ' + urls.length + '개 · 값은 마지막 크롤 기준입니다</div></div>';
-    var fb = document.getElementById('lc-filter');
-    if (fb) fb.addEventListener('click', function () {
-      var on = fb.classList.toggle('on');
-      fb.textContent = on ? '전체 보기' : '주소 없는 것만 보기';
-      rows.forEach(function (tr) { tr.style.display = (on && tr._covered) ? 'none' : ''; });
-    });
-  }
-  if (lcBar && lcTb) {
-    fetch('/api/bundles/' + encodeURIComponent(code) + '/source-urls')
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || j.ok === false) throw new Error((j && j.error) || '응답 오류');
-        drawLinkCheck(j);
-      })
-      .catch(function (e) {
-        lcBar.hidden = false; lcBar.className = 'lc-bar bad';
-        lcBar.innerHTML = '<div><div class="lc-big">연동 상태를 확인하지 못했습니다</div>' +
-          '<div class="lc-sub">' + lcEsc(e) + ' — 새로고침해 보세요</div></div>';
-      });
-  }
 })();
 </script>
 {% endblock %}
