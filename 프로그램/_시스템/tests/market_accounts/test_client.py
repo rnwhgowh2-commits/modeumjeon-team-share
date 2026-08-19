@@ -56,3 +56,35 @@ def test_missing_token_raises(monkeypatch):
 
     with pytest.raises(MarketAccountUnavailable, match="SAMBA_WAVE_INTERNAL_TOKEN"):
         get_market_account("coupang")
+
+
+def test_404_raises_unavailable(monkeypatch):
+    monkeypatch.setenv("SAMBA_WAVE_URL", "https://samba-wave.example.com")
+    monkeypatch.setenv("SAMBA_WAVE_INTERNAL_TOKEN", "tok123")
+
+    import shared.market_accounts.client as mod
+
+    monkeypatch.setattr(
+        mod.requests, "get",
+        lambda *a, **kw: _FakeResponse(404, {"detail": "계정을 찾을 수 없습니다"}),
+    )
+
+    from shared.market_accounts.client import MarketAccountUnavailable
+    with pytest.raises(MarketAccountUnavailable, match="coupang"):
+        mod.get_market_account("coupang")
+
+
+def test_5xx_raises_unavailable(monkeypatch):
+    monkeypatch.setenv("SAMBA_WAVE_URL", "https://samba-wave.example.com")
+    monkeypatch.setenv("SAMBA_WAVE_INTERNAL_TOKEN", "tok123")
+
+    import shared.market_accounts.client as mod
+
+    monkeypatch.setattr(
+        mod.requests, "get",
+        lambda *a, **kw: _FakeResponse(500, {}),
+    )
+
+    from shared.market_accounts.client import MarketAccountUnavailable
+    with pytest.raises(MarketAccountUnavailable, match="500"):
+        mod.get_market_account("coupang")
