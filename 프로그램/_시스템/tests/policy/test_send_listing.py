@@ -221,3 +221,53 @@ def test_날짜_기준을_안_고르면_안_거른다(s):
     _model(s, 'M1', 'A', crawled=datetime(2026, 1, 1))
     _set(s, 'M1', '단품')
     assert L.rows(s, date_from='2026-08-02', date_to='2026-08-02')['total'] == 1
+
+
+# ── 상품수집&전송 화면 개편 (2026-08) — 브랜드·정책ID·소싱처 URL ──────────
+
+def test_브랜드가_실린다(s):
+    _model(s, 'M1', '나이키 반팔')          # _model 은 brand='르무통' 고정
+    _set(s, 'M1', '단품')
+    assert L.rows(s)['rows'][0]['brand'] == '르무통'
+
+
+def test_정책_아이디가_실린다_정책_편집_링크용(s):
+    from lemouton.policy.models import SetPolicyLink
+    _model(s, 'M1', 'A')
+    ps = _set(s, 'M1', '단품')
+    p = _policy(s, '정책A')
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    r = L.rows(s)['rows'][0]
+    assert r['policy_id'] == p.id
+
+
+def test_정책_없으면_아이디도_없다(s):
+    _model(s, 'M1', 'A')
+    _set(s, 'M1', '단품')
+    assert L.rows(s)['rows'][0]['policy_id'] is None
+
+
+def test_소싱처_URL_상세가_실린다_바로가기용(s):
+    _model(s, 'M1', '나이키 반팔')
+    _set(s, 'M1', '단품')
+    _src(s, 'M1', 'musinsa', 'https://musinsa.com/a')
+    r = L.rows(s)['rows'][0]
+    assert r['source_detail']['musinsa'] == [{'url': 'https://musinsa.com/a', 'label': ''}]
+
+
+def test_같은_소싱처_URL_여러개는_전부_실린다(s):
+    """sources 는 한 번만 세지만(칩용), source_detail 은 URL 전부(호버카드용) — 서로 다른 목적."""
+    _model(s, 'M1', '나이키 반팔')
+    _set(s, 'M1', '단품')
+    _src(s, 'M1', 'musinsa', 'https://a')
+    _src(s, 'M1', 'musinsa', 'https://b')
+    r = L.rows(s)['rows'][0]
+    assert r['sources'] == ['musinsa']
+    assert [u['url'] for u in r['source_detail']['musinsa']] == ['https://a', 'https://b']
+
+
+def test_소싱처_없으면_source_detail도_빈다(s):
+    _model(s, 'M1', 'A')
+    _set(s, 'M1', '단품')
+    assert L.rows(s)['rows'][0]['source_detail'] == {}
