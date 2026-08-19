@@ -22,10 +22,10 @@ bp = Blueprint('policy', __name__)
 @bp.route('/policies')
 def policy_index():
     from lemouton.policy.common_sync import market_summary
-    from lemouton.policy.fields import MARKET_LABEL
+    from lemouton.policy.fields import MARKET_KEYS, MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import (
-        applied_count, brand_counts, enabled_markets, readiness,
+        applied_count, applied_products_list, brand_counts, enabled_markets, readiness,
     )
     want_brand = (request.args.get('brand') or '').strip()
     s = SessionLocal()
@@ -37,14 +37,35 @@ def policy_index():
             #   안 켠 마켓을 분모에 두면 100% 가 영영 안 찬다.
             on = enabled_markets(s, p)
             rd = readiness(s, p.id, markets=on)
+            ready = {m for m, v in rd.items() if v['price_ready']}
+            on_set = set(on)
+            # [2026-08-19] 「마켓별 상태」 칼럼 — 켠 마켓만 완료/작성중을 가르고,
+            #   안 켠 마켓은 꺼짐. 근거는 위 채움 계산(readiness)과 그대로 같다 —
+            #   따로 새 신호를 만들면 이 칼럼과 「가격」 칼럼이 서로 다른 말을 하게 된다.
+            market_status = {mk: ('done' if mk in ready else 'writing') if mk in on_set
+                             else 'off' for mk in MARKET_KEYS}
+            is_default = bool(p.is_default)
+            is_ready = bool(ready)
+            is_applied = applied_count(s, p.id) > 0
+            # [2026-08-19 사장님 확정] 왼쪽 분류 3단(+하위 2단) — 겹치지 않는 자리 하나.
+            #   기본정책이 먼저다 — 템플릿 용도라 채움 상태와 무관하게 그 자리로 간다.
+            if is_default:
+                stage = 'default'
+            elif is_ready:
+                stage = 'ready-applied' if is_applied else 'ready-unapplied'
+            else:
+                stage = 'writing'
             items.append({
                 'id': p.id, 'name': p.name, 'memo': p.memo, 'brand': p.brand,
-                'is_default': bool(p.is_default),
+                'is_default': is_default,
                 'applied': applied_count(s, p.id),
+                'applied_products': applied_products_list(s, p.id),
                 'filled': sum(v['filled'] for v in rd.values()),
                 'total': sum(v['total'] for v in rd.values()),
                 'ready': [m for m, v in rd.items() if v['price_ready']],
                 'markets': on,
+                'market_status': market_status,
+                'stage': stage,
                 'summary': market_summary(s, p.id),
             })
         brands = brand_counts(s)
@@ -55,9 +76,14 @@ def policy_index():
         items = [it for it in items if not it['brand']]
     elif want_brand:
         items = [it for it in items if it['brand'] == want_brand]
+    stage_counts = {'default': 0, 'ready-applied': 0, 'ready-unapplied': 0, 'writing': 0}
+    for it in items:
+        stage_counts[it['stage']] += 1
+    stage_counts['ready'] = stage_counts['ready-applied'] + stage_counts['ready-unapplied']
     return render_template('policy/index.html', active='policies', items=items,
                            brands=brands, want_brand=want_brand,
-                           market_label=MARKET_LABEL, total=len(items))
+                           market_label=MARKET_LABEL, market_keys=MARKET_KEYS,
+                           stage_counts=stage_counts, total=len(items))
 
 
 @bp.route('/policies/<int:pid>')
@@ -216,7 +242,8 @@ def api_create():
     s = SessionLocal()
     try:
         got = create_policy(s, name=p.get('name') or '', memo=p.get('memo') or '',
-                            brand=p.get('brand') or '')
+                            brand=p.get('brand') or '', category=p.get('category') or '',
+                            sourcing=p.get('sourcing') or '', prefix=p.get('prefix') or '')
         s.commit()
         return jsonify({'ok': True, 'id': got.id, 'name': got.name})
     except PolicyError as e:
@@ -361,16 +388,17 @@ def api_add_bundle(model_code: str):
 
 @bp.post('/api/policies/<int:pid>/default')
 def api_set_default(pid: int):
+    """기본정책(여러 번 쓰는 템플릿) 지정을 켜고 끈다 — 여러 개 동시 지정 가능(2026-08-19 확정)."""
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import set_default
+    from lemouton.policy.service import toggle_default
     s = SessionLocal()
     try:
         pol = s.get(MarketPolicy, pid)
         if pol is None:
             return jsonify({'ok': False, 'error': '정책을 찾을 수 없어요.'}), 404
-        set_default(s, policy=pol)
+        is_default = toggle_default(s, policy=pol)
         s.commit()
-        return jsonify({'ok': True})
+        return jsonify({'ok': True, 'is_default': is_default})
     finally:
         s.close()
 

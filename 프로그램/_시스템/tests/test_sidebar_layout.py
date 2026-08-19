@@ -32,6 +32,8 @@ def test_default_group_names_and_order():
     이름을 바꿀 땐 여기도 같이 — 그게 이 테스트의 존재 이유다.
 
     [2026-08-06 사장님 지시] 전송 분류 이름 → 「상품수집&전송」.
+
+    [2026-08-19 사장님 확정] 「상품 가공」 → 「상품 정책화」.
     """
     layout = api_sidebar._default_layout()
     names = [st['name'] for st in layout['stages']]
@@ -230,9 +232,10 @@ def test_get_layout_strips_sources_even_if_saved(monkeypatch, tmp_path):
 def test_편집_화면이_실제_사이드바와_같은_것을_본다(client):
     """🔴 편집 화면(GET /api/sidebar/layout)은 저장본을 날것으로 줬다.
 
-    저장본에 없고 스펙에서 주입되는 항목(정책 생성·정책 적용)이 편집 화면에서만
-    사라져, 「상품 가공」 서랍이 텅 빈 채로 보였다 — 실제 사이드바에는 둘 다 있는데.
-    옮기기 작업(옵션 맵핑 템플릿 → 기타) 뒤 이 어긋남이 눈에 띄었다.
+    저장본에 없고 스펙에서 주입되는 항목(정책 생성·정책 매칭)이 편집 화면에서만
+    사라져, 「상품 가공」(현 「상품 정책화」) 서랍이 텅 빈 채로 보였다 — 실제
+    사이드바에는 둘 다 있는데. 옮기기 작업(옵션 맵핑 템플릿 → 기타) 뒤 이 어긋남이
+    눈에 띄었다.
     """
     got = client.get('/api/sidebar/layout').get_json()
     ids = {i['id'] for st in got['stages'] for i in st['items']}
