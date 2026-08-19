@@ -1239,7 +1239,7 @@ async function openDataFolderModal() {
       rows += '<div class="df-row" data-i="' + i + '" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #F2F4F6;">'
         +   '<div style="flex:1;min-width:0;">'
         +     '<div style="font-size:13px;font-weight:600;color:#191F28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + folder + esc(f.name) + '</div>'
-        +     '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin-top:2px;">' + _fmtMtime(f.mtime) + ' · ' + _fmtBytes(f.size) + '</div>'
+        +     '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-top:2px;">' + _fmtMtime(f.mtime) + ' · ' + _fmtBytes(f.size) + '</div>'
         +   '</div>'
         +   '<span class="df-loaded" data-i="' + i + '" style="font-size:12px;color:#1AB053;font-weight:700;min-width:54px;text-align:right;"></span>'
         +   '<button type="button" class="btn btn-sm df-load" data-rel="' + esc(f.rel) + '" data-kind="buy"  data-name="' + esc(f.name) + '" style="' + buyHi  + 'font-weight:700;padding:5px 12px;">매입</button>'
@@ -1826,7 +1826,7 @@ function effCell(score) {
   var x   = score.toFixed(2) + 'x';
   var bg  = score >= 1 ? '#dcfce7' : '#fee2e2';
   var fg  = score >= 1 ? '#166534' : '#991b1b';
-  return '<td style="background:'+bg+';color:'+fg+';font-weight:700;text-align:center;font-size:12px;">'+x+'<br><span style="font-size:10px;font-weight:400">'+pct+'</span></td>';
+  return '<td style="background:'+bg+';color:'+fg+';font-weight:700;text-align:center;font-size:12px;">'+x+'<br><span style="font-size:12px;font-weight:400">'+pct+'</span></td>';
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1949,25 +1949,25 @@ function renderDataVerifyBanner(opts) {
     +     '<span style="font-size:18px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:6px">건</span>'
     +   '</div>'
     +   (manualRegCount > 0
-      ? '<div style="font-size:11.5px;color:#fdba74;font-weight:600;margin-top:4px">↳ 유효 ' + fmt(validTotal) + '건 <span style="color: var(--글자-희미, #9ca3af);font-weight:500">(비대량등록 ' + fmt(manualRegCount) + ' 제외)</span></div>'
+      ? '<div style="font-size:12px;color:#fdba74;font-weight:600;margin-top:4px">↳ 유효 ' + fmt(validTotal) + '건 <span style="color: var(--글자-희미, #9ca3af);font-weight:500">(비대량등록 ' + fmt(manualRegCount) + ' 제외)</span></div>'
       : '')
     /* 1단: 매칭 vs 미매칭 */
     +   '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #4b5563">'
-    +     '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:#cbd5e1;margin-bottom:6px">'
+    +     '<div style="display:flex;justify-content:space-between;font-size:12px;color:#cbd5e1;margin-bottom:6px">'
     +       '<span>🔗 실마켓(API) 매칭</span><span style="color:#9ca3af">'+pctMatched.toFixed(1)+'%</span>'
     +     '</div>'
     +     '<div style="height:11px;background:#4b5563;border-radius:5px;overflow:hidden;display:flex">'
     +       '<div style="background:#10b981;height:100%;width:'+pctMatched.toFixed(1)+'%"></div>'
     +       '<div style="background:#ef4444;height:100%;width:'+pctUnmatched.toFixed(1)+'%"></div>'
     +     '</div>'
-    +     '<div style="margin-top:5px;display:flex;justify-content:space-between;font-size:10.5px;color:#d1d5db">'
+    +     '<div style="margin-top:5px;display:flex;justify-content:space-between;font-size:12px;color:#d1d5db">'
     +       '<span><span style="color:#10b981">●</span> 매칭 '+fmt(matchedActive)+'</span>'
     +       '<span><span style="color:#ef4444">●</span> 미매칭 '+fmt(unmBuyAll.length)+'</span>'
     +     '</div>'
     +   '</div>'
     /* 2단: 매입 진행 vs 미이행 */
     +   '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #4b5563">'
-    +     '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:#cbd5e1;margin-bottom:6px">'
+    +     '<div style="display:flex;justify-content:space-between;font-size:12px;color:#cbd5e1;margin-bottom:6px">'
     +       '<span>🔎 매입 진행 여부</span>'  /* [모음전] NEW 배지 제거 */
     +       '<span style="color:#fbbf24;font-weight:800">'+pctTraceBar.toFixed(1)+'%</span>'
     +     '</div>'
@@ -1975,7 +1975,7 @@ function renderDataVerifyBanner(opts) {
     +       '<div style="background:#f59e0b;height:100%;width:'+pctTraceBar.toFixed(1)+'%"></div>'
     +       '<div style="background:#9ca3af;height:100%;width:'+pctUnfulBar.toFixed(1)+'%"></div>'
     +     '</div>'
-    +     '<div style="margin-top:5px;display:flex;justify-content:space-between;font-size:10.5px;color:#d1d5db">'
+    +     '<div style="margin-top:5px;display:flex;justify-content:space-between;font-size:12px;color:#d1d5db">'
     +       '<span><span style="color:#f59e0b">●</span> 매입흔적 '+fmt(withTrace)+'</span>'
     +       '<span><span style="color:#9ca3af">●</span> 미이행 '+fmt(unfulfilled)+'</span>'
     +     '</div>'
@@ -1986,7 +1986,7 @@ function renderDataVerifyBanner(opts) {
     +       '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:500">✅ 주문이행률</span>'
     +       '<span style="font-size:32px;font-weight:800;color:#f59e0b;line-height:1;letter-spacing:-0.02em">'+pctRate.toFixed(1)+'<span style="font-size:16px;font-weight:700;margin-left:1px">%</span></span>'
     +     '</div>'
-    +     '<div style="font-size:11px;color: var(--글자-희미, #9ca3af);margin-top:3px;line-height:1.4">매입흔적 '+fmt(withTrace)+' / 분석 대상 '+fmt(denominator)+_rateNote+'</div>'
+    +     '<div style="font-size:12px;color: var(--글자-희미, #9ca3af);margin-top:3px;line-height:1.4">매입흔적 '+fmt(withTrace)+' / 분석 대상 '+fmt(denominator)+_rateNote+'</div>'
     +   '</div>'
     + '</div>';
 
@@ -2001,13 +2001,13 @@ function renderDataVerifyBanner(opts) {
     : 'background:#fff;border:1px solid #e5e7eb;border-left:5px solid #f59e0b;border-radius:14px;'
     + 'padding:20px 22px;display:flex;flex-direction:column';
   h += '<div style="'+traceCardStyle+'">'
-    +   (expanded ? '<div style="position:absolute;top:-26px;right:14px;background:#f59e0b;color:#fff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:6px 6px 0 0;letter-spacing:0.5px">📂 펼쳐진 상태</div>' : '')
+    +   (expanded ? '<div style="position:absolute;top:-26px;right:14px;background:#f59e0b;color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:6px 6px 0 0;letter-spacing:0.5px">📂 펼쳐진 상태</div>' : '')
     /* 헤더 + 1-3 NEW 보조 표시 */
     +   '<div style="display:flex;align-items:center;margin-bottom:8px;gap:8px">'
-    +     '<span style="display:inline-block;background:'+(expanded?'#fff':'#fef3c7')+';color:#92400e;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.5px">1</span>'
+    +     '<span style="display:inline-block;background:'+(expanded?'#fff':'#fef3c7')+';color:#92400e;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.5px">1</span>'
     +     '<span style="font-size:15px;font-weight:600;color:#374151">🔎 매입 흔적 포함</span>'
     +     (unmWithSite > 0
-      ? '<span style="background:#fee2e2;color:#991b1b;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;border:1px solid #fca5a5">'
+      ? '<span style="background:#fee2e2;color:#991b1b;font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;border:1px solid #fca5a5">'
         + ''  /* [모음전] NEW 배지 제거 */
         + '1-3 블랙스팟 의심 '+fmt(unmWithSite)+' 포함</span>'
       : '')
@@ -2022,8 +2022,8 @@ function renderDataVerifyBanner(opts) {
     /* 1-1 */
     +     '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px">'
     +       '<div style="display:flex;align-items:center;justify-content:space-between">'
-    +         '<span style="font-size:11px;font-weight:700;color:#92400e;background:#fff;padding:2px 8px;border-radius:10px">1-1</span>'
-    +         '<span style="font-size:11px;color:#9ca3af">사이트번호</span>'
+    +         '<span style="font-size:12px;font-weight:700;color:#92400e;background:#fff;padding:2px 8px;border-radius:10px">1-1</span>'
+    +         '<span style="font-size:12px;color:#9ca3af">사이트번호</span>'
     +       '</div>'
     +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">🛒 주문번호 매입</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#b45309;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
@@ -2034,8 +2034,8 @@ function renderDataVerifyBanner(opts) {
     /* 1-2 */
     +     '<div onclick="_moumTraceOnlyClick()" title="클릭 → 매입 흔적만 행 보기" style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;cursor:pointer">'  /* [모음전] ② 매입 흔적만 카드 클릭 상세 */
     +       '<div style="display:flex;align-items:center;justify-content:space-between">'
-    +         '<span style="font-size:11px;font-weight:700;color:#92400e;background:#fff;padding:2px 8px;border-radius:10px">1-2</span>'
-    +         '<span style="font-size:11px;color:#9ca3af">송장·URL·구매가</span>'
+    +         '<span style="font-size:12px;font-weight:700;color:#92400e;background:#fff;padding:2px 8px;border-radius:10px">1-2</span>'
+    +         '<span style="font-size:12px;color:#9ca3af">송장·URL·구매가</span>'
     +       '</div>'
     +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">✏️ 매입 흔적만</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#b45309;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
@@ -2046,8 +2046,8 @@ function renderDataVerifyBanner(opts) {
     /* 1-3 NEW — 블랙스팟 의심 (매입O 했으나 실마켓(API) 미동기화) */
     +     '<div onclick="if(window._moumSuspectClick)window._moumSuspectClick()" title="클릭 → 블랙스팟 의심 건 상세" style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 14px;cursor:pointer">'  /* [모음전] 블랙스팟 의심 클릭 */
     +       '<div style="display:flex;align-items:center;justify-content:space-between">'
-    +         '<span style="font-size:11px;font-weight:700;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:10px">1-3</span>'  /* [모음전] NEW 배지 제거 */
-    +         '<span style="font-size:11px;color:#9ca3af">실마켓(API) 미동기화</span>'
+    +         '<span style="font-size:12px;font-weight:700;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:10px">1-3</span>'  /* [모음전] NEW 배지 제거 */
+    +         '<span style="font-size:12px;color:#9ca3af">실마켓(API) 미동기화</span>'
     +       '</div>'
     +       '<div style="font-size:12px;font-weight:600;color:#991b1b;margin-top:6px">🚨 블랙스팟 의심</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#991b1b;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
@@ -2063,9 +2063,9 @@ function renderDataVerifyBanner(opts) {
     + 'style="background:#fff;border:1px solid #e5e7eb;border-left:5px solid #9ca3af;border-radius:14px;'
     + 'padding:20px 22px;display:flex;flex-direction:column;justify-content:center;cursor:pointer">'
     +   '<div style="display:flex;align-items:center;margin-bottom:10px">'
-    +     '<span style="display:inline-block;background:#f3f4f6;color:#374151;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.5px">2</span>'
+    +     '<span style="display:inline-block;background:#f3f4f6;color:#374151;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.5px">2</span>'
     +     '<span style="margin-left:10px;font-size:15px;font-weight:600;color:#374151">📝 주문 미이행</span>'
-    +     '<span style="margin-left:auto;font-size:11px;color:#3b82f6;font-weight:700">행 보기 →</span>'
+    +     '<span style="margin-left:auto;font-size:12px;color:#3b82f6;font-weight:700">행 보기 →</span>'
     +   '</div>'
     +   '<div style="font-size:42px;font-weight:800;color:#374151;line-height:1;letter-spacing:-0.02em">'
     +     fmt(unfulfilled)
@@ -2185,7 +2185,7 @@ function renderPeriodAvgBanner(opts) {
     h += '<div style="background:#fef3c7;border-radius:8px;padding:14px 12px;text-align:center">'
       + '<div style="font-size:13px;color:#92400e;margin-bottom:6px;font-weight:600">'+(opts.entityEmoji||'🏷️')+' '+esc(opts.entityLabel)+'당 평균</div>'
       + '<div style="font-size:26px;font-weight:700;color:#92400e;line-height:1.1">'+_fmtMan(entSales)+'<span style="font-size:14px;font-weight:500;color:#92400e;margin-left:2px">원</span></div>'
-      + '<div style="font-size:11px;color:#92400e;margin-top:5px;opacity:0.7">마진 '+_fmtMan(entMargin)+' / 건수 '+fmtFloat1(entCount)+'</div>'
+      + '<div style="font-size:12px;color:#92400e;margin-top:5px;opacity:0.7">마진 '+_fmtMan(entMargin)+' / 건수 '+fmtFloat1(entCount)+'</div>'
     + '</div>';
   }
   h += '</div></div>';
@@ -2467,12 +2467,12 @@ function renderSettings() {
     if (c.sub_ex && c.sub_ex.length) subParts.push('<span style="color:#16A34A;font-weight:700">🟢</span> '+esc(c.sub_ex.join(', ')));
     kwHTML += '<tr style="border-bottom:1px solid #f3f4f6">'
       + '<td style="padding:8px 10px;font-weight:600;color:#1f2937">'+esc(label)
-      +   '<div style="font-size:10px;color: var(--글자-희미, #9ca3af);font-weight:400;margin-top:2px;font-family:monospace">'+esc(key)+'</div></td>'
+      +   '<div style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:400;margin-top:2px;font-family:monospace">'+esc(key)+'</div></td>'
       + '<td style="padding:8px 10px;color:#374151;line-height:1.6">'+(parts.length ? parts.join('<br>') : '<span style="color:#9ca3af">—</span>')+'</td>'
       + '<td style="padding:8px 10px;color:#374151;line-height:1.6">'+(subParts.length ? subParts.join('<br>') : '<span style="color:#9ca3af">—</span>')+'</td>'
       + '<td style="padding:8px 10px;text-align:right">'
       +   '<button onclick="_openKeywordEditor(\''+key+'\',\''+esc(label).replace(/\'/g,"\\\\\'")+'\')" '
-      +     'style="padding:5px 12px;background:#3b82f6;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600">⚙️ 편집</button>'
+      +     'style="padding:5px 12px;background:#3b82f6;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600">⚙️ 편집</button>'
       + '</td></tr>';
   });
   kwHTML += '</tbody></table></div>';
@@ -2505,7 +2505,7 @@ function renderSettings() {
        + '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-bottom:14px;">등록 상품 <b>1개당</b> 월 기준값 입력. 실제 ÷ 기준 = 효율 점수 (1.0x 이상 ✅ 초록, 미만 ❌ 빨강)</div>'
        + '<div style="display:flex;gap:10px;margin-bottom:12px;">'
        + '<div style="flex:1;border:1.5px solid #E5E8EB;border-radius:8px;padding:12px 14px;background:#fff;">'
-       + '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin-bottom:6px;">매출효율1 기준</div>'
+       + '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-bottom:6px;">매출효율1 기준</div>'
        + '<div style="display:flex;align-items:baseline;gap:6px;">'
        + '<span style="font-size:13px;color: var(--글자-희미, #8B95A1);">상품 1개당</span>'
        + '<input type="number" id="setSaleEff1" value="' + s.saleEff1 + '" min="1" step="100" oninput="updateEff1Preview()" style="width:80px;border:none;border-bottom:2px solid #3182F6;background:transparent;font-size:18px;font-weight:700;color:#3182F6;font-family:inherit;text-align:right;">'
@@ -2513,7 +2513,7 @@ function renderSettings() {
        + '</div>'
        + '</div>'
        + '<div style="flex:1;border:1.5px solid #E5E8EB;border-radius:8px;padding:12px 14px;background:#fff;">'
-       + '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin-bottom:6px;">마진효율1 기준</div>'
+       + '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-bottom:6px;">마진효율1 기준</div>'
        + '<div style="display:flex;align-items:baseline;gap:6px;">'
        + '<span style="font-size:13px;color: var(--글자-희미, #8B95A1);">상품 1개당</span>'
        + '<input type="number" id="setMarginEff1" value="' + s.marginEff1 + '" min="1" step="100" oninput="updateEff1Preview()" style="width:80px;border:none;border-bottom:2px solid #3182F6;background:transparent;font-size:18px;font-weight:700;color:#3182F6;font-family:inherit;text-align:right;">'
@@ -2522,7 +2522,7 @@ function renderSettings() {
        + '</div>'
        + '</div>'
        + '<div id="eff1Preview" style="background:linear-gradient(135deg,#EFF5FF 0%,#E6F7EE 100%);border-radius:8px;padding:10px 14px;">'
-       + '<div style="font-size:11px;font-weight:700;color:#4E5968;margin-bottom:6px;">📦 상품 10,000개 업로드 시 효율1 기준</div>'
+       + '<div style="font-size:12px;font-weight:700;color:#4E5968;margin-bottom:6px;">📦 상품 10,000개 업로드 시 효율1 기준</div>'
        + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;">'
        + '<span>월 매출 달성 기준</span><span style="font-weight:700;color:#3182F6;" id="eff1SalePreview">' + fmtEff(s.saleEff1) + '</span>'
        + '</div>'
@@ -2632,8 +2632,8 @@ function _buildSourcingAccountsHtml() {
     var accs = accounts[siteKey] || [];
     html += '<div style="margin-bottom:16px;padding:12px;background:#fff;border:1px solid #e5e7eb;border-radius:6px">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
-    html += '  <div style="font-weight:600;font-size:14px">' + esc(site.name || siteKey) + ' <span style="font-size:11px;color:#6b7280">(' + accs.length + '개)</span></div>';
-    html += '  <button onclick="addSourcingAccount(\'' + escAttr(siteKey) + '\')" style="padding:4px 10px;background:#10b981;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">+ 계정 추가</button>';
+    html += '  <div style="font-weight:600;font-size:14px">' + esc(site.name || siteKey) + ' <span style="font-size:12px;color:#6b7280">(' + accs.length + '개)</span></div>';
+    html += '  <button onclick="addSourcingAccount(\'' + escAttr(siteKey) + '\')" style="padding:4px 10px;background:#10b981;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">+ 계정 추가</button>';
     html += '</div>';
     if (accs.length === 0) {
       html += '<div style="color: var(--글자-희미, #9ca3af);font-size:12px;padding:6px">계정 없음</div>';
@@ -2671,10 +2671,10 @@ function _buildSourcingAccountsHtml() {
         });
         html += '  </select>';
         /* 액션 버튼 */
-        html += '  <button onclick="loginSourcing(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="자동 로그인 (Chrome 프로필 열림)" style="padding:4px 8px;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">🔑 로그인</button>';
-        html += '  <button onclick="checkLoginSourcing(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="로그인 상태 확인" style="padding:4px 8px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">✓</button>';
+        html += '  <button onclick="loginSourcing(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="자동 로그인 (Chrome 프로필 열림)" style="padding:4px 8px;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">🔑 로그인</button>';
+        html += '  <button onclick="checkLoginSourcing(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="로그인 상태 확인" style="padding:4px 8px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">✓</button>';
         html += '  <span title="' + escAttr(cText) + '" style="font-size:14px">' + cIcon + '</span>';
-        html += '  <button onclick="removeSourcingAccount(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="삭제" style="padding:4px 8px;background:#ef4444;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">🗑</button>';
+        html += '  <button onclick="removeSourcingAccount(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="삭제" style="padding:4px 8px;background:#ef4444;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">🗑</button>';
         html += '</div>';
       });
     }
@@ -4776,7 +4776,7 @@ function sortableAggTable(tabKey, title, rows, keyCol) {
         + sTh('순마진', '순마진') + sTh('마진율', '마진율') + sTh('건수', '건수')
         + sTh('1건당 매출', '1건당매출') + sTh('1건당 마진', '1건당마진')
         + (isMarket ? ('<th title="더망고에 등록한 상품수">등록상품수</th>'
-                      + sTh('효율성', '효율성') + '<th style="font-size:11px;color: var(--글자-희미, #8B95A1);">(건수÷등록)</th>') : '')
+                      + sTh('효율성', '효율성') + '<th style="font-size:12px;color: var(--글자-희미, #8B95A1);">(건수÷등록)</th>') : '')
         + '</tr></thead><tbody id="aggBody_' + tabKey + '">';
 
   sorted.forEach(function(r) {
@@ -4792,7 +4792,7 @@ function sortableAggTable(tabKey, title, rows, keyCol) {
       effHtml = '<td id="agg_market_eff_' + esc(mk) + '" style="font-weight:700;color:' + (effVal == null ? '#C0C0C0' : '#191F28') + ';"'
               + ' title="' + (reg > 0 ? (orders + '건 / ' + reg + '개 등록') : '등록상품수 입력 필요') + '">'
               + (effVal == null ? '-' : effVal.toFixed(1) + '%') + '</td>';
-      tipHtml = '<td style="font-size:11px;color: var(--글자-희미, #8B95A1);">판매건수 ÷ 등록상품수</td>';
+      tipHtml = '<td style="font-size:12px;color: var(--글자-희미, #8B95A1);">판매건수 ÷ 등록상품수</td>';
     }
     var isPriceTab = (tabKey === 'pricerange');
     var isMonthTab = (tabKey === 'monthly');
@@ -5485,7 +5485,7 @@ function renderDetailTable(items, prefix, idx) {
     });
     /* 더망고 주문번호 클릭 → 더망고 주문 페이지 열기 */
     var orderNum = esc(r['마켓주문번호'] || '');
-    h += '<td style="font-size:11px;">'
+    h += '<td style="font-size:12px;">'
        + (orderNum ? '<span class="mango-link" data-type="order_number" data-keyword="' + orderNum + '" title="더망고 주문 페이지 열기">' + orderNum + '</span>' : '<span style="color:#C5CCD3;">-</span>')
        + '</td>';
     h += '</tr>';
@@ -5934,7 +5934,7 @@ function formatDetailLabel(detail, mode, row, cardType) {
     var prefix = prefixMap[cardType] || (col.emoji + ' ');
     var label = '<span style="color:'+col.text+';font-weight:500">' + prefix + esc(cleanName) + '</span>';
     if (mode === 'short') return label;
-    return label + ' <code style="font-size:10px;color: var(--글자-희미, #9ca3af);background:'+col.bg+';padding:1px 5px;border-radius:3px" title="원본 분류: ' + esc(detail) + '">' + esc(code) + '</code>';
+    return label + ' <code style="font-size:12px;color: var(--글자-희미, #9ca3af);background:'+col.bg+';padding:1px 5px;border-radius:3px" title="원본 분류: ' + esc(detail) + '">' + esc(code) + '</code>';
   }
 
   // ★ 진행중 우선 표시 — row 정보가 있으면 샵마인/더망고 진행중 패턴 검사
@@ -5947,7 +5947,7 @@ function formatDetailLabel(detail, mode, row, cardType) {
     if (smInProgress || mgInProgress) {
       var label2 = '🔄 반품/교환/취소 진행중';
       if (mode === 'short') return label2;
-      return label2 + ' <code style="font-size:10px;color:#6b7280;background:#f3f4f6;padding:1px 5px;border-radius:3px" title="원본 분류: ' + esc(detail) + '">' + esc(code) + '</code>';
+      return label2 + ' <code style="font-size:12px;color:#6b7280;background:#f3f4f6;padding:1px 5px;border-radius:3px" title="원본 분류: ' + esc(detail) + '">' + esc(code) + '</code>';
     }
   }
 
@@ -5956,7 +5956,7 @@ function formatDetailLabel(detail, mode, row, cardType) {
   if (mode === 'short') {
     return info.emoji + ' ' + esc(info.name);
   }
-  return info.emoji + ' ' + esc(info.name) + ' <code style="font-size:10px;color:#6b7280;background:#f3f4f6;padding:1px 5px;border-radius:3px">' + esc(code) + '</code>';
+  return info.emoji + ' ' + esc(info.name) + ' <code style="font-size:12px;color:#6b7280;background:#f3f4f6;padding:1px 5px;border-radius:3px">' + esc(code) + '</code>';
 }
 
 // ── 설명 토글 (blackspot lines 1599-1607) ──
@@ -6062,10 +6062,10 @@ function _highlightGroupBadges(type) {
   var reason = (_CARD_SUBTITLES[type] || {}).reason || '';
   banner.innerHTML = '<div style="flex:1">'
     + '<div>🎯 <b>'+info.label+' '+fmt(total)+'건</b> = '+parts.join(' + ')+' '
-    + '<span style="font-size:10px;opacity:0.7">(아래 그룹 외곽선 강조)</span></div>'
-    + (reason ? '<div style="margin-top:4px;font-size:11px;color:#92400e">💡 <b>조치</b>: '+esc(reason)+'</div>' : '')
+    + '<span style="font-size:12px;opacity:0.7">(아래 그룹 외곽선 강조)</span></div>'
+    + (reason ? '<div style="margin-top:4px;font-size:12px;color:#92400e">💡 <b>조치</b>: '+esc(reason)+'</div>' : '')
     + '</div>'
-    + '<button onclick="filterByCard(\'all\');this.parentElement.remove();" style="padding:3px 10px;background:#fff;border:1px solid #f59e0b;color:#78350f;border-radius:4px;cursor:pointer;font-size:11px;align-self:flex-start">✕ 필터 해제</button>';
+    + '<button onclick="filterByCard(\'all\');this.parentElement.remove();" style="padding:3px 10px;background:#fff;border:1px solid #f59e0b;color:#78350f;border-radius:4px;cursor:pointer;font-size:12px;align-self:flex-start">✕ 필터 해제</button>';
   var resultsEl = document.getElementById('blackspot-view');
   if (!resultsEl) resultsEl = document.getElementById('tab-content');
   if (resultsEl) {
@@ -6176,7 +6176,7 @@ function _openKeywordEditor(cardType, cardLabel) {
     /* sub 필드 시작 시 구분 헤더 추가 */
     if (f._sub && !subStarted) {
       subStarted = true;
-      html += '<div style="margin:18px 0 10px 0;padding:10px 12px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;font-size:11.5px;color:#92400e">'
+      html += '<div style="margin:18px 0 10px 0;padding:10px 12px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;font-size:12px;color:#92400e">'
         +    '<b>📌 카드 내 Pill 분류 (반품/취소 ↔ 교환)</b><br>'
         +    '카드 안의 작은 Pill 버튼 (🔴 반품/취소 / 🟢 교환) 분류 기준. 행에 두 키워드 모두 매칭 시 <b>교환 우선</b> (정산 받음).'
         +  '</div>';
@@ -6255,7 +6255,7 @@ function _uploadIssueFile(files) {
     .then(function(r){ return r.json(); })
     .then(function(resp){
       if (resp && resp.status === 'ok') {
-        if (statusEl) statusEl.innerHTML = '✅ ' + resp.count + '건 등록 — <span style="color: var(--글자-희미, #9ca3af);font-size:10px">분석 시 자동 적용</span>';
+        if (statusEl) statusEl.innerHTML = '✅ ' + resp.count + '건 등록 — <span style="color: var(--글자-희미, #9ca3af);font-size:12px">분석 시 자동 적용</span>';
       } else {
         if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">❌ ' + (resp.message || resp.status || '실패') + '</span>';
       }
@@ -6366,7 +6366,7 @@ function _renderTrackingNormalEtcBar(split, cardType) {
     +        'onmouseout="this.style.background=\'#f0fdf4\';this.style.borderColor=\'#bbf7d0\';this.style.transform=\'\';this.style.boxShadow=\'\'" '
     +        'title="클릭 → 정상 종결 (정산/배송완료/구매확정 등) 행만">'
     +        '<div style="font-size:22px;font-weight:800;line-height:1">'+fmt(split.normal)+'</div>'
-    +        '<div style="font-size:11px;font-weight:600;margin-top:4px">정상 종결</div>'
+    +        '<div style="font-size:12px;font-weight:600;margin-top:4px">정상 종결</div>'
     +      '</div>'
     +      '<div onclick="event.stopPropagation();_showCardAllRows(\''+ct+'\',\'etc\')" '
     +        'style="'+pillStyle('#6b7280','#f9fafb','#e5e7eb')+'" '
@@ -6374,7 +6374,7 @@ function _renderTrackingNormalEtcBar(split, cardType) {
     +        'onmouseout="this.style.background=\'#f9fafb\';this.style.borderColor=\'#e5e7eb\';this.style.transform=\'\';this.style.boxShadow=\'\'" '
     +        'title="클릭 → 기타 (정상 종결 외) 행만">'
     +        '<div style="font-size:22px;font-weight:800;line-height:1">'+fmt(split.etc)+'</div>'
-    +        '<div style="font-size:11px;font-weight:600;margin-top:4px">기타</div>'
+    +        '<div style="font-size:12px;font-weight:600;margin-top:4px">기타</div>'
     +      '</div>'
     +    '</div>'
     +  '</div>';
@@ -6401,7 +6401,7 @@ function _renderRtnExBar(split, cardType) {
     +        'onmouseout="this.style.background=\'#fff5f5\';this.style.borderColor=\'#fecaca\';this.style.transform=\'\';this.style.boxShadow=\'\'" '
     +        'title="클릭 → 반품/취소 행만 보기">'
     +        '<div style="font-size:22px;font-weight:800;line-height:1">'+fmt(split.rtn)+'</div>'
-    +        '<div style="font-size:11px;font-weight:600;margin-top:4px">반품/취소</div>'
+    +        '<div style="font-size:12px;font-weight:600;margin-top:4px">반품/취소</div>'
     +      '</div>'
     /* 교환 pill */
     +      '<div onclick="event.stopPropagation();_showCardAllRows(\''+ct+'\',\'ex\')" '
@@ -6410,7 +6410,7 @@ function _renderRtnExBar(split, cardType) {
     +        'onmouseout="this.style.background=\'#f0fdf4\';this.style.borderColor=\'#bbf7d0\';this.style.transform=\'\';this.style.boxShadow=\'\'" '
     +        'title="클릭 → 교환 행만 보기 (정산 받는 건)">'
     +        '<div style="font-size:22px;font-weight:800;line-height:1">'+fmt(split.ex)+'</div>'
-    +        '<div style="font-size:11px;font-weight:600;margin-top:4px">교환 (정산O)</div>'
+    +        '<div style="font-size:12px;font-weight:600;margin-top:4px">교환 (정산O)</div>'
     +      '</div>'
     +    '</div>'
     +  '</div>';
@@ -6651,9 +6651,9 @@ function showCardBreakdown(type, label) {
     + 'style="width:100%;padding:12px;background:'+cardCol.main+';color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity 0.15s" '
     + 'onmouseover="this.style.opacity=\'0.85\'" onmouseout="this.style.opacity=\'1\'">'
     + '📋 전체 '+fmt(rows.length)+'건 한번에 보기'
-    + '<span style="font-size:11px;font-weight:400;opacity:0.9">(상세분류 무관)</span>'
+    + '<span style="font-size:12px;font-weight:400;opacity:0.9">(상세분류 무관)</span>'
     + '</button>'
-    + '<div style="margin-top:6px;font-size:11px;color:#6b7280;text-align:center">또는 아래에서 상세분류별로 골라보기</div>'
+    + '<div style="margin-top:6px;font-size:12px;color:#6b7280;text-align:center">또는 아래에서 상세분류별로 골라보기</div>'
     + '</div>';
 
   html += '<div id="bdTabs" style="display:flex;gap:2px;padding:10px 20px 0 20px;background:#f9fafb;border-bottom:2px solid #e5e7eb;flex-wrap:wrap">';
@@ -6729,10 +6729,10 @@ function showCardBreakdown(type, label) {
           + 'title="클릭 — 아래 표를 이 카테고리로 필터">'
           + '<div style="font-size:13px;font-weight:700;color:'+c.color+';margin-bottom:4px">'+esc(c.name)+'</div>'
           + '<div style="font-size:22px;font-weight:700;color:'+c.color+';line-height:1">'+fmt(c.count)+' 건</div>'
-          + '<div style="font-size:10px;color:#6b7280;margin-top:4px">포함: '+esc(codesText)+'</div>'
+          + '<div style="font-size:12px;color:#6b7280;margin-top:4px">포함: '+esc(codesText)+'</div>'
           + '<div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap">'
           + '<button onclick="event.stopPropagation();_showCategoryDesc(\''+esc(c.name).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+esc(c.desc).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')+'\',\''+codesText.replace(/'/g,"\\'")+'\','+c.count+','+JSON.stringify(c.details).replace(/'/g,"\\'").replace(/\\/g,'\\\\')+',\''+esc(type)+'\')" '
-          + 'style="flex:1;padding:5px 8px;font-size:11px;background:'+c.color+';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">💡 설명</button>'
+          + 'style="flex:1;padding:5px 8px;font-size:12px;background:'+c.color+';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">💡 설명</button>'
           + '</div>'
           + '</div>';
       });
@@ -6743,7 +6743,7 @@ function showCardBreakdown(type, label) {
     html += '<div class="bd-detail-table-wrap" data-tabkey="'+esc(t.key)+'" style="margin-top:6px">'
       + '<div id="bdFilterInfo_'+esc(t.key)+'" style="padding:6px 10px;background:#f9fafb;border-radius:4px;font-size:12px;font-weight:600;color:#374151;display:flex;justify-content:space-between;align-items:center">'
       + '<span>▼ 상세분류별 전체 표 ('+sorted.length+'개 분류)</span>'
-      + '<span id="bdFilterTag_'+esc(t.key)+'" style="display:none;font-size:11px;color:#3b82f6;font-weight:500"></span>'
+      + '<span id="bdFilterTag_'+esc(t.key)+'" style="display:none;font-size:12px;color:#3b82f6;font-weight:500"></span>'
       + '</div>';
     html += '<table class="bd-detail-table" data-tabkey="'+esc(t.key)+'" style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px">';
     html += '<thead><tr style="border-bottom:2px solid #e5e7eb">'
@@ -6761,7 +6761,7 @@ function showCardBreakdown(type, label) {
         + '<td style="text-align:right;padding:7px 4px;font-weight:600">'+fmt(count)+'</td>'
         + '<td style="text-align:right;padding:7px 4px;color:#6b7280">'+pct+'%</td>'
         + '<td style="text-align:center;padding:7px 4px">'
-        + '<button onclick="document.getElementById(\'cardBreakdownModal\').remove();_showDetailByCode(\''+detail.replace(/'/g,"\\'")+'\',\''+esc(type)+'\')" style="padding:3px 10px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">보기</button>'
+        + '<button onclick="document.getElementById(\'cardBreakdownModal\').remove();_showDetailByCode(\''+detail.replace(/'/g,"\\'")+'\',\''+esc(type)+'\')" style="padding:3px 10px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">보기</button>'
         + '</td></tr>';
     });
     html += '</tbody></table></div>';
@@ -6822,7 +6822,7 @@ function _showCategoryDesc(name, desc, codes, count, detailsJson, cardType) {
       + '<span style="display:flex;gap:6px;align-items:center">'
       + '<b style="font-size:13px">'+fmt(d.count)+'건</b>'
       + '<button onclick="document.getElementById(\'catDescModal\').remove();document.getElementById(\'cardBreakdownModal\').remove();_showDetailByCode(\''+d.detail.replace(/'/g,"\\'")+'\',\''+ctEsc+'\')" '
-      + 'style="padding:2px 8px;font-size:10px;background:#3b82f6;color:#fff;border:none;border-radius:3px;cursor:pointer">보기</button>'
+      + 'style="padding:2px 8px;font-size:12px;background:#3b82f6;color:#fff;border:none;border-radius:3px;cursor:pointer">보기</button>'
       + '</span></li>';
   }).join('');
   m.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:560px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);padding:20px 24px">'
@@ -6831,7 +6831,7 @@ function _showCategoryDesc(name, desc, codes, count, detailsJson, cardType) {
     + '<span onclick="document.getElementById(\'catDescModal\').remove()" style="cursor:pointer;font-size:22px;color:#6b7280">×</span>'
     + '</div>'
     + '<div style="padding:12px 14px;background:#f9fafb;border-left:3px solid #3b82f6;border-radius:4px;font-size:13px;line-height:1.6;color:#374151;white-space:pre-wrap;margin-bottom:14px">'+esc(desc)+'</div>'
-    + '<div style="font-size:11px;color:#6b7280;margin-bottom:6px">포함 상세분류 코드: <code style="background:#f3f4f6;padding:2px 6px;border-radius:3px">'+esc(codes)+'</code></div>'
+    + '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">포함 상세분류 코드: <code style="background:#f3f4f6;padding:2px 6px;border-radius:3px">'+esc(codes)+'</code></div>'
     + '<ul style="list-style:none;padding:0;margin:8px 0">'+detailsHTML+'</ul>'
     + '</div>';
   document.body.appendChild(m);
@@ -7032,7 +7032,7 @@ function buildTier1Group(group) {
   h += '<span class="arrow" id="arrow-'+key+'">&#9660;</span>';
   h += '<span class="group-title">'+esc(group.title)+'</span>';
   if (dateRange) h += '<span class="group-daterange">📅 '+esc(dateRange)+'</span>';
-  h += '<span class="group-breakdown" style="margin-left:16px;display:inline-flex;gap:4px;font-size:11px;font-weight:500">';
+  h += '<span class="group-breakdown" style="margin-left:16px;display:inline-flex;gap:4px;font-size:12px;font-weight:500">';
   if (bd.immediate) h += '<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:3px" title="즉시확인">🔴'+fmt(bd.immediate)+'</span>';
   if (bd.sourcing)  h += '<span style="background:#fed7aa;color:#9a3412;padding:2px 6px;border-radius:3px" title="소싱처확인">🟠'+fmt(bd.sourcing)+'</span>';
   if (bd.market)    h += '<span style="background:#fef3c7;color:#854d0e;padding:2px 6px;border-radius:3px" title="마켓확인">🟡'+fmt(bd.market)+'</span>';
@@ -7077,11 +7077,11 @@ function buildTier1Group(group) {
         h += '<span class="item-label" style="flex:1" title="'+esc(detail)+'">'+formatDetailLabel(detail)+'</span>';
         h += '<span class="item-count">'+fmt(count)+'건</span>';
         if (hasNote) {
-          h += '<span onclick="event.stopPropagation();_toggleTier2Note(this)" style="cursor:pointer;font-size:11px;color:#3b82f6;background:#eff6ff;padding:2px 8px;border-radius:10px;user-select:none" title="판정 근거 / 확인사항 보기">💡 왜?</span>';
+          h += '<span onclick="event.stopPropagation();_toggleTier2Note(this)" style="cursor:pointer;font-size:12px;color:#3b82f6;background:#eff6ff;padding:2px 8px;border-radius:10px;user-select:none" title="판정 근거 / 확인사항 보기">💡 왜?</span>';
         }
         h += '</div>';
         if (hasNote) {
-          h += '<div class="tier2-note" style="display:none;margin-top:8px;padding:10px 12px;background:#f9fafb;border-left:3px solid #3b82f6;border-radius:4px;font-size:11.5px;color:#374151;line-height:1.6;white-space:pre-wrap">'+esc(note)+'</div>';
+          h += '<div class="tier2-note" style="display:none;margin-top:8px;padding:10px 12px;background:#f9fafb;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#374151;line-height:1.6;white-space:pre-wrap">'+esc(note)+'</div>';
         }
         h += '</div>';
       });
@@ -7531,7 +7531,7 @@ function _updateSingleRowCell(rowIdx, statusText) {
   else if (statusText.indexOf('취소') >= 0 || statusText.indexOf('반품') >= 0) { bg = '#fee2e2'; fg = '#991b1b'; }
   else if (statusText.indexOf('로그인') >= 0 || statusText.indexOf('프로필') >= 0) { bg = '#fef3c7'; fg = '#92400e'; }
   else if (statusText.indexOf('실패') >= 0 || statusText.indexOf('오류') >= 0) { bg = '#fee2e2'; fg = '#991b1b'; }
-  cell.innerHTML = '<span style="display:inline-block;padding:3px 8px;border-radius:4px;background:'+bg+';color:'+fg+';font-size:11px;font-weight:600">'+esc(statusText)+'</span>';
+  cell.innerHTML = '<span style="display:inline-block;padding:3px 8px;border-radius:4px;background:'+bg+';color:'+fg+';font-size:12px;font-weight:600">'+esc(statusText)+'</span>';
 }
 
 // ── 진행 중 보이는 행들의 소싱처확인결과 셀만 부분 업데이트 (blackspot lines 2886-2894) ──
@@ -7611,18 +7611,18 @@ function buildDetailTable(detailCode, rows, cardType) {
   var ctxBadge = '';
   if (cardType && cardType !== 'all' && _CARD_COLOR_MAP[cardType]) {
     var col = _cardColor(cardType);
-    ctxBadge = '<span style="background:'+col.main+';color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;margin-right:6px;font-weight:600">'+col.emoji+' '+esc(col.label)+' 한정</span>';
+    ctxBadge = '<span style="background:'+col.main+';color:#fff;padding:2px 10px;border-radius:10px;font-size:12px;margin-right:6px;font-weight:600">'+col.emoji+' '+esc(col.label)+' 한정</span>';
   }
   /* ★ sub-filter 라벨 — Pill 클릭 시 */
   var subFilter = state.currentDetailSubFilter;
   if (subFilter === 'rtn') {
-    ctxBadge += '<span style="background:#DC2626;color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;margin-right:6px;font-weight:600">반품/취소만</span>';
+    ctxBadge += '<span style="background:#DC2626;color:#fff;padding:2px 10px;border-radius:10px;font-size:12px;margin-right:6px;font-weight:600">반품/취소만</span>';
   } else if (subFilter === 'ex') {
-    ctxBadge += '<span style="background:#16A34A;color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;margin-right:6px;font-weight:600">교환만 (정산O)</span>';
+    ctxBadge += '<span style="background:#16A34A;color:#fff;padding:2px 10px;border-radius:10px;font-size:12px;margin-right:6px;font-weight:600">교환만 (정산O)</span>';
   } else if (subFilter === 'normal') {
-    ctxBadge += '<span style="background:#16A34A;color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;margin-right:6px;font-weight:600">정상 종결만</span>';
+    ctxBadge += '<span style="background:#16A34A;color:#fff;padding:2px 10px;border-radius:10px;font-size:12px;margin-right:6px;font-weight:600">정상 종결만</span>';
   } else if (subFilter === 'etc') {
-    ctxBadge += '<span style="background:#6b7280;color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;margin-right:6px;font-weight:600">기타만</span>';
+    ctxBadge += '<span style="background:#6b7280;color:#fff;padding:2px 10px;border-radius:10px;font-size:12px;margin-right:6px;font-weight:600">기타만</span>';
   }
   // ★ formatDetailLabel 에 cardType 전달 → 라벨도 카드 컨텍스트 색상으로
   h += '<span id="detail-title" title="'+esc(detailCode)+'">'+ctxBadge+formatDetailLabel(detailCode, null, null, cardType)+' — '+fmt(rows.length)+'건</span>';
@@ -7718,7 +7718,7 @@ function buildDetailTable(detailCode, rows, cardType) {
     }
     h += '<th data-col="'+esc(c)+'" class="'+stickyClass.trim()+'" style="position:'+(stickyClass?'sticky':'relative')+';top:0;'+stickyStyle+'white-space:nowrap;z-index:'+(stickyClass?5:1)+'">'
       + '<span onclick="sortDetailColumn(\''+cEsc+'\')" style="cursor:pointer">'+esc(label)+' <span class="sort-icon">'+icon+'</span></span>'
-      + ' <span class="col-filter-btn" onclick="event.stopPropagation();openColFilter(\''+cEsc+'\',this)" style="cursor:pointer;font-size:10px;margin-left:4px;user-select:none" title="필터">'+filterIcon+'</span>'
+      + ' <span class="col-filter-btn" onclick="event.stopPropagation();openColFilter(\''+cEsc+'\',this)" style="cursor:pointer;font-size:12px;margin-left:4px;user-select:none" title="필터">'+filterIcon+'</span>'
       + '</th>';
   });
   /* 점프 컬럼 (사용자 요청 A) — 전체내역 탭에서 동일 주문 보기 */
@@ -7767,7 +7767,7 @@ function buildDetailTable(detailCode, rows, cardType) {
         else if (settle === 'X_미매칭') { suffix = '(미매칭)'; badgeColor = '#6b7280'; }
         if (v || suffix) {
           h += '<td>' + esc(v);
-          if (suffix) h += ' <span style="display:inline-block;padding:1px 6px;border-radius:3px;background:'+badgeColor+';color:#fff;font-size:10px;font-weight:600;margin-left:3px">'+esc(suffix)+'</span>';
+          if (suffix) h += ' <span style="display:inline-block;padding:1px 6px;border-radius:3px;background:'+badgeColor+';color:#fff;font-size:12px;font-weight:600;margin-left:3px">'+esc(suffix)+'</span>';
           h += '</td>';
         } else {
           h += '<td></td>';
@@ -7857,7 +7857,7 @@ function buildDetailTable(detailCode, rows, cardType) {
     /* 점프 컬럼 — 전체내역 탭으로 (사용자 요청 A) */
     var orderNoEsc = String(r['마켓주문번호'] || '').replace(/'/g, "\\'");
     h += '<td><button onclick="_jumpToAllByOrder(\''+orderNoEsc+'\')" '
-       + 'style="padding:3px 8px;font-size:11px;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;white-space:nowrap" '
+       + 'style="padding:3px 8px;font-size:12px;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;white-space:nowrap" '
        + 'title="전체내역 탭에서 같은 주문 보기">📋 전체내역</button></td>';
     h += '</tr>';
   });
@@ -8039,9 +8039,9 @@ function openColFilter(col, anchor) {
     + '<div style="padding:8px 12px;border-bottom:1px solid #e5e7eb">'
     + '<input id="colFilterSearch" type="text" placeholder="값 검색..." oninput="colFilterSearchValues(this.value)" style="width:100%;padding:5px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px"/>'
     + '<div style="margin-top:6px;display:flex;gap:6px">'
-    + '<button onclick="colFilterSelectAll(true)" style="padding:3px 8px;font-size:11px;background:#3b82f6;color:#fff;border:none;border-radius:3px;cursor:pointer">전체 선택</button>'
-    + '<button onclick="colFilterSelectAll(false)" style="padding:3px 8px;font-size:11px;background:#6b7280;color:#fff;border:none;border-radius:3px;cursor:pointer">전체 해제</button>'
-    + '<button onclick="colFilterInvert()" style="padding:3px 8px;font-size:11px;background:#8b5cf6;color:#fff;border:none;border-radius:3px;cursor:pointer">반전</button>'
+    + '<button onclick="colFilterSelectAll(true)" style="padding:3px 8px;font-size:12px;background:#3b82f6;color:#fff;border:none;border-radius:3px;cursor:pointer">전체 선택</button>'
+    + '<button onclick="colFilterSelectAll(false)" style="padding:3px 8px;font-size:12px;background:#6b7280;color:#fff;border:none;border-radius:3px;cursor:pointer">전체 해제</button>'
+    + '<button onclick="colFilterInvert()" style="padding:3px 8px;font-size:12px;background:#8b5cf6;color:#fff;border:none;border-radius:3px;cursor:pointer">반전</button>'
     + '</div></div>'
     /* ★ 옵션 리스트 — flex:1 로 남은 공간 모두 사용. 적용 버튼은 항상 하단 고정 */
     + '<div id="colFilterList" style="overflow-y:auto;flex:1;padding:4px 8px;min-height:80px">';
@@ -8051,7 +8051,7 @@ function openColFilter(col, anchor) {
     html += '<label style="display:block;padding:3px 4px;cursor:pointer;font-size:12px" data-value="'+esc(val).replace(/"/g,'&quot;')+'">'
       + '<input type="checkbox" '+checked+' value="'+esc(val).replace(/"/g,'&quot;')+'" style="margin-right:6px"> '
       + esc(val.length > 40 ? val.substr(0,40)+'...' : val)
-      + ' <span style="color: var(--글자-희미, #9ca3af);font-size:10px">('+valueMap[val]+')</span></label>';
+      + ' <span style="color: var(--글자-희미, #9ca3af);font-size:12px">('+valueMap[val]+')</span></label>';
   });
   /* ★ 적용 버튼 영역 — flex-shrink:0 으로 항상 보이게 (옵션 리스트가 차지해도 잘리지 않음)
      배경색 + padding 강조로 사용자 시선 끌기 */
@@ -8279,9 +8279,9 @@ function openAllColFilter(col, anchor) {
     + 'autocomplete="off" '
     + 'style="width:100%;padding:5px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px"/>'
     + '<div style="margin-top:6px;display:flex;gap:6px">'
-    + '<button onclick="colFilterSelectAll(true)" style="padding:3px 8px;font-size:11px;background:#3b82f6;color:#fff;border:none;border-radius:3px;cursor:pointer">전체 선택</button>'
-    + '<button onclick="colFilterSelectAll(false)" style="padding:3px 8px;font-size:11px;background:#6b7280;color:#fff;border:none;border-radius:3px;cursor:pointer">전체 해제</button>'
-    + '<button onclick="colFilterInvert()" style="padding:3px 8px;font-size:11px;background:#8b5cf6;color:#fff;border:none;border-radius:3px;cursor:pointer">반전</button>'
+    + '<button onclick="colFilterSelectAll(true)" style="padding:3px 8px;font-size:12px;background:#3b82f6;color:#fff;border:none;border-radius:3px;cursor:pointer">전체 선택</button>'
+    + '<button onclick="colFilterSelectAll(false)" style="padding:3px 8px;font-size:12px;background:#6b7280;color:#fff;border:none;border-radius:3px;cursor:pointer">전체 해제</button>'
+    + '<button onclick="colFilterInvert()" style="padding:3px 8px;font-size:12px;background:#8b5cf6;color:#fff;border:none;border-radius:3px;cursor:pointer">반전</button>'
     + '</div></div>'
     + '<div id="colFilterList" style="overflow-y:auto;flex:1;padding:4px 8px;min-height:80px">';
   /* 간단메모 키워드용 색상 매핑 */
@@ -8304,14 +8304,14 @@ function openAllColFilter(col, anchor) {
     var labelHtml;
     if (isMemo) {
       var style = KW_COLOR[val] || 'background:#f3f4f6;color:#6b7280';
-      labelHtml = '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;'+style+'">'+esc(val)+'</span>';
+      labelHtml = '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;'+style+'">'+esc(val)+'</span>';
     } else {
       labelHtml = esc(val.length > 40 ? val.substr(0,40)+'...' : val);
     }
     html += '<label style="display:block;padding:4px 4px;cursor:pointer;font-size:12px" data-value="'+esc(val).replace(/"/g,'&quot;')+'">'
       + '<input type="checkbox" '+checked+' value="'+esc(val).replace(/"/g,'&quot;')+'" style="margin-right:6px;vertical-align:middle"> '
       + labelHtml
-      + ' <span style="color: var(--글자-희미, #9ca3af);font-size:10px">('+valueMap[val]+')</span></label>';
+      + ' <span style="color: var(--글자-희미, #9ca3af);font-size:12px">('+valueMap[val]+')</span></label>';
   });
   /* ★ 적용 버튼 영역 — flex-shrink:0 으로 항상 보이게 (잘림 방지) */
   html += '</div>'
@@ -8913,14 +8913,14 @@ function renderBlackspot(d) {
   var h = '<div id="blackspot-view">';
   h += '<div style="padding:10px 14px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e3a8a;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
     + '<div>📊 <b>더망고 기준 분석</b> — 사용자가 매입 진행한 <b>'+fmt(ex.total)+'건</b> 대상 (정상매칭 + 매입했으나 실마켓(API) 미매칭).</div>'
-    + '<div style="display:flex;gap:6px;align-items:center;font-size:11px">'
+    + '<div style="display:flex;gap:6px;align-items:center;font-size:12px">'
     +   '<span title="용어 설명" style="cursor:pointer;background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:12px;font-weight:600" onclick="_toggleGlossary()">ℹ️ 용어 설명</span>';
   if (shOnly > 0) {
     h += '<span style="color:#6b7280">📦 미매입 마켓 주문 <b>'+fmt(shOnly)+'건</b> — 하단 섹션</span>';
   }
   h += '</div></div>';
   // 용어 설명 드롭박스 (기본 접힘)
-  h += '<div id="bsGlossary" style="display:none;margin:-8px 0 12px 0;padding:10px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:11.5px;color:#374151;line-height:1.7">'
+  h += '<div id="bsGlossary" style="display:none;margin:-8px 0 12px 0;padding:10px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;color:#374151;line-height:1.7">'
     +   '<b>📖 약어 / 분류 용어</b><br>'
     +   '<b>S·P·x (미이행 사유)</b> — 더망고 간단메모에 입력하는 매입 안 함 사유:<br>'
     +   '&nbsp;&nbsp;• <b>S</b> = 매장 품절 (Sold out)<br>'
@@ -9025,14 +9025,14 @@ function renderBlackspot(d) {
     + 'style="padding:6px 12px;font-size:12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;color:#374151">'
     + '📂 그룹별 분류 보기 (정상매칭/더망고만/샵마인만)  ▼ 펼치기'
     + '</button>'
-    + '<span style="margin-left:10px;font-size:11px;color:#9ca3af">기본: 카드 중심 — 숫자 또는 📋 세부보기 클릭</span>'
+    + '<span style="margin-left:10px;font-size:12px;color:#9ca3af">기본: 카드 중심 — 숫자 또는 📋 세부보기 클릭</span>'
     + '</div>';
 
   h += '<div id="tier1GroupSection" style="display:none">';
   // 블랙스팟 조사 섹션 (매칭됨 + 더망고만)
   h += '<div style="margin:8px 0 4px 0;padding:8px 14px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;font-size:13px;color:#78350f;font-weight:600">'
     + '🔍 블랙스팟 조사 대상 '
-    + '<span style="font-weight:400;font-size:11px;opacity:0.85">(사용자가 매입 진행한 주문 — 손실/이상 점검)</span>'
+    + '<span style="font-weight:400;font-size:12px;opacity:0.85">(사용자가 매입 진행한 주문 — 손실/이상 점검)</span>'
     + '</div>';
   ['matched','mangoOnly'].forEach(function(key){
     h += buildTier1Group(groups[key]);
@@ -9042,9 +9042,9 @@ function renderBlackspot(d) {
   if (groups.shopmineOnly.rows.length > 0) {
     h += '<div style="margin:20px 0 4px 0;padding:8px 14px;background:#e0e7ff;border-left:4px solid #6366f1;border-radius:4px;font-size:13px;color:#3730a3;font-weight:600">'
       + '📦 미매입 마켓 주문 (참고) '
-      + '<span style="font-weight:400;font-size:11px;opacity:0.85">(고객은 주문했으나 사용자가 매입 안 함 — 대부분 취소·반품)</span>'
+      + '<span style="font-weight:400;font-size:12px;opacity:0.85">(고객은 주문했으나 사용자가 매입 안 함 — 대부분 취소·반품)</span>'
       + '</div>';
-    h += '<div style="margin:0 0 8px 0;padding:8px 14px;background:#f0f9ff;border:1px dashed #93c5fd;border-radius:4px;font-size:11px;color:#1e3a8a;line-height:1.6">'
+    h += '<div style="margin:0 0 8px 0;padding:8px 14px;background:#f0f9ff;border:1px dashed #93c5fd;border-radius:4px;font-size:12px;color:#1e3a8a;line-height:1.6">'
       + '💡 <b>이 섹션의 의미</b>: 실마켓 API(마켓 정산)에는 있지만 더망고(사용자 매입)에는 없는 주문입니다.<br>'
       + '대부분 <b>취소완료·반품완료·환불승인</b> 상태로, 사용자가 매입 진행 안 한 정상 케이스입니다.<br>'
       + '예외적으로 <b>배송완료·정산완료</b> 인데 더망고 누락이라면 <b>매입 기록 누락 위험</b> — 즉시 점검 필요.'
@@ -9089,21 +9089,21 @@ function renderMissingOrderNoSection(missing) {
     const buyerName = esc(r['수령인명'] || r['수령인'] || '');
     const srcKey = 'missing_' + i;
     h += '<tr id="missing_row_' + uid + '" data-row-idx="' + srcKey + '">'
-       + '<td style="font-size:11px;white-space:nowrap;">' + esc(r['마켓주문일자'] || '') + '</td>'
+       + '<td style="font-size:12px;white-space:nowrap;">' + esc(r['마켓주문일자'] || '') + '</td>'
        + '<td>' + esc(r['마켓명'] || '') + '</td>'
        + '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r['마켓상품명'] || '') + '">' + esc(r['마켓상품명'] || '') + '</td>'
        + '<td>' + esc(r['옵션1'] || '') + '</td>'
        + numCell(r['구매가격'])
        + '<td><span class="mango-link" data-type="buyer_name" data-keyword="' + buyerName + '">' + buyerName + '</span></td>'
-       + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;" title="' + esc(String(r['간단메모']||'')) + '">' + esc(memo) + '</td>'
-       + '<td><input type="text" id="supp_input_' + uid + '" placeholder="주문번호 입력" style="width:160px;padding:4px 6px;font-size:11px;border:1px solid #E5E8EB;border-radius:4px;"></td>'
+       + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="' + esc(String(r['간단메모']||'')) + '">' + esc(memo) + '</td>'
+       + '<td><input type="text" id="supp_input_' + uid + '" placeholder="주문번호 입력" style="width:160px;padding:4px 6px;font-size:12px;border:1px solid #E5E8EB;border-radius:4px;"></td>'
        + '<td style="white-space:nowrap;">'
-       + '<button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:11px;" onclick="submitManualOrderNo(\'' + uid + '\')">✏️ 반영</button> '
-       + '<button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:11px;" onclick="fetchOrderNoFromSource(\'' + uid + '\')">🔍 소싱처</button>'
+       + '<button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:12px;" onclick="submitManualOrderNo(\'' + uid + '\')">✏️ 반영</button> '
+       + '<button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:12px;" onclick="fetchOrderNoFromSource(\'' + uid + '\')">🔍 소싱처</button>'
        + '</td>'
        + renderSourcingCell(r, srcKey)
        + '</tr>'
-       + '<tr id="log_row_' + uid + '" style="display:none;"><td colspan="10" style="padding:8px;background:#F9FAFB;border-left:3px solid #8B95A1;"><pre id="log_content_' + uid + '" style="margin:0;font-size:11px;font-family:monospace;color:#191F28;white-space:pre-wrap;"></pre></td></tr>';
+       + '<tr id="log_row_' + uid + '" style="display:none;"><td colspan="10" style="padding:8px;background:#F9FAFB;border-left:3px solid #8B95A1;"><pre id="log_content_' + uid + '" style="margin:0;font-size:12px;font-family:monospace;color:#191F28;white-space:pre-wrap;"></pre></td></tr>';
   });
   h += '</tbody></table></div>';
   return h;
@@ -9140,7 +9140,7 @@ function renderClassifiedSection(classified, summary) {
       entries.forEach(function(ent) {
         var r = ent.row;
         var srcKey = 'classified_' + ent.idx;
-        h += '<tr data-row-idx="' + srcKey + '"><td style="font-size:11px;white-space:nowrap;">' + esc(r['마켓주문일자'] || '') + '</td>'
+        h += '<tr data-row-idx="' + srcKey + '"><td style="font-size:12px;white-space:nowrap;">' + esc(r['마켓주문일자'] || '') + '</td>'
            + '<td>' + esc(r['마켓명'] || '') + '</td>'
            + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r['마켓상품명'] || '') + '">' + esc(r['마켓상품명'] || '') + '</td>'
            + '<td>' + esc(r['옵션1'] || '') + '</td>'
@@ -9148,7 +9148,7 @@ function renderClassifiedSection(classified, summary) {
            + numCell(r['구매가격'])
            + numCell(r['샵마인_정산예상금액(배송비포함)'] || r['샵마인_정산예상금액_배송비포함'] || 0)
            + '<td>' + esc(r['데이터출처'] || '') + '</td>'
-           + '<td style="font-size:11px;">' + esc(r['교차검증'] || '') + '</td>'
+           + '<td style="font-size:12px;">' + esc(r['교차검증'] || '') + '</td>'
            + renderSourcingCell(r, srcKey)
            + '</tr>';
       });
@@ -9377,8 +9377,8 @@ function renderAll(d) {
         + '<div style="display:flex;gap:6px;align-items:center;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:8px;padding:4px 6px 4px 10px">'
         +   '<span style="font-size:13px">🔍</span>'
         +   '<input type="text" id="kwExcludeInput" placeholder="키워드로 찾기..." style="width:130px;padding:6px 9px;border:1.5px solid #3B82F6;border-radius:5px;font-size:12.5px;background:#fff;color:#1e3a8a;font-family:inherit" oninput="if(!this._composing)previewKwExclude()" oncompositionstart="this._composing=1" oncompositionend="this._composing=0;previewKwExclude()" onkeydown="if(event.key===\'Enter\')applyKwExclude()">'
-        +   '<span id="kwExcludePreview" style="font-size:11px;color:#1e3a8a;font-weight:700;min-width:80px"></span>'
-        +   '<button onclick="applyKwExclude()" style="padding:6px 10px;background:#3b82f6;color:#fff;border:none;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer">🔍 찾기</button>'
+        +   '<span id="kwExcludePreview" style="font-size:12px;color:#1e3a8a;font-weight:700;min-width:80px"></span>'
+        +   '<button onclick="applyKwExclude()" style="padding:6px 10px;background:#3b82f6;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer">🔍 찾기</button>'
         + '</div>'
         + '<button onclick="checkSourcingBatch()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">📦 일괄 소싱처 확인</button>'
         + '<button class="btn btn-outline btn-sm" onclick="downloadExcel()">엑셀 다운로드</button>'
@@ -9540,17 +9540,17 @@ function renderKwExcludeChips() {
     totalHit += hit; totalProtect += traceHit; totalExcl += excl;
     html += '<span style="background:#FCA5A5;color:#7f1d1d;padding:4px 5px 4px 11px;border-radius:15px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px">'
           +   esc(kw)
-          +   '<span style="background:#10B981;color:#fff;padding:1px 6px;border-radius:9px;font-size:10px;font-weight:800" title="자동보호 (매입흔적 있음)">🛡️' + traceHit + '</span>'
+          +   '<span style="background:#10B981;color:#fff;padding:1px 6px;border-radius:9px;font-size:12px;font-weight:800" title="자동보호 (매입흔적 있음)">🛡️' + traceHit + '</span>'
           +   '<span style="opacity:0.5">/</span>'
-          +   '<span style="background:#fff;color:#dc2626;padding:1px 6px;border-radius:9px;font-size:10px;font-weight:800" title="실제 제외 (매입흔적 없음)">🚫' + excl + '</span>'
+          +   '<span style="background:#fff;color:#dc2626;padding:1px 6px;border-radius:9px;font-size:12px;font-weight:800" title="실제 제외 (매입흔적 없음)">🚫' + excl + '</span>'
           +   '<span onclick="removeKwExclude(\'' + esc(kw).replace(/'/g, "\\'") + '\')" style="background:#fff;color:#dc2626;width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer" title="제거">×</span>'
           + '</span>';
   });
-  html += '<span style="margin-left:auto;font-size:11.5px;color:#78350f">'
+  html += '<span style="margin-left:auto;font-size:12px;color:#78350f">'
         +   '<b style="color:#10B981">🛡️ 자동보호 ' + totalProtect + '</b> · '
         +   '<span style="color:#dc2626">🚫 실제 제외 ' + totalExcl + '</span>'
         + '</span>';
-  html += '<button onclick="clearAllKwExclude()" style="padding:5px 10px;background:#fff;color:#92400e;border:1.5px solid #FCD34D;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer">↩ 모두 복원</button>';
+  html += '<button onclick="clearAllKwExclude()" style="padding:5px 10px;background:#fff;color:#92400e;border:1.5px solid #FCD34D;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">↩ 모두 복원</button>';
   html += '</div>';
   return html;
 }
@@ -9564,7 +9564,7 @@ function mkFilterTh(label, dataCol) {
   var dEsc = String(dataCol).replace(/'/g,"\\'");
   return '<th style="white-space:nowrap">' + label
     + ' <span class="col-filter-btn" onclick="event.stopPropagation();openAllColFilter(\''+dEsc+'\',this)" '
-    + 'style="cursor:pointer;font-size:10px;margin-left:4px;user-select:none" title="필터">'
+    + 'style="cursor:pointer;font-size:12px;margin-left:4px;user-select:none" title="필터">'
     + _allColFilterIcon(dataCol) + '</span></th>';
 }
 function mkSortFilterTh(label, sortCol, dataCol) {
@@ -9576,7 +9576,7 @@ function mkSortFilterTh(label, sortCol, dataCol) {
     + '<span onclick="sortAllBy(\''+sEsc+'\')" style="cursor:pointer">' + label
     + '<span class="sort-arrow">' + arrow + '</span></span>'
     + ' <span class="col-filter-btn" onclick="event.stopPropagation();openAllColFilter(\''+dEsc+'\',this)" '
-    + 'style="cursor:pointer;font-size:10px;margin-left:4px;user-select:none" title="필터">'
+    + 'style="cursor:pointer;font-size:12px;margin-left:4px;user-select:none" title="필터">'
     + _allColFilterIcon(dataCol) + '</span></th>';
 }
 
@@ -9647,7 +9647,7 @@ function renderAllRow(r, _i) {
        + '<td class="mreg-cell"><input type="checkbox"' + (r._manual_reg ? ' checked' : '')
        + ' onchange="toggleManualReg(' + rIdx + ', this.checked)" title="비대량등록(오등록)으로 표시 — 더망고 유효 건수·미이행에서 제거"></td>'
        + '<td style="white-space:nowrap"><span>' + esc(r['주문일'] || '') + '</span>'
-       + (r['마켓'] ? ' <span style="background:#eef2ff;color:#3730a3;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;margin-left:4px">' + esc(r['마켓']) + '</span>' : '')
+       + (r['마켓'] ? ' <span style="background:#eef2ff;color:#3730a3;padding:1px 6px;border-radius:3px;font-size:12px;font-weight:700;margin-left:4px">' + esc(r['마켓']) + '</span>' : '')
        + '</td>'
        + '<td>' + esc(r['마켓'] || '') + '</td>'
        + '<td style="font-weight:600;">' + esc(r['브랜드'] || '') + '</td>'
@@ -9655,7 +9655,7 @@ function renderAllRow(r, _i) {
        + '<td>' + esc(r['옵션_매출'] || '') + '</td>'
        + editInput('단가')
        + '<td class="num">' + (r['수량_매출'] || 1) + '</td>'
-       + '<td class="num" style="font-weight:600;' + (isBs ? 'color:#9ca3af' : '') + '">' + fmt(dispSalePrice) + (isBs ? ' <span style="font-size:10px;color:#DC2626;font-weight:700" title="블랙스팟 — 0원">⚫</span>' : '') + '</td>'
+       + '<td class="num" style="font-weight:600;' + (isBs ? 'color:#9ca3af' : '') + '">' + fmt(dispSalePrice) + (isBs ? ' <span style="font-size:12px;color:#DC2626;font-weight:700" title="블랙스팟 — 0원">⚫</span>' : '') + '</td>'
        + editInput('정산예상금액')
        + editInput('구매가격')
        + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="num neg"' : ' class="num"') + '>' + fmt(dispNetMargin) + '</td>'
@@ -9668,10 +9668,10 @@ function renderAllRow(r, _i) {
            var isAff = ch.indexOf('제휴') >= 0;
            var st = isAff ? 'background:#FFF0F0;color:#c92a2a' : 'background:#EAF2FF;color:#1d4ed8';
            var lbl = isAff ? '제휴 2%' : ch;
-           return '<td style="text-align:center"><span style="'+st+';padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700" title="'+esc(ch)+(isAff?' — 상품가 2% 제휴수수료 부과':' — 제휴수수료 없음')+'">'+esc(lbl)+'</span></td>';
+           return '<td style="text-align:center"><span style="'+st+';padding:1px 7px;border-radius:10px;font-size:12px;font-weight:700" title="'+esc(ch)+(isAff?' — 상품가 2% 제휴수수료 부과':' — 제휴수수료 없음')+'">'+esc(lbl)+'</span></td>';
          })()
        + '<td><span class="mango-link" data-type="buyer_name" data-keyword="' + esc(r['수령인'] || '') + '" title="더망고 수령인 검색">' + esc(r['수령인'] || '') + '</span></td>'
-       + '<td style="font-size:11px;"><span class="mango-link" data-type="order_number" data-keyword="' + esc(r['마켓주문번호'] || '') + '" title="더망고 주문검색">' + esc(r['마켓주문번호'] || '') + '</span></td>'
+       + '<td style="font-size:12px;"><span class="mango-link" data-type="order_number" data-keyword="' + esc(r['마켓주문번호'] || '') + '" title="더망고 주문검색">' + esc(r['마켓주문번호'] || '') + '</span></td>'
        + (function(){
            /* 더망고 상태 — 키워드별 색상 강조 (사용자 요청 B) */
            var mg = String(r['더망고주문상태 (사용자 연동)'] || '');
@@ -9685,7 +9685,7 @@ function renderAllRow(r, _i) {
            else if (mg.indexOf('배송완료') >= 0 || mg.indexOf('수취완료') >= 0) hl = 'background:#dcfce7;color:#166534;';
            else if (mg.indexOf('국내배송중') >= 0)    hl = 'background:#d1fae5;color:#065f46;';
            else if (mg.indexOf('해외') >= 0)          hl = 'background:#ccfbf1;color:#065f46;';
-           return '<td style="max-width:140px;font-size:11px;'+hl+'" title="'+esc(combined.trim())+'">'+esc(shown)+'</td>';
+           return '<td style="max-width:140px;font-size:12px;'+hl+'" title="'+esc(combined.trim())+'">'+esc(shown)+'</td>';
          })()
        + (function(){
            /* 간단메모 — 키워드별 색상 강조 (완료/블랙스팟/철회/입금/취소 등 빠른 식별) */
@@ -9696,13 +9696,13 @@ function renderAllRow(r, _i) {
            else if (memo.indexOf('입금') >= 0 || memo.indexOf('철회') >= 0) hl = 'background:#ccfbf1;color:#065f46;font-weight:600;';
            else if (memo.indexOf('완료') >= 0 || memo.indexOf('환불') >= 0) hl = 'background:#dcfce7;color:#166534;';
            else if (memo.indexOf('취소') >= 0 || memo.indexOf('반품') >= 0) hl = 'background:#fef3c7;color:#92400e;';
-           return '<td style="max-width:180px;font-size:11px;'+hl+'" title="'+esc(memo)+'">'+esc(shortMemo)+'</td>';
+           return '<td style="max-width:180px;font-size:12px;'+hl+'" title="'+esc(memo)+'">'+esc(shortMemo)+'</td>';
          })()
        + renderSourcingCell(r, rIdx)
        + _cardBadgeCell(r, rIdx)
        + '<td>' + badges + '</td>'
-       + '<td><button onclick="showAllRowDetail(' + rIdx + ')" style="padding:3px 8px;font-size:11px;background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;border-radius:4px;cursor:pointer;white-space:nowrap">🔍 상세</button></td>'
-       + '<td><button onclick="_jumpToBlackspotByOrder(' + rIdx + ')" style="padding:3px 8px;font-size:11px;background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4;border-radius:4px;cursor:pointer;white-space:nowrap" title="블랙스팟 탭에서 같은 주문 보기">🎯 블랙스팟</button></td>'
+       + '<td><button onclick="showAllRowDetail(' + rIdx + ')" style="padding:3px 8px;font-size:12px;background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;border-radius:4px;cursor:pointer;white-space:nowrap">🔍 상세</button></td>'
+       + '<td><button onclick="_jumpToBlackspotByOrder(' + rIdx + ')" style="padding:3px 8px;font-size:12px;background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4;border-radius:4px;cursor:pointer;white-space:nowrap" title="블랙스팟 탭에서 같은 주문 보기">🎯 블랙스팟</button></td>'
        + '</tr>';
 }
 
@@ -9715,12 +9715,12 @@ function _cardBadgeCell(r, rIdx) {
     ct = (window._rowCardMap && window._rowCardMap['m' + rIdx]) || '';
   }
   if (!ct) {
-    return '<td style="font-size:11px;color: var(--글자-희미, #9ca3af);text-align:center">—</td>';
+    return '<td style="font-size:12px;color: var(--글자-희미, #9ca3af);text-align:center">—</td>';
   }
   var c = (typeof _CARD_COLOR_MAP === 'object' && _CARD_COLOR_MAP[ct]) || {bg:'#f3f4f6',text:'#374151',emoji:'',label:ct};
   return '<td style="white-space:nowrap">'
        + '<span style="display:inline-block;background:' + c.bg + ';color:' + c.text
-       + ';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">'
+       + ';padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700">'
        + (c.emoji ? c.emoji + ' ' : '') + esc(c.label) + '</span></td>';
 }
 
@@ -9734,7 +9734,7 @@ function renderSourcingCell(r, idx) {
   /* Phase 2b 확장: idx는 숫자(matched) 또는 "buy_3"·"sell_5"·"missing_2"·"classified_1" 복합키
    * onclick 인자로 안전 직렬화 (단일 따옴표 속성 안에 JSON → " 를 &quot; 로 치환) */
   var idxArg = JSON.stringify(idx).replace(/"/g, '&quot;');
-  var cell = '<td class="sourcing-result-cell" style="font-size:11px;min-width:130px;">';
+  var cell = '<td class="sourcing-result-cell" style="font-size:12px;min-width:130px;">';
   if (sourcingResult) {
     var tagClass = 'tag-gray';
     var lowerResult = String(sourcingResult);
@@ -9752,7 +9752,7 @@ function renderSourcingCell(r, idx) {
       '</div>';
   } else if (hasMemoUrl) {
     cell +=
-      '<button class="btn-check" onclick="checkSourcing(' + idxArg + ')" style="background:#3b82f6;color:#fff;border-color:#3b82f6;padding:4px 10px;font-size:11px;">✓ 확인</button>' +
+      '<button class="btn-check" onclick="checkSourcing(' + idxArg + ')" style="background:#3b82f6;color:#fff;border-color:#3b82f6;padding:4px 10px;font-size:12px;">✓ 확인</button>' +
       '<div class="sourcing-actions">' +
         '<button class="btn-check btn-openorder" onclick="openOrderPage(' + idxArg + ')" title="주문내역 열기">🔗 주문내역</button>' +
       '</div>';
@@ -9821,13 +9821,13 @@ function showAllRowDetail(idx) {
   if (detailCode) {
     var code = detailCode.split('_')[0];
     var fi = _DETAIL_FRIENDLY[code];
-    codeLabel = fi ? fi.emoji + ' ' + esc(fi.name) + ' <span style="font-size:10px;color:#9ca3af">' + esc(code) + '</span>'
+    codeLabel = fi ? fi.emoji + ' ' + esc(fi.name) + ' <span style="font-size:12px;color:#9ca3af">' + esc(code) + '</span>'
                    : esc(detailCode);
   }
 
   var checkBadges = '';
-  if (needS) checkBadges += '<span style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px">🟠 소싱처 확인 필요</span>';
-  if (needM) checkBadges += '<span style="background:#fef08a;color:#713f12;padding:2px 8px;border-radius:10px;font-size:11px">🟡 마켓 확인 필요</span>';
+  if (needS) checkBadges += '<span style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:10px;font-size:12px;margin-right:4px">🟠 소싱처 확인 필요</span>';
+  if (needM) checkBadges += '<span style="background:#fef08a;color:#713f12;padding:2px 8px;border-radius:10px;font-size:12px">🟡 마켓 확인 필요</span>';
 
   var srcTag = '';
   if (srcResult) {
@@ -10147,14 +10147,14 @@ async function _runBatchSourcingCheck(targets, label) {
     var pct = total > 0 ? Math.round(doneAll / total * 100) : 0;
     bar.innerHTML =
       '<div style="font-size:13px;font-weight:500">📦 일괄 소싱처 확인' + titleLabel + ' ' + doneAll + '/' + total + ' (' + pct + '%)</div>' +
-      '<div style="font-size:11px;opacity:0.8;margin-top:4px">성공 ' + doneOk + ' · 실패 ' + doneFail + '</div>' +
-      (currentMemo ? '<div style="font-size:11px;opacity:0.7;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">▶ ' + esc(currentMemo) + '</div>' : '') +
+      '<div style="font-size:12px;opacity:0.8;margin-top:4px">성공 ' + doneOk + ' · 실패 ' + doneFail + '</div>' +
+      (currentMemo ? '<div style="font-size:12px;opacity:0.7;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">▶ ' + esc(currentMemo) + '</div>' : '') +
       '<div style="display:flex;gap:6px;margin-top:8px">' +
-        '<button onclick="window.__batchAbort=true;if(window.__batchAbortController)window.__batchAbortController.abort();" style="padding:4px 10px;background:#ef4444;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">⏹ 중단</button>' +
-        '<button onclick="var p=document.getElementById(\'batchLogPanel\');p.style.display=(p.style.display===\'none\'?\'block\':\'none\')" style="padding:4px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">📋 로그</button>' +
-        '<button onclick="this.parentElement.parentElement.remove()" style="padding:4px 10px;background:#4b5563;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">✕</button>' +
+        '<button onclick="window.__batchAbort=true;if(window.__batchAbortController)window.__batchAbortController.abort();" style="padding:4px 10px;background:#ef4444;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">⏹ 중단</button>' +
+        '<button onclick="var p=document.getElementById(\'batchLogPanel\');p.style.display=(p.style.display===\'none\'?\'block\':\'none\')" style="padding:4px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">📋 로그</button>' +
+        '<button onclick="this.parentElement.parentElement.remove()" style="padding:4px 10px;background:#4b5563;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">✕</button>' +
       '</div>' +
-      '<div id="batchLogPanel" style="display:none;margin-top:8px;max-height:220px;overflow-y:auto;background:#000;color:#0f0;padding:6px 8px;border-radius:4px;font-size:10px;font-family:monospace;line-height:1.4"></div>';
+      '<div id="batchLogPanel" style="display:none;margin-top:8px;max-height:220px;overflow-y:auto;background:#000;color:#0f0;padding:6px 8px;border-radius:4px;font-size:12px;font-family:monospace;line-height:1.4"></div>';
   }
   renderBar('');
 
@@ -10979,7 +10979,7 @@ function renderPeriodCompareSection(tabId, keyFn, keyLabel) {
   h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 10px;background:#eff6ff;border-radius:6px;border:1px solid #bfdbfe">';
   h += '<span style="font-size:12px;font-weight:700;color:#1d4ed8;white-space:nowrap">기준일</span>';
   h += '<input type="date" value="'+esc(ps.refDate)+'" onchange="_setRefDate(\''+tabId+'\',this.value)" style="border:1px solid #93c5fd;border-radius:4px;padding:3px 6px;font-size:13px">';
-  h += '<span style="font-size:11px;color:#6b7280">프리셋·구간은 이 날짜를 기준으로 계산됩니다</span>';
+  h += '<span style="font-size:12px;color:#6b7280">프리셋·구간은 이 날짜를 기준으로 계산됩니다</span>';
   h += '</div>';
 
   /* ② 프리셋 버튼 */

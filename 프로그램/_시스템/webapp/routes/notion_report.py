@@ -87,7 +87,7 @@ display:flex;align-items:center;justify-content:center;font-size:12px;
 font-weight:700;color:var(--c-sub)}
 .flow a.on .flow-n{background:var(--c-primary);color:#fff}
 .flow-t b{display:block;font-size:13.5px}
-.flow-t span{font-size:11.5px;color:var(--c-mute)}
+.flow-t span{font-size:12px;color:var(--c-mute)}
 .flow-d{width:8px;height:8px;border-radius:50%;background:#E5E8EB}
 .flow a.s-ok .flow-d{background:var(--c-ok)}
 .flow a.s-warn .flow-d{background:var(--c-warn)}
@@ -107,7 +107,7 @@ flex-wrap:wrap}
 .kk-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;
 flex-wrap:wrap}
 .kk-head b{font-size:13.5px;font-weight:700}
-.kk-meta{font-size:11.5px;color:var(--c-sub)}
+.kk-meta{font-size:12px;color:var(--c-sub)}
 .kk-bubble{background:var(--c-kakao);border-radius:14px;padding:12px;
 max-width:440px}
 .kk-bubble img{max-width:100%;border-radius:10px;border:1px solid #EBD400;
@@ -148,7 +148,7 @@ align-items:baseline;font-size:12.5px}
 .hist-k{font-weight:600;text-align:center}
 .hist-t{color:var(--c-sub)}
 .hist-t s{color:var(--c-mute)}
-.badge{font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 9px}
+.badge{font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px}
 .badge--ok{background:#E6F8F0;color:#00875A}
 .badge--warn{background:#FEF3E2;color:#B25E09}
 .badge--danger{background:#FFECEE;color:#C9252D}
@@ -164,8 +164,8 @@ color:#fff}
 .form input,.form textarea,.swap input{border:1px solid var(--c-line2);
 border-radius:var(--r-s);padding:9px 11px;font-size:13px;font-family:inherit;
 width:100%}
-.form .ok-t{font-size:11.5px;color:var(--c-ok);font-weight:600}
-.form .sub{font-size:11.5px;color:var(--c-mute);font-weight:400}
+.form .ok-t{font-size:12px;color:var(--c-ok);font-weight:600}
+.form .sub{font-size:12px;color:var(--c-mute);font-weight:400}
 .note{margin:8px 0 0;font-size:12.5px;color:var(--c-sub);line-height:1.55}
 .note--todo{background:#FFF7E6;border-radius:var(--r-s);padding:8px 10px;
 color:#8A5A00}
@@ -176,7 +176,7 @@ color:#C9252D}
 .raw{margin-top:10px}
 .raw summary{font-size:12px;color:var(--c-mute);cursor:pointer}
 .raw pre,pre.box{background:#F7F8FA;border-radius:var(--r-s);padding:10px 12px;
-font-size:11.5px;line-height:1.5;overflow:auto;margin:6px 0 0;
+font-size:12px;line-height:1.5;overflow:auto;margin:6px 0 0;
 font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap}
 code{background:#F0F2F5;border-radius:4px;padding:1px 5px;font-size:12px}
 .swap{display:grid;grid-template-columns:1fr max-content;gap:8px;margin-top:10px}

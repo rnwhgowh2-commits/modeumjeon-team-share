@@ -39,7 +39,7 @@
     var shown = g.slice(0, TOP);
     var rest = g.slice(TOP).reduce(function (a, x) { return a + x.n; }, 0);
     var h = '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e5e7eb;'
-          + 'font-size:11.5px;color:#6b7280;line-height:1.6;text-align:left">';
+          + 'font-size:12px;color:#6b7280;line-height:1.6;text-align:left">';
     shown.forEach(function (x) {
       h += '<div style="display:flex;justify-content:space-between;gap:6px">'
         +  '<span style="word-break:keep-all">' + esc(x.label) + '</span>'
@@ -90,7 +90,7 @@
     });
     return '<div style="margin-top:8px;padding:6px 8px;border-radius:6px;'
       + 'background:#fff5f5;border:1px solid #fecaca;color:#DC2626;'
-      + 'font-size:11.5px;font-weight:600;line-height:1.5;text-align:left">'
+      + 'font-size:12px;font-weight:600;line-height:1.5;text-align:left">'
       + '⚠️ 이 안에 <b>손해 본 주문 ' + fmt(rows.length) + '건</b>'
       + '<div style="font-weight:500;color:#991b1b;margin-top:2px">'
       + '가장 나쁜 건 ' + fmt(Number(worst['마진율']) || 0) + '%</div></div>';

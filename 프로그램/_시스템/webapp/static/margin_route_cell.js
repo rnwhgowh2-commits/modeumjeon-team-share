@@ -40,7 +40,7 @@
       tip = ch + ' — 제휴수수료 없음';
     }
     return '<td style="text-align:center"><span style="' + st
-         + ';padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700" title="'
+         + ';padding:1px 7px;border-radius:10px;font-size:12px;font-weight:700" title="'
          + esc(tip) + '">' + esc(lbl) + '</span></td>';
   };
 })(typeof window !== 'undefined' ? window : globalThis);

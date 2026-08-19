@@ -31,7 +31,7 @@
             <td style="padding:8px 8px"><span style="font-family:ui-monospace,monospace;font-size:12px;color:var(--ink,#292A2F)">{{ tx.option_canonical_sku }}</span></td>
             <td style="padding:8px 8px;text-align:right;font-weight:700;color:var(--primary,#4F67FF)">{% if tx.qty > 0 %}+{% endif %}{{ tx.qty }}</td>
             <td style="padding:8px 8px;color:var(--sub,#8F91A0)">{{ tx.memo|truncate(30) if tx.memo else '—' }}</td>
-            <td style="padding:8px 8px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:22px;height:22px;border-radius:50%;background:var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red,#7F1D1D));display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ (tx.created_by or '운')[:1] }}</span><span style="font-size:12px;color:var(--ink,#292A2F)">{{ tx.created_by or '운영자' }}</span></span></td>
+            <td style="padding:8px 8px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:22px;height:22px;border-radius:50%;background:var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red,#7F1D1D));display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">{{ (tx.created_by or '운')[:1] }}</span><span style="font-size:12px;color:var(--ink,#292A2F)">{{ tx.created_by or '운영자' }}</span></span></td>
           </tr>
         {% else %}<tr><td colspan="7" style="padding:48px;text-align:center;color:var(--sub,#8F91A0)">조정 내역 없음</td></tr>{% endfor %}
       </tbody>

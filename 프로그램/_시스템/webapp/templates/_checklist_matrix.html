@@ -19,8 +19,8 @@
 .ckroot .ckdrift li{margin-top:3px;}
 .ckroot .ckdrift li::before{content:'· ';}
 
-.ckroot .cklegend{display:flex;gap:10px;font-size:11px;color:var(--sub);margin:6px 0 10px;flex-wrap:wrap;align-items:center;line-height:1.65;}
-.ckroot .cklegend b{font-size:11px;color:#4E5968;font-weight:800;}
+.ckroot .cklegend{display:flex;gap:10px;font-size:12px;color:var(--sub);margin:6px 0 10px;flex-wrap:wrap;align-items:center;line-height:1.65;}
+.ckroot .cklegend b{font-size:12px;color:#4E5968;font-weight:800;}
 /* 사장님 지시(2026-08-13) — 오른쪽 고정판을 없애고 그 폭을 표에 준다. */
 .ckroot .ckwrap{display:block;}
 /* 표를 넓게 — 기본은 담긴 자리를 그대로 채운다(소싱처 지도는 자리가 넉넉하다). */
@@ -31,26 +31,26 @@
    🔴 `.dm2` 의 max-width 나 zoom 이 바뀌면 이 두 숫자도 같이 봐야 한다. */
 .dm2 .ckroot{width:1170px;margin-left:-110px;}
 .ckroot .cktbl-scroll{overflow-x:auto;border:1px solid var(--line2);border-radius:8px;background:#fff;}
-.ckroot .cktbl{border-collapse:separate;border-spacing:0;font-size:11px;width:max-content;min-width:100%;}
+.ckroot .cktbl{border-collapse:separate;border-spacing:0;font-size:12px;width:max-content;min-width:100%;}
 .ckroot .cktbl th,.ckroot .cktbl td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:9px 7px;}
 /* 표 머리글 — 11px · 800 · #4E5968 · 바탕 없음(sticky 라 흰 판만 깔아 밑줄이 비치지 않게 한다) */
-.ckroot .cktbl thead th{background:#fff;font-size:11px;font-weight:800;color:#4E5968;line-height:1.65;
+.ckroot .cktbl thead th{background:#fff;font-size:12px;font-weight:800;color:#4E5968;line-height:1.65;
   position:sticky;top:0;z-index:2;text-align:center;vertical-align:middle;}
-.ckroot .cktbl .ckg{background:#fff;font-size:11px;letter-spacing:-.2px;border-bottom:1px solid var(--line2);}
-.ckroot .cktbl .cks{font-size:11px;font-weight:800;color:#4E5968;max-width:80px;min-width:54px;line-height:1.65;}
-.ckroot .ckrule{color:#1B64DA;font-size:11px;margin-left:2px;}
+.ckroot .cktbl .ckg{background:#fff;font-size:12px;letter-spacing:-.2px;border-bottom:1px solid var(--line2);}
+.ckroot .cktbl .cks{font-size:12px;font-weight:800;color:#4E5968;max-width:80px;min-width:54px;line-height:1.65;}
+.ckroot .ckrule{color:#1B64DA;font-size:12px;margin-left:2px;}
 /* 마켓 이름 열은 옆으로 밀어도 계속 보여야 한다 */
 .ckroot .ckfix{position:sticky;left:0;z-index:3;background:#fff;text-align:left;min-width:128px;box-shadow:1px 0 0 var(--line2);}
 .ckroot thead .ckfix{z-index:4;background:#fff;}
 .ckroot .ckmk{display:block;font-weight:700;font-size:12.5px;line-height:1.65;}
 .ckroot .ckbar{display:inline-block;width:52px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;vertical-align:middle;margin-right:4px;}
 .ckroot .ckbar-in{display:block;height:100%;background:var(--ok);}
-.ckroot .cknum{font-size:11px;color:var(--sub);font-variant-numeric:tabular-nums;font-family:var(--mono);}
+.ckroot .cknum{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;font-family:var(--mono);}
 .ckroot .cksl{color: var(--글자-희미, var(--faint));margin:0 1px;}
 .ckroot .ckdot{text-align:center;cursor:pointer;font-size:14px;width:46px;height:38px;position:relative;}
 .ckroot .ckdot.armed{box-shadow:inset 0 0 0 2px #F59E0B;}
 .ckroot .ckdot.pinned{box-shadow:inset 0 0 0 2px var(--ink);}
-.ckroot .ckwarn{position:absolute;top:1px;right:2px;font-style:normal;font-size:11px;font-weight:800;color:#DC2626;line-height:1;}
+.ckroot .ckwarn{position:absolute;top:1px;right:2px;font-style:normal;font-size:12px;font-weight:800;color:#DC2626;line-height:1;}
 .ckroot .ckerr{font-size:12.5px;color:#B91C1C;background:#FEF2F2;border:1px solid #FBD5D5;border-radius:8px;padding:9px 12px;line-height:1.65;}
 
 /* ── 정보창(떠 있는 것) — 바깥틀 이름은 ckpop, 속 부품은 ckcard ──
@@ -64,7 +64,7 @@
 .ckpop *{box-sizing:border-box;}
 .ckcard .pt{font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.5;}
 .ckcard .pt .dim{color:#C4CBD3;font-weight:400;}
-.ckcard .pb{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;line-height:1.5;}
+.ckcard .pb{font-size:12px;font-weight:700;padding:2px 7px;border-radius:5px;line-height:1.5;}
 .ckcard .blk{margin-top:10px;}
 .ckcard .bl{font-size:12.5px;color:#191F28;font-weight:800;margin-bottom:5px;letter-spacing:-.2px;}
 .ckcard .blk{border-top:1px solid #EEF1F4;padding-top:9px;}
@@ -77,20 +77,20 @@
 .ckcard .memo{color:#4E5968;}
 .ckcard .fd{border-top:1px solid #F1F3F5;padding:6px 0;}
 .ckcard .fd:first-child{border-top:0;}
-.ckcard .fk{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#191F28;word-break:break-all;}
-.ckcard .req{display:inline-block;font-size:11px;font-weight:700;color:#B91C1C;background:#FEF2F2;
+.ckcard .fk{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#191F28;word-break:break-all;}
+.ckcard .req{display:inline-block;font-size:12px;font-weight:700;color:#B91C1C;background:#FEF2F2;
   border-radius:4px;padding:0 5px;margin-left:5px;line-height:1.5;}
 .ckcard .ft{font-size:12.5px;color:#4E5968;line-height:1.65;margin-top:1px;}
-.ckcard .mono{font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all;background:#F8FAFB;
+.ckcard .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all;background:#F8FAFB;
   border:1px solid #EEF1F4;border-radius:8px;padding:6px 8px;margin-top:3px;display:flex;gap:6px;align-items:flex-start;line-height:1.6;}
 .ckcard .mono span{flex:1;}
-.ckcard .cp{flex:none;font-size:11px;border:1px solid #d1d6db;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;color:#4E5968;}
+.ckcard .cp{flex:none;font-size:12px;border:1px solid #d1d6db;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;color:#4E5968;}
 .ckcard .cp:hover{background:#F1F3F5;}
 .ckcard .cp.done{color:#15803D;border-color:#15803D;}
-.ckcard .foot{font-size:11px;color:#8B95A1;margin-top:10px;border-top:1px dashed #EEF1F4;padding-top:6px;line-height:1.65;}
+.ckcard .foot{font-size:12px;color:#8B95A1;margin-top:10px;border-top:1px dashed #EEF1F4;padding-top:6px;line-height:1.65;}
 .ckcard .empty{font-size:12.5px;color:#8B95A1;background:#FAFBFC;border:1px dashed #E5E8EB;border-radius:8px;padding:8px 10px;}
 /* 배선 딱지 — 「나감 / 저장만 / 칸조차 없음」 세 값을 눈으로 갈라 준다 */
-.ckcard .ckwire{display:inline-block;font-size:11px;font-weight:800;border-radius:5px;padding:1px 7px;line-height:1.5;margin-right:5px;}
+.ckcard .ckwire{display:inline-block;font-size:12px;font-weight:800;border-radius:5px;padding:1px 7px;line-height:1.5;margin-right:5px;}
 .ckcard .unk{background:#F5F0FF;border:1px solid #E0D3FB;border-radius:8px;padding:8px 10px;font-size:12.5px;color:#5B21B6;line-height:1.65;}
 
 /* ── 확대 밖 보정 (정보창 전용) ───────────────────────────────────────────

@@ -78,7 +78,7 @@
         +  'style="' + pillStyle(c.fg, c.bg, c.bd) + '" title="클릭 → ' + c.label + ' 행만 보기">'
         +  '<div style="font-size:20px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">'
         +  fmt(c.n) + '</div>'
-        +  '<div style="font-size:10.5px;font-weight:600;margin-top:4px;word-break:keep-all">'
+        +  '<div style="font-size:12px;font-weight:600;margin-top:4px;word-break:keep-all">'
         +  c.label + '</div></div>';
     });
     return h + '</div></div>';

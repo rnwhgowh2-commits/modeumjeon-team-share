@@ -771,23 +771,25 @@ SEAMS.append((
 
 
 def _글자_바닥선_12(text: str) -> str:
-    """<style> 블록 안 `font-size` 가 12px 미만이면 12px 로 올린다.
+    """`font-size` 가 12px 미만이면 12px 로 올린다 — **파일 전체**.
 
     🔴 12 이상은 절대 안 건드린다 — 11.5px 를 12.5px 로 만드는 실수를 막는다.
-    🔴 <style> 밖(JS 문자열·인쇄용 pt)은 범위 밖이다.
+    🔴 [2026-08-13 2차] 처음엔 <style> 블록만 했다(27건). 나머지 118건은 JS 가
+       문자열로 그리는 화면 글자(파일 이름·비율·등록 수)라 남았는데, 실측해 보니
+       단순 치환이 안전했다:
+         · 값이 변수·이어붙이기로 조립되는 곳 0건 (전부 리터럴)
+         · font-size 를 비교·검색에 쓰는 곳 0건 (그리기만 한다)
+         · px 아닌 단위(pt·em·rem·%) 0건 → 인쇄용 값을 건드릴 위험 없음
+       색 치환이 <style> 안만 하는 이유(JS 가 색을 **계산**해 쓴다)는 글자 크기엔
+       해당하지 않는다 — 여기선 크기를 계산하는 코드가 없다.
     """
     import re as _re
 
-    def _블록(m):
-        속 = m.group(2)
+    def _한자리(mm):
+        공백, 값 = mm.group(1), float(mm.group(2))
+        return mm.group(0) if 값 >= 12 else f'font-size:{공백}12px'
 
-        def _한자리(mm):
-            공백, 값 = mm.group(1), float(mm.group(2))
-            return mm.group(0) if 값 >= 12 else f'font-size:{공백}12px'
-
-        return m.group(1) + _re.sub(r'font-size:(\s*)([0-9.]+)px', _한자리, 속) + m.group(3)
-
-    return _re.sub(r'(?s)(<style[^>]*>)(.*?)(</style>)', _블록, text)
+    return _re.sub(r'font-size:(\s*)([0-9.]+)px', _한자리, text)
 
 
 def _색을_토큰으로(text: str) -> str:

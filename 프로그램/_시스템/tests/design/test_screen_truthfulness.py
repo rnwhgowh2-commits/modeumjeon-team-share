@@ -587,3 +587,64 @@ def test_화면_가로_상한이_한_곳에서_정해진다():
                  'webapp/templates/optgen/index.html'):
         css = (뿌리 / 경로).read_text(encoding='utf-8')
         assert 'var(--화면-상한)' in css, f'{경로} 가 공용 상한을 안 쓴다'
+
+
+def test_화면_글자가_12px_아래로_안_내려간다():
+    """🔴 바닥선 12px — 사장님 확정(2026-08-13) 「글자가 너무 작아 안 보인다」.
+
+    전수 조사 당시 12px 미만이 1,330곳이었고 그중 11px 이 1,086곳이었다.
+    자동 스윕(`design_sweep` B단계)이 바닥선을 지키지만, **스윕이 안 도는 자리**가
+    있다 — 공용 CSS 파일, 스윕이 일부러 건너뛰는 위험 파일, 생성물(마진 계산기).
+    그래서 결과를 여기서 한 번 더 못 박는다.
+
+    🔴 **범위를 좁게 잡으면 이 시험이 거짓 초록불을 준다.** 처음엔 html·css 만 훑었는데,
+       그 상태로 초록불이면서 화면엔 12px 미만이 76곳 살아 있었다 —
+       글자를 **JS 가 그려 넣는** 화면(정산 배지·옵션 URL 창·대량등록 안내)과
+       **파이썬이 문자열로 만드는** 화면(`/reports/notion-todo`)이 통째로 범위 밖이었다.
+       그래서 지금은 html·css·js·py 를 전부 훑고, `style.fontSize = '11px'`
+       (낙타 표기) 도 같이 본다.
+
+    📏 px 만 본다. `em`·`pt` 는 부모나 종이 크기에 따라 달라져 **파일만 읽어선 못 잰다**.
+       지금 있는 것들은 손으로 재 뒀다 —
+         · `orders/index.html` 「원」 단위 `.55em` → 부모 24px 이라 **13.2px** (바닥선 위)
+         · `_matrix_v3.html` 접기 화살표 `.8em` → 글자가 아니라 **▼ 도형**
+         · `inventory/label.html`·`barcode_print.html` 의 `pt` → **종이에 인쇄하는 라벨**.
+           라벨은 mm 로 크기가 정해져 있어 글자를 키우면 칸을 넘친다. 화면 글자가 아니다.
+
+    ⚠️ 새로 11px 을 쓰고 싶어지면 이 시험을 고치기 전에 먼저 생각할 것 —
+       사장님이 「안 보인다」고 하신 크기다.
+    """
+    import pathlib
+    import re
+
+    뿌리 = pathlib.Path(__file__).resolve().parents[2] / 'webapp'
+    #  ── 일부러 빼는 자리 (빼는 이유가 없으면 절대 추가하지 말 것) ──
+    #  crawl_log.js : 위젯 **전체가 `transform:scale(1.5)`** 로 그려진다(L277).
+    #                 파일 안 px 는 «확대 전» 값이라 8.5px = 화면 12.75px 다.
+    #                 12px 로 올리면 화면에선 18px 이 돼 위젯이 되레 깨진다.
+    #                 (Ctrl+휠로 1.0× 까지 줄일 수 있는데, 그건 사장님이 일부러
+    #                  작게 보시는 것 — 브라우저 축소와 같다.)
+    빼는곳 = {'crawl_log.js'}
+    #  vendor/ : 남이 만든 라이브러리(바코드 인식 등). 우리가 고칠 수 없는 코드라
+    #            판올림 한 번에 배포가 막히면 곤란하다. (지금은 걸리는 게 0곳이다.)
+    빼는폴더 = {'vendor'}
+    작은것 = []
+    확장자 = ('*.html', '*.css', '*.js', '*.py')
+    for p in [q for 패턴 in 확장자 for q in 뿌리.rglob(패턴)]:
+        if p.name in 빼는곳 or 빼는폴더 & set(p.parts):
+            continue
+        try:
+            t = p.read_bytes().decode('utf-8')
+        except (UnicodeDecodeError, OSError):
+            continue
+        #  `font-size:11px` (CSS) 와 `fontSize = '11px'` (JS 낙타 표기) 둘 다.
+        for m in re.finditer(r'''font-size:\s*([0-9.]+)px'''
+                             r'''|fontSize\s*=\s*['"]([0-9.]+)px''', t):
+            값 = m.group(1) or m.group(2)
+            if float(값) < 12:
+                줄 = t.count('\n', 0, m.start()) + 1
+                작은것.append(f'{p.name}:{줄} — {값}px')
+    assert not 작은것, (
+        f'12px 보다 작은 글자가 {len(작은것)}곳 있다 — 사장님이 「안 보인다」고 하신 크기다:\n  '
+        + '\n  '.join(작은것[:20])
+        + (f'\n  … 외 {len(작은것) - 20}곳' if len(작은것) > 20 else ''))

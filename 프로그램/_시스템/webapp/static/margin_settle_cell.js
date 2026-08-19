@@ -27,7 +27,7 @@
     var st = doc.createElement('style');
     st.id = 'moum-settle-style';
     st.textContent = [
-      '.moum-sbadge{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;white-space:nowrap;cursor:help;position:relative;margin-left:6px;vertical-align:middle}',
+      '.moum-sbadge{display:inline-block;font-size:12px;font-weight:700;padding:1px 7px;border-radius:10px;white-space:nowrap;cursor:help;position:relative;margin-left:6px;vertical-align:middle}',
       '.moum-sbadge.est{background:#FFF8E1;color:#E6A700}',
       '.moum-sbadge.unk{background:#F1EFE8;color:#5F5E5A}',
       /* 툴팁 — position:fixed 라 표 overflow 래퍼에 안 잘린다(좌표는 JS가 hover 때 넣는다) */
@@ -49,7 +49,7 @@
       '.moum-schips{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}',
       '.moum-schip{position:relative;display:flex;flex-direction:column;gap:1px;border-radius:9px;padding:7px 14px 6px;border:1px solid;min-width:106px;cursor:pointer;transition:filter .1s}',
       '.moum-schip:hover{filter:brightness(0.97)}',
-      '.moum-schip .lbl{font-size:11px;font-weight:600;display:flex;align-items:center;gap:5px}',
+      '.moum-schip .lbl{font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px}',
       '.moum-schip .num{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}',
       '.moum-schip .num small{font-size:12px;font-weight:500;margin-left:1px}',
       '.moum-schip.real{background:#E7F7EF;border-color:#B7E9CE;color:#12864a}',

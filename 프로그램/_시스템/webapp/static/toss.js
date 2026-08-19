@@ -888,7 +888,7 @@ function _sdInjectStyle() {
     .sd-mtxhead .cnt { font-size:12px; color:#8b95a1; } .sd-mtxhead .cnt b { color:#3182f6; }
     .sd-grid { display:grid; gap:6px; min-width:max-content; }
     .sd-gh { display:flex; align-items:center; justify-content:center; height:40px; font-size:12px; font-weight:700; color:#4e5968; }
-    .sd-gh.corner { font-size:10.5px; color:#b0b8c1; cursor:pointer; }
+    .sd-gh.corner { font-size:12px; color:#b0b8c1; cursor:pointer; }
     .sd-gh.colh, .sd-gh.rowh { cursor:pointer; border-radius:8px; }
     .sd-gh.colh:hover, .sd-gh.rowh:hover { background:#f2f4f6; }
     .sd-cell { height:40px; border-radius:9px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; }
@@ -1638,7 +1638,7 @@ async function openPriceTplModal(id, initialTab, opts) {
           <input type="number" data-key="${valKey}" data-mode-input="${mode}" data-rate-display="${mode === 'rate' ? '1' : '0'}"
                  value="${dispVal}" step="${mode === 'rate' ? '0.01' : '1'}"
                  style="width:100%;border:0;border-bottom:1px solid ${isOn ? '#3182F6' : 'transparent'};background:transparent;outline:none;font-weight:800;font-size:14px;font-family:inherit;color:${isOn ? '#191F28' : '#9CA3AF'};padding:2px 0;text-align:right">
-          <span style="font-size:11px;color:#6B7684;text-align:right">${suffix}</span>
+          <span style="font-size:12px;color:#6B7684;text-align:right">${suffix}</span>
         </button>`;
     };
     const sideLabel = side === 'sourcing' ? '소싱처' : '사입';
@@ -1650,7 +1650,7 @@ async function openPriceTplModal(id, initialTab, opts) {
     return `
       <div class="ptm-side" data-prefix="${prefix}" data-side="${side}" style="background:#FAFBFC;border:1px solid #EAEDF0;border-radius:8px;padding:12px 14px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:700;color:#4E5968;margin-bottom:8px;display:flex;align-items:center;gap:6px">
-          <span class="ptm-side-tag" style="background:${sideColor.bg};color:${sideColor.tx};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${sideLabel}</span>
+          <span class="ptm-side-tag" style="background:${sideColor.bg};color:${sideColor.tx};padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700">${sideLabel}</span>
           책정 방식
         </div>
         <div style="display:flex;flex-direction:column;gap:3px">
@@ -1660,8 +1660,8 @@ async function openPriceTplModal(id, initialTab, opts) {
         </div>
         <input type="hidden" data-key="${modeKey}" data-mode-hidden="${prefix}-${side}" value="${curMode}">
         <div class="ptm-res" data-prefix="${prefix}" data-side="${side}" style="margin-top:9px;padding-top:9px;border-top:1px dashed #E5E8EB;display:flex;justify-content:flex-end;gap:14px;align-items:baseline">
-          <span style="font-size:11px;color:#8B95A1">판매가 <b class="ptm-sell" style="font-size:15px;color:#191F28;font-weight:800;font-variant-numeric:tabular-nums">–</b></span>
-          <span style="font-size:11px;color:#8B95A1">마진 <b class="ptm-keep" style="font-size:13px;color:#12B886;font-weight:700;font-variant-numeric:tabular-nums">–</b></span>
+          <span style="font-size:12px;color:#8B95A1">판매가 <b class="ptm-sell" style="font-size:15px;color:#191F28;font-weight:800;font-variant-numeric:tabular-nums">–</b></span>
+          <span style="font-size:12px;color:#8B95A1">마진 <b class="ptm-keep" style="font-size:13px;color:#12B886;font-weight:700;font-variant-numeric:tabular-nums">–</b></span>
         </div>
       </div>`;
   };
@@ -1699,7 +1699,7 @@ async function openPriceTplModal(id, initialTab, opts) {
     <div class="ptm-mcard" data-prefix="${prefix}" data-unified="${uni ? '1' : '0'}" style="border:1px solid #E5E8EB;border-radius:12px;padding:15px 16px;margin-bottom:12px">
       <div style="display:flex;align-items:center;margin-bottom:12px;gap:8px">
         <span style="display:inline-flex;align-items:center;gap:8px;font-weight:700"><span style="width:22px;height:22px;border-radius:6px;background:${m.dot};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px">${m.letter}</span>${m.name}</span>
-        <span class="ptm-fee-badge" data-prefix="${prefix}" style="font-size:11.5px;color:#8B95A1;background:#F2F4F6;border:1px solid #E5E8EB;border-radius:20px;padding:2px 9px">수수료 ${feePct(prefix)}%</span>
+        <span class="ptm-fee-badge" data-prefix="${prefix}" style="font-size:12px;color:#8B95A1;background:#F2F4F6;border:1px solid #E5E8EB;border-radius:20px;padding:2px 9px">수수료 ${feePct(prefix)}%</span>
         <label class="ptm-uni-toggle" data-prefix="${prefix}" style="margin-left:auto;font-size:12.5px;color:${uni ? '#8B95A1' : '#3182F6'};font-weight:${uni ? '400' : '600'};display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none">
           <span class="ptm-uni-sw" style="width:36px;height:20px;background:${uni ? '#CDD3D8' : '#3182F6'};border-radius:20px;position:relative;flex-shrink:0;display:inline-block">
             <span style="position:absolute;left:${uni ? '2px' : '18px'};top:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.15s"></span>
@@ -1716,7 +1716,7 @@ async function openPriceTplModal(id, initialTab, opts) {
     const m = _mkMeta[prefix];
     return `
     <div style="border:1px solid #E5E8EB;border-radius:12px;padding:14px 16px;margin-bottom:12px">
-      <div style="font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px"><span style="width:18px;height:18px;border-radius:5px;background:${m.dot};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px">${m.letter}</span>${m.name}</div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px"><span style="width:18px;height:18px;border-radius:5px;background:${m.dot};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px">${m.letter}</span>${m.name}</div>
       ${extraTop || ''}
       ${row('마켓 수수료율', `<div style="display:flex;align-items:center;gap:6px"><input type="number" data-key="${prefix}_fee_rate" data-rate-display="1" step="0.01" value="${feePct(prefix)}" style="width:90px;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-align:right;font-variant-numeric:tabular-nums"><span style="font-size:12px;color:#6B7684">%</span></div>`)}
       ${row('정상가', num(prefix + '_normal_price', '원'))}
@@ -1769,13 +1769,13 @@ async function openPriceTplModal(id, initialTab, opts) {
       <div class="ptm-cu-rule" data-prefix="${prefix}" data-rule="${r}" style="border:${sel ? '2px solid #3182F6' : '1px solid #E5E8EB'};background:${sel ? '#E8F3FF' : '#fff'};border-radius:10px;padding:10px 12px;cursor:pointer;">
         <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:${sel ? '#191F28' : '#6B7684'};">
           <span class="ptm-cu-radio" style="width:14px;height:14px;border-radius:50%;border:1.5px solid ${sel ? '#3182F6' : '#CDD3D8'};position:relative;flex-shrink:0;display:inline-block;">${dot(sel)}</span>${title}</div>
-        <div style="font-size:11px;color:#8B95A1;margin-top:5px;line-height:1.5;">${desc}</div>
+        <div style="font-size:12px;color:#8B95A1;margin-top:5px;line-height:1.5;">${desc}</div>
       </div>`;
     return `
     <div class="ptm-cu-card" data-prefix="${prefix}" style="border:1px solid #E5E8EB;border-radius:12px;padding:13px 15px;margin-bottom:10px;">
       <div style="display:flex;align-items:center;gap:10px;">
-        <span style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px;"><span style="width:20px;height:20px;border-radius:5px;background:${dotColor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;">${letter}</span>${mkName}</span>
-        <span class="ptm-cu-pill" data-prefix="${prefix}" style="margin-left:auto;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:${on ? '#3182F6' : '#E5E8EB'};color:${on ? '#fff' : '#4E5968'};">${on ? '켜짐' : '꺼짐'}</span>
+        <span style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px;"><span style="width:20px;height:20px;border-radius:5px;background:${dotColor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;">${letter}</span>${mkName}</span>
+        <span class="ptm-cu-pill" data-prefix="${prefix}" style="margin-left:auto;font-size:12px;font-weight:700;padding:2px 8px;border-radius:5px;background:${on ? '#3182F6' : '#E5E8EB'};color:${on ? '#fff' : '#4E5968'};">${on ? '켜짐' : '꺼짐'}</span>
         <span class="ptm-cu-sw" data-prefix="${prefix}" style="width:40px;height:23px;border-radius:23px;position:relative;flex-shrink:0;cursor:pointer;background:${on ? '#3182F6' : '#CDD3D8'};display:inline-block;">
           <span style="position:absolute;top:3px;left:${on ? '20px' : '3px'};width:17px;height:17px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.15s;"></span>
         </span>
@@ -1791,7 +1791,7 @@ async function openPriceTplModal(id, initialTab, opts) {
   const policyBlock = () => `
     <div class="ptm-policy-block" style="margin-top:14px; padding-top:14px; border-top:1px dashed #E5E8EB;">
       <div style="display:flex;align-items:center;gap:7px;font-size:12.5px; color:#3182F6; font-weight:700; margin-bottom:4px;">▦ 색상 통일 모드
-        <span class="ptm-policy-info" style="display:inline-flex; width:17px; height:17px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:10px; font-weight:800; cursor:help; font-style:normal;">!</span></div>
+        <span class="ptm-policy-info" style="display:inline-flex; width:17px; height:17px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:12px; font-weight:800; cursor:help; font-style:normal;">!</span></div>
       <div style="font-size:12px;color:#8B95A1;margin-bottom:11px;line-height:1.55;">같은 색은 같은 가격으로 통일해요(스스에서 사이즈별 가격이 달라 경고 나는 걸 막음). 마켓마다 켜고, 켜면 기준을 고르세요.</div>
       ${_mkOrder.map(p => policyMarketCard(p, _mkMeta[p].name, _mkMeta[p].dot, _mkMeta[p].letter)).join('')}
     </div>`;
@@ -1801,8 +1801,8 @@ async function openPriceTplModal(id, initialTab, opts) {
 
   const inner = `
     <div class="ptm-tabbar" style="display:flex;gap:30px;border-bottom:1px solid #E5E8EB;margin-bottom:16px;padding-left:4px">
-      <div class="ptm-tab" data-tab="cost" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">원가</span><span class="s" style="font-size:11.5px;color:#8B95A1">사올 때</span></div>
-      <div class="ptm-tab" data-tab="margin" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">마진</span><span class="s" style="font-size:11.5px;color:#8B95A1">팔 때</span></div>
+      <div class="ptm-tab" data-tab="cost" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">원가</span><span class="s" style="font-size:12px;color:#8B95A1">사올 때</span></div>
+      <div class="ptm-tab" data-tab="margin" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">마진</span><span class="s" style="font-size:12px;color:#8B95A1">팔 때</span></div>
       <div class="ptm-tab" data-tab="adv" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">고급</span></div>
     </div>
     <div class="ptm-panel" data-panel="cost">
@@ -1885,14 +1885,14 @@ async function openPriceTplModal(id, initialTab, opts) {
         sec.style.cssText = 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;box-shadow:0 6px 18px rgba(49,130,246,.14)';
         const h = document.createElement('div');
         h.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#191F28;margin-bottom:12px';
-        h.innerHTML = meta.t + ' <span style="font-size:10px;color:#fff;background:#12B886;border-radius:20px;padding:1px 8px">핵심</span>' + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:#8B95A1">· ' + meta.tag + '</span>' : '');
+        h.innerHTML = meta.t + ' <span style="font-size:12px;color:#fff;background:#12B886;border-radius:20px;padding:1px 8px">핵심</span>' + (meta.tag ? ' <span style="font-size:12px;font-weight:500;color:#8B95A1">· ' + meta.tag + '</span>' : '');
         sec.appendChild(h); sec.appendChild(p);
       } else {
         // 시안11 4번 — 컬러 헤더 스트립 카드 (원가=파랑 / 고급=회색)
         sec.style.cssText = 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden';
         const strip = document.createElement('div');
         strip.style.cssText = 'background:' + meta.stripBg + ';color:' + meta.stripFg + ';font-size:13px;font-weight:700;padding:9px 15px';
-        strip.innerHTML = meta.t + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:' + (meta.tagFg || meta.stripFg) + '">· ' + meta.tag + '</span>' : '');
+        strip.innerHTML = meta.t + (meta.tag ? ' <span style="font-size:12px;font-weight:500;color:' + (meta.tagFg || meta.stripFg) + '">· ' + meta.tag + '</span>' : '');
         const bodyWrap = document.createElement('div');
         bodyWrap.style.cssText = 'padding:13px 15px';
         bodyWrap.appendChild(p);
@@ -2611,7 +2611,7 @@ function openSsMatchingModal(code, syncResult, market) {
     if (m.confidence === 'auto') {
       return `<tr style="background:#f0fdf4">${left}
         <td>🟢 자동 매칭</td>
-        <td><strong>${esc(m.matched_external_name || '')}</strong> <span style="font-size:11px;color:#666">(${m.matched_option_id})</span></td>
+        <td><strong>${esc(m.matched_external_name || '')}</strong> <span style="font-size:12px;color:#666">(${m.matched_option_id})</span></td>
         <td>—</td></tr>`;
     }
     // [Phase 4] 미매칭 — 3단 드롭다운 (추천후보 / 검색 / 직접입력)
@@ -2638,10 +2638,10 @@ function openSsMatchingModal(code, syncResult, market) {
           <div class="ssm-direct-box" style="display:none;margin-top:5px">
             <input class="field-input ssm-direct" type="number" placeholder="마켓 옵션 ID 숫자 직접 입력" style="padding:6px;font-size:12px;width:100%">
           </div>
-          <div class="ssm-chosen" style="font-size:11px;color:#16a34a;font-weight:700;margin-top:3px"></div>
+          <div class="ssm-chosen" style="font-size:12px;color:#16a34a;font-weight:700;margin-top:3px"></div>
         </div>
       </td>
-      <td style="font-size:11px;color:#666">${esc(m.reason || '')}</td></tr>`;
+      <td style="font-size:12px;color:#666">${esc(m.reason || '')}</td></tr>`;
   };
 
   const summary = `
@@ -2667,7 +2667,7 @@ function openSsMatchingModal(code, syncResult, market) {
           </select>
         </div>
       `).join('')}
-      <div style="font-size:11px;color:#666;margin-top:6px">💡 외부 색상을 선택하면 같은 색상의 모든 사이즈가 자동으로 채워져요.</div>
+      <div style="font-size:12px;color:#666;margin-top:6px">💡 외부 색상을 선택하면 같은 색상의 모든 사이즈가 자동으로 채워져요.</div>
     </div>`;
 
   const box = _modalBox(

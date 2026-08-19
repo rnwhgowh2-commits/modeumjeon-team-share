@@ -241,7 +241,7 @@
      판정은 서버가 준 confirm_supported 하나뿐 — 화면이 자체 조건을 세우지 않는다. */
   function confirmBoxHtml(r, draftId) {
     if (!r.confirm_supported) return '';
-    return '<div class="cfm-box" style="margin-top:4px;font-size:11.5px"' +
+    return '<div class="cfm-box" style="margin-top:4px;font-size:12px"' +
       `${draftId ? ` data-cfm-draft="${esc(draftId)}"` : ''}>` +
       `<input data-cfm-input="${esc(r.market)}" size="16" autocomplete="off" ` +
       `placeholder="마켓에서 확인한 상품번호" value="${esc(r.market_product_id || '')}">` +
@@ -294,7 +294,7 @@
       return;
     }
     panel.innerHTML = `<td colspan="5">${preflightHtml(id, res.rows)}` +
-      '<p class="muted" style="font-size:11.5px;margin:6px 0 0">' +
+      '<p class="muted" style="font-size:12px;margin:6px 0 0">' +
       '「올릴 수 있음」은 <b>필수값이 다 찼다</b>는 뜻입니다 — 등록 성공 보장이 아닙니다. ' +
       '오른쪽 「주의」를 함께 확인하세요.</p></td>';
   }
@@ -612,7 +612,7 @@
     //     주석이 말하는 「confirm_supported 하나만 본다」와 갈린다 — **밖으로 뺀다.**
     const cfm = confirmBoxHtml(r, null);
     const redo = (r.status === 'registered' || r.status === 'uncertain')
-      ? '<br>' + look + '<label style="font-size:11.5px;margin-left:6px">' +
+      ? '<br>' + look + '<label style="font-size:12px;margin-left:6px">' +
         `<input type="checkbox" data-redo="${esc(r.market)}"` +
         `${st.redo[r.market] ? ' checked' : ''}> 다시 올리기(같은 상품을 한 번 더)</label>`
       : '';
@@ -657,7 +657,7 @@
       '<tr><th></th><th>마켓</th><th>상태</th><th>카테고리</th><th>계정</th>' +
       '<th>사유·주의</th></tr>' +
       st.rows.map((r) => regPickRowHtml(r, st)).join('') + '</table>' +
-      '<p class="muted" style="font-size:11.5px;margin:6px 0">' +
+      '<p class="muted" style="font-size:12px;margin:6px 0">' +
       '체크한 마켓만 올립니다 — 마켓을 <b>하나씩 순서대로</b> 부르고, 한 곳이 실패해도 ' +
       '나머지는 계속합니다. 「올릴 수 있음」은 <b>필수값이 다 찼다</b>는 뜻이지 ' +
       '등록 성공 보장이 아닙니다.</p>' +
@@ -743,12 +743,12 @@
     }).join('');
     const s = body.summary || {};
     const head = body.running
-      ? '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">등록 중… ' +
+      ? '<p class="muted" style="font-size:12px;margin:10px 0 4px">등록 중… ' +
         `${body.done || 0}/${body.total || 0} 마켓` +
         (body.current_market
           ? ` · 지금 ${esc(PRE_MARKET[body.current_market] || body.current_market)} 처리 중`
           : '') + ' (마켓을 하나씩 순서대로 올립니다)</p>'
-      : '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">결과 — ' +
+      : '<p class="muted" style="font-size:12px;margin:10px 0 4px">결과 — ' +
         `등록 ${s.ok || 0} · 실패 ${s.failed || 0} · 막힘 ${s.blocked || 0} · ` +
         `건너뜀 ${s.skipped || 0}` +
         (s.already ? ` · 이미 등록됨 ${s.already}` : '') +
@@ -760,7 +760,7 @@
       ? '<p style="font-size:12px;margin:6px 0;padding:8px;border-radius:6px;' +
         'background:#fff4e5"><b>⚠ ' + esc(body.uncertain.message) + '</b></p>' : '';
     const err = body.error
-      ? `<p class="muted" style="font-size:11.5px;margin:4px 0">${esc(body.error)}</p>` : '';
+      ? `<p class="muted" style="font-size:12px;margin:4px 0">${esc(body.error)}</p>` : '';
     return head + warn + err +
       '<table style="width:100%;font-size:12px">' +
       '<tr><th>마켓</th><th>결과</th><th>상품번호</th>' +
@@ -814,7 +814,7 @@
             warn = document.createElement('p');
             warn.setAttribute('data-poll-warn', '1');
             warn.className = 'muted';
-            warn.style.fontSize = '11.5px';
+            warn.style.fontSize = '12px';
             out.appendChild(warn);
           }
           warn.textContent = '진행 상황을 못 읽었습니다 — 다시 시도합니다. '
@@ -837,7 +837,7 @@
     if (!markets.length) { alert('올릴 마켓을 하나 이상 골라 주세요.'); return; }
     const out = st.tr.querySelector('[data-regout]');
     runBtn.disabled = true;
-    if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">등록을 시작하는 중…</p>';
+    if (out) out.innerHTML = '<p class="muted" style="font-size:12px">등록을 시작하는 중…</p>';
     let res = null;
     let body = null;
     try {
@@ -855,7 +855,7 @@
     // 409 = 이 상품이 이미 등록 중. 다시 시작하지 않고 **진행 중인 그 실행**을 보여준다
     // (여기서 또 시작하면 같은 상품이 두 번 올라간다 = 유령 상품).
     if (res && res.status === 409) {
-      if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">' +
+      if (out) out.innerHTML = '<p class="muted" style="font-size:12px">' +
         esc((body && body.error) || '이미 등록이 진행 중입니다') + '</p>';
       pollRegister(st, out, runBtn);
       return;
@@ -865,7 +865,7 @@
       //   사고(502 로 워커가 죽어 롤백이 안 돈 채 판매중으로 남음)를 그대로 경고한다.
       runBtn.disabled = false;
       if (out) {
-        out.innerHTML = '<p class="muted" style="font-size:11.5px">등록 요청이 실패했습니다 — ' +
+        out.innerHTML = '<p class="muted" style="font-size:12px">등록 요청이 실패했습니다 — ' +
           esc((body && body.error) || '요청 실패') + '<br>' +
           '응답을 못 받았다는 것은 「안 올라갔다」가 아니라 「모른다」입니다 — ' +
           '마켓에서 상품이 생겼는지 반드시 확인해 주세요.</p>';
@@ -891,7 +891,7 @@
       || st.tr.querySelector(`[data-lookupout-m="${market}"]`)
       || st.tr.querySelector('[data-lookupout]');
     btn.disabled = true;
-    if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">마켓에서 찾는 중…</p>';
+    if (out) out.innerHTML = '<p class="muted" style="font-size:12px">마켓에서 찾는 중…</p>';
     let body = null;
     try {
       body = await fetch(
@@ -901,7 +901,7 @@
     btn.disabled = false;
     if (!out) return;
     if (!body || !body.ok) {
-      out.innerHTML = '<p class="muted" style="font-size:11.5px">조회하지 못했습니다 — ' +
+      out.innerHTML = '<p class="muted" style="font-size:12px">조회하지 못했습니다 — ' +
         esc((body && body.error) || '요청 실패') + '<br>' +
         '조회에 실패했다는 것은 「없다」가 아닙니다 — 판매자센터에서 직접 확인해 주세요.</p>';
       return;
@@ -921,7 +921,7 @@
     out.innerHTML = '<p style="font-size:12px;margin:6px 0">' +
       `${esc(PRE_MARKET[body.market] || body.market)}에서 「${esc(body.query)}」 검색 — ` +
       `<b>${body.count}건</b>${scope}` + (hits ? '<br>' + hits : '') + '</p>' +
-      `<p class="muted" style="font-size:11.5px;margin:0">${esc(body.note || '')}</p>`;
+      `<p class="muted" style="font-size:12px;margin:0">${esc(body.note || '')}</p>`;
   }
 
   /* 「이 상품번호로 확정」 — 사람이 마켓에서 확인한 사실을 장부에 넣는다.
