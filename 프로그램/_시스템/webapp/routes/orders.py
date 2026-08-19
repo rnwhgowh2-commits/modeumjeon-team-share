@@ -1421,8 +1421,20 @@ _SETTLE_PLAN_LOOKBACK_DAYS = 180   # 쿠팡 최대 2달 주기 + 여유
 
 
 def _settle_plan_lines(markets=None):
-    """MarketOrderLine → settle_plan 엔진 입력. 최근 180일 주문만."""
-    from lemouton.markets.models_orders import MarketOrderLine
+    """MarketOrderLine → settle_plan 엔진 입력. 최근 180일 주문 + 그 클레임 전 이력.
+
+    🔴 [2026-08-19] 클레임은 안 읽고 있었다 — **라이브 배포 직후 발견**. `MarketOrderLine`
+       한 테이블만 읽어서, `annotate_claims()` 가 이어 붙일 클레임 행이 애초에 하나도
+       없었다(반품완료 234건이 있는데도 kpi.returned=0으로 화면에 서 있었다).
+       클레임은 `order_store.save()` 가 **별도 테이블**(`MarketClaimEvent`)에 쌓는다
+       — 같은 라인이 반품요청→반품완료로 갈 때 주문 테이블에 덮어쓰면 이력이
+       사라지기 때문이다(`order_store.py` 의 그 이유 그대로). `order_store.load()`
+       (preview.json 이 쓰는 그 함수)는 이미 `include_claims` 로 두 테이블을 합쳐
+       왔는데, 이 함수는 그 패턴을 안 따르고 직접 쿼리를 짜면서 절반만 옮겼다.
+       🔴 클레임에는 날짜로 거르지 않는다 — 옛 클레임이라도 그 주문이 지금 180일
+         창 안에 있으면 이어 줘야 한다(주문이 오래전이어도 반품은 최근일 수 있다).
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
     lo = (_dt.datetime.now() - _dt.timedelta(days=_SETTLE_PLAN_LOOKBACK_DAYS)
           ).strftime("%Y-%m-%d")
     s = SessionLocal()
@@ -1433,6 +1445,13 @@ def _settle_plan_lines(markets=None):
         lines = [{"row": dict(o.row or {}), "market": o.market,
                   "account": o.account or "", "status_at": o.status_at}
                  for o in q.all()]
+
+        qc = s.query(MarketClaimEvent)
+        if markets:
+            qc = qc.filter(MarketClaimEvent.market.in_(list(markets)))
+        lines += [{"row": dict(c.row or {}), "market": c.market,
+                   "account": "", "status_at": None}
+                  for c in qc.all()]
     finally:
         s.close()
     # 🔴 [2026-08-13] 클레임 행을 **주문번호로 원래 주문행에 이어** 표식을 남긴다.
