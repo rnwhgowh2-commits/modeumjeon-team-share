@@ -242,3 +242,107 @@ def test_두_화면_어디에도_옛_이름이_안_뜬다(client):
         html = client.get(url).get_data(as_text=True)
         assert '상품 마켓 전송' not in html, url
         assert '상품수집&amp;전송' in html, url        # 상단 메뉴 분류 이름
+
+
+# ── 칸별 호버카드 — 옵션별·소싱처별 가격·재고 이력 (2026-08 개편) ──────────
+
+def _seed_history(session, *, model_code='M1', sku='SKU1', color='화이트', size='250'):
+    from datetime import datetime
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption
+    from lemouton.templates.models import PriceTrackHistory
+    m = Model(model_code=model_code, model_name_raw='나이키 반팔', model_name_display='나이키 반팔',
+              brand='나이키', display_no='M20260101-000001')
+    session.add(m)
+    o = Option(canonical_sku=sku, model_code=model_code, color_code=color, color_display=color,
+               size_code=size, size_display=size)
+    session.add(o)
+    ps = ProductSet(model_code=model_code, name='단품')
+    session.add(ps)
+    session.flush()
+    sp = SetProduct(set_id=ps.id, model_code=model_code)
+    session.add(sp)
+    session.flush()
+    session.add(SetOption(set_product_id=sp.id, canonical_sku=sku))
+    session.add(PriceTrackHistory(canonical_sku=sku, source='musinsa',
+                                  price=38900, stock=11,
+                                  captured_at=datetime(2026, 8, 19, 9, 0)))
+    session.add(PriceTrackHistory(canonical_sku=sku, source='musinsa',
+                                  price=38900, stock=12,
+                                  captured_at=datetime(2026, 8, 20, 9, 0)))
+    session.flush()
+    return ps.id
+
+
+def test_호버카드_이력_API가_옵션당_소싱처별_최근_2줄을_돌려준다(client):
+    sess = client._Session()
+    try:
+        set_id = _seed_history(sess)
+        sess.commit()
+    finally:
+        sess.close()
+    r = client.get(f'/api/market-send/rows/{set_id}/history')
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d['ok'] is True
+    assert len(d['skus']) == 1
+    sk = d['skus'][0]
+    assert sk['color'] == '화이트' and sk['size'] == '250'
+    musinsa = sk['sources']['musinsa']
+    assert musinsa['current_stock'] == 12 and musinsa['current_price'] == 38900
+    assert len(musinsa['history']) == 2        # 최근 2줄만 — 전체 이력은 price-chart 몫
+
+
+def test_이력_없는_옵션은_카드에서_빠진다(client):
+    """빈 줄을 늘어놓지 않는다 — listing.py 의 「지어내지 않는다」와 같은 원칙."""
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption
+    sess = client._Session()
+    try:
+        sess.add(Model(model_code='M2', model_name_raw='이력없음', display_no='M-2'))
+        sess.add(Option(canonical_sku='SKU2', model_code='M2', color_code='블랙', size_code='250'))
+        ps = ProductSet(model_code='M2', name='단품')
+        sess.add(ps)
+        sess.flush()
+        sp = SetProduct(set_id=ps.id, model_code='M2')
+        sess.add(sp)
+        sess.flush()
+        sess.add(SetOption(set_product_id=sp.id, canonical_sku='SKU2'))
+        sess.commit()
+        set_id = ps.id
+    finally:
+        sess.close()
+    d = client.get(f'/api/market-send/rows/{set_id}/history').get_json()
+    assert d['skus'] == []
+
+
+def test_소싱처가_둘이면_한_숫자로_뭉개지_않고_둘_다_나온다(client):
+    """🔴 listing.py 의 buy_source=None 원칙과 같다 — 「지금 사오는 곳」을 안 정했다."""
+    from datetime import datetime
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption
+    from lemouton.templates.models import PriceTrackHistory
+    sess = client._Session()
+    try:
+        sess.add(Model(model_code='M3', model_name_raw='복수소싱', display_no='M-3'))
+        sess.add(Option(canonical_sku='SKU3', model_code='M3', color_code='화이트', size_code='250'))
+        ps = ProductSet(model_code='M3', name='단품')
+        sess.add(ps)
+        sess.flush()
+        sp = SetProduct(set_id=ps.id, model_code='M3')
+        sess.add(sp)
+        sess.flush()
+        sess.add(SetOption(set_product_id=sp.id, canonical_sku='SKU3'))
+        sess.add(PriceTrackHistory(canonical_sku='SKU3', source='musinsa', price=38900, stock=10,
+                                   captured_at=datetime(2026, 8, 20, 9, 0)))
+        sess.add(PriceTrackHistory(canonical_sku='SKU3', source='ssf', price=39900, stock=3,
+                                   captured_at=datetime(2026, 8, 20, 9, 0)))
+        sess.commit()
+        set_id = ps.id
+    finally:
+        sess.close()
+    d = client.get(f'/api/market-send/rows/{set_id}/history').get_json()
+    srcs = d['skus'][0]['sources']
+    assert set(srcs.keys()) == {'musinsa', 'ssf'}
+    assert srcs['musinsa']['current_price'] == 38900
+    assert srcs['ssf']['current_price'] == 39900
