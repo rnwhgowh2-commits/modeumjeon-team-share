@@ -17,8 +17,15 @@ fork로 push는 아직 안 함) — X-Internal-Token 헤더로 인증(기존 cs_
 """
 from __future__ import annotations
 
+import logging
+import os
+import time
+
+import requests
 from dataclasses import dataclass
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -50,13 +57,6 @@ def get_market_account(
     실패(연결 불가·계정 없음)를 삼키지 않는다 — 호출자가 결정하게 예외를 그대로 던진다.
     폴백 가격/폴백 계정 없음 — [[feedback_no_fallback_price_on_match_fail]] 과 같은 원칙.
     """
-    import logging
-    import os
-    import time
-
-    import requests
-
-    logger = logging.getLogger(__name__)
 
     base_url = os.environ.get("SAMBA_WAVE_URL", "").rstrip("/")
     if not base_url:
