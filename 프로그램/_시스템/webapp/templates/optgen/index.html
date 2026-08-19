@@ -47,18 +47,16 @@
       {% endif %}
     </div>
     {% if boxes %}
-    {# [2026-08-04 사장님 확정 E1+타이핑·C3] 왼쪽 서랍(검색+브랜드)이 표를 추리고,
-       줄 아무 데나 누르면 이어서 — 삭제는 「⋯」 안(실수 삭제 방지). #}
-    {# [2026-08-14 사장님 확정 1] 표 배치 **4안** — 일곱 칸 + 오른쪽 판.
-       칸을 하나 더 붙이므로 `og-w4` 를 같이 단다(격자 규칙은 CSS 쪽 주석에 까닭). #}
-    <div class="og-wrap og-w4">
-      <aside class="og-rail">
+    {# [2026-08-19 사장님 확정 B안] 왼쪽 서랍 → 위 가로 바(찾기·정렬·체크 2개
+       1단 + 브랜드 칩 2단). 표가 서랍 폭(230~520px)만큼 넓어진다.
+       🔴 이 마크업은 `og-topbar` 전용이다 — 상품 생성 탭의 왼쪽 서랍(`og-rail`,
+          「어디까지 왔나」 판 포함)은 그대로 두고 손대지 않는다. 로직(JS)은
+          id/class 로만 걸려 있어 배치를 바꿔도 안 건드린다. #}
+    <div class="og-topbar">
+      <div class="og-topbar-row1">
         <input class="og-in og-find" id="og-find" autocomplete="off"
                placeholder="브랜드·매트릭스 이름으로 찾기">
-        <div class="og-rail-t">브랜드</div>
-        <div id="og-brands"></div>
         {# [2026-08-04 사장님 확정 B1] 정렬 — 정책 생성 서랍과 같은 문법 #}
-        <div class="og-rail-t">정렬</div>
         <select class="og-in og-sort" id="og-sort">
           <option value="new">최근 만든 순</option>
           <option value="name">이름 순</option>
@@ -87,7 +85,15 @@
           <span class="og-bc">{{ box_counts.made }}</span>
         </label>
         {% endif %}
-      </aside>
+      </div>
+      {# 브랜드 칩 — JS(`buildBrands()`)가 `.og-b` 로 그대로 채운다. 모양(가로 칩)만
+         `.og-topbar #og-brands` CSS 로 바꿨다 — 자바스크립트는 안 건드렸다. #}
+      <div class="og-topbar-row2" id="og-brands"></div>
+    </div>
+    {# [2026-08-14 사장님 확정 1] 표 배치 4안 — 일곱 칸 + 오른쪽 판.
+       [2026-08-19 사장님 확정 B안] 서랍 칸을 뺐으니 격자는 표+판 2칸이다
+       (CSS `.og-wrap.og-w4`). #}
+    <div class="og-wrap og-w4">
       <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
         {# ── [2026-08-14 사장님 확정 ① A안] 고른 줄 띠 — **표 바로 윗줄 한 줄** ──
@@ -122,7 +128,7 @@
              그대로 두되 이 목록 한정으로 회색/초록(`direct_phase_cls`). #}
           <tr><th class="og-pick"><label><input type="checkbox" id="og-ckall"
                  aria-label="보이는 줄 모두 고르기"></label></th>
-            <th class="og-num">NO</th>
+            <th class="og-ctr">NO</th>
             <th>옵션 매트릭스</th>
             <th>모음전 구성</th>
             <th class="og-ctr">옵션축</th>
@@ -141,7 +147,7 @@
             <td class="og-pick"><label><input type="checkbox" class="og-bk"
                  data-code="{{ b.code }}" data-name="{{ b.name }}"
                  data-opts="{{ b.options }}" aria-label="{{ b.name }} 고르기"></label></td>
-            <td class="og-num">{{ loop.index }}</td>
+            <td class="og-ctr">{{ loop.index }}</td>
             {# ── 옵션 매트릭스 (병합, 2행 압축) ──────────────────────────────
                1행 = 이름(굵게, 미구성 SKU면 딱지도). 2행 = 매트릭스 번호 + 원본/
                파생 표시 · 브랜드 · 모델명(모델모음전이면 최대 8개 나열, 그 이상은
@@ -170,8 +176,10 @@
             </td>
             <td>{% if b.moum_kind_label %}{{ b.moum_kind_label }}{% else %}<span
                 class="og-dash" title="아직 어떤 모음전인지 안 정했습니다.">—</span>{% endif %}</td>
-            {# 옵션축 — 축마다 서로 다른 값이 몇 개인지 칩으로. 축이 없으면 「—」. #}
-            <td class="og-ctr">{% if b.axis_pairs %}<span class="axis-chip-row">{% for aname, acnt in b.axis_pairs -%}
+            {# 옵션축 — 축마다 서로 다른 값이 몇 개인지 칩으로. 축이 없으면 「—」.
+               🔴 [2026-08-19 사장님 지적] 칩이 3개(모델·색상·사이즈)로 늘어나면
+                  칸이 좁아 보였다 — `og-axiscell` 로 최소 폭을 확보한다. #}
+            <td class="og-ctr og-axiscell">{% if b.axis_pairs %}<span class="axis-chip-row">{% for aname, acnt in b.axis_pairs -%}
                 <span class="axis-chip">{{ aname }} <b>{{ acnt }}</b></span>
                 {%- endfor %}</span>{% else %}<span class="og-dash"
                 title="아직 축을 안 짰습니다.">—</span>{% endif %}</td>
@@ -584,6 +592,32 @@
      화면은 그대로 두고 **표만 안에서 굴러가게** 한다(가로 넘침 규칙과 같은 처방). */
   .og-tbwrap{min-width:0;overflow-x:auto}
 
+  /* ══ [2026-08-19 사장님 확정 B안] 서랍 → 위 가로 바 ═══════════════════
+     🔴 이 목록(direct/market)에만 쓴다. 상품 생성 탭은 여전히 왼쪽
+        `.og-rail`(아래 별도 규칙, 손 안 댐)을 그대로 쓴다.
+     🔴 `.og-b`(브랜드 한 줄)는 JS(`buildBrands()`)가 그대로 채우는 요소라
+        이름을 안 바꿨다 — 모양만 `.og-topbar .og-b` 로 덮어써서 상품 생성 탭의
+        세로 목록용 `.og-b`(아래)와 안 겹치게 했다. */
+  .og-topbar{background:var(--surface,#fff);border:1px solid var(--color-border);
+    border-radius:12px;padding:var(--sp-3);margin-bottom:var(--sp-4)}
+  .og-topbar-row1{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .og-topbar-row1 .og-in{width:auto;margin-bottom:0}
+  .og-topbar .og-find{width:260px}
+  .og-topbar .og-sort{width:160px}
+  .og-topbar-row1 .og-hid-row{margin-top:0;padding:0;border-top:none}
+  .og-topbar-row2{display:flex;gap:6px;flex-wrap:wrap}
+  .og-topbar-row2:not(:empty){margin-top:10px;padding-top:10px;
+    border-top:1px dashed var(--color-border)}
+  .og-topbar .og-b{display:inline-flex;align-items:center;gap:5px;
+    background:var(--ap-g1,#F5F5F7);border:1px solid var(--color-border);
+    border-radius:999px;padding:4px 12px;font-size:13px;
+    color:var(--color-text-secondary);cursor:pointer;white-space:nowrap}
+  .og-topbar .og-b.on{background:var(--연한-파랑,rgba(0,113,227,.08));
+    color:var(--primary-strong,#0066CC);border-color:var(--color-primary);font-weight:700}
+  .og-topbar .og-bc{font-size:12px;color:var(--color-text-tertiary);
+    font-variant-numeric:tabular-nums}
+  .og-topbar .og-b.on .og-bc{color:inherit}
+
   /* ══ [2026-08-14 사장님 확정 1] 표 배치 4안 — 일곱 칸 + 오른쪽 판 ═══════
      정본은 시안 `_시안_임시/optgen_direct_배치_5안.html` 의 5번째 탭이다.
      선언은 시안 그대로 옮겼고 **이름만** 시안 틀 앞글자(mk-)에서 이 화면 앞글자로
@@ -593,12 +627,12 @@
        mk-dash→og-dash · mk-frac→og-frac · mk-clamp→og-name · mk-kind→og-kind
        mk-row4.on→og-row.on · mk-u→`단위`(디자인 시스템에 같은 것이 이미 있다)
 
-     🔴 `.og-wrap` 본 규칙은 **안 건드린다.** 저 규칙과 `.og-tbwrap{overflow-x:auto}`
-        와 `.og-rail{width:max-content}` 셋은 한 몸이고, 하나만 손대면 문서 전체가
-        가로로 구른다(라이브 사고 2건 — 위 각 주석에 실측이 있다). 그래서 여기서는
-        **칸을 하나 더 붙이는 규칙만** 따로 둔다. 새 칸은 고정 380px 이라 표 칸은
-        여전히 `minmax(0,1fr)` 로 남고, 넘치는 표는 `.og-tbwrap` 안에서만 구른다. */
-  .og-wrap.og-w4{grid-template-columns:auto minmax(0,1fr) 380px}
+     🔴 `.og-wrap` 본 규칙은 **안 건드린다.** 상품 생성 탭은 여전히 그 본 규칙(서랍+표
+        2칸)을 그대로 쓴다. 여기서는 **이 목록(og-w4) 전용 규칙만** 따로 둔다.
+        [2026-08-19 사장님 확정 B안] 서랍을 위 가로 바(`og-topbar`)로 옮기면서 이
+        칸에서는 서랍(auto) 열을 뺐다 — 표 칸은 `minmax(0,1fr)`, 판은 고정 380px,
+        넘치는 표는 `.og-tbwrap` 안에서만 구른다. */
+  .og-wrap.og-w4{grid-template-columns:minmax(0,1fr) 380px}
   .og-side{width:380px;background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;overflow:hidden}
   .og-side-h{background:var(--color-bg-muted);color:var(--color-text-secondary);
@@ -615,12 +649,11 @@
   .og-miss{margin-top:12px;background:var(--연한-주황,rgba(255,149,0,.10));
     color:var(--글자-주황,#9A5B00);border-radius:8px;padding:9px 11px;font-size:12px;
     line-height:1.6}
-  /* 🔴 [1080px 아래] 판을 표 밑으로 내린다. 서랍은 가장 긴 상태 이름에 맞춰 최대
-     520px 까지 넓어지므로(위 `.og-rail`), 판 380 + 사이 여백 32 를 더하면 932px 이
-     이미 차 있어 그 아래에서는 표에 남는 자리가 없다 — 그대로 두면 셋이 창을 넘겨
-     문서가 가로로 구른다. 폰(768px 아래)은 아래 폰 구역이 따로 1칸으로 눌러 준다. */
+  /* 🔴 [1080px 아래] 판을 표 밑으로 내린다. 표+판(380+32) 이 좁은 창에서 나란히
+     못 서므로 표만 남기고 판은 아래로. 폰(768px 아래)은 아래 폰 구역이 따로
+     1칸으로 눌러 준다. */
   @media (max-width: 1080px){
-    .og-wrap.og-w4{grid-template-columns:auto minmax(0,1fr)}
+    .og-wrap.og-w4{grid-template-columns:minmax(0,1fr)}
     .og-side{width:auto;grid-column:1 / -1}
   }
   /* 줄 끝 ⓘ — 판을 여는 단추. 「···」와 나란히 서므로 같은 칩 규격을 쓴다. */
@@ -675,6 +708,10 @@
   /* ── [2026-08-19 사장님 확정] 옵션축 칩 · SKU 연결상태·소싱처 배지 ──
      🔴 이름이 비슷한 `.og-badge`(위상 딱지)와 안 섞이게 새 이름을 쓴다. */
   .og-skucell,.og-srccell{white-space:nowrap}
+  /* 🔴 [2026-08-19 사장님 지적] 칩이 3개(모델·색상·사이즈)로 늘어도 한 줄에
+     들어가게 최소 폭을 잡아 둔다 — 안 잡으면 표가 좁을 때 칩이 세로로 접혀
+     칸이 「좁다」는 인상을 준다. 칩 3개(약 55px씩)+사이 여백 기준 실측. */
+  .og-axiscell{min-width:172px}
   .axis-chip-row{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:center}
   .axis-chip{background:var(--ap-g1,#F5F5F7);border-radius:6px;padding:2px 7px;
     font-size:11px;color:var(--color-text-secondary);white-space:nowrap}
