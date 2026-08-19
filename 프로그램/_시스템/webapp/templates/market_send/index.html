@@ -184,6 +184,8 @@
   .lbl-val{margin-right:12px;font-family:ui-monospace,monospace}
 
   /* ══ 2026-08 개편 — ②정책 클릭 메뉴 ══ */
+  /* .pol-menu 는 .pol 버튼의 형제(같은 td 안)라 .pol 의 relative 는 기준이 안 된다 — td 자체가 기준이어야 함 */
+  .pol-td{position:relative}
   .pol{cursor:pointer;position:relative;border:none;font-family:inherit}
   .pol-menu{display:none;position:absolute;top:22px;left:0;z-index:60;background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.16);width:180px;padding:5px;text-align:left}
   .pol-menu.on{display:block}
@@ -331,7 +333,7 @@
 
     return '<tr><td>' + srcGrid(r) + '</td>'
       + '<td>' + name + '</td>'
-      + '<td>' + pol + '</td>'
+      + '<td class="pol-td">' + pol + '</td>'
       + '<td class="dt">' + crawl + '</td>'
       + '<td>' + mktGrid(r) + '</td></tr>';
   }
