@@ -68,14 +68,16 @@ def test_스스도_초안을_읽는다():
 
 
 # ── ④ 아직 안 되는 곳을 「된다」고 말하지 않는다 ────────────────────────
-def test_아직_못_보내는_마켓은_체크리스트가_그대로_말한다():
-    """🔴 11번가·옥션·G마켓·롯데온은 조립기 spec 에 칸 자체가 없다.
+def test_어디로_나가고_어디가_아직인지_둘_다_말한다():
+    """🔴 [2026-08-13 갱신] 그 사이 main 이 11번가·옥션·G마켓까지 이었다.
 
-    같은 묶음의 과세·상품상태·판매기간·제조사도 아직 상수다. 그래서 상태는
-    **저장만**이어야 한다 — 하나만 되는 것을 「나감」으로 적으면 나머지가 묻힌다.
+    상태가 「나감」이 된 것은 맞다. 다만 **아직 안 되는 곳**도 같이 말해야 한다 —
+    「나감」 한 마디로 뭉뚱그리면 롯데온이 조용히 묻힌다. 이 저장소가 반복해서
+    당한 형태다(배선이 이어지면 그걸 말하는 표도 같이 낡는다).
     """
-    from lemouton.policy.required import STORED_ONLY, wiring_of
+    from lemouton.policy.required import WIRED, wiring_of
     state, note = wiring_of('listing')
-    assert state == STORED_ONLY
+    assert state == WIRED, '미성년자 구매는 이제 실제로 나간다'
     assert '미성년자' in note, '무엇이 나가는지 안 적혀 있다'
-    assert '과세' in note or '아직' in note, '무엇이 아직 안 나가는지 안 적혀 있다'
+    # 🔴 아직 확인 못 한 곳(롯데온)이 안 적혀 있으면 「전부 된다」로 읽힌다
+    assert '롯데온' in note, '아직 확인 못 한 마켓이 안 적혀 있다'

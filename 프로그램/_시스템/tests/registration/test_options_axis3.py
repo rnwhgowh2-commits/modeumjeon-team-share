@@ -135,3 +135,40 @@ def test_1축은_모델명까지_한_줄로_합친다():
                                                  axis=AXIS_ONE)
     assert groups == {'optionGroupName1': '옵션'}
     assert [c['optionName1'] for c in combos] == ['메이트 블랙 260', '스위트 블랙 260']
+
+
+# ── 저장 게이트가 전송보다 엄격하면 안 된다 (2026-08-13) ─────────────────────
+
+
+def test_저장_검증은_전송이_받는_것을_거절하지_않는다():
+    """🔴 실측 사고 — 대량등록 저장 화면이 3갈래 행을 거절했다.
+
+    `build_smartstore_options` 를 axis 없이 부르면 기본이 2갈래라 `split_model=False`.
+    그래서 **전송(정책 axis=three)이 받아들이는 행을 저장이 막았다.**
+    게다가 거절문이 안내하는 해법(「상품가공에서 3갈래로」)은 그 게이트가
+    **절대 안 읽는 설정**이라, 시키는 대로 해도 저장은 계속 막힌다.
+    저장 시점엔 축을 모르므로 **축 무관 판정만** 해야 한다.
+    """
+    from lemouton.registration.options import validate_rows_for_save
+    보낼_수_있나 = build_smartstore_options(THREE, sale_price=10000, axis=AXIS_THREE)[1]
+    저장_되나, _ = validate_rows_for_save(THREE, sale_price=10000)
+    assert len(보낼_수_있나) == len(저장_되나) == 2, (
+        f'전송 {len(보낼_수_있나)}줄 · 저장 {len(저장_되나)}줄 — 저장이 더 엄격하다')
+
+
+def test_저장_검증도_완전_중복은_막는다():
+    """느슨해진 게 아니다 — 어느 축이어도 잘못인 것은 그대로 막는다."""
+    from lemouton.registration.options import validate_rows_for_save
+    dup = [{'color': '블랙', 'size': '260', 'stock': 3, 'sku': 'A1', 'model': '메이트'},
+           {'color': '블랙', 'size': '260', 'stock': 2, 'sku': 'A2', 'model': '메이트'}]
+    with pytest.raises(OptionValueInvalid):
+        validate_rows_for_save(dup, sale_price=10000)
+
+
+def test_저장_검증은_최종가_0원_이하를_막는다():
+    """가격 검사는 축과 무관하다 — 저장 시점에도 그대로 해야 한다."""
+    from lemouton.registration.options import validate_rows_for_save
+    with pytest.raises(OptionValueInvalid):
+        validate_rows_for_save(
+            [{'color': '블랙', 'size': '260', 'stock': 3, 'extra_price': -10000}],
+            sale_price=10000)

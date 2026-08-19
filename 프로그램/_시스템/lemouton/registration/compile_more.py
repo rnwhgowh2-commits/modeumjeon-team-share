@@ -53,12 +53,44 @@ def _normalize_options(draft, price: int):
                 f'옵션({color}/{size}) 추가금 포함가가 10원 단위가 아닙니다'
                 f'({price + extra}원) — ESM·11번가 규격.')
         out.append({'color': color, 'size': size, 'stock': int(stock),
-                    'extra_price': int(extra), 'sku': str(o.get('sku') or '').strip()})
+                    'extra_price': int(extra), 'sku': str(o.get('sku') or '').strip(),
+                    'model': str(o.get('model') or '').strip()})
     if not out and excluded:
         raise CompileError(
             '유효한 옵션이 하나도 없습니다(전부 재고 0/미입력) — 등록을 막습니다: '
             + '; '.join(f"{e['color']}/{e['size']}" for e in excluded[:5]))
+    _막이_모델이_다른데_이름이_같다(out)
     return out, excluded
+
+
+def _막이_모델이_다른데_이름이_같다(rows):
+    """🔴 이 마켓들(옥션·G마켓·11번가·롯데온)은 옵션 이름을 **색상·사이즈로만** 만든다.
+
+    모델모음전 3축 옵션이 오면 「메이트 블랙 260」과 「스위트 블랙 260」이
+    둘 다 `블랙/260` 이 된다. 사장님 눈엔 다른 옵션인데 마켓엔 **같은 이름 두 줄**이
+    올라간다 — 손님이 못 고르고, 들어온 주문이 어느 모델인지 알 수 없다.
+    (11번가는 문서에 「한 상품안에서 옵션값은 중복이 될수 없습니다」라고 못 박혀 있다.
+     옥션·G마켓·롯데온의 실제 거절 여부는 **미실측 — 확인불가**)
+
+    🔴 `registration/options._normalize` 를 그대로 재사용하면 **안 된다.** 거긴
+       중복을 **재고 거르기 전에** 세서, 「블랙/260 재고0 + 블랙/260 재고5」처럼
+       오늘 멀쩡히 등록되는 초안(품절 재입고를 두 줄로 적은 것)을 새로 막는다(실측).
+       그래서 여기서는 **팔 수 있는 줄만** 보고, **모델이 실제로 갈릴 때만** 막는다.
+
+    ★ 모델 칸이 없는 옛 옵션은 model='' 이라 이 막이에 안 걸린다(회귀 없음).
+    """
+    본 = {}
+    for r in rows:
+        본.setdefault((r['color'], r['size']), []).append(r)
+    for (색, 사이즈), 묶음 in 본.items():
+        모델들 = {r.get('model', '') for r in 묶음}
+        if len(묶음) > 1 and len(모델들 - {''}) > 1:
+            이름 = '/'.join(p for p in (색, 사이즈) if p) or '(빈 이름)'
+            raise CompileError(
+                f'모델이 다른 옵션이 이 마켓에서는 같은 이름이 됩니다: {이름} '
+                f'({" · ".join("「" + m + "」" for m in sorted(모델들) if m)}). '
+                f'옥션·G마켓·11번가·롯데온은 옵션 이름을 색상·사이즈로만 만들어 '
+                f'모델명이 실리지 않습니다 — 모델을 나눠서 올리세요.')
 
 
 def _base_spec(draft) -> tuple:
@@ -97,7 +129,38 @@ def _base_spec(draft) -> tuple:
     spec = {'goods_name': name, 'price': int(price), 'stock': int(stock),
             'image_url': image_url.strip(), 'detail_html': detail_html,
             'options': options}
+    spec.update(_listing_consts(draft))
     return spec, excluded
+
+
+#: 화면 글자 → 「면세인가」. 🔴 모르는 글자는 지어내지 않고 과세(False)로 둔다.
+#:   「영세」는 사장님 확정으로 선택지에서 뺐다 — 쿠팡·옥션·G마켓엔 보낼 칸이 없다.
+_VAT_FREE = {'면세': True, '과세': False}
+
+
+def _listing_consts(draft) -> dict:
+    """4마켓 공통 등록 상수 — 초안 칸 → spec.
+
+    🔴 **여기서 마켓별 코드로 바꾸지 않는다.** 같은 「면세」라도 11번가는 '02',
+      ESM 은 `true`, 쿠팡은 'FREE' 다. 뜻만 담아 넘기고 변환은 각 조립기가 한다 —
+      한 곳에서 코드로 굳히면 마켓이 늘 때마다 여기가 갈래로 뒤덮인다.
+
+    🔴 바코드는 `barcode.for_market` 을 **거쳐서** 담는다. 자체 생성분은
+      어느 마켓에도 안 보낸다(사장님 확정) — 그 판단을 조립기마다 되풀이하면
+      한 곳만 빠뜨렸을 때 조용히 새어 나간다.
+    """
+    from lemouton.inventory import barcode as BC
+    return {
+        'tax_type': str(getattr(draft, 'tax_type', '') or '').strip(),
+        'manufacturer': str(getattr(draft, 'manufacturer', '') or '').strip(),
+        'model_no': str(getattr(draft, 'model_no', '') or '').strip(),
+        # 마켓 이름은 조립기가 알고 있지만, 자체/공식 판별은 값만 보면 되므로
+        # 여기서 한 번에 거른다(BC.is_internal 은 값의 앞자리만 본다).
+        'barcode': ('' if BC.is_internal(getattr(draft, 'barcode', ''))
+                    else str(getattr(draft, 'barcode', '') or '').strip()),
+        # 칸이 없는 옛 초안(getattr 기본 True)은 전연령 그대로.
+        'minor_purchasable': bool(getattr(draft, 'minor_purchasable', True)),
+    }
 
 
 def compile_auction_gmarket(draft, *, category_code) -> tuple:
@@ -113,6 +176,17 @@ def compile_auction_gmarket(draft, *, category_code) -> tuple:
         raise CompileError('ESM/사이트 카테고리 중 한쪽이 비어 있습니다.')
     spec, excluded = _base_spec(draft)
     spec.update({'cat_code': cat_code, 'site_cat_code': site_cat_code})
+    # ── 등록 상수를 ESM 이 쓰는 이름·모양으로 (이 파일의 기존 관례: compile_eleven11 도
+    #    disp_ctgr_no·prd_nm 처럼 마켓 이름으로 담는다) ─────────────────────────
+    #    지도 근거: itemAddtionalInfo>isVatFree(Boolean) · itemBasicInfo>catalog>
+    #              {modelName, barCode} · itemAddtionalInfo>isAdultProduct(필수)
+    #    ⚠️ 제조사·검색태그는 ESM 일반 상품에 **칸이 없다**(제조사는 「예약설치 상품」
+    #      전용 Install>InstallMakerId 뿐) — 지어내서 아무 칸에나 넣지 않는다.
+    spec.update({
+        'is_vat_free': _VAT_FREE.get(spec['tax_type'], False),
+        'bar_code': spec['barcode'],
+        'is_adult_product': not spec['minor_purchasable'],
+    })
     return spec, excluded
 
 

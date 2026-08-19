@@ -283,6 +283,38 @@ _ONE_GROUP = '옵션'
 AXIS_ONE, AXIS_TWO, AXIS_THREE = 'one', 'two', 'three'
 
 
+def validate_rows_for_save(opts, *, sale_price):
+    """**저장 직전** 검증 — 축이 아직 안 정해진 시점에서 쓴다.
+
+    🔴 왜 따로 있나 (2026-08-13 실측 사고)
+
+    대량등록 저장 화면(`webapp/routes/bulk/drafts.py`)이
+    `build_smartstore_options(rows, sale_price=...)` 를 **axis 없이** 불렀다.
+    기본값이 `AXIS_TWO` 라 `split_model=False` 가 되고, 그 결과
+
+        전송(정책 axis='three') → 통과 2줄
+        저장 검증(axis 안 넘김)  → 🔴 거절
+
+    **전송이 받아들이는 행을 저장이 거절했다.** 게다가 그 거절문이 안내하는 해법
+    (「상품가공 옵션 축 구성을 3갈래로」)은 이 게이트가 **절대 안 읽는 설정**이라,
+    사장님이 시키는 대로 해도 저장은 계속 막힌다 —
+    `formatter/pipeline.py` 에서 걷어낸 「없는 해법을 안내하는 문구」와 같은 것이
+    여기 살아 있었다.
+
+    ★ 저장 시점엔 **어느 축으로 올릴지 아직 모른다.** 그러니 축에 따라 달라지는
+      판정(같은 이름 겹침)은 여기서 하지 않는다. **어느 축이어도 잘못인 것만** 막는다:
+      값이 이상한 것 · (모델,색상,사이즈)가 통째로 같은 것 · 최종가 0원 이하 ·
+      사이즈 유무 섞임. 축에 따라 갈리는 판정은 전송 시점(컴파일러)이 한다.
+    """
+    base = _num(sale_price, '판매가')
+    if base is None:
+        raise OptionValueInvalid('판매가가 없습니다.')
+    rows, excluded = _split(_normalize(opts, split_model=True))
+    for o in rows:
+        _final_price(base, o)      # 최종가 0원 이하면 여기서 터진다
+    return rows, excluded
+
+
 def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
     """옵션 목록 → (optionCombinationGroupNames, optionCombinations, excluded).
 
@@ -300,10 +332,18 @@ def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
              마켓 근거(근거 서열 2 = 스스 개발자센터 원문, 판매처 지도에 수록):
                `optionCombinations` — 「최대 등록 가능한 옵션 개수는
                조합형은 3개, 지점형은 4개입니다.」
-             ⚠️ 다만 카테고리가 **표준형 옵션**을 요구하면 3축 조합형은 못 쓴다
-               (같은 원문: 「표준형 옵션, 단독형 옵션, 조합형 옵션은 함께 사용할 수
-               없습니다」). 판정은 `GET /v1/options/standard-options` 의
-               `useStandardOption`·`optionSetRequired` — 아직 안 부른다.
+             🔴 [2026-08-13 정정] 한때 여기에 「카테고리가 표준형 옵션을 요구하면
+               3축을 못 쓴다」고 적었다. **검증 안 된 추론이었다.** 근거 둘로 접었다:
+               · 지도 `optionInfo`(부모) 원문에 **표준형이라는 말이 아예 없다** —
+                 「단독형 옵션, 조합형 옵션, 직접 입력형 옵션 중 최소 한 개」.
+               · 저장소가 이미 결론냈다 —
+                 `docs/superpowers/plans/2026-07-17-대량등록-Phase1A.md:903`
+                 「표준형은 강제가 아니다. **조합형으로 진행이 맞다.**」
+               표준형과 조합형이 **함께** 못 쓰이는 건 사실이지만,
+               **카테고리가 표준형을 강제한다는 칸은 지도에 없다.**
+               `optionSetRequired` 는 최상위가 아니라 **표준형 그룹 안** 필드라
+               (`standardOptionCategoryGroups[]` 의 형제) 그 판정에 쓸 수 없다.
+               → 그래서 사전 판정 게이트를 **짓지 않는다.** 없는 제약을 만들지 않는다.
     excluded: [{'color','size','stock','reason'}] — 등록에서 빠진 행.
               상위가 사용자에게 보여줘야 한다 (조용한 실패 금지).
 
@@ -328,10 +368,17 @@ def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
         #   그 값이 구매자 드롭다운에 그대로 노출된다(우리 배열 값 = 구매자가 보는 값).
         빈 = [i + 1 for i, o in enumerate(rows) if not o.get('model')]
         if 빈:
+            # 🔴 사유를 정확히 말한다. 옵션 행에 모델명이 담기는 길은 **하나뿐**이다 —
+            #   `policy/to_payload._options_json` → `send/as_draft`.
+            #   크롤로 만든 초안(`draft_from_crawl`)과 대량등록 손입력에는 모델명이
+            #   **원천적으로 없다**(소싱처 옵션 `SourceOption` 에 모델 축 칸이 없다).
+            #   그 경우 「지어내지 마세요」는 엉뚱한 안내다 — 넣을 값이 애초에 없다.
             raise OptionValueInvalid(
                 f'3갈래(모델명·색상·사이즈)로 올리려는데 모델명이 빈 옵션이 있습니다: '
-                f'{", ".join(map(str, 빈))}번째. 값을 임의로 지어내지 마세요 — '
-                f'구매자 화면에 그대로 노출됩니다.')
+                f'{", ".join(map(str, 빈))}번째 (전체 {len(rows)}개 중 {len(빈)}개). '
+                f'모델명은 모음전의 **모델 축**에서 옵니다 — 크롤이나 손입력으로 만든 '
+                f'상품에는 그 축이 없습니다. 구성(모음전)을 거쳐 만든 상품만 3갈래로 '
+                f'올릴 수 있습니다. 그게 아니면 「색상 · 사이즈」 2갈래로 올리세요.')
         groups = {'optionGroupName1': _MODEL_GROUP,
                   'optionGroupName2': _COLOR_GROUP}
         if has_size:

@@ -3052,134 +3052,27 @@ def dissolve_bundle_group(gid: int):
         s.close()
 
 
-@bp.get('/bundle-groups/<int:gid>/option-config')
-def get_bundle_option_config(gid: int):
-    """[v3] 그룹의 마켓별 옵션 축 구성 조회."""
-    from lemouton.sourcing.models import BundleGroup
-    import json as _json
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        cfg = {}
-        if g.option_config_json:
-            try:
-                cfg = _json.loads(g.option_config_json)
-            except Exception:
-                cfg = {}
-        return _ok(group_id=gid, group_code=g.group_code, option_config=cfg)
-    finally:
-        s.close()
-
-
-@bp.post('/bundle-groups/<int:gid>/option-config')
-def set_bundle_option_config(gid: int):
-    """[v3] 그룹의 마켓별 옵션 축 구성 저장.
-
-    Body: {"option_config": {"smartstore": {"axes": [{"name":"색상","source":"color_code"}, ...]}, "coupang": {...}}}
-    검증:
-      - 마켓별 axes 1~3개 (스스 최대 3, 쿠팡 최대 3)
-      - axis.name 비어있지 않음
-      - axis.source ∈ {color_code, size_code, model_code}
-    """
-    from lemouton.sourcing.models import BundleGroup
-    import json as _json
-    payload = request.get_json(silent=True) or {}
-    cfg = payload.get('option_config') or {}
-    valid_sources = {'color_code', 'size_code', 'model_code'}
-    valid_markets = {'smartstore', 'coupang'}
-    # 검증
-    for mk, mk_cfg in cfg.items():
-        if mk not in valid_markets:
-            return _err(f'알 수 없는 마켓: {mk}', 400)
-        axes = (mk_cfg or {}).get('axes') or []
-        if not isinstance(axes, list) or not (1 <= len(axes) <= 3):
-            return _err(f'{mk} axes 1~3개 필요 (받은 수: {len(axes)})', 400)
-        names_seen = set()
-        sources_seen = set()
-        for i, ax in enumerate(axes):
-            name = (ax or {}).get('name', '').strip()
-            src = (ax or {}).get('source', '')
-            if not name:
-                return _err(f'{mk} axis #{i+1} name 비어있음', 400)
-            if src not in valid_sources:
-                return _err(f'{mk} axis #{i+1} source 잘못됨: {src}', 400)
-            if name in names_seen:
-                return _err(f'{mk} axis name 중복: {name}', 400)
-            if src in sources_seen:
-                return _err(f'{mk} axis source 중복: {src}', 400)
-            names_seen.add(name); sources_seen.add(src)
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        g.option_config_json = _json.dumps(cfg, ensure_ascii=False)
-        s.commit()
-        return _ok(group_id=gid, option_config=cfg)
-    finally:
-        s.close()
-
-
-@bp.get('/bundle-groups/<int:gid>/option-payload-preview')
-def get_option_payload_preview(gid: int):
-    """[v3] axes config 로 생성될 마켓별 페이로드 미리보기.
-
-    옵션 데이터(canonical_sku, color_code, size_code, model_code) 를 그룹의 모든 모델에서 모아
-    option_axes.build_payloads_for_group 으로 마켓별 페이로드 생성. 신규 등록 전 검증용.
-    """
-    from lemouton.sourcing.models import BundleGroup
-    from lemouton.formatter.option_axes import build_payloads_for_group
-    import json as _json
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        cfg = {}
-        if g.option_config_json:
-            try: cfg = _json.loads(g.option_config_json)
-            except Exception: cfg = {}
-        # 그룹의 모든 모델 옵션 수집
-        model_codes = [m.model_code for m in g.models]
-        opts = (s.query(Option)
-                .filter(Option.model_code.in_(model_codes))
-                .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
-                .all()) if model_codes else []
-        # 🔴 [2026-08-13] `model_name` 을 같이 싣는다 — 모델 축(3축)의 **값**이다.
-        #   `model_code` 는 묶음 코드(U…)라 옵션마다 똑같아서, 축을 3개로 늘려도
-        #   셋째 칸에 넣을 값이 없었다(실측: 두 줄이 한 줄로 접힘).
-        #   값은 `Option.axis_values_json` 에 이미 있었고 **가리킬 이름이 없었을 뿐**이다.
-        #   축 이름은 저장된 단계 설계에서 읽는다 — 새 칸을 만들지 않는다.
-        from lemouton.sourcing.models import BundleOptionStep
-        from lemouton.matrix.option_name import model_name_of
-        nm_by_code = {m.model_code: (m.model_name_display or m.model_name_raw
-                                     or m.model_code) for m in g.models}
-        ax_by_code: dict[str, list[str]] = {}
-        if model_codes:
-            for code, axis_name in (s.query(BundleOptionStep.model_code,
-                                            BundleOptionStep.axis_name)
-                                    .filter(BundleOptionStep.model_code.in_(model_codes))
-                                    .order_by(BundleOptionStep.model_code,
-                                              BundleOptionStep.step_no).all()):
-                ax_by_code.setdefault(code, []).append(axis_name)
-        opt_dicts = [{
-            'canonical_sku': o.canonical_sku,
-            'color_code': o.color_code,
-            'size_code': o.size_code,
-            'model_code': o.model_code,
-            'model_name': model_name_of(nm_by_code.get(o.model_code, ''), o,
-                                        ax_by_code.get(o.model_code) or []),
-        } for o in opts]
-        try:
-            payloads = build_payloads_for_group(cfg, opt_dicts)
-        except Exception as e:
-            return _err(f'페이로드 빌드 실패: {e}', 400)
-        return _ok(group_id=gid, option_count=len(opt_dicts),
-                   option_config=cfg, payloads=payloads)
-    finally:
-        s.close()
+# 🔴 [2026-08-13] 여기 있던 두 라우트를 지웠다 —
+#   `GET  /bundle-groups/<gid>/option-config`          (화면 호출자 0건)
+#   `GET  /bundle-groups/<gid>/option-payload-preview` (화면 호출자 0건)
+#
+#   미리보기 라우트가 쓰던 `lemouton/formatter/option_axes.py` 도 같이 지웠다.
+#   그것은 옵션 페이로드 빌더의 **세 번째 벌**이었고, 실전송
+#   (`registration/options.py`)과 **안전 규칙이 정반대**였다:
+#     · 중복 조합 → 실전송은 사유와 함께 거절 / 그쪽은 `continue` 로 조용히 삭제
+#       (그 줄의 재고가 통째로 증발한다)
+#     · 빈 축 값  → 실전송은 거절 / 그쪽은 **「?」로 지어냄**(구매자 화면에 그대로 노출)
+#     · 재고·가격 → 실전송은 3상태를 갈라 제외+보고 / 그쪽은 없으면 0 폴백
+#     · 마켓 규격 → 그쪽 `optionTypes`·쿠팡 `stockQuantity` 는 지도에 **0건**
+#   미리보기가 실제 나가는 것과 다른 그림을 보여 주면 그게 더 위험하다.
+#
+#   미리보기가 정말 필요하면 **실전송 빌더로** 만들면 된다 —
+#   `policy/to_payload._options_json` 이 만든 옵션 행을 그대로
+#   `registration/options.build_smartstore_options(..., axis=정책axis)` 에 넣으면
+#   **실제 나가는 payload 그 자체**가 나온다. 원천을 늘리지 않는 길이 이미 있다.
+#
+#   POST `/option-config` 는 남겼다 — 매트릭스 패널이 부른다.
+#   🔴 다만 그 설정은 **저장만 되고 전송에 안 쓰인다**(전수 확인). 별건.
 
 
 # ═══════ [제품 공유 v1] 신규 모음전 — 재고제품 검색 + 모음전 생성 ═══════

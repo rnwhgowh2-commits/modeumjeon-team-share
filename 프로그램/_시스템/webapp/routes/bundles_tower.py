@@ -876,6 +876,11 @@ def bundle_list():
                 'buy': p.get('buy'), 'sell': p.get('sell'),
                 'margin_pct': p.get('margin_pct'),
                 'policy_id': p.get('policy_id'),
+                # ── 목록 거르기(C3) 재료 — 🔴 **추가 쿼리 0**.
+                #   전부 이미 손에 있는 값이다. 여기서 새로 물어보면 상품 수만큼
+                #   쿼리가 늘어(N+1) 목록이 즉사한다(§6 조사: 소싱처 필터가 276쿼리).
+                'policy_name': p.get('policy_name') or '',
+                'category': m.category or '',
                 'sold_qty': sl.get('qty'), 'sold_revenue': sl.get('revenue'),
                 'markets': mkts,
                 'fails': fails, 'soldout': p.get('soldout') or 0,
@@ -1232,6 +1237,14 @@ def tower_sources(code: str):
         s.close()
 
 
+#: 상품명을 「이 상품만」으로 덮어쓸 수 있는 마켓 — 담을 칸이 있는 곳만.
+#:   🔴 나머지 4마켓엔 칸이 아예 없다. 화면에 내주면 없는 기능을 광고하게 된다.
+#:   🔴 이 칸들은 **전송 코드가 이미 읽고 있었는데**(registration/coupang.py:106 ·
+#:     smartstore.py:85) 적을 화면이 없어 **늘 비어 있었다**(인수인계 C1 「죽은 자료」).
+_NAME_OVERRIDE_COL = {'coupang': 'coupang_product_name_override',
+                      'smartstore': 'naver_product_name_override'}
+
+
 def _coupon_status(s, code: str) -> dict:
     """쿠팡 쿠폰 — 지금 어떤 상태인지 화면이 가를 수 있게.
 
@@ -1385,6 +1398,18 @@ def tower_markets_api(code: str):
             if mk == 'coupang':
                 # 🔴 쿠폰은 **쿠팡만** 있다 — 다른 마켓에 붙이면 화면이 없는 기능을 광고한다.
                 item.update(_coupon_status(s, code))
+            # 상품명 「이 상품만」 — 칸이 있는 마켓만(쿠팡·스마트스토어).
+            _col = _NAME_OVERRIDE_COL.get(mk)
+            if _col:
+                from lemouton.registration.market_limits import (
+                    name_limit_unknown_reason, name_max_len)
+                _v = getattr(_model_or_404(s, code), _col, None)
+                item['name_override'] = _v
+                item['name_own'] = bool(_v)
+                # 글자수 카운터용 — 🔴 상한을 **모르면 지어내지 않고** 왜 모르는지를 준다.
+                #   지어낸 상한으로 상품명을 자르면 그게 더 큰 손해다.
+                item['name_cap'] = name_max_len(mk)
+                item['name_cap_reason'] = name_limit_unknown_reason(mk)
             out.append(item)
         return jsonify({'ok': True, 'markets': out,
                         'policy': ({'id': pol.id, 'name': pol.name}

@@ -223,6 +223,21 @@
     small_to_big: '작은 → 큰', free: '무료', paid: '유료(1개당)',
     free_over: 'N원 이상 무료', korean: '국문', english: '영문', both: '국문+영문',
     front: '맨 앞', back: '맨 뒤', none: '안 붙임',
+    // [2026-08-13] 「옵션 축 구성」 — 목록에 없어서 사장님 화면에 `one`·`two`·`three`
+    //   가 **영어 그대로** 나오고 있었다. 3갈래를 연 김에 우리말로 맞춘다.
+    //   글자는 `registration/options.py` 가 마켓에 내보내는 그룹 이름과 같게 둔다
+    //   (`_ONE_GROUP='옵션'` · `_MODEL_GROUP='모델명'` · `_COLOR_GROUP='색상'` · `_SIZE_GROUP='사이즈'`)
+    //   — 화면에서 고른 말과 구매자가 보는 말이 달라지면 안 된다.
+    one: '한 갈래 (메이트 블랙 260)', two: '색상 · 사이즈',
+    three: '모델명 · 색상 · 사이즈',
+    into_price: '판매가에 합침',
+    // 위와 같은 까닭으로 빠져 있던 것들 — 전수로 세어 한꺼번에 채웠다
+    // (`process_rule_schema.py` 의 `choices=` 값 중 우리말 라벨이 없던 9개).
+    // 뜻은 그 파일 `hint` 원문 그대로 옮겼다 — 지어내지 않는다.
+    margin_amount: '마진금액 (매입가 + 금액)', fixed_price: '지정가 (이 값으로 못 박음)',
+    cheapest: '가장 싼 곳', priciest: '가장 비싼 곳', average: '평균',
+    max: '가장 비싼 값으로', min: '가장 싼 값으로',
+    WON: '정액 (원)', PERCENT: '정률 (%)',
   };
   const cl = (v) => CHOICE_LABEL[v] || v;
 
@@ -653,6 +668,13 @@
         .then((r) => r.json()),
     ]).then(([sc, rl]) => {
       schema = sc;
+      // 🔴 [2026-08-13] 라벨의 단일 원천은 `process_rule_schema.CHOICE_LABELS` 다.
+      //   여기 아래 `CHOICE_LABEL` 은 화면이 따로 들고 있던 사본이라, 스키마에
+      //   선택지가 늘 때마다 한쪽만 갱신돼 **영어가 샜다**(실제로 13개가 샜다).
+      //   스키마가 실어 주는 `choice_labels` 를 덮어씌워 항상 서버를 따르게 한다.
+      (sc.items || []).forEach((it) => (it.fields || []).forEach((f) => {
+        Object.assign(CHOICE_LABEL, f.choice_labels || {});
+      }));
       rules = rl.rules || {};
       marketOnly = rl.market_saved_keys || [];
       render();

@@ -11,41 +11,11 @@
   </div>
 
   {# [v3] 마켓별 옵션 축 구성 패널 (기본 접힘 — 고급 설정) #}
-  <details id="option-config-panel" data-piece="price" style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:14px">
-    <summary style="padding:12px 16px;cursor:pointer;font-size:13.5px;font-weight:600;color:#4e5968;list-style:none;display:flex;align-items:center;gap:10px">
-      <span style="color:#9ca3af">▶</span>
-      <span>마켓 옵션 축 구성 <span style="color: var(--글자-희미, #9ca3af);font-weight:400;font-size: 14px">(고급 — 기본값 사용 권장)</span></span>
-    </summary>
-    <div style="padding:0 16px 14px 16px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-      <span style="font-size: 14px;color:#6b7684;line-height:1.5">
-        축 1~3개 · 이름 자유 입력 · source = 색상/사이즈/모델 택1
-      </span>
-      <button type="button" id="opt-cfg-save"
-              style="margin-left:auto;background:#3182f6;border:0;color:#fff;padding:6px 14px;border-radius:6px;font-size: 14px;font-weight:700;cursor:pointer">
-        저장
-      </button>
-    </div>
-    {# 마켓 탭 #}
-    <div style="display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid #e5e8eb">
-      <button type="button" class="opt-cfg-tab on" data-mk="smartstore"
-              style="background:none;border:0;border-bottom:2px solid #3182f6;color:#3182f6;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer">
-        스마트스토어 <span style="color: var(--글자-희미, #9ca3af);font-weight:400">(최대 3축)</span>
-      </button>
-      <button type="button" class="opt-cfg-tab" data-mk="coupang"
-              style="background:none;border:0;color:#6b7684;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">
-        쿠팡 <span style="color: var(--글자-희미, #9ca3af);font-weight:400">(최대 3축)</span>
-      </button>
-    </div>
-    {# 마켓별 axes 편집 영역 #}
-    <div id="opt-cfg-body"></div>
-    {# 미리보기 #}
-    <div style="margin-top:10px;padding:10px 12px;background:#f9fafb;border-radius:6px;font-size: 14px;color:#4e5968">
-      <strong style="color:#191F28">미리보기:</strong>
-      <span id="opt-cfg-preview" style="font-family:ui-monospace,monospace;color:#1e40af">—</span>
-    </div>
-    </div>
-  </details>
+  {# [2026-08-13 사장님 확정] 여기 있던 「마켓 옵션 축 구성(고급)」 패널을 **지웠다.**
+     고르셔도 마켓에 나가는 것이 **한 글자도 안 바뀌었다** — 저장만 되고 계산·전송
+     어디에도 안 쓰였다(`option_config_json` 소비자 전수 확인).
+     축을 실제로 정하는 곳은 **상품가공 > 정책 생성 > 「옵션 축 구성」** 하나다.
+     같은 것을 두 군데서 물으면 언젠가 갈린다 — 묻는 곳을 하나로 남긴다. #}
 
   {# [v3] 클러스터 정보 패널 (cluster_size>=2 일 때만 JS 로 표시) #}
   <div id="cluster-panel" data-piece="opt" style="display:none;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:14px">
@@ -1766,7 +1736,6 @@
     window.DATA = j;  // V9 필터 사이드에서 참조
     // H1 — 트리/인스펙터 제거됨 (마스터 테이블에 통합)
     renderClusterPanel();
-    renderOptionConfigPanel();
     renderPriceMatrix();
     // v5 시안 ① 소싱처×옵션 매트릭스
     if (typeof renderSourceMatrix === 'function') {
@@ -4832,131 +4801,6 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
   });
 
   // [v3] 옵션 축 구성 패널
-  let _optCfgState = { active: 'smartstore', cfg: null };
-  function renderOptionConfigPanel() {
-    const panel = document.getElementById('option-config-panel');
-    if (!panel) return;
-    const bg = DATA.bundle_group;
-    if (!bg) { panel.style.display = 'none'; return; }
-    panel.style.display = 'block';
-    // 디폴트 cfg
-    const dflt = {
-      smartstore: { axes: [{name:'색상',source:'color_code'},{name:'사이즈',source:'size_code'}] },
-      coupang:    { axes: [{name:'색상',source:'color_code'},{name:'사이즈',source:'size_code'}] },
-    };
-    _optCfgState.cfg = JSON.parse(JSON.stringify(bg.option_config && Object.keys(bg.option_config).length ? bg.option_config : dflt));
-    // 마켓 탭 이벤트
-    document.querySelectorAll('.opt-cfg-tab').forEach(t => {
-      t.onclick = () => {
-        _optCfgState.active = t.dataset.mk;
-        document.querySelectorAll('.opt-cfg-tab').forEach(x => {
-          const on = x.dataset.mk === _optCfgState.active;
-          x.style.borderBottom = on ? '2px solid #3182f6' : '2px solid transparent';
-          x.style.color = on ? '#3182f6' : '#6b7684';
-          x.style.fontWeight = on ? '700' : '600';
-        });
-        renderOptCfgBody();
-      };
-    });
-    renderOptCfgBody();
-    document.getElementById('opt-cfg-save').onclick = saveOptionConfig;
-  }
-  function renderOptCfgBody() {
-    const body = document.getElementById('opt-cfg-body');
-    if (!body) return;
-    const mk = _optCfgState.active;
-    const axes = (_optCfgState.cfg[mk] && _optCfgState.cfg[mk].axes) || [];
-    const sourceLabels = { color_code:'🎨 색상', size_code:'📏 사이즈', model_code:'모델' };
-    let html = '';
-    axes.forEach((ax, i) => {
-      html += `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#f9fafb;border-radius:6px">
-          <span style="font-size: 14px;color:#6b7684;font-weight:700;min-width:40px">축 ${i+1}</span>
-          <input type="text" value="${ax.name||''}" placeholder="옵션명 (예: 색상)"
-                 data-axis-idx="${i}" data-axis-field="name"
-                 style="flex:1;padding:6px 10px;border:1px solid #d1d6db;border-radius:5px;font-size: 14px">
-          <select data-axis-idx="${i}" data-axis-field="source"
-                  style="padding:6px 10px;border:1px solid #d1d6db;border-radius:5px;font-size: 14px;background:#fff">
-            ${Object.entries(sourceLabels).map(([k,v]) => `<option value="${k}" ${ax.source===k?'selected':''}>${v}</option>`).join('')}
-          </select>
-          <button type="button" data-axis-remove="${i}"
-                  style="background:#fff;border:1px solid #f87171;color:#dc2626;padding:5px 9px;border-radius:5px;font-size: 14px;font-weight:700;cursor:pointer"
-                  ${axes.length<=1?'disabled':''}>✕</button>
-        </div>`;
-    });
-    if (axes.length < 3) {
-      html += `<button type="button" id="opt-cfg-add-axis"
-               style="background:#fff;border:1px dashed #3182f6;color:#3182f6;padding:7px 14px;border-radius:6px;font-size: 14px;font-weight:700;cursor:pointer">
-               + 축 추가</button>`;
-    }
-    body.innerHTML = html;
-    // 이벤트 바인딩
-    body.querySelectorAll('[data-axis-field]').forEach(el => {
-      el.oninput = el.onchange = () => {
-        const idx = +el.dataset.axisIdx;
-        const f = el.dataset.axisField;
-        _optCfgState.cfg[mk].axes[idx][f] = el.value;
-        renderOptCfgPreview();
-      };
-    });
-    body.querySelectorAll('[data-axis-remove]').forEach(b => {
-      b.onclick = () => {
-        const idx = +b.dataset.axisRemove;
-        _optCfgState.cfg[mk].axes.splice(idx, 1);
-        renderOptCfgBody();
-      };
-    });
-    const addBtn = document.getElementById('opt-cfg-add-axis');
-    if (addBtn) addBtn.onclick = () => {
-      const used = new Set((_optCfgState.cfg[mk].axes||[]).map(a => a.source));
-      const next = ['color_code','size_code','model_code'].find(s => !used.has(s)) || 'color_code';
-      _optCfgState.cfg[mk].axes.push({ name: '', source: next });
-      renderOptCfgBody();
-    };
-    renderOptCfgPreview();
-  }
-  function renderOptCfgPreview() {
-    const prev = document.getElementById('opt-cfg-preview');
-    if (!prev) return;
-    const mk = _optCfgState.active;
-    const axes = (_optCfgState.cfg[mk] && _optCfgState.cfg[mk].axes) || [];
-    // 첫 옵션 행에서 샘플 값 추출
-    const o = (DATA.options||[])[0];
-    if (!o) { prev.textContent = '—'; return; }
-    const valueOf = (src) => {
-      if (src === 'color_code') return o.color_code || '?';
-      if (src === 'size_code')  return o.size_code  || '?';
-      if (src === 'model_code') return o.model_code || '?';
-      return '?';
-    };
-    const sample = axes.map(a => `${a.name||'?'}: ${valueOf(a.source)}`).join(' / ');
-    prev.textContent = sample || '—';
-  }
-  async function saveOptionConfig() {
-    const bg = DATA.bundle_group;
-    if (!bg) return;
-    const btn = document.getElementById('opt-cfg-save');
-    const orig = btn.innerHTML;
-    btn.disabled = true; btn.innerHTML = '⟳ 저장 중...';
-    try {
-      const res = await fetch(`/api/bundle-groups/${bg.id}/option-config`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ option_config: _optCfgState.cfg })
-      });
-      const j = await res.json();
-      if (j.ok) {
-        if (window.flash) window.flash('옵션 축 구성 저장 완료', 'ok');
-        else alert('저장 완료');
-      } else {
-        alert('저장 실패: ' + (j.error || 'unknown'));
-      }
-    } catch (e) {
-      alert('저장 호출 실패: ' + e);
-    } finally {
-      btn.disabled = false; btn.innerHTML = orig;
-    }
-  }
 
   // [v3] 클러스터 패널 렌더링 (cluster_size>=2 일 때만)
   function renderClusterPanel() {

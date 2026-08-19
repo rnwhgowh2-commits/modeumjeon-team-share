@@ -72,23 +72,43 @@ def test_이름이_겹쳐도_보류하지_않는다():
         '이름은 마켓에 안 나가고, 이 알림은 전 사이클을 멈출 수 있다.')
 
 
-def test_보류_임계가_warning_을_두_번_센다는_사실을_고정한다():
-    """🔴 이건 **기존 배선**이다(내가 만든 게 아니다). 고치면 이 시험이 빨개진다 — 의도된 신호.
+def test_안내_알림만으로는_전송이_안_멈춘다():
+    """🔴 [2026-08-13 고침] 예전엔 `info` 도 세어져 **안내 6건이면 전 사이클 정지**였다.
 
-    warning 알림 한 건이 2로 세어지므로 **3건이면 6 > 5** 로 전 사이클이 멈춘다.
-    formatter 에 warning 알림을 새로 넣으려는 사람은 이 값을 먼저 봐야 한다.
+    `naver_product_not_registered`(=「이 모델은 마켓 상품번호가 없어 보낼 게 없다」)는
+    모델당 1건씩 쌓인다. 모델 3개분(6건)이면 6 > 5 로 **전 마켓·전 상품 uploaded=0**.
+    보낼 게 없는 모델 때문에 멀쩡한 상품 전송까지 멈추는 건 잘못이다.
     """
     from lemouton.uploader.dryrun import compute_dryrun_summary
-    alerts = [{'type': 't%d' % i, 'level': 'warning'} for i in range(3)]
-    s = compute_dryrun_summary([], alerts, 5, 30.0)
-    assert s.should_hold, (
-        'warning 3건으로 안 멈춘다 — 이중 계수가 고쳐졌다면 이 시험과 '
-        'pipeline.py 주석을 같이 갱신하라')
+    infos = [{'type': 'naver_product_not_registered', 'level': 'info'}
+             for _ in range(20)]
+    s = compute_dryrun_summary([], infos, 5, 30.0)
+    assert not s.should_hold, (
+        f'안내 알림만으로 전송이 멈춘다 — hold_reason={s.hold_reason!r}')
 
-    # info 만으로도 6건이면 멈춘다 — 이것도 기존 배선이다.
-    infos = [{'type': 'i%d' % i, 'level': 'info'} for i in range(6)]
-    assert compute_dryrun_summary([], infos, 5, 30.0).should_hold, (
-        'info 6건으로 안 멈춘다 — 계수 규칙이 바뀌었다')
+
+def test_진짜_경고는_예전과_똑같이_막는다():
+    """🔴 느슨해진 게 아니다 — warning 민감도는 **한 톨도 안 바뀌었다.**
+
+    가중치(×2)를 그대로 뒀다. 임계 5 가 그 가중치에 맞춰 정해진 값이라
+    같이 건드리면 진짜 막이가 소리 없이 두 배로 느슨해진다.
+    """
+    from lemouton.uploader.dryrun import compute_dryrun_summary
+    삼건 = [{'type': 't%d' % i, 'level': 'warning'} for i in range(3)]
+    assert compute_dryrun_summary([], 삼건, 5, 30.0).should_hold, (
+        'warning 3건에서 안 멈춘다 — 예전엔 멈췄다(6 > 5). 막이가 느슨해졌다')
+    두건 = [{'type': 't%d' % i, 'level': 'warning'} for i in range(2)]
+    assert not compute_dryrun_summary([], 두건, 5, 30.0).should_hold, (
+        'warning 2건에서 멈춘다 — 예전엔 안 멈췄다(4 < 5). 막이가 빡빡해졌다')
+
+
+def test_안내가_아무리_많아도_경고_민감도를_안_흔든다():
+    """섞여 들어와도 판정이 안내 개수에 휘둘리면 안 된다."""
+    from lemouton.uploader.dryrun import compute_dryrun_summary
+    섞임 = ([{'type': 'w%d' % i, 'level': 'warning'} for i in range(2)]
+            + [{'type': 'i%d' % i, 'level': 'info'} for i in range(50)])
+    assert not compute_dryrun_summary([], 섞임, 5, 30.0).should_hold, (
+        '안내 50건이 판정을 뒤집었다 — warning 2건은 멈추면 안 된다')
 
 
 def test_옵션_이름에_None_이_안_섞인다():

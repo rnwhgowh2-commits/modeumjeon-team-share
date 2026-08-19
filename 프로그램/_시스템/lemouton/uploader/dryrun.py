@@ -31,8 +31,19 @@ def compute_dryrun_summary(
             pct_changes.append(abs(new - old) / old * 100)
     avg_pct = sum(pct_changes) / len(pct_changes) if pct_changes else 0.0
 
-    warnings = len([a for a in alerts if a.get("level") != "info"]) + len(alerts)
-    # alerts 자체를 warning으로 간주
+    # 🔴 [2026-08-13 사장님 확정] 예전 식:
+    #       warnings = len(level != 'info') + len(alerts)
+    #   이라 **`info` 알림도 1씩 세어졌다.** 임계가 5 이므로
+    #   `naver_product_not_registered`·`coupang_product_not_registered`
+    #   (= 「이 모델은 마켓 상품번호가 없어 보낼 게 없다」는 **안내**) 가
+    #   모델 3개분(6건)만 쌓여도 6 > 5 → **전 마켓·전 상품 uploaded=0** 이 됐다.
+    #   보낼 게 없는 모델 때문에 멀쩡한 상품 전송까지 멈추는 건 잘못이다.
+    #
+    #   ★ `info` 만 셈에서 뺀다. **warning 가중치(×2)는 그대로 둔다** —
+    #     임계 5 가 그 가중치에 맞춰 정해진 값이라, 같이 건드리면 진짜 막이가
+    #     소리 없이 두 배로 느슨해진다. warning 3건 → 6 > 5 → 보류(예전과 동일).
+    _경고 = [a for a in alerts if a.get("level") != "info"]
+    warnings = len(_경고) * 2
 
     should_hold = False
     reasons = []

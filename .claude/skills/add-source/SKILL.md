@@ -27,7 +27,7 @@ URL:
 1. **정본 = 크롤링 가이드.** 손대기 전 반드시 정독(아래 Step 0). 추측 금지.
 2. **무결성 4철칙**(가이드 §4): 폴백가 금지 · 크롤실패=표기(옛값 금지) · 단일 진실원천 · 누락에 경고.
 3. **라이브 100% 일치 전 "완료" 선언 금지** (가격·재고 오류 = 금전 손실).
-4. **작업은 origin/main 워크트리에서.** 현재 브랜치가 stale일 수 있음.
+4. **작업은 이슈 브랜치 워크트리에서.** origin/main 기준으로 새 브랜치를 따서 그 워크트리에서 작업 (`git-issue-flow` 스킬 §1). 현재 브랜치가 stale일 수 있음.
 
 ## Step 0 — 준비·정독 (모든 작업 공통)
 
@@ -97,10 +97,10 @@ curl -s -X POST https://mou-m.com/webhook/source-stage \
 - `프로그램/_시스템/lemouton/sourcing/crawlers/<key>.py` (+ `crawlers/__init__.py` 등록)
 - `프로그램/_시스템/docs/크롤링-가이드.md` (§1·§2 표 행, §5 에러)
 - `프로그램/_시스템/webapp/static/error_catalog.json`
-- 커밋 → push main → AWS 자동배포 → 라이브 반영.
+- 커밋 → 브랜치 push → PR 생성 → **사용자 확인 후 merge** → AWS 자동배포 → 라이브 반영 (절차 정본 = `git-issue-flow` 스킬).
 
 > ⚠️ 라이브 DB 쓰기(소싱처 카드의 6항목 필드 등)는 로그인 게이트라 Claude가 직접 못 함. Claude는 **repo(크롤러·가이드 표·에러카탈로그)**를 책임지고, 소싱처 카드 채움·전체보기 등록은 사용자가 웹 추가 화면/상세에서 수행(분석 결과 제공). 전체보기 행 자체는 웹 "추가" 버튼이 이미 생성.
 
 ## 마무리
 - `superpowers:verification-before-completion`으로 라이브 대조 증거 확인 후에만 완료 선언.
-- 작업 종료 = origin/main 머지 + 배포까지 (워크트리 머지 의무).
+- 작업 종료 = PR 생성 + 사용자 확인 후 main 머지 + 배포 확인까지 (`git-issue-flow` 스킬 절차 준수, 워크트리 정리 의무).

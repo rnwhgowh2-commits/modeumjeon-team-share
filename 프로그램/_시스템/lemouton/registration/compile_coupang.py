@@ -89,6 +89,77 @@ def _check_vendor(vendor) -> None:
             f'숫자가 너무 적습니다. 반품 접수가 안 되는 번호로 등록됩니다.')
 
 
+#: 화면 글자 → 쿠팡 코드. 🔴 모르는 글자는 지어내지 않고 기본값(과세)으로 둔다.
+_TAX_CODE = {'과세': 'TAX', '면세': 'FREE'}
+
+#: 쿠팡 문서: 검색어 1개당 20자 이내, 최대 20개.
+_TAG_MAX_LEN, _TAG_MAX_N = 20, 20
+
+#: 바코드가 없을 때 보내는 사유(최대 100자). 쿠팡이 정해 둔 정식 탈출구다.
+_NO_BARCODE_REASON = '상품확인불가_바코드없음사유'
+
+
+def _tax_of(draft) -> str:
+    return str(getattr(draft, 'tax_type', '') or '과세').strip()
+
+
+def _search_tags(draft) -> list:
+    """검색어 목록. 🔴 값 모양이 이상해도 **등록을 막지 않는다** — 태그만 포기한다."""
+    raw = getattr(draft, 'search_tags', None)
+    try:
+        got = json.loads(raw) if isinstance(raw, str) and raw.strip() else raw
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(got, list):
+        return []
+    out = []
+    for t in got:
+        s = str(t or '').strip()
+        if s and len(s) <= _TAG_MAX_LEN:
+            out.append(s)
+        if len(out) >= _TAG_MAX_N:
+            break
+    return out
+
+
+def _barcode_fields(draft) -> dict:
+    """바코드 3형제. **공식 바코드만** 보낸다.
+
+    🔴 쿠팡 공지(2026-05-27 · API 등록 상품 2026-08-01 시행)가 「임의로 생성한
+      숫자」·「판매자 내부 관리용 SKU 코드」를 상품 식별번호로 쓰는 것을 금지한다.
+      어기면 등록 제한·노출 제한이다 → 우리가 만든 값은 「없음」으로 보낸다.
+    """
+    from lemouton.inventory import barcode as BC
+    got = BC.for_market(getattr(draft, 'barcode', ''), 'coupang')
+    if got:
+        return {'barcode': got, 'emptyBarcode': False}
+    return {'barcode': '', 'emptyBarcode': True,
+            'emptyBarcodeReason': _NO_BARCODE_REASON}
+
+
+def _auto_pricing(draft, sale_price: int) -> dict:
+    """자동 가격 조정 — 쿠팡만 있는 칸(공지 2026-05-22).
+
+    지도 근거: `items.autoPricingInfo` {minSalePrice: Number, active: Boolean}
+      · 「최초 상품 등록 시 **승인 요청 전에만** 입력 가능」 — 우리 payload 는
+        `requested: False`(초안)라 이 경로가 맞다. 승인 뒤에는 옵션 가격변경 API 의
+        `apMinSalePrice`·`apActive`(둘을 **함께** 보내야 함 — 하나면 400)를 쓴다.
+      · 🔴 「기존 salePrice 보다 작아야 함」 — 어기면 400 으로 **상품 전체가 거부**된다.
+
+    🔴 값이 없거나 규칙에 안 맞으면 **그 칸만 포기한다.** 값 하나 때문에 등록이
+      멈추면 「왜 안 나가지」를 못 찾는다(검색태그와 같은 규칙).
+    🔴 안 쓰는 경우 `active: false` 로라도 보내지 않는다 — 「안 정함」과
+      「정했는데 껐다」는 다른 뜻이고, 쿠팡 화면에도 다르게 남는다.
+    """
+    try:
+        floor = int(getattr(draft, 'auto_pricing_min', None))
+    except (TypeError, ValueError):
+        return {}
+    if floor <= 0 or floor >= sale_price:
+        return {}
+    return {'autoPricingInfo': {'minSalePrice': floor, 'active': True}}
+
+
 def compile_coupang(draft, *, category_code: int, vendor: dict):
     """ProductDraft → (쿠팡 상품 생성 payload, 제외된 옵션 목록).
 
@@ -179,11 +250,23 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
             #   칸이 없는 옛 초안(getattr 기본 True)은 전연령 그대로.
             'adultOnly': ('EVERYONE' if getattr(draft, 'minor_purchasable', True)
                           else 'ADULT_ONLY'),
-            'taxType': 'TAX',
+            # 지도 근거: items.taxType [필수] — TAX=과세(기본값) / FREE=비과세
+            # 🔴 여기가 'TAX' 로 박혀 있어 정책을 「면세」로 바꿔도 과세로 나갔다.
+            #   (사장님 확정 = 기본 과세 · 「영세」는 쿠팡에 보낼 칸이 없어 선택지에서 뺐다)
+            'taxType': _TAX_CODE.get(_tax_of(draft), 'TAX'),
+            # 지도 근거: items.offerCondition — NEW/REFURBISHED/USED_* · 「없을 경우 NEW 로 취급」
+            # 🔴 전에는 **아예 안 보냈다.** 문서가 「상품 생성 후에는 변경 불가능」이라
+            #   못 박아 두었으므로, 기본값에 기대지 않고 처음부터 명시한다.
+            #   (사장님 확정 = 무조건 새상품)
+            'offerCondition': 'NEW',
+            'modelNo': str(getattr(draft, 'model_no', '') or ''),
+            'searchTags': _search_tags(draft),
             'parallelImported': 'NOT_PARALLEL_IMPORTED',
             'overseasPurchased': 'NOT_OVERSEAS_PURCHASED',
             'pccNeeded': 'false',
         })
+        it.update(_barcode_fields(draft))
+        it.update(_auto_pricing(draft, sale_price))
 
     payload = {
         'displayCategoryCode': cat_code,
@@ -192,6 +275,10 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
         'saleStartedAt': _SALE_STARTED_AT,
         'saleEndedAt': _SALE_ENDED_AT,
         'brand': draft.brand or '',
+        # 지도 근거: manufacture — 「정확한 제조사를 기입할 수 없는 경우 [brand] 항목과
+        #   동일하게 입력 가능」. 그 안내를 그대로 따른다(지어내지 않는다).
+        'manufacture': (str(getattr(draft, 'manufacturer', '') or '').strip()
+                        or (draft.brand or '')),
         'deliveryMethod': 'SEQUENCIAL',
         'deliveryCompanyCode': _DELIVERY_COMPANY,
         'deliveryChargeType': 'FREE' if delivery_fee == 0 else 'NOT_FREE',

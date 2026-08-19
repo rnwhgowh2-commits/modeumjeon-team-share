@@ -37,7 +37,9 @@ ASSIGNMENT = [
     ('id="sec-combo"',                   'home',  'edit'),
     ('id="sec-market"',                  'price', 'edit'),   # 마켓 등록·업로드
     ('id="sec-runs"',                    'crawl', 'edit'),   # 실행 이력
-    ('id="option-config-panel"',         'price', 'mtx'),    # 마켓 옵션 축 구성(고급)
+    # [2026-08-13 사장님 확정] 「마켓 옵션 축 구성(고급)」 패널은 지웠다 —
+    #   고르셔도 마켓에 나가는 것이 한 글자도 안 바뀌었다(저장만 됨).
+    #   축은 상품가공 「옵션 축 구성」 한 곳에서만 정한다.
     ('id="bulk-policy-bar"',             'price', 'mtx'),    # 가격 템플릿·사올 때·팔 때
     ('id="global-actions"',              'crawl', 'mtx'),    # 전체 크롤 CTA
     ('id="sm-side-h"',                   'crawl', 'mtx'),    # 소싱처 진행 카드·최저가 1위
