@@ -20,10 +20,10 @@ from __future__ import annotations
 import logging
 import os
 import time
-
-import requests
 from dataclasses import dataclass
 from typing import Any, Optional
+
+import requests
 
 logger = logging.getLogger(__name__)
 
