@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """판매처 계정 브리지 — samba-wave 가 가진 계정 창고에서 실 자격증명을 받아온다.
 
-[STEP 2c 스켈레톤 — 시그니처만. 구현은 STEP 7]
-
 배경: 모음전은 지금까지 판매처(쿠팡·11번가 등) 자격증명을 환경변수로 직접 들고 있었다
 (shared/platforms/__init__.py 의 PLATFORM_CONFIG). 앞으로는 samba-wave 가 표준
 저장소(samba_market_account 테이블)를 갖고, 모음전은 이 모듈을 통해 물어서 받아온다.
