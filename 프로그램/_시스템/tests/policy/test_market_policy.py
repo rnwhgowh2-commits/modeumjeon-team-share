@@ -268,3 +268,73 @@ def test_기본_정책은_하나뿐이다(db):
     set_default(db, policy=p1)
     set_default(db, policy=p2)
     assert p1.is_default == 0 and p2.is_default == 1
+
+
+# ── 정책 고르기 카드(#1059) — 마켓별 상태 3단계·적용 상품 목록 ─────────────────
+#   옵션생성 화면의 위상 3종(draft/ready/used → wait/mid/sale)과 같은 이름 체계.
+#   wait=작성중(가격 아직 못 씀) · mid=준비됨(가격은 되는데 붙은 상품 없음) ·
+#   sale=적용됨(가격 되고 붙은 상품도 있음).
+
+def test_안_켠_마켓은_작성중이다(db):
+    from lemouton.policy.service import market_status
+    p = create_policy(db, name='기본')
+    assert market_status(db, p.id, markets=['coupang'])['coupang'] == 'wait'
+
+
+def test_가격만_채우면_상품이_없어도_준비됨이다(db):
+    from lemouton.policy.service import market_status
+    p = create_policy(db, name='기본')
+    save_item(db, policy=p, market='coupang', item_key='price',
+              config={'sourcing_rate': 25})
+    assert market_status(db, p.id, markets=['coupang'])['coupang'] == 'mid'
+
+
+def test_가격_채우고_상품도_붙으면_적용됨이다(db):
+    from lemouton.policy.service import market_status
+    _models(db, 'A')
+    p = create_policy(db, name='기본')
+    save_item(db, policy=p, market='coupang', item_key='price',
+              config={'sourcing_rate': 25})
+    apply_to(db, policy=p, model_codes=['A'])
+    assert market_status(db, p.id, markets=['coupang'])['coupang'] == 'sale'
+
+
+def test_상품이_붙어도_가격_안_채우면_적용됨이_아니다(db):
+    """🔴 붙었다고 무조건 「적용됨」이 아니다 — 그 마켓 가격이 아직 안 나갈 수 있다."""
+    from lemouton.policy.service import market_status
+    _models(db, 'A')
+    p = create_policy(db, name='기본')
+    apply_to(db, policy=p, model_codes=['A'])
+    assert market_status(db, p.id, markets=['coupang'])['coupang'] == 'wait'
+
+
+def test_마켓을_생략하면_켠_마켓만_돌려준다(db):
+    from lemouton.policy.service import market_status, set_enabled_markets
+    p = create_policy(db, name='기본')
+    set_enabled_markets(db, policy=p, markets=['coupang', 'smartstore'])
+    assert set(market_status(db, p.id)) == {'coupang', 'smartstore'}
+
+
+def test_적용_상품이_없으면_빈_목록이다(db):
+    from lemouton.policy.service import applied_products
+    p = create_policy(db, name='기본')
+    assert applied_products(db, p.id) == {'total': 0, 'sample': []}
+
+
+def test_적용_상품은_총_개수와_최대_limit개까지만_돌려준다(db):
+    from lemouton.policy.service import applied_products
+    _models(db, 'A', 'B', 'C', 'D')
+    p = create_policy(db, name='기본')
+    apply_to(db, policy=p, model_codes=['A', 'B', 'C', 'D'])
+    got = applied_products(db, p.id, limit=3)
+    assert got['total'] == 4
+    assert len(got['sample']) == 3
+    assert {it['model_code'] for it in got['sample']} <= {'A', 'B', 'C', 'D'}
+    assert all('name' in it for it in got['sample'])
+
+
+def test_적용_상품_키_이름은_items가_아니다(db):
+    """🔴 Jinja 에서 dict.items 는 값이 아니라 내장 메서드로 풀린다 — 화면이 조용히 깨진다."""
+    from lemouton.policy.service import applied_products
+    p = create_policy(db, name='기본')
+    assert 'items' not in applied_products(db, p.id)

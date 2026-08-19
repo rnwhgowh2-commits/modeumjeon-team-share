@@ -510,19 +510,33 @@ def policy_apply_page():
     🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
       하면 거짓 기능이 된다(「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤).
     """
+    from lemouton.policy.fields import MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import applied_count, brand_counts, readiness
+    from lemouton.policy.service import (
+        applied_count, applied_products, brand_counts, enabled_markets,
+        market_status,
+    )
     s = SessionLocal()
     try:
         policies = []
         for p in s.query(MarketPolicy).filter(MarketPolicy.deleted_at.is_(None)) \
                   .order_by(MarketPolicy.is_default.desc(), MarketPolicy.name):
-            rd = readiness(s, p.id)
+            on = enabled_markets(s, p)
+            # market_status() 가 켠 마켓만 골라 readiness() 를 이미 계산한다 —
+            #   전체 마켓 readiness 를 여기서 또 구하면 같은 조회를 두 번 하는 셈이다.
+            status = market_status(s, p.id, markets=on)
+            # [#1059 카드형 정책 고르기] 켠 마켓 중 하나도 「가격 쓸 수 있음」이
+            #   아니면 이 정책은 지금 상품에 붙여도 아무 데도 값이 안 나간다 —
+            #   그런 정책은 카드에서 고를 수 없게 잠그고 「정책 생성으로」 안내한다.
+            usable = any(v != 'wait' for v in status.values())
             policies.append({
                 'id': p.id, 'name': p.name, 'brand': p.brand or '',
                 'is_default': bool(p.is_default),
                 'applied': applied_count(s, p.id),
-                'ready': [m for m, v in rd.items() if v['price_ready']],
+                'enabled': on,
+                'status': status,
+                'usable': usable,
+                'applied_info': applied_products(s, p.id, limit=3),
             })
         pbrands = brand_counts(s)
     finally:
@@ -532,7 +546,7 @@ def policy_apply_page():
     #      「체크했다는데 목록에 없다」가 된다.
     pick = [c for c in request.args.getlist('model') if c]
     return render_template('policy/apply.html', active='policy_apply',
-                           policies=policies, pbrands=pbrands,
+                           policies=policies, pbrands=pbrands, market_label=MARKET_LABEL,
                            pick=pick, pick_q=(pick[0] if len(pick) == 1 else ''))
 
 
