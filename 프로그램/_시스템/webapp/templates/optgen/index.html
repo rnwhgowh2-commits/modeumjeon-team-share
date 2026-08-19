@@ -152,7 +152,11 @@
                  「원본이 아니다 = 파생」으로 뭉개면 없는 사실을 화면이 지어낸다. #}
               <span class="og-badge stgb wait og-kind"
                     >{{ '원본' if b.kind == 'origin' else '파생' }}</span>{% endif %}</td>
-            <td class="og-name"><b title="{{ b.name }}">{{ b.name }}</b></td>
+            <td class="og-name">{% if b.unbuilt %}<div class="ub-d-wrap"><span class="ub-d-cap"
+                title="재고관리에 낱개로만 등록되고, 아직 옵션 매트릭스로 안 짜인 SKU 입니다."
+                ><svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3.3" fill="none" stroke="currentColor"
+                stroke-width="1.1"/></svg>미구성 SKU</span><b title="{{ b.name }}">{{ b.name }}</b></div>
+              {% else %}<b title="{{ b.name }}">{{ b.name }}</b>{% endif %}</td>
             <td>{{ b.brand or '—' }}</td>
             <td>{% if b.moum_kind_label %}{{ b.moum_kind_label }}{% else %}<span
                 class="og-dash" title="아직 어떤 모음전인지 안 정했습니다.">—</span>{% endif %}</td>
@@ -804,6 +808,12 @@
   .og-badge.stgb.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--글자-파랑,#0066CC)}
   .og-badge.stgb.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#9A5B00)}
   .og-badge.stgb.wait{background:var(--ap-g2,#E8E8ED);color:var(--ap-g5,#424245)}
+  /* [2026-08-19] 미구성 SKU 이름 칸 배지 — 상태 칸(축 없음 사유)과 겹치지 않는 별도 표시.
+     디자인은 5안 중 D안(아이콘 + 2줄) 확정. 배지는 화면 표시 전용이며 저장값을 바꾸지 않는다. */
+  .ub-d-wrap{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+  .ub-d-cap{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;
+    color:var(--ap-g5,#424245);background:var(--ap-g2,#E8E8ED);border-radius:6px;padding:1px 6px;line-height:1.5}
+  .ub-d-cap svg{width:9px;height:9px;flex:none}
   /* [2026-08-12 사장님 C1 확정] 체크칸 + 고른 묶음 띠 */
   .og-pick{width:1px;white-space:nowrap;text-align:center;padding-right:0}
   .og-pick input{margin:0;cursor:pointer}

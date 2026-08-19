@@ -535,6 +535,36 @@
       .oum-sku-save { background:#3B82F6; color:#fff; border:0; border-radius:12px; padding:13.5px 27px; font:inherit; font-size:21px; font-weight:700; cursor:pointer; }
       .oum-sku-save:hover { background:#2563EB; }
       .oum-sku-save:disabled { opacity:.45; cursor:default; }
+      /* ── 미구성 SKU 등록 — 축 값 우클릭 (W12) ────────────────────── */
+      .oum-ctxmenu { position:fixed; z-index:10050; background:#fff; border:1px solid #e5e8eb; border-radius:12px;
+        box-shadow:0 12px 32px rgba(0,0,0,.18); padding:6px; min-width:270px; font-size:21px; }
+      .oum-ctxmenu button { display:block; width:100%; text-align:left; background:none; border:0; border-radius:9px;
+        padding:13.5px 15px; font:inherit; font-size:inherit; color:#191F28; cursor:pointer; }
+      .oum-ctxmenu button:hover { background:#F0F5FF; color:#3B82F6; }
+      .oum-ctxmenu .oum-ctx-hd { padding:9px 15px 6px; font-size:16.5px; color:#8b95a1;
+        border-bottom:1px solid #f4f6f8; margin-bottom:6px; }
+      .oum-adopt-bg { position:fixed; inset:0; background:rgba(0,0,0,.32); z-index:10060;
+        display:flex; align-items:center; justify-content:center; }
+      .oum-adopt-box { background:#fff; border-radius:18px; width:900px; max-width:92vw; max-height:80vh;
+        display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.2); }
+      .oum-adopt-hd { padding:24px 27px; border-bottom:1px solid #e5e8eb; }
+      .oum-adopt-hd h3 { margin:0 0 6px; font-size:24px; font-weight:700; color:#191F28; }
+      .oum-adopt-hd p { margin:0; font-size:17px; color:#6b7684; line-height:1.5; }
+      .oum-adopt-hd b { color:#191F28; }
+      .oum-adopt-q { margin:15px 0 0; width:100%; box-sizing:border-box; border:1.5px solid #e5e8eb; border-radius:10px;
+        padding:12px 15px; font:inherit; font-size:19.5px; }
+      .oum-adopt-q:focus { outline:none; border-color:#3B82F6; }
+      .oum-adopt-list { overflow-y:auto; flex:1; padding:9px; }
+      .oum-adopt-row { display:flex; align-items:center; gap:12px; padding:13.5px 15px; border-radius:12px; cursor:pointer; }
+      .oum-adopt-row:hover { background:#F7F9FC; }
+      .oum-adopt-row .nm { font-weight:700; color:#191F28; font-size:19.5px; }
+      .oum-adopt-row .meta { font-size:15px; color:#8b95a1; margin-top:2px; }
+      .oum-adopt-row .go { margin-left:auto; color:#3B82F6; font-size:15px; font-weight:700; white-space:nowrap; }
+      .oum-adopt-empty { padding:48px 24px; text-align:center; color:#9ca3af; font-size:18px; line-height:1.7; }
+      .oum-adopt-ft { padding:15px 27px; border-top:1px solid #eef1f4; display:flex; justify-content:space-between; align-items:center; }
+      .oum-adopt-close { background:none; border:1.5px solid #e5e8eb; border-radius:10px; padding:10.5px 21px;
+        font:inherit; font-size:16.5px; color:#6b7684; cursor:pointer; }
+      .oum-adopt-msg { font-size:15px; color:#B91C1C; }
     `;
     document.head.appendChild(s);
   }
@@ -1076,6 +1106,141 @@
           state.skuSaving = false;
           renderLeft();
         });
+    }
+
+    // ── 미구성 SKU 등록 — 축 값 우클릭 (W12) ─────────────────────────
+    // 재고관리에서 「모음전으로도 판다」 없이 낱개로만 등록된 SKU(=미구성 SKU)를
+    // 지금 짜는 축 값 조합 자리로 그대로 이사시킨다. 판정·이사는 서버
+    // (lemouton/matrix/unbuilt.py·webapp/routes/optgen_sku.py) 하나뿐 — 여기는
+    // 고르기 UI만 담당하고 조건을 다시 적지 않는다(그 파일 머리말 규칙과 같은 이유).
+    // 🔴 adopt-sku 는 호출 즉시 서버에 커밋된다(좌측 매트릭스의 다른 셀과 달리
+    //    [옵션 + URL 저장]을 눌러야 반영되는 초안이 아니다) — 이사는 실수 방지를 위해
+    //    그 자리에서 바로 끝내는 편이 "저장을 깜빡해 미구성 SKU만 사라진" 혼란을 막는다.
+    let _ctxMenuEl = null;
+    function _closeCtxMenu() {
+      if (_ctxMenuEl) { _ctxMenuEl.remove(); _ctxMenuEl = null; }
+    }
+
+    function showAdoptMenu(x, y, axisValues) {
+      _closeCtxMenu();
+      const m = document.createElement('div');
+      m.className = 'oum-ctxmenu';
+      const label = axisValues.filter(Boolean).join(' · ') || '(빈 조합)';
+      m.innerHTML = `<div class="oum-ctx-hd">${esc(label)}</div>
+        <button type="button" data-act="adopt">📥 미구성 SKU 등록…</button>`;
+      document.body.appendChild(m);
+      // 화면 밖으로 안 나가게 — 먼저 붙이고 실제 크기로 다시 자리를 잡는다
+      const w = m.offsetWidth, h = m.offsetHeight;
+      m.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 12)) + 'px';
+      m.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 12)) + 'px';
+      _ctxMenuEl = m;
+      m.querySelector('[data-act="adopt"]').addEventListener('click', () => {
+        _closeCtxMenu();
+        openAdoptPicker(axisValues);
+      });
+      // 같은 클릭으로 바로 닫히지 않도록 다음 이벤트 루프에 걸어 둔다
+      setTimeout(() => {
+        document.addEventListener('click', _closeCtxMenu, { once: true });
+        document.addEventListener('contextmenu', _closeCtxMenu, { once: true });
+      }, 0);
+    }
+
+    function openAdoptPicker(axisValues) {
+      const label = axisValues.filter(Boolean).join(' · ') || '(빈 조합)';
+      const bg = document.createElement('div');
+      bg.className = 'oum-adopt-bg';
+      bg.innerHTML = `<div class="oum-adopt-box">
+        <div class="oum-adopt-hd">
+          <h3>미구성 SKU 등록</h3>
+          <p><b>${esc(label)}</b> 자리에 넣을, 재고관리에 낱개로만 등록된 SKU를 고르세요.
+            고르면 그 SKU가 그대로 이 매트릭스로 옮겨오고(같은 SKU·재고이력 유지),
+            원래 있던 옵션함에서는 빠집니다.</p>
+          <input class="oum-adopt-q" type="text" placeholder="이름 · SKU · 브랜드로 찾기">
+        </div>
+        <div class="oum-adopt-list"><div class="oum-adopt-empty">찾는 중…</div></div>
+        <div class="oum-adopt-ft"><span class="oum-adopt-msg"></span>
+          <button type="button" class="oum-adopt-close">닫기</button></div>
+      </div>`;
+      document.body.appendChild(bg);
+      bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
+      bg.querySelector('.oum-adopt-close').addEventListener('click', () => bg.remove());
+
+      const listEl = bg.querySelector('.oum-adopt-list');
+      const msgEl = bg.querySelector('.oum-adopt-msg');
+      const qEl = bg.querySelector('.oum-adopt-q');
+
+      let _seq = 0;
+      function search(q) {
+        const mySeq = ++_seq;
+        listEl.innerHTML = '<div class="oum-adopt-empty">찾는 중…</div>';
+        fetch(`/optgen/api/unbuilt-skus?limit=30&q=${encodeURIComponent(q || '')}`)
+          .then(r => r.json())
+          .then(j => {
+            if (mySeq !== _seq) return;   // 늦게 도착한 옛 응답은 버린다(빠른 타이핑 대비)
+            if (!j || !j.ok) {
+              listEl.innerHTML = '<div class="oum-adopt-empty">불러오지 못했습니다.</div>';
+              return;
+            }
+            if (!j.items.length) {
+              listEl.innerHTML = `<div class="oum-adopt-empty">${q
+                ? '찾는 말과 맞는 미구성 SKU가 없습니다.'
+                : '아직 미구성 SKU가 없습니다 — 재고관리에서 낱개로 등록한 물건이 여기 뜹니다.'}</div>`;
+              return;
+            }
+            listEl.innerHTML = '';
+            j.items.forEach(it => {
+              const row = document.createElement('div');
+              row.className = 'oum-adopt-row';
+              row.innerHTML = `<div><div class="nm">${esc(it.name)}</div>
+                <div class="meta">${esc(it.sku)}${it.brand ? ' · ' + esc(it.brand) : ''} · 재고 ${it.stock}개</div></div>
+                <div class="go">이 자리로 →</div>`;
+              row.addEventListener('click', () => adopt(it.sku, row));
+              listEl.appendChild(row);
+            });
+          })
+          .catch(() => {
+            if (mySeq === _seq) listEl.innerHTML = '<div class="oum-adopt-empty">불러오지 못했습니다.</div>';
+          });
+      }
+
+      function adopt(sku, rowEl) {
+        msgEl.textContent = '';
+        rowEl.style.opacity = '.5';
+        fetch(`/optgen/api/box/${encodeURIComponent(bundleCode)}/adopt-sku`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sku, axis_values: axisValues }),
+        })
+          .then(r => r.json())
+          .then(j => {
+            if (!j || !j.ok) {
+              msgEl.textContent = (j && j.error) || '등록하지 못했습니다.';
+              rowEl.style.opacity = '';
+              return;
+            }
+            // 다시 불러오지 않고 이 자리만 "이미 있음"으로 반영 — 나머지 상태(URL 매핑 등)는 그대로 둔다
+            const key = keyOf(axisValues);
+            state.selected.add(key);
+            state.seen.add(key);
+            state.skuByKey = state.skuByKey || {};
+            state.skuByKey[key] = j.sku;
+            keyBySku[j.sku] = key;
+            bg.remove();
+            rerender();
+          })
+          .catch(e => {
+            msgEl.textContent = '등록하지 못했습니다 — ' + (e && e.message || e);
+            rowEl.style.opacity = '';
+          });
+      }
+
+      let _deb = null;
+      qEl.addEventListener('input', () => {
+        clearTimeout(_deb);
+        _deb = setTimeout(() => search(qEl.value.trim()), 250);
+      });
+      search('');
+      qEl.focus();
     }
 
     function filterCombos(axisName, val) {
@@ -2200,6 +2365,17 @@
       } catch (err) {
         console.error('[oum] click handler error:', err);
       }
+    });
+
+    // 매트릭스 셀 우클릭 — 미구성 SKU 등록 (W12). 브라우저 기본 메뉴 대신 이걸 띄운다.
+    $('#oum-left').addEventListener('contextmenu', e => {
+      const cell = e.target.closest('[data-cell-key]');
+      if (!cell) return;
+      e.preventDefault();
+      let axisValues;
+      try { axisValues = JSON.parse(cell.dataset.cellKey); } catch (err) { return; }
+      if (!Array.isArray(axisValues)) return;
+      showAdoptMenu(e.clientX, e.clientY, axisValues);
     });
 
     // ─── [순서 v33] 칩 드래그앤드랍 수동 순서 변경 (axis.values 재배열) ───

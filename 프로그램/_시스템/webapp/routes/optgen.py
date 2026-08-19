@@ -219,17 +219,20 @@ def _boxes(session, *, show_made: bool = False):
                           (🔴 둘은 **겹치지 않는다** — 감추는 이유는 줄마다 하나여야
                            서랍 뱃지가 「켜면 늘어나는 줄 수」를 그대로 말할 수 있다)
 
-    🔴 **`unbuilt`(미구성 딱지)는 일부러 안 넣는다** — 사장님 확정 4.
-       미구성 SKU 는 축이 0개라 위상이 **언제나 「준비 미완료」**로 떨어지고 사유에
-       「축 없음」이 뜬다. 딱지를 또 붙이면 같은 사실을 두 가지 말로 하게 된다.
-       판정 모듈(`lemouton/matrix/unbuilt.py`)은 그대로 둔다 — 낱개 SKU 편입 화면
-       (`/optgen/api/unbuilt-skus`)이 그걸 쓴다. 여기서 **화면에 안 그릴 뿐**이다.
+    🔴 [2026-08-19 사장님 지시로 재도입] `unbuilt`(미구성 딱지) — 한 번은 「축 없음
+       사유와 중복」이라 뺐었다(사장님 확정 4). 그런데 그 사유는 **위상(상태) 칸** 얘기고,
+       이번에 붙이는 딱지는 **이름 칸**이다 — 목록을 훑을 때 「이건 아직 아무것도 안 짠
+       낱개다」를 상태 칸까지 안 보고도 알아보게 하는 것이 목적이라 겹치지 않는다.
+       판정은 여전히 `lemouton/matrix/unbuilt.py` 하나뿐 — 여기서 조건을 다시 안 적고
+       그 결과만 그대로 받아 화면 표시 여부만 결정한다(값을 새로 저장하지 않음 — 그
+       모듈 머리말의 "매트릭스에 편입했다를 따로 저장하지 않는다" 규칙 그대로).
     """
     from sqlalchemy import and_, func
 
     from lemouton.matrix.models import MatrixOption
     from lemouton.matrix.option_name import bundle_model_names
     from lemouton.matrix.readiness import PHASE_USED, PHASES
+    from lemouton.matrix.unbuilt import unbuilt_batch
     from lemouton.sourcing.models import Model, Option
     from lemouton.sourcing.source_url_stats import source_labels
 
@@ -266,6 +269,10 @@ def _boxes(session, *, show_made: bool = False):
 
     codes = [r[0] for r in rows]
     옵션수 = {r[0]: int(r[6] or 0) for r in rows}
+    # 이 목록은 `Model.is_option_box.is_(True)` 로만 걸러 뒀으니(위 258행) 전부
+    # 옵션함이다 — 다시 조회하지 않고 전부 True 로 넘긴다(이미 세어 둔 것은 또 안 센다).
+    미구성 = unbuilt_batch(session, codes, option_counts=옵션수,
+                          option_box={c: True for c in codes})
     사실 = _box_facts(session, codes, 옵션수)
     축, 소싱처, URL수, 맵핑, 위상 = (사실['axes'], 사실['sources'], 사실['urls'],
                                  사실['map'], 사실['phase'])
@@ -298,6 +305,8 @@ def _boxes(session, *, show_made: bool = False):
             'code': c, 'shown_code': display_name(None, c),
             'no': no, 'kind': mk,             # 번호 정본 · 원본/파생
             'name': display_name(d or r or c, c), 'brand': b,
+            # 미구성 SKU(축 0 · 옵션 1) — 이름 칸 배지용. 판정은 unbuilt.py 하나뿐.
+            'unbuilt': c in 미구성,
             # 「모음전 종류」와 위 `kind`(원본/파생)는 **다른 것**이다. 이름이 비슷해
             # 섞이기 쉬워 앞에 `moum_` 을 붙여 둔다.
             'moum_kind': ax.get('kind'), 'moum_kind_label': ax.get('kind_label'),
