@@ -170,11 +170,11 @@ document.getElementById('runMatchBtn').addEventListener('click', async () => {
     // 매칭 셀
     const matchCell = tr.querySelector('.match-cell');
     if (res.status === 'auto')
-      matchCell.innerHTML = '<span style="background:#ECFDF5;color:#065F46;border-radius:10px;padding:2px 8px;font-size: 12px;font-weight:600">✓ 자동</span>';
+      matchCell.innerHTML = '<span style="background:#ECFDF5;color:#065F46;border-radius:10px;padding:2px 8px;font-size: 12px;font-weight:600"> 자동</span>';
     else if (res.status === 'review')
-      matchCell.innerHTML = '<span style="background:#FFFBEB;color:#92400E;border-radius:10px;padding:2px 8px;font-size: 12px;font-weight:600">⚠ 검토</span>';
+      matchCell.innerHTML = '<span style="background:#FFFBEB;color:#92400E;border-radius:10px;padding:2px 8px;font-size: 12px;font-weight:600"> 검토</span>';
     else
-      matchCell.innerHTML = '<span style="background:#FEF2F2;color:#991B1B;border-radius:10px;padding:2px 8px;font-size: 12px;font-weight:600">✕ 미매핑</span>';
+      matchCell.innerHTML = '<span style="background:#FEF2F2;color:#991B1B;border-radius:10px;padding:2px 8px;font-size: 12px;font-weight:600"> 미매핑</span>';
     // 결과 셀
     const resultCell = tr.querySelector('.result-cell');
     const canon = res.canonical || {};
@@ -215,7 +215,7 @@ document.getElementById('optBody').addEventListener('click', async e => {
   });
   const data = await r.json();
   if (data.ok){
-    btn.textContent = '✓ 학습됨';
+    btn.textContent = ' 학습됨';
     btn.style.background = '#10B981';
     btn.style.color = '#fff';
     btn.disabled = true;

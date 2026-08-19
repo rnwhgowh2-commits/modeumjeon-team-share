@@ -202,7 +202,7 @@ const CUSTOM_STORAGE_KEY = 'label_custom_preset_v1';
 function saveCustom(){
   const p = getCustomPreset();
   localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(p));
-  flashMsg('💾 저장 완료', '#16a34a');
+  flashMsg(' 저장 완료', '#16a34a');
 }
 
 function loadCustom(){
@@ -220,7 +220,7 @@ function loadCustom(){
     document.getElementById('c-gy').value = p.gy;
     redraw();
     validateCustom();
-    flashMsg('📂 불러오기 완료', '#3182F6');
+    flashMsg(' 불러오기 완료', '#3182F6');
   } catch(e) { flashMsg('불러오기 실패', '#F04452'); }
 }
 

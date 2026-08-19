@@ -386,7 +386,7 @@
       btn.disabled=!cb.checked;
       btn.style.background=cb.checked?'#F04452':'#F4C7CB';
       btn.style.cursor=cb.checked?'pointer':'not-allowed';
-      btn.textContent=cb.checked?'🔓 모든 모음전에 따라쓰기':'🔒 따라쓰기 (잠김)';
+      btn.textContent=cb.checked?' 모든 모음전에 따라쓰기':' 따라쓰기 (잠김)';
     });
     btn.addEventListener('click',function(){
       if(btn.disabled) return;
@@ -394,9 +394,9 @@
       fetch('/api/source-benefits/templates/'+SID+'/apply-to-all',{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})
       }).then(function(r){return r.json();}).then(function(j){
-        if(j.ok){ toast.style.display='block'; toast.textContent='✓ '+j.bundles+'개 모음전에 적용되었습니다.'; btn.textContent='✓ 적용 완료'; cb.checked=false; }
-        else { alert('따라쓰기 실패: '+(j.error||'오류')); btn.disabled=false; btn.textContent='🔓 모든 모음전에 따라쓰기'; }
-      }).catch(function(e){ alert('오류: '+e.message); btn.disabled=false; btn.textContent='🔓 모든 모음전에 따라쓰기'; });
+        if(j.ok){ toast.style.display='block'; toast.textContent='✓ '+j.bundles+'개 모음전에 적용되었습니다.'; btn.textContent=' 적용 완료'; cb.checked=false; }
+        else { alert('따라쓰기 실패: '+(j.error||'오류')); btn.disabled=false; btn.textContent=' 모든 모음전에 따라쓰기'; }
+      }).catch(function(e){ alert('오류: '+e.message); btn.disabled=false; btn.textContent=' 모든 모음전에 따라쓰기'; });
     });
   })();
   </script>

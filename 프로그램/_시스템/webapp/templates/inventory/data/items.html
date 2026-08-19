@@ -423,7 +423,7 @@ function submitCopy(){
   }).then(function(r){ return r.json(); }).then(function(d){
     btn.disabled = false; btn.textContent = '복제 생성';
     if(d.ok){
-      alert('✅ 복제 생성 완료 — ' + d.canonical_sku);
+      alert(' 복제 생성 완료 — ' + d.canonical_sku);
       location.reload();
     } else {
       errEl.textContent = d.error || '복사 실패';
@@ -490,12 +490,12 @@ function renderMtx(){
   var cc = document.getElementById('mtxColorChips');
   cc.innerHTML = _mtxColors.map(function(c){
     return '<span style="background:#EAF3FF;color:#3182F6;border-radius:8px;padding:5px 9px;font-size:13px;font-weight:700">'
-      + escMtx(c) + ' <span style="cursor:pointer" onclick="removeMtxColor(\'' + escMtx(c).replace(/'/g,"\\'") + '\')">✕</span></span>';
+      + escMtx(c) + ' <span style="cursor:pointer" onclick="removeMtxColor(\'' + escMtx(c).replace(/'/g,"\\'") + '\')"></span></span>';
   }).join('');
   var sc = document.getElementById('mtxSizeChips');
   sc.innerHTML = _mtxSizes.map(function(sz){
     return '<span style="background:#EAF3FF;color:#3182F6;border-radius:8px;padding:5px 9px;font-size:13px;font-weight:700">'
-      + escMtx(sz) + ' <span style="cursor:pointer" onclick="removeMtxSize(\'' + escMtx(sz).replace(/'/g,"\\'") + '\')">✕</span></span>';
+      + escMtx(sz) + ' <span style="cursor:pointer" onclick="removeMtxSize(\'' + escMtx(sz).replace(/'/g,"\\'") + '\')"></span></span>';
   }).join('');
   // 매트릭스 테이블
   var wrap = document.getElementById('mtxTableWrap');
@@ -576,7 +576,7 @@ function renderUsageTree(bundles, emptyMsg){
   var html = '';
   bundles.forEach(function(b){
     html += '<div style="padding:10px 14px;font-size:14px;font-weight:800;background:#F9FAFB;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;gap:8px">'
-      + '▾ 📋 ' + escRef(b.model_name)
+      + '▾  ' + escRef(b.model_name)
       + ' <span style="color:#8B95A1;font-weight:600;font-size:12px">옵션 ' + b.options.length + '</span></div>';
     b.options.forEach(function(o){
       html += '<div style="padding:9px 14px 9px 36px;font-size:13px;border-bottom:1px solid #F7F8FA;color:#4E5968">· 옵션 "'
@@ -663,7 +663,7 @@ function confirmDelete(){
     .then(function(r){ return r.json(); }).then(function(d){
       btn.disabled = false; btn.textContent = '알고도 삭제';
       if(d.ok){
-        alert('✅ 삭제 완료 — ' + d.deleted_sku);
+        alert(' 삭제 완료 — ' + d.deleted_sku);
         location.reload();
       } else {
         alert('삭제 실패: ' + (d.error || ''));
@@ -705,7 +705,7 @@ function confirmDelete(){
         '<span style="font-size:' + (strong ? '16px' : '13.5px') + ';font-weight:700;color:' + (strong ? '#1B64DA' : '#4E5968') + '">' + v + '</span></span>';
     }
     el.innerHTML =
-      '<span style="font-size:17px;margin-right:12px">📊</span>' +
+      '<span style="font-size:17px;margin-right:12px"></span>' +
       '<span style="display:inline-flex;align-items:baseline;gap:6px;padding-right:16px;border-right:1px solid #C8D8F5">' +
         '<span style="font-size:14px;font-weight:700;color:#191F28">' + qTxt + '</span>' +
         '<span style="font-size:12px;color:#5B7DB1">검색 결과</span></span>' +
@@ -772,10 +772,10 @@ function confirmDelete(){
       '<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">' + avgCell + '</td>' +
       '<td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:' + stockColor + '">' + o.stock + '</td>' +
       locCells +
-      '<td style="padding:9px 10px;text-align:center"><span class="ref-badge" onclick="event.stopPropagation();toggleRefRow(this.closest(\'tr\').querySelector(\'.ref-toggle\'))" style="display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:800;cursor:pointer;' + usageStyle + '">🔗 ' + usage + '</span></td>' +
+      '<td style="padding:9px 10px;text-align:center"><span class="ref-badge" onclick="event.stopPropagation();toggleRefRow(this.closest(\'tr\').querySelector(\'.ref-toggle\'))" style="display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:800;cursor:pointer;' + usageStyle + '"> ' + usage + '</span></td>' +
       '<td style="padding:9px 10px;text-align:center;white-space:nowrap">' +
         '<button type="button" title="이 행 복사" onclick="event.stopPropagation();openCopyRow(this.closest(\'tr\'))" style="background:#EAF3FF;color:#3182F6;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">⧉</button> ' +
-        '<button type="button" title="제품 삭제" onclick="event.stopPropagation();openDeleteDialog(this.closest(\'tr\'))" style="background:#FEECEC;color:#F04438;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">🗑</button>' +
+        '<button type="button" title="제품 삭제" onclick="event.stopPropagation();openDeleteDialog(this.closest(\'tr\'))" style="background:#FEECEC;color:#F04438;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer"></button>' +
       '</td>';
     return tr;
   }
@@ -862,8 +862,8 @@ function onWipeInput(e){
   var h = document.getElementById('wipeStatusHint');
   if(h){
     if(!v){ h.textContent='아직 입력되지 않았습니다.'; h.style.color='#9CA3AF'; }
-    else if(match){ h.textContent='✅ 정확히 입력되었습니다. 아래 빨간 버튼을 누르세요.'; h.style.color='#065F46'; }
-    else { h.textContent='⚠ 정확히 "DELETE ALL" 으로 입력해 주세요 (현재: "'+v+'")'; h.style.color='#B91C1C'; }
+    else if(match){ h.textContent=' 정확히 입력되었습니다. 아래 빨간 버튼을 누르세요.'; h.style.color='#065F46'; }
+    else { h.textContent=' 정확히 "DELETE ALL" 으로 입력해 주세요 (현재: "'+v+'")'; h.style.color='#B91C1C'; }
   }
 }
 </script>
@@ -1615,7 +1615,7 @@ function openBulkBundleModal(){
   // 자동 단계 추론 표시
   var body = document.getElementById('bbm_axes_body');
   if(info.steps.length === 0){
-    body.innerHTML = '<span style="color:#DC2626">⚠ 색상·사이즈 정보가 없어 단계 추론 불가. 등록은 가능하나 매트릭스가 비어 있습니다.</span>';
+    body.innerHTML = '<span style="color:#DC2626"> 색상·사이즈 정보가 없어 단계 추론 불가. 등록은 가능하나 매트릭스가 비어 있습니다.</span>';
   } else {
     body.innerHTML = info.steps.map(function(st, i){
       return '<div style="margin:3px 0"><strong>' + (i+1) + '단계 · ' + st.axis_name + ':</strong> ' +
@@ -1662,11 +1662,11 @@ function submitBulkBundle(){
   .then(function(r){ return r.json().then(function(j){ return {ok: r.ok, body: j}; }); })
   .then(function(res){
     if(!res.ok || res.body.error){
-      alert('❌ 등록 실패: ' + (res.body.error || res.body.message || '알 수 없는 오류'));
-      btn.disabled = false; btn.textContent = '🎁 일괄 등록';
+      alert(' 등록 실패: ' + (res.body.error || res.body.message || '알 수 없는 오류'));
+      btn.disabled = false; btn.textContent = ' 일괄 등록';
       return;
     }
-    alert('✅ 모음전 "' + name + '" 등록 완료 (' + res.body.created + '개 옵션 이관).');
+    alert(' 모음전 "' + name + '" 등록 완료 (' + res.body.created + '개 옵션 이관).');
     closeBulkBundleModal();
     // 모음전 페이지로 이동 옵션
     if(res.body.bundle_url && confirm('모음전 페이지로 이동하시겠어요?')){
@@ -1676,8 +1676,8 @@ function submitBulkBundle(){
     }
   })
   .catch(function(e){
-    alert('❌ 요청 실패: ' + e.message);
-    btn.disabled = false; btn.textContent = '🎁 일괄 등록';
+    alert(' 요청 실패: ' + e.message);
+    btn.disabled = false; btn.textContent = ' 일괄 등록';
   });
 }
 </script>
@@ -1859,7 +1859,7 @@ function submitPhxEdit(){
   .then(function(r){ return r.json().then(function(j){ return {ok: r.ok, body: j}; }); })
   .then(function(res){
     if(!res.ok || !res.body.ok){
-      alert('❌ 저장 실패: ' + (res.body.error || res.body.message || '알 수 없음'));
+      alert(' 저장 실패: ' + (res.body.error || res.body.message || '알 수 없음'));
       btn.disabled = false; btn.textContent = '수정 완료';
       return;
     }
@@ -1868,7 +1868,7 @@ function submitPhxEdit(){
     window.location.reload();
   })
   .catch(function(e){
-    alert('❌ 요청 실패: ' + e.message);
+    alert(' 요청 실패: ' + e.message);
     btn.disabled = false; btn.textContent = '수정 완료';
   });
 }

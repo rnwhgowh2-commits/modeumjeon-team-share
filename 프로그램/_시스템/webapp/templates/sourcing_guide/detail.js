@@ -185,7 +185,7 @@
   const resEl=document.getElementById('sg-verify-result');
   function receipt(c){
     const f=(c.flags||{});
-    const chk=(k)=> f[k]==='warn'? '<span class="sg-vchk warn">⚠️</span>':'<span class="sg-vchk ok">✅</span>';
+    const chk=(k)=> f[k]==='warn'? '<span class="sg-vchk warn"></span>':'<span class="sg-vchk ok"></span>';
     return `<div class="fxpop" style="margin-top:14px;"><div class="body"><div class="cf-receipt">
       <div class="cf-rc-ln"><span class="lbl">표면 노출가</span><span class="num">${c.surface_price}원 ${chk('surface_price')}</span></div>
       <div class="cf-rc-ln disc"><span class="lbl">적용 혜택</span><span class="num">${c.benefit_total}원 ${chk('benefit')}</span></div>
@@ -231,7 +231,7 @@
       const mark = g.applied
         ? '<span style="color:#22A06B;font-weight:800;">● 적용</span>'
         : ((g.excluded&&g.excluded.length)
-            ? '<span style="color:#E5484D;font-weight:800;">✕ 제외</span>'
+            ? '<span style="color:#E5484D;font-weight:800;"> 제외</span>'
             : '<span style="color:#8B95A1;font-weight:700;">○ 미적용</span>');
       return `<div class="cf-rc-ln"><span class="lbl">${g.name} &nbsp;${mark}</span>`+
              `<span class="num" style="font-size:11px;color:#6B7684;font-weight:600;">${g.reason}</span></div>`;
@@ -241,7 +241,7 @@
         `<div class="cf-rc-div"></div><div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span><span class="num">${j.final_price.toLocaleString()}원</span></div>`
       : '';
     const save=`<div style="margin-top:11px;display:flex;align-items:center;gap:10px;">`+
-      `<button id="sg-kw-save" style="background:#191F28;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">✓ 이 검증 결과 저장</button>`+
+      `<button id="sg-kw-save" style="background:#191F28;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;"> 이 검증 결과 저장</button>`+
       `<span id="sg-kw-save-msg" style="font-size:11.5px;color:#6B7684;"></span></div>`;
     return `<div class="fxpop" style="margin-top:13px;"><div class="body"><div class="cf-receipt">${rows}${price}</div></div></div>${save}`;
   }
@@ -321,7 +321,7 @@
           [...list.querySelectorAll('.sg-saved-item')].forEach(it=>{ if(url && it.dataset.url===url) it.remove(); });
           list.insertBefore(item, list.firstChild);
         }
-        btn.textContent='✓ 저장됨';
+        btn.textContent=' 저장됨';
         if(msg) msg.textContent = j.added_to_samples ? '저장된 검증 + ① 기준 샘플 URL 등록 완료.' : '저장된 검증에 추가 (① 이미 등록됨).';
       } else { btn.disabled=false; if(msg) msg.textContent='저장 실패: '+(j.message||j.error||''); }
     }catch(err){ btn.disabled=false; if(msg) msg.textContent='오류: '+err; }

@@ -264,7 +264,7 @@
         document.getElementById('stat-engine').textContent = 'Native+ZBar';
         document.getElementById('stat-engine').classList.add('nat');
         nativeLoop();
-        hint.textContent = '📷 바코드를 프레임 안에';
+        hint.textContent = ' 바코드를 프레임 안에';
         return;
       } catch(e) { console.warn('Native fail, fallback ZXing', e); }
     }
@@ -299,7 +299,7 @@
         handleResult(result.getText());
       }
     });
-    hint.textContent = '📷 바코드를 프레임 안에';
+    hint.textContent = ' 바코드를 프레임 안에';
   }
 
   // ───── 이미지 전처리: Histogram Equalization (Y 채널 평활화 — 흐릿·저조도) ─────
@@ -581,15 +581,15 @@
       // 매크로 모드 또는 한 번 재초점 시도
       try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch(e2){}
       const hint = document.getElementById('scan-hint');
-      hint.textContent = '🎯 재초점';
-      setTimeout(() => { hint.textContent = '📷 바코드를 비춰주세요'; }, 700);
+      hint.textContent = ' 재초점';
+      setTimeout(() => { hint.textContent = ' 바코드를 비춰주세요'; }, 700);
       return;
     }
     try {
       await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: 0.15 }] });
       const hint = document.getElementById('scan-hint');
-      hint.textContent = '🎯 매크로 초점';
-      setTimeout(() => { hint.textContent = '📷 바코드를 비춰주세요'; }, 1500);
+      hint.textContent = ' 매크로 초점';
+      setTimeout(() => { hint.textContent = ' 바코드를 비춰주세요'; }, 1500);
     } catch(e2) { console.warn('focus fail', e2); }
   }
 
@@ -628,8 +628,8 @@
       let msg = e.message || String(e);
       if (msg.includes('Permission') || msg.includes('NotAllowed')) msg = '카메라 권한이 거부됨. 설정에서 허용해주세요.';
       else if (msg.includes('NotFound') || msg.includes('카메라 없음')) msg = '카메라 없음 — SKU 직접 입력해주세요.';
-      errorArea.innerHTML = `<div class="scan-error">⚠️ ${msg}</div>`;
-      hint.textContent = '❌ 카메라 실패';
+      errorArea.innerHTML = `<div class="scan-error"> ${msg}</div>`;
+      hint.textContent = ' 카메라 실패';
     }
   }
 

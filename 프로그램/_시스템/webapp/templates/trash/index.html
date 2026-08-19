@@ -53,7 +53,7 @@ document.querySelectorAll('[data-action="restore-trash"]').forEach(btn => {
     const r = await fetch(`/trash/${id}/restore`, {method: 'POST'});
     const j = await r.json();
     if (j.ok) {
-      btn.textContent = '✓ 복구됨';
+      btn.textContent = ' 복구됨';
       btn.disabled = true;
       setTimeout(() => location.reload(), 800);
     } else alert('복구 실패: ' + (j.error || ''));

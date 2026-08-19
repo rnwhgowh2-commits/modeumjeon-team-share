@@ -104,7 +104,7 @@ async function networkFirst(request) {
     // 오프라인 폴백 페이지 (옵션)
     if (request.mode === 'navigate') {
       return new Response(
-        '<html><head><title>오프라인</title><meta charset="utf-8"></head><body style="font-family:Pretendard,sans-serif;text-align:center;padding:60px 24px;color:#4E5968"><h1 style="color:#3182F6">📡 오프라인</h1><p>인터넷 연결을 확인하세요.</p></body></html>',
+        '<html><head><title>오프라인</title><meta charset="utf-8"></head><body style="font-family:Pretendard,sans-serif;text-align:center;padding:60px 24px;color:#4E5968"><h1 style="color:#3182F6"> 오프라인</h1><p>인터넷 연결을 확인하세요.</p></body></html>',
         { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
       );
     }

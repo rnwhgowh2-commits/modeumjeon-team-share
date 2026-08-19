@@ -107,9 +107,9 @@ document.querySelectorAll('[data-action="refetch-source"]').forEach(btn => {
     try {
       const r = await fetch(`/sources/${id}/refetch`, {method: 'POST'});
       const j = await r.json();
-      btn.textContent = j.ok ? '✓ 요청됨' : '✗ 실패';
+      btn.textContent = j.ok ? ' 요청됨' : ' 실패';
     } catch (e) {
-      btn.textContent = '✗ 오류';
+      btn.textContent = ' 오류';
     }
     setTimeout(() => { btn.disabled = false; btn.textContent = '수동 fetch'; }, 2000);
   });

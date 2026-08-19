@@ -207,7 +207,7 @@
     var list=$('#opt-list');
     $('#opt-count').textContent=addedOptions.length;
     if(!addedOptions.length){
-      list.innerHTML='<div class="pc-empty"><div style="font-size:34px">📦</div>'
+      list.innerHTML='<div class="pc-empty"><div style="font-size:34px"></div>'
         +'아직 옵션이 없습니다 — 「재고에서 옵션 추가」로 보유 재고를 골라 담으세요.</div>';
     }else{
       list.innerHTML=addedOptions.map(function(o,i){
@@ -215,7 +215,7 @@
           +'<div class="pc-oinfo"><div class="pc-omain">'+esc(o.brand)+' '+esc(o.model)+' · '+esc(o.color)+' '+esc(o.size)+'</div>'
           +'<div class="pc-osub">SKU '+esc(o.product_sku)+(o.barcode?' · 바코드 '+esc(o.barcode):'')+'</div></div>'
           +'<span class="pc-ostk">'+o.stock+'<span class="u">개</span></span>'
-          +'<span class="pc-orm" data-sku="'+esc(o.product_sku)+'">✕</span></div>';
+          +'<span class="pc-orm" data-sku="'+esc(o.product_sku)+'"></span></div>';
       }).join('');
       list.querySelectorAll('.pc-orm').forEach(function(b){
         b.addEventListener('click',function(){
@@ -349,7 +349,7 @@
           +'<div class="pc-bi"><div class="pc-b1">'+esc(b.brand)+' '+esc(b.model)+' · '+esc(b.color)+' '+esc(b.size)+'</div>'
           +'<div class="pc-b2">SKU '+esc(b.product_sku)+(b.barcode?' · 바코드 '+esc(b.barcode):'')+'</div></div>'
           +'<span class="pc-bstk">'+b.stock+'</span>'
-          +'<span class="pc-bx" data-sku="'+esc(b.product_sku)+'">✕</span></div>';
+          +'<span class="pc-bx" data-sku="'+esc(b.product_sku)+'"></span></div>';
       }).join('');
       box.querySelectorAll('.pc-bck').forEach(function(c){
         c.addEventListener('click',function(){

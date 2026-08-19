@@ -202,7 +202,7 @@ function td_preset(v){
 }
 
 // 커스텀 필드
-function addCustomField(){const wrap=document.getElementById('customFields');const div=document.createElement('div');div.style='display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';div.innerHTML='<span style="width:24px;color:#8F91A0">⚏</span><input name="cf_key" placeholder="필드명" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px"><input name="cf_value" placeholder="필드 값" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px"><button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#8F91A0;font-size:16px;cursor:pointer">×</button>';wrap.appendChild(div)}
+function addCustomField(){const wrap=document.getElementById('customFields');const div=document.createElement('div');div.style='display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center';div.innerHTML='<span style="width:24px;color:#8F91A0"></span><input name="cf_key" placeholder="필드명" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px"><input name="cf_value" placeholder="필드 값" style="padding:8px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px"><button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#8F91A0;font-size:16px;cursor:pointer">×</button>';wrap.appendChild(div)}
 
 // 거래처 자동완성 datalist 채우기
 document.querySelector('input[name=partner_label]').addEventListener('input', e => {

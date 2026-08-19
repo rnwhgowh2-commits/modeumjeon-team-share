@@ -208,7 +208,7 @@
         const div = document.createElement('div');
         div.className = 'sb-it' + (info.justAdded ? ' new' : '');
         div.innerHTML = `
-          <div class="img">📦</div>
+          <div class="img"></div>
           <div class="nm">
             <div class="ti">${escapeHTML(info.name || sku)}</div>
             <div class="sku">${escapeHTML(sku)}</div>
@@ -218,7 +218,7 @@
             <span class="val">${info.qty}</span>
             <button onclick="adjustQty('${escapeAttr(sku)}', 1)">+</button>
           </div>
-          <button class="del" onclick="removeSku('${escapeAttr(sku)}')" title="삭제">✕</button>
+          <button class="del" onclick="removeSku('${escapeAttr(sku)}')" title="삭제"></button>
         `;
         listEl.appendChild(div);
         info.justAdded = false;
@@ -293,7 +293,7 @@
       });
       const j = await r.json();
       if (j.ok) {
-        const msg = `✓ ${j.total_saved}건 저장됨` + (j.total_failed ? ` · 실패 ${j.total_failed}건` : '');
+        const msg = ` ${j.total_saved}건 저장됨` + (j.total_failed ? ` · 실패 ${j.total_failed}건` : '');
         showToast(msg, 'success');
         if (j.total_failed && j.failed) {
           console.warn('failed:', j.failed);
@@ -416,15 +416,15 @@
       });
       const j = await r.json();
       if (!j.ok) {
-        showToast('❌ 매칭 안 됨: ' + code, 'error');
+        showToast(' 매칭 안 됨: ' + code, 'error');
         return;
       }
       const opt = j.option;
       const sku = opt.canonical_sku;
       const name = opt.model_name || sku;
       addToCart(sku, name);
-      document.getElementById('scan-hint').textContent = `✓ ${name} +1 (총 ${cart.get(sku).qty})`;
-      setTimeout(() => { document.getElementById('scan-hint').textContent = '📷 바코드를 비춰주세요'; }, 1500);
+      document.getElementById('scan-hint').textContent = ` ${name} +1 (총 ${cart.get(sku).qty})`;
+      setTimeout(() => { document.getElementById('scan-hint').textContent = ' 바코드를 비춰주세요'; }, 1500);
     } catch(e) {
       console.error('lookup', e);
       showToast('네트워크 오류', 'error');
@@ -463,8 +463,8 @@
     if (!track) return;
     try {
       await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-      document.getElementById('scan-hint').textContent = '🎯 재초점';
-      setTimeout(() => { document.getElementById('scan-hint').textContent = '📷 바코드를 비춰주세요'; }, 700);
+      document.getElementById('scan-hint').textContent = ' 재초점';
+      setTimeout(() => { document.getElementById('scan-hint').textContent = ' 바코드를 비춰주세요'; }, 700);
     } catch(e2) {}
   };
 

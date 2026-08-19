@@ -216,7 +216,7 @@ async function probeUrl(){
     });
     const j = await r.json();
     if (!r.ok || !j.ok){
-      out.innerHTML = '<div class="sa-chip warn">⚠ ' + (j.error || 'HTTP ' + r.status) + '</div>';
+      out.innerHTML = '<div class="sa-chip warn"> ' + (j.error || 'HTTP ' + r.status) + '</div>';
       btn.disabled = false; return;
     }
     // 폼 자동 채우기
@@ -228,15 +228,15 @@ async function probeUrl(){
     document.getElementById('colorHex').value = j.logo_color || '#3182F6';
     document.getElementById('faviconHidden').value = j.favicon_url || '';
     updatePreview();
-    let html = '<div class="sa-chip ok">✓ 분석 완료</div>';
+    let html = '<div class="sa-chip ok"> 분석 완료</div>';
     html += ' <span style="font-size: 14px;color:#4E5968"><b>도메인</b> ' + j.domain;
     if (j.title) html += ' · <b>타이틀</b> ' + (j.title.length>60 ? j.title.slice(0,60)+'…' : j.title);
     if (j.fetched) html += ' · <b>로고색</b> ' + j.logo_color;
-    if (!j.fetched && j.fetch_error) html += ' · <span style="color:#92400E">⚠ fetch 실패 — 도메인은 자동 채움</span>';
+    if (!j.fetched && j.fetch_error) html += ' · <span style="color:#92400E"> fetch 실패 — 도메인은 자동 채움</span>';
     html += '</span>';
     out.innerHTML = html;
   } catch(e){
-    out.innerHTML = '<div class="sa-chip warn">⚠ 네트워크 오류: ' + e.message + '</div>';
+    out.innerHTML = '<div class="sa-chip warn"> 네트워크 오류: ' + e.message + '</div>';
   } finally {
     btn.disabled = false;
   }

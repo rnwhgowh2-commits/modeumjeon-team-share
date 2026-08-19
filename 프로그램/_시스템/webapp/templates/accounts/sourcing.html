@@ -158,7 +158,7 @@ function sbRenderTable() {
       <td><div class="sb-src-cell"><span class="br-prefix ${src.prefixCls}" style="background:${src.bg};color:${src.fg};display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;font-weight:700;font-size: 14px">${src.prefix}</span><div><div>${src.name}</div></div></div></td>
       <td><div class="sb-chips">${chips}</div></td>
       <td>${items.length}개 활성</td>
-      <td class="sb-actions"><button class="primary" onclick="sbOpenModal(${src.id})">⚙ 편집</button></td>
+      <td class="sb-actions"><button class="primary" onclick="sbOpenModal(${src.id})"> 편집</button></td>
     </tr>`;
   }
   tbody.innerHTML = html;
@@ -204,7 +204,7 @@ function sbRenderModalList() {
         <button class="${!isRate ? 'on' : ''}" onclick="sbMSetType(${idx},'amount')">원</button>
       </div>
       <div class="val-inp"><input type="number" step="${isRate ? '0.01' : '1'}" value="${valDisp}" oninput="sbMSetVal(${idx},this.value)"><span>${isRate ? '%' : '원'}</span></div>
-      <button class="del" onclick="sbMDel(${idx})">🗑</button>
+      <button class="del" onclick="sbMDel(${idx})"></button>
     </div>`;
   }).join('');
 }
@@ -431,7 +431,7 @@ function sjRowHtml(site, acc) {
       <option value="kakao" ${acc.login_method === 'kakao' ? 'selected' : ''}>카카오</option>
     </select>` : '';
   const isDefaultCrawl = !!acc.is_default_for_crawl;
-  const starTitle = isDefaultCrawl ? '⭐ 대표 크롤 계정 (이 계정으로 크롤링)' : '☆ 대표 크롤 계정으로 지정';
+  const starTitle = isDefaultCrawl ? ' 대표 크롤 계정 (이 계정으로 크롤링)' : ' 대표 크롤 계정으로 지정';
   const starIcon = isDefaultCrawl ? '⭐' : '☆';
   return `
     <div class="sj-row" data-source="${site.key}" data-account="${acc.account_key}">
@@ -442,10 +442,10 @@ function sjRowHtml(site, acc) {
       <input type="text" class="sj-owner" placeholder="명의자" value="${acc.account_key.replace(/_\\d+$/, '')}" data-field="owner">
       <span class="sj-status-dot ${acc.cookie_status === 'logged_in' ? 'ok' : (acc.cookie_status === 'in_progress' ? 'fail' : 'warn')}" title="${acc.cookie_status === 'logged_in' ? ' 로그인 완료 (쿠키 ' + (acc.cookie_size_kb || 0) + 'KB)' : acc.cookie_status === 'in_progress' ? ' 시도했으나 실패 (쿠키 빈 상태)' : ' 시도 전'}"></span>
       <button class="sj-icon-btn sj-default-star ${isDefaultCrawl ? 'on' : ''}" title="${starTitle}" onclick="sjToggleDefault(this)" style="font-size:16px">${starIcon}</button>
-      <button class="sj-icon-btn" title="복사" onclick="sjCopyId(this)">📋</button>
-      <button class="sj-icon-btn" title="자동 로그인" onclick="sjLoginRow(this)">🔑</button>
-      <button class="sj-icon-btn" title="검증" onclick="sjVerifyRow(this)">✓</button>
-      <button class="sj-icon-btn sj-del" title="삭제" onclick="sjDeleteRow(this)">✗</button>
+      <button class="sj-icon-btn" title="복사" onclick="sjCopyId(this)"></button>
+      <button class="sj-icon-btn" title="자동 로그인" onclick="sjLoginRow(this)"></button>
+      <button class="sj-icon-btn" title="검증" onclick="sjVerifyRow(this)"></button>
+      <button class="sj-icon-btn sj-del" title="삭제" onclick="sjDeleteRow(this)"></button>
     </div>
   `;
 }
@@ -466,8 +466,8 @@ function sjEmptyRowHtml(site) {
       <input type="password" class="sj-pw" placeholder="PW" data-field="pw" autocomplete="new-password">
       <input type="text" class="sj-owner" placeholder="명의자" data-field="owner">
       <span class="sj-status-dot unknown"></span>
-      <button class="sj-icon-btn" title="자동 로그인" onclick="sjLoginRow(this)">🔑</button>
-      <button class="sj-icon-btn" title="저장" onclick="sjSaveRow(this)" style="color:var(--primary)">💾</button>
+      <button class="sj-icon-btn" title="자동 로그인" onclick="sjLoginRow(this)"></button>
+      <button class="sj-icon-btn" title="저장" onclick="sjSaveRow(this)" style="color:var(--primary)"></button>
     </div>
   `;
 }
@@ -548,7 +548,7 @@ function sjLoginRow(btn) {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ type: 'sourcing', account_key: source, sourcing_account_key: account }),
   }).then(r => r.json()).then(data => {
-    showToast(data.ok ? `✅ ${source} 성공` : `❌ ${data.message || data.error}`, data.ok ? 'success' : 'error');
+    showToast(data.ok ? ` ${source} 성공` : ` ${data.message || data.error}`, data.ok ? 'success' : 'error');
     if (data.ok) loadGroups();
   }).catch(e => showToast('네트워크 오류: ' + e.message, 'error'))
     .finally(() => { btn.disabled = false; });
@@ -582,12 +582,12 @@ async function sjToggleDefault(btn) {
     document.querySelectorAll(`.sj-row[data-source="${source}"] .sj-default-star`).forEach(b => {
       b.classList.remove('on');
       b.textContent = '☆';
-      b.title = '☆ 대표 크롤 계정으로 지정';
+      b.title = ' 대표 크롤 계정으로 지정';
     });
     if (!isOn) {
       btn.classList.add('on');
       btn.textContent = '⭐';
-      btn.title = '⭐ 대표 크롤 계정 (이 계정으로 크롤링)';
+      btn.title = ' 대표 크롤 계정 (이 계정으로 크롤링)';
       showToast(`${source} 대표 크롤 계정 지정됨`, 'success');
     } else {
       showToast(`${source} 대표 크롤 계정 해제`, 'info');
@@ -625,13 +625,13 @@ async function sjVerifySelected() {
     });
     const data = await res.json();
     if (data.ok) {
-      showToast(`✓ 선택 ${data.total}건 자동 로그인 시작`, 'success');
+      showToast(` 선택 ${data.total}건 자동 로그인 시작`, 'success');
       showBatchPanel();
       const btn = document.getElementById('btn-login-all');
       if (btn) { btn.disabled = true; btn.textContent = '⏳ 진행 중…'; }
       startBatchPoll();
     } else {
-      showToast(`❌ ${data.error || '시작 실패'}`, 'error');
+      showToast(` ${data.error || '시작 실패'}`, 'error');
     }
   } catch (e) {
     showToast('네트워크 오류: ' + e.message, 'error');
@@ -688,17 +688,17 @@ async function autoLoginAll() {
       return;
     }
     if (!data.ok) {
-      showToast(`❌ ${data.error}`, 'error');
-      btn.disabled = false; btn.textContent = '🔑 전체 자동 로그인';
+      showToast(` ${data.error}`, 'error');
+      btn.disabled = false; btn.textContent = ' 전체 자동 로그인';
       return;
     }
-    showToast(`⚡ 일괄 시작 — ${data.total} 계정`, 'info');
+    showToast(` 일괄 시작 — ${data.total} 계정`, 'info');
     showBatchPanel();
     btn.textContent = '⏳ 진행 중…';
     startBatchPoll();
   } catch (e) {
     showToast('네트워크 오류: ' + e.message, 'error');
-    btn.disabled = false; btn.textContent = '🔑 전체 자동 로그인';
+    btn.disabled = false; btn.textContent = ' 전체 자동 로그인';
   }
 }
 
@@ -747,7 +747,7 @@ async function pollBatchStatus() {
     document.getElementById('batch-bar-fill').style.width = pct + '%';
     document.getElementById('batch-progress-text').textContent = `${done}/${total} (${pct}%)`;
     document.getElementById('batch-current').textContent =
-      data.running ? `진행 중: ${data.current || '준비 중…'}` : `✅ 완료 — 성공 ${data.success || 0} / 실패 ${data.fail || 0}`;
+      data.running ? `진행 중: ${data.current || '준비 중…'}` : ` 완료 — 성공 ${data.success || 0} / 실패 ${data.fail || 0}`;
     const logEl = document.getElementById('batch-log');
     const newLogs = (data.logs || []).filter(l => l.ts > _batchSeenLogTs);
     if (newLogs.length > 0) {
@@ -769,7 +769,7 @@ async function pollBatchStatus() {
         if (!dot) return;
         dot.classList.remove('ok','fail','warn','unknown');
         dot.classList.add(r.ok ? 'ok' : 'fail');
-        dot.title = r.ok ? '🟢 로그인 완료' : `🔴 실패 — ${r.error || '미완료'}`;
+        dot.title = r.ok ? ' 로그인 완료' : ` 실패 — ${r.error || '미완료'}`;
       });
     }
     if (!data.running) {
@@ -777,7 +777,7 @@ async function pollBatchStatus() {
       _batchPollTimer = null;
       const btn = document.getElementById('btn-login-all');
       btn.disabled = false;
-      btn.textContent = '🔑 전체 자동 로그인';
+      btn.textContent = ' 전체 자동 로그인';
       const ok = data.success || 0, fail = data.fail || 0;
       showToast(`${fail === 0 ? '✅' : '⚠️'} 완료 — 성공 ${ok} / 실패 ${fail}`, fail === 0 ? 'success' : 'info');
       // 최종 한 번 더 정확한 상태 폴링
@@ -815,10 +815,10 @@ async function refreshRowStatuses() {
           dot.classList.remove('ok','fail','warn','unknown');
           dot.classList.add(newCls);
           dot.title = acc.cookie_status === 'logged_in'
-            ? `🟢 로그인 완료 (쿠키 ${acc.cookie_size_kb || 0}KB)`
+            ? ` 로그인 완료 (쿠키 ${acc.cookie_size_kb || 0}KB)`
             : acc.cookie_status === 'in_progress'
-            ? '🔴 시도했으나 실패 (쿠키 빈 상태)'
-            : '🟡 시도 전';
+            ? ' 시도했으나 실패 (쿠키 빈 상태)'
+            : ' 시도 전';
           changed++;
         }
         // 사이트 그룹 헤더의 logged_in 카운트도 갱신

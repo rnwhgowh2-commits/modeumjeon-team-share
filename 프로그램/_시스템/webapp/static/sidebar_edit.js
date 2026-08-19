@@ -773,8 +773,8 @@ function confirmSelection(){
   }
   if (!emCurrent) { closeEmojiModal(); return; }
   const t = getCurrentTarget(emHost);
-  const origDesc = t.icon ? `🎨 ${t.icon}` : (t.emoji || '없음');
-  const newDesc = emCurrentMode === 'icon' ? `🎨 ${emCurrent}` : emCurrent;
+  const origDesc = t.icon ? ` ${t.icon}` : (t.emoji || '없음');
+  const newDesc = emCurrentMode === 'icon' ? ` ${emCurrent}` : emCurrent;
   setIcon(emHost, emCurrentMode, emCurrent, emCurrentColor);
   pushRecent();
   snapshot(`아이콘: ${origDesc} → ${newDesc}`);
@@ -825,7 +825,7 @@ function moveCursor(delta){
 
 /* ===== 편집 가이드 ===== */
 $('#sb3-edit-toggle').addEventListener('click', () => {
-  alert('💡 사이드바 편집 가이드\n\n' +
+  alert(' 사이드바 편집 가이드\n\n' +
     '① 이름 변경 — ⋮ 메뉴 또는 우클릭 메뉴 (항목 클릭은 페이지 이동)\n' +
     '② 호버 메뉴 — 항목 위 마우스 → 우측 ⋮ 클릭\n' +
     '③ 드래그 — 좌측 ⋮⋮ 핸들 잡고 끌기 (카테고리 간 자유 이동)\n' +

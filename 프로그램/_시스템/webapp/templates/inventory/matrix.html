@@ -197,7 +197,7 @@ function openEdit(sku, source_type, mode, value, layer) {
   editCtx = {sku, source_type};
   document.getElementById('editModal').style.display = 'flex';
   document.getElementById('editTitle').innerText =
-    (source_type === 'self' ? '🟢 자체 사입 마진 편집' : '🟣 외부 사입 마진 편집');
+    (source_type === 'self' ? ' 자체 사입 마진 편집' : ' 외부 사입 마진 편집');
   document.getElementById('editSubtitle').innerText =
     `옵션 ${sku} — 현재 적용 계층: ${layer}`;
   document.querySelectorAll('input[name=editMode]').forEach(el => {

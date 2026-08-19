@@ -201,7 +201,7 @@
       const blocked = SOURCES.filter(s => s.price > guardrail);
       const passEl = document.getElementById('pmb-pass-list');
       if (passEl) passEl.textContent = passed.length
-        ? '✅ ' + passed.map(s => s.name).join(', ') : '⚠ 통과 source 없음';
+        ? '✅ ' + passed.map(s => s.name).join(', ') : ' 통과 source 없음';
       const blockEl = document.getElementById('pmb-block-list');
       if (blockEl) blockEl.textContent = blocked.length
         ? '⛔ ' + blocked.map(s => s.name).join(', ') : '— 차단 없음';
@@ -276,7 +276,7 @@
           inp.value = '9.45';
           inp.step = '0.05'; inp.max = '50';
         } else {
-          lab.textContent = '💵 마진금액';
+          lab.textContent = ' 마진금액';
           suff.textContent = '원';
           inp.value = String(Math.round(SS_PRICE * 0.0945));  // 12,181
           inp.step = '100'; inp.max = '50000';
@@ -495,7 +495,7 @@
             alert('실패: ' + (j.error || '알 수 없음'));
             return;
           }
-          alert(`✅ 적용 완료\n옵션 갱신: ${j.options_updated}\n라이브 push: ${j.live_pushed ? 'OK' : '실패'}\nround-trip: ${j.roundtrip_match}/${j.roundtrip_total} 일치`);
+          alert(` 적용 완료\n옵션 갱신: ${j.options_updated}\n라이브 push: ${j.live_pushed ? 'OK' : '실패'}\nround-trip: ${j.roundtrip_match}/${j.roundtrip_total} 일치`);
           // 매트릭스 새로고침
           location.reload();
         } catch (e) {
@@ -736,15 +736,15 @@
               });
               const j = await r.json();
               if (j && j.ok) {
-                status.textContent = '✓ 저장됨 — 새로고침';
+                status.textContent = ' 저장됨 — 새로고침';
                 status.style.color = '#10b981';
                 setTimeout(() => location.reload(), 500);
               } else {
-                status.textContent = '✗ 실패: ' + ((j && j.error) || '');
+                status.textContent = ' 실패: ' + ((j && j.error) || '');
                 status.style.color = '#dc2626';
               }
             } catch (e) {
-              status.textContent = '✗ 오류: ' + e.message;
+              status.textContent = ' 오류: ' + e.message;
               status.style.color = '#dc2626';
             }
           });
@@ -1565,7 +1565,7 @@
     const togBtn = document.getElementById('sm-sel-toggle');
     if (selCntEl) selCntEl.textContent = cnt;
     if (selBtn) selBtn.disabled = cnt === 0;
-    if (togBtn) togBtn.textContent = cnt === total && total > 0 ? '☑ 전체 해제' : '☐ 전체 선택';
+    if (togBtn) togBtn.textContent = cnt === total && total > 0 ? ' 전체 해제' : ' 전체 선택';
     // 행 시각
     document.querySelectorAll('#sm-mtx-container tr[data-sm-sku]').forEach(tr => {
       tr.classList.toggle('sm-row-sel', smSelSet.has(tr.dataset.smSku));
@@ -1701,8 +1701,8 @@
       <span class="${stockClass}" title="사입 재고">${stockTxt}</span>
       <span class="leaf-actions">
         <span class="leaf-action-grp">
-          <button type="button" class="leaf-act has-tip chart" data-act="chart" data-sku="${escapeHtml(sku)}">📊<span class="tip">가격 차트</span></button>
-          <button type="button" class="leaf-act has-tip refetch" data-act="refetch" data-sku="${escapeHtml(sku)}">🔄<span class="tip">재크롤 (5사이트)</span></button>
+          <button type="button" class="leaf-act has-tip chart" data-act="chart" data-sku="${escapeHtml(sku)}"><span class="tip">가격 차트</span></button>
+          <button type="button" class="leaf-act has-tip refetch" data-act="refetch" data-sku="${escapeHtml(sku)}"><span class="tip">재크롤 (5사이트)</span></button>
         </span>
         ${invId
           ? `<a class="inv-id-chip has-tip" data-inv-id="${invId}" data-sku="${escapeHtml(sku)}"><span class="idtxt" style="font-family:ui-monospace,monospace;font-size:11px">${escapeHtml(sku)}</span><span class="tip">재고관리 → ↗</span></a>`
@@ -1743,11 +1743,11 @@
       </div>`;
     });
     html += `<div class="sm-tree-foot">
-      <div class="ttl-bulk-conv">⚡ 선택 옵션 일괄 변환</div>
+      <div class="ttl-bulk-conv"> 선택 옵션 일괄 변환</div>
       <button type="button" class="btn-bulk-conv purchase" id="sm-bulk-purchase" disabled>사입재고로 적용 (0)</button>
       <button type="button" class="btn-bulk-conv sourcing" id="sm-bulk-sourcing" disabled>소싱처 재고로 적용 (0)</button>
-      <div class="ttl-bulk-conv" style="margin-top:8px">⚙ 기타 일괄</div>
-      <button type="button" class="sm-tree-apply" id="sm-tree-apply" disabled>⚡ 혜택 적용 (0)</button>
+      <div class="ttl-bulk-conv" style="margin-top:8px"> 기타 일괄</div>
+      <button type="button" class="sm-tree-apply" id="sm-tree-apply" disabled> 혜택 적용 (0)</button>
       <button type="button" class="sm-tree-clear" id="sm-tree-clear">전체 해제</button>
     </div>`;
     treeEl.innerHTML = html;
@@ -1781,7 +1781,7 @@
     const applyBtn = document.getElementById('sm-tree-apply');
     if (applyBtn) {
       applyBtn.disabled = smSelSet.size === 0;
-      applyBtn.textContent = `⚡ 혜택 적용 (${smSelSet.size})`;
+      applyBtn.textContent = ` 혜택 적용 (${smSelSet.size})`;
     }
     // v17 2B1 — 일괄 변환 버튼 활성화 + 카운트
     const purBtn = document.getElementById('sm-bulk-purchase');
@@ -1997,9 +1997,9 @@
       drawer.innerHTML = `
         <div class="odd-card">
           <div class="odd-head">
-            <span style="font-size:18px">⚙</span>
+            <span style="font-size:18px"></span>
             <h5 id="odd-h-sku">옵션 상세설정</h5>
-            <button type="button" class="odd-close" onclick="closeOptDetailDrawer()">✕</button>
+            <button type="button" class="odd-close" onclick="closeOptDetailDrawer()"></button>
           </div>
           <div class="odd-body" id="odd-body"></div>
           <div class="odd-foot">
@@ -2036,7 +2036,7 @@
       </div>
 
       <div class="odd-grp">
-        <h6>💰 가격 · 마진 <span class="odd-edit-tag">편집 가능</span></h6>
+        <h6> 가격 · 마진 <span class="odd-edit-tag">편집 가능</span></h6>
         <div class="odd-row">
           <span class="odd-lab">자동 계산</span>
           <label class="odd-switch"><input type="checkbox" data-odd-field="auto_enabled" ${opt.auto_enabled ? 'checked' : ''}><span class="odd-slider"></span></label>
@@ -2139,14 +2139,14 @@
       </div>
 
       <div class="odd-grp">
-        <h6>⚙ 빠른 액션</h6>
+        <h6> 빠른 액션</h6>
         <div class="odd-actions">
           <button type="button" class="odd-btn odd-btn-ghost" onclick="closeOptDetailDrawer();smHandleLeafAction('${escapeHtml(sku)}','chart')">가격 차트</button>
           <button type="button" class="odd-btn odd-btn-ghost" onclick="closeOptDetailDrawer();smHandleLeafAction('${escapeHtml(sku)}','refetch')">재크롤 (5사이트)</button>
         </div>
       </div>
 
-      <div class="odd-save-hint">💡 입력 즉시 자동 저장 (blur)</div>`;
+      <div class="odd-save-hint"> 입력 즉시 자동 저장 (blur)</div>`;
     drawer.hidden = false;
     // drawer 필드 binding
     bindOptDetailFields(sku, drawer);
@@ -2199,7 +2199,7 @@
             <span class="odd-url-idx">${idx + 1}</span>
             <input class="odd-url-input" type="url" value="${escapeHtml(row.url || '')}" placeholder="https://..." data-url-orig="${escapeHtml(row.url || '')}" ${isLegacy ? 'data-url-legacy="1"' : ''}>
             ${row.url ? `<a href="${escapeHtml(row.url)}" target="_blank" class="odd-url-open" title="열기">↗</a>` : `<span class="odd-url-open" style="opacity:.3">—</span>`}
-            <button type="button" class="odd-url-del" title="삭제">🗑</button>
+            <button type="button" class="odd-url-del" title="삭제"></button>
           </div>`;
         });
       }
@@ -2445,7 +2445,7 @@
         if (p.purchase_date) document.getElementById('iad-purchase-date').value = p.purchase_date;
         if (p.memo) document.getElementById('iad-memo').value = p.memo;
         if (p.location_id) document.getElementById('iad-location').value = p.location_id;
-        iadSetSaveBadge('saved', `✓ draft (저장됨)`);
+        iadSetSaveBadge('saved', ` draft (저장됨)`);
       } else {
         iadSetSaveBadge('idle', '대기 중');
       }
@@ -2522,7 +2522,7 @@
       }
       const sku = _iadSku;
       closeInvAddDrawer();
-      showToast(`✓ ${sku} 재고관리에 추가 완료 (INV-${j.product.id})`);
+      showToast(` ${sku} 재고관리에 추가 완료 (INV-${j.product.id})`);
       // 옵션 데이터에 inv ID 반영 (트리 재렌더 위해)
       const opt = (DATA.options || []).find(o => o.sku === sku);
       if (opt) opt.inv_product_id = j.product.id;
@@ -2922,7 +2922,7 @@
           <div class="v"><b>${overallPct}%</b><small>전체</small></div>
         </div>
         <div class="meta">
-          <div class="lbl">📈 진행 (매핑 기준)</div>
+          <div class="lbl"> 진행 (매핑 기준)</div>
           <div class="val">${doneCells} / ${totalUrls}</div>
           <div class="sub">${sources.length} 사이트 · 옵션 ${opts.length}</div>
         </div>
@@ -2944,7 +2944,7 @@
       const _lfUtc = st.lastFetched
         ? (/[Z+]|[+-]\d\d:\d\d$/.test(st.lastFetched) ? st.lastFetched : st.lastFetched + 'Z')
         : null;
-      const crawlTxt = _lfUtc ? ('🕒 ' + fmtRelDate(_lfUtc) + ' 크롤') : '🕒 크롤 전';
+      const crawlTxt = _lfUtc ? ('🕒 ' + fmtRelDate(_lfUtc) + ' 크롤') : ' 크롤 전';
       const crawlTitle = _lfUtc ? new Date(_lfUtc).toLocaleString('ko-KR') : '아직 크롤 안 함';
       // 실패 시 카드 클릭 → 소싱처 URL 매핑 모달(해당 소싱처 탭) 열림 (data-fail-src).
       sideHHtml += `
@@ -2952,9 +2952,9 @@
           <div class="top"><span class="site-logo">${brandIconHtml(s.name, 'sm')}</span><span class="nm">${escapeHtml(s.name)}</span></div>
           <div class="pct">${pctTxt}${!isWait ? '%' : ''}</div>
           <div class="dual-bars">
-            <div class="dbar"><div class="dbar-lab"><span>🔗 URL</span><span>${st.urlDone}/${st.urlTry}</span></div>
+            <div class="dbar"><div class="dbar-lab"><span> URL</span><span>${st.urlDone}/${st.urlTry}</span></div>
               <div class="dbar-track"><div class="dbar-fill u" style="width:${urlPct}%"></div></div></div>
-            <div class="dbar"><div class="dbar-lab"><span>📌 매핑</span><span>${st.mapDone}/${st.mapTry}</span></div>
+            <div class="dbar"><div class="dbar-lab"><span> 매핑</span><span>${st.mapDone}/${st.mapTry}</span></div>
               <div class="dbar-track"><div class="dbar-fill ${hasFail ? 'bad' : 'm'}" style="width:${pct}%"></div></div></div>
           </div>
           ${hasFail ? `<div class="scell-fail">⚠ ${failUrlCnt ? `URL ${failUrlCnt}개` : ''}${failUrlCnt && failMapCnt ? '·' : ''}${failMapCnt ? `매핑 ${failMapCnt}건` : ''} 실패 · 클릭하여 보기</div>` : ''}
@@ -2965,7 +2965,7 @@
     if (winner) {
       sideHHtml += `
         <div class="winner-blk">
-          <span class="ic">🏆</span>
+          <span class="ic"></span>
           <div class="text">
             <div class="lbl">최저가 1위</div>
             <b><span class="site-logo" style="margin-right:5px">${brandIconHtml(winner.name, 'md')}</span>${escapeHtml(winner.name)}</b>
@@ -2974,7 +2974,7 @@
           <div class="cnt">${winnerCnt}</div>
         </div>`;
     } else {
-      sideHHtml += `<div class="winner-blk" style="background:#F2F4F6"><span class="ic">🏆</span><div class="text"><div class="lbl">최저가</div><b style="color:#8B95A1">데이터 없음</b><small>가격 크롤 완료 후 표시</small></div></div>`;
+      sideHHtml += `<div class="winner-blk" style="background:#F2F4F6"><span class="ic"></span><div class="text"><div class="lbl">최저가</div><b style="color:#8B95A1">데이터 없음</b><small>가격 크롤 완료 후 표시</small></div></div>`;
     }
     const sideHEl2 = document.getElementById('sm-side-h');
     if (sideHEl2) sideHEl2.innerHTML = sideHHtml;
@@ -3179,19 +3179,19 @@
     // 임시 로딩 popover
     const pop = document.createElement('div');
     pop.className = 'cell-fx-pop';
-    pop.innerHTML = `<h6>💰 계산식 로드 중...<button class="close" onclick="this.closest('.cell-fx-pop').remove();this.closest('td')?.classList.remove('fx-open')">✕</button></h6>`;
+    pop.innerHTML = `<h6> 계산식 로드 중...<button class="close" onclick="this.closest('.cell-fx-pop').remove();this.closest('td')?.classList.remove('fx-open')"></button></h6>`;
     td.appendChild(pop);
     // Phase 7 — popover viewport overflow 시 좌측 자동 전환
     adjustFxPopPosition(pop);
     try {
       const r = await fetch(`/api/source-benefits/breakdown/${encodeURIComponent(sku)}/${srcId}?sale_price=${price}`);
       const j = await r.json();
-      if (!j.ok) { pop.innerHTML = `<h6>계산식 로드 실패<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red)">${j.error || '오류'}</div>`; return; }
+      if (!j.ok) { pop.innerHTML = `<h6>계산식 로드 실패<button class="close" onclick="this.closest('.cell-fx-pop').remove()"></button></h6><div style="padding:8px;color:var(--red)">${j.error || '오류'}</div>`; return; }
       // 시안 10 v5-A 차콜 — 4-카드 stack 렌더 (smRefreshFxInPlace 와 공유 함수)
       smRenderFxPopBody(pop, j, sku, srcId);
       adjustFxPopPosition(pop);
     } catch(err) {
-      pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red);font-size: 14px">${err.message}</div>`;
+      pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()"></button></h6><div style="padding:8px;color:var(--red);font-size: 14px">${err.message}</div>`;
     }
   });
 
@@ -3244,7 +3244,7 @@
     const treeHtml = Object.entries(colorGroups).map(([color, skus]) => `
       <div class="grp" data-color="${escapeHtml(color)}">
         <div class="grp-h">
-          <span class="cb">✓</span>
+          <span class="cb"></span>
           <span>${escapeHtml(color)}</span>
           <span class="arrow">▶</span>
           <span class="cnt">${skus.length} 사이즈</span>
@@ -3256,7 +3256,7 @@
     ov.className = 'card-scope-overlay';
     ov.innerHTML = `
       <div class="card-scope-modal" role="dialog" aria-modal="true">
-        <h3><span class="ic">⚠</span> ${escapeHtml(title)}</h3>
+        <h3><span class="ic"></span> ${escapeHtml(title)}</h3>
         <div class="desc">${escapeHtml(desc)}</div>
         <div class="cs-split">
           <div class="cs-left">
@@ -3490,7 +3490,7 @@
     ov.innerHTML = `<div class="ompk-modal" role="dialog" aria-modal="true">
       <div class="ompk-head"><span class="t">조합 매트릭스</span><span class="cnt"><b>${sel.size}</b>/${total} 선택</span><span class="all" data-all>전체 선택/해제</span></div>
       <div class="ompk-scroll"><table class="ompk-tab"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
-      <div class="ompk-foot"><span class="sum">✓ 옵션 <b class="n">${sel.size}</b>개 선택</span>
+      <div class="ompk-foot"><span class="sum"> 옵션 <b class="n">${sel.size}</b>개 선택</span>
         <button type="button" data-cancel>취소</button><button type="button" class="ok" data-ok>적용</button></div></div>`;
     document.body.appendChild(ov);
 
@@ -3561,7 +3561,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
 
     const _cardChipHtml = _acd
       ? `<div class="cf-card-chip" data-card-row data-sku="${escapeHtml(sku)}" data-srcid="${srcId}">
-           💳 ${escapeHtml(_acd.label)}
+            ${escapeHtml(_acd.label)}
            <span class="cf-oi ${_cardOn ? '' : 'off'}" onclick="smCardToggle(this, event)"><span class="knob"></span></span>
          </div>`
       : '';
@@ -3630,10 +3630,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     };
     // 삭제: 템플릿/오버라이드만(크롤 동적 id<0 은 토글만). kind 로 엔드포인트 라우팅.
     const _delBtn = (it) => (it.id && it.id > 0)
-      ? `<button class="del" title="삭제" onclick="smCellDel(this, '${sku}', ${srcId})">🗑</button>` : '';
+      ? `<button class="del" title="삭제" onclick="smCellDel(this, '${sku}', ${srcId})"></button>` : '';
     // ✎ 값 수정: 템플릿/오버라이드만(크롤 동적 id<0 은 수정 불가). 저장은 '이 모음전'에만 적용.
     const _editBtn = (it) => (it.id && it.id > 0)
-      ? `<button class="edit" title="값 수정 (이 모음전만)" onclick="smCellEdit(this, '${sku}', ${srcId})">✎</button>` : '';
+      ? `<button class="edit" title="값 수정 (이 모음전만)" onclick="smCellEdit(this, '${sku}', ${srcId})"></button>` : '';
     // ↺ 행별 초기화는 A3-1 상단 배너(소싱처 단위 초기화)로 대체 — 행 버튼 제거.
     const _resetBtn = (it) => '';
     // 전 혜택 동일 폰트 — 이름(.nm) / 차감액(.n) / 비율(.rt) 클래스로만 (인라인 font 변동 금지)
@@ -3666,7 +3666,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     let benHtml = '';
     // 🔵 선반영 — 표면 노출가에 이미 반영(표시만). preapplied 항목 있을 때만 노출.
     if (_g.pre.length) {
-      benHtml += `<div class="cf-grp pre">🔵 선반영<span class="cf-grp-note"> · 표면 노출가에 이미 반영(표시만)</span></div>` + _g.pre.map(_rowHtml).join('');
+      benHtml += `<div class="cf-grp pre"> 선반영<span class="cf-grp-note"> · 표면 노출가에 이미 반영(표시만)</span></div>` + _g.pre.map(_rowHtml).join('');
     }
     // 후반영 — 베이스금액에서 차감
     benHtml += `<div class="cf-grp">후반영 · 정액</div>` + (_g.amount.length ? _g.amount.map(_rowHtml).join('') : _emptyRow);
@@ -3747,7 +3747,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         </div>
       </div>`;
     pop.innerHTML = `
-      <h6>💰 ${escapeHtml(getSrcName(srcId))} · ${escapeHtml(sku.split('-').slice(-2).join('-'))} 계산식<button class="close" onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">✕</button></h6>
+      <h6> ${escapeHtml(getSrcName(srcId))} · ${escapeHtml(sku.split('-').slice(-2).join('-'))} 계산식<button class="close" onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))"></button></h6>
       <div class="cf-diffbar-host" data-diffbar></div>
       ${saleHtml}
       <div class="cell-fx-ben">
@@ -3756,7 +3756,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       ${addRowHtml}
       <div class="pop-actions">
         <button onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">닫기</button>
-        <a href="/accounts/sourcing" target="_blank">📦 사이트 템플릿 →</a>
+        <a href="/accounts/sourcing" target="_blank"> 사이트 템플릿 →</a>
       </div>`;
     // ★ 2026-06-11 A3-1 — 이 모음전이 소싱처 기본값과 다르면 상단 슬림 배너 표시.
     smLoadDiffBar(pop, srcId);
@@ -3774,7 +3774,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       if (!j.ok || !j.differs) { host.innerHTML = ''; return; }
       const names = (j.items || []).map(it => escapeHtml(it.name)).join(', ');
       host.innerHTML = `<div class="cf-diffbar" title="${names}">
-        <span class="ic">⚠️</span>
+        <span class="ic"></span>
         <span class="msg">소싱처 기본값과 <b>${j.count}개 항목</b> 다름</span>
         <button type="button" class="db-reset" onclick="smBundleReset(${srcId})">기본값으로 초기화</button>
       </div>`;
@@ -3902,7 +3902,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     ov.className = 'del-scope-overlay';
     ov.innerHTML = `
       <div class="del-scope-modal" role="dialog" aria-modal="true">
-        <h3>🗑 "${escapeHtml(benefitName)}" 삭제</h3>
+        <h3> "${escapeHtml(benefitName)}" 삭제</h3>
         <div class="dsm-sub">어느 범위에서 삭제할까요?</div>
         ${renderScopePicker({bundleCount, srcName:'', defaultScope:'option'})}
         <div class="dsm-acts">
@@ -3965,7 +3965,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const ov = document.createElement('div');
     ov.className = 'del-scope-overlay';
     ov.innerHTML = `<div class="del-scope-modal" role="dialog" aria-modal="true">
-        <h3>✎ "${escapeHtml(benefitName)}" 값 수정</h3>
+        <h3> "${escapeHtml(benefitName)}" 값 수정</h3>
         <div class="ie-modal-val"><input type="text" class="ie-input2" value="${curDisp}" inputmode="decimal"><span class="ie-u">${unit}</span></div>
         <div class="dsm-sub">어느 범위에 적용할까요?</div>
         ${renderScopePicker({bundleCount, srcName:'', defaultScope:'option'})}
@@ -4207,54 +4207,54 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     let title, sub, target = '', diffHtml = '', promoteQ = '', actions = '';
 
     if (payload.kind === 'option-add') {
-      title = '✅ 옵션 단독 혜택 추가';
+      title = ' 옵션 단독 혜택 추가';
       sub = `${srcName} · ${optShort}`;
       target = `${escapeHtml(payload.benefitName)} = ${valTxt}`;
       // 영향 카운트: 같은 사이트의 다른 옵션 수
       const otherCnt = totalOpts - 1;
       diffHtml = `<div class="diff">이 옵션에만 적용됨 · 같은 사이트 <b>${otherCnt}</b>옵션은 영향 없음<span class="delta">+1 옵션</span></div>`;
-      promoteQ = `<div class="promote-q">💡 이 사이트 <b>${srcName}</b> 전체 옵션에 같은 혜택을 적용하시겠어요? 일관성 ↑</div>`;
+      promoteQ = `<div class="promote-q"> 이 사이트 <b>${srcName}</b> 전체 옵션에 같은 혜택을 적용하시겠어요? 일관성 ↑</div>`;
       actions = `
         <button class="primary" onclick="smSidePromoteSite()">
-          <span class="ic">⚡</span><span>사이트 default 로 승격 (${totalOpts} 옵션)</span>
+          <span class="ic"></span><span>사이트 default 로 승격 (${totalOpts} 옵션)</span>
         </button>
         <button class="alt-grp" onclick="smSidePromoteColor()">
-          <span class="ic">🎨</span><span>같은 색상 그룹만 적용</span>
+          <span class="ic"></span><span>같은 색상 그룹만 적용</span>
         </button>
         <button class="alt-keep" onclick="smCloseSidePanel()">
-          <span class="ic">✓</span><span>옵션 단독 유지 (취소)</span>
+          <span class="ic"></span><span>옵션 단독 유지 (취소)</span>
         </button>`;
     } else if (payload.kind === 'toggle') {
-      title = '✅ 혜택 ' + (payload.enabled ? '활성화' : '비활성화');
+      title = ' 혜택 ' + (payload.enabled ? '활성화' : '비활성화');
       sub = `${srcName} · ${optShort}`;
       target = `${escapeHtml(payload.benefitName)} → ${payload.enabled ? 'ON' : 'OFF'}`;
       diffHtml = `<div class="diff">이 옵션 단독 토글 · 매트릭스 가격 재계산<span class="delta">${payload.enabled ? '+' : '−'}</span></div>`;
       actions = `
         <button class="alt-keep" onclick="smCloseSidePanel()">
-          <span class="ic">✓</span><span>닫기</span>
+          <span class="ic"></span><span>닫기</span>
         </button>`;
     } else if (payload.kind === 'bundle-add') {
-      title = '✅ 모음전 전체 적용';
+      title = ' 모음전 전체 적용';
       sub = `${srcName} · 모음전 전체`;
       target = `${escapeHtml(payload.benefitName)} = ${valTxt}`;
       diffHtml = `<div class="diff"><b>${payload.appliedCount}</b>개 옵션에 적용 완료<span class="delta">전체</span></div>`;
-      promoteQ = `<div class="promote-q">💡 매번 동일 적용이라면 <b>${srcName}</b> 사이트 default 템플릿으로 이동하시겠어요?</div>`;
+      promoteQ = `<div class="promote-q"> 매번 동일 적용이라면 <b>${srcName}</b> 사이트 default 템플릿으로 이동하시겠어요?</div>`;
       actions = `
         <button class="primary" onclick="smSidePromoteSite()">
           <span>사이트 default 템플릿으로 이동</span>
         </button>
         <button class="alt-keep" onclick="smCloseSidePanel()">
-          <span class="ic">✓</span><span>모음전 안에만 유지</span>
+          <span class="ic"></span><span>모음전 안에만 유지</span>
         </button>`;
     } else if (payload.kind === 'tree-apply') {
-      title = '✅ 선택 옵션 일괄 적용';
+      title = ' 선택 옵션 일괄 적용';
       sub = `${srcName} · 트리 선택 ${payload.appliedCount}/${payload.totalCount}`;
       target = `${escapeHtml(payload.benefitName)} = ${valTxt}`;
       diffHtml = `<div class="diff"><b>${payload.appliedCount}</b>개 옵션에 적용 · 나머지 <b>${payload.totalCount - payload.appliedCount}</b>개는 영향 없음<span class="delta">${Math.round(payload.appliedCount/payload.totalCount*100)}%</span></div>`;
       promoteQ = '';
       actions = `
         <button class="alt-keep" onclick="smCloseSidePanel()">
-          <span class="ic">✓</span><span>닫기</span>
+          <span class="ic"></span><span>닫기</span>
         </button>`;
     } else {
       return;
@@ -4270,7 +4270,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     panel.dataset.bType = payload.benefitType || '';
     panel.dataset.bValue = payload.value != null ? payload.value : '';
     panel.innerHTML = `
-      <h4>${title}<button class="b1-close" onclick="smCloseSidePanel()">✕</button></h4>
+      <h4>${title}<button class="b1-close" onclick="smCloseSidePanel()"></button></h4>
       <div class="sub">${escapeHtml(sub)}</div>
       ${target ? `<div class="target">${target}</div>` : ''}
       ${diffHtml}
@@ -4302,7 +4302,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       });
       const j = await r.json();
       if (j.ok) {
-        alert(`✓ 사이트 default 추가 완료 (${name})`);
+        alert(` 사이트 default 추가 완료 (${name})`);
         smCloseSidePanel();
         loadMatrix();
       } else {
@@ -4334,7 +4334,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       });
       const j = await r.json();
       if (j.ok) {
-        alert(`✓ ${j.added}개 옵션 추가 적용`);
+        alert(` ${j.added}개 옵션 추가 적용`);
         smCloseSidePanel();
         loadMatrix();
       }
@@ -4471,7 +4471,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     if (!body) return;
     const mk = _optCfgState.active;
     const axes = (_optCfgState.cfg[mk] && _optCfgState.cfg[mk].axes) || [];
-    const sourceLabels = { color_code:'🎨 색상', size_code:'📏 사이즈', model_code:'모델' };
+    const sourceLabels = { color_code:' 색상', size_code:' 사이즈', model_code:'모델' };
     let html = '';
     axes.forEach((ax, i) => {
       html += `
@@ -4486,7 +4486,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           </select>
           <button type="button" data-axis-remove="${i}"
                   style="background:#fff;border:1px solid #f87171;color:#dc2626;padding:5px 9px;border-radius:5px;font-size: 14px;font-weight:700;cursor:pointer"
-                  ${axes.length<=1?'disabled':''}>✕</button>
+                  ${axes.length<=1?'disabled':''}></button>
         </div>`;
     });
     if (axes.length < 3) {
@@ -4583,7 +4583,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
                 data-model-code="${m.model_code}"
                 onclick="window.removeModelFromGroup(this)"
                 style="background:#fff;border:1px solid #fbbf24;color:#b45309;padding:4px 10px;border-radius:5px;font-size: 14px;font-weight:700;cursor:pointer">
-          ✂ 분리
+           분리
         </button>
       </div>
     `).join('');
@@ -4683,7 +4683,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     if (mode === 'single') {
       targetSkus = [singleSku];
       const opt = DATA.options.find(o => o.sku === singleSku);
-      badge.className = 'mode-single'; badge.textContent = `📍 단일 — ${opt.color_code}-${opt.size_code}`;
+      badge.className = 'mode-single'; badge.textContent = ` 단일 — ${opt.color_code}-${opt.size_code}`;
       detail.textContent = `소싱처 ${opt.src_count}개 등록 · URL 변경·삭제·추가는 이 옵션에만 반영`;
     } else {
       targetSkus = [...multiSet];
@@ -4708,12 +4708,12 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           html += `<div class="opt-insp-row">
             <span style="width:24px"></span>
             <div>
-              <div class="src-meta">🛒 ${src.source_name}</div>
+              <div class="src-meta"> ${src.source_name}</div>
               <div class="src-meta-host">${(src.product_url||'').slice(0,40)}…</div>
             </div>
             <input class="field-input mono" data-single-url="${src.source_id}"
                    value="${src.product_url||''}" placeholder="옵션 상세 URL">
-            <button class="btn btn-sm" data-single-del="${src.source_id}" style="color:var(--color-danger)">🗑</button>
+            <button class="btn btn-sm" data-single-del="${src.source_id}" style="color:var(--color-danger)"></button>
           </div>`;
         }
       }
@@ -4902,7 +4902,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           </div>
         </div>`;
     };
-    const _srcAppliedChip = !isPurchasePri ? '<span class="m4v1-chip-applied">✓ 적용</span>' : '';
+    const _srcAppliedChip = !isPurchasePri ? '<span class="m4v1-chip-applied"> 적용</span>' : '';
     const srcCard = `
       <div class="${srcCardClass}" data-m4-card="source" data-sku="${o.sku}">
         <div class="m4v1-top-region">
@@ -4942,7 +4942,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         <div class="m4v1-card pur blocked" data-m4-card="purchase" data-sku="${o.sku}" data-model-code="${o.model_code || ''}">
           <div class="m4v1-head">
             <span>사입</span> <span class="m4v1-pri pur">우선</span> <span class="m4v1-stock-chip">재고 ${stock}</span>
-            <span class="m4v1-head-right"><span class="m4v1-chip-applied">🚫 차단</span></span>
+            <span class="m4v1-head-right"><span class="m4v1-chip-applied"> 차단</span></span>
           </div>
           ${_mkMktRow('pur-ss', '스마트스토어', false, 0, null, 0, '', true)}
           ${_mkMktRow('pur-cp', '쿠팡', false, 0, null, 0, '', true)}
@@ -4966,9 +4966,9 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       const _purSsOn = !!o.pur_fixed_ss_active;
       const _purCpOn = !!o.pur_fixed_cp_active;
       const _purCost = avg || 0;
-      const _ssLossChip = o.pur_loss_ss ? '<span class="a1-loss-chip" title="역마진 — 지정가가 매입가보다 낮음">⚠ 역마진</span>' : '';
-      const _cpLossChip = o.pur_loss_cp ? '<span class="a1-loss-chip" title="역마진 — 지정가가 매입가보다 낮음">⚠ 역마진</span>' : '';
-      const _purAppliedChip = isPurchasePri ? '<span class="m4v1-chip-applied">✓ 적용</span>' : '';
+      const _ssLossChip = o.pur_loss_ss ? '<span class="a1-loss-chip" title="역마진 — 지정가가 매입가보다 낮음"> 역마진</span>' : '';
+      const _cpLossChip = o.pur_loss_cp ? '<span class="a1-loss-chip" title="역마진 — 지정가가 매입가보다 낮음"> 역마진</span>' : '';
+      const _purAppliedChip = isPurchasePri ? '<span class="m4v1-chip-applied"> 적용</span>' : '';
       purCard = `
         <div class="${purCardClass}" data-m4-card="purchase" data-sku="${o.sku}">
           <div class="m4v1-head">
@@ -5006,7 +5006,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       ? '<span class="opt-size-chip free">FREE</span>'
       : '<span class="opt-size-chip">' + escapeHtml(size) + '</span>';
     // [2026-06-03] 옵션명 가운데 + 2줄(색 / 사이즈·⚙). ⚙ 상세설정 버튼을 2번째 줄에 함께 배치.
-    const gear = '<button type="button" class="opt-detail-btn" data-act="opt-detail" data-sku="' + escapeHtml(o.sku) + '" title="상세설정">⚙</button>';
+    const gear = '<button type="button" class="opt-detail-btn" data-act="opt-detail" data-sku="' + escapeHtml(o.sku) + '" title="상세설정"></button>';
     return '<strong class="opt-color">' + name + '</strong><span class="opt-row2">' + chip + gear + '</span>';
   }
 
@@ -5014,7 +5014,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const lp = o.linked_product;
     if (lp) {
       return `<div class="ipl-wrap"><div class="ipl-linked" data-ipl-sku="${escapeHtml(o.sku)}">
-        📦 ${escapeHtml(lp.name)}
+         ${escapeHtml(lp.name)}
         <span class="ipl-pk">${escapeHtml(lp.product_sku)}</span>
         <button type="button" class="ipl-relink" data-act="ipl-browse" data-sku="${escapeHtml(o.sku)}">변경</button>
       </div></div>`;
@@ -5024,7 +5024,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         <input type="text" class="ipl-isearch" data-ipl-search="${escapeHtml(o.sku)}"
                placeholder="브랜드·모델·색상·사이즈·SKU·바코드" autocomplete="off">
       </div>
-      <button type="button" class="ipl-browse" data-act="ipl-browse" data-sku="${escapeHtml(o.sku)}">🔍 찾아보기</button>
+      <button type="button" class="ipl-browse" data-act="ipl-browse" data-sku="${escapeHtml(o.sku)}"> 찾아보기</button>
     </div></div>`;
   }
 
@@ -5036,7 +5036,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     if (!invId) {
       return `<div class="cell-stock-wrap stock-local">
         <div class="stock-local-empty" style="padding:14px;text-align:center;color:#9CA3AF;font-size:11.5px;line-height:1.6">
-          미연동<br><span style="font-size:10.5px;color:#6B7684">옵션 모달 [📋 재고관리 매핑] 탭에서 연결</span>
+          미연동<br><span style="font-size:10.5px;color:#6B7684">옵션 모달 [ 재고관리 매핑] 탭에서 연결</span>
         </div>
       </div>`;
     }
@@ -5094,7 +5094,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // 📡 D2 — 세로 카드 그리드 (가격 + 재고 + 업데이트일)
     const sources = o.sources || [];
     if (!sources.length) {
-      return `<tr class="verify-row" data-verify-row="${o.sku}"><td></td><td colspan="4"><div class="d2-src-empty">📡 등록된 소싱처 URL 없음 — 위 인스펙터에서 추가</div></td></tr>`;
+      return `<tr class="verify-row" data-verify-row="${o.sku}"><td></td><td colspan="4"><div class="d2-src-empty"> 등록된 소싱처 URL 없음 — 위 인스펙터에서 추가</div></td></tr>`;
     }
     // 최저가 (가격 있는 것만 비교)
     const prices = sources.map(s => s.crawled_price).filter(p => p != null && p > 0);
@@ -5104,7 +5104,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     for (const src of sources) {
       const hasPrice = src.crawled_price != null && src.crawled_price > 0;
       const isLowest = hasPrice && src.crawled_price === lowest;
-      const refetchBtn = `<button class="btn-ico" data-refetch-sku="${o.sku}" data-refetch-src="${src.source_id}" title="${hasPrice ? '다시 가져오기' : '지금 크롤링'}">🔄</button>`;
+      const refetchBtn = `<button class="btn-ico" data-refetch-sku="${o.sku}" data-refetch-src="${src.source_id}" title="${hasPrice ? '다시 가져오기' : '지금 크롤링'}"></button>`;
       const link = src.product_url ? `<a class="btn-ico" href="${src.product_url}" target="_blank" rel="noopener" title="원 페이지 열기">↗</a>` : '';
 
       let body;
@@ -5116,7 +5116,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         body = `<div class="d2-src-price">${src.crawled_price.toLocaleString('ko-KR')}원</div>
           <div class="d2-src-meta">${stockTxt}${dateTxt}</div>`;
       } else {
-        const errTxt = src.last_status === 'error' ? '<span class="d2-src-status-error">⚠ 오류</span>' : '미실행';
+        const errTxt = src.last_status === 'error' ? '<span class="d2-src-status-error"> 오류</span>' : '미실행';
         body = `<div class="d2-src-empty">${errTxt}</div>`;
       }
 
@@ -5129,7 +5129,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       </div>`;
     }
     return `<tr class="verify-row" data-verify-row="${o.sku}"><td></td><td colspan="4">
-      <div class="verify-row-label">📡 소싱처 가격 비교</div>
+      <div class="verify-row-label"> 소싱처 가격 비교</div>
       <div class="d2-sources">${cards}</div>
     </td></tr>`;
   }
@@ -5275,7 +5275,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // 검증 표시 정책: AUTO 항상, 수기는 토글 ON
     const showCards = o.auto_enabled || verifyOn;
     if (!showCards) {
-      return `<span style="color:var(--n500);font-size: 14px;font-style:italic">자동 OFF — 우상단 [📡 수기 소싱처] 토글로 표시</span>`;
+      return `<span style="color:var(--n500);font-size: 14px;font-style:italic">자동 OFF — 우상단 [ 수기 소싱처] 토글로 표시</span>`;
     }
     let cards = '';
     for (const reg of allSrcs) {
@@ -5283,9 +5283,9 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       if (src) {
         const hasPrice = src.crawled_price != null && src.crawled_price > 0;
         const isLowest = hasPrice && src.crawled_price === lowest;
-        const refetchBtn = `<button class="btn-icon" data-refetch-sku="${o.sku}" data-refetch-src="${src.source_id}" title="${hasPrice ? '재크롤' : '지금 크롤'}">🔄</button>`;
-        const editBtn = `<button class="btn-icon" data-url-edit-sku="${o.sku}" data-url-edit-src="${src.source_id}" title="URL 수정">✎</button>`;
-        const delBtn = `<button class="btn-icon danger" data-url-del-sku="${o.sku}" data-url-del-src="${src.source_id}" title="URL 삭제">🗑</button>`;
+        const refetchBtn = `<button class="btn-icon" data-refetch-sku="${o.sku}" data-refetch-src="${src.source_id}" title="${hasPrice ? '재크롤' : '지금 크롤'}"></button>`;
+        const editBtn = `<button class="btn-icon" data-url-edit-sku="${o.sku}" data-url-edit-src="${src.source_id}" title="URL 수정"></button>`;
+        const delBtn = `<button class="btn-icon danger" data-url-del-sku="${o.sku}" data-url-del-src="${src.source_id}" title="URL 삭제"></button>`;
         const link = src.product_url ? `<a class="btn-icon" href="${src.product_url}" target="_blank" rel="noopener" title="원 페이지">↗</a>` : '';
         let body;
         if (hasPrice) {
@@ -5295,7 +5295,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           body = `<div class="d2-src-price">${src.crawled_price.toLocaleString('ko-KR')}원</div>
             <div class="d2-src-meta">${stockTxt}<span class="d2-src-date">${fmtRelDate(src.last_fetched_at)}</span></div>`;
         } else {
-          const errTxt = src.last_status === 'error' ? '<span class="d2-src-status-error">⚠ 오류</span>' : '<span class="d2-src-empty">미실행</span>';
+          const errTxt = src.last_status === 'error' ? '<span class="d2-src-status-error"> 오류</span>' : '<span class="d2-src-empty">미실행</span>';
           body = `<div>${errTxt}</div>`;
         }
         const nameLink = src.product_url
@@ -5435,7 +5435,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const _corner = `<a class="src-corner" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()" style="position:absolute;top:1px;right:3px;font-size:12px;line-height:1;color:#3182F6;font-weight:800;text-decoration:none;z-index:3;padding:1px 3px;border-radius:3px;background:rgba(239,246,255,.9)">↗</a>`;
     // 크롤 실패 — [2026-06-03] 2행: 1행 '크롤 실패' / 2행 🔄 재크롤 버튼 (다른 셀과 동일 2단)
     if (src.last_status === 'error') {
-      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${s.id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer">🔄 재크롤</button></td>`;
+      return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${s.id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer"> 재크롤</button></td>`;
     }
     // 크롤 안됨 (대기 / 진행 중)
     if (!src.crawled_price || src.crawled_price <= 0) {
@@ -5455,7 +5455,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const loCls = isLowest ? ' lo' : '';
     // C1 — hover tooltip (판매가 + 혜택 N + 절감액)
     const tipParts = [];
-    if (isLowest) tipParts.push('<b>★ 최저가</b>');
+    if (isLowest) tipParts.push('<b> 최저가</b>');
     tipParts.push(`<div class="tip-row"><span>판매가</span><span>${src.crawled_price.toLocaleString('ko-KR')}원</span></div>`);
     if (hasBenefits) tipParts.push(`<div class="tip-row"><span>혜택</span><span>${bk.steps.length}건</span></div>`);
     if (isLowest && _SAVINGS_PER_OPT[o.sku] != null) {
@@ -5524,7 +5524,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       if (o.auto_enabled) {
         html += `<tr data-expand-row="${o.sku}" data-color-row-key="${o.color_code}" style="display:none"><td colspan="${totalCols}" style="padding:0">
           <div class="price-expand">
-            <div style="font-size:13px;font-weight:700;margin-bottom:10px">⚙ ${o.color_code}-${o.size_code} — 자동계산 (산출과정)</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px"> ${o.color_code}-${o.size_code} — 자동계산 (산출과정)</div>
             ${renderAutoExpand(o)}
             <div style="display:flex;gap:8px;margin-top:12px;padding-top:8px;border-top:1px solid var(--n200)">
               <button class="btn btn-primary btn-sm" data-save-single="${o.sku}">이 옵션만 저장</button>
@@ -5664,7 +5664,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       ov.id = 'pm-stock-ov';
       ov.className = 'pm-ov';
       ov.innerHTML = `<div class="pm-ov-modal">
-        <div class="pm-ov-head"><div>📦 재고 수정</div><button class="pm-ov-x" id="pm-stk-x">✕</button></div>
+        <div class="pm-ov-head"><div> 재고 수정</div><button class="pm-ov-x" id="pm-stk-x"></button></div>
         <div class="pm-ov-body">
           <div class="pm-sk-title" id="pm-stk-title"></div>
           <div class="pm-sk-row"><label>현재 재고 수량</label><input type="number" id="pm-stk-qty" min="0"></div>
@@ -5809,7 +5809,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       <div class="field-row"><label>스마트스토어 수수료율</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="ss_fee_rate" value="${(o.ss_fee_rate*100).toFixed(2)}" style="width:90px"> %</div></div>
       <div class="field-row"><label>쿠팡 수수료율</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="cp_fee_rate" value="${(o.cp_fee_rate*100).toFixed(2)}" style="width:90px"> %</div></div>
       <div class="field-row"><label>재고 (수기)</label><div><input class="field-input mono" data-cfg="${o.sku}" data-field="manual_stock" value="${o.manual_stock||''}" style="width:90px"> 개</div></div>
-      <div style="font-size: 14px;color:var(--n500);margin-top:6px">💡 배송비는 §2 가격 템플릿에서 마켓별로 설정.</div>
+      <div style="font-size: 14px;color:var(--n500);margin-top:6px"> 배송비는 §2 가격 템플릿에서 마켓별로 설정.</div>
     `;
   }
 
@@ -5890,7 +5890,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       // 이력 새로고침
       loadStockHistoryAll();
       // 토스트 (간단)
-      showToast(`✓ ${sku} 재고 조정 반영 (${prev} → ${next})`);
+      showToast(` ${sku} 재고 조정 반영 (${prev} → ${next})`);
     } catch(e) {
       alert('네트워크 오류: ' + e.message);
     }
@@ -6131,7 +6131,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           } else {
             const price = j.crawled_price ? j.crawled_price.toLocaleString() + '원' : '가격 추출 실패';
             const loginTag = j.login_used ? ' (회원가)' : '';
-            _refetchToast(`✓ 갱신 완료: ${price}${loginTag}`, 'ok');
+            _refetchToast(` 갱신 완료: ${price}${loginTag}`, 'ok');
             btn.textContent = '✓';
             setTimeout(() => { btn.textContent = '🔄'; btn.disabled = false; }, 1500);
           }
@@ -6152,7 +6152,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const wasHidden = side.hidden;
     side.hidden = !wasHidden;
     this.classList.toggle('on', wasHidden);
-    this.textContent = wasHidden ? '✕ 필터 닫기' : '🔍 필터';
+    this.textContent = wasHidden ? ' 필터 닫기' : ' 필터';
   });
 
   // ═══════ C9 일괄 panel — 탭 전환 + segmented + 적용 ═══════
@@ -6180,7 +6180,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   function _c9UpdateCount() {
     const n = priceCheckSet ? priceCheckSet.size : 0;
     const el = document.getElementById('c9-sel-count');
-    if (el) el.textContent = n > 0 ? `✓ ${n}개 선택` : '전체 옵션 (선택 시 활성)';
+    if (el) el.textContent = n > 0 ? ` ${n}개 선택` : '전체 옵션 (선택 시 활성)';
   }
   // 매트릭스 체크박스 변경 시 카운트 갱신
   document.addEventListener('change', e => {
@@ -6202,7 +6202,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       });
       const j = await r.json();
       if (j.ok) {
-        alert(`✓ 적용 ${j.applied}건 (사입재고 0 자동 제외 ${j.skipped_bh0}건)`);
+        alert(` 적용 ${j.applied}건 (사입재고 0 자동 제외 ${j.skipped_bh0}건)`);
         loadMatrix();
       } else {
         alert('적용 실패: ' + (j.error || ''));
@@ -6478,7 +6478,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const cnt = document.getElementById('price-bulk-count');
     if (priceCheckSet.size > 0) {
       bar.style.display = 'flex';
-      cnt.textContent = `✓ ${priceCheckSet.size}개 선택`;
+      cnt.textContent = ` ${priceCheckSet.size}개 선택`;
     } else {
       bar.style.display = 'none';
     }
@@ -6637,7 +6637,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       closeDD();
       dd = document.createElement('div');
       dd.className = 'ipl-dd';
-      dd.innerHTML = `<div class="ipl-dd-h">⚡ 실시간 ${tokHtml}
+      dd.innerHTML = `<div class="ipl-dd-h"> 실시간 ${tokHtml}
         <span style="color:var(--n400,#8B95A1)">모두 포함</span>
         <span class="ipl-dd-res">${items.length}건</span></div>${listHtml}`;
       box.appendChild(dd);
@@ -6678,13 +6678,13 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     ov.className = 'ipl-ov';
     ov.innerHTML = `
       <div class="ipl-pop" role="dialog" aria-modal="true">
-        <div class="ipl-pop-h">📦 재고 찾아 연결 — 옵션 "${escapeHtml(optLabel)}"
-          <button type="button" class="ipl-x" data-ipl-close>✕ 닫기</button></div>
+        <div class="ipl-pop-h"> 재고 찾아 연결 — 옵션 "${escapeHtml(optLabel)}"
+          <button type="button" class="ipl-x" data-ipl-close> 닫기</button></div>
         <div class="ipl-pop-search">
           <div class="ipl-bigsrch">
-            <span>🔍</span>
+            <span></span>
             <input type="text" id="ipl-pop-input" placeholder="브랜드·모델·색상·사이즈·SKU·바코드 — 실시간 AND" autocomplete="off">
-            <span class="ipl-res" id="ipl-pop-res">⚡ 실시간</span>
+            <span class="ipl-res" id="ipl-pop-res"> 실시간</span>
           </div>
         </div>
         <div class="ipl-pop-body" id="ipl-pop-body">
@@ -6717,7 +6717,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       const mySeq = ++seq;
       if (!q) {
         body.innerHTML = `<div class="ipl-empty">검색어를 입력하면 재고제품이 모델별로 나타납니다.</div>`;
-        resEl.textContent = '⚡ 실시간';
+        resEl.textContent = ' 실시간';
         return;
       }
       let groups;
@@ -6885,7 +6885,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         // 신규 생성 옵션 (정확히 일치하는 항목 없을 때)
         const exactMatch = allSrcs.find(s => s.name.toLowerCase() === q);
         if (q !== '' && !exactMatch) {
-          items += `<div class="j1-combo-item create-new" data-create="${input.value}">➕ "<strong>${input.value}</strong>" 새 소싱처로 만들기</div>`;
+          items += `<div class="j1-combo-item create-new" data-create="${input.value}"> "<strong>${input.value}</strong>" 새 소싱처로 만들기</div>`;
         }
         dd.innerHTML = items;
         dd.classList.add('on');
@@ -6987,7 +6987,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
               </div>
             </div>
             <div class="j1-formula" id="f-preview">95,000원 × (1 + 10%) × (1 + 6%) = <strong>110,770원</strong></div>
-            <div class="j1-info">💡 자동 모드 옵션만 가격 재계산. 수기 모드는 변경되지 않음.</div>
+            <div class="j1-info"> 자동 모드 옵션만 가격 재계산. 수기 모드는 변경되지 않음.</div>
           `,
           applyText: `${skus.length}개에 적용`,
           onApply: async () => {
@@ -7021,7 +7021,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       // ── 수기 가격 모달 ──
       if (action === 'manual') {
         j1Open({
-          title: '💰 수기 가격 일괄 입력',
+          title: ' 수기 가격 일괄 입력',
           target: `대상: ${targetTxt} (자동 모드 → 수기 모드 전환 + 가격 설정)`,
           bodyHTML: `
             <div class="j1-grid-2">
@@ -7034,7 +7034,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
                 <div class="j1-with-suffix"><input class="j1-field-input" id="f-cpp" type="number" placeholder="예: 155000"><span class="j1-field-suffix">원</span></div>
               </div>
             </div>
-            <div class="j1-warn">⚠ 자동 모드가 OFF 로 변경됩니다 (수기 가격 우선). 자동으로 돌리려면 자동 토글 ON 다시 누르기.</div>
+            <div class="j1-warn"> 자동 모드가 OFF 로 변경됩니다 (수기 가격 우선). 자동으로 돌리려면 자동 토글 ON 다시 누르기.</div>
           `,
           applyText: `${skus.length}개에 적용`,
           onApply: async () => {
@@ -7126,19 +7126,19 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
                 <div style="font-size: 14px;font-weight:700;color:var(--n500);margin-bottom:4px">URL</div>
                 <input class="j1-field-input j1-row-url" type="url" placeholder="https://..." style="font-family:ui-monospace,monospace;font-size: 14px">
               </div>
-              <div style="padding-top:18px"><button class="btn-icon danger j1-row-del" data-row-del="${rid}" title="이 행 제거">🗑</button></div>
+              <div style="padding-top:18px"><button class="btn-icon danger j1-row-del" data-row-del="${rid}" title="이 행 제거"></button></div>
             </div>`;
           }
           j1Open({
-            title: `📎 URL 일괄 — ${mode.emoji} ${mode.name}`,
+            title: ` URL 일괄 — ${mode.emoji} ${mode.name}`,
             target: `대상: ${targetTxt} · ${mode.desc}`,
             bodyHTML: `
               <div id="j1-rows-container">
                 ${newRowHtml(0)}
               </div>
-              <button class="btn" id="j1-add-row" type="button" style="width:100%;justify-content:center;border-style:dashed;color:var(--n600);margin-top:4px;margin-bottom:12px">➕ 다른 소싱처+URL 추가</button>
+              <button class="btn" id="j1-add-row" type="button" style="width:100%;justify-content:center;border-style:dashed;color:var(--n600);margin-top:4px;margin-bottom:12px"> 다른 소싱처+URL 추가</button>
               <div class="j1-field"><label style="display:block;padding:4px 0;font-size:13px"><input type="checkbox" id="f-crawl" checked> 적용 직후 자동 크롤 (가격·재고 즉시 가져오기)</label></div>
-              <div class="j1-info">💡 위 모든 (소싱처, URL) 쌍이 ${targetTxt} 모두에 동일 적용됩니다. ${action === 'url-add' ? '같은 소싱처에 이미 URL 있으면 덮어씀 (다중 URL은 Phase B 예정).' : '기존 URL은 모두 새 값으로 교체.'}</div>
+              <div class="j1-info"> 위 모든 (소싱처, URL) 쌍이 ${targetTxt} 모두에 동일 적용됩니다. ${action === 'url-add' ? '같은 소싱처에 이미 URL 있으면 덮어씀 (다중 URL은 Phase B 예정).' : '기존 URL은 모두 새 값으로 교체.'}</div>
             `,
             applyText: `${skus.length}개에 ${mode.applyVerb}`,
             onApply: async () => {
@@ -7217,14 +7217,14 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         if (action === 'url-delete') {
           const combo = makeSourceCombo({});
           j1Open({
-            title: `📎 URL 일괄 — ${mode.emoji} 삭제`,
+            title: ` URL 일괄 — ${mode.emoji} 삭제`,
             target: `대상: ${targetTxt}`,
             bodyHTML: `
               <div class="j1-field">
                 <label class="j1-field-label">삭제할 소싱처 (타이핑 또는 선택)</label>
                 ${combo.html}
               </div>
-              <div class="j1-warn">⚠ ${targetTxt}의 위 소싱처 URL 모두 삭제됩니다. 되돌릴 수 없음.</div>
+              <div class="j1-warn"> ${targetTxt}의 위 소싱처 URL 모두 삭제됩니다. 되돌릴 수 없음.</div>
             `,
             applyText: `${skus.length}개에서 삭제하기`,
             onApply: async () => {
@@ -7248,7 +7248,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         if (action === 'url-update') {
           const combo = makeSourceCombo({});
           j1Open({
-            title: `📎 URL 일괄 — ${mode.emoji} 수정 (find→replace)`,
+            title: ` URL 일괄 — ${mode.emoji} 수정 (find→replace)`,
             target: `대상: ${targetTxt}`,
             bodyHTML: `
               <div class="j1-field">
@@ -7259,7 +7259,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
                 <div class="j1-field"><label class="j1-field-label">찾을 문자열 (find)</label><input class="j1-field-input" id="f-find" type="text" placeholder="예: product_no=219" style="font-family:ui-monospace,monospace"></div>
                 <div class="j1-field"><label class="j1-field-label">바꿀 문자열 (replace)</label><input class="j1-field-input" id="f-replace" type="text" placeholder="예: product_no=300" style="font-family:ui-monospace,monospace"></div>
               </div>
-              <div class="j1-info">💡 ${targetTxt}의 위 소싱처 URL 에서 "찾을 문자열" 을 "바꿀 문자열" 로 일괄 변경.</div>
+              <div class="j1-info"> ${targetTxt}의 위 소싱처 URL 에서 "찾을 문자열" 을 "바꿀 문자열" 로 일괄 변경.</div>
             `,
             applyText: `${skus.length}개 URL 수정하기`,
             onApply: async () => {
@@ -7311,7 +7311,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     if (!status) return;
     status.textContent = text;
     status.style.color = kind === 'ok' ? 'var(--ok-strong, #166534)' : kind === 'err' ? 'var(--danger, #dc2626)' : 'var(--n500)';
-    if (kind === 'ok') setTimeout(() => { status.textContent = '💡 blur 시 자동 저장'; status.style.color = 'var(--n500)'; }, 1800);
+    if (kind === 'ok') setTimeout(() => { status.textContent = ' blur 시 자동 저장'; status.style.color = 'var(--n500)'; }, 1800);
   }
   ['pmb-margin-ss', 'pmb-margin-cp'].forEach(id => {
     const inp = document.getElementById(id);
@@ -7332,14 +7332,14 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         });
         const j = await res.json();
         if (res.ok && j.ok) {
-          showStatus('✓ 저장됨 (' + (market === 'ss' ? '스마트스토어' : '쿠팡') + ' ' + newVal + '%)', 'ok');
+          showStatus(' 저장됨 (' + (market === 'ss' ? '스마트스토어' : '쿠팡') + ' ' + newVal + '%)', 'ok');
           original = newVal;
         } else {
-          showStatus('✗ 저장 실패: ' + (j.error || res.status), 'err');
+          showStatus(' 저장 실패: ' + (j.error || res.status), 'err');
           inp.value = original;
         }
       } catch (e) {
-        showStatus('✗ 네트워크 오류', 'err');
+        showStatus(' 네트워크 오류', 'err');
         inp.value = original;
       }
     });

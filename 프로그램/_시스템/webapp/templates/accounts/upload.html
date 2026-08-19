@@ -818,14 +818,14 @@ async function openEditModal(accountId, market, envPrefix, displayName, note) {
 }
 
 async function loginUploadAccount(accountId, displayName) {
-  showToast(`🔐 ${displayName} 로그인 창 여는 중…`, 'info');
+  showToast(` ${displayName} 로그인 창 여는 중…`, 'info');
   try {
     const res = await fetch(`/accounts/api/upload/accounts/${accountId}/login`, { method: 'POST' });
     const data = await res.json();
     if (data.ok) {
       showToast(data.message || '로그인 창이 열렸어요', 'success');
     } else {
-      showToast(`❌ ${data.error || '로그인 창 열기 실패'}`, 'error');
+      showToast(` ${data.error || '로그인 창 열기 실패'}`, 'error');
     }
   } catch (e) {
     showToast('네트워크 오류: ' + e.message, 'error');
@@ -833,7 +833,7 @@ async function loginUploadAccount(accountId, displayName) {
 }
 
 async function testApiConnection(accountId, displayName) {
-  showToast(`🔌 ${displayName} API 연결 테스트 중…`, 'info');
+  showToast(` ${displayName} API 연결 테스트 중…`, 'info');
   try {
     const res = await fetch(`/accounts/api/upload/accounts/${accountId}/test`, { method: 'POST' });
     const data = await res.json();
@@ -842,7 +842,7 @@ async function testApiConnection(accountId, displayName) {
       console.log('[API test]', data);
     } else {
       const detail = data.body_snippet ? `\n응답 본문: ${data.body_snippet}` : '';
-      showToast(`❌ ${data.error || '실패'}${data.hint ? '\n' + data.hint : ''}`, 'error');
+      showToast(` ${data.error || '실패'}${data.hint ? '\n' + data.hint : ''}`, 'error');
       console.error('[API test]', data);
       // 본문이 있으면 한 번 더 보기 좋게 alert
       if (data.body_snippet) {
@@ -962,7 +962,7 @@ async function selectMarket(market) {
   document.getElementById('v2-form-foot').style.display = 'flex';
   document.getElementById('v2-icon').textContent = market.icon;
   document.getElementById('v2-modal-title').textContent = _v2Mode === 'keys'
-    ? `🔑 ${market.label} API 키 입력`
+    ? ` ${market.label} API 키 입력`
     : `${market.label} 계정 등록`;
   document.getElementById('v2-subtitle').textContent = market.api_type;
   document.getElementById('v2-submit-text').textContent = _v2Mode === 'keys'
@@ -976,7 +976,7 @@ async function selectMarket(market) {
   // 가이드 박스
   const helpBox = document.getElementById('v2-keys-help');
   helpBox.innerHTML = market.guide_text
-    ? `💡 <strong>키 받는 법:</strong> ${market.guide_text}` +
+    ? ` <strong>키 받는 법:</strong> ${market.guide_text}` +
       (market.guide_url ? ` <a href="${market.guide_url}" target="_blank">가이드 →</a>` : '')
     : '';
 
@@ -1086,7 +1086,7 @@ async function submitV2() {
         if (!d2.ok) {
           showToast('계정은 등록 / 키 저장 실패: ' + (d2.error || ''), 'warning');
         } else {
-          showToast(`✅ ${display_name} 등록 + API 키 저장 완료`, 'success');
+          showToast(` ${display_name} 등록 + API 키 저장 완료`, 'success');
         }
       } else {
         showToast(d1.message || '계정 등록 완료 (키 미입력)', 'success');

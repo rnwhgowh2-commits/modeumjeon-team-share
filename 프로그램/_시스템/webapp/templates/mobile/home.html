@@ -68,7 +68,7 @@
       const d = await r.json();
       const list = document.getElementById('recent-list');
       if (!d.ok || !d.items.length) {
-        list.innerHTML = '<div class="m-empty"><div class="icon">📭</div>최근 활동이 없어요</div>';
+        list.innerHTML = '<div class="m-empty"><div class="icon"></div>최근 활동이 없어요</div>';
         return;
       }
       const typeLabels = { 'in': '입고', 'out': '출고', 'adjust': '조정', 'move': '이동' };

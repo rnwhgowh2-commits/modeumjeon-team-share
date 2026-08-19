@@ -79,14 +79,14 @@ document.getElementById('migrate-btn').addEventListener('click', async () => {
     const j = await r.json();
 
     if (!j.ok) {
-      result.innerHTML = `<div class="card" style="border-left:3px solid var(--danger);background:#fef2f2;padding:14px"><strong>⚠ 실패</strong><br>${j.error || '알 수 없는 오류'}</div>`;
-      btn.disabled = false; btn.textContent = '📥 자동 가져오기 → 모음전 생성';
+      result.innerHTML = `<div class="card" style="border-left:3px solid var(--danger);background:#fef2f2;padding:14px"><strong> 실패</strong><br>${j.error || '알 수 없는 오류'}</div>`;
+      btn.disabled = false; btn.textContent = ' 자동 가져오기 → 모음전 생성';
       return;
     }
 
     result.innerHTML = `
       <div class="card" style="border-left:3px solid #16a34a;background:#f0fdf4;padding:14px">
-        <strong>✅ 모음전 생성 완료</strong>
+        <strong> 모음전 생성 완료</strong>
         <ul style="margin:8px 0 0 18px;line-height:1.7;font-size:13px">
           <li>모음전 코드: <strong>${j.model_code}</strong></li>
           <li>상품명: ${j.product_name}</li>
@@ -98,8 +98,8 @@ document.getElementById('migrate-btn').addEventListener('click', async () => {
       </div>`;
     setTimeout(() => { window.location = j.redirect; }, 3000);
   } catch (e) {
-    result.innerHTML = `<div class="card" style="border-left:3px solid var(--danger);background:#fef2f2;padding:14px"><strong>⚠ 네트워크 오류</strong><br>${e.message}</div>`;
-    btn.disabled = false; btn.textContent = '📥 자동 가져오기 → 모음전 생성';
+    result.innerHTML = `<div class="card" style="border-left:3px solid var(--danger);background:#fef2f2;padding:14px"><strong> 네트워크 오류</strong><br>${e.message}</div>`;
+    btn.disabled = false; btn.textContent = ' 자동 가져오기 → 모음전 생성';
   }
 });
 </script>

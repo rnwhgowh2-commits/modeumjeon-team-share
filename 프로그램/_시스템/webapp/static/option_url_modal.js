@@ -188,18 +188,18 @@
          단일 진실 원천: opt-on / url-on / has-inv 클래스만 의미. */
       .oum-cell.disabled,
       .oum-cell.off,
-      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:pointer; }  /* ⬜ 옅음 — 비활성/미선택. cursor:pointer (클릭으로 ON 토글 가능) */
+      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:pointer; }  /*  옅음 — 비활성/미선택. cursor:pointer (클릭으로 ON 토글 가능) */
       .oum-cell.disabled:hover,
       .oum-cell.off:hover,
       .oum-cell.mapped-off:hover { background:#E5E8EB !important; color:#4E5968 !important; }
-      .oum-cell.opt-on { background:#9CA3AF !important; color:#fff !important; border:none; cursor:pointer; }                            /* 🩶 회색 — 옵션 ON */
+      .oum-cell.opt-on { background:#9CA3AF !important; color:#fff !important; border:none; cursor:pointer; }                            /*  회색 — 옵션 ON */
       .oum-cell.url-on,
       .oum-cell.opt-on.url-on,
-      .oum-cell.on { background:#4F67FF !important; color:#fff !important; border:none; cursor:pointer; }                                /* 🟦 파랑 — + URL 매핑 */
+      .oum-cell.on { background:#4F67FF !important; color:#fff !important; border:none; cursor:pointer; }                                /*  파랑 — + URL 매핑 */
       .oum-cell.has-inv,
       .oum-cell.opt-on.has-inv,
       .oum-cell.url-on.has-inv,
-      .oum-cell.on.has-inv { background:#03A65A !important; color:#fff !important; border:none; cursor:pointer; }                        /* 🟩 초록 — + 재고 매핑 */
+      .oum-cell.on.has-inv { background:#03A65A !important; color:#fff !important; border:none; cursor:pointer; }                        /*  초록 — + 재고 매핑 */
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
 
       /* [2026-05-29] 시안 v3 C3 — 우측 패널 [URL]/[재고관리] 2탭 + B3-3 in-place 매핑 표 */
@@ -229,7 +229,7 @@
       .oum-grp-dd-it { padding:9px 14px; font-size:13px; cursor:pointer; color:#4E5968; }
       .oum-grp-dd-it:hover { background:#F0FDF4; color:#03A65A; }
       .oum-grp-dd-it.on { background:#F0FDF4; color:#03A65A; font-weight:700; }
-      .oum-grp-dd-it.on::before { content:'✓ '; }
+      .oum-grp-dd-it.on::before { content:' '; }
       /* 브랜드 검색 (보라) */
       .oum-br-search { position:relative; display:inline-block; }
       .oum-br-search .ic { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:12px; pointer-events:none; }
@@ -239,7 +239,7 @@
       .oum-br-it { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #F1F1F4; display:flex; align-items:center; gap:8px; }
       .oum-br-it:hover { background:#F5F3FF; }
       .oum-br-it.on { background:#F5F3FF; color:#7C3AED; font-weight:700; }
-      .oum-br-it.on::before { content:'✓'; color:#7C3AED; font-weight:800; margin-right:3px; }
+      .oum-br-it.on::before { content:''; color:#7C3AED; font-weight:800; margin-right:3px; }
       .oum-br-it.kbd-hl, .oum-md-it.kbd-hl { background:#F5F3FF; box-shadow:inset 3px 0 0 #7C3AED; }
       .oum-md-it.kbd-hl { background:#EFF6FF; box-shadow:inset 3px 0 0 #3B82F6; }
 
@@ -273,7 +273,7 @@
       .oum-md-it { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #F1F1F4; display:flex; align-items:center; gap:8px; }
       .oum-md-it:hover { background:#EFF6FF; }
       .oum-md-it.on { background:#EFF6FF; color:#1d4ed8; font-weight:700; }
-      .oum-md-it.on::before { content:'✓'; color:#3B82F6; font-weight:800; margin-right:3px; }
+      .oum-md-it.on::before { content:''; color:#3B82F6; font-weight:800; margin-right:3px; }
       .oum-md-it:not(.on)::before { content:''; display:inline-block; width:12px; }
       .oum-md-it .nm { flex:1; }
       .oum-md-it .meta { font-size:10.5px; color:#9CA3AF; font-family:ui-monospace,monospace; }
@@ -321,7 +321,7 @@
       .oum-prod-info { display:flex; flex-direction:column; gap:2px; }
       .oum-prod-name { font-weight:600; font-size:13px; color:#191F28; display:inline-flex; align-items:center; gap:6px; }
       .oum-prod-meta { font-size:11px; color:#15803d; font-family:ui-monospace,monospace; font-weight:600; }
-      /* [v20.4] 수기 매핑 행의 ✎ 다시 입력 버튼 */
+      /* [v20.4] 수기 매핑 행의  다시 입력 버튼 */
       .oum-row-reedit { background:#fff; border:1px solid #FCD34D; color:#92400E; width:22px; height:22px; border-radius:5px; font-size:11px; cursor:pointer; padding:0; line-height:1; display:inline-flex; align-items:center; justify-content:center; transition:all .12s; }
       .oum-row-reedit:hover { background:#FFFBEB; border-color:#F59E0B; }
       /* 상태 뱃지 (한 줄, min-width 보장) */
@@ -414,7 +414,7 @@
       .oum-url-tog:hover, .oum-url-copy:hover { background:#F0FDF4; }
       .oum-url-del { color:#dc2626; border-color:#fecaca; }
       .oum-url-del:hover { background:#FEF2F2; }
-      /* [2026-06-05] 크롤 실패 URL — 빨강 카드 + ❌ 배지 + 🔄 재크롤 */
+      /* [2026-06-05] 크롤 실패 URL — 빨강 카드 +  배지 +  재크롤 */
       .oum-url-card.crawl-fail { border-color:#fca5a5; background:#FFF7F7; }
       .oum-url-card.crawl-fail .oum-url-ch { background:#FEF2F2; }
       .oum-url-cnt.fail { background:#FEE2E2; }
@@ -452,7 +452,7 @@
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
       .oum-url-mini:hover:not(:disabled) { background:#3B82F6; color:#fff; border-color:#3B82F6; }
       .oum-url-mini:disabled { opacity:.35; cursor:not-allowed; }
-      /* [2026-05-27] C5 복사 버튼 — SVG 아이콘 + "복사" 텍스트 콤보 (▸매핑·✕ 와 동일 톤) */
+      /* [2026-05-27] C5 복사 버튼 — SVG 아이콘 + "복사" 텍스트 콤보 (▸매핑· 와 동일 톤) */
       /* [2026-05-27] oum-url-copy 는 위 통일 스타일 사용 — active scale 만 유지 */
       .oum-url-copy:active { transform:scale(.97); }
       /* [2026-05-27] 드래그앤드랍 — ⋮⋮ 핸들 + 드래그 시각 피드백 + 드롭 라인 */
@@ -614,15 +614,15 @@
     modal.innerHTML = `
       <div class="oum-mh">
         <h2>옵션 조합 생성 및 수정 + 소싱처 URL 매핑</h2>
-        <span class="pill">✨ 동시 입력</span>
+        <span class="pill"> 동시 입력</span>
         <button class="close" type="button">×</button>
       </div>
       <div class="oum-mb">
         <div class="oum-legend">
-          <b style="color:#191F28;">📖 셀 색 (좌측 매트릭스):</b>
+          <b style="color:#191F28;"> 셀 색 (좌측 매트릭스):</b>
           <span><span class="leg-empty"></span>OFF (꺼짐)</span>
           <span><span class="leg-gray"></span>ON (옵션 켜짐)</span>
-          <span style="margin-left:auto; color:#92400E;">💡 좌측에서 옵션 만들고 [URL 매핑에 적용 →] · 매핑 색(파랑/초록)은 우측 탭 안에서</span>
+          <span style="margin-left:auto; color:#92400E;"> 좌측에서 옵션 만들고 [URL 매핑에 적용 →] · 매핑 색(파랑/초록)은 우측 탭 안에서</span>
         </div>
         <div class="oum-split">
           <div class="oum-panel oum-blue" id="oum-left"></div>
@@ -880,7 +880,7 @@
       html += '</div>';
 
       html += `<div class="oum-ph">
-        <span>🧩</span><span>옵션 매트릭스</span>
+        <span></span><span>옵션 매트릭스</span>
         <span class="badge">${onCnt}개</span>
         <span class="right">${valid.map(a => a.values.length).join(' × ') || '축 미정'}</span>
       </div>`;
@@ -891,7 +891,7 @@
           <div class="oum-axis-h">
             <div style="display:flex; align-items:center; gap:7px;">
               <span class="pos">${POS[i] || `${i + 1}축`}</span>
-              <span class="rec">💡 추천: ${REC[i] || '-'}</span>
+              <span class="rec"> 추천: ${REC[i] || '-'}</span>
             </div>
             <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
               <span class="oum-sortbtns">
@@ -981,7 +981,7 @@
     //   재고 매핑(has-inv) 은 더 이상 매트릭스 색으로 표시 안 함 (재고관리 매핑 탭의 그룹 표에서 상태)
     function cellState(active, urlMapped, _hasInvLegacy) {
       if (!active) return { cls: 'disabled', inner: '<span>·</span>' };
-      if (urlMapped) return { cls: 'opt-on url-on', inner: '<span>✓</span>' };
+      if (urlMapped) return { cls: 'opt-on url-on', inner: '<span></span>' };
       return { cls: 'opt-on', inner: '<span>ON</span>' };
     }
 
@@ -1081,12 +1081,12 @@
         });
         const j = await r.json();
         if (j && j.ok) {
-          alert('✅ 재고 매핑 저장 완료 — ' + (j.mapped || 0) + '건');
+          alert(' 재고 매핑 저장 완료 — ' + (j.mapped || 0) + '건');
         } else {
-          alert('❌ 저장 실패: ' + (j.error || '알 수 없음'));
+          alert(' 저장 실패: ' + (j.error || '알 수 없음'));
         }
       } catch (err) {
-        alert('❌ 요청 실패: ' + err.message);
+        alert(' 요청 실패: ' + err.message);
       }
     }
 
@@ -1104,7 +1104,7 @@
 
       if (!state.applied) {
         return `<div style="padding:60px 20px; text-align:center; color:#9CA3AF; background:#fff; border:2px dashed #FBBF24; border-radius:8px;">
-          <div style="font-size:32px; margin-bottom:10px;">⬅</div>
+          <div style="font-size:32px; margin-bottom:10px;"></div>
           <div style="font-size:13px; font-weight:600; color:#92400E;">좌측에서 옵션 만들고 [적용 →] 클릭하면 활성화</div>
         </div>`;
       }
@@ -1141,7 +1141,7 @@
       html += '<div class="oum-inv-action-right">';
       html += '<span class="oum-inv-label">매칭</span>';
       // 브랜드 검색
-      html += `<div class="oum-br-search"><span class="ic">🏷️</span><input id="oum-br-in" type="text" placeholder="브랜드" value="${esc(fb)}" autocomplete="off">`;
+      html += `<div class="oum-br-search"><span class="ic"></span><input id="oum-br-in" type="text" placeholder="브랜드" value="${esc(fb)}" autocomplete="off">`;
       html += `<div class="oum-br-dd" style="display:none">`;
       (state.invBrands || []).forEach(b => {
         const on = b.name === fb;
@@ -1153,21 +1153,21 @@
       // 모델 검색
       const modelsForBrand = (state.invModelsByBrand && fb) ? (state.invModelsByBrand[fb] || []) : [];
       const mdDisabled = !fb ? ' disabled' : '';
-      html += `<div class="oum-md-search${mdDisabled ? ' disabled' : ''}"><span class="ic">🧩</span><input id="oum-md-in" type="text" placeholder="${fb ? '모델' : '브랜드 먼저'}" value="${esc(fm)}" autocomplete="off"${mdDisabled}>`;
+      html += `<div class="oum-md-search${mdDisabled ? ' disabled' : ''}"><span class="ic"></span><input id="oum-md-in" type="text" placeholder="${fb ? '모델' : '브랜드 먼저'}" value="${esc(fm)}" autocomplete="off"${mdDisabled}>`;
       html += `<div class="oum-md-dd" style="display:none">`;
-      if (fb) html += `<div class="oum-md-grp-h">🏷️ ${esc(fb)}</div>`;
+      if (fb) html += `<div class="oum-md-grp-h"> ${esc(fb)}</div>`;
       modelsForBrand.forEach(m => {
         const on = m.model_name === fm;
         html += `<div class="oum-md-it ${on ? 'on' : ''}" data-md-name="${esc(m.model_name)}"><span class="nm">${esc(m.model_name)}</span><span class="meta">${m.option_count} 옵션</span></div>`;
       });
       html += `</div></div>`;
-      html += `<button class="oum-auto-btn-sm" data-inv-auto type="button">⚡ 자동 매칭</button>`;
+      html += `<button class="oum-auto-btn-sm" data-inv-auto type="button"> 자동 매칭</button>`;
       html += '</div>';
       html += '</div>';
 
       // 매칭 범위 안내 (얇게)
       if (fb && fm) {
-        html += `<div class="oum-inv-filter-hint">🔎 매칭 범위: <b>${esc(fb)}</b> · <b>${esc(fm)}</b></div>`;
+        html += `<div class="oum-inv-filter-hint"> 매칭 범위: <b>${esc(fb)}</b> · <b>${esc(fm)}</b></div>`;
       }
 
       // 그룹화 + 표
@@ -1191,10 +1191,10 @@
           const cls = r.cls;  // auto / manual / empty
           const opt = r.opt;
           const statHtml = r.status === 'auto'
-            ? '<span class="oum-stat-pill auto">⚡ 자동</span>'
+            ? '<span class="oum-stat-pill auto"> 자동</span>'
             : r.status === 'manual'
-              ? '<span class="oum-stat-pill manual">✏️ 수기</span>'
-              : '<span class="oum-stat-pill empty">❌ 미매핑</span>';
+              ? '<span class="oum-stat-pill manual"> 수기</span>'
+              : '<span class="oum-stat-pill empty"> 미매핑</span>';
           html += `<tr class="${cls}" data-inv-row='${esc(r.key)}'>`;
           html += `<td class="oum-col-opt">${esc(r.optLabel)}</td>`;
           // [v20.4] 자동/수기 매핑 완료 (opt 있음) = 동일 양식 (모델명+색상+사이즈 + SKU)
@@ -1202,13 +1202,13 @@
           if (opt) {
             // 수기 행에도 "다시 입력" 버튼 (data-inv-reedit) 제공 → 클릭 시 input 모드
             const reEdit = r.status === 'manual'
-              ? `<button class="oum-row-reedit" data-inv-reedit='${esc(r.key)}' title="다시 입력" type="button">✎</button>`
+              ? `<button class="oum-row-reedit" data-inv-reedit='${esc(r.key)}' title="다시 입력" type="button"></button>`
               : '';
             html += `<td class="oum-col-prod"><div class="oum-prod-info"><span class="oum-prod-name">${esc(opt.model_name)} ${esc(opt.color)} ${esc(opt.size)} ${reEdit}</span><span class="oum-prod-meta">${esc(opt.sku)}</span></div></td>`;
           } else {
             const bSku = skuByKey[r.key];
             const row = (bSku && state.invRows[bSku]) || { invSku: '' };
-            html += `<td class="oum-col-prod"><div class="oum-ac-wrap"><input class="oum-inv-search" data-inv-search-key='${esc(r.key)}' value="${esc(row.invSku || '')}" placeholder="🔍 SKU/제품명 검색..."></div></td>`;
+            html += `<td class="oum-col-prod"><div class="oum-ac-wrap"><input class="oum-inv-search" data-inv-search-key='${esc(r.key)}' value="${esc(row.invSku || '')}" placeholder=" SKU/제품명 검색..."></div></td>`;
           }
           html += `<td class="oum-col-stat">${statHtml}</td>`;
           html += '</tr>';
@@ -1273,9 +1273,9 @@
       } else if (groupBy === 'status') {
         const buckets = { auto: [], manual: [], empty: [] };
         rows.forEach(r => buckets[r.status].push(r));
-        if (buckets.auto.length) groups.push({ label: '⚡ 자동 매칭', rows: _sortRows(buckets.auto), total: buckets.auto.length, matchedN: buckets.auto.length, open: false });
-        if (buckets.manual.length) groups.push({ label: '✏️ 수기 입력', rows: _sortRows(buckets.manual), total: buckets.manual.length, matchedN: buckets.manual.length, open: true });
-        if (buckets.empty.length) groups.push({ label: '❌ 미매핑', rows: _sortRows(buckets.empty), total: buckets.empty.length, matchedN: 0, open: true });
+        if (buckets.auto.length) groups.push({ label: ' 자동 매칭', rows: _sortRows(buckets.auto), total: buckets.auto.length, matchedN: buckets.auto.length, open: false });
+        if (buckets.manual.length) groups.push({ label: ' 수기 입력', rows: _sortRows(buckets.manual), total: buckets.manual.length, matchedN: buckets.manual.length, open: true });
+        if (buckets.empty.length) groups.push({ label: ' 미매핑', rows: _sortRows(buckets.empty), total: buckets.empty.length, matchedN: 0, open: true });
       } else {
         // axis-N
         const axisIdx = parseInt(String(groupBy).split('-')[1] || '0', 10) || 0;
@@ -1320,8 +1320,8 @@
 
       // 탭 nav (항상)
       let html = `<div class="oum-rt-tabs">
-        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
-        <button class="oum-rt-tab ${state.rightTab === 'inv' ? 'on' : ''}" data-rt-tab="inv" type="button">📋 재고관리 매핑 <span class="cnt">${invCount}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button"> 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'inv' ? 'on' : ''}" data-rt-tab="inv" type="button"> 재고관리 매핑 <span class="cnt">${invCount}</span></button>
         ${invStatsHtml}
       </div>`;
 
@@ -1341,25 +1341,25 @@
         const _items = _dupGroups.map(g => {
           const _lab = SRC_LABELS[g.srcKey] || g.srcKey;
           const _names = g.entries.map(en => esc(en.label || '(라벨 없음)')).join(' ＝ ');
-          const _cr = g.crossOption ? ` <em>⚠ 다른 옵션끼리 — 오타 의심</em>` : '';
+          const _cr = g.crossOption ? ` <em> 다른 옵션끼리 — 오타 의심</em>` : '';
           return `<button class="oum-dupwarn-item${g.crossOption ? ' cross' : ''}" data-dupjump="${esc(g.srcKey)}" type="button">[${esc(_lab)}] ${_names}${_cr}</button>`;
         }).join('');
         html += `<div class="oum-dupwarn${_hasCross ? ' cross' : ''}" data-dupwarn>
-          <div class="oum-dupwarn-h">⚠ 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
+          <div class="oum-dupwarn-h"> 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
           <div class="oum-dupwarn-list">${_items}</div>
         </div>`;
       }
 
       // URL 탭 — 기존 헤더 + 적용 가드
       html += `<div class="oum-ph">
-        <span>📍</span><span>소싱처 URL 매핑</span>
+        <span></span><span>소싱처 URL 매핑</span>
         <span class="badge">${urlCount} URL</span>
         <span class="right">${state.applied ? `활성 옵션 ${totalActive}개에 매핑` : '먼저 좌측에서 [적용 →] 클릭'}</span>
       </div>`;
 
       if (!state.applied) {
         html += `<div style="padding:60px 20px; text-align:center; color:#9ca3af; background:#fff; border:2px dashed #bbf7d0; border-radius:8px;">
-          <div style="font-size:32px; margin-bottom:10px;">⬅</div>
+          <div style="font-size:32px; margin-bottom:10px;"></div>
           <div style="font-size:13px; font-weight:600; color:#15803d;">좌측에서 옵션 만들고 [적용 →] 클릭하면 활성화</div>
         </div>`;
         right.innerHTML = html;
@@ -1397,7 +1397,7 @@
           return `<span class="oum-failsum-item">${esc(_nm)} <em>(${esc(_reason)})</em></span>`;
         }).join('');
         html += `<div class="oum-failsum" data-failsum>
-          <div class="oum-failsum-h">⚠ ${esc(srcLabel)} URL ${_failArr.length}개 크롤 실패 — 가격·재고를 못 받았어요 <button class="oum-failsum-jump" data-failsum-jump type="button">↓ 실패 URL로 이동</button></div>
+          <div class="oum-failsum-h"> ${esc(srcLabel)} URL ${_failArr.length}개 크롤 실패 — 가격·재고를 못 받았어요 <button class="oum-failsum-jump" data-failsum-jump type="button">↓ 실패 URL로 이동</button></div>
           <div class="oum-failsum-list">${_items}</div>
         </div>`;
       }
@@ -1485,11 +1485,11 @@
           </div>
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
-          <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
+          <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션"> <b>${mapped}</b>/${totalActive}</span>
           ${isFail ? `<button class="oum-url-recrawl" data-url-recrawl type="button" title="이 URL 다시 크롤">🔄 재크롤</button>` : ''}
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
-          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">📋 복사</button>
-          <button class="oum-url-del" data-url-del type="button">✕ 삭제</button>
+          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사"> 복사</button>
+          <button class="oum-url-del" data-url-del type="button"> 삭제</button>
         </div>
         ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}
         ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}`;
@@ -1510,7 +1510,7 @@
 
       // [2026-05-26] 헤더 클릭 일괄 선택 안내 — 사용자가 헤더 클릭 가능함을 인지하게
       let html = `<div style="font-size:11px; color:#15803d; padding:4px 8px 8px; display:flex; gap:10px; flex-wrap:wrap;">
-        <span>💡 <b>색상/사이즈 헤더 클릭</b> → 그 줄 전체 일괄 ON/OFF</span>
+        <span> <b>색상/사이즈 헤더 클릭</b> → 그 줄 전체 일괄 ON/OFF</span>
         <span>·</span>
         <span>⌐ 코너 클릭 → 전체</span>
       </div>`;
@@ -2204,7 +2204,7 @@
             if (r.ok) {
               u.crawled = true; u.lastStatus = 'ok';
               renderRight();
-              alert('재크롤 성공 ✓  표면가: ' + (r.price != null ? r.price.toLocaleString() + '원' : '없음'));
+              alert('재크롤 성공   표면가: ' + (r.price != null ? r.price.toLocaleString() + '원' : '없음'));
             } else {
               alert('재크롤 실패: ' + (r.error || '알 수 없는 오류') + '\n\n크롤 위젯 로그에서 상세 에러를 확인하세요.');
             }
@@ -2212,7 +2212,7 @@
             alert('크롤 오류: ' + err.message);
           } finally {
             recrawlBtn.disabled = false;
-            recrawlBtn.textContent = '🔄 재크롤';
+            recrawlBtn.textContent = ' 재크롤';
           }
         }
         return;
@@ -2543,7 +2543,7 @@
       matched.slice(0, 15).forEach((m, i) => {
         const o = m.o;
         const stock = (o.stock_total != null) ? o.stock_total : 0;
-        const stockHtml = stock > 0 ? `<span class="stk">📦 ${stock}개</span>` : '<span class="stk zero">📦 0개</span>';
+        const stockHtml = stock > 0 ? `<span class="stk"> ${stock}개</span>` : '<span class="stk zero"> 0개</span>';
         html += `<div class="oum-inv-ac-it ${i===0?'kbd-hl':''}" data-inv-pick-sku="${esc(o.sku)}" data-inv-pick-key="${esc(key)}">
           <div class="nm">${esc(o.brand)} ${esc(o.model_name)} ${esc(o.color)} ${esc(o.size)}</div>
           <div class="meta">${esc(o.sku)} ${stockHtml}</div>

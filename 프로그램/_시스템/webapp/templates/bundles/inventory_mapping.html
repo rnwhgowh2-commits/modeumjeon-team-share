@@ -96,7 +96,7 @@
 
     const candList = candidates[bopt.canonical_sku] || [];
     const candBtn = candList.length
-      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;padding:3px 8px;border-radius:4px;font-size:11.5px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
+      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;padding:3px 8px;border-radius:4px;font-size:11.5px;cursor:pointer;margin-left:4px"> 추론 (${candList.length})</button>`
       : '';
 
     const ucolor = bopt.color || '-';
@@ -195,7 +195,7 @@
       cands.forEach(c => cur.add(c));
       mappings[b] = Array.from(cur);
       renderTable();
-      toast('✨ 자동 추론 적용 — ' + cands.length + '건 매핑');
+      toast(' 자동 추론 적용 — ' + cands.length + '건 매핑');
       return;
     }
     // 검색 드롭다운 외부 클릭 시 닫기
@@ -214,7 +214,7 @@
       mappings[b] = Array.from(cur);
     });
     renderTable();
-    toast('✨ 전체 자동 추론 적용 — ' + n + '건 신규 매핑');
+    toast(' 전체 자동 추론 적용 — ' + n + '건 신규 매핑');
   });
 
   document.getElementById('saveMappingBtn').addEventListener('click', function(){
@@ -228,20 +228,20 @@
     .then(r => r.json())
     .then(res => {
       if(res.ok){
-        toast('✅ 저장 완료 — 매핑 ' + res.mapped + '건', '#03A65A');
+        toast(' 저장 완료 — 매핑 ' + res.mapped + '건', '#03A65A');
       } else {
-        toast('❌ 저장 실패: ' + (res.error || '알 수 없음'), '#DC2626');
+        toast(' 저장 실패: ' + (res.error || '알 수 없음'), '#DC2626');
       }
     })
-    .catch(e => toast('❌ 요청 실패: ' + e.message, '#DC2626'))
-    .finally(() => { btn.disabled = false; btn.textContent = '💾 매핑 저장'; });
+    .catch(e => toast(' 요청 실패: ' + e.message, '#DC2626'))
+    .finally(() => { btn.disabled = false; btn.textContent = ' 매핑 저장'; });
   });
 
   // 초기 로드
   fetch(API_URL)
     .then(r => r.json())
     .then(res => {
-      if(!res.ok){ toast('❌ 로드 실패: ' + (res.error || '알 수 없음'), '#DC2626'); return; }
+      if(!res.ok){ toast(' 로드 실패: ' + (res.error || '알 수 없음'), '#DC2626'); return; }
       // bundle 옵션은 서버에서 받지 않으므로 inventory_options 와 mappings 키에서 도출 + Bundle 정보는 페이지 컨텍스트
       mappings = res.mappings || {};
       candidates = res.candidates || {};
@@ -251,7 +251,7 @@
       bundleOptions = (window.BUNDLE_OPTIONS_INLINE || []);
       renderTable();
     })
-    .catch(e => toast('❌ 요청 실패: ' + e.message, '#DC2626'));
+    .catch(e => toast(' 요청 실패: ' + e.message, '#DC2626'));
 })();
 </script>
 

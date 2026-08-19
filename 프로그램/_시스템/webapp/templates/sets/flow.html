@@ -195,7 +195,7 @@ async function deleteSetRow(id){ if(!confirm('이 구성을 삭제할까요?')) 
 function checkDropped(d){
   const dropped=(d.options||[]).length - Object.keys(S.comboMap).length;
   const w=$('#mxwarn');
-  if(dropped>0){ w.classList.remove('hidden'); w.textContent='⚠ 옵션 '+dropped+'개가 같은 색·사이즈 표기로 겹쳐 매트릭스에 안 보입니다. (데이터 중복 의심 — 확인 필요)'; }
+  if(dropped>0){ w.classList.remove('hidden'); w.textContent=' 옵션 '+dropped+'개가 같은 색·사이즈 표기로 겹쳐 매트릭스에 안 보입니다. (데이터 중복 의심 — 확인 필요)'; }
   else { w.classList.add('hidden'); w.textContent=''; }
 }
 function renderMatrix(){
@@ -284,7 +284,7 @@ async function runLink(channelId, btn){
   const r=await api('POST','/api/channels/'+channelId+'/link');
   btn.disabled=false;
   if(!r.ok){ resEl.classList.add('err'); resEl.textContent=r.error||'연동 실패'; return; }
-  resEl.textContent=`✓ 연동 완료 — 매칭 ${r.linked} · 미매칭 ${r.unmatched} · 모호 ${r.ambiguous} · 중복 ${r.duplicate}`;
+  resEl.textContent=` 연동 완료 — 매칭 ${r.linked} · 미매칭 ${r.unmatched} · 모호 ${r.ambiguous} · 중복 ${r.duplicate}`;
 }
 </script>
 </body>

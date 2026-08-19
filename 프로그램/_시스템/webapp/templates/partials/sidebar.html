@@ -109,7 +109,7 @@
   </style>
   <script>
     (function(){
-      function chk(){ fetch('/health',{cache:'no-store'}).then(function(r){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent = r.ok ? '🟢 정상' : '🟠 점검'; }).catch(function(){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent='🔴 응답없음'; }); }
+      function chk(){ fetch('/health',{cache:'no-store'}).then(function(r){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent = r.ok ? ' 정상' : ' 점검'; }).catch(function(){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent=' 응답없음'; }); }
       setInterval(chk, 60000);
     })();
   </script>

@@ -828,7 +828,7 @@
       let urls = 0;
       j.options.forEach(o => o.sources.forEach(s => { sources.add(s.source_id); urls++; }));
       const el = document.getElementById('bh-src-summary');
-      if (el) el.textContent = `🛒 ${sources.size} 소싱처 · ${urls} URLs`;
+      if (el) el.textContent = ` ${sources.size} 소싱처 · ${urls} URLs`;
     });
 
   // [v6 Phase 5.4 — E5 URL Auto-detect]
@@ -903,7 +903,7 @@
         const j = await res.json();
         if (res.ok && j.ok) {
           // v6 Phase 5.5: backend 가 next_url 안내 → 위저드로 navigation
-          if (confirm(`✅ "${lastUnknownDomain}" 검출 기록됨.\n\n소싱처 위저드 (/accounts/sourcing) 로 이동해서 SourcingAccount 등록 + scraper 모듈 연결을 진행할까요?\n\n[취소] 시 현재 페이지에 머무름.`)) {
+          if (confirm(` "${lastUnknownDomain}" 검출 기록됨.\n\n소싱처 위저드 (/accounts/sourcing) 로 이동해서 SourcingAccount 등록 + scraper 모듈 연결을 진행할까요?\n\n[취소] 시 현재 페이지에 머무름.`)) {
             window.open(j.next_url || '/accounts/sourcing', '_blank');
           }
           panel.hidden = true;
@@ -916,7 +916,7 @@
         alert('네트워크 오류: ' + e.message);
       } finally {
         addBtn.disabled = false;
-        addBtn.textContent = '✓ 새 소싱처로 추가';
+        addBtn.textContent = ' 새 소싱처로 추가';
       }
     });
     dismissBtn?.addEventListener('click', () => { panel.hidden = true; });
@@ -953,7 +953,7 @@
         <span class="src-tree-rail">└</span>
         <input class="field-input mono src-url-input" data-src-key="${srcKey}" data-url-id="${id}" value="${url || ''}" placeholder="URL 입력" />
         ${url ? `<a class="src-tree-open-btn" href="${url}" target="_blank" rel="noopener" title="새 탭에서 열기">↗</a>` : ''}
-        <button type="button" class="src-tree-del-btn" data-del-url-id="${id}" title="삭제">✕</button>
+        <button type="button" class="src-tree-del-btn" data-del-url-id="${id}" title="삭제"></button>
       </div>`;
     }
     // [시안 2 — 자동저장] 저장 직후 그 행 옆에 "✓ 저장됨" 잠깐 표시
@@ -967,7 +967,7 @@
         if (inp) inp.insertAdjacentElement('afterend', tag);
         else row.appendChild(tag);
       }
-      tag.textContent = '✓ 저장됨';
+      tag.textContent = ' 저장됨';
       tag.classList.remove('fade');
       clearTimeout(tag._t);
       tag._t = setTimeout(function () { tag.classList.add('fade'); }, 1600);
