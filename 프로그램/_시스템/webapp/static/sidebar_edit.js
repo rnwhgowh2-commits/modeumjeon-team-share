@@ -546,16 +546,16 @@ const modal = $('#sb3-emoji-modal');
 const emGrid = $('#sb3-em-grid');
 const emSearch = $('#sb3-em-search');
 const emCats = $('#sb3-em-cats');
-const emStyleToggleWrap = $('#sb3-em-style-wrap');
 const emColorRow = $('#sb3-em-color-row');
 const emColorSws = $('#sb3-em-color-sws');
 const emColorHex = $('#sb3-em-color-hex');
 const emStat = $('#sb3-em-stat');
-const emTabs = $$('#sb3-em-tabs button');
+// [2026-08-19] emStyleToggleWrap·emTabs 삭제 — 화면에서 그 요소들을 없앴다.
+//   남겨 두면 null 을 만져 창이 통째로 안 열린다.
 
 let emHost = null;
-let emCurrent = null;       // 현재 선택된 char (이모지) 또는 phosphor name
-let emCurrentMode = 'icon'; // 'icon' | 'emoji'
+let emCurrent = null;       // 현재 선택된 선 아이콘 이름
+const emCurrentMode = 'icon'; // 선 아이콘 하나로 고정 (이모지 탭 삭제)
 let emCurrentColor = '#191F28';
 let emCursorIdx = 0;
 let emFiltered = [];
@@ -652,25 +652,8 @@ function renderItems(){
   if (kb) kb.scrollIntoView({block:'nearest'});
 }
 
-function switchTab(mode){
-  emCurrentMode = mode;
-  emTabs.forEach(b => b.classList.toggle('on', b.dataset.tab === mode));
-  if (mode === 'icon'){
-    emColorRow.style.display = '';
-    emStyleToggleWrap.style.display = 'none';
-    emGrid.classList.add('icon-mode');
-    emGrid.classList.remove('grayscale');
-  } else {
-    emColorRow.style.display = 'none';
-    emStyleToggleWrap.style.display = '';
-    emGrid.classList.remove('icon-mode');
-  }
-  emFilter.cat = currentRecent().length ? '최근' : '전체';
-  emCursorIdx = 0;
-  renderCats();
-  renderItems();
-}
-emTabs.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+// [2026-08-19] switchTab 삭제 — 탭이 하나뿐이라 바꿀 곳이 없다.
+//   전에는 없어진 요소(#sb3-em-style-wrap)를 만져서, 남겨 뒀으면 창이 통째로 안 열렸다.
 
 // 색상 팔레트 (아이콘 모드)
 ICON_COLORS.forEach(c => {
@@ -709,29 +692,24 @@ function openEmojiModal(host){
   emHost = host;
   const t = getCurrentTarget(host);
   // 현재 상태로 초기화
+  // [2026-08-19] 「이모지」 탭을 없앴다 — 늘 선 아이콘 모드다.
+  //   🔴 옛 항목이 이모지를 갖고 있어도 여기서 'emoji' 로 넘어가면 안 된다.
+  //     그러면 그림문자 목록이 다시 열려 「문」이 도로 열린다.
+  //     저장된 이모지는 그대로 두고, 다시 고르는 순간 아이콘으로 바뀐다.
+  //   (emCurrentMode 는 위에서 const 'icon' 으로 못박았다 — 여기서 대입하면 터진다)
   if (t.icon){
-    emCurrentMode = 'icon';
     emCurrent = t.icon;
     emCurrentColor = t.icon_color || (host.dataset.type === 'stage' ? (data.stages.find(s=>s.id===host.dataset.id).color || '#191F28') : '#191F28');
   } else {
-    emCurrentMode = 'emoji';
-    emCurrent = t.emoji || null;
+    emCurrent = null;
     emCurrentColor = '#191F28';
   }
   // 모달 UI 갱신
   $('#sb3-em-subtitle').textContent = `"${t.name}"의 아이콘을 변경합니다`;
-  emTabs.forEach(b => b.classList.toggle('on', b.dataset.tab === emCurrentMode));
-  if (emCurrentMode === 'icon'){
-    emColorRow.style.display = '';
-    emStyleToggleWrap.style.display = 'none';
-    emGrid.classList.add('icon-mode');
-    $$('.sw', emColorSws).forEach(x => x.classList.toggle('cur', x.dataset.color === emCurrentColor));
-    emColorHex.value = emCurrentColor;
-  } else {
-    emColorRow.style.display = 'none';
-    emStyleToggleWrap.style.display = '';
-    emGrid.classList.remove('icon-mode');
-  }
+  emColorRow.style.display = '';
+  emGrid.classList.add('icon-mode');
+  $$('.sw', emColorSws).forEach(x => x.classList.toggle('cur', x.dataset.color === emCurrentColor));
+  emColorHex.value = emCurrentColor;
   emFilter = {cat: currentRecent().length ? '최근' : '전체', q:'', style:'color'};
   emCursorIdx = 0;
   emSearch.value = '';
@@ -773,7 +751,7 @@ function confirmSelection(){
   if (!emCurrent) { closeEmojiModal(); return; }
   const t = getCurrentTarget(emHost);
   const origDesc = t.icon ? `🎨 ${t.icon}` : (t.emoji || '없음');
-  const newDesc = emCurrentMode === 'icon' ? `🎨 ${emCurrent}` : emCurrent;
+  const newDesc = `아이콘 ${emCurrent}`;
   setIcon(emHost, emCurrentMode, emCurrent, emCurrentColor);
   pushRecent();
   snapshot(`아이콘: ${origDesc} → ${newDesc}`);
