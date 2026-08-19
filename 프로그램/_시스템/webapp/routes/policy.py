@@ -436,6 +436,26 @@ def api_bundles():
         by_code = bundles_of(s, [r['model_code'] for r in rows])
         for r in rows:
             r['bundles'] = by_code.get(r['model_code'], [])
+
+        # [이슈 #1058] 옵션매트릭스 — 상품(Model) 하나에 원본 매트릭스 하나(1:1).
+        #   없는 상품(아직 매트릭스를 안 만든 것)은 matrix=None(지어내지 않는다).
+        from sqlalchemy import func
+        from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+        from lemouton.sourcing.models import Option
+        page_codes = [r['model_code'] for r in rows]
+        matrices = {mo.model_code: mo for mo in
+                    s.query(MatrixOption)
+                    .filter(MatrixOption.model_code.in_(page_codes),
+                            MatrixOption.kind == KIND_ORIGIN,
+                            MatrixOption.deleted_at.is_(None)).all()}
+        sku_counts = dict(s.query(Option.model_code, func.count(Option.canonical_sku))
+                          .filter(Option.model_code.in_(page_codes))
+                          .group_by(Option.model_code).all())
+        for r in rows:
+            mo = matrices.get(r['model_code'])
+            r['matrix'] = ({'id': mo.id, 'name': mo.name, 'no': mo.display_no,
+                            'sku_count': sku_counts.get(r['model_code'], 0)}
+                           if mo else None)
     finally:
         s.close()
     # 많은 순 → 이름 순, 브랜드 없는 것은 맨 뒤(만들다 만 것이 위를 차지하면 안 된다)

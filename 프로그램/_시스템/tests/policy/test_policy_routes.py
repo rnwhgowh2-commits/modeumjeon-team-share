@@ -396,6 +396,34 @@ def test_지금_붙은_정책이_보인다(client):
     assert j['rows'][0]['policy'] == '붙은정책'
 
 
+def test_상품목록에_옵션매트릭스_정보가_있다(client):
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+    from lemouton.sourcing.models import Option
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(MatrixOption(model_code='M1', kind=KIND_ORIGIN,
+                           name='M1 매트릭스', display_no='U20260819-000001'))
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.add(Option(canonical_sku='M1-BLK-270', model_code='M1',
+                     color_code='BLK', size_code='270'))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert row['matrix']['name'] == 'M1 매트릭스'
+    assert row['matrix']['no'] == 'U20260819-000001'
+    assert row['matrix']['sku_count'] == 2
+
+
+def test_매트릭스_없는_상품은_matrix가_None이다(client):
+    _model(client, 'M2', '르무통')
+    j = client.get('/api/policies/bundles').get_json()
+    assert j['rows'][0]['matrix'] is None
+
+
 def test_사이드바에_상품_정책_적용이_있다(client):
     body = client.get('/policies').get_data(as_text=True)
     assert '/policies/apply' in body
