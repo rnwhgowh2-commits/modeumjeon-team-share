@@ -35,7 +35,7 @@ def test_default_group_names_and_order():
     """
     layout = api_sidebar._default_layout()
     names = [st['name'] for st in layout['stages']]
-    assert names == ['옵션생성 & 상품생성', '상품 가공', '상품수집&전송', '상품 관리',
+    assert names == ['옵션생성 & 상품생성', '상품 정책화', '상품수집&전송', '상품 관리',
                      '주문 관리', '통계·분석', '재고관리', '기타']
 
 
@@ -87,7 +87,7 @@ def test_default_contains_all_visible_items():
         'bulk',
         # [2026-08-02] 노션 원문대로 하위탭 3개 — 합본 'optgen' 하나였다.
         'optgen_direct', 'optgen_market', 'optgen_product',
-        'policies', 'policy_apply', 'templates',         # 상품 가공
+        'policies', 'policy_apply', 'templates',         # 상품 정책화
         # [2026-08-02] 「자동화」가 전송 분류로 바뀌며 하위탭이 늘었다(#687).
         'automation', 'market_send',                     # 상품수집&전송
         'bundles', 'matrix', 'catalog',                  # 상품 관리
@@ -237,10 +237,10 @@ def test_편집_화면이_실제_사이드바와_같은_것을_본다(client):
     got = client.get('/api/sidebar/layout').get_json()
     ids = {i['id'] for st in got['stages'] for i in st['items']}
     assert 'i_policies' in ids, '편집 화면에 「정책 생성」이 없다'
-    assert 'i_policy_apply' in ids, '편집 화면에 「정책 적용」이 없다'
+    assert 'i_policy_apply' in ids, '편집 화면에 「정책 매칭」이 없다'
 
     proc = [st for st in got['stages'] if st['id'] == 's_process']
-    assert proc and proc[0]['items'], '「상품 가공」 서랍이 비어 보인다'
+    assert proc and proc[0]['items'], '「상품 정책화」 서랍이 비어 보인다'
 
 
 def test_편집_화면에도_중복_id_가_없다(client):

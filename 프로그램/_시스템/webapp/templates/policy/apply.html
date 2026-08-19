@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}정책 적용 — 모음전 자동화{% endblock %}
+{% block title %}정책 매칭 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-policy-apply">
   <style>
@@ -19,7 +19,7 @@
                 border:1px solid var(--line,#E5E8EB)}
     .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
 
-    /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 적용」 순서다. */
+    /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 매칭」 순서다. */
     .ap-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 
     /* ── [2026-08-12 · 사장님 확정 D3] 「① 상품 다음 ② 정책」 순서 느낌 ──────────
@@ -140,7 +140,7 @@
   </style>
 
   <div class="ap-head">
-    <h1>정책 적용</h1>
+    <h1>정책 매칭</h1>
   </div>
   <div class="ap-desc">왼쪽에서 상품을 고르고, 오른쪽에서 정책을 골라 한 번에 붙입니다.</div>
   <div class="msg" id="msg"></div>
