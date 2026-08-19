@@ -336,6 +336,35 @@ def test_적용_화면에_정책이_나온다(client):
     assert '적용용정책' in body
 
 
+def test_상품고르기_8칸_헤더가_나온다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    for label in ('NO', '옵션매트릭스', '소싱처', '판매처', '소싱처 수집', '판매처 수집'):
+        assert f'<th>{label}</th>' in body or f'<th style="width:30px">{label}</th>' in body
+
+
+def test_상품고르기_정책상태_필터칩이_나온다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'data-applied="yes"' in body
+    assert 'data-applied="no"' in body
+
+
+def test_상품고르기_JS에_소싱처판매처_배지_매칭표가_있다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'SRC_MATCH' in body
+    assert 'SELL_MATCH' in body
+
+
+def test_상품고르기_JS에_호버카드_엔드포인트_경로가_있다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert '/sourcing-detail' in body
+    assert '/selling-detail' in body
+
+
+def test_상품고르기_JS에_상태필터_와이어링이_있다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'curApplied' in body
+
+
 def test_정책은_하나만_고를_수_있다(client):
     """상품 하나에 정책 하나 — 여러 개를 고르게 하면 거짓 기능이 된다."""
     _new_policy(client, '라디오확인')
@@ -513,6 +542,229 @@ def test_지금_붙은_정책이_보인다(client):
         s.close()
     j = client.get('/api/policies/bundles').get_json()
     assert j['rows'][0]['policy'] == '붙은정책'
+
+
+def test_상품목록에_옵션매트릭스_정보가_있다(client):
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+    from lemouton.sourcing.models import Option
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(MatrixOption(model_code='M1', kind=KIND_ORIGIN,
+                           name='M1 매트릭스', display_no='U20260819-000001'))
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.add(Option(canonical_sku='M1-BLK-270', model_code='M1',
+                     color_code='BLK', size_code='270'))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert row['matrix']['name'] == 'M1 매트릭스'
+    assert row['matrix']['no'] == 'U20260819-000001'
+    assert row['matrix']['sku_count'] == 2
+
+
+def test_매트릭스_없는_상품은_matrix가_None이다(client):
+    _model(client, 'M2', '르무통')
+    j = client.get('/api/policies/bundles').get_json()
+    assert j['rows'][0]['matrix'] is None
+
+
+def test_상품목록에_소싱처_연동정보가_있다(client):
+    from datetime import datetime, timezone
+    from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
+    from lemouton.sourcing.models import Option
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.flush()
+        sp = SourceProduct(site='musinsa', url='https://example.com/1',
+                           last_fetched_at=datetime(2026, 8, 19, 13, 0,
+                                                     tzinfo=timezone.utc))
+        s.add(sp)
+        s.flush()
+        so = SourceOption(source_product_id=sp.id, color_text='블랙', size_text='260')
+        s.add(so)
+        s.flush()
+        s.add(OptionSourceLink(canonical_sku='M1-BLK-260', source_option_id=so.id))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert '무신사' in row['sourcing']['connected']
+    assert row['sourcing']['collected_at'] == '2026-08-19T13:00:00+00:00'
+
+
+def test_소싱처_연동_없는_상품은_빈_목록이다(client):
+    _model(client, 'M2', '르무통')
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert row['sourcing']['connected'] == []
+    assert row['sourcing']['collected_at'] is None
+
+
+def test_상품목록에_판매처_연동정보가_있다(client):
+    from datetime import datetime, timezone
+    from lemouton.sourcing.models import Option
+    from lemouton.uploader.models import MarketRegistration
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.add(MarketRegistration(canonical_sku='M1-BLK-260', market='coupang',
+                                 market_product_id='12345',
+                                 last_success_at=datetime(2026, 8, 19, 13, 20,
+                                                          tzinfo=timezone.utc)))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert '쿠팡' in row['selling']['connected']
+    assert row['selling']['collected_at'] == '2026-08-19T13:20:00+00:00'
+
+
+def test_판매처_연동_없는_상품은_빈_목록이다(client):
+    _model(client, 'M2', '르무통')
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert row['selling']['connected'] == []
+    assert row['selling']['collected_at'] is None
+
+
+def test_필터_정책적용됨만_보여준다(client):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '르무통')
+    pid = _new_policy(client, '필터정책')
+    s = client._Session()
+    try:
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['M1'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles?applied=yes').get_json()
+    assert [r['model_code'] for r in j['rows']] == ['M1']
+
+
+def test_필터_정책미적용만_보여준다(client):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '르무통')
+    pid = _new_policy(client, '필터정책2')
+    s = client._Session()
+    try:
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['M1'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles?applied=no').get_json()
+    assert [r['model_code'] for r in j['rows']] == ['M2']
+
+
+def test_필터_구성단위_정책도_적용됨으로_잡는다(client):
+    """SetPolicyLink(구성 단위)로만 붙은 것도 「적용됨」이어야 한다 —
+    상품 단위(BundlePolicyLink)만 보면 놓친다."""
+    from lemouton.policy.bundles import add_bundle
+    from lemouton.sourcing.models import Option
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '르무통')       # 정책 없음 — 필터가 안 걸리면 얘도 같이 나온다
+    pid = _new_policy(client, '구성정책')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.commit()
+        add_bundle(s, model_code='M1', policy_id=pid)
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles?applied=yes').get_json()
+    assert [r['model_code'] for r in j['rows']] == ['M1']
+
+
+def test_소싱처_상세_호버카드_API(client):
+    from datetime import datetime, timezone
+    from lemouton.sourcing.models import BundleRun, Option
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260',
+                     color_display='블랙', size_display='260'))
+        s.add(BundleRun(model_code='M1', phase='crawl', status='done',
+                        started_at=datetime(2026, 8, 19, 13, 0, tzinfo=timezone.utc)))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/product/M1/sourcing-detail').get_json()
+    assert j['ok'] is True
+    assert j['history'][0]['status'] == 'done'
+    assert j['options'][0]['sku'] == 'M1-BLK-260'
+    assert 'stock' in j['options'][0]
+    assert 'price' in j['options'][0]
+
+
+def test_소싱처_상세_없는_상품은_404(client):
+    r = client.get('/api/policies/product/없음/sourcing-detail')
+    assert r.status_code == 404
+
+
+def test_판매처_상세_호버카드_API(client):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    from lemouton.sourcing.models import Option
+    _model(client, 'M1', '르무통')
+    pid = _new_policy(client, '상세정책')
+    _fill_common(client, pid)
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.commit()
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['M1'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/product/M1/selling-detail').get_json()
+    assert j['ok'] is True
+    assert any(m['market'] == 'coupang' for m in j['markets'])
+
+
+def test_판매처_상세_없는_상품은_404(client):
+    r = client.get('/api/policies/product/없음/selling-detail')
+    assert r.status_code == 404
+
+
+def test_판매처_상세_이력에_동기화_시각이_있다(client):
+    from datetime import datetime, timezone
+    from lemouton.sourcing.models import Option
+    from lemouton.uploader.models import MarketRegistration
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.add(MarketRegistration(canonical_sku='M1-BLK-260', market='coupang',
+                                 market_product_id='1',
+                                 last_success_at=datetime(2026, 8, 19, 13, 20,
+                                                          tzinfo=timezone.utc)))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/product/M1/selling-detail').get_json()
+    hist = {h['market']: h['at'] for h in j['history']}
+    assert hist.get('coupang') == '2026-08-19T13:20:00+00:00'
+    labels = {h['market']: h['label'] for h in j['history']}
+    assert labels.get('coupang') == '쿠팡'
 
 
 def test_사이드바에_상품_정책_적용이_있다(client):
