@@ -6194,6 +6194,9 @@
     //  막대 조각 색 = 그 카드 점 색(눈으로 이어지게).
     var CLR={confirmed:'#8FD3A6',unconfirmed:'#7EA8F8',overdue:'#F5B544',undated:'#D5DAE0',
              paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438',fast:'#9E77ED',
+             /* 🔴 [2026-08-13] 반품·교환 **완료** — 진행 중(빨강)과 갈라야 한다.
+                진행 중은 아직 모르는 것, 완료는 이미 끝난 것이다. */
+             returned:'#98A2B3',
              /* 「정산 시작 전」 — 지남(주황)과 헷갈리면 안 되므로 미확정(파랑) 계열의
                 옅은 색. 경고가 아니라 「그냥 아직 안 왔다」는 뜻이다. */
              not_started:'#B9D0FB'};
@@ -6289,6 +6292,9 @@
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>'
+        // 🔴 [2026-08-13 사장님 확정] 반품·교환이 **끝난** 주문 — 받을 돈에서 뺐다.
+        //   다만 **반품비는 우리가 받는 돈**이라 위 「앞으로 받을 돈」에 남아 있다.
+        +'<div class="kpi" id="spn-returned-card" style="cursor:pointer"><div class="t">'+dot(CLR.returned)+'반품·교환 완료</div><div class="v">'+fmt(k.returned)+'</div><div class="s">받을 돈에서 뺐어요 · 반품비는 남겨 뒀어요 — 눌러서 확인</div></div>'
         // ⚡ 별도 카드 — 「빠른정산으로 미리 받은 돈」(사장님 요청). 위 「앞으로 받을 돈」에는
         //   이미 빠져 있으므로 여기서는 **받은 사실만** 담백하게 보여준다.
         +(fastTot?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
@@ -6310,7 +6316,8 @@
        ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
        ['spn-paid-card','paid','🏦 이미 받은 것으로 확인 (마켓이 입금 알려줌)'],
        ['spn-assumed-card','assumed_paid','💤 이미 받았을 것 (확인 불가 · 합계 제외)'],
-       ['spn-risk-card','risk','🔺 반품·취소 진행 중 (합계 제외)']].forEach(function(x){
+       ['spn-risk-card','risk','🔺 반품·취소 진행 중 (합계 제외)'],
+       ['spn-returned-card','returned','↩️ 반품·교환 완료 (상품값 합계 제외 · 반품비만 남김)']].forEach(function(x){
         var el=$('#'+x[0]);
         if(el) el.onclick=function(){toggleExtra(x[1],x[2]);};
       });

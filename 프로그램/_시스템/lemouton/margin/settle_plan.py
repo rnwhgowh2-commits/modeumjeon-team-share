@@ -100,10 +100,56 @@ def _norm_date(s) -> str | None:
     return t if d.year >= 2000 else None
 
 
+# 반품·교환이 **끝난** 말 — 금액이 확정적으로 바뀐다(진행 중은 _RISK_MARKERS).
+#  취소완료는 위에서 이미 excluded 로 빠지므로 여기 넣지 않는다.
+_CLAIM_DONE_MARKERS = ("반품완료", "교환완료", "반품수거완료", "교환수거완료")
+
+
+def annotate_claims(lines: list) -> list:
+    """클레임 행을 **주문번호로 원래 주문행에 이어** 표식(`_claim`)을 남긴다.
+
+    🔴 왜 필요한가 (2026-08-13 라이브 실측) — 클레임은 `_kind='change'` **별도 행**으로
+       저장되고, 원래 주문행의 `주문상태` 는 **배송완료인 채 그대로**다. 그래서 반품이
+       끝난 주문도 「받을 돈」에 살아 있었다: 쿠팡 미수령 22,487,606원 중 **51주문
+       3,864,383원**. 두 행은 서로를 모른다 — 여기서 이어 준다.
+
+    🔴 마켓 상태가 원래 행에 붙는 마켓(11번가·ESM)은 `_RISK_MARKERS` 로도 걸리지만,
+       쿠팡은 원래 행 상태가 배송완료·상품준비중·결제완료·배송중·배송지시 **다섯뿐**이라
+       (창내 3,343행 전수) 상태 문자열로는 영영 못 잡는다.
+
+    표식: 'open'(진행 중 — 받을지 모름) / 'done'(끝남 — 금액이 확정적으로 바뀜).
+    한 주문에 둘 다 달려 있으면 **done 이 이긴다**(요청 뒤에 완료가 오므로 완료가 최신).
+    라이브에 그런 주문이 56건 있다.
+    """
+    state: dict = {}
+    for ln in lines:
+        row = ln.get("row") or {}
+        if str(row.get("_kind") or "") != "change":
+            continue
+        key = (ln.get("market") or "", str(row.get("오픈마켓주문번호") or ""))
+        if not key[1]:
+            continue
+        st = str(row.get("주문상태") or "")
+        if any(m in st for m in _CLAIM_DONE_MARKERS):
+            state[key] = "done"
+        elif any(m in st for m in _RISK_MARKERS) and state.get(key) != "done":
+            state[key] = "open"
+    if not state:
+        return lines
+    for ln in lines:
+        row = ln.get("row") or {}
+        if str(row.get("_kind") or "") == "change":
+            continue
+        v = state.get((ln.get("market") or "", str(row.get("오픈마켓주문번호") or "")))
+        if v:
+            row["_claim"] = v
+    return lines
+
+
 def classify(line: dict, *, today: dt.date) -> str:
     """한 라인의 부류 — **다섯 가지**만. 조건 순서가 상호배타를 보장한다.
 
-        excluded / risk / paid / confirmed / unconfirmed
+        excluded / risk / returned / paid / confirmed / unconfirmed
 
     🔴 [2026-08-06 교정] overdue·undated·assumed_paid 는 여기서 정하지 않는다 —
        **이벤트 단위**(resolve) 판정이다. 예전엔 여기서도 overdue 를 정하고
@@ -120,6 +166,15 @@ def classify(line: dict, *, today: dt.date) -> str:
         return "risk"
     if _norm_date(row.get("_settle_paid_date")):
         return "paid"                       # 마켓이 「송금했다」고 알려준 것만
+    # 🔴 [2026-08-13 사장님 확정] 반품·교환은 진행 중이든 끝났든 **받을 돈에서 뺀다**.
+    #   다만 **반품비는 우리가 받는 돈**이라 남긴다(resolve 가 그 이벤트만 만든다).
+    #   `paid` **뒤에** 본다 — 이미 받은 돈은 받을 돈이 아니라 지나간 이력이다.
+    #   여기서 옮기면 「이미 받은 것」 이력이 흔들린다(라이브 15행 1,384,546원).
+    _cl = str(row.get("_claim") or "")
+    if _cl == "open":
+        return "risk"
+    if _cl == "done":
+        return "returned"
     if line_confirmed(line):
         return "confirmed"
     if any(m in st for m in _SHIPPED_MARKERS):
@@ -199,6 +254,37 @@ def payout_events(line: dict, rules: dict, *, today: dt.date) -> list[dict]:
     return [{"date": est, "amount": amount, "date_source": "estimated"}]
 
 
+def _return_fee_events(line: dict, rules: dict, *, today: dt.date) -> list:
+    """반품·교환 걸린 주문에서 **반품비만** 남긴 지급 이벤트 (0~1개).
+
+    🔴 사장님 확정(2026-08-13): *"반품진행중과 반품 완료건은 금액에서 제외해줘야지.
+       다만 반품비정도 추가해야지."*
+
+    🔴 **더하지 않는다 — 마켓이 준 부호를 그대로 싣는다.** 라이브 전건 확인 결과
+       쿠팡은 배송비 정산이 **받는 게 4건 · 내는(음수) 게 15건**이다(−9,670 형태).
+       무조건 더하면 15건에서 반대로 틀린다. 11번가는 양수로 온다(clmReqSeq 라인).
+
+    🔴 실값(`_ship_settle`)이 없으면 **아무것도 안 만든다.** 반품비를 규칙으로 지어내면
+       없는 돈이 총액에 선다 — 반품 건은 규칙이 맞을 근거가 아예 없다.
+       (그래서 쿠팡 말고는 대개 0건이다 — 다른 마켓은 아직 배송비 실값을 안 싣는다.)
+    """
+    fee = line["row"].get("_ship_settle")
+    try:
+        fee = int(fee)
+    except (TypeError, ValueError):
+        return []
+    if not fee:
+        return []
+    real = _norm_date(line["row"].get("정산예정일"))
+    d = real or _estimated_payout(line, rules)
+    if d is None:
+        return [{"date": None, "amount": fee, "date_source": None, "bucket": "undated"}]
+    # 반품비 금액 자체는 마켓이 정한 실값이라 「확정」으로 담는다(날짜만 추정일 수 있다).
+    bucket = "confirmed" if dt.date.fromisoformat(d) >= today else "overdue"
+    return [{"date": d, "amount": fee, "bucket": bucket, "reason": "return_fee",
+             "date_source": "real" if real else "estimated"}]
+
+
 # 「입금했다」를 실제로 알려주는 마켓 — 2026-08-06 실측으로 확정.
 #  · 쿠팡  = 지급내역조회(settlement-histories) status DONE
 #  · 스스  = 정산 완료일(settleCompleteDate)
@@ -263,7 +349,10 @@ def resolve(line: dict, rules: dict, *, today: dt.date) -> dict:
         더 위험하다(이 안전장치를 새 부류가 밀어내면 안 된다).
     """
     cat = classify(line, today=today)
-    if cat in ("excluded", "risk", "paid"):
+    if cat in ("risk", "returned"):
+        # 🔴 상품분은 「받을 돈」에서 빠지고(별도 줄), **반품비만** 이벤트로 남는다.
+        return {"category": cat, "events": _return_fee_events(line, rules, today=today)}
+    if cat in ("excluded", "paid"):
         return {"category": cat, "events": []}
     evs = payout_events(line, rules, today=today)
     limit = int(rules.get("assume_paid_after_days") or ASSUME_PAID_AFTER_DAYS)
@@ -309,12 +398,14 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
         아닐 뿐이다. 총액에서 빼면 자금계획이 거꾸로 쪼그라든다.
     """
     kpi = {"confirmed_future": 0, "unconfirmed_future": 0, "overdue": 0,
-           "not_started": 0, "undated": 0, "assumed_paid": 0, "risk": 0, "paid": 0,
+           "not_started": 0, "undated": 0, "assumed_paid": 0, "risk": 0,
+           # 🔴 [2026-08-13] 반품·교환이 **끝난** 몫 — 받을 돈에서 빼되 숨기지 않는다.
+           "returned": 0, "paid": 0,
            "total_uncollected": 0}
     counts = {"real_dates": 0, "estimated_dates": 0, "undated": 0}
     buckets: dict = {}
     extras = {"overdue": {}, "not_started": {}, "undated": {},
-              "assumed_paid": {}, "risk": {}}
+              "assumed_paid": {}, "risk": {}, "returned": {}}
     reasons: dict = {}      # 「지남」이 무엇 때문인지 — 카드 옆 한눈 요약
     # 🔴 [2026-08-12 노션 c-2] 「받는 날 기준」인데 **미래만** 보였다. 과거 칸(이미 받은
     #   이력·아직 못 받은 지난 것)을 날짜 칸으로 따로 만든다.
@@ -355,10 +446,12 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
             if _pd:
                 _past_acc(_pd, market, account, "paid", amount)
             continue
-        if cat == "risk":
-            kpi["risk"] += amount
-            _acc(extras["risk"], market, account, amount)
-            continue
+        if cat in ("risk", "returned"):
+            # 🔴 상품분은 **별도 줄**로만 적는다(받을 돈 총액엔 안 들어간다).
+            #   그리고 `continue` 하지 않는다 — 아래 공통 경로로 **반품비 이벤트**를
+            #   흘려보내야 「반품비는 받는 돈」이 총액에 선다(사장님 확정 2026-08-13).
+            kpi[cat] += amount
+            _acc(extras[cat], market, account, amount)
         for ev in r["events"]:
             if ev["date_source"] == "real":
                 counts["real_dates"] += 1
