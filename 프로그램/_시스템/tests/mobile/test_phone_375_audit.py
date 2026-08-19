@@ -149,9 +149,12 @@ def test_옵션생성_서랍_격자가_폰_폭을_지킨다():
     p = os.path.join(_시스템, 'webapp', 'templates', 'optgen', 'index.html')
     글 = io.open(p, encoding='utf-8').read()
     자리 = 글.index('@media (max-width: 768px)')
-    m = re.search(r'\.og-wrap\s*\{([^}]*)\}', 글[자리:])
+    # 🔴 [2026-08-19] `.og-wrap` 이 이제 `.og-wrap, .og-wrap.og-w4 { … }` 처럼
+    #    다른 선택자와 묶여 있을 수 있다 — 선택자 목록 어딘가에 `.og-wrap` 이 있으면 된다
+    #    (`\.og-wrap\s*\{` 단독형만 찾던 예전 정규식은 이 묶음형을 놓친다).
+    m = re.search(r'([^{}]*\.og-wrap[^{}]*)\{([^}]*)\}', 글[자리:])
     assert m, '@media 폰 블록 안에 .og-wrap 규칙이 없다'
-    assert re.search(r'grid-template-columns:\s*minmax\(0,\s*1fr\)', m.group(1)), (
+    assert re.search(r'grid-template-columns:\s*minmax\(0,\s*1fr\)', m.group(2)), (
         '1fr 그대로면 minmax(auto,1fr) — 표 감싼 div 의 min-content(451px)가 '
         '열을 벌려 서랍이 화면 밖(463px)으로 늘어난다')
 

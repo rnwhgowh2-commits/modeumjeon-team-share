@@ -87,9 +87,70 @@ def test_남의_SKU_에는_못_꽂는다(client, box):
     assert '이 묶음의 옵션이 아니' in r.get_json()['error']
 
 
-def test_0이나_음수는_넣지_않는다(client, box):
+def test_음수는_넣지_않는다(client, box):
+    """🔴 [2026-08-13 사장님 확정으로 규칙이 바뀜] 예전엔 **0 도** 안 넣었다.
+
+    이제 0 은 「세어 보니 0개」라는 뜻이라 기록한다(test_0을_적으면_0으로_저장된다).
+    음수는 여전히 거른다 — 셀 수 없는 수량이다.
+    """
     code, skus = box
     r = client.post(f'/optgen/api/box/{code}/initial-stock',
                     json={'qty': {skus[0]: 0, skus[1]: -2}})
+    j = r.get_json()
+    assert j['added'] == 1, f'0 은 넣고 음수만 걸러야 한다: {j}'
+    assert j['skus'] == [skus[0]]
+    assert _stock(code, skus[1]) == 0
+
+
+# ── [2026-08-13 사장님 확정] 공란 ≠ 0 · 고른 것만 · 재고관리로 고치러 가기 ──
+def test_0을_적으면_0으로_저장된다(client, box):
+    """🔴 「공란」과 「0」은 다른 뜻이다.
+
+    공란 = 아직 안 셌다(안 넣는다) / 0 = **세어 보니 0개였다**(기록한다).
+    예전엔 `n > 0` 만 받아 0 을 적어도 조용히 무시됐다 — 사장님이 0 을 적은 뜻이 사라졌다.
+    """
+    code, skus = box
+    r = client.post(f'/optgen/api/box/{code}/initial-stock', json={'qty': {skus[0]: 0}})
+    j = r.get_json()
+    assert j['ok'] and j['added'] == 1, j
+    assert skus[0] in j['skus']
+
+
+def test_공란은_아무것도_안_넣는다(client, box):
+    """칸을 비워 둔 옵션은 보내지 않는다 — 화면이 안 보내므로 서버도 받을 게 없다."""
+    code, skus = box
+    r = client.post(f'/optgen/api/box/{code}/initial-stock', json={'qty': {}})
+    j = r.get_json()
+    assert j['ok'] and j['added'] == 0 and j['skus'] == []
+
+
+def test_음수는_여전히_거른다(client, box):
+    """0 을 받게 됐다고 음수까지 받으면 안 된다."""
+    code, skus = box
+    r = client.post(f'/optgen/api/box/{code}/initial-stock', json={'qty': {skus[0]: -3}})
     assert r.get_json()['added'] == 0
     assert _stock(code, skus[0]) == 0
+
+
+def test_0으로_넣은_뒤_다시_넣으면_건너뛴다(client, box):
+    """0 도 「넣은 것」이다 — 두 번째는 이미 있는 것으로 보고 건너뛰어야 한다.
+
+    🔴 0 을 「안 넣음」으로 보면 사장님이 0 을 적을 때마다 계속 입고가 쌓인다.
+    """
+    code, skus = box
+    client.post(f'/optgen/api/box/{code}/initial-stock', json={'qty': {skus[0]: 0}})
+    r = client.post(f'/optgen/api/box/{code}/initial-stock', json={'qty': {skus[0]: 0}})
+    j = r.get_json()
+    assert j['added'] == 0, j
+    assert j['skipped'] == [skus[0]], '건너뛴 것을 조용히 숨기면 안 된다'
+
+
+def test_화면에_체크칸과_일괄넣기와_재고관리_길이_있다(client, box):
+    """사장님 확정 — 맨 왼쪽 체크칸(전체/개별) · 표 위 일괄 넣기 ·
+    저장한 값은 여기서 못 고치고 **재고관리에서** 고친다(입구를 하나로)."""
+    code, _ = box
+    h = client.get(f'/optgen/box/{code}').get_data(as_text=True)
+    assert 'ob-ckall' in h, '머리줄 전체 고르기 체크칸이 없다'
+    assert 'ob-ck' in h, '줄마다 체크칸이 없다'
+    assert 'ob-bulk' in h, '표 위 일괄 넣기 줄이 없다'
+    assert '/inventory/' in h and '재고관리' in h, '재고관리로 가는 길이 없다'

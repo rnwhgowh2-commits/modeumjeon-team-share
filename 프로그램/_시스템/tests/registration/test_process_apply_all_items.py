@@ -336,13 +336,20 @@ def test_한_갈래로_합칠_수_있다():
     assert any(a['field'] == 'axis' for a in applied)
 
 
-def test_3축은_모델명_칸이_없어_못_한다():
-    """지어내지 않고 2축으로 올리되, 왜 못 했는지 말한다."""
+def test_3축으로_올릴_수_있다():
+    """[2026-08-13] 열었다 — 예전엔 `NO_MODEL_AXIS` 로 2축 강등이었다.
+
+    강등 사유가 「옵션에 모델명을 담는 칸이 없습니다」였는데, **마켓 탓이 아니라
+    우리 칸이 없던 것**이었다. 칸을 만들었다(`policy/to_payload._options_json`).
+    마켓 근거(스스 개발자센터 원문, 판매처 지도 수록):
+      「최대 등록 가능한 옵션 개수는 조합형은 3개, 지점형은 4개입니다.」
+    쪼개는 모양은 tests/registration/test_options_axis3.py 가 지킨다.
+    """
     d = _draft()
-    view, _a, skipped = PA.apply_rules(d, {'options': {'axis': 'three'}})
-    assert view.process_option_axis == 'two'
-    assert 'NO_MODEL_AXIS' in _codes(skipped)
-    assert 'NO_MODEL_AXIS' in _codes(PA.capability_gaps(skipped))
+    view, applied, skipped = PA.apply_rules(d, {'options': {'axis': 'three'}})
+    assert view.process_option_axis == 'three'
+    assert 'NO_MODEL_AXIS' not in _codes(skipped)
+    assert any(a['field'] == 'axis' for a in applied)
 
 
 def test_모르는_축은_지어내지_않고_기본으로_간다():

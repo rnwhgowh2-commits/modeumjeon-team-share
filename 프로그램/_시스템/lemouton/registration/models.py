@@ -47,12 +47,33 @@ class ProductDraft(Base):
     cdn_images_json = Column(Text, default='[]')      # 스스 업로드 후 CDN URL
     detail_html = Column(Text, default='')
 
-    options_json = Column(Text, default='[]')         # [{color,size,stock,extra_price,sku}]
+    # [2026-08-13] `model` 이 늘었다 — 3갈래(모델명·색상·사이즈) 전송의 첫 갈래.
+    #   담기는 길은 하나뿐이다: `policy/to_payload._options_json` → `send/as_draft`.
+    #   크롤·손입력 초안에는 없다(소싱처 옵션에 모델 축 칸이 없다).
+    options_json = Column(Text, default='[]')         # [{model,color,size,stock,extra_price,sku}]
 
     origin_area_code = Column(String(32), default='0200037')  # 국내산 기본
     importer = Column(String(120), default='')
     delivery_fee = Column(Integer, default=3000)      # 0 = 무료배송
     return_fee = Column(Integer, default=5000)
+
+    # ── 등록 상수 (2026-08-13) — 정책에서 정한 값이 담길 자리 ──────────────
+    #   전에는 담을 칸이 없어 마켓 등록 코드에 「과세」가 박힌 채 나갔다.
+    #   🔴 전부 **비워 둘 수 있는 칸**이다 — NOT NULL 로 만들면 옛 초안이
+    #     마이그레이션에서 통째로 터진다.
+    #   [사장님 확정] 과세구분 기본 = 과세. 「영세」는 수출·외화획득 거래용이라
+    #     우리에겐 해당 없고, 쿠팡·옥션·G마켓엔 보낼 칸도 없어 선택지에서 뺐다.
+    tax_type = Column(String(8), default='과세')       # 과세 | 면세
+    manufacturer = Column(String(120), default='')     # 비면 브랜드로 갈음(쿠팡 문서 권고)
+    model_no = Column(String(80), default='')
+    barcode = Column(String(64), default='')           # 비면 쿠팡에 emptyBarcode=true
+    # 🔴 이름이 `tags` 가 아니다 — 가공 엔진이 컴파일러에 넘기는 `process_tags`
+    #   (저장 칸이 아닌 값)와 헷갈리면 「저장했는데 안 나간다」가 된다.
+    search_tags = Column(Text, default='[]')           # JSON 배열 문자열
+    # 자동 가격 조정 최저가 — **쿠팡만** 있는 칸(공지 2026-05-22).
+    #   🔴 NULL = 「안 씀」. 0 을 기본값으로 걸면 「최저가 0원으로 켜 둠」이 되어
+    #     쿠팡이 400 을 내거나, 더 나쁘게는 바닥 없이 값을 내린다.
+    auto_pricing_min = Column(Integer)
 
     # 스스 detailAttribute 필수 — 라이브 검증된 create_product.py:85-89 payload 에 있음
     minor_purchasable = Column(Boolean, default=True, nullable=False)
@@ -236,6 +257,14 @@ class SearchFilter(Base):
     #:   한 칸 밀고, 끝까지 걸었으면 NULL 로 되돌려 다음엔 처음부터 본다
     #:   (새 상품이 앞쪽에 들어오므로 한 바퀴 돌면 다시 처음부터가 맞다).
     next_page_from = Column(Integer)
+    #: **못 걸은 쪽 주소** — 줄바꿈으로 여러 개. NULL = 없음.
+    #: 🔴 왜 필요한가 (2026-08-13 현대H몰 실측)
+    #:   크롬이 바쁠 때 탭이 열리다 죽는다(「페이지 로드 시간 초과」·「No tab with id」).
+    #:   그 쪽 상품이 통째로 빠지는데 **어느 쪽이었는지 아무도 기억하지 않아**
+    #:   다시 걸을 방법이 없었다 — H몰 463쪽 중 **16%(2,748개)가 그렇게 비었다.**
+    #: ★ 확장이 두 번 시도해도 실패하면 그 주소를 보내고, 다음 회차가 **그것부터** 건다.
+    #:   성공하면 목록에서 빠진다. 「나중에 다시」가 아니라 **바로 다음 차례**다.
+    missed_urls = Column(Text)
     #: 마지막으로 훑은 **확장의 판 번호**.
     #: 🔴 「화면 새로고침」은 확장 본체를 안 바꾼다 — 화면 쪽만 새 판으로 보이고
     #:   일하는 본체는 옛 판 그대로다(2026-08-08 이걸로 한참 헤맸다).

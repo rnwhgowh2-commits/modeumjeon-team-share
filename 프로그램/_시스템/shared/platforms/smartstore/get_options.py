@@ -29,8 +29,12 @@ logger = logging.getLogger(__name__)
 class OptionRow:
     """단일 옵션 정보 (스스 API 응답)."""
     option_id: int
-    name1: Optional[str]   # 보통 색상
-    name2: Optional[str]   # 보통 사이즈
+    name1: Optional[str]   # 보통 색상 (3갈래 상품이면 모델명)
+    name2: Optional[str]   # 보통 사이즈 (3갈래 상품이면 색상)
+    # 🔴 [2026-08-13] 3갈래(모델명·색상·사이즈)로 올린 상품의 **셋째 칸**.
+    #   예전엔 안 읽어서 통째로 버렸다 — 그래서 3갈래 상품이 연동에서 전부
+    #   unmatched 가 되고 가격·재고가 **에러 없이** 안 나갔다.
+    name3: Optional[str] = None
     stock: int = 0
     add_price: int = 0     # 옵션가 (delta, 모음전 기본가 대비)
     manager_code: Optional[str] = None
@@ -38,7 +42,7 @@ class OptionRow:
 
     @property
     def display_name(self) -> str:
-        parts = [p for p in (self.name1, self.name2) if p]
+        parts = [p for p in (self.name1, self.name2, self.name3) if p]
         return ' / '.join(parts)
 
 
@@ -118,6 +122,7 @@ def fetch_product_options(
                 option_id=int(c.get('id') or c.get('optionId') or 0),
                 name1=c.get('optionName1'),
                 name2=c.get('optionName2'),
+                name3=c.get('optionName3'),
                 stock=int(c.get('stockQuantity') or 0),
                 add_price=int(c.get('price') or 0),
                 manager_code=c.get('sellerManagerCode'),

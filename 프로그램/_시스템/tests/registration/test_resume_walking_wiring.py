@@ -98,28 +98,41 @@ def test_끝까지_걸었으면_처음부터_다시(client):
     )
 
 
-def test_단추로_넘기는_곳은_커서를_안_쓴다(client):
-    """롯데온은 늘 1쪽에서 눌러 가야 한다 — 이어걷는 척하면 거짓말이 된다."""
+def test_단추로_넘기는_곳은_눌러서_건너뛴다(client):
+    """🔴 [2026-08-13 뒤집음] 처음엔 「커서를 안 쓴다」고 못 박았다.
+
+    롯데온·아이몰은 늘 1쪽에서 눌러 가야 하니 중간부터 시작할 수단이 없다고 봤다.
+    그러면 한 회차 상한이 영원한 천장이 된다(아이몰 46,009 중 3,600 만).
+
+    ★ **걷지 않고 누르기만** 하면 이어 걸을 수 있다. 2회차는 `click_skip` 만큼
+      눌러 건너뛴 뒤 걷는다. 주소는 여전히 한 장이고 「몇 번 누를지」로 답한다.
+    """
     fid = _make(client, 'lotteon',
                 'https://www.lotteon.com/search/search/search.ecn?q=나이키',
                 page_from=1, page_to=5)
 
-    _job(client, fid)
+    job1 = _job(client, fid)
+    assert len(job1['page_urls']) == 1, job1['page_urls']
+    assert job1['click_pages'] == 5, job1
+    assert job1.get('click_skip') == 0, '1회차는 건너뛸 것이 없다.'
+
     _report(client, fid, ['LO1', 'LO2'], capped=True)
 
     job2 = _job(client, fid)
-    # 주소는 한 장 그대로, 「몇 번 누를지」로 답한다.
     assert len(job2['page_urls']) == 1, job2['page_urls']
     assert job2['click_pages'] == 5, job2
+    assert job2.get('click_skip') == 5, (
+        f'2회차가 건너뛰지 않습니다(click_skip={job2.get("click_skip")}) — '
+        '1~5쪽을 걸었으면 6쪽부터 시작하려고 5번 눌러야 합니다.'
+    )
 
     from shared.db import SessionLocal
     from lemouton.registration.models import SearchFilter
     s = SessionLocal()
     try:
         f = s.query(SearchFilter).filter_by(id=fid).first()
-        assert getattr(f, 'next_page_from', None) is None, (
-            '단추로 넘기는 곳에 이어걷기 커서가 남았습니다 — '
-            '2회차가 엉뚱한 쪽부터 걷는 것처럼 보입니다.'
+        assert getattr(f, 'next_page_from', None) == 6, (
+            f'이어걷기 커서가 {getattr(f, "next_page_from", None)} 입니다 — 6이어야 합니다.'
         )
     finally:
         s.close()

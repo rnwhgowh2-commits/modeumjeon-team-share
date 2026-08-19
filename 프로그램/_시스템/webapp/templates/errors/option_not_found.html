@@ -1,16 +1,24 @@
 {% extends 'base.html' %}
-{% block title %}옵션을 찾을 수 없음{% endblock %}
+{# [2026-08-12] 이 화면 하나를 넷이 나눠 쓴다 — 모음전 옵션 · 옵션 묶음 · 상품생성 · 정책.
+   그래서 「무엇을 못 찾았나(what)」와 「값의 이름표(code_label·sku_label)」를 부르는 쪽이 정한다.
+   🔴 안 넘기면 종전 그대로(옵션 · 모음전 코드 · 옵션 SKU) — 맞게 쓰던 곳을 안 건드린다.
+   ⚠️ 조사는 「을」로 고정 — 지금 쓰는 말(옵션·정책·모음전)이 모두 받침으로 끝나서 맞다.
+      받침 없는 말을 넣을 일이 생기면 그때 조사 계산을 붙여야 한다. #}
+{# 🔴 `{% set %}` 을 블록 밖에 두면 블록 안에서 안 보인다 — 자리마다 인라인으로 쓴다. #}
+{% block title %}{{ what|default('옵션') }}을 찾을 수 없음{% endblock %}
 {% block content %}
 <div style="padding:48px 32px;max-width:680px;margin:48px auto;background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;text-align:center">
   <div style="font-size:48px;margin-bottom:12px">🔍</div>
-  <h1 style="font-size:24px;font-weight:700;margin:0 0 8px 0;color:var(--ink,#292A2F)">옵션을 찾을 수 없습니다</h1>
+  <h1 style="font-size:24px;font-weight:700;margin:0 0 8px 0;color:var(--ink,#292A2F)">{{ what|default('옵션') }}을 찾을 수 없습니다</h1>
   <p style="font-size:14px;color:var(--글자-보조,#6B7684);line-height:1.7;margin:0 0 24px 0">
-    요청하신 옵션 페이지가 더 이상 존재하지 않거나, 모음전이 삭제·이름 변경됐을 수 있어요.<br>
+    요청하신 {{ what|default('옵션') }} 페이지가 더 이상 존재하지 않거나, 삭제·이름 변경됐을 수 있어요.<br>
     북마크·즐겨찾기·옛 링크에서 이동하신 경우 이 페이지가 나옵니다.
   </p>
+  {# 🔴 값이 없는 줄은 아예 안 그린다 — 빈 칸에 이름표만 붙여 두면
+     「불러오다 실패한 것」과 「원래 없는 것」이 같은 얼굴이 된다. #}
   <div style="background:var(--bg,#F9FAFB);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;text-align:left;font-size: 14px;color:var(--글자-보조,#6B7684);font-family:ui-monospace,monospace;margin-bottom:24px">
-    <div>모음전 코드: <strong style="color:var(--ink,#292A2F)">{{ requested_code }}</strong></div>
-    <div>옵션 SKU: <strong style="color:var(--ink,#292A2F)">{{ requested_sku }}</strong></div>
+    {% if requested_code %}<div>{{ code_label|default('모음전 코드') }}: <strong style="color:var(--ink,#292A2F)">{{ requested_code }}</strong></div>{% endif %}
+    {% if requested_sku %}<div>{{ sku_label|default('옵션 SKU') }}: <strong style="color:var(--ink,#292A2F)">{{ requested_sku }}</strong></div>{% endif %}
   </div>
   <div style="display:flex;gap:8px;justify-content:center">
     <a href="{{ url_for('bundles.bundle_list') }}" style="background:var(--primary,#4F67FF);color:#fff;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none">모음전 목록으로</a>

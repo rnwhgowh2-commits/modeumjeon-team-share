@@ -168,6 +168,38 @@ def test_옵션은_구성이_정한_순서로_실린다(s):
     assert got[0]['color'] == '검정' and got[0]['size'] == 'L'
 
 
+def test_옵션마다_모델명이_실린다_색상모음전(s):
+    """[2026-08-13] 옵션 행에 `model` 칸을 만들었다 — 3갈래 전송의 첫 갈래다.
+
+    모델 축이 없는 색상모음전은 **매트릭스 이름이 곧 모델명**이다
+    (`matrix/option_name.model_name_of` 독스트링). 그래서 **비는 옵션이 없다.**
+    """
+    _model(s, name='기본 티셔츠')
+    _option(s, 'M1', 'SKU-A', '검정', 'L', 5)
+    ps = _set(s, skus=('SKU-A',))
+    got = json.loads(TP.set_view(s, set_id=ps.id).options_json)
+    assert got[0]['model'] == '기본 티셔츠', got[0]
+
+
+def test_모델모음전은_옵션마다_모델명이_다르다(s):
+    """모델 축이 있으면 **그 축의 값**이 모델명이다 — 옵션마다 다르다.
+
+    이 칸이 없어서 3갈래(모델명·색상·사이즈) 전송이 막혀 있었다.
+    """
+    from lemouton.sourcing.models import BundleOptionStep
+    _model(s, name='모음전이름')
+    for sku, mdl in (('SKU-A', '메이트'), ('SKU-B', '스위트')):
+        o = _option(s, 'M1', sku, '블랙', '260', 5)
+        o.axis_values_json = json.dumps([mdl, '블랙', '260'], ensure_ascii=False)
+    for i, nm in enumerate(('모델', '색상', '사이즈'), start=1):
+        s.add(BundleOptionStep(model_code='M1', step_no=i, axis_name=nm,
+                               values_json='[]'))
+    s.flush()
+    ps = _set(s, skus=('SKU-A', 'SKU-B'))
+    got = json.loads(TP.set_view(s, set_id=ps.id).options_json)
+    assert [o['model'] for o in got] == ['메이트', '스위트'], got
+
+
 def test_재고를_지어내지_않는다(s):
     """🔴 재고 칸을 **아예 안 싣는다**.
 

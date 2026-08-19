@@ -247,9 +247,41 @@ def _judge_money(shop, ours, repro: set) -> str:
     return "diff"
 
 
-def _compare(sm: dict, our: dict) -> dict:
-    """페어 1건의 필드별 판정."""
-    out = {}
+#: 노랑 사유 이름 — 화면이 그대로 보여준다. 짧고 뜻이 담기게.
+REASON_SHIP_FEE = "배송비 수수료 차이 (샵마인=고객배송비 전액 / 우리=수수료 뗀 실값)"
+REASON_ROUNDING = "반올림 규칙 차이 (±6원)"
+REASON_UNKNOWN = "설명 못 함 — 확인 필요"
+
+
+def _settle_reason(sm: dict, our: dict, ours, verdict: str) -> str:
+    """[2026-08-13] 노랑이 **왜** 노란지. 초록·빨강엔 안 붙인다(설명이 필요 없다).
+
+    🔴 지어내지 않는다 — 그 줄의 배송비·배송비 정산 **실값으로 계산해서** 차이가
+      정확히 맞아떨어질 때만 「배송비 수수료 차이」라고 부른다. 같은 노랑이어도
+      원인이 다를 수 있고, 뭉뚱그리면 화면이 거짓말을 한다.
+
+    배경 — 2026-08-12 에 배송비도 수수료를 떼도록 고치면서 우리 값이 샵마인보다
+    배송비 수수료만큼 작아졌다(쿠팡 실측 132원 · 라이브 2,072건).
+        샵마인 = 실결제 − 수수료 + **고객배송비 전액**
+        우리   = 상품정산 + **배송비 정산 실값**(마켓이 수수료를 뗀 뒤)
+    """
+    if verdict == "tol":
+        return REASON_ROUNDING
+    if verdict != "def":
+        return ""
+    shop = sm.get("settle_incl")
+    if shop is None or ours is None:
+        return REASON_UNKNOWN
+    ship = _num(our.get("배송비")) or 0
+    ship_settle = _num(our.get("_ship_settle"))
+    if ship_settle is not None and (shop - ours) == (ship - ship_settle):
+        return REASON_SHIP_FEE
+    return REASON_UNKNOWN
+
+
+def _compare(sm: dict, our: dict) -> tuple[dict, dict]:
+    """페어 1건의 (필드별 판정, 필드별 사유). 사유는 노랑(tol·def)에만 채운다."""
+    out, why = {}, {}
     out["date"] = _verdict_eq(sm.get("order_date") or None,
                               (_norm_date(our.get("주문일")) or None))
     out["qty"] = _verdict_eq(sm.get("qty"), _num(our.get("수량")))
@@ -257,10 +289,11 @@ def _compare(sm: dict, our: dict) -> dict:
     out["paid"] = _judge_money(sm.get("paid"), _num(our.get("실결제금액")),
                                _paid_reproductions(sm, our))
     st_ours, comparable = _our_settle_incl(our)
-    out["settle"] = _judge_money(sm.get("settle_incl"),
-                                 st_ours if comparable else None,
+    ours = st_ours if comparable else None
+    out["settle"] = _judge_money(sm.get("settle_incl"), ours,
                                  _settle_reproductions(sm))
-    return out
+    why["settle"] = _settle_reason(sm, our, ours, out["settle"])
+    return out, why
 
 
 # ── 페어링 ───────────────────────────────────────────────────────────────
@@ -323,6 +356,8 @@ def reconcile(sm_rows: list[dict], our_rows: list[dict]) -> dict:
         sm_groups[(r["market"], r["order_no"])].append(r)
 
     fields: dict = {}
+    def_reasons: dict = {}      # {마켓: {필드: {사유: {건수, 금액합}}}} — 노랑이 왜 노란지
+    defs: list = []             # 노랑 표본 (종전엔 빨강만 표본이 있었다)
     missing, mismatch, undecided = [], [], []
     missing_total = mismatch_total = undecided_total = 0
     found_orders = 0
@@ -360,9 +395,26 @@ def reconcile(sm_rows: list[dict], our_rows: list[dict]) -> dict:
                     "qty": s.get("qty"),
                     "our_options": [str(o.get("옵션") or "") for o in our_lines][:6]})
         for s, o in pairs:
-            verdicts = _compare(s, o)
+            verdicts, whys = _compare(s, o)
             for fld, v in verdicts.items():
                 _f(mk, fld)[v] += 1
+                # ── 노랑(정의차이)에 사유를 남긴다 (2026-08-13 사장님 확정) ──
+                #   건수만 세면 「132원짜리 2,072건」인지 「큰 금액 몇 건」인지 못 가른다.
+                #   그래서 **금액 차이 합**도 같이 모은다.
+                why = whys.get(fld) or ""
+                if v == "def" and why:
+                    shop_v, our_v = _shop_field_value(s, fld), _our_field_value(o, fld)
+                    ent = def_reasons.setdefault(mk, {}).setdefault(
+                        fld, {}).setdefault(why, {"건수": 0, "금액합": 0})
+                    ent["건수"] += 1
+                    if isinstance(shop_v, int) and isinstance(our_v, int):
+                        ent["금액합"] += shop_v - our_v
+                    if len(defs) < _DETAIL_CAP:
+                        defs.append({
+                            "market": mk, "order_no": no, "field": fld,
+                            "sm_alias": s.get("sm_alias") or "",
+                            "product": (s.get("product") or "")[:60],
+                            "shop": shop_v, "ours": our_v, "reason": why})
                 if v == "diff":
                     mismatch_total += 1
                     if len(mismatch) < _DETAIL_CAP:
@@ -387,6 +439,8 @@ def reconcile(sm_rows: list[dict], our_rows: list[dict]) -> dict:
                       "missing": sm_order_total - found_orders},
         "accounts": accounts,
         "fields": fields,
+        # 노랑(정의차이)이 왜 노란지 — 「1건=5만원 정합성」 화면이 이유를 말할 수 있게.
+        "def_reasons": def_reasons, "defs": defs,
         "missing": missing, "missing_total": missing_total,
         "mismatch": mismatch, "mismatch_total": mismatch_total,
         "undecided": undecided, "undecided_total": undecided_total,

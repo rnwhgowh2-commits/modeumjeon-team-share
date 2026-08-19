@@ -360,10 +360,24 @@ def _attach_model(session, mo, rows) -> list[str]:
        「메이트 블랙 250」과 「데일리 블랙 250」이 **같은 칸 하나에 겹쳤다**
        (실측: 옵션 3개 → 격자 2칸). 모델을 격자 위 탭으로 갈라 준다.
 
-    모델이 없는(색상모음전) 묶음은 빈 목록 — 화면이 탭을 안 그린다.
+    모델이 없고 따로 적어 둔 모델명도 없는 묶음은 빈 목록 — 화면이 오늘 그대로 그린다.
+
+    🔴 [2026-08-13] 여기는 **모델명을 알면서 빈 값을 내놓던 유일한 자리**였다.
+       `model_name_of('', …)` 로 매트릭스 이름을 일부러 빈 문자열로 넘겼기 때문에,
+       축 값을 못 믿는 옛 옵션(`len(vals) != len(names)`)은 모델명이 '' 이 되고
+       격자에서 **조용히 사라졌다**(그 칸을 그리는 열쇠가 없어진다).
+       그런데 그 옵션도 마켓에는 매트릭스 이름을 모델명으로 달고 나간다
+       (`policy/to_payload._options_json`). 화면과 나가는 값이 달랐던 것이다.
+       → 진짜 이름을 넘긴다. 「보는 것 = 나가는 것」.
+
+    🔴 넘기는 이름은 `mo.name`(매트릭스 이름)이 **아니라 모델(Model) 이름**이다.
+       전송·대조가 모두 모델 이름을 쓰기 때문이다(to_payload·set_link_service·
+       optgen box 셋 다 `model_name_display or model_name_raw or model_code`).
+       파생 매트릭스도 옵션의 주인은 원본의 모델이라 같은 행을 본다.
+       여기만 다른 이름을 쓰면 화면과 마켓이 또 갈린다.
     """
     from lemouton.matrix.option_name import model_name_of
-    from lemouton.sourcing.models import BundleOptionStep, Option
+    from lemouton.sourcing.models import BundleOptionStep, Model, Option
 
     origin_code = mo.model_code
     if origin_code is None:                       # 파생 — 원본에서 축을 읽는다
@@ -374,8 +388,17 @@ def _attach_model(session, mo, rows) -> list[str]:
                    .filter_by(model_code=origin_code)
                    .order_by(BundleOptionStep.step_no).all()]
                   if origin_code else [])
+    m = session.get(Model, origin_code) if origin_code else None
+    origin_name = ((m.model_name_display or m.model_name_raw or m.model_code)
+                   if m is not None else (mo.name or ''))
+    bundle_model_name = m.bundle_model_name if m is not None else None
+
     from lemouton.sourcing.axis_slot import is_model_axis
-    if not any(is_model_axis(a) for a in axis_names):
+    # 모델 축도 없고 따로 적어 둔 모델명도 없으면 — 오늘 그대로(모델명 없음).
+    #   🔴 「축이 없다」만으로 걸러내면, 색상모음전에 모델명을 적어 둔 묶음이
+    #      화면에서만 모델명을 잃는다. 조건을 둘 다 없을 때로 좁힌다.
+    if not any(is_model_axis(a) for a in axis_names) and not (
+            bundle_model_name or '').strip():
         for r in rows:
             r['model'] = ''
         return []
@@ -386,7 +409,9 @@ def _attach_model(session, mo, rows) -> list[str]:
     models: list[str] = []
     for r in rows:
         o = opts.get(r['sku'])
-        nm = model_name_of('', o, axis_names) if o is not None else ''
+        nm = (model_name_of(origin_name, o, axis_names,
+                            bundle_model_name=bundle_model_name)
+              if o is not None else '')
         r['model'] = nm
         if nm and nm not in models:
             models.append(nm)
@@ -495,8 +520,11 @@ def matrix_detail(mo_id: int):
     """
     ctx = detail_context(mo_id)
     if ctx is None:
+        # 🔴 종전엔 「모음전 코드: 매트릭스 옵션」으로 떴다 — 이름표도 값도 틀렸다.
+        #   여기서 못 찾은 것은 **옵션 묶음 번호**(mo_id) 하나뿐이다.
         return render_template('errors/option_not_found.html', active='matrix',
-                               requested_code='매트릭스 옵션',
+                               requested_code='',
+                               sku_label='옵션 묶음 번호',
                                requested_sku=str(mo_id)), 404
     return render_template('matrix/detail.html', active='matrix',
                            assembly=False, detail_base='/matrix/', **ctx)

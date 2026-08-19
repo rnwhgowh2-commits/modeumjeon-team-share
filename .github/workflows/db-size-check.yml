@@ -1,0 +1,102 @@
+# ════════════════════════════════════════════════════════════
+# DB 용량 재기 — 「무엇이 얼마나 먹는지」를 사람 손 안 거치고 본다
+# ════════════════════════════════════════════════════════════
+# 왜 필요한가 (2026-08-19):
+#   수파베이스 무료 한도는 전송량 5GB + **용량 500MB** 두 가지다.
+#   전송량은 크롤 대기열이 상품 상세 HTML 을 통째로 읽던 것을 고쳐 해결했지만
+#   (PR #1067), 용량은 여전히 **732MB 로 한도 초과** 상태다.
+#   무엇이 먹는지 알려면 라이브 DB 에 붙어야 하는데, 그 비밀번호를 사람이
+#   주고받으면 그 자체가 위험하다. → 이미 등록된 저장소 시크릿을 쓴다.
+#   (「돈 무결성 매일 점검」이 쓰는 것과 같은 DATABASE_URL)
+#
+# 🔴 기본은 읽기 전용이다. 「재기」·「미리보기」는 어떤 행도 안 고친다.
+#    지우기(apply)는 손으로 mode 를 바꿔야만 돌고, 지우는 건 **값이 안 바뀐
+#    중복 줄** 뿐이다(가격이 변한 시점은 전부 남는다 → 추이 그래프 그대로).
+#
+# ⚠️ apply 는 VACUUM FULL 로 공간을 실제로 반납하는데, 그동안 그 표에
+#    **배타 잠금**이 걸린다. 사장님이 안 쓰는 시간에 돌릴 것.
+# ════════════════════════════════════════════════════════════
+name: DB 용량 재기
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '무엇을 할지'
+        required: true
+        default: measure
+        type: choice
+        options:
+          - measure     # 재기만 (읽기 전용 — 기본)
+          - preview     # 지우면 얼마나 줄지 (안 지움)
+          - apply       # 실제로 지우고 공간 반납 (배타 잠금 주의)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-size-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: 표별 용량 보고
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 프로그램/_시스템
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: 프로그램/_시스템/requirements.txt
+
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 시크릿이 비어 있으면 SQLite 로 폴백해 「0 MB」 같은 거짓 초록불이 뜬다.
+      #   그 전에 끊어서 원인을 한 줄로 말해 준다. (모르면 모른다고 한다)
+      - name: 라이브 DB 에 붙는지 먼저 확인
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          case "$DATABASE_URL" in
+            postgresql://*|postgres://*)
+              echo "[db-size] 라이브 PostgreSQL 확인 — 진행합니다." ;;
+            "")
+              echo "::error::DATABASE_URL 시크릿이 비어 있습니다 — 라이브 용량을 못 봅니다."
+              exit 1 ;;
+            *)
+              echo "::error::DATABASE_URL 이 PostgreSQL 이 아닙니다 — 라이브가 아닌 곳을 볼 뻔했습니다."
+              exit 1 ;;
+          esac
+
+      - name: 용량 재기
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          # tee 를 거치면 파이썬이 실패해도 성공으로 보인다 — pipefail 로 막는다.
+          set -o pipefail
+          MODE='${{ inputs.mode }}'
+          case "$MODE" in
+            measure) python scripts/db_slim.py             | tee /tmp/out.txt ;;
+            preview) python scripts/db_slim.py --preview   | tee /tmp/out.txt ;;
+            apply)   python scripts/db_slim.py --apply     | tee /tmp/out.txt ;;
+          esac
+
+      - name: 결과를 요약에 붙이기 (로그 안 뒤져도 보이게)
+        if: always()
+        run: |
+          {
+            echo "## DB 용량 (${{ inputs.mode }})"
+            echo ''
+            echo '```'
+            cat /tmp/out.txt 2>/dev/null || echo '(출력 없음)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

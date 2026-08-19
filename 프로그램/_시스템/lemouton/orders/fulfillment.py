@@ -260,6 +260,76 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
     return out
 
 
+def request_recheck(session, rows, *, now=None) -> dict:
+    """이행 판단 ② — 「값이 바뀌는 상품」만 다시 긁도록 **확인 요청** 표식을 찍는다.
+
+    사장님 확정(2026-08-13): *"변경값 없는건 저장된 크롤값 그대로 + 변경값있는건
+    새로 긁고 판정. 해당 주문건에 소싱처 url 있는것만 긁으면 돼"*
+    「변경값」 = **그 상품의 가격·재고가 바뀐 것**.
+
+    🔴 그 신호를 새로 만들지 않는다 — 크롤이 이미 남긴다. `_record_crawl_delta` 가
+      가격·재고가 바뀌면 `no_change_streak = 0`, 안 바뀌면 +1 로 쌓는다.
+      그래서 **`no_change_streak == 0` = 마지막 크롤에서 값이 바뀐 상품**이다.
+      값이 늘 그대로인 상품(streak 가 쌓인 것)은 저장된 크롤값을 그대로 쓴다 —
+      그게 「수백~수천 건을 매번 다 긁지 말라」는 요구의 알맹이다.
+
+    🔴 표식만 찍고 **여기서 긁지 않는다.** 크롤은 사장님 PC 확장이 한다(서버는 IP 가
+      다르다). 표식은 두 마감 경로(벽시계·랩)가 모두 읽어 맨 앞으로 올린다.
+
+    반환: 무엇을 왜 골랐는지 — 숫자만 주면 「왜 3건뿐이지?」에 답할 수 없다.
+    """
+    import datetime as _dt
+
+    from lemouton.claims.service import claim_type_of
+    from lemouton.orders import price_diff as _pd
+    from lemouton.sources.models import ModelSourceLink, SourceProduct
+    from lemouton.sourcing.models import Option
+
+    now = now or _dt.datetime.utcnow()
+    rows = [r for r in (rows or []) if not claim_type_of(r)]
+    out = {'요청': 0, '대상주문': 0, '값이_안_바뀌는_상품': 0,
+           '소싱처URL_없음': 0, '크롤제외': 0, '우리상품아님': 0}
+    if not rows:
+        return out
+
+    try:
+        targets = _pd.resolve_targets_verbose(session, rows)
+    except Exception:                       # noqa: BLE001
+        logger.exception('확인 요청 — 주문→옵션 매칭 실패 %d건', len(rows))
+        return dict(out, 오류='주문을 우리 상품과 잇지 못했어요')
+    skus = sorted({v['sku'] for v in (targets or {}).values() if v.get('sku')})
+    out['대상주문'] = len(skus)
+    out['우리상품아님'] = sum(1 for v in (targets or {}).values() if not v.get('sku'))
+    if not skus:
+        return out
+
+    models = sorted({m for (m,) in session.query(Option.model_code)
+                     .filter(Option.canonical_sku.in_(skus)).distinct().all() if m})
+    if not models:
+        return out
+    sp_ids = [i for (i,) in session.query(ModelSourceLink.source_product_id)
+              .filter(ModelSourceLink.model_code.in_(models)).distinct().all()]
+    if not sp_ids:
+        out['소싱처URL_없음'] = len(skus)
+        return out
+
+    for sp in (session.query(SourceProduct)
+               .filter(SourceProduct.id.in_(sp_ids),
+                       SourceProduct.deleted_at.is_(None)).all()):
+        if not (sp.url or '').strip():
+            out['소싱처URL_없음'] += 1        # 볼 주소가 없다 — 긁을 수 없다
+            continue
+        if int(sp.crawl_weight or 0) <= 0:
+            out['크롤제외'] += 1              # 「안 긁는다」고 정해 둔 것 — 뒤집지 않는다
+            continue
+        if int(sp.no_change_streak or 0) > 0:
+            out['값이_안_바뀌는_상품'] += 1     # 저장된 크롤값 그대로 쓴다
+            continue
+        sp.recheck_requested_at = now
+        out['요청'] += 1
+    return out
+
+
 def summarize(result: dict) -> dict:
     """탭 머리에 붙일 건수 — {이행, 미이행, 클레임, 사유별}."""
     counts = {GROUP_FULFILL: 0, GROUP_UNFULFILL: 0, GROUP_CLAIM: 0}

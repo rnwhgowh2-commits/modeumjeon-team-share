@@ -171,7 +171,11 @@ def _target_index(session, *, option_ids=None, product_ids=None):
     pids = [str(v) for v in (product_ids or []) if v not in (None, "")]
     # 🔴 두 조회는 **각자 자기 칸만** 채운다. 한 덩어리로 합치면 같은 행이 두 조회에
     #   걸려 후보가 두 번 쌓이고, 「후보가 하나일 때만 인정」 규약이 흔들린다.
-    for i in range(0, len(oids), 900):               # SQLite IN 한도(999) 회피
+    # 🔴 [2026-08-14] 여기 적혀 있던 「SQLite IN 한도(999)」는 **틀린 근거**였다
+    #    (999 는 SQLite 3.32 이전 기본값). 실측 한도와 자르는 진짜 이유는
+    #    `lemouton/matrix/readiness._CHUNK` 옆 한 곳에만 적어 뒀다. 자르는 것 자체는
+    #    그대로 둔다 — 안 자르면 주문 줄이 쌓인 날에만 조회가 통째로 실패한다.
+    for i in range(0, len(oids), 900):
         _fill(q.filter(SetChannelOption.market_option_id.in_(oids[i:i + 900])).all(),
               into_product=False)
     for i in range(0, len(pids), 900):

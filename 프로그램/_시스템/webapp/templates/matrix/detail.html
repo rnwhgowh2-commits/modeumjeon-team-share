@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}{{ mo.name }} — 매트릭스 옵션{% endblock %}
+{% block title %}{{ mo.name }} — 옵션관리{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-matrix-detail">
   <style>
@@ -8,7 +8,7 @@
     .mxd-h h1{font-size:24px;font-weight:700;margin:0}
     .mxd-no{font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본,#4E5968);
             background:var(--n100,#F2F4F6);padding:4px 8px;border-radius:8px;letter-spacing:.2px}
-    .mxd-badge{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px}
+    .mxd-badge{font-size:12px;font-weight:700;padding:0px 8px;border-radius:999px}
     .mxd-badge.o{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .mxd-badge.d{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
     .mxd-sub{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
@@ -31,7 +31,7 @@
     /* [2026-08-12 노션 상품 a-2] `width:100%` 였을 때 사이즈가 3개뿐이면 남는 폭을
        첫 열(색상＼사이즈)이 다 먹어 **394px**(표 전체 787px)이 됐다 — 라이브 실측.
        칸 폭은 내용에 맞추고, 넘치면 감싼 상자(overflow:auto)가 안에서만 굴러간다. */
-    .mxsel{border-collapse:collapse;font-size:11px;width:auto}
+    .mxsel{border-collapse:collapse;font-size:12px;width:auto}
     .mxsel thead th:first-child,.mxsel tbody th{width:1px;white-space:nowrap}
     .mxsel thead th:not(:first-child),.mxsel td{min-width:54px}
     .mxsel th{background:var(--n100,#F2F4F6);padding:8px 4px;border:1px solid var(--line,#E5E8EB);font-weight:600;
@@ -40,12 +40,19 @@
     .mxsel th.pick:hover{background:var(--line,#E4E8EC)}
     .mxsel th.hit{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border-color:var(--primary,#3182F6)}
     .mxsel td{padding:0;border:1px solid var(--n100,#F2F4F6);text-align:center}
-    .mxsel td .cell{padding:8px 4px;cursor:pointer;user-select:none;color:var(--sub,#8B95A1);font-size:11px}
+    .mxsel td .cell{padding:8px 4px;cursor:pointer;user-select:none;color:var(--sub,#8B95A1);font-size:12px}
     .mxsel td .cell:hover{background:var(--연한-파랑,#EEF4FF);}
     .mxsel td.on .cell{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;font-weight:700}
     .mxsel td.none .cell{background:var(--n100,#FAFAFB);color: var(--글자-희미, var(--line,#DDE1E6));cursor:not-allowed}
     .mxsel td.armed .cell{}
-    .gridnote{font-size:11px;color:var(--sub,#8B95A1);margin-top:8px;line-height:1.6}
+  /* 🔴 [2026-08-13 4안] 가로가 「모델 × 사이즈」라 길어진다 —
+     감싼 판이 옆으로 굴러가고(이미 overflow:auto), 왼쪽 색상 칸은 **붙박이**로 둔다.
+     안 그러면 옆으로 밀었을 때 어느 색 줄인지 알 수 없다. */
+  .mxsel .mxstick{position:sticky;left:0;z-index:3;background:var(--n100,#F2F4F6)}
+  .mxsel thead .mxstick{z-index:4}
+  .mxsel th.mxgrp{background:var(--연한-파랑,#E9EEF5);color:var(--글자-기본,#333D4B)}
+    /* 글자 바닥선 12px 은 main(#993) 규칙 — 내 11px 을 덮어쓰지 않고 그쪽을 따른다 */
+    .gridnote{font-size:12px;color:var(--sub,#8B95A1);margin-top:8px;line-height:1.6}
 
     .pickbar{display:flex;align-items:center;gap:12px;padding:12px 12px;background:var(--연한-파랑,#E8F2FF);
              border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;margin-top:12px;flex-wrap:wrap}
@@ -69,20 +76,20 @@
     .hintbox b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
 
     table.t{width:100%;border-collapse:collapse;font-size:12px}
-    table.t th{background:var(--n100,#F2F4F6);font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);padding:8px 8px;
+    table.t th{background:var(--n100,#F2F4F6);font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);padding:8px 8px;
                border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap}
     table.t td{padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
     .ta-l{text-align:left}.ta-c{text-align:center}
     .ta-r{text-align:right;font-variant-numeric:tabular-nums}
-    .unit{font-size:11px;color:var(--sub,#8B95A1);margin-left:0px}
-    .code{font-family:ui-monospace,monospace;font-size:11px;background:var(--n100,#F2F4F6);
+    .unit{font-size:12px;color:var(--sub,#8B95A1);margin-left:0px}
+    .code{font-family:ui-monospace,monospace;font-size:12px;background:var(--n100,#F2F4F6);
           padding:0px 4px;border-radius:8px}
     /* [2026-08-12 노션 상품 b-1] 이미 만든 상품 카드 + 「또 만들기」 접힘 */
     .madebox{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px;margin-bottom:8px}
     .madeline{font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .madesub{font-size:11.5px;color:var(--sub,#8B95A1);margin-top:4px;line-height:1.6}
+    .madesub{font-size:12px;color:var(--sub,#8B95A1);margin-top:4px;line-height:1.6}
     .madelinks{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    .madelinks a{font-size:11.5px;font-weight:700;text-decoration:none;
+    .madelinks a{font-size:12px;font-weight:700;text-decoration:none;
       color:var(--글자-파랑,#0066CC);border:1px solid var(--line,#E5E8EB);
       border-radius:8px;padding:5px 10px}
     .madelinks a:hover{border-color:var(--primary,#3182F6)}
@@ -91,7 +98,7 @@
     .warnline{font-size:12px;color:var(--글자-주황,#9A5B00);
       background:var(--연한-주황,#FFFBEB);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.6}
     /* 그때 담은 칸 — 격자에서 옅은 초록 테두리로만 표시(고른 칸의 파랑과 안 겹치게) */
-    .mxsel td.made{box-shadow:inset 0 0 0 2px var(--ap-green,#34C759)}
+    .mxsel td.made{}
     /* [2026-08-12 B2] 격자 위 모델 탭 */
     .mg-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
     .mg-tab{padding:5px 12px;font-size:12px;border-radius:999px;
@@ -99,7 +106,7 @@
       color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit}
     .mg-tab.on{background:var(--연한-파랑,#E8F2FF);color:#1B64DA;
       border-color:#1B64DA;font-weight:700}
-    .mg-n{font-size:11px;color:var(--sub,#8B95A1);margin-left:4px}
+    .mg-n{font-size:12px;color:var(--sub,#8B95A1);margin-left:4px}
     .mg-tab.on .mg-n{color:inherit}
     .dlist a{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
              padding:8px 12px;margin:0 4px 4px 0;text-decoration:none;color:inherit;font-size:12px}
@@ -118,17 +125,17 @@
   {% if assembly %}
   <a class="mxd-back" href="/optgen?tab=product">← 모음전 상품 생성 목록</a>
   {% else %}
-  <a class="mxd-back" href="/matrix">← 매트릭스 옵션 목록</a>
+  <a class="mxd-back" href="/matrix">← 옵션관리 목록</a>
   {% endif %}
   <div class="mxd-h">
     <h1>{{ mo.name }}</h1>
     <span class="mxd-badge {{ 'o' if mo.kind == 'origin' else 'd' }}">{{ '원본' if mo.kind == 'origin' else '파생' }}</span>
     <span class="mxd-no">{{ mo.no or '번호 대기' }}</span>
-    {# [2026-08-12 사장님 확정 1안] 지우기는 **작업하는 화면(조립대)에만** 둔다.
+    {# [2026-08-12 사장님 확정 1안] 삭제는 **작업하는 화면(조립대)에만** 둔다.
        상품관리 쪽 옵션관리는 코드가 「보기 전용」이라 못 박은 화면이라 넣지 않는다. #}
     {% if assembly and mo.model_code %}
     <button class="mxd-del" type="button" data-del="{{ mo.model_code }}"
-            data-name="{{ mo.name }}" data-opts="{{ rows|length }}">🗑 이 묶음 지우기</button>
+            data-name="{{ mo.name }}" data-opts="{{ rows|length }}">🗑 이 묶음 삭제</button>
     {% endif %}
   </div>
   <div class="mxd-sub">
@@ -315,9 +322,13 @@ const MODELS = {{ (models or [])|tojson }};
 let curModel = MODELS.length ? MODELS[0] : null;
 const inModel = r => !curModel || r.model === curModel;
 let byKey = {};
+/* 🔴 [2026-08-13 사장님 확정 4안] 열쇠에 **모델**을 넣는다.
+   예전엔 `색+사이즈` 뿐이라 모델만 다른 옵션이 같은 칸을 덮어썼다
+   (실측: 3축 옵션 3개 → 격자 2칸). 모델이 다르면 다른 칸이다. */
+const KEY = (m, c, z) => JSON.stringify([m || '', c, z]);
 function reindex(){
   byKey = {};
-  ROWS.filter(inModel).forEach(r => byKey[r.color + ' ' + r.size] = r);
+  ROWS.forEach(r => byKey[KEY(r.model, r.color, r.size)] = r);
 }
 reindex();
 const fmt = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
@@ -349,7 +360,7 @@ function popHTML(r){
   let tr = r.sources.map(s =>
     '<tr' + (best && s === best ? ' style="background:var(--연한-초록,#F0FDF4)"' : '') + '>'
     + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:left">' + s.label
-    + (best && s === best ? ' <span style="font-size:11px;font-weight:700;color:var(--green,#15803D)">최저</span>' : '') + '</td>'
+    + (best && s === best ? ' <span style="font-size:12px;font-weight:700;color:var(--green,#15803D)">최저</span>' : '') + '</td>'
     + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:left">'
     + (s.no ? '<span class="code">' + s.no + '</span>' : '<span style="color:var(--sub,#8B95A1)">번호 없음</span>') + '</td>'
     + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:right;'
@@ -369,21 +380,21 @@ function popHTML(r){
   if (!r.sources.length) tr = '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--sub,#8B95A1)">아직 어느 소싱처에도 연결되지 않았어요</td></tr>';
   return '<div style="padding:12px 16px;border-bottom:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);border-radius:12px 12px 0 0">'
     + '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + r.color + ' · ' + r.size + '</div>'
-    + '<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--글자-기본,#4E5968);flex-wrap:wrap">'
+    + '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--글자-기본,#4E5968);flex-wrap:wrap">'
     + '<span class="code">' + r.sku + '</span>'
     + (r.article_no ? '<span style="color:var(--sub,#8B95A1)">브랜드 품번 ' + r.article_no + '</span>' : '')
     + '</div></div>'
     + '<table style="border-collapse:collapse;font-size:12px;width:100%"><thead><tr>'
-    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:left">소싱처</th>'
-    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:left">소싱처 옵션 관리번호</th>'
-    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:right"'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:12px;color:var(--글자-기본,#4E5968);text-align:left">소싱처</th>'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:12px;color:var(--글자-기본,#4E5968);text-align:left">소싱처 옵션 관리번호</th>'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:12px;color:var(--글자-기본,#4E5968);text-align:right"'
     + ' title="소싱처 페이지에 크게 적힌 값">표면가</th>'
-    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:right"'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:12px;color:var(--글자-기본,#4E5968);text-align:right"'
     + ' title="표면가에서 혜택(적립·할인·쿠폰·카드)을 뺀 값 — 소싱처 크롤 기준 예상이에요.'
     + ' 실제로 사고 낸 값은 주문 내역의 「실매입가」입니다.">최종매입가</th>'
-    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:center">바로가기</th>'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:12px;color:var(--글자-기본,#4E5968);text-align:center">바로가기</th>'
     + '</tr></thead><tbody>' + tr + '</tbody></table>'
-    + '<div style="padding:8px 16px;border-top:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);font-size:11px;'
+    + '<div style="padding:8px 16px;border-top:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);font-size:12px;'
     + 'color:var(--sub,#8B95A1);border-radius:0 0 12px 12px;display:flex;gap:12px;flex-wrap:wrap">'
     + '<span>최저 최종매입가 <b style="color:var(--ink,#191F28);font-variant-numeric:tabular-nums">'
     + (r.min_final ? fmt(r.min_final) + '원' : '확인 불가') + '</b></span>'
@@ -394,7 +405,7 @@ function popHTML(r){
        칸마다 미리 불러오면 격자를 훑기만 해도 요청이 쏟아진다. */
     + '<button type="button" id="phbtn" data-sku="' + r.sku + '" style="margin-left:auto;'
     + 'background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:7px;'
-    + 'padding:3px 9px;font-size:11px;font-family:inherit;cursor:pointer;'
+    + 'padding:3px 9px;font-size:12px;font-family:inherit;cursor:pointer;'
     + 'color:var(--글자-기본,#4E5968)">📈 가격 흐름</button>'
     + '<div id="phbox" style="width:100%;margin-top:8px"></div></div>';
 }
@@ -406,7 +417,7 @@ function phDraw(box, j){
   const sites = Object.keys(j.points || {});
   const flat = sites.flatMap(s => j.points[s].filter(p => p.price != null));
   if (!flat.length){
-    box.innerHTML = '<div style="color:var(--sub,#8B95A1);font-size:11px;line-height:1.6">'
+    box.innerHTML = '<div style="color:var(--sub,#8B95A1);font-size:12px;line-height:1.6">'
       + esc(j.note || '아직 쌓인 값이 없어요.') + '</div>';
     return;
   }
@@ -431,7 +442,7 @@ function phDraw(box, j){
     + esc(s) + '</span>').join('');
   box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:90px">'
     + lines + '</svg>'
-    + '<div style="font-size:11px;color:var(--sub,#8B95A1);line-height:1.7">' + legend
+    + '<div style="font-size:12px;color:var(--sub,#8B95A1);line-height:1.7">' + legend
     + '<br>' + fmt(y0) + '원 ~ ' + fmt(y1) + '원 · 최근 ' + j.days + '일 · ' + esc(j.note) + '</div>';
 }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g,
@@ -481,25 +492,50 @@ const CANPICK = EDITABLE && ASSEMBLY;
 function build(){
   /* 고른 모델에 실제로 있는 색·사이즈만 축으로 세운다 — 없는 칸을 회색으로 늘어놓으면
      「그 모델에 그 조합이 있다」로 잘못 읽힌다. */
-  const rs = ROWS.filter(inModel);
+  const rs = ROWS;
   const 색목록 = COLORS.filter(c => rs.some(r => r.color === c));
   const 사이즈목록 = SIZES.filter(s => rs.some(r => r.size === s));
-  let h = '<thead><tr><th style="text-align:left">색상＼사이즈</th>'
-        + 사이즈목록.map(s => '<th' + (CANPICK ? ' class="pick" data-col="' + s + '"' : '') + '>' + s + '</th>').join('')
-        + '</tr></thead><tbody>';
-  색목록.forEach(c => {
-    h += '<tr><th style="text-align:left"' + (CANPICK ? ' class="pick" data-row="' + c + '"' : '') + '>' + c + '</th>';
-    사이즈목록.forEach(s => {
-      const r = byKey[c + ' ' + s];
-      if (!r){ h += '<td class="none"><div class="cell">—</div></td>'; return; }
-      h += '<td class="' + (sel.has(r.sku) ? 'on' : '')
+  /* 🔴 [2026-08-13 사장님 확정 4안] 모델이 둘 이상이면 **가로를 「모델 × 사이즈」**로.
+     모델별 탭(1안)은 한 번에 한 모델만 보여 「어느 모델에 뭐가 있나」를 못 견준다.
+     길어지면 감싼 판이 옆으로 굴러가고, 왼쪽 색상 칸은 붙박이라 안 사라진다. */
+  const 모델목록 = MODELS.filter(m => rs.some(r => r.model === m));
+  const 다모델 = 모델목록.length > 1;
+  const 칸 = (m, c, z) => {
+    const r = byKey[KEY(m, c, z)];
+    if (!r) return '<td class="none"><div class="cell">—</div></td>';
+    return '<td class="' + (sel.has(r.sku) ? 'on' : '')
          + (MADE_SKUS.has(r.sku) ? ' made' : '')
          + '" data-sku="' + r.sku + '"'
          + (MADE_SKUS.has(r.sku) ? ' title="이미 만든 상품에 담긴 조합이에요"' : '')
          + '><div class="cell">' + r.src_count + '</div></td>';
+  };
+  let h;
+  if (다모델){
+    h = '<thead><tr><th rowspan="2" class="mxstick" style="text-align:left">색상</th>'
+      + 모델목록.map(m => '<th colspan="' + 사이즈목록.length + '" class="mxgrp'
+          + (CANPICK ? ' pick" data-model="' + esc(m) : '') + '">' + esc(m) + '</th>').join('')
+      + '</tr><tr>'
+      + 모델목록.map(m => 사이즈목록.map(z =>
+          '<th' + (CANPICK ? ' class="pick" data-col="' + z + '" data-m="' + esc(m) + '"' : '')
+          + '>' + z + '</th>').join('')).join('')
+      + '</tr></thead><tbody>';
+    색목록.forEach(c => {
+      h += '<tr><th class="mxstick" style="text-align:left"'
+         + (CANPICK ? ' data-row="' + c + '"' : '') + '>' + c + '</th>';
+      모델목록.forEach(m => 사이즈목록.forEach(z => { h += 칸(m, c, z); }));
+      h += '</tr>';
     });
-    h += '</tr>';
-  });
+  } else {
+    const only = 모델목록[0] || null;
+    h = '<thead><tr><th class="mxstick" style="text-align:left">색상＼사이즈</th>'
+      + 사이즈목록.map(z => '<th' + (CANPICK ? ' class="pick" data-col="' + z + '"' : '') + '>' + z + '</th>').join('')
+      + '</tr></thead><tbody>';
+    색목록.forEach(c => {
+      h += '<tr><th class="mxstick" style="text-align:left"' + (CANPICK ? ' class="pick" data-row="' + c + '"' : '') + '>' + c + '</th>';
+      사이즈목록.forEach(z => { h += 칸(only, c, z); });
+      h += '</tr>';
+    });
+  }
   mx.innerHTML = h + '</tbody>';
 
   mx.querySelectorAll('td[data-sku]').forEach(td => {
@@ -542,8 +578,11 @@ function upd(){
    🔴 모델을 바꾸면 고른 것을 비운다. 안 비우면 안 보이는 모델의 옵션이 몰래 담겨
       「고른 2개」인데 화면엔 1칸만 파란 어긋남이 난다. */
 function drawModelTabs(){
+  /* [2026-08-13 4안] 모델을 가로축으로 세우므로 **탭은 안 그린다**.
+     탭과 가로축이 같이 있으면 「지금 어느 모델을 보는 중인가」가 두 곳에서 갈린다. */
   const box = document.getElementById('mgtabs');
-  if (!box || MODELS.length < 2) return;
+  if (box) box.hidden = true;
+  return;
   box.hidden = false;
   box.innerHTML = MODELS.map(m => {
     const n = ROWS.filter(r => r.model === m).length;
@@ -581,11 +620,11 @@ build(); upd();
   } else {
     h += '<div style="margin-bottom:6px"><a href="/policies/' + j.policy.id
       + '" style="color: var(--글자-파랑, var(--blue,var(--primary,#3182F6)));font-weight:700">' + esc(j.policy.name) + '</a>'
-      + (j.policy.is_default ? ' <span style="font-size:11px;color:var(--sub,#8B95A1)">기본 정책</span>' : '')
+      + (j.policy.is_default ? ' <span style="font-size:12px;color:var(--sub,#8B95A1)">기본 정책</span>' : '')
       + '</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'
       + j.policy.markets.map(m =>
           '<span title="' + (m.items.length ? '정한 항목: ' + esc(m.items.join(', ')) : '아직 아무 항목도 안 정했어요')
-          + '" style="border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:999px;padding:3px 10px;font-size:11.5px;'
+          + '" style="border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:999px;padding:3px 10px;font-size:12px;'
           + 'color:' + (m.price_ready ? 'var(--green,#15803D)' : 'var(--sub,#8B95A1)') + '">'
           + esc(m.label) + ' ' + m.filled + '/' + m.total
           + (m.price_ready ? '' : ' · 가격 못 씀') + '</span>').join('')
@@ -604,7 +643,7 @@ build(); upd();
     h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
       + '<thead><tr>'
       + ['소싱처', '소싱처 카테고리', '판매처', '등록될 카테고리', '상태'].map(t =>
-          '<th style="background:var(--n100,#F2F4F6);padding:6px 8px;text-align:left;font-size:11px;'
+          '<th style="background:var(--n100,#F2F4F6);padding:6px 8px;text-align:left;font-size:12px;'
           + 'color:var(--글자-기본,#4E5968)">' + t + '</th>').join('')
       + '</tr></thead><tbody>'
       + c.rows.map(r => '<tr>'
@@ -686,7 +725,7 @@ if (ASSEMBLY && EDITABLE){
   });
 }
 
-/* [2026-08-12] 지우기 처리 — 목록(옵션생성)과 **같은 코드**를 쓴다.
+/* [2026-08-12] 삭제 처리 — 목록(옵션생성)과 **같은 코드**를 쓴다.
    두 벌이 되면 반드시 갈린다(막는 조건·알림 문구가 달라진다). */
   document.querySelectorAll('[data-del]').forEach(function (d) {
     d.addEventListener('click', function () {

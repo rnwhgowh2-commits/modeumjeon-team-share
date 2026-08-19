@@ -11,7 +11,7 @@
   .pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
   .pd-card{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-left-width:3px;border-radius:8px;padding:16px}
   .pd-card h3{font-size:12px;font-weight:700;margin:0 0 8px;color:var(--ink,#191F28)}
-  .chip{display:inline-block;font-size:11px;font-weight:600;padding:4px 8px;border-radius:8px;
+  .chip{display:inline-block;font-size:12px;font-weight:600;padding:4px 8px;border-radius:8px;
     background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);margin:0px 4px 0px 0}
   .chip.src{background:var(--연한-주황,#FFF4E6);color: var(--글자-주황, var(--amber,#B45309))}
   .chip.mkt{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
@@ -19,10 +19,10 @@
   /* ── 붙은 소싱처·마켓 한 줄씩 (목록형 칸과 같은 결) ── */
   .pd-line{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--n100,#F7F8F9)}
   .pd-line:last-child{border-bottom:0}
-  .pd-lineurl{font-size:11px;color: var(--글자-희미, var(--faint,#B0B8C1));font-family:ui-monospace,monospace;
+  .pd-lineurl{font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1));font-family:ui-monospace,monospace;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
   .pd-off{margin-left:auto;border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;
-    padding:4px 8px;font-family:inherit;font-size:11px;font-weight:600;color:var(--sub,#8B95A1);cursor:pointer}
+    padding:4px 8px;font-family:inherit;font-size:12px;font-weight:600;color:var(--sub,#8B95A1);cursor:pointer}
   .pd-off:hover{border-color:#B91C1C;color:#B91C1C}
   .pd-addbar{display:flex;align-items:center;gap:4px;margin-top:8px;flex-wrap:wrap}
   .pd-addbar select,.pd-addbar input{border:1px solid var(--line,#E5E8EB);border-radius:8px;
@@ -30,20 +30,20 @@
   .pd-addbar input{width:150px}
   .pd-addbar select:focus,.pd-addbar input:focus{outline:none;border-color:#1B64DA}
   .pd-addmkt-btn{border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;padding:4px 12px;
-    font-family:inherit;font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
+    font-family:inherit;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
   .pd-addmkt-btn:hover{border-color:#1B64DA;color:#1B64DA}
-  .pd-msg{font-size:11px;font-weight:600;margin-top:8px;line-height:1.6}
+  .pd-msg{font-size:12px;font-weight:600;margin-top:8px;line-height:1.6}
   .pd-msg.ok{color: var(--글자-초록, var(--green,#15803D))}
   .pd-msg.no{color:#B91C1C}
   .pd-msg.wait{color:var(--sub,#8B95A1)}
-  .pd-hint{font-size:11px;color:var(--sub,#8B95A1);margin-top:8px;line-height:1.7}
+  .pd-hint{font-size:12px;color:var(--sub,#8B95A1);margin-top:8px;line-height:1.7}
   .pd-items{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
   .pd-item{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-left:3px solid var(--line,#E5E8EB);
     border-radius:8px;padding:12px 12px}
   .pd-item.on{border-left-color:var(--green,#22C55E)}
   .pd-item .nm{font-size:12px;font-weight:700}
-  .pd-item .st{font-size:11px;color:var(--sub,#8B95A1);margin-top:4px}
-  .pd-note{font-size:11px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
+  .pd-item .st{font-size:12px;color:var(--sub,#8B95A1);margin-top:4px}
+  .pd-note{font-size:12px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
     padding:12px 12px;margin-top:12px;line-height:1.8}
   .pd-miss{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
     font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));line-height:1.8;margin-bottom:12px}
@@ -54,10 +54,10 @@
   .pd-acch{width:100%;display:flex;align-items:center;gap:8px;padding:12px 12px;border:0;
     background:none;cursor:pointer;font-family:inherit;text-align:left}
   .pd-acch .nm{font-size:12px;font-weight:700;color:var(--ink,#191F28)}
-  .pd-acch .ref{font-size:11px;color: var(--글자-희미, var(--faint,#B0B8C1))}
-  .pd-acch .tog{margin-left:auto;font-size:11px;color: var(--글자-희미, var(--faint,#B0B8C1))}
+  .pd-acch .ref{font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1))}
+  .pd-acch .tog{margin-left:auto;font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1))}
   .pd-accb{padding:4px 12px 12px;border-top:1px solid var(--n100,#F2F4F6)}
-  .pd-note2{font-size:11px;color:var(--sub,#8B95A1);background:var(--bg,#F9FAFB);border-radius:8px;
+  .pd-note2{font-size:12px;color:var(--sub,#8B95A1);background:var(--bg,#F9FAFB);border-radius:8px;
     padding:8px 12px;margin:8px 0 12px;line-height:1.7}
   .pd-f{display:grid;grid-template-columns:150px 1fr;gap:8px 12px;align-items:center;
     padding:8px 0;border-bottom:1px solid var(--n100,#F7F8F9)}
@@ -67,24 +67,24 @@
   .pd-f label{font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600}
   .pd-fi input[type=text],.pd-fi input[type=number],.pd-fi select{border:1px solid var(--line,#E5E8EB);
     border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28)}
-  .pd-fi .u{font-size:11px;color:var(--sub,#8B95A1);margin-left:4px}
-  .pd-h{grid-column:2;font-size:11px;color: var(--글자-희미, var(--faint,#B0B8C1));margin-top:-4px}
+  .pd-fi .u{font-size:12px;color:var(--sub,#8B95A1);margin-left:4px}
+  .pd-h{grid-column:2;font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1));margin-top:-4px}
   .pd-save{margin-top:12px;display:flex;align-items:center;gap:8px}
   .pd-save button{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:8px 16px;
     font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
-  .pd-save .msg{font-size:11px;font-weight:600}
+  .pd-save .msg{font-size:12px;font-weight:600}
   .pd-save .msg.ok{color: var(--글자-초록, var(--green,#15803D))}.pd-save .msg.no{color:#B91C1C}
   /* ── 목록형 칸 (1열 목록 · 2열 치환표) — 기존 설정 카드와 같은 결 ── */
   .pd-ta{width:100%;max-width:520px;box-sizing:border-box;border:1px solid var(--line,#E5E8EB);
     border-radius:8px;padding:8px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28);
     line-height:1.7;resize:vertical}
   .pd-ta:focus,.pd-pair input:focus{outline:none;border-color:#1B64DA}
-  .pd-cnt{font-size:11px;color:var(--sub,#8B95A1);margin-top:4px}
+  .pd-cnt{font-size:12px;color:var(--sub,#8B95A1);margin-top:4px}
   .pd-cnt b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
   .pd-pair{max-width:520px}
   .pd-pair table{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);
     border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
-  .pd-pair th{background:var(--n100,#FBFCFD);font-size:11px;font-weight:600;color:var(--sub,#8B95A1);
+  .pd-pair th{background:var(--n100,#FBFCFD);font-size:12px;font-weight:600;color:var(--sub,#8B95A1);
     padding:8px 8px;border-bottom:1px solid var(--line,#E5E8EB);text-align:left}
   .pd-pair td{padding:0;border-bottom:1px solid var(--n100,#F2F4F6)}
   .pd-pair tr:last-child td{border-bottom:0}
@@ -95,18 +95,18 @@
     padding:4px 4px;line-height:1}
   .pd-delrow:hover{color:#B91C1C}
   .pd-pair-empty{border:1px dashed var(--line,#E5E8EB);border-radius:8px;padding:8px;text-align:center;
-    font-size:11px;color:var(--sub,#8B95A1);margin-top:8px}
+    font-size:12px;color:var(--sub,#8B95A1);margin-top:8px}
   .pd-pair-bar{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
   .pd-addrow{border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;padding:4px 12px;
-    font-family:inherit;font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
+    font-family:inherit;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
   .pd-addrow:hover{border-color:#1B64DA;color:#1B64DA}
-  .pd-noti{font-size:11px;color: var(--글자-주황, var(--amber,#8A5A00));background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
+  .pd-noti{font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
     border-radius:8px;padding:8px 12px;margin-top:8px;line-height:1.7}
   .pd-noti:empty{display:none;border:0;padding:0;margin:0}
   /* ── 이 마켓 전용으로 굳은 항목 표시 ── */
-  .pd-only{font-size:11px;font-weight:700;padding:4px 8px;border-radius:8px;
+  .pd-only{font-size:12px;font-weight:700;padding:4px 8px;border-radius:8px;
     background:var(--연한-주황,#FFF4E6);color: var(--글자-주황, var(--amber,#B45309))}
-  .pd-freeze{font-size:11px;color: var(--글자-주황, var(--amber,#8A5A00));background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
+  .pd-freeze{font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
     border-radius:8px;padding:8px 12px;margin:8px 0 12px;line-height:1.75}
   .pd-freeze b{color: var(--글자-주황, var(--amber,#6B4300))}</style>
 
@@ -223,6 +223,21 @@
     small_to_big: '작은 → 큰', free: '무료', paid: '유료(1개당)',
     free_over: 'N원 이상 무료', korean: '국문', english: '영문', both: '국문+영문',
     front: '맨 앞', back: '맨 뒤', none: '안 붙임',
+    // [2026-08-13] 「옵션 축 구성」 — 목록에 없어서 사장님 화면에 `one`·`two`·`three`
+    //   가 **영어 그대로** 나오고 있었다. 3갈래를 연 김에 우리말로 맞춘다.
+    //   글자는 `registration/options.py` 가 마켓에 내보내는 그룹 이름과 같게 둔다
+    //   (`_ONE_GROUP='옵션'` · `_MODEL_GROUP='모델명'` · `_COLOR_GROUP='색상'` · `_SIZE_GROUP='사이즈'`)
+    //   — 화면에서 고른 말과 구매자가 보는 말이 달라지면 안 된다.
+    one: '한 갈래 (메이트 블랙 260)', two: '색상 · 사이즈',
+    three: '모델명 · 색상 · 사이즈',
+    into_price: '판매가에 합침',
+    // 위와 같은 까닭으로 빠져 있던 것들 — 전수로 세어 한꺼번에 채웠다
+    // (`process_rule_schema.py` 의 `choices=` 값 중 우리말 라벨이 없던 9개).
+    // 뜻은 그 파일 `hint` 원문 그대로 옮겼다 — 지어내지 않는다.
+    margin_amount: '마진금액 (매입가 + 금액)', fixed_price: '지정가 (이 값으로 못 박음)',
+    cheapest: '가장 싼 곳', priciest: '가장 비싼 곳', average: '평균',
+    max: '가장 비싼 값으로', min: '가장 싼 값으로',
+    WON: '정액 (원)', PERCENT: '정률 (%)',
   };
   const cl = (v) => CHOICE_LABEL[v] || v;
 
@@ -653,6 +668,13 @@
         .then((r) => r.json()),
     ]).then(([sc, rl]) => {
       schema = sc;
+      // 🔴 [2026-08-13] 라벨의 단일 원천은 `process_rule_schema.CHOICE_LABELS` 다.
+      //   여기 아래 `CHOICE_LABEL` 은 화면이 따로 들고 있던 사본이라, 스키마에
+      //   선택지가 늘 때마다 한쪽만 갱신돼 **영어가 샜다**(실제로 13개가 샜다).
+      //   스키마가 실어 주는 `choice_labels` 를 덮어씌워 항상 서버를 따르게 한다.
+      (sc.items || []).forEach((it) => (it.fields || []).forEach((f) => {
+        Object.assign(CHOICE_LABEL, f.choice_labels || {});
+      }));
       rules = rl.rules || {};
       marketOnly = rl.market_saved_keys || [];
       render();

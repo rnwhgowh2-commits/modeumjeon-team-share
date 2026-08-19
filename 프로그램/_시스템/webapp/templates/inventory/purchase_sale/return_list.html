@@ -35,8 +35,8 @@
             <td style="padding:8px 8px;text-align:right">{{ r.item_count }}</td>
             <td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:#F59E0B">{{ r.total_qty }}</td>
             <td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace">{{ '{:,}'.format(r.ro.refund_amount or 0) }}</td>
-            <td style="padding:8px 8px"><span style="font-size:11px;padding:0px 8px;border-radius:0px;background:{% if r.ro.status=='completed' %}var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D){% elif r.ro.status=='cancelled' %}var(--연한-빨강,#FEE2E2));color:var(--red,#991B1B){% else %}#FEF3C7;color:var(--amber,#92400E){% endif %};font-weight:600">{{ r.ro.status }}</span></td>
-            <td style="padding:8px 8px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:22px;height:22px;border-radius:50%;background:#7C3AED;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ (r.ro.created_by or '운')[:1] }}</span><span style="font-size:12px">{{ r.ro.created_by or '운영자' }}</span></span></td>
+            <td style="padding:8px 8px"><span style="font-size:12px;padding:0px 8px;border-radius:0px;background:{% if r.ro.status=='completed' %}var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D){% elif r.ro.status=='cancelled' %}var(--연한-빨강,#FEE2E2));color:var(--red,#991B1B){% else %}#FEF3C7;color:var(--amber,#92400E){% endif %};font-weight:600">{{ r.ro.status }}</span></td>
+            <td style="padding:8px 8px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:22px;height:22px;border-radius:50%;background:#7C3AED;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">{{ (r.ro.created_by or '운')[:1] }}</span><span style="font-size:12px">{{ r.ro.created_by or '운영자' }}</span></span></td>
           </tr>
         {% else %}<tr><td colspan="9" style="padding:48px;text-align:center;color: var(--글자-희미, var(--faint,#9CA3AF)">반품 없음</td></tr>{% endfor %}
       </tbody>

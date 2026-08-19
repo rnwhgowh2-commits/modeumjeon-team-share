@@ -29,6 +29,21 @@ SUPPORTED = ('smartstore', 'coupang')
 WON_STEP = {'smartstore': 10, 'coupang': 10}
 COUPANG_MIN_WON = 100          # 쿠팡 정액 최소 금액(문서)
 
+#: [2026-08-13 사장님 확정] 쿠팡 쿠폰 기본값 — 「보통 쿠폰은 100원만 준다」.
+#:   ★ 쿠팡에서 **즉시할인과 쿠폰적용은 다른 것**이다(목적은 같다). 정산 엑셀도
+#:     `판매자 할인쿠폰(A.즉시할인)` / `(B.다운로드)` 로 따로 준다. 둘 다 판매자
+#:     부담이라 정산 기준(할인가)에서 **둘 다 빠진다**.
+COUPANG_DEFAULT_WON = 100
+
+#: 🔴 100원이 **거부된 실측**이 있다 — 다른 세션 라이브 시험(2026-08-06 · `6d4164d9`):
+#:     128,900원 상품에 100원(0.07%) → [CIE06] 「할인이 너무 작거나 너무 큽니다」
+#:     같은 상품에 1,400원(1.09%)   → 통과 (사장님 실쿠폰)
+#:   문서 하한은 100원인데 **판매가 대비 비율 하한이 따로 있는 것으로 보인다.**
+#:   🔴 관측이 1건뿐이라 **규칙으로 못 박지 않는다** — 상한처럼 쓰면 멀쩡한 쿠폰까지 막는다.
+#:   막지 않고 **미리 알리기만** 한다(`warn_for`). 말 안 하면 사장님은 [CIE06] 을
+#:   받고도 무엇이 잘못인지 알 수 없다.
+COUPANG_OBSERVED_OK_PCT = 1.0      # 통과가 확인된 최저 비율(1.09% → 보수적으로 1.0)
+
 #: 화면·로그에 쓸 안내 — 나머지 마켓은 왜 안 나가는지 말한다(조용한 무시 금지)
 UNSUPPORTED_NOTE = ('이 마켓은 즉시할인을 보낼 자리를 아직 못 찾았습니다 — '
                     '저장은 되지만 마켓으로 나가지 않습니다.')
@@ -56,6 +71,42 @@ def discount_of(rules) -> dict | None:
     if unit == 'PERCENT' and value >= 100:
         return None                     # 100% 이상 = 공짜. 실수로 본다(막는다).
     return {'value': value, 'unitType': unit}
+
+
+def default_discount(market: str) -> dict | None:
+    """그 마켓의 기본 쿠폰 값. 쿠폰을 못 보내는 마켓엔 **만들지 않는다**(None).
+
+    🔴 자리를 못 찾은 마켓에 기본값을 만들어 주면 「걸어 뒀는데 안 나가는 값」이 생긴다.
+    """
+    if market != 'coupang':
+        return None
+    return {'value': COUPANG_DEFAULT_WON, 'unitType': 'WON'}
+
+
+def warn_for(market: str, discount, sale_price) -> str | None:
+    """보내도 되지만 **마켓이 거부할 수 있는** 조합을 미리 말한다. 막지는 않는다.
+
+    🔴 `problem_for` 와 자리가 다르다 — 저건 **막는** 곳, 여긴 **알리는** 곳.
+      섞으면 관측 1건짜리 추정으로 멀쩡한 쿠폰까지 막게 된다.
+    🔴 판매가를 모르면 아무 말도 안 한다 — 없는 근거로 겁주면 진짜 경고까지 무시하게 된다.
+    """
+    if not discount or market != 'coupang':
+        return None
+    if discount.get('unitType') != 'WON':
+        return None
+    try:
+        price = int(sale_price)
+    except (TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    pct = int(discount['value']) / price * 100
+    if pct >= COUPANG_OBSERVED_OK_PCT:
+        return None
+    return (f'쿠팡이 이 쿠폰을 거부할 수 있습니다 — {int(discount["value"]):,}원은 '
+            f'판매가 {price:,}원의 {pct:.2f}% 입니다. '
+            f'라이브 실측에서 0.07%는 거부([CIE06] 할인이 너무 작거나 너무 큽니다), '
+            f'1.09%는 통과했습니다. 그래도 보내 볼 수 있습니다.')
 
 
 def problem_for(market: str, discount) -> str | None:

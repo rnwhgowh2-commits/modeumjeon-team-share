@@ -281,3 +281,132 @@ def test_칸이_아예_없는_옛_초안도_안_터진다():
     assert not hasattr(d, 'minor_purchasable')
     p, _ = compile_coupang(d, category_code=1, vendor=VENDOR)
     assert p['items'][0]['adultOnly'] == 'EVERYONE'
+
+
+# ── [2026-08-13] 등록 상수 배선 ─────────────────────────────────────────────
+
+def _full(**kw):
+    d = D()
+    for k, v in kw.items():
+        setattr(d, k, v)
+    return d
+
+
+def test_과세구분이_정책대로_나간다():
+    """🔴 전에는 'TAX' 가 박혀 있어 면세로 바꿔도 과세로 나갔다."""
+    p, _ = compile_coupang(_full(tax_type='면세'), category_code=1, vendor=VENDOR)
+    assert p['items'][0]['taxType'] == 'FREE'
+    p, _ = compile_coupang(_full(tax_type='과세'), category_code=1, vendor=VENDOR)
+    assert p['items'][0]['taxType'] == 'TAX'
+
+
+def test_과세구분을_안_정하면_과세다():
+    """사장님 확정 = 기본은 과세. 칸이 없는 옛 초안도 과세."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert p['items'][0]['taxType'] == 'TAX'
+
+
+def test_새상품임을_명시해서_보낸다():
+    """🔴 전에는 offerCondition 을 **아예 안 보냈다** — 쿠팡이 뭘로 잡는지 문서에 없다.
+
+    등록 후에는 바꿀 수 없는 값이라(문서 명시) 처음부터 못 박아야 한다.
+    """
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert p['items'][0]['offerCondition'] == 'NEW'
+
+
+def test_제조사는_비면_브랜드로_갈음한다():
+    """쿠팡 문서: 「정확한 제조사를 기입할 수 없는 경우 brand 와 동일하게 입력 가능」."""
+    p, _ = compile_coupang(_full(manufacturer='한국제화'), category_code=1, vendor=VENDOR)
+    assert p['manufacture'] == '한국제화'
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert p['manufacture'] == '르무통'          # brand
+
+
+def test_모델번호는_있을_때만_보낸다():
+    p, _ = compile_coupang(_full(model_no='NT750-A1'), category_code=1, vendor=VENDOR)
+    assert p['items'][0]['modelNo'] == 'NT750-A1'
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert p['items'][0].get('modelNo', '') == ''
+
+
+def test_공식_바코드는_보내고_자체_생성은_안_보낸다():
+    """🔴 쿠팡 공지가 임의 생성 번호를 금지한다 — 보내면 노출 제한이다."""
+    from lemouton.inventory import barcode as BC
+    p, _ = compile_coupang(_full(barcode='8801234567890'), category_code=1, vendor=VENDOR)
+    it = p['items'][0]
+    assert it['barcode'] == '8801234567890'
+    assert it['emptyBarcode'] is False
+
+    p, _ = compile_coupang(_full(barcode=BC.make_internal(9)), category_code=1, vendor=VENDOR)
+    it = p['items'][0]
+    assert it['barcode'] == '', '자체 생성 값이 그대로 나갔다'
+    assert it['emptyBarcode'] is True
+    assert it['emptyBarcodeReason'], '왜 없는지 사유를 같이 보내야 한다'
+
+
+def test_바코드가_아예_없으면_없다고_보낸다():
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    it = p['items'][0]
+    assert it['barcode'] == '' and it['emptyBarcode'] is True
+
+
+def test_검색태그를_보낸다():
+    p, _ = compile_coupang(_full(search_tags=json.dumps(['운동화', '스니커즈'])),
+                           category_code=1, vendor=VENDOR)
+    assert p['items'][0]['searchTags'] == ['운동화', '스니커즈']
+
+
+def test_태그가_깨져_있어도_등록이_안_막힌다():
+    """🔴 값 모양이 이상하다고 전송이 멈추면 안 된다 — 태그만 포기한다."""
+    for junk in ('', 'not-json', '{}', None):
+        p, _ = compile_coupang(_full(search_tags=junk), category_code=1, vendor=VENDOR)
+        assert p['items'][0]['searchTags'] == []
+
+
+def test_태그는_20개_20자를_넘기지_않는다():
+    """문서: 1개당 20자 이내, 최대 20개. 넘겨 보내면 등록이 거부된다."""
+    tags = [f'태그{i}' for i in range(30)] + ['가' * 40]
+    p, _ = compile_coupang(_full(search_tags=json.dumps(tags, ensure_ascii=False)),
+                           category_code=1, vendor=VENDOR)
+    got = p['items'][0]['searchTags']
+    assert len(got) <= 20
+    assert all(len(t) <= 20 for t in got)
+
+
+# ── [2026-08-13] 자동 가격 조정 — 쿠팡 전용 (공지 2026-05-22) ────────────────
+
+def test_자동_가격_조정을_안_쓰면_그_칸_자체를_안_보낸다():
+    """🔴 안 쓰는 기능을 `active: false` 로라도 보내면 「껐다」가 아니라
+      「설정했는데 껐다」가 된다. 정하지 않았으면 칸을 만들지 않는다."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert 'autoPricingInfo' not in p['items'][0]
+
+
+def test_최저가를_정하면_자동_가격_조정이_나간다():
+    """지도 근거: items.autoPricingInfo {minSalePrice: Number, active: Boolean}
+    — 「최초 상품 등록 시 승인 요청 전에만 입력 가능」(우리는 requested=False)."""
+    p, _ = compile_coupang(_full(auto_pricing_min=70000), category_code=1, vendor=VENDOR)
+    got = p['items'][0]['autoPricingInfo']
+    assert got == {'minSalePrice': 70000, 'active': True}
+
+
+def test_최저가가_판매가보다_크면_안_보낸다():
+    """🔴 지도: 「기존 salePrice 보다 작아야 함」 — 어기면 400 으로 등록 자체가 거부된다.
+      값 하나 때문에 상품이 통째로 안 올라가면 안 되므로 그 칸만 포기한다."""
+    for bad in (75800, 80000):     # 판매가 = 75,800
+        p, _ = compile_coupang(_full(auto_pricing_min=bad), category_code=1, vendor=VENDOR)
+        assert 'autoPricingInfo' not in p['items'][0], bad
+
+
+def test_최저가가_0이하면_안_보낸다():
+    for bad in (0, -1):
+        p, _ = compile_coupang(_full(auto_pricing_min=bad), category_code=1, vendor=VENDOR)
+        assert 'autoPricingInfo' not in p['items'][0], bad
+
+
+def test_최저가가_망가져_있어도_등록이_안_막힌다():
+    """태그와 같은 규칙 — 값 모양 때문에 전송이 멈추면 「왜 안 나가지」를 못 찾는다."""
+    for junk in ('abc', None, '', [1]):
+        p, _ = compile_coupang(_full(auto_pricing_min=junk), category_code=1, vendor=VENDOR)
+        assert 'autoPricingInfo' not in p['items'][0], junk

@@ -8,7 +8,7 @@
     .mx-head .d{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5;}  /* [2026-08-06 확정 5안] 부제 17·600·검정 */
     .mx-sub{font-size:13px;color:var(--글자-파랑,#3182F6);text-decoration:none}
     .mx-sub:hover{text-decoration:underline}
-    .mx-badge{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px;flex-shrink:0}
+    .mx-badge{font-size:12px;font-weight:700;padding:0px 8px;border-radius:999px;flex-shrink:0}
     .mx-badge.o{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .mx-badge.d{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
     .mx-no{font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본,#4E5968);
@@ -73,7 +73,7 @@
     .sb-nm{font-weight:600;color:var(--ink,#191F28)}
     .sb-all .sb-nm{font-weight:700}
     .sb-n{color:var(--sub,#8B95A1);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
-    .sb-d{font-size:11px;color:var(--sub,#8B95A1);padding:0 4px 4px 28px;line-height:1.5}
+    .sb-d{font-size:12px;color:var(--sub,#8B95A1);padding:0 4px 4px 28px;line-height:1.5}
     .sb-search{position:relative}
     .sb-search input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
                      padding:8px 12px;font-size:12.5px;font-family:inherit;box-sizing:border-box}
@@ -81,7 +81,7 @@
              padding:8px 12px;font-size:12.5px;font-family:inherit;background:var(--surface,#ffffff);
              color:var(--ink,#191F28)}
     .sb-ac{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface,#ffffff);
-           border:1px solid var(--line,#E5E8EB);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.10);
+           border:1px solid var(--line,#E5E8EB);border-radius:8px;
            z-index:20;overflow:hidden}
     .sb-ac.on{display:block}
     .sb-ac div{padding:7px 12px;font-size:12.5px;cursor:pointer}
@@ -89,7 +89,7 @@
     .gl-wrap{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
              border-radius:12px;overflow:hidden}
     table.gl{width:100%;border-collapse:collapse;font-size:13px}
-    .gl thead th{background:var(--n50,#F9FAFB);color:var(--sub,#8B95A1);font-size:11.5px;font-weight:700;
+    .gl thead th{background:var(--n50,#F9FAFB);color:var(--sub,#8B95A1);font-size:12px;font-weight:700;
                  padding:10px 14px;border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap}
     .gl td{padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
     .gl tbody tr:last-child td{border-bottom:0}
@@ -97,7 +97,7 @@
     .gl .nm{font-weight:700;text-decoration:none;color:inherit;font-size:13px}
     .gl .nm:hover{color:var(--primary,#3182F6)}
     .gl .num{font-variant-numeric:tabular-nums}
-    .gl .unit{font-size:11px;color:var(--sub,#8B95A1);margin-left:3px}
+    .gl .unit{font-size:12px;color:var(--sub,#8B95A1);margin-left:3px}
     .gl-dim{color:var(--sub,#8B95A1);font-size:12px}
     .gl-empty{margin:0;border:0;border-radius:0}
     @media (max-width: 768px) {
@@ -112,7 +112,7 @@
     .gl tbody tr.glr{cursor:pointer}
     .gl tbody tr.glr:hover td{background:var(--n50,#F7FBFF)}
     .gl tbody tr.glr.sel td{background:var(--연한-파랑,#EEF4FF)}
-    .mx-tag{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;
+    .mx-tag{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;
             padding:1px 8px;white-space:nowrap}
     .mx-tag.ok{background:var(--연한-초록,#F0FDF4);color:var(--글자-초록,var(--green,#15803D))}
     .mx-tag.warn{background:var(--연한-주황,#FFFBEB);color:var(--글자-주황,var(--amber,#B36A00))}
@@ -124,7 +124,7 @@
     /* [2026-08-06 사장님] 판을 화면의 2/5로 — 좁아서 글씨가 작게 눌려 안 보였다 */
     .mxp{position:fixed;top:0;right:0;bottom:0;width:50vw;min-width:700px;max-width:96vw;z-index:900;
          background:var(--surface,#ffffff);border-left:1px solid var(--line,#E5E8EB);
-         box-shadow:-12px 0 32px rgba(25,31,40,.12);display:flex;flex-direction:column;
+         display:flex;flex-direction:column;
          transform:translateX(102%);transition:transform .18s ease}
     .mxp.on{transform:translateX(0)}
     .mxp-h{display:flex;align-items:center;gap:8px;padding:16px 20px 0;flex-wrap:wrap}
@@ -153,15 +153,15 @@
     .mxp-grid td.none{background:var(--n100,#FAFAFB);color:var(--글자-희미,var(--line,#DDE1E6))}
     /* [2026-08-06] 칸 3층 — 최종매입가 · 소싱처 · 재고 */
     .mxp-grid .cg-p{font-size:13.5px;color:var(--ink,#191F28);line-height:1.5}
-    .mxp-grid .cg-s{font-size:11.5px;color:var(--글자-기본,#4E5968);line-height:1.5}
+    .mxp-grid .cg-s{font-size:12px;color:var(--글자-기본,#4E5968);line-height:1.5}
     .mxp-grid .cg-best{font-weight:700;color:var(--글자-초록,var(--green,#15803D))}
-    .mxp-grid .cg-k{font-size:11.5px;line-height:1.5}
+    .mxp-grid .cg-k{font-size:12px;line-height:1.5}
     .mxp-grid .cg-ok{color:var(--글자-초록,var(--green,#15803D))}
     .mxp-grid .cg-bad{color:var(--글자-빨강,var(--red,#E5484D))}
     /* 배포 게이트의 CSS 괄호 검사는 줄 단위 — 이 선언은 한 줄이어야 통과한다 */
     .mxp-grid td.off{color:var(--글자-희미,#C6CBD3);background:repeating-linear-gradient(45deg,transparent,transparent 4px,var(--n100,#F7F8FA) 4px,var(--n100,#F7F8FA) 8px)}
     .mxp-t{width:100%;border-collapse:collapse;font-size:13.5px}
-    .mxp-t th{background:var(--n100,#F2F4F6);font-size:11px;font-weight:600;
+    .mxp-t th{background:var(--n100,#F2F4F6);font-size:12px;font-weight:600;
               color:var(--글자-기본,#4E5968);padding:7px 8px;white-space:nowrap;
               border-bottom:1px solid var(--line,#E5E8EB)}
     .mxp-t td{padding:7px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
@@ -170,7 +170,7 @@
     .mxp-tree{font-size:14px;line-height:2.0}
     .mxp-tree .lv .lv{padding-left:20px;border-left:2px solid var(--n100,#F2F4F6);margin-left:8px}
     .mxp-tree .nd{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-    .mxp-here{background:var(--연한-주황,#FFFBEB);border-radius:6px;padding:0 6px;font-size:11px;
+    .mxp-here{background:var(--연한-주황,#FFFBEB);border-radius:6px;padding:0 6px;font-size:12px;
               color:var(--글자-주황,var(--amber,#B36A00));font-weight:700}
     .mxp-note{font-size:13.5px;color:var(--글자-보조,#6B7684);line-height:1.7;
               background:var(--bg,#F9FAFB);border-radius:8px;padding:10px 12px;margin-top:10px}
@@ -182,7 +182,7 @@
     @media (max-width: 768px){ .mxp{width:100vw} }
     /* ── [2026-08-06 최종안] ⓘ 호버 설명 말풍선 (정보창 표준: 열기 140ms·닫기 250ms·화면 밖 자리 조정) ── */
     .sb-hint{margin-left:4px;color:var(--글자-희미,#B0B8C1);font-size:12px;cursor:help}
-    .nx-tip{display:none;position:fixed;z-index:99999;max-width:320px;background:var(--ink,#191F28);color:#fff;border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.7;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+    .nx-tip{display:none;position:fixed;z-index:99999;max-width:320px;background:var(--ink,#191F28);color:#fff;border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.7;}
     .nx-tip b{color:#FFD866}
   </style>
 
@@ -303,11 +303,11 @@
           {% endfor %}
           </tbody>
         </table>
-        <div class="mx-empty gl-empty" style="display:none">「<span class="gl-kw"></span>」 로 찾은 매트릭스 옵션이 없어요.</div>
+        <div class="mx-empty gl-empty" style="display:none">「<span class="gl-kw"></span>」 로 찾은 옵션 묶음이 없어요.</div>
       </div>
       {% else %}
       <div class="mx-empty">
-        {% if kw %}「{{ kw }}」 로 찾은 매트릭스 옵션이 없어요.{% else %}아직 매트릭스 옵션이 없어요.{% endif %}
+        {% if kw %}「{{ kw }}」 로 찾은 옵션 묶음이 없어요.{% else %}아직 옵션 묶음이 없어요.{% endif %}
       </div>
       {% endif %}
     </div>

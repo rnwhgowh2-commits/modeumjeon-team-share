@@ -296,15 +296,28 @@ def ours_for(item_key: str, lines: list, rules: dict, *, today: dt.date,
             return {"가능": False, "금액": 0, "건수": 0,
                     "왜": "로켓그로스 정산 회차를 아직 안 가져왔어요 — "
                           "정산예정금액 탭의 「🚀 로켓그로스 가져오기」를 먼저 눌러 주세요."}
-        # 마켓 화면이 「빠른정산금 제외」라 우리도 선인출을 뺀 값(=받을돈)으로 맞춘다.
-        return {"가능": True, "금액": int(rg.get("받을돈") or 0),
-                "건수": int(rg.get("회차수") or 0),
-                "구성": f"지급액 {rg.get('지급액', 0):,} − 빠른정산 {rg.get('빠른정산', 0):,}"}
+        # 🔴 [2026-08-13 실측 확정] 화면 「지급 예상금액」 = **Σ최종지급액(정산일이 오늘
+        #   이후 ~ 한 달 이내)**. 사장님 Wing 25회차로 원 단위 일치(7,818,202).
+        #   예전엔 `지급액 − 빠른정산`(기간 무제한)을 썼는데 라이브에서 9,508,138 로
+        #   1,689,936 어긋났다 — ① 이미 받은 회차까지 셌고 ② 마켓이 이미 계산해 준
+        #   `최종지급액` 을 두고 우리가 다시 만들었다.
+        from lemouton.margin import rg_settlement as _rg
+        ah = _rg.ahead_summary(today=today)
+        return {"가능": True, "금액": int(ah["금액"]), "건수": int(ah["회차수"]),
+                "구성": ah["구성"]}
 
     until = today + dt.timedelta(days=spec["window_days"])
     want = ({"confirmed", "unconfirmed"} if spec["axis"] == "both"
             else {spec["axis"]})
+    # 🔴 [2026-08-13 첫 스스 대조에서 드러남] 날짜 근거를 **갈라서** 센다.
+    #   마켓의 「정산예정일 N달」 화면은 **이미 날짜가 정해진 것만** 보여준다. 우리는
+    #   진행 중 주문의 지급일까지 규칙으로 **추정**해 넣는다 — 그래서 우리가 늘 더 크다.
+    #   라이브 첫 실행(스스): 마켓 538,606(5건) vs 우리 2,542,248(17건).
+    #     그중 날짜가 실값인 몫만 629,656(7건) — 나머지 2,215,700(14건)이 추정분이었다.
+    #   이걸 안 가르면 판정이 늘 「불일치 372%」로 나와 **대조가 쓸모없어진다.**
+    #   틀린 게 아니라 **정의가 다른 것**이므로, 추정 몫을 설명 항목으로 분리한다.
     total, n = 0, 0
+    est_total, est_n = 0, 0
     for ln in lines:
         if ln.get("market") != spec["market"]:
             continue
@@ -321,7 +334,12 @@ def ours_for(item_key: str, lines: list, rules: dict, *, today: dt.date,
             if today <= d <= until:
                 total += ev["amount"]
                 n += 1
+                if str(ev.get("date_source") or "") != "real":
+                    est_total += ev["amount"]
+                    est_n += 1
     out = {"가능": True, "금액": total, "건수": n,
+           "받는날_추정몫": est_total, "받는날_추정건수": est_n,
+           "받는날_실값몫": total - est_total, "받는날_실값건수": n - est_n,
            "구성": f"{today.isoformat()} ~ {until.isoformat()} 지급예정 합"}
     if spec["fast_excluded"]:
         # 마켓 화면에서 빠져 있는 몫은 우리 쪽에서도 빼야 같은 것을 비교하게 된다.
@@ -455,6 +473,13 @@ def reconcile(item_key: str, parsed: dict, lines: list, rules: dict, *,
     wb = int((wallet_summary or {}).get("합계") or 0)
     if wb:
         explains["셀러월렛 미인출 잔액"] = wb
+    # 🔴 마켓 화면엔 **날짜가 정해진 것만** 뜬다 — 우리가 날짜를 추정해 넣은 몫은
+    #   구조적으로 마켓에 없는 돈이다(틀린 게 아니라 정의가 다르다).
+    #   이걸 설명 항목으로 안 주면 판정이 늘 「불일치」로 나와 대조가 쓸모없어진다
+    #   (2026-08-13 스스 첫 실행: 추정 몫 2,215,700 이 차이의 대부분이었다).
+    _est = int(ours.get("받는날_추정몫") or 0)
+    if _est:
+        explains[f"받는 날을 우리가 추정한 몫({ours.get('받는날_추정건수')}건)"] = _est
     v = judge(parsed["합계"], ours, rows=parsed.get("금액건수") or 0, explains=explains)
     #: 주문번호가 있으면 **주문 단위**로도 맞댄다 — 총액만 맞고 안이 틀린 경우를 잡는다.
     per_order = compare_orders(parsed, lines)
@@ -467,6 +492,12 @@ def reconcile(item_key: str, parsed: dict, lines: list, rules: dict, *,
         "읽은열": parsed.get("amount_col") or "",
         "우리값": ours.get("금액"), "우리건수": ours.get("건수"),
         "우리구성": ours.get("구성") or "",
+        # 🔴 「우리가 날짜를 추정한 몫」을 화면이 그대로 말한다 — 숨기면 사장님이
+        #   차이를 「우리가 틀렸다」로 읽는다. 실값 몫끼리 맞대는 게 진짜 대조다.
+        "받는날_실값몫": ours.get("받는날_실값몫"),
+        "받는날_실값건수": ours.get("받는날_실값건수"),
+        "받는날_추정몫": ours.get("받는날_추정몫"),
+        "받는날_추정건수": ours.get("받는날_추정건수"),
         "판정": v["판정"], "판정한글": VERDICT_KO[v["판정"]],
         "차이": v["차이"], "왜": v["왜"],
         "설명후보": explains,

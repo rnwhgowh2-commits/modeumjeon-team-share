@@ -1,6 +1,8 @@
 """정책 생성 화면 — 목록 · 편집(마켓 공통 + 마켓 가로탭) · 상품에 적용.
 
-노션 「상품 가공 (정책 생성 & 정책 적용)」. 규칙은 lemouton/policy/service.py 가 단일 원천.
+상위탭 「상품 정책화」(구 「상품 가공」) — 하위탭 정책 생성 & 정책 매칭(구 「정책 적용」,
+[2026-08-19] 사장님 확정 재개명). 노션 원문은 「상품 가공 (정책 생성 & 정책 적용)」.
+규칙은 lemouton/policy/service.py 가 단일 원천.
 
 🔴 값이 비어 있는 정책은 **가격 계산에 물리지 않는다**. 화면이 「아직 못 씀」을 보여준다.
 """
@@ -23,7 +25,7 @@ def policy_index():
     from lemouton.policy.fields import MARKET_KEYS, MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import (
-        applied_count, applied_products, brand_counts, enabled_markets, readiness,
+        applied_count, applied_products_list, brand_counts, enabled_markets, readiness,
     )
     want_brand = (request.args.get('brand') or '').strip()
     s = SessionLocal()
@@ -57,7 +59,7 @@ def policy_index():
                 'id': p.id, 'name': p.name, 'memo': p.memo, 'brand': p.brand,
                 'is_default': is_default,
                 'applied': applied_count(s, p.id),
-                'applied_products': applied_products(s, p.id),
+                'applied_products': applied_products_list(s, p.id),
                 'filled': sum(v['filled'] for v in rd.values()),
                 'total': sum(v['total'] for v in rd.values()),
                 'ready': [m for m, v in rd.items() if v['price_ready']],
@@ -104,8 +106,11 @@ def policy_detail(pid: int):
     try:
         p = s.get(MarketPolicy, pid)
         if p is None or p.deleted_at is not None:
+            # 🔴 종전엔 「옵션을 찾을 수 없습니다 / 모음전 코드: 정책」이었다 —
+            #   정책을 찾다 실패했는데 옵션을 못 찾았다고 하면 딴 데를 뒤지게 된다.
             return render_template('errors/option_not_found.html', active='policies',
-                                   requested_code='정책', requested_sku=str(pid)), 404
+                                   what='정책', requested_code='',
+                                   sku_label='정책 번호', requested_sku=str(pid)), 404
         items = items_for(market)
         vals = values_for(s, pid, market)
         # ── 항목별 「이 마켓이 요구하는가」 + 「지금 실제로 나가는가」 ──────────
@@ -150,6 +155,12 @@ def policy_detail(pid: int):
             #   항목별 「정책 ○○ / 실제 ○○」 — 늘 보인다(확정 B2).
             'fixed_by_item': (None if market == COMMON_KEY
                               else FIXED.by_item(market, vals)),
+            # ── [2026-08-13 확정 시안 v2 · 2번] 「마켓마다 어떤 값으로 나가는지 보기」 ──
+            #   라디오 옆 접힘표. 🔴 마켓을 안 가린다 — 사장님이 「면세」를 고를 때
+            #     **여섯 마켓 전부**에 무엇이 나가는지 한 자리에서 봐야 뜻이 있다
+            #     (마켓마다 값이 다르고, 롯데온은 아직 모른다).
+            'sends_table': {k: FIXED.sends_table(k)
+                            for k in FIXED.SENDS_BY_MARKET},
             # 채움 합계 — **켠 마켓만** 센다. 셈을 템플릿에 넣으면 검사가 어려워
             #   여기서 만들어 넘긴다.
             'fill_sum': _fill_sum,
@@ -270,6 +281,29 @@ def api_save_values(pid: int):
         s.close()
 
 
+def _auto_coupon(s, pid: int) -> dict:
+    """정책 자동(사장님 확정 **c**) — 쿠팡이면 쿠폰까지 함께 건다.
+
+    🔴 쿠팡엔 즉시할인을 적을 칸이 없다. 쿠폰을 만들어 옵션에 붙여야 값이 깎인다.
+      정책만 붙이고 끝내면 「할인을 걸었는데 안 깎인다」가 된다.
+    🔴 **즉시할인이 적힌 정책만** 태운다 — 안 그러면 온 상품에 시킨 적 없는
+      기본값 100원 쿠폰이 저절로 걸린다.
+    🔴 여기서 **직접 걸지 않는다.** 한 상품이 최대 21번 왕복이라 화면이 못 기다린다 →
+      대기열에 넣고 스케줄러(1분 틱)가 처리한다.
+    🔴 쿠폰이 실패해도 **정책 붙이기는 성공이다** — 여기서 터뜨리면 정책까지 못 붙는다.
+    """
+    try:
+        from lemouton.policy import coupon_service as CS
+        out = CS.request_for_policy(s, pid)
+        s.commit()
+        return out
+    except Exception as e:      # noqa: BLE001
+        s.rollback()
+        _log.exception('[정책] 쿠팡 쿠폰 대기열 넣기 실패 pid=%s', pid)
+        return {'ok': False, 'queued': 0,
+                'message': f'정책은 붙였지만 쿠팡 쿠폰은 대기열에 못 넣었습니다: {e}'}
+
+
 @bp.post('/api/policies/<int:pid>/apply')
 def api_apply(pid: int):
     """{model_codes:[...]} — 고른 상품들에 이 정책을 붙인다."""
@@ -283,7 +317,7 @@ def api_apply(pid: int):
             return jsonify({'ok': False, 'error': '정책을 찾을 수 없어요.'}), 404
         n = apply_to(s, policy=pol, model_codes=list(p.get('model_codes') or []))
         s.commit()
-        return jsonify({'ok': True, 'applied': n})
+        return jsonify({'ok': True, 'applied': n, 'coupon': _auto_coupon(s, pid)})
     except PolicyError as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
@@ -307,7 +341,7 @@ def api_apply_sets(pid: int):
     try:
         n = attach_to_sets(s, policy_id=pid, set_ids=list(p.get('set_ids') or []))
         s.commit()
-        return jsonify({'ok': True, 'applied': n})
+        return jsonify({'ok': True, 'applied': n, 'coupon': _auto_coupon(s, pid)})
     except PolicyError as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
@@ -498,25 +532,39 @@ def api_save_fee_defaults():
 
 @bp.route('/policies/apply')
 def policy_apply_page():
-    """「상품 정책 적용」 — 노션 하위탭 ②.
+    """「정책 매칭」(구 「상품 정책 적용」) — 노션 하위탭 ②.
 
     왼쪽에서 상품을 고르고 오른쪽에서 정책을 골라 한 번에 붙인다(그룹핑).
     🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
       하면 거짓 기능이 된다(「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤).
     """
+    from lemouton.policy.fields import MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import applied_count, brand_counts, readiness
+    from lemouton.policy.service import (
+        applied_count, applied_products, brand_counts, enabled_markets,
+        market_status,
+    )
     s = SessionLocal()
     try:
         policies = []
         for p in s.query(MarketPolicy).filter(MarketPolicy.deleted_at.is_(None)) \
                   .order_by(MarketPolicy.is_default.desc(), MarketPolicy.name):
-            rd = readiness(s, p.id)
+            on = enabled_markets(s, p)
+            # market_status() 가 켠 마켓만 골라 readiness() 를 이미 계산한다 —
+            #   전체 마켓 readiness 를 여기서 또 구하면 같은 조회를 두 번 하는 셈이다.
+            status = market_status(s, p.id, markets=on)
+            # [#1059 카드형 정책 고르기] 켠 마켓 중 하나도 「가격 쓸 수 있음」이
+            #   아니면 이 정책은 지금 상품에 붙여도 아무 데도 값이 안 나간다 —
+            #   그런 정책은 카드에서 고를 수 없게 잠그고 「정책 생성으로」 안내한다.
+            usable = any(v != 'wait' for v in status.values())
             policies.append({
                 'id': p.id, 'name': p.name, 'brand': p.brand or '',
                 'is_default': bool(p.is_default),
                 'applied': applied_count(s, p.id),
-                'ready': [m for m, v in rd.items() if v['price_ready']],
+                'enabled': on,
+                'status': status,
+                'usable': usable,
+                'applied_info': applied_products(s, p.id, limit=3),
             })
         pbrands = brand_counts(s)
     finally:
@@ -526,7 +574,7 @@ def policy_apply_page():
     #      「체크했다는데 목록에 없다」가 된다.
     pick = [c for c in request.args.getlist('model') if c]
     return render_template('policy/apply.html', active='policy_apply',
-                           policies=policies, pbrands=pbrands,
+                           policies=policies, pbrands=pbrands, market_label=MARKET_LABEL,
                            pick=pick, pick_q=(pick[0] if len(pick) == 1 else ''))
 
 
@@ -716,6 +764,191 @@ def api_bundle_policy_result(model_code: str):
     except Exception as e:      # noqa: BLE001
         _log.exception('[정책] 상품 결과 계산 실패 model=%s', model_code)
         return jsonify({'ok': False, 'error': f'계산하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  쿠팡 즉시할인쿠폰 — 상품 화면 단추 (사장님 확정 c: 정책 자동 + 단추 둘 다)
+# ════════════════════════════════════════════════════════════════════════
+
+@bp.get('/api/bundles/<path:model_code>/coupang-coupon')
+def api_coupon_status(model_code: str):
+    """지금 이 상품의 쿠폰 상태 — 「아직 / 대기 중 / 걸림 / 실패」를 가른다.
+
+    🔴 「대기열에 넣었다」와 「걸렸다」는 다르다. 화면이 둘을 같은 말로 하면
+      사장님은 안 걸린 걸 걸린 줄 안다.
+    """
+    from lemouton.policy import coupon_service as CS
+    from lemouton.policy.coupon_apply import RETRY_MAX_WON
+    s = SessionLocal()
+    try:
+        rows = []
+        for ch in CS.channels_of_model(s, model_code):
+            rec = CS.record_of(ch)
+            queued = bool((ch.api_fields or {}).get(CS.REQUEST_KEY))
+            if queued:
+                state = 'queued'
+            elif rec.get('ok'):
+                state = 'applied'
+            elif rec:
+                state = 'failed'
+            else:
+                state = 'none'
+            rows.append({
+                'channel_id': ch.id, 'set_id': ch.set_id,
+                'account': ch.account_key, 'state': state,
+                'targets': len(CS.targets_for(s, ch)),
+                'coupon_id': rec.get('coupon_id'), 'value': rec.get('value'),
+                'starts_at': rec.get('starts_at'), 'ends_at': rec.get('ends_at'),
+                'tried': rec.get('tried'), 'at': rec.get('at'),
+                'message': rec.get('message') or '',
+                'failed_items': rec.get('failed_items') or [],
+            })
+        return jsonify({'ok': True, 'rows': rows, 'max_won': RETRY_MAX_WON})
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[쿠팡쿠폰] 상태 조회 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'error': f'상태를 읽지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.get('/api/policies/<int:pid>/coupon-plan')
+def api_coupon_plan(pid: int):
+    """확인창(사장님 확정 B5) 자료 — 몇 개가 바뀌고 몇 개는 안 건드리나.
+
+    🔴 저장하기 **전에** 보여 준다. 몇 개가 바뀌는지 모르고 누르면, 정책 하나로
+      상품 수십 개의 쿠폰이 한꺼번에 새로 만들어지고 옛 것이 내려간다.
+    """
+    from lemouton.policy import coupon_service as CS
+    s = SessionLocal()
+    try:
+        return jsonify({'ok': True, **CS.coupon_plan(s, pid)})
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[쿠팡쿠폰] 확인창 자료 실패 pid=%s', pid)
+        return jsonify({'ok': False, 'message': f'불러오지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/policies/<int:pid>/coupon-plan')
+def api_coupon_plan_apply(pid: int):
+    """확인창에서 **고른 것만** 다시 건다. body: {channel_ids:[…]}"""
+    from lemouton.policy import coupon_service as CS
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        out = CS.apply_coupon_plan(s, pid, channel_ids=body.get('channel_ids') or [])
+        s.commit()
+        return jsonify(out)
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[쿠팡쿠폰] 확인창 실행 실패 pid=%s', pid)
+        return jsonify({'ok': False, 'message': f'걸지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/bundles/<path:model_code>/name-override')
+def api_name_override(model_code: str):
+    """상품명 「정책 / 비정책」 — 이 상품만 다른 이름으로 마켓에 올린다.
+
+    body: {market:'coupang'|'smartstore', value:str}
+
+    🔴 이 칸은 **전송 코드가 이미 읽고 있었는데 적을 화면이 없어 늘 비어 있었다**
+      (인수인계 C1 「죽은 자료」). 창구를 여는 것으로 살아난다.
+    🔴 **비우면 None 으로 지운다.** 빈 글자를 그대로 두면 마켓에 **빈 상품명**이
+      나가 상품 이름이 사라진다 — 「없음」과 「빈 글자」는 다른 것이다.
+    🔴 마켓 한도를 넘으면 **보내기 전에** 사람 말로 막는다. 마켓까지 가면
+      「유효하지 않습니다」만 돌아와 무엇이 잘못인지 알 수 없다.
+    """
+    from lemouton.registration.market_limits import name_max_len
+    from lemouton.sourcing.models import Model
+    COLS = {'coupang': 'coupang_product_name_override',
+            'smartstore': 'naver_product_name_override'}
+    body = request.get_json(silent=True) or {}
+    market = str(body.get('market') or '')
+    col = COLS.get(market)
+    if not col:
+        return jsonify({'ok': False,
+                        'message': '상품명을 따로 정할 수 있는 곳은 '
+                                   '쿠팡·스마트스토어뿐입니다 — 나머지 마켓엔 '
+                                   '그 칸이 아직 없습니다.'}), 400
+    value = (body.get('value') or '').strip()
+    cap = name_max_len(market)
+    if cap and len(value) > cap:
+        return jsonify({'ok': False,
+                        'message': f'{market} 상품명은 {cap}자까지입니다 '
+                                   f'(지금 {len(value)}자).'}), 400
+    s = SessionLocal()
+    try:
+        m = s.get(Model, model_code)
+        if m is None:
+            return jsonify({'ok': False, 'message': '상품을 찾을 수 없어요.'}), 404
+        # 🔴 빈 글자는 None — 그대로 두면 마켓에 빈 상품명이 나간다.
+        setattr(m, col, value or None)
+        s.commit()
+        return jsonify({'ok': True, 'value': value or None,
+                        'message': (f'이 상품만 그 이름으로 올립니다.' if value
+                                    else '정책이 만든 이름을 따릅니다.')})
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[상품명] 덮어쓰기 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'message': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/bundles/<path:model_code>/coupang-coupon/override')
+def api_coupon_override(model_code: str):
+    """「정책 / 비정책」 스위치 (사장님 확정 A2).
+
+    body: {mode:'policy'|'own', value:int|null}
+
+    🔴 「비정책」으로 돌리면 **정책을 바꿔도 이 상품은 안 따라간다.** 그게 이 스위치의
+      전부다 — 상품에 따로 정해 둔 값이 조용히 날아가지 않게 하는 것.
+    🔴 값이 10원 단위가 아니면 여기서 **사람 말로** 막는다. 마켓까지 가면
+      「입력한 데이터가 유효하지 않습니다」만 돌아와 무엇이 잘못인지 알 수 없다.
+    """
+    from lemouton.policy import coupon_service as CS
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        chans = CS.channels_of_model(s, model_code)
+        if not chans:
+            return jsonify({'ok': False,
+                            'message': '이 상품은 아직 쿠팡에 연동된 구성이 없습니다.'}), 400
+        mode = str(body.get('mode') or 'policy')
+        rec = None
+        for ch in chans:
+            rec = CS.set_override(s, ch, mode=mode, value=body.get('value'))
+        return jsonify({'ok': True, 'override': rec,
+                        'message': ('이 상품만의 값으로 씁니다 — 정책을 바꿔도 안 따라갑니다.'
+                                    if mode == 'own' else '정책 값을 따릅니다.')})
+    except ValueError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'message': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[쿠팡쿠폰] 스위치 저장 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'message': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/bundles/<path:model_code>/coupang-coupon')
+def api_coupon_apply(model_code: str):
+    """단추 — 이 상품에 쿠폰을 걸어 달라고 요청한다(실제 걸기는 1분 틱이 한다).
+
+    🔴 여기서 직접 걸지 않는 이유: 거부되면 300원까지 최대 21번 되풀이하고
+      한 번마다 접수 확인을 기다린다 — 몇 분이 걸려 화면이 끊긴다.
+    """
+    from lemouton.policy import coupon_service as CS
+    s = SessionLocal()
+    try:
+        out = CS.request_for_model(s, model_code, by='단추')
+        s.commit()
+        return jsonify(out), (200 if out['ok'] else 400)
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[쿠팡쿠폰] 요청 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'message': f'요청하지 못했어요: {e}'}), 500
     finally:
         s.close()
 

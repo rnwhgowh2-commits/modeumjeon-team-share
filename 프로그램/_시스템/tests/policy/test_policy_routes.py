@@ -276,8 +276,9 @@ def test_옛_값만_있는_정책도_열린다(client):
     assert '소싱품' in r.get_data(as_text=True)
 
 
-# ── 「정책 적용」 하위탭 (노션 하위탭 ②) ────────────────────────────────
+# ── 「정책 매칭」 하위탭 (노션 하위탭 ②) ────────────────────────────────
 #   [2026-08-12] 노션 「a. 상품 정책 적용 → 정책 적용」 개명 반영.
+#   [2026-08-19] 사장님 확정 재개명 「정책 적용 → 정책 매칭」.
 
 def _model(client, code, brand='르무통'):
     """※ Model.brand 는 **기본값이 '르무통'** 이고 NOT NULL 이다
@@ -296,8 +297,7 @@ def test_적용_화면이_열린다(client):
     assert r.status_code == 200
     body = r.get_data(as_text=True)
     assert '정책 매칭' in body
-    assert '상품 정책 적용' not in body, '옛 이름이 남아 있다'
-    assert '>정책 적용<' not in body, '한 세대 전 이름이 남아 있다'
+    assert '정책 적용' not in body, '옛 이름이 남아 있다'
     # [2026-08-12 확정 D3] 번호는 동그라미 배지로 뺐다 — 글자는 그대로 남는다
     assert '상품 고르기' in body and '정책 고르기' in body
     assert '<span class="stepno">①</span>' in body
@@ -346,6 +346,73 @@ def test_정책은_하나만_고를_수_있다(client):
 def test_갈아끼움_경고가_있다(client):
     body = client.get('/policies/apply').get_data(as_text=True)
     assert '갈아 끼워집니다' in body
+
+
+# ── 정책 고르기 카드(#1059) — 블록형 전환 ────────────────────────────────────
+
+def _enable_market(client, pid, markets):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import set_enabled_markets
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        set_enabled_markets(s, policy=p, markets=markets)
+        s.commit()
+    finally:
+        s.close()
+
+
+def test_가격을_아직_못_채운_정책은_카드가_잠긴다(client):
+    """켠 마켓이 있어도 가격을 하나도 못 채웠으면 「미완성」 — 라디오도 disabled."""
+    pid = _new_policy(client, '미완성정책')
+    _enable_market(client, pid, ['coupang'])
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'class="polcard locked"' in body
+    assert '🔒 미완성' in body
+    assert f'value="{pid}" data-nm="미완성정책"\n                   disabled>' in body
+
+
+def test_가격을_채운_정책은_잠기지_않는다(client):
+    pid = _new_policy(client, '완성정책')
+    _enable_market(client, pid, ['coupang'])
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import save_item
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        save_item(s, policy=p, market='coupang', item_key='price', config={'sourcing_rate': 25})
+        s.commit()
+    finally:
+        s.close()
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'class="polcard locked"' not in body
+    assert '🔒 미완성' not in body
+    assert f'value="{pid}" data-nm="완성정책"\n                   >' in body, 'disabled 가 없어야 한다'
+
+
+def test_카드에_내보낼_마켓_뱃지가_있다(client):
+    pid = _new_policy(client, '마켓뱃지확인')
+    _enable_market(client, pid, ['coupang', 'smartstore'])
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'mkbadge' in body
+
+
+def test_적용_상품_호버_틀이_있다(client):
+    """호버 내용은 <template> 로 미리 그려 둔다 — JS 가 새로 조립하지 않는다."""
+    pid = _new_policy(client, '호버확인')
+    _enable_market(client, pid, ['coupang'])
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import save_item
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        save_item(s, policy=p, market='coupang', item_key='price', config={'sourcing_rate': 25})
+        s.commit()
+    finally:
+        s.close()
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert f'<template class="pc-pophtml" data-hvkey="ap{pid}">' in body
+    assert '적용 상품이 없어요' in body
 
 
 def test_상품목록_API가_브랜드_수를_준다(client):
@@ -580,7 +647,9 @@ def test_꺼져_있어도_값을_고칠_수_있다(client):
     _set_markets(client, pid, ['smartstore'])
     body = client.get(f'/policies/{pid}?m=coupang').get_data(as_text=True)
     assert 'pointer-events:none' not in body.split('.mk-off')[1][:400], '입력을 막았다'
-    assert '꺼 둔 동안에도 <b>고칠 수 있습니다.</b>' in body
+    # [2026-08-19 사장님 확정 시안 1] 이 문장은 물음표 아이콘 title 로 옮겨졌다 —
+    # 상시 굵은 글씨는 없앴지만 내용은 그대로 있어야 한다(감춘 게 아니라 접어 둔 것).
+    assert '꺼 둔 동안에도 고칠 수 있습니다.' in body
     # 실제로 저장도 되어야 한다
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import save_item, values_for

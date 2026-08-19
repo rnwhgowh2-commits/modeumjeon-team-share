@@ -251,6 +251,11 @@ def _apply_lightweight_migrations() -> None:
         ("market_products", "category_code", "VARCHAR(64)"),
         ("market_products", "category_name", "VARCHAR(200)"),
         ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
+        # [2026-08-13] 이 묶음의 **모델명** — 마켓에 나가는 값. 사장님 확인:
+        #   「매트릭스명은 사용자가 지정하기 나름. 대부분 브랜드+모델명+(추가)」.
+        #   🔴 NULL = 「따로 안 정함」 이다. 기본값을 주면 안 된다 —
+        #      기존 172개가 NULL 이어야 오늘과 똑같이(매트릭스 이름 폴백) 돈다.
+        ("models", "bundle_model_name", "VARCHAR(255)"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),
         # [2026-08-01] 옵션번호 — 매트릭스번호+순번 (표시용, 열쇠 아님)
@@ -374,6 +379,16 @@ def _apply_lightweight_migrations() -> None:
         ("options", "barcode", "VARCHAR(64)"),
         # 2026-05-19: 품번 (우리 양식 5번째 컬럼) — Model 마스터에 저장
         ("models", "article_no", "VARCHAR(64)"),
+        # [2026-08-14] SKU 하나하나의 품번·GTIN — 「옵션 조합 생성 및 수정」 창에서 받는다.
+        #   🔴 바로 위 `models.article_no`(모델 하나에 하나)와 **다른 칸**이다.
+        #      브랜드가 사이즈마다 다른 품번을 매기므로 모델 칸으로는 못 담는다.
+        #      까닭과 관계는 `lemouton/sourcing/models.py` 의 `Option.article_no` 주석에
+        #      한 번만 적어 뒀다(같은 설명을 두 곳에 두면 언젠가 갈린다).
+        #   🔴 기본값을 주지 않는다 — **NULL = 「아직 안 적음」**. 빈 문자열이 들어가면
+        #      「안 적음」과 「적었다 지움」이 화면에서 같아지고, 진척(「품번 12/15」)을
+        #      세는 곳이 안 채운 것을 채운 걸로 센다.
+        ("options", "article_no", "VARCHAR(64)"),
+        ("options", "gtin", "VARCHAR(14)"),
         # 2026-05-21: 가격 템플릿 마켓별 반품비·교환비 (모달 가로탭 재구성)
         ("price_templates", "ss_return_fee", "INTEGER DEFAULT 0"),
         ("price_templates", "ss_exchange_fee", "INTEGER DEFAULT 0"),
@@ -504,6 +519,9 @@ def _apply_lightweight_migrations() -> None:
         #   「나이키 신발」은 456쪽 16,413개다 — 60쪽이면 13% 밖에 못 걷고,
         #   못 걷은 만큼 팔 상품이 줄어든다. 상한은 지키되 회차를 거듭해 끝까지 간다.
         ("search_filters", "next_page_from", "INTEGER"),
+        # 2026-08-13: 못 걸은 쪽 — 크롬이 바쁠 때 탭이 죽어 통째로 빠지던 것.
+        #   어느 쪽이었는지 기억해야 다시 걸 수 있다(H몰 463쪽 중 16%가 그렇게 비었다).
+        ("search_filters", "missed_urls", "TEXT"),
         # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
@@ -513,6 +531,9 @@ def _apply_lightweight_migrations() -> None:
         #   '크롤 제외'라 상품이 영영 안 긁힌다. 그래서 방향을 갈라 별도 배수를 둔다.
         #   ★DEFAULT 1.0 = 예전과 완전히 같은 동작 (기존 행은 아무것도 안 바뀐다).
         ("source_products", "crawl_slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
+        # 2026-08-13: 「주문 이행 가능 판단」이 찍는 **확인 요청** 표식(노션 ⑤).
+        #   NULL = 요청 없음(예전과 완전히 같은 동작). 크롤이 끝나면 저절로 풀린다.
+        ("source_products", "recheck_requested_at", "DATETIME"),
         ("crawl_weight_rules", "slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
         # 2026-07-19: 업로드 속도 「X초에 Y개」 (사장님 확정).
         #   옛 seconds_per_item(1개당 N초)은 한 계정이 초당 1개가 최대라
@@ -573,6 +594,21 @@ def _apply_lightweight_migrations() -> None:
         ("product_drafts", "pricing_card_key", "VARCHAR(64)"),
         ("product_drafts", "pricing_naver_pay", "VARCHAR(16)"),
         ("product_drafts", "pricing_cashback_name", "VARCHAR(120)"),
+        # 2026-08-13: 등록 상수 — 정책에서 정한 값이 담길 자리.
+        #   전에는 담을 칸이 없어 마켓 등록 코드에 「과세」·「새상품」이 박힌 채 나갔다.
+        #   🔴 DEFAULT 를 거는 건 tax_type 하나뿐이다 — 사장님 확정이 「기본은 과세」라
+        #     기존 행도 과세가 맞다. 나머지는 NULL(=안 정함)과 ''(=없음 명시)를
+        #     구분해야 하므로 DEFAULT 를 안 건다(폴백 금지).
+        #   폭은 마켓 문서 상한에 맞춘다 — 스스 modelName <= 50자, 쿠팡 barcode 는
+        #     표준상품코드(GTIN-14 까지)라 64 로 여유를 둔다. 좁히면 개발기(SQLite,
+        #     길이 무시)는 통과하고 라이브(PostgreSQL)에서만 깨진다.
+        ("product_drafts", "tax_type", "VARCHAR(8) DEFAULT '과세'"),
+        ("product_drafts", "manufacturer", "VARCHAR(120)"),
+        ("product_drafts", "model_no", "VARCHAR(80)"),
+        ("product_drafts", "barcode", "VARCHAR(64)"),
+        ("product_drafts", "search_tags", "TEXT"),
+        # 2026-08-13: 자동 가격 조정 최저가(쿠팡 전용). NULL = 안 씀 — DEFAULT 금지.
+        ("product_drafts", "auto_pricing_min", "INTEGER"),
         # 2026-07-20: 판매처 계정 라이브 검증(실주문 조회 왕복 확인) 기록.
         #   upload_accounts 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
         #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.

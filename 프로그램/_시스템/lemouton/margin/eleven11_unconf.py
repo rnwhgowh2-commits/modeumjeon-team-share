@@ -32,7 +32,9 @@
 """
 from __future__ import annotations
 
-SETTLE_FIELD = "정산예정금(배송비포함)"
+SETTLE_FIELD = "정산예정금(배송비포함)"       # N열 — stlAmt 그대로(배송비 포함)
+SETTLE_M_FIELD = "정산예정금액"               # M열 — 배송비 제외(11번가 빌더와 같은 규약)
+NET_FLAG = "_stl_net"                         # M열=배송비 제외로 저장됨(구 저장분 구분자)
 SRC_FIELD = "_settle_source"
 
 
@@ -117,10 +119,23 @@ def apply_rows(rows: list, *, session=None) -> dict:
             row = dict(o.row or {})
             before = row.get(SETTLE_FIELD)
             before_src = row.get(SRC_FIELD)
-            if _i(before) == r["stl_amt"] and before_src == "real":
+            # 🔴 [2026-08-13] M열(정산예정금액)도 같이 채운다 — 안 채우면 **조용히 지워진다.**
+            #   저장분 보강(`order_export` enrich)이 `_finalize_rows` 를 다시 돌리고,
+            #   거기서 N 은 `M + 배송비` 로 새로 만들어진다. M 이 비면 N 이 **빈칸**,
+            #   M 에 추정치가 있으면 그 추정치로 **덮인다**. 둘 다 마켓 실값이 사라진다.
+            #   규약은 구매확정 **후** 빌더와 똑같이 — `M = 실값 − 배송비`(stlAmt 는
+            #   stlPlnAmt 처럼 배송비를 품고 있다. 이 모듈 머리글 실측 참고).
+            #   🔴 두 벌이 되면 같은 주문이 경로에 따라 다른 값이 된다(원천 분열).
+            want_m = r["stl_amt"] - _i(row.get("배송비"))
+            _m_now = row.get(SETTLE_M_FIELD)
+            _same_m = (_m_now not in (None, "") and _i(_m_now) == want_m
+                       and row.get(NET_FLAG) is True)
+            if _i(before) == r["stl_amt"] and before_src == "real" and _same_m:
                 rep["값동일"] += 1
                 continue
             row[SETTLE_FIELD] = r["stl_amt"]
+            row[SETTLE_M_FIELD] = want_m
+            row[NET_FLAG] = True     # M열=배송비 제외 규약으로 저장됨(구 저장분과 구분)
             row[SRC_FIELD] = "real"
             # 근거를 행에 남긴다 — 나중에 「이 숫자 어디서 왔나」를 답할 수 있게.
             row["_11st_unconf_stat"] = r["ord_prd_stat"]

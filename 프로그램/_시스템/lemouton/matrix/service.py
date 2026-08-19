@@ -162,7 +162,8 @@ def edit_target(session, mo: MatrixOption) -> dict:
 
 def create_option_box(session, *, name: str, brand: str = '',
                       category: str | None = None,
-                      memo: str | None = None) -> MatrixOption:
+                      memo: str | None = None,
+                      model_name: str | None = None) -> MatrixOption:
     """옵션함을 만든다 — 「상품 없이 옵션만」의 입구. 설계서 규칙 1·3.
 
     겉(사장님이 보는 것) — 매트릭스 옵션 하나가 생기고 `U…` 번호가 붙는다.
@@ -174,6 +175,15 @@ def create_option_box(session, *, name: str, brand: str = '',
 
     🔴 model_code 는 `U…` 번호를 그대로 쓴다 — 사람이 지은 이름은 겹칠 수 있고,
        겹치면 저장이 터진다. 번호는 순번 예약이라 절대 안 겹친다.
+
+    Args:
+        model_name: 묶음에 따로 적어 두는 **모델명**(`Model.bundle_model_name`).
+            색상 모음전처럼 모델이 하나뿐일 때만 쓴다.
+            🔴 **모델 모음전이면 여기 넣지 마라.** 모델이 여럿인 묶음의 모델명은
+               「모델」 축의 값이 정본이고, 여기 또 넣으면 같은 사실이 두 곳에 생긴다.
+               `option_name.model_name_of` 의 판정 순서(① 축 값 → ② 이 칸)상
+               조용히 가려져 있다가, 축이 바뀌는 날 두 값이 갈린다.
+            비었으면 **None** 으로 남긴다 — 「따로 안 정함」과 「빈 이름」은 다르다.
     """
     from shared.display_no import PREFIX_MATRIX_ORIGIN, format_no, reserve
     from lemouton.sourcing.models import Model
@@ -196,6 +206,7 @@ def create_option_box(session, *, name: str, brand: str = '',
 
     session.add(Model(model_code=no, model_name_raw=nm, model_name_display=nm,
                       brand=br, category=category,
+                      bundle_model_name=((model_name or '').strip() or None),
                       is_option_box=True))
     session.flush()
 

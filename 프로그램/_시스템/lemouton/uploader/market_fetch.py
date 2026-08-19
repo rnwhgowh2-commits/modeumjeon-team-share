@@ -88,9 +88,15 @@ def _fetch_smartstore(product_id: str, env_prefix: Optional[str] = None) -> Fetc
     #   쿠팡(_fetch_coupang)은 sale_price 를 그대로 쓰므로 두 마켓 의미를 일치시킨다.
     _base = r.sale_price or 0
     opts = [
+        # 🔴 [2026-08-13] `name3`·`manager_code` 를 같이 싣는다.
+        #   예전엔 `get_options` 가 `manager_code`(=우리가 등록할 때 써 넣은 우리 SKU)를
+        #   받아 오고도 **여기서 버렸다** — 이름 대조보다 정확한 열쇠가 놀고 있었다.
+        #   `name3` 은 3갈래(모델명·색상·사이즈) 상품의 사이즈 칸이다. 없으면 None.
         MarketOption(option_id=str(o.option_id), color=o.name1, size=o.name2,
                      stock=o.stock, price=_base + int(o.add_price or 0),
-                     usable=o.usable)
+                     usable=o.usable,
+                     name3=getattr(o, 'name3', None),
+                     manager_code=getattr(o, 'manager_code', None))
         for o in r.options
     ]
     return FetchResult(True, r.product_name, opts)

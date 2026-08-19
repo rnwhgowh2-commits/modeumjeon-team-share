@@ -528,6 +528,49 @@ def orders_preview():
                    warnings=warnings)
 
 
+@bp.route('/diag/esm-timing')
+def orders_diag_esm_timing():
+    """옥션·G마켓 조회가 **어디서 시간을 쓰는지** 재는 창구(읽기 전용).
+
+    🔴 왜 있나 — 2026-08-13 클레임 49회를 동시에 보내도록 고쳤는데 오히려 느려 보였다.
+      그런데 「클레임에 몇 초 썼는지」가 서버 기록에만 있어 화면에서 원인을 가릴 수
+      없었다. 되돌릴지 유지할지 정하려면 이 숫자가 있어야 한다.
+      마켓을 실제로 부르므로(5초/1회 제한) 진단용으로만 쓴다.
+    """
+    import time as _t
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    if market not in ('auction', 'gmarket'):
+        return jsonify(ok=False, error="market 은 옥션(auction)·G마켓(gmarket)만 돼요."), 400
+    try:
+        days = max(1, min(int(request.args.get('days') or 1), 31))
+    except (TypeError, ValueError):
+        days = 1
+    until = _dt.datetime.now()
+    since = until - _dt.timedelta(days=days)
+    # 🔴 주문조회는 **계정 키로 만든 클라이언트**가 있어야 돈다. 안 붙이면
+    #   `AttributeError: 'NoneType' object has no attribute 'request_orders'` 로 터진다
+    #   (2026-08-13 라이브에서 바로 겪음 — 시험이 esm_order_rows 를 가짜로 갈아
+    #    끼워 이 구멍을 못 봤다).
+    cli = _oe._account_client(market)
+    if cli is None:
+        return jsonify(ok=False, error=f"{_oe.market_label(market)} API 키(자격증명)가 "
+                                       f"등록돼 있지 않아 잴 수 없어요."), 200
+    diag, warns = {"counts": {}, "errors": {}}, []
+    t0 = _t.monotonic()
+    try:
+        rows = _oe.esm_order_rows(market, since, until, client=cli,
+                                  diag=diag, warnings=warns)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, 총초=round(_t.monotonic() - t0, 1),
+                       error=f"{type(e).__name__}: {str(e)[:300]}",
+                       counts=diag.get("counts"), errors=diag.get("errors")), 200
+    return jsonify(ok=True, market=market, days=days,
+                   총초=round(_t.monotonic() - t0, 1), 행수=len(rows),
+                   counts=diag.get("counts") or {}, errors=diag.get("errors") or {},
+                   warnings=warns)
+
+
 @bp.route('/flow-daily.json')
 def orders_flow_daily():
     """배송흐름 최근 N일 요약 — 날짜별 송장 입력 / 배송 중 / 배송 완료.
@@ -652,6 +695,40 @@ def orders_fulfillment():
         import logging
         logging.getLogger(__name__).exception("fulfillment 판정 실패 rows=%d", len(rows))
         # 주문 표는 절대 안 깨진다 — 실패하면 화면은 분류 없이 그대로 남는다.
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/fulfillment/recheck.json')
+def orders_fulfillment_recheck():
+    """이행 판단 ② — 「값이 바뀌는 상품」만 다시 긁도록 확인 요청을 찍는다 (노션 ⑤).
+
+    사장님 확정: *"변경값 없는건 저장된 크롤값 그대로 + 변경값있는건 새로 긁고 판정.
+    해당 주문건에 소싱처 url 있는것만 긁으면 돼"* — 「변경값」 = 그 상품의 **가격·재고**가
+    바뀐 것(2026-08-13 확인). 그 신호는 크롤이 이미 남기고 있다(`no_change_streak`).
+
+    🔴 여기서 긁지 않는다 — 크롤은 사장님 PC 확장 몫이다(서버는 IP 가 다르다).
+      표식만 찍고, 두 마감 경로(벽시계·랩)가 그걸 읽어 맨 앞으로 올린다.
+
+    payload: {rows: [주문행, ...]}  →  {ok, 요청, 대상주문, 값이_안_바뀌는_상품, ...}
+    """
+    from lemouton.orders import fulfillment as _ff
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    if not rows:
+        return jsonify(ok=True, 요청=0, 대상주문=0)
+    s = SessionLocal()
+    try:
+        res = _ff.request_recheck(s, rows)
+        s.commit()
+        return jsonify(ok=True, **res)
+    except Exception as e:   # noqa: BLE001
+        s.rollback()
+        import logging
+        logging.getLogger(__name__).exception("확인 요청 실패 rows=%d", len(rows))
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
     finally:
         s.close()
@@ -1344,8 +1421,20 @@ _SETTLE_PLAN_LOOKBACK_DAYS = 180   # 쿠팡 최대 2달 주기 + 여유
 
 
 def _settle_plan_lines(markets=None):
-    """MarketOrderLine → settle_plan 엔진 입력. 최근 180일 주문만."""
-    from lemouton.markets.models_orders import MarketOrderLine
+    """MarketOrderLine → settle_plan 엔진 입력. 최근 180일 주문 + 그 클레임 전 이력.
+
+    🔴 [2026-08-19] 클레임은 안 읽고 있었다 — **라이브 배포 직후 발견**. `MarketOrderLine`
+       한 테이블만 읽어서, `annotate_claims()` 가 이어 붙일 클레임 행이 애초에 하나도
+       없었다(반품완료 234건이 있는데도 kpi.returned=0으로 화면에 서 있었다).
+       클레임은 `order_store.save()` 가 **별도 테이블**(`MarketClaimEvent`)에 쌓는다
+       — 같은 라인이 반품요청→반품완료로 갈 때 주문 테이블에 덮어쓰면 이력이
+       사라지기 때문이다(`order_store.py` 의 그 이유 그대로). `order_store.load()`
+       (preview.json 이 쓰는 그 함수)는 이미 `include_claims` 로 두 테이블을 합쳐
+       왔는데, 이 함수는 그 패턴을 안 따르고 직접 쿼리를 짜면서 절반만 옮겼다.
+       🔴 클레임에는 날짜로 거르지 않는다 — 옛 클레임이라도 그 주문이 지금 180일
+         창 안에 있으면 이어 줘야 한다(주문이 오래전이어도 반품은 최근일 수 있다).
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
     lo = (_dt.datetime.now() - _dt.timedelta(days=_SETTLE_PLAN_LOOKBACK_DAYS)
           ).strftime("%Y-%m-%d")
     s = SessionLocal()
@@ -1353,11 +1442,24 @@ def _settle_plan_lines(markets=None):
         q = s.query(MarketOrderLine).filter(MarketOrderLine.order_date >= lo)
         if markets:
             q = q.filter(MarketOrderLine.market.in_(list(markets)))
-        return [{"row": dict(o.row or {}), "market": o.market,
-                 "account": o.account or "", "status_at": o.status_at}
-                for o in q.all()]
+        lines = [{"row": dict(o.row or {}), "market": o.market,
+                  "account": o.account or "", "status_at": o.status_at}
+                 for o in q.all()]
+
+        qc = s.query(MarketClaimEvent)
+        if markets:
+            qc = qc.filter(MarketClaimEvent.market.in_(list(markets)))
+        lines += [{"row": dict(c.row or {}), "market": c.market,
+                   "account": "", "status_at": None}
+                  for c in qc.all()]
     finally:
         s.close()
+    # 🔴 [2026-08-13] 클레임 행을 **주문번호로 원래 주문행에 이어** 표식을 남긴다.
+    #   여기서 하는 이유 — 이 함수가 정산예정금액의 **유일한 줄 만드는 곳**이다.
+    #   집계·드릴다운·엑셀이 전부 여기를 지나므로 한 곳만 손대면 셋이 절대 안 갈린다.
+    #   (예전에 판정이 두 곳에 흩어져 「KPI 5.5억 · 목록 0건」이 라이브에 나갔다.)
+    from lemouton.margin import settle_plan as _sp
+    return _sp.annotate_claims(lines)
 
 
 @bp.route('/api/settle-plan')
@@ -1403,14 +1505,26 @@ def settle_plan_agg():
     out['셀러월렛'] = wallet
     # 🚀 로켓그로스 — 쿠팡 마켓플레이스와 **완전히 별도**라 지금까지 「받을 돈」에서 통째로
     #   빠져 있었다(2026-08-07 실측: 매출내역에 0건·정산 회차에도 안 섞임).
-    #   Wing 화면 API 를 로컬 크롤이 긁어 넣는다. 받을 돈 = 지급액 − 빠른정산 선인출.
+    #   Wing 화면 API 를 로컬 크롤이 긁어 넣는다.
     #   🔴 기간 칸에는 못 나눈다 — 회차 단위라 주문별 지급예정일이 없다. 총액에만 더한다.
+    #   🔴🔴 [2026-08-13] 「받을 돈」 = **Σ최종지급액(정산일 오늘 이후 ~ 한 달)** 이다.
+    #     옛 `지급액 − 빠른정산`(기간 제한 없음)은 **이미 받은 회차까지 세어** 화면이
+    #     9,508,138 을 보여줬다 — 쿠팡 화면 실제 값은 7,818,202(사장님 Wing 25회차로
+    #     원 단위 확인). 그 차이 1,689,936 이 「앞으로 받을 돈」 총액에 그대로 얹혔다.
+    #     대조 엔진(settle_recon)만 고치고 **이 화면 숫자를 안 고쳐** 라이브가 틀린 채였다.
+    #     규칙 정본 = `rg_settlement.ahead_summary()`.
     try:
         from lemouton.margin import rg_settlement as RG
         rg = RG.summary()
+        _ahead = RG.ahead_summary()
+        rg['앞으로받을돈'] = int(_ahead.get('금액') or 0)
+        rg['앞으로회차수'] = int(_ahead.get('회차수') or 0)
+        rg['이미받은회차합'] = int(_ahead.get('이미받은회차합') or 0)
+        rg['창'] = _ahead.get('창') or ''
     except Exception:   # noqa: BLE001 — 로켓그로스가 없어도 나머지 집계는 나가야 한다
         rg = {"지급액": 0, "빠른정산": 0, "받을돈": 0, "최종지급": 0,
-              "회차수": 0, "계정별": []}
+              "회차수": 0, "계정별": [], "앞으로받을돈": 0, "앞으로회차수": 0,
+              "이미받은회차합": 0, "창": ""}
     out['로켓그로스'] = rg
     kpi = out.get('kpi') or {}
     if isinstance(kpi, dict):
@@ -1418,9 +1532,10 @@ def settle_plan_agg():
         if base is None:
             base = int(kpi.get('total_uncollected') or 0)
         kpi['wallet_balance'] = wallet['합계']
-        kpi['rocket_growth'] = int(rg.get('받을돈') or 0)
-        kpi['net_uncollected'] = max(
-            0, int(base) - int(wallet['합계']) + int(rg.get('받을돈') or 0))
+        # 🔴 화면·총액 둘 다 **같은 값**을 써야 한다 — 하나만 고치면 카드와 총액이 갈린다.
+        _rg_ahead = int(rg.get('앞으로받을돈') or 0)
+        kpi['rocket_growth'] = _rg_ahead
+        kpi['net_uncollected'] = max(0, int(base) - int(wallet['합계']) + _rg_ahead)
     return jsonify(out)
 
 
@@ -1484,7 +1599,12 @@ def settle_plan_detail():
             continue
         evs = r["events"]
         row = ln["row"]
-        if category in ("risk", "paid"):
+        # 🔴 [2026-08-13] `returned` 도 여기다 — **부류**이지 이벤트 표식이 아니다.
+        #   아래 `elif` 는 `bucket == category` 로 거르는데, 반품비 이벤트의 bucket 은
+        #   confirmed/overdue/undated 라서 `bucket=='returned'` 인 이벤트가 **하나도 없다**.
+        #   그대로 뒀으면 카드는 금액을 보여 주는데 눌러도 목록이 **영영 0건**이었다
+        #   (이 저장소가 겪은 「KPI 5.5억 · 목록 0건」과 같은 부류의 사고).
+        if category in ("risk", "returned", "paid"):
             if cat != category:
                 continue
             # 🔴 [2026-08-12 노션 c-2] 「받은 이력」 칸을 눌렀을 때 그 칸의 주문만 준다.
@@ -1605,11 +1725,14 @@ def _settle_plan_detail_order(SP, market, account, bucket, unit):
 
 #: 내보내기·목록이 함께 쓰는 부류 이름 — 한 곳에서만 정의(둘이 갈리면 조용히 어긋난다)
 _SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "not_started", "undated",
-                  "assumed_paid", "risk", "paid")
+                  # 🔴 [2026-08-13] returned = 반품·교환이 **끝난** 주문. 받을 돈에서
+                  #   빼되 숨기지 않는다(반품비만 총액에 남는다).
+                  "assumed_paid", "risk", "returned", "paid")
 _SP_CAT_KO = {"confirmed": "확정예정", "unconfirmed": "미확정예정",
               "overdue": "입금일지남", "not_started": "정산시작전",
               "undated": "받는날미정",
-              "assumed_paid": "이미받았을것", "risk": "반품취소진행", "paid": "이미받음"}
+              "assumed_paid": "이미받았을것", "risk": "반품취소진행",
+              "returned": "반품교환완료", "paid": "이미받음"}
 
 
 @bp.route('/api/settle-plan/export.xlsx')
@@ -1640,7 +1763,12 @@ def settle_plan_export():
         if not amount:
             continue
         evs = r["events"]
-        if category in ("risk", "paid"):
+        # 🔴 [2026-08-13] `returned` 도 여기다 — **부류**이지 이벤트 표식이 아니다.
+        #   아래 `elif` 는 `bucket == category` 로 거르는데, 반품비 이벤트의 bucket 은
+        #   confirmed/overdue/undated 라서 `bucket=='returned'` 인 이벤트가 **하나도 없다**.
+        #   그대로 뒀으면 카드는 금액을 보여 주는데 눌러도 목록이 **영영 0건**이었다
+        #   (이 저장소가 겪은 「KPI 5.5억 · 목록 0건」과 같은 부류의 사고).
+        if category in ("risk", "returned", "paid"):
             if cat != category:
                 continue
         else:
@@ -1885,6 +2013,96 @@ def orders_diag_esm_settlement():
             "조회한주문": picked if want else dict(list(picked.items())[:20]),
         }
     return jsonify(ok=True, market=market, alias=alias or "(대표)",
+                   기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   결과=out, 실패=errors)
+
+
+@bp.route('/diag/esm-delivery-settle')
+def orders_diag_esm_delivery_settle():
+    """[읽기 전용] 옥션·G마켓 **배송비 정산조회**(getsettledeliveryfee, 지도 esm:42) 원본.
+
+    왜 필요한가(2026-08-13) — 우리는 이 창구를 **한 번도 안 불렀다**
+    (`shared/platforms/__init__.py` 에 경로만 「후속」으로 적혀 있고 호출부 0곳).
+    그래서 두 가지가 통째로 빈다:
+      ① 배송비 정산 **실값** — N열(`정산예정금(배송비포함)`)이 고객배송비를 **전액** 더한다.
+         쿠팡은 실값(`_ship_settle`)을 쓰는데 ESM 만 옛 폴백이라, ESM 은 배송비 수수료
+         (`DelFeeCommission`)만큼 상시 과대일 수 있다 — 그게 사실인지 눈으로 본다.
+      ② **반품·교환 배송비** — 지도 `DelFeeType` 코드표에 40 반품배송비 / 50 추가반품배송비
+         / 60 무료반품배송비 / 70 교환배송비 가 있다. 사장님 확정(2026-08-13)
+         「반품완료여도 반품·교환 배송비는 우리가 받는다」의 **실값 창구**가 바로 여기다.
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD&srch=D1,D3,D6&alias=`
+      · SrchType(지도 esm:42): D1 입금확인일 · D3 매출마감일 · D6 송금일 · D7 환불일
+        · D8 입금확인일+환불일 · D10 글로벌셀러 예치금 송금일 (D4·D5 는 **없다**)
+      · 🔴 당일·미래 날짜로 조회하면 Error 414 — 어제까지로 물어야 한다(지도 코드표).
+    응답은 금액·날짜·배송비번호뿐 — 고객정보는 담지 않는다.
+    """
+    from flask import jsonify
+    from collections import Counter
+    market = (request.args.get('market') or 'gmarket').strip()
+    if market not in ('gmarket', 'auction'):
+        return jsonify(ok=False, error='옥션·G마켓 전용이에요.'), 400
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    srchs = [s.strip().upper() for s in (request.args.get('srch') or 'D1').split(',')
+             if s.strip()]
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        rows_cap = max(1, min(int(request.args.get('rows') or 500), 500))
+    except (TypeError, ValueError):
+        rows_cap = 500
+    try:
+        sample = max(0, min(int(request.args.get('sample') or 5), 40))
+    except (TypeError, ValueError):
+        sample = 5
+    site = 'G' if market == 'gmarket' else 'A'
+    path = "/account/v1/settle/getsettledeliveryfee"
+
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return 0.0
+
+    out, errors = {}, {}
+    for srch in srchs:
+        try:
+            cli = _client_for_diag(market, alias)
+            if cli is None:
+                errors[srch] = "계정 클라이언트 없음(키 미등록)"
+                continue
+            resp = cli.post(path, {"SiteType": site, "SrchType": srch,
+                                   "SrchStartDate": f"{since:%Y-%m-%d}",
+                                   "SrchEndDate": f"{until:%Y-%m-%d}",
+                                   "PageNo": 1, "PageRowCnt": rows_cap}) or {}
+        except Exception as e:   # noqa: BLE001 — 기준일 하나가 막혀도 나머지는 보여준다
+            errors[srch] = f"{type(e).__name__}: {str(e)[:300]}"
+            continue
+        data = resp.get("Data") or []
+        # 배송비 유형별로 나눠 본다 — 「원배송비」와 「반품·교환배송비」는 뜻이 완전히 다르다.
+        by_type: dict = {}
+        for r in data:
+            t = str(r.get("DelFeeType") or "")
+            e = by_type.setdefault(t, {"건수": 0, "DelFeeAmt합": 0.0,
+                                       "DelFeeCommission합": 0.0})
+            e["건수"] += 1
+            e["DelFeeAmt합"] += _f(r.get("DelFeeAmt"))
+            e["DelFeeCommission합"] += _f(r.get("DelFeeCommission"))
+        out[srch] = {
+            "ResultCode": resp.get("ResultCode"),
+            "Message": resp.get("Message"),
+            "TotalCount": resp.get("TotalCount"),
+            "TotalDelFeeAmt": resp.get("TotalDelFeeAmt"),
+            "받은행수": len(data),
+            "유형별": by_type,
+            "Kind분포": dict(Counter(str(r.get("Kind")) for r in data)),
+            "합_DelFeeAmt": round(sum(_f(r.get("DelFeeAmt")) for r in data), 2),
+            "합_DelFeeCommission": round(sum(_f(r.get("DelFeeCommission"))
+                                             for r in data), 2),
+            "표본": data[:sample],
+        }
+    return jsonify(ok=True, market=market, alias=alias or "(대표)", path=path,
                    기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
                    결과=out, 실패=errors)
 
@@ -2268,6 +2486,63 @@ def orders_diag_coupang_order_settle():
               '같으면 N열(정산예정금(배송비포함))이 이 실값을 쓰는 것이 옳다는 증거.'))
 
 
+@bp.route('/diag/rg-rounds')
+def orders_diag_rg_rounds():
+    """[읽기 전용] 로켓그로스 회차 표 — Wing 화면과 **같은 표로** 맞대려고.
+
+    🔴 왜(2026-08-13 사장님 지적) — 화면 「지급 예상금액」이 우리 숫자와 다르다.
+      *"선정산 받은거 제외안해도돼? 내 생각엔 최종지급액 합산되어야하는거 아닌지?"*
+      맞는 의심이다. 우리는 `받을돈 = 지급액 − 빠른정산` 으로 세는데, 화면 목록의
+      열 이름은 **「최종지급액」**(`final_amount`)이다. 둘이 같은 것인지 **아직 증명된 적이
+      없다** — 그래서 회차별로 나란히 놓고 봐야 한다.
+
+    🔴 합계만 비교하면 「우연히 비슷」과 「정말 같음」을 못 가른다. 회차(정산일·비율)마다
+      지급액·빠른정산·최종지급액을 다 보여준다.
+
+    `?account=` — 계정 필터(선택). 응답은 금액·날짜뿐(고객정보 없음).
+    """
+    from lemouton.sourcing.models_v2 import RocketGrowthSettlement as M
+    acc = (request.args.get('account') or '').strip()
+    today = _dt.date.today().isoformat()
+    s = SessionLocal()
+    try:
+        q = s.query(M)
+        if acc:
+            q = q.filter(M.account == acc)
+        rows = sorted(q.all(), key=lambda o: (o.settlement_date or '', o.ratio or 0))
+        out = [{
+            '정산일': o.settlement_date or '', '지급비율': o.ratio,
+            '매출인식일': f"{o.period_start or ''}~{o.period_end or ''}",
+            '계정': o.account or '(대표)',
+            '판매액': int(o.sales_amount or 0),
+            '지급액': int(o.payable_amount or 0),
+            '빠른정산_이미받음': int(o.fast_withdrawn or 0),
+            '최종지급액': int(o.final_amount or 0),
+            '정산일_지남': bool((o.settlement_date or '') and o.settlement_date <= today),
+        } for o in rows]
+        _pay = sum(r['지급액'] for r in out)
+        _fast = sum(r['빠른정산_이미받음'] for r in out)
+        _fin = sum(r['최종지급액'] for r in out)
+        _future = [r for r in out if not r['정산일_지남']]
+        return jsonify(
+            ok=True, 오늘=today, 회차수=len(out), 계정=acc or '(전체)',
+            합계={
+                'Σ지급액': _pay,
+                'Σ빠른정산_이미받음': _fast,
+                '지급액−빠른정산 (지금 우리가 쓰는 값)': max(0, _pay - _fast),
+                'Σ최종지급액 (화면 목록의 그 열)': _fin,
+                'Σ최종지급액_오늘이후_정산일만 (노션 규칙)':
+                    sum(r['최종지급액'] for r in _future),
+                '오늘이후_회차수': len(_future),
+            },
+            회차별=out,
+            해석=('화면 「지급 예상금액」이 위 넷 중 무엇과 같은지로 규칙이 정해진다. '
+                  '같은 게 하나도 없으면 화면 숫자의 정의를 모르는 것이므로 '
+                  '「대조 성공」이라 말하면 안 된다.'))
+    finally:
+        s.close()
+
+
 @bp.route('/diag/stale-delivered')
 def orders_diag_stale_delivered():
     """[진단·수동실행] 「배송완료」에 굳은 옛 주문 되살리기 — 왜 안 줄어드나 눈으로.
@@ -2369,6 +2644,109 @@ def orders_diag_eleven11_settle():
                    alias=alias or "(대표)", 라인키목록=sorted(keys),
                    stlDy_있나=("stlDy" in keys), stlPlnDy_있나=("stlPlnDy" in keys),
                    표본=samples, 원본머리=str(xml_text or "")[:400])
+
+
+@bp.route('/diag/e11-seller-dc')
+def orders_diag_e11_seller_dc():
+    """[읽기 전용·마켓 안 부름] 11번가 판매자할인을 못 받은 주문이 얼마나 밀려 있나.
+
+    🔴 왜 필요한가(2026-08-13) — 배송중·배송완료·구매확정 주문은 **목록조회가
+      `sellerDscPrc` 를 아예 안 준다**(라이브 실측 150/157행). 그래서 그 행들의 매출이
+      「정가 − 판매자할인」으로 못 넘어가고 옛 기준(실결제+배송비)에 머문다.
+      회수는 단건조회(eleven11.110)로만 되는데 **주문당 1콜**이라, 한도를 정하려면
+      백로그가 몇 건인지부터 세어야 한다. 이 창구는 저장분만 읽는다(마켓 호출 0).
+
+    `?days=180` — 주문일 기준 창(최대 730).
+    돌려주는 것: 대상 건수·주문번호 수·월별 분포·이미 시도한 건수·단가까지 빈 행 수.
+      ★`정체불명금액` = Σ(총주문금액 − 실결제금액). 이 돈이 우리 부담인지 마켓 부담인지
+        아직 모르는 몫이다 — 「할인 0원」이 아니라 「모름」이다.
+    """
+    from flask import jsonify
+
+    from shared.db import SessionLocal
+    from lemouton.markets.models_orders import MarketOrderLine as L
+
+    try:
+        days = max(1, min(730, int(request.args.get('days') or 180)))
+    except ValueError:
+        days = 180
+    now = _dt.datetime.now(_oe.KST)
+    oldest = (now - _dt.timedelta(days=days)).strftime('%Y-%m-%d')
+    # 배송이 시작된 뒤 상태만 — 결제완료·배송준비중은 목록조회가 이미 할인을 준다.
+    STS = ('배송중', '배송완료', '구매확정')
+
+    def _i(v):
+        try:
+            return int(float(str(v).replace(',', '')))
+        except (TypeError, ValueError):
+            return 0
+
+    with SessionLocal() as s:
+        rows = (s.query(L).filter(L.market == 'eleven11',
+                                  L.status.in_(STS),
+                                  L.order_date >= oldest).all())
+        by, tried, blank, gap, nos = {}, 0, 0, 0, set()
+        for o in rows:
+            r = o.row or {}
+            if str(r.get('_dc_seller') or '').strip():
+                continue                      # 이미 받아 둔 행
+            k = (o.order_date or '?')[:7]
+            by[k] = by.get(k, 0) + 1
+            nos.add(o.order_no)
+            if r.get('_dcfill_tried_at'):
+                tried += 1
+            if not str(r.get('단가') or '').strip():
+                blank += 1                    # 단가가 없으면 회수해도 매출 기준이 안 바뀐다
+            gap += _i(r.get('총주문금액')) - _i(r.get('실결제금액'))
+        return jsonify(ok=True, 창=f'{oldest}~{now:%Y-%m-%d}',
+                       조회한행=len(rows), 대상건수=sum(by.values()),
+                       주문번호수=len(nos), 월별=dict(sorted(by.items())),
+                       이미시도한건수=tried, 단가까지빈행=blank,
+                       정체불명금액=gap,
+                       안내='주문당 1콜 — 주문번호수가 곧 필요한 호출 수다.')
+
+
+@bp.route('/diag/e11-order-raw')
+def orders_diag_e11_order_raw():
+    """[읽기 전용·저장 안 함] 11번가 단건조회(eleven11.110) 원본 필드 — 값이 오나 눈으로.
+
+    🔴 왜 필요한가(2026-08-13) — 지도에 `sellerDscPrc` 가 있다는 것은 **「칸이 있다」**이지
+      **「값이 온다」**가 아니다. 배송완료·구매확정 주문에서도 실값을 채워 주는지 확인하지
+      않고 회수 스윕을 지으면, 못 구하는 주문을 계속 두드리기만 하는 코드가 된다.
+      (같은 함정의 반대 방향 사고가 이미 있었다 — 「마켓이 안 준다」고 보고했는데 실은
+       우리가 버리고 있던 건.)
+
+    `?ordno=202608130001234&alias=` — 주문번호 하나. 금액·번호 계열 필드만 돌려준다
+    (고객정보는 담지 않는다). 저장분에 아무것도 쓰지 않는다.
+    """
+    from flask import jsonify
+
+    from shared.platforms.eleven11.orders import fetch_order
+
+    ordno = (request.args.get('ordno') or '').strip()
+    if not ordno:
+        return jsonify(ok=False, error='ordno(주문번호)가 필요해요.'), 400
+    alias = (request.args.get('alias') or '').strip()
+    cli = _client_for_diag('eleven11', alias)
+    try:
+        ods = fetch_order(ordno, client=cli)
+    except Exception as e:                    # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f'{type(e).__name__}: {str(e)[:300]}'), 500
+    # 관심 필드 — 할인 갈래 + 배송비(지도와 코드가 서로 다르게 말하는 자리) + 금액.
+    WANT = ('sellerDscPrc', 'sellerDscPrcPerSeq', 'lstSellerDscPrc',
+            'tmallDscPrc', 'tmallDscPrcPerSeq', 'tmallApplyDscAmt',
+            'ordPayAmt', 'ordAmt', 'selPrc', 'ordQty',
+            'dlvCst', 'lstDlvCst', 'bmDlvCst', 'bndlDlvYN',
+            'ordPrdSeq', 'ordNo', 'ordPrdStat', 'ordPrdStatNm', 'stlPlnAmt')
+    out = []
+    for od in ods:
+        out.append({k: od.get(k) for k in WANT if k in od})
+    return jsonify(ok=True, ordno=ordno, alias=alias or '(대표)',
+                   라인수=len(ods),
+                   전체키목록=sorted({k for od in ods for k in od}),
+                   sellerDscPrc_왔나=any(str(od.get('sellerDscPrc') or '').strip()
+                                        for od in ods),
+                   관심필드=out)
 
 
 @bp.route('/diag/ss-settle')
@@ -3049,7 +3427,10 @@ def shopmine_recon_run():
             return jsonify(ok=False, error=str(e)), 422
         except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
             return jsonify(ok=False, error=f'대조 실패: {type(e).__name__}: {e}'), 400
-        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided')}
+        # 🔴 `defs`(노랑 표본)는 목록이라 **detail 쪽**에 둔다 — summary 에 두면
+        #   실행 30회치가 그대로 쌓여 Supabase 무료 티어를 먹는다.
+        #   집계인 `def_reasons` 는 작으므로 summary 에 남아 화면 요약에 쓰인다.
+        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided', 'defs')}
         summary = {k: v for k, v in res.items() if k not in detail}
         prev = (s.query(ShopmineReconRun)
                 .order_by(ShopmineReconRun.id.desc()).first())
@@ -3361,6 +3742,43 @@ def settle_recon_run_manual():
                        prev_ran_at=(prev.ran_at.isoformat() if prev else None))
     finally:
         s.close()
+
+
+@bp.route('/lotteon-paid/context')
+def orders_lotteon_paid_context():
+    """[읽기 전용] 롯데온 입금내역 가져오기에 필요한 것 + **최근 가져온 내역**.
+
+    🔴 왜 `trNo` 를 서버가 주나(2026-08-13 라이브 실패) — 확장이 셀러오피스 **화면에서**
+      판매자ID 를 긁게 해 뒀는데 라이브에서 `trNo not found` 로 실패했다. 화면 구조에
+      기대는 방식이라 로그인 상태·페이지에 따라 못 찾는다. 우리는 그 번호를 **계정
+      설정에 이미 갖고 있다**(`client._cfg['tr_no']` — 상품·가격·재고 호출 필수값).
+      아는 값을 화면에서 다시 긁을 이유가 없다.
+
+    🔴 왜 「최근 가져온 내역」인가(사장님 지적) — 단추를 눌러도 **언제 · 얼마나 들어왔는지**
+      알 길이 없었다. 그러면 「눌렀는데 된 건가?」를 영영 확인할 수 없다.
+    """
+    from lemouton.margin import lotteon_paid as LP
+    accounts, errs = [], []
+    try:
+        for prefix, name in (_oe._active_accounts('lotteon') or [(None, '')]):
+            try:
+                cli = _oe._account_client('lotteon', prefix)
+                tr = str((getattr(cli, '_cfg', {}) or {}).get('tr_no') or '').strip()
+            except Exception as e:      # noqa: BLE001 — 한 계정이 막혀도 나머지는 준다
+                errs.append(f"{name or '(대표)'}: {type(e).__name__}")
+                continue
+            if tr:
+                accounts.append({'계정': name or '(대표)', 'trNo': tr})
+    except Exception as e:              # noqa: BLE001
+        errs.append(f"{type(e).__name__}: {str(e)[:120]}")
+    try:
+        summary = LP.summary()
+    except Exception as e:              # noqa: BLE001
+        summary = {'오류': f'{type(e).__name__}: {str(e)[:120]}'}
+    return jsonify(
+        ok=True, 계정=accounts, 오류=errs, 최근가져온내역=summary,
+        해석=('trNo 는 계정 설정에 이미 있는 값이다 — 확장이 화면에서 긁다 실패하면 '
+              '(trNo not found) 이 값을 실어 보내면 된다.'))
 
 
 @bp.route('/settle-recon/latest')

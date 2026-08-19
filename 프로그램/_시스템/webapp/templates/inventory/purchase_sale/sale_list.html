@@ -34,9 +34,9 @@
             <td style="padding:8px 8px">{{ r.so.partner_label or '—' }}</td>
             <td style="padding:8px 8px;text-align:right">{{ r.item_count }}</td>
             <td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:var(--red,#C53030)">{{ r.total_qty }}</td>
-            <td style="padding:8px 8px"><span style="font-size:11px;padding:0px 8px;border-radius:0px;background:{% if r.so.status=='completed' %}var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D){% elif r.so.status=='cancelled' %}var(--연한-빨강,#FEE2E2));color: var(--글자-빨강, var(--red,#991B1B){% else %}var(--연한-빨강,#FEE2E2));color:var(--red,#991B1B){% endif %};font-weight:600">{{ r.so.status }}</span></td>
+            <td style="padding:8px 8px"><span style="font-size:12px;padding:0px 8px;border-radius:0px;background:{% if r.so.status=='completed' %}var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D){% elif r.so.status=='cancelled' %}var(--연한-빨강,#FEE2E2));color: var(--글자-빨강, var(--red,#991B1B){% else %}var(--연한-빨강,#FEE2E2));color:var(--red,#991B1B){% endif %};font-weight:600">{{ r.so.status }}</span></td>
             <td style="padding:8px 8px;color:var(--글자-기본,#4E5968);font-size:12px">{{ r.so.due_date.strftime('%Y-%m-%d') if r.so.due_date else '—' }}</td>
-            <td style="padding:8px 8px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:22px;height:22px;border-radius:50%;background:#7C3AED;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ (r.so.created_by or '운')[:1] }}</span><span style="font-size:12px">{{ r.so.created_by or '운영자' }}</span></span></td>
+            <td style="padding:8px 8px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:22px;height:22px;border-radius:50%;background:#7C3AED;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">{{ (r.so.created_by or '운')[:1] }}</span><span style="font-size:12px">{{ r.so.created_by or '운영자' }}</span></span></td>
           </tr>
         {% else %}<tr><td colspan="9" style="padding:48px;text-align:center;color: var(--글자-희미, var(--faint,#9CA3AF)">판매 없음</td></tr>{% endfor %}
       </tbody>

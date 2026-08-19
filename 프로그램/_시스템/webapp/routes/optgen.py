@@ -107,8 +107,77 @@ def subtab_groups():
 _TAB_ALIAS = {'option': 'direct', 'import': 'market'}
 
 
-def _boxes(session):
-    """만들어 둔 옵션함 목록 — 만들어 놓고 못 찾으면 만든 의미가 없다.
+def _flag(v) -> bool:
+    """주소에 붙은 켬·끔 값 한 벌 — `?made=1` · `?made=on` 을 같은 뜻으로 읽는다.
+
+    🔴 값을 「있으면 켬」으로 읽으면 `?made=0` 도 켬이 된다(끄려고 적은 값에 켜진다).
+       그래서 **켜는 글자를 나열**하고 나머지는 전부 끔으로 본다.
+    """
+    return str(v or '').strip().lower() in ('1', 'on', 'true', 'y', 'yes')
+
+
+def _빈_박스_숫자() -> dict:
+    """옵션함 목록을 안 그리는 탭이 쓸 「전부 0」 숫자표.
+
+    🔴 열쇠 목록을 손으로 또 적으면, `_boxes` 가 열쇠를 하나 늘렸을 때 이쪽만 빠져
+       화면이 그 탭에서만 오류로 죽는다. 그래서 위상 이름은 `PHASES` 에서 받아 쓴다.
+    """
+    from lemouton.matrix.readiness import PHASES
+    out = {'shown': 0, 'hidden': 0, 'all': 0, 'made': 0}
+    out.update({p: 0 for p in PHASES})
+    return out
+
+
+def _box_facts(session, codes: list[str], option_counts: dict) -> dict:
+    """옵션함 줄이 필요로 하는 사실 한 벌 — 축 요약 · 소싱처 URL · 맵핑 진척 · 위상.
+
+    Args:
+        codes: 옵션함 `model_code` 목록.
+        option_counts: {model_code: 옵션(SKU) 수}. **부르는 쪽이 이미 센 것**을 넘긴다
+            — 여기서 다시 세면 화면의 「옵션 5개」와 판정이 쓰는 수가 갈릴 수 있다.
+
+    Returns:
+        {'axes','sources','urls','map','phase','sku_info'} — 각각 코드별 표.
+
+    🔴 **모으는 자리를 한 곳으로 둔 이유.** 옵션함 목록(`_boxes`)과 상품생성 탭
+       (`_matrices`)이 같은 옵션함을 각자 재면, 한쪽만 규칙이 바뀌었을 때 같은 줄이
+       한 화면에선 「준비 완료」, 다른 화면에선 「미완료」가 된다. 에러는 안 나고
+       화면만 서로 다른 말을 한다 — 이 저장소가 여러 번 겪은 사고다.
+
+    🔴 **조회는 줄 수와 무관하게 5개**(축 1 · 소싱처 URL 1 · 맵핑 1 · 위상 1 ·
+       SKU 번호 진척 1). 줄마다 묻기 시작하면 옵션함 200개 화면이 1,000조회가 된다.
+
+    🔴 맵핑 완료 여부는 **3값 그대로** 위상 판정에 넘긴다. URL 이 0개면 `complete`
+       가 `None`(모름)이다. 이걸 `False`(아니다)로 뭉개면 「소싱처 URL 없음」과
+       「소싱처 맵핑 미완료」가 **둘 다** 떠서, 실제로는 한 군데(주소 붙이기)인
+       할 일이 두 군데인 것처럼 보인다.
+    """
+    from lemouton.matrix.readiness import phase_batch
+    from lemouton.matrix.sku_info import counts_batch as sku_info_counts
+    from lemouton.sourcing.axis_summary import axis_batch
+    from lemouton.sourcing.source_url_stats import (mapping_coverage,
+                                                    url_counts_by_source)
+
+    codes = [c for c in (codes or []) if c]
+    option_counts = option_counts or {}
+    축 = axis_batch(session, codes)                              # 조회 1
+    소싱처 = url_counts_by_source(session, codes)                 # 조회 1
+    URL수 = {c: sum(n for _k, n in 소싱처.get(c) or ()) for c in codes}
+    맵핑 = mapping_coverage(session, codes, option_counts)        # 조회 1
+    위상 = phase_batch(session, codes, options=option_counts,     # 조회 1
+                      urls=URL수,
+                      mapped={c: 맵핑[c]['complete'] for c in codes},
+                      axes=축)
+    # 🔴 SKU 번호 진척은 **위상에 안 넣는다.** 품번·바코드·GTIN 이 비어도 상품은
+    #    만들어지고 팔린다 — 「준비 완료」 판정에 끼우면 오늘까지 완료였던 줄이
+    #    전부 미완료로 뒤집힌다. 목록에서 **따로 보여줄 뿐**이다.
+    SKU번호 = sku_info_counts(session, codes, option_counts)      # 조회 1
+    return {'axes': 축, 'sources': 소싱처, 'urls': URL수,
+            'map': 맵핑, 'phase': 위상, 'sku_info': SKU번호}
+
+
+def _boxes(session, *, show_made: bool = False):
+    """만들어 둔 옵션함 목록 — `(화면에 내려보낼 줄, 머리줄 숫자)` 두 개를 같이 돌려준다.
 
     판매용 모음전은 섞지 않는다. 섞이면 어느 게 아직 안 파는 건지 알 수 없다.
 
@@ -119,21 +188,101 @@ def _boxes(session):
        상한값이라 화면이 거짓말을 하고 있었다.
        → 상한을 없애고 **최근 만든 순**으로 세우며, 평소 볼 일 없는 것은 `hid` 로
          표시해 화면이 기본으로 감춘다(`/matrix` 가 이미 쓰는 그 규칙 그대로).
+
+    🔴 [2026-08-14 사장님 확정 3] **상품 생성에 이미 쓰인 옵션함은 기본 목록에서 뺀다.**
+       할 일이 남은 것만 보여야 「다음에 뭘 해야 하나」가 한눈에 보인다.
+       다 쓴 옵션함이 섞여 있으면 목록이 길어지기만 하고, 사장님이 그걸 다시 눌러
+       같은 옵션함으로 상품을 **두 번** 만들 위험도 생긴다.
+       필요할 때는 `show_made=True`(주소의 `?made=1`)로 꺼내 본다.
+
+    🔴 **숫자를 이 함수 안에서 같이 만든다.** 줄을 거르는 곳과 세는 곳이 갈리면
+       머리줄 숫자와 실제로 보이는 줄이 어긋난다 — 이 화면이 이미 한 번 겪은 사고다
+       (위 「50」). 같은 목록에서 바로 세면 갈릴 수가 없다.
+
+    🔴 **줄 수와 무관하게 조회 개수가 고정**이어야 한다. 여기는 상한이 없어 라이브에
+       200줄 넘게 나온다 — 줄마다 한 번씩 물으면 화면이 눈에 띄게 느려지다 어느 날
+       그냥 안 열린다(에러도 안 난다). 그래서 재료는 전부 **묶음 조회 모듈**에서 받는다.
+
+    돌려주는 줄 한 개가 가진 것 (9칸 + 위상)
+        code·shown_code — 속 열쇠(창을 여는 주소) / 창고 번호(「단독_」 뗀 것)
+        no·kind         — 번호 정본(`MatrixOption.display_no`) · 원본/파생
+        name·brand      — 이름 · 브랜드
+        moum_kind·moum_kind_label — 모음전 종류(모델 모음전 / 색상 모음전)
+        axis_label      — 축 구성 「모델 × 색상 × 사이즈」
+        model_names     — 모델 축의 값들
+        options         — 옵션(SKU) 수
+        sources·urls    — 소싱처별 URL 수 · 그 합계
+        map             — 맵핑 진척 (`mapping_coverage` 결과 그대로)
+        phase·missing   — 위상 값과 미완료 사유. **라벨은 안 담는다** —
+                          이름·색은 `readiness.PHASE_LABEL`·`PHASE_CLS` 한 곳에서만 온다.
+        made·hid        — 상품 생성에 썼나 · 평소 감출 줄인가
+                          (🔴 둘은 **겹치지 않는다** — 감추는 이유는 줄마다 하나여야
+                           서랍 뱃지가 「켜면 늘어나는 줄 수」를 그대로 말할 수 있다)
+
+    🔴 [2026-08-19 사장님 지시로 재도입] `unbuilt`(미구성 딱지) — 한 번은 「축 없음
+       사유와 중복」이라 뺐었다(사장님 확정 4). 그런데 그 사유는 **위상(상태) 칸** 얘기고,
+       이번에 붙이는 딱지는 **이름 칸**이다 — 목록을 훑을 때 「이건 아직 아무것도 안 짠
+       낱개다」를 상태 칸까지 안 보고도 알아보게 하는 것이 목적이라 겹치지 않는다.
+       판정은 여전히 `lemouton/matrix/unbuilt.py` 하나뿐 — 여기서 조건을 다시 안 적고
+       그 결과만 그대로 받아 화면 표시 여부만 결정한다(값을 새로 저장하지 않음 — 그
+       모듈 머리말의 "매트릭스에 편입했다를 따로 저장하지 않는다" 규칙 그대로).
     """
-    from sqlalchemy import func
+    from sqlalchemy import and_, func
+
+    from lemouton.matrix.models import MatrixOption
+    from lemouton.matrix.option_name import bundle_model_names
+    from lemouton.matrix.readiness import PHASE_USED, PHASES
+    from lemouton.matrix.unbuilt import unbuilt_batch
     from lemouton.sourcing.models import Model, Option
+    from lemouton.sourcing.source_url_stats import source_labels
+
     rows = (session.query(Model.model_code, Model.model_name_display,
                           Model.model_name_raw, Model.brand, Model.created_at,
-                          func.count(Option.canonical_sku))
+                          # 🔴 [2026-08-14] 묶음에 따로 적어 둔 모델명도 같이 읽는다.
+                          #    안 읽으면 오른쪽 판이 색상 모음전에 대고 「따로 안 짬」
+                          #    이라 말하는데 마켓엔 적어 둔 이름이 나간다
+                          #    (보는 것 ≠ 나가는 것). 조회 수는 그대로 1개다.
+                          Model.bundle_model_name,
+                          # 🔴 `distinct` — 매트릭스 줄이 하나 더 붙는 날에도 옵션 수가
+                          #    두 배로 부풀지 않게. 숫자가 조용히 틀리는 자리다.
+                          func.count(func.distinct(Option.canonical_sku)),
+                          MatrixOption.display_no, MatrixOption.kind)
             .outerjoin(Option, Option.model_code == Model.model_code)
+            # 🔴 `deleted_at.is_(None)` 을 빠뜨리면 **지운 매트릭스가 되살아나** 번호를
+            #    다시 화면에 올린다. 지운 것은 없는 것이다.
+            .outerjoin(MatrixOption,
+                       and_(MatrixOption.model_code == Model.model_code,
+                            MatrixOption.deleted_at.is_(None)))
+            # 🔴 이 조건이 목록의 뼈대다 — 빠지면 판매용 모음전이 옵션함 목록에 섞여
+            #    어느 게 아직 안 파는 건지 알 수 없게 된다
+            #    (`tests/catalog/test_optgen_direct.py` 가 지킨다).
             .filter(Model.is_option_box.is_(True))
             .group_by(Model.model_code, Model.model_name_display,
-                      Model.model_name_raw, Model.brand, Model.created_at)
+                      Model.model_name_raw, Model.brand, Model.created_at,
+                      Model.bundle_model_name,
+                      MatrixOption.display_no, MatrixOption.kind)
             # 만든 날짜가 없는 옛 줄은 뒤로 — `NULLS LAST` 는 SQLite 에 없어
             # 「비었나」를 첫 정렬 키로 쓴다(False=0 이 먼저).
             .order_by(Model.created_at.is_(None),
                       Model.created_at.desc(), Model.model_code.desc())
             .all())
+
+    codes = [r[0] for r in rows]
+    옵션수 = {r[0]: int(r[6] or 0) for r in rows}
+    # 이 목록은 `Model.is_option_box.is_(True)` 로만 걸러 뒀으니(위 258행) 전부
+    # 옵션함이다 — 다시 조회하지 않고 전부 True 로 넘긴다(이미 세어 둔 것은 또 안 센다).
+    미구성 = unbuilt_batch(session, codes, option_counts=옵션수,
+                          option_box={c: True for c in codes})
+    사실 = _box_facts(session, codes, 옵션수)
+    축, 소싱처, URL수, 맵핑, 위상 = (사실['axes'], 사실['sources'], 사실['urls'],
+                                 사실['map'], 사실['phase'])
+    SKU번호 = 사실['sku_info']
+
+    # 소싱처 이름은 **요청당 한 번만** 부른다 — 줄마다 부르면 그게 곧 N+1 이다
+    # (그쪽 독스트링의 경고 그대로). 붙은 주소가 하나도 없으면 아예 안 부른다.
+    키들 = sorted({k for v in 소싱처.values() for k, _n in v})
+    이름 = source_labels(키들) if 키들 else {}
+
     # 🔴 [2026-08-12 사장님] 「단독_」 이라는 말을 **화면에서 완전히 없앤다.**
     #   이 글자는 사장님이 알 필요가 없는 프로그램 내부 표시다 — 재고관리에서
     #   「모음전으로도 판다」를 체크 안 했을 때, 옵션을 담을 상자가 필요해서
@@ -142,11 +291,76 @@ def _boxes(session):
     #   안 쓰고 있었다** — 그래서 「단독_SKU-…」 가 이름·번호에 그대로 찍혔다.
     #   속(model_code)은 그대로 둔다. 8곳이 그 앞글자로 창고 물건을 가려내고 있어
     #   건드리면 창고 물건이 판매 목록에 다시 섞인다.
-    return [{'code': c, 'shown_code': display_name(None, c),
-             'name': display_name(d or r or c, c), 'brand': b, 'options': n,
-             # 숨김 = 창고에만 있는 물건 + 빈 묶음(옵션 0) — `/matrix` 와 같은 규칙
-             'hid': bool((c or '').startswith(_LEGACY_PREFIX) or n == 0)}
-            for c, d, r, b, _ts, n in rows]
+    out: list[dict] = []
+    만든것 = 0
+    for c, d, r, b, _ts, bmn, n, no, mk in rows:
+        ph = 위상[c]
+        쓴줄 = ph['phase'] == PHASE_USED
+        if 쓴줄:
+            만든것 += 1
+            if not show_made:
+                continue            # 사장님 확정 3 — 다 쓴 옵션함은 기본 목록에서 뺀다
+        ax = 축.get(c) or {}
+        out.append({
+            'code': c, 'shown_code': display_name(None, c),
+            'no': no, 'kind': mk,             # 번호 정본 · 원본/파생
+            'name': display_name(d or r or c, c), 'brand': b,
+            # 미구성 SKU(축 0 · 옵션 1) — 이름 칸 배지용. 판정은 unbuilt.py 하나뿐.
+            'unbuilt': c in 미구성,
+            # 「모음전 종류」와 위 `kind`(원본/파생)는 **다른 것**이다. 이름이 비슷해
+            # 섞이기 쉬워 앞에 `moum_` 을 붙여 둔다.
+            'moum_kind': ax.get('kind'), 'moum_kind_label': ax.get('kind_label'),
+            'axis_label': ax.get('axis_label'),
+            # 옵션축 칸(「모델 3개 × 색상 4개 × 사이즈 3개」 칩) — 이름·개수를
+            # 짝지어 둔다. 축이 없으면 빈 목록(화면은 「—」로 그린다).
+            'axis_pairs': list(zip(ax.get('axis_names') or [],
+                                   ax.get('axis_counts') or [])),
+            # 🔴 「모델명」은 축 값과 묶음 칸 **두 곳**에서 온다. 순서를 여기서
+            #    다시 정하지 않는다 — `option_name.bundle_model_names` 한 곳이
+            #    `model_name_of` 와 같은 순서를 지킨다(보는 것 = 나가는 것).
+            'model_names': bundle_model_names(ax.get('model_names'), bmn),
+            'options': n,
+            'sources': [{'key': k, 'label': 이름.get(k) or k, 'n': cnt}
+                        for k, cnt in (소싱처.get(c) or ())],
+            'urls': URL수.get(c, 0), 'map': 맵핑[c],
+            # 🔴 「SKU 정보 상태」 — 품번·바코드·GTIN 을 **셋 따로** 센 진척.
+            #    못 센 것은 `None` 이고, 화면은 그걸 0 이 아니라 「—」로 그린다
+            #    (`lemouton/matrix/sku_info.py` 가 왜 `None` 인지 적어 뒀다).
+            'sku_info': SKU번호[c],
+            # 🔴 위상은 **글자가 아니라 값**으로 담는다. 「상품생성 준비 완료」 같은
+            #    라벨을 줄마다 복사해 두면 이름을 바꿀 때 한쪽만 바뀐다 —
+            #    화면은 `readiness.PHASE_LABEL` 을 열쇠로 찾아 쓴다(원천 하나).
+            'phase': ph['phase'], 'missing': ph['missing'],
+            'made': 쓴줄,
+            # 숨김 = 창고에만 있는 물건 + 빈 묶음(옵션 0) — `/matrix` 와 같은 규칙.
+            #
+            # 🔴 [2026-08-14 검수] **상품에 쓴 줄은 여기서 또 감추지 않는다.**
+            #    이 줄은 「상품으로 만든 것도 보기」가 이미 가리고 있다. 여기서 `hid`
+            #    까지 켜면 체크를 **둘 다** 켜야만 나오는 줄이 생기고, 그런 줄은 어느
+            #    뱃지에도 안 잡힌다 — 실제로 「뱃지는 1인데 켜도 목록이 안 늘어나는」
+            #    거짓말이 재현됐다. 감췄으면 몇 개를 감췄는지 말해야 한다는 이 화면의
+            #    규칙(index.html)을 지키려면, **감추는 이유는 줄마다 하나**여야 한다.
+            'hid': (not 쓴줄) and bool((c or '').startswith(_LEGACY_PREFIX) or n == 0),
+        })
+
+    # 🔴 숫자는 전부 **「그 체크를 켜면 실제로 늘어나는 줄 수」**다. 세어 놓고 안
+    #    보여주면 눌러도 0줄인 거짓말이 된다(`/matrix` 가 겪은 그것).
+    #      · shown  = 지금 보이는 줄
+    #      · hidden = 「창고에만 있는 물건 보기」를 켜면 늘어나는 줄
+    #      · made   = 「상품으로 만든 것도 보기」를 켜면 늘어나는 줄
+    #    🔴 `hidden` 은 `made` 를 켜든 끄든 같은 값이어야 한다 — 옆 체크를 건드릴
+    #       때마다 창고 숫자가 늘었다 줄었다 하면 창고 물건이 변한 줄로 읽는다.
+    #       위에서 쓴 줄을 `hid` 로 안 겹치게 했으므로 저절로 그렇게 된다.
+    보임 = [x for x in out if not x['hid']]
+    counts = {'shown': len(보임), 'hidden': len(out) - len(보임), 'all': len(out),
+              # 「상품으로 만든 것」은 **목록에서 뺀 것까지 포함한 전체 수**다
+              # (전부 `hid` 가 아니므로 켜면 이 수만큼 그대로 늘어난다).
+              # 아래 위상별 수(지금 보이는 줄)와는 묻는 것이 다르다.
+              'made': 만든것}
+    # 위상별 수 — 라벨을 여기 적지 않는다(`readiness.PHASE_LABEL` 이 유일한 원천).
+    for p in PHASES:
+        counts[p] = sum(1 for x in 보임 if x['phase'] == p)
+    return out, counts
 
 
 def _matrices(session, limit: int = 100):
@@ -175,7 +389,33 @@ def _matrices(session, limit: int = 100):
            for i, no, nm, k, box, br, n, mc in rows if n]
     _attach_stage(session, out)
     _attach_made(session, out)
+    _attach_phase(session, out)
     return out
+
+
+def _attach_phase(session, mats):
+    """옵션함 줄에 「상품 만들 준비 됐나」 위상을 붙인다.
+
+    🔴 판정도 라벨도 **`lemouton/matrix/readiness.py` 한 곳**에서만 온다. 여기서
+       「옵션이 있으면 준비 완료」처럼 다시 정하면, 같은 옵션함이 이 탭과 옵션함
+       목록에서 서로 다른 상태로 보인다.
+
+    🔴 **옵션함만** 묻는다. 판매 상품은 이 물음의 대상이 아니다
+       (그쪽은 `_attach_stage` 의 4상태 — 정의역이 서로소다).
+    """
+    codes = [m['code'] for m in mats if m.get('code') and m.get('box')]
+    if not codes:
+        return
+    위상 = _box_facts(session, codes,
+                     {m['code']: int(m.get('options') or 0)
+                      for m in mats if m.get('code')})['phase']
+    for m in mats:
+        p = 위상.get(m.get('code'))
+        if p is None:
+            continue                # 옵션함이 아닌 줄 — 위상을 지어내지 않는다
+        # 🔴 라벨은 안 담는다 — 화면이 `readiness.PHASE_LABEL` 에서 찾아 쓴다(원천 하나).
+        m['phase'] = p['phase']
+        m['missing'] = p['missing']
 
 
 #: 코드 앞글자 「단독_」 — 옛날에 「재고관리에만 두는 물건」을 문자열로 흉내 낸 흔적.
@@ -248,12 +488,29 @@ def _attach_shown(mats):
        르무통 스위트 메리제인 · SKU-484B2862 — 둘 다 상품관리에 없음).
 
     그래서 규칙을 여기 한 곳에 두고 표·판·거르기가 이 값을 같이 쓴다.
+
+    🔴 [2026-08-14] 옵션함 갈래를 예전의 두 글자(`none`/`made`)에서 **위상**
+       (`readiness` 의 준비 미완료 / 준비 완료 / 상품 생성에 사용됨)으로 갈아끼웠다.
+       예전 두 글자는 「상품을 만들었나」만 물어서, 아직 축도 안 짜고 소싱처도 안 붙인
+       옵션함과 지금 바로 상품을 만들 수 있는 옵션함이 **같은 글자**로 보였다.
+       사장님은 그 목록에서 무엇부터 손봐야 하는지 알 수 없었다.
+
+    🔴 `bundles_tower.stage_of` 의 4상태와 **중복이 아니다 — 정의역이 서로소다.**
+       · 4상태 : 판매 상품이 정책·마켓까지 어디까지 갔나  (`is_option_box=False`)
+       · 위상   : 옵션함이 상품이 될 준비가 됐나           (`is_option_box=True`)
+       한 줄이 둘 다인 경우는 없다. 물어보는 것도 다르다(파는 진도 ↔ 만들 준비)라
+       합치면 「정책 적용」 같은 말이 옵션함에도 붙어 화면이 거짓말을 한다.
     """
+    from lemouton.matrix.readiness import PHASE_DRAFT
+
     for m in mats:
         if m.get('kind') == 'derived':
             m['show'] = 'derived'                             # 갈라진 묶음 — 4상태 밖
         elif m.get('box') or not m.get('code'):
-            m['show'] = 'made' if m.get('made') else 'none'   # 옵션함: 상품을 만들었나
+            # 옵션함: 상품 만들 준비가 어디까지 됐나.
+            # 🔴 위상을 못 물어본 줄(코드가 없어 판정 대상이 아닌 줄)은 **미완료**로
+            #    둔다 — 모르는 것에 초록불을 켜면 사장님이 눌렀다가 빈 상품을 만든다.
+            m['show'] = m.get('phase') or PHASE_DRAFT
         else:
             m['show'] = str(m.get('stage') or '')             # 상품이 된 묶음: 4상태
 
@@ -290,11 +547,22 @@ def index():
     tab = _TAB_ALIAS.get(tab, tab)
     if tab not in {t['key'] for t in SUBTABS}:
         tab = 'direct'                      # 모르는 값은 조용히 빈 화면 대신 기본 탭
+    # [2026-08-14 사장님 확정 3] 「상품으로 만든 것도 보기」 — 기본은 꺼짐.
+    #   🔴 `made` 라는 이름을 **상품 탭이 다른 뜻으로** 쓰고 있다(상품을 막 만들고
+    #      돌아올 때 그 상품번호가 실려 온다: `?tab=product&made=M2026…`).
+    #      그래서 이 값을 켬·끔으로 읽는 것은 **옵션 탭에서만**이다. 상품 탭에서
+    #      읽으면 상품번호가 「켬」으로 보여, 뜻이 다른 두 값이 한 이름에서 섞인다.
+    show_made = tab in ('direct', 'market') and _flag(request.args.get('made'))
     s = SessionLocal()
     try:
         # 옵션 매트릭스 목록은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정 B2).
         # 어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾게 한다.
-        boxes = _boxes(s) if tab in ('direct', 'market') else []
+        if tab in ('direct', 'market'):
+            boxes, box_counts = _boxes(s, show_made=show_made)
+        else:
+            # 목록을 안 그리는 탭 — 숫자도 전부 0이다. 🔴 열쇠를 빠뜨리면 화면이
+            # 「없음」 대신 오류로 죽으므로, 만드는 쪽과 **같은 열쇠**를 쓴다.
+            boxes, box_counts = [], _빈_박스_숫자()
         mats = _matrices(s) if tab == 'product' else []
     finally:
         s.close()
@@ -306,19 +574,29 @@ def index():
                 'code': request.args.get('code') or '',
                 'options': request.args.get('opts') or ''}
     # 「어디까지 왔나」 판 — 상품관리와 같은 4상태(사장님 첫 지시 「사이드바에도 구분하자」)
+    from lemouton.matrix.readiness import (PHASE_CLS, PHASE_DRAFT, PHASE_LABEL,
+                                          PHASE_READY, PHASES)
+    from lemouton.matrix.sku_info import FIELDS as SKU_FIELDS
+    from lemouton.matrix.sku_info import LABELS as SKU_LABELS
     from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
+    # 🔴 [2026-08-19 사장님 확정] 「모음전 옵션 생성」 목록의 「상태」 칸만 회색/초록
+    #    2색이다. `PHASE_CLS`(위상 3종 공용, wait=회색·mid=파랑·sale=초록)는 그대로
+    #    두고 **이 화면 렌더링에서만** 로컬로 덮어쓴다 — 이 목록은 상품 생성에 쓴
+    #    옵션함(PHASE_USED)을 이미 빼고 보여주므로 미완료/완료 2종뿐이다.
+    #    `PHASE_CLS` 를 직접 바꾸면 「모음전 상품 생성」 탭의 3단계 막대(미완료·완료·
+    #    상품생성됨)에서 완료와 상품생성됨이 둘 다 초록이 되어 구분이 사라진다.
+    direct_phase_cls = {PHASE_DRAFT: 'wait', PHASE_READY: 'sale'}
     _attach_shown(mats)
     mat_counts = {'all': len(mats)}
     for st in STAGES:
         mat_counts['s%d' % st] = sum(1 for m in mats if m.get('show') == str(st))
-    for k in ('none', 'made', 'derived'):
+    # 옵션함 갈래는 위상 3종 + 갈라진 묶음. 🔴 여기 글자를 손으로 나열하지 않는다 —
+    # `PHASES` 가 늘거나 이름이 바뀌면 판에서만 조용히 빠져 「합이 안 맞는」 화면이 된다.
+    for k in tuple(PHASES) + ('derived',):
         mat_counts[k] = sum(1 for m in mats if m.get('show') == k)
-    # 🔴 [2026-08-12] 머리줄 숫자는 **화면에 실제로 보이는 것**을 센다.
-    #    예전엔 `boxes|length` 였는데 목록이 50개에서 잘려 **언제나 「50」**이었다
-    #    — 전체 개수가 아니라 상한값을 전체인 양 보여준 것이다.
-    box_counts = {'shown': sum(1 for b in boxes if not b.get('hid')),
-                  'hidden': sum(1 for b in boxes if b.get('hid')),
-                  'all': len(boxes)}
+    # 막대의 회색 토막 = 아직 상품이 아닌 옵션함 몫. 🔴 위상 하나만 세면 나머지 위상
+    # 줄이 막대 어디에도 안 들어가 「막대와 목록의 합」이 갈린다(상품관리가 겪은 그것).
+    mat_counts['box'] = sum(mat_counts[p] for p in PHASES)
     return render_template('optgen/index.html',
                            active_app='bundles', active='optgen_' + tab,
                            subtabs=SUBTABS, subtab_groups=subtab_groups(),
@@ -326,8 +604,18 @@ def index():
                            made=made, markets=IMPORT_MARKETS,
                            stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
                            stage_cls=STAGE_CLS, mat_counts=mat_counts,
-                           box_counts=box_counts, axis_presets=AXIS_PRESETS,
-                           blocked_axis_reason=BLOCKED_AXIS_REASON)
+                           box_counts=box_counts, axis_presets=presets_for_screen(),
+                           # 🔴 위상 이름·색은 `readiness` 한 곳에서만 온다 —
+                           #    화면이 「상품생성 준비 완료」 같은 글자를 또 적으면
+                           #    한쪽만 고쳤을 때 같은 옵션함이 화면마다 다른 이름으로 불린다.
+                           phases=PHASES, phase_label=PHASE_LABEL,
+                           phase_cls=PHASE_CLS, direct_phase_cls=direct_phase_cls,
+                           show_made=show_made,
+                           # 🔴 「품번·바코드·GTIN」이라는 이름과 **그 순서**도 한 곳에서만
+                           #    온다(`matrix/sku_info.FIELDS`·`LABELS`). 화면에 손으로
+                           #    적어 두면 칸이 하나 늘거나 이름이 바뀔 때 이 화면만 뒤처져,
+                           #    격자에서 고친 값이 목록에서는 다른 이름으로 세어진다.
+                           sku_fields=SKU_FIELDS, sku_labels=SKU_LABELS)
 
 
 @bp.get('/product/by-code/<path:code>')
@@ -375,9 +663,11 @@ def product_assembly(mo_id: int):
     from webapp.routes.matrix import detail_context
     ctx = detail_context(mo_id)
     if ctx is None:
+        # 🔴 matrix.py 의 같은 404 와 짝 — 한 곳만 고치면 다른 곳이 남는다.
         return render_template('errors/option_not_found.html',
                                active='optgen_product',
-                               requested_code='매트릭스 옵션',
+                               requested_code='',
+                               sku_label='옵션 묶음 번호',
                                requested_sku=str(mo_id)), 404
     return render_template('matrix/detail.html',
                            active_app='bundles', active='optgen_product',
@@ -394,44 +684,48 @@ AXIS_PRESETS = [
      'desc': '한 모델을 색상(과 사이즈)으로 펼칩니다',
      'options': [{'n': 1, 'axes': ['색상']},
                  {'n': 2, 'axes': ['색상', '사이즈']}]},
-    # 🔴 [2026-08-13 감사 후속] 모델 모음전은 **아직 못 고르게** 둔다 (`disabled`).
-    #   숨기지 않는다 — 사장님이 노션에 적으신 항목이라, 없애면 「빠뜨렸나」가 된다.
-    #   화면에 이유를 그대로 적고 고르지만 못하게 한다.
-    #
-    #   왜 못 여나 — 축 이름으로 칸을 정하게 고쳤지만(68fe4179) 모델 값이 갈 자리가 없다:
-    #     · 1축 ['모델']        → color_code 에 모델명 (고치려던 바로 그 증상)
-    #     · 2축 ['모델','색상'] → size_code 에 모델명 (마켓에 사이즈로 나간다)
-    #     · 3축                 → 어느 칸에도 안 들어간다 → 마켓 옵션 이름이
-    #       「블랙 250」으로 **겹쳐** 서로 다른 모델이 한 줄로 보인다(실측)
-    #   여는 데 필요한 것 두 가지 — 둘 다 사장님 결정이 있어야 한다:
-    #     ① 조립대 격자에 모델 축을 어떻게 그릴지 (지금은 색상×사이즈 2축 격자뿐)
-    #     ② 마켓별 옵션 1/2/3축 구성 정책 (노션 「마켓별 옵션 1/2/3축 구성 정책」)
-    #   (라이브 매트릭스 185개 전수 확인 결과 모델 축 사용 0건 — 지금 닫아도 잃는 것이 없다)
-    {'kind': 'model', 'label': '모델 모음전', 'disabled': True,
+    # [2026-08-13 사장님 확정] 모델 모음전 — **연다.**
+    #   🔴 예전엔 「준비 중」으로 막아 뒀는데 **막는 자리가 틀렸다.**
+    #      옵션을 3축으로 만드는 것 자체는 온전하다(실측: 축 값 3개·SKU·옵션명 전부 다름).
+    #      겹치는 건 **마켓 전송**뿐이다 — 마켓 옵션 이름이 색상+사이즈 두 칸이라
+    #      모델이 달라도 「블랙 250」으로 같아진다.
+    #      → 위험이 있는 자리(전송)에 막이를 두고 만들기는 연다.
+    #        막이 = `lemouton/formatter/pipeline.py` 의 `option_name_collision`.
+    #   마켓별로 몇 축으로 쪼개 보낼지는 **상품가공 「정책 생성」** 몫이다(노션 그대로).
+    {'kind': 'model', 'label': '모델 모음전',
      'desc': '여러 모델을 한 상품에 담습니다',
      'options': [{'n': 1, 'axes': ['모델']},
                  {'n': 2, 'axes': ['모델', '색상']},
                  {'n': 3, 'axes': ['모델', '색상', '사이즈']}]},
 ]
 
-#: 아직 받지 않는 축 이름 — 위 주석 참조. 큰 창(조합 생성)에서도 같은 규칙을 쓴다.
-#: 🔴 이름 하나만 여기 적어 두면 두 입구가 갈리지 않는다.
-BLOCKED_AXIS_REASON = (
-    '「모델」 축은 아직 쓸 수 없어요 — 모델 값을 담을 칸이 없어 마켓에 올릴 때 '
-    '서로 다른 모델이 같은 옵션으로 겹칩니다. 격자·마켓 축 정책이 정해지면 열립니다.'
-)
-
-
-def blocked_axis(axis_names) -> bool:
-    """모델 축이 섞여 있나 — 만들기 창과 큰 창 **두 곳이 같은 함수**를 쓴다."""
-    from lemouton.sourcing.axis_slot import is_model_axis
-    return any(is_model_axis(a) for a in (axis_names or []))
-
 #: 프리셋에서 고를 수 있는 축 조합 — 화면이 보낸 값이 이 안에 있는지 검사한다.
-#: 🔴 `disabled` 프리셋은 **뺀다** — 화면엔 이유와 함께 보이지만 고를 수는 없다.
-#:    한 곳에서 빼야 화면·API 가 갈리지 않는다.
-_ALLOWED_AXES = {tuple(o['axes']) for p in AXIS_PRESETS if not p.get('disabled')
-                 for o in p['options']}
+_ALLOWED_AXES = {tuple(o['axes']) for p in AXIS_PRESETS for o in p['options']}
+
+
+def presets_for_screen() -> list[dict]:
+    """화면에 내려줄 프리셋 — 원천은 위 `AXIS_PRESETS` **하나뿐**이다.
+
+    여기서 딱 하나를 더 붙인다: `model_axis` = 「이 축 구성에 모델 축이 있나」.
+
+    🔴 왜 서버가 계산해 주나. 만들기 창은 ⑤모델명 칸의 안내 문구를 갈라야 하는데
+       (모델 모음전이면 「쉼표로 나열」, 아니면 「모델 하나」), 그 판정을 화면이 하려면
+       **축 이름 목록을 화면에 또 적어야 한다.** 그러면 `axis_slot.is_model_axis`
+       가 아는 이름('모델명'·'model' 등)이 늘어날 때 이 화면만 뒤처져,
+       사장님이 보는 안내와 실제 저장 갈래가 갈린다.
+    """
+    from lemouton.sourcing.axis_slot import is_model_axis
+
+    out = []
+    for p in AXIS_PRESETS:
+        opts = [dict(o, model_axis=any(is_model_axis(a) for a in o['axes']))
+                for o in p['options']]
+        # 갈래(kind) 자체의 값 — 아직 축을 안 골랐을 때 쓸 답이다.
+        # 🔴 「하나라도」가 아니라 **「전부」**여야 한다. 섞여 있으면 축을 고르기 전엔
+        #    모른다고 봐야 하고, 그때는 모델명이 한 칸이라는 쪽(False)이 안전하다.
+        out.append(dict(p, options=opts,
+                        model_axis=bool(opts) and all(o['model_axis'] for o in opts)))
+    return out
 
 
 @bp.post('/api/option-box')
@@ -443,26 +737,42 @@ def api_create_option_box():
     [2026-08-12 노션 옵션 a] 축을 **이름만** 먼저 저장한다. 값은 지금처럼 큰 창에서
     채운다 — 그 창이 서버가 준 `axis_steps` 로 축 카드를 그대로 복원하므로
     (`option_url_modal.js`), 창을 새로 만들 필요가 없다.
+
+    [2026-08-14 사장님 확정 ④ 요청3] 만들기 창의 ⑤모델명 칸이 여기로 온다.
+    🔴 **저장 갈래가 둘이고, 둘을 동시에 쓰면 안 된다.**
+       · 모델 모음전(축에 모델이 있음) → 쉼표로 나눠 **「모델」 축의 값**으로.
+       · 그 밖(색상 모음전)          → 모델이 하나이므로 `Model.bundle_model_name` 한 칸에.
+       둘 다 넣으면 같은 사실이 두 곳에 생기고, `option_name.model_name_of` 의
+       판정 순서(① 축 값 → ② 그 칸)상 뒤엣것이 조용히 가려져 언젠가 갈린다.
     """
+    from lemouton.matrix.option_name import split_model_names
     from lemouton.matrix.service import create_option_box
+    from lemouton.sourcing.axis_slot import is_model_axis
     from lemouton.sourcing.option_service import save_step_design
     body = request.get_json(silent=True) or {}
     axes = [str(a).strip() for a in (body.get('axes') or []) if str(a).strip()]
-    if blocked_axis(axes):
-        return jsonify({'ok': False, 'error': BLOCKED_AXIS_REASON}), 400
     if axes and tuple(axes) not in _ALLOWED_AXES:
         return jsonify({'ok': False,
                         'error': f'고를 수 없는 축 구성이에요: {" · ".join(axes)}'}), 400
+    적은모델명 = str(body.get('model_name') or '').strip()
+    모델축있음 = any(is_model_axis(a) for a in axes)
+    # 모델 축이 있을 때만 나눈다 — 색상 모음전에서 쉼표를 나누면 사장님이 적은 이름을
+    # 프로그램이 말없이 토막 낸 것이 된다(적은 그대로 한 칸에 둔다).
+    모델값들 = split_model_names(적은모델명) if 모델축있음 else []
     s = SessionLocal()
     try:
         mo = create_option_box(s, name=body.get('name') or '',
                                brand=(body.get('brand') or '').strip(),
                                category=(body.get('category') or None),
-                               memo=(body.get('memo') or None))
+                               memo=(body.get('memo') or None),
+                               model_name=(None if 모델축있음 else (적은모델명 or None)))
         if axes:
-            # 값은 비운 채 이름만 — 큰 창이 이 이름으로 축 카드를 채운 채 열린다.
+            # 축 이름은 그대로, 모델 축에만 값이 들어간다 —
+            # 큰 창이 이 이름·값으로 축 카드를 채운 채 열린다.
             save_step_design(s, mo.model_code,
-                             [{'axis_name': a, 'values': []} for a in axes])
+                             [{'axis_name': a,
+                               'values': (모델값들 if is_model_axis(a) else [])}
+                              for a in axes])
         s.commit()
         out = {'ok': True, 'code': mo.model_code,
                'display_no': mo.display_no, 'name': mo.name}
@@ -494,8 +804,11 @@ def box(code: str):
         opts = (s.query(Option).filter_by(model_code=code)
                 .order_by(Option.display_no, Option.canonical_sku).all())
         # [2026-08-12 노션 옵션 b★] 옵션마다 **모델명이 비지 않게** 한다.
-        #   모델 축이 있으면 그 값, 없으면(색상모음전) 매트릭스 이름이 곧 모델명이다.
-        #   축 이름은 저장된 단계 설계에서 읽는다 — 새 칸을 만들지 않는다.
+        #   모델 축이 있으면 그 값, 따로 적어 뒀으면 그 값, 없으면 매트릭스 이름.
+        #   축 이름은 저장된 단계 설계에서 읽는다.
+        #   🔴 [2026-08-13] 여기가 사장님이 모델명을 **눈으로 확인하는 화면**이다.
+        #     `m.bundle_model_name` 을 안 넘기면 화면엔 매트릭스 이름이 뜨는데
+        #     마켓엔 적어 둔 모델명이 나가 「보는 것 ≠ 나가는 것」이 된다.
         from lemouton.sourcing.models import BundleOptionStep
         axis_names = [a for (a,) in s.query(BundleOptionStep.axis_name)
                       .filter_by(model_code=code)
@@ -505,15 +818,26 @@ def box(code: str):
         #   빠뜨리면 화면 숫자와 실재고가 갈린다(shared/inventory_stock.py 독스트링).
         from shared.inventory_stock import get_stock_batch
         stock = get_stock_batch(s, [o.canonical_sku for o in opts]) if opts else {}
+        # 🔴 [2026-08-13] 「재고 0」과 「아직 안 셌음」은 **다른 상태**다. 수량만으로는
+        #   못 가르므로 재고 이력이 있는지 따로 본다 — 화면이 0 을 「—」 로 잘못 보이면
+        #   사장님이 이미 센 것을 또 세게 된다.
+        from lemouton.inventory.models import InventoryTx
+        has_tx = {sk for (sk,) in s.query(InventoryTx.option_canonical_sku)
+                  .filter(InventoryTx.option_canonical_sku.in_(
+                      [o.canonical_sku for o in opts] or ['']),
+                      InventoryTx.status == 'completed').distinct().all()} if opts else set()
         from lemouton.matrix.option_name import full_name, model_name_of
         rows = [{'no': o.display_no, 'name': full_name(nm, o),
                  'sku': o.canonical_sku,
-                 'model_name': model_name_of(nm, o, axis_names),
+                 'model_name': model_name_of(
+                     nm, o, axis_names,
+                     bundle_model_name=m.bundle_model_name),
                  'color': o.color_display or o.color_code,
                  'size': o.size_display or o.size_code,
                  'active': bool(o.is_active),
                  'stock_on': bool(o.use_purchase_inventory),
-                 'stock': int(stock.get(o.canonical_sku) or 0)}
+                 'stock': int(stock.get(o.canonical_sku) or 0),
+                 'tx': o.canonical_sku in has_tx}
                 for o in opts]
         info = {'code': m.model_code, 'name': nm, 'brand': m.brand,
                 'options': len(rows), 'rows': rows,
@@ -549,9 +873,12 @@ def api_initial_stock(code: str):
             위치를 지웠다고 초기 재고를 잃는 쪽이 더 나쁘므로 동작을 그대로 두고
             **글을 사실에 맞춘다.**
     """
+    import datetime as _dt
+
     from shared.inventory_stock import get_stock_batch
     from lemouton.inventory.inbound import create_inbound
     from lemouton.inventory.locations import ensure_default_location
+    from lemouton.inventory.models import InventoryTx
     from lemouton.sourcing.models import Option
 
     body = request.get_json(silent=True) or {}
@@ -564,7 +891,10 @@ def api_initial_stock(code: str):
             n = int(n)
         except (TypeError, ValueError):
             continue
-        if n > 0:
+        # 🔴 [2026-08-13 사장님 확정] **공란 ≠ 0.**
+        #   공란 = 아직 안 셌다(화면이 아예 안 보낸다) / 0 = **세어 보니 0개였다**(기록한다).
+        #   예전엔 `n > 0` 이라 0 을 적어도 조용히 사라졌다. 음수만 거른다.
+        if n >= 0:
             want[str(sku)] = n
     if not want:
         return jsonify({'ok': True, 'added': 0, 'skipped': [], 'skus': []})
@@ -589,16 +919,36 @@ def api_initial_stock(code: str):
         except Exception:                # noqa: BLE001 — 잠금을 모르는 DB(SQLite)는 정상 경로
             pass
 
+        # 🔴 「이미 넣었나」는 **재고 수량이 아니라 재고 이력**으로 가른다.
+        #   0 도 넣을 수 있게 되면서 「재고 0」과 「아직 안 넣음」이 같은 얼굴이 됐다 —
+        #   수량으로 가르면 0 을 적을 때마다 입고가 계속 쌓인다.
+        from lemouton.inventory.models import InventoryTx
+        already = {sku for (sku,) in s.query(InventoryTx.option_canonical_sku)
+                   .filter(InventoryTx.option_canonical_sku.in_(sorted(mine)),
+                           InventoryTx.status == 'completed').distinct().all()}
         have = get_stock_batch(s, list(mine))          # 원장 합계 = 진실 원천
         loc_id = ensure_default_location(s)
         added, skipped = [], []
         for sku in sorted(mine):
-            if int(have.get(sku) or 0) > 0:
+            if sku in already or int(have.get(sku) or 0) > 0:
                 skipped.append(sku)                    # 이미 있다 — 두 번 넣지 않는다
                 continue
-            create_inbound(s, location_id=loc_id, option_canonical_sku=sku,
-                           qty=want[sku], unit_purchase_price=0,
-                           memo='옵션 생성 초기 재고', created_by='옵션 생성')
+            if want[sku] == 0:
+                # 🔴 0 은 **입고가 아니라 「세어 보니 없더라」는 기록**이다.
+                #   `create_inbound` 는 `qty<=0` 을 막는다 — 0개를 받았다는 건 말이 안 되니
+                #   그 막이는 옳다. 그래서 여기서 원장 줄만 직접 남긴다.
+                #   이 줄이 있어야 ① 화면이 「0」을 보여 주고 ② 다음에 또 묻지 않는다
+                #   (「재고 0」과 「아직 안 셌다」가 같은 얼굴이 되는 것을 막는다).
+                s.add(InventoryTx(
+                    tx_type='in', location_id=loc_id, option_canonical_sku=sku,
+                    qty=0, status='completed', source='local',
+                    created_by='옵션 생성', created_at=_dt.datetime.utcnow(),
+                    memo='옵션 생성 초기 재고 — 세어 보니 0개'))
+                s.flush()
+            else:
+                create_inbound(s, location_id=loc_id, option_canonical_sku=sku,
+                               qty=want[sku], unit_purchase_price=0,
+                               memo='옵션 생성 초기 재고', created_by='옵션 생성')
             added.append(sku)
         s.commit()
     except ValueError as e:

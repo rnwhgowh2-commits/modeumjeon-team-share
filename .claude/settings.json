@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start-pull.sh",
+            "timeout": 20,
+            "statusMessage": "main 최신화 확인 중..."
+          }
+        ]
+      }
+    ]
+  }
+}

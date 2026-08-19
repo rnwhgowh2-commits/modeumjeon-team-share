@@ -58,6 +58,17 @@ class SourceProduct(Base):
     #     계수 = 자주(1~5) · 느리게배수 = 뜸하게(1.0 이상). 1.0 = 예전과 동일.
     crawl_slowdown = Column(Float, default=1.0, nullable=False)
     no_change_streak = Column(Integer, default=0, nullable=False)  # 무변동 연속 횟수
+    # [2026-08-13 노션 ⑤] 「주문 이행 가능 판단」이 **지금 다시 확인해 달라**고 찍는 표식.
+    #   사장님 확정: *"변경값 없는건 저장된 크롤값 그대로 + 변경값있는건 새로 긁고 판정.
+    #   해당 주문건에 소싱처 url 있는것만 긁으면 돼"* — 여기서 「변경값」은
+    #   **그 상품의 가격·재고가 바뀐 것**을 말한다(사장님 확인 2026-08-13).
+    #   그 신호는 이미 있다: 크롤이 `CrawlDelta` 로 변동 여부를 남기고
+    #   `no_change_streak` 를 0 으로 되돌린다(= 마지막 크롤에서 값이 바뀌었다).
+    #   🔴 `crawl_weight` 를 재활용하지 않는다 — 그건 **빈도 가중치**라 손대면 크롤
+    #     주기가 통째로 흔들린다. 우선순위만 얹는 별도 칸을 둔다.
+    #   🔴 이 표식은 **크롤이 끝나면 저절로 풀린다**(last_fetched_at 이 이 시각을 넘김).
+    #     따로 지우는 코드가 없어야 「지웠는데 안 지워졌다」가 안 생긴다.
+    recheck_requested_at = Column(DateTime)
     # 2026-07-06: 가중 라운드로빈 랩 — 이번 랩에 이 URL을 몇 번 크롤했나(계수만큼 채우면 소진).
     crawl_lap_count = Column(Integer, default=0, nullable=False)
 

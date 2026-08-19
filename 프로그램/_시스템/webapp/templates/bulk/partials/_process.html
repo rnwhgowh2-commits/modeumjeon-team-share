@@ -6,21 +6,21 @@
     padding:8px 12px;font-family:inherit;font-size:12px}
   .pp-seg{display:inline-flex;background:var(--n100,#F2F4F6);border-radius:8px;padding:4px;gap:0px}
   .pp-seg button{height:30px;padding:0 12px;border:0;background:none;border-radius:8px;
-    font-family:inherit;font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
+    font-family:inherit;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
   .pp-seg button.on{background:var(--surface,#ffffff);color:var(--ink,#191F28);}
   .pp-add{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:8px 16px;
     font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
   .pp-tbl{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
   .pp-tbl table{width:100%;border-collapse:collapse}
-  .pp-tbl th{background:var(--n100,#FBFCFD);font-size:11px;font-weight:600;color:var(--sub,#8B95A1);
+  .pp-tbl th{background:var(--n100,#FBFCFD);font-size:12px;font-weight:600;color:var(--sub,#8B95A1);
     padding:12px 12px;border-bottom:1px solid var(--line,#E5E8EB);text-align:left;white-space:nowrap}
   .pp-tbl td{padding:12px 12px;border-bottom:1px solid var(--n100,#F2F4F6);font-size:12px;vertical-align:middle}
   .pp-tbl tr:last-child td{border-bottom:0}
   .pp-tbl tr.warn td{background:var(--n100,#FFF9F9)}
   .pp-nm{font-weight:700}
-  .pp-url{font-size:11px;color:var(--sub,#8B95A1);font-family:ui-monospace,monospace;margin-top:0px;
+  .pp-url{font-size:12px;color:var(--sub,#8B95A1);font-family:ui-monospace,monospace;margin-top:0px;
     overflow:hidden;text-overflow:ellipsis;max-width:280px;white-space:nowrap}
-  .chip{display:inline-block;font-size:11px;font-weight:600;padding:4px 8px;border-radius:8px;
+  .chip{display:inline-block;font-size:12px;font-weight:600;padding:4px 8px;border-radius:8px;
     background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);margin:0px 4px 0px 0}
   .chip.mkt{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
   .chip.none{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
@@ -29,7 +29,7 @@
   .pp-warn{background:var(--연한-빨강,#FEECEC);border:1px solid var(--연한-빨강,#FBD5D5);border-radius:8px;padding:12px 12px;
     font-size:12px;color: var(--글자-빨강, var(--red,#8A2020));line-height:1.8;margin-bottom:12px}
   .pp-warn b{color: var(--글자-빨강, var(--red,#6B1010))}
-  .pp-note{font-size:11px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
+  .pp-note{font-size:12px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
     padding:8px 12px;margin-top:12px;line-height:1.75}
   .pp-empty{padding:32px;text-align:center;color:var(--sub,#8B95A1);font-size:12px}
   /* ── 정책 고르기 (그 자리에서 붙이고 뗀다) ── */
@@ -37,14 +37,14 @@
     font-family:inherit;font-size:12px;color:var(--ink,#191F28);background:var(--surface,#ffffff)}
   .pp-sel:focus{outline:none;border-color:#1B64DA}
   tr.warn .pp-sel{border-color:var(--연한-빨강,#F0A9A9)}
-  .pp-det{font-size:11px;margin-left:4px;white-space:nowrap}
-  .pp-msg{font-size:11px;font-weight:600;margin-top:4px;line-height:1.5;
+  .pp-det{font-size:12px;margin-left:4px;white-space:nowrap}
+  .pp-msg{font-size:12px;font-weight:600;margin-top:4px;line-height:1.5;
     white-space:normal;word-break:keep-all}
   .pp-msg.ok{color: var(--글자-초록, var(--green,#15803D))}
   .pp-msg.no{color:#B91C1C}
   .pp-msg.wait{color:var(--sub,#8B95A1)}
   .pp-flash{background:var(--line2,#F2F8F4);border:1px solid var(--line,#CDE7D6);border-radius:8px;
-    padding:8px 12px;font-size:11px;color: var(--글자-초록, var(--green,#15803D));line-height:1.8;margin-bottom:12px}
+    padding:8px 12px;font-size:12px;color: var(--글자-초록, var(--green,#15803D));line-height:1.8;margin-bottom:12px}
   .pp-flash.no{background:var(--연한-빨강,#FEECEC);border-color:var(--연한-빨강,#FBD5D5);color:#B91C1C}</style>
 <style>
 /* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
@@ -123,11 +123,11 @@
         ${r.url ? `<div class="pp-url">${esc(r.url)}</div>` : ''}</td>
       <td>${policyPicker(r)}</td>
       <td>${none
-        ? '<span style="color:#B91C1C;font-size:11px">올라가지 않습니다</span>'
+        ? '<span style="color:#B91C1C;font-size:12px">올라가지 않습니다</span>'
         : (r.markets.length
             ? r.markets.map((m) => `<span class="chip mkt">${esc(m.label || m.market)}${
                 m.account_key ? ' · ' + esc(m.account_key) : ''}</span>`).join('')
-            : '<span style="color:#B91C1C;font-size:11px">마켓 없음</span>')}</td>
+            : '<span style="color:#B91C1C;font-size:12px">마켓 없음</span>')}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1)">
         ${none ? '—' : r.rule_count + '/13'}</td>
     </tr>`;

@@ -54,31 +54,41 @@ class Fixed:
 #:     조립하며 이번에 열지 않았다 — 비워 두고 화면이 「확인 못 했습니다」라고 말한다.
 FIXED: dict[str, list] = {
     'coupang': [
-        Fixed('과세구분', '과세', FROM_CODE,
-              'compile_coupang.py:177', 'listing',
-              '사장님 엑셀도 「과세로 체크」라 값은 맞습니다.'),
+        # [2026-08-13] 이어졌다 — 전에는 'TAX' 가 박혀 있어 면세로 바꿔도 과세로 나갔다.
+        Fixed('과세구분', '과세', FROM_DEFAULT,
+              'compile_coupang.py:256', 'listing',
+              '정책에서 「면세」로 정하면 그대로 나갑니다 — 안 정하면 이 값입니다.',
+              policy_wins=True),
+        # 🔴 [2026-08-13 사장님 확정] 「무조건 새상품」 — 고를 것이 아니라 정해진 값이라
+        #   정책 항목에서 빼고 여기로 옮겼다. 쿠팡 문서: 「상품 생성 후에는 변경 불가능」.
+        Fixed('상품상태', '새상품', FROM_CODE,
+              'compile_coupang.py:261', '',
+              '전에는 아무것도 안 보내 쿠팡 기본값에 기대고 있었습니다 — 이제 명시해서 보냅니다.'),
         # [2026-08-13 2단계] 이어졌다 — 전에는 무조건 전연령으로 나갔다.
         Fixed('미성년자 구매', '전연령 구매 가능', FROM_DEFAULT,
-              'compile_coupang.py:176', 'listing',
+              'compile_coupang.py:251', 'listing',
               '정책에서 「19세 이상만」으로 정하면 그대로 나갑니다 — 안 정하면 이 값입니다.',
               policy_wins=True),
+        # 🔴 [2026-08-13 사장님 확정] 「마켓마다 가장 긴 것으로 알아서」 — 고를 것이
+        #   아니므로 정책 항목에서 뺐다. 쿠팡은 2099년이 상한(문서 안내).
         Fixed('상품 판매기간', '2026-01-01 ~ 2099-12-31', FROM_CODE,
-              'compile_coupang.py:20-21', 'listing',
-              '쿠팡은 종료일이 필수라 「설정 안 함」이 없습니다 — 문서가 길게 잡으라고 안내합니다.'),
+              'compile_coupang.py:20-21', '',
+              '쿠팡은 종료일이 필수라 「설정 안 함」이 없습니다 — 문서가 길게 잡으라고 안내합니다. '
+              '옥션·G마켓은 「무제한」, 11번가는 3년이 상한이라 마켓마다 가장 긴 값이 나갑니다.'),
         Fixed('병행수입 여부', '병행수입 아님', FROM_CODE,
-              'compile_coupang.py:178', '_parallel_import'),
+              'compile_coupang.py:264', '_parallel_import'),
         Fixed('해외구매 여부', '해외구매 아님', FROM_CODE,
-              'compile_coupang.py:179'),
+              'compile_coupang.py:265'),
         Fixed('개인통관부호', '필요 없음', FROM_CODE,
-              'compile_coupang.py:180'),
+              'compile_coupang.py:266'),
         Fixed('택배사', 'CJ대한통운', FROM_CODE,
               'compile_coupang.py:22', 'shipping'),
         Fixed('출고 소요일', '3일', FROM_CODE,
-              'compile_coupang.py:174', 'shipping'),
+              'compile_coupang.py:245', 'shipping'),
         Fixed('인당 최대 구매수', '제한 없음', FROM_CODE,
-              'compile_coupang.py:172', '_max_per_person'),
+              'compile_coupang.py:243', '_max_per_person'),
         Fixed('상품정보제공고시', '비어 있음', FROM_CODE,
-              'compile_coupang.py:171', 'notice',
+              'compile_coupang.py:242', 'notice',
               '🔴 쿠팡에는 고시정보가 통째로 비어 나갑니다 — 스마트스토어에는 들어갑니다.'),
     ],
     'smartstore': [
@@ -92,7 +102,75 @@ FIXED: dict[str, list] = {
               'compile_smartstore.py:165', 'price_compare',
               '사장님 엑셀도 「노출」이라 값은 맞습니다.'),
     ],
+    # ── [2026-08-13 3단계] 11번가 조립 코드를 열었다 ────────────────────────
+    #   🔴 앞에서는 「안 열어 봤다」로 비워 두고 있었다. 이번에 과세구분·제조사·
+    #     모델번호·미성년자를 이으며 `build_register_xml` 을 전수로 읽었으니
+    #     이제 「확인함」이다 — 안 열어 봤다고 계속 말하면 그것도 거짓말이다.
+    'eleven11': [
+        Fixed('과세구분', '과세', FROM_DEFAULT,
+              'eleven11/products.py:275', 'listing',
+              '정책에서 「면세」로 정하면 그대로 나갑니다 — 안 정하면 이 값입니다.',
+              policy_wins=True),
+        Fixed('상품상태', '새상품', FROM_CODE,
+              'eleven11/products.py:282', '',
+              '11번가는 상품상태가 필수라 늘 보냅니다.'),
+        Fixed('미성년자 구매', '전연령 구매 가능', FROM_DEFAULT,
+              'eleven11/products.py:287', 'listing',
+              '정책에서 「19세 이상만」으로 정하면 그대로 나갑니다 — 안 정하면 이 값입니다.',
+              policy_wins=True),
+        Fixed('상품 판매기간', '오늘부터 3년', FROM_CODE,
+              'eleven11/products.py:305-310', '',
+              '11번가는 3년이 상한이라 이것이 가장 긴 값입니다. 빼면 500 이 납니다(실측).'),
+        Fixed('판매방식', '고정가판매', FROM_CODE,
+              'eleven11/products.py:271', '_sell_method'),
+        Fixed('원산지', '상세설명 참조', FROM_CODE,
+              'eleven11/products.py:277-278', 'origin',
+              '🔴 11번가에는 정책에서 정한 원산지가 아직 안 나갑니다 — '
+              '「기타(원산지명 입력)」로 「상세설명 참조」가 박혀 나갑니다.'),
+        Fixed('배송비', '무료(선결제)', FROM_CODE,
+              'eleven11/products.py:290-292', 'shipping',
+              '🔴 11번가에는 정책 배송비가 아직 안 나갑니다 — 무료로 박혀 나갑니다.'),
+        Fixed('묶음배송', '불가', FROM_CODE,
+              'eleven11/products.py:293'),
+        Fixed('제주·도서산간 배송비', '0원', FROM_CODE,
+              'eleven11/products.py:294-295'),
+        Fixed('바코드', '보내지 않음(칸 없음)', FROM_CODE,
+              'eleven11/products.py:322-324', '',
+              '11번가 등록에는 바코드 칸이 아예 없습니다(요청 필드 235개 전수 확인) — '
+              '「확인 못 함」이 아니라 「없음」입니다.'),
+        Fixed('검색태그', '보내지 않음', FROM_CODE,
+              'eleven11/products.py:325-326', 'tags',
+              '11번가 태그는 로드샵셀러·아울렛셀러만 쓸 수 있어 우리는 못 씁니다.'),
+    ],
 }
+#: 옥션·G마켓은 **같은 ESM 조립기 하나**를 쓴다 — 표도 하나에서 갈라 쓴다.
+#:   따로 적으면 한쪽만 고쳐져 갈린다.
+_ESM_FIXED = [
+    Fixed('과세구분', '과세', FROM_DEFAULT,
+          'esm/products.py:479', 'listing',
+          '정책에서 「면세」로 정하면 그대로 나갑니다 — 안 정하면 이 값입니다.',
+          policy_wins=True),
+    Fixed('미성년자 구매', '전연령 구매 가능', FROM_DEFAULT,
+          'esm/products.py:478', 'listing',
+          '정책에서 「19세 이상만」으로 정하면 그대로 나갑니다 — 안 정하면 이 값입니다.',
+          policy_wins=True),
+    Fixed('상품 판매기간', '무제한', FROM_CODE,
+          'esm/products.py:414', '',
+          '옥션·G마켓은 「무제한」이 있어 이것이 가장 긴 값입니다.'),
+    Fixed('제조사', '보내지 않음(칸 없음)', FROM_CODE,
+          'esm/products.py:452-457', 'listing',
+          '옥션·G마켓 일반 상품에는 제조사 칸이 없습니다 — 「예약설치 상품」 전용 칸뿐입니다.'),
+    Fixed('검색태그', '보내지 않음(칸 없음)', FROM_CODE,
+          'esm/products.py:452-457', 'tags',
+          '옥션·G마켓 등록 전문에서 태그 칸을 찾지 못했습니다.'),
+    Fixed('배송비', '무료(개별배송비 0원)', FROM_CODE,
+          'esm/products.py:468-469', 'shipping',
+          '🔴 옥션·G마켓에는 정책 배송비가 아직 안 나갑니다 — 무료로 박혀 나갑니다.'),
+    Fixed('사이트 할인', '쓰지 않음', FROM_CODE,
+          'esm/products.py:484'),
+]
+FIXED['auction'] = list(_ESM_FIXED)
+FIXED['gmarket'] = list(_ESM_FIXED)
 
 #: 마켓과 무관하게 초안(상품) 기본값이 그대로 나가는 것
 COMMON_DEFAULTS: list = [
@@ -110,11 +188,70 @@ COMMON_DEFAULTS: list = [
 ]
 
 #: 아직 확인하지 못한 마켓 — 「없다」가 아니라 「안 열어 봤다」
-UNCHECKED = ('auction', 'gmarket', 'eleven11', 'lotteon')
+#:   [2026-08-13 3단계] 11번가·옥션·G마켓은 조립 코드를 전수로 읽어 표를 채웠다.
+#:   롯데온만 남는다 — 등록 body 가 본보기 상품 상세를 그대로 베끼는 구조라
+#:   무엇이 고정으로 나가는지 그 상품마다 다르다(아직 안 열었다).
+UNCHECKED = ('lotteon',)
 UNCHECKED_REASON = (
     '이 마켓들은 최종 전송값을 라이브에서 조립합니다 — 그 조립 코드를 아직 열지 '
     '않아 무엇이 정해져 나가는지 확인하지 못했습니다. 없다는 뜻이 아닙니다.'
 )
+
+
+#: ── [2026-08-13 사장님 확정 시안 v2 · 2번] 「마켓마다 어떤 값으로 나가는지 보기」 ──
+#:   라디오 옆 접힘표가 읽는 표. 사장님이 「면세」를 고를 때 **어느 마켓에 무엇이
+#:   나가는지**를 그 자리에서 볼 수 있어야 한다 — 마켓마다 값이 다르기 때문이다.
+#:
+#:   🔴 이 표도 「지금 코드가 무엇을 보내는가」의 사본이다. 조립기를 고치면 여기도
+#:     고쳐야 하고, 그 대조는 시험이 조립기 원본을 읽어서 한다
+#:     (tests/policy/test_fixed_sends.py::test_마켓별_전송표가_실제_코드와_같다).
+#:   🔴 롯데온은 **「없다」가 아니라 「모른다」**다 — 등록 body 가 본보기 상품 상세를
+#:     그대로 베끼는 구조라 아직 안 열었다. 빈칸으로 두지 말고 그렇게 적는다.
+_UNKNOWN = ''          # 보내는 칸을 모른다 (화면은 '—' 로 그리고 회색으로 둔다)
+_NO_FIELD = None       # 그 마켓에 칸 자체가 없다
+
+SENDS_BY_MARKET: dict[str, list] = {
+    # (마켓 id, 보내는 칸, 보내는 값 설명)
+    'tax_type': [
+        ('coupang', 'items.taxType', '과세=TAX / 면세=FREE'),
+        ('smartstore', 'detailAttribute.taxType', '과세=TAX / 면세=DUTYFREE'),
+        ('eleven11', 'suplDtyfrPrdClfCd', '과세=01 / 면세=02'),
+        ('auction', 'itemAddtionalInfo > isVatFree', '과세=false / 면세=true'),
+        ('gmarket', 'itemAddtionalInfo > isVatFree', '과세=false / 면세=true'),
+        ('lotteon', _UNKNOWN, '등록 문서를 아직 못 열어 확인하지 못했습니다'),
+    ],
+    'minor_purchase': [
+        ('coupang', 'items.adultOnly', '전연령=EVERYONE / 19세 이상만=ADULT_ONLY'),
+        ('smartstore', 'detailAttribute.minorPurchasable', '전연령=true / 19세 이상만=false'),
+        ('eleven11', 'minorSelCnYn', '전연령=Y / 19세 이상만=N'),
+        ('auction', 'itemAddtionalInfo > isAdultProduct', '전연령=false / 19세 이상만=true'),
+        ('gmarket', 'itemAddtionalInfo > isAdultProduct', '전연령=false / 19세 이상만=true'),
+        ('lotteon', _UNKNOWN, '등록 문서를 아직 못 열어 확인하지 못했습니다'),
+    ],
+    'manufacturer_mode': [
+        ('coupang', 'manufacture', '비우면 브랜드가 그대로 나갑니다(쿠팡 문서 권고)'),
+        ('smartstore', 'naverShoppingSearchInfo.manufacturerName', '값이 있을 때만 나갑니다'),
+        ('eleven11', 'company', '비우면 브랜드가 그대로 나갑니다'),
+        ('auction', _NO_FIELD, '옥션 일반 상품에는 제조사 칸이 없습니다'),
+        ('gmarket', _NO_FIELD, 'G마켓 일반 상품에는 제조사 칸이 없습니다'),
+        ('lotteon', _UNKNOWN, '등록 문서를 아직 못 열어 확인하지 못했습니다'),
+    ],
+}
+
+
+def sends_table(field_key: str) -> list:
+    """그 칸이 마켓마다 어떤 이름·값으로 나가는지 — 화면(접힘표)이 쓰는 모양.
+
+    Returns:
+        [{market, label, field, value, state}] — state 는 'ok'|'unknown'|'none'
+    """
+    from lemouton.policy.fields import MARKET_LABEL
+    out = []
+    for mk, field, value in SENDS_BY_MARKET.get(field_key, []):
+        state = 'ok' if field else ('none' if field is _NO_FIELD else 'unknown')
+        out.append({'market': mk, 'label': MARKET_LABEL.get(mk, mk),
+                    'field': field or '—', 'value': value, 'state': state})
+    return out
 
 
 def for_market(market: str) -> dict:

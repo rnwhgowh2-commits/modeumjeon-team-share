@@ -41,10 +41,10 @@
       {% for a in items %}
       <tr style="border-bottom:1px solid var(--n100,#F2F4F6)">
         <td style="padding:8px 8px;font-weight:600">{{ a.name }}</td>
-        <td style="padding:8px 8px"><span style="font-size:11px;padding:0px 8px;border-radius:0px;background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)">{{ a.metric }}</span></td>
+        <td style="padding:8px 8px"><span style="font-size:12px;padding:0px 8px;border-radius:0px;background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)">{{ a.metric }}</span></td>
         <td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace">{{ a.operator }} {{ a.threshold }}</td>
         <td style="padding:8px 8px">{{ a.notify_category }}</td>
-        <td style="padding:8px 8px;text-align:center"><span style="font-size:11px;padding:0px 8px;border-radius:0px;background:{% if a.active %}var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D){% else %}var(--line2,#F3F4F6));color:var(--sub,#6B7280){% endif %};font-weight:600">{{ 'ON' if a.active else 'OFF' }}</span></td>
+        <td style="padding:8px 8px;text-align:center"><span style="font-size:12px;padding:0px 8px;border-radius:0px;background:{% if a.active %}var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D){% else %}var(--line2,#F3F4F6));color:var(--sub,#6B7280){% endif %};font-weight:600">{{ 'ON' if a.active else 'OFF' }}</span></td>
         <td style="padding:8px 8px;text-align:center">
           <form method="post" action="{{ url_for('inventory.alert_toggle', aid=a.id) }}"><button type="submit" style="padding:4px 8px;background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);border-radius:0px;font-size:12px;cursor:pointer">{{ '비활성' if a.active else '활성' }}</button></form>
         </td>

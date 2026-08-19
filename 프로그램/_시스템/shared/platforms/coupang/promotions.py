@@ -64,6 +64,59 @@ def _content(resp) -> dict:
     return {}
 
 
+def _content_list(resp) -> list:
+    """목록형 응답의 content. 단건형(`_content`)과 자리를 나눠 둔다."""
+    if not isinstance(resp, dict):
+        return []
+    data = resp.get('data')
+    if isinstance(data, dict) and isinstance(data.get('content'), list):
+        return data['content']
+    return []
+
+
+# ── 계약서 — **쿠폰 기간의 최대는 우리가 정하는 게 아니다** ──────────────────
+#  🔴 쿠팡 생성 API 가 실제로 뱉는 에러(지도 [180]):
+#       「계약의 유효기간 안에 쿠폰이 존재해야 한다
+#         (계약서의 유효기간:2017-03-01 00:00:00~2017-12-31 23:59:59)
+#         (쿠폰의 유효기간:2016-12-05 00:00:00~2017-09-05 00:00:00)」
+#     → 쿠폰 `endAt` 의 **상한 = 그 계약서의 종료일**. 「N년」 같은 고정 한도는 없다.
+#  🔴 계약 유형이 둘이다 — `CONTRACT_BASED`(기간 있는 계약)와
+#     `NON_CONTRACT_BASED`(자유계약). 자유계약은 종료일이 2999-12-31 인 경우가 있어
+#     사실상 무제한이다. 그래서 **가장 늦게 끝나는 것**을 고르면 그게 곧 「최대」다.
+#  🔴 못 읽으면 **쿠폰을 만들지 않는다** — 계약ID를 지어내면 엉뚱한 계약에 걸린다.
+def list_contracts(client, vendor_id: str) -> list[dict]:
+    """계약서 목록. [{contract_id, start, end, type}] — 못 읽으면 빈 목록."""
+    resp = client.request(
+        'GET', _BASE_V2.format(vid=vendor_id) + '/contract/list')
+    out = []
+    for c in _content_list(resp):
+        if not isinstance(c, dict) or not c.get('contractId'):
+            continue
+        out.append({
+            'contract_id': c.get('contractId'),
+            'start': str(c.get('start') or ''),
+            'end': str(c.get('end') or ''),
+            'type': str(c.get('type') or ''),
+        })
+    return out
+
+
+def pick_contract(contracts: list, *, now: Optional[datetime] = None) -> Optional[dict]:
+    """지금 유효한 계약 중 **가장 늦게 끝나는** 것 = 쿠폰을 가장 길게 걸 수 있는 계약.
+
+    🔴 종료일이 이미 지난 계약은 고르지 않는다 — 쿠팡이 「계약의 유효기간 안에」로
+      거부하고, 그 거부는 금액 문제가 아니라서 10원씩 올려 봐야 영영 안 낫는다.
+    🔴 날짜를 못 알아보는 계약도 고르지 않는다(추측 금지).
+    """
+    stamp = (now or datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
+    live = [c for c in (contracts or [])
+            if c.get('end') and c['end'] >= stamp
+            and (not c.get('start') or c['start'] <= stamp)]
+    if not live:
+        return None
+    return max(live, key=lambda c: c['end'])
+
+
 def create_coupon(client, vendor_id: str, *, contract_id, name: str,
                   unit: str, value: int, max_discount: Optional[int] = None,
                   start_at: Optional[str] = None, end_at: str,

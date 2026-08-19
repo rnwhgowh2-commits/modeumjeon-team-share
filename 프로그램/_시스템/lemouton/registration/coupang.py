@@ -42,15 +42,26 @@ class CoupangRegistrationInputs:
 
 def _build_payload(*, bundle, options, sale_price: int, inputs: CoupangRegistrationInputs) -> dict:
     """Model + Options + 입력값으로 쿠팡 등록 페이로드 빌드 (옵션마다 1 item)."""
+    from lemouton.registration.options import (
+        coupang_barcode_fields, coupang_search_tags,
+    )
+    # 태그는 상품 단위로 한 번만 만든다 — 옵션마다 다르면 같은 상품인데 검색 노출이 갈린다.
+    _tags = coupang_search_tags(bundle, options)
     items = []
     for o in options:
         if not o.market_visible_coupang:
             continue
         item_name = f"{o.color_code}-{o.size_code}"
+        # 🔴 [2026-08-13 사장님 확정] 정상가 = 할인가. 종전엔 정상가에 판매가를,
+        #   할인가에 옵션별 쿠팡 가격을 넣어, 옵션가가 더 싸면 쿠팡 화면에
+        #   **우리가 준 적 없는 할인(취소선)**이 붙었다.
+        #   ★ 대량등록 경로(registration/options.py::build_coupang_items)는 이미
+        #     둘을 같게 내보낸다 — 여기를 맞춰 한 벌로 만든다(원천 분열 해소).
+        _price = int(o.option_coupang_price_override or sale_price)
         items.append({
             "itemName": item_name,
-            "originalPrice": int(sale_price),
-            "salePrice": int(o.option_coupang_price_override or sale_price),
+            "originalPrice": _price,
+            "salePrice": _price,
             "maximumBuyCount": "0",
             "maximumBuyForPerson": "0",
             "outboundShippingTimeDay": "1",
@@ -62,11 +73,16 @@ def _build_payload(*, bundle, options, sale_price: int, inputs: CoupangRegistrat
             "overseasPurchased": "NOT_OVERSEAS_PURCHASED",
             "pccNeeded": "false",
             "externalVendorSku": o.canonical_sku,
-            "barcode": "",
+            # 🔴 [2026-08-13] 종전엔 `"barcode": ""` — 코드도 아니고 없다는 선언도 아니었다.
+            #   우리 Option.barcode 는 기본이 200 접두 EAN-13(매장 내부 전용 대역)이라
+            #   표준상품코드가 아니다. 규약은 options.py 한 곳에 있다(재구현 금지).
+            **coupang_barcode_fields(getattr(o, "barcode", None)),
             "modelNo": bundle.model_code,
             "extraProperties": {},
             "certifications": [],
-            "searchTags": [bundle.model_code, o.color_code],
+            # 🔴 종전 `[bundle.model_code, o.color_code]` — 모음전 코드는 우리 내부
+            #   관리번호라 구매자가 검색할 말이 아니었고, 20칸 중 2칸만 쓰고 있었다.
+            "searchTags": list(_tags),
             "images": [{
                 "imageOrder": 0,
                 "imageType": "REPRESENTATION",

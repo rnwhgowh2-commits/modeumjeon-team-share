@@ -83,12 +83,13 @@ def test_사이드바에_정렬이_있다(client):
     assert '이름 순' in body
 
 
-# ── 만들기 (A2 점선 카드 + B5 가운데 창) ────────────────────────────────
+# ── 만들기 (2026-08-19 확정 — 옵션 매트릭스 생성과 같은 작은 단추 + B5 가운데 창) ──
 
-def test_만들기_점선_카드가_있다(client):
+def test_만들기_단추가_있다(client):
     body = _body(client)
     assert 'addcard' in body
-    assert '누르면 만들기 창이 열려요' in body
+    assert 'pl-addbtn' in body
+    assert '+ 정책 생성' in body
 
 
 def test_만들기_창이_있다(client):

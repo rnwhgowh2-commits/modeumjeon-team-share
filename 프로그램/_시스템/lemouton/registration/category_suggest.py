@@ -442,3 +442,53 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
     return {'sources': len(src_rows), 'suggested': suggested,
             'skipped_confirmed': skipped_confirmed, 'cleared': cleared,
             'skipped_shallow': skipped_shallow}
+
+
+# ── 상품군(검색필터) 단위 맵핑 현황 (#1060) ─────────────────────────────────
+
+def filter_category_summary(session, filter_id: int) -> dict:
+    """이 검색필터(상품군)에 담긴 상품들의 카테고리 맵핑 현황.
+
+    집계 단위는 **상품 개수가 아니라 소싱처 카테고리 경로 개수**다 — 맵핑은
+    (source_id, source_path) 단위로 확정되므로, 같은 경로를 쓰는 상품 100개도
+    맵핑 관점에서는 「경로 1개」다. 상품 수로 세면 이미 확정된 경로인데도
+    "몇 % 확정"처럼 실제와 다른 숫자가 나와 오해를 준다.
+
+    Returns: {'total': 경로개수, 'confirmed': n, 'suggested_only': n, 'none': n}
+      confirmed      — 그 경로가 하나 이상의 마켓에서 status='confirmed'
+      suggested_only — confirmed 는 없고 suggested/re_confirm 만 있음
+      none           — CategoryMapRow 자체가 없음(제안조차 아직 안 만들어짐)
+    total=0 이면 이 상품군에서 카테고리 경로를 아는 상품이 아직 없다는 뜻이다
+    (수집 직후라 크롤이 카테고리를 못 읽었거나, 아직 크롤 전이거나).
+    """
+    from lemouton.registration.models import CategoryMapRow, ProductDraft
+
+    rows = (session.query(ProductDraft.source_site, ProductDraft.source_category_path)
+            .filter(ProductDraft.search_filter_id == filter_id,
+                    ProductDraft.source_category_path.isnot(None),
+                    ProductDraft.source_category_path != '')
+            .distinct().all())
+    if not rows:
+        return {'total': 0, 'confirmed': 0, 'suggested_only': 0, 'none': 0}
+
+    # 소싱처별로 경로를 묶어 IN 절 1회씩만 — 필터 하나는 보통 소싱처 하나라
+    # 실제로는 쿼리 1회다. N+1(경로마다 재질의) 을 만들지 않는다.
+    by_source: dict[str, set[str]] = {}
+    for site, path in rows:
+        by_source.setdefault(site, set()).add(path)
+
+    status_by_path: dict[str, str] = {}
+    for site, path_set in by_source.items():
+        for path, status in (session.query(CategoryMapRow.source_path, CategoryMapRow.status)
+                             .filter(CategoryMapRow.source_id == site,
+                                     CategoryMapRow.source_path.in_(path_set)).all()):
+            if status == 'confirmed':
+                status_by_path[path] = 'confirmed'
+            elif path not in status_by_path:
+                status_by_path[path] = 'suggested'   # suggested·re_confirm 을 한 통에 묶는다
+
+    total = sum(len(s) for s in by_source.values())
+    confirmed = sum(1 for v in status_by_path.values() if v == 'confirmed')
+    suggested_only = sum(1 for v in status_by_path.values() if v == 'suggested')
+    return {'total': total, 'confirmed': confirmed, 'suggested_only': suggested_only,
+            'none': total - confirmed - suggested_only}

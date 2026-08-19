@@ -97,19 +97,64 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 _WEAK_SETTLE_TAGS = ("", "none")
 
 
-def _stamp_status(obj, st_new: str) -> bool:
-    """주문상태가 **실제로 바뀐 때만** 그 시각을 찍는다. 바뀌었으면 True.
+# 배송 진행 **사다리** — 이 순서로만 나아간다. 반품·교환·취소는 여기 없다(다른 축).
+#  🔴 클레임 낱말을 여기 넣으면 안 된다 — 넣는 순간 반품된 주문이 영영 배송완료로 남는다.
+_PROGRESS_LADDER = ("결제완료", "주문완료", "상품준비", "배송준비", "출고지시",
+                    "발송완료", "배송중", "배송완료", "수취완료", "구매확정", "구매결정")
 
-    ★ `last_seen_at` 과 다르다 — 그건 '마지막으로 조회한 때'라 상태가 그대로여도
-      매번 갱신돼 「언제 바뀌었나」의 답이 될 수 없다.
+
+def _progress_rank(st: str) -> int:
+    """사다리에서 몇 번째 칸인가. 사다리에 없는 말(클레임·모르는 말)은 -1."""
+    s = _clean(st)
+    for i, k in enumerate(_PROGRESS_LADDER):
+        if k in s:
+            return i
+    return -1
+
+
+def _status_regressed(st_old: str, st_new: str) -> bool:
+    """새 상태가 **사다리를 거꾸로** 내려가나.
+
+    🔴 왜 필요한가 (2026-08-13 라이브 저장분 전수) — 롯데온만 **510줄 31,790,892원**이
+      뒤로 가 있었다(배송완료→출고지시 324 · 출고지시→상품준비 185 · 발송완료→출고지시 1).
+      쿠팡·스스·11번가·G마켓·옥션은 **한 줄도 없다** — 이 막이는 다른 마켓을 안 멈춘다.
+
+    🔴 원인은 이미 `order_ingest.refresh_stale_delivered` 주석에 적혀 있었다:
+      *"롯데온 단건 조회는 같은 상품라인을 **단계별 여러 행**으로 주고, 나중에 처리된
+        행이 상태를 덮어써 시간이 거꾸로 흐른다."*
+      그런데 **막는 코드가 없었다.** 그 함수를 껐어도(도장 남은 건 117줄뿐) 나머지
+      393줄은 평상시 적재에서 계속 되돌아간다 — 오늘도 새로 되돌아갔다.
+
+    🔴 되돌아가면 **돈이 화면에서 사라진다** — 부류 판정이 「출고지시·상품준비」를 몰라
+      그 줄을 「대상 아님」으로 조용히 뺀다.
+
+    🔴 둘 중 하나라도 사다리 밖이면 **판단하지 않는다**(False). 모르면서 막으면
+      갱신이 조용히 멈춘다 — 버그보다 나쁜 막이가 된다.
+    """
+    a, b = _progress_rank(st_old), _progress_rank(st_new)
+    return a >= 0 and b >= 0 and b < a
+
+
+def _apply_status(obj, st_new: str) -> bool:
+    """주문상태를 **쓸지 말지 정하고**, 쓸 때만 도장을 찍는다. 썼으면 True.
+
+    ★ 도장(`status_at`)은 `last_seen_at` 과 다르다 — 그건 '마지막으로 조회한 때'라
+      상태가 그대로여도 매번 갱신돼 「언제 바뀌었나」의 답이 될 수 없다.
     ★ 마켓이 준 시각이 아니라 **우리가 그 변화를 처음 본 시각**이다. 조회 주기만큼
       늦을 수 있으므로 화면에도 그렇게 적는다(마켓 시각인 척 금지).
+    🔴 상태를 쓰는 곳은 **두 곳**(클레임 행 경로·주문 갱신 경로)이고 둘 다 이 함수를
+      지난다. 한 곳만 막으면 다른 쪽으로 그대로 되돌아간다 — 재고 조정에서 똑같이
+      겪었다(쓰는 곳 세 곳 중 하나만 고쳐 하루에 네 번 뒤집힘).
     """
     st_new = _clean(st_new)
-    if not st_new or st_new == _clean(getattr(obj, "status", "")):
+    st_old = _clean(getattr(obj, "status", ""))
+    if not st_new or st_new == st_old:
         return False
-    obj.status_prev = _clean(getattr(obj, "status", ""))
+    if _status_regressed(st_old, st_new):
+        return False                      # 되돌아가는 값은 **안 쓴다** (세는 건 save 가 한다)
+    obj.status_prev = st_old
     obj.status_at = _now()
+    obj.status = st_new
     return True
 
 
@@ -142,7 +187,9 @@ def save(rows: Iterable[dict], *, session=None) -> dict:
     from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
 
     s, own = _open_session(session)
-    stat = {"orders_new": 0, "orders_updated": 0,
+    #  🔴 `status_regress_blocked` — 되돌아가려다 막힌 줄 수. **조용히 넘기지 않는다**:
+    #    이 숫자가 안 줄면 마켓 응답이 아직 거꾸로 오고 있다는 뜻이다.
+    stat = {"orders_new": 0, "orders_updated": 0, "status_regress_blocked": 0,
             "claims_new": 0, "claims_updated": 0, "skipped_no_uid": 0}
     pending: dict = {}                     # 배치 내 중복 가드(autoflush=False 대응)
     try:
@@ -183,8 +230,11 @@ def save(rows: Iterable[dict], *, session=None) -> dict:
                 if uid and st_new:
                     line = pending.get(("ord", uid)) or s.get(MarketOrderLine, uid)
                     if line is not None:
-                        _stamp_status(line, st_new)
-                        line.status = st_new
+                        # 🔴 되돌아가는 값은 안 쓴다 — 롯데온은 같은 라인을 단계별 여러
+                        #   행으로 줘서, 나중 행이 앞선 상태를 덮어 시간이 거꾸로 흐른다.
+                        if not _apply_status(line, st_new):
+                            stat["status_regress_blocked"] += 1
+                            continue
                         row2 = dict(line.row or {})
                         row2["주문상태"] = st_new
                         raw = _clean(r.get("주문상태원본"))
@@ -214,8 +264,14 @@ def save(rows: Iterable[dict], *, session=None) -> dict:
                 stat["orders_new"] += 1
             else:
                 obj.row = _merge_row(obj.row, payload)
-                _stamp_status(obj, _clean(r.get("주문상태")))
-                obj.status = _clean(r.get("주문상태")) or obj.status
+                # 🔴 같은 막이 — 상태는 사다리를 거꾸로 못 내려간다(위 설명 참조).
+                _st_in = _clean(r.get("주문상태"))
+                if _st_in and _st_in != _clean(obj.status) and not _apply_status(obj, _st_in):
+                    stat["status_regress_blocked"] += 1
+                    # 상태만 안 쓴다 — 나머지 값(정산·송장 등)은 그대로 갱신한다.
+                    payload = dict(payload)
+                    payload["주문상태"] = _clean(obj.status)
+                    obj.row = _merge_row(obj.row, payload)
                 # 주문일은 나중에 실값으로 교정되는 경우가 있다(11번가 ordNo 근사 → 실주문일).
                 od = _clean(r.get("주문일"))
                 if od:

@@ -202,11 +202,17 @@ def applied_count(session, policy_id: int) -> int:
         BundlePolicyLink.policy_id == policy_id).scalar() or 0
 
 
-def applied_products(session, policy_id: int) -> list[dict]:
-    """이 정책이 붙은 상품 목록 — 목록 화면 호버 카드용(가볍게 code·name 만).
+def applied_products_list(session, policy_id: int) -> list[dict]:
+    """이 정책이 붙은 상품 **전체** 목록 — 정책 목록 화면 호버 카드용(가볍게 code·name 만).
 
     `applied_count` 와 같은 원천(`BundlePolicyLink`)만 본다 — 숫자와 목록이
     서로 다른 근거로 갈리면 안 된다(구성별 override 인 SetPolicyLink 는 별개).
+
+    🔴 `applied_products`(아래, #1059 정책 고르기 카드용)와 다른 함수다 —
+       그쪽은 카드 여러 장을 한 화면에 띄우느라 `{total, sample(최대 limit개)}`
+       로 자른다. 이쪽은 정책 목록 표 한 줄의 호버 카드 하나만 그리므로
+       자를 필요가 없어 **전체**를 그대로 돌려준다(정책 하나가 수백 개
+       상품에 붙는 극단적 경우는 카드 쪽 스크롤이 대신 감당한다).
     """
     from lemouton.sourcing.models import Model
     rows = session.execute(
@@ -268,3 +274,58 @@ def set_enabled_markets(session, *, policy: MarketPolicy,
     policy.enabled_markets = json.dumps(ordered, ensure_ascii=False)
     session.flush()
     return ordered
+
+
+# ── 정책 고르기 카드(#1059) — 마켓별 상태 3단계·적용 상품 목록 ─────────────────
+
+def market_status(session, policy_id: int, markets: list[str] | None = None) -> dict:
+    """마켓별 위상 3단계 — {market: 'wait'|'mid'|'sale'}.
+
+    옵션생성 화면의 위상 3종(`lemouton/matrix/readiness.py` — draft/ready/used)과
+    같은 이름 체계로 맞춘다(회색·파랑·초록 = wait·mid·sale).
+      · wait(작성중) — 이 마켓 가격을 아직 못 쓴다(readiness.price_ready=False)
+      · mid(준비됨)  — 가격은 쓸 수 있는데, 이 정책에 붙은 상품이 아직 없다
+      · sale(적용됨) — 가격도 되고 붙은 상품도 있다
+
+    markets 를 생략하면 **켠 마켓만** 돌려준다(정책 카드의 「내보낼 마켓」 배지 줄과
+    1:1로 맞아야 하기 때문 — 꺼진 마켓까지 섞으면 카드에 뜻 없는 회색 칸이 늘어난다).
+    """
+    p = session.get(MarketPolicy, policy_id)
+    if p is None:
+        return {}
+    on = markets if markets is not None else enabled_markets(session, p)
+    if not on:
+        return {}
+    rd = readiness(session, policy_id, markets=on)
+    applied = applied_count(session, policy_id)
+    out = {}
+    for mk in on:
+        if not rd.get(mk, {}).get('price_ready'):
+            out[mk] = 'wait'
+        elif applied == 0:
+            out[mk] = 'mid'
+        else:
+            out[mk] = 'sale'
+    return out
+
+
+def applied_products(session, policy_id: int, limit: int = 3) -> dict:
+    """이 정책이 붙은 상품 — {'total': 전체개수, 'sample': [{model_code,no,name}…]}.
+
+    🔴 키 이름을 `items` 로 두지 않는다 — Jinja 에서 dict.items 는 딕셔너리 값이
+      아니라 파이썬 내장 `.items()` 메서드로 먼저 풀려 화면이 조용히 깨진다.
+    sample 은 최근 붙은 순으로 최대 limit 개(호버 카드 대표 목록용). 전체 개수는
+    limit 과 무관하게 항상 정확해야 「n개 더보기」 문구가 거짓말을 안 한다.
+    """
+    from lemouton.sourcing.models import Model
+    total = applied_count(session, policy_id)
+    if total == 0:
+        return {'total': 0, 'sample': []}
+    rows = (session.query(Model.model_code, Model.display_no, Model.model_name_display)
+            .join(BundlePolicyLink, BundlePolicyLink.model_code == Model.model_code)
+            .filter(BundlePolicyLink.policy_id == policy_id)
+            .order_by(BundlePolicyLink.applied_at.desc())
+            .limit(limit).all())
+    sample = [{'model_code': code, 'no': no, 'name': (name or no or code)}
+             for code, no, name in rows]
+    return {'total': total, 'sample': sample}

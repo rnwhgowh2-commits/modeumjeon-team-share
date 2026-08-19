@@ -548,3 +548,42 @@ def test_단계판_사이드바가_글자를_안_자른다():
         if 'grid-template-columns:autominmax(0,1fr)' not in 규칙:
             고정.append(f'{path} {선택자} — 첫 칸이 고정폭이라 사이드바가 못 넓어진다')
     assert not 고정, '\n  '.join(고정)
+
+
+# ── [2026-08-13] 한 화면 안에서 가로 상한이 갈리면 오른쪽 끝이 어긋난다 ──────
+
+def test_한_화면_안에서_가로_상한이_안_갈린다():
+    """🔴 검색카드·표·안내상자가 **같은 줄에 세로로 쌓이는데** 상한이 다르면
+       오른쪽 끝이 어긋나 보인다.
+
+    실제로 두 번 겪었다:
+      · 처음 — 검색창 1100 · 표 1452 (표는 내용이 길면 상한을 넘는다) → 352 어긋남
+      · 고친 뒤 — 카드·목록만 1700 으로 올리고 「찾은 상품이 없습니다」 상자를
+        1100 에 두고 가서, **결과가 0건일 때** 최대 600px 어긋남(창 1920 실측).
+
+    그래서 이 화면들엔 **박아 넣은 1100 이 하나도 없어야** 한다 — 공용 값을 쓴다.
+    """
+    import pathlib
+    import re
+
+    뿌리 = pathlib.Path(__file__).resolve().parents[2]
+    for 경로 in ('webapp/templates/optgen/_market_pane.html',
+                 'webapp/templates/optgen/index.html'):
+        css = (뿌리 / 경로).read_text(encoding='utf-8')
+        박힌것 = re.findall(r'max-width:\s*1100px', css)
+        assert not 박힌것, (
+            f'{경로} 에 박아 넣은 가로 상한 1100 이 {len(박힌것)}곳 남아 있다 — '
+            '한 화면 안에서 오른쪽 끝이 어긋난다. 공용 값(--화면-상한)을 쓸 것')
+
+
+def test_화면_가로_상한이_한_곳에서_정해진다():
+    """상한을 파일마다 박으면 다음에 또 갈린다 — 공용 값 한 곳에서 정한다."""
+    import pathlib
+
+    뿌리 = pathlib.Path(__file__).resolve().parents[2]
+    토큰 = (뿌리 / 'webapp/static/tokens.css').read_text(encoding='utf-8')
+    assert '--화면-상한:' in 토큰, '공용 가로 상한 값이 없다'
+    for 경로 in ('webapp/templates/optgen/_market_pane.html',
+                 'webapp/templates/optgen/index.html'):
+        css = (뿌리 / 경로).read_text(encoding='utf-8')
+        assert 'var(--화면-상한)' in css, f'{경로} 가 공용 상한을 안 쓴다'

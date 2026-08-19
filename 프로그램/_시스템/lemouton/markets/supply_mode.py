@@ -44,7 +44,11 @@ def get_many(session, line_uids) -> dict[str, str]:
     if not uids:
         return {}
     out: dict[str, str] = {}
-    for i in range(0, len(uids), 900):          # SQLite IN 한도(999) 회피
+    # 🔴 [2026-08-14] 여기 적혀 있던 「SQLite IN 한도(999)」는 **틀린 근거**였다
+    #    (999 는 SQLite 3.32 이전 기본값). 실측 한도와 자르는 진짜 이유는
+    #    `lemouton/matrix/readiness._CHUNK` 옆 한 곳에만 적어 뒀다. 자르는 것 자체는
+    #    그대로 둔다 — 안 자르면 주문 줄이 쌓인 날에만 조회가 통째로 실패한다.
+    for i in range(0, len(uids), 900):
         chunk = uids[i:i + 900]
         for row in (session.query(OrderLineSupply)
                     .filter(OrderLineSupply.line_uid.in_(chunk)).all()):

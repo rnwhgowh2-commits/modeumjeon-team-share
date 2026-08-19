@@ -55,8 +55,46 @@ class Field:
     def to_dict(self) -> dict:
         return {"key": self.key, "label": self.label, "type": self.type,
                 "default": self.default, "choices": list(self.choices),
+                # 🔴 [2026-08-13] 라벨을 스키마에 실어 보낸다 — 화면이 두 곳이라
+                #   각자 목록을 들고 있으면 한쪽만 갱신돼 영어가 샌다(실제로 샜다).
+                "choice_labels": {c: CHOICE_LABELS.get(c, c) for c in self.choices},
                 "hint": self.hint, "unit": self.unit,
                 "item_shape": self.item_shape, "columns": list(self.columns)}
+
+
+#: 선택지를 사장님 화면에 우리말로 보여 주는 표. **단일 원천.**
+#:
+#: 🔴 [2026-08-13] 왜 여기 있나 — 3갈래 옵션 축을 열고 보니 정작 사장님 화면엔
+#:    `one`·`two`·`three` 가 **영어 그대로** 나왔다. 전수로 세니 13개가 그랬다.
+#:    라벨 목록이 화면 파일 안(`bulk/policy_detail.html` 의 JS)에만 있었고,
+#:    또 다른 화면(`policy/detail.html`)은 `{{ c }}` 로 **생짜로 찍고** 있었다.
+#:    → 표를 스키마 옆으로 옮겨 두 화면이 같은 것을 보게 한다.
+#: ★ 뜻은 각 `_F(...)` 의 `hint` 원문 그대로 옮긴다 — 지어내지 않는다.
+#: ★ 값 자체가 한글인 선택지(「과세」·「새상품」 등)는 여기 없어도 그대로 보인다.
+CHOICE_LABELS = {
+    # 글자 다듬기
+    "upper": "대문자", "as_is": "원본 그대로",
+    "korean": "국문", "english": "영문", "both": "국문+영문",
+    "front": "맨 앞", "back": "맨 뒤", "none": "안 붙임",
+    # 가격
+    "margin_rate": "마진율(%)", "margin_amount": "마진금액 (매입가 + 금액)",
+    "fixed_amount": "고정 금액", "fixed_price": "지정가 (이 값으로 못 박음)",
+    "cheapest": "가장 싼 곳", "priciest": "가장 비싼 곳", "average": "평균",
+    "max": "가장 비싼 값으로", "min": "가장 싼 값으로",
+    "WON": "정액 (원)", "PERCENT": "정률 (%)",
+    # 옵션 축 — 마켓에 나가는 그룹 이름과 **같은 글자**로 둔다
+    #   (`options.py` 의 _ONE_GROUP·_MODEL_GROUP·_COLOR_GROUP·_SIZE_GROUP)
+    "one": "한 갈래 (메이트 블랙 260)", "two": "색상 · 사이즈",
+    "three": "모델명 · 색상 · 사이즈",
+    "into_price": "판매가에 합침",
+    # 이미지
+    "rep_only": "대표만", "rep_plus_extra": "대표 + 추가", "range": "N~M번째",
+    "recombine": "이미지 재조합", "original": "원본 통째", "frame": "프레임 템플릿",
+    # 그 밖
+    "auto": "자동(크롤·브랜드)", "fixed": "고정값", "hold": "보류 (안 올림)",
+    "default_category": "기본 카테고리로", "small_to_big": "작은 → 큰",
+    "free": "무료", "paid": "유료(1개당)", "free_over": "N원 이상 무료",
+}
 
 
 @dataclass(frozen=True)
@@ -271,8 +309,9 @@ SCHEMAS: dict = {
             #   우리 옵션번호는 언제나 하나다 — 바뀌는 건 **구매자에게 보이는 갈래 수**뿐.
             _F("axis", "옵션 축 구성", "choice", default="two",
                choices=("one", "two", "three"),
-               hint="one = 한 갈래(「블랙 260」) · two = 색상·사이즈 두 갈래(기본) · "
-                    "three = 모델명·색상·사이즈 (옵션에 모델명 칸이 없어 아직 못 씁니다)"),
+               hint="one = 한 갈래(「메이트 블랙 260」) · two = 색상·사이즈 두 갈래(기본) · "
+                    "three = 모델명·색상·사이즈 세 갈래 (스마트스토어만 — "
+                    "다른 마켓은 두 갈래로 나갑니다)"),
         )),
     "shipping": ItemSchema(
         "shipping", ITEM_LABELS["shipping"], "§7-10 배송·반품·AS",
@@ -329,19 +368,19 @@ SCHEMAS: dict = {
         note="상품마다 거의 안 바뀌는 값들입니다 — 한 번 정해 두면 손 갈 일이 없습니다.",
         fields=(
             # 쿠팡 items.taxType[필수] · 옥션/G마켓 isVatFree[필수] · 11번가 suplDtyfrPrdClfCd[필수]
+            # 🔴 [2026-08-13 사장님 확정] 「영세」를 뺐다.
+            #   영세율은 수출·외화획득 거래에 쓰는 것이라 국내 마켓 소매엔 해당이 없고,
+            #   무엇보다 **쿠팡·옥션·G마켓엔 영세를 보낼 칸 자체가 없다**
+            #   (쿠팡 TAX/FREE 둘 · ESM isVatFree 는 참/거짓). 선택지에 남겨 두면
+            #   고른 값과 나가는 값이 갈려 「고쳤는데 왜 안 먹지」가 된다.
             _F("tax_type", "과세구분", "choice", default="과세",
-               choices=("과세", "면세", "영세"),
-               hint="사장님 확정 = 과세 (해외구매대행은 별도 확인 필요)"),
-            # 스스 saleType(NEW/OLD) · 쿠팡 offerCondition · ESM goodsStatus · 11번가 prdStatCd[필수]
-            _F("product_condition", "상품상태", "choice", default="새상품",
-               choices=("새상품", "중고상품"),
-               hint="11번가는 등록 시 필수 칸입니다"),
-            # 🔴 쿠팡은 판매종료일시가 필수라 「설정 안 함」이 없다 —
-            #    문서가 「2099년까지 길게」를 권한다. 그래서 「가장 길게」가 기본값이다.
-            _F("sale_period", "판매기간", "choice", default="가장 길게",
-               choices=("가장 길게", "무제한", "직접 지정"),
-               hint="쿠팡·옥션·G마켓은 판매기간이 필수라 「설정 안 함」이 안 됩니다 — "
-                    "쿠팡 문서가 2099년까지 길게 잡으라고 안내합니다"),
+               choices=("과세", "면세"),
+               hint="기본은 과세입니다. 면세는 도서·농수산물 같은 부가세 면세 품목에만 쓰세요"),
+            # 🔴 [2026-08-13 사장님 확정] 「상품상태」·「판매기간」을 여기서 뺐다.
+            #   · 상품상태 = 무조건 새상품 · 판매기간 = 마켓마다 가장 긴 것으로 자동.
+            #   고를 것이 하나뿐인 칸을 남기면 사장님이 바꿀 수 있다고 오해한다.
+            #   대신 무엇이 나가는지는 `policy/fixed_sends.py`(「정해져 나가는 값」)가
+            #   화면에 그대로 보여준다 — 빼기만 하고 안 보여주면 「어디 갔지」가 된다.
             # 스스 minorPurchasable[필수] · 쿠팡 adultOnly[필수] · 11번가 minorSelCnYn[필수]
             _F("minor_purchase", "미성년자 구매", "choice", default="전연령 구매 가능",
                choices=("전연령 구매 가능", "19세 이상만"),

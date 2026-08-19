@@ -116,11 +116,21 @@ def test_로켓그로스는_회차를_안_가져왔으면_판정불가():
     assert "로켓그로스 가져오기" in o["왜"]
 
 
-def test_로켓그로스는_빠른정산_뺀_받을돈으로_맞춘다():
+def test_로켓그로스는_최종지급액_한달창으로_맞춘다(monkeypatch):
+    """🔴 [2026-08-13 정정] 예전엔 `지급액 − 빠른정산`(기간 무제한)이었다 —
+    라이브 9,508,138 vs 쿠팡 화면 7,818,202 로 **1,689,936 어긋났다.**
+    화면 정의는 **Σ최종지급액(정산일이 오늘 이후 ~ 한 달 이내)** 이고, 사장님 Wing
+    25회차로 원 단위 확인했다(tests/margin/test_rg_ahead_summary.py 가 그 근거).
+    """
+    from lemouton.margin import rg_settlement as RG
+    monkeypatch.setattr(RG, "ahead_summary",
+                        lambda **kw: {"금액": 7818202, "회차수": 9,
+                                      "이미받은회차합": 1226921,
+                                      "구성": "최종지급액 합(정산일 …)"})
     o = SR.ours_for("coupang_rg", [], DEFAULT_RULES, today=TODAY,
-                    rg_summary={"회차수": 3, "받을돈": 950, "지급액": 1250,
-                                "빠른정산": 300})
-    assert o["가능"] is True and o["금액"] == 950 and o["건수"] == 3
+                    rg_summary={"회차수": 25})
+    assert o["가능"] is True and o["금액"] == 7818202 and o["건수"] == 9
+    assert "빠른정산" not in o["구성"]        # 옛 규칙으로 되돌리면 깨진다
 
 
 # ── 판정 ─────────────────────────────────────────────────────────────────────
