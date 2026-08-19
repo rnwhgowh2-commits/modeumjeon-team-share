@@ -146,7 +146,7 @@ MOBILE_READY_URLS: set[str] = {
     "/policies",         # 정책 생성 — templates/policy/index.html.
                          #   ⚠️ ?brand= 로 걸러진 주소는 값이 임의라 열거 불가 —
                          #   걸러진 화면에선 노란 띠가 다시 뜬다(껍데기 설계 한계).
-    "/policies/apply",   # 상품 정책 적용 — templates/policy/apply.html
+    "/policies/apply",   # 정책 매칭 — templates/policy/apply.html
     "/accounts/upload",  # 판매처 계정 — templates/accounts/upload.html (72KB 최대 retrofit)
     # ── 배치4a (2026-08-04) ──
     "/market-send",      # 마켓 전송 — templates/market_send/index.html

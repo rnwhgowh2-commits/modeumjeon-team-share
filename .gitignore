@@ -120,6 +120,8 @@ tmp_*.py
 .cache/
 .claude/*
 !.claude/skills/
+!.claude/settings.json
+!.claude/hooks/
 
 .superpowers/
 .worktrees/

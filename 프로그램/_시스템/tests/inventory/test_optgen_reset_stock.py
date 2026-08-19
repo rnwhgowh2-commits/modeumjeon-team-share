@@ -20,6 +20,9 @@ def client():
 
 @pytest.fixture
 def box(client):
+    """🔴 [2026-08-20 병합 정리] SKU 목록은 box.html 이 아니라
+    `/optgen/api/box/<code>/rows` 에서 얻는다(위 파일 머리말 참고 —
+    옵션 조합 창의 재고 서랍이 이 API 로 클라이언트에서 그린다)."""
     code = client.post('/optgen/api/option-box',
                        json={'name': '재고치우기 검사함', 'brand': '르무통',
                              'axes': ['색상', '사이즈']}).get_json()['code']
@@ -28,9 +31,8 @@ def box(client):
                   {'axis_name': '사이즈', 'values': ['250', '260']}],
         'selected': [['블랙', '250'], ['블랙', '260']],
     })
-    import re
-    html = client.get(f'/optgen/box/{code}').get_data(as_text=True)
-    skus = sorted(set(re.findall(r'data-sku="(SKU-[A-Z0-9]+)"', html)))
+    j = client.get(f'/optgen/api/box/{code}/rows').get_json()
+    skus = sorted({r['sku'] for r in j['rows']})
     client.post(f'/optgen/api/box/{code}/initial-stock',
                 json={'qty': {skus[0]: 7, skus[1]: 3}})
     return code, skus
@@ -63,10 +65,11 @@ def test_옵션과_묶음은_그대로_남는다(client, box):
     """지우는 건 재고 이력뿐 — 옵션이 사라지면 다시 만들어야 한다."""
     code, skus = box
     client.post('/optgen/api/box/reset-stock', json={'codes': [code]})
-    html = client.get(f'/optgen/box/{code}').get_data(as_text=True)
     assert client.get(f'/optgen/box/{code}').status_code == 200
+    j = client.get(f'/optgen/api/box/{code}/rows').get_json()
+    still_there = {r['sku'] for r in j['rows']}
     for sku in skus:
-        assert sku in html, f'{sku} 옵션이 사라졌다'
+        assert sku in still_there, f'{sku} 옵션이 사라졌다'
 
 
 def test_캐시_칸도_같이_0이_된다(client, box):

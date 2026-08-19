@@ -63,6 +63,17 @@ class Model(Base):
     is_option_box = Column(Boolean, default=False, nullable=False,
                            server_default='0')
 
+    # [2026-08-13] 이 묶음의 **모델명** — 마켓 전송 payload 의 `model` 로 나가는 값.
+    #   왜 칸을 만들었나: 지금까지는 매트릭스 이름을 그대로 모델명으로 썼는데,
+    #   사장님 확인 결과 「매트릭스명은 사용자가 지정하기 나름. 대부분
+    #   **브랜드 + 모델명 + (사용자 추가)**」 라 이름이 「르무통 메이트 24FW」면
+    #   모델명도 「르무통 메이트 24FW」로 나가고 있었다(데이터 오류).
+    #   🔴 NULL = 「따로 안 정함」이다 — 「모델명이 없다」가 아니다.
+    #      NOT NULL·기본값을 주면 기존 172개 묶음의 모델명이 한꺼번에 바뀌어
+    #      마켓에 나가는 값이 조용히 달라진다. 반드시 nullable 로 둔다.
+    #   값을 읽는 곳은 `lemouton/matrix/option_name.model_name_of` 하나뿐이다.
+    bundle_model_name = Column(String(255))
+
     # [2026-08-01] 전수 품절을 알린 시각. 설계서 규칙 9.
     #   🔴 같은 상품을 매번 다시 알리지 않기 위한 표시다. 다시 팔 수 있게 되면
     #      비운다 — 그래야 다음에 또 품절될 때 다시 알린다.

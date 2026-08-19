@@ -251,6 +251,11 @@ def _apply_lightweight_migrations() -> None:
         ("market_products", "category_code", "VARCHAR(64)"),
         ("market_products", "category_name", "VARCHAR(200)"),
         ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
+        # [2026-08-13] 이 묶음의 **모델명** — 마켓에 나가는 값. 사장님 확인:
+        #   「매트릭스명은 사용자가 지정하기 나름. 대부분 브랜드+모델명+(추가)」.
+        #   🔴 NULL = 「따로 안 정함」 이다. 기본값을 주면 안 된다 —
+        #      기존 172개가 NULL 이어야 오늘과 똑같이(매트릭스 이름 폴백) 돈다.
+        ("models", "bundle_model_name", "VARCHAR(255)"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),
         # [2026-08-01] 옵션번호 — 매트릭스번호+순번 (표시용, 열쇠 아님)
@@ -374,7 +379,8 @@ def _apply_lightweight_migrations() -> None:
         # [2026-08-14] SKU 하나하나의 품번·GTIN — 「옵션 조합 생성 및 수정」 창에서 받는다.
         #   🔴 바로 위 `models.article_no`(모델 하나에 하나)와 **다른 칸**이다.
         #      브랜드가 사이즈마다 다른 품번을 매기므로 모델 칸으로는 못 담는다.
-        #      까닭과 관계는 `lemouton/sourcing/models.py` 의 `Option.article_no` 주석에.
+        #      까닭과 관계는 `lemouton/sourcing/models.py` 의 `Option.article_no` 주석에
+        #      한 번만 적어 뒀다(같은 설명을 두 곳에 두면 언젠가 갈린다).
         #   🔴 기본값을 주지 않는다 — **NULL = 「아직 안 적음」**. 빈 문자열이 들어가면
         #      「안 적음」과 「적었다 지움」이 화면에서 같아지고, 진척(「품번 12/15」)을
         #      세는 곳이 안 채운 것을 채운 걸로 센다.
@@ -585,6 +591,21 @@ def _apply_lightweight_migrations() -> None:
         ("product_drafts", "pricing_card_key", "VARCHAR(64)"),
         ("product_drafts", "pricing_naver_pay", "VARCHAR(16)"),
         ("product_drafts", "pricing_cashback_name", "VARCHAR(120)"),
+        # 2026-08-13: 등록 상수 — 정책에서 정한 값이 담길 자리.
+        #   전에는 담을 칸이 없어 마켓 등록 코드에 「과세」·「새상품」이 박힌 채 나갔다.
+        #   🔴 DEFAULT 를 거는 건 tax_type 하나뿐이다 — 사장님 확정이 「기본은 과세」라
+        #     기존 행도 과세가 맞다. 나머지는 NULL(=안 정함)과 ''(=없음 명시)를
+        #     구분해야 하므로 DEFAULT 를 안 건다(폴백 금지).
+        #   폭은 마켓 문서 상한에 맞춘다 — 스스 modelName <= 50자, 쿠팡 barcode 는
+        #     표준상품코드(GTIN-14 까지)라 64 로 여유를 둔다. 좁히면 개발기(SQLite,
+        #     길이 무시)는 통과하고 라이브(PostgreSQL)에서만 깨진다.
+        ("product_drafts", "tax_type", "VARCHAR(8) DEFAULT '과세'"),
+        ("product_drafts", "manufacturer", "VARCHAR(120)"),
+        ("product_drafts", "model_no", "VARCHAR(80)"),
+        ("product_drafts", "barcode", "VARCHAR(64)"),
+        ("product_drafts", "search_tags", "TEXT"),
+        # 2026-08-13: 자동 가격 조정 최저가(쿠팡 전용). NULL = 안 씀 — DEFAULT 금지.
+        ("product_drafts", "auto_pricing_min", "INTEGER"),
         # 2026-07-20: 판매처 계정 라이브 검증(실주문 조회 왕복 확인) 기록.
         #   upload_accounts 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
         #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.

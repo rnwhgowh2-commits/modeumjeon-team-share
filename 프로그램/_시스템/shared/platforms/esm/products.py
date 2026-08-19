@@ -397,6 +397,9 @@ def build_esm_register_payload(
     detail_html: str,
     options: list = None,
     is_vat_free: bool = False,
+    model_no: str = "",
+    bar_code: str = "",
+    is_adult_product: bool = False,
 ) -> dict:
     """옥션·G마켓 상품 등록 payload 조립 — 지도 필수 26필드를 채운다.
 
@@ -429,14 +432,26 @@ def build_esm_register_payload(
                     "independent": {"recommendedOptNo": options[0].get("group_no", 0),
                                     "details": details}}
 
-    return {
-        "itemBasicInfo": {
-            "goodsName": {"kor": goods_name},
-            "category": {
-                "site": [{"siteType": site_type, "catCode": site_cat_code}],
-                "esm": {"catCode": cat_code},
-            },
+    # 지도 근거: itemBasicInfo > catalog > {modelName, barCode}.
+    # 🔴 빈 문자열을 보내면 「없음」이 아니라 **빈 값으로 등록**된다 — 둘 다 비면
+    #   catalog 자체를 안 만든다(스스 manufacturerName 에서 배운 것).
+    basic = {
+        "goodsName": {"kor": goods_name},
+        "category": {
+            "site": [{"siteType": site_type, "catCode": site_cat_code}],
+            "esm": {"catCode": cat_code},
         },
+    }
+    catalog = {}
+    if str(model_no or "").strip():
+        catalog["modelName"] = str(model_no).strip()
+    if str(bar_code or "").strip():
+        catalog["barCode"] = str(bar_code).strip()
+    if catalog:
+        basic["catalog"] = catalog
+
+    return {
+        "itemBasicInfo": basic,
         "itemAddtionalInfo": {
             "price": price_block,
             "stock": stock_block,
@@ -456,7 +471,10 @@ def build_esm_register_payload(
                 "officialNoticeNo": int(official_notice_no),
                 "details": official_notice_details or [],
             },
-            "isAdultProduct": False,   # ESM 필수(일반상품). 누락 시 400
+            # ESM 필수(일반상품). 누락 시 400.
+            # 🔴 [2026-08-13] 여기가 False 로 박혀 있어 정책을 「19세 이상만」으로 바꿔도
+            #   전연령으로 나갔다(쿠팡 adultOnly 와 같은 부류의 사고).
+            "isAdultProduct": bool(is_adult_product),
             "isVatFree": bool(is_vat_free),
             "images": {"basicImgURL": image_url},
             "descriptions": {"kor": {"type": 2, "html": detail_html}},

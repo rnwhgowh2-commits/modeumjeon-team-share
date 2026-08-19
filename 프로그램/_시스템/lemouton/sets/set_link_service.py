@@ -35,14 +35,19 @@ def _gather_set_options(session: Session, set_id: int) -> list[dict]:
     #   전부 unmatched 가 되고 가격·재고가 에러 없이 안 나간다.
     #   값은 저장하지 않고 그때그때 만든다(`matrix/option_name.model_name_of`) —
     #   모델 축이 없는 상품이면 매트릭스 이름이 곧 모델명이라 비지 않는다.
+    #   🔴 [2026-08-13] 묶음에 따로 적어 둔 모델명(`Model.bundle_model_name`)도
+    #     같이 넘긴다. 전송(`policy/to_payload`)과 **같은 값**이 나와야 대조가 맞는다 —
+    #     한쪽만 고치면 마켓엔 「메이트」로 올라갔는데 대조는 「르무통 메이트 24FW」로
+    #     찾아 전부 unmatched 가 되고, 가격·재고가 에러 없이 안 나간다.
     from lemouton.matrix.option_name import model_name_of
     from lemouton.sourcing.models import BundleOptionStep, Model
     codes = sorted({o.model_code for o in opts if o.model_code})
-    nm_by_code, ax_by_code = {}, {}
+    nm_by_code, ax_by_code, bm_by_code = {}, {}, {}
     if codes:
         for m in session.query(Model).filter(Model.model_code.in_(codes)).all():
             nm_by_code[m.model_code] = (m.model_name_display or m.model_name_raw
                                         or m.model_code)
+            bm_by_code[m.model_code] = m.bundle_model_name
         for code, axis_name in (session.query(BundleOptionStep.model_code,
                                               BundleOptionStep.axis_name)
                                 .filter(BundleOptionStep.model_code.in_(codes))
@@ -53,8 +58,10 @@ def _gather_set_options(session: Session, set_id: int) -> list[dict]:
         {"canonical_sku": o.canonical_sku, "color_code": o.color_code,
          "color_display": o.color_display, "size_code": o.size_code,
          "size_display": o.size_display,
-         "model": model_name_of(nm_by_code.get(o.model_code, ''), o,
-                                ax_by_code.get(o.model_code) or [])}
+         "model": model_name_of(
+             nm_by_code.get(o.model_code, ''), o,
+             ax_by_code.get(o.model_code) or [],
+             bundle_model_name=bm_by_code.get(o.model_code))}
         for o in opts
     ]
 

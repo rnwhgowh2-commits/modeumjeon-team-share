@@ -913,20 +913,18 @@ def _apply_origin(draft, cfg):
 #: 「판매방식·통관」 중 **초안에 담을 칸이 아직 없는** 것들.
 #:   🔴 지어내서 마켓으로 보내면 금전 사고다 — 마켓별 payload 를 열어 어디에
 #:     넣을지 정하기 전까지는 「못 보냅니다」라고 말만 한다.
-_LISTING_NO_FIELD = (
-    ('tax_type', '과세구분', '과세',
-     '쿠팡은 taxType 이 「과세」로 박혀 나갑니다(compile_coupang.py). '
-     '옥션·G마켓·11번가는 전송 코드를 아직 열지 않았습니다.'),
-    ('product_condition', '상품상태', '새상품',
-     '상품에 「새상품/중고」를 담을 칸이 없습니다.'),
-    ('sale_period', '판매기간', '가장 길게',
-     '쿠팡은 2026-01-01 ~ 2099-12-31 이 박혀 나갑니다(compile_coupang.py:20-21).'),
-    ('manufacturer_mode', '제조사', '브랜드와 동일',
-     '상품에 제조사 칸이 없습니다 — 쿠팡에는 브랜드가 그대로 나갑니다.'),
-)
+#:   🔴 [2026-08-13] 여기 있던 넷이 전부 빠졌다 — 이제 칸이 생겨 실제로 나간다.
+#:     · 과세구분·제조사 → 초안 칸 추가 + 4마켓 배선
+#:     · 상품상태·판매기간 → 고를 것이 아니라 정해진 값이라 정책에서 뺐다
+#:       (`policy/fixed_sends.py` 의 「정해져 나가는 값」이 보여준다)
+#:     비면 이 목록은 비어 있어야 정상이다. 새로 「못 보내는 칸」이 생기면 여기 적는다.
+_LISTING_NO_FIELD = ()
 
 #: 화면 글자 → 초안 Boolean. 🔴 모르는 글자는 **지어내지 않는다**.
 _MINOR_CHOICES = {'전연령 구매 가능': True, '19세 이상만': False}
+
+#: 과세구분 선택지. 🔴 「영세」는 사장님 확정으로 뺐다 — 쿠팡·옥션·G마켓엔 보낼 칸이 없다.
+_TAX_CHOICES = ('과세', '면세')
 
 
 def _apply_listing(draft, cfg):
@@ -951,6 +949,70 @@ def _apply_listing(draft, cfg):
                 over['minor_purchasable'] = val
                 applied.append(_applied('listing', 'minor_purchase', cur, val,
                                         note=f'정책대로 「{want}」으로 맞췄습니다.'))
+
+    # ── 칸이 있는 것: 과세구분 ───────────────────────────────────────────────
+    #   🔴 정책이 말하지 않으면 손대지 않는다 — 사람이 상품에 넣어 둔 값을 덮으면
+    #     「내가 면세로 해 뒀는데 왜 과세로 나가지」가 된다.
+    want_tax = str(cfg.get('tax_type') or '').strip()
+    if want_tax:
+        if want_tax not in _TAX_CHOICES:
+            skipped.append(_skip('listing', 'tax_type', 'UNKNOWN_TAX_TYPE',
+                                 f'모르는 과세구분입니다: {want_tax!r} — 지어내지 않습니다. '
+                                 f'「영세」는 쿠팡·옥션·G마켓에 보낼 칸이 없어 뺐습니다.',
+                                 False))
+        elif str(getattr(draft, 'tax_type', '') or '') != want_tax:
+            over['tax_type'] = want_tax
+            applied.append(_applied('listing', 'tax_type',
+                                    getattr(draft, 'tax_type', None), want_tax,
+                                    note=f'정책대로 「{want_tax}」로 맞췄습니다.'))
+
+    # ── 칸이 있는 것: 제조사 ────────────────────────────────────────────────
+    #   「브랜드와 동일」이면 **아무것도 안 넣는다** — 컴파일러가 비면 브랜드로
+    #   갈음한다(쿠팡 문서 권고). 여기서 브랜드를 복사해 넣으면 원천이 둘이 된다.
+    mode = str(cfg.get('manufacturer_mode') or '').strip()
+    if mode == '직접 입력':
+        fixed = str(cfg.get('manufacturer_fixed') or '').strip()
+        if not fixed:
+            skipped.append(_skip('listing', 'manufacturer_fixed', 'NO_MANUFACTURER',
+                                 '제조사를 「직접 입력」으로 두셨는데 값이 비어 있습니다 — '
+                                 '지금은 브랜드명이 그대로 나갑니다.', False))
+        elif str(getattr(draft, 'manufacturer', '') or '') != fixed:
+            over['manufacturer'] = fixed
+            applied.append(_applied('listing', 'manufacturer_fixed',
+                                    getattr(draft, 'manufacturer', None), fixed,
+                                    note='정책에 적은 제조사를 넣었습니다.'))
+
+    # ── 칸이 있는 것: 자동 가격 조정 최저가 (쿠팡 전용) ─────────────────────
+    #   정책 항목은 `_auto_pricing`(fields.py) — mode/min_margin_pct/min_price.
+    ap = cfg.get('_auto_pricing') if isinstance(cfg.get('_auto_pricing'), dict) else cfg
+    ap_mode = str(ap.get('mode') or '').strip()
+    if ap_mode.startswith('씀'):
+        if '직접 입력' in ap_mode:
+            try:
+                floor = int(ap.get('min_price') or 0)
+            except (TypeError, ValueError):
+                floor = 0
+            if floor <= 0:
+                skipped.append(_skip('listing', 'auto_pricing_min', 'NO_AUTO_MIN',
+                                     '자동 가격 조정을 「직접 입력」으로 두셨는데 최저 '
+                                     '판매가가 비어 있습니다 — 최저가 없이 켜면 바닥 없이 '
+                                     '값이 내려가므로 켜지 않았습니다.', False))
+            elif getattr(draft, 'auto_pricing_min', None) != floor:
+                over['auto_pricing_min'] = floor
+                applied.append(_applied('listing', 'auto_pricing_min',
+                                        getattr(draft, 'auto_pricing_min', None), floor,
+                                        note=f'최저 판매가 {floor:,}원으로 켰습니다 '
+                                             f'(쿠팡만 해당).'))
+        else:
+            # 🔴 「최저가를 마진율로 계산」은 **값을 만드는 일**이라 여기서 하지 않는다.
+            #   판매가를 가공 사본에서 만들면 「에러 없이 틀린 숫자」가 된다(이 파일
+            #   맨 위 규칙 — price 는 마진 엔진 몫). 지어내는 대신 못 했다고 말한다.
+            skipped.append(_skip('listing', 'auto_pricing_min', 'AUTO_MIN_BY_MARGIN',
+                                 '자동 가격 조정을 「최저가를 마진율로 계산」으로 '
+                                 '두셨습니다 — 최저가를 마진율로 내는 계산은 아직 잇지 '
+                                 '않아 켜지 않았습니다. 지금은 「최저가 직접 입력」만 '
+                                 '나갑니다(엉뚱한 최저가로 켜면 값이 그만큼 내려갑니다).',
+                                 False, gap=True))
 
     # ── 칸이 없는 것: 기본값과 다를 때만 말한다 ────────────────────────────
     #   기본값까지 사유로 만들면 화면이 경고로 뒤덮여 진짜 경고가 안 읽힌다.

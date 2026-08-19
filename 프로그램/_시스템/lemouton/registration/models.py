@@ -57,6 +57,24 @@ class ProductDraft(Base):
     delivery_fee = Column(Integer, default=3000)      # 0 = 무료배송
     return_fee = Column(Integer, default=5000)
 
+    # ── 등록 상수 (2026-08-13) — 정책에서 정한 값이 담길 자리 ──────────────
+    #   전에는 담을 칸이 없어 마켓 등록 코드에 「과세」가 박힌 채 나갔다.
+    #   🔴 전부 **비워 둘 수 있는 칸**이다 — NOT NULL 로 만들면 옛 초안이
+    #     마이그레이션에서 통째로 터진다.
+    #   [사장님 확정] 과세구분 기본 = 과세. 「영세」는 수출·외화획득 거래용이라
+    #     우리에겐 해당 없고, 쿠팡·옥션·G마켓엔 보낼 칸도 없어 선택지에서 뺐다.
+    tax_type = Column(String(8), default='과세')       # 과세 | 면세
+    manufacturer = Column(String(120), default='')     # 비면 브랜드로 갈음(쿠팡 문서 권고)
+    model_no = Column(String(80), default='')
+    barcode = Column(String(64), default='')           # 비면 쿠팡에 emptyBarcode=true
+    # 🔴 이름이 `tags` 가 아니다 — 가공 엔진이 컴파일러에 넘기는 `process_tags`
+    #   (저장 칸이 아닌 값)와 헷갈리면 「저장했는데 안 나간다」가 된다.
+    search_tags = Column(Text, default='[]')           # JSON 배열 문자열
+    # 자동 가격 조정 최저가 — **쿠팡만** 있는 칸(공지 2026-05-22).
+    #   🔴 NULL = 「안 씀」. 0 을 기본값으로 걸면 「최저가 0원으로 켜 둠」이 되어
+    #     쿠팡이 400 을 내거나, 더 나쁘게는 바닥 없이 값을 내린다.
+    auto_pricing_min = Column(Integer)
+
     # 스스 detailAttribute 필수 — 라이브 검증된 create_product.py:85-89 payload 에 있음
     minor_purchasable = Column(Boolean, default=True, nullable=False)
     after_service_phone = Column(String(32), default='')

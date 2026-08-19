@@ -131,11 +131,11 @@
     <h1>{{ mo.name }}</h1>
     <span class="mxd-badge {{ 'o' if mo.kind == 'origin' else 'd' }}">{{ '원본' if mo.kind == 'origin' else '파생' }}</span>
     <span class="mxd-no">{{ mo.no or '번호 대기' }}</span>
-    {# [2026-08-12 사장님 확정 1안] 지우기는 **작업하는 화면(조립대)에만** 둔다.
+    {# [2026-08-12 사장님 확정 1안] 삭제는 **작업하는 화면(조립대)에만** 둔다.
        상품관리 쪽 옵션관리는 코드가 「보기 전용」이라 못 박은 화면이라 넣지 않는다. #}
     {% if assembly and mo.model_code %}
     <button class="mxd-del" type="button" data-del="{{ mo.model_code }}"
-            data-name="{{ mo.name }}" data-opts="{{ rows|length }}">🗑 이 묶음 지우기</button>
+            data-name="{{ mo.name }}" data-opts="{{ rows|length }}">🗑 이 묶음 삭제</button>
     {% endif %}
   </div>
   <div class="mxd-sub">
@@ -208,7 +208,7 @@
       <div class="hintbox" style="margin:0">
         담은 옵션은 <b>(색상·사이즈) 대조로 되짚은 것</b>입니다 — 만들 때 옵션을 복제하면서
         어느 줄에서 왔는지는 안 남겼습니다. 상품의 이름·정책은
-        <b>상품 가공</b>에서 고칩니다(여기서는 못 고칩니다).
+        <b>상품 정책화</b>에서 고칩니다(여기서는 못 고칩니다).
       </div>
     </div>
     {% endif %}
@@ -725,7 +725,7 @@ if (ASSEMBLY && EDITABLE){
   });
 }
 
-/* [2026-08-12] 지우기 처리 — 목록(옵션생성)과 **같은 코드**를 쓴다.
+/* [2026-08-12] 삭제 처리 — 목록(옵션생성)과 **같은 코드**를 쓴다.
    두 벌이 되면 반드시 갈린다(막는 조건·알림 문구가 달라진다). */
   document.querySelectorAll('[data-del]').forEach(function (d) {
     d.addEventListener('click', function () {

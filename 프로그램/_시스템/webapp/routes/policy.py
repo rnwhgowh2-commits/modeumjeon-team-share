@@ -1,6 +1,8 @@
 """정책 생성 화면 — 목록 · 편집(마켓 공통 + 마켓 가로탭) · 상품에 적용.
 
-노션 「상품 가공 (정책 생성 & 정책 적용)」. 규칙은 lemouton/policy/service.py 가 단일 원천.
+상위탭 「상품 정책화」(구 「상품 가공」) — 하위탭 정책 생성 & 정책 매칭(구 「정책 적용」,
+[2026-08-19] 사장님 확정 재개명). 노션 원문은 「상품 가공 (정책 생성 & 정책 적용)」.
+규칙은 lemouton/policy/service.py 가 단일 원천.
 
 🔴 값이 비어 있는 정책은 **가격 계산에 물리지 않는다**. 화면이 「아직 못 씀」을 보여준다.
 """
@@ -127,6 +129,12 @@ def policy_detail(pid: int):
             #   항목별 「정책 ○○ / 실제 ○○」 — 늘 보인다(확정 B2).
             'fixed_by_item': (None if market == COMMON_KEY
                               else FIXED.by_item(market, vals)),
+            # ── [2026-08-13 확정 시안 v2 · 2번] 「마켓마다 어떤 값으로 나가는지 보기」 ──
+            #   라디오 옆 접힘표. 🔴 마켓을 안 가린다 — 사장님이 「면세」를 고를 때
+            #     **여섯 마켓 전부**에 무엇이 나가는지 한 자리에서 봐야 뜻이 있다
+            #     (마켓마다 값이 다르고, 롯데온은 아직 모른다).
+            'sends_table': {k: FIXED.sends_table(k)
+                            for k in FIXED.SENDS_BY_MARKET},
             # 채움 합계 — **켠 마켓만** 센다. 셈을 템플릿에 넣으면 검사가 어려워
             #   여기서 만들어 넘긴다.
             'fill_sum': _fill_sum,
@@ -496,25 +504,39 @@ def api_save_fee_defaults():
 
 @bp.route('/policies/apply')
 def policy_apply_page():
-    """「상품 정책 적용」 — 노션 하위탭 ②.
+    """「정책 매칭」(구 「상품 정책 적용」) — 노션 하위탭 ②.
 
     왼쪽에서 상품을 고르고 오른쪽에서 정책을 골라 한 번에 붙인다(그룹핑).
     🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
       하면 거짓 기능이 된다(「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤).
     """
+    from lemouton.policy.fields import MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import applied_count, brand_counts, readiness
+    from lemouton.policy.service import (
+        applied_count, applied_products, brand_counts, enabled_markets,
+        market_status,
+    )
     s = SessionLocal()
     try:
         policies = []
         for p in s.query(MarketPolicy).filter(MarketPolicy.deleted_at.is_(None)) \
                   .order_by(MarketPolicy.is_default.desc(), MarketPolicy.name):
-            rd = readiness(s, p.id)
+            on = enabled_markets(s, p)
+            # market_status() 가 켠 마켓만 골라 readiness() 를 이미 계산한다 —
+            #   전체 마켓 readiness 를 여기서 또 구하면 같은 조회를 두 번 하는 셈이다.
+            status = market_status(s, p.id, markets=on)
+            # [#1059 카드형 정책 고르기] 켠 마켓 중 하나도 「가격 쓸 수 있음」이
+            #   아니면 이 정책은 지금 상품에 붙여도 아무 데도 값이 안 나간다 —
+            #   그런 정책은 카드에서 고를 수 없게 잠그고 「정책 생성으로」 안내한다.
+            usable = any(v != 'wait' for v in status.values())
             policies.append({
                 'id': p.id, 'name': p.name, 'brand': p.brand or '',
                 'is_default': bool(p.is_default),
                 'applied': applied_count(s, p.id),
-                'ready': [m for m, v in rd.items() if v['price_ready']],
+                'enabled': on,
+                'status': status,
+                'usable': usable,
+                'applied_info': applied_products(s, p.id, limit=3),
             })
         pbrands = brand_counts(s)
     finally:
@@ -524,7 +546,7 @@ def policy_apply_page():
     #      「체크했다는데 목록에 없다」가 된다.
     pick = [c for c in request.args.getlist('model') if c]
     return render_template('policy/apply.html', active='policy_apply',
-                           policies=policies, pbrands=pbrands,
+                           policies=policies, pbrands=pbrands, market_label=MARKET_LABEL,
                            pick=pick, pick_q=(pick[0] if len(pick) == 1 else ''))
 
 
@@ -703,7 +725,7 @@ def api_bundle_policy_result(model_code: str):
         if not attached:
             return jsonify({'ok': True, 'policies': [], 'rows': [],
                             'reason': '이 상품에 붙은 정책이 없습니다 — '
-                                      '「🧩 상품 정책 적용」에서 먼저 붙여 주세요.'})
+                                      '「🧩 정책 매칭」에서 먼저 붙여 주세요.'})
         pid = int(want) if (want or '').isdigit() else attached[0]['id']
         if pid not in {a['id'] for a in attached}:
             pid = attached[0]['id']

@@ -311,6 +311,31 @@ def test_이미지는_반쪽만_먹는다고_정직하게_말한다():
 
 def test_아직_안_나가는_항목은_그대로_저장만이다():
     from lemouton.policy import required as R
-    for key in ('notice', 'kc', 'tags', 'category', 'listing', 'price_compare', 'ids'):
+    for key in ('notice', 'kc', 'tags', 'category', 'price_compare', 'ids'):
         assert R.wiring_of(key)[0] == R.STORED_ONLY, \
             f'「{key}」 를 나간다고 적었는데 읽는 코드가 있는지 확인하라'
+
+
+def test_판매방식_통관은_이제_나간다():
+    """[2026-08-13] 「저장만」 이었는데 사실이 아니게 됐다.
+
+    🔴 이 시험은 원래 `listing` 을 STORED_ONLY 로 **잠가 두고** 있었다. 그 사이
+      초안 칸이 생기고 5마켓 배선이 붙었는데도 통과했다 — 통과하는 시험이
+      「예전에 참이던 것」을 잠가 둘 수 있다. 이제 반대로 잠근다.
+    """
+    from lemouton.policy import required as R
+    state, note = R.wiring_of('listing')
+    assert state == R.WIRED
+    assert '과세구분' in note and '미성년자' in note and '제조사' in note
+    assert '옥션·G마켓에는 제조사 칸이 없습니다' in note, \
+        '어느 마켓에 안 나가는지를 뭉개면 「전부 나간다」로 읽힌다'
+
+
+def test_자동_가격_조정은_반쪽만_나간다고_말한다():
+    """🔴 그냥 「전송됨」이면 마진율 계산도 먹는 줄 알고, 그냥 「저장만」이면
+      직접 입력도 안 먹는 줄 안다. 둘 다 거짓이라 문구가 반쪽을 다 말해야 한다."""
+    from lemouton.policy import required as R
+    state, note = R.wiring_of('_auto_pricing')
+    assert state == R.STORED_ONLY
+    assert '직접 입력' in note and '나갑니다' in note
+    assert '마진율' in note and '아직 안 나갑니다' in note

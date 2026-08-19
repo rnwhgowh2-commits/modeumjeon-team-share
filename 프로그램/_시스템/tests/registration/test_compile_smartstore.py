@@ -335,3 +335,82 @@ def test_평면재고_0_은_품절이라는_뜻_있는_값이라_통과한다():
     """스스는 재고 0 등록이 가능하다 — 0 까지 막으면 정상 흐름이 끊긴다."""
     body, _ = compile_smartstore(D(options_json='[]', stock_quantity=0), category_code='1')
     assert body['originProduct']['stockQuantity'] == 0
+
+
+# ── [2026-08-13] 등록 상수 배선 ─────────────────────────────────────────────
+
+def _da(**kw):
+    """detailAttribute 만 꺼내 본다.
+
+    🔴 `D(**kw)` 는 아는 칸만 읽고 나머지를 조용히 버린다 — 새 칸은 직접 얹는다.
+      (이걸 모르고 D(tax_type=…) 로 넘겼다가 시험이 늘 기본값을 봤다)
+    """
+    d = D()
+    for k, v in kw.items():
+        setattr(d, k, v)
+    p, _ = compile_smartstore(d, category_code='50000167')
+    return p['originProduct']['detailAttribute']
+
+
+def test_과세구분이_정책대로_나간다():
+    """지도 근거: 요청.taxType — 코드 [TAX, DUTYFREE, SMALL] · 미입력 시 과세."""
+    assert _da(tax_type='면세')['taxType'] == 'DUTYFREE'
+    assert _da(tax_type='과세')['taxType'] == 'TAX'
+
+
+def test_과세구분을_안_정하면_과세다():
+    assert _da()['taxType'] == 'TAX'
+
+
+def test_스스엔_상품상태를_일부러_안_보낸다():
+    """🔴 「새상품」이라도 마켓마다 근거가 다르다.
+
+    · 쿠팡 — 공식 요청 예시에 `offerCondition: "NEW"` 가 있고 「생성 후 변경 불가」라 보낸다.
+    · 스스 — 등록 요청 예시에 `saleType` 이 **없고** 「미입력 시 NEW」라 보내나 마나다.
+      라이브 검증본과 다르게 보내는 위험만 늘어나므로 안 보낸다.
+    지도 근거가 없는 필드를 「같은 값이니까」로 끼워 넣지 않는다.
+    """
+    p, _ = compile_smartstore(D(), category_code='50000167')
+    assert 'saleType' not in p['originProduct']
+
+
+def test_제조사와_모델명이_네이버쇼핑_검색정보로_나간다():
+    """지도 근거: 요청.manufacturerName(제조사명) · 요청.modelName(상품 모델명)."""
+    got = _da(manufacturer='한국제화', model_no='NT750')['naverShoppingSearchInfo']
+    assert got['manufacturerName'] == '한국제화'
+    assert got['modelName'] == 'NT750'
+
+
+def test_제조사가_비면_브랜드로_갈음한다():
+    assert _da()['naverShoppingSearchInfo']['manufacturerName'] == '르무통'
+
+
+def test_모델명이_비면_그_칸을_안_넣는다():
+    """🔴 빈 문자열을 보내면 네이버가 「모델명 없음」이 아니라 빈 모델로 잡는다."""
+    got = _da()['naverShoppingSearchInfo']
+    assert 'modelName' not in got
+
+
+def test_공식_바코드만_보내고_자체_생성은_안_보낸다():
+    """🔴 [2026-08-13 사장님 확정] 자체 생성분은 라벨·재고용 — 마켓엔 안 보낸다.
+
+    스스 칸 이름이 「판매자 바코드」라 기술적으로는 되지만 「지금 불필요」로 정하셨다.
+    """
+    from lemouton.inventory import barcode as BC
+    assert _da(barcode='8801234567890')['sellerCodeInfo']['sellerBarcode'] == '8801234567890'
+    assert 'sellerCodeInfo' not in _da(barcode=BC.make_internal(11))
+
+
+def test_바코드가_없으면_그_칸을_안_넣는다():
+    assert 'sellerCodeInfo' not in _da()
+
+
+def test_검색태그가_나간다():
+    """지도 근거: 요청.sellerTags — 판매자 입력 태그 (object[]), 원소에 text."""
+    got = _da(search_tags=json.dumps(['운동화', '스니커즈'], ensure_ascii=False))
+    assert got['seoInfo']['sellerTags'] == [{'text': '운동화'}, {'text': '스니커즈'}]
+
+
+def test_태그가_깨져_있어도_등록이_안_막힌다():
+    for junk in ('', 'not-json', '{}', None):
+        assert 'seoInfo' not in _da(search_tags=junk)

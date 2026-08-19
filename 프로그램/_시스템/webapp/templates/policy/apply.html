@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}정책 적용 — 모음전 자동화{% endblock %}
+{% block title %}정책 매칭 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-policy-apply">
   <style>
@@ -19,7 +19,7 @@
                 border:1px solid var(--line,#E5E8EB)}
     .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
 
-    /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 적용」 순서다. */
+    /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 매칭」 순서다. */
     .ap-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 
     /* ── [2026-08-12 · 사장님 확정 D3] 「① 상품 다음 ② 정책」 순서 느낌 ──────────
@@ -76,6 +76,55 @@
     .tag.no{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
     .tag.cur{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .tag.none2{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+
+    /* ── [#1059] 정책 고르기 — 카드형(A3 좌측 아이콘 강조 + B2 상태 아이콘 + D3 잠금) ── */
+    .polcards{display:flex;flex-direction:column;gap:10px;padding:12px 16px}
+    .polcard{display:flex;gap:12px;padding:13px 14px;border:1.5px solid var(--line,#E5E8EB);
+         border-radius:12px;cursor:pointer;position:relative;background:var(--surface,#ffffff)}
+    .polcard:hover{border-color:var(--primary,#3182F6)}
+    .polcard:has(input:checked){border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF)}
+    .polcard input[type=radio]{position:absolute;top:13px;right:13px;margin:0}
+    .pc-ava{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;
+         justify-content:center;font-size:14px;font-weight:800;color:#fff}
+    .pc-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-right:26px}
+    .pc-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .pc-nm{font-size:13.5px;font-weight:800;color:var(--ink,#191F28)}
+    .pc-lock{font-size:11px;font-weight:800;color:var(--글자-주황,#92400E);
+         background:var(--연한-주황,#FFFBEB);border-radius:6px;padding:1px 7px;white-space:nowrap}
+    .pc-mk{display:flex;flex-wrap:wrap;gap:4px}
+    .pc-st{display:flex;flex-wrap:wrap;gap:5px}
+    .pc-stchip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;
+         border-radius:999px;padding:1px 8px 1px 6px;white-space:nowrap}
+    .pc-stchip .pc-sticon{width:14px;height:14px;border-radius:50%;display:inline-flex;
+         align-items:center;justify-content:center;font-size:9px;color:#fff;flex:none}
+    .pc-stchip.sale{background:rgba(52,199,89,.10);color:#1D7A3D}
+    .pc-stchip.sale .pc-sticon{background:#15803D}
+    .pc-stchip.mid{background:rgba(0,113,227,.10);color:#0066CC}
+    .pc-stchip.mid .pc-sticon{background:#0066CC}
+    .pc-stchip.wait{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+    .pc-stchip.wait .pc-sticon{background:#9CA3AF}
+    .pc-foot{display:flex;align-items:center;gap:10px;margin-top:2px}
+    .pc-applied{font-size:12px;color:var(--글자-파랑,#1B64DA);font-weight:700;cursor:default}
+    .pc-edit{font-size:12px;color:var(--sub,#8B95A1);text-decoration:none;margin-left:auto}
+    .pc-edit:hover{color:var(--primary,#3182F6)}
+    .polcard.locked{opacity:.7;cursor:default}
+    .polcard.locked:hover{border-color:var(--line,#E5E8EB)}
+    .polcard.locked .pc-gocreate{margin-left:auto;text-decoration:none}
+
+    /* 적용 상품 호버 카드 — hover-info-card 표준(body+fixed·닫기250ms·열기140ms·
+       카드진입시취소·오른쪽정렬+위로뒤집기). 정본 = policy/index.html 의 hvArm/hvShow. */
+    .pop{display:none;position:fixed;z-index:99999;background:var(--surface,#ffffff);
+         border:1px solid #d1d6db;border-radius:14px;padding:12px 14px;width:260px;
+         max-height:60vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.18);
+         cursor:default;font-size:12px}
+    .pop.on{display:block}
+    .pop .pop-h{font-size:12.5px;font-weight:800;margin-bottom:8px}
+    .pop .pop-cnt{font-weight:600;color:var(--sub,#8B95A1);font-size:11px}
+    .pop .pop-row{padding:4px 0;border-bottom:1px solid var(--n100,#F2F4F6)}
+    .pop .pop-row:last-of-type{border-bottom:0}
+    .pop .pop-row a{color:var(--ink,#191F28);text-decoration:none;font-weight:600}
+    .pop .pop-row a:hover{color:var(--primary,#3182F6)}
+    .pop .pop-more{margin-top:6px;font-size:11px;color:var(--sub,#8B95A1)}
 
     /* 붙이는 줄 — 화면 아래 고정. 고른 걸 잊지 않게 계속 보인다. */
     .ap-go{position:sticky;bottom:0;z-index:5;margin-top:16px;
@@ -140,7 +189,7 @@
   </style>
 
   <div class="ap-head">
-    <h1>정책 적용</h1>
+    <h1>정책 매칭</h1>
   </div>
   <div class="ap-desc">왼쪽에서 상품을 고르고, 오른쪽에서 정책을 골라 한 번에 붙입니다.</div>
   <div class="msg" id="msg"></div>
@@ -195,28 +244,61 @@
         {% endfor %}
       </div>
       <div class="ap-list">
-        <table>
-          <thead><tr>
-            <th style="width:34px"></th><th>정책</th><th>가격</th>
-            <th class="num">붙은 상품</th>
-          </tr></thead>
-          <tbody id="plist">
-            {% for p in policies %}
-            <tr data-brand="{{ p.brand }}" data-name="{{ p.name|lower }}">
-              <td><input type="radio" name="pol" value="{{ p.id }}" data-nm="{{ p.name }}"></td>
-              <td><a href="/policies/{{ p.id }}" style="color:inherit;font-weight:700">{{ p.name }}</a>
+        <div class="polcards" id="plist">
+          {% for p in policies %}
+          {% set initial = (p.brand or p.name or '?')[0] %}
+          <label class="polcard {{ 'locked' if not p.usable else '' }}"
+                 data-brand="{{ p.brand }}" data-name="{{ p.name|lower }}">
+            <input type="radio" name="pol" value="{{ p.id }}" data-nm="{{ p.name }}"
+                   {% if not p.usable %}disabled{% endif %}>
+            <span class="pc-ava" style="background:{{ ['#7C6FF0','#0EA5A4','#DB2777','#6366F1','#B45309','#475569'][(p.brand or p.name)|length % 6] }}">{{ initial }}</span>
+            <span class="pc-body">
+              <span class="pc-top">
+                <span class="pc-nm">{{ p.name }}</span>
                 {% if p.is_default %}<span class="tag def">기본</span>{% endif %}
-                {% if p.brand %}<span class="tag br">{{ p.brand }}</span>{% endif %}</td>
-              <td>{% if p.ready %}<span class="tag cur">쓸 수 있음 {{ p.ready|length }}마켓</span>
-                  {% else %}<span class="tag no">아직 못 씀</span>{% endif %}</td>
-              <td class="num">{{ p.applied }}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="4" class="ap-empty">아직 정책이 없어요.
-              오른쪽 위 「정책 만들러 가기」에서 먼저 만들어 주세요.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+                {% if p.brand %}<span class="tag br">{{ p.brand }}</span>{% endif %}
+                {% if not p.usable %}<span class="pc-lock">🔒 미완성</span>{% endif %}
+              </span>
+              <span class="pc-mk">
+                {% if p.enabled %}{% for m in p.enabled %}<span class="mkbadge">{{ market_label[m] }}</span>{% endfor %}
+                {% else %}<span class="mkbadge off">내보낼 마켓 없음</span>{% endif %}
+              </span>
+              {% if p.enabled %}
+              <span class="pc-st">
+                {% for m in p.enabled %}
+                <span class="pc-stchip {{ p.status[m] }}">
+                  <i class="pc-sticon">{% if p.status[m] == 'sale' %}✓{% elif p.status[m] == 'mid' %}◐{% else %}○{% endif %}</i>{{ market_label[m] }}
+                </span>
+                {% endfor %}
+              </span>
+              {% endif %}
+              <span class="pc-foot">
+                {% if p.usable %}
+                <span class="pc-applied hv" data-hvkey="ap{{ p.id }}">적용 상품 {{ p.applied_info.total }}개</span>
+                <template class="pc-pophtml" data-hvkey="ap{{ p.id }}">
+                  <div class="pop-h">적용 상품 <span class="pop-cnt">{{ p.applied_info.total }}개{% if p.applied_info.total > p.applied_info.sample|length %} 중 대표 {{ p.applied_info.sample|length }}개{% endif %}</span></div>
+                  {% for it in p.applied_info.sample %}
+                  <div class="pop-row"><a href="/policies/product/{{ it.model_code|urlencode }}">{{ it.no or it.model_code }} {{ it.name }}</a></div>
+                  {% else %}
+                  <div class="pop-row">적용 상품이 없어요</div>
+                  {% endfor %}
+                  {% if p.applied_info.total > p.applied_info.sample|length %}
+                  <div class="pop-more">이 외 {{ p.applied_info.total - p.applied_info.sample|length }}개 더 있어요</div>
+                  {% endif %}
+                </template>
+                <a href="/policies/{{ p.id }}" class="pc-edit">항목 보기 →</a>
+                {% else %}
+                <a href="/policies/{{ p.id }}" class="btn2 ghost pc-gocreate">정책 생성으로 →</a>
+                {% endif %}
+              </span>
+            </span>
+          </label>
+          {% else %}
+          <div class="ap-empty">아직 정책이 없어요.
+            오른쪽 위 「정책 만들러 가기」에서 먼저 만들어 주세요.</div>
+          {% endfor %}
+        </div>
+        <div class="ap-empty" id="pnoneshown" style="display:none">찾는 정책이 없어요.</div>
       </div>
     </div>
   </div>
@@ -243,6 +325,8 @@
   /* 본문 글자 하한 14px (PC 는 12px) */
   .ap-desc, .warn, .msg, .ap-go .n { font-size: 14px; }
   .ap-list table { font-size: 14px; }
+  .polcard { font-size: 14px; }
+  .pc-nm { font-size: 14px; }
   /* 체크칸 — 16px 은 손끝에 너무 작다.
      [배치4a 검토] 화면 뿌리(#screen-policy-apply)로 못 박는다 — 맨몸 선택자면
      나중에 껍데기(mobile_shell)가 체크박스를 갖게 될 때 22px 을 물려받는다. */
@@ -418,16 +502,20 @@ function filterPolicies() {
   const kw = document.getElementById('pq').value.trim().toLowerCase();
   const on = document.querySelector('#pbrands .chip2.on');
   const wb = on ? (on.dataset.brand || '') : '';
-  document.querySelectorAll('#plist tr[data-name]').forEach((tr) => {
-    const b = tr.dataset.brand || '';
+  const cards = document.querySelectorAll('#plist .polcard[data-name]');
+  let shown = 0;
+  cards.forEach((card) => {
+    const b = card.dataset.brand || '';
     let show = true;
     if (wb === '__none__') show = !b;
     else if (wb) show = (b === wb);
-    if (show && kw) show = tr.dataset.name.indexOf(kw) >= 0;
-    tr.style.display = show ? '' : 'none';
-    /* 숨긴 줄이 골라져 있으면 푼다 — 안 보이는 게 붙으면 사고다 */
-    if (!show) { const r = tr.querySelector('input[type=radio]'); if (r) r.checked = false; }
+    if (show && kw) show = card.dataset.name.indexOf(kw) >= 0;
+    card.style.display = show ? '' : 'none';
+    if (show) shown++;
+    /* 숨긴 카드가 골라져 있으면 푼다 — 안 보이는 게 붙으면 사고다 */
+    if (!show) { const r = card.querySelector('input[type=radio]'); if (r) r.checked = false; }
   });
+  document.getElementById('pnoneshown').style.display = (cards.length && !shown) ? '' : 'none';
   upd();
 }
 document.getElementById('pq').oninput = filterPolicies;
@@ -441,6 +529,45 @@ document.querySelectorAll('#pbrands .chip2').forEach((c) => {
 document.querySelectorAll('#plist input[type=radio]').forEach((r) => {
   r.onchange = upd;
 });
+
+/* ── [#1059] 적용 상품 호버 카드 — hover-info-card 표준(정본: policy/index.html 의
+   hvArm/hvShow/hvDisarm/hvScheduleHide) 그대로. 내용은 서버가 미리 그려 둔
+   <template class="pc-pophtml"> 를 그대로 옮겨 붙인다(스크립트로 새로 만들지 않는다). */
+const OPEN_DELAY = 140, CLOSE_DELAY = 250, GAP = 7, EDGE = 8;
+const pop = document.body.appendChild(Object.assign(
+  document.createElement('div'), { className: 'pop' }));
+let openTimer = null, hideTimer = null, curKey = null;
+pop.addEventListener('mouseenter', () => { clearTimeout(hideTimer); hideTimer = null; });
+pop.addEventListener('mouseleave', hvScheduleHide);
+function hvScheduleHide() {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => { pop.classList.remove('on'); curKey = null; }, CLOSE_DELAY);
+}
+function hvShow(anchor, key) {
+  clearTimeout(hideTimer); hideTimer = null;
+  curKey = key;
+  const tpl = document.querySelector('template.pc-pophtml[data-hvkey="' + key + '"]');
+  if (!tpl) return;
+  pop.innerHTML = '';
+  pop.appendChild(tpl.content.cloneNode(true));
+  pop.classList.add('on');
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let left = r.right - w;
+  left = Math.max(EDGE, Math.min(left, innerWidth - w - EDGE));
+  let top = r.bottom + GAP;
+  if (top + h > innerHeight - EDGE) top = r.top - h - GAP;
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(EDGE, top) + 'px';
+}
+document.querySelectorAll('.pc-applied.hv').forEach((a) => {
+  a.addEventListener('mouseenter', () => {
+    if (curKey === a.dataset.hvkey) { clearTimeout(hideTimer); hideTimer = null; return; }
+    clearTimeout(openTimer);
+    openTimer = setTimeout(() => hvShow(a, a.dataset.hvkey), OPEN_DELAY);
+  });
+  a.addEventListener('mouseleave', () => { clearTimeout(openTimer); hvScheduleHide(); });
+});
+addEventListener('scroll', () => { pop.classList.remove('on'); curKey = null; }, { passive: true });
 
 /* ── 붙이기 ──────────────────────────────────────────────── */
 
@@ -473,7 +600,7 @@ function openAdd(code) {
   const r = rows.find((x) => x.model_code === code);
   const bl = (r && r.bundles) || [];
   /* 정책 고르는 칸은 오른쪽 목록에서 그대로 가져온다 — 원천이 하나여야 어긋나지 않는다 */
-  const opts = [...document.querySelectorAll('#plist input[type=radio]')]
+  const opts = [...document.querySelectorAll('#plist input[type=radio]:not(:disabled)')]
     .map((x) => '<option value="' + x.value + '">' + esc(x.dataset.nm) + '</option>').join('');
   if (!opts) { alert('먼저 정책을 만들어 주세요.'); return; }
 

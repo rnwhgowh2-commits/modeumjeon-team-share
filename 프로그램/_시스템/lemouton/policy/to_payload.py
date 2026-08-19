@@ -204,16 +204,21 @@ def _options_json(session, set_id: int, stock_by_sku: dict | None = None) -> str
     #   마켓은 받는다 — 판매처 지도 근거(서열 2, 스스 개발자센터 원문):
     #     smartstore `optionCombinations` — 「최대 등록 가능한 옵션 개수는
     #     조합형은 3개, 지점형은 4개입니다.」
-    #   ★ 새 저장 칸은 만들지 않는다. `model_name_of` 가 그때그때 만든다 —
-    #     같은 사실을 두 곳에 저장하면 언젠가 갈린다(그 함수 독스트링).
+    #   ★ 옵션 행에는 저장하지 않는다. `model_name_of` 가 그때그때 만든다 —
+    #     축 값·이름이 바뀌면 저장본은 곧 옛것이 된다(그 함수 독스트링).
+    #   🔴 [2026-08-13] 묶음에 따로 적어 둔 모델명(`Model.bundle_model_name`)을
+    #     **같은 쿼리에서** 같이 뽑는다(쿼리 추가 0 — 이미 Model 행을 통째로 읽는다).
+    #     이 값을 안 넘기면 사장님이 화면에서 모델명을 고쳐도 마켓엔 매트릭스
+    #     이름이 그대로 나간다 — 에러 없이 잘못된 이름이 게시되는 자리다.
     from lemouton.matrix.option_name import model_name_of
     from lemouton.sourcing.models import BundleOptionStep, Model
     codes = sorted({o.model_code for o in rows if o.model_code})
-    nm_by_code, ax_by_code = {}, {}
+    nm_by_code, ax_by_code, bm_by_code = {}, {}, {}
     if codes:
         for m in session.query(Model).filter(Model.model_code.in_(codes)).all():
             nm_by_code[m.model_code] = (m.model_name_display or m.model_name_raw
                                         or m.model_code)
+            bm_by_code[m.model_code] = m.bundle_model_name
         for code, axis_name in (session.query(BundleOptionStep.model_code,
                                               BundleOptionStep.axis_name)
                                 .filter(BundleOptionStep.model_code.in_(codes))
@@ -230,8 +235,10 @@ def _options_json(session, set_id: int, stock_by_sku: dict | None = None) -> str
             'sku': o.canonical_sku,
             'color': o.color_display or o.color_code or '',
             'size': o.size_display or o.size_code or '',
-            'model': model_name_of(nm_by_code.get(o.model_code, ''), o,
-                                   ax_by_code.get(o.model_code) or []),
+            'model': model_name_of(
+                nm_by_code.get(o.model_code, ''), o,
+                ax_by_code.get(o.model_code) or [],
+                bundle_model_name=bm_by_code.get(o.model_code)),
             'image_url': o.image_url or '',
             'active': bool(o.is_active),
         }
@@ -334,7 +341,7 @@ def build_for_set(session, *, set_id: int, market: str, base_view=None) -> dict:
     if policy is None:
         skip = [{'item': 'name', 'field': '', 'label': '정책',
                  'code': 'NO_POLICY',
-                 'reason': '이 구성에 정책이 붙어 있지 않습니다 — 「정책 적용」에서 '
+                 'reason': '이 구성에 정책이 붙어 있지 않습니다 — 「정책 매칭」에서 '
                            '붙여 주세요. 정책이 없으면 어떤 값으로 올릴지 정해지지 '
                            '않아 보내지 않습니다.',
                  'blocking': True}]

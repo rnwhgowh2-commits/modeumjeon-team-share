@@ -170,7 +170,8 @@ def upsert(session, *, set_id: int, market: str, view=None):
 #:   대량등록에서는 되는데 모음전에서만 안 되는 얼굴을 한다.
 #:   값을 새로 이었으면 여기에도 넣었는지 반드시 확인할 것.
 _POLICY_FIELDS = ('delivery_fee', 'return_fee', 'origin_area_code',
-                  'minor_purchasable')
+                  'minor_purchasable', 'tax_type', 'manufacturer',
+                  'auto_pricing_min')
 
 
 def policy_fields_from(view) -> dict:
