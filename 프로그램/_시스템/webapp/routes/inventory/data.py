@@ -564,7 +564,7 @@ def data_items():
     from sqlalchemy.orm import contains_eager
 
     page = max(1, int(request.args.get('page', 1)))
-    # ★ 엑셀식 정렬·필터가 전체 데이터 대상이 되도록 한 페이지에 전체 로드 (기본 2000)
+    # * 엑셀식 정렬·필터가 전체 데이터 대상이 되도록 한 페이지에 전체 로드 (기본 2000)
     page_size = min(5000, int(request.args.get('page_size', 2000)))
     q = (request.args.get('q') or '').strip()
     brand = (request.args.get('brand') or '').strip()
@@ -620,7 +620,7 @@ def data_items():
             'total_qty': int(total_qty),
         }
 
-        # ★ 검색 결과 요약 (시안 A — 요약 배너) — 검색어 있을 때만
+        # * 검색 결과 요약 (시안 A — 요약 배너) — 검색어 있을 때만
         _summary_rows = query.with_entities(Option.boxhero_avg_purchase_price, Model.brand).all()
         _prices = [r[0] for r in _summary_rows if r[0] and r[0] > 0]
         _avg_price = round(sum(_prices) / len(_prices)) if _prices else 0
@@ -651,7 +651,7 @@ def data_items():
         page_skus = [o.canonical_sku for o in items]
         per_loc_stock = get_stock_by_location_batch(s, page_skus)
 
-        # ★ ⑤ 역참조 — 제품별 사용처(모음전·옵션) batch 조회 (N+1 회피)
+        # * ⑤ 역참조 — 제품별 사용처(모음전·옵션) batch 조회 (N+1 회피)
         # OptionProductLink 를 product_canonical_sku 로 한 번에 조회.
         usage_map: dict[str, int] = {}
         try:
@@ -694,7 +694,7 @@ def data_items():
                     'avg': int(o.boxhero_avg_purchase_price or 0),
                     'stock': int(stock_map.get(o.canonical_sku, 0)),
                     'loc_stock': {str(loc.id): int(per_loc_stock.get(o.canonical_sku, {}).get(loc.id, 0)) for loc in locs},
-                    'usage': int(usage_map.get(o.canonical_sku, 0)),  # ★ ⑤ 역참조 사용처 개수
+                    'usage': int(usage_map.get(o.canonical_sku, 0)),  # * ⑤ 역참조 사용처 개수
                 }
                 for o in items
             ]
@@ -719,13 +719,13 @@ def data_items():
             search_tokens=search_tokens,
             brands=sorted(brands),
             stock_map=stock_map,
-            cleaned_color=cleaned_color,  # ★ LCP strip 색상
-            display_pname=display_pname,  # ★ brand+모델명 (색상 X, brand 중복 X)
+            cleaned_color=cleaned_color,  # * LCP strip 색상
+            display_pname=display_pname,  # * brand+모델명 (색상 X, brand 중복 X)
             kpi=kpi,
-            locs=locs,                    # ★ 위치별 재고 컬럼 헤더용
-            per_loc_stock=per_loc_stock,  # ★ {sku: {loc_id: stock}}
-            search_summary=search_summary,  # ★ 검색 결과 요약 배너
-            usage_map=usage_map,          # ★ ⑤ {sku: 사용처(모음전·옵션) 개수}
+            locs=locs,                    # * 위치별 재고 컬럼 헤더용
+            per_loc_stock=per_loc_stock,  # * {sku: {loc_id: stock}}
+            search_summary=search_summary,  # * 검색 결과 요약 배너
+            usage_map=usage_map,          # * ⑤ {sku: 사용처(모음전·옵션) 개수}
         )
     finally:
         s.close()
@@ -840,7 +840,7 @@ def data_items_create():
         s.add(opt)
         s.flush()  # Option 확정 후에 create_inbound 가 조회할 수 있도록
 
-        # 📍 위치별 초기 재고 — stock_loc_<id> 폼 필드를 모두 받아 InventoryTx('in') 로 등록
+        #  위치별 초기 재고 — stock_loc_<id> 폼 필드를 모두 받아 InventoryTx('in') 로 등록
         active_locs = (
             s.query(InventoryLocation)
             .filter(InventoryLocation.deleted_at.is_(None))

@@ -1168,7 +1168,7 @@ def sourcing_sites():
             else "never"
         )
         row["cookie_size_kb"] = cookie_state.get("size_kb", 0)
-        # ★ 대표 크롤 계정 플래그
+        # * 대표 크롤 계정 플래그
         row["is_default_for_crawl"] = bool(default_crawl_map.get((row["source"], row["account_key"]), False))
         summary_by_key.setdefault(row["source"], []).append(row)
 

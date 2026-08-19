@@ -527,7 +527,7 @@ def api_options():
                 s.query(Option, stock_q.c.stock)
                 .outerjoin(stock_q, stock_q.c.sku == Option.canonical_sku)
             )
-            # ★ 박스히어로식 다중 키워드 AND 교집합
+            # * 박스히어로식 다중 키워드 AND 교집합
             query = apply_and_filter(
                 query, search_tokens,
                 Option.canonical_sku, Option.color_code, Option.size_code, Option.boxhero_sku,
@@ -557,7 +557,7 @@ def api_options():
             s.query(stock_q.c.sku, stock_q.c.stock, Option)
             .outerjoin(Option, Option.canonical_sku == stock_q.c.sku)
         )
-        # ★ 박스히어로식 다중 키워드 AND 교집합
+        # * 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(
             query, search_tokens,
             stock_q.c.sku, Option.color_code, Option.size_code, Option.boxhero_sku,

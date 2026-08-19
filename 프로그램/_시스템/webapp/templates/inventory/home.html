@@ -77,11 +77,11 @@
     <a href="{{ url_for('inventory.home') }}" style="font-size:12px;color:#6B7684;text-decoration:none">초기화</a>
   </form>
 
-  {# ★ 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만 노출 #}
+  {# * 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만 노출 #}
   <div id="searchSummary" style="display:none;background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:8px;padding:11px 18px;margin-bottom:12px;align-items:center;font-size:14px"></div>
 
   <script>
-  // 박스히어로식 다중 키워드 AND 검색 — 칩 컨트롤 + ★ 실시간 라이브 검색
+  // 박스히어로식 다중 키워드 AND 검색 — 칩 컨트롤 + * 실시간 라이브 검색
   (function(){
     var box = document.getElementById('chipBox');
     var inp = document.getElementById('chipInput');
@@ -102,7 +102,7 @@
     function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); }
     function fmt(n){ return Number(n||0).toLocaleString(); }
 
-    // ★ 검색 결과 요약 배너 (시안 A)
+    // * 검색 결과 요약 배너 (시안 A)
     function renderSummary(sm){
       var el = document.getElementById('searchSummary');
       if(!el) return;
@@ -155,7 +155,7 @@
       return toks.join(' ');
     }
 
-    // ★ 실시간 라이브 검색 — 새로고침 없이 카드 리스트 갱신
+    // * 실시간 라이브 검색 — 새로고침 없이 카드 리스트 갱신
     function liveSearch(){
       // 묶어보기 모드는 서버 그룹 렌더 → 폼 submit fallback
       if(groupCheckbox && groupCheckbox.checked){ sync(); form.submit(); return; }
@@ -226,10 +226,10 @@
           ct.innerHTML = '<b style="color:#191F28;font-weight:700">'+fmt(st.shown)+'</b>건 표시';
         }
       }
-      // ★ 검색 결과 요약 배너 갱신
+      // * 검색 결과 요약 배너 갱신
       window.__lastServerSummary = data.search_summary;
       renderSummary(data.search_summary);
-      // ★ 라이브 검색 후 — 적용 중인 칼럼 필터·정렬 재적용 (applyTableState 가 요약도 재계산)
+      // * 라이브 검색 후 — 적용 중인 칼럼 필터·정렬 재적용 (applyTableState 가 요약도 재계산)
       if(window.applyTableState) window.applyTableState();
     }
 
@@ -254,7 +254,7 @@
       sync();
     };
 
-    // ★ 타이핑하는 대로 자동 검색 (debounce 280ms — 엔터 불필요)
+    // * 타이핑하는 대로 자동 검색 (debounce 280ms — 엔터 불필요)
     inp.addEventListener('input', function(){
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(liveSearch, 280);
@@ -270,7 +270,7 @@
       sync();
     });
 
-    // ★ 초기 1회 — 서버 렌더 시점의 검색 결과 요약 배너
+    // * 초기 1회 — 서버 렌더 시점의 검색 결과 요약 배너
     window.__lastServerSummary = {{ search_summary | tojson }};
     renderSummary(window.__lastServerSummary);
   })();
@@ -420,7 +420,7 @@
       </div>
       <a href="javascript:openHistMod('{{ d.opt.canonical_sku }}', null, '전체')" style="display:block;text-align:center;padding:6px;border:1px solid #CBCCD3;color:#4F67FF;text-decoration:none;font-size:12px;border-radius:5px;margin-bottom:10px;font-weight:600"><i class="ph-light ph-scroll" aria-hidden="true"></i> 전체 거래 이력 보기 →</a>
 
-      {# ★ 이 제품으로 즉시 입고/출고/조정/이동 액션 (prefill — 박스히어로 1:1 UX) #}
+      {# * 이 제품으로 즉시 입고/출고/조정/이동 액션 (prefill — 박스히어로 1:1 UX) #}
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:14px">
         <a href="{{ url_for('inventory.inbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#16A34A;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 입고</a>
         <a href="{{ url_for('inventory.outbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#DC2626;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 출고</a>
@@ -544,7 +544,7 @@
     updateSummaryFromVisible();
   };
 
-  // ★ 칼럼 필터 적용 시 — 요약 배너를 화면에 보이는 행 기준으로 재계산.
+  // * 칼럼 필터 적용 시 — 요약 배너를 화면에 보이는 행 기준으로 재계산.
   //   칼럼 필터 없으면 서버 검색 요약(__lastServerSummary)으로 복원.
   function updateSummaryFromVisible(){
     if(typeof window.renderSummary !== 'function') return;

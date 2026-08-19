@@ -107,7 +107,7 @@
     .hub-cards-v3 { grid-template-columns: 1fr; }
   }
 
-  /* ⭐ Phase 8.8.4 — 무신사 비회원가 row 강조 (좌측 빨강 보더 + ⚠ 배지) */
+  /* [중요] Phase 8.8.4 — 무신사 비회원가 row 강조 (좌측 빨강 보더 + [주의] 배지) */
   .bl-row.nm-alert-row {
     box-shadow: inset 4px 0 0 #DC2626;
     background: linear-gradient(90deg, #FEF2F2, #fff 30%);
@@ -329,7 +329,7 @@
         <span>
           <strong>{{ b.group_name or b.model_code }}</strong>
           {% if b.cluster_size and b.cluster_size > 1 %}<span class="bl-cluster">{{ b.cluster_size }}모델</span>{% endif %}
-          {# ★ Phase 8.8.4 — 무신사 비회원가 ⚠ 배지 (회원가 추출 실패 옵션 카운트) #}
+          {# * Phase 8.8.4 — 무신사 비회원가 [주의] 배지 (회원가 추출 실패 옵션 카운트) #}
           {% if b.musinsa_non_member_count %}<span class="nm-row-badge" title="무신사 비회원가 크롤링 — 재로그인 필요. 클릭하여 대시보드 카드 확인."><i class="ph-light ph-warning" aria-hidden="true"></i> 무신사 비회원가 {{ b.musinsa_non_member_count }}건</span>{% endif %}
           <div class="bl-name-sub">{{ b.category }} · 코드 {{ b.model_code }}</div>
         </span>

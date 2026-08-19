@@ -324,9 +324,9 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 .sj-row .sj-owner { flex: 0 0 70px; padding: 6px 8px; border: 1px solid var(--n200); border-radius: 6px; font-size: 14px; background: var(--surface); text-align: center; }
 .sj-row input:focus { outline: none; border-color: var(--primary); }
 .sj-row .sj-status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(0,0,0,0.04); cursor: help; }
-.sj-row .sj-status-dot.ok { background: #00C471; box-shadow: 0 0 0 2px rgba(0,196,113,0.18); }       /* 🟢 로그인 완료 */
-.sj-row .sj-status-dot.fail { background: #FF4444; box-shadow: 0 0 0 2px rgba(255,68,68,0.18); }    /* 🔴 시도 → 실패 */
-.sj-row .sj-status-dot.warn { background: #FFB800; box-shadow: 0 0 0 2px rgba(255,184,0,0.20); }    /* 🟡 시도 전 */
+.sj-row .sj-status-dot.ok { background: #00C471; box-shadow: 0 0 0 2px rgba(0,196,113,0.18); }       /*  로그인 완료 */
+.sj-row .sj-status-dot.fail { background: #FF4444; box-shadow: 0 0 0 2px rgba(255,68,68,0.18); }    /* [중요] 시도 → 실패 */
+.sj-row .sj-status-dot.warn { background: #FFB800; box-shadow: 0 0 0 2px rgba(255,184,0,0.20); }    /*  시도 전 */
 .sj-row .sj-status-dot.unknown { background: var(--n300); }
 .sj-row .sj-icon-btn { padding: 0 4px; cursor: pointer; border: none; background: none; font-size: 14px; line-height: 1; flex-shrink: 0; }
 .sj-row .sj-icon-btn:hover { transform: scale(1.2); }
@@ -555,11 +555,11 @@ function sjLoginRow(btn) {
 }
 
 function sjVerifyRow(btn) {
-  // ✓ 단일 행 — sjLoginRow 와 동일하게 자동 로그인 트리거
+  // v 단일 행 — sjLoginRow 와 동일하게 자동 로그인 트리거
   sjLoginRow(btn);
 }
 
-// ★ 대표 크롤 계정 지정 토글 (소싱처별 1개만)
+// * 대표 크롤 계정 지정 토글 (소싱처별 1개만)
 async function sjToggleDefault(btn) {
   const row = btn.closest('.sj-row');
   const source = row.getAttribute('data-source');
@@ -600,7 +600,7 @@ async function sjToggleDefault(btn) {
 }
 
 async function sjVerifySelected() {
-  // ✓ 선택 로그인 — 체크된 행만 일괄 자동 로그인
+  // v 선택 로그인 — 체크된 행만 일괄 자동 로그인
   const selected = Array.from(document.querySelectorAll('.sj-row .sj-cb:checked'));
   if (selected.length === 0) { showToast('선택된 행 없음', 'error'); return; }
 
@@ -639,7 +639,7 @@ async function sjVerifySelected() {
 }
 
 function sjVerifyAll() {
-  // ✓ 전체 확인 — 전체 자동 로그인과 동일하게 처리
+  // v 전체 확인 — 전체 자동 로그인과 동일하게 처리
   autoLoginAll();
 }
 

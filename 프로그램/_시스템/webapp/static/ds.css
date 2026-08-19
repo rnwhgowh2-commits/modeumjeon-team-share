@@ -294,7 +294,7 @@ th:hover > .ds-funnel { color: #C4CBD3; }
      ref-badge      99px  → 알약(999)
      sg-chip        20px  → 12px  (딱지가 본문보다 컸다)
      nsg-pill       16px/20px
-     x-pill         11px  → 12px  🔴 확정 바닥선(12px) 위반이던 것
+     x-pill         11px  → 12px  [중요] 확정 바닥선(12px) 위반이던 것
      search-chip-box 5px  → 알약
      btn-cancel/go  13.5px/10px
      subtab         22px  → 19px  (같은 하위탭이 화면마다 22/18/15 였다)
@@ -360,7 +360,7 @@ body.ds-has-warn { padding-top: 42px; }
 .modal-bg.visible > .modal.modal-upload { width: 560px; }
 
 /* ── 부연 설명 = 마우스 올리면 ────────────────────────────────
-   ⚠️ 입력칸에 붙은 설명(.form-row 안)만 숨긴다.
+   [주의] 입력칸에 붙은 설명(.form-row 안)만 숨긴다.
    따로 서 있는 안내문(보안 고지 등)은 올릴 대상이 없어서
    숨기면 영영 안 보인다 — 실화면에서 실제로 그럴 뻔했다. 그대로 둔다. */
 .form-row { position: relative; }

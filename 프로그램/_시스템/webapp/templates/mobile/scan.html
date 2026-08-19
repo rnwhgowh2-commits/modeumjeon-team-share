@@ -14,7 +14,7 @@
     background: black;
     border-radius: 14px;
     overflow: hidden;
-    /* ★ 화면 가득 (헤더·하단 카드 제외) — 스크롤 X */
+    /* * 화면 가득 (헤더·하단 카드 제외) — 스크롤 X */
     height: calc(100dvh - 200px);
     min-height: 400px;
     margin-bottom: 10px;
@@ -199,7 +199,7 @@
   }
 
   async function startCamera(camId){
-    // ★ 4K 시도 → 미지원 시 1080p 폴백. 후면 + 연속 초점 + macro (가까운 거리)
+    // * 4K 시도 → 미지원 시 1080p 폴백. 후면 + 연속 초점 + macro (가까운 거리)
     const tryConstraints = [
       { video: {
           deviceId: camId ? { exact: camId } : undefined,
@@ -252,7 +252,7 @@
   // ───────────── 디코더 — Native 우선 / ZXing 폴백 ─────────────
   async function startDecoder(){
     const hint = document.getElementById('scan-hint');
-    // ★ 1) Native BarcodeDetector (Android Chrome 88+, Edge — 매우 빠름)
+    // * 1) Native BarcodeDetector (Android Chrome 88+, Edge — 매우 빠름)
     if ('BarcodeDetector' in window) {
       try {
         const supported = await BarcodeDetector.getSupportedFormats();
@@ -268,7 +268,7 @@
         return;
       } catch(e) { console.warn('Native fail, fallback ZXing', e); }
     }
-    // ★ 2) ZXing 폴백 — TRY_HARDER + EAN_13 우선
+    // * 2) ZXing 폴백 — TRY_HARDER + EAN_13 우선
     if (typeof ZXing === 'undefined' && typeof ZXingBrowser === 'undefined') {
       throw new Error('바코드 라이브러리 로드 실패');
     }
@@ -622,7 +622,7 @@
       if (!cameras.length) throw new Error('카메라 없음');
       await startCamera(cameras[0].deviceId);
       await startDecoder();
-      startAutoRefocus();  // ★ iOS 자동 재초점 트리거
+      startAutoRefocus();  // * iOS 자동 재초점 트리거
     } catch (e) {
       console.error('[scan]', e);
       let msg = e.message || String(e);

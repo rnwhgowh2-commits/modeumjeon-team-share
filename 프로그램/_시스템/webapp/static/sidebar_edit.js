@@ -163,7 +163,7 @@ function attachAll(){
       mdX = e.clientX; mdY = e.clientY; mdT = Date.now();
     });
     el.addEventListener('mouseup', e => {
-      // 명시적 액션 버튼만 무시 — ⋮ menu, v32 picker 의 ✎/🎨 mini 버튼
+      // 명시적 액션 버튼만 무시 — ⋮ menu, v32 picker 의 [수정]/ mini 버튼
       if (e.target.closest('[data-act="menu"], .icp-edit-btn, .icp-color-btn')) return;
       // 드래그 의도 (>4px 또는 >300ms) — navigation X (조금 관대)
       const dx = Math.abs(e.clientX - mdX);

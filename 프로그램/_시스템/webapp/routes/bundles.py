@@ -372,9 +372,9 @@ def _bundle_summary(s, m: Model, *, prefetch: dict | None = None) -> dict:
             .count()
         )
 
-    # ★ Phase 8.8.4 (2026-05-17) — 무신사 비회원가 검출
+    # * Phase 8.8.4 (2026-05-17) — 무신사 비회원가 검출
     #   이 모음전의 옵션 중 무신사 매핑 있고 + 매핑된 SourceOption 의 dyn 에
-    #   is_member_price != True 면 비회원가 사고. 매트릭스 ⚠ 좌측 보더 표시 트리거.
+    #  is_member_price != True 면 비회원가 사고. 매트릭스 [주의] 좌측 보더 표시 트리거.
     if prefetch is not None:
         musinsa_non_member_count = prefetch['musinsa_count_by_model'].get(m.model_code, 0)
     else:
@@ -438,7 +438,7 @@ def _bundle_summary(s, m: Model, *, prefetch: dict | None = None) -> dict:
         'crawl_kind': _crawl_kind(m.last_crawled_at),
         'upload_kind': _upload_kind(m.last_uploaded_at, dlq_failed),
         'dlq_failed': dlq_failed,
-        # ★ Phase 8.8.4 — 무신사 비회원가 카운트 (row 좌측 보더 ⚠ 트리거)
+        # * Phase 8.8.4 — 무신사 비회원가 카운트 (row 좌측 보더 [주의] 트리거)
         'musinsa_non_member_count': musinsa_non_member_count,
     }
 
@@ -457,7 +457,7 @@ def bundle_list():
     try:
         # [2026-05-28] Phase 2-2 — "단독_" prefix 모델은 모음전 list 제외 (사용자 룰)
         query = s.query(Model).filter(~Model.model_code.like('단독_%'))
-        # ★ 박스히어로식 다중 키워드 AND 교집합
+        # * 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(
             query, search_tokens,
             Model.model_code, Model.model_name_raw, Model.model_name_display, Model.brand,
@@ -735,7 +735,7 @@ def bundle_edit(code: str):
                     import logging
                     logging.warning(f"get_share_count_by_url fail (sk={sk}, code={code}): {_e}")
                     try:
-                        s.rollback()  # ★ PG InFailedSqlTransaction 복구
+                        s.rollback()  # * PG InFailedSqlTransaction 복구
                     except Exception:
                         pass
                     share_counts[sk] = 0
@@ -750,7 +750,7 @@ def bundle_edit(code: str):
             else:
                 source_urls[sk] = []
 
-        # ★ status_cards 를 session 닫기 전에 계산 (m.* access 가 session 필요)
+        # * status_cards 를 session 닫기 전에 계산 (m.* access 가 session 필요)
         # 한글 model_code 등 일부 케이스에서 transaction abort 후 m 컬럼 expire → DetachedInstanceError
         try:
             last_crawled_at = m.last_crawled_at

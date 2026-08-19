@@ -117,7 +117,7 @@
   .d2-src.cheapest .src-tag { content:'CHEAPEST'; background:#ecfdf5; color:#047857; }
   .d2-src.passed .src-tag { background:#f0f7ff; color:#0284c7; }
   .d2-src.blocked .src-tag { background:#fee2e2; color:#991b1b; }
-  /* 재고 0 = 빨간 글씨만 (⛔ 동그라미 제거) */
+  /* 재고 0 = 빨간 글씨만 ([금지] 동그라미 제거) */
   .d2-src-stock.zero { color:#dc2626; font-weight:600; }
   .d2-src-stock.zero::before { content:'' !important; }
 
@@ -239,12 +239,12 @@
             head.appendChild(t);
           }
         });
-        // 재고 0 빨간 글씨 (⛔ 제거)
+        // 재고 0 빨간 글씨 ( 제거)
         row.querySelectorAll('.d2-src-stock').forEach(el => {
           const txt = (el.textContent || '').trim();
           if (/재고\s*0/.test(txt)) {
             el.classList.add('zero');
-            el.textContent = '재고 0';  // ⛔ 제거
+            el.textContent = '재고 0';  //  제거
           }
         });
       });
@@ -323,7 +323,7 @@
       if (groupBy === 'none') return;  // 평탄 — 그룹 헤더 없음
       if (groupBy === 'color') return;  // 색상 정렬 = .color-group-row 가 헤더 역할 (중복 방지)
 
-      // ⚠ 옵션 데이터 행만 (data-sku 보유) — color-group-row, data-expand-row 등은 카운트에서 제외
+      // [주의] 옵션 데이터 행만 (data-sku 보유) — color-group-row, data-expand-row 등은 카운트에서 제외
       const rows = [...tbody.querySelectorAll('tr[data-sku]')];
       const keyOf = tr => {
         const sku = tr.dataset.sku || '';
@@ -479,7 +479,7 @@
       });
     }
 
-    // 📤 모드 적용 + 라이브 push 버튼
+    //  모드 적용 + 라이브 push 버튼
     const applyBtn = document.getElementById('pmb-apply-btn');
     if (applyBtn) {
       applyBtn.addEventListener('click', async () => {
@@ -618,7 +618,7 @@
     <button class="btn btn-sm" id="bulk-clear" style="margin-left:auto">해제</button>
   </div>
 
-  {# V9 — 좌측 필터 사이드 + 우측 매트릭스 (기본 collapse, 매트릭스 toolbar 의 🔍 필터 버튼으로 펼침) #}
+  {# V9 — 좌측 필터 사이드 + 우측 매트릭스 (기본 collapse, 매트릭스 toolbar 의  필터 버튼으로 펼침) #}
   {# [2026-05-24] 가격설정 → 크롤 v2 C 시안 — 사올 때/팔 때 분리, 마켓 N개 동적 #}
   <style>
     /* [2026-05-24] 매트릭스 미니 버튼 크기 균일 + 셀 폰트 — 강제 적용 (재고관리 + 버튼 포함) */
@@ -1129,7 +1129,7 @@
             <th class="center" style="width:50px">자동</th>
             <th style="width:380px">판매가 · 마켓별</th>{# [2026-06-03 ②] 판매가·마켓별 카드 확대 #}
             {# [v20.9 2026-06-01] "재고" 컬럼 삭제 — 판매가·마켓별 카드의 '사입' 영역에 재고 정보 이미 포함.
-               옵션↔재고 매핑은 옵션 모달 [📋 재고관리 매핑] 탭에서. #}
+  옵션↔재고 매핑은 옵션 모달 [ 재고관리 매핑] 탭에서. #}
             {# 사이트 칼럼은 JS 가 동적 삽입 (.th-site-col 클래스) #}
           </tr>
         </thead>
@@ -1193,7 +1193,7 @@
 
     /* ═══════ 매트릭스 레이아웃 개선 (문제 1·2·3·4·5) ═══════ */
     /* 문제1 (1-2) — 옵션명: 색상 + 사이즈/FREE 칩 */
-    /* [2026-06-03 v13] 옵션명 = 가로+세로 중앙 + 2줄(색 / 사이즈·⚙).
+    /* [2026-06-03 v13] 옵션명 = 가로+세로 중앙 + 2줄(색 / 사이즈·[설정]).
        v12(flex column)는 td 가 행 높이(407px)를 안 채우고 내용높이(88px)로 줄어 위로 붙던 문제 →
        table-cell + vertical-align:middle 로 행 높이 세로 중앙, text-align:center 로 가로 중앙.
        opt-color(inline)+opt-row2(block flex) 가 자연스레 2줄 유지. */
@@ -1243,11 +1243,11 @@
     .integrated-mtx th.th-site-col .hsrc-badge.zero { background: #F2F4F6; color: #8B95A1; }
     .integrated-mtx th.th-site-col .hsrc-badge.ok { background: #E7F8EF; color: #03A65A; }
 
-    /* 문제4 (4-4) — 빈 소싱처 셀: ⚠ 제거 + URL 등록 버튼 */
+    /* 문제4 (4-4) — 빈 소싱처 셀: [주의] 제거 + URL 등록 버튼 */
     .integrated-mtx td.td-site-col.cn.cn-add::before { content: none; }
     .integrated-mtx td.td-site-col.cn.cn-add { text-align: center; }
 
-    /* [2026-05-25] 빈 셀(.cn URL 없음 / .cw 크롤 대기) 가독성 — ::before 의 ⚠·● 아이콘 제거하고 회색 "크롤링 미실시" 글씨만 노출 */
+    /* [2026-05-25] 빈 셀(.cn URL 없음 / .cw 크롤 대기) 가독성 — ::before 의 [주의]·* 아이콘 제거하고 회색 "크롤링 미실시" 글씨만 노출 */
     .integrated-mtx td.td-site-col.cn::before,
     .integrated-mtx td.td-site-col.cw::before,
     .sm-mtx .cn::before,
@@ -1512,7 +1512,7 @@
 <script>
 (function(){
   const BUNDLE_CODE = {{ bundle.model_code|tojson }};
-  window.BUNDLE_CODE = BUNDLE_CODE;  // ★ 2026-05-13 시안 A1 — 카드 토글 모달이 참조
+  window.BUNDLE_CODE = BUNDLE_CODE;  // * 2026-05-13 시안 A1 — 카드 토글 모달이 참조
   let DATA = null;        // 마지막 fetch 결과
   let mode = 'none';      // 'none' | 'multi' | 'single'
   let multiSet = new Set();  // 일괄 모드: 선택된 sku
@@ -1794,7 +1794,7 @@
     });
   }
 
-  // 트리 leaf 액션 이벤트 + 재고 cell 인라인 버튼 + 옵션 ⚙ 상세설정 — checkbox 보다 우선
+  // 트리 leaf 액션 이벤트 + 재고 cell 인라인 버튼 + 옵션 [설정] 상세설정 — checkbox 보다 우선
   document.addEventListener('click', e => {
     // (a-removed) mode segment — Phase 7 에서 트리에서 제거됨
 
@@ -2230,7 +2230,7 @@
       } catch(err) { alert('네트워크 오류: ' + err.message); }
       return;
     }
-    // 🗑 삭제
+    // [삭제] 삭제
     const delBtn = e.target.closest('#odd-url-cards .odd-url-del');
     if (delBtn) {
       const row = delBtn.closest('.odd-url-grid');
@@ -3146,7 +3146,7 @@
     }
   }
 
-  // ★ 2026-05-13 — fx 팝업 외부 클릭 시 닫기.
+  // * 2026-05-13 — fx 팝업 외부 클릭 시 닫기.
   //   설정 변경 (체크박스 토글 등) 으로 인한 자동 종료는 제거됨. 종료는 오직:
   //   (1) X 버튼 / 닫기 버튼 클릭, (2) 팝업 외부 클릭. 두 경우만.
   //   같은 매트릭스 셀의 다른 fx 클릭 → smCloseAllFx 가 별도 처리하므로 여기선 X.
@@ -3201,7 +3201,7 @@
   }
   function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-  // ★ 2026-05-13 시안 A1 — 카드 미반영 토글 + 적용범위 모달
+  // * 2026-05-13 시안 A1 — 카드 미반영 토글 + 적용범위 모달
   //   labelEl = .cf-oi 자체 (시안 10 v5-A 차콜 구조에서 chip 안 inline 토글).
   //   wasOn 판정은 .cf-oi 의 .off 클래스 부재 여부로 결정.
   window.smCardToggle = function(labelEl, ev) {
@@ -3223,7 +3223,7 @@
     }
   };
 
-  // ★ 2026-05-13 시안 v6-3 — Split Pane 적용범위 모달.
+  // * 2026-05-13 시안 v6-3 — Split Pane 적용범위 모달.
   //   2 옵션 (해당 옵션만 / 옵션 선택 트리). 카드 OFF + 혜택 변경 공통.
   //
   //   options:
@@ -3464,7 +3464,7 @@
 
   // 색×사이즈 매트릭스 팝업. preselect=초기 선택 sku[]. onApply(skus[]).
   window.openOptionMatrixPicker = function(preselect, onApply) {
-    // ★ 활성(is_active) 옵션만 선택 가능 — 비활성/미생성 조합은 비활성(·)로 표시.
+    // * 활성(is_active) 옵션만 선택 가능 — 비활성/미생성 조합은 비활성(·)로 표시.
     const opts = ((window.DATA && window.DATA.options) || []).filter(o => o.is_active !== false);
     const colorOf = o => (o.color_display || o.color_code || '기타');
     const sizeOf  = o => (o.size_display || o.size_code || o.size || '기타');
@@ -3549,10 +3549,10 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     document.head.appendChild(st);
   })();
 
-  // ★ 2026-05-13 — fx 팝업 내용 in-place 렌더 (DOM 노드 유지).
+  // * 2026-05-13 — fx 팝업 내용 in-place 렌더 (DOM 노드 유지).
   //   click handler 와 smRefreshFxInPlace 가 공유. 팝업 element 그대로 두고 innerHTML 만 갱신.
   function smRenderFxPopBody(pop, j, sku, srcId) {
-    pop.classList.add('fxpop-v2');  // ★ 2026-06-06 — 시안 B(흰 카드형) 전용 스타일 스코프
+    pop.classList.add('fxpop-v2');  // * 2026-06-06 — 시안 B(흰 카드형) 전용 스타일 스코프
     const _opt = (DATA.options || []).find(o => o.sku === sku);
     const _src = _opt ? (_opt.sources || []).find(s => s.source_id === srcId) : null;
     const _acd = _src && _src.auto_card_discount ? _src.auto_card_discount : null;
@@ -3569,7 +3569,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const _saleLbl = _isMusinsa ? '표면 노출가 (사이트 노출가)' : '표면 노출가';
     // 동그라미 베이스금액 번호 (①~⑨, 초과 시 'N')
     const _circ = (n) => ['', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'][n] || String(n);
-    // ★ 2026-06-11 — 영수증을 단계별 '베이스금액' 노출형으로 (무신사 영수증 가이드 방식).
+    // * 2026-06-11 — 영수증을 단계별 '베이스금액' 노출형으로 (무신사 영수증 가이드 방식).
     //   엔진(final_price.py)이 steps[].base_after(차감 후 누적 베이스)를 주므로 그대로 표시.
     //   각 차감 단계 뒤에 다음 % 혜택의 곱셈 기준이 되는 '베이스금액 ①②…' 줄을 끼움.
     //   마지막 단계 뒤는 베이스금액 줄 생략 (= 혜택 적용가와 동일).
@@ -3612,15 +3612,15 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       </div>
       ${_cardChipHtml ? `<div class="cf-chip-row">${_cardChipHtml}</div>` : ''}
       <hr class="cf-phase-sep">`;
-    // ★ 2026-06-05 v3 — 혜택을 3그룹으로 (쿠폰 / 등급·적립 / 결제 방식 택1).
+    // * 2026-06-05 v3 — 혜택을 3그룹으로 (쿠폰 / 등급·적립 / 결제 방식 택1).
     //   결제 수단(카드/페이/네이버/무신사머니/청구할인/캐시백)은 택1 그룹(라디오). 적립류는 누적(토글).
     //   무신사: 등급적립·무신사머니는 compute_breakdown 이 크롤 breakdown 에서 항목으로 주입.
-    // ★ 2026-06-05 v4 — 5 카테고리 (① 정액 ② 정률 ③ 결제(택1) ④ 추가캐시백 ⑤ 기타). 이름+타입 휴리스틱 분류.
+    // * 2026-06-05 v4 — 5 카테고리 (① 정액 ② 정률 ③ 결제(택1) ④ 추가캐시백 ⑤ 기타). 이름+타입 휴리스틱 분류.
     const _isPay = (nm) => ['카드', '페이', '네이버', '무신사머니', '청구할인', '캐시백'].some(t => (nm || '').includes(t));
     // 사용자 지정 카테고리(새 혜택 추가 모달) → 그룹 키. NULL 이면 이름/타입 휴리스틱.
     const _CAT2GRP = {'정액':'amount', '정률':'rate', '결제':'pay', '캐시백':'cashback', '기타':'etc'};
     const _catOf = (it) => {
-      if (it.category && _CAT2GRP[it.category]) return _CAT2GRP[it.category]; // ★ 사용자 지정 우선
+      if (it.category && _CAT2GRP[it.category]) return _CAT2GRP[it.category]; // * 사용자 지정 우선
       const nm = it.name || '';
       if (_isPay(nm)) return 'pay';                                  // ③ 결제 (카드/페이/머니/캐시백)
       if (/리뷰|후기/.test(nm)) return 'amount';                      // ① 정액 (리뷰·후기 = 고정 원)
@@ -3631,7 +3631,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // 삭제: 템플릿/오버라이드만(크롤 동적 id<0 은 토글만). kind 로 엔드포인트 라우팅.
     const _delBtn = (it) => (it.id && it.id > 0)
       ? `<button class="del" title="삭제" onclick="smCellDel(this, '${sku}', ${srcId})"></button>` : '';
-    // ✎ 값 수정: 템플릿/오버라이드만(크롤 동적 id<0 은 수정 불가). 저장은 '이 모음전'에만 적용.
+    // [수정] 값 수정: 템플릿/오버라이드만(크롤 동적 id<0 은 수정 불가). 저장은 '이 모음전'에만 적용.
     const _editBtn = (it) => (it.id && it.id > 0)
       ? `<button class="edit" title="값 수정 (이 모음전만)" onclick="smCellEdit(this, '${sku}', ${srcId})"></button>` : '';
     // ↺ 행별 초기화는 A3-1 상단 배너(소싱처 단위 초기화)로 대체 — 행 버튼 제거.
@@ -3654,7 +3654,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // 방식 배지 — 정액(원) / 정률(%). 선반영·후반영 통일(2026-06-12).
     const _wayBadge = (it) => { const r = (it.type || 'rate') === 'rate'; return `<span class="cf-way ${r ? 'rt' : 'amt'}">${r ? '정률' : '정액'}</span>`; };
     const _rowHtml = (it) => `<div class="cell-fx-row ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bname="${escapeHtml(it.name)}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="tg" onclick="smCellTog(this)"></div><span class="nm">${escapeHtml(it.name)}${_wayBadge(it)}</span><span class="val">${_valHtml(it, false)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
-    // 결제 방식 = 택1 선택 카드 (B 시안). 활성 = 파란 테두리 + 체크(✓).
+    // 결제 방식 = 택1 선택 카드 (B 시안). 활성 = 파란 테두리 + 체크(v).
     const _payRowHtml = (it) => `<div class="cell-fx-row cf-pay-row cf-paycard ${it.enabled ? 'on' : 'off'}" data-bid="${it.id}" data-bkind="${it.kind}" data-bname="${escapeHtml(it.name)}" data-bval="${it.value != null ? it.value : 0}" data-btype="${it.type || 'rate'}"><div class="cf-chk">${it.enabled ? '✓' : ''}</div><span class="nm">${escapeHtml(it.name)}${_wayBadge(it)}</span><span class="val">${_valHtml(it, true)}</span><span class="cf-acts">${_editBtn(it)}${_resetBtn(it)}${_delBtn(it)}</span></div>`;
     const _items = (j.items_used || []);
     const _g = {pre:[], amount:[], rate:[], pay:[], cashback:[], etc:[]};
@@ -3664,7 +3664,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     });
     const _emptyRow = `<div class="cell-fx-row off" style="opacity:.55"><span class="nm" style="color:#B0B8C1">해당 없음</span></div>`;
     let benHtml = '';
-    // 🔵 선반영 — 표면 노출가에 이미 반영(표시만). preapplied 항목 있을 때만 노출.
+    // [안내] 선반영 — 표면 노출가에 이미 반영(표시만). preapplied 항목 있을 때만 노출.
     if (_g.pre.length) {
       benHtml += `<div class="cf-grp pre"> 선반영<span class="cf-grp-note"> · 표면 노출가에 이미 반영(표시만)</span></div>` + _g.pre.map(_rowHtml).join('');
     }
@@ -3682,7 +3682,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     } else if (!_payCards.length && !_payNaver.length) { benHtml += _emptyRow; }
     benHtml += `<div class="cf-grp">후반영 · 추가 캐시백<span class="cf-grp-note"> · 선택(경유)</span></div>` + (_g.cashback.length ? _g.cashback.map(_rowHtml).join('') : _emptyRow);
     benHtml += `<div class="cf-grp">기타</div>` + (_g.etc.length ? _g.etc.map(_rowHtml).join('') : _emptyRow);
-    // ★ 2026-05-19 v7.1 A2 — 무채색 (좌측 검정 accent + 슬라이드 다운).
+    // * 2026-05-19 v7.1 A2 — 무채색 (좌측 검정 accent + 슬라이드 다운).
     //   v6 D2-A (#3182F6 파랑 + #DC2626 빨강) → A2 (monochrome only).
     //   scope = .scope-list .item (단일 border 박스 + 소싱처 default gsep).
     //   인터랙션 = toss_add_benefit.js, API = /api/benefits/crud.
@@ -3758,7 +3758,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         <button onclick="this.closest('.cell-fx-pop').remove();document.querySelectorAll('td.fx-open').forEach(t=>t.classList.remove('fx-open'))">닫기</button>
         <a href="/accounts/sourcing" target="_blank"> 사이트 템플릿 →</a>
       </div>`;
-    // ★ 2026-06-11 A3-1 — 이 모음전이 소싱처 기본값과 다르면 상단 슬림 배너 표시.
+    // * 2026-06-11 A3-1 — 이 모음전이 소싱처 기본값과 다르면 상단 슬림 배너 표시.
     smLoadDiffBar(pop, srcId);
   }
 
@@ -3796,7 +3796,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     }).catch(err => alert('초기화 오류: ' + err.message));
   };
 
-  // ★ 2026-05-13 — 매트릭스 데이터 + 팝업 내용 in-place 갱신 (팝업 DOM 노드 유지!).
+  // * 2026-05-13 — 매트릭스 데이터 + 팝업 내용 in-place 갱신 (팝업 DOM 노드 유지!).
   //   사용자가 X 버튼 / 외부 클릭 시에만 팝업 종료. 설정 변경 후엔 그 자리 그대로.
   async function smRefreshFxInPlace(sku, srcId) {
     const pop = document.querySelector('.cell-fx-pop');
@@ -3840,7 +3840,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const bid = parseInt(row.dataset.bid, 10);
     const kind = row.dataset.bkind;
     const wasOn = row.classList.contains('on');
-    // ★ 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
+    // * 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
     //   붙어 "추가적립정률" 처럼 오염됨(삭제·수정·토글이 DB 이름과 불일치 → 무동작).
     const benefitName = (row.dataset.bname != null ? row.dataset.bname
                          : (row.querySelector('.nm')?.textContent.trim() || ''));
@@ -3881,20 +3881,20 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       }
     });
   };
-  // 🗑 삭제 — B2 범위 카드 모달 (해당 옵션 / 이 모음전 전체 / 소싱처 전체)
+  // [삭제] 삭제 — B2 범위 카드 모달 (해당 옵션 / 이 모음전 전체 / 소싱처 전체)
   window.smCellDel = function(btn, sku, srcId) {
     const row = btn.closest('.cell-fx-row');
     const bid = parseInt(row.dataset.bid, 10);
     const kind = row.dataset.bkind;
     if (!bid || bid < 0) return;  // 크롤 동적 항목(id<0)은 삭제 불가 — 토글만
-    // ★ 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
+    // * 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
     //   붙어 "추가적립정률" 처럼 오염됨(삭제·수정·토글이 DB 이름과 불일치 → 무동작).
     const benefitName = (row.dataset.bname != null ? row.dataset.bname
                          : (row.querySelector('.nm')?.textContent.trim() || ''));
     smOpenDeleteScopeModal({ benefitName, sku, srcId, kind, templateId: bid });
   };
 
-  // 🗑 범위별 삭제 모달 (시안 B2)
+  // [삭제] 범위별 삭제 모달 (시안 B2)
   window.smOpenDeleteScopeModal = function({ benefitName, sku, srcId, kind, templateId }) {
     const bundleCount = (typeof DATA !== 'undefined' && DATA?.options?.length) || 0;
     const bundleCode = (typeof BUNDLE_CODE !== 'undefined') ? BUNDLE_CODE : '';
@@ -3944,8 +3944,8 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     });
   };
 
-  // ✎ 값 수정 — A1 인라인 편집. 행의 값(.val)을 입력칸으로 바꿔 즉시 수정.
-  //   ★ 2026-06-11 — 저장 = '이 모음전 전체'에만 override 적용(소싱처 공통 템플릿 보존).
+  // [수정] 값 수정 — A1 인라인 편집. 행의 값(.val)을 입력칸으로 바꿔 즉시 수정.
+  //  * 2026-06-11 — 저장 = '이 모음전 전체'에만 override 적용(소싱처 공통 템플릿 보존).
   //     기존엔 공통(tpl) 수정 시 PUT /templates → 소싱처 전 모음전에 반영되는 사고가 있었음.
   window.smCellEdit = function(btn, sku, srcId) {
     const row = btn.closest('.cell-fx-row');
@@ -3953,7 +3953,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     if (!bid || bid < 0) return;  // 크롤 동적 항목(id<0)은 수정 불가 — 토글만
     const bType = row.dataset.btype || 'rate';
     const bVal = parseFloat(row.dataset.bval || '0');
-    // ★ 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
+    // * 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
     //   붙어 "추가적립정률" 처럼 오염됨(삭제·수정·토글이 DB 이름과 불일치 → 무동작).
     const benefitName = (row.dataset.bname != null ? row.dataset.bname
                          : (row.querySelector('.nm')?.textContent.trim() || ''));
@@ -4017,7 +4017,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const row = btn.closest('.cell-fx-row');
     const bid = parseInt(row.dataset.bid, 10);
     if (!bid || bid < 0) return;  // 크롤 동적(id<0)은 초기화 대상 아님
-    // ★ 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
+    // * 이름은 data-bname(원본)에서 — .nm.textContent 는 _wayBadge('정률'/'정액')가
     //   붙어 "추가적립정률" 처럼 오염됨(삭제·수정·토글이 DB 이름과 불일치 → 무동작).
     const benefitName = (row.dataset.bname != null ? row.dataset.bname
                          : (row.querySelector('.nm')?.textContent.trim() || ''));
@@ -4824,7 +4824,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
 
   // ═══════════════════════════════════════════════════════════
   //  V1 카드 stack (v19 시안 V1 적용) — 소싱 카드 + 사입 카드 동시
-  //  · 활성 카드: 색상 보더 + ✓ 적용 뱃지
+  //  · 활성 카드: 색상 보더 + v 적용 뱃지
   //  · 비활성 카드: dim (참고용)
   //  · 사입재고=0 → 사입 카드 disabled
   //  · 마켓별 가격 (스마트스토어 + 쿠팡) inline 표시
@@ -4934,7 +4934,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           <div class="m4v1-fallback">사입재고 0 · 소싱 자동 fallback</div>
         </div>`;
     } else if (o.purchase_blocked) {
-      // [V5] 매입가 0원 차단 — 빨간 🚫 카드 (헤더 인라인 칩)
+      // [V5] 매입가 0원 차단 — 빨간  카드 (헤더 인라인 칩)
       const _tplP = (o.template_purchase_price || 0).toLocaleString('ko-KR');
       const _avgV = (avg || 0).toLocaleString('ko-KR');
       const _srcPri = o.price_source_priority || 'template';
@@ -5005,7 +5005,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const chip = _isFreeSize(size)
       ? '<span class="opt-size-chip free">FREE</span>'
       : '<span class="opt-size-chip">' + escapeHtml(size) + '</span>';
-    // [2026-06-03] 옵션명 가운데 + 2줄(색 / 사이즈·⚙). ⚙ 상세설정 버튼을 2번째 줄에 함께 배치.
+    // [2026-06-03] 옵션명 가운데 + 2줄(색 / 사이즈·[설정]). [설정] 상세설정 버튼을 2번째 줄에 함께 배치.
     const gear = '<button type="button" class="opt-detail-btn" data-act="opt-detail" data-sku="' + escapeHtml(o.sku) + '" title="상세설정"></button>';
     return '<strong class="opt-color">' + name + '</strong><span class="opt-row2">' + chip + gear + '</span>';
   }
@@ -5031,7 +5031,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   function renderStockCell(o) {
     const v = o.manual_stock != null ? o.manual_stock : '';
     const invId = getInvId(o);
-    // [v20.9 2026-06-01] "재고제품 연결" 카드 제거 — 옵션 모달의 [📋 재고관리 매핑] 탭에 통합됨
+    // [v20.9 2026-06-01] "재고제품 연결" 카드 제거 — 옵션 모달의 [ 재고관리 매핑] 탭에 통합됨
     //   미연동 옵션 = 안내만 / LIVE 옵션 = 수량·상태 + 입출고 이력만 표시
     if (!invId) {
       return `<div class="cell-stock-wrap stock-local">
@@ -5091,7 +5091,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   }
 
   function renderVerifyRow(o) {
-    // 📡 D2 — 세로 카드 그리드 (가격 + 재고 + 업데이트일)
+    //  D2 — 세로 카드 그리드 (가격 + 재고 + 업데이트일)
     const sources = o.sources || [];
     if (!sources.length) {
       return `<tr class="verify-row" data-verify-row="${o.sku}"><td></td><td colspan="4"><div class="d2-src-empty"> 등록된 소싱처 URL 없음 — 위 인스펙터에서 추가</div></td></tr>`;
@@ -5160,7 +5160,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     catch (e) { return url.replace(/^https?:\/\//, '').split('/')[0]; }
   }
   // [2026-06-03] '등록 URL N개' 칩 클릭 → 이 옵션의 등록 소싱처 URL 목록 팝업.
-  //   ⚠️ 칩 카운트(o.src_count)와 '동일한' 데이터(DATA.options[].sources = 등록 URL)를 사용한다.
+  //  [주의] 칩 카운트(o.src_count)와 '동일한' 데이터(DATA.options[].sources = 등록 URL)를 사용한다.
   //   과거엔 openOptionUrlModal(sku) 가 (a)sku를 bundleCode로 잘못 받거나 (b)빈 option_source_urls
   //   저장소를 읽어 '9개인데 팝업은 빈값/엉뚱한 모달' 이었음. 여기선 매트릭스가 이미 들고 있는
   //   진짜 URL 을 그대로 보여줘 불일치를 원천 차단. (관리=추가·수정·삭제는 상단 옵션 편집기 사용)
@@ -5217,7 +5217,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const bg = _modalBg(box);
     box.querySelector('#oup-close').addEventListener('click', () => bg.remove());
   }
-  // ⚠️ 이 스크립트는 IIFE 로 감싸여 있어 함수가 전역이 아니다. 칩의 인라인 onclick
+  // [주의] 이 스크립트는 IIFE 로 감싸여 있어 함수가 전역이 아니다. 칩의 인라인 onclick
   //    (전역 스코프에서 평가)이 호출하려면 window 에 노출해야 한다. (closure 로 DATA·escapeHtml 접근은 유지)
   window.openOptionUrlPopup = openOptionUrlPopup;
 
@@ -5423,17 +5423,17 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     return withUrl[0] || list[0];
   }
 
-  // Phase 6 — 한 옵션 × 한 사이트 셀 (4색 상태 + ★최저 + fx + breakdown)
+  // Phase 6 — 한 옵션 × 한 사이트 셀 (4색 상태 + *최저 + fx + breakdown)
   function renderSiteCell(o, s) {
     const src = _pickBestSrc((o.sources || []).filter(x => x.source_id === s.id));
     // [2026-05-24] URL 미매핑 — 옵션 조합 생성 모달에서 매핑하므로 여기서는 "—" 표시만
     if (!src || !src.product_url) {
-      // [2026-05-25] URL 미매핑 — "크롤링 미실시" 회색 글씨 (CSS ::before 의 ⚠ 는 위에서 제거됨)
+      // [2026-05-25] URL 미매핑 — "크롤링 미실시" 회색 글씨 (CSS ::before 의 [주의] 는 위에서 제거됨)
       return `<td class="td-site-col cn" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="text-align:center; padding:10px 4px; font-size:13px; color:#94A3B8; font-weight:500; white-space:nowrap;">크롤링 미실시</td>`;
     }
     // [2026-06-03 시안D] 소싱처 URL 열기 — 셀 우상단 ↗ (등록 URL 있으면 항상). 클릭=새 탭.
     const _corner = `<a class="src-corner" href="${escapeHtml(src.product_url)}" target="_blank" rel="noopener" title="${escapeHtml((src.source_name||'소싱처')+' 페이지 열기')}" onclick="event.stopPropagation()" style="position:absolute;top:1px;right:3px;font-size:12px;line-height:1;color:#3182F6;font-weight:800;text-decoration:none;z-index:3;padding:1px 3px;border-radius:3px;background:rgba(239,246,255,.9)">↗</a>`;
-    // 크롤 실패 — [2026-06-03] 2행: 1행 '크롤 실패' / 2행 🔄 재크롤 버튼 (다른 셀과 동일 2단)
+    // 크롤 실패 — [2026-06-03] 2행: 1행 '크롤 실패' / 2행  재크롤 버튼 (다른 셀과 동일 2단)
     if (src.last_status === 'error') {
       return `<td class="td-site-col cf" data-cell-sku="${escapeHtml(o.sku)}" data-cell-src="${s.id}" style="position:relative;text-align:center;line-height:1.4">${_corner}<div style="color:#dc2626;font-size:12px;font-weight:600">크롤 실패</div><button type="button" class="btn-ico" data-refetch-sku="${escapeHtml(o.sku)}" data-refetch-src="${s.id}" title="다시 크롤" style="margin-top:4px;font-size:10.5px;font-weight:700;color:#dc2626;background:#FEF2F2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;cursor:pointer"> 재크롤</button></td>`;
     }
@@ -6053,7 +6053,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       });
     });
 
-    // 🔗 소싱처 카드 클릭 → 대표 계정 프로필로 Chrome 새 창 열기 (로그인 상태 유지)
+    // [링크] 소싱처 카드 클릭 → 대표 계정 프로필로 Chrome 새 창 열기 (로그인 상태 유지)
     // 서버는 chrome.exe + --user-data-dir 직접 실행 (Python subprocess X → CMD 창 X)
     // 대표 계정 미지정 또는 Chrome 미설치 → 일반 브라우저 새 탭 fallback
     document.querySelectorAll('[data-open-with-profile-sku]').forEach(a => {
@@ -6081,7 +6081,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       });
     });
 
-    // 📡 소싱처 가격 재크롤 (SourceProduct 자동 등록 + 즉시 크롤)
+    //  소싱처 가격 재크롤 (SourceProduct 자동 등록 + 즉시 크롤)
     // 인라인 토스트 — showToast 미정의 환경에서도 사용자 피드백 보장
     function _refetchToast(msg, kind) {
       if (window.showToast) { window.showToast(msg, kind); return; }
@@ -6546,7 +6546,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       });
     });
 
-    // URL 삭제 (🗑)
+    // URL 삭제 ([삭제])
     document.querySelectorAll('[data-url-del-sku]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const sku = btn.dataset.urlDelSku;
@@ -6669,7 +6669,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     }
   }
 
-  // 「🔍 찾아보기」 팝업 — 모델별 트리 + 실시간 AND 검색
+  // 「 찾아보기」 팝업 — 모델별 트리 + 실시간 AND 검색
   function openInvLinkBrowse(sku) {
     const opt = (DATA.options || []).find(o => o.sku === sku);
     const optLabel = opt ? `${opt.color_display || opt.color_code || ''} ${opt.size_code || ''}`.trim() : sku;

@@ -388,7 +388,7 @@ def purchase_create():
         )
         s.add(po)
         s.flush()
-        # ★ v2.1 — 즉시 입고 시 재고 자동 갱신
+        # * v2.1 — 즉시 입고 시 재고 자동 갱신
         restock_result = None
         if immediate:
             restock_result = _po_auto_inbound(s, po)
@@ -481,7 +481,7 @@ def sale_bulk():
             if action == 'delete':
                 so.status = 'cancelled'
             elif action == 'complete':
-                # ★ v2.0 — 일괄 완료 처리 시 재고 자동 차감 (이미 완료된 SO 는 skip)
+                # * v2.0 — 일괄 완료 처리 시 재고 자동 차감 (이미 완료된 SO 는 skip)
                 already_completed = (so.status == 'completed')
                 so.status = 'completed'
                 so.completed_at = datetime.now(timezone.utc)
@@ -591,7 +591,7 @@ def sale_create():
         )
         s.add(so)
         s.flush()
-        # ★ v2.0 — 즉시 출고 시 재고 자동 차감
+        # * v2.0 — 즉시 출고 시 재고 자동 차감
         deduct_result = None
         if immediate:
             deduct_result = _so_auto_outbound(s, so)
@@ -679,7 +679,7 @@ def return_bulk():
             if action == 'delete':
                 ro.status = 'cancelled'
             elif action == 'complete':
-                # ★ v2.0 — 일괄 완료 시 재고 자동 환원 (반품 → 입고)
+                # * v2.0 — 일괄 완료 시 재고 자동 환원 (반품 → 입고)
                 already_completed = (ro.status == 'completed')
                 ro.status = 'completed'
                 ro.completed_at = datetime.now(timezone.utc)
@@ -780,7 +780,7 @@ def return_create():
         )
         s.add(ro)
         s.flush()
-        # ★ v2.0 — 즉시 환원 입고 (반품 → 재고 자동 입고)
+        # * v2.0 — 즉시 환원 입고 (반품 → 재고 자동 입고)
         restock_result = None
         if immediate:
             restock_result = _ro_auto_inbound(s, ro)

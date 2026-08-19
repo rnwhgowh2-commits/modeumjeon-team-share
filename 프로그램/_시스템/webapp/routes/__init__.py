@@ -85,7 +85,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.trash import bp as trash_bp  # [v2] 휴지통 + 변경 이력
     from webapp.routes.orders import bp as orders_bp  # [v2] 주문관리
     from webapp.routes.market_upload import bp as market_upload_bp  # [v6] Phase 4 — 마켓 업로드 설정 M2
-    from webapp.routes.inventory import bp as inventory_bp  # ★ STEP 7 Sprint 0 Task 0.4 — 재고관리 탭 (R1)
+    from webapp.routes.inventory import bp as inventory_bp  # * STEP 7 Sprint 0 Task 0.4 — 재고관리 탭 (R1)
     from webapp.routes.api_sidebar import bp as api_sidebar_bp  # [v3] 사이드바 커스터마이징
     from webapp.routes.mapping import bp as mapping_bp  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     from webapp.routes.roadmap import bp as roadmap_bp  # 로드맵 · 추가예정 기능
@@ -109,7 +109,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(trash_bp)  # [v2]
     app.register_blueprint(orders_bp)  # [v2]
     app.register_blueprint(market_upload_bp)  # [v6] Phase 4
-    app.register_blueprint(inventory_bp)  # ★ STEP 7 — 재고관리 탭
+    app.register_blueprint(inventory_bp)  # * STEP 7 — 재고관리 탭
     app.register_blueprint(api_sidebar_bp)  # [v3] 사이드바 커스터마이징
     app.register_blueprint(mapping_bp)  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     app.register_blueprint(roadmap_bp)  # 로드맵 · 추가예정 기능

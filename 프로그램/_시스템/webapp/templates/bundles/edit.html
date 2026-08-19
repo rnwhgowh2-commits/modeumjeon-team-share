@@ -9,7 +9,7 @@
   {% set _is_cluster = (_models|length) > 1 %}
   <div class="bundle-header-v6">
     <div class="bh-top">
-      {# v32 — 큰 아이콘 picker 트리거 (호버 ✎ + 우클릭) #}
+      {# v32 — 큰 아이콘 picker 트리거 (호버 [수정] + 우클릭) #}
       <div class="bh-thumb"
            data-icon-edit="model|{{ bundle.model_code }}"
            data-icon-current="{% if bundle.category == '의류' %}t-shirt{% else %}sneaker{% endif %}"
@@ -59,8 +59,8 @@
       <div class="bh-actions" style="flex-direction:column;align-items:stretch;gap:6px;min-width:260px">
         <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
           <span id="autosave-indicator" class="autosave-indicator" data-state="idle" title="변경 시 자동 저장됩니다"></span>
-          {# A1 (2026-05-29) — 헤더 [📦 재고 매핑] 버튼 제거.
-             재고관리 매핑은 옵션 조합 생성·수정 모달 내 [📋 재고관리 매핑] 탭에서 통합 처리. #}
+          {# A1 (2026-05-29) — 헤더 [[상자] 재고 매핑] 버튼 제거.
+  재고관리 매핑은 옵션 조합 생성·수정 모달 내 [ 재고관리 매핑] 탭에서 통합 처리. #}
           <button class="btn btn-sm" data-action="duplicate-bundle"><i class="ph-light ph-file" aria-hidden="true"></i> 복제</button>
           <button class="btn btn-sm" style="color:var(--danger)" data-action="delete-bundle"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
         </div>
@@ -956,7 +956,7 @@
         <button type="button" class="src-tree-del-btn" data-del-url-id="${id}" title="삭제"></button>
       </div>`;
     }
-    // [시안 2 — 자동저장] 저장 직후 그 행 옆에 "✓ 저장됨" 잠깐 표시
+    // [시안 2 — 자동저장] 저장 직후 그 행 옆에 "v 저장됨" 잠깐 표시
     function flashSaved(row) {
       if (!row) return;
       let tag = row.querySelector('.row-saved');
@@ -1001,7 +1001,7 @@
         }
         return;
       }
-      // ✕ 삭제
+      // x 삭제
       const delBtn = e.target.closest('.src-tree-del-btn');
       if (delBtn) {
         e.preventDefault();

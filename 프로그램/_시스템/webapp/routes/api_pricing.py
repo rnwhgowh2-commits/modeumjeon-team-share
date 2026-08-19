@@ -366,7 +366,7 @@ def _option_matrix_data(code: str):
         )
 
         # URL → SourceProduct 조인 (크롤링 가격 가져오기 위해)
-        # ★ 잔여 #2 — 트래킹 파라미터 stripping 후 정규화 매칭. legacy 입력 URL 의
+        # * 잔여 #2 — 트래킹 파라미터 stripping 후 정규화 매칭. legacy 입력 URL 의
         #   ``NaPm`` / ``nl-ts-pid`` 같은 광고 트래킹이 매칭 실패 원인이라 매트릭스
         #   가 빈칸으로 표시되던 문제 해결.
         from lemouton.sources.service import normalize_url as _norm_url
@@ -385,7 +385,7 @@ def _option_matrix_data(code: str):
         sku_to_sources = {}  # sku -> [{source_id, source_name, product_url, ...}]
         for link in url_links:
             sp = sp_by_norm.get(_norm_url(link.product_url)) if link.product_url else None
-            # ★ 2026-05-13 — 매트릭스 표시 가격 우선순위 변경.
+            # * 2026-05-13 — 매트릭스 표시 가격 우선순위 변경.
             #   기존: OptionSourceUrl.price_cached (legacy 자동 수집 캐시) 우선.
             #   변경: SourceProduct.last_price (실시간 어댑터 결과) 우선.
             #   사유: 어댑터는 매번 새 가격 추출하지만 price_cached 갱신 코드는 미사용 →
@@ -402,7 +402,7 @@ def _option_matrix_data(code: str):
                 last_fetched = link.last_checked_at.isoformat()
             elif sp and sp.last_fetched_at:
                 last_fetched = sp.last_fetched_at.isoformat()
-            # ★ 2026-05-13 — 사이트 자동 적용 카드 할인 정보 (시안 B: 팝업 보조 텍스트)
+            # * 2026-05-13 — 사이트 자동 적용 카드 할인 정보 (시안 B: 팝업 보조 텍스트)
             _acd = None
             if sp and sp.auto_card_discount_json:
                 try:
@@ -411,7 +411,7 @@ def _option_matrix_data(code: str):
                 except (ValueError, TypeError):
                     _acd = None
 
-            # ★ 2026-05-13 시안 A1 — 카드 미반영 토글 우선순위 (option > bundle > global)
+            # * 2026-05-13 시안 A1 — 카드 미반영 토글 우선순위 (option > bundle > global)
             #   _bundle_code 는 매트릭스 페이지 전체에 동일 → 상위에서 1회 결정.
             _card_enabled = True
             if _acd:
@@ -721,7 +721,7 @@ def _option_matrix_data(code: str):
             # [2026-05-25 V5] 매입가 산정 우선순위 (PriceTemplate.price_source_priority)
             #   'template' (기본) — 템플릿 boxhero_purchase_price → 0이면 옵션 _avg 폴백
             #   'avg'             — 옵션 _avg → 0이면 템플릿값 폴백
-            #   둘 다 0이면 사입 카드 차단 (UI 빨간 🚫)
+            #  둘 다 0이면 사입 카드 차단 (UI 빨간 )
             _tpl_purchase = (tpl.boxhero_purchase_price if tpl else 0) or 0
             _src_pri = (tpl.price_source_priority if tpl else 'template') or 'template'
             if _src_pri == 'avg':
@@ -1071,7 +1071,7 @@ def save_crawl_result():
                     ).update({SourceOption.current_price: int(price)})
                 except Exception:
                     pass
-            # ★ 2026-06-13 — '있는 그대로' 적용: 비로그인 무신사 크롤은 계정 의존 혜택
+            # * 2026-06-13 — '있는 그대로' 적용: 비로그인 무신사 크롤은 계정 의존 혜택
             #   (등급적립·무신사머니·등급할인·상품쿠폰)을 페이지에서 못 봤으므로 0 으로 비운다.
             #   어제 로그인 크롤의 stale 값을 끌어다 쓰는 사고 차단(폴백·해석 금지).
             #   표면가(salePrice=price)는 갱신, 후기적립(템플릿·계정무관)은 그대로 둠.
@@ -1225,7 +1225,7 @@ def bulk_set_source_urls():
             upserted += 1
         s.commit()
 
-        # ★ 자동 크롤 (대표 계정 프로필 사용 — best effort)
+        # * 자동 크롤 (대표 계정 프로필 사용 — best effort)
         crawl_results = []
         if auto_crawl:
             for sku in skus:
@@ -1278,7 +1278,7 @@ def set_single_source_url(sku: str):
                                    product_url=url))
         s.commit()
 
-        # ★ 자동 크롤 (대표 계정 프로필 사용 — best effort)
+        # * 자동 크롤 (대표 계정 프로필 사용 — best effort)
         crawl_result = None
         if auto_crawl:
             crawl_result = _auto_crawl_after_url_save(s, sku, src_id)
@@ -1518,7 +1518,7 @@ def _get_default_crawl_profile(session, site_key: str, ensure_login: bool = True
             return _ensure_default_crawl_login(site_key, acc.account_key, actual_id, force=True)
         return None
 
-    # ★ 송장전송기 무제한 로그인 패턴 — 만료 사전 검사 + 자동 재로그인
+    # * 송장전송기 무제한 로그인 패턴 — 만료 사전 검사 + 자동 재로그인
     if ensure_login:
         from lemouton.auth.cookie_checker import is_likely_logged_in
         if not is_likely_logged_in(prof_path, site_key):
@@ -1589,7 +1589,7 @@ def _ensure_default_crawl_login(site_key: str, account_key: str, actual_id: str,
         ok = sc.ensure_logged_in(
             account_id=actual_id,
             account_pw=pw,
-            login_method=login_method,   # ★ 실제 방식(direct/naver) 반영 (하드코딩 제거)
+            login_method=login_method,   # * 실제 방식(direct/naver) 반영 (하드코딩 제거)
             max_retry=2,
             skip_if_logged_in=not force,
         )
@@ -1630,7 +1630,7 @@ def refetch_option_source(sku: str, src_id: int):
         if not site:
             return _err(f'크롤러 미지원 사이트: {link.product_url[:60]}', 400)
 
-        # ★ 대표 크롤 계정의 ProfileStore 경로 조회 (없으면 None — 비로그인 모드)
+        # * 대표 크롤 계정의 ProfileStore 경로 조회 (없으면 None — 비로그인 모드)
         profile_dir = _get_default_crawl_profile(s, site)
         login_used = False
         crawler_used = 'requests'  # 'requests' | 'playwright'
@@ -1667,7 +1667,7 @@ def refetch_option_source(sku: str, src_id: int):
         s.flush()
         result = fetch_one_source(s, source_product_id=sp.id, crawlers=crawlers)
 
-        # ★ 송장전송기 무제한 로그인 패턴 — LoginExpiredError 감지 + 자동 재로그인 + 1회 재시도
+        # * 송장전송기 무제한 로그인 패턴 — LoginExpiredError 감지 + 자동 재로그인 + 1회 재시도
         err_msg = (result.get('error') or '')
         if profile_dir and ('세션 만료 감지' in err_msg or 'LoginExpiredError' in err_msg):
             logging.getLogger(__name__).info(
@@ -1704,9 +1704,9 @@ def refetch_option_source(sku: str, src_id: int):
             crawled_price=sp2.last_price if sp2 else None,
             crawled_stock=sp2.last_stock if sp2 else None,
             last_status=sp2.last_status if sp2 else None,
-            login_used=login_used,           # ★ 로그인 세션으로 크롤했는지
-            crawler_used=crawler_used,       # ★ 'requests' | 'playwright'
-            profile_dir=profile_dir,         # ★ 사용된 프로필 경로 (디버깅)
+            login_used=login_used,           # * 로그인 세션으로 크롤했는지
+            crawler_used=crawler_used,       # * 'requests' | 'playwright'
+            profile_dir=profile_dir,         # * 사용된 프로필 경로 (디버깅)
         )
     except Exception as e:
         s.rollback()
@@ -1785,7 +1785,7 @@ def touch_bundle_crawled(code: str):
 # ════════════════════════════════════════════
 #  POST /api/sources/musinsa/relogin-and-refetch
 #  → Phase 8.8.2 (2026-05-17) — 무신사 대표 계정 재로그인 + 전체 옵션 재크롤.
-#    대시보드 ⚠ 카드 [🔑 재로그인 + 전체 재크롤] 버튼에서 호출.
+#  대시보드 [주의] 카드 [ 재로그인 + 전체 재크롤] 버튼에서 호출.
 #    1) 대표 계정 강제 재로그인 (저장된 PW 로 background_login)
 #    2) musinsa SourceProduct 모두 fetch (새 profile_dir, MusinsaPlaywrightCrawler)
 #    3) DB dyn 갱신 (member_price/is_member_price/login_marker_present)
@@ -1922,7 +1922,7 @@ def open_url_with_profile(sku: str, src_id: int):
                        reason='Chrome 미설치 — 일반 브라우저로 fallback')
 
         # detached subprocess (브라우저 창 닫을 때까지 살아있음, Flask 응답 즉시 반환)
-        # ★ chrome.exe 는 GUI 앱 → CMD 창 안 뜸 (송장전송기 spawn_native_chrome 패턴)
+        # * chrome.exe 는 GUI 앱 → CMD 창 안 뜸 (송장전송기 spawn_native_chrome 패턴)
         creationflags = 0
         if os.name == 'nt':
             creationflags = (subprocess.DETACHED_PROCESS

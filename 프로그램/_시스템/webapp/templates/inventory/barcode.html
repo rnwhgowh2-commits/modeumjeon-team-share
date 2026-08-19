@@ -645,7 +645,7 @@ function restoreFromUrl() {
     sel = skus.map(sku => ({ sku, qty: params.get(`qty_${sku}`) || '1' }));
   }
   if (!sel.length) return;
-  // attribute selector value 는 CSS.escape ❌ — 따옴표 안의 \" 와 \\ 만 escape
+  // attribute selector value 는 CSS.escape [안됨] — 따옴표 안의 \" 와 \\ 만 escape
   const attrEsc = s => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   sel.forEach(({ sku, qty }) => {
     const cb = document.querySelector(`input[name=sku][value="${attrEsc(sku)}"]`);

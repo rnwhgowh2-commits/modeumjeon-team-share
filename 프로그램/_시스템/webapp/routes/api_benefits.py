@@ -468,7 +468,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     except Exception:
         pass
 
-    # ★ 2026-06-05 — 전 소싱처 보강 조회: OptionSourceUrl 미연결(모음전/단품 매칭) 옵션은
+    # * 2026-06-05 — 전 소싱처 보강 조회: OptionSourceUrl 미연결(모음전/단품 매칭) 옵션은
     #   option_source_links → SourceProduct.dynamic_benefits_json 에서 동적 혜택(무신사 등급적립·
     #   무신사머니, SSF 멤버십포인트·기프트포인트, SSG MONEY, 롯데오너스 등)을 읽는다.
     #   SourceProduct 레벨이라 relogin(옵션레벨)에 안 덮인다. source_id→site 매핑(source_registry 기준).
@@ -521,7 +521,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                      .filter_by(canonical_sku=sku, source_id=source_id)
                      .order_by(OptionBenefitOverride.sort_order, OptionBenefitOverride.id)
                      .all())
-    # ★ 2026-06-11 스냅샷 모델 — 이 옵션에 override(자기 복사본)가 하나라도 있으면
+    # * 2026-06-11 스냅샷 모델 — 이 옵션에 override(자기 복사본)가 하나라도 있으면
     #   '스냅샷됨' = 소싱처 템플릿을 무시하고 옵션 override 만 사용(독립). 소싱처 기본값이
     #   바뀌어도 영향 0. override 0건이면 기존처럼 소싱처 템플릿 사용(미스냅샷·하위호환,
     #   byte-identical). 게이트는 마이그레이션(전 모음전 스냅샷)과 원자적으로 적용해야 안전.
@@ -534,7 +534,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         for tpl in tpl_items:
             effective.append(('tpl', tpl))
 
-    # ★ 2026-05-15 — SourceProduct.dynamic_benefits_json 에서 동적 혜택 차감 항목 추가.
+    # * 2026-05-15 — SourceProduct.dynamic_benefits_json 에서 동적 혜택 차감 항목 추가.
     #   옵션 dict 의 사이트 특화 동적 키들 (point_rate / ssg_money_rate / card_benefit_price
     #   / money_active 등) 을 dummy item 으로 effective 에 박는다. 정액 → %적립금 → %할인
     #   카테고리 정렬 룰이 자동 적용됨.
@@ -548,7 +548,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             self.enabled = enabled
             self.sort_order = 999  # 같은 카테고리 내 마지막
             self.template_id = None
-    # ★ 2026-06-06 — SSF 기프트포인트는 '항상' 노출 (정률 10%).
+    # * 2026-06-06 — SSF 기프트포인트는 '항상' 노출 (정률 10%).
     #   크롤에 기프트포인트(gift_point_amount)가 있으면 활성, 없으면 비활성 placeholder.
     #   (사용자 요구: "크롤링 시 있으면 10% 활성화, 없으면 비활성화")
     if _site_for == 'ssf':
@@ -673,7 +673,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 if '카드혜택가 fallback' in nm:
                     it.enabled = False
         # ─────────────────────────────────────────────────────────────
-        # ★ 2026-05-15 — 롯데홈쇼핑 (lotteimall) 동적 혜택 (point_rewards)
+        # * 2026-05-15 — 롯데홈쇼핑 (lotteimall) 동적 혜택 (point_rewards)
         # ─────────────────────────────────────────────────────────────
         # 크롤러가 lPointObj 에서 추출한 dict:
         #   {label, default_point, club_point, review_label, review_default, review_club}
@@ -701,7 +701,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     enabled=True,
                 )))
         # ─────────────────────────────────────────────────────────────
-        # ★ 2026-05-15 — 롯데온 (lotteon.com) 동적 혜택
+        # * 2026-05-15 — 롯데온 (lotteon.com) 동적 혜택
         # ─────────────────────────────────────────────────────────────
         # 사용자 스크린샷 명세 ([150만족 판매] 메이트 발 편한 메리노울 운동화 르무통):
         #   - 롯데오너스 1% 회원할인 → 사용자 회원 가입 상태라 자동 활성 (enabled=True)
@@ -724,7 +724,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 name=_label, btype='amount', value=float(_sjc),
                 enabled=False,  # 사용자 토글로 결정 (받기 조건)
             )))
-    # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
+    # * 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
     #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
     _base_override = None
     if str(source_id) == '3' and _dynamic_benefits.get('surface_price'):
@@ -739,7 +739,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
         effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
 
-    # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
+    # * 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
     #   무신사 크롤 베이스(sale_price)는 '회원가' = 무신사머니 적립이 이미 반영된 값이다.
     #   '현대카드 (무신사머니 fallback)' 은 무신사머니와 택1(상호배타) — 그 위에서 또 차감하면 이중.
     #   → money_active=False (무신사머니 명시 비활성) 일 때만 fallback 적용, 그 외(플래그 없음/True)는
@@ -751,7 +751,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             if '무신사머니 fallback' in (_it.benefit_name or ''):
                 _it.enabled = False
 
-    # ★ 2026-06-12 — 롯데온·SSG 현대카드 2.73% 결제할인 (청구할인 fallback / 직전 잔액 기준).
+    # * 2026-06-12 — 롯데온·SSG 현대카드 2.73% 결제할인 (청구할인 fallback / 직전 잔액 기준).
     #   사용자 명세: "롯데 청구할인 미적용 시, 결제 혜택으로 결제 금액 기준 현대카드(2.73%) 적용.
     #   SSG도 마찬가지로 청구할인 없으면 현대카드 2.73% 자동 (단 SSG는 네이버페이 적용 안됨)".
     #   - 결제 택1(legacy pick-best, _is_payment '카드'/'청구할인' 매칭): 청구할인·추가카드 할인·
@@ -768,7 +768,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             enabled=True,
         )))
 
-    # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
+    # * 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
     return compute_final_price(
         sale_price, effective,
@@ -1020,7 +1020,7 @@ def add_override_to_bundle(source_id: int):
 
 # ════════════════════════════════════════════
 #  2026-06-11 — 모음전 한정 값 수정 + 기본값 초기화
-#   매트릭스 ✎ 인라인 수정이 소싱처 공통 템플릿을 직접 바꾸던 동작을
+#  매트릭스 [수정] 인라인 수정이 소싱처 공통 템플릿을 직접 바꾸던 동작을
 #   '이 모음전 전체에만' override 로 적용하도록 분리. ↺ 초기화는 그 override 를
 #   깨끗이 삭제해 소싱처 공통값+크롤값(=원래 계산값)으로 복귀.
 # ════════════════════════════════════════════
@@ -1130,7 +1130,7 @@ def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):
     tpl = (s.query(SourceBenefitTemplate)
            .filter_by(source_id=source_id, benefit_name=nm).first())
     tpl_id = tpl.id if tpl else None
-    # ★ 성능: 기존행을 sku별 N쿼리 대신 IN 1쿼리로, 신규는 벌크 insert.
+    # * 성능: 기존행을 sku별 N쿼리 대신 IN 1쿼리로, 신규는 벌크 insert.
     existing_rows = (s.query(OptionBenefitOverride)
                      .filter(OptionBenefitOverride.source_id == source_id,
                              OptionBenefitOverride.benefit_name == nm,
@@ -1280,7 +1280,7 @@ def set_value_bundle():
         target_skus = _bundle_skus(s, bundle_code)
         if not target_skus:
             return _err('대상 옵션 0건 (bundle_code 확인)')
-        # ★ 스냅샷 모델 — 이 (모음전, 소싱처)가 아직 스냅샷 안 됐으면(override 0건) 먼저
+        # * 스냅샷 모델 — 이 (모음전, 소싱처)가 아직 스냅샷 안 됐으면(override 0건) 먼저
         #   현재 기본값 전체를 복사(고정)한 뒤 이 수정을 얹는다. = '첫 수정 시 고정'.
         already = (s.query(OptionBenefitOverride)
                    .filter(OptionBenefitOverride.source_id == source_id,
@@ -1433,7 +1433,7 @@ def delete_scoped():
             base = [o['sku'] for o in _options_by_bundle_code(s, bundle_code)]
             if not base:
                 return _err('bundle_all_src 대상 옵션 0건 (bundle_code 확인)')
-            # ★ 성능: 행마다 delete 금지 — source 별 벌크 DELETE 1회
+            # * 성능: 행마다 delete 금지 — source 별 벌크 DELETE 1회
             total_del = 0
             for sid in source_ids_in:
                 total_del += (s.query(OptionBenefitOverride)

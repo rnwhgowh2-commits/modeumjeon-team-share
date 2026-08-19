@@ -564,7 +564,7 @@
       selected: new Set(),     // 옵션 활성 (JSON.stringify(axisVals))
       seen: new Set(),         // 매트릭스 변경 시 자동 ON 보존
       // [2026-05-27 D1] is_active=false 옵션 — 사용자 OFF 했지만 매핑 있어 데이터 보존
-      // 매트릭스에서 mapped-off (노란 빗금 + 🔗 + tooltip) 으로 표시. selected 에는 들어가지 않음.
+      // 매트릭스에서 mapped-off (노란 빗금 + [링크] + tooltip) 으로 표시. selected 에는 들어가지 않음.
       mappedOff: new Set(),
       applied: false,          // 좌→우 적용 여부
       sources: [],             // [{key, label, color}]
@@ -1094,7 +1094,7 @@
     //   변경 사항:
     //     - 큰 통계 카드 3개 → renderRight 에서 탭 우측 인라인 흡수
     //     - 옵션축 박스 / "정리 기준" 박스 → 작은 액션바
-    //     - "alias 자동매칭" → "⚡ 자동 매칭"
+    //  - "alias 자동매칭" → " 자동 매칭"
     //     - 그룹 details (첫 축 기준) + 행 색 3색 (auto/manual/empty)
     //     - 인라인 자동완성 (브랜드/모델 그룹 헤더)
     //     - 뱃지 한 줄 (white-space:nowrap + min-width)
@@ -1461,7 +1461,7 @@
       const isOpen = state.openUrlId === u.tempId;
       const totalActive = state.selected.size;
       const mapped = (u.option_keys || []).length;
-      // [2026-06-05] 크롤 실패 URL — 빨강 카드 + ❌ 배지 + 🔄 재크롤. (신규 추가 URL=undefined 는 정상 취급)
+      // [2026-06-05] 크롤 실패 URL — 빨강 카드 + [안됨] 배지 +  재크롤. (신규 추가 URL=undefined 는 정상 취급)
       // [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL로 커버되는 허브 → 'covered' 중립 상태.
       //   실패가 아니므로 빨강 카드/재크롤 대상에서 제외, 안내 배지만 표시.
       const isCovered = u.lastStatus === 'covered';
@@ -2291,7 +2291,7 @@
         renderRight();
         return;
       }
-      // [v20.4] 수기 행의 ✎ 다시 입력 — invRows[bSku] 비우고 input 모드로
+      // [v20.4] 수기 행의 [수정] 다시 입력 — invRows[bSku] 비우고 input 모드로
       const reEdit = e.target.closest('[data-inv-reedit]');
       if (reEdit) {
         e.stopPropagation();

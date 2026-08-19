@@ -171,7 +171,7 @@ def save_bundle(code: str):
                           actor=payload.get('_actor', 'web_user'))
         except Exception:
             pass
-        # ★ 번들 url_* → 옵션 OptionSourceUrl 자동 전파
+        # * 번들 url_* → 옵션 OptionSourceUrl 자동 전파
         propagate_counts = _propagate_bundle_urls_to_options(s, code, payload)
         s.commit()
         return _ok(model_code=m.model_code, propagated=propagate_counts)
@@ -1148,7 +1148,7 @@ def search_bundles():
     s = SessionLocal()
     try:
         query = s.query(Model.model_code, Model.model_name_display, Model.category)
-        # ★ 박스히어로식 다중 키워드 AND 교집합
+        # * 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(
             query, tokens,
             Model.model_code, Model.model_name_raw, Model.model_name_display,
@@ -1179,7 +1179,7 @@ def search_templates():
     s = SessionLocal()
     try:
         query = s.query(model.id, model.name)
-        # ★ 박스히어로식 다중 키워드 AND 교집합
+        # * 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(query, tokens, model.name, op='ilike')
         items = [{'id': r[0], 'name': r[1]} for r in query.limit(20).all()]
     finally:
