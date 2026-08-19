@@ -660,6 +660,7 @@ def product_assembly(mo_id: int):
        (2026-08-06 사장님 확정 1번a). 화면 재료는 matrix 쪽 함수를 그대로
        나눠 쓴다 — 두 벌이 되면 반드시 갈린다.
     """
+    from webapp.routes.bundles import _all_categories
     from webapp.routes.matrix import detail_context
     ctx = detail_context(mo_id)
     if ctx is None:
@@ -671,7 +672,8 @@ def product_assembly(mo_id: int):
                                requested_sku=str(mo_id)), 404
     return render_template('matrix/detail.html',
                            active_app='bundles', active='optgen_product',
-                           assembly=True, detail_base='/optgen/product/', **ctx)
+                           assembly=True, detail_base='/optgen/product/',
+                           categories=_all_categories(), **ctx)
 
 
 #: 모음전 종류별 축 프리셋 — 노션 옵션 b (사장님 확정 2026-08-12).
