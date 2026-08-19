@@ -88,3 +88,35 @@ def test_5xx_raises_unavailable(monkeypatch):
     from shared.market_accounts.client import MarketAccountUnavailable
     with pytest.raises(MarketAccountUnavailable, match="500"):
         mod.get_market_account("coupang")
+
+
+def test_connection_error_raises_unavailable(monkeypatch):
+    monkeypatch.setenv("SAMBA_WAVE_URL", "https://samba-wave.example.com")
+    monkeypatch.setenv("SAMBA_WAVE_INTERNAL_TOKEN", "tok123")
+
+    import shared.market_accounts.client as mod
+
+    def raise_conn_error(*a, **kw):
+        raise mod.requests.exceptions.ConnectionError("연결 거부")
+
+    monkeypatch.setattr(mod.requests, "get", raise_conn_error)
+
+    from shared.market_accounts.client import MarketAccountUnavailable
+    with pytest.raises(MarketAccountUnavailable, match="연결 실패"):
+        mod.get_market_account("coupang")
+
+
+def test_timeout_raises_unavailable(monkeypatch):
+    monkeypatch.setenv("SAMBA_WAVE_URL", "https://samba-wave.example.com")
+    monkeypatch.setenv("SAMBA_WAVE_INTERNAL_TOKEN", "tok123")
+
+    import shared.market_accounts.client as mod
+
+    def raise_timeout(*a, **kw):
+        raise mod.requests.exceptions.Timeout("10s 초과")
+
+    monkeypatch.setattr(mod.requests, "get", raise_timeout)
+
+    from shared.market_accounts.client import MarketAccountUnavailable
+    with pytest.raises(MarketAccountUnavailable, match="연결 실패"):
+        mod.get_market_account("coupang")
