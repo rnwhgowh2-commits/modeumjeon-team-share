@@ -247,3 +247,62 @@ th:hover > .ds-funnel { color: #C4CBD3; }
    ============================================================ */
 .ds-grip { color: #C4CBD3; cursor: grab; font-size: 16px; }
 .ds-grip:active, .is-dragging .ds-grip { color: var(--ds-pri); cursor: grabbing; }
+
+/* ============================================================
+   10. 기존 화면 통일 — 옛 이름들을 기준 한 벌로 끌어온다
+   ------------------------------------------------------------
+   왜 이렇게 하나:
+     화면 108개의 마크업을 하나씩 고치면 위험하고 오래 걸린다.
+     ds.css 는 toss.css 다음에 오므로, 옛 이름들의 '크기·모서리' 만
+     기준값으로 덮어쓰면 한 파일로 전 화면이 한 벌이 된다.
+   무엇만 건드리나:
+     글자 크기 · 모서리 둥글기 만. 색·배치·여백은 그대로 둔다
+     (색까지 바꾸면 뜻이 달라져 화면이 무너질 수 있다).
+   실측 근거 (화면 18개, 통일 전):
+     딱지 글자 7가지·모서리 7가지 / 버튼 글자 4·모서리 5 / 탭 글자 3
+   ============================================================ */
+
+/* ── 딱지: 글자 12px · 완전 둥근 모서리 (확정 3번 — 소속 딱지는 알약) ── */
+.chip, .badge, .chip-v3,
+[class*="badge-"], [class*="chip-"],
+.nsg-pill, .x-pill, .x-pill-ok, .x-pill-mute, .sg-chip, .ref-badge,
+.brand-pill-v2, .mc-chip, .market-chip, .nav-badge {
+  font-size: var(--ds-f-l);
+  border-radius: var(--ds-r-f);
+}
+/* 숫자만 담는 작은 딱지는 알약이 어색해 기본 모서리로 */
+.chip-count-ok, .chip-count-zero, .nav-badge { border-radius: var(--ds-r-s); }
+
+/* ── 버튼: 글자 14px(작은 것 13px) · 모서리 6px (확정 5번) ── */
+.btn, .tb-btn, .x-btn, .x-btn-pri, .btn-ok, .btn-rm, .btn-go,
+.btn-cancel, .btn-mini-v2, .bl-ab-btn, .nsg-openbtn {
+  font-size: 14px;
+  border-radius: var(--ds-r-s);
+}
+.btn-sm, .btn-mini-v2, .bl-ab-btn { font-size: var(--ds-f-t); }
+.btn-large { font-size: var(--ds-f-b); border-radius: var(--ds-r-s); }
+
+/* ── 탭: 층마다 모양은 그대로 두고 글자 크기만 3단으로 (확정 4번) ── */
+.subtab           { font-size: 19px; }   /* 하위 탭 — 화면마다 22/18/15 로 갈려 있던 것 */
+.step-tab         { font-size: var(--ds-f-t); border-radius: var(--ds-r-s); }
+.pc-tab           { font-size: var(--ds-f-b); }
+.em-tabs > button { font-size: var(--ds-f-t); border-radius: var(--ds-r-s); }
+
+/* ── 실화면에서 잡아낸 예외들 (화면 18개 실측) ──────────────
+   화면 파일 안 <style> 은 ds.css 보다 뒤에 오므로 같은 세기면 그쪽이 이긴다.
+   그래서 여기만 !important 를 쓴다. 아래 목록은 실제로 튀던 것들.
+     ref-badge      99px  → 알약(999)
+     sg-chip        20px  → 12px  (딱지가 본문보다 컸다)
+     nsg-pill       16px/20px
+     x-pill         11px  → 12px  🔴 확정 바닥선(12px) 위반이던 것
+     search-chip-box 5px  → 알약
+     btn-cancel/go  13.5px/10px
+     subtab         22px  → 19px  (같은 하위탭이 화면마다 22/18/15 였다)
+   ------------------------------------------------------------ */
+.ref-badge, .search-chip-box, .nsg-pill, .sg-chip, .x-pill {
+  border-radius: var(--ds-r-f) !important;
+}
+.sg-chip, .nsg-pill { font-size: var(--ds-f-l) !important; }
+.x-pill, .x-pill-ok, .x-pill-mute { font-size: var(--ds-f-l) !important; }
+.btn-cancel, .btn-go { font-size: 14px !important; border-radius: var(--ds-r-s) !important; }
+.sg-ov .subtab, .df-wrap .subtab, .sgh .subtab, .cri .subtab { font-size: 19px !important; }
