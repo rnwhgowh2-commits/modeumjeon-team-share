@@ -84,11 +84,30 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
     else:
         upload = {'ss': src_ss, 'cp': src_cp}
 
+    # 🔴 [2026-08-13] **사람이 정한 값을 여기서 덮는다.**
+    #   이 함수는 `cfg`(자동/수기 스위치와 수기가)를 인자로 받아 놓고 **한 번도 안 썼다.**
+    #   그래서 화면에서 「자동 계산」을 끄고 넣은 가격이 저장·표시는 되는데
+    #   마켓엔 자동 계산값이 나갔다(사장님 지적 → 「끊긴데 이어줘」).
+    #   규칙은 lemouton/pricing/user_price.py 한 곳 — 화면도 같은 함수를 쓴다.
+    #   ⚠️ 스위치를 켰는데 값이 비면 **자동값으로 되돌리지 않고 멈춘다**(holds).
+    #      「자동으로 팔지 마라」고 껐는데 자동값으로 파는 건 정반대 행동이다.
+    from lemouton.pricing.user_price import resolve_user_price
+    holds = {}
+    for _mkt_key, _market in (('ss', 'smartstore'), ('cp', 'coupang')):
+        up = resolve_user_price(opt=o, cfg=cfg, market=_market, side=resolved_side)
+        if up.price is not None:
+            upload[_mkt_key] = up.price
+        elif up.hold:
+            upload[_mkt_key] = None          # 전송 보류 — 폴백 금지
+            holds[_mkt_key] = ' '.join(up.warnings)
+
     return {
         'resolved_side': resolved_side,
         'src': {'ss': src_ss, 'cp': src_cp},
         'pur': pur,
         'upload': upload,
+        # 사람이 스위치를 켰는데 값이 없어 멈춘 마켓 {ss|cp: 사유}. 비면 정상.
+        'holds': holds,
         'purchase_blocked': purchase_blocked,
         'effective_cost': basis.cost,
         'cost_basis_side': basis.side,
