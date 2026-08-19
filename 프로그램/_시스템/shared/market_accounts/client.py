@@ -2,13 +2,18 @@
 """판매처 계정 브리지 — samba-wave 가 가진 계정 창고에서 실 자격증명을 받아온다.
 
 배경: 모음전은 지금까지 판매처(쿠팡·11번가 등) 자격증명을 환경변수로 직접 들고 있었다
-(shared/platforms/__init__.py 의 PLATFORM_CONFIG). 앞으로는 samba-wave 가 표준
+(shared/platforms/__init__.py 의 COUPANG·SMARTSTORE 등 각 플랫폼 설정 상수). 앞으로는 samba-wave 가 표준
 저장소(samba_market_account 테이블)를 갖고, 모음전은 이 모듈을 통해 물어서 받아온다.
 samba-wave 는 완전히 별도로 배포·운영되는 시스템이다 — DB를 직접 열어보지 않는다.
 
 의존: samba-wave 쪽 GET /internal/accounts/credentials (docs/interfaces.md 참조).
 samba-wave 리포에 구현·커밋 완료(브랜치 feat/moum-account-credentials-internal-api,
 fork로 push는 아직 안 함) — X-Internal-Token 헤더로 인증(기존 cs_internal_token 재사용).
+
+설계 메모: shared/platforms/*(마켓별 client= 주입) 관례를 안 따르고 requests 직접 호출로
+했다 — 그쪽은 마켓 5곳마다 다른 서명·재시도 로직을 바꿔 끼우는 게 목적이라 client 추상화가
+필요하지만, 여긴 고정 헤더 하나로 내부 엔드포인트 하나만 부르는 호출 1곳뿐이라 클래스를
+새로 만드는 게 오히려 과함. 재시도/backoff 가 필요해지면(Task2+ 실연결 시) 그때 재고.
 """
 from __future__ import annotations
 
