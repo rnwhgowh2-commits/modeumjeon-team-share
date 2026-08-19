@@ -199,7 +199,7 @@
       {# v32 — hero 아이콘 picker 트리거 (글로벌 [data-icon-edit] 핸들러가 자동 처리) #}
       <div class="hub-hero-ic"
            data-icon-edit="hub|registered"
-           data-icon-current="📦"
+           data-icon-current="package"
            data-icon-color="default"
            data-icon-label="등록된 상품"><i class="ph-light ph-package" aria-hidden="true"></i></div>
       <div class="hub-hero-body">
@@ -323,7 +323,7 @@
         {# v32 — 모음전 카드 이모지 picker 트리거 (글로벌 핸들러 자동 처리) #}
         <span class="bl-thumb"
               data-icon-edit="model|{{ b.model_code }}"
-              data-icon-current="{% if b.category == '의류' %}👕{% else %}👟{% endif %}"
+              data-icon-current="{% if b.category == '의류' %}t-shirt{% else %}sneaker{% endif %}"
               data-icon-color="default"
               data-icon-label="{{ b.group_name or b.model_code }}">{% if b.category == '의류' %}<i class="ph-light ph-t-shirt" aria-hidden="true"></i>{% else %}<i class="ph-light ph-sneaker" aria-hidden="true"></i>{% endif %}</span>
         <span>

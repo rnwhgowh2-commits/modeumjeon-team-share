@@ -1,7 +1,7 @@
 /* v32 — 아이콘 picker (노션 스타일)
  * 사용:
  *   window.openIconPicker({
- *     current: {icon: '🏠', color: 'default'},
+ *     current: {icon: 'house', color: 'default'},
  *     onPick: (icon, color) => { ... },
  *     onClear: () => { ... },
  *     title: '아이콘 선택',
@@ -15,49 +15,142 @@
   'use strict';
 
   // ─────── 이모지 데이터셋 (간소판 — STEP 2 에서 외부 JSON 으로 확장) ───────
+  // 2026-08-19 디자인 통일 — 그림문자 목록을 선 아이콘 이름으로 교체.
+  // 이 창을 안 바꾸면 새로 고를 때마다 그림문자가 다시 들어온다.
   const EMOJI_DATA = {
     '최근': [], // localStorage 기반
-    '스마일': '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😝 😜 🤪 🤨 🧐 🤓 😎 🤩 🥳'.split(' '),
-    '사람': '👶 🧒 👦 👧 🧑 👨 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🧏 🙇 🤦 🤷 👮 🕵️ 💂 👷 🤴 👸 👳 👲 🧕'.split(' '),
-    '동물': '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐽 🐸 🐵 🙈 🙉 🙊 🐒 🐔 🐧 🐦 🐤 🐣 🐥 🦆 🦅 🦉 🦇 🐺 🐗'.split(' '),
-    '음식': '🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥬 🥒 🌶️ 🫑 🌽 🥕 🫒 🧄 🧅 🥔 🍠'.split(' '),
-    '여행': '🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🚚 🚛 🚜 🛵 🏍️ ✈️ 🚀 🚁 🚂 🚆 🚇 🚊 🚉 ✈️ 🛫 🛬 🛩️ 💺 🛸 🚢'.split(' '),
-    '활동': '⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🥏 🎱 🪀 🏓 🏸 🏒 🏑 🥍 🏏 🥅 ⛳ 🪁 🏹 🎣 🤿 🥊 🥋 🎽 🛹 🛼 🛷 ⛸️'.split(' '),
-    '물건': '⌚ 📱 📲 💻 ⌨️ 🖥️ 🖨️ 🖱️ 🖲️ 🕹️ 🗜️ 💽 💾 💿 📀 📼 📷 📸 📹 🎥 📽️ 🎞️ 📞 ☎️ 📟 📠 📺 📻 🎙️ 🎚️ 🎛️ ⏱️ ⏲️ ⏰'.split(' '),
-    '건물·장소': '🏠 🏡 🏘️ 🏚️ 🏗️ 🏭 🏢 🏬 🏣 🏤 🏥 🏦 🏨 🏪 🏫 🏩 💒 🏛️ ⛪ 🕌 🛕 🕍 ⛩️ 🕋 ⛲ ⛺ 🌁 🌃 🏙️ 🌄 🌅 🌆 🌇 🌉'.split(' '),
-    '업무·도구': '📁 📂 🗂️ 📅 📆 🗒️ 🗓️ 📇 📈 📉 📊 📋 📌 📍 📎 🖇️ 📏 📐 ✂️ 🗃️ 🗄️ 🗑️ 🔒 🔓 🔏 🔐 🔑 🗝️ 🔨 🪓 ⛏️ ⚒️ 🛠️ 🗡️ ⚔️'.split(' '),
-    '기호': '⭐ 🌟 ✨ ⚡ 🔥 💧 🌊 🎯 🎨 🎭 🎪 🎰 🎲 🧩 ♟️ 🎯 🔔 🔕 📣 📢 ❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘'.split(' '),
-    '국기': '🇰🇷 🇺🇸 🇯🇵 🇨🇳 🇬🇧 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇨🇦 🇦🇺 🇧🇷 🇮🇳 🇷🇺 🇲🇽 🇳🇱 🇧🇪 🇸🇪 🇳🇴 🇫🇮 🇩🇰 🇨🇭 🇦🇹 🇵🇱 🇨🇿 🇭🇺 🇬🇷'.split(' '),
+    '자주': 'package tag storefront shopping-cart-simple coins money receipt truck barcode clipboard-text list-checks check-circle warning-circle info x-circle star heart'.split(' '),
+    '상품': 't-shirt pants sneaker dress coat-hanger bag handbag watch sunglasses baseball-cap shirt-folded scissors ruler palette swatches image images'.split(' '),
+    '업무': 'folder folder-open file file-text files note-pencil notebook book-open printer paperclip link download-simple upload-simple database cloud-arrow-up'.split(' '),
+    '상태': 'check x clock hourglass minus-circle prohibit seal-check spinner-gap arrows-clockwise bell bell-slash lock lock-open shield-check flag'.split(' '),
+    '이동': 'arrow-right arrow-left arrow-up arrow-down arrows-left-right caret-right sign-in sign-out house buildings map-pin compass path airplane-tilt'.split(' '),
+    '사람': 'user users user-circle user-plus identification-card address-book handshake chat-circle envelope phone headset'.split(' '),
+    '분석': 'chart-bar chart-line chart-pie trend-up trend-down calculator percent currency-krw calendar clock-counter-clockwise funnel magnifying-glass gear sliders'.split(' '),
+    '기타': 'lightbulb sparkle fire lightning gift trophy medal target puzzle-piece wrench toolbox trash broom recycle question'.split(' '),
   };
 
   // 한글/영문 키워드 매핑 (검색용 간소판)
+  // 2026-08-19 — 선 아이콘 이름으로 바뀌면서 한글 열쇠말 표도 갈아끼움
+  // (이름은 영어라 한글로 못 찾으면 사장님이 쓸 수 없다)
   const SEARCH_KEYWORDS = {
-    '🏠': ['집', 'house', 'home', '하우스', '홈'],
-    '🏡': ['집', 'house', '주택', 'home'],
-    '📦': ['상자', 'box', 'package', '박스', '소포', '모음전'],
-    '🛒': ['장바구니', 'cart', 'shopping', '쇼핑'],
-    '🛍️': ['쇼핑백', 'bag', 'shopping'],
-    '👟': ['운동화', 'shoe', 'sneaker', '신발'],
-    '👞': ['구두', 'shoe', '신발'],
-    '⭐': ['별', 'star', '스타', '즐겨찾기'],
-    '🔥': ['불', 'fire', '핫', '인기'],
-    '⚡': ['번개', 'lightning', '빠른', 'fast'],
-    '📊': ['차트', 'chart', '통계', 'stat'],
-    '📈': ['상승', 'up', '오름'],
-    '📉': ['하락', 'down', '내림'],
-    '🔔': ['알림', 'bell', 'notification'],
-    '🔒': ['잠금', 'lock', 'locked'],
-    '🔓': ['열림', 'unlock'],
-    '🎨': ['팔레트', 'palette', '디자인', '색'],
-    '🎯': ['타겟', 'target', '목표', '과녁'],
-    '💰': ['돈', 'money', '돈주머니'],
-    '💳': ['카드', 'card', '신용카드'],
-    '🏪': ['편의점', 'store', '가게'],
-    '🏬': ['백화점', 'department', 'mall'],
-    '🇰🇷': ['한국', 'korea', '대한민국'],
-    '🇺🇸': ['미국', 'usa', '아메리카'],
-    '🇯🇵': ['일본', 'japan'],
-    // ... 외부 JSON 에서 확장
+    'package': '상자 박스 모음전 소포'.split(' '),
+    'tag': '태그 라벨 꼬리표'.split(' '),
+    'storefront': '가게 매장 판매처 스토어'.split(' '),
+    'shopping-cart-simple': '장바구니 카트 쇼핑'.split(' '),
+    'coins': '돈 금액 코인 정산'.split(' '),
+    'money': '돈 지폐 매출'.split(' '),
+    'receipt': '영수증 명세'.split(' '),
+    'truck': '배송 트럭 운송'.split(' '),
+    'barcode': '바코드'.split(' '),
+    'clipboard-text': '클립보드 목록'.split(' '),
+    'list-checks': '체크리스트 목록 할일'.split(' '),
+    'check-circle': '완료 확인 체크'.split(' '),
+    'warning-circle': '경고 주의'.split(' '),
+    'info': '정보 안내'.split(' '),
+    'x-circle': '오류 실패 취소'.split(' '),
+    'star': '별 중요 즐겨찾기'.split(' '),
+    'heart': '하트 좋아요'.split(' '),
+    't-shirt': '티셔츠 상의 옷'.split(' '),
+    'pants': '바지 하의'.split(' '),
+    'sneaker': '운동화 신발'.split(' '),
+    'dress': '원피스 드레스'.split(' '),
+    'coat-hanger': '옷걸이 의류'.split(' '),
+    'bag': '가방 백'.split(' '),
+    'handbag': '핸드백 가방'.split(' '),
+    'watch': '시계'.split(' '),
+    'sunglasses': '선글라스 안경'.split(' '),
+    'baseball-cap': '모자 캡'.split(' '),
+    'shirt-folded': '셔츠 옷'.split(' '),
+    'scissors': '가위 자르기'.split(' '),
+    'ruler': '자 치수 사이즈'.split(' '),
+    'palette': '색상 팔레트 컬러'.split(' '),
+    'swatches': '색견본 컬러'.split(' '),
+    'image': '이미지 사진 그림'.split(' '),
+    'images': '이미지 사진 여러장'.split(' '),
+    'folder': '폴더 자료'.split(' '),
+    'folder-open': '폴더 열기'.split(' '),
+    'file': '파일 문서'.split(' '),
+    'file-text': '문서 텍스트'.split(' '),
+    'files': '파일 여러개'.split(' '),
+    'note-pencil': '메모 작성'.split(' '),
+    'notebook': '공책 가이드'.split(' '),
+    'book-open': '책 사전 설명'.split(' '),
+    'printer': '인쇄 프린터'.split(' '),
+    'paperclip': '첨부 클립'.split(' '),
+    'link': '링크 연결 URL'.split(' '),
+    'download-simple': '내려받기 다운로드 가져오기'.split(' '),
+    'upload-simple': '올리기 업로드 내보내기'.split(' '),
+    'database': '데이터 저장소'.split(' '),
+    'cloud-arrow-up': '클라우드 업로드'.split(' '),
+    'check': '확인 체크 완료'.split(' '),
+    'x': '닫기 취소 삭제'.split(' '),
+    'clock': '시간 시계 지연'.split(' '),
+    'hourglass': '대기 진행중'.split(' '),
+    'minus-circle': '없음 미지원'.split(' '),
+    'prohibit': '차단 금지 불가'.split(' '),
+    'seal-check': '검증 인증'.split(' '),
+    'spinner-gap': '진행중 로딩'.split(' '),
+    'arrows-clockwise': '새로고침 갱신 동기화'.split(' '),
+    'bell': '알림 종'.split(' '),
+    'bell-slash': '알림끄기'.split(' '),
+    'lock': '잠금 보안'.split(' '),
+    'lock-open': '잠금해제'.split(' '),
+    'shield-check': '보호 안전'.split(' '),
+    'flag': '깃발 표시'.split(' '),
+    'arrow-right': '오른쪽 다음'.split(' '),
+    'arrow-left': '왼쪽 이전'.split(' '),
+    'arrow-up': '위 상승'.split(' '),
+    'arrow-down': '아래 하락'.split(' '),
+    'arrows-left-right': '좌우 이동'.split(' '),
+    'caret-right': '펼치기'.split(' '),
+    'sign-in': '들어가기 로그인'.split(' '),
+    'sign-out': '나가기 로그아웃'.split(' '),
+    'house': '집 홈 처음'.split(' '),
+    'buildings': '건물 소싱처 회사'.split(' '),
+    'map-pin': '위치 핀 장소'.split(' '),
+    'compass': '나침반 탐색'.split(' '),
+    'path': '경로 흐름'.split(' '),
+    'airplane-tilt': '비행기 배송'.split(' '),
+    'user': '사용자 사람'.split(' '),
+    'users': '여러사람 팀'.split(' '),
+    'user-circle': '프로필 계정'.split(' '),
+    'user-plus': '사용자추가'.split(' '),
+    'identification-card': '신분증 계정'.split(' '),
+    'address-book': '주소록 연락처'.split(' '),
+    'handshake': '거래 제휴'.split(' '),
+    'chat-circle': '대화 문의'.split(' '),
+    'envelope': '메일 편지'.split(' '),
+    'phone': '전화'.split(' '),
+    'headset': '고객센터'.split(' '),
+    'chart-bar': '막대그래프 통계'.split(' '),
+    'chart-line': '선그래프 추이'.split(' '),
+    'chart-pie': '원그래프 비율'.split(' '),
+    'trend-up': '상승 증가'.split(' '),
+    'trend-down': '하락 감소'.split(' '),
+    'calculator': '계산기 마진'.split(' '),
+    'percent': '퍼센트 비율 할인'.split(' '),
+    'currency-krw': '원화 가격'.split(' '),
+    'calendar': '달력 날짜'.split(' '),
+    'clock-counter-clockwise': '이력 기록 되돌리기'.split(' '),
+    'funnel': '거르기 필터'.split(' '),
+    'magnifying-glass': '검색 돋보기 찾기'.split(' '),
+    'gear': '설정 톱니'.split(' '),
+    'sliders': '조정 설정'.split(' '),
+    'lightbulb': '아이디어 팁 전구'.split(' '),
+    'sparkle': '새로운 반짝'.split(' '),
+    'fire': '인기 불'.split(' '),
+    'lightning': '빠름 번개 자동'.split(' '),
+    'gift': '선물 혜택'.split(' '),
+    'trophy': '우승 최고'.split(' '),
+    'medal': '메달 순위'.split(' '),
+    'target': '목표 타겟'.split(' '),
+    'puzzle-piece': '조각 연동'.split(' '),
+    'wrench': '수리 도구'.split(' '),
+    'toolbox': '도구상자'.split(' '),
+    'trash': '삭제 휴지통 버리기'.split(' '),
+    'broom': '정리 청소'.split(' '),
+    'recycle': '재사용 복구'.split(' '),
+    'question': '물음 도움말'.split(' '),
   };
 
   // 색상 palette (default + 9색)
@@ -155,13 +248,13 @@
         <div class="icp-head">
           <h3>${escapeHtml(title)}</h3>
           ${subtitle ? `<span class="icp-sub">${escapeHtml(subtitle)}</span>` : ''}
-          <button type="button" class="icp-esc">Esc ✕</button>
+          <button type="button" class="icp-esc">Esc <i class="ph-light ph-x" aria-hidden="true"></i></button>
         </div>
         <div class="icp-search">
-          <input type="text" placeholder="🔍 검색 — 한글/영문/키워드 (예: 집·home·홈)" autocomplete="off">
+          <input type="text" placeholder="검색 — 한글로 찾기 (예: 상자·신발·돈)" autocomplete="off">
           <div class="icp-mode">
-            <button type="button" data-mode="color">🌈 색상</button>
-            <button type="button" data-mode="bw" class="on">⚫ 흑백</button>
+            <button type="button" data-mode="color"><i class="ph-light ph-palette" aria-hidden="true"></i> 색상</button>
+            <button type="button" data-mode="bw" class="on"><i class="ph-light ph-circle-half" aria-hidden="true"></i> 흑백</button>
           </div>
         </div>
         <div class="icp-cats"></div>
@@ -211,7 +304,7 @@
         const cls = ['icp-cell'];
         if (mode === 'color') cls.push('cmode', colorClass(i));
         if (e === curIcon) cls.push('selected');
-        return `<button type="button" class="${cls.join(' ')}" tabindex="0" data-icon="${escapeHtml(e)}">${e}</button>`;
+        return `<button type="button" class="${cls.join(' ')}" tabindex="0" data-icon="${escapeHtml(e)}" title="${escapeHtml(e)}"><i class="ph-light ph-${escapeHtml(e)}" aria-hidden="true"></i></button>`;
       }).join('');
     }
 
@@ -232,7 +325,7 @@
         </div>
 
         <div class="icp-cp-section">
-          <div class="icp-cp-row-label">🟦 바탕색</div>
+          <div class="icp-cp-row-label"><i class="ph-light ph-paint-bucket" aria-hidden="true"></i> 바탕색</div>
           <div class="icp-cp-photo-host" data-target="bg"></div>
           <div class="icp-cp-grid">
             ${COLOR_PALETTE.map(c => `
@@ -247,7 +340,7 @@
         </div>
 
         <div class="icp-cp-section">
-          <div class="icp-cp-row-label">🅰 글자색</div>
+          <div class="icp-cp-row-label"><i class="ph-light ph-text-aa" aria-hidden="true"></i> 글자색</div>
           <div class="icp-cp-photo-host" data-target="fg"></div>
           <div class="icp-cp-grid">
             ${COLOR_PALETTE.map(c => `
@@ -446,15 +539,15 @@
           const oldIcon = trigger.dataset.iconCurrent || '';
           const fullText = trigger.textContent;
           const m = fullText.match(INLINE_EMOJI_RE);
-          if (m) {
-            trigger.textContent = icon + fullText.slice(m[1].length);
-          } else if (oldIcon && fullText.startsWith(oldIcon)) {
-            trigger.textContent = icon + fullText.slice(oldIcon.length);
-          } else {
-            trigger.textContent = icon + ' ' + fullText;
-          }
+          // 선 아이콘은 글자가 아니라 태그라 innerHTML 로 넣는다
+          const tag = '<i class="ph-light ph-' + String(icon).replace(/[^a-z0-9-]/g, '') + '" aria-hidden="true"></i>';
+          let rest = fullText;
+          if (m) rest = fullText.slice(m[1].length);
+          else if (oldIcon && fullText.startsWith(oldIcon)) rest = fullText.slice(oldIcon.length);
+          else rest = ' ' + fullText;
+          trigger.innerHTML = tag + rest.replace(/[<>&]/g, '');
         } else {
-          trigger.textContent = icon;
+          trigger.innerHTML = '<i class="ph-light ph-' + String(icon).replace(/[^a-z0-9-]/g, '') + '" aria-hidden="true"></i>';
         }
         trigger.dataset.iconCurrent = icon;
         trigger.dataset.iconColor = color;
@@ -523,7 +616,7 @@
       btn.type = 'button';
       btn.className = 'icp-edit-btn';
       btn.title = '아이콘 변경 (또는 우클릭)';
-      btn.textContent = '✎';
+      btn.innerHTML = '<i class="ph-light ph-pencil-simple" aria-hidden="true"></i>';
       btn.addEventListener('click', evt => {
         evt.preventDefault(); evt.stopPropagation();
         _openPickerFor(trigger);
@@ -1067,12 +1160,12 @@
     pop.className = 'icp-color-pop icp-cp-v34';
     pop.innerHTML = `
       <div class="icp-cp-head">
-        <span class="icp-cp-title">${isBrand ? `🏷 브랜드 색상 — ${escapeHtmlSafe(brandKey)}` : '🎨 색상 선택'}</span>
+        <span class="icp-cp-title">${isBrand ? `<i class="ph-light ph-tag" aria-hidden="true"></i> 브랜드 색상 — ${escapeHtmlSafe(brandKey)}` : '🎨 색상 선택'}</span>
         ${isBrand ? `<small class="icp-cp-sub">프로그램 전체의 모든 "${escapeHtmlSafe(brandKey)}" 로고에 즉시 적용</small>` : ''}
       </div>
 
       <div class="icp-cp-section">
-        <div class="icp-cp-row-label">🟦 바탕색</div>
+        <div class="icp-cp-row-label"><i class="ph-light ph-paint-bucket" aria-hidden="true"></i> 바탕색</div>
         <div class="icp-cp-photo-host" data-target="bg"></div>
         <div class="icp-cp-grid">
           ${COLOR_PALETTE.map(c => `
@@ -1087,7 +1180,7 @@
       </div>
 
       <div class="icp-cp-section">
-        <div class="icp-cp-row-label">🅰 글자색</div>
+        <div class="icp-cp-row-label"><i class="ph-light ph-text-aa" aria-hidden="true"></i> 글자색</div>
         <div class="icp-cp-photo-host" data-target="fg"></div>
         <div class="icp-cp-grid">
           ${COLOR_PALETTE.map(c => `
@@ -1103,7 +1196,7 @@
 
       ${isBrand ? `
       <div class="icp-cp-section">
-        <div class="icp-cp-row-label">🔤 박스 안 글자 (최대 4자)</div>
+        <div class="icp-cp-row-label"><i class="ph-light ph-text-aa" aria-hidden="true"></i> 박스 안 글자 (최대 4자)</div>
         <div class="icp-cp-input-row">
           <input type="text" class="icp-cp-letter" value="${escapeHtmlSafe(curLetter)}" placeholder="(자동) — 비우면 기본" maxlength="4" style="flex:1; padding:6px 10px; font-size:13px; border:1.5px solid #E5E8EB; border-radius:6px; font-family:inherit; background:#fff;">
         </div>
@@ -1384,7 +1477,7 @@
       btn.className = 'icp-color-btn';
       btn.type = 'button';
       btn.title = '색상 변경 (또는 우클릭)';
-      btn.textContent = '🎨';
+      btn.innerHTML = '<i class="ph-light ph-palette" aria-hidden="true"></i>';
       btn.addEventListener('click', evt => { evt.preventDefault(); evt.stopPropagation(); openColorPopover(t, evt); });
       btn.addEventListener('mousedown', evt => { evt.preventDefault(); evt.stopPropagation(); });
       t.appendChild(btn);

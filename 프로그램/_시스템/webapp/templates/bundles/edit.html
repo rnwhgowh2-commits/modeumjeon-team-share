@@ -12,7 +12,7 @@
       {# v32 — 큰 아이콘 picker 트리거 (호버 ✎ + 우클릭) #}
       <div class="bh-thumb"
            data-icon-edit="model|{{ bundle.model_code }}"
-           data-icon-current="{% if bundle.category == '의류' %}👕{% else %}👟{% endif %}"
+           data-icon-current="{% if bundle.category == '의류' %}t-shirt{% else %}sneaker{% endif %}"
            data-icon-label="{{ bundle.model_code }}">{% if bundle.category == '의류' %}<i class="ph-light ph-t-shirt" aria-hidden="true"></i>{% else %}<i class="ph-light ph-sneaker" aria-hidden="true"></i>{% endif %}</div>
       <div style="flex:1;min-width:0">
         <h1 class="bh-title">{{ bundle.model_code }}</h1>
