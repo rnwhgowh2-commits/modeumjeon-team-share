@@ -63,7 +63,7 @@
   /* 시안과 같은 격자 — 숫자칸을 고정폭으로 두어야 자릿수가 세로로 맞는다.
      셀 통째 정렬로 때우면 행마다 어긋난다. */
   .sf-row{display:grid;
-    grid-template-columns:minmax(0,1fr) 84px 68px 68px 68px 84px 320px;
+    grid-template-columns:minmax(0,1fr) 84px 68px 68px 68px 84px 170px 320px;
     gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6)}
   .sf-row:last-child{border-bottom:0}
   .sf-nm{font-size:13px;font-weight:700;color:var(--ink,#191F28)}
@@ -121,12 +121,24 @@
     border:1px solid var(--line,#E5E8EB);border-radius:4px;padding:1px 4px;
     background:var(--surface,#fff);max-width:170px}
   .sf-empty{padding:24px 14px;text-align:center;font-size:12px;color:var(--sub,#8B95A1);line-height:1.9}
+  /* [#1060] 상품군(검색필터) 단위 카테고리 자동 맵핑 현황 — 엔진 자체는
+     대량등록 설정 탭(소싱처 단위)에 이미 있다. 여기는 상품군 단위로 보여줄 뿐이다. */
+  .sf-cm{display:flex;flex-direction:column;gap:3px}
+  .sf-cm-bar{height:5px;border-radius:999px;background:var(--n100,#F2F4F6);overflow:hidden}
+  .sf-cm-bar i{display:block;height:100%;background:#27500A}
+  .sf-cm-txt{font-size:11px;color:var(--sub,#8B95A1);white-space:nowrap}
+  .sf-cm-empty{font-size:12px;color:var(--sub,#8B95A1)}
+  .sf-cm-btn{margin-top:2px;background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
+    border-radius:6px;padding:3px 8px;font-family:inherit;font-size:11px;font-weight:700;
+    color:var(--글자-기본,#4E5968);cursor:pointer;align-self:flex-start}
+  .sf-cm-btn[disabled]{opacity:.5;cursor:default}
 </style>
 <style>
 /* 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다(이 파일의 기존 규칙과 같은 방식). */
 @media (max-width: 768px) {
   .sf-row{grid-template-columns:1fr 1fr;gap:8px}
   .sf-main{grid-column:1 / -1}
+  .sf-cm{grid-column:1 / -1}
   .sf-act{grid-column:1 / -1;text-align:left}
   .sf-btn{min-height:44px}
   .sf-grid{grid-template-columns:repeat(2,1fr)}
@@ -174,6 +186,24 @@
     } else { p.push('첫 쪽만'); }
     p.push(f.max_items ? ('최대 ' + f.max_items + '개') : '상한 없음');
     return p.join(' · ');
+  }
+
+  // [#1060] 카테고리 자동 맵핑 — 집계 단위는 상품 개수가 아니라 소싱처
+  //   카테고리 경로 개수다(같은 경로를 쓰는 상품 여럿은 「경로 1개」).
+  //   엔진은 이미 있다 — 여기서는 상품군 단위로 현황만 보여주고, 「지금 다시
+  //   맞추기」는 그 소싱처 전체를 다시 살펴보는 기존 기능을 그대로 부른다.
+  function catmapCell(f) {
+    const cm = f.catmap || { total: 0, confirmed: 0, suggested_only: 0, none: 0 };
+    if (!cm.total) {
+      return `<div class="sf-cm"><span class="sf-cm-empty">카테고리 아직 모름</span></div>`;
+    }
+    const pct = Math.round(cm.confirmed / cm.total * 100);
+    return `
+      <div class="sf-cm">
+        <div class="sf-cm-bar"><i style="width:${pct}%"></i></div>
+        <div class="sf-cm-txt">확정 ${cm.confirmed} · 제안 ${cm.suggested_only} · 없음 ${cm.none}</div>
+        <button class="sf-cm-btn" data-catmap="${f.id}" data-src="${esc(f.source_key)}">지금 다시 맞추기</button>
+      </div>`;
   }
 
   function row(f) {
@@ -234,6 +264,7 @@
               : `<div style="font-size:12px;opacity:.7">확장 ${esc(f.last_ext_version)}</div>`
           ) : ''
         }</div>
+        ${catmapCell(f)}
         <div class="sf-act">
           <button class="sf-btn" data-run="${f.id}" ${running ? 'disabled' : ''}>
             ${running ? '훑는 중' : '지금 수집'}</button>
@@ -334,6 +365,9 @@
     root.querySelectorAll('[data-del]').forEach((b) => {
       b.onclick = () => delNow(b.dataset.del, b);
     });
+    root.querySelectorAll('[data-catmap]').forEach((b) => {
+      b.onclick = () => runCatmap(b.dataset.src, b);
+    });
     watch();
   }
 
@@ -370,6 +404,22 @@
     fetch('/bulk/api/search-filters/' + id + '/run', { method: 'POST' })
       .then((r) => r.json()).then(() => load())
       .catch(() => load());
+  }
+
+  // [#1060] 이 소싱처 전체의 카테고리 자동 제안을 다시 만든다(기존 M2 기능
+  //   그대로 — 소싱처 단위다. 이 상품군만 골라 돌리는 수단은 아직 없다).
+  function runCatmap(src, btn) {
+    btn.disabled = true; btn.textContent = '맞추는 중…';
+    fetch('/bulk/api/catmap/suggest/' + encodeURIComponent(src), { method: 'POST' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) { window.alert(j.error || '카테고리를 못 맞췄습니다.'); return; }
+        window.alert('「' + src + '」 소싱처 전체를 다시 살펴봤어요 — 새로 제안된 것 '
+          + (j.suggested || 0) + '건');
+        load();
+      })
+      .catch((e) => window.alert(e.message))
+      .then(() => { btn.disabled = false; btn.textContent = '지금 다시 맞추기'; });
   }
 
   // 찾은 주소 보기 — 「찾음 31」만 보고는 **무엇을** 찾았는지 알 수 없다.
