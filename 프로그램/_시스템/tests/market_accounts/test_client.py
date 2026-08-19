@@ -70,7 +70,7 @@ def test_404_raises_unavailable(monkeypatch):
     )
 
     from shared.market_accounts.client import MarketAccountUnavailable
-    with pytest.raises(MarketAccountUnavailable, match="coupang"):
+    with pytest.raises(MarketAccountUnavailable, match="찾을 수 없습니다"):
         mod.get_market_account("coupang")
 
 
