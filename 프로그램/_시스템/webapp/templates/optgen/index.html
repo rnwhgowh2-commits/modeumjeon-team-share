@@ -1130,6 +1130,9 @@
     obBack.addEventListener('click', function (e) {
       if (e.target === obBack) obBack.classList.remove('open');
     });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && obBack.classList.contains('open')) obBack.classList.remove('open');
+    });
   }
 
   // [2026-08-04 사장님 확정 B1] 서랍 정렬 — 이미 그린 줄의 순서만 바꾼다.
