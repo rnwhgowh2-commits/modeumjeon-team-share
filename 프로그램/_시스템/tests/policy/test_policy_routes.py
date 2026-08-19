@@ -490,6 +490,59 @@ def test_판매처_연동_없는_상품은_빈_목록이다(client):
     assert row['selling']['collected_at'] is None
 
 
+def test_필터_정책적용됨만_보여준다(client):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '르무통')
+    pid = _new_policy(client, '필터정책')
+    s = client._Session()
+    try:
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['M1'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles?applied=yes').get_json()
+    assert [r['model_code'] for r in j['rows']] == ['M1']
+
+
+def test_필터_정책미적용만_보여준다(client):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '르무통')
+    pid = _new_policy(client, '필터정책2')
+    s = client._Session()
+    try:
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['M1'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles?applied=no').get_json()
+    assert [r['model_code'] for r in j['rows']] == ['M2']
+
+
+def test_필터_구성단위_정책도_적용됨으로_잡는다(client):
+    """SetPolicyLink(구성 단위)로만 붙은 것도 「적용됨」이어야 한다 —
+    상품 단위(BundlePolicyLink)만 보면 놓친다."""
+    from lemouton.policy.bundles import add_bundle
+    from lemouton.sourcing.models import Option
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '르무통')       # 정책 없음 — 필터가 안 걸리면 얘도 같이 나온다
+    pid = _new_policy(client, '구성정책')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.commit()
+        add_bundle(s, model_code='M1', policy_id=pid)
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles?applied=yes').get_json()
+    assert [r['model_code'] for r in j['rows']] == ['M1']
+
+
 def test_사이드바에_상품_정책_적용이_있다(client):
     body = client.get('/policies').get_data(as_text=True)
     assert '/policies/apply' in body

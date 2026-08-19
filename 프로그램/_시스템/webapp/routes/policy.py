@@ -408,10 +408,17 @@ def api_bundles():
     from lemouton.sourcing.models import Model
     kw = (request.args.get('q') or '').strip().lower()
     want_brand = (request.args.get('brand') or '').strip()
+    want_applied = (request.args.get('applied') or '').strip()  # 'yes' | 'no' | ''(전체)
     s = SessionLocal()
     try:
         names = dict(s.query(MarketPolicy.id, MarketPolicy.name).all())
         linked = dict(s.query(BundlePolicyLink.model_code, BundlePolicyLink.policy_id).all())
+        # [이슈 #1058] 정책 적용 필터 — 상품(BundlePolicyLink) ∪ 구성(SetPolicyLink)
+        #   합집합을 봐야 한다. 상품 단위만 보면 구성으로만 정책이 붙은 상품을
+        #   「미적용」으로 잘못 판정한다(bundles_tower.policy_models 와 같은 규칙 재사용).
+        from webapp.routes.bundles_tower import policy_models
+        all_codes = [c for (c,) in s.query(Model.model_code).all()]
+        applied_codes = policy_models(s, all_codes) if want_applied else set()
         rows, counts, total = [], {}, 0
         # [2026-08-02] 이름으로도 찾게 한다 — 사장님은 번호가 아니라 「메이트」로 찾는다.
         #   찾는 칸만 넓힌 것이라 번호·브랜드로 찾던 결과는 그대로 나온다.
@@ -426,6 +433,10 @@ def api_bundles():
                 continue
             if kw and kw not in (code + ' ' + (disp or '') + ' ' + (brand or '')
                                  + ' ' + (nm or '')).lower():
+                continue
+            if want_applied == 'yes' and code not in applied_codes:
+                continue
+            if want_applied == 'no' and code in applied_codes:
                 continue
             if len(rows) < 300:
                 rows.append({'model_code': code, 'no': disp, 'brand': brand, 'name': nm,
