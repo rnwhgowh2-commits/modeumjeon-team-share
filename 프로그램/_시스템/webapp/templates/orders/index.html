@@ -3255,10 +3255,31 @@
         });
       });
     }
+    /* 🔴 일괄 저장 결과는 **선택이 풀린 뒤에도 남아야 한다**.
+         일괄 3종(공급방식·상태·매입가)은 저장이 끝나면 선택을 비우고 render() 를 부르는데,
+         그 순간 이 줄이 통째로 새로 그려져 「✓ 2줄 저장 · 실패 1줄」이 **즉시 사라졌다**
+         (2026-08-12 라이브에서 일괄 저장을 실제로 돌려 보다 잡음 — 값은 들어갔는데
+         몇 줄이 됐고 몇 줄이 실패했는지 화면이 말해 주지 못했다. 특히 **실패 건수**가
+         안 보이는 게 위험하다). 그래서 결과 문구를 render 를 견디는 곳에 따로 둔다. */
+    var supLast='', supLastTimer=null;
+    function supSay(text){
+      supLast=text||'';
+      if(supLastTimer)clearTimeout(supLastTimer);
+      if(supLast)supLastTimer=setTimeout(function(){supLast='';renderSupBar();},12000);
+      renderSupBar();
+    }
     function renderSupBar(){
       var bar=document.getElementById('supbar'); if(!bar)return;
       var n=Object.keys(smSel).length;
-      if(!n){bar.innerHTML='';return;}
+      if(!n){
+        bar.innerHTML=supLast
+          ? ('<div class="supbar-in"><span class="supmsg">'+esc(supLast)+'</span>'
+             +'<button type="button" class="supbtn ghost" id="supX">닫기</button></div>')
+          : '';
+        var x=bar.querySelector('#supX');
+        if(x)x.addEventListener('click',function(){supSay('');});
+        return;
+      }
       /* 🔴 「주문 관리」 상태 일괄 지정도 **이 줄에 얹는다** — 표에 이미 있는 네모(다중선택)를
            그대로 쓴다. 새 선택 배선을 또 만들면 「어느 네모가 무엇을 고른 건지」가 갈린다.
            항목을 하나도 안 만들었으면 그 칸만 빠진다(없는 걸 고르라 할 수 없다). */
@@ -3336,10 +3357,11 @@
                                       :{price:o.j.price,tier:o.j.tier,label:o.j.label};
           });
           smSel={};
-          if(msg)msg.textContent='✓ '+(o.j.saved||0)+'줄 저장'
+          var done='✓ '+(o.j.saved||0)+'줄 저장'
             +((o.j.deleted)?(' · '+o.j.deleted+'줄 지움'):'')
             +((o.j.failed&&o.j.failed.length)?(' · 실패 '+o.j.failed.length+'줄'):'');
           render();
+          supSay(done);      // 선택이 풀려 줄이 새로 그려져도 결과는 남는다
           // 지웠으면 2·3순위를 다시 물어야 하고, 적었으면 탭 판정이 바뀐다.
           if(o.j.price==null)loadPurchasePrice(loadSeq); else ppRefreshFlags();
         })
@@ -3361,9 +3383,9 @@
           var st=o.j.statuses||{};
           uids.forEach(function(u){ if(st[u])ostMap[u]=st[u]; else delete ostMap[u]; });
           smSel={};
-          if(msg)msg.textContent='✓ '+o.j.saved+'줄 저장됨'
-            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):'');
           render();
+          supSay('✓ '+o.j.saved+'줄 저장됨'
+            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):''));
         })
         .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
     }
@@ -3382,9 +3404,9 @@
           var failed={}; (o.j.failed||[]).forEach(function(f){failed[f.line_uid]=1;});
           uids.forEach(function(u){ if(!failed[u])smMap[u]=o.j.mode; });
           smSel={};
-          if(msg)msg.textContent='✓ '+o.j.saved+'줄 저장됨'
-            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):'');
           render();
+          supSay('✓ '+o.j.saved+'줄 저장됨'
+            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):''));
         })
         .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
     }
