@@ -122,7 +122,7 @@
              그대로 두되 이 목록 한정으로 회색/초록(`direct_phase_cls`). #}
           <tr><th class="og-pick"><label><input type="checkbox" id="og-ckall"
                  aria-label="보이는 줄 모두 고르기"></label></th>
-            <th class="og-num">NO</th>
+            <th class="og-ctr">NO</th>
             <th>옵션 매트릭스</th>
             <th>모음전 구성</th>
             <th class="og-ctr">옵션축</th>
@@ -141,7 +141,7 @@
             <td class="og-pick"><label><input type="checkbox" class="og-bk"
                  data-code="{{ b.code }}" data-name="{{ b.name }}"
                  data-opts="{{ b.options }}" aria-label="{{ b.name }} 고르기"></label></td>
-            <td class="og-num">{{ loop.index }}</td>
+            <td class="og-ctr">{{ loop.index }}</td>
             {# ── 옵션 매트릭스 (병합, 2행 압축) ──────────────────────────────
                1행 = 이름(굵게, 미구성 SKU면 딱지도). 2행 = 매트릭스 번호 + 원본/
                파생 표시 · 브랜드 · 모델명(모델모음전이면 최대 8개 나열, 그 이상은
@@ -170,8 +170,10 @@
             </td>
             <td>{% if b.moum_kind_label %}{{ b.moum_kind_label }}{% else %}<span
                 class="og-dash" title="아직 어떤 모음전인지 안 정했습니다.">—</span>{% endif %}</td>
-            {# 옵션축 — 축마다 서로 다른 값이 몇 개인지 칩으로. 축이 없으면 「—」. #}
-            <td class="og-ctr">{% if b.axis_pairs %}<span class="axis-chip-row">{% for aname, acnt in b.axis_pairs -%}
+            {# 옵션축 — 축마다 서로 다른 값이 몇 개인지 칩으로. 축이 없으면 「—」.
+               🔴 [2026-08-19 사장님 지적] 칩이 3개(모델·색상·사이즈)로 늘어나면
+                  칸이 좁아 보였다 — `og-axiscell` 로 최소 폭을 확보한다. #}
+            <td class="og-ctr og-axiscell">{% if b.axis_pairs %}<span class="axis-chip-row">{% for aname, acnt in b.axis_pairs -%}
                 <span class="axis-chip">{{ aname }} <b>{{ acnt }}</b></span>
                 {%- endfor %}</span>{% else %}<span class="og-dash"
                 title="아직 축을 안 짰습니다.">—</span>{% endif %}</td>
@@ -675,6 +677,10 @@
   /* ── [2026-08-19 사장님 확정] 옵션축 칩 · SKU 연결상태·소싱처 배지 ──
      🔴 이름이 비슷한 `.og-badge`(위상 딱지)와 안 섞이게 새 이름을 쓴다. */
   .og-skucell,.og-srccell{white-space:nowrap}
+  /* 🔴 [2026-08-19 사장님 지적] 칩이 3개(모델·색상·사이즈)로 늘어도 한 줄에
+     들어가게 최소 폭을 잡아 둔다 — 안 잡으면 표가 좁을 때 칩이 세로로 접혀
+     칸이 「좁다」는 인상을 준다. 칩 3개(약 55px씩)+사이 여백 기준 실측. */
+  .og-axiscell{min-width:172px}
   .axis-chip-row{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:center}
   .axis-chip{background:var(--ap-g1,#F5F5F7);border-radius:6px;padding:2px 7px;
     font-size:11px;color:var(--color-text-secondary);white-space:nowrap}
