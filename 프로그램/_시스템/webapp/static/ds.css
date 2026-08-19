@@ -374,3 +374,33 @@ body.ds-has-warn { padding-top: 42px; }
 }
 .form-row:hover > .form-hint,
 .form-row > .form-hint:hover { display: block; }
+
+/* ── 화면마다 손으로 만든 팝업 → 오른쪽 서랍 (확정 12번 B) ──────
+   판을 부모 배치에서 떼어내(fixed) 오른쪽 끝에 붙인다.
+   부모가 가운데 정렬이든 뭐든 상관없이 서랍이 된다.
+
+   바꾸는 것 (편집·정보 팝업 — '뒤를 보면서 고친다' 가 통하는 것)
+     .pm-ov-modal   420px  재고 수정
+     .sj-help-body  520px  도움말
+     .sb-modal-body 680px  소싱처 편집
+
+   그대로 두는 것 (서랍이 오히려 나쁜 것)
+     .pc-modal        1180px — 서랍으로 만들면 화면을 거의 다 덮어 '뒤를 보는' 뜻이 사라진다
+     .emoji-modal      920px — 아이콘 고르기 격자. 좁히면 못 쓴다
+     .scan-overlay / .sb-cam-overlay — 카메라 화면. 서랍이 아니다
+     .stock-memo-drawer — 이미 서랍
+   ------------------------------------------------------------ */
+.pm-ov-modal, .sj-help-body, .sb-modal-body {
+  position: fixed !important;
+  top: 0 !important; right: 0 !important; left: auto !important; bottom: 0 !important;
+  height: 100vh !important; max-height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: -10px 0 28px rgba(0,0,0,.14) !important;
+  display: flex !important; flex-direction: column;
+  overflow-y: auto;
+  z-index: 1000;
+}
+.pm-ov-modal  { width: 420px !important; max-width: 92vw !important; }
+.sj-help-body { width: 460px !important; max-width: 92vw !important; }
+.sb-modal-body{ width: 560px !important; max-width: 92vw !important; }

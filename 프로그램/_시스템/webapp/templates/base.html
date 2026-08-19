@@ -559,6 +559,41 @@
   }
   wrap();
   window.addEventListener('load', wrap);   // 나중에 정의되는 화면도 잡는다
+
+  // ── 브라우저 기본 경고창(alert) → 위 고정 띠 ─────────────────────
+  //  alert 은 화면을 멈춰 세우지만 띠는 안 멈춘다. 그래서
+  //      alert('삭제 완료'); location.href = '...'
+  //  같은 곳에서 메시지가 사라진다. 넘어간 화면에서 이어 보여주도록
+  //  잠깐 적어 뒀다가 다음 화면에서 띄운다.
+  //  confirm() · prompt() 는 값을 돌려주므로 건드리지 않는다.
+  var PEND = 'ds-pending-warn';
+  function carry(msg){
+    try {
+      var a = JSON.parse(sessionStorage.getItem(PEND) || '[]');
+      a.push({m: String(msg), t: Date.now()});
+      sessionStorage.setItem(PEND, JSON.stringify(a.slice(-5)));
+    } catch (e) {}
+  }
+  function drain(){
+    var a = [];
+    try { a = JSON.parse(sessionStorage.getItem(PEND) || '[]'); sessionStorage.removeItem(PEND); } catch (e) {}
+    var now = Date.now();
+    a.forEach(function(x){ if (now - x.t < 10000) window.dsWarn(x.m); });
+  }
+  drain();
+
+  var nativeAlert = window.alert;
+  window.alert = function(msg){
+    window.dsWarn(msg);
+    carry(msg);                       // 화면이 넘어가도 다음 화면에서 다시 보이게
+    setTimeout(function(){            // 안 넘어갔으면 적어 둔 것을 지운다
+      try {
+        var a = JSON.parse(sessionStorage.getItem(PEND) || '[]');
+        sessionStorage.setItem(PEND, JSON.stringify(a.filter(function(x){ return x.m !== String(msg); })));
+      } catch (e) {}
+    }, 1200);
+  };
+  window.dsNativeAlert = nativeAlert;  // 정말 멈춰야 할 때 쓰라고 남겨 둠
 })();
 </script>
 </body>
