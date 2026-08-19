@@ -781,44 +781,9 @@
   html body table.og-tb4 td.og-num,html body table.og-tb4 th.og-num{
     text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   html body table.og-tb4 td.og-ctr,html body table.og-tb4 th.og-ctr{text-align:center}
-  .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
-  .stg-head{font-weight:600}
-  .stg-head .n{font-variant-numeric:tabular-nums}
-  .stg-bar{display:flex;height:10px;border-radius:980px;overflow:hidden;margin:8px 10px 10px}
-  .stg-bar i{display:block}
-  .stg-bar i.g1{background:var(--ap-g3,#D2D2D7)}
-  .stg-bar i.g2{background:var(--ap-버튼파랑,#0071E3)}
-  .stg-bar i.g4{background:var(--글자-주황,#C93400)}
-  .stg-bar i.g3{background:var(--ap-green,#34C759)}
-  .stg-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;
-    border:1px solid transparent;cursor:pointer;
-    transition:background .24s cubic-bezier(.4,0,.6,1),color .24s}
-  .stg-row:hover{background:var(--ap-g0,#FAFAFC)}
-  .stg-row.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
-  .stg-row .lb{flex:1;min-width:0;white-space:nowrap;line-height:1.4}
-  .stg-row .n{flex:none;font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums;line-height:1.4}
-  .stg-row.on .n{color:inherit}
-  .stg-div{height:1px;background:var(--ap-g2,#E8E8ED);margin:8px 10px}
-  /* 단계 구분 = **글자색만**. 줄에 색 배경을 칠하면 「덕지덕지」해진다(사장님 실측). */
-  .stg-row.t1 .lb{color:var(--ap-g45,#6E6E73)}
-  .stg-row.t2 .lb{color:var(--ap-링크파랑,#0066CC)}
-  .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
-  .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
-  /* 옵션함 위상(readiness.PHASE_CLS) — 배지와 **같은 색 뜻**을 쓴다.
-     회색=아직 · 파랑=중간 · 초록=끝. 위 t1~t4 와 같은 색 변수라 화면 어디서나 뜻이 같다. */
-  .stg-row.wait .lb{color:var(--ap-g45,#6E6E73)}
-  .stg-row.mid .lb{color:var(--ap-링크파랑,#0066CC)}
-  .stg-row.sale .lb{color:var(--글자-초록,#248A3D)}
-  .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
-  .stg-row.fix .n{font-weight:600}
-  /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.
-     글자 쪽은 안 건드리므로 화면이 조용하다. */
-  .stg-row .n{background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 9px;
-    min-width:38px;text-align:center;transition:background .24s}
-  .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
-  .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
-  .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
-  .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
+  /* [이슈 #1081] 삭제 확정된 왼쪽 진행판(.stg-block 이하) 전용 CSS 도 같이 제거 —
+     마크업 없는 선택자를 남기면 test_screen_truthfulness 가 잡는다.
+     `.og-rail` 은 옵션 탭 서랍과 공용이라 안 건드림(바로 아래 블록). */
   /* [2026-08-12 노션 상품 a-1 · 사장님 확정 「사이드바를 키운다」]
      440px 에서 라벨이 쓸 수 있는 폭은 카드 두 겹(서랍 + 판) 패딩을 빼면 318px 뿐인데
      가장 긴 상태 이름(「상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용」)은 375px 라
@@ -993,7 +958,6 @@
      · `width:max-content` 자체도 안 건드린다(PC 규격 · test_screen_truthfulness).
      → 폰에서만 **줄바꿈을 허용**한다. 두 줄이 되어도 글자는 다 보인다. */
   .og-rail { width: auto; max-width: 100%; min-width: 0; }
-  .stg-row .lb { white-space: normal; }
   /* 체크칸 손끝 목표 — 입력칸 자체는 13px 이라 라벨로 44px 를 만든다(감사 실측). */
   .og-pick label { min-width: 44px; min-height: 44px; }
 }
