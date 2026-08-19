@@ -82,6 +82,8 @@ CHOICE_LABELS = {
     "cheapest": "가장 싼 곳", "priciest": "가장 비싼 곳", "average": "평균",
     "max": "가장 비싼 값으로", "min": "가장 싼 값으로",
     "WON": "정액 (원)", "PERCENT": "정률 (%)",
+    # 할인 부담 주체
+    "seller": "판매자 부담", "market": "마켓 부담", "split": "반반 부담",
     # 옵션 축 — 마켓에 나가는 그룹 이름과 **같은 글자**로 둔다
     #   (`options.py` 의 _ONE_GROUP·_MODEL_GROUP·_COLOR_GROUP·_SIZE_GROUP)
     "one": "한 갈래 (메이트 블랙 260)", "two": "색상 · 사이즈",
