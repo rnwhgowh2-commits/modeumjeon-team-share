@@ -564,6 +564,11 @@ def index():
             # 「없음」 대신 오류로 죽으므로, 만드는 쪽과 **같은 열쇠**를 쓴다.
             boxes, box_counts = [], _빈_박스_숫자()
         mats = _matrices(s) if tab == 'product' else []
+        # [이슈 #1074] "+새 상품 생성" 팝업의 카테고리 칸 — bundles/new.html 과 같은
+        # 목록을 쓴다(Model.category 가 단일 진실 원천). 두 곳에서 각자 만들면
+        # 한쪽만 새 카테고리를 알아 목록이 갈린다 — 기존 함수를 그대로 가져다 쓴다.
+        from webapp.routes.bundles import _all_categories
+        categories = _all_categories() if tab == 'product' else []
     finally:
         s.close()
     # [2026-08-06 사장님 확정 2번] 상품을 만들면 이 초기화면으로 돌아온다 —
@@ -615,7 +620,8 @@ def index():
                            #    온다(`matrix/sku_info.FIELDS`·`LABELS`). 화면에 손으로
                            #    적어 두면 칸이 하나 늘거나 이름이 바뀔 때 이 화면만 뒤처져,
                            #    격자에서 고친 값이 목록에서는 다른 이름으로 세어진다.
-                           sku_fields=SKU_FIELDS, sku_labels=SKU_LABELS)
+                           sku_fields=SKU_FIELDS, sku_labels=SKU_LABELS,
+                           categories=categories)
 
 
 @bp.get('/product/by-code/<path:code>')
