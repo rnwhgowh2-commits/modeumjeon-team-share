@@ -347,6 +347,23 @@ def test_상품고르기_정책상태_필터칩이_나온다(client):
     assert 'data-applied="no"' in body
 
 
+def test_상품고르기_JS에_소싱처판매처_배지_매칭표가_있다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'SRC_MATCH' in body
+    assert 'SELL_MATCH' in body
+
+
+def test_상품고르기_JS에_호버카드_엔드포인트_경로가_있다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert '/sourcing-detail' in body
+    assert '/selling-detail' in body
+
+
+def test_상품고르기_JS에_상태필터_와이어링이_있다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'curApplied' in body
+
+
 def test_정책은_하나만_고를_수_있다(client):
     """상품 하나에 정책 하나 — 여러 개를 고르게 하면 거짓 기능이 된다."""
     _new_policy(client, '라디오확인')
