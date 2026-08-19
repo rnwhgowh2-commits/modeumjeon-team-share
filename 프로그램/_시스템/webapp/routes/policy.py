@@ -489,6 +489,30 @@ def api_bundles():
                 or {'connected': set(), 'collected_at': None}
             r['sourcing'] = {'connected': sorted(st['connected']),
                              'collected_at': _iso(st['collected_at'])}
+
+        # [이슈 #1058] 판매처 연동 — 등록 판정은 기존 _registered_markets
+        #   (3원천 합집합)를 그대로 재사용(재계산 금지). 수집(동기화) 시각은
+        #   MarketRegistration.last_success_at 배치 1쿼리.
+        from lemouton.policy.fields import MARKET_LABEL
+        from lemouton.uploader.models import MarketRegistration
+        from webapp.routes.bundles_tower import _registered_markets
+        reg_markets = _registered_markets(s, page_codes)
+        last_sync_by_model = {c: None for c in page_codes}
+        if sku_model:
+            for sku, ts in (s.query(MarketRegistration.canonical_sku,
+                                    MarketRegistration.last_success_at)
+                            .filter(MarketRegistration.canonical_sku.in_(list(sku_model)),
+                                    MarketRegistration.last_success_at.isnot(None))
+                            .all()):
+                mc = sku_model.get(sku)
+                if not mc:
+                    continue
+                if last_sync_by_model[mc] is None or ts > last_sync_by_model[mc]:
+                    last_sync_by_model[mc] = ts
+        for r in rows:
+            mkts = reg_markets.get(r['model_code']) or set()
+            r['selling'] = {'connected': sorted(MARKET_LABEL.get(m, m) for m in mkts),
+                            'collected_at': _iso(last_sync_by_model.get(r['model_code']))}
     finally:
         s.close()
     # 많은 순 → 이름 순, 브랜드 없는 것은 맨 뒤(만들다 만 것이 위를 차지하면 안 된다)

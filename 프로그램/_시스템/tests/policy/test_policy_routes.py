@@ -460,6 +460,36 @@ def test_소싱처_연동_없는_상품은_빈_목록이다(client):
     assert row['sourcing']['collected_at'] is None
 
 
+def test_상품목록에_판매처_연동정보가_있다(client):
+    from datetime import datetime, timezone
+    from lemouton.sourcing.models import Option
+    from lemouton.uploader.models import MarketRegistration
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.add(MarketRegistration(canonical_sku='M1-BLK-260', market='coupang',
+                                 market_product_id='12345',
+                                 last_success_at=datetime(2026, 8, 19, 13, 20,
+                                                          tzinfo=timezone.utc)))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert '쿠팡' in row['selling']['connected']
+    assert row['selling']['collected_at'] == '2026-08-19T13:20:00+00:00'
+
+
+def test_판매처_연동_없는_상품은_빈_목록이다(client):
+    _model(client, 'M2', '르무통')
+    j = client.get('/api/policies/bundles').get_json()
+    row = j['rows'][0]
+    assert row['selling']['connected'] == []
+    assert row['selling']['collected_at'] is None
+
+
 def test_사이드바에_상품_정책_적용이_있다(client):
     body = client.get('/policies').get_data(as_text=True)
     assert '/policies/apply' in body
