@@ -58,17 +58,23 @@
     .it.open .it-h{border-bottom-color:var(--line,#E5E8EB)}
     .it-h .nm{font-size:14px;font-weight:700;color:var(--ink,#191F28)}
     .it-h .ref{font-size:12px;color:var(--sub,#8B95A1)}
-    .it-h .set{margin-left:auto;font-size:12px;font-weight:700;padding:0px 8px;border-radius:999px}
-    .it-h .set.y{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
-    .it-h .set.n{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+    .set{font-size:12px;font-weight:700;padding:0px 8px;border-radius:999px}
+    .set.y{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    .set.n{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
     .it-h .chev{color:var(--sub,#8B95A1);font-size:12px;transition:transform .15s;margin-left:4px}
-    /* ── [2026-08-19 사장님 확정 시안 1] 배지 두 묶음 — 왼쪽 「지금 상태」 / 오른쪽 「액션+저장」 ──
+    /* ── [2026-08-19 2차 확정] 지금 상태 줄 — 펼친 안(.it-b)으로 옮김 ──────────────
+       왼쪽 「지금 상태」 묶음 / 오른쪽 「액션+저장」 묶음은 1차 정리 그대로 유지.
        🔴 오른쪽 묶음 전체를 한 번만 민다(.acgrp). 안의 .src·.set 는 각자 갖고 있던
          margin-left:auto 를 여기서만 죽인다 — 두 곳이 동시에 밀면 자리가 다시 겹친다. */
-    .it-h .stgrp{display:inline-flex;align-items:center;gap:6px}
-    .it-h .acgrp{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
-    .it-h .stgrp .src{margin-left:0}
-    .it-h .acgrp .set{margin-left:0}
+    .statusrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;
+               padding-bottom:12px;border-bottom:1px dashed var(--line,#E5E8EB)}
+    .statusrow .stgrp{display:inline-flex;align-items:center;gap:6px}
+    .statusrow .acgrp{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
+    .statusrow .stgrp .src{margin-left:0}
+    .statusrow .acgrp .set{margin-left:0}
+    /* ── [2026-08-19 2차 확정] 접힌 줄 경고 — 「필수인데 비어 있음」만 상시 노출 ──── */
+    .reqwarn{font-size:12px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
+             background:var(--연한-빨강,#FEECEC);color: var(--글자-빨강, var(--red,#B91C1C));cursor:help}
     .it.open .chev{transform:rotate(90deg)}
     .it-b{display:none;padding:16px 16px 16px}
     .it.open .it-b{display:block}
@@ -166,8 +172,11 @@
     .fxt .no{color:var(--글자-보조,#6B7684);line-height:1.6}
     .fxt .src{color:var(--글자-희미,#8B95A1);font-size:11px;white-space:nowrap;
               text-align:right;font-family:ui-monospace,monospace;width:1%}
-    .fx-why{padding:9px 15px;font-size:11.5px;color:var(--글자-보조,#6B7684);
-            line-height:1.7;background:var(--surface,#ffffff)}
+    /* ── [2026-08-19 2차 확정] 정책 설정 요약 두 묶음 — 「무조건」 vs 「안 정하면」 ──
+       🔴 policy_wins 플래그로 가른다. 색만으로 가르지 않는다 — 묶음 제목 글자
+         자체가 뜻을 말한다(가독성 원칙 A: 색상만으로 상태 구분 금지). */
+    .fx-group-t{padding:9px 15px 0;font-size:11.5px;font-weight:700;color:var(--sub,#8B95A1)}
+    .fx-group-t.wins{color: var(--글자-파랑, var(--primary,#1B64DA))}
     .fx-none{background:var(--n100,#F2F4F6);border-radius:12px;padding:11px 15px;
              font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:14px}
     /* ── [2026-08-13 확정 B2] 항목 머리 「정책 ○○ / 실제 ○○」 알약 ── */
@@ -472,60 +481,68 @@
         {% if f.policy %}<b>정책 {{ f.policy }}</b> / {% endif %}실제 <b>{{ f.actual }}</b>
       </span>
       {% endfor %}
-      {# ── [2026-08-19 사장님 확정 시안 1] 배지 정렬 — 왼쪽 「지금 상태」 묶음 /
-         오른쪽 「액션 + 저장여부」 묶음으로 나눈다. 전엔 배지 4종류가 액션 버튼과
-         뒤섞여 한 줄에 나열되고 margin-left:auto 가 두 곳(.src·.it-h .set)에 겹쳐
-         있어 어느 게 진짜 오른쪽 끝인지도 애매했다 — 묶음마다 한 번만 민다. #}
-      <span class="stgrp">
-      {# ── 이 마켓이 요구하는가 — 마켓 상품등록 문서에 그렇게 적힌 것만 붙인다.
-         「마켓 공통」 탭에는 req 가 비어 있어 아무것도 안 뜬다(어느 마켓 기준인지
-         정해지지 않아 말할 수 없다). 근거·사유는 마우스를 올리면 보인다. #}
+      {# ── [2026-08-19 2차 확정] 접힌 줄엔 "필수인데 비었음" 경고 하나만 ──────────
+         🔴 1차 정리(정렬+묶음)까지 했는데도 라이브 실측에서 사장님이 다시 짚었다 —
+           「필수」·「없음」 배지가 둘 다 빨간 계열이라 헷갈리고, 줄마다 배지가
+           최대 6개까지 붙어 여전히 촘촘하다. 「평소에 제일 많이 보는 건 필수인데
+           비었다는 경고뿐」이라는 답을 받아, 나머지(전송여부·출처·저장여부·
+           공통 불러오기)는 펼쳐야 보이는 자리(.it-b 의 .statusrow)로 옮겼다. #}
       {% set rq = req.get(it.key) %}
-      {% if rq %}
-        {% if rq.state == 'required' %}
-        <span class="req must" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">필수</span>
-        {% elif rq.state == 'conditional' %}
-        <span class="req cond" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">조건부</span>
-        {% elif rq.state == 'unknown' %}
-        <span class="req unk" title="{{ rq.note }}">확인 불가</span>
-        {% endif %}
+      {% if rq and rq.state == 'required' and not saved %}
+      <span class="reqwarn" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">⚠ 필수인데 비어 있음</span>
       {% endif %}
-      {# 지금 이 값이 실제로 마켓까지 가는가. 가는 것에만 붙인다 —
-         13항목 중 11개에 회색 배지를 달면 화면이 경고로 뒤덮인다(위 안내 한 줄로 갈음). #}
-      {% if wire.get(it.key) and wire[it.key].state == 'wired' %}
-      <span class="wire on" title="{{ wire[it.key].note }}">전송됨</span>
-      {% elif wire.get(it.key) and wire[it.key].note != stored_only_note %}
-      {# [2026-08-13] 「저장만」인데 **사연이 따로 있는** 항목만 배지를 단다.
-         🔴 저장만 항목 전부에 달면 화면이 회색 배지로 뒤덮여 아무도 안 읽는다.
-           그렇다고 안 달면, 이미지처럼 **반쪽은 실제로 작동하는** 항목을
-           사장님이 「아무것도 안 한다」고 오해한다(제외 브랜드가 전송을 막는데도).
-           그래서 「기본 설명과 다른 사연이 있는 것」만 예외로 보여준다. #}
-      <span class="wire half" title="{{ wire[it.key].note }}">일부만</span>
-      {% endif %}
-      {% if not is_common %}
-      {# 이 값이 어디서 왔나 — 공통에서 받았는지 여기서 고쳤는지.
-         [2026-08-19] 여긴 title 이 아예 없었다(필수·전송됨만 설명이 있었다) — 새로 단다. #}
-      <span class="src {{ origin.get(it.key) or 'none' }}"
-            title="{% if origin.get(it.key) == 'common' %}「마켓 공통」 탭에서 불러온 값 그대로입니다.{% elif origin.get(it.key) == 'own' %}이 마켓에서 직접 고친 값입니다 — 공통 값과 달라졌습니다.{% else %}아직 값을 넣지 않았습니다 — 공통 불러오기를 누르거나 이 항목을 열어 직접 입력하세요.{% endif %}">
-        {% if origin.get(it.key) == 'common' %}공통
-        {% elif origin.get(it.key) == 'own' %}직접
-        {% else %}없음{% endif %}
-      </span>
-      {% endif %}
-      </span>
-      <span class="acgrp">
-      {% if not is_common %}
-      <button class="btnsm pull-one" type="button" data-item="{{ it.key }}"
-              onclick="event.stopPropagation()">공통 불러오기</button>
-      {% endif %}
-      {# [2026-08-19] 이것도 title 이 없었다 — 「출처(공통·직접·없음)」와 헷갈린다는
-         사장님 지적이 있어, 「값이 있냐 없냐」 축임을 문구로 분명히 한다. #}
-      <span class="set {{ 'y' if saved else 'n' }}"
-            title="{% if saved %}지금 저장된 값이 있습니다 — 이 값으로 계산합니다.{% else %}아직 저장된 값이 없습니다 — 계산에 쓰이지 않습니다.{% endif %}">{{ '정함' if saved else '안 정함' }}</span>
-      </span>
       <span class="chev">›</span>
     </div>
     <div class="it-b">
+      {# ── 지금 상태 + 액션 — 펼쳐야 보인다(2026-08-19 2차 확정). 왼쪽 「지금 상태」
+         묶음 / 오른쪽 「액션 + 저장여부」 묶음은 그대로 유지 — 자리만 옮겼다. #}
+      <div class="statusrow">
+        <span class="stgrp">
+        {# ── 이 마켓이 요구하는가 — 마켓 상품등록 문서에 그렇게 적힌 것만 붙인다.
+           「마켓 공통」 탭에는 req 가 비어 있어 아무것도 안 뜬다(어느 마켓 기준인지
+           정해지지 않아 말할 수 없다). 근거·사유는 마우스를 올리면 보인다. #}
+        {% if rq %}
+          {% if rq.state == 'required' %}
+          <span class="req must" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">필수</span>
+          {% elif rq.state == 'conditional' %}
+          <span class="req cond" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">조건부</span>
+          {% elif rq.state == 'unknown' %}
+          <span class="req unk" title="{{ rq.note }}">확인 불가</span>
+          {% endif %}
+        {% endif %}
+        {# 지금 이 값이 실제로 마켓까지 가는가. 가는 것에만 붙인다 —
+           13항목 중 11개에 회색 배지를 달면 화면이 경고로 뒤덮인다(위 안내 한 줄로 갈음). #}
+        {% if wire.get(it.key) and wire[it.key].state == 'wired' %}
+        <span class="wire on" title="{{ wire[it.key].note }}">전송됨</span>
+        {% elif wire.get(it.key) and wire[it.key].note != stored_only_note %}
+        {# [2026-08-13] 「저장만」인데 **사연이 따로 있는** 항목만 배지를 단다.
+           🔴 저장만 항목 전부에 달면 화면이 회색 배지로 뒤덮여 아무도 안 읽는다.
+             그렇다고 안 달면, 이미지처럼 **반쪽은 실제로 작동하는** 항목을
+             사장님이 「아무것도 안 한다」고 오해한다(제외 브랜드가 전송을 막는데도).
+             그래서 「기본 설명과 다른 사연이 있는 것」만 예외로 보여준다. #}
+        <span class="wire half" title="{{ wire[it.key].note }}">일부만</span>
+        {% endif %}
+        {% if not is_common %}
+        {# 이 값이 어디서 왔나 — 공통에서 받았는지 여기서 고쳤는지.
+           [2026-08-19] 여긴 title 이 아예 없었다(필수·전송됨만 설명이 있었다) — 새로 단다. #}
+        <span class="src {{ origin.get(it.key) or 'none' }}"
+              title="{% if origin.get(it.key) == 'common' %}「마켓 공통」 탭에서 불러온 값 그대로입니다.{% elif origin.get(it.key) == 'own' %}이 마켓에서 직접 고친 값입니다 — 공통 값과 달라졌습니다.{% else %}아직 값을 넣지 않았습니다 — 공통 불러오기를 누르거나 바로 아래에서 직접 입력하세요.{% endif %}">
+          {% if origin.get(it.key) == 'common' %}공통
+          {% elif origin.get(it.key) == 'own' %}직접
+          {% else %}없음{% endif %}
+        </span>
+        {% endif %}
+        </span>
+        <span class="acgrp">
+        {% if not is_common %}
+        <button class="btnsm pull-one" type="button" data-item="{{ it.key }}">공통 불러오기</button>
+        {% endif %}
+        {# [2026-08-19] 이것도 title 이 없었다 — 「출처(공통·직접·없음)」와 헷갈린다는
+           사장님 지적이 있어, 「값이 있냐 없냐」 축임을 문구로 분명히 한다. #}
+        <span class="set {{ 'y' if saved else 'n' }}"
+              title="{% if saved %}지금 저장된 값이 있습니다 — 이 값으로 계산합니다.{% else %}아직 저장된 값이 없습니다 — 계산에 쓰이지 않습니다.{% endif %}">{{ '정함' if saved else '안 정함' }}</span>
+        </span>
+      </div>
       {% if it.note %}<div class="it-note">{{ it.note }}</div>{% endif %}
       {% if it.key == 'price' %}
       {# ── 판매가 전용 (확정 G1·I2·J3·K3) ──────────────────────────────
@@ -860,32 +877,53 @@
   {% endfor %}
 
   {# ── [2026-08-13 사장님 확정 A1] 정해져 나가는 값 — 접힌 줄 하나 ────────────
-     [2026-08-19 사장님 확정 시안 2] 항목 목록을 다 보신 **다음**에 「결과적으로
+     [2026-08-19 확정 시안 2] 항목 목록을 다 보신 **다음**에 「결과적으로
      이렇게 나간다」를 보시도록 맨 아래(저장 바로 위)로 옮기고, 이름도
      「정책 설정 요약」으로 바꿨다 — 원래 자리(맨 위)에 있으면 사장님이 고르는
      정책 항목처럼 보여 「고쳤는데 왜 안 먹지」가 됐었다.
-     🔴 여기 있는 값은 **사장님이 고칠 수 없는 값**이다 — 그래서 가공 항목들과
-       떨어진 자리에, 평소엔 접어서 둔다.
+     [2026-08-19 2차 확정] 🔴 여기 있는 값이 **전부** 「사장님이 못 고치는 값」은
+       아니었다 — 절반(policy_wins=True)은 「정책에서 안 정하면 쓰는 기본값」이라
+       배송 항목 등에서 정하면 그 값이 이긴다. 이름을 「요약」으로 바꾼 뒤로 이
+       구분이 더 안 보였다는 실측 지적을 받아, 두 묶음으로 갈라 보여준다.
      ★ 목록은 사람이 여기 적지 않는다 — `policy/fixed_sends.py` 가 원천이고,
        그 표가 등록 코드와 갈리지 않는지는 시험이 코드 원본을 읽어 대조한다. #}
   {% if fixed %}
   {% if fixed.checked %}
+  {% set fixed_default = fixed.rows|rejectattr('policy_wins')|list %}
+  {% set fixed_fallback = fixed.rows|selectattr('policy_wins')|list %}
   <details class="fx">
     <summary class="fx-h">정책 설정 요약
       <span class="n">{{ fixed.rows|length }}</span></summary>
-    <table class="fxt">
-      {% for r in fixed.rows %}
-      <tr>
-        <td class="lb">{{ r.label }}</td>
-        <td class="vl">{{ r.value }}</td>
-        <td class="no">{{ r.note }}</td>
-        <td class="src">{{ r.where }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-    <div class="fx-why">다 정하셨다면, 이 마켓엔 이렇게 나갑니다 —
-      <b>프로그램이 정해서 보내는 값</b>이라 정책 화면에서 고를 수 있는 값이
-      아닙니다. 바꾸려면 알려 주세요.</div>
+    {% if fixed_default %}
+    <div class="fx-group">
+      <div class="fx-group-t">무조건 이 값이 나갑니다 — 사장님이 못 고칩니다</div>
+      <table class="fxt">
+        {% for r in fixed_default %}
+        <tr>
+          <td class="lb">{{ r.label }}</td>
+          <td class="vl">{{ r.value }}</td>
+          <td class="no">{{ r.note }}</td>
+          <td class="src">{{ r.where }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+    {% if fixed_fallback %}
+    <div class="fx-group">
+      <div class="fx-group-t wins">정책에서 안 정하면 이 값이 나갑니다 — 정하면 그 값이 이깁니다</div>
+      <table class="fxt">
+        {% for r in fixed_fallback %}
+        <tr>
+          <td class="lb">{{ r.label }}</td>
+          <td class="vl">{{ r.value }}</td>
+          <td class="no">{{ r.note }}</td>
+          <td class="src">{{ r.where }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
   </details>
   {% else %}
   <div class="fx-none">이 마켓에 <b>무엇이 정해져 나가는지 아직 확인하지 못했습니다</b> —
