@@ -36,28 +36,33 @@ def _markets():
 
 @bp.get('/market-send')
 def index():
-    """마켓 전송 — 필터 · 목록 · 전송 실행 (A안: 필터 전부 펼침 · 더망고식)."""
+    """마켓 전송 — 조건검색(상품·소싱처·판매처 기준) · 목록 · 전송 실행.
+
+    2026-08-19 사장님 확정 1-B·2-A·3-A·4-D — 이슈 #1057.
+    """
     from shared.db import SessionLocal
     from lemouton.send import listing as L
     s = SessionLocal()
     try:
         srcs = L.source_options(s)
+        accts = L.account_options(s)
     finally:
         s.close()
     return render_template('market_send/index.html',
                            active_app='send', active='market_send',
                            subtabs=SUBTABS, tab='send',
-                           markets=_markets(), sources=srcs,
-                           date_basis=L.DATE_BASIS, policy_filter=L.POLICY_FILTER,
-                           listed_filter=L.LISTED_FILTER, search_in=L.SEARCH_IN)
+                           markets=_markets(), sources=srcs, accounts=accts,
+                           date_basis=L.DATE_BASIS, sort_options=L.SORT_OPTIONS,
+                           policy_filter=L.POLICY_FILTER, search_in=L.SEARCH_IN)
 
 
 @bp.get('/api/market-send/rows')
 def api_rows():
     """목록 한 쪽. 한 줄 = **구성(벌)** — 사장님 확정 ①.
 
-    query: page · per_page · date_basis · date_from · date_to ·
-           policy · listed · sources(콤마) · search_in · keyword
+    query: page · per_page · date_basis · date_from · date_to · sort ·
+           policy · unlisted_only · registered_only · stock_status ·
+           sources(콤마) · accounts(콤마) · search_in · keyword
     """
     from shared.db import SessionLocal
     from lemouton.send import listing as L
@@ -67,9 +72,13 @@ def api_rows():
         got = L.rows(
             s, page=a.get('page', 1, type=int), per_page=a.get('per_page', 50, type=int),
             date_basis=a.get('date_basis', ''), date_from=a.get('date_from', ''),
-            date_to=a.get('date_to', ''), policy=a.get('policy', ''),
-            listed=a.get('listed', ''),
+            date_to=a.get('date_to', ''), sort=a.get('sort', ''),
+            policy=a.get('policy', ''),
+            unlisted_only=a.get('unlisted_only', '', type=str) == '1',
+            registered_only=a.get('registered_only', '', type=str) == '1',
+            stock_status=a.get('stock_status', ''),
             sources=[x for x in (a.get('sources') or '').split(',') if x],
+            accounts=[x for x in (a.get('accounts') or '').split(',') if x],
             search_in=a.get('search_in', 'name'), keyword=a.get('keyword', ''))
     finally:
         s.close()
@@ -77,6 +86,30 @@ def api_rows():
         r['crawled_at'] = r['crawled_at'].strftime('%m-%d %H:%M') if r['crawled_at'] else ''
         r['sent'] = {k: v.strftime('%m-%d %H:%M') for k, v in (r['sent'] or {}).items() if v}
     return jsonify({'ok': True, **got})
+
+
+@bp.get('/api/market-send/suggest/products')
+def api_suggest_products():
+    """상품 기준 자동완성 — 브랜드·상품명. `?q=` 두 글자 이상."""
+    from shared.db import SessionLocal
+    from lemouton.send import listing as L
+    s = SessionLocal()
+    try:
+        return jsonify({'ok': True, **L.suggest_products(s, request.args.get('q', ''))})
+    finally:
+        s.close()
+
+
+@bp.get('/api/market-send/suggest/policies')
+def api_suggest_policies():
+    """판매처 기준 정책 이름 자동완성. `?q=` 두 글자 이상."""
+    from shared.db import SessionLocal
+    from lemouton.send import listing as L
+    s = SessionLocal()
+    try:
+        return jsonify({'ok': True, **L.suggest_policies(s, request.args.get('q', ''))})
+    finally:
+        s.close()
 
 
 @bp.post('/api/market-send/start')

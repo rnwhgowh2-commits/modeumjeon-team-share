@@ -22,18 +22,23 @@ from datetime import datetime
 from sqlalchemy import func, or_
 
 #: 날짜를 어느 기준으로 거를까 (사장님 확정 ④ — 골라쓰기)
-DATE_BASIS = [('crawl', '소싱처 수집날'), ('sent', '마켓 전송날')]
+#  'changed' — 2026-08-19 추가: 가격·재고가 실제로 바뀐 날(소싱처·마켓 어느 쪽이든)
+DATE_BASIS = [('crawl', '소싱처 수집날'), ('sent', '마켓 전송날'),
+              ('changed', '가격·재고 변동일')]
+
+#: 정렬 기준. '' = 기존 그대로(수집일 최신순), 'changed' = 가격·재고 변동 최신순.
+SORT_OPTIONS = [('', '수집일 최신순'), ('changed', '가격·재고 변동 최신순')]
 
 #: 정책 필터 (사장님 확정 ③)
 POLICY_FILTER = [('', '정책 ― 전체'), ('none', '정책 안 붙은 것만'),
                  ('has', '정책 붙은 것만')]
 
-#: 마켓 등록 여부 (사장님 확정 ③)
-LISTED_FILTER = [('', '마켓 등록/미등록 ― 전체'), ('yes', '등록된 것만'),
-                 ('no', '아직 미등록만')]
+#: 마켓 등록 여부 — 2026-08-19 사장님 지시로 독립된 두 조건으로 분리(3번 확정 (a)).
+#  「미판매중」= 빨리 올릴 계획인 것 / 「등록됨」= 계속 주시·관리할 것. 각각 따로 켠다.
 
-#: 검색할 칸
-SEARCH_IN = [('name', '상품명'), ('code', '모음전 번호'), ('mpid', '마켓 상품번호')]
+#: 검색할 칸 — 'brand' 2026-08-19 추가(상품 기준 자동완성 3종 중 하나).
+SEARCH_IN = [('name', '상품명·모델명'), ('brand', '브랜드'),
+            ('code', '모음전 번호'), ('mpid', '마켓 상품번호')]
 
 
 def _parse_day(s):
@@ -77,10 +82,25 @@ def market_product_ids(session, set_ids: list[int]) -> dict[int, dict]:
     return out
 
 
+def _changed_at_subquery(session):
+    """구성별 「가격·재고가 마지막으로 바뀐 시각」 — `set_id, at` 두 칸짜리 서브쿼리.
+
+    `ChannelChangeEvent` 는 값이 실제로 달라졌을 때만 쌓인다(change_service.record_change).
+    소싱처·마켓 어느 쪽에서 바뀌었든 field 가 'stock'|'price' 인 것 중 최신 시각.
+    """
+    from lemouton.sets.models import ChannelChangeEvent as CCE
+    return (session.query(CCE.set_id.label('set_id'), func.max(CCE.at).label('at'))
+            .filter(CCE.field.in_(('stock', 'price')))
+            .group_by(CCE.set_id).subquery())
+
+
 def rows(session, *, page: int = 1, per_page: int = 50,
          date_basis: str = '', date_from='', date_to='',
-         policy: str = '', listed: str = '', sources: list[str] | None = None,
-         search_in: str = 'name', keyword: str = '') -> dict:
+         policy: str = '', sources: list[str] | None = None,
+         search_in: str = 'name', keyword: str = '',
+         stock_status: str = '', sort: str = '',
+         unlisted_only: bool = False, registered_only: bool = False,
+         accounts: list[str] | None = None) -> dict:
     """필터 → 목록 한 쪽. `{total, page, per_page, rows: [...]}`.
 
     한 줄:
@@ -110,6 +130,8 @@ def rows(session, *, page: int = 1, per_page: int = 50,
             hit = {r[0] for r in session.query(SetChannel.set_id)
                    .filter(SetChannel.market_product_id.ilike(f'%{kw}%')).all()}
             q = q.filter(ProductSet.id.in_(hit or [-1]))
+        elif search_in == 'brand':
+            q = q.filter(Model.brand.ilike(f'%{kw}%'))
         else:
             q = q.filter(or_(Model.model_name_display.ilike(f'%{kw}%'),
                              Model.model_name_raw.ilike(f'%{kw}%'),
@@ -133,13 +155,39 @@ def rows(session, *, page: int = 1, per_page: int = 50,
             q = (q.filter(~ProductSet.id.in_(set_linked or [-1]))
                   .filter(~ProductSet.model_code.in_(model_linked or [''])))
 
-    # ── 마켓 등록 여부 ──────────────────────────────────────────────
-    if listed in ('yes', 'no'):
+    # ── 재고상태 (판매처 기준 — 마켓이 알려준 실제 재고, 지어내지 않는다) ──
+    #   확인 안 된 구성(마켓이 재고를 한 번도 안 알려줌)은 재고·품절 어디에도
+    #   안 걸린다 — 「모른다」와 「없다」는 다르다.
+    if stock_status in ('instock', 'soldout'):
+        from lemouton.sets.models import SetChannel, SetChannelOption
+        checked = (session.query(SetChannel.set_id)
+                   .join(SetChannelOption, SetChannelOption.channel_id == SetChannel.id)
+                   .filter(SetChannelOption.mkt_stock.isnot(None)))
+        instock_ids = {r[0] for r in checked.filter(SetChannelOption.mkt_stock > 0).all()}
+        if stock_status == 'instock':
+            q = q.filter(ProductSet.id.in_(instock_ids or [-1]))
+        else:
+            checked_ids = {r[0] for r in checked.all()}
+            q = q.filter(ProductSet.id.in_((checked_ids - instock_ids) or [-1]))
+
+    # ── 판매처 계정(전체>계정, 4-D 확정) — 읽기 전용 필터. 실제 전송 시 어느
+    #   계정 자격증명으로 나가는지는 별도(계정별 전송 배선, 게이트 통과 후) ──
+    picked_accts = [a for a in (accounts or []) if a]
+    if picked_accts:
+        from lemouton.sets.models import SetChannel
+        hit = {r[0] for r in session.query(SetChannel.set_id)
+               .filter(SetChannel.account_key.in_(picked_accts)).all()}
+        q = q.filter(ProductSet.id.in_(hit or [-1]))
+
+    # ── 마켓 등록 여부 — 독립된 두 조건, 둘 다 켜면 사실상 전체(교집합 아님) ──
+    if unlisted_only or registered_only:
         from lemouton.sets.models import SetChannel
         reg = {r[0] for r in session.query(SetChannel.set_id)
                .filter(SetChannel.market_product_id.isnot(None)).all()}
-        q = (q.filter(ProductSet.id.in_(reg or [-1])) if listed == 'yes'
-             else q.filter(~ProductSet.id.in_(reg or [-1])))
+        if unlisted_only and not registered_only:
+            q = q.filter(~ProductSet.id.in_(reg or [-1]))
+        elif registered_only and not unlisted_only:
+            q = q.filter(ProductSet.id.in_(reg or [-1]))
 
     # ── 날짜 (사장님 확정 ④ — 어느 날짜인지 골라쓰기) ─────────────────
     d1, d2 = _parse_day(date_from), _parse_day(date_to)
@@ -156,12 +204,26 @@ def rows(session, *, page: int = 1, per_page: int = 50,
             sub = sub.filter(SendJobRow.created_at
                              < d2.replace(hour=23, minute=59, second=59))
         q = q.filter(ProductSet.id.in_({r[0] for r in sub.all() if r[0]} or [-1]))
+    elif date_basis == 'changed' and (d1 or d2):
+        chg = _changed_at_subquery(session)
+        sub = session.query(chg.c.set_id)
+        if d1:
+            sub = sub.filter(chg.c.at >= d1)
+        if d2:
+            sub = sub.filter(chg.c.at < d2.replace(hour=23, minute=59, second=59))
+        q = q.filter(ProductSet.id.in_({r[0] for r in sub.all() if r[0]} or [-1]))
 
     total = q.count()
     page = max(1, int(page or 1))
     per = max(1, min(int(per_page or 50), 200))
-    got = (q.order_by(Model.last_crawled_at.desc().nullslast(), ProductSet.id.desc())
-           .offset((page - 1) * per).limit(per).all())
+    if sort == 'changed':
+        chg = _changed_at_subquery(session)
+        got = (q.outerjoin(chg, chg.c.set_id == ProductSet.id)
+               .order_by(chg.c.at.desc().nullslast(), ProductSet.id.desc())
+               .offset((page - 1) * per).limit(per).all())
+    else:
+        got = (q.order_by(Model.last_crawled_at.desc().nullslast(), ProductSet.id.desc())
+               .offset((page - 1) * per).limit(per).all())
 
     set_ids = [ps.id for ps, _ in got]
     codes = list({ps.model_code for ps, _ in got})
@@ -231,3 +293,77 @@ def source_options(session) -> list[tuple[str, str]]:
     except Exception:                       # noqa: BLE001 — 명부 없는 옛 DB
         pass
     return [(k, names.get(k, k)) for k in keys]
+
+
+#: 자동완성 한 번에 돌려줄 최대 건수 — `catalog/search.py:SUGGEST_LIMIT` 과 같은 규칙.
+SUGGEST_LIMIT = 10
+
+
+def _escape_like(v: str) -> str:
+    """LIKE 특수문자를 글자로 바꾼다 — `%` 를 그대로 넘기면 전체가 걸린다."""
+    return v.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
+def suggest_products(session, q: str, *, limit: int = SUGGEST_LIMIT) -> dict:
+    """상품 기준 자동완성 — 브랜드·상품명(모델명 포함) 뒤섞어 찾고 종류를 표시한다.
+
+    ★ catalog/search.py:suggest() 와 같은 규칙 — 2글자 미만은 안 찾고, 전체
+      건수는 안 센다(글자마다 부르므로 가볍게).
+    🔴 「모델명」은 별도 칸이 없다 — `Model.model_name_display` 가 이미 그 값이다.
+      없는 칸을 지어내지 않고 'name' 한 종류로 합친다.
+    """
+    from lemouton.sets.models import ProductSet
+    from lemouton.sourcing.models import Model
+    qq = (q or '').strip()
+    if len(qq) < 2:
+        return {'rows': [], 'q': qq, 'reason': '두 글자 이상 적어주세요'}
+    limit = max(1, min(int(limit or SUGGEST_LIMIT), 25))
+    like = f'%{_escape_like(qq)}%'
+
+    base = (session.query(Model)
+            .filter(or_(Model.is_option_box.is_(False), Model.is_option_box.is_(None))))
+    out = []
+    for m in (base.filter(Model.brand.ilike(like, escape='\\'))
+              .order_by(Model.model_code).limit(limit).all()):
+        out.append({'kind': 'brand', 'value': m.brand, 'model_code': m.model_code,
+                    'display_no': m.display_no or m.model_code})
+    for m in (base.filter(or_(Model.model_name_display.ilike(like, escape='\\'),
+                              Model.model_name_raw.ilike(like, escape='\\')))
+              .order_by(Model.model_code).limit(limit).all()):
+        out.append({'kind': 'name',
+                    'value': m.model_name_display or m.model_name_raw,
+                    'model_code': m.model_code,
+                    'display_no': m.display_no or m.model_code})
+    return {'rows': out[:limit], 'q': qq, 'reason': ''}
+
+
+def suggest_policies(session, q: str, *, limit: int = SUGGEST_LIMIT) -> dict:
+    """판매처 기준 정책 이름 자동완성 — 지운 정책은 안 나온다."""
+    from lemouton.policy.models import MarketPolicy
+    qq = (q or '').strip()
+    if len(qq) < 2:
+        return {'rows': [], 'q': qq, 'reason': '두 글자 이상 적어주세요'}
+    limit = max(1, min(int(limit or SUGGEST_LIMIT), 25))
+    like = f'%{_escape_like(qq)}%'
+    rows = (session.query(MarketPolicy)
+            .filter(MarketPolicy.deleted_at.is_(None),
+                    or_(MarketPolicy.name.ilike(like, escape='\\'),
+                       MarketPolicy.brand.ilike(like, escape='\\')))
+            .order_by(MarketPolicy.id.desc()).limit(limit).all())
+    return {'rows': [{'id': p.id, 'name': p.name, 'brand': p.brand} for p in rows],
+           'q': qq, 'reason': ''}
+
+
+def account_options(session) -> dict[str, list[tuple[str, str]]]:
+    """필터에 뿌릴 판매처 계정 목록 — `{market: [(account_key, display_name), ...]}`.
+
+    2026-08-19 「판매처 전체 > 계정」 4-D 확정 — **꺼둔 계정은 안 보인다**
+    (`_env_prefix` 의 실전송 후보 선정과 같은 기준: `is_active=True`).
+    """
+    from lemouton.sourcing.models_v2 import UploadAccount
+    out: dict[str, list[tuple[str, str]]] = {}
+    for a in (session.query(UploadAccount)
+              .filter(UploadAccount.is_active.is_(True))
+              .order_by(UploadAccount.market, UploadAccount.id).all()):
+        out.setdefault(a.market, []).append((a.account_key, a.display_name))
+    return out

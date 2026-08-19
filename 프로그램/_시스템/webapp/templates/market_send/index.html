@@ -15,57 +15,112 @@
     {% endfor %}
   </div>
 
-  {# ── 필터 (A안 = 더망고식 전부 펼침 · 사장님 확정) ───────────────────── #}
+  {# ── 조건검색 — 상품·소싱처·판매처 3기준(1-B 확정: 세로 라벨+줄) ──────── #}
   <div class="fbox">
-    <div class="fr">
-      <select class="fsel" id="fBasis">
-        <option value="">날짜로 안 거름</option>
-        {% for k, lb in date_basis %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
-      </select>
-      <input class="fdt" type="date" id="fFrom"><span class="fw">~</span>
-      <input class="fdt" type="date" id="fTo">
-    </div>
-    <div class="fr">
-      <select class="fsel" id="fListed">
-        {% for k, lb in listed_filter %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
-      </select>
-      {# 우리에게만 있는 안전 필터 — 파랗게 눈에 띄게(사장님 확정 ③) #}
-      <select class="fsel hot" id="fPolicy">
-        {% for k, lb in policy_filter %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
-      </select>
-      <select class="fsel" id="fIn">
-        {% for k, lb in search_in %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
-      </select>
-      <input class="fin" id="fKw" placeholder="검색 키워드 입력">
-      <button class="btn2" id="btnSearch">검색</button>
-    </div>
-    <div class="fr wrap">
-      <span class="flb">소싱처 <small>(하나라도 물고 있으면)</small></span>
-      {% for k, lb in sources %}
-      <label class="chip"><input type="checkbox" class="fSrc" value="{{ k }}">{{ lb }}</label>
-      {% else %}<span class="fnote">아직 붙은 소싱처가 없습니다</span>{% endfor %}
-    </div>
-    {# ② 사장님 확정 — 「긁기」와 「보내기」를 둘 다 둔다.
-       🔴 크롤은 서버가 못 한다(크롤=로컬 PC 원칙). 내 PC 크롬 확장에 일감을 보낸다. #}
-    <div class="fr wrap">
-      <span class="flb">① 소싱처에서 다시 긁기</span>
-      <label class="chip"><input type="checkbox" id="fCrawl">먼저 긁고 나서 보내기</label>
-      <span class="fnote" id="extNote">크롬 확장을 확인하는 중…</span>
-    </div>
-    <div class="fr wrap">
-      <span class="flb">② 보낼 마켓</span>
-      {% for k, lb in markets %}
-      <label class="chip on"><input type="checkbox" class="fMkt" value="{{ k }}" checked>{{ lb }}</label>
-      {% endfor %}
-      <span class="fnote">정책에서 꺼 둔 마켓은 골라도 건너뜁니다</span>
+    <div class="g3">
+      <div class="g3-row">
+        <div class="g3-lbl">상품 기준</div>
+        <div class="g3-body">
+          <div class="g3-line">
+            <div class="ac-box">
+              <input class="fin" id="fKw" placeholder="브랜드·모델명·상품명 검색" autocomplete="off">
+              <div class="ac-drop" id="acDrop" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="g3-row">
+        <div class="g3-lbl">소싱처 기준</div>
+        <div class="g3-body">
+          <div class="g3-line">
+            <select class="fsel" id="fBasis">
+              <option value="">날짜로 안 거름</option>
+              {% for k, lb in date_basis %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
+            </select>
+            <input class="fdt" type="date" id="fFrom"><span class="fw">~</span>
+            <input class="fdt" type="date" id="fTo">
+            <select class="fsel" id="fSort">
+              {% for k, lb in sort_options %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="g3-line">
+            <span class="lnlbl">소싱처 <small>(하나라도 물고 있으면)</small></span>
+            {% for k, lb in sources %}
+            <label class="chip"><input type="checkbox" class="fSrc" value="{{ k }}">{{ lb }}</label>
+            {% else %}<span class="fnote">아직 붙은 소싱처가 없습니다</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="g3-row">
+        <div class="g3-lbl">판매처 기준</div>
+        <div class="g3-body">
+          <div class="g3-line">
+            <span class="lnlbl">마켓</span>
+            {% for mk, acct_list in accounts.items() %}
+              {% for k, lb in acct_list %}
+              <label class="chip"><input type="checkbox" class="fAcct" data-market="{{ mk }}" value="{{ k }}">{{ lb }}</label>
+              {% endfor %}
+            {% else %}<span class="fnote">아직 등록된 판매처 계정이 없습니다</span>{% endfor %}
+          </div>
+          <div class="g3-line">
+            <span class="lnlbl">재고상태</span>
+            <select class="fsel" id="fStock">
+              <option value="">전체</option>
+              <option value="instock">재고</option>
+              <option value="soldout">품절</option>
+            </select>
+            <span class="fnote">삭제(마켓 잔존 확인)는 준비 중입니다</span>
+          </div>
+          <div class="g3-line">
+            <label class="chip"><input type="checkbox" id="fUnlisted">미판매중 — 곧 올릴 것</label>
+            <label class="chip"><input type="checkbox" id="fRegistered">등록됨만 — 계속 관리할 것</label>
+          </div>
+          <div class="g3-line">
+            {# 우리에게만 있는 안전 필터 — 파랗게 눈에 띄게(사장님 확정 ③) #}
+            <select class="fsel hot" id="fPolicy">
+              {% for k, lb in policy_filter %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
+            </select>
+            <div class="ac-box" style="max-width:260px">
+              <input class="fin" id="fPolKw" placeholder="정책 이름 검색" autocomplete="off">
+              <div class="ac-drop" id="acPolDrop" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="fr run">
-      <button class="btn2 big" id="btnSend">긁기 &amp; 전송 시작 (검색결과 전부)</button>
+      <button class="btn2" id="btnSearch">검색</button>
+      <span class="fcount right">총 <b id="cTotal">–</b> 개 구성</span>
+    </div>
+  </div>
+
+  {# ── 왼쪽 소싱처 수집 · 오른쪽 판매처 전송 — 독립 ON/OFF(2-A 확정) ────── #}
+  <div class="p2box">
+    <div class="p2">
+      <div class="p2-panel" id="pCollect">
+        <div class="p2-h"><span class="p2-t">소싱처 수집</span>
+          <span class="tgl on" id="tglCollect" role="switch" aria-checked="true" tabindex="0"><i></i></span></div>
+        <div class="p2-sub">위 조건에 맞는 상품을 내 PC 크롬으로 다시 긁어옵니다</div>
+        <span class="fnote" id="extNote">크롬 확장을 확인하는 중…</span>
+      </div>
+      <div class="p2-panel off" id="pSend">
+        <div class="p2-h"><span class="p2-t">판매처 전송</span>
+          <span class="tgl" id="tglSend" role="switch" aria-checked="false" tabindex="0"><i></i></span></div>
+        <div class="p2-sub">위 조건에 맞는 상품을 골라 마켓으로 보냅니다</div>
+        <div class="g3-line">
+          {% for k, lb in markets %}
+          <label class="chip on"><input type="checkbox" class="fMkt" value="{{ k }}" checked>{{ lb }}</label>
+          {% endfor %}
+        </div>
+        <span class="fnote">정책에서 꺼 둔 마켓은 골라도 건너뜁니다</span>
+      </div>
+    </div>
+    <div class="fr run">
+      <button class="btn2 big" id="btnSend">시작 (검색결과 전부)</button>
       {# 🔴 실제 마켓 호출은 두 겹 잠금 뒤다(서버 열쇠 + 자동화 화면 열쇠).
          꺼져 있으면 게이트까지만 돌고 「왜 안 나갔는지」를 로그에 적는다. #}
       <span class="fnote">재고를 못 읽은 옵션이 있으면 <b>그 구성은 보내지 않습니다</b> —
         지어낸 재고가 나가면 오버셀입니다.</span>
-      <span class="fcount right">총 <b id="cTotal">–</b> 개 구성</span>
     </div>
   </div>
 
@@ -114,6 +169,44 @@
   .btn2.big{padding:10px 18px;font-size:13px}
   /* 잠긴 버튼도 읽혀야 한다 — `--sub` 는 밝은 화면에서 2.76 이다(라이브 실측) */
   .btn2:disabled{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684);cursor:default}
+
+  /* ── 조건검색 3분류 — 세로 라벨 + 줄(1-B 확정) ──────────────────────── */
+  .g3{border:1px solid var(--n100,#F2F4F6);border-radius:10px;overflow:hidden}
+  .g3-row{display:grid;grid-template-columns:104px 1fr;border-top:1px solid var(--n100,#F2F4F6)}
+  .g3-row:first-child{border-top:none}
+  .g3-lbl{background:var(--n100,#F2F4F6);display:flex;align-items:center;padding:0 14px;
+    font-size:12px;font-weight:700;color:var(--글자-보조,#6B7684)}
+  .g3-body{padding:8px 14px;display:flex;flex-direction:column;gap:6px}
+  .g3-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .g3-line .lnlbl{font-size:12px;color:var(--글자-보조,#6B7684)}
+  .g3-line .lnlbl small{font-weight:500;color:var(--글자-희미,#B0B8C1)}
+
+  /* 자동완성 검색창(3-A 확정: 통합 1칸 + 종류 표시) */
+  .ac-box{position:relative}
+  .ac-drop{position:absolute;top:100%;left:0;right:0;border:1px solid var(--line,#E5E8EB);
+    border-top:none;border-radius:0 0 10px 10px;background:var(--surface,#fff);
+    box-shadow:0 6px 16px rgba(0,0,0,.08);overflow:hidden;z-index:5;max-height:260px;overflow-y:auto}
+  .ac-item{padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer}
+  .ac-item:hover{background:var(--n100,#F2F4F6)}
+  .ac-item .tag{font-size:10px;font-weight:700;color: var(--글자-파랑, var(--primary,#1B64DA));
+    background:var(--연한-파랑,#E8F2FF);border-radius:5px;padding:1px 6px;flex:none}
+
+  /* ── 왼쪽 소싱처 수집 · 오른쪽 판매처 전송(2-A 확정: 큰 스위치) ──────── */
+  .p2box{background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px}
+  .p2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .p2-panel{border:1px solid var(--n100,#F2F4F6);border-radius:10px;padding:12px 14px;
+    transition:opacity .2s}
+  .p2-panel.off{opacity:.45;filter:grayscale(.6)}
+  .p2-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .p2-t{font-size:14px;font-weight:700;color:var(--ink,#191F28)}
+  .p2-sub{font-size:12px;color:var(--글자-희미,#B0B8C1);margin-bottom:6px}
+  .tgl{width:38px;height:22px;border-radius:999px;background:var(--n100,#F2F4F6);
+    position:relative;cursor:pointer;flex:none}
+  .tgl.on{background: var(--바탕-파랑, var(--primary,#3182F6))}
+  .tgl i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+    background:#fff;transition:.15s}
+  .tgl.on i{left:18px}
 
   table.lst{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface,#fff);
     border:1px solid var(--line,#E5E8EB);border-radius:12px;overflow:hidden}
@@ -185,7 +278,6 @@
    🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
 @media (max-width: 768px) {
   .ms-tab { min-height: 44px; display: inline-flex; align-items: center; }
-  /* 필터 상자 — 이름표 고정폭(158px) 해제·줄바꿈, 입력칸 16px = iOS 포커스 확대 방지 */
   .fbox { padding: 10px 10px; }
   .fr { flex-wrap: wrap; }
   .flb { min-width: 0; flex-basis: 100%; font-size: 14px; }
@@ -196,6 +288,9 @@
   .btn2.big { width: 100%; }
   .fnote { font-size: 12px; }
   .fcount.right { margin-left: 0; }
+  .g3-row { grid-template-columns: 1fr; }
+  .g3-lbl { padding: 6px 14px; }
+  .p2 { grid-template-columns: 1fr; }
   /* 목록 표(5열) — 가로 스크롤 + 첫 열(소싱처) 붙박이 */
   #msList { overflow-x: auto; }
   table.lst { min-width: 720px; font-size: 14px; }
@@ -203,10 +298,8 @@
   table.lst .sub { font-size: 12px; }
   table.lst th:first-child, table.lst td:first-child {
     position: sticky; left: 0; z-index: 1;
-    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
     background: var(--surface, #fff);
   }
-  /* 실시간 로그 — 한 줄 고정(nowrap)이면 폰에서 오른쪽이 잘린다 */
   .lg { white-space: normal; font-size: 14px; }
   .pager button { min-height: 44px; }
 }
@@ -223,10 +316,13 @@
   function params(){
     const p = new URLSearchParams({page: page, per_page: 50,
       date_basis: $('fBasis').value, date_from: $('fFrom').value, date_to: $('fTo').value,
-      policy: $('fPolicy').value, listed: $('fListed').value,
-      search_in: $('fIn').value, keyword: $('fKw').value});
+      sort: $('fSort').value, policy: $('fPolicy').value, stock_status: $('fStock').value,
+      unlisted_only: $('fUnlisted').checked ? '1' : '', registered_only: $('fRegistered').checked ? '1' : '',
+      search_in: window.__searchIn || 'name', keyword: $('fKw').value});
     const src = [...document.querySelectorAll('.fSrc:checked')].map(x => x.value);
     if (src.length) p.set('sources', src.join(','));
+    const acct = [...document.querySelectorAll('.fAcct:checked')].map(x => x.value);
+    if (acct.length) p.set('accounts', acct.join(','));
     return p;
   }
 
@@ -285,6 +381,62 @@
     }
   }
 
+  // ── 상품 기준 자동완성 (3-A 확정: 통합 1칸 + 종류 표시) ─────────────
+  const KIND_LABEL = {brand: '브랜드', name: '상품명'};
+  let acTimer = null;
+  $('fKw').addEventListener('input', () => {
+    clearTimeout(acTimer);
+    const q = $('fKw').value.trim();
+    if (q.length < 2){ $('acDrop').hidden = true; window.__searchIn = 'name'; return; }
+    acTimer = setTimeout(async () => {
+      try{
+        const r = await fetch('/api/market-send/suggest/products?q=' + encodeURIComponent(q));
+        const d = await r.json();
+        const rows = (d.rows || []).slice(0, 10);
+        $('acDrop').innerHTML = rows.map(x =>
+          '<div class="ac-item" data-kind="' + x.kind + '" data-value="' + esc(x.value) + '">'
+          + '<span class="tag">' + KIND_LABEL[x.kind] + '</span>' + esc(x.value) + '</div>').join('');
+        $('acDrop').hidden = rows.length === 0;
+      }catch(_){ $('acDrop').hidden = true; }
+    }, 250);
+  });
+  $('acDrop').addEventListener('click', e => {
+    const it = e.target.closest('.ac-item');
+    if (!it) return;
+    $('fKw').value = it.dataset.value;
+    window.__searchIn = it.dataset.kind;
+    $('acDrop').hidden = true;
+    page = 1; load();
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.ac-box')) { $('acDrop').hidden = true; $('acPolDrop').hidden = true; }
+  });
+
+  // ── 판매처 기준 정책 이름 자동완성 ──────────────────────────────────
+  let polTimer = null;
+  $('fPolKw').addEventListener('input', () => {
+    clearTimeout(polTimer);
+    const q = $('fPolKw').value.trim();
+    if (q.length < 2){ $('acPolDrop').hidden = true; return; }
+    polTimer = setTimeout(async () => {
+      try{
+        const r = await fetch('/api/market-send/suggest/policies?q=' + encodeURIComponent(q));
+        const d = await r.json();
+        const rows = (d.rows || []).slice(0, 10);
+        $('acPolDrop').innerHTML = rows.map(x =>
+          '<div class="ac-item" data-name="' + esc(x.name) + '">' + esc(x.name) + '</div>').join('');
+        $('acPolDrop').hidden = rows.length === 0;
+      }catch(_){ $('acPolDrop').hidden = true; }
+    }, 250);
+  });
+  $('acPolDrop').addEventListener('click', e => {
+    const it = e.target.closest('.ac-item');
+    if (!it) return;
+    $('fPolKw').value = it.dataset.name;
+    $('acPolDrop').hidden = true;
+    page = 1; load();
+  });
+
   // ── 실시간 전송 ──────────────────────────────────────────────
   //  🔴 요청 안에서 돌리지 않는다 — 서버가 백그라운드로 돌고, 여기는 **새 줄만** 받는다.
   //     통째로 다시 받으면 목록이 깜빡이고 스크롤이 튄다.
@@ -327,8 +479,8 @@
         $('lgDot').classList.add('off');
         $('lgTitle').textContent = '전송 끝';
         $('btnSend').disabled = false;
-        $('btnSend').textContent = '긁기 & 전송 시작 (검색결과 전부)';
-        load();                                   // 「마켓 전송」 칸을 새로 그린다
+        $('btnSend').textContent = '시작 (검색결과 전부)';
+        load();                                   // 목록을 새로 그린다
       }
     }catch(e){
       // 🔴 조용히 멈추지 않는다 — 멈춘 걸 「끝났다」로 읽으면 안 된다.
@@ -339,22 +491,42 @@
     }
   }
 
-  // ── ② 소싱처 다시 긁기 = 내 PC 크롬 확장 (크롤=로컬 PC 원칙) ──────────
-  //  🔴 서버는 소싱처를 못 긁는다. 확장이 없으면 **그 사실을 말하고** 체크를 막는다 —
-  //     조용히 건너뛰면 옛 값이 그대로 마켓에 나간다.
+  // ── 왼쪽=소싱처 수집 · 오른쪽=판매처 전송, 독립 ON/OFF(2-A 확정) ─────
+  //  🔴 서버는 소싱처를 못 긁는다(크롤=로컬 PC 원칙). 확장이 없으면 왼쪽을
+  //     켤 수 없게 막는다 — 조용히 건너뛰면 옛 값이 그대로 마켓에 나간다.
   function extReady(){
     try { return !!(window.MoumExt && window.MoumExt.installed()); } catch(_) { return false; }
   }
+  function setToggle(tgl, panel, on){
+    tgl.classList.toggle('on', on);
+    tgl.setAttribute('aria-checked', on ? 'true' : 'false');
+    panel.classList.toggle('off', !on);
+  }
   function paintExt(){
     const on = extReady();
-    $('fCrawl').disabled = !on;
-    if (!on) $('fCrawl').checked = false;
+    const tglC = $('tglCollect');
+    if (!on){ setToggle(tglC, $('pCollect'), false); }
     $('extNote').innerHTML = on
-      ? '내 PC 크롬 확장이 켜져 있습니다 — 긁기를 맡길 수 있습니다.'
-      : '<b>크롬 확장이 꺼져 있어 긁을 수 없습니다</b> — 지금 저장된 값으로만 보냅니다.';
+      ? '내 PC 크롬 확장이 켜져 있습니다 — 수집을 맡길 수 있습니다.'
+      : '<b>크롬 확장이 꺼져 있어 긁을 수 없습니다</b> — 수집 스위치를 켤 수 없습니다.';
   }
   setTimeout(paintExt, 600);        // 확장이 붙을 시간을 준다
   setInterval(paintExt, 5000);
+
+  function bindToggle(tglId, panelId){
+    const tgl = $(tglId), panel = $(panelId);
+    const flip = () => {
+      if (tglId === 'tglCollect' && !tgl.classList.contains('on') && !extReady()){
+        alert('크롬 확장이 꺼져 있어 소싱처 수집을 켤 수 없습니다.');
+        return;
+      }
+      setToggle(tgl, panel, !tgl.classList.contains('on'));
+    };
+    tgl.addEventListener('click', flip);
+    tgl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+  }
+  bindToggle('tglCollect', 'pCollect');
+  bindToggle('tglSend', 'pSend');
 
   function askCrawl(codes){
     // 모음전 번호 기준으로 일감을 넣는다(같은 모음전의 구성들은 같은 소싱처를 본다).
@@ -364,22 +536,30 @@
   }
 
   $('btnSend').onclick = async () => {
+    const doCollect = $('tglCollect').classList.contains('on');
+    const doSend = $('tglSend').classList.contains('on');
+    if (!doCollect && !doSend){ alert('왼쪽(소싱처 수집) 또는 오른쪽(판매처 전송) 중 하나는 켜 주세요.'); return; }
+    const rowsOnPage = (window.__rows || []).map(r => r.set_id);
+    if (!rowsOnPage.length){ alert('대상 구성이 없습니다.'); return; }
+
+    $('lgBox').style.display = '';
+    $('lgBody').innerHTML = '';
+    if (doCollect && extReady()){
+      const n = askCrawl((window.__rows || []).map(r => r.model_code));
+      $('lgBody').insertAdjacentHTML('beforeend', '<div class="lg skip"><span class="lt">지금</span>'
+        + '<span class="lm">[소싱처 수집]</span><span class="lar">→</span>'
+        + '<span class="lr">내 PC 크롬에 ' + n + '개 모음전 수집을 맡겼습니다</span></div>');
+    }
+    if (!doSend){
+      $('lgDot').classList.add('off');
+      $('lgTitle').textContent = '수집만 진행';
+      return;
+    }
     const markets = [...document.querySelectorAll('.fMkt:checked')].map(x => x.value);
     if (!markets.length){ alert('보낼 마켓을 하나 이상 골라 주세요.'); return; }
-    const rowsOnPage = (window.__rows || []).map(r => r.set_id);
-    if (!rowsOnPage.length){ alert('보낼 구성이 없습니다.'); return; }
-    if ($('fCrawl').checked && extReady()){
-      const n = askCrawl((window.__rows || []).map(r => r.model_code));
-      $('lgBox').style.display = '';
-      $('lgBody').innerHTML = '<div class="lg skip"><span class="lt">지금</span>'
-        + '<span class="lm">[소싱처 긁기]</span><span class="lar">→</span>'
-        + '<span class="lr">내 PC 크롬에 ' + n + '개 모음전 긁기를 맡겼습니다</span>'
-        + '<span class="note">긁기는 크롬이 따로 돕니다 — 아래 전송은 <b>지금 저장된 값</b>으로 나갑니다.</span></div>';
-    }
+
     $('btnSend').disabled = true;
     $('btnSend').textContent = '전송이 진행중입니다…';
-    $('lgBox').style.display = '';
-    if (!$('fCrawl').checked) $('lgBody').innerHTML = '';   // 긁기 안내는 남긴다
     $('lgDot').classList.remove('off');
     $('lgTitle').textContent = '전송 진행 중';
     lastId = 0;
@@ -396,15 +576,15 @@
       $('lgTitle').textContent = '시작하지 못했습니다 — ' + e.message;
       $('lgDot').classList.add('off');
       $('btnSend').disabled = false;
-      $('btnSend').textContent = '긁기 & 전송 시작 (검색결과 전부)';
+      $('btnSend').textContent = '시작 (검색결과 전부)';
     }
   };
 
   $('btnSearch').onclick = () => { page = 1; load(); };
   $('fKw').addEventListener('keydown', e => { if (e.key === 'Enter') { page = 1; load(); } });
-  ['fBasis','fFrom','fTo','fPolicy','fListed','fIn'].forEach(
+  ['fBasis','fFrom','fTo','fSort','fPolicy','fStock','fUnlisted','fRegistered'].forEach(
     id => $(id).addEventListener('change', () => { page = 1; load(); }));
-  document.querySelectorAll('.fSrc').forEach(
+  document.querySelectorAll('.fSrc, .fAcct').forEach(
     c => c.addEventListener('change', () => { page = 1; load(); }));
   document.querySelectorAll('.fMkt').forEach(c => c.addEventListener('change', () => {
     c.closest('.chip').classList.toggle('on', c.checked);
