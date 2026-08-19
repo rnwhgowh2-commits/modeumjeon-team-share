@@ -66,10 +66,18 @@ def test_등록_기본값은_사장님이_정한_값으로_미리_채워진다()
     it = next(x for x in base_items() if x['key'] == 'listing')
     d = {f['key']: f['default'] for f in it['fields']}
     assert d['tax_type'] == '과세'
-    assert d['product_condition'] == '새상품'
+    # [2026-08-13 사장님 확정] 상품상태·판매기간은 고를 것이 아니라 정해진 값이라
+    #   정책 항목에서 뺐다 → `policy/fixed_sends.py`(「정해져 나가는 값」)가 보여준다.
+    assert 'product_condition' not in d
+    assert 'sale_period' not in d
     assert d['minor_purchase'] == '전연령 구매 가능'
     assert d['manufacturer_mode'] == '브랜드와 동일'
-    assert d['sale_period'] == '가장 길게', '「설정 안 함」은 쿠팡에서 등록이 안 된다'
+    # 🔴 판매기간이 「설정 안 함」이면 쿠팡 등록이 안 된다 — 그 걱정은 이제 정책이 아니라
+    #   `fixed_sends` 가 진다. 그래서 **그 표에 실제로 있는지**를 여기서 지킨다.
+    from lemouton.policy import fixed_sends as FS
+    labels = {r['label'] for r in FS.for_market('coupang')['rows']}
+    assert '상품 판매기간' in labels, '판매기간이 화면 어디에서도 안 보인다'
+    assert '상품상태' in labels, '상품상태가 화면 어디에서도 안 보인다'
 
 
 def test_상품명_항목에_가공규칙_칸들이_그대로_있다():

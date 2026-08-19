@@ -22,7 +22,6 @@ def test_쿠팡_고정값이_실제_코드에_그대로_있다():
     """표만 고치고 코드를 안 고치면(또는 반대면) 화면이 거짓말한다."""
     src = _read('compile_coupang.py')
     있어야_할_것 = [
-        "'taxType': 'TAX'",
         "'parallelImported': 'NOT_PARALLEL_IMPORTED'",
         "'overseasPurchased': 'NOT_OVERSEAS_PURCHASED'",
         "'pccNeeded': 'false'",
@@ -76,13 +75,17 @@ def test_확인한_마켓은_목록을_준다():
 
 # ── 정책과 실제가 어긋날 때 잡아내는가 ──────────────────────────────────
 
-def test_정책을_면세로_바꿔도_과세로_나가면_어긋남으로_잡는다():
-    """🔴 지금 코드는 정책 값을 안 읽는다 — 바꿔도 안 먹는데 화면이 조용하면 안 된다."""
-    got = FS.conflicts('coupang', {'listing': {'tax_type': '면세'}})
-    labels = [c['label'] for c in got]
-    assert '과세구분' in labels
-    c = [x for x in got if x['label'] == '과세구분'][0]
-    assert c['policy'] == '면세' and c['actual'] == '과세'
+def test_면세로_바꾸면_면세로_나간다():
+    """[2026-08-13] 이었다 — 전에는 「바꿔도 안 먹는다」를 어긋남으로 잡아 줘야 했다.
+
+    🔴 이제는 정책이 이기므로 **어긋남이 아니다.** 대신 항목별 표가
+      「정책 면세 / 실제 면세」로 보여준다. 여기서 옛 기대를 그대로 두면
+      고쳐 놓고도 화면이 경고를 띄운다.
+    """
+    assert FS.conflicts('coupang', {'listing': {'tax_type': '면세'}}) == []
+    rows = {r['label']: r for r in FS.by_item('coupang', {'listing': {'tax_type': '면세'}})['listing']}
+    assert rows['과세구분']['actual'] == '면세'
+    assert rows['과세구분']['same'] is True
 
 
 def test_같으면_어긋남이_아니다():
@@ -127,10 +130,12 @@ def test_항목별_대조가_늘_나온다():
     assert tax[0]['policy'] == '과세' and tax[0]['actual'] == '과세'
 
 
-def test_다르면_같지_않다고_표시한다():
-    got = FS.by_item('coupang', {'listing': {'tax_type': '면세'}})
-    tax = [x for x in got['listing'] if x['label'] == '과세구분'][0]
-    assert tax['same'] is False
+def test_모르는_값을_넣으면_기본값이_나간다():
+    """정책에 없는 글자가 들어와도 지어내지 않는다 — 기본값(과세)으로 둔다."""
+    rows = {r['label']: r for r in FS.by_item('coupang', {'listing': {'tax_type': '몰라요'}})['listing']}
+    assert rows['과세구분']['actual'] == '몰라요', '표는 정책에 적힌 그대로 보여준다'
+    from lemouton.registration.compile_coupang import _TAX_CODE
+    assert _TAX_CODE.get('몰라요', 'TAX') == 'TAX', '보낼 때는 기본값으로 떨어진다'
 
 
 def test_정책에_안_정했으면_실제값만_보여준다():
@@ -182,3 +187,80 @@ def test_미성년자_구매는_이제_박혀_있지_않다():
     row = [r for r in FS.for_market('coupang')['rows']
            if r['label'] == '미성년자 구매'][0]
     assert row['policy_wins'] is True, '정책이 이기는데 표는 아니라고 한다'
+
+
+def test_과세구분도_이제_박혀_있지_않다():
+    """[2026-08-13] 이었다 — 표가 「과세로 박혀 나갑니다」라고 하면 거짓말이다."""
+    src = _read('compile_coupang.py')
+    assert "'taxType': 'TAX'," not in src, '다시 박아 뒀다 — 정책이 안 먹는다'
+    assert "_TAX_CODE" in src, '면세를 보낼 길이 없다'
+    row = [r for r in FS.for_market('coupang')['rows'] if r['label'] == '과세구분'][0]
+    assert row['policy_wins'] is True
+
+
+def test_상품상태는_명시해서_보낸다():
+    """🔴 전에는 아무것도 안 보내 쿠팡 기본값에 기대고 있었다(등록 후 변경 불가)."""
+    src = _read('compile_coupang.py')
+    assert "'offerCondition': 'NEW'" in src
+    labels = {r['label'] for r in FS.for_market('coupang')['rows']}
+    assert '상품상태' in labels
+
+
+# ── [2026-08-13] 11번가·옥션·G마켓 — 조립 코드를 열었으니 표도 실제와 맞는가 ──
+
+_PLAT = Path('shared/platforms')
+
+
+def test_11번가_고정값이_실제_코드에_그대로_있다():
+    src = (_PLAT / 'eleven11' / 'products.py').read_text(encoding='utf-8')
+    있어야_할_것 = [
+        '<prdStatCd>01</prdStatCd>',            # 상품상태 = 새상품
+        '<selMthdCd>01</selMthdCd>',            # 판매방식 = 고정가판매
+        '<orgnNmVal>상세설명 참조</orgnNmVal>',   # 원산지가 박혀 나간다
+        '<dlvCstInstBasiCd>01</dlvCstInstBasiCd>',   # 배송비 무료
+        '<bndlDlvCnYn>N</bndlDlvCnYn>',         # 묶음배송 불가
+        '_TAX_CODE = {"과세": "01", "면세": "02"}',
+    ]
+    빠진것 = [x for x in 있어야_할_것 if x not in src]
+    assert not 빠진것, f'표에 적었는데 코드에 없다 — 표가 낡았다: {빠진것}'
+
+
+def test_ESM_고정값이_실제_코드에_그대로_있다():
+    src = (_PLAT / 'esm' / 'products.py').read_text(encoding='utf-8')
+    있어야_할_것 = [
+        'period_block = {"Gmkt": -1, "Iac": -1}',      # 판매기간 무제한
+        '"isAdultProduct": bool(is_adult_product)',    # 미성년자 = 정책값
+        '"isVatFree": bool(is_vat_free)',              # 과세구분 = 정책값
+        '"siteDiscount": {"gmkt": False, "iac": False}',
+    ]
+    빠진것 = [x for x in 있어야_할_것 if x not in src]
+    assert not 빠진것, f'표에 적었는데 코드에 없다 — 표가 낡았다: {빠진것}'
+
+
+def test_옥션과_G마켓은_같은_표를_본다():
+    """🔴 같은 ESM 조립기 하나를 쓴다 — 따로 적으면 한쪽만 고쳐져 갈린다."""
+    a = [(r['label'], r['value']) for r in FS.for_market('auction')['rows']]
+    g = [(r['label'], r['value']) for r in FS.for_market('gmarket')['rows']]
+    assert a == g
+
+
+def test_이제_확인_못_한_마켓은_롯데온뿐이다():
+    """11번가·옥션·G마켓은 조립 코드를 전수로 읽었다 — 계속 「안 열어 봤다」면 그것도 거짓말."""
+    assert FS.UNCHECKED == ('lotteon',)
+    for mk in ('eleven11', 'auction', 'gmarket'):
+        assert FS.for_market(mk)['checked'] is True, mk
+
+
+def test_새로_연_마켓도_근거_위치가_전부_적혀_있다():
+    for mk in ('eleven11', 'auction', 'gmarket'):
+        for row in FS.for_market(mk)['rows']:
+            assert row['where'] and '.py:' in row['where'], f'{mk} · {row["label"]}'
+
+
+def test_정책이_이기는_칸은_그렇게_표시돼_있다():
+    """🔴 표시를 빠뜨리면 화면이 「정책 면세 / 실제 과세」라고 **반대로** 거짓말한다."""
+    for mk in ('eleven11', 'auction', 'gmarket'):
+        rows = {r['label']: r for r in FS.for_market(mk)['rows']}
+        assert rows['과세구분']['policy_wins'] is True, mk
+        assert rows['미성년자 구매']['policy_wins'] is True, mk
+        assert FS.conflicts(mk, {'listing': {'tax_type': '면세'}}) == [], mk

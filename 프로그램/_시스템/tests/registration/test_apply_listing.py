@@ -5,9 +5,10 @@
    초안에는 그대로 전연령이 남았고, 화면은 조용했다 — 값을 못 만드는 것과
    **그 사실을 안 말하는 것은 다른 잘못**이다.
 
-🔴 칸이 있는 것(미성년자 구매)은 잇는다. 칸이 없는 것(과세·상품상태·판매기간·
-   제조사)은 **지어내지 말고 사유로 말한다** — 마켓별 payload 를 열어 보기 전에
-   붙이면 금전 사고가 난다.
+🔴 칸이 있는 것은 잇는다 — 미성년자 구매·과세구분·제조사, 그리고 자동 가격 조정
+   최저가(쿠팡 전용). 칸이 없거나 **값을 새로 만들어야 하는 것**은 지어내지 말고
+   사유로 말한다. 상품상태·판매기간은 고를 것이 아니라 정해진 값이라 정책 항목에서
+   빠졌다(`policy/fixed_sends.py` 의 「정해져 나가는 값」이 보여준다).
 """
 from lemouton.registration.process_apply import apply_rules
 
@@ -58,18 +59,23 @@ def test_모르는_값은_지어내지_않는다():
 
 # ── 칸이 없는 값: 조용히 넘기지 않는가 ──────────────────────────────────────
 
-def test_담을_칸이_없는_값은_사유로_말한다():
-    """🔴 「저장은 되는데 안 나간다」를 화면이 말해야 한다."""
+def test_이제_못_보내는_칸은_없다():
+    """[2026-08-13] 넷 다 나간다 — 「저장은 되는데 안 나간다」가 사라졌다.
+
+    · 과세구분·제조사 → 초안 칸 + 4마켓 배선
+    · 상품상태·판매기간 → 고를 것이 아니라 정해진 값이라 정책에서 뺐다
+    🔴 새로 「못 보내는 칸」이 생기면 `_LISTING_NO_FIELD` 에 적어야 화면이 말한다.
+      비워 둔 채 값만 늘리면 다시 조용히 사라진다.
+    """
     _, _, skipped = apply_rules(_Draft(), {'listing': {
-        'tax_type': '면세', 'product_condition': '중고상품',
-        'sale_period': '무제한', 'manufacturer_mode': '직접 입력',
-        'manufacturer_fixed': '한국제화',
+        'tax_type': '면세',
+        'manufacturer_mode': '직접 입력', 'manufacturer_fixed': '한국제화',
     }})
-    got = _skips(skipped)
-    for f in ('tax_type', 'product_condition', 'sale_period', 'manufacturer_mode'):
-        assert f in got, f'{f} 를 조용히 넘겼다'
-        assert got[f]['gap'] is True, f'{f} 가 「빠진 칸」으로 표시되지 않았다'
-        assert not got[f]['blocking'], f'{f} 때문에 등록이 막히면 안 된다'
+    gaps = [s for s in skipped if s['item'] == 'listing' and s.get('gap')]
+    assert gaps == [], f'못 보내는 칸이 남아 있다: {gaps}'
+
+    from lemouton.registration.process_apply import _LISTING_NO_FIELD
+    assert _LISTING_NO_FIELD == (), '목록이 비어야 하는데 남아 있다'
 
 
 def test_기본값과_같으면_사유를_안_만든다():
@@ -144,3 +150,96 @@ def test_False_를_안_정함으로_읽지_않는다():
     assert got.get('minor_purchasable') is False
     assert got.get('delivery_fee') == 0
     assert 'return_fee' not in got and 'origin_area_code' not in got
+
+
+# ── [2026-08-13] 정책 → 초안 다리 ──────────────────────────────────────────
+
+def test_과세구분이_초안까지_간다():
+    """🔴 컴파일러가 초안 칸을 읽게 됐어도, 정책값이 그 칸까지 와야 뜻이 있다."""
+    view, applied, _ = apply_rules(_Draft(), {'listing': {'tax_type': '면세'}})
+    assert view.tax_type == '면세'
+    assert [a for a in applied if a['field'] == 'tax_type']
+
+
+def test_과세구분을_안_정하면_손대지_않는다():
+    d = _Draft()
+    d.tax_type = '면세'                       # 사람이 상품에 직접 넣어 둔 값
+    view, _, _ = apply_rules(d, {'listing': {}})
+    assert view.tax_type == '면세', '정책이 조용히 과세로 덮었다'
+
+
+def test_모르는_과세구분은_지어내지_않는다():
+    _, applied, skipped = apply_rules(_Draft(), {'listing': {'tax_type': '영세'}})
+    assert not [a for a in applied if a['field'] == 'tax_type']
+    assert 'tax_type' in {s['field'] for s in skipped}
+
+
+def test_제조사는_브랜드와_동일이_기본이다():
+    """쿠팡 문서 권고 그대로 — 정책이 「브랜드와 동일」이면 초안엔 안 넣는다."""
+    view, _, _ = apply_rules(_Draft(), {'listing': {'manufacturer_mode': '브랜드와 동일'}})
+    assert getattr(view, 'manufacturer', '') == ''
+
+
+def test_제조사_직접_입력이_초안까지_간다():
+    view, applied, _ = apply_rules(_Draft(), {'listing': {
+        'manufacturer_mode': '직접 입력', 'manufacturer_fixed': '한국제화'}})
+    assert view.manufacturer == '한국제화'
+    assert [a for a in applied if a['field'] == 'manufacturer_fixed']
+
+
+def test_직접_입력인데_값이_비면_막지_말고_말한다():
+    """🔴 등록을 멈추면 안 된다 — 브랜드로 갈음되니 사고가 아니다."""
+    _, _, skipped = apply_rules(_Draft(), {'listing': {'manufacturer_mode': '직접 입력'}})
+    s = [x for x in skipped if x['field'] == 'manufacturer_fixed']
+    assert s and s[0]['blocking'] is False
+
+
+def test_다리에_실린_칸이_초안_행으로도_옮겨진다():
+    """🔴 모음전은 사본이 아니라 **초안 행**을 컴파일한다 — 옮김 목록에 있어야 한다."""
+    from lemouton.send.as_draft import _POLICY_FIELDS
+    for k in ('tax_type', 'manufacturer'):
+        assert k in _POLICY_FIELDS, f'{k} 가 초안 행으로 안 옮겨진다'
+
+
+# ── [2026-08-13] 자동 가격 조정 최저가 (쿠팡 전용) ──────────────────────────
+
+def test_최저가_직접_입력이_초안에_닿는다():
+    view, applied, _ = apply_rules(
+        _Draft(auto_pricing_min=None),
+        {'listing': {'_auto_pricing': {'mode': '씀 — 최저가 직접 입력',
+                                       'min_price': 70000}}})
+    assert view.auto_pricing_min == 70000
+    assert [x for x in applied if x['field'] == 'auto_pricing_min']
+
+
+def test_안_쓰면_손대지_않는다():
+    view, applied, skipped = apply_rules(
+        _Draft(auto_pricing_min=None), {'listing': {'_auto_pricing': {'mode': '안 씀'}}})
+    assert getattr(view, 'auto_pricing_min', None) is None
+    assert 'auto_pricing_min' not in _skips(skipped)
+
+
+def test_직접_입력인데_값이_비면_켜지_않고_말한다():
+    """🔴 최저가 없이 켜면 바닥 없이 값이 내려간다 — 켜지 않는 쪽이 안전하다."""
+    view, _, skipped = apply_rules(
+        _Draft(auto_pricing_min=None),
+        {'listing': {'_auto_pricing': {'mode': '씀 — 최저가 직접 입력', 'min_price': 0}}})
+    assert getattr(view, 'auto_pricing_min', None) is None
+    s = _skips(skipped)['auto_pricing_min']
+    assert s['blocking'] is False, '이것 때문에 등록이 멈추면 안 된다'
+
+
+def test_마진율_계산은_지어내지_않고_못_했다고_말한다():
+    """🔴 판매가를 가공 사본에서 만들면 「에러 없이 틀린 숫자」가 된다 — 금전 사고."""
+    view, _, skipped = apply_rules(
+        _Draft(auto_pricing_min=None),
+        {'listing': {'_auto_pricing': {'mode': '씀 — 최저가를 마진율로 계산',
+                                       'min_margin_pct': 5}}})
+    assert getattr(view, 'auto_pricing_min', None) is None
+    s = _skips(skipped)['auto_pricing_min']
+    assert s['blocking'] is False and s.get('gap') is True
+
+
+def test_자동_가격_조정도_초안_행으로_옮겨진다():
+    from lemouton.send.as_draft import _POLICY_FIELDS
+    assert 'auto_pricing_min' in _POLICY_FIELDS

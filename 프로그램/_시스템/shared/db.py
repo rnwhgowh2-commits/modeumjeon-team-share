@@ -576,6 +576,21 @@ def _apply_lightweight_migrations() -> None:
         ("product_drafts", "pricing_card_key", "VARCHAR(64)"),
         ("product_drafts", "pricing_naver_pay", "VARCHAR(16)"),
         ("product_drafts", "pricing_cashback_name", "VARCHAR(120)"),
+        # 2026-08-13: 등록 상수 — 정책에서 정한 값이 담길 자리.
+        #   전에는 담을 칸이 없어 마켓 등록 코드에 「과세」·「새상품」이 박힌 채 나갔다.
+        #   🔴 DEFAULT 를 거는 건 tax_type 하나뿐이다 — 사장님 확정이 「기본은 과세」라
+        #     기존 행도 과세가 맞다. 나머지는 NULL(=안 정함)과 ''(=없음 명시)를
+        #     구분해야 하므로 DEFAULT 를 안 건다(폴백 금지).
+        #   폭은 마켓 문서 상한에 맞춘다 — 스스 modelName <= 50자, 쿠팡 barcode 는
+        #     표준상품코드(GTIN-14 까지)라 64 로 여유를 둔다. 좁히면 개발기(SQLite,
+        #     길이 무시)는 통과하고 라이브(PostgreSQL)에서만 깨진다.
+        ("product_drafts", "tax_type", "VARCHAR(8) DEFAULT '과세'"),
+        ("product_drafts", "manufacturer", "VARCHAR(120)"),
+        ("product_drafts", "model_no", "VARCHAR(80)"),
+        ("product_drafts", "barcode", "VARCHAR(64)"),
+        ("product_drafts", "search_tags", "TEXT"),
+        # 2026-08-13: 자동 가격 조정 최저가(쿠팡 전용). NULL = 안 씀 — DEFAULT 금지.
+        ("product_drafts", "auto_pricing_min", "INTEGER"),
         # 2026-07-20: 판매처 계정 라이브 검증(실주문 조회 왕복 확인) 기록.
         #   upload_accounts 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
         #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.

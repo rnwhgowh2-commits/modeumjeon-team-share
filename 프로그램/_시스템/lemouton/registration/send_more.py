@@ -149,7 +149,12 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
         official_notice_no=int(prereq['official_notice_no']),
         official_notice_details=prereq['official_notice_details'],
         image_url=spec['image_url'], detail_html=spec['detail_html'],
-        options=None)
+        options=None,
+        # 🔴 [2026-08-13] 조립기에는 칸이 있었는데 **여기서 안 넘겨** 늘 기본값이 나갔다
+        #   (isVatFree=False·isAdultProduct=False). 「다리를 세어라」 — 엔진만 고치고
+        #   호출부를 안 고치면 라이브는 한 글자도 안 바뀐다.
+        is_vat_free=spec['is_vat_free'], model_no=spec['model_no'],
+        bar_code=spec['bar_code'], is_adult_product=spec['is_adult_product'])
     result = register_goods(payload, client=client)   # 실패는 raise(goodsNo 없으면 실패)
     goods_no_new = str(result['goodsNo'])
 

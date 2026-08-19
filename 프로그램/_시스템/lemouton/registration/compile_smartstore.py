@@ -20,6 +20,48 @@ from lemouton.registration.options import build_smartstore_options, OptionError
 _CDN_HOST = 'shop-phinf.pstatic.net'
 
 
+#: 화면 글자 → 스스 코드. 🔴 모르는 글자는 지어내지 않고 기본값(과세)으로 둔다.
+#:   지도에 SMALL(영세)도 있지만 사장님 확정으로 선택지에서 뺐다 —
+#:   쿠팡·옥션·G마켓엔 영세를 보낼 칸이 없어, 남겨 두면 마켓마다 다른 값이 나간다.
+_TAX_CODE = {'과세': 'TAX', '면세': 'DUTYFREE'}
+
+
+def _search_info(draft) -> dict:
+    """네이버쇼핑 검색정보 — 제조사명·모델명.
+
+    🔴 빈 문자열을 보내면 「없음」이 아니라 **빈 값으로 등록**된다 → 값이 있을 때만 넣는다.
+    """
+    mf = str(getattr(draft, 'manufacturer', '') or '').strip() or (draft.brand or '').strip()
+    md = str(getattr(draft, 'model_no', '') or '').strip()
+    got = {}
+    if mf:
+        got['manufacturerName'] = mf
+    if md:
+        got['modelName'] = md
+    return {'naverShoppingSearchInfo': got} if got else {}
+
+
+def _barcode_block(draft) -> dict:
+    """판매자 바코드. 칸 이름이 `sellerBarcode`(판매자 바코드)라 **우리 값도 맞다**."""
+    from lemouton.inventory import barcode as BC
+    got = BC.for_market(getattr(draft, 'barcode', ''), 'smartstore')
+    return {'sellerCodeInfo': {'sellerBarcode': got}} if got else {}
+
+
+def _seo_block(draft) -> dict:
+    """판매자 입력 태그. 🔴 값 모양이 이상해도 **등록을 막지 않는다** — 태그만 포기한다."""
+    import json as _json
+    raw = getattr(draft, 'search_tags', None)
+    try:
+        got = _json.loads(raw) if isinstance(raw, str) and raw.strip() else raw
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(got, list):
+        return {}
+    tags = [{'text': str(t).strip()} for t in got if str(t or '').strip()]
+    return {'seoInfo': {'sellerTags': tags}} if tags else {}
+
+
 def compile_smartstore(draft, *, category_code: str, require_cdn_images: bool = True):
     """ProductDraft → (POST /v2/products body, 제외된 옵션 목록).
 
@@ -91,7 +133,13 @@ def compile_smartstore(draft, *, category_code: str, require_cdn_images: bool = 
             'afterServiceGuideContent': draft.after_service_guide,
         },
         'productInfoProvidedNotice': notice,
+        # 지도 근거: 요청.taxType — 코드 [TAX, DUTYFREE, SMALL] · 미입력 시 과세.
+        #   🔴 「영세(SMALL)」는 사장님 확정으로 선택지에서 뺐다(수출·외화획득 거래용).
+        'taxType': _TAX_CODE.get(str(getattr(draft, 'tax_type', '') or '과세').strip(), 'TAX'),
     }
+    detail_attr.update(_search_info(draft))
+    detail_attr.update(_barcode_block(draft))
+    detail_attr.update(_seo_block(draft))
 
     opts = loads_json(draft.options_json, [], what='옵션')
     excluded = []
@@ -138,6 +186,11 @@ def compile_smartstore(draft, *, category_code: str, require_cdn_images: bool = 
         # statusType 은 서버가 무시하지만 라이브 검증본과 동일하게 SUSPENSION 을 보낸다
         # (초안 전환은 등록 후 change_status.mark_suspension() — 서비스 몫).
         'statusType': 'SUSPENSION',
+        # 🔴 `saleType` 은 **일부러 안 보낸다.** 지도의 스스 등록 요청 예시에 없는
+        #   미검증 필드이고, 문서가 「미입력 시 NEW」라 보내나 안 보내나 결과가 같다.
+        #   라이브 검증본과 다르게 보내는 위험만 늘어난다.
+        #   (쿠팡은 공식 요청 예시에 offerCondition 이 들어 있어 그쪽은 보낸다 —
+        #    같은 「새상품」이라도 마켓마다 근거가 다르다)
         'leafCategoryId': str(category_code),
         'name': draft.name,
         'salePrice': sale_price,
