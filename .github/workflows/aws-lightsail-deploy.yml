@@ -108,6 +108,29 @@ jobs:
           chmod 600 ~/.ssh/ls_key
           ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      # ── 최신 커밋인지 확인 — 뒤처진 배포가 앞선 배포를 덮어쓰는 사고 방지 ──────
+      # 왜: `concurrency: deploy-live`(cancel-in-progress:false)는 SSH 세션이
+      #   동시에 겹치는 것만 막는다 — 각 런은 gate(전체 pytest, 수십 분 걸림)를
+      #   먼저 통과해야 이 큐에 들어오는데, gate 소요시간이 런마다 달라서
+      #   **더 먼저 push된(오래된) 커밋의 런이 gate 를 늦게 통과해 큐에 나중에
+      #   들어오면, 이미 배포된 더 새 커밋 위에 자기(더 오래된 코드)를 덮어쓴다.**
+      #   순서를 보장하는 건 "push 시각"이 아니라 "이 지점에 도달한 시각"이라
+      #   실제로 2026-08-19 22:56~23:19 사이 관측됨(새 커밋이 23:18에 배포되고,
+      #   그보다 먼저 push됐던 옛 커밋이 23:19에 그 위를 덮어씀 — 에러 없이 조용히).
+      # 고침: SSH 로 실제 배포하기 직전, "지금 origin/main 의 맨 끝이 여전히
+      #   내 커밋인가"만 한 번 더 물어본다. 아니라면(=내가 대기하는 사이 더 새
+      #   커밋이 이미 배포까지 끝났거나 끝날 참이라면) 조용히 건너뛴다 —
+      #   실패가 아니라 "더 새 배포가 대신 반영됨"이라 정상 종료.
+      - name: 최신 커밋인지 확인 (뒤처진 배포 건너뛰기)
+        run: |
+          git fetch origin main --quiet
+          LATEST="$(git rev-parse origin/main)"
+          MINE="${{ github.sha }}"
+          if [ "$LATEST" != "$MINE" ]; then
+            echo "::notice::main 이 이미 더 새 커밋($LATEST)으로 앞서 있습니다 — 이 배포($MINE)는 건너뜁니다. 그 커밋의 배포가 대신 반영됩니다."
+            echo "SKIP_DEPLOY=1" >> "$GITHUB_ENV"
+          fi
+
       # ── 개발 PC 직접배포용 공개키 등록 (멱등) ──────────────────────────────
       # 왜: 2026-08-06 Actions 대형 장애 때 웹훅이 15%만 처리돼 push 가 런을 아예 못 만들었다.
       #     그날은 수동 실행(workflow_dispatch)이 살아 있어 넘겼지만, 그마저 막히면
@@ -133,6 +156,7 @@ jobs:
             "
 
       - name: 코드 압축 → 서버 전송 → 무중단 교체
+        if: env.SKIP_DEPLOY != '1'
         run: |
           set -e
           cd "프로그램/_시스템"
@@ -315,6 +339,7 @@ jobs:
             '
 
       - name: 헬스체크 (Cloudflare→Caddy→앱, 콜드스타트 관대)
+        if: env.SKIP_DEPLOY != '1'
         run: |
           echo "배포 후 헬스체크..."
           sleep 8
