@@ -169,11 +169,12 @@
                 >—</span>{% else %}<span class="og-frac"
                 title="SKU {{ b.map.skus }}개 중 {{ b.map.skus_done }}개가 소싱처와 이어짐 · 소싱처 {{ b.map.sources }}곳 중 {{ b.map.sources_done }}곳 끝{% if b.map.over_total %}&#10;🔴 실제로 이어진 SKU 는 {{ b.map.over_total }}개로 분모보다 많습니다 — 옵션 수를 다시 세야 합니다.{% endif %}"
                 >{{ b.map.skus_done }}/{{ b.map.skus }}</span>{% endif %}</td>
-            {# 상태 — 🔴 이름과 색은 `readiness.PHASE_LABEL`·`PHASE_CLS` 에서만 온다.
-               여기에 글자를 또 적으면 한쪽만 고쳤을 때 화면마다 다른 말을 한다. #}
-            <td class="og-ctr"><span class="og-badge stgb {{ phase_cls[b.phase] }}"
+            {# 상태 — 🔴 이름·색·아이콘은 `readiness.PHASE_LABEL`·`PHASE_CLS`·`PHASE_ICON`
+               에서만 온다. 여기에 글자를 또 적으면 한쪽만 고쳤을 때 화면마다 다른 말을 한다.
+               [2026-08-19 디자인 통일] 딱지(배경·테두리) 없이 아이콘 + 색 글자로 — ds.css §1. #}
+            <td class="og-ctr"><span class="ds-st ds-st--{{ phase_cls[b.phase] }}"
                 {%- if b.missing %} title="아직 안 된 것 — {{ b.missing | join(' · ') }}"{% endif %}
-                >{{ phase_label[b.phase] }}</span></td>
+                ><i class="ph-light ph-{{ phase_icon[b.phase] }}" aria-hidden="true"></i>{{ phase_label[b.phase] }}</span></td>
             {# ── SKU 정보 상태 — 품번 · 바코드 · GTIN 을 **셋 따로** 놓고 각각 호버 ──
                🔴 이름과 순서를 여기 적지 않는다 — `matrix/sku_info.FIELDS`·`LABELS`
                   한 곳에서 온다(서버가 `sku_fields`·`sku_labels` 로 내려 준다).
@@ -397,7 +398,8 @@
                「지금 상품을 만들 수 있나」까지. 글자·색은 `readiness` 한 곳에서 온다.
                판(위 사이드바)이 세는 값과 **같은 표**를 쓰므로 둘이 갈릴 수 없다. #}
             <td class="c">{% if m.show == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
-              {%- elif m.show in phases %}<span class="og-badge stgb {{ phase_cls[m.show] }}">{{ phase_label[m.show] }}</span>
+              {%- elif m.show in phases %}<span class="ds-st ds-st--{{ phase_cls[m.show] }}"
+                ><i class="ph-light ph-{{ phase_icon[m.show] }}" aria-hidden="true"></i>{{ phase_label[m.show] }}</span>
               {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}
               {# 🔴 `/bundles?q=…` 로 보내면 **아무 데도 안 간다** — 그 화면의 찾기는 화면 안
                  JS 전용이라 주소의 q 를 안 읽는다(90행 그대로 뜬다). 상품 화면으로 바로. #}
@@ -741,10 +743,11 @@
   .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
   .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
   /* 옵션함 위상(readiness.PHASE_CLS) — 배지와 **같은 색 뜻**을 쓴다.
-     회색=아직 · 파랑=중간 · 초록=끝. 위 t1~t4 와 같은 색 변수라 화면 어디서나 뜻이 같다. */
-  .stg-row.wait .lb{color:var(--ap-g45,#6E6E73)}
-  .stg-row.mid .lb{color:var(--ap-링크파랑,#0066CC)}
-  .stg-row.sale .lb{color:var(--글자-초록,#248A3D)}
+     [2026-08-19 디자인 통일] idle=회색 · ok=초록 · est=파랑, ds.css 색 변수 그대로.
+     (wait/mid/sale 은 이 화면의 다른 자리 — 원본/파생 딱지·상품관리 stage_cls — 가 아직 쓴다.) */
+  .stg-row.idle .lb{color:var(--ds-mute,#8B95A1)}
+  .stg-row.ok .lb{color:var(--ds-ok,#1B7F3B)}
+  .stg-row.est .lb{color:var(--ds-pri,#3182F6)}
   .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
   .stg-row.fix .n{font-weight:600}
   /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.

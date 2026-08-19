@@ -137,6 +137,26 @@ def test_세_위상_모두_이름과_색이_있다():
     assert len(set(PHASE_CLS.values())) == len(PHASES), '두 위상이 같은 색을 쓴다'
 
 
+def test_세_위상_모두_아이콘이_있고_이름이_실제_목록에_있다():
+    """🔴 이름이 틀리면 화면에서 빈칸으로 조용히 사라진다 — 실제 Phosphor Light 목록과 대조."""
+    import os
+    import urllib.request
+    from lemouton.matrix.readiness import PHASE_ICON, PHASES
+
+    assert len(PHASE_ICON) == len(PHASES)
+    for p in PHASES:
+        assert p in PHASE_ICON and PHASE_ICON[p], f'{p} 에 아이콘 이름이 없다'
+
+    url = 'https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css'
+    try:
+        css = urllib.request.urlopen(url, timeout=5).read().decode('utf-8')
+    except Exception:
+        pytest.skip('오프라인 환경 — 실제 아이콘 목록과 대조 못 함(CI/네트워크 있는 곳에서 다시 확인)')
+    for p, name in PHASE_ICON.items():
+        assert f'.ph-light.ph-{name}:before' in css, (
+            f'{p} 아이콘 "{name}" 이 Phosphor Light 목록에 없다 — 화면에서 빈칸이 된다')
+
+
 def test_판매상품_상태_이름과_겹치지_않는다():
     """🔴 옵션함과 판매 상품은 다른 것이다 — 이름이 겹치면 화면이 거짓말을 한다."""
     from lemouton.matrix.readiness import PHASE_LABEL
@@ -146,12 +166,18 @@ def test_판매상품_상태_이름과_겹치지_않는다():
     assert not 겹침, f'판매 상품 상태와 같은 말을 쓴다: {겹침}'
 
 
-def test_색_이름_체계는_판매상품과_같은_것을_쓴다():
-    """색 뜻은 화면 어디서나 같아야 한다 — 새 클래스 이름을 만들면 CSS 가 갈린다."""
+def test_색_이름_체계는_디자인_기준_한_벌에_있는_것만_쓴다():
+    """🔴 [2026-08-19 디자인 통일] 색 이름은 `ds.css` 의 `.ds-st--*` 다섯 가지 중에서만
+    고른다 — 새 이름을 만들면 CSS 가 없어 화면에서 조용히 기본색(검정)으로 빠진다.
+
+    예전엔 `bundles_tower.STAGE_CLS`(wait/mid/sale)와 같은 이름을 쓰는지를 봤다.
+    이 화면이 새 기준(딱지 없이 아이콘+색 글자)을 먼저 입으면서 그 대조는 끝났다 —
+    옛 이름 체계와 다른 것이 이번엔 **의도**다. 대신 새 단일 진실 원천과 대조한다.
+    """
     from lemouton.matrix.readiness import PHASE_CLS
-    from webapp.routes.bundles_tower import STAGE_CLS
-    낯선이름 = set(PHASE_CLS.values()) - set(STAGE_CLS.values())
-    assert not 낯선이름, f'판매 상품 화면에 없는 색 이름을 쓴다: {낯선이름}'
+    허용 = {'ok', 'idle', 'no', 'unk', 'est'}   # ds.css 의 .ds-st--* 다섯 가지
+    낯선이름 = set(PHASE_CLS.values()) - 허용
+    assert not 낯선이름, f'ds.css 에 없는 색 이름을 쓴다(화면에서 빈 색으로 빠진다): {낯선이름}'
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -64,11 +64,22 @@ PHASE_LABEL = {
     PHASE_READY: '상품생성 준비 완료',
     PHASE_USED: '상품 생성에 사용됨',
 }
-#: 배지 색 — 회색 / 파랑 / 초록. `bundles_tower.STAGE_CLS` 와 같은 이름 체계다.
+#: [2026-08-19 디자인 통일 반영] 딱지 없이 「아이콘 + 색 글자」 — `webapp/static/ds.css`
+#: 의 `.ds-st--*` 변형 이름 그대로(회색 idle · 초록 ok · 파랑 est). 이 화면만 새 기준을
+#: 먼저 입는다 — `bundles_tower.STAGE_CLS`(옛 wait/mid/sale)는 아직 그대로다.
 PHASE_CLS = {
-    PHASE_DRAFT: 'wait',
-    PHASE_READY: 'mid',
-    PHASE_USED: 'sale',
+    PHASE_DRAFT: 'idle',
+    PHASE_READY: 'ok',
+    PHASE_USED: 'est',
+}
+
+#: 아이콘 — Phosphor Light 이름 그대로(`ph-light ph-<이름>` 클래스로 붙인다).
+#: 🔴 이름이 틀리면 화면에서 빈칸으로 조용히 사라진다 — 셋 다 실제 목록과 대조했다
+#: (https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css 실측).
+PHASE_ICON = {
+    PHASE_DRAFT: 'circle-dashed',
+    PHASE_READY: 'check',
+    PHASE_USED: 'check-circle',
 }
 
 #: 한 번에 IN 절(`.in_(…)`)에 넣는 개수 — 이 값은 **여기 한 곳에서만** 정한다.

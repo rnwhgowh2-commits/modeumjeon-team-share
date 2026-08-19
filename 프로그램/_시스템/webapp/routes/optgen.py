@@ -570,7 +570,7 @@ def index():
                 'code': request.args.get('code') or '',
                 'options': request.args.get('opts') or ''}
     # 「어디까지 왔나」 판 — 상품관리와 같은 4상태(사장님 첫 지시 「사이드바에도 구분하자」)
-    from lemouton.matrix.readiness import PHASE_CLS, PHASE_LABEL, PHASES
+    from lemouton.matrix.readiness import PHASE_CLS, PHASE_ICON, PHASE_LABEL, PHASES
     from lemouton.matrix.sku_info import FIELDS as SKU_FIELDS
     from lemouton.matrix.sku_info import LABELS as SKU_LABELS
     from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
@@ -597,7 +597,7 @@ def index():
                            #    화면이 「상품생성 준비 완료」 같은 글자를 또 적으면
                            #    한쪽만 고쳤을 때 같은 옵션함이 화면마다 다른 이름으로 불린다.
                            phases=PHASES, phase_label=PHASE_LABEL,
-                           phase_cls=PHASE_CLS, show_made=show_made,
+                           phase_cls=PHASE_CLS, phase_icon=PHASE_ICON, show_made=show_made,
                            # 🔴 「품번·바코드·GTIN」이라는 이름과 **그 순서**도 한 곳에서만
                            #    온다(`matrix/sku_info.FIELDS`·`LABELS`). 화면에 손으로
                            #    적어 두면 칸이 하나 늘거나 이름이 바뀔 때 이 화면만 뒤처져,

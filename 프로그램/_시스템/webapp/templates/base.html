@@ -29,6 +29,9 @@
 {# 사이드바 v3 — Phosphor light 라인 아이콘 (1,248개, 사용자 선택 시 색상 자유 변경) #}
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}?v={{ STATIC_VER }}">
+{# 디자인 기준 한 벌 — 2026-08-19 확정 18가지의 단일 진실 원천. toss.css 다음에 와야 덮어쓴다.
+   ?v= 를 손으로 붙이지 않는다 — STATIC_VER 는 toss.css 시각이라 ds.css 를 고쳐도 안 바뀐다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='ds.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss_add_benefit.css') }}"><!-- v6 D2-A 혜택추가폼 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='stripe.css') }}">
 {# v32 — 아이콘 picker (노션 스타일). v34.10: site-logo (매트릭스 thead 마켓 헤더) selector 추가. #}

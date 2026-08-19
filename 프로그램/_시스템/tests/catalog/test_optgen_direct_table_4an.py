@@ -194,16 +194,17 @@ def _상태칸(수프, code):
 
 
 def test_상태_이름과_색이_readiness_에서만_온다(client, 표본):
+    """🔴 [2026-08-19 디자인 통일] 딱지(`.og-badge`)가 아니라 `.ds-st`(아이콘+색 글자)다."""
     from lemouton.matrix.readiness import (PHASE_CLS, PHASE_LABEL, PHASE_DRAFT,
                                            PHASE_READY)
     수프 = _수프(client)
     본 = {'준비완료': PHASE_READY, '주소없음': PHASE_DRAFT}
     for 열쇠, 위상 in 본.items():
-        배지 = _상태칸(수프, 표본['코드'][열쇠]).select_one('.og-badge')
-        assert 배지 is not None, f'{열쇠} 줄에 상태 배지가 없다'
+        배지 = _상태칸(수프, 표본['코드'][열쇠]).select_one('.ds-st')
+        assert 배지 is not None, f'{열쇠} 줄에 상태 표시가 없다'
         assert 배지.get_text(strip=True) == PHASE_LABEL[위상], (
             f'{열쇠} 상태 글자가 정본과 다르다: {배지.get_text(strip=True)}')
-        assert PHASE_CLS[위상] in 배지['class'], (
+        assert f'ds-st--{PHASE_CLS[위상]}' in 배지['class'], (
             f'{열쇠} 상태 색이 정본과 다르다: {배지["class"]}')
     # 🔴 화면이 그 글자를 **또 적어 두지** 않았는지 — 그리는 코드에서 확인한다.
     #    주석은 걷어낸다(`_화면코드`). 안 그러면 「이 글자를 여기 적으면 안 된다」고
@@ -221,7 +222,7 @@ def test_미완료_줄은_왜_미완료인지_말한다(client, 표본):
     """🔴 사유가 없으면 배지가 손볼 곳을 안 알려 준다 — 배지만으로는 쓸모가 없다."""
     수프 = _수프(client)
     code = 표본['코드']['주소없음']
-    배지 = _상태칸(수프, code).select_one('.og-badge')
+    배지 = _상태칸(수프, code).select_one('.ds-st')
     assert '소싱처 URL 없음' in (배지.get('title') or ''), (
         f'상태 배지가 사유를 안 알려 준다: {배지.get("title")!r}')
     # 마우스를 안 올려도 보이도록 판에도 글자로 남는다.
@@ -233,7 +234,7 @@ def test_다_갖춘_줄에는_사유를_안_붙인다(client, 표본):
     """할 일이 없는 줄에 「아직 안 된 것」이 붙으면 없는 일감을 만든다."""
     수프 = _수프(client)
     code = 표본['코드']['준비완료']
-    assert not _상태칸(수프, code).select_one('.og-badge').get('title')
+    assert not _상태칸(수프, code).select_one('.ds-st').get('title')
     assert '아직 안 된 것' not in _판(수프, code).get_text(' ', strip=True)
 
 
