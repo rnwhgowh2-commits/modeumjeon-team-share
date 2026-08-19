@@ -543,6 +543,80 @@ def test_필터_구성단위_정책도_적용됨으로_잡는다(client):
     assert [r['model_code'] for r in j['rows']] == ['M1']
 
 
+def test_소싱처_상세_호버카드_API(client):
+    from datetime import datetime, timezone
+    from lemouton.sourcing.models import BundleRun, Option
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260',
+                     color_display='블랙', size_display='260'))
+        s.add(BundleRun(model_code='M1', phase='crawl', status='done',
+                        started_at=datetime(2026, 8, 19, 13, 0, tzinfo=timezone.utc)))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/product/M1/sourcing-detail').get_json()
+    assert j['ok'] is True
+    assert j['history'][0]['status'] == 'done'
+    assert j['options'][0]['sku'] == 'M1-BLK-260'
+    assert 'stock' in j['options'][0]
+    assert 'price' in j['options'][0]
+
+
+def test_소싱처_상세_없는_상품은_404(client):
+    r = client.get('/api/policies/product/없음/sourcing-detail')
+    assert r.status_code == 404
+
+
+def test_판매처_상세_호버카드_API(client):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    from lemouton.sourcing.models import Option
+    _model(client, 'M1', '르무통')
+    pid = _new_policy(client, '상세정책')
+    _fill_common(client, pid)
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.commit()
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['M1'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/product/M1/selling-detail').get_json()
+    assert j['ok'] is True
+    assert any(m['market'] == 'coupang' for m in j['markets'])
+
+
+def test_판매처_상세_없는_상품은_404(client):
+    r = client.get('/api/policies/product/없음/selling-detail')
+    assert r.status_code == 404
+
+
+def test_판매처_상세_이력에_동기화_시각이_있다(client):
+    from datetime import datetime, timezone
+    from lemouton.sourcing.models import Option
+    from lemouton.uploader.models import MarketRegistration
+    _model(client, 'M1', '르무통')
+    s = client._Session()
+    try:
+        s.add(Option(canonical_sku='M1-BLK-260', model_code='M1',
+                     color_code='BLK', size_code='260'))
+        s.add(MarketRegistration(canonical_sku='M1-BLK-260', market='coupang',
+                                 market_product_id='1',
+                                 last_success_at=datetime(2026, 8, 19, 13, 20,
+                                                          tzinfo=timezone.utc)))
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/product/M1/selling-detail').get_json()
+    hist = {h['market']: h['at'] for h in j['history']}
+    assert hist.get('coupang') == '2026-08-19T13:20:00+00:00'
+
+
 def test_사이드바에_상품_정책_적용이_있다(client):
     body = client.get('/policies').get_data(as_text=True)
     assert '/policies/apply' in body

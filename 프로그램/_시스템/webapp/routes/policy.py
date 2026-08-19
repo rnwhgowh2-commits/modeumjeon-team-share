@@ -534,6 +534,97 @@ def api_bundles():
                     'brands': [{'name': b, 'count': n} for b, n in named]})
 
 
+@bp.get('/api/policies/product/<path:code>/sourcing-detail')
+def api_sourcing_detail(code: str):
+    """상품 고르기 호버카드 — 소싱처 수집: 과거 실행 이력(최근순) + 옵션별 가격·재고.
+
+    [이슈 #1058] 값을 새로 계산하지 않는다 — BundleRun · webapp.routes.matrix._rows_for
+    를 그대로 호출만 한다(bundles_tower.py 와 같은 원칙). 목록(api_bundles)에는
+    안 싣는다 — 300행 전체의 이력·매트릭스까지 매번 부르면 목록이 무거워진다.
+    """
+    import json as _json
+    from lemouton.sourcing.models import BundleRun, Model, Option
+    from webapp.routes.bundles_tower import _iso
+    from webapp.routes.matrix import _rows_for
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first() is None:
+            return jsonify({'ok': False, 'error': '상품을 찾을 수 없어요.'}), 404
+        skus = [o.canonical_sku for o in
+                s.query(Option).filter_by(model_code=code).all()]
+        rows, _colors, _sizes = _rows_for(s, skus)
+        history = []
+        for r in (s.query(BundleRun).filter(BundleRun.model_code == code)
+                  .order_by(BundleRun.started_at.desc()).limit(10).all()):
+            note = ''
+            try:
+                d = _json.loads(r.details_json or '{}')
+                srcs = d.get('sources') or {}
+                ok = sum(1 for v in srcs.values() if v.get('ok'))
+                if srcs:
+                    note = f'소싱처 {ok}/{len(srcs)} 성공'
+            except Exception:                          # noqa: BLE001
+                pass
+            history.append({'status': r.status, 'note': note, 'at': _iso(r.started_at)})
+        # [사장님 2026-08-19] 호버카드 표 순서 — 옵션 → 재고 → 가격.
+        options = [{'sku': r['sku'], 'color': r['color'], 'size': r['size'],
+                   'stock': r['stock'], 'price': r['min_final']} for r in rows]
+        return jsonify({'ok': True, 'history': history, 'options': options})
+    finally:
+        s.close()
+
+
+@bp.get('/api/policies/product/<path:code>/selling-detail')
+def api_selling_detail(code: str):
+    """상품 고르기 호버카드 — 판매처 수집: 최근 동기화 + 마켓별 판매가·예상 마진.
+
+    [이슈 #1058] 계산은 lemouton.policy.preview.result_by_market **호출만**
+    (bundles_tower.tower_summary 와 같은 원칙 — 재계산 금지). 마켓 쪽은 소싱처의
+    BundleRun 같은 실행 로그가 없어, 이력은 MarketRegistration.last_success_at
+    (마켓별 마지막 동기화 시각)으로 대신한다 — 있는 사실만 보여준다.
+    """
+    from lemouton.policy.preview import result_by_market
+    from lemouton.policy.service import policy_of
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.uploader.models import MarketRegistration
+    from webapp.routes.bundles_tower import TOWER_MARKETS, _iso
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first() is None:
+            return jsonify({'ok': False, 'error': '상품을 찾을 수 없어요.'}), 404
+        skus = [o.canonical_sku for o in
+                s.query(Option).filter_by(model_code=code).all()]
+        history = []
+        if skus:
+            by_market = {}
+            for mk, ts in (s.query(MarketRegistration.market,
+                                   MarketRegistration.last_success_at)
+                          .filter(MarketRegistration.canonical_sku.in_(skus),
+                                  MarketRegistration.last_success_at.isnot(None))
+                          .all()):
+                if mk not in by_market or ts > by_market[mk]:
+                    by_market[mk] = ts
+            history = sorted(
+                ({'market': mk, 'at': _iso(ts)} for mk, ts in by_market.items()),
+                key=lambda x: x['at'] or '', reverse=True)
+        pol = policy_of(s, code)
+        by_mk = {}
+        if pol is not None:
+            res = result_by_market(s, model_code=code, policy_id=pol.id)
+            by_mk = {r['market']: r for r in res['rows']}
+        markets = []
+        for mk, label, _g in TOWER_MARKETS:
+            r = by_mk.get(mk) or {}
+            markets.append({'market': mk, 'label': label,
+                            'price': r.get('price'), 'margin': r.get('margin'),
+                            'margin_rate': r.get('margin_rate'),
+                            'ready': r.get('ready', False)})
+        return jsonify({'ok': True, 'history': history, 'markets': markets,
+                        'policy': ({'id': pol.id, 'name': pol.name} if pol else None)})
+    finally:
+        s.close()
+
+
 @bp.route('/policies/fees')
 def fee_defaults_page():
     """마켓별 수수료 기준 — 정책 화면 칸에 채워 넣을 값을 여기서 고친다.
