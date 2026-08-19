@@ -10,6 +10,25 @@ from datetime import datetime, timezone, timedelta
 RELAX_STEP = 0.5   # 무변동 1회당 간격 +0.5배
 RELAX_CAP = 4.0    # 완화 상한(최대 4배)
 
+# 🔴 대기열 계산에서 '읽지 않을' 무거운 칸 (지우지 말 것 — 2026-08-19 실사고).
+#   순서 정하기는 last_fetched_at·계수·랩 카운터만 보는데, ORM 기본 조회는 **모든 칸**을
+#   가져온다. 2026-07-23 에 상세 HTML(detail_html)·이미지 목록 칸이 생기면서 폴링 한 번에
+#   전 상품의 상세 HTML 이 통째로 DB 밖으로 나갔다. 확장이 1분마다 부르므로 하루 1,440번 —
+#   수파베이스 전송량이 7/22 까지 0에 가깝다가 **7/23 부터 하루 12~13GB**, 무료 한도(월 5GB)의
+#   1,475% 를 써서 조직 전체가 잠겼다(라이브 실측).
+#   ★대상은 85건뿐이었다 — 줄 '개수' 로는 절대 안 잡히고 줄 '크기' 로만 잡힌다.
+#   deferred 라서 없애는 게 아니다. p.detail_html 을 실제로 물어보면 그때 읽어 온다.
+_HEAVY_COLS = ('detail_html', 'images_json', 'last_error_msg',
+               'auto_card_discount_json', 'dynamic_benefits_json')
+
+
+def _light(query):
+    """SourceProduct 조회에서 무거운 Text 칸을 빼고 읽는다 (순서 계산엔 안 쓰인다)."""
+    from sqlalchemy.orm import defer
+    from lemouton.sources.models import SourceProduct
+    return query.options(*[defer(getattr(SourceProduct, c)) for c in _HEAVY_COLS
+                           if hasattr(SourceProduct, c)])
+
 
 def _as_naive_utc(dt: datetime | None) -> datetime | None:
     """aware→naive-UTC, naive는 그대로. SQLite naive/aware 섞임 방지."""
@@ -123,7 +142,7 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
     if (base_interval_seconds or 0) <= 0:
         return next_lap_products(session)
     from lemouton.sources.models import SourceProduct
-    products = (session.query(SourceProduct)
+    products = (_light(session.query(SourceProduct))
                 .filter(SourceProduct.deleted_at.is_(None))
                 .all())
     resolve = build_batch_weight_resolver(session)   # ★N+1 제거: 제품마다 쿼리 X
@@ -407,7 +426,7 @@ def record_crawl_served(source_product) -> int:
 
 def _active_products(session) -> list:
     from lemouton.sources.models import SourceProduct
-    return (session.query(SourceProduct)
+    return (_light(session.query(SourceProduct))
             .filter(SourceProduct.deleted_at.is_(None))
             .all())
 

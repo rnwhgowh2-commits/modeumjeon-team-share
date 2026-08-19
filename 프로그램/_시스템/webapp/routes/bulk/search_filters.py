@@ -204,6 +204,11 @@ def list_search_filters():
                                   .filter(ProductDraft.search_filter_id == f.id,
                                           ProductDraft.deleted_at.is_(None)).count())
             d['apply_policy_name'] = _policy_name(s, f.apply_policy_id)
+            # [#1060] 카테고리 자동 맵핑 현황 — 이 상품군(검색필터)에 담긴 상품들의
+            #   소싱처 카테고리 경로 기준 확정/제안대기/없음 집계. 엔진 자체는 이미
+            #   있다(설정 탭 「🗺 카테고리 맵핑」, 소싱처 단위) — 여기서는 상품군 단위로 본다.
+            from lemouton.registration.category_suggest import filter_category_summary
+            d['catmap'] = filter_category_summary(s, f.id)
             # 「지금 최신 판」 — 화면이 「낡았다/최신이다」를 스스로 말할 수 있게.
             #   🔴 견주는 일까지 서버가 한다. 화면이 글자로 견주다 확장이 더 새
             #     판일 때 거짓 경보를 냈다(2026-08-13 라이브).

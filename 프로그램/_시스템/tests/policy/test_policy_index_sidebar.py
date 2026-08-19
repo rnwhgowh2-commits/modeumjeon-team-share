@@ -65,13 +65,14 @@ def test_사이드바에_브랜드_부류가_나온다(client):
 
 
 def test_사이드바에_상태_부류와_설명이_나온다(client):
-    """상태 이름 = 시안 v4 V5 확정(2026-08-04) — 색점+짧은 말, 자세한 뜻은 호버 설명창."""
+    """[2026-08-19 사장님 확정] 체크박스 4분류(동시거름) → 클릭식 3단(+하위 2단, 겹치지 않는 자리)."""
     body = _body(client)
-    for label in ('준비됨', '작성 중', '일 맡은 정책', '대표'):
+    for label in ('전체', '기본정책', '정책 생성 완료', '적용 완료', '미적용', '정책 생성중'):
         assert label in body, f'상태 부류 「{label}」 이 없다'
     assert 'data-hv=' in body, '호버 설명창 앵커가 없다'
-    assert '판매가 계산에 쓰지 않아요' in body, '호버 설명창 내용(작성 중)이 없다'
-    assert '맨 앞에 고정되는 표시' in body, '호버 설명창 내용(대표)이 없다'
+    assert 'data-s="default"' in body, '기본정책 줄에 거름 데이터가 없다'
+    assert '판매가 계산에 쓰지 않아요' in body, '호버 설명창 내용(생성중)이 없다'
+    assert '여러 번 재사용하는 기본 틀' in body, '호버 설명창 내용(기본정책)이 없다'
     # hover-info-card 표준 상수 — 열기 140ms·닫기 250ms 가 지켜지는지 문자열로 못박는다
     assert 'OPEN_DELAY = 140' in body and 'CLOSE_DELAY = 250' in body
 
@@ -82,12 +83,13 @@ def test_사이드바에_정렬이_있다(client):
     assert '이름 순' in body
 
 
-# ── 만들기 (A2 점선 카드 + B5 가운데 창) ────────────────────────────────
+# ── 만들기 (2026-08-19 확정 — 옵션 매트릭스 생성과 같은 작은 단추 + B5 가운데 창) ──
 
-def test_만들기_점선_카드가_있다(client):
+def test_만들기_단추가_있다(client):
     body = _body(client)
     assert 'addcard' in body
-    assert '누르면 만들기 창이 열려요' in body
+    assert 'pl-addbtn' in body
+    assert '+ 정책 생성' in body
 
 
 def test_만들기_창이_있다(client):

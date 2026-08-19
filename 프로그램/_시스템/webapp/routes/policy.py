@@ -1,6 +1,8 @@
 """정책 생성 화면 — 목록 · 편집(마켓 공통 + 마켓 가로탭) · 상품에 적용.
 
-노션 「상품 가공 (정책 생성 & 정책 적용)」. 규칙은 lemouton/policy/service.py 가 단일 원천.
+상위탭 「상품 정책화」(구 「상품 가공」) — 하위탭 정책 생성 & 정책 매칭(구 「정책 적용」,
+[2026-08-19] 사장님 확정 재개명). 노션 원문은 「상품 가공 (정책 생성 & 정책 적용)」.
+규칙은 lemouton/policy/service.py 가 단일 원천.
 
 🔴 값이 비어 있는 정책은 **가격 계산에 물리지 않는다**. 화면이 「아직 못 씀」을 보여준다.
 """
@@ -20,10 +22,10 @@ bp = Blueprint('policy', __name__)
 @bp.route('/policies')
 def policy_index():
     from lemouton.policy.common_sync import market_summary
-    from lemouton.policy.fields import MARKET_LABEL
+    from lemouton.policy.fields import MARKET_KEYS, MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import (
-        applied_count, brand_counts, enabled_markets, readiness,
+        applied_count, applied_products_list, brand_counts, enabled_markets, readiness,
     )
     want_brand = (request.args.get('brand') or '').strip()
     s = SessionLocal()
@@ -35,14 +37,35 @@ def policy_index():
             #   안 켠 마켓을 분모에 두면 100% 가 영영 안 찬다.
             on = enabled_markets(s, p)
             rd = readiness(s, p.id, markets=on)
+            ready = {m for m, v in rd.items() if v['price_ready']}
+            on_set = set(on)
+            # [2026-08-19] 「마켓별 상태」 칼럼 — 켠 마켓만 완료/작성중을 가르고,
+            #   안 켠 마켓은 꺼짐. 근거는 위 채움 계산(readiness)과 그대로 같다 —
+            #   따로 새 신호를 만들면 이 칼럼과 「가격」 칼럼이 서로 다른 말을 하게 된다.
+            market_status = {mk: ('done' if mk in ready else 'writing') if mk in on_set
+                             else 'off' for mk in MARKET_KEYS}
+            is_default = bool(p.is_default)
+            is_ready = bool(ready)
+            is_applied = applied_count(s, p.id) > 0
+            # [2026-08-19 사장님 확정] 왼쪽 분류 3단(+하위 2단) — 겹치지 않는 자리 하나.
+            #   기본정책이 먼저다 — 템플릿 용도라 채움 상태와 무관하게 그 자리로 간다.
+            if is_default:
+                stage = 'default'
+            elif is_ready:
+                stage = 'ready-applied' if is_applied else 'ready-unapplied'
+            else:
+                stage = 'writing'
             items.append({
                 'id': p.id, 'name': p.name, 'memo': p.memo, 'brand': p.brand,
-                'is_default': bool(p.is_default),
+                'is_default': is_default,
                 'applied': applied_count(s, p.id),
+                'applied_products': applied_products_list(s, p.id),
                 'filled': sum(v['filled'] for v in rd.values()),
                 'total': sum(v['total'] for v in rd.values()),
                 'ready': [m for m, v in rd.items() if v['price_ready']],
                 'markets': on,
+                'market_status': market_status,
+                'stage': stage,
                 'summary': market_summary(s, p.id),
             })
         brands = brand_counts(s)
@@ -53,14 +76,19 @@ def policy_index():
         items = [it for it in items if not it['brand']]
     elif want_brand:
         items = [it for it in items if it['brand'] == want_brand]
+    stage_counts = {'default': 0, 'ready-applied': 0, 'ready-unapplied': 0, 'writing': 0}
+    for it in items:
+        stage_counts[it['stage']] += 1
+    stage_counts['ready'] = stage_counts['ready-applied'] + stage_counts['ready-unapplied']
     return render_template('policy/index.html', active='policies', items=items,
                            brands=brands, want_brand=want_brand,
-                           market_label=MARKET_LABEL, total=len(items))
+                           market_label=MARKET_LABEL, market_keys=MARKET_KEYS,
+                           stage_counts=stage_counts, total=len(items))
 
 
 @bp.route('/policies/<int:pid>')
 def policy_detail(pid: int):
-    from lemouton.policy.common_sync import market_summary, origin_of
+    from lemouton.policy.common_sync import market_summary
     from lemouton.policy.fields import COMMON_KEY, COMMON_LABEL, MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import (
@@ -146,7 +174,6 @@ def policy_detail(pid: int):
             'wire': wire_map,
             'req_sum': req_sum,
             'stored_only_note': REQ.STORED_ONLY_NOTE,
-            'origin': origin_of(s, pid, market),
             'summary': market_summary(s, pid),
             'readiness': _rd_all,
             'applied': applied_count(s, pid),
@@ -215,7 +242,8 @@ def api_create():
     s = SessionLocal()
     try:
         got = create_policy(s, name=p.get('name') or '', memo=p.get('memo') or '',
-                            brand=p.get('brand') or '')
+                            brand=p.get('brand') or '', category=p.get('category') or '',
+                            sourcing=p.get('sourcing') or '', prefix=p.get('prefix') or '')
         s.commit()
         return jsonify({'ok': True, 'id': got.id, 'name': got.name})
     except PolicyError as e:
@@ -360,16 +388,17 @@ def api_add_bundle(model_code: str):
 
 @bp.post('/api/policies/<int:pid>/default')
 def api_set_default(pid: int):
+    """기본정책(여러 번 쓰는 템플릿) 지정을 켜고 끈다 — 여러 개 동시 지정 가능(2026-08-19 확정)."""
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import set_default
+    from lemouton.policy.service import toggle_default
     s = SessionLocal()
     try:
         pol = s.get(MarketPolicy, pid)
         if pol is None:
             return jsonify({'ok': False, 'error': '정책을 찾을 수 없어요.'}), 404
-        set_default(s, policy=pol)
+        is_default = toggle_default(s, policy=pol)
         s.commit()
-        return jsonify({'ok': True})
+        return jsonify({'ok': True, 'is_default': is_default})
     finally:
         s.close()
 
@@ -683,25 +712,39 @@ def api_save_fee_defaults():
 
 @bp.route('/policies/apply')
 def policy_apply_page():
-    """「상품 정책 적용」 — 노션 하위탭 ②.
+    """「정책 매칭」(구 「상품 정책 적용」) — 노션 하위탭 ②.
 
     왼쪽에서 상품을 고르고 오른쪽에서 정책을 골라 한 번에 붙인다(그룹핑).
     🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
       하면 거짓 기능이 된다(「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤).
     """
+    from lemouton.policy.fields import MARKET_KEYS, MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import applied_count, brand_counts, readiness
+    from lemouton.policy.service import (
+        applied_count, applied_products, brand_counts, enabled_markets,
+        market_status,
+    )
     s = SessionLocal()
     try:
         policies = []
         for p in s.query(MarketPolicy).filter(MarketPolicy.deleted_at.is_(None)) \
                   .order_by(MarketPolicy.is_default.desc(), MarketPolicy.name):
-            rd = readiness(s, p.id)
+            on = enabled_markets(s, p)
+            # market_status() 가 켠 마켓만 골라 readiness() 를 이미 계산한다 —
+            #   전체 마켓 readiness 를 여기서 또 구하면 같은 조회를 두 번 하는 셈이다.
+            status = market_status(s, p.id, markets=on)
+            # [#1059 카드형 정책 고르기] 켠 마켓 중 하나도 「가격 쓸 수 있음」이
+            #   아니면 이 정책은 지금 상품에 붙여도 아무 데도 값이 안 나간다 —
+            #   그런 정책은 카드에서 고를 수 없게 잠그고 「정책 생성으로」 안내한다.
+            usable = any(v != 'wait' for v in status.values())
             policies.append({
                 'id': p.id, 'name': p.name, 'brand': p.brand or '',
                 'is_default': bool(p.is_default),
                 'applied': applied_count(s, p.id),
-                'ready': [m for m, v in rd.items() if v['price_ready']],
+                'enabled': on,
+                'status': status,
+                'usable': usable,
+                'applied_info': applied_products(s, p.id, limit=3),
             })
         pbrands = brand_counts(s)
     finally:
@@ -711,7 +754,8 @@ def policy_apply_page():
     #      「체크했다는데 목록에 없다」가 된다.
     pick = [c for c in request.args.getlist('model') if c]
     return render_template('policy/apply.html', active='policy_apply',
-                           policies=policies, pbrands=pbrands,
+                           policies=policies, pbrands=pbrands, market_label=MARKET_LABEL,
+                           market_keys=MARKET_KEYS,
                            pick=pick, pick_q=(pick[0] if len(pick) == 1 else ''))
 
 
@@ -890,7 +934,7 @@ def api_bundle_policy_result(model_code: str):
         if not attached:
             return jsonify({'ok': True, 'policies': [], 'rows': [],
                             'reason': '이 상품에 붙은 정책이 없습니다 — '
-                                      '「🧩 상품 정책 적용」에서 먼저 붙여 주세요.'})
+                                      '「🧩 정책 매칭」에서 먼저 붙여 주세요.'})
         pid = int(want) if (want or '').isdigit() else attached[0]['id']
         if pid not in {a['id'] for a in attached}:
             pid = attached[0]['id']

@@ -123,7 +123,6 @@
   table.lst td{padding:9px 10px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:top}
   table.lst th.c,table.lst td.c{text-align:center}
   table.lst td.dt{font-variant-numeric:tabular-nums;white-space:nowrap}
-  table.lst .sub{font-size:12px;color:var(--글자-보조,#6B7684);margin-top:3px}
   table.lst .setnm{color: var(--글자-파랑, var(--primary,#1B64DA));font-weight:700}
   .srcs{display:flex;gap:3px;flex-wrap:wrap}
   .sc{font-size:12px;border-radius:8px;padding:1px 7px;white-space:nowrap;
@@ -178,6 +177,52 @@
     border-radius:8px;padding:5px 12px;font-size:12px;font-family:inherit;cursor:pointer;
     color:var(--글자-기본,#4E5968)}
   .pager button:disabled{color: var(--글자-희미, var(--faint,#B0B8C1));cursor:default}
+
+  /* ══ 2026-08 개편 — ①상품명 2줄 ══ */
+  .bl-name-sub2{display:flex;align-items:center;gap:0;margin-top:4px;font-size:12px;color:var(--글자-기본,#4E5968);flex-wrap:wrap}
+  .lbl-chip{display:inline-flex;align-items:center;justify-content:center;width:34px;height:17px;border:1px solid var(--line,#E5E8EB);border-radius:5px;color:var(--글자-보조,#8B95A1);font-size:10px;font-weight:700;flex-shrink:0;margin-right:5px}
+  .lbl-val{margin-right:12px;font-family:ui-monospace,monospace}
+
+  /* ══ 2026-08 개편 — ②정책 클릭 메뉴 ══ */
+  /* .pol-menu 는 .pol 버튼의 형제(같은 td 안)라 .pol 의 relative 는 기준이 안 된다 — td 자체가 기준이어야 함 */
+  .pol-td{position:relative}
+  .pol{cursor:pointer;position:relative;border:none;font-family:inherit}
+  .pol-menu{display:none;position:absolute;top:22px;left:0;z-index:60;background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.16);width:180px;padding:5px;text-align:left}
+  .pol-menu.on{display:block}
+  .pol-menu a{display:block;padding:8px 9px;border-radius:7px;font-size:12px;font-weight:600;color:var(--ink,#191F28);text-decoration:none}
+  .pol-menu a:hover{background:var(--n100,#F2F4F6)}
+
+  /* ══ 2026-08 개편 — ③소싱처·마켓 로고그리드 (기존 brand-app-logo 팔레트에 없던 것만 추가) ══ */
+  .brand-app-logo.lotteimall{background:#E60000}
+  .brand-app-logo.ss_lemouton{background:#03C75A}
+  .brand-app-logo.ssg{background:#FFD400;color:#191F28}
+  .brand-app-logo.hmall{background:#001F5C}
+  .brand-app-logo.eleven11{background:#ff0038}
+  .lg-grid{display:flex;gap:4px;flex-wrap:wrap;max-width:180px}
+  .lg-cell{min-width:21px;height:21px;padding:0 2px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:9.5px;letter-spacing:-.2px;white-space:nowrap;position:relative;cursor:help}
+  .lg-cell.off{opacity:.28;cursor:default}
+  .lg-cell .dot{position:absolute;bottom:-2px;right:-2px;width:6px;height:6px;border-radius:50%;background:var(--green,#22C55E);border:1.5px solid var(--surface,#fff)}
+
+  /* ══ 2026-08 개편 — 칸 호버카드 (소싱처 URL + 옵션별 가격·재고 이력, red=오름·blue=내림) ══ */
+  .when-trig{color:var(--글자-기본,#4E5968);cursor:pointer;border-bottom:1px dotted var(--n400,#B0B8C1)}
+  .pm-card{display:none;position:fixed;z-index:9999;background:var(--surface,#fff);border:1px solid var(--line,#d1d6db);border-radius:12px;padding:11px 13px;font-size:12px;text-align:left;width:250px;max-height:60vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.18)}
+  .pm-card.on{display:block}
+  .pmc-h{font-weight:800;color:var(--ink,#191F28);margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed var(--line,#e5e8eb)}
+  .pmc-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0}
+  .pmc-row .l{color:var(--글자-보조,#8B95A1)}
+  .pmc-row .r{font-family:ui-monospace,monospace;font-weight:700;color:var(--ink,#191F28)}
+  .pmc-url{font-family:ui-monospace,monospace;font-size:11px;color:var(--글자-보조,#6b7684);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+  .pmc-go{color:var(--글자-파랑,#3182F6);text-decoration:none;font-weight:700;flex-shrink:0}
+  .mxh-opt{font-weight:800;margin:8px 0 3px;color:var(--ink,#191F28)}
+  .mxh-opt:first-child{margin-top:0}
+  .mxh-src-row{padding:3px 0;border-top:1px dashed var(--n100,#F2F4F6)}
+  .mxh-src-row:first-of-type{border-top:none}
+  .mxh-src-name{font-size:11px;color:var(--글자-보조,#8B95A1);font-weight:700}
+  .mxh-metric{display:flex;align-items:baseline;gap:5px;font-size:12px}
+  .mxh-metric .k{width:24px;flex-shrink:0;font-size:10px;color:var(--글자-보조,#8B95A1);font-weight:700}
+  .mtx-trend{font-size:9.5px;font-weight:700;margin-left:2px}
+  .mtx-trend.up{color:var(--글자-빨강,#EF4444)}
+  .mtx-trend.down{color:var(--글자-파랑,#3182F6)}
 </style>
 
 <style>
@@ -200,7 +245,7 @@
   #msList { overflow-x: auto; }
   table.lst { min-width: 720px; font-size: 14px; }
   table.lst th { font-size: 12px; }
-  table.lst .sub { font-size: 12px; }
+  table.lst .bl-name-sub2 { font-size: 12px; }
   table.lst th:first-child, table.lst td:first-child {
     position: sticky; left: 0; z-index: 1;
     /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
@@ -215,10 +260,16 @@
 <script>
 (function(){
   const MK = {{ markets | tojson }};
+  const SRC_UNIVERSE = {{ source_universe | tojson }};
+  const SRC_LABEL = {{ source_labels | tojson }};
   let page = 1;
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  // 자동으로 앞글자만 자르면 겹친다(롯데아이몰·롯데온 둘 다 '롯' / SSF·SSG 둘 다 'S') —
+  // 같은 칸(소싱처 그리드) 안에서 안 겹치게 손으로 고른다.
+  const GLYPH_OVERRIDE = {lotteimall: '몰', lotteon: '온', ssf: 'SF', ssg: 'SG', hmall: 'H몰', ss_lemouton: '스마'};
+  const glyph = k => GLYPH_OVERRIDE[k] || (SRC_LABEL[k] || MK.find(m => m[0] === k)?.[1] || k).slice(0, 1);
 
   function params(){
     const p = new URLSearchParams({page: page, per_page: 50,
@@ -230,29 +281,177 @@
     return p;
   }
 
-  function row(r){
-    // 🔴 소싱처가 여럿이다 — 우리 모음전의 실정. 「지금 사오는 곳」은 아직 모른다
-    //    (옵션별 최저가 픽이 미배선) → 지어내지 않고 그대로 나열만 한다.
-    const srcs = r.sources.length
-      ? '<div class="srcs">' + r.sources.map(s => '<span class="sc">' + esc(s) + '</span>').join('') + '</div>'
-      : '<span class="sc">붙은 곳 없음</span>';
-    const pol = r.policy
-      ? '<span class="pol" title="' + (r.policy_from === 'set' ? '이 구성에 직접 붙임' : '상품에 붙은 것을 따름') + '">' + esc(r.policy) + '</span>'
-      : '<span class="pol no" title="정책이 없으면 어떤 값으로 올릴지 정해지지 않습니다">없음</span>';
-    const mk = '<div class="mkrow">' + MK.map(([k, lb]) => {
-      const at = r.sent[k], id = r.listed[k];
-      const tip = at ? ('마지막 전송 ' + at) : (id ? ('등록됨 ' + id + ' · 이 화면으로 보낸 적 없음') : '아직 안 보냄');
-      return '<span class="mk ' + (at ? 'on' : 'off') + '" title="' + esc(tip) + '">' + esc(lb) + '</span>';
+  // ③ 소싱처·마켓 로고그리드 — 고정 명부 순서로 전부 그리고, 안 붙은 건 흐리게.
+  //    🔴 소싱처가 여럿이다. 「지금 사오는 곳」은 안 정했으므로(listing.py 원칙) 켜진 칸이
+  //       여러 개 있는 게 정상이다 — 하나로 뭉개지 않는다.
+  function srcGrid(r){
+    return '<div class="lg-grid">' + SRC_UNIVERSE.map(k => {
+      const on = r.sources.includes(k);
+      const lbl = SRC_LABEL[k] || k;
+      return '<span class="lg-cell brand-app-logo ' + k + ' ' + (on ? '' : 'off') + '"'
+        + ' data-src-hover="' + r.set_id + '|' + k + '" title="' + esc(lbl) + (on ? '' : ' (안 붙음)') + '">'
+        + esc(glyph(k)) + (on ? '<span class="dot"></span>' : '') + '</span>';
     }).join('') + '</div>';
-    return '<tr><td>' + srcs + '</td>'
-      + '<td><b>' + esc(r.name) + '</b><div class="sub">' + esc(r.display_no)
-      + ' · <span class="setnm">' + esc(r.set_name) + '</span> · [옵션 ' + r.options + ']</div></td>'
-      + '<td>' + pol + '</td><td class="dt">' + esc(r.crawled_at || '—') + '</td>'
-      + '<td>' + mk + '</td></tr>';
   }
+  function mktGrid(r){
+    return '<div class="lg-grid">' + MK.map(([k, lb]) => {
+      const at = r.sent[k], id = r.listed[k];
+      const on = !!at;
+      const tip = at ? ('마지막 전송 ' + at) : (id ? ('등록됨 ' + id + ' · 이 화면으로 보낸 적 없음') : lb + ' — 아직 안 보냄');
+      return '<span class="lg-cell brand-app-logo ' + k + ' ' + (on ? '' : 'off') + '"'
+        + ' title="' + esc(tip) + '">' + esc(glyph(k)) + (on ? '<span class="dot"></span>' : '') + '</span>';
+    }).join('') + '</div>';
+  }
+
+  function row(r){
+    // ① 상품명 2줄 — 1행: 상품명 + 브랜드 + 구성명 / 2행: 품번·SKU 라벨칩
+    const name = '<b>' + esc(r.name) + '</b> '
+      + (r.brand ? '<span class="brand-pill-v2">' + esc(r.brand) + '</span> ' : '')
+      + '<span class="setnm">' + esc(r.set_name) + '</span>'
+      + '<div class="bl-name-sub2">'
+      + '<span class="lbl-chip">품번</span><span class="lbl-val">' + esc(r.display_no) + '</span>'
+      + '<span class="lbl-chip">SKU</span><span class="lbl-val">' + r.options + '개</span>'
+      + '</div>';
+
+    // ② 정책 배지 — 클릭하면 「정책 편집 / 적용 정책 변경」 중 고르는 작은 메뉴
+    const polMenuId = 'polm' + r.set_id;
+    const editRow = r.policy_id
+      ? '<a href="/policies/' + r.policy_id + '" target="_blank">✎ 정책 편집</a>' : '';
+    const applyRow = '<a href="/policies/apply?model=' + encodeURIComponent(r.model_code)
+      + '" target="_blank">🔍 적용 정책 변경</a>';
+    const pol = (r.policy
+      ? '<button type="button" class="pol" data-pol-toggle="' + polMenuId + '" title="'
+        + (r.policy_from === 'set' ? '이 구성에 직접 붙임' : '상품에 붙은 것을 따름') + '">' + esc(r.policy) + '</button>'
+      : '<button type="button" class="pol no" data-pol-toggle="' + polMenuId
+        + '" title="정책이 없으면 어떤 값으로 올릴지 정해지지 않습니다">없음</button>')
+      + '<div class="pol-menu" id="' + polMenuId + '">' + editRow + applyRow + '</div>';
+
+    // ④ 소싱처 수집 날짜 — 호버하면 옵션별·소싱처별 최근 가격·재고 2줄
+    const crawl = r.crawled_at
+      ? '<span class="when-trig" data-hist-set="' + r.set_id + '">' + esc(r.crawled_at) + '</span>'
+      : '<span class="sc">아직 안 긁음</span>';
+
+    return '<tr><td>' + srcGrid(r) + '</td>'
+      + '<td>' + name + '</td>'
+      + '<td class="pol-td">' + pol + '</td>'
+      + '<td class="dt">' + crawl + '</td>'
+      + '<td>' + mktGrid(r) + '</td></tr>';
+  }
+
+  // ── ②③④ 호버카드·클릭메뉴 — body-fixed 포털(표 스크롤 안에서도 안 잘림) ──
+  let floatEl = null, hideT = null;
+  function ensureFloat(){
+    if (floatEl) return floatEl;
+    floatEl = document.createElement('div');
+    floatEl.className = 'pm-card';
+    floatEl.addEventListener('mouseenter', () => { if (hideT) { clearTimeout(hideT); hideT = null; } });
+    floatEl.addEventListener('mouseleave', scheduleHide);
+    document.body.appendChild(floatEl);
+    return floatEl;
+  }
+  function scheduleHide(){
+    if (hideT) clearTimeout(hideT);
+    hideT = setTimeout(() => { if (floatEl) floatEl.classList.remove('on'); }, 200);
+  }
+  function showFloat(anchor, html){
+    if (hideT) { clearTimeout(hideT); hideT = null; }
+    const el = ensureFloat();
+    el.innerHTML = html;
+    el.classList.add('on');
+    el.style.left = '-9999px'; el.style.top = '-9999px';
+    requestAnimationFrame(() => {
+      const rect = anchor.getBoundingClientRect();
+      const cw = el.offsetWidth, ch = el.offsetHeight;
+      let L = rect.left, T = rect.bottom + 6;
+      if (L + cw > window.innerWidth - 8) L = window.innerWidth - cw - 8;
+      if (T + ch > window.innerHeight - 8) T = rect.top - ch - 6;
+      el.style.left = L + 'px'; el.style.top = T + 'px';
+    });
+  }
+
+  function srcHoverHtml(setId, key){
+    const r = (window.__rows || []).find(x => String(x.set_id) === String(setId));
+    const lbl = SRC_LABEL[key] || key;
+    const urls = (r && r.source_detail && r.source_detail[key]) || [];
+    let h = '<div class="pmc-h">' + esc(lbl) + '</div>';
+    if (!urls.length) return h + '<div class="pmc-row"><span class="l">등록된 URL 없음</span></div>';
+    urls.forEach(u => {
+      h += '<div class="pmc-row">'
+        + '<div class="pmc-url" title="' + esc(u.url) + '">' + esc(u.label || u.url) + '</div>'
+        + '<a class="pmc-go" href="' + esc(u.url) + '" target="_blank" rel="noopener noreferrer">↗</a></div>';
+    });
+    return h;
+  }
+
+  function trendBadge(delta, unit){
+    if (!delta) return '';
+    const cls = delta > 0 ? 'up' : 'down';
+    const arrow = delta > 0 ? '▲' : '▼';
+    return ' <span class="mtx-trend ' + cls + '">' + arrow + Math.abs(delta).toLocaleString() + unit + '</span>';
+  }
+
+  const histCache = {};
+  async function showHistoryHover(anchor, setId){
+    showFloat(anchor, '<div class="pmc-h">불러오는 중…</div>');
+    try {
+      let d = histCache[setId];
+      if (!d) {
+        const res = await fetch('/api/market-send/rows/' + setId + '/history');
+        d = await res.json();
+        histCache[setId] = d;
+      }
+      if (!d.ok || !d.skus.length) { showFloat(anchor, '<div class="pmc-h">최근 이력 없음</div>'); return; }
+      let h = '<div class="pmc-h">옵션별·소싱처별 최근 가격·재고</div>';
+      d.skus.forEach(sk => {
+        h += '<div class="mxh-opt">' + esc(sk.color) + ' · ' + esc(sk.size) + '</div>';
+        Object.keys(sk.sources).forEach(srcKey => {
+          const sd = sk.sources[srcKey];
+          const pts = sd.history || [];
+          const prev = pts.length > 1 ? pts[pts.length - 2] : null;
+          const stockDelta = (prev && prev.stock != null && sd.current_stock != null) ? sd.current_stock - prev.stock : 0;
+          const priceDelta = (prev && prev.price != null && sd.current_price != null) ? sd.current_price - prev.price : 0;
+          h += '<div class="mxh-src-row"><div class="mxh-src-name">' + esc(SRC_LABEL[srcKey] || srcKey) + '</div>'
+            + '<div class="mxh-metric"><span class="k">재고</span><span>' + (sd.current_stock == null ? '—' : sd.current_stock) + '개</span>' + trendBadge(stockDelta, '') + '</div>'
+            + '<div class="mxh-metric"><span class="k">가격</span><span>₩' + (sd.current_price == null ? '—' : sd.current_price.toLocaleString()) + '</span>' + trendBadge(priceDelta, '') + '</div>'
+            + '</div>';
+        });
+      });
+      showFloat(anchor, h);
+    } catch (e) { showFloat(anchor, '<div class="pmc-h">이력을 못 불러왔습니다</div>'); }
+  }
+
+  // 델리게이션 — #msList 는 안 갈아 끼우고 안쪽만 다시 그리므로 여기 한 번만 건다.
+  const listEl = $('msList');
+  listEl.addEventListener('mouseover', e => {
+    const srcEl = e.target.closest('[data-src-hover]');
+    if (srcEl) {
+      if (srcEl.classList.contains('off')) return;   // 안 붙은 칸은 보여줄 URL이 없다
+      const [setId, key] = srcEl.dataset.srcHover.split('|');
+      showFloat(srcEl, srcHoverHtml(setId, key));
+      return;
+    }
+    const histEl = e.target.closest('[data-hist-set]');
+    if (histEl) showHistoryHover(histEl, histEl.dataset.histSet);
+  });
+  listEl.addEventListener('mouseout', e => {
+    if (e.target.closest('[data-src-hover]') || e.target.closest('[data-hist-set]')) scheduleHide();
+  });
+  listEl.addEventListener('click', e => {
+    const t = e.target.closest('[data-pol-toggle]');
+    if (!t) return;
+    e.stopPropagation();
+    const menu = $(t.dataset.polToggle);
+    const wasOn = menu.classList.contains('on');
+    document.querySelectorAll('.pol-menu.on').forEach(m => m.classList.remove('on'));
+    if (!wasOn) menu.classList.add('on');
+  });
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.pol-menu.on').forEach(m => m.classList.remove('on'));
+  });
 
   function render(d){
     window.__rows = d.rows;              // 이번 쪽에 보이는 구성 = 보낼 대상
+    for (const k in histCache) delete histCache[k];   // 새로 그리면 이력 캐시도 새로
     $('cTotal').textContent = (d.total || 0).toLocaleString();
     if (!d.rows.length){
       $('msList').innerHTML = '<div class="empty">조건에 맞는 구성이 없습니다 — 위에서 조건을 바꿔 보세요.</div>';

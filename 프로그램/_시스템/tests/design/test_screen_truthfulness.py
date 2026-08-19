@@ -303,13 +303,19 @@ def test_상품관리_서랍의_링크가_실제로_열린다(client):
 #  ⑥ 세 화면의 사이드바가 **같은 판**이다 (사장님 첫 지시 「사이드바에도 구분하자」)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def test_세_화면_사이드바가_같은_판이다(client, 네상태표본):
+def test_두_화면_사이드바가_같은_판이다(client, 네상태표본):
     """🔴 상품관리에만 넣고 옵션 쪽엔 안 넣어 반쪽이었다 — 되풀이 금지.
 
-    세 화면이 같은 모양·같은 말이어야 오가며 봐도 안 헷갈린다.
+    두 화면이 같은 모양·같은 말이어야 오가며 봐도 안 헷갈린다.
+
+    🔴 [이슈 #1081 · 체크리스트 [1]번 확정] 「옵션 목록」(`/optgen/?tab=product`)은
+       이 표본에서 뺐다 — 그 판이 세던 위상(옵션함이 상품이 될 준비가 됐나)이
+       칼럼(옵션 매트릭스·상품&정책 연결상태)으로 옮겨 가서 사이드바 판 자체를
+       없앴다(사장님 확정). 없어졌다는 사실은
+       `tests/catalog/test_optgen_product_columns.py::test_어디까지_왔나_판은_삭제됐다`
+       가 지킨다 — 여기서 또 「없어야 한다」로 뒤집어 적지 않는다(같은 사실 두 곳 금지).
     """
     화면 = {'상품관리': '/bundles',
-            '옵션 목록': '/optgen/?tab=product',
             '옵션관리': '/matrix/'}
     빠진곳 = []
     for 이름, url in 화면.items():
@@ -334,13 +340,18 @@ def test_세_화면_사이드바가_같은_판이다(client, 네상태표본):
     assert not 빠진곳, '사이드바가 화면마다 다르다:\n  ' + '\n  '.join(빠진곳)
 
 
-def test_옵션_두_화면이_같은_말을_쓴다(client, 네상태표본):
-    """옵션 목록·옵션관리는 「상품 생성 적용」 계열 한 벌을 쓴다."""
+def test_옵션관리는_상품생성_적용_계열_말을_쓴다(client, 네상태표본):
+    """옵션관리(`/matrix/`)는 「상품 생성 적용」 계열 4상태 한 벌을 쓴다.
+
+    🔴 [이슈 #1081] 예전엔 옵션 목록(`/optgen/?tab=product`)도 같이 봤다 — 그
+       화면은 이제 이 4상태 문구 대신 「상품 생성/정책 적용」 2행 배지를 쓴다
+       (사장님 확정, 체크리스트 [1]번). 배지 쪽 검증은
+       `tests/catalog/test_optgen_product_columns.py::test_상품_정책_연결상태_배지_색`.
+    """
     from webapp.routes.bundles_tower import STAGES, STAGE_LABEL_MATRIX
-    for url in ('/optgen/?tab=product', '/matrix/'):
-        html = client.get(url).get_data(as_text=True)
-        for st in STAGES:
-            assert STAGE_LABEL_MATRIX[st] in html, f'{url} 에 「{STAGE_LABEL_MATRIX[st]}」 없음'
+    html = client.get('/matrix/').get_data(as_text=True)
+    for st in STAGES:
+        assert STAGE_LABEL_MATRIX[st] in html, f'/matrix/ 에 「{STAGE_LABEL_MATRIX[st]}」 없음'
 
 
 def test_옵션관리_판_숫자가_보이는_수와_같다(client, 네상태표본):

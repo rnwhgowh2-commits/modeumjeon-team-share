@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-12T17:23:38",
+  "updated_at": "2026-08-19T20:49:49",
   "standalone": [
     {
       "id": "i_home",
@@ -56,7 +56,7 @@
     {
       "id": "s_process",
       "emoji": "🔧",
-      "name": "상품 가공",
+      "name": "상품 정책화",
       "color": "#F59E0B",
       "collapsed": false,
       "items": []
