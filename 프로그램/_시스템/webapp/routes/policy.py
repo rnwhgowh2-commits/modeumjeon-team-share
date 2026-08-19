@@ -763,6 +763,90 @@ def api_coupon_status(model_code: str):
         s.close()
 
 
+@bp.get('/api/policies/<int:pid>/coupon-plan')
+def api_coupon_plan(pid: int):
+    """확인창(사장님 확정 B5) 자료 — 몇 개가 바뀌고 몇 개는 안 건드리나.
+
+    🔴 저장하기 **전에** 보여 준다. 몇 개가 바뀌는지 모르고 누르면, 정책 하나로
+      상품 수십 개의 쿠폰이 한꺼번에 새로 만들어지고 옛 것이 내려간다.
+    """
+    from lemouton.policy import coupon_service as CS
+    s = SessionLocal()
+    try:
+        return jsonify({'ok': True, **CS.coupon_plan(s, pid)})
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[쿠팡쿠폰] 확인창 자료 실패 pid=%s', pid)
+        return jsonify({'ok': False, 'message': f'불러오지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/policies/<int:pid>/coupon-plan')
+def api_coupon_plan_apply(pid: int):
+    """확인창에서 **고른 것만** 다시 건다. body: {channel_ids:[…]}"""
+    from lemouton.policy import coupon_service as CS
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        out = CS.apply_coupon_plan(s, pid, channel_ids=body.get('channel_ids') or [])
+        s.commit()
+        return jsonify(out)
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[쿠팡쿠폰] 확인창 실행 실패 pid=%s', pid)
+        return jsonify({'ok': False, 'message': f'걸지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/bundles/<path:model_code>/name-override')
+def api_name_override(model_code: str):
+    """상품명 「정책 / 비정책」 — 이 상품만 다른 이름으로 마켓에 올린다.
+
+    body: {market:'coupang'|'smartstore', value:str}
+
+    🔴 이 칸은 **전송 코드가 이미 읽고 있었는데 적을 화면이 없어 늘 비어 있었다**
+      (인수인계 C1 「죽은 자료」). 창구를 여는 것으로 살아난다.
+    🔴 **비우면 None 으로 지운다.** 빈 글자를 그대로 두면 마켓에 **빈 상품명**이
+      나가 상품 이름이 사라진다 — 「없음」과 「빈 글자」는 다른 것이다.
+    🔴 마켓 한도를 넘으면 **보내기 전에** 사람 말로 막는다. 마켓까지 가면
+      「유효하지 않습니다」만 돌아와 무엇이 잘못인지 알 수 없다.
+    """
+    from lemouton.registration.market_limits import name_max_len
+    from lemouton.sourcing.models import Model
+    COLS = {'coupang': 'coupang_product_name_override',
+            'smartstore': 'naver_product_name_override'}
+    body = request.get_json(silent=True) or {}
+    market = str(body.get('market') or '')
+    col = COLS.get(market)
+    if not col:
+        return jsonify({'ok': False,
+                        'message': '상품명을 따로 정할 수 있는 곳은 '
+                                   '쿠팡·스마트스토어뿐입니다 — 나머지 마켓엔 '
+                                   '그 칸이 아직 없습니다.'}), 400
+    value = (body.get('value') or '').strip()
+    cap = name_max_len(market)
+    if cap and len(value) > cap:
+        return jsonify({'ok': False,
+                        'message': f'{market} 상품명은 {cap}자까지입니다 '
+                                   f'(지금 {len(value)}자).'}), 400
+    s = SessionLocal()
+    try:
+        m = s.get(Model, model_code)
+        if m is None:
+            return jsonify({'ok': False, 'message': '상품을 찾을 수 없어요.'}), 404
+        # 🔴 빈 글자는 None — 그대로 두면 마켓에 빈 상품명이 나간다.
+        setattr(m, col, value or None)
+        s.commit()
+        return jsonify({'ok': True, 'value': value or None,
+                        'message': (f'이 상품만 그 이름으로 올립니다.' if value
+                                    else '정책이 만든 이름을 따릅니다.')})
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[상품명] 덮어쓰기 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'message': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
 @bp.post('/api/bundles/<path:model_code>/coupang-coupon/override')
 def api_coupon_override(model_code: str):
     """「정책 / 비정책」 스위치 (사장님 확정 A2).

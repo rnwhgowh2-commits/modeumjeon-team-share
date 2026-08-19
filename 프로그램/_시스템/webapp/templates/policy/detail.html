@@ -243,7 +243,35 @@
     .pf-disc-prev .ar{color:var(--sub,#8B95A1);font-size:12px}
     .pf-disc-prev .a{text-align:left;font-weight:700;
                      color: var(--글자-빨강, var(--red,#E5484D))}
-  </style>
+  
+  /* ── 쿠팡 쿠폰 확인창 (사장님 확정 B5) ─────────────────────────────── */
+  .cpd-wrap{position:fixed;inset:0;background:rgba(15,20,28,.45);z-index:1200;
+            display:grid;place-items:center;padding:20px}
+  .cpd{background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.18);
+       max-width:560px;width:100%;padding:22px 24px;font-size:13px;line-height:1.7}
+  .cpd h3{margin:0 0 6px;font-size:16px}
+  .cpd-s{font-size:12px;color:var(--sub,#8B95A1);display:flex;align-items:center;
+         gap:8px;margin-bottom:6px}
+  /* 🔴 글자 바닥선 12px (사장님 확정 2026-08-13). 이 판은 확대(scale)가 안 걸린
+     보통 판이라 예외가 아니다 — 11.5·10.5 로 두면 #1022 의 감시 시험이 main 을 깬다. */
+  .cpd-s button{border:0;background:none;color:var(--primary,#3182F6);font-size:12px;
+                font-weight:700;cursor:pointer;text-decoration:underline;
+                padding:0;font-family:inherit}
+  .cpd table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+  .cpd th,.cpd td{padding:6px 8px;border-bottom:1px solid var(--n100,#F2F4F6);
+                  text-align:left}
+  .cpd th{color:var(--sub,#8B95A1);font-weight:600}
+  .cpd-next{color:var(--글자-빨강,#D70015);font-weight:700}
+  .cpd-off td{color:var(--sub,#8B95A1)}
+  .cpd-why{font-size:12px}
+  .cpd-w{background:#FFF8E1;border:1px solid #FFE0A3;border-radius:10px;
+         padding:10px 12px;color:#8A6100;font-size:12px;margin-top:12px}
+  .cpd-b{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  .cpd-b button{border:0;border-radius:9px;padding:9px 18px;font-size:13px;
+                font-weight:700;cursor:pointer;font-family:inherit}
+  .cpd-no{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
+  .cpd-go{background:var(--primary,#3182F6);color:#fff}
+</style>
 
   <a class="pd-back" href="/policies">← 정책 생성 목록</a>
   <div class="pd-h">
@@ -887,7 +915,68 @@ async function saveAll(reloadOnDone) {
   return true;
 }
 
-document.getElementById('save').addEventListener('click', () => saveAll(true));
+/* ── 쿠팡 쿠폰 확인창 (사장님 확정 B5 + 전체 선택/해제) ────────────────────
+   🔴 저장 **뒤에** 묻는다 — 저장이 안 됐는데 「9개를 다시 겁니다」라고 하면 거짓말이다.
+   🔴 몇 개가 바뀌고 몇 개는 안 건드리는지를 **먼저 보여 주고** 누르게 한다.
+     정책 하나가 상품 수십 개를 덮어서, 말없이 돌면 쿠폰이 수십 개 새로 만들어지고
+     옛 것이 한꺼번에 내려간다. */
+async function couponConfirm(){
+  if (MARKET !== 'coupang') return;
+  let plan;
+  try {
+    plan = await (await fetch('/api/policies/' + PID + '/coupon-plan')).json();
+  } catch (e) { return; }
+  if (!plan.ok || (!plan.will.length && !plan.skip.length)) return;
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const won = (n) => (n == null ? '아직 없음' : Number(n).toLocaleString('ko-KR'));
+  const box = document.createElement('div');
+  box.className = 'cpd-wrap';
+  box.innerHTML =
+    '<div class="cpd">' +
+      '<h3>쿠폰 값을 ' + won(plan.next_value) + '원으로 바꿉니다</h3>' +
+      '<div class="cpd-s">다시 걸 상품을 고르세요. ' +
+        '<button type="button" class="cpd-all">전체 선택 / 해제</button></div>' +
+      '<table><tr><th style="width:28px"></th><th>상품</th><th>지금</th><th>바뀔 값</th></tr>' +
+      plan.will.map((r) =>
+        '<tr><td><input type="checkbox" class="cpd-p" value="' + r.channel_id + '" checked></td>' +
+        '<td>' + esc(r.name) + '</td><td>' + won(r.now) + '</td>' +
+        '<td class="cpd-next">−' + won(r.next) + '</td></tr>').join('') +
+      plan.skip.map((r) =>
+        '<tr class="cpd-off"><td></td><td>' + esc(r.name) + '</td>' +
+        '<td>' + won(r.now) + '</td><td>그대로 <span class="cpd-why">' +
+        esc(r.reason) + '</span></td></tr>').join('') +
+      '</table>' +
+      '<div class="cpd-w">⏰ 새 쿠폰은 <b>다음날 0시</b>부터 적용됩니다. ' +
+        '옛 쿠폰은 그때 내려갑니다.</div>' +
+      '<div class="cpd-b"><button type="button" class="cpd-no">값만 저장</button>' +
+        '<button type="button" class="cpd-go">고른 것 다시 걸기</button></div>' +
+    '</div>';
+  document.body.appendChild(box);
+
+  const boxes = () => [...box.querySelectorAll('.cpd-p')];
+  box.querySelector('.cpd-all').addEventListener('click', () => {
+    /* 다시 누르면 전체 해제 — 사장님 요청 */
+    const allOn = boxes().every((x) => x.checked);
+    boxes().forEach((x) => { x.checked = !allOn; });
+  });
+  const close = () => box.remove();
+  box.querySelector('.cpd-no').addEventListener('click', close);
+  box.querySelector('.cpd-go').addEventListener('click', async () => {
+    const ids = boxes().filter((x) => x.checked).map((x) => Number(x.value));
+    const r = await fetch('/api/policies/' + PID + '/coupon-plan', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({channel_ids: ids})});
+    const j = await r.json();
+    alert(j.message || (j.ok ? '대기열에 넣었습니다.' : '걸지 못했어요.'));
+    close();
+  });
+}
+
+document.getElementById('save').addEventListener('click', async () => {
+  if (await saveAll(false)) { await couponConfirm(); }
+});
 
 /* 상품에 붙이기 */
 const picked = new Set();

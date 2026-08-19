@@ -153,6 +153,18 @@
                    border-radius:50%;background:#fff;transition:.15s}
   .cpn-sw.free i{background:#C2410C}
   .cpn-sw.free i::after{left:2px}
+  /* 마켓별 상품명 줄 */
+  .nm-k{min-width:96px;font-weight:600;font-size:12.5px}
+  .nm-in{flex:1;min-width:220px;border:1.5px solid var(--ap-g3,#D2D2D7);
+         border-radius:8px;padding:5px 9px;font-size:12.5px;font-family:inherit}
+  .nm-in[disabled]{background:var(--ap-g1,#F5F5F7);color:var(--ap-g45,#6E6E73)}
+  .cpn-p .cpn-p-b .cpn-sw{margin-left:0}
+  /* 🔴 글자 바닥선 12px (사장님 확정 2026-08-13). 이 판엔 확대(scale)가 없어 예외가
+     아니다 — 11px 로 두면 #1022 의 감시 시험이 머지되는 순간 main 이 빨개진다. */
+  .nm-c{font-size:12px;color:var(--ap-g45,#6E6E73);font-variant-numeric:tabular-nums;
+        white-space:nowrap}
+  .nm-c.over{color:var(--글자-빨강,#D70015);font-weight:700}
+  .nm-c.unk{cursor:help;text-decoration:underline dotted}
   /* ── 펼침 안 카드·표 ── */
   .tcard{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:18px;padding:24px}
   .tcard + .tcard{margin-top:12px}
@@ -1183,10 +1195,92 @@ function couponPanel(m){
     '</div></div>';
 }
 
+/* ── 상품명 「정책 / 비정책」 (인수인계 C1 — 죽어 있던 칸을 살린다) ──────────
+   🔴 이 칸은 **전송 코드가 이미 읽고 있었는데 적을 화면이 없어 늘 비어 있었다.**
+     그래서 「마켓마다 다른 상품명」이 코드로는 되는데 아무도 못 쓰는 기능이었다.
+   🔴 비우면 정책이 만든 이름으로 되돌아간다 — 빈 글자를 보내면 이름이 사라진다. */
+function namePanel(list){
+  var rows = (list || []).filter(function(m){
+    return m.name_override !== undefined;      /* 칸이 있는 마켓만(쿠팡·스스) */
+  });
+  if(!rows.length) return '';
+  return '<div class="cpn-p"><div class="cpn-p-h"><b>마켓별 상품명</b>' +
+    '<span class="twr-u">비워 두면 정책이 만든 이름을 씁니다</span></div>' +
+    rows.map(function(m){
+      var own = !!m.name_own;
+      return '<div class="cpn-p-b"><span class="nm-k">' + esc(m.label) + '</span>' +
+        '<label class="cpn-sw' + (own ? ' free' : '') + '">' +
+          '<input type="checkbox" class="nm-own" data-mk="' + esc(m.market) + '"' +
+          (own ? ' checked' : '') + '><i></i><span>' +
+          (own ? '이 상품만' : '정책') + '</span></label>' +
+        '<input class="nm-in" data-mk="' + esc(m.market) + '" value="' +
+          esc(m.name_override || '') + '" placeholder="' +
+          esc(m.reg_name || '정책이 만든 이름') + '"' + (own ? '' : ' disabled') +
+          '>' + nameCounter(m, (m.name_override || '').length) + '</div>';
+    }).join('') +
+    '<div class="cpn-p-n">🔴 상세페이지·추가이미지는 <b>담을 칸이 아직 없습니다</b> — ' +
+      '지금은 어느 마켓에도 빈 값으로 나갑니다.</div></div>';
+}
+
+/* ── 글자수 카운터 (인수인계 C4) ────────────────────────────────────────
+   🔴 상한을 **모르는 마켓은 숫자를 지어내지 않는다**. 「왜 모르는지」를 그대로 적는다 —
+     지어낸 상한으로 상품명을 자르면 그게 더 큰 손해다(market_limits 의 판단 그대로).
+   🔴 넘으면 빨갛게. 마켓이 「유효하지 않습니다」만 뱉기 전에 화면이 먼저 말한다. */
+function nameCounter(m, n){
+  if(m.name_cap){
+    var over = n > m.name_cap;
+    return '<span class="nm-c' + (over ? ' over' : '') + '" data-mk="' + esc(m.market) +
+      '">' + n + ' / ' + m.name_cap + '</span>';
+  }
+  return '<span class="nm-c unk" data-mk="' + esc(m.market) + '" title="' +
+    esc(m.name_cap_reason || '') + '">' + n + '자 · 상한 확인 불가</span>';
+}
+
+/* 상품명 「정책/비정책」 배선.
+   🔴 스위치를 끄면(정책으로 되돌리면) **값을 비워 보낸다** — 화면만 잠그고 값을 두면
+     저장분엔 옛 이름이 남아 다음 전송에 그 이름이 그대로 나간다. */
+function wireName(){
+  var code = open ? open.code : '';
+  function save(mk, value){
+    fetch('/api/bundles/' + encodeURIComponent(code) + '/name-override', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({market: mk, value: value})
+    }).then(function(r){ return r.json(); }).then(function(x){
+      if(!x.ok) alert(x.message || '저장하지 못했어요.');
+      open.cache.t4 = null;
+      show('t4');
+    }).catch(function(){ alert('저장 요청이 실패했어요.'); });
+  }
+  body().querySelectorAll('.nm-own').forEach(function(sw){
+    sw.addEventListener('change', function(){
+      var mk = sw.dataset.mk;
+      var box = body().querySelector('.nm-in[data-mk="' + mk + '"]');
+      save(mk, sw.checked ? ((box && box.value) || '') : '');
+    });
+  });
+  body().querySelectorAll('.nm-in').forEach(function(box){
+    box.addEventListener('change', function(){ save(box.dataset.mk, box.value); });
+    /* 치는 대로 세어 준다 — 저장 뒤에야 알면 늦다 */
+    box.addEventListener('input', function(){
+      var c = body().querySelector('.nm-c[data-mk="' + box.dataset.mk + '"]');
+      if(!c) return;
+      var cap = c.textContent.indexOf('/') >= 0
+        ? parseInt(c.textContent.split('/')[1], 10) : null;
+      if(cap){
+        c.textContent = box.value.length + ' / ' + cap;
+        c.classList.toggle('over', box.value.length > cap);
+      } else {
+        c.textContent = box.value.length + '자 · 상한 확인 불가';
+      }
+    });
+  });
+}
+
 /* 스위치·단추를 서버에 잇는다.
    🔴 화면만 바꾸고 서버에 안 보내면 새로 고치는 순간 되돌아간다 — 사장님은
      「바꿨는데 안 먹는다」로 겪는다. 저장이 끝난 뒤 **다시 불러** 화면과 저장분을 맞춘다. */
 function wireCoupon(){
+  wireName();
   var sw = body().querySelector('#cpn-own');
   var val = body().querySelector('#cpn-val');
   var go = body().querySelector('#cpn-go');
@@ -1264,6 +1358,7 @@ function renderT4(j){
   /* 쿠폰 판 — 표 밑에 한 장(사장님 확정 A2) */
   var _cp = (j.markets || []).filter(function(x){ return x.market === 'coupang'; })[0];
   h += couponPanel(_cp);
+  h += namePanel(j.markets);
   body().innerHTML = h;
   wireCoupon();
   body().querySelectorAll('.t4opt').forEach(function(b){
