@@ -31,6 +31,15 @@
 - **크롤러**: 사용자 PC 에서 실행 (Playwright) → Supabase 에 결과 푸시 (Plan A 하이브리드)
 - **알림**: 토스트 알림 (당분간) → Telegram 봇 (나중)
 
+## 🔀 Git/GitHub 작업 흐름 (필독 — 모든 코드 변경 공통 · 2026-08-19 확정)
+
+> 절차 정본 = `.claude/skills/git-issue-flow/SKILL.md` (여긴 요약만). add-source·update-data-code-map 등 다른 스킬의 "브랜치 생성"·"PR·머지" 단계도 전부 이 스킬을 참조한다.
+
+- **main 직접 push 금지.** 항상 origin/main 기준 이슈 브랜치에서 작업 → push → PR 생성 → **사용자 확인 후에만 merge**. merge 시점에 push-to-main이 AWS 자동배포를 트리거한다.
+- **세션 시작 시 main을 자동으로 최신화**한다 (`.claude/settings.json`의 SessionStart 훅). 브랜치 생성 직전에도 한 번 더 `git pull origin main` 확인.
+- 각 단계(브랜치 생성/push/PR 생성/머지)마다 무엇을/왜 했는지 1~2줄로 짧게 보고한다.
+- 예외(긴급 핫픽스 등)로 main 직접 push가 필요하면, 사용자가 명시적으로 그렇게 지시할 때만 따른다.
+
 ## 🗺️ 크롤링·가격·재고 작업 시 (필독 — 방향 복귀 정본)
 
 > 소싱처 **크롤링·재고·가격(표면노출가−혜택=최종매입가)·매트릭스 표시** 관련 작업을 시작하기 전,

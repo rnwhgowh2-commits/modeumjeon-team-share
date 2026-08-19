@@ -127,6 +127,12 @@ def policy_detail(pid: int):
             #   항목별 「정책 ○○ / 실제 ○○」 — 늘 보인다(확정 B2).
             'fixed_by_item': (None if market == COMMON_KEY
                               else FIXED.by_item(market, vals)),
+            # ── [2026-08-13 확정 시안 v2 · 2번] 「마켓마다 어떤 값으로 나가는지 보기」 ──
+            #   라디오 옆 접힘표. 🔴 마켓을 안 가린다 — 사장님이 「면세」를 고를 때
+            #     **여섯 마켓 전부**에 무엇이 나가는지 한 자리에서 봐야 뜻이 있다
+            #     (마켓마다 값이 다르고, 롯데온은 아직 모른다).
+            'sends_table': {k: FIXED.sends_table(k)
+                            for k in FIXED.SENDS_BY_MARKET},
             # 채움 합계 — **켠 마켓만** 센다. 셈을 템플릿에 넣으면 검사가 어려워
             #   여기서 만들어 넘긴다.
             'fill_sum': _fill_sum,
