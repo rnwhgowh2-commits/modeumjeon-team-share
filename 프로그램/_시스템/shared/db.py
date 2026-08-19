@@ -251,6 +251,11 @@ def _apply_lightweight_migrations() -> None:
         ("market_products", "category_code", "VARCHAR(64)"),
         ("market_products", "category_name", "VARCHAR(200)"),
         ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
+        # [2026-08-13] 이 묶음의 **모델명** — 마켓에 나가는 값. 사장님 확인:
+        #   「매트릭스명은 사용자가 지정하기 나름. 대부분 브랜드+모델명+(추가)」.
+        #   🔴 NULL = 「따로 안 정함」 이다. 기본값을 주면 안 된다 —
+        #      기존 172개가 NULL 이어야 오늘과 똑같이(매트릭스 이름 폴백) 돈다.
+        ("models", "bundle_model_name", "VARCHAR(255)"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),
         # [2026-08-01] 옵션번호 — 매트릭스번호+순번 (표시용, 열쇠 아님)
@@ -371,6 +376,16 @@ def _apply_lightweight_migrations() -> None:
         ("options", "barcode", "VARCHAR(64)"),
         # 2026-05-19: 품번 (우리 양식 5번째 컬럼) — Model 마스터에 저장
         ("models", "article_no", "VARCHAR(64)"),
+        # [2026-08-14] SKU 하나하나의 품번·GTIN — 「옵션 조합 생성 및 수정」 창에서 받는다.
+        #   🔴 바로 위 `models.article_no`(모델 하나에 하나)와 **다른 칸**이다.
+        #      브랜드가 사이즈마다 다른 품번을 매기므로 모델 칸으로는 못 담는다.
+        #      까닭과 관계는 `lemouton/sourcing/models.py` 의 `Option.article_no` 주석에
+        #      한 번만 적어 뒀다(같은 설명을 두 곳에 두면 언젠가 갈린다).
+        #   🔴 기본값을 주지 않는다 — **NULL = 「아직 안 적음」**. 빈 문자열이 들어가면
+        #      「안 적음」과 「적었다 지움」이 화면에서 같아지고, 진척(「품번 12/15」)을
+        #      세는 곳이 안 채운 것을 채운 걸로 센다.
+        ("options", "article_no", "VARCHAR(64)"),
+        ("options", "gtin", "VARCHAR(14)"),
         # 2026-05-21: 가격 템플릿 마켓별 반품비·교환비 (모달 가로탭 재구성)
         ("price_templates", "ss_return_fee", "INTEGER DEFAULT 0"),
         ("price_templates", "ss_exchange_fee", "INTEGER DEFAULT 0"),

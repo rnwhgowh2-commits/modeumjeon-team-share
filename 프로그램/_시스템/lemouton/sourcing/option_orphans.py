@@ -98,11 +98,17 @@ def blockers(session, skus) -> dict[str, list[str]]:
     if not wanted:
         return {}
     found: dict[str, list[str]] = {}
-    CHUNK = 500                       # IN 목록이 길면 드라이버가 거부한다(전수 조사용)
+    # 🔴 자르는 크기는 `lemouton/matrix/readiness._CHUNK` **한 곳에서만** 정한다.
+    #    예전엔 여기에 500 을 또 적어 뒀는데, 같은 숫자가 두 곳에 살면 한쪽만 고쳐졌을
+    #    때 그쪽만 계속 터진다. 진짜 한도가 얼마인지와 「그런데 왜 그보다 훨씬 작게
+    #    자르는지」도 그 옆에 실측과 함께 적혀 있다 — 여기 옮겨 적지 않는다.
+    #    🔴 값은 함수 안에서 읽는다(맨 위에서 당겨 오면 값이 굳어 저쪽을 고쳐도 안 따라온다).
+    #    `audit_all` 이 **전 상품 유령을 한꺼번에** 넘기므로 자르기가 실제로 필요하다.
+    from lemouton.matrix.readiness import _CHUNK
     for table, col in _link_columns():
-        for i in range(0, len(wanted), CHUNK):
+        for i in range(0, len(wanted), _CHUNK):
             rows = session.execute(select(col).where(
-                col.in_(wanted[i:i + CHUNK])).distinct()).scalars().all()
+                col.in_(wanted[i:i + _CHUNK])).distinct()).scalars().all()
             for sku in rows:
                 if sku:
                     found.setdefault(sku, []).append(table.name)
