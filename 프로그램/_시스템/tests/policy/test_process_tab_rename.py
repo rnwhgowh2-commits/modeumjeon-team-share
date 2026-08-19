@@ -56,7 +56,7 @@ def _live_saved():
 
 def test_저장본_이름이_갈아끼워진다():
     layout = _live_saved()
-    assert SB._migrate_process_rename(layout) is True
+    assert SB._migrate_gagong_rename(layout) is True
     proc = _stage(layout, 's_process')
     assert proc['name'] == '상품 정책화'
     names = {it['id']: it['name'] for it in proc['items']}
@@ -66,16 +66,16 @@ def test_저장본_이름이_갈아끼워진다():
 def test_개명은_어긋나면_다시_고치고_맞으면_안_건드린다():
     """개명은 **늘** 다시 걸어야 한다 — 저장본이 어긋나도 스스로 낫게."""
     layout = _live_saved()
-    assert SB._migrate_process_rename(layout) is True
-    assert SB._migrate_process_rename(layout) is False, '매 요청마다 저장을 유발한다'
+    assert SB._migrate_gagong_rename(layout) is True
+    assert SB._migrate_gagong_rename(layout) is False, '매 요청마다 저장을 유발한다'
     # 나중에 누가 옛 이름으로 되돌려 놓아도 다음 로드에 낫는다
     _stage(layout, 's_process')['items'][1]['name'] = '정책 적용'
-    assert SB._migrate_process_rename(layout) is True
+    assert SB._migrate_gagong_rename(layout) is True
 
 
 def test_분류가_없는_저장본에도_안_터진다():
     layout = {'version': 1, 'schema': SB._SCHEMA, 'standalone': [], 'stages': []}
-    assert SB._migrate_process_rename(layout) is False
+    assert SB._migrate_gagong_rename(layout) is False
 
 
 def test_항목이_비어_있어도_분류_이름은_고쳐진다():
@@ -83,7 +83,7 @@ def test_항목이_비어_있어도_분류_이름은_고쳐진다():
     layout = {'version': 1, 'schema': SB._SCHEMA, 'standalone': [],
               'stages': [{'id': 's_process', 'emoji': '🔧', 'name': '상품 가공',
                           'color': '#F59E0B', 'items': []}]}
-    assert SB._migrate_process_rename(layout) is True
+    assert SB._migrate_gagong_rename(layout) is True
     assert _stage(layout, 's_process')['name'] == '상품 정책화'
 
 
@@ -92,7 +92,7 @@ def test_항목이_비어_있어도_분류_이름은_고쳐진다():
 def test_화면에는_새_이름으로_뜬다(monkeypatch):
     """상수·저장본·렌더 필터 중 하나만 어긋나도 여기서 잡힌다."""
     layout = _live_saved()
-    SB._migrate_process_rename(layout)
+    SB._migrate_gagong_rename(layout)
     monkeypatch.setattr(SB, '_load', lambda: layout)
     out = SB.get_layout_for_template()
     proc = _stage(out, 's_process')
