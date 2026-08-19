@@ -2061,69 +2061,14 @@ def _augment_ssf_to_full_matrix(s, model_code: str, result, color_mapping: dict)
 
 
 def _save_crawl_to_track(s, model_code: str, result) -> int:
-    """crawl 결과 → PriceTrackHistory 저장. 우리 Option 과 색상/사이즈 매칭. 저장 건수 반환."""
-    import json as _json
-    from lemouton.sourcing.models import Option, ColorDict
-    from lemouton.templates.models import PriceTrackHistory
+    """crawl 결과 → PriceTrackHistory 저장.
 
-    our_options = s.query(Option).filter_by(model_code=model_code).all()
-    if not our_options:
-        return 0
-
-    # 색상 사전: color_code → list of variants (소문자)
-    cdicts: dict = {}
-    for c in s.query(ColorDict).all():
-        try:
-            variants = _json.loads(c.variants_json or '[]')
-            cdicts[c.color_code.lower()] = [v.lower() for v in variants]
-        except Exception:
-            pass
-
-    saved = 0
-    for raw in (result.options or []):
-        c_text = (raw.get('color_text') or '').strip().lower()
-        s_text = (raw.get('size_text') or '').strip()
-        # 사이즈 정규화: '230mm' / '230 mm' / '230' → '230'
-        s_norm = ''.join(ch for ch in s_text if ch.isdigit())
-        if not s_norm:
-            continue
-
-        # 공백 무시 — '올리브 그린'(소싱처) == '올리브그린'(우리)
-        c_text_ns = c_text.replace(' ', '')
-        matched = None
-        for our in our_options:
-            if (our.size_code or '').strip() != s_norm:
-                continue
-            our_color = (our.color_code or '').strip().lower()
-            if not our_color:
-                continue
-            our_color_ns = our_color.replace(' ', '')
-            # 직접 부분 매칭 (양방향, 공백 무시)
-            if our_color_ns in c_text_ns or c_text_ns in our_color_ns:
-                matched = our
-                break
-            # 색상 사전 variants 매칭 (공백 무시)
-            for variant in cdicts.get(our_color, []):
-                v = (variant or '').replace(' ', '')
-                if v and v in c_text_ns:
-                    matched = our
-                    break
-            if matched:
-                break
-
-        if matched:
-            s.add(PriceTrackHistory(
-                canonical_sku=matched.canonical_sku,
-                source=result.source,
-                price=raw.get('price'),
-                stock=raw.get('stock'),
-            ))
-            saved += 1
-
-    if saved:
-        s.commit()
-    return saved
-
+    [2026-08-19] 같은 로직이 여기와 lemouton/sourcing/bulk_crawl.py 두 곳에
+    복제돼 있었다. 한쪽만 고치면 조용히 어긋나므로 공용 함수로 넘긴다.
+    (그 함수에 '값이 안 바뀌면 안 쌓기' 가 들어 있다 — DB 용량 폭증 원인이던 것)
+    """
+    from lemouton.sourcing.bulk_crawl import save_crawl_to_track
+    return save_crawl_to_track(s, model_code, result)
 
 def _resolve_models_for_code(s, code: str):
     """[v3 시나리오 C] code 가 model_code 또는 group_code 인지 판별 → 대상 Model list 반환."""
