@@ -116,20 +116,19 @@
              🔴 여기서 「전체」는 **지금 화면에 보이는 줄**뿐이다. 검색·브랜드·
                 「창고에만 있는 물건 보기」로 숨긴 줄까지 고르면 사장님이 **안 보이는
                 것을 지우게 된다.** 판정은 `og보이는체크()` 한 곳에만 있다. #}
+          {# [2026-08-19 칼럼 재구성] 번호·이름·브랜드를 한 칸(옵션 매트릭스)으로 묶고,
+             옵션축·소싱처를 표로 올려 오른쪽 판과의 중복을 없앴다. 맵핑(SKU↔소싱처 연결
+             완료율)은 소싱처 칸 호버에 흡수 — 별도 칸으로 두면 소싱처 칸과 같은 사실을
+             두 번 말하게 된다. 상태 칸은 그대로 유지(디자인 통일 작업과 별개 결정). #}
           <tr><th class="og-pick"><label><input type="checkbox" id="og-ckall"
                  aria-label="보이는 줄 모두 고르기"></label></th>
-            <th>옵션 매트릭스 번호</th>
-            <th>옵션 매트릭스 이름</th>
-            <th>브랜드</th>
+            <th class="og-num">NO</th>
+            <th>옵션 매트릭스</th>
             <th>모음전 구성</th>
-            <th class="og-num">SKU 구성수</th>
-            <th class="og-ctr">맵핑</th>
+            <th>옵션축</th>
+            <th class="og-num">SKU 연결상태</th>
+            <th class="og-num">소싱처</th>
             <th class="og-ctr">상태</th>
-            {# [2026-08-14 사장님 확정 ㉯ D안] SKU 마다 붙는 번호 셋의 진척.
-               🔴 「상태」 칸에 끼워 넣지 않고 **열을 따로** 뺀다 — 상태는 「상품을 만들
-                  수 있나」이고 이건 「번호를 다 적었나」다. 서로 다른 물음이라 한 칸에
-                  두면 초록·회색이 섞여 어느 쪽 얘기인지 알 수 없다. #}
-            <th class="og-ctr">SKU 정보 상태</th>
             <th></th></tr>
           </thead>
           <tbody>
@@ -142,57 +141,56 @@
             <td class="og-pick"><label><input type="checkbox" class="og-bk"
                  data-code="{{ b.code }}" data-name="{{ b.name }}"
                  data-opts="{{ b.options }}" aria-label="{{ b.name }} 고르기"></label></td>
-            {# 번호 — 정본은 **매트릭스 번호**(`no`)다. 아직 매트릭스를 안 짠 줄
-               (재고관리로 들어온 창고 물건)에는 그 번호가 없다. 없는 것을 있는 척하지
-               않고 창고 번호를 보여 주되, 왜 다른지 마우스 설명으로 알린다. #}
-            <td class="mono og-no">{% if b.no %}{{ b.no }}{% else %}<span
-                title="아직 옵션 매트릭스를 안 짜서 매트릭스 번호가 없습니다 — 창고 번호를 보여 줍니다."
-                >{{ b.shown_code }}</span>{% endif %}{% if b.kind %}
-              {# 🔴 갈래를 모를 때(매트릭스가 없는 줄)는 배지를 아예 안 단다.
-                 「원본이 아니다 = 파생」으로 뭉개면 없는 사실을 화면이 지어낸다. #}
-              <span class="og-badge stgb wait og-kind"
-                    >{{ '원본' if b.kind == 'origin' else '파생' }}</span>{% endif %}</td>
-            <td class="og-name">{% if b.unbuilt %}<div class="ub-d-wrap"><span class="ub-d-cap"
-                title="재고관리에 낱개로만 등록되고, 아직 옵션 매트릭스로 안 짜인 SKU 입니다."
-                ><svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3.3" fill="none" stroke="currentColor"
-                stroke-width="1.1"/></svg>미구성 SKU</span><b title="{{ b.name }}">{{ b.name }}</b></div>
-              {% else %}<b title="{{ b.name }}">{{ b.name }}</b>{% endif %}</td>
-            <td>{{ b.brand or '—' }}</td>
+            {# [2026-08-19] 순번 — 매트릭스 자체의 번호(아래 옵션 매트릭스 칸)와는 다른,
+               지금 보이는 줄의 자리 표시일 뿐이다(필터·정렬에 따라 바뀐다). #}
+            <td class="r mono">{{ loop.index }}</td>
+            {# [2026-08-19 칼럼 재구성] 번호·이름·브랜드·모델명을 한 칸에 2줄로 —
+               1행: 이름(볼드)·브랜드·모델명(모델모음전이면, 8개까지 + 더보기)
+               2행: 매트릭스 번호 + 원본/파생 딱지. 번호가 없는 줄(재고관리로 들어온
+               창고 물건)은 창고 번호를 보여 주되 이유를 마우스 설명으로 알린다. #}
+            <td class="og-name">
+              {%- set model_shown = (b.model_names or [])[:8] -%}
+              {%- set model_rest = (b.model_names or [])[8:] -%}
+              <div class="ub4-l1">{% if b.unbuilt %}<span class="ub-d-cap"
+                  title="재고관리에 낱개로만 등록되고, 아직 옵션 매트릭스로 안 짜인 SKU 입니다."
+                  ><svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3.3" fill="none" stroke="currentColor"
+                  stroke-width="1.1"/></svg>미구성 SKU</span> {% endif -%}
+                <b title="{{ b.name }}">{{ b.name }}</b>, {{ b.brand or '—' }}
+                {%- if model_shown %} · {{ model_shown | join(' · ') }}{% if model_rest
+                  %} <span class="ub4-more" tabindex="0" title="{{ model_rest | join(' · ') }}"
+                  >외 {{ model_rest | length }}개 더보기</span>{% endif %}{% endif -%}
+              </div>
+              <div class="ub4-l2 mono">{% if b.no %}{{ b.no }}{% else %}<span
+                  title="아직 옵션 매트릭스를 안 짜서 매트릭스 번호가 없습니다 — 창고 번호를 보여 줍니다."
+                  >{{ b.shown_code }}</span>{% endif %}{% if b.kind %}
+                <span class="og-badge stgb wait og-kind"
+                      >{{ '원본' if b.kind == 'origin' else '파생' }}</span>{% endif %}</div>
+            </td>
             <td>{% if b.moum_kind_label %}{{ b.moum_kind_label }}{% else %}<span
                 class="og-dash" title="아직 어떤 모음전인지 안 정했습니다.">—</span>{% endif %}</td>
-            <td class="og-num">{{ b.options }}<span class="단위">개</span></td>
-            {# 맵핑 — 🔴 「모른다」를 「0」이나 「미완료」로 뭉개지 않는다.
-               `complete` 가 None 인 자리는 둘뿐이고(소싱처 주소 0개 · SKU 0개),
-               둘 다 잴 대상이 없어 못 잰 것이라 「—」로 적고 까닭을 붙인다. #}
-            <td class="og-ctr">{% if b.map.complete is none %}<span class="og-dash"
-                title="{% if b.urls < 1 %}소싱처 주소가 0개라 이었는지 못 이었는지 판정할 수 없습니다.{% else %}SKU 가 0개라 이을 대상이 없어 판정할 수 없습니다.{% endif %}"
-                >—</span>{% else %}<span class="og-frac"
-                title="SKU {{ b.map.skus }}개 중 {{ b.map.skus_done }}개가 소싱처와 이어짐 · 소싱처 {{ b.map.sources }}곳 중 {{ b.map.sources_done }}곳 끝{% if b.map.over_total %}&#10;🔴 실제로 이어진 SKU 는 {{ b.map.over_total }}개로 분모보다 많습니다 — 옵션 수를 다시 세야 합니다.{% endif %}"
-                >{{ b.map.skus_done }}/{{ b.map.skus }}</span>{% endif %}</td>
+            {# [2026-08-19] 옵션축 — 「모델 5개 × 색상 2개」. 축이 없으면 대시. #}
+            <td>{% if b.axis_count_label %}{{ b.axis_count_label }}{% else %}<span
+                class="og-dash" title="축을 아직 안 짬">—</span>{% endif %}</td>
+            {# [2026-08-19] SKU 연결상태 — 옵션 수 + 호버(SKU별 SKU번호·브랜드·모델·색상·사이즈).
+               자료는 소싱처 칸과 함께 `/api/box/<code>/detail-card` 에서 한 번에 받는다. #}
+            <td class="og-num"><span class="ub4-hov" tabindex="0" data-hov="sku"
+                data-code="{{ b.code }}">{{ b.options }}<span class="단위">개</span></span></td>
+            {# [2026-08-19] 소싱처 — 예전 「맵핑」(SKU↔소싱처 연결 완료율)을 흡수했다.
+               숫자만으로는 「이었나」를 못 가른다(모른다 ≠ 아니다)는 원칙은 호버 설명으로 옮겼다. #}
+            <td class="og-num">{% if b.sources %}<span class="ub4-hov" tabindex="0" data-hov="src"
+                data-code="{{ b.code }}"
+                data-map-skus="{{ b.map.skus }}" data-map-skus-done="{{ b.map.skus_done }}"
+                data-map-src="{{ b.map.sources }}" data-map-src-done="{{ b.map.sources_done }}"
+                data-map-complete="{{ '' if b.map.complete is none else (1 if b.map.complete else 0) }}"
+                >{{ b.sources | length }}곳 · {{ b.urls }}개</span>
+                {%- else %}<span class="og-dash"
+                title="{% if b.map.complete is none %}소싱처 주소가 아직 없어 이었는지 판정할 수 없습니다.{% else %}소싱처가 아직 없습니다.{% endif %}">—</span>{% endif %}</td>
             {# 상태 — 🔴 이름·색·아이콘은 `readiness.PHASE_LABEL`·`PHASE_CLS`·`PHASE_ICON`
                에서만 온다. 여기에 글자를 또 적으면 한쪽만 고쳤을 때 화면마다 다른 말을 한다.
                [2026-08-19 디자인 통일] 딱지(배경·테두리) 없이 아이콘 + 색 글자로 — ds.css §1. #}
             <td class="og-ctr"><span class="ds-st ds-st--{{ phase_cls[b.phase] }}"
                 {%- if b.missing %} title="아직 안 된 것 — {{ b.missing | join(' · ') }}"{% endif %}
                 ><i class="ph-light ph-{{ phase_icon[b.phase] }}" aria-hidden="true"></i>{{ phase_label[b.phase] }}</span></td>
-            {# ── SKU 정보 상태 — 품번 · 바코드 · GTIN 을 **셋 따로** 놓고 각각 호버 ──
-               🔴 이름과 순서를 여기 적지 않는다 — `matrix/sku_info.FIELDS`·`LABELS`
-                  한 곳에서 온다(서버가 `sku_fields`·`sku_labels` 로 내려 준다).
-               🔴 못 세는 것은 **0 이 아니라 「—」** 다. SKU 가 0개면 분모가 없어
-                  「0/0 다 됐다」도 「하나도 안 했다」도 거짓이다. 0 으로 적으면
-                  사장님이 「지워졌다」로 읽는다. #}
-            <td class="og-ctr og-skucell">
-              <div class="og-sku3">
-                {%- for f in sku_fields %}
-                {%- set v = (b.sku_info or {}).get(f) %}
-                {%- if v is none %}<span class="og-dash"
-                    title="{{ sku_labels[f] }}를 셀 수 없습니다 — 이 묶음에 SKU 가 아직 없습니다.">{{ sku_labels[f] }} —</span>
-                {%- else %}<span class="og-skuh{% if v >= b.sku_info.total %} done{% endif %}"
-                     data-sku-code="{{ b.code }}" data-sku-field="{{ f }}" tabindex="0"
-                     >{{ sku_labels[f] }} {{ v }}/{{ b.sku_info.total }}</span>{% endif %}
-                {%- endfor %}
-              </div>
-            </td>
             <td class="og-ctr og-actcell og-icell">
               {# [확정 1] 나머지 값은 오른쪽 판에서 본다 — 줄을 누르는 것은 원래대로
                  「이어서 하기」라, 판을 여는 단추를 따로 둔다. #}
@@ -223,22 +221,14 @@
         </div>
         <div id="og-side-bank" hidden>
           {% for b in boxes %}
+          {# [2026-08-19 칼럼 재구성 A안] 모델명·축 구성·소싱처는 이제 표 칼럼에 있다 —
+             판에서까지 다시 보여주면 같은 값을 두 곳에서 다르게 보여줄 위험만 는다
+             (가독성 원칙 「같은 정보 두 곳 중복 금지」). 판에는 표에 없는 것만 남긴다. #}
           <div class="og-sd" data-code="{{ b.code }}">
             <p class="og-side-t">{{ b.name }}</p>
             <div class="og-side-no">{{ b.no or b.shown_code }}</div>
-            <dl class="og-dl">
-              <dt>모델명</dt>
-              <dd>{% if b.model_names %}{{ b.model_names | join(' · ') }}{% else %}<span
-                  class="og-dash">따로 안 짬 — 이름 그대로 씁니다</span>{% endif %}</dd>
-              <dt>축 구성</dt>
-              <dd>{% if b.axis_label %}{{ b.axis_label }}{% else %}<span
-                  class="og-dash">축을 아직 안 짬</span>{% endif %}</dd>
-              <dt>소싱처</dt>
-              <dd>{% if b.sources %}{% for s in b.sources %}{{ s.label }} 주소 {{ s.n }}개<br>{% endfor %}주소 모두 {{ b.urls }}개{% else %}<span
-                  class="og-dash">소싱처가 아직 없습니다</span>{% endif %}</dd>
-            </dl>
             {# 🔴 미완료 줄에는 왜 미완료인지를 **글자로** 남긴다 — 사유가 없으면
-               배지가 「안 됐다」고만 하고 손볼 곳을 안 알려 준다. #}
+               상태 칸이 「안 됐다」고만 하고 손볼 곳을 안 알려 준다. #}
             {% if b.missing %}
             <div class="og-miss">아직 안 된 것 — {{ b.missing | join(' · ') }}</div>
             {% endif %}
@@ -671,22 +661,15 @@
   .og-dash{color:var(--color-text-tertiary)}
   .og-frac{font-size:12px;color:var(--color-text-secondary);
     font-variant-numeric:tabular-nums}
-  /* ── [2026-08-14 사장님 확정 ㉯ D안] SKU 정보 상태 — 셋 따로 · 각각 호버 ──
-     🔴 셋을 **세로로 쌓는다.** 시안 D 는 한 줄에 나란히였는데, 실측해 보니 그 모습은
-        표를 1870 창에서 옆으로 밀었다(가로 178px · 세로 76px). 표가 밀리면 4안을
-        고른 까닭(「일곱 칸이 한눈에 · 옆으로 밀 일 없음」)이 깨지고, 그건
-        `tests/design/test_optgen_4an_width.py` 가 지키는 약속이다.
-        D 의 알맹이(**셋을 따로 두고 각각 올린다**)는 그대로다 — 줄만 바꿨다.
-     🔴 글자 12px 은 이 저장소의 바닥선이다. 더 줄여서 폭을 벌지 않는다. */
-  .og-skucell{white-space:nowrap}
-  .og-sku3{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;
-    font-size:12px;line-height:1.5;color:var(--color-text-secondary);
+  /* ── [2026-08-19 칼럼 재구성] 옵션 매트릭스 칸 — 2줄(이름 · 번호) ────────── */
+  .ub4-l1{font-size:14.5px;line-height:1.5}
+  .ub4-l2{font-size:12px;color:var(--color-text-tertiary);margin-top:2px}
+  .ub4-more{color:var(--ap-링크파랑,#0066CC);cursor:help;border-bottom:1px dashed currentColor;
+    font-size:12px;margin-left:2px}
+  .ub4-hov{cursor:help;border-bottom:1px dashed var(--color-border);
     font-variant-numeric:tabular-nums}
-  .og-skuh{cursor:help;border-bottom:1px dashed var(--color-border)}
-  .og-skuh:hover,.og-skuh:focus{color:var(--ap-링크파랑,#0066CC);
+  .ub4-hov:hover,.ub4-hov:focus{color:var(--ap-링크파랑,#0066CC);
     border-bottom-color:currentColor;outline:none}
-  /* 다 채운 줄만 초록 — 「초록 = 됨」은 이 프로그램 고정 규칙이다. */
-  .og-skuh.done{color:var(--글자-초록,#248A3D)}
   /* ── 호버 카드 — 정본 `bundles/_matrix_v3.html` 의 `.pm-card` 를 그대로 쓴다 ──
      🔴 그 파일은 이 화면에 안 실린다(모음전 상세 전용). 그래서 규칙만 옮겨 적되
         **모양을 바꾸지 않는다** — 같은 카드가 화면마다 다르게 생기면 사장님이
@@ -713,6 +696,18 @@
   .og-skucard .pmc-val b{color:var(--color-text-primary);font-size:13px}
   .og-skucard .pmc-note{margin-top:8px;font-size:12px;color:var(--color-text-secondary);
     line-height:1.6}
+  /* [2026-08-19] SKU 연결상태 카드 — SKU별 표 */
+  .og-skucard .pmc-tb{width:100%;border-collapse:collapse;font-size:12px}
+  .og-skucard .pmc-tb th{text-align:left;color:var(--color-text-tertiary);font-weight:600;
+    padding:3px 6px;border-bottom:1px solid var(--color-border,#e5e8eb)}
+  .og-skucard .pmc-tb td{padding:4px 6px;white-space:nowrap;color:var(--color-text-primary)}
+  .og-skucard .pmc-tb td.mono{font-family:ui-monospace,monospace;color:var(--color-text-secondary)}
+  /* [2026-08-19] 소싱처 카드 — 옛 「맵핑」이 흡수된 요약줄 + 바로가기 */
+  .og-skucard .pmc-map{font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;
+    font-variant-numeric:tabular-nums}
+  .og-skucard .pmc-go{flex-shrink:0;font-size:12px;font-weight:600;
+    color:var(--ap-링크파랑,#0066CC);text-decoration:none;white-space:nowrap}
+  .og-skucard .pmc-go:hover{text-decoration:underline}
   /* 🔴 숫자 칸은 오른쪽 + 자릿수 맞춤. `html body table` 두 마디는 공용 표정렬
      규칙(`table_align.css` 의 `html body table.정렬동기화 … td{text-align:center}`)과
      세기를 맞추려는 것이다 — 한 마디라도 빠지면 그쪽이 이겨 숫자가 가운데로 간다. */
@@ -1405,20 +1400,18 @@
   window.addEventListener('scroll', ogCloseMenus, true);
   window.addEventListener('resize', ogCloseMenus);
 
-  // ── [2026-08-14 사장님 확정 ㉯ D안] 「SKU 정보 상태」 호버 카드 ───────────
+  // ── [2026-08-19 칼럼 재구성] 「SKU 연결상태」·「소싱처」 호버 카드 ───────────
   //   정본은 `webapp/templates/bundles/_matrix_v3.html` 의
   //   `_pmFloat` / `_pmShowFloat` / `_pmScheduleHide` 다. 그 파일은 이 화면에 안
   //   실리므로 **같은 이름·같은 규칙으로 옮겨 적는다**(모양·시간을 바꾸지 않는다).
-  //   지키는 여섯 가지:
-  //     ① 카드는 body 에 붙이고 창 기준(fixed) — 표 상자에 안 갇힌다
-  //     ② 앵커에서 나가면 **250ms 뒤** 닫는다 — 카드로 가는 손이 끊기지 않게
-  //     ③ 카드 안으로 들어오면 닫기를 **취소**, 나가면 다시 예약
-  //     ④ 오른쪽 끝 정렬 + 화면 아래를 넘으면 **위로 뒤집기**
-  //     ⑤ 구르면 닫는다(캡처) — fixed 좌표는 페이지를 안 따라간다
-  //     ⑥ 🔴 **여는 데 140ms 지연.** 표 줄은 촘촘한 앵커라 지연이 없으면
-  //        지나가는 줄이 카드를 가로채 화면이 깜빡인다(시안 ㉯-D 와 같은 값).
+  //   지키는 여섯 가지 — ①body+fixed 포털 ②나가면 250ms 뒤 닫기 ③카드 진입시 취소
+  //   ④오른쪽 정렬+위로 뒤집기 ⑤구르면 닫기(캡처) ⑥여는 데 140ms 지연.
+  //   [2026-08-19] 트리거 종류가 둘(SKU 연결상태·소싱처)이라 **한 벌만 만들어 공유**한다
+  //   — 예전(㉯ D안) 처럼 트리거마다 이 여섯 가지를 다시 베끼면 한 화면 안에 세 벌이
+  //   생겨, 하나만 고치고 나머지를 잊는 사고가 난다. 두 종류 다 같은 창구
+  //   (`/api/box/<code>/detail-card`)를 쓰므로 자료도 **한 번만** 받는다.
   (function () {
-    var 앵커들 = document.querySelectorAll('.og-skuh');
+    var 앵커들 = document.querySelectorAll('.ub4-hov');
     if (!앵커들.length) return;
 
     var _pmFloatEl = null, _pmHideTimer = null;
@@ -1460,64 +1453,89 @@
 
     var 열기 = null, 대기 = null, 지금앵커 = null;
     var 열기지연 = 140;
-    var 곳간 = {};        // code → 서버가 준 줄 목록 (한 묶음당 한 번만 묻는다)
+    var 곳간 = {};        // code → 서버가 준 상세(옵션 목록 + 소싱처 URL) 한 벌
     var 받는중 = {};
+    var 콜백대기 = {};    // code → 응답 오면 부를 그리기 함수들(호출 하나가 아니라 여러 개일 수 있다)
 
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
         return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
       });
     }
-    function 이름(code) {
-      var r = document.querySelector('.og-row .og-skuh[data-sku-code="' + code + '"]');
-      var tr = r && r.closest('tr');
-      var b = tr && tr.querySelector('.og-name b');
-      return b ? b.getAttribute('title') || b.textContent : code;
+    function 맵핑줄(a) {
+      // 소싱처 칸에만 있는 자료(표에 이미 심어 둔 값) — 「맵핑」이 흡수된 자리.
+      // 🔴 「모른다」를 「0」이나 「미완료」로 뭉개지 않는다(complete 가 빈 문자열이면
+      //    잴 대상이 없어 모른다는 뜻 — `og-dash` 분기가 이미 그런 줄은 따로 뺐다).
+      var skus = a.getAttribute('data-map-skus'), done = a.getAttribute('data-map-skus-done');
+      var src = a.getAttribute('data-map-src'), srcDone = a.getAttribute('data-map-src-done');
+      if (skus == null) return '';
+      return '<div class="pmc-map">SKU ' + done + '/' + skus + '개 소싱처와 이어짐 · 소싱처 '
+           + srcDone + '/' + src + '곳 끝</div>';
     }
-    function 카드글(code, field) {
+    function 카드글(a) {
+      var code = a.getAttribute('data-code');
+      var 종류 = a.getAttribute('data-hov');
       var d = 곳간[code];
-      var 칸이름 = ({{ sku_labels | tojson }})[field] || field;
       if (!d) return '<div class="pmc-note">불러오는 중…</div>';
       if (d.error) {
         // 🔴 못 불러왔으면 「없다」가 아니라 **못 불러왔다**고 적는다.
         return '<div class="pmc-note">' + esc(d.error) + '</div>';
       }
-      var rows = d.rows || [];
-      var 찬것 = rows.filter(function (o) { return o[field]; }).length;
-      var h = '<div class="pmc-h"><span class="pmc-name">' + esc(이름(code))
-            + '</span><span class="pmc-cnt">' + 칸이름 + ' ' + 찬것 + '/' + rows.length
-            + '</span></div>';
-      if (!rows.length) {
-        return h + '<div class="pmc-note">이 묶음에는 아직 SKU 가 없습니다 — '
-                 + '셀 대상이 없어 「—」로 적었습니다.</div>';
+      if (종류 === 'sku') {
+        var opts = d.options || [];
+        var h = '<div class="pmc-h"><span class="pmc-name">' + esc(d.name)
+              + '</span><span class="pmc-cnt">SKU ' + opts.length + '개</span></div>';
+        if (!opts.length) {
+          return h + '<div class="pmc-note">이 묶음에는 아직 SKU 가 없습니다.</div>';
+        }
+        h += '<table class="pmc-tb"><thead><tr><th>SKU</th><th>브랜드</th><th>모델</th>'
+           + '<th>색상</th><th>사이즈</th></tr></thead><tbody>';
+        opts.forEach(function (o) {
+          h += '<tr><td class="mono">' + esc(o.sku) + '</td><td>' + esc(o.brand || '—')
+             + '</td><td>' + esc(o.model || '—') + '</td><td>' + esc(o.color || '—')
+             + '</td><td>' + esc(o.size || '—') + '</td></tr>';
+        });
+        return h + '</tbody></table>';
       }
-      rows.forEach(function (o) {
-        var v = o[field];
-        h += '<div class="pmc-row"><div class="pmc-tx"><div class="pmc-lbl">'
-           + esc(o.label || o.no || o.sku) + '</div><div class="pmc-url">'
-           + esc(o.sku) + '</div></div><span class="pmc-val">' + 칸이름 + ' <b>'
-           + (v ? esc(v) : '—') + '</b></span></div>';
+      // 종류 === 'src'
+      var urls = d.sources || [];
+      var h2 = '<div class="pmc-h"><span class="pmc-name">' + esc(d.name)
+             + '</span><span class="pmc-cnt">주소 ' + urls.length + '개</span></div>'
+             + 맵핑줄(a);
+      if (!urls.length) {
+        return h2 + '<div class="pmc-note">소싱처 주소가 아직 없습니다.</div>';
+      }
+      urls.forEach(function (u) {
+        h2 += '<div class="pmc-row"><div class="pmc-tx"><div class="pmc-lbl">' + esc(u.label)
+            + '</div><div class="pmc-url">' + esc(u.url) + '</div></div>'
+            + '<a class="pmc-go" href="' + esc(u.url) + '" target="_blank" rel="noopener">바로가기 →</a></div>';
       });
-      h += '<div class="pmc-note">「—」는 <b>아직 안 적음</b>입니다. '
-         + '값은 「옵션 조합 생성 및 수정」 창의 격자에서 채웁니다.</div>';
-      return h;
+      return h2;
     }
     function 받아오기(code, 그리기) {
       if (곳간[code]) { 그리기(); return; }
+      // 🔴 미리 받기(mouseover)와 열자()가 같은 code 를 거의 동시에 부른다 — 먼저 온
+      //    호출이 아직 응답 대기 중이면 나중 호출의 그리기()가 여기서 사라져 버려서,
+      //    첫 호출이 던진 빈 콜백만 불리고 카드가 「불러오는 중」에 영원히 멈췄었다.
+      //    그래서 콜백을 하나만 쥐지 않고 대기열에 쌓아 뒀다가, 응답 오면 전부 부른다.
+      (콜백대기[code] = 콜백대기[code] || []).push(그리기);
       if (받는중[code]) return;
       받는중[code] = true;
-      fetch('/optgen/api/sku-info/' + encodeURIComponent(code))
+      fetch('/optgen/api/box/' + encodeURIComponent(code) + '/detail-card')
         .then(function (r) { return r.json(); })
         .then(function (j) {
           곳간[code] = (j && j.ok) ? j
             : {error: '값을 불러오지 못했습니다 — ' + ((j && j.error) || '서버 응답 없음')};
-          그리기();
         })
         .catch(function (e) {
           곳간[code] = {error: '값을 불러오지 못했습니다 — ' + (e && e.message || e)};
-          그리기();
         })
-        .finally(function () { 받는중[code] = false; });
+        .finally(function () {
+          받는중[code] = false;
+          var 대기목록 = 콜백대기[code] || [];
+          콜백대기[code] = [];
+          대기목록.forEach(function (cb) { cb(); });
+        });
     }
     function 예약취소() {
       if (열기) { clearTimeout(열기); 열기 = null; }
@@ -1525,39 +1543,38 @@
     }
     function 열자(a) {
       지금앵커 = a;
-      var code = a.getAttribute('data-sku-code');
-      var field = a.getAttribute('data-sku-field');
-      _pmShowFloat(a, 카드글(code, field));
+      var code = a.getAttribute('data-code');
+      _pmShowFloat(a, 카드글(a));
       // 자료가 늦게 오면 그때 다시 그린다 — 그 사이 다른 줄로 옮겼으면 안 그린다.
       받아오기(code, function () {
         if (지금앵커 === a && _pmFloatEl && _pmFloatEl.classList.contains('on')) {
-          _pmShowFloat(a, 카드글(code, field));
+          _pmShowFloat(a, 카드글(a));
         }
       });
     }
 
     document.addEventListener('mouseover', function (e) {
-      var a = e.target.closest && e.target.closest('.og-skuh');
+      var a = e.target.closest && e.target.closest('.ub4-hov');
       if (!a || a === 대기) return;
       예약취소();
       // 🔴 미리 받아 둔다 — 140ms 안에 오면 「불러오는 중」이 아예 안 보인다.
-      받아오기(a.getAttribute('data-sku-code'), function () {});
+      받아오기(a.getAttribute('data-code'), function () {});
       대기 = a;
       열기 = setTimeout(function () { 대기 = null; 열기 = null; 열자(a); }, 열기지연);
     });
     document.addEventListener('mouseout', function (e) {
-      var a = e.target.closest && e.target.closest('.og-skuh');
+      var a = e.target.closest && e.target.closest('.ub4-hov');
       if (!a) return;
       if (a === 대기) 예약취소();
       _pmScheduleHide();
     });
     // 마우스가 없어도 볼 수 있게 — 글쇠(Tab)로도 열린다.
     document.addEventListener('focusin', function (e) {
-      var a = e.target.closest && e.target.closest('.og-skuh');
+      var a = e.target.closest && e.target.closest('.ub4-hov');
       if (a) { 예약취소(); 열자(a); }
     });
     document.addEventListener('focusout', function (e) {
-      if (e.target.closest && e.target.closest('.og-skuh')) _pmScheduleHide();
+      if (e.target.closest && e.target.closest('.ub4-hov')) _pmScheduleHide();
     });
     // 🔴 구르면 닫는다(캡처) — 목록 상자 안쪽 스크롤은 window 로 안 올라온다.
     window.addEventListener('scroll', function () {

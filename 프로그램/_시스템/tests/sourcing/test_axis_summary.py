@@ -77,6 +77,19 @@ def test_3축_모델모음전은_모델로_판정되고_모델명이_나온다(s
     assert got['kind'] == 'model'
     assert got['model_names'] == ['메이트', '스위트']
     assert got['empty_axes'] == 0
+    # [2026-08-19] 옵션축 칸용 — 축 이름 옆에 그 축 값 개수가 같이 나와야 한다.
+    assert got['axis_count_label'] == '모델 2개 × 색상 2개 × 사이즈 2개'
+
+
+def test_값이_빈_축도_0개로_솔직하게_센다(s):
+    """🔴 「축은 만들었는데 값이 없다」를 감추면 사장님이 다 채운 줄 안다."""
+    from lemouton.sourcing.axis_summary import axis_batch
+    session, _ = s
+    code = _seed(s, [(1, '색상', ['블랙']), (2, '사이즈', [])])
+
+    got = axis_batch(session, [code])[code]
+
+    assert got['axis_count_label'] == '색상 1개 × 사이즈 0개'
 
 
 def test_2축_색상모음전은_모델명이_비어_있다(s):
@@ -100,8 +113,9 @@ def test_축이_없으면_모른다로_돌려준다(s):
 
     got = axis_batch(session, [code])[code]
 
-    assert got == {'axis_names': [], 'axis_label': None, 'kind': None,
-                   'kind_label': None, 'model_names': [], 'empty_axes': 0}
+    assert got == {'axis_names': [], 'axis_label': None,
+                   'axis_count_label': None,  # [2026-08-19] 옵션축 칸용 — 축 없으면 이것도 None
+                   'kind': None, 'kind_label': None, 'model_names': [], 'empty_axes': 0}
 
 
 def test_물어본_코드는_없어도_전부_돌려준다(s):

@@ -474,8 +474,15 @@ def test_옵션생성_판이_표에_적힌_글자를_센다(client, 옵션함인
     html = client.get('/optgen/?tab=product').get_data(as_text=True)
     assert 옵션함인데_마켓등록['tag'] in html, '심은 표본이 화면에 없다 — 시험이 헛돈다'
 
-    # 표에 실제로 그려진 배지 글자를 센다(속성·CSS 아닌 **보이는 글자**)
-    배지 = re.findall(r'<span class="og-badge[^"]*stgb[^"]*">([^<]+)</span>', html)
+    # 표에 실제로 그려진 상태 글자를 센다(속성·CSS 아닌 **보이는 글자**).
+    # 🔴 [2026-08-19 디자인 통일] 옵션함 줄(phase)은 이제 딱지(`.og-badge`)가 아니라
+    #    `.ds-st`(아이콘+색 글자)다 — 판매 상품 줄(stage_cls)은 옛 딱지 그대로라
+    #    둘 다 잡아야 한다. 아이콘 태그(`<i>…</i>`)는 있어도 없어도 되게 둔다.
+    # 🔴 템플릿이 `class="…"` 다음 줄에서 `>` 를 닫는다(줄바꿈으로 들여쓰기) —
+    #    닫는 큰따옴표와 `>` 사이에 공백류(줄바꿈 포함)가 낄 수 있어 `\s*` 로 허용.
+    배지 = re.findall(
+        r'<span class="(?:og-badge[^"]*stgb|ds-st)[^"]*"\s*>\s*(?:<i[^>]*></i>)?([^<]+)</span>',
+        html)
     보임 = {}
     for b in 배지:
         보임[b.strip()] = 보임.get(b.strip(), 0) + 1

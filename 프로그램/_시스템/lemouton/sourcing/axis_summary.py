@@ -71,8 +71,8 @@ def _blank() -> dict:
     부를 때마다 새로 만든다. 상수 하나를 돌려쓰면 호출자가 한 줄을 고칠 때
     다른 줄까지 같이 바뀐다(리스트·딕트는 같은 물건을 가리킨다).
     """
-    return {'axis_names': [], 'axis_label': None, 'kind': None,
-            'kind_label': None, 'model_names': [], 'empty_axes': 0}
+    return {'axis_names': [], 'axis_label': None, 'axis_count_label': None,
+            'kind': None, 'kind_label': None, 'model_names': [], 'empty_axes': 0}
 
 
 def _kind_labels() -> dict[str, str]:
@@ -94,8 +94,11 @@ def axis_batch(session, codes: list[str]) -> dict[str, dict]:
     """상품코드 여러 개 → 코드마다 축 요약. **조회는 1개**(코드 500개마다 1개).
 
     코드 하나가 받는 값:
-        axis_names  : ['모델','색상','사이즈']  — `step_no` 순
-        axis_label  : '모델 × 색상 × 사이즈'    — 축이 없으면 None
+        axis_names       : ['모델','색상','사이즈']       — `step_no` 순
+        axis_label        : '모델 × 색상 × 사이즈'         — 축이 없으면 None
+        axis_count_label : '모델 5개 × 색상 2개 × 사이즈 3개' — [2026-08-19] 칼럼용,
+                            축이 없으면 None. 값이 빈 축은 「0개」 그대로 보여
+                            (「축은 만들었는데 값이 없다」를 감추지 않는다).
         kind        : 'model' | 'color' | None
         kind_label  : '모델 모음전' | '색상 모음전' | None
         model_names : ['메이트','스위트']       — 모델 축이 없으면 []
@@ -141,6 +144,7 @@ def axis_batch(session, codes: list[str]) -> dict[str, dict]:
         name = (axis_name or '').strip()
         values = _values_of(values_json)
         entry['axis_names'].append(name)
+        entry.setdefault('_counts', []).append((name, len(values)))
         if not values:
             entry['empty_axes'] += 1
         if is_model_axis(name):
@@ -151,6 +155,8 @@ def axis_batch(session, codes: list[str]) -> dict[str, dict]:
         if not entry['axis_names']:
             continue                    # 축 0개 — 빈 답 그대로
         entry['axis_label'] = _JOIN.join(entry['axis_names'])
+        entry['axis_count_label'] = _JOIN.join(
+            f'{n or "축"} {c}개' for n, c in entry.pop('_counts', []))
         entry['kind'] = ('model' if any(is_model_axis(n) for n in entry['axis_names'])
                          else 'color')
         if labels is None:              # 축이 있는 줄이 하나라도 있을 때만 들여온다

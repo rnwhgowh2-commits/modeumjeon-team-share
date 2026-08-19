@@ -311,6 +311,8 @@ def _boxes(session, *, show_made: bool = False):
             # 섞이기 쉬워 앞에 `moum_` 을 붙여 둔다.
             'moum_kind': ax.get('kind'), 'moum_kind_label': ax.get('kind_label'),
             'axis_label': ax.get('axis_label'),
+            # [2026-08-19 칼럼 재구성] 「모델 5개 × 색상 2개」 — 옵션축 칸 전용.
+            'axis_count_label': ax.get('axis_count_label'),
             # 🔴 「모델명」은 축 값과 묶음 칸 **두 곳**에서 온다. 순서를 여기서
             #    다시 정하지 않는다 — `option_name.bundle_model_names` 한 곳이
             #    `model_name_of` 와 같은 순서를 지킨다(보는 것 = 나가는 것).
@@ -833,6 +835,59 @@ def box(code: str):
         s.close()
     return render_template('optgen/box.html',
                            active_app='bundles', active='optgen_direct', box=info)
+
+
+@bp.get('/api/box/<path:code>/detail-card')
+def api_box_detail_card(code: str):
+    """[2026-08-19 칼럼 재구성] 목록 표의 「SKU 연결상태」·「소싱처」 호버 카드 재료.
+
+    한 번에 둘 다 내려준다 — 같은 줄에서 두 칸을 이어 살펴보는 일이 잦아,
+    칸마다 따로 부르면 왕복이 두 번(그리고 카드 사이 옮길 때 깜빡임)이 된다.
+
+    응답: `{ok, name, no, options: [{sku,no,brand,model,color,size}],
+             sources: [{key,label,url}]}`
+
+    🔴 모델명은 `box()`(옵션함 상세 페이지)와 **같은 함수**(`model_name_of`)로
+       구한다 — 여기서 다시 규칙을 적으면 상세 페이지와 목록 호버가 다른
+       모델명을 보여줄 수 있다(같은 사실은 한 곳에서만).
+    """
+    from lemouton.matrix.option_name import model_name_of
+    from lemouton.sourcing.models import BundleOptionStep, BundleSourceUrl, Model, Option
+    from lemouton.sourcing.source_url_stats import source_labels
+
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter_by(model_code=code).first()
+        if m is None:
+            return jsonify({'ok': False, 'error': f'그런 묶음이 없습니다: {code}'}), 404
+        nm = m.model_name_display or m.model_name_raw or m.model_code
+        axis_names = [a for (a,) in s.query(BundleOptionStep.axis_name)
+                      .filter_by(model_code=code)
+                      .order_by(BundleOptionStep.step_no).all()]
+        opts = (s.query(Option).filter_by(model_code=code)
+                .order_by(Option.display_no, Option.canonical_sku).all())
+        options = [{'sku': o.canonical_sku, 'no': o.display_no,
+                    'brand': o.brand or m.brand,
+                    'model': model_name_of(nm, o, axis_names,
+                                           bundle_model_name=m.bundle_model_name),
+                    'color': o.color_display or o.color_code or None,
+                    # 축이 하나(색상만)면 사이즈 칸은 없는 것 — 「free」로 적어
+                    #   「아직 안 정함」과 갈라 보이게 한다(원본 지시 「1개면 free」).
+                    'size': (o.size_display or o.size_code or None)
+                            if len(axis_names) > 1 or 'size' in axis_names else 'free'}
+                   for o in opts]
+
+        urls = (s.query(BundleSourceUrl)
+                .filter_by(model_code=code).order_by(BundleSourceUrl.source_key,
+                                                      BundleSourceUrl.sort_order).all())
+        키들 = sorted({u.source_key for u in urls})
+        이름 = source_labels(키들) if 키들 else {}
+        sources = [{'key': u.source_key, 'label': 이름.get(u.source_key) or u.source_key,
+                    'url': u.url, 'label_txt': u.label} for u in urls]
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'name': nm, 'no': m.display_no,
+                    'options': options, 'sources': sources})
 
 
 @bp.post('/api/box/<path:code>/initial-stock')

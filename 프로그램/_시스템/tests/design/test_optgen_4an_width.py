@@ -193,7 +193,13 @@ def test_정보단추를_누르면_그_줄_값이_판에_뜬다(화면, 라이�
     화면.wait_for_timeout(150)
     뒤 = 화면.eval_on_selector('#og-side-b', 'e => e.innerText.trim()')
     assert 라이브화면['긴이름'] in 뒤, f'누른 줄 값이 판에 안 떴다: {뒤!r}'
-    assert '색상 × 사이즈' in 뒤 and '주소 모두 2개' in 뒤, f'판에 값이 덜 찼다: {뒤!r}'
+    # 🔴 [2026-08-19 칼럼 재구성 A안] 축 구성·소싱처 주소 수는 표 칼럼으로 옮겨져
+    #    판에서는 뺐다 — 이 줄은 다 갖춰(주소 2·다 이음) 미완료 사유도 없으므로
+    #    판에는 이제 제목·번호 말고는 남는 게 없는 게 맞다(같은 값 두 곳 중복 금지).
+    행 = 화면.eval_on_selector(
+        f'tr.og-row[data-href$="/optgen/box/{라이브화면["긴코드"]}"]', 'e => e.innerText')
+    assert '색상' in 행 and '사이즈' in 행, f'축 구성이 표(옵션축 칸)에 없다: {행!r}'
+    assert '곳' in 행 and '2개' in 행, f'소싱처 주소 수가 표(소싱처 칸)에 없다: {행!r}'
     assert 화면.eval_on_selector_all('.og-row.on', 'els => els.length') == 1, (
         '어느 줄을 보고 있는지 표에 표시가 없다')
     # 🔴 다시 누르면 닫힌다 — 판을 지우려고 엉뚱한 줄을 누르게 하지 않는다.
