@@ -98,6 +98,26 @@ def market_product_ids(session, set_ids: list[int]) -> dict[int, dict]:
     return out
 
 
+def market_collected_at(session, set_ids: list[int]):
+    """구성별 **판매처에서 값을 마지막으로 긁어온 때** — 「판매처 수집」 칸.
+
+    `SetChannelOption.mkt_fetched_at` 최댓값(여러 마켓·옵션 중 가장 최근).
+    「마켓 전송」(우리가 보낸 때)과는 다른 정보 — 이건 마켓 쪽 값을 우리가 읽어온 때다.
+
+    Returns: `{set_id: datetime}`
+    """
+    from sqlalchemy import func
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    if not set_ids:
+        return {}
+    rows = (session.query(SetChannel.set_id, func.max(SetChannelOption.mkt_fetched_at))
+            .join(SetChannelOption, SetChannelOption.channel_id == SetChannel.id)
+            .filter(SetChannel.set_id.in_(set_ids),
+                    SetChannelOption.mkt_fetched_at.isnot(None))
+            .group_by(SetChannel.set_id).all())
+    return {sid: at for sid, at in rows if at is not None}
+
+
 def rows(session, *, page: int = 1, per_page: int = 50,
          date_basis: str = '', date_from='', date_to='',
          policy: str = '', listed: str = '', sources: list[str] | None = None,
@@ -109,7 +129,8 @@ def rows(session, *, page: int = 1, per_page: int = 50,
          sources: [소싱처키…], source_detail: {소싱처키: [{url,label}…]},
          buy_source: None,
          policy: 이름|None, policy_id: int|None, policy_from: 'set'|'model'|None,
-         crawled_at, sent: {market: 시각}, listed: {market: 상품번호}}
+         crawled_at, sent: {market: 시각}, listed: {market: 상품번호},
+         market_collected_at: 판매처에서 값을 마지막으로 긁어온 때|None}
     """
     from lemouton.policy.models import BundlePolicyLink, MarketPolicy, SetPolicyLink
     from lemouton.sets.models import ProductSet, SetOption, SetProduct
@@ -194,6 +215,7 @@ def rows(session, *, page: int = 1, per_page: int = 50,
     listed_map = market_product_ids(session, set_ids)
     from lemouton.send.service import last_sent_at
     sent_map = last_sent_at(session, set_ids=set_ids)
+    mkt_collected_map = market_collected_at(session, set_ids)
 
     opt_cnt = dict(session.query(SetProduct.set_id, func.count(SetOption.id))
                    .join(SetOption, SetOption.set_product_id == SetProduct.id)
@@ -232,6 +254,7 @@ def rows(session, *, page: int = 1, per_page: int = 50,
             'crawled_at': m.last_crawled_at,
             'sent': sent_map.get(ps.id, {}),
             'listed': listed_map.get(ps.id, {}),
+            'market_collected_at': mkt_collected_map.get(ps.id),
         })
     return {'total': total, 'page': page, 'per_page': per, 'rows': out}
 

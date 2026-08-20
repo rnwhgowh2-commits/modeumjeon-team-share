@@ -59,6 +59,8 @@
       {% endfor %}
       <span class="fnote">정책에서 꺼 둔 마켓은 골라도 건너뜁니다</span>
     </div>
+    <div id="selBar"><span><b id="selCount">0</b>개 선택됨</span>
+      <button type="button" id="selClear" class="btn2 sm">선택 해제</button></div>
     <div class="fr run">
       <button class="btn2 big" id="btnSend">긁기 &amp; 전송 시작 (검색결과 전부)</button>
       {# 🔴 실제 마켓 호출은 두 겹 잠금 뒤다(서버 열쇠 + 자동화 화면 열쇠).
@@ -183,6 +185,15 @@
   .lbl-chip{display:inline-flex;align-items:center;justify-content:center;width:34px;height:17px;border:1px solid var(--line,#E5E8EB);border-radius:5px;color:var(--글자-보조,#8B95A1);font-size:10px;font-weight:700;flex-shrink:0;margin-right:5px}
   .lbl-val{margin-right:12px;font-family:ui-monospace,monospace}
 
+  /* ══ 2026-08 개편 — ①NO+체크박스 ══ */
+  .ck-th,.ck-td{width:56px;text-align:center}
+  .ck-cell{display:flex;align-items:center;gap:6px;justify-content:center;cursor:pointer;user-select:none}
+  .rowno{color:var(--글자-보조,#8B95A1);font-size:12px;font-family:ui-monospace,monospace}
+  .btn2.sm{padding:5px 12px;font-size:12px}
+  #selBar{display:none;align-items:center;gap:10px;margin-bottom:8px;font-size:13px}
+  #selBar.on{display:flex}
+  #selBar b{color:var(--primary,#3182F6)}
+
   /* ══ 2026-08 개편 — ②정책 클릭 메뉴 ══ */
   /* .pol-menu 는 .pol 버튼의 형제(같은 td 안)라 .pol 의 relative 는 기준이 안 된다 — td 자체가 기준이어야 함 */
   .pol-td{position:relative}
@@ -201,6 +212,8 @@
   .lg-grid{display:flex;gap:4px;flex-wrap:wrap;max-width:180px}
   .lg-cell{min-width:21px;height:21px;padding:0 2px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:9.5px;letter-spacing:-.2px;white-space:nowrap;position:relative;cursor:help}
   .lg-cell.off{opacity:.28;cursor:default}
+  /* ④ 소싱처 칸은 호버(URL)뿐 아니라 클릭도 된다(옵션관리 열기) — off 여도 모델 단위라 눌린다 */
+  .lg-cell[data-src-hover]{cursor:pointer}
   .lg-cell .dot{position:absolute;bottom:-2px;right:-2px;width:6px;height:6px;border-radius:50%;background:var(--green,#22C55E);border:1.5px solid var(--surface,#fff)}
 
   /* ══ 2026-08 개편 — 칸 호버카드 (소싱처 URL + 옵션별 가격·재고 이력, red=오름·blue=내림) ══ */
@@ -263,6 +276,7 @@
   const SRC_UNIVERSE = {{ source_universe | tojson }};
   const SRC_LABEL = {{ source_labels | tojson }};
   let page = 1;
+  const selected = new Set();     // ① 체크된 set_id — 비어 있으면 「검색결과 전부」로 보낸다
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -303,7 +317,11 @@
     }).join('') + '</div>';
   }
 
-  function row(r){
+  function row(r, no){
+    // NO + 체크박스 — 왼쪽에 체크박스, 오른쪽에 번호(사장님 확정)
+    const ck = '<label class="ck-cell"><input type="checkbox" class="rowck" data-id="' + r.set_id
+      + '"><span class="rowno">' + no + '</span></label>';
+
     // ① 상품명 2줄 — 1행: 상품명 + 브랜드 + 구성명 / 2행: 품번·SKU 라벨칩
     const name = '<b>' + esc(r.name) + '</b> '
       + (r.brand ? '<span class="brand-pill-v2">' + esc(r.brand) + '</span> ' : '')
@@ -331,10 +349,17 @@
       ? '<span class="when-trig" data-hist-set="' + r.set_id + '">' + esc(r.crawled_at) + '</span>'
       : '<span class="sc">아직 안 긁음</span>';
 
-    return '<tr><td>' + srcGrid(r) + '</td>'
+    // ⑦ 판매처 수집 날짜 — 호버하면 마켓별 판매가·재고·예상마진
+    const mktCollected = r.market_collected_at
+      ? '<span class="when-trig" data-mkt-hist-set="' + r.set_id + '">' + esc(r.market_collected_at) + '</span>'
+      : '<span class="sc">아직 안 긁음</span>';
+
+    return '<tr><td class="ck-td">' + ck + '</td>'
+      + '<td>' + srcGrid(r) + '</td>'
       + '<td>' + name + '</td>'
       + '<td class="pol-td">' + pol + '</td>'
       + '<td class="dt">' + crawl + '</td>'
+      + '<td class="dt">' + mktCollected + '</td>'
       + '<td>' + mktGrid(r) + '</td></tr>';
   }
 
@@ -420,6 +445,38 @@
     } catch (e) { showFloat(anchor, '<div class="pmc-h">이력을 못 불러왔습니다</div>'); }
   }
 
+  // ⑦ 판매처 수집 호버 — 마켓별 판매가·재고·최근변동·예상마진
+  const mktHistCache = {};
+  async function showMarketMarginHover(anchor, setId){
+    showFloat(anchor, '<div class="pmc-h">불러오는 중…</div>');
+    try {
+      let d = mktHistCache[setId];
+      if (!d) {
+        const res = await fetch('/api/market-send/rows/' + setId + '/margin');
+        d = await res.json();
+        mktHistCache[setId] = d;
+      }
+      if (!d.ok || !d.skus.length) { showFloat(anchor, '<div class="pmc-h">최근 이력 없음</div>'); return; }
+      let h = '<div class="pmc-h">옵션별·마켓별 판매가·예상마진</div>';
+      d.skus.forEach(sk => {
+        h += '<div class="mxh-opt">' + esc(sk.color) + ' · ' + esc(sk.size) + '</div>';
+        Object.keys(sk.markets).forEach(mkKey => {
+          const md = sk.markets[mkKey];
+          const priceDelta = (md.prev_price != null && md.price != null) ? md.price - md.prev_price : 0;
+          const priceTxt = md.price == null ? '확인 불가' : '₩' + md.price.toLocaleString();
+          const marginTxt = md.margin == null
+            ? '<span class="sc">' + esc(md.margin_reason || '확인 불가') + '</span>'
+            : (md.margin >= 0 ? '+' : '') + md.margin.toLocaleString() + '원';
+          h += '<div class="mxh-src-row"><div class="mxh-src-name">' + esc(MK.find(m => m[0] === mkKey)?.[1] || mkKey) + '</div>'
+            + '<div class="mxh-metric"><span class="k">판매가</span><span>' + priceTxt + '</span>' + trendBadge(priceDelta, '') + '</div>'
+            + '<div class="mxh-metric"><span class="k">예상마진</span><span>' + marginTxt + '</span></div>'
+            + '</div>';
+        });
+      });
+      showFloat(anchor, h);
+    } catch (e) { showFloat(anchor, '<div class="pmc-h">이력을 못 불러왔습니다</div>'); }
+  }
+
   // 델리게이션 — #msList 는 안 갈아 끼우고 안쪽만 다시 그리므로 여기 한 번만 건다.
   const listEl = $('msList');
   listEl.addEventListener('mouseover', e => {
@@ -431,43 +488,92 @@
       return;
     }
     const histEl = e.target.closest('[data-hist-set]');
-    if (histEl) showHistoryHover(histEl, histEl.dataset.histSet);
+    if (histEl) { showHistoryHover(histEl, histEl.dataset.histSet); return; }
+    const mktHistEl = e.target.closest('[data-mkt-hist-set]');
+    if (mktHistEl) showMarketMarginHover(mktHistEl, mktHistEl.dataset.mktHistSet);
   });
   listEl.addEventListener('mouseout', e => {
-    if (e.target.closest('[data-src-hover]') || e.target.closest('[data-hist-set]')) scheduleHide();
+    if (e.target.closest('[data-src-hover]') || e.target.closest('[data-hist-set]')
+        || e.target.closest('[data-mkt-hist-set]')) scheduleHide();
   });
   listEl.addEventListener('click', e => {
-    const t = e.target.closest('[data-pol-toggle]');
-    if (!t) return;
-    e.stopPropagation();
-    const menu = $(t.dataset.polToggle);
-    const wasOn = menu.classList.contains('on');
-    document.querySelectorAll('.pol-menu.on').forEach(m => m.classList.remove('on'));
-    if (!wasOn) menu.classList.add('on');
+    const pol = e.target.closest('[data-pol-toggle]');
+    if (pol) {
+      e.stopPropagation();
+      const menu = $(pol.dataset.polToggle);
+      const wasOn = menu.classList.contains('on');
+      document.querySelectorAll('.pol-menu.on').forEach(m => m.classList.remove('on'));
+      if (!wasOn) menu.classList.add('on');
+      return;
+    }
+    // ④ 소싱처 로고 클릭 → 상품관리 > 옵션관리 > 그 모델의 옵션 조합 생성 열기
+    const srcCell = e.target.closest('[data-src-hover]');
+    if (srcCell) {
+      const [setId] = srcCell.dataset.srcHover.split('|');
+      const r = (window.__rows || []).find(x => String(x.set_id) === String(setId));
+      if (r && r.model_code && typeof window.openOptionUrlModal === 'function') {
+        window.openOptionUrlModal(r.model_code);
+      }
+    }
+  });
+  listEl.addEventListener('change', e => {
+    const ck = e.target.closest('.rowck');
+    if (!ck) return;
+    if (ck.checked) selected.add(ck.dataset.id); else selected.delete(ck.dataset.id);
+    paintSelBar();
   });
   document.addEventListener('click', () => {
     document.querySelectorAll('.pol-menu.on').forEach(m => m.classList.remove('on'));
   });
 
+  // ① 체크박스 선택 — 비었으면 「검색결과 전부」, 있으면 「선택 N개만」
+  function paintSelBar(){
+    const n = selected.size;
+    $('selBar').classList.toggle('on', n > 0);
+    $('selCount').textContent = n;
+    if (!$('btnSend').disabled) {
+      $('btnSend').textContent = n > 0
+        ? '긁기 & 전송 시작 (선택 ' + n + '개)' : '긁기 & 전송 시작 (검색결과 전부)';
+    }
+    const all = $('ckAll');
+    if (all) {
+      const boxes = [...document.querySelectorAll('.rowck')];
+      all.checked = boxes.length > 0 && boxes.every(b => selected.has(b.dataset.id));
+    }
+  }
+
   function render(d){
     window.__rows = d.rows;              // 이번 쪽에 보이는 구성 = 보낼 대상
     for (const k in histCache) delete histCache[k];   // 새로 그리면 이력 캐시도 새로
+    for (const k in mktHistCache) delete mktHistCache[k];
     $('cTotal').textContent = (d.total || 0).toLocaleString();
     if (!d.rows.length){
       $('msList').innerHTML = '<div class="empty">조건에 맞는 구성이 없습니다 — 위에서 조건을 바꿔 보세요.</div>';
       return;
     }
     const last = Math.max(1, Math.ceil(d.total / d.per_page));
+    selected.clear(); paintSelBar();
+    const rowOffset = (d.page - 1) * d.per_page;
     $('msList').innerHTML =
-      '<table class="lst"><thead><tr><th>소싱처</th><th>상품 · 구성</th>'
-      + '<th>정책</th><th>소싱처 수집</th><th>마켓 전송</th></tr></thead><tbody>'
-      + d.rows.map(row).join('') + '</tbody></table>'
+      '<table class="lst"><thead><tr>'
+      + '<th class="ck-th"><input type="checkbox" id="ckAll" title="전체 선택"></th>'
+      + '<th>소싱처</th><th>상품 · 구성</th>'
+      + '<th>정책</th><th>소싱처 수집</th><th>판매처 수집</th><th>마켓 전송</th></tr></thead><tbody>'
+      + d.rows.map((r, i) => row(r, rowOffset + i + 1)).join('') + '</tbody></table>'
       + '<div class="pager"><button id="pPrev"' + (d.page <= 1 ? ' disabled' : '') + '>이전</button>'
       + '<span>' + d.page + ' / ' + last + '</span>'
       + '<button id="pNext"' + (d.page >= last ? ' disabled' : '') + '>다음</button></div>';
     const pv = $('pPrev'), nx = $('pNext');
     if (pv) pv.onclick = () => { page--; load(); };
     if (nx) nx.onclick = () => { page++; load(); };
+    $('ckAll').onclick = () => {
+      const on = $('ckAll').checked;
+      document.querySelectorAll('.rowck').forEach(b => {
+        b.checked = on;
+        if (on) selected.add(b.dataset.id); else selected.delete(b.dataset.id);
+      });
+      paintSelBar();
+    };
   }
 
   async function load(){
@@ -526,7 +632,7 @@
         $('lgDot').classList.add('off');
         $('lgTitle').textContent = '전송 끝';
         $('btnSend').disabled = false;
-        $('btnSend').textContent = '긁기 & 전송 시작 (검색결과 전부)';
+        paintSelBar();
         load();                                   // 「마켓 전송」 칸을 새로 그린다
       }
     }catch(e){
@@ -535,6 +641,7 @@
       $('lgDot').classList.add('off');
       $('lgTitle').textContent = '로그를 못 읽었습니다 — ' + e.message;
       $('btnSend').disabled = false;
+      paintSelBar();
     }
   }
 
@@ -565,10 +672,14 @@
   $('btnSend').onclick = async () => {
     const markets = [...document.querySelectorAll('.fMkt:checked')].map(x => x.value);
     if (!markets.length){ alert('보낼 마켓을 하나 이상 골라 주세요.'); return; }
-    const rowsOnPage = (window.__rows || []).map(r => r.set_id);
+    // ① 체크된 게 있으면 그것만, 없으면 검색결과 전부(기존 동작 그대로)
+    const targetRows = selected.size
+      ? (window.__rows || []).filter(r => selected.has(String(r.set_id)))
+      : (window.__rows || []);
+    const rowsOnPage = targetRows.map(r => r.set_id);
     if (!rowsOnPage.length){ alert('보낼 구성이 없습니다.'); return; }
     if ($('fCrawl').checked && extReady()){
-      const n = askCrawl((window.__rows || []).map(r => r.model_code));
+      const n = askCrawl(targetRows.map(r => r.model_code));
       $('lgBox').style.display = '';
       $('lgBody').innerHTML = '<div class="lg skip"><span class="lt">지금</span>'
         + '<span class="lm">[소싱처 긁기]</span><span class="lar">→</span>'
@@ -595,8 +706,14 @@
       $('lgTitle').textContent = '시작하지 못했습니다 — ' + e.message;
       $('lgDot').classList.add('off');
       $('btnSend').disabled = false;
-      $('btnSend').textContent = '긁기 & 전송 시작 (검색결과 전부)';
+      paintSelBar();
     }
+  };
+
+  $('selClear').onclick = () => {
+    selected.clear();
+    document.querySelectorAll('.rowck').forEach(b => { b.checked = false; });
+    paintSelBar();
   };
 
   $('btnSearch').onclick = () => { page = 1; load(); };

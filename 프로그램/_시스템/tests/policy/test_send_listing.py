@@ -271,3 +271,40 @@ def test_소싱처_없으면_source_detail도_빈다(s):
     _model(s, 'M1', 'A')
     _set(s, 'M1', '단품')
     assert L.rows(s)['rows'][0]['source_detail'] == {}
+
+
+# ── 판매처 수집일 — 「판매처 수집」 칸 (2026-08 개편 ⑦) ────────────────────
+
+def test_판매처에서_긁어온_때가_실린다(s):
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    _model(s, 'M1', 'A')
+    ps = _set(s, 'M1', '단품')
+    ch = SetChannel(set_id=ps.id, market='coupang')
+    s.add(ch)
+    s.flush()
+    s.add(SetChannelOption(channel_id=ch.id, canonical_sku='SKU1', status='matched',
+                           mkt_price=10000, mkt_fetched_at=datetime(2026, 8, 19, 13, 0)))
+    s.flush()
+    assert L.rows(s)['rows'][0]['market_collected_at'] == datetime(2026, 8, 19, 13, 0)
+
+
+def test_긁은_적_없으면_판매처_수집_때도_없다(s):
+    _model(s, 'M1', 'A')
+    _set(s, 'M1', '단품')
+    assert L.rows(s)['rows'][0]['market_collected_at'] is None
+
+
+def test_마켓이_여럿이면_가장_최근_때가_실린다(s):
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    _model(s, 'M1', 'A')
+    ps = _set(s, 'M1', '단품')
+    ch1 = SetChannel(set_id=ps.id, market='coupang')
+    ch2 = SetChannel(set_id=ps.id, market='smartstore')
+    s.add_all([ch1, ch2])
+    s.flush()
+    s.add(SetChannelOption(channel_id=ch1.id, canonical_sku='SKU1', status='matched',
+                           mkt_fetched_at=datetime(2026, 8, 1, 9, 0)))
+    s.add(SetChannelOption(channel_id=ch2.id, canonical_sku='SKU1', status='matched',
+                           mkt_fetched_at=datetime(2026, 8, 19, 13, 0)))
+    s.flush()
+    assert L.rows(s)['rows'][0]['market_collected_at'] == datetime(2026, 8, 19, 13, 0)
