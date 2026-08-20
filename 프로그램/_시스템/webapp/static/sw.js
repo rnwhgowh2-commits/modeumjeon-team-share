@@ -59,7 +59,7 @@ const OFFLINE_HTML =
   '<html><head><title>연결 안 됨</title><meta charset="utf-8">' +
   '<meta name="viewport" content="width=device-width,initial-scale=1"></head>' +
   '<body style="font-family:Pretendard,-apple-system,sans-serif;text-align:center;padding:64px 24px;color:#4E5968">' +
-  '<div style="font-size:44px">📡</div>' +
+  '<div style="font-size:44px"></div>' +
   '<h1 style="font-size:19px;color:#191F28;margin:14px 0 8px">연결이 안 됩니다</h1>' +
   '<p style="font-size:14px;line-height:1.7;margin:0">가격·재고는 <b>낡은 값을 보여드리지 않습니다.</b><br>연결되면 바로 나옵니다.</p>' +
   '<button onclick="location.reload()" style="margin-top:22px;padding:12px 26px;border:0;border-radius:10px;background:#3182F6;color:#fff;font-size:15px;font-weight:700">다시 시도</button>' +

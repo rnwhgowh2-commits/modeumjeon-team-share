@@ -11,7 +11,7 @@
 
   {% if not bundles %}
     <div style="background:var(--연한-주황,#FFF8E5);border:1px solid var(--amber,#FFCB6B);border-radius:8px;padding:16px 24px;margin-bottom:12px">
-      <strong style="color: var(--글자-주황, var(--amber,#9A6700));font-size:14px">💡 묶음제품 없음</strong>
+      <strong style="color: var(--글자-주황, var(--amber,#9A6700));font-size:14px"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 묶음제품 없음</strong>
       <p style="font-size:14px;color:var(--ink,#292A2F);margin-top:4px;line-height:1.6">
         먼저 <a href="{{ url_for('inventory.data_bundles') }}" style="color: var(--글자-파랑, var(--primary,#4F67FF));text-decoration:none;font-weight:600">데이터 관리 / 묶음제품</a> 에서 묶음을 등록한 후 바코드 인쇄가 가능합니다.
       </p>
@@ -28,7 +28,7 @@
         <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink,#292A2F);cursor:pointer">
           <input type="checkbox" name="cutline" value="1" {% if cutline %}checked{% endif %} style="accent-color:var(--primary,#4F67FF)"> 절단선 표시
         </label>
-        <button type="submit" style="margin-left:auto;background:var(--primary,#4F67FF);color:#fff;padding:8px 16px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">🖨 인쇄 미리보기</button>
+        <button type="submit" style="margin-left:auto;background:var(--primary,#4F67FF);color:#fff;padding:8px 16px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer"><i class="ph-light ph-printer" aria-hidden="true"></i> 인쇄 미리보기</button>
       </div>
 
       <table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">

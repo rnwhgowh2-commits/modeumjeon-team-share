@@ -1,5 +1,5 @@
 {% extends "mobile/_base.html" %}
-{% block title %}{% if mode == 'in' %}📥 연속 입고 스캔{% else %}📤 연속 출고 스캔{% endif %}{% endblock %}
+{% block title %}{% if mode == 'in' %}<i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 연속 입고 스캔{% else %}<i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 연속 출고 스캔{% endif %}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -239,7 +239,7 @@
       <div class="sb-scan-line"></div>
       {# 담긴 개수 — 카메라를 보는 눈 바로 옆에 둔다(예전엔 아래 줄에 있었다) #}
       <div class="sb-cam-count" id="header-count">0개 · 0건</div>
-      <div class="sb-cam-hint" id="scan-hint">📷 바코드를 비춰주세요</div>
+      <div class="sb-cam-hint" id="scan-hint"><i class="ph-light ph-camera" aria-hidden="true"></i> 바코드를 비춰주세요</div>
       <div class="sb-cam-stats" id="scan-stats">
         <span id="stat-engine">…</span>
         <span id="stat-res">…</span>
@@ -247,13 +247,13 @@
       </div>
       {# 컨트롤 — 단독 스캔과 동일 (플래시·줌·카메라 전환) #}
       <div class="sb-cam-ctrl">
-        <button id="btn-torch" title="플래시" onclick="toggleTorch()">🔦</button>
+        <button id="btn-torch" title="플래시" onclick="toggleTorch()"><i class="ph-light ph-flashlight" aria-hidden="true"></i></button>
         <div class="zoom" id="zoom-wrap" style="display:none">
-          <span>🔍</span>
+          <span><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
           <input type="range" id="zoom-range" min="1" max="3" step="0.1" value="1">
           <span id="zoom-val">1x</span>
         </div>
-        <button id="btn-cam" title="카메라 전환" style="display:none" onclick="switchCam()">🔄</button>
+        <button id="btn-cam" title="카메라 전환" style="display:none" onclick="switchCam()"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i></button>
       </div>
     </div>
   </div>
@@ -266,7 +266,7 @@
   {# 스크롤 list #}
   <div class="sb-list" id="cart-list">
     <div class="sb-empty" id="cart-empty">
-      <div class="ic">{% if mode == 'in' %}📥{% else %}📤{% endif %}</div>
+      <div class="ic">{% if mode == 'in' %}<i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i>{% else %}<i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i>{% endif %}</div>
       <div>바코드를 스캔하면 여기 추가됩니다.</div>
       <div style="font-size:14px;margin-top:4px;color:var(--글자-희미, var(--faint,#9CA3AF))">같은 물건을 계속 비춰도 1개 — 치웠다 다시 비추면 +1</div>
     </div>
@@ -318,7 +318,7 @@
         const div = document.createElement('div');
         div.className = 'sb-it' + (info.justAdded ? ' new' : '');
         div.innerHTML = `
-          <div class="img">📦</div>
+          <div class="img"></div>
           <div class="nm">
             <div class="ti">${escapeHTML(info.name || sku)}</div>
             <div class="sku">${escapeHTML(sku)}</div>
@@ -328,7 +328,7 @@
             <span class="val">${info.qty}</span>
             <button onclick="adjustQty('${escapeAttr(sku)}', 1)">+</button>
           </div>
-          <button class="del" onclick="removeSku('${escapeAttr(sku)}')" title="삭제">✕</button>
+          <button class="del" onclick="removeSku('${escapeAttr(sku)}')" title="삭제"></button>
         `;
         listEl.appendChild(div);
         info.justAdded = false;
@@ -426,7 +426,7 @@
       });
       const j = await r.json();
       if (j.ok) {
-        const msg = `✓ ${j.total_saved}건 저장됨` + (j.total_failed ? ` · 실패 ${j.total_failed}건` : '');
+        const msg = `${j.total_saved}건 저장됨` + (j.total_failed ? ` · 실패 ${j.total_failed}건` : '');
         showToast(msg, 'success');
         if (j.total_failed && j.failed) {
           console.warn('failed:', j.failed);
@@ -560,8 +560,8 @@
       }
       if (!d.ok) {
         showToast('❌ ' + (d.error || '매칭 안 됨: ' + code), 'error');
-        setHint('❌ 매칭 안 됨: ' + code);
-        setTimeout(() => setHint('📷 바코드를 비춰주세요'), 1500);
+        setHint('매칭 안 됨: ' + code);
+        setTimeout(() => setHint('바코드를 비춰주세요'), 1500);
         return;
       }
       const opt = d.option;
@@ -569,8 +569,8 @@
       const name = opt.model_name || sku;
       addToCart(sku, name);
       flashCaught(name, cart.get(sku).qty);
-      setHint(`✓ ${name} +1 (총 ${cart.get(sku).qty})`);
-      setTimeout(() => setHint('📷 바코드를 비춰주세요'), 1500);
+      setHint(`${name} +1 (총 ${cart.get(sku).qty})`);
+      setTimeout(() => setHint('바코드를 비춰주세요'), 1500);
     } catch(e) {
       console.error('lookup', e);
       showToast('네트워크 오류', 'error');
@@ -627,8 +627,8 @@
       const msg = ScanCamera.friendlyError(e);
       console.error('[scan-batch]', e);
       document.getElementById('scan-error-area').innerHTML =
-        `<div class="sb-error">⚠️ ${msg}<br><span>아래 칸에 SKU·바코드를 직접 입력해 담을 수 있어요.</span></div>`;
-      setHint('❌ 카메라 실패');
+        `<div class="sb-error">${msg}<br><span>아래 칸에 SKU·바코드를 직접 입력해 담을 수 있어요.</span></div>`;
+      setHint('카메라 실패');
       직접입력열기(true);      // 카메라가 안 되면 이 줄이 유일한 길이다 — 저절로 편다
       showToast(msg, 'error');
     }

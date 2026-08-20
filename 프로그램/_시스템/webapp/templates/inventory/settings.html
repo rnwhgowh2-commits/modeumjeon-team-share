@@ -56,7 +56,7 @@
 
     {# 위치 요약 #}
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
-      <h2 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink,#292A2F)">📍 위치 ({{ locations|length }})</h2>
+      <h2 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink,#292A2F)"><i class="ph-light ph-map-pin" aria-hidden="true"></i> 위치 ({{ locations|length }})</h2>
       <ul style="margin:0;padding-left:16px;font-size:14px;line-height:1.8;color:var(--ink,#292A2F)">
         {% for loc in locations %}<li>{{ loc.name }}{% if loc.is_default %} <span style="font-size:12px;color: var(--글자-파랑, var(--primary,#4F67FF));font-weight:600">[기본]</span>{% endif %}</li>{% endfor %}
       </ul>
@@ -77,18 +77,18 @@
 
     {# 박스히어로 import #}
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
-      <h2 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink,#292A2F)">📥 박스히어로 import</h2>
+      <h2 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink,#292A2F)"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 박스히어로 import</h2>
       <p style="font-size:12px;color:var(--sub,#8F91A0);line-height:1.7">박스히어로 서비스 중단 예정. 1회 xlsx import 후 단독 운영 (ADR-005).</p>
       <a href="{{ url_for('inventory.data_boxhero_import') }}" style="display:inline-block;margin-top:4px;font-size:12px;color: var(--글자-파랑, var(--primary,#4F67FF));text-decoration:none;font-weight:600">import 페이지 →</a>
     </div>
 
     {# 데이터 무결성 #}
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
-      <h2 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink,#292A2F)">🛡️ 데이터 무결성</h2>
+      <h2 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink,#292A2F)"><i class="ph-light ph-shield" aria-hidden="true"></i>️ 데이터 무결성</h2>
       <div style="font-size:14px;line-height:1.9;color:var(--ink,#292A2F)">
         ✓ canonical_sku unique<br>
-        ✓ Tx 추가만 (UPDATE/DELETE ❌)<br>
-        ✓ snapshot 한번 박제 후 변경 ❌<br>
+        ✓ Tx 추가만 (UPDATE/DELETE <i class="ph-light ph-x-circle" aria-hidden="true"></i>)<br>
+        ✓ snapshot 한번 박제 후 변경 <i class="ph-light ph-x-circle" aria-hidden="true"></i><br>
         ✓ 잔량 0 미만 검증<br>
         ✓ Bundle 차감 트랜잭션 안전
       </div>

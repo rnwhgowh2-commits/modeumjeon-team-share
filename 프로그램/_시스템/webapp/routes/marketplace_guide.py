@@ -98,7 +98,7 @@ def ingest_paths():
 def checklist_data():
     """개발 체크리스트 데이터. 판정 근거는 policy/required.py 하나뿐이다.
 
-    🔴 마켓 목록을 넘기지 않는다 — 기본값(판매처 6마켓)을 쓴다.
+    [중요] 마켓 목록을 넘기지 않는다 — 기본값(판매처 6마켓)을 쓴다.
       빈 목록을 넘기면 표가 통째로 비므로, 설정에서 읽어 넘기는 짓을 하지 않는다.
     """
     from lemouton.policy.checklist import build

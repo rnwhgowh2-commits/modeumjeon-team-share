@@ -326,7 +326,7 @@
       {% endif %}
       {# 홈 — /mobile #}
       {# 크기 인라인 덮기 금지 — 32px 로 덮으면 .m-back 의 44px 손끝 목표가 헛돈다 #}
-      <a href="/mobile" class="m-back" title="홈" style="font-size:17px">🏠</a>
+      <a href="/mobile" class="m-back" title="홈" style="font-size:17px"><i class="ph-light ph-house" aria-hidden="true"></i></a>
     </div>
     <h1>{% block header_title %}{{ self.title() }}{% endblock %}</h1>
     <span style="width: 80px;"></span>
@@ -344,7 +344,7 @@
 
   <!-- 설치 프롬프트 -->
   <div id="install-banner" class="m-install-banner">
-    <span style="font-size: 24px;">📱</span>
+    <span style="font-size: 24px;"><i class="ph-light ph-device-mobile" aria-hidden="true"></i></span>
     <div class="text">
       홈화면에 추가하면 앱처럼 빠르게 사용할 수 있어요
     </div>

@@ -68,7 +68,7 @@
           <datalist id="mk-list">
             {% for m in coming %}<option value="{{ m.label }}">{{ m.api_type }}</option>{% endfor %}
           </datalist>
-          <div class="hint">✅ <b>이 한 칸만</b> 넣으면 됩니다. 나머지 단계는 아는 만큼만 채우고, 몰라도 그냥 넘어가세요.</div>
+          <div class="hint"><i class="ph-light ph-check-circle" aria-hidden="true"></i> <b>이 한 칸만</b> 넣으면 됩니다. 나머지 단계는 아는 만큼만 채우고, 몰라도 그냥 넘어가세요.</div>
           <div class="navrow"><span></span><button class="nx" type="button" onclick="goStep(2)">다음 →</button></div>
         </div>
 
@@ -103,7 +103,7 @@
         <div class="step" data-step="4">
           <label>입력 요약</label>
           <div class="sumline" id="mkSummary">—</div>
-          <button class="genbtn" type="button" onclick="genPrompt()">📋 추가 + Claude Code 프롬프트 생성</button>
+          <button class="genbtn" type="button" onclick="genPrompt()"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 추가 + Claude Code 프롬프트 생성</button>
           <div class="prm" id="mkPrm"><button class="cp" type="button" onclick="copyPrm('mkPrmText')">복사</button><pre id="mkPrmText"></pre></div>
           <div class="navrow"><button class="pv" type="button" onclick="goStep(3)">← 이전</button><span></span></div>
         </div>
@@ -118,7 +118,7 @@
     <select id="updMk">{% for m in ready %}<option>{{ m.label }}</option>{% endfor %}</select>
     <label>증상 · 요청</label>
     <input id="updNote" placeholder="예: 재고가 0으로 안 올라감 / 옵션 매칭 틀림">
-    <button class="genbtn" type="button" onclick="genUpd()">📋 저장 + Claude Code 프롬프트 생성</button>
+    <button class="genbtn" type="button" onclick="genUpd()"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 저장 + Claude Code 프롬프트 생성</button>
     <div class="prm" id="updPrm"><button class="cp" type="button" onclick="copyPrm('updPrmText')">복사</button><pre id="updPrmText"></pre></div>
   </div>
 </div>
@@ -171,8 +171,8 @@ function genPrompt(){
   var keys=(document.getElementById('mkKeys').value||'').trim() || '(조사 필요)';
   var acts=curActs().join(' · ');
   var t='판매처(마켓) 연동 추가해줘 — "'+name+'".\n'
-    +'⚠️ docs/markets/_새-마켓-추가-가이드.md 를 그대로 읽고 그 체크리스트대로. 작업 전 origin/main 최신 대조(stale 워크트리 금지).\n'
-    +'📖 착수 전 필독: 데이터 코드 지도(marketplace_guide/map.html)의 모든 탭을 한 번씩 쭉 정독 — 기존 판매처들이 각 데이터·API·주문상태 전환을 어떻게 배선/처리했는지 전부 파악해야 신규 추가가 유리(중요 항목은 타 마켓 방식 미러가 정답).\n'
+    +'docs/markets/_새-마켓-추가-가이드.md 를 그대로 읽고 그 체크리스트대로. 작업 전 origin/main 최신 대조(stale 워크트리 금지).\n'
+    +'착수 전 필독: 데이터 코드 지도(marketplace_guide/map.html)의 모든 탭을 한 번씩 쭉 정독 — 기존 판매처들이 각 데이터·API·주문상태 전환을 어떻게 배선/처리했는지 전부 파악해야 신규 추가가 유리(중요 항목은 타 마켓 방식 미러가 정답).\n'
     +'yaml만으론 안 됨 — 가이드의 배선 지점을 [백엔드+프런트+전송경로+연결테스트]까지 전부(=코드 배선 전부) 해야 "사용자가 실제로 씀". 쿠팡·스스·롯데온 선례 미러.\n'
     +'[완료 기준] 코드 배선 완료 + 기존 테스트 전부 통과(green) 유지 + 배포(워크트리→PR→머지→GitHub Actions)까지 하고 라이브 화면(연동·전송)에서 실제로 떠야 완료. 로컬 확인만·머지 전은 미완.\n'
     +'[산출물] docs/markets/<슬러그>.yaml (스키마 docs/markets/_schema.yaml, 완성본 coupang.yaml·smartstore.yaml·lotteon.yaml 참고, 근거=코드·실측만·추측 금지) + 배선 전부.\n'
@@ -185,7 +185,7 @@ function genPrompt(){
     +'  ④ 서버 실호출 프로브 — 응답 필드·상태값이 문서로 불확실하면 임시 진단 엔드포인트로 실응답 확인(값 노출 없이 필드명만, 확인 후 제거).\n'
     +'  ⑤ 스크린샷 — 위가 다 막힐 때만(느리고 오류 잦음, 텍스트 우선).\n'
     +'  지어내기 금지 · 로그인/인증 키는 채팅 노출 금지.\n'
-    +'※ 🔒 보안: 인증키를 채팅에 붙이지 말 것(입력폼/.env 에 직접). 인증이 Bearer/IP허용목록이면 서버 출발지 IP 등록 확인(미등록=403). 실제 전송은 배선 후에도 기본 잠금(미리보기/dry-run만) — 실송신·전역스위치(MOUM_LIVE_UPLOAD)는 내 명시 승인 후에만.\n'
+    +'※ 보안: 인증키를 채팅에 붙이지 말 것(입력폼/.env 에 직접). 인증이 Bearer/IP허용목록이면 서버 출발지 IP 등록 확인(미등록=403). 실제 전송은 배선 후에도 기본 잠금(미리보기/dry-run만) — 실송신·전역스위치(MOUM_LIVE_UPLOAD)는 내 명시 승인 후에만.\n'
     +'※ 검증 사다리(실계정, 순서대로): ①인증(identity) ②조회(읽기) ③무변화 쓰기 왕복(현재값 그대로 재전송). 통과 전 "완료" 금지. 키 없으면 Mock 단위테스트까지 + yaml \'라이브 미검증\' + LIVE OFF + 중단·보고.';
   document.getElementById('mkPrmText').textContent=t;
   document.getElementById('mkPrm').classList.add('on');

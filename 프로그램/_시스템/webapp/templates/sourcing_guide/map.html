@@ -381,7 +381,7 @@
   <script>window.__GUIDE_EXT_BASELINE = "{{ drift.ext_baseline if drift else '' }}";</script>
   {% if drift and (drift.missing_sources or drift.missing_symbols) %}
   <div class="syncbar" id="syncbar">
-    <b>⚠️ 가이드 ↔ 코드 동기화 필요</b><br>
+    <b><i class="ph-light ph-warning" aria-hidden="true"></i>️ 가이드 ↔ 코드 동기화 필요</b><br>
     {% for s in drift.missing_sources %}
       <span class="it">소싱처 <b>{{ s.label }}</b> 누락 (원문 {{ '✓' if s.in_md else '✗' }} / 보기 {{ '✓' if s.in_html else '✗' }})</span>
     {% endfor %}
@@ -393,33 +393,33 @@
   {% if drift and drift.catalog_duplicate_ids %}<div class="syncbanner">중복 ID: {{ drift.catalog_duplicate_ids|join(', ') }}</div>{% endif %}
   {% if drift and drift.catalog_symbol_drift %}<div class="syncbanner">코드 심볼 미발견(거짓 ✓): {% for x in drift.catalog_symbol_drift %}{{ x.id }}({{ x.func }}) {% endfor %}</div>{% endif %}
   {% if drift and drift.catalog_doc_drift %}<div class="syncbanner warn">원문(.md) 누락: {{ drift.catalog_doc_drift|join(', ') }}</div>{% endif %}
-  <div class="seg"><b class="on" data-m="view">🖥️ 보기</b><b data-m="raw">📄 원문 (MD)</b></div>
+  <div class="seg"><b class="on" data-m="view"><i class="ph-light ph-monitor" aria-hidden="true"></i>️ 보기</b><b data-m="raw"><i class="ph-light ph-file" aria-hidden="true"></i> 원문 (MD)</b></div>
 
   <!-- ===== 보기 ===== -->
   <div class="mode on" id="m-view">
     <div class="gtabs">
       <span class="gtab-glabel">정보 수집</span>
-      <div class="gtab on" data-s="s1"><span class="k">1</span>🗺️ 전체흐름</div>
-      <div class="gtab" data-s="s5"><span class="k">2</span>🧭 수집 방식</div>
+      <div class="gtab on" data-s="s1"><span class="k">1</span><i class="ph-light ph-map-trifold" aria-hidden="true"></i>️ 전체흐름</div>
+      <div class="gtab" data-s="s5"><span class="k">2</span><i class="ph-light ph-compass" aria-hidden="true"></i> 수집 방식</div>
       <span class="gtab-glabel">소싱처별 상세</span>
-      <div class="gtab" data-s="s2"><span class="k">3</span>📦 재고</div>
-      <div class="gtab" data-s="s3"><span class="k">4</span>💰 가격</div>
+      <div class="gtab" data-s="s2"><span class="k">3</span><i class="ph-light ph-package" aria-hidden="true"></i> 재고</div>
+      <div class="gtab" data-s="s3"><span class="k">4</span><i class="ph-light ph-coins" aria-hidden="true"></i> 가격</div>
       <span class="gtab-glabel">운영</span>
-      <div class="gtab" data-s="s4"><span class="k">5</span>📊 매트릭스 로그</div>
-      <div class="gtab" data-s="s6"><span class="k">6</span>⚠️ 에러이력</div>
+      <div class="gtab" data-s="s4"><span class="k">5</span><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 매트릭스 로그</div>
+      <div class="gtab" data-s="s6"><span class="k">6</span><i class="ph-light ph-warning" aria-hidden="true"></i>️ 에러이력</div>
       <div class="gtab" data-s="s7"><span class="k">7</span>➕ 신규추가</div>
-      <div class="gtab" data-s="s8"><span class="k">8</span>🔄 동기화</div>
-      <div class="gtab" data-s="s9"><span class="k">9</span>✅ 개발 체크리스트</div>
+      <div class="gtab" data-s="s8"><span class="k">8</span><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i> 동기화</div>
+      <div class="gtab" data-s="s9"><span class="k">9</span><i class="ph-light ph-check-circle" aria-hidden="true"></i> 개발 체크리스트</div>
     </div>
 
     <!-- 1 전체흐름 -->
     <div class="sec on" id="s1">
       <div class="pin-integrity" style="border:1.5px solid var(--ink,#191F28);border-radius:12px;padding:12px 16px;margin:0 0 16px;background:var(--n100,#FBFAF7);">
-        <div style="font-weight:800;color:var(--ink,#191F28);font-size:14px;margin-bottom:8px;">🔒 정합성 기준점 3원칙 <span style="font-weight:600;color:var(--sub,#8B95A1);font-size:12px;">· 절대 규칙 · "무엇이 진실인가"의 기준점 (§4 무결성) · 위반=금전 손실</span></div>
+        <div style="font-weight:800;color:var(--ink,#191F28);font-size:14px;margin-bottom:8px;"><i class="ph-light ph-lock" aria-hidden="true"></i> 정합성 기준점 3원칙 <span style="font-weight:600;color:var(--sub,#8B95A1);font-size:12px;">· 절대 규칙 · "무엇이 진실인가"의 기준점 (§4 무결성) · 위반=금전 손실</span></div>
         <ol style="margin:0;padding-left:16px;font-size:14px;line-height:1.75;color:var(--ink,#374151);">
-          <li><b>재고 기준 = 소싱처 실제 상품 브라우저 URL의 재고.</b> 추정·폴백·평균 금지 — 그 URL 실데이터로만 확인, 못 하면 <b>"확인 불가"</b> 표기(있다고 단정 금지). <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">💻 <span class="mono" style="color:inherit">_persist_option_stocks</span>·<span class="mono" style="color:inherit">_resolve_stock</span>·<span class="mono" style="color:inherit">stock_unknown</span></span></li>
-          <li><b>가격 기준 = 동일하게 실브라우저 소싱처 상품 URL.</b> 표면노출가·최종매입가 모두 그 URL 실값. 실패 시 대표가 <b>폴백 금지</b> → "가격 없음 + 크롤 실패". <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">💻 <span class="mono" style="color:inherit">is_crawl_valid</span>·<span class="mono" style="color:inherit">_match_failed</span>·<span class="mono" style="color:inherit">_pick_cheapest_buyable</span></span></li>
-          <li><b>크롤은 서버가 아닌 로컬 PC로 한다.</b> 크롤=로컬(확장/Playwright)·업로드=서버. "서버 크롤 실패"는 설계상 정상(버그 아님). <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">💻 <span class="mono" style="color:inherit">EXTRACTORS</span>·<span class="mono" style="color:inherit">ext_bridge</span></span></li>
+          <li><b>재고 기준 = 소싱처 실제 상품 브라우저 URL의 재고.</b> 추정·폴백·평균 금지 — 그 URL 실데이터로만 확인, 못 하면 <b>"확인 불가"</b> 표기(있다고 단정 금지). <span style="color: var(--글자-희미, var(--faint,#9AA4B0));"><i class="ph-light ph-laptop" aria-hidden="true"></i> <span class="mono" style="color:inherit">_persist_option_stocks</span>·<span class="mono" style="color:inherit">_resolve_stock</span>·<span class="mono" style="color:inherit">stock_unknown</span></span></li>
+          <li><b>가격 기준 = 동일하게 실브라우저 소싱처 상품 URL.</b> 표면노출가·최종매입가 모두 그 URL 실값. 실패 시 대표가 <b>폴백 금지</b> → "가격 없음 + 크롤 실패". <span style="color: var(--글자-희미, var(--faint,#9AA4B0));"><i class="ph-light ph-laptop" aria-hidden="true"></i> <span class="mono" style="color:inherit">is_crawl_valid</span>·<span class="mono" style="color:inherit">_match_failed</span>·<span class="mono" style="color:inherit">_pick_cheapest_buyable</span></span></li>
+          <li><b>크롤은 서버가 아닌 로컬 PC로 한다.</b> 크롤=로컬(확장/Playwright)·업로드=서버. "서버 크롤 실패"는 설계상 정상(버그 아님). <span style="color: var(--글자-희미, var(--faint,#9AA4B0));"><i class="ph-light ph-laptop" aria-hidden="true"></i> <span class="mono" style="color:inherit">EXTRACTORS</span>·<span class="mono" style="color:inherit">ext_bridge</span></span></li>
         </ol>
       </div>
       <div class="lead"><span class="klabel">핵심</span><span class="sum">재고·가격이 화면에 뜨기까지 4단계 — 크롤 → 저장 → 계산 → 표시.</span></div>
@@ -444,7 +444,7 @@
           </tbody>
         </table>
         <div class="erow" style="color: var(--글자-희미, var(--faint,#9AA4B0));margin-top:8px;font-size:12px">코드 <span class="mono" style="color:inherit">service.py:429</span> · 매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→5 에러이력 S3).</div>
-        <details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:#C2410C;font-weight:700">⚠ 옵션행 생성 vs 갱신 · 재고 둔갑 이력 (자세히)</summary>
+        <details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:#C2410C;font-weight:700"><i class="ph-light ph-warning" aria-hidden="true"></i> 옵션행 생성 vs 갱신 · 재고 둔갑 이력 (자세히)</summary>
           <div style="font-size:12px;color:var(--sub,#6B7280);padding:8px 4px;line-height:1.75">
             사이즈별 SourceOption은 <b>①서버 <span class="mono" style="color:inherit">_ingest</span> ②navGrab <span class="mono" style="color:inherit">parse</span>(생성)</b>에서만 만들어진다. 확장 <span class="mono" style="color:inherit">crawl-result</span>는 <b>기존 행 갱신만</b>·<span class="mono" style="color:inherit">ext_bridge</span>는 <span class="mono" style="color:inherit">options[]</span> 미전송 → 옵션행이 없으면(신규 URL) 상품 <span class="mono" style="color:inherit">last_stock</span>(전 사이즈 합계) 균일 폴백 = 르무통 올리브 품절 265도 '있음' 둔갑(2026-06-26 parse 생성으로 수정 — 르무통·SSF·SSG·스스. 무신사·롯데온 별도).<br>
             <span style="color:var(--red,#DC2626)">★ <b>남은 변종(2026-07-03 수정)</b></span>: 옵션행은 있는데 그 사이즈 <span class="mono" style="color:inherit">current_stock</span>=NULL이면 여전히 <span class="mono" style="color:inherit">else last_stock</span>으로 그 칸만 합계 둔갑(SSG 단품 블랙 13칸 중 7칸=380). → 매칭됐으면 None(미상) 표면화, last_stock 폴백 금지로 수정. 근본(SSG 단품 일부 NULL=저장 누락)은 별도 추적.
@@ -464,7 +464,7 @@
         <div class="erow"><span class="elabel">코드</span><span class="mono">api_pricing.py:309</span>
           <span class="elabel">뜻</span>매트릭스 렌더. 셀·매트릭스가 <span class="ink">window.DATA</span> 한 벌 공유.</div>
       </div>
-      <div class="warn">⚠️ BG_PARSE(르무통·SSF·SSG·스스)는 price·stock만 저장 — 혜택 미저장.</div>
+      <div class="warn"><i class="ph-light ph-warning" aria-hidden="true"></i>️ BG_PARSE(르무통·SSF·SSG·스스)는 price·stock만 저장 — 혜택 미저장.</div>
     </div>
 
     <!-- 5 수집 방식 (창 여는 법) -->
@@ -490,32 +490,32 @@
         </div>
       </div>
 
-      <div class="tbcap">📋 소싱처별 수집 한눈에 (요약표) — 창 여는 법 · 창 수 · 데이터 · 속도 · 혜택</div>
+      <div class="tbcap"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 소싱처별 수집 한눈에 (요약표) — 창 여는 법 · 창 수 · 데이터 · 속도 · 혜택</div>
       <div class="tbwrap"><table class="sgtb">
         <tr><th>소싱처</th><th class="c">창 여는 법</th><th class="c">창 수</th><th class="c">데이터</th><th class="c">속도</th><th class="c">혜택</th></tr>
-        <tr><td class="src">르무통</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill">HTML</span></td><td class="c">🟢 빠름</td><td class="c">무로그인</td></tr>
-        <tr><td class="src">SSF</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill">HTML</span></td><td class="c">🟢 빠름</td><td class="c">무로그인</td></tr>
-        <tr><td class="src">현대H몰</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill json">내장</span></td><td class="c">🟢 빠름</td><td class="c">일부 로그인</td></tr>
-        <tr><td class="src">SSG</td><td class="c"><span class="win one">same-origin</span></td><td class="c">1</td><td class="c"><span class="pill">HTML</span></td><td class="c">🟡 보통</td><td class="c">무로그인</td></tr>
-        <tr><td class="src">롯데아이몰</td><td class="c"><span class="win one">same-origin</span></td><td class="c">1</td><td class="c"><span class="pill json">내장</span></td><td class="c">🟡 보통</td><td class="c">무로그인</td></tr>
-        <tr><td class="src">무신사</td><td class="c"><span class="win yes">렌더</span></td><td class="c">N</td><td class="c"><span class="pill api">API</span></td><td class="c">🟠 느림</td><td class="c">로그인</td></tr>
-        <tr><td class="src">롯데온</td><td class="c"><span class="win yes">렌더</span></td><td class="c">N</td><td class="c"><span class="pill api">API</span></td><td class="c">🟠 느림</td><td class="c">로그인</td></tr>
-        <tr><td class="src">스마트스토어</td><td class="c"><span class="win yes">확장 로그인</span></td><td class="c">—</td><td class="c"><span class="pill api">API</span></td><td class="c">🟡 보통</td><td class="c">로그인(per-SKU)</td></tr>
+        <tr><td class="src">르무통</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill">HTML</span></td><td class="c"><i class="ph-light ph-circle" aria-hidden="true"></i> 빠름</td><td class="c">무로그인</td></tr>
+        <tr><td class="src">SSF</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill">HTML</span></td><td class="c"><i class="ph-light ph-circle" aria-hidden="true"></i> 빠름</td><td class="c">무로그인</td></tr>
+        <tr><td class="src">현대H몰</td><td class="c"><span class="win no">SW fetch</span></td><td class="c">0</td><td class="c"><span class="pill json">내장</span></td><td class="c"><i class="ph-light ph-circle" aria-hidden="true"></i> 빠름</td><td class="c">일부 로그인</td></tr>
+        <tr><td class="src">SSG</td><td class="c"><span class="win one">same-origin</span></td><td class="c">1</td><td class="c"><span class="pill">HTML</span></td><td class="c"><i class="ph-light ph-circle" aria-hidden="true"></i> 보통</td><td class="c">무로그인</td></tr>
+        <tr><td class="src">롯데아이몰</td><td class="c"><span class="win one">same-origin</span></td><td class="c">1</td><td class="c"><span class="pill json">내장</span></td><td class="c"><i class="ph-light ph-circle" aria-hidden="true"></i> 보통</td><td class="c">무로그인</td></tr>
+        <tr><td class="src">무신사</td><td class="c"><span class="win yes">렌더</span></td><td class="c">N</td><td class="c"><span class="pill api">API</span></td><td class="c"><i class="ph-light ph-circle" aria-hidden="true"></i> 느림</td><td class="c">로그인</td></tr>
+        <tr><td class="src">롯데온</td><td class="c"><span class="win yes">렌더</span></td><td class="c">N</td><td class="c"><span class="pill api">API</span></td><td class="c"><i class="ph-light ph-circle" aria-hidden="true"></i> 느림</td><td class="c">로그인</td></tr>
+        <tr><td class="src">스마트스토어</td><td class="c"><span class="win yes">확장 로그인</span></td><td class="c">—</td><td class="c"><span class="pill api">API</span></td><td class="c"><i class="ph-light ph-circle" aria-hidden="true"></i> 보통</td><td class="c">로그인(per-SKU)</td></tr>
       </table></div>
       <div class="why" style="margin-top:12px;"><b>동시 상한(자동화 설정)</b> = 그 소싱처를 <b>한 번에 동시에 긁는 개수</b>. fetch형(창0·창1)은 창은 그대로 두고 <b>동시 fetch만</b> 늘고, 렌더형(창N)은 <b>창 개수</b>가 늘어난다. 차단이 보이면 그 숫자를 낮추면 됨.</div>
 
-      <div class="tbcap" style="margin-top:24px;">🏷 카테고리 경로 수집 (§2-b · 2026-07-23) — 마켓 카테고리 맵핑의 입력값</div>
+      <div class="tbcap" style="margin-top:24px;"><i class="ph-light ph-tag" aria-hidden="true"></i> 카테고리 경로 수집 (§2-b · 2026-07-23) — 마켓 카테고리 맵핑의 입력값</div>
       <div class="why" style="margin-bottom:8px;">상품이 <b>어느 분류에 속하는지</b>(예: <code>신발&gt;스니커즈&gt;라이프스타일화</code>)를 소싱처에서 받아 판매처 카테고리로 옮길 때 쓴다. <b>못 뽑으면 빈 문자열 = 「카테고리 확인불가」</b> — 숫자 분류코드를 이름인 척 넣거나 상품명으로 추측하지 않는다(§4 무결성).</div>
       <div class="tbwrap"><table class="sgtb">
         <tr><th>소싱처</th><th>원천</th><th class="c">추출 위치</th><th class="c">상태</th></tr>
-        <tr><td class="src">무신사</td><td><code>api2/goods/{id}</code> 의 <code>category.categoryDepth{1..4}Name</code> — <b>표면가를 이미 부르는 그 응답</b>이라 추가 호출 0</td><td class="c"><span class="pill">확장</span></td><td class="c">✅</td></tr>
-        <tr><td class="src">롯데온</td><td>JSON-LD <code>Product.category</code> 1순위 + DOM <code>ol.locationList</code> 폴백</td><td class="c"><span class="pill">확장</span></td><td class="c">✅</td></tr>
-        <tr><td class="src">롯데아이몰</td><td><code>div.location</code> 의 <b>직계</b> <code>a.home</code> + <code>div.his &gt; a.one</code></td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
-        <tr><td class="src">스마트스토어</td><td><code>__PRELOADED_STATE__</code> 의 <code>…category.wholeCategoryName</code>(셀러가 고른 완성 경로)</td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
-        <tr><td class="src">르무통</td><td>Cafe24 「현재 위치」 <code>div.xans-product-headcategory &gt; ol li a</code></td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
-        <tr><td class="src">SSF</td><td>JSON-LD <code>BreadcrumbList</code> 1순위 + <code>div.breadcrumb</code> 폴백</td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
-        <tr><td class="src">SSG</td><td><code>div.cate_location</code> 단계별 <code>div.lo_depth_01</code> 의 <b>직계</b> <code>a</code></td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
-        <tr><td class="src">현대H몰</td><td><b>없음(확인불가 고정)</b> — SSR·DOM 둘 다 빵부스러기·JSON-LD·메타 0건. 있는 건 숫자코드 <code>itemDScfCd</code> 뿐이고 코드→이름 공개 경로 없음</td><td class="c">—</td><td class="c">🚫 부재확정</td></tr>
+        <tr><td class="src">무신사</td><td><code>api2/goods/{id}</code> 의 <code>category.categoryDepth{1..4}Name</code> — <b>표면가를 이미 부르는 그 응답</b>이라 추가 호출 0</td><td class="c"><span class="pill">확장</span></td><td class="c"><i class="ph-light ph-check-circle" aria-hidden="true"></i></td></tr>
+        <tr><td class="src">롯데온</td><td>JSON-LD <code>Product.category</code> 1순위 + DOM <code>ol.locationList</code> 폴백</td><td class="c"><span class="pill">확장</span></td><td class="c"><i class="ph-light ph-check-circle" aria-hidden="true"></i></td></tr>
+        <tr><td class="src">롯데아이몰</td><td><code>div.location</code> 의 <b>직계</b> <code>a.home</code> + <code>div.his &gt; a.one</code></td><td class="c"><span class="pill json">서버</span></td><td class="c"><i class="ph-light ph-check-circle" aria-hidden="true"></i></td></tr>
+        <tr><td class="src">스마트스토어</td><td><code>__PRELOADED_STATE__</code> 의 <code>…category.wholeCategoryName</code>(셀러가 고른 완성 경로)</td><td class="c"><span class="pill json">서버</span></td><td class="c"><i class="ph-light ph-check-circle" aria-hidden="true"></i></td></tr>
+        <tr><td class="src">르무통</td><td>Cafe24 「현재 위치」 <code>div.xans-product-headcategory &gt; ol li a</code></td><td class="c"><span class="pill json">서버</span></td><td class="c"><i class="ph-light ph-check-circle" aria-hidden="true"></i></td></tr>
+        <tr><td class="src">SSF</td><td>JSON-LD <code>BreadcrumbList</code> 1순위 + <code>div.breadcrumb</code> 폴백</td><td class="c"><span class="pill json">서버</span></td><td class="c"><i class="ph-light ph-check-circle" aria-hidden="true"></i></td></tr>
+        <tr><td class="src">SSG</td><td><code>div.cate_location</code> 단계별 <code>div.lo_depth_01</code> 의 <b>직계</b> <code>a</code></td><td class="c"><span class="pill json">서버</span></td><td class="c"><i class="ph-light ph-check-circle" aria-hidden="true"></i></td></tr>
+        <tr><td class="src">현대H몰</td><td><b>없음(확인불가 고정)</b> — SSR·DOM 둘 다 빵부스러기·JSON-LD·메타 0건. 있는 건 숫자코드 <code>itemDScfCd</code> 뿐이고 코드→이름 공개 경로 없음</td><td class="c">—</td><td class="c"><i class="ph-light ph-prohibit" aria-hidden="true"></i> 부재확정</td></tr>
       </table></div>
       <div class="why" style="margin-top:12px;"><b>함정</b> — ① <b>드롭다운을 경로로 착각</b>: 롯데아이몰 <code>div.hislayer</code>·SSG <code>div.lo_depth_02</code> 는 그 단계의 <b>형제 카테고리 목록</b>이라 경로가 아니다 → <b>직계 자식만</b> 읽는다. ② SSG 첫 칸 「SSG.COM」(<code>href="/"</code>)은 사이트 루트라 제외. ③ 르무통은 <code>cate_no</code> 없는 URL 이면 '홈'만 남아 빈 문자열. ④ 무신사 <code>baseCategoryFullPath</code> 는 1단계가 영문이라 안 쓴다. ⑤ 무신사·롯데온은 추출이 <b>확장</b>에 있어 서버 배포만으론 안 바뀐다(확장 재로드 필요).</div>
     </div>
@@ -523,7 +523,7 @@
     <!-- 2 재고 -->
     <div class="sec" id="s2">
       <div class="glos">
-        <div class="gt">📖 용어 사전 — 데이터를 읽는 3가지 방법</div>
+        <div class="gt"><i class="ph-light ph-book-open" aria-hidden="true"></i> 용어 사전 — 데이터를 읽는 3가지 방법</div>
         <div class="gg">
           <div class="gi api"><div class="nm">API 호출</div><div class="ds">사이트가 데이터를 나르는 <b>내부 요청</b>을 그대로 부름. 값(JSON)을 통째로 정확히 받음. <b>가장 빠르고 안정적 → 선호.</b></div></div>
           <div class="gi"><div class="nm">HTML 파싱</div><div class="ds">서버가 처음 보내준 <b>화면 원본 문서</b>(HTML)에서 값을 찾아 뽑음. 화면 구조가 바뀌면 깨질 수 있음.</div></div>
@@ -536,29 +536,29 @@
       <div class="why" style="background:var(--연한-초록,#F0FDFA);border:1px solid var(--연한-초록,#99F6E4);margin-bottom:12px;">
         <b style="color:#0F766E;font-size:14px;">재고 판정 우선순위 (게이트 순서) — 위에서 걸리면 멈춤</b>
         <div style="margin-top:8px;line-height:2;">
-          <b>⓪ 수집 성공?</b> <span class="mono" style="color:inherit;">(200+파싱+옵션데이터)</span> → 실패 = <b style="color:var(--글자-기본,#475569);">⚪ 확인 불가</b> <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">(999 금지·재크롤·판매보류)</span><br>
-          성공 시 ↓ <b>① 옵션 있나?</b> <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">(소싱처 목록에 이 색×사이즈)</span> → 없으면 = <span style="color: var(--글자-빨강, var(--red,#DC2626));"><b>품절</b>(미판매·소멸)</span> <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">— 단 크롤 실패 상태면 목록이 최신 아님 → ⚪확인불가(품절 둔갑 금지)</span><br>
-          있으면 ↓ <b>②</b> 품절신호(<span class="ink">0·SLDOUT</span>) → 🔴품절 · <b>③</b> 한정 N(<span class="ink">remainQty·stkQty·N</span>) → 🟠한정 · <b>④</b> 제한신호 없음 → 🟢<span class="ink">999 충분</span>
+          <b>⓪ 수집 성공?</b> <span class="mono" style="color:inherit;">(200+파싱+옵션데이터)</span> → 실패 = <b style="color:var(--글자-기본,#475569);"><i class="ph-light ph-circle" aria-hidden="true"></i> 확인 불가</b> <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">(999 금지·재크롤·판매보류)</span><br>
+          성공 시 ↓ <b>① 옵션 있나?</b> <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">(소싱처 목록에 이 색×사이즈)</span> → 없으면 = <span style="color: var(--글자-빨강, var(--red,#DC2626));"><b>품절</b>(미판매·소멸)</span> <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">— 단 크롤 실패 상태면 목록이 최신 아님 → <i class="ph-light ph-circle" aria-hidden="true"></i>확인불가(품절 둔갑 금지)</span><br>
+          있으면 ↓ <b>②</b> 품절신호(<span class="ink">0·SLDOUT</span>) → <i class="ph-light ph-circle" aria-hidden="true"></i>품절 · <b>③</b> 한정 N(<span class="ink">remainQty·stkQty·N</span>) → <i class="ph-light ph-circle" aria-hidden="true"></i>한정 · <b>④</b> 제한신호 없음 → <i class="ph-light ph-circle" aria-hidden="true"></i><span class="ink">999 충분</span>
         </div>
         <div style="margin-top:8px;color: var(--글자-주황, var(--amber,#B45309));background:var(--surface,#ffffff);border-radius:8px;padding:8px 8px;">
-          <b>⚠️ 조용한 실패 방지</b> — 품절·한정 신호를 <b>못 읽은 것</b>(크롤 실패·필드 부재·파싱 에러)은 999가 아니라 <b>⚪확인불가</b>(수량0·판매 제외). "성공적으로 읽었는데 제한이 없는 것"만 🟢999. <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">[2026-07-08 정정: SSG usablInvQty 필드부재·무신사 재고API 전체실패 → 999 아닌 확인불가(-1)]</span>
+          <b><i class="ph-light ph-warning" aria-hidden="true"></i>️ 조용한 실패 방지</b> — 품절·한정 신호를 <b>못 읽은 것</b>(크롤 실패·필드 부재·파싱 에러)은 999가 아니라 <b><i class="ph-light ph-circle" aria-hidden="true"></i>확인불가</b>(수량0·판매 제외). "성공적으로 읽었는데 제한이 없는 것"만 <i class="ph-light ph-circle" aria-hidden="true"></i>999. <span style="color: var(--글자-희미, var(--faint,#9AA4B0));">[2026-07-08 정정: SSG usablInvQty 필드부재·무신사 재고API 전체실패 → 999 아닌 확인불가(-1)]</span>
         </div>
         <div style="margin-top:4px;">
-          <b>충분 신호 종류</b> — <span class="stype num">실수량</span> 르무통·SSG·롯데온·현대H몰·스스·롯데아이몰(한정=실수량 N·충분=999) · <span class="stype weak">⚠추론·상태값</span> 무신사·SSF(양의 수량 없음 → ⓪게이트 특히 중요)
+          <b>충분 신호 종류</b> — <span class="stype num">실수량</span> 르무통·SSG·롯데온·현대H몰·스스·롯데아이몰(한정=실수량 N·충분=999) · <span class="stype weak"><i class="ph-light ph-warning" aria-hidden="true"></i>추론·상태값</span> 무신사·SSF(양의 수량 없음 → ⓪게이트 특히 중요)
         </div>
       </div>
 
-      <div class="tbcap">📋 소싱처별 재고 한눈에 (요약표) — 게이트 순서 ①~④ + 프로그램 표시 로직</div>
+      <div class="tbcap"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 소싱처별 재고 한눈에 (요약표) — 게이트 순서 ①~④ + 프로그램 표시 로직</div>
       <div class="tbwrap"><table class="sgtb">
         <tr><th>소싱처</th><th class="c">수집 방식</th><th class="gate">① 옵션 존재 (수집 대상)</th><th>② 품절</th><th>③ N개</th><th>④ 충분→999</th><th class="c">충분 종류</th><th>프로그램 재고표시 로직</th></tr>
-        <tr><td class="src">무신사</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">options 배열(optionItems)</span><br><span style="font-size:12px;color:var(--red,#DC2626)">부재=소멸→품절</span></td><td><span class="jf">outOfStock=true</span></td><td><span class="jf">remainQuantity</span></td><td><span class="jf">신호無→999</span></td><td class="c"><span class="stype weak">⚠추론</span></td><td><span class="lg">⓪실패→⚪ · 0→🔴 · N→🟠 · 999→🟢 · 목록에없음+크롤ok→🔴품절 · 크롤실패→⚪</span></td></tr>
-        <tr><td class="src">르무통</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">option_stock_data 키</span></td><td><span class="jf">stock=0·is_selling=F</span></td><td><span class="jf">stock_number</span></td><td><span class="jf">실수량 큰값</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→🔴 · 실수량 그대로</span></td></tr>
-        <tr><td class="src">SSG</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">uitemObj 옵션 목록</span></td><td><span class="jf">usablInvQty=0</span></td><td><span class="jf">usablInvQty=N</span></td><td><span class="jf">큰값→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">필드 부재→⚪ · 0→🔴 · N→🟠</span></td></tr>
-        <tr><td class="src">SSF</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">#optionDiv1 li a[optcd]</span></td><td><span class="jf">statcd=SLDOUT</span></td><td><span class="jf">품절임박(N)</span></td><td><span class="jf">정상→999</span></td><td class="c"><span class="stype weak">⚠상태값</span></td><td><span class="lg">SLDOUT→🔴 · 임박→🟠 · 정상→🟢</span></td></tr>
-        <tr><td class="src">롯데온</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">option/mapping 목록</span></td><td><span class="jf">매핑품절·li.soldout</span></td><td><span class="jf">stkQty=N</span></td><td><span class="jf">stkQty 큰값</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">매핑품절→🔴 · stkQty N→🟠 <span style="color:var(--amber,#B45309)">⚠502</span></span></td></tr>
-        <tr><td class="src">현대H몰</td><td class="c"><span class="pill json">내장</span></td><td class="gatecol"><span class="jf">__NEXT_DATA__.stockList</span></td><td><span class="jf">sellGbcd=11</span></td><td><span class="jf">stockCount=N</span></td><td><span class="jf">큼→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">sellGbcd 우선(11→🔴) · stockCount→🟠</span></td></tr>
-        <tr><td class="src">롯데아이몰</td><td class="c"><span class="pill json">내장</span></td><td class="gatecol"><span class="jf">itemInvQtyInfo 목록</span></td><td><span class="jf">inv_qty=0</span></td><td><span class="jf">inv_qty&lt;5=N</span></td><td><span class="jf">≥5→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→🔴 · &lt;5→🟠(N) · ≥5→🟢(999)</span></td></tr>
-        <tr><td class="src">스마트스토어</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">products/{A.id} optionCombinations</span></td><td><span class="jf">stockQuantity=0</span></td><td><span class="jf">stockQuantity=N</span></td><td><span class="jf">큼→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→🔴 · 큼→🟢 · A.id 필수(productNo→999 둔갑)</span></td></tr>
+        <tr><td class="src">무신사</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">options 배열(optionItems)</span><br><span style="font-size:12px;color:var(--red,#DC2626)">부재=소멸→품절</span></td><td><span class="jf">outOfStock=true</span></td><td><span class="jf">remainQuantity</span></td><td><span class="jf">신호無→999</span></td><td class="c"><span class="stype weak"><i class="ph-light ph-warning" aria-hidden="true"></i>추론</span></td><td><span class="lg">⓪실패→<i class="ph-light ph-circle" aria-hidden="true"></i> · 0→<i class="ph-light ph-circle" aria-hidden="true"></i> · N→<i class="ph-light ph-circle" aria-hidden="true"></i> · 999→<i class="ph-light ph-circle" aria-hidden="true"></i> · 목록에없음+크롤ok→<i class="ph-light ph-circle" aria-hidden="true"></i>품절 · 크롤실패→<i class="ph-light ph-circle" aria-hidden="true"></i></span></td></tr>
+        <tr><td class="src">르무통</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">option_stock_data 키</span></td><td><span class="jf">stock=0·is_selling=F</span></td><td><span class="jf">stock_number</span></td><td><span class="jf">실수량 큰값</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→<i class="ph-light ph-circle" aria-hidden="true"></i> · 실수량 그대로</span></td></tr>
+        <tr><td class="src">SSG</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">uitemObj 옵션 목록</span></td><td><span class="jf">usablInvQty=0</span></td><td><span class="jf">usablInvQty=N</span></td><td><span class="jf">큰값→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">필드 부재→<i class="ph-light ph-circle" aria-hidden="true"></i> · 0→<i class="ph-light ph-circle" aria-hidden="true"></i> · N→<i class="ph-light ph-circle" aria-hidden="true"></i></span></td></tr>
+        <tr><td class="src">SSF</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">#optionDiv1 li a[optcd]</span></td><td><span class="jf">statcd=SLDOUT</span></td><td><span class="jf">품절임박(N)</span></td><td><span class="jf">정상→999</span></td><td class="c"><span class="stype weak"><i class="ph-light ph-warning" aria-hidden="true"></i>상태값</span></td><td><span class="lg">SLDOUT→<i class="ph-light ph-circle" aria-hidden="true"></i> · 임박→<i class="ph-light ph-circle" aria-hidden="true"></i> · 정상→<i class="ph-light ph-circle" aria-hidden="true"></i></span></td></tr>
+        <tr><td class="src">롯데온</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">option/mapping 목록</span></td><td><span class="jf">매핑품절·li.soldout</span></td><td><span class="jf">stkQty=N</span></td><td><span class="jf">stkQty 큰값</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">매핑품절→<i class="ph-light ph-circle" aria-hidden="true"></i> · stkQty N→<i class="ph-light ph-circle" aria-hidden="true"></i> <span style="color:var(--amber,#B45309)"><i class="ph-light ph-warning" aria-hidden="true"></i>502</span></span></td></tr>
+        <tr><td class="src">현대H몰</td><td class="c"><span class="pill json">내장</span></td><td class="gatecol"><span class="jf">__NEXT_DATA__.stockList</span></td><td><span class="jf">sellGbcd=11</span></td><td><span class="jf">stockCount=N</span></td><td><span class="jf">큼→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">sellGbcd 우선(11→<i class="ph-light ph-circle" aria-hidden="true"></i>) · stockCount→<i class="ph-light ph-circle" aria-hidden="true"></i></span></td></tr>
+        <tr><td class="src">롯데아이몰</td><td class="c"><span class="pill json">내장</span></td><td class="gatecol"><span class="jf">itemInvQtyInfo 목록</span></td><td><span class="jf">inv_qty=0</span></td><td><span class="jf">inv_qty&lt;5=N</span></td><td><span class="jf">≥5→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→<i class="ph-light ph-circle" aria-hidden="true"></i> · &lt;5→<i class="ph-light ph-circle" aria-hidden="true"></i>(N) · ≥5→<i class="ph-light ph-circle" aria-hidden="true"></i>(999)</span></td></tr>
+        <tr><td class="src">스마트스토어</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">products/{A.id} optionCombinations</span></td><td><span class="jf">stockQuantity=0</span></td><td><span class="jf">stockQuantity=N</span></td><td><span class="jf">큼→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→<i class="ph-light ph-circle" aria-hidden="true"></i> · 큼→<i class="ph-light ph-circle" aria-hidden="true"></i> · A.id 필수(productNo→999 둔갑)</span></td></tr>
       </table></div>
 
       <div class="tbcap" style="margin-top:8px">소싱처별 상세 카드 ↓</div>
@@ -570,9 +570,9 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> <span class="ink">outOfStock=true</span> → 재고 0</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 재고 수치 또는 <span class="ink">"잔여·마지막 N개"</span> → 실수량 N</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span> <span class="stype weak">⚠추론</span> <span style="color:var(--faint,#9AA4B0)">(양의 수량 없음 → ⓪게이트 중요)</span></td></tr>
-          <tr class="special"><td class="sn" style="color:var(--amber,#B45309)">⚠ 파싱 실패</td><td class="how"><b style="color:var(--red,#C0392B)">재고 API 전체 실패</b>(inv 0건) → <b style="color:var(--red,#C0392B)">확인불가(-1)</b> · 999(충분) 둔갑 금지 = 오버셀 방지 <span style="color:var(--faint,#9AA4B0)">[2026-07-08 musinsa.py]</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">소싱처 목록에 이 색×사이즈 없음(크롤 ok) → <span class="ink">품절(미판매·소멸)</span> / 크롤 실패 상태면 → <span class="ink">확인불가</span>(목록 최신 아님·품절 둔갑 금지) / API 호출 실패 → <span class="ink">크롤실패</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span> <span class="stype weak"><i class="ph-light ph-warning" aria-hidden="true"></i>추론</span> <span style="color:var(--faint,#9AA4B0)">(양의 수량 없음 → ⓪게이트 중요)</span></td></tr>
+          <tr class="special"><td class="sn" style="color:var(--amber,#B45309)"><i class="ph-light ph-warning" aria-hidden="true"></i> 파싱 실패</td><td class="how"><b style="color:var(--red,#C0392B)">재고 API 전체 실패</b>(inv 0건) → <b style="color:var(--red,#C0392B)">확인불가(-1)</b> · 999(충분) 둔갑 금지 = 오버셀 방지 <span style="color:var(--faint,#9AA4B0)">[2026-07-08 musinsa.py]</span></td></tr>
+          <tr class="special"><td class="sn"><i class="ph-light ph-warning" aria-hidden="true"></i> 특이사항</td><td class="how">소싱처 목록에 이 색×사이즈 없음(크롤 ok) → <span class="ink">품절(미판매·소멸)</span> / 크롤 실패 상태면 → <span class="ink">확인불가</span>(목록 최신 아님·품절 둔갑 금지) / API 호출 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">.../options/v2/prioritized-inventories</span> · <span class="elabel">코드</span><span class="mono">musinsa.py:492</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 전용 재고 API(<span class="mono" style="color:inherit">prioritized-inventories</span>)가 옵션별 실수량을 JSON으로 줌 → 1순위. 표면가도 API(<span class="mono" style="color:inherit">salePrice</span>)+검증게이트. 혜택만 회원 로그인.</div>
@@ -586,9 +586,9 @@
           <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> 정규식 <span class="ink">usablInvQty=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">usablInvQty=N</span> (실수량)</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분 <span class="stype num">실수량</span></td></tr>
-          <tr class="special"><td class="sn" style="color:var(--amber,#B45309)">⚠ 파싱 실패</td><td class="how"><span class="ink">usablInvQty 필드 부재</span>(필드명·포맷 변경) → <b style="color:var(--red,#C0392B)">확인불가(-1)</b> · 0(품절)도 999(재고있음)도 둔갑 금지 <span style="color:var(--faint,#9AA4B0)">[2026-07-08 ssg.py]</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">딜페이지(dealItemView.ss) 파싱 실패 → <span class="ink">크롤실패</span> / 단일색 사이즈 파싱버그 주의</td></tr>
-          <tr class="special"><td class="sn" style="color:var(--green,#15803D)">✅ 해결(07-04)</td><td class="how">단품 미수집 36칸 = <b>중복 SourceOption</b>(size_text '220' vs '220mm')에서 매칭이 <b>stale None 행을 먼저 골라</b> 실재고 무시 → <span class="mono">_match_option_so</span> 가 <span class="ink">재고 있는 행 우선</span>. 라이브 미수집 0·값 실측 일치.</td></tr>
+          <tr class="special"><td class="sn" style="color:var(--amber,#B45309)"><i class="ph-light ph-warning" aria-hidden="true"></i> 파싱 실패</td><td class="how"><span class="ink">usablInvQty 필드 부재</span>(필드명·포맷 변경) → <b style="color:var(--red,#C0392B)">확인불가(-1)</b> · 0(품절)도 999(재고있음)도 둔갑 금지 <span style="color:var(--faint,#9AA4B0)">[2026-07-08 ssg.py]</span></td></tr>
+          <tr class="special"><td class="sn"><i class="ph-light ph-warning" aria-hidden="true"></i> 특이사항</td><td class="how">딜페이지(dealItemView.ss) 파싱 실패 → <span class="ink">크롤실패</span> / 단일색 사이즈 파싱버그 주의</td></tr>
+          <tr class="special"><td class="sn" style="color:var(--green,#15803D)"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 해결(07-04)</td><td class="how">단품 미수집 36칸 = <b>중복 SourceOption</b>(size_text '220' vs '220mm')에서 매칭이 <b>stale None 행을 먼저 골라</b> 실재고 무시 → <span class="mono">_match_option_so</span> 가 <span class="ink">재고 있는 행 우선</span>. 라이브 미수집 0·값 실측 일치.</td></tr>
         </table>
         <div class="meta"><span class="elabel">경로</span><span class="mono">same-origin fetch(도메인 탭) → /api/sources/parse</span> <span class="win one">도메인 탭 1개</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
         <div class="why" style="margin-top:4px;margin-bottom:0;background:var(--연한-파랑,#EAF3FF);border:1px solid var(--연한-파랑,#C7E0FF);"><b>왜 창 1개?</b> SSG는 WAF(Sec-Fetch 차단)로 확장이 밖에서 직접 fetch하면 막힘 → <b>ssg.com 도메인 탭 1개</b>를 열어 그 안에서 same-origin fetch(렌더는 안 함). URL이 여러 개여도 <b>탭 1개 안에서 동시 fetch</b>(동시 상한만큼) — SSF(창 0개)와 다른 점.</div>
@@ -602,8 +602,8 @@
         <table class="st3">
           <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> <span class="ink">statcd=SLDOUT</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">품절임박 ( N )</span> → N (괄호공백 주의)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> statcd 정상 → 충분 <span class="stype weak">⚠상태값</span> <span style="color:var(--faint,#9AA4B0)">(수량 아님 → ⓪게이트 중요)</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 li 없음 → <span class="ink">옵션없음</span> · 옵션 목록 통째 파싱 실패 시 단품 폴백(999)은 정상 단품과 구분 불가 → 상품 status 로 게이트</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> statcd 정상 → 충분 <span class="stype weak"><i class="ph-light ph-warning" aria-hidden="true"></i>상태값</span> <span style="color:var(--faint,#9AA4B0)">(수량 아님 → ⓪게이트 중요)</span></td></tr>
+          <tr class="special"><td class="sn"><i class="ph-light ph-warning" aria-hidden="true"></i> 특이사항</td><td class="how">옵션 li 없음 → <span class="ink">옵션없음</span> · 옵션 목록 통째 파싱 실패 시 단품 폴백(999)은 정상 단품과 구분 불가 → 상품 status 로 게이트</td></tr>
         </table>
         <div class="meta"><span class="elabel">셀렉터</span><span class="mono">#optionDiv1 li a[optcd]@statcd</span> <span class="win no">창없이</span> · <span class="elabel">코드</span><span class="mono">ssf.py</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML 정규식?</b> 옵션·<span class="mono" style="color:inherit">statcd</span>·품절임박N 이 <b>raw HTML</b>(SSR)에 모두 있음 → 창없이 정규식 파싱(3순위). curl_cffi/확장 SW fetch raw 서버, 무로그인. <span style="color:var(--faint,#9AA4B0)">[2026-07-08 정정: DOM→HTML — 렌더 불필요·창없이 실증]</span> 단 정상재고 정량은 비공개(999가 정답).</div>
@@ -617,10 +617,10 @@
           <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 옵션 매핑 <span class="ink">stkQty</span> → 실수량 N <span style="color:var(--faint,#9AA4B0)">(라이브 검증 220=5·10개)</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stkQty <span class="ink">실수량(20·30·41)</span> → 충분 <span class="stype num">실수량</span> <span style="color:var(--faint,#9AA4B0)">(999 아님)</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
+          <tr class="special"><td class="sn"><i class="ph-light ph-warning" aria-hidden="true"></i> 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color: var(--글자-희미, var(--faint,#9AA4B0)">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→5 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span> <span style="color: var(--글자-초록, var(--green,#15803D)));display:block;margin-top:4px">✅ <b>해결(07-04)</b>: 모음전 미수집 47칸 = 중복행에서 매칭이 stale None 을 먼저 고르던 것 → <span class="mono" style="color:inherit">_match_option_so</span> 가 재고 있는 행 우선. 라이브 미수집 0·올리브 230=품절·다크235=49 실측 일치.</span></div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color: var(--글자-희미, var(--faint,#9AA4B0)">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→5 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span> <span style="color: var(--글자-초록, var(--green,#15803D)));display:block;margin-top:4px"><i class="ph-light ph-check-circle" aria-hidden="true"></i> <b>해결(07-04)</b>: 모음전 미수집 47칸 = 중복행에서 매칭이 stale None 을 먼저 고르던 것 → <span class="mono" style="color:inherit">_match_option_so</span> 가 재고 있는 행 우선. 라이브 미수집 0·올리브 230=품절·다크235=49 실측 일치.</span></div>
       </div></div>
 
       <div class="scard"><div class="src">스마트<br>스토어</div><div>
@@ -631,7 +631,7 @@
           <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> SKU <span class="ink">stockQuantity=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> <span class="ink">stockQuantity=N</span> → 실수량</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분 <span class="stype num">실수량</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">per-SKU 재고는 <span class="ink">_persist_option_stocks</span>로 영속(2026-06-22 수정) · <span class="mono">A.id</span> 사용(productNo 쓰면 999 둔갑) / WAF 차단 → 크롤실패</td></tr>
+          <tr class="special"><td class="sn"><i class="ph-light ph-warning" aria-hidden="true"></i> 특이사항</td><td class="how">per-SKU 재고는 <span class="ink">_persist_option_stocks</span>로 영속(2026-06-22 수정) · <span class="mono">A.id</span> 사용(productNo 쓰면 999 둔갑) / WAF 차단 → 크롤실패</td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">/n/v2/channels/{cu}/products/{A.id}</span> · <span class="elabel">코드</span><span class="mono">ss_lemouton.py</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 로그인 확장?</b> 상품 inline JSON엔 SKU 단위 재고가 없고, 네이버 WAF가 서버 직접호출을 막음 → per-SKU 실수량은 <b>로그인 확장 API</b>로만 가능. 수집값은 <span class="mono" style="color:inherit">_persist_option_stocks</span>로 영속(라이브 98셀 실수량 확인). 표면가·리뷰적립은 무로그인 inline.</div>
@@ -645,7 +645,7 @@
           <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">재고 0 / is_selling=F</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">수량 N</span> → 실수량</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data 수량 큼 → 충분 <span class="stype num">실수량</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">실제 조합만 수집(미판매 사이즈 과다수집 방지) → 날조 옵션 없음</td></tr>
+          <tr class="special"><td class="sn"><i class="ph-light ph-warning" aria-hidden="true"></i> 특이사항</td><td class="how">실제 조합만 수집(미판매 사이즈 과다수집 방지) → 날조 옵션 없음</td></tr>
         </table>
         <div class="meta"><span class="elabel">코드</span><span class="mono">lemouton.py</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML?</b> Cafe24가 실제 판매조합·실재고를 <span class="mono" style="color:inherit">option_stock_data</span> JSON으로 페이지에 통째로 박아줌 → 2순위 내장 JSON. 전부 무로그인 서버.</div>
@@ -656,11 +656,11 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>재고</b><span class="pill">내장 JSON</span></span><span class="dp"><b>표면노출가</b><span class="pill">내장 JSON</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> <span class="ink">sellGbcd="11"</span> → 품절 (⚠ 품절도 stockCount=1 센티넬로 옴)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> <span class="ink">sellGbcd="11"</span> → 품절 (<i class="ph-light ph-warning" aria-hidden="true"></i> 품절도 stockCount=1 센티넬로 옴)</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> sellGbcd="00" + <span class="ink">stockCount=N</span> → 실수량</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> sellGbcd="00" + stockCount 큼 → 충분 <span class="stype num">실수량</span></td></tr>
           <tr class="special"><td class="sn">★ 품절판정</td><td class="how"><b>반드시 <span class="ink">sellGbcd</span> 우선</b> — stockCount 단독 판정 금지(품절도 stockCount=1 = 거짓 '1개 있음' 금전손실). 라이브 실증 2026-07-03(올리브 230·240·250·260 = sellGbcd 11 품절인데 stockCount 1)</td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">단품=<span class="ink">__NEXT_DATA__ stockList[]</span> / 모음전(색×사이즈)=<span class="ink">item-stockcount API</span> 색별 프로브. API 직접호출 방화벽 차단 → navGrab. 혜택은 로그인 DOM</td></tr>
+          <tr class="special"><td class="sn"><i class="ph-light ph-warning" aria-hidden="true"></i> 특이사항</td><td class="how">단품=<span class="ink">__NEXT_DATA__ stockList[]</span> / 모음전(색×사이즈)=<span class="ink">item-stockcount API</span> 색별 프로브. API 직접호출 방화벽 차단 → navGrab. 혜택은 로그인 DOM</td></tr>
         </table>
         <div class="meta"><span class="elabel">위치</span><span class="mono">__NEXT_DATA__.itemPtc.stockList / api/hf/dp/v1/item-ptc/item-stockcount</span> · <span class="elabel">코드</span><span class="mono">hmall.py fetch_combo_persize_options·_size_stock_from_row</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 내장 JSON?</b> Next.js SSR이 재고·가격을 <span class="mono" style="color:inherit">__NEXT_DATA__</span>에 통째로 줌(2순위). 전용 API는 방화벽 차단이라 못 씀. 혜택은 클라이언트 JS 렌더라 로그인 확장 DOM에서만.</div>
@@ -674,7 +674,7 @@
           <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> itemInvQtyInfo <span class="ink">inv_qty=0</span></td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> <span class="ink">inv_qty&lt;5</span> → 실수량 N ('N개 남음', 사이트 JS 기준)</td></tr>
           <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> inv_qty <b>≥5</b> → <span class="ink">999(충분)</span> <span class="stype num">실수량</span> <span style="color:var(--faint,#9AA4B0)">(사이트: 5~500 라벨없음·&gt;500 판매중, _lotteimall_disp_qty)</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">WAF 403 → <b>롯데아이몰 도메인 탭 1개에서 same-origin fetch로 통과</b> <span class="win one">도메인 탭 1개</span> · 간헐 실패 시 렌더 창 폴백 <span style="color:var(--faint,#9AA4B0)">[2026-07-14 정정: SW fetch(창0) 아님 — same-origin(창1). SSG와 동일 방식]</span> / 혜택 L.POINT는 로그인</td></tr>
+          <tr class="special"><td class="sn"><i class="ph-light ph-warning" aria-hidden="true"></i> 특이사항</td><td class="how">WAF 403 → <b>롯데아이몰 도메인 탭 1개에서 same-origin fetch로 통과</b> <span class="win one">도메인 탭 1개</span> · 간헐 실패 시 렌더 창 폴백 <span style="color:var(--faint,#9AA4B0)">[2026-07-14 정정: SW fetch(창0) 아님 — same-origin(창1). SSG와 동일 방식]</span> / 혜택 L.POINT는 로그인</td></tr>
         </table>
         <div class="meta"><span class="elabel">위치</span><span class="mono">itemInvQtyInfo[].inv_qty · dataBenefit</span> · <span class="elabel">코드</span><span class="mono">lotteon.py(도메인 라우팅)</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 내장 JSON?</b> 핵심 재고·가격이 SSR <span class="mono" style="color:inherit">itemInvQtyInfo</span>/<span class="mono" style="color:inherit">dataBenefit</span>에 박혀 옴(2순위). 단 WAF 403이라 <b>도메인 탭 1개에서 same-origin fetch</b>로 통과(SSG와 동일, 안 되면 렌더 창 폴백). 혜택(L.POINT)은 로그인.</div>
@@ -688,30 +688,30 @@
       <div class="v3n">
 
 <h1>소싱처 가격·혜택 정규화 v3 — 자동화 명세</h1>
-<div class="sub">2026-07-23 · 실측 근거: 8소싱처 실상품 URL 직접 접속(7/22~23) + 샘플 URL 14개 + 주문서 검산 3건 + 크롤러 원본 코드. 정본 스펙: docs/superpowers/specs/2026-07-22-소싱처-표면노출가-혜택-최종매입가-design.md §11 · <b>2026-07-23 2차 대조</b>: 미확정 9건 코드 전수확인 — <b>구현완료 6건 ✅ 승격</b>(롯데온 최대혜택가·롯데온 혜택항목별·무신사 결제택1·Hmall OK캐시백·아이몰 OK캐시백·<b>SSG 다운로드 쿠폰 레이어</b>) · 미구현 1건(Hmall VIP라운지) · 주문서 확인 대기 2건(SSG 청구+제휴 동시·아이몰 상품별 쿠폰 적용)</div>
+<div class="sub">2026-07-23 · 실측 근거: 8소싱처 실상품 URL 직접 접속(7/22~23) + 샘플 URL 14개 + 주문서 검산 3건 + 크롤러 원본 코드. 정본 스펙: docs/superpowers/specs/2026-07-22-소싱처-표면노출가-혜택-최종매입가-design.md §11 · <b>2026-07-23 2차 대조</b>: 미확정 9건 코드 전수확인 — <b>구현완료 6건 <i class="ph-light ph-check-circle" aria-hidden="true"></i> 승격</b>(롯데온 최대혜택가·롯데온 혜택항목별·무신사 결제택1·Hmall OK캐시백·아이몰 OK캐시백·<b>SSG 다운로드 쿠폰 레이어</b>) · 미구현 1건(Hmall VIP라운지) · 주문서 확인 대기 2건(SSG 청구+제휴 동시·아이몰 상품별 쿠폰 적용)</div>
 
-<div class="goal">🎯 목적 단 하나 — 자동화 프로그램이 「최종매입가 = 표면노출가 − 혜택」을 위해 정보수집 → 정보가공을 정확히 해내는 것
+<div class="goal"><i class="ph-light ph-target" aria-hidden="true"></i> 목적 단 하나 — 자동화 프로그램이 「최종매입가 = 표면노출가 − 혜택」을 위해 정보수집 → 정보가공을 정확히 해내는 것
 <small>소싱처마다 [STEP1 수집(어디서·뭘·어떻게·자동화 신뢰등급)] → [STEP2 가공 게이트(선반영 제외·택1·이중차감 방지·조작)] → [STEP3 계산 순서] 를 프로그램 명세 그대로 기술</small></div>
 
 <div class="panel">
   <h2>배지 안내 · 공통 엔진 규칙</h2>
   <div class="legend">
     <span class="badge b-api">API·내장 데이터</span><span class="leg-note">페이지·API에 실려 오는 데이터 직읽기 (대부분 무로그인)</span>
-    <span class="badge t-ok">✅ 자동 실증</span><span class="leg-note">이번 검증에서 스크립트로 자동 수집까지 실증됨</span>
+    <span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 자동 실증</span><span class="leg-note">이번 검증에서 스크립트로 자동 수집까지 실증됨</span>
     <span class="badge b-rex">화면 글자 읽기</span><span class="leg-note">HTML 글자에서 정규식·셀렉터로 추출</span>
-    <span class="badge t-can">🔶 가능·구현확인</span><span class="leg-note">확장 크롤 경로로 가능 — 구현하며 최종 확인</span>
+    <span class="badge t-can"><i class="ph-light ph-diamond" aria-hidden="true"></i> 가능·구현확인</span><span class="leg-note">확장 크롤 경로로 가능 — 구현하며 최종 확인</span>
     <span class="badge b-dom">실화면·로그인(확장)</span><span class="leg-note">확장이 로그인 실화면을 띄워 읽음</span>
-    <span class="badge t-est">⚠️ 추정·보수</span><span class="leg-note">규칙 기반 추정 — 애매하면 안 깎음(매입가 과대=안전)</span>
+    <span class="badge t-est"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 추정·보수</span><span class="leg-note">규칙 기반 추정 — 애매하면 안 깎음(매입가 과대=안전)</span>
     <span class="badge b-seed">고정값(시드)</span><span class="leg-note">크롤 없음 — 엔진 시드 테이블</span>
-    <span class="badge t-unk">❓ 미실측</span><span class="leg-note">실측 전 — 값 사용 금지</span>
+    <span class="badge t-unk"><i class="ph-light ph-question" aria-hidden="true"></i> 미실측</span><span class="leg-note">실측 전 — 값 사용 금지</span>
   </div>
   <div class="calc" style="margin-top:12px">
   <b>공통 가공·계산 (전 소싱처 동일 — 계산 엔진 <code>compute_breakdown → compute_final_price → compute_market_price</code>)</b><br>
   ① 정액(원) 먼저 차감 → 정률(%)은 <b>직전 잔액에 순차 곱셈</b> (Hmall 주문서로 실물 검증: 네이버 8% = 쿠폰 차감 후 잔액 기준) · 마지막 백원 버림<br>
   ② <b>경로 전부 계산 → 최저가 자동 채택</b>: 경유 택1 {일반 / N쇼핑(<code>naver_via</code>) / OK캐시백(<code>cashback</code>·<code>base_ratio</code>)} × 결제 택1(<code>payment</code>) — N쇼핑 경유면 캐시백 OFF · 캐시백 경유에도 현대카드 2.73% 유지 · N페이 1%는 결제와 동시(SSG·아이몰 ✗·롯데온 조건부)<br>
   ③ 철칙: 크롤 실패·값 없음 = <b>0(안 깎음)·폴백 금지</b> · 선반영 항목 = <b>재차감 금지(이중차감 방지)</b> · 1회성·이벤트성·전용카드 = 제외(추가수익) · 애매하면 안 깎음<br>
-  ④ <b>경유 판별 계약</b>: 크롤이 <code>naver_via_preapplied</code>(표시가 반영 여부)를 보내고, 엔진은 <b>true 면 주입하지 않는다</b>(재차감=이중차감 방지). ⚠️저장 필터가 <code>False</code> 를 버리면 한 번 true 가 박힌 소싱처는 경유 혜택을 영영 못 깎는다 → 플래그 키는 예외 통과(2026-07-23 실측 수정)<br>
-  ⑤ 혜택 저장 = <code>dynamic_benefits_json</code> — ⚠️확장 크롤 <code>save_crawl_result</code>가 혜택 미저장(기지 결함) → 구현 시 필수 해소
+  ④ <b>경유 판별 계약</b>: 크롤이 <code>naver_via_preapplied</code>(표시가 반영 여부)를 보내고, 엔진은 <b>true 면 주입하지 않는다</b>(재차감=이중차감 방지). <i class="ph-light ph-warning" aria-hidden="true"></i>️저장 필터가 <code>False</code> 를 버리면 한 번 true 가 박힌 소싱처는 경유 혜택을 영영 못 깎는다 → 플래그 키는 예외 통과(2026-07-23 실측 수정)<br>
+  ⑤ 혜택 저장 = <code>dynamic_benefits_json</code> — <i class="ph-light ph-warning" aria-hidden="true"></i>️확장 크롤 <code>save_crawl_result</code>가 혜택 미저장(기지 결함) → 구현 시 필수 해소
   </div>
 </div>
 
@@ -773,12 +773,12 @@
 <td class="rowh">표면노출가<small>무엇을 기준가로 쓰나</small></td>
 <td class="cell"><span class="val">판매가격 <span class="num">116,900</span></span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd"><code>strong.price-number</code> → 폴백 <code>span.ProductPrice</code> → <code>meta[product:sale_price:amount]</code> → JS <code>var product_price</code> · 원가 <code>span.txt_price.ProductPrice</code></span><span class="pre">기본할인 22% 선반영</span></td>
 <td class="cell"><span class="val">나의할인가 <span class="num">118,000</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd"><code>__PRELOADED_STATE__</code> → <code>simpleProductForDetailPage.A.benefitsView.discountedSalePrice</code> (폴백 <code>mobileDiscountedSalePrice</code>·<code>dispDiscountedSalePrice</code>) · 정가 <code>salePrice</code></span><span class="pre">즉시할인 31,000·상품쿠폰 선반영</span><span class="memo">쿠폰 없으면 = 상품가격 (7/22 실측) · 비로그인 크롤 가능</span></td>
-<td class="cell"><span class="val">API 판매가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd"><code>GET goods-detail.musinsa.com/api2/goods/{goodsNo}</code> → <code>salePrice</code> (정가 <code>normalPrice</code>) · 페이지 내장 <code>__NEXT_DATA__</code> <code>goodsPrice.salePrice</code> 동일</span><span class="memo">⚠️ 회원가 <code>member_price</code> 아님! · 적립금사용(기본 ON)·즉시할인(기본 선택) 토글 전부 끈 기준값</span></td>
+<td class="cell"><span class="val">API 판매가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd"><code>GET goods-detail.musinsa.com/api2/goods/{goodsNo}</code> → <code>salePrice</code> (정가 <code>normalPrice</code>) · 페이지 내장 <code>__NEXT_DATA__</code> <code>goodsPrice.salePrice</code> 동일</span><span class="memo"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 회원가 <code>member_price</code> 아님! · 적립금사용(기본 ON)·즉시할인(기본 선택) 토글 전부 끈 기준값</span></td>
 <td class="cell"><span class="val">할인가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd"><code>em.price</code> (없으면 originPrice)</span><span class="pre">시즌 상품할인 선반영</span><span class="memo">비로그인 "최대" 표기 아님 · 조작 없음</span></td>
 <td class="cell"><span class="val">최대혜택가 <span class="num">118,690</span></span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">「최대 할인혜택 적용」 후 나의 혜택가 — 확장 <code>lotteonExtractor</code> · 데이터 원천 <code>pbf.lotteon.com</code> API · 보조정규식 <code>나의 혜택가[^\d]*([\d,]+)</code> (숫자+원 인접·자릿수≥4·1,000원 하한 가드)</span><span class="pre">즉시할인 2종+최적카드+오너스 1% 선반영</span><span class="memo">패널이 구성 금액 전부 노출 (7/22 실측) — 항목별 크롤로 이중차감 방지 · <b>현재 크롤은 「나의 혜택가」까지</b>, 「최대 할인혜택 적용」 베이스 교체는 <span class="badge b-warn">⏳구현 예정</span> (스펙 §7-1)</span></td>
-<td class="cell"><span class="val">최적가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd">내장 <code>uitemObj</code> → 1순위 <code>bestAmt</code> · 2순위 <code>sellprc</code> 폴백</span><span class="pre">즉시할인+SSG MONEY 즉시할인(패턴 A/C) 선반영</span><span class="memo">✅ 7/23 실페이지 육안 확인: 표시가 119,900 = 크롤값 일치 · ⚠️자동화 전 경로 차단 — 확장 크롤 유일</span></td>
-<td class="cell"><span class="val">깜짝할인가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd"><code>&lt;script id="__NEXT_DATA__"&gt;</code> → <code>props.pageProps.respData.itemPtc.bbprc</code></span><span class="memo">⚠️ <code>sellPrc</code>=정가 149,000 둔갑 함정(실측) · 옵션루프 <code>bbprc:0</code> 다수 — 본품 항목만 · 카드할인 미포함 ✅</span></td>
-<td class="cell"><span class="val">카드 미적용가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd">dataBenefit JSON <code>commonDiscountObj.benefitPrc</code>(=최대할인가·카드 청구할인 포함, 라벨 <code>benefitPrcLabelTxt</code>) <b>+ 카드혜택 금액 되돌림(가산)</b> · 할인 구성 = <code>fullDiscountObj.discountList[]</code>(<code>discountNm</code>·<code>discountAmount</code>) — 7/23 필드 실측</span><span class="pre">상품쿠폰(기본 ON) 선반영</span><span class="memo">⚠️「최대할인가」 그대로 쓰기 금지 — 카드 선반영 상품 有 · 실측: 이 상품 카드금액 0 → 119,900 그대로 · 카드 가산은 크롤러 기구현(2026-07-18)</span></td>
+<td class="cell"><span class="val">최적가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd">내장 <code>uitemObj</code> → 1순위 <code>bestAmt</code> · 2순위 <code>sellprc</code> 폴백</span><span class="pre">즉시할인+SSG MONEY 즉시할인(패턴 A/C) 선반영</span><span class="memo"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 7/23 실페이지 육안 확인: 표시가 119,900 = 크롤값 일치 · <i class="ph-light ph-warning" aria-hidden="true"></i>️자동화 전 경로 차단 — 확장 크롤 유일</span></td>
+<td class="cell"><span class="val">깜짝할인가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd"><code>&lt;script id="__NEXT_DATA__"&gt;</code> → <code>props.pageProps.respData.itemPtc.bbprc</code></span><span class="memo"><i class="ph-light ph-warning" aria-hidden="true"></i>️ <code>sellPrc</code>=정가 149,000 둔갑 함정(실측) · 옵션루프 <code>bbprc:0</code> 다수 — 본품 항목만 · 카드할인 미포함 <i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td>
+<td class="cell"><span class="val">카드 미적용가 <span class="num">119,900</span></span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd">dataBenefit JSON <code>commonDiscountObj.benefitPrc</code>(=최대할인가·카드 청구할인 포함, 라벨 <code>benefitPrcLabelTxt</code>) <b>+ 카드혜택 금액 되돌림(가산)</b> · 할인 구성 = <code>fullDiscountObj.discountList[]</code>(<code>discountNm</code>·<code>discountAmount</code>) — 7/23 필드 실측</span><span class="pre">상품쿠폰(기본 ON) 선반영</span><span class="memo"><i class="ph-light ph-warning" aria-hidden="true"></i>️「최대할인가」 그대로 쓰기 금지 — 카드 선반영 상품 有 · 실측: 이 상품 카드금액 0 → 119,900 그대로 · 카드 가산은 크롤러 기구현(2026-07-18)</span></td>
 </tr>
 
 <tr>
@@ -849,7 +849,7 @@
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="val">카드 즉시할인 목록 크롤</span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">확장 <code>lotteonExtractor</code> — 혜택변경 패널 카드명+금액 목록</span><span class="memo">경로 열거 + 보유카드 가드(<code>PurchaseCard</code> 17종 — 없는 카드 할인은 되돌려 가산)</span></td>
 <td class="cell"><span class="val">청구할인(카드혜택가 정률) + 제휴 동시</span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd">raw HTML 카드혜택가 영역 (<code>ssg.py</code> — 노출 시만·표시만, 자동적용 아님)</span><span class="memo">청구+제휴 동시 적용 가정 (안 되면 추후 제거 — 데이터로 배선) <span class="badge b-warn">⏳배선 예정</span> (스펙 §7-8) · 7/23 육안 실측: 이 상품 카드혜택가 미노출 → 현대 2.73% 폴백 경로 확인</span></td>
-<td class="cell"><span class="val">「즉시 할인」 카드 목록 — <b>창 없이 API</b> ✅구현</span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd"><code>GET /api/hf/dp/v1/item-ptc/item-prmo-lst?slitmCd=</code> → <code>crdImdtDcPrmoList[]</code> · ★쿠키 <code>uh2oxid</code>를 <b>헤더로도</b> 전송해야 200(쿠키만이면 401) — 확장 v0.7.57 <code>fetchHmallPromosSW</code></span><span class="memo">필드: <code>crdcNm</code>(카드명)·<code>famtFxrtGbcd</code>(1=정률/2=정액)·<code>famtFxrtVal</code>(5=5%)·<code>strtVal</code>(최소결제)·<code>aplyStrtDtm~aplyEndDtm</code> · ⚠️<b>일자별 로테이션</b>(유효기간이 당일 00:00~23:59로 데이터 확증) + <code>prmoNm</code> "(전관)"=상품 공통 · 크롤 당일 값 사용(확정 7/23) · 경로 열거 + 보유카드 가드</span></td>
+<td class="cell"><span class="val">「즉시 할인」 카드 목록 — <b>창 없이 API</b> <i class="ph-light ph-check-circle" aria-hidden="true"></i>구현</span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd"><code>GET /api/hf/dp/v1/item-ptc/item-prmo-lst?slitmCd=</code> → <code>crdImdtDcPrmoList[]</code> · ★쿠키 <code>uh2oxid</code>를 <b>헤더로도</b> 전송해야 200(쿠키만이면 401) — 확장 v0.7.57 <code>fetchHmallPromosSW</code></span><span class="memo">필드: <code>crdcNm</code>(카드명)·<code>famtFxrtGbcd</code>(1=정률/2=정액)·<code>famtFxrtVal</code>(5=5%)·<code>strtVal</code>(최소결제)·<code>aplyStrtDtm~aplyEndDtm</code> · <i class="ph-light ph-warning" aria-hidden="true"></i>️<b>일자별 로테이션</b>(유효기간이 당일 00:00~23:59로 데이터 확증) + <code>prmoNm</code> "(전관)"=상품 공통 · 크롤 당일 값 사용(확정 7/23) · 경로 열거 + 보유카드 가드</span></td>
 <td class="cell"><span class="val">청구할인(카드혜택가 정률) — fx 분리</span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">dataBenefit 카드혜택 금액 (benefitPrc에서 분리·가산 후 fx로 차감)</span><span class="memo">실측: 현대카드 5% 배너</span></td>
 </tr>
 
@@ -866,14 +866,14 @@
 </tr>
 
 <tr>
-<td class="rowh">경유 — N쇼핑<small><code>naver_via</code> 태그 · 수집·배선 <span class="badge t-ok">✅</span>(2026-07-23) · 몰별 <b>선반영 판별 게이트</b> 필수</small></td>
+<td class="rowh">경유 — N쇼핑<small><code>naver_via</code> 태그 · 수집·배선 <span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span>(2026-07-23) · 몰별 <b>선반영 판별 게이트</b> 필수</small></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">✗ 없음</span></td>
 <td class="cell"><span class="val">제휴할인 (정액)</span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">N쇼핑 경유 화면 제휴할인 금액 — <code>naver_via</code></span><span class="memo">쿠폰버튼 아님 · %가 아닌 정액 표기</span></td>
-<td class="cell"><span class="val">「[제휴할인] N% 쿠폰」 <span class="badge t-ok">✅</span></span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd">크롤러가 <code>ckwhere=ssg_naver</code>(+utm) 유입 파라미터로 요청 → PDP 에 제휴쿠폰 노출 → <code>product_coupon_rate</code> 파싱 · <b>라벨에 「제휴」 있으면 <code>channel=naver_via</code></b></span><span class="memo">★사장님 확정(7/23): <b>경유는 N쇼핑 or OK캐시백 택1 · 할인 큰 쪽 · 중복 금지</b> → 제휴쿠폰은 경유 축이라 캐시백과 <b>자동 배타</b>, 경로 열거로 큰 쪽 채택. 일반 상품쿠폰은 현행 수동 토글 유지</span></td>
-<td class="cell"><span class="val">4~10% (상품별)</span><span class="cd"><code>naver_via</code> · 용어 실물: <b>「네이버 8%할인」</b> · 할인내역 항목명 <b>「네이버가격비교」</b></span><span class="memo">⚠️<b>경유+로그인 시 혜택가에 선반영</b> — 실측(나이키 보메로): 198,000 −7%바로사용쿠폰 13,860 −네이버가격비교 14,730(=184,140×8%) = 169,410. <b>판별 원천 = <code>item-ptc</code> API 의 <code>tcDcInf</code></b>(<code>tcCdNm</code>"네이버가격비교"·<code>dcRate</code>8·<code>tcDcAmt</code>14,730) → <code>naver_via_preapplied=true</code> 로 보내 재차감 금지. ★raw HTML 엔 없다(할인내역이 JS 렌더 — 문자열 검색 방식은 실패) · 주문서 실측(줌 벨라): 네이버 8%는 "즉시할인" 분류로 <b>쿠폰·카드 5%와 전부 중첩</b>, 순차 곱셈 검산 일치(총 84,127) · <b>「바로접속 OFF」 트레이드오프</b>: 경유=네이버 할인 ↔ 바로접속=H.Point 리워드·멤버십 쿠폰 (양자택일)</span></td>
+<td class="cell"><span class="val">「[제휴할인] N% 쿠폰」 <span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd">크롤러가 <code>ckwhere=ssg_naver</code>(+utm) 유입 파라미터로 요청 → PDP 에 제휴쿠폰 노출 → <code>product_coupon_rate</code> 파싱 · <b>라벨에 「제휴」 있으면 <code>channel=naver_via</code></b></span><span class="memo">★사장님 확정(7/23): <b>경유는 N쇼핑 or OK캐시백 택1 · 할인 큰 쪽 · 중복 금지</b> → 제휴쿠폰은 경유 축이라 캐시백과 <b>자동 배타</b>, 경로 열거로 큰 쪽 채택. 일반 상품쿠폰은 현행 수동 토글 유지</span></td>
+<td class="cell"><span class="val">4~10% (상품별)</span><span class="cd"><code>naver_via</code> · 용어 실물: <b>「네이버 8%할인」</b> · 할인내역 항목명 <b>「네이버가격비교」</b></span><span class="memo"><i class="ph-light ph-warning" aria-hidden="true"></i>️<b>경유+로그인 시 혜택가에 선반영</b> — 실측(나이키 보메로): 198,000 −7%바로사용쿠폰 13,860 −네이버가격비교 14,730(=184,140×8%) = 169,410. <b>판별 원천 = <code>item-ptc</code> API 의 <code>tcDcInf</code></b>(<code>tcCdNm</code>"네이버가격비교"·<code>dcRate</code>8·<code>tcDcAmt</code>14,730) → <code>naver_via_preapplied=true</code> 로 보내 재차감 금지. ★raw HTML 엔 없다(할인내역이 JS 렌더 — 문자열 검색 방식은 실패) · 주문서 실측(줌 벨라): 네이버 8%는 "즉시할인" 분류로 <b>쿠폰·카드 5%와 전부 중첩</b>, 순차 곱셈 검산 일치(총 84,127) · <b>「바로접속 OFF」 트레이드오프</b>: 경유=네이버 할인 ↔ 바로접속=H.Point 리워드·멤버십 쿠폰 (양자택일)</span></td>
 <td class="cell"><span class="val">~15% (상품별)</span><span class="cd"><code>naver_via</code> · 실체 확정: <b>「네이버 N%플러스할인쿠폰」</b>(6·7·9%, `_의류` 등 카테고리 한정) — 경유 시 쿠폰함 발급</span><span class="memo">표시가 미반영 → <b>주문서 "플러스 할인쿠폰" 칸에서 적용</b> (7/23 주문서 실측: 89,170×7%=−6,240 검산 일치). 즉석쿠폰 13%(=benefitPrc 선반영)는 할인쿠폰 칸에서 L.CLUB 7%와 택1 · 청구할인 5%는 배송비 포함 최종결제금액 기준 · 경유 7% ≫ OK캐시백 2.5%</span></td>
 </tr>
 
@@ -885,7 +885,7 @@
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="val num">1.1% ×0.9</span><span class="bdg"><span class="badge b-seed">고정값(시드)</span></span><span class="cd">시드 <code>base_ratio=0.9</code></span></td>
 <td class="cell"><span class="val num">2.0% ×1.0</span><span class="bdg"><span class="badge b-seed">고정값(시드)</span></span><span class="cd">시드 <code>base_ratio=1.0</code> (전액 예외)</span></td>
-<td class="cell"><span class="val num">2.7% ×0.9</span><span class="bdg"><span class="badge b-seed">고정값(시드)</span> <span class="badge b-warn">⏳신규 시드 예정</span></span><span class="cd">시드 <code>base_ratio=0.9</code> · ⚠️<code>key:hmall</code> 문자열 source_id — 정수 시드 불가 기지 이슈</span></td>
+<td class="cell"><span class="val num">2.7% ×0.9</span><span class="bdg"><span class="badge b-seed">고정값(시드)</span> <span class="badge b-warn">⏳신규 시드 예정</span></span><span class="cd">시드 <code>base_ratio=0.9</code> · <i class="ph-light ph-warning" aria-hidden="true"></i>️<code>key:hmall</code> 문자열 source_id — 정수 시드 불가 기지 이슈</span></td>
 <td class="cell"><span class="val num">2.5% ×0.9</span><span class="bdg"><span class="badge b-seed">고정값(시드)</span> <span class="badge b-warn">⏳신규 시드 예정</span></span><span class="cd">시드 <code>base_ratio=0.9</code></span></td>
 </tr>
 
@@ -896,7 +896,7 @@
 <td class="cell"><span class="hold">삼성카드 10% 적립·첫결제 3만 할인 = 전용카드·1회성 제외 (추가수익)</span></td>
 <td class="cell"><span class="val">기프트포인트 10%</span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd">정규식 <code>기프트포인트&lt;/dt&gt;&lt;dd&gt;…([\d,]+)원</code> (<code>GIFT_POINT_PATTERN</code>, <code>ssf.py</code>)</span><span class="memo">멤버십 한정 · 활성 시만 노출 · 변동값</span></td>
 <td class="cell"><span class="hold">토스페이 2.5%·L.PAY 제휴·L.PAY 충전 2% = 보류</span></td>
-<td class="cell"><span class="hold">MONEY 충전적립 1.5% = 제외(7/23 육안 확인) · 쓱클럽 7%·SSG.COM카드 Ed2 = 멤버십·전용카드 제외 · ⚠️확장 크롤이 혜택 미저장(기지 결함 — 구현 시 해소)</span></td>
+<td class="cell"><span class="hold">MONEY 충전적립 1.5% = 제외(7/23 육안 확인) · 쓱클럽 7%·SSG.COM카드 Ed2 = 멤버십·전용카드 제외 · <i class="ph-light ph-warning" aria-hidden="true"></i>️확장 크롤이 혜택 미저장(기지 결함 — 구현 시 해소)</span></td>
 <td class="cell"><span class="hold">H포인트페이 추가할인·현대카드 Ed2 7%(전용) = 보류</span></td>
 <td class="cell"><span class="hold">L.PAY 추가할인 = 보류</span></td>
 </tr>
@@ -913,9 +913,9 @@
 <div class="pc-h"><span class="nm">1. 르무통 공홈</span><span class="dm">lemouton.co.kr · 7/22 실측</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td>판매가격 — <code>strong.price-number</code> → <code>span.ProductPrice</code> → <code>meta[product:sale_price:amount]</code> → JS <code>var product_price</code></td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">리뷰적립</td><td>시드 포토 5,000원 (크롤 불가 위치 — 수집 안 함)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">크롤 창</td><td>확장 서비스워커 <b>직접 fetch</b> — 창 0개 (winless 레인)</td><td class="tr-cell"><span class="badge b-seed">창없이</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">표면노출가</td><td>판매가격 — <code>strong.price-number</code> → <code>span.ProductPrice</code> → <code>meta[product:sale_price:amount]</code> → JS <code>var product_price</code></td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">리뷰적립</td><td>시드 포토 5,000원 (크롤 불가 위치 — 수집 안 함)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">크롤 창</td><td>확장 서비스워커 <b>직접 fetch</b> — 창 0개 (winless 레인)</td><td class="tr-cell"><span class="badge b-seed">창없이</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
 </tbody></table></div>
 <div class="pc-step"><div class="st">STEP 2 · 가공 게이트</div>
 <ol class="gate">
@@ -931,11 +931,11 @@
 <div class="pc-h"><span class="nm">2. 스마트스토어</span><span class="dm">brand.naver.com · 7/22 실측</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집 — 전부 한 객체에서 (비로그인 가능, Playwright 실증)</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td><code>__PRELOADED_STATE__…benefitsView.discountedSalePrice</code> (폴백 <code>mobile-</code>·<code>disp-</code>) · 정가 <code>salePrice</code></td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">쿠폰 존재</td><td><code>benefitsPolicy</code> (있으면 표면가에 이미 포함)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">구매적립</td><td><code>benefitsView.managerPurchasePoint</code> (실측 1,180=1%)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">리뷰 4항목</td><td><code>photoVideoReviewPoint</code>+<code>manager-</code>(=3,000) · <code>afterUsePhotoVideoReviewPoint</code>(=2,000) 외</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">크롤 창</td><td>확장 서비스워커 직접 fetch / per-SKU 혜택은 로그인 확장</td><td class="tr-cell"><span class="badge b-seed">창없이</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">표면노출가</td><td><code>__PRELOADED_STATE__…benefitsView.discountedSalePrice</code> (폴백 <code>mobile-</code>·<code>disp-</code>) · 정가 <code>salePrice</code></td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">쿠폰 존재</td><td><code>benefitsPolicy</code> (있으면 표면가에 이미 포함)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">구매적립</td><td><code>benefitsView.managerPurchasePoint</code> (실측 1,180=1%)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">리뷰 4항목</td><td><code>photoVideoReviewPoint</code>+<code>manager-</code>(=3,000) · <code>afterUsePhotoVideoReviewPoint</code>(=2,000) 외</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">크롤 창</td><td>확장 서비스워커 직접 fetch / per-SKU 혜택은 로그인 확장</td><td class="tr-cell"><span class="badge b-seed">창없이</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
 </tbody></table></div>
 <div class="pc-step"><div class="st">STEP 2 · 가공 게이트</div>
 <ol class="gate">
@@ -952,12 +952,12 @@
 <div class="pc-h"><span class="nm">3. 무신사</span><span class="dm">musinsa.com · 7/22~23 실측 (르무통 외 3상품 포함)</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td><code>GET goods-detail.musinsa.com/api2/goods/{no}</code> → <code>salePrice</code> (정가 <code>normalPrice</code>)</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">쿠폰선반영 게이트</td><td><code>couponDiscount</code>·<code>couponPrice</code>·<code>finalPrice</code> — true+차이나면 쿠폰적용가 존재</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">등급할인·상품쿠폰·적립</td><td>확장 <code>musinsaExtractor</code> — 나의할인가 패널 항목별 (로그인)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">무신사머니 적립액</td><td>결제수단 적립 라디오 「머니 결제 시 n% 적립」 <b>금액</b> (실측 3.5% 다이아·등급별 상이)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">리뷰적립</td><td>시드 텍스트 500원 (화면 「후기적립 2,500」은 포토 포함 — 미사용)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">크롤 창</td><td>렌더 필요(로그인 혜택 패널) — URL 수만큼 창 · 표면가 API는 창없이 가능</td><td class="tr-cell"><span class="badge b-dom">렌더 창</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">표면노출가</td><td><code>GET goods-detail.musinsa.com/api2/goods/{no}</code> → <code>salePrice</code> (정가 <code>normalPrice</code>)</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">쿠폰선반영 게이트</td><td><code>couponDiscount</code>·<code>couponPrice</code>·<code>finalPrice</code> — true+차이나면 쿠폰적용가 존재</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">등급할인·상품쿠폰·적립</td><td>확장 <code>musinsaExtractor</code> — 나의할인가 패널 항목별 (로그인)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">무신사머니 적립액</td><td>결제수단 적립 라디오 「머니 결제 시 n% 적립」 <b>금액</b> (실측 3.5% 다이아·등급별 상이)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">리뷰적립</td><td>시드 텍스트 500원 (화면 「후기적립 2,500」은 포토 포함 — 미사용)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">크롤 창</td><td>렌더 필요(로그인 혜택 패널) — URL 수만큼 창 · 표면가 API는 창없이 가능</td><td class="tr-cell"><span class="badge b-dom">렌더 창</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
 </tbody></table></div>
 <div class="pc-step"><div class="st">STEP 2 · 가공 게이트</div>
 <ol class="gate">
@@ -967,7 +967,7 @@
 <li>삼성카드 10% 적립·첫결제 할인 = 전용카드·1회성 → <b>제외</b> · N페이 없음</li>
 </ol></div>
 <div class="pc-step"><div class="st">STEP 3 · 계산 순서</div>
-<div class="calc">salePrice −후기 500 −등급할인(크롤값) −상품쿠폰(게이트 통과분) → 결제 택1: <b>무신사머니 적립 vs 현대카드 2.73% 큰 쪽</b> <span class="badge t-ok">✅</span><span class="memo">현대카드 플로어 방식으로 구현 — 무신사머니가 잡히면 플로어 비활성, 큰 쪽이 남는다. 핀 = <code>tests/pricing/test_card_candidates.py</code>(결제수단 동시 등장 금지)·<code>test_hyundai_floor_all_sources.py</code> §3-3</span> · 경유 축 없음</div></div>
+<div class="calc">salePrice −후기 500 −등급할인(크롤값) −상품쿠폰(게이트 통과분) → 결제 택1: <b>무신사머니 적립 vs 현대카드 2.73% 큰 쪽</b> <span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span><span class="memo">현대카드 플로어 방식으로 구현 — 무신사머니가 잡히면 플로어 비활성, 큰 쪽이 남는다. 핀 = <code>tests/pricing/test_card_candidates.py</code>(결제수단 동시 등장 금지)·<code>test_hyundai_floor_all_sources.py</code> §3-3</span> · 경유 축 없음</div></div>
 </div>
 
 <!-- 4. SSF -->
@@ -975,12 +975,12 @@
 <div class="pc-h"><span class="nm">4. SSF샵</span><span class="dm">ssfshop.com · 7/22~23 실측 (빈폴 포함)</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집 — 무로그인 raw HTML 하나로</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td><code>em.price</code> (없으면 originPrice)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">다운로드 쿠폰</td><td>「쿠폰다운」 버튼 영역 (상품별 — 실물: 빈폴 있음·르무통 없음)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">멤버십포인트</td><td>「멤버십포인트 NP」 정규식 — 0.5~5% 상품별 (실측 599P=0.5% · 6,616P=5%)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">기프트포인트</td><td><code>GIFT_POINT_PATTERN</code> 정규식 — 활성 시만 노출·변동값</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">리뷰적립</td><td>시드 텍스트 200원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">크롤 창</td><td>확장 서비스워커 직접 fetch(무로그인 raw HTML) — 창 0개</td><td class="tr-cell"><span class="badge b-seed">창없이</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">표면노출가</td><td><code>em.price</code> (없으면 originPrice)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">다운로드 쿠폰</td><td>「쿠폰다운」 버튼 영역 (상품별 — 실물: 빈폴 있음·르무통 없음)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">멤버십포인트</td><td>「멤버십포인트 NP」 정규식 — 0.5~5% 상품별 (실측 599P=0.5% · 6,616P=5%)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">기프트포인트</td><td><code>GIFT_POINT_PATTERN</code> 정규식 — 활성 시만 노출·변동값</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">리뷰적립</td><td>시드 텍스트 200원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">크롤 창</td><td>확장 서비스워커 직접 fetch(무로그인 raw HTML) — 창 0개</td><td class="tr-cell"><span class="badge b-seed">창없이</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
 </tbody></table></div>
 <div class="pc-step"><div class="st">STEP 2 · 가공 게이트</div>
 <ol class="gate">
@@ -997,12 +997,12 @@
 <div class="pc-h"><span class="nm">5. 롯데온</span><span class="dm">lotteon.com · 7/22~23 실측 (나이키 카드할인 상품 포함)</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집 — 확장·로그인</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td>「최대 할인혜택 적용」 후 나의 혜택가 — 확장 <code>lotteonExtractor</code>(0.7.55+)가 <code>pbf.lotteon.com</code> <code>qtyChangeFavorInfoList</code> 를 <b><code>aplyBestPrcChk:"Y"</code></b>(=사이트 「최대 할인혜택 적용하기」와 같은 경로)로 호출 → <code>orderDcAplyTotAmt</code>(폴백 <code>favor.totAmt</code>) · 보조정규식 <code>나의 혜택가[^\d]*([\d,]+)</code>(1,000원 하한 가드)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">혜택 구성 항목별</td><td>혜택변경 패널 — 스토어 즉시할인·롯데ON n%·오너스 1% 금액별 노출 (실측 검산 일치) · 수집 = <code>lotteon_card_discounts</code>[{label,amount,rate}]·<code>lotteon_store_discount</code> (서버 화이트리스트 <code>sources/service.py:643-645</code>)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">카드 즉시할인 목록</td><td>패널 카드명+금액 (실물: 롯데카드 5% −7,450·카카오페이머니 5% — 비로그인에도 노출)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 구조 실증</span></td></tr>
-<tr><td class="item">N쇼핑 제휴할인</td><td>가격 구성의 「제휴할인」 항목 — 경유 시 <b>자동 반영</b>(별도 네이버 표시 없음, 7/23 사장님 확정) · 존재 여부+금액 수집</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 확정</span></td></tr>
-<tr><td class="item">적립·리뷰</td><td>시드: 오너스 0.5%+L.POINT 0.05%(실측 652P=0.55% 일치) · 리뷰 50원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">크롤 창</td><td>렌더 필요 — URL 수만큼 창(로그인 쿠키로 pbf 호출) · WAF로 밖에서 직접 fetch 불가</td><td class="tr-cell"><span class="badge b-dom">렌더 창</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">표면노출가</td><td>「최대 할인혜택 적용」 후 나의 혜택가 — 확장 <code>lotteonExtractor</code>(0.7.55+)가 <code>pbf.lotteon.com</code> <code>qtyChangeFavorInfoList</code> 를 <b><code>aplyBestPrcChk:"Y"</code></b>(=사이트 「최대 할인혜택 적용하기」와 같은 경로)로 호출 → <code>orderDcAplyTotAmt</code>(폴백 <code>favor.totAmt</code>) · 보조정규식 <code>나의 혜택가[^\d]*([\d,]+)</code>(1,000원 하한 가드)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">혜택 구성 항목별</td><td>혜택변경 패널 — 스토어 즉시할인·롯데ON n%·오너스 1% 금액별 노출 (실측 검산 일치) · 수집 = <code>lotteon_card_discounts</code>[{label,amount,rate}]·<code>lotteon_store_discount</code> (서버 화이트리스트 <code>sources/service.py:643-645</code>)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">카드 즉시할인 목록</td><td>패널 카드명+금액 (실물: 롯데카드 5% −7,450·카카오페이머니 5% — 비로그인에도 노출)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 구조 실증</span></td></tr>
+<tr><td class="item">N쇼핑 제휴할인</td><td>가격 구성의 「제휴할인」 항목 — 경유 시 <b>자동 반영</b>(별도 네이버 표시 없음, 7/23 사장님 확정) · 존재 여부+금액 수집</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 확정</span></td></tr>
+<tr><td class="item">적립·리뷰</td><td>시드: 오너스 0.5%+L.POINT 0.05%(실측 652P=0.55% 일치) · 리뷰 50원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">크롤 창</td><td>렌더 필요 — URL 수만큼 창(로그인 쿠키로 pbf 호출) · WAF로 밖에서 직접 fetch 불가</td><td class="tr-cell"><span class="badge b-dom">렌더 창</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
 </tbody></table></div>
 <div class="pc-step"><div class="st">STEP 2 · 가공 게이트</div>
 <ol class="gate">
@@ -1019,21 +1019,21 @@
 <!-- 6. SSG -->
 <div class="pc">
 <div class="pc-h"><span class="nm">6. SSG</span><span class="dm">ssg.com · 7/23 육안 3상품 (자동화=확장 크롤 유일)</span></div>
-<div class="pc-step"><div class="st">STEP 1 · 수집 — ⚠️외부 자동화 전 경로 차단 → 확장 크롤러만</div>
+<div class="pc-step"><div class="st">STEP 1 · 수집 — <i class="ph-light ph-warning" aria-hidden="true"></i>️외부 자동화 전 경로 차단 → 확장 크롤러만</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td><code>uitemObj</code> → 1순위 <code>bestAmt</code> · 2순위 <code>sellprc</code> (실측: 정가=bestAmt 상품도 존재)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">SSG MONEY</td><td><code>ssg_money_rate</code>·<code>amount</code>·<code>already_applied</code> (저장 화이트리스트 <code>service.py:432</code>)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">카드혜택가(청구)</td><td>노출 시만 파싱 (실측: 미노출 상품 → 현대 폴백)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">다운로드 쿠폰</td><td>「쿠폰보기」 레이어 — 실물: [제휴할인] SSG 5% 8,342원(=166,840×5%) · <b>경유 <code>ckwhere=</code>네이버값 URL로 접속</b> · <b>2026-07-23 구현 완료</b> — 레이어 <code>#store_modal_view_coupon_detail</code> → <code>div.dialog_group</code>(제목이 「다운로드 쿠폰」인 것만) → <code>div.dialog_coupon</code> 안 <code>.dialog_coupon_detail_tit</code>(라벨)·<code>.dialog_coupon_detail_price em</code>(금액). 코드 <code>ssg.py::_parse_download_coupons</code>·<code>pick_download_coupon</code>·<code>merge_coupon_fields</code>. <b>검산</b>: 즉시할인가 71,638 × 8% = <b>5,731</b> · × 5% = 3,581 — 사이트 표시 금액과 <b>원 단위까지 일치</b>(두 장 모두). 값은 <b>요율</b>로 실어 표면가가 바뀌어도 맞게 재계산. ⚠️여러 장이면 <b>큰 쪽 1장만</b>(동시 적용 여부는 주문서에서만 확정 — 아이몰 P31 교훈) · 「적용 중인 쿠폰」 그룹은 선반영이라 <b>안 읽음</b> · 쓱클럽 제외. 라벨의 「제휴」로 엔진이 경유 축 자동 편입 → OK캐시백과 택1(실측: 5,731 vs 캐시백 1,432 → 쿠폰 채택)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅ 실측</span></td></tr>
-<tr><td class="item">리뷰적립</td><td>시드 텍스트 50원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">크롤 창</td><td>WAF(Sec-Fetch 차단) → <b>ssg.com 도메인 탭 1개</b>에서 same-origin fetch(렌더 없음) · URL 여러 개여도 탭 1개</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">표면노출가</td><td><code>uitemObj</code> → 1순위 <code>bestAmt</code> · 2순위 <code>sellprc</code> (실측: 정가=bestAmt 상품도 존재)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">SSG MONEY</td><td><code>ssg_money_rate</code>·<code>amount</code>·<code>already_applied</code> (저장 화이트리스트 <code>service.py:432</code>)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">카드혜택가(청구)</td><td>노출 시만 파싱 (실측: 미노출 상품 → 현대 폴백)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">다운로드 쿠폰</td><td>「쿠폰보기」 레이어 — 실물: [제휴할인] SSG 5% 8,342원(=166,840×5%) · <b>경유 <code>ckwhere=</code>네이버값 URL로 접속</b> · <b>2026-07-23 구현 완료</b> — 레이어 <code>#store_modal_view_coupon_detail</code> → <code>div.dialog_group</code>(제목이 「다운로드 쿠폰」인 것만) → <code>div.dialog_coupon</code> 안 <code>.dialog_coupon_detail_tit</code>(라벨)·<code>.dialog_coupon_detail_price em</code>(금액). 코드 <code>ssg.py::_parse_download_coupons</code>·<code>pick_download_coupon</code>·<code>merge_coupon_fields</code>. <b>검산</b>: 즉시할인가 71,638 × 8% = <b>5,731</b> · × 5% = 3,581 — 사이트 표시 금액과 <b>원 단위까지 일치</b>(두 장 모두). 값은 <b>요율</b>로 실어 표면가가 바뀌어도 맞게 재계산. <i class="ph-light ph-warning" aria-hidden="true"></i>️여러 장이면 <b>큰 쪽 1장만</b>(동시 적용 여부는 주문서에서만 확정 — 아이몰 P31 교훈) · 「적용 중인 쿠폰」 그룹은 선반영이라 <b>안 읽음</b> · 쓱클럽 제외. 라벨의 「제휴」로 엔진이 경유 축 자동 편입 → OK캐시백과 택1(실측: 5,731 vs 캐시백 1,432 → 쿠폰 채택)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 실측</span></td></tr>
+<tr><td class="item">리뷰적립</td><td>시드 텍스트 50원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">크롤 창</td><td>WAF(Sec-Fetch 차단) → <b>ssg.com 도메인 탭 1개</b>에서 same-origin fetch(렌더 없음) · URL 여러 개여도 탭 1개</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
 </tbody></table></div>
 <div class="pc-step"><div class="st">STEP 2 · 가공 게이트</div>
 <ol class="gate">
 <li>bestAmt = 즉시할인+MONEY 즉시할인 <b>선반영</b> · <code>already_applied=True</code>면 MONEY <b>재차감 금지</b></li>
 <li>MONEY 2분기: ①상시=항상 차감 / ②충전결제=<b>rate≥3%만</b> (실측: 충전 1.5% → 미차감 정상)</li>
-<li>청구할인+제휴할인 <b>동시 적용 가정</b> <span class="badge t-can">🔶 주문서 확인 대기</span> · <b>양쪽 다 수집·배선 완료</b>(청구할인 = <code>api_benefits.py:854-946</code> 조건부 정액 + 현대카드 fallback 자동 비활성 / 제휴할인 = 2026-07-23 레이어 파서 구현). 엔진 실행 실측(71,638 상품): 제휴 8% −5,731 → 현대카드 2.73% −1,799 → <b>64,108</b> 으로 <b>둘 다 차감</b>된다. 남은 건 이게 실제 주문서와 같은지 <b>1건 확인</b>뿐 · N페이 ✗ · 쓱클럽·전용카드 = 제외</li>
-<li>⚠️셀러 상품 배송비 별도(3,500원 실측) — 배송비 축은 본 스펙 범위 밖(기록)</li>
+<li>청구할인+제휴할인 <b>동시 적용 가정</b> <span class="badge t-can"><i class="ph-light ph-diamond" aria-hidden="true"></i> 주문서 확인 대기</span> · <b>양쪽 다 수집·배선 완료</b>(청구할인 = <code>api_benefits.py:854-946</code> 조건부 정액 + 현대카드 fallback 자동 비활성 / 제휴할인 = 2026-07-23 레이어 파서 구현). 엔진 실행 실측(71,638 상품): 제휴 8% −5,731 → 현대카드 2.73% −1,799 → <b>64,108</b> 으로 <b>둘 다 차감</b>된다. 남은 건 이게 실제 주문서와 같은지 <b>1건 확인</b>뿐 · N페이 ✗ · 쓱클럽·전용카드 = 제외</li>
+<li><i class="ph-light ph-warning" aria-hidden="true"></i>️셀러 상품 배송비 별도(3,500원 실측) — 배송비 축은 본 스펙 범위 밖(기록)</li>
 </ol></div>
 <div class="pc-step"><div class="st">STEP 3 · 계산 순서</div>
 <div class="calc">bestAmt −쿠폰 −MONEY적립 −카드혜택가(청구) −리뷰 50 → ×현대카드 2.73% × 경유{일반 / N쇼핑 ckwhere 쿠폰 / OK캐시백 2.0%×<b>1.0</b>(전액 예외)}</div></div>
@@ -1044,24 +1044,24 @@
 <div class="pc-h"><span class="nm">7. Hmall</span><span class="dm">hmall.com · 7/22~23 실측+주문서 검산 (자동 수집 실증)</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td><code>__NEXT_DATA__</code> → <code>props.pageProps.respData.itemPtc.bbprc</code> · ⚠️<code>sellPrc</code>=정가 둔갑·옵션루프 <code>bbprc:0</code> 함정</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">카드 즉시할인 목록</td><td><b>창 없이 API</b> — <code>item-ptc/item-prmo-lst?slitmCd=</code> → <code>crdImdtDcPrmoList[]</code>(<code>crdcNm</code>·<code>famtFxrtVal</code>·<code>strtVal</code>) · ★쿠키 <code>uh2oxid</code>를 헤더로도 전송(쿠키만=401) · 기간·노출·PC적용 가드로 만료분 차단</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">네이버가격비교</td><td><b>NaPm URL 1회 방문(쿠키) 선행</b> → 할인내역 「네이버가격비교」 금액 — 파라미터 없는 재접속에도 유지 실증 · <b>⚠️ 상품 URL 뒤에 파라미터만 붙이는 건 효과 없다</b>(2026-07-23 실측: <code>ckwhere=naver</code>·utm 세트를 붙여도 SSR <code>itemPtc</code> 의 <code>bbprc</code> 119,900 불변 · <code>tcDcInf</code> null). 켜는 법은 <b>NaPm 링크 1회 방문</b>뿐 — SSG 식 URL 파라미터 방식이 아니다</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 자동 실증</span></td></tr>
-<tr><td class="item">H.Point 적립</td><td><code>itemPtc</code> 적립 필드 (실측 140P=0.1% · 이벤트 5% 有)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">VIP라운지·상품쿠폰</td><td>확장 <code>navGrab</code>(post-JS DOM·로그인) · <b>현재 미구현</b>: 크롤러·확장 어디에도 VIP라운지 수집 코드 없음 (2026-07-23 전수 grep 0건 — Hmall 은 카드 즉시할인 <code>item-prmo-lst</code> 까지만 구현, 확장 0.7.59)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-can">🔶 미구현 — 수집 코드 없음</span></td></tr>
-<tr><td class="item">리뷰적립</td><td>시드 텍스트 100원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">크롤 창</td><td>표면가·적립 = 서비스워커 fetch(창 0) / VIP·쿠폰·카드는 로그인 navGrab 창</td><td class="tr-cell"><span class="badge b-seed">창없이</span><span class="badge b-dom">혜택 창</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">표면노출가</td><td><code>__NEXT_DATA__</code> → <code>props.pageProps.respData.itemPtc.bbprc</code> · <i class="ph-light ph-warning" aria-hidden="true"></i>️<code>sellPrc</code>=정가 둔갑·옵션루프 <code>bbprc:0</code> 함정</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">카드 즉시할인 목록</td><td><b>창 없이 API</b> — <code>item-ptc/item-prmo-lst?slitmCd=</code> → <code>crdImdtDcPrmoList[]</code>(<code>crdcNm</code>·<code>famtFxrtVal</code>·<code>strtVal</code>) · ★쿠키 <code>uh2oxid</code>를 헤더로도 전송(쿠키만=401) · 기간·노출·PC적용 가드로 만료분 차단</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">네이버가격비교</td><td><b>NaPm URL 1회 방문(쿠키) 선행</b> → 할인내역 「네이버가격비교」 금액 — 파라미터 없는 재접속에도 유지 실증 · <b><i class="ph-light ph-warning" aria-hidden="true"></i>️ 상품 URL 뒤에 파라미터만 붙이는 건 효과 없다</b>(2026-07-23 실측: <code>ckwhere=naver</code>·utm 세트를 붙여도 SSR <code>itemPtc</code> 의 <code>bbprc</code> 119,900 불변 · <code>tcDcInf</code> null). 켜는 법은 <b>NaPm 링크 1회 방문</b>뿐 — SSG 식 URL 파라미터 방식이 아니다</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 자동 실증</span></td></tr>
+<tr><td class="item">H.Point 적립</td><td><code>itemPtc</code> 적립 필드 (실측 140P=0.1% · 이벤트 5% 有)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">VIP라운지·상품쿠폰</td><td>확장 <code>navGrab</code>(post-JS DOM·로그인) · <b>현재 미구현</b>: 크롤러·확장 어디에도 VIP라운지 수집 코드 없음 (2026-07-23 전수 grep 0건 — Hmall 은 카드 즉시할인 <code>item-prmo-lst</code> 까지만 구현, 확장 0.7.59)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-can"><i class="ph-light ph-diamond" aria-hidden="true"></i> 미구현 — 수집 코드 없음</span></td></tr>
+<tr><td class="item">리뷰적립</td><td>시드 텍스트 100원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">크롤 창</td><td>표면가·적립 = 서비스워커 fetch(창 0) / VIP·쿠폰·카드는 로그인 navGrab 창</td><td class="tr-cell"><span class="badge b-seed">창없이</span><span class="badge b-dom">혜택 창</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
 </tbody></table></div>
 <div class="pc-step"><div class="st">STEP 2 · 가공 게이트</div>
 <ol class="gate">
-<li>bbprc = 깜짝할인 선반영·<b>카드 미포함</b> ✅ — sellPrc 사용 금지</li>
+<li>bbprc = 깜짝할인 선반영·<b>카드 미포함</b> <i class="ph-light ph-check-circle" aria-hidden="true"></i> — sellPrc 사용 금지</li>
 <li>할인내역에 「네이버가격비교」 항목 존재 = <b>선반영 → naver_via 재차감 금지</b> (이중차감 판별 게이트)</li>
-<li>쿠폰·네이버·카드 5% = <b>전부 중첩 가능</b> (주문서 검산 ②) · 카드 즉시할인 = <b>보유 카드만</b> 결제 경로 후보 → 현대카드 2.73%와 <b>택1(큰 쪽)</b> · <code>min_order</code> 미달 카드 제외 · 카드 행 주입 시에만 플로어 선태깅(안 하면 이중차감) <span class="badge t-ok">✅</span></li>
+<li>쿠폰·네이버·카드 5% = <b>전부 중첩 가능</b> (주문서 검산 ②) · 카드 즉시할인 = <b>보유 카드만</b> 결제 경로 후보 → 현대카드 2.73%와 <b>택1(큰 쪽)</b> · <code>min_order</code> 미달 카드 제외 · 카드 행 주입 시에만 플로어 선태깅(안 하면 이중차감) <span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></li>
 <li>「바로접속 OFF」 트레이드오프: 경유=네이버 할인 ↔ 바로접속=H.Point 리워드·멤버십 쿠폰 (<b>양자택일</b> — 경유 시 리워드류 제외)</li>
 <li>현대카드 Ed2 7%·H포인트페이 = 전용·보류</li>
 </ol></div>
 <div class="pc-step"><div class="st">STEP 3 · 계산 순서</div>
-<div class="calc">bbprc −쿠폰 −H.Point −리뷰 100 → 카드 경로{당일 즉시할인 카드(보유 가드·최소결제 충족) vs 현대 2.73%+N페이 1%} ✅구현 × 경유{일반 / N쇼핑(선반영 게이트) / OK캐시백 2.7%×0.9 <span class="badge t-ok">✅</span><span class="memo">엔진 <b>상수 주입</b>으로 구현 완료 — <code>api_benefits.py:1088</code> <code>apply_mode='cashback'</code>·<code>base_ratio=0.9</code>(적립율 0.027 원본 유지). 핀 = <code>tests/pricing/test_catalog_source_benefits.py</code>. ★DB 시드(<code>OK_CASHBACK_SEED</code>)에 없는 건 <b>정상</b> — <code>key:hmall</code> 문자열 source_id 라 템플릿을 못 붙여 상수로 넣은 것이고, <code>supports_benefit_templates</code> 가드가 나중에 템플릿이 생기면 상수 주입을 자동 중단해 이중차감을 막는다</span>}</div></div>
+<div class="calc">bbprc −쿠폰 −H.Point −리뷰 100 → 카드 경로{당일 즉시할인 카드(보유 가드·최소결제 충족) vs 현대 2.73%+N페이 1%} <i class="ph-light ph-check-circle" aria-hidden="true"></i>구현 × 경유{일반 / N쇼핑(선반영 게이트) / OK캐시백 2.7%×0.9 <span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span><span class="memo">엔진 <b>상수 주입</b>으로 구현 완료 — <code>api_benefits.py:1088</code> <code>apply_mode='cashback'</code>·<code>base_ratio=0.9</code>(적립율 0.027 원본 유지). 핀 = <code>tests/pricing/test_catalog_source_benefits.py</code>. ★DB 시드(<code>OK_CASHBACK_SEED</code>)에 없는 건 <b>정상</b> — <code>key:hmall</code> 문자열 source_id 라 템플릿을 못 붙여 상수로 넣은 것이고, <code>supports_benefit_templates</code> 가드가 나중에 템플릿이 생기면 상수 주입을 자동 중단해 이중차감을 막는다</span>}</div></div>
 </div>
 
 <!-- 8. 아이몰 -->
@@ -1069,38 +1069,38 @@
 <div class="pc-h"><span class="nm">8. 롯데아이몰</span><span class="dm">lotteimall.com · 7/22~23 실측+주문서 검산+쿠폰함 자동 수집+PDP 다운로드 쿠폰 택1 실증</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td>dataBenefit <code>commonDiscountObj.benefitPrc</code>(라벨 <code>benefitPrcLabelTxt</code>) <b>+ 카드혜택 금액 가산</b>(크롤러 기구현) — 「최대할인가」 그대로 사용 금지</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">할인 구성</td><td><code>fullDiscountObj.discountList[]</code> (<code>discountNm</code>·<code>discountAmount</code> — 「쿠폰할인」 라벨 실측)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">적립</td><td><code>lPointObj.lMbrPoint</code>(실측 599P=0.5%)·<code>lclubYn</code></td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">보유 플러스쿠폰<br>(네이버 포함)</td><td><code>GET /mypage/searchCouponList.lotte?coupon_type=P&pageIdx=N</code> (로그인·15p) — 쿠폰명(요율%+카테고리 접미사)·매수·기간 · 실측: 「■ 네이버 7%·3%_잡화」 수집 성공 · <b>⚠️ 네이버 쿠폰은 URL 파라미터로 안 켜진다</b>(2026-07-23 실측: <code>ckwhere=naver</code>·utm 세트를 붙여도 PDP 동일 — 「네이버」 0건). <b>발급형</b>이라 계정 쿠폰함에 받아둬야 잡힌다. 참고로 PDP 다운로드 쿠폰(「[르무통] 5%」)은 파라미터 <b>없이도</b> 원본 HTML 에 나온다(재확인)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 자동 실증</span></td></tr>
-<tr><td class="item">상품별 쿠폰 적용 여부</td><td>상품 카테고리(breadcrumb) ↔ 쿠폰 접미사(<code>_의류</code>·<code>_잡화</code>·<code>_백화점N</code>) 매핑 — <b>100% 확정은 주문서뿐</b></td><td class="tr-cell">—</td><td class="tr-cell"><span class="badge t-est">⚠️ 추정</span></td></tr>
-<tr><td class="item">PDP 다운로드 쿠폰 <span class="badge t-ok">✅</span></td><td><code>div.layer_down_coupon .coupon_list li</code> → <code>.name</code>·<code>.price</code>/<code>.per</code>(%=정률·그 외=정액) · ★<b>확장이 이미 받는 원본 SSR HTML 안</b>이라 <b>추가 호출 0</b> (<code>crawlers/lotteon.py::_parse_download_coupons</code>) · 실측: 「[르무통] 5% 다운로드 쿠폰」 · <b>들어가는 칸 = 「플러스 할인쿠폰」</b>(주문서 확인)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅ 주문서 실측</span></td></tr>
-<tr><td class="item">쿠폰 칸(중복) 판별</td><td>주문서 hidden: <code>cpn_crd_dc_amt_12</code>=<b>할인쿠폰</b>(구분코드 12) / <code>cpn_crd_dc_amt_dup_30</code>=<b>중복할인</b>(코드 <b>30</b> — 플러스쿠폰) · 플래그 <code>dup_cpn_enable</code>·<code>dup_cpn_cnt</code> · 쿠폰함 <code>coupon_type=P</code> 적재로도 확인(실측 1,557→<b>1,558</b>매) · 🔴<b>PDP 엔 종류 코드 없음</b>(<code>goDownloadCoupon('P')</code> 의 P 는 <b>다운로드 방식</b>이지 쿠폰 종류가 아님)</td><td class="tr-cell"><span class="badge b-dom">주문서·쿠폰함</span></td><td class="tr-cell"><span class="badge t-ok">✅ 실측</span></td></tr>
-<tr><td class="item">리뷰적립</td><td>시드 별점 100원 (L.CLUB 기준 — 기준 실측: 일반 50/200/300·L.CLUB 100/300/600)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">크롤 창</td><td>WAF 403 → <b>도메인 탭 1개</b> same-origin fetch(간헐 실패 시 렌더 창 폴백) · 쿠폰함은 로그인 페이지 fetch</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">표면노출가</td><td>dataBenefit <code>commonDiscountObj.benefitPrc</code>(라벨 <code>benefitPrcLabelTxt</code>) <b>+ 카드혜택 금액 가산</b>(크롤러 기구현) — 「최대할인가」 그대로 사용 금지</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">할인 구성</td><td><code>fullDiscountObj.discountList[]</code> (<code>discountNm</code>·<code>discountAmount</code> — 「쿠폰할인」 라벨 실측)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">적립</td><td><code>lPointObj.lMbrPoint</code>(실측 599P=0.5%)·<code>lclubYn</code></td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">보유 플러스쿠폰<br>(네이버 포함)</td><td><code>GET /mypage/searchCouponList.lotte?coupon_type=P&pageIdx=N</code> (로그인·15p) — 쿠폰명(요율%+카테고리 접미사)·매수·기간 · 실측: 「■ 네이버 7%·3%_잡화」 수집 성공 · <b><i class="ph-light ph-warning" aria-hidden="true"></i>️ 네이버 쿠폰은 URL 파라미터로 안 켜진다</b>(2026-07-23 실측: <code>ckwhere=naver</code>·utm 세트를 붙여도 PDP 동일 — 「네이버」 0건). <b>발급형</b>이라 계정 쿠폰함에 받아둬야 잡힌다. 참고로 PDP 다운로드 쿠폰(「[르무통] 5%」)은 파라미터 <b>없이도</b> 원본 HTML 에 나온다(재확인)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 자동 실증</span></td></tr>
+<tr><td class="item">상품별 쿠폰 적용 여부</td><td>상품 카테고리(breadcrumb) ↔ 쿠폰 접미사(<code>_의류</code>·<code>_잡화</code>·<code>_백화점N</code>) 매핑 — <b>100% 확정은 주문서뿐</b></td><td class="tr-cell">—</td><td class="tr-cell"><span class="badge t-est"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 추정</span></td></tr>
+<tr><td class="item">PDP 다운로드 쿠폰 <span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td><td><code>div.layer_down_coupon .coupon_list li</code> → <code>.name</code>·<code>.price</code>/<code>.per</code>(%=정률·그 외=정액) · ★<b>확장이 이미 받는 원본 SSR HTML 안</b>이라 <b>추가 호출 0</b> (<code>crawlers/lotteon.py::_parse_download_coupons</code>) · 실측: 「[르무통] 5% 다운로드 쿠폰」 · <b>들어가는 칸 = 「플러스 할인쿠폰」</b>(주문서 확인)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 주문서 실측</span></td></tr>
+<tr><td class="item">쿠폰 칸(중복) 판별</td><td>주문서 hidden: <code>cpn_crd_dc_amt_12</code>=<b>할인쿠폰</b>(구분코드 12) / <code>cpn_crd_dc_amt_dup_30</code>=<b>중복할인</b>(코드 <b>30</b> — 플러스쿠폰) · 플래그 <code>dup_cpn_enable</code>·<code>dup_cpn_cnt</code> · 쿠폰함 <code>coupon_type=P</code> 적재로도 확인(실측 1,557→<b>1,558</b>매) · <i class="ph-light ph-circle" aria-hidden="true"></i><b>PDP 엔 종류 코드 없음</b>(<code>goDownloadCoupon('P')</code> 의 P 는 <b>다운로드 방식</b>이지 쿠폰 종류가 아님)</td><td class="tr-cell"><span class="badge b-dom">주문서·쿠폰함</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 실측</span></td></tr>
+<tr><td class="item">리뷰적립</td><td>시드 별점 100원 (L.CLUB 기준 — 기준 실측: 일반 50/200/300·L.CLUB 100/300/600)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
+<tr><td class="item">크롤 창</td><td>WAF 403 → <b>도메인 탭 1개</b> same-origin fetch(간헐 실패 시 렌더 창 폴백) · 쿠폰함은 로그인 페이지 fetch</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span></td></tr>
 </tbody></table></div>
 <div class="pc-step"><div class="st">STEP 2 · 가공 게이트</div>
 <ol class="gate">
 <li>즉석쿠폰(discountList 「쿠폰할인」) = <b>benefitPrc에 선반영 → 차감 금지</b></li>
 <li><b>택1 공식 규칙</b>(쿠폰함 문구): 할인쿠폰/카드할인/TV쇼핑할인 중 1개 · 플러스/즉시적립할인 중 1개</li>
-<li>🔴 <b>다운로드 쿠폰은 「플러스 할인쿠폰」 칸</b> — 표면가에 반영된 「할인쿠폰」과 <b>동시 적용</b>, 기준은 <b>표면가</b>. 주문서 실측: 149,000 −할인쿠폰 29,100(=119,900) −<b>플러스 6,000</b> = <b>113,900</b>. 택1은 <b>경유 「네이버 N%플러스할인쿠폰」과의 사이</b>에서(쿠폰함: 플러스/즉시적립 1개) — 큰 쪽 1장. 🔒<b>사장님 확정</b>: 「플러스쿠폰은 <b>일반 쿠폰과 중복은 되지만</b> 플러스쿠폰을 <b>여러 개 쓰는 건 안 된다</b>」 (쿠폰함 문구 「선택할인에 <b>더하여</b> 추가할인이 가능한 쿠폰」과 일치). 📐<b>수집·반영 분리</b>: 레이어 쿠폰은 <b>전량 저장</b>(근거 보존)하고, <b>선택은 계산 단계</b>에서 — 플러스 칸 후보 풀 {다운로드 쿠폰 전량} ∪ {경유 네이버 플러스쿠폰} 중 <b>가장 큰 1장만</b>. ⚠️1차 구현 때 PDP 만 보고 「할인쿠폰 칸」으로 오판 → <b>칸 판정은 주문서에서</b> (§5 P31)</li>
+<li><i class="ph-light ph-circle" aria-hidden="true"></i> <b>다운로드 쿠폰은 「플러스 할인쿠폰」 칸</b> — 표면가에 반영된 「할인쿠폰」과 <b>동시 적용</b>, 기준은 <b>표면가</b>. 주문서 실측: 149,000 −할인쿠폰 29,100(=119,900) −<b>플러스 6,000</b> = <b>113,900</b>. 택1은 <b>경유 「네이버 N%플러스할인쿠폰」과의 사이</b>에서(쿠폰함: 플러스/즉시적립 1개) — 큰 쪽 1장. <i class="ph-light ph-lock" aria-hidden="true"></i><b>사장님 확정</b>: 「플러스쿠폰은 <b>일반 쿠폰과 중복은 되지만</b> 플러스쿠폰을 <b>여러 개 쓰는 건 안 된다</b>」 (쿠폰함 문구 「선택할인에 <b>더하여</b> 추가할인이 가능한 쿠폰」과 일치). <i class="ph-light ph-ruler" aria-hidden="true"></i><b>수집·반영 분리</b>: 레이어 쿠폰은 <b>전량 저장</b>(근거 보존)하고, <b>선택은 계산 단계</b>에서 — 플러스 칸 후보 풀 {다운로드 쿠폰 전량} ∪ {경유 네이버 플러스쿠폰} 중 <b>가장 큰 1장만</b>. <i class="ph-light ph-warning" aria-hidden="true"></i>️1차 구현 때 PDP 만 보고 「할인쿠폰 칸」으로 오판 → <b>칸 판정은 주문서에서</b> (§5 P31)</li>
 <li>플러스쿠폰 적용 = <b>카테고리 매핑 추정 — 애매하면 안 깎음</b> + 실구매 주문서 실적용 쿠폰 피드백 배선(보정)</li>
 <li>청구할인(실측 현대·삼성 5%) = <b>배송비 포함 최종결제금액 기준</b> · N페이 ✗ · L.PAY류 보류</li>
 </ol></div>
 <div class="pc-step"><div class="st">STEP 3 · 계산 순서</div>
-<div class="calc">카드미적용가 −플러스쿠폰 칸{다운로드 쿠폰 <b>vs</b> 경유 네이버 플러스쿠폰 — <b>큰 쪽 1장</b>}  −리뷰 100 −L.CLUB 적립(<b>정률·쿠폰 차감 후 기준</b>) → 청구할인 경로(정률·보유카드) × 경유{일반 / N쇼핑 발급쿠폰 / OK캐시백 2.5%×0.9 <span class="badge t-ok">✅</span><span class="memo">엔진 <b>상수 주입</b>으로 구현 완료 — <code>api_benefits.py:1149</code> <code>apply_mode='cashback'</code>·<code>base_ratio=0.9</code>. 핀 = <code>test_catalog_source_benefits.py</code>. 네이버페이는 사장님 제외 확정이라 아이몰엔 미주입</span>}</div></div>
+<div class="calc">카드미적용가 −플러스쿠폰 칸{다운로드 쿠폰 <b>vs</b> 경유 네이버 플러스쿠폰 — <b>큰 쪽 1장</b>}  −리뷰 100 −L.CLUB 적립(<b>정률·쿠폰 차감 후 기준</b>) → 청구할인 경로(정률·보유카드) × 경유{일반 / N쇼핑 발급쿠폰 / OK캐시백 2.5%×0.9 <span class="badge t-ok"><i class="ph-light ph-check-circle" aria-hidden="true"></i></span><span class="memo">엔진 <b>상수 주입</b>으로 구현 완료 — <code>api_benefits.py:1149</code> <code>apply_mode='cashback'</code>·<code>base_ratio=0.9</code>. 핀 = <code>test_catalog_source_benefits.py</code>. 네이버페이는 사장님 제외 확정이라 아이몰엔 미주입</span>}</div></div>
 </div>
 
 </div>
 
-<div class="foot">확인해 주실 것: ① 카드마다 수집→가공→계산 3단이 위에서 아래로 읽히는지 ② 신뢰 배지(✅🔶⚠️❓)만 봐도 프로그램이 뭘 믿어도 되는지 구분되는지 ③ 검산 영수증 숫자가 실측과 같은지 · 미실측(❓) 0건 — 롯데온 N쇼핑도 사장님 확정(제휴할인 자동 반영)으로 해소</div>
+<div class="foot">확인해 주실 것: ① 카드마다 수집→가공→계산 3단이 위에서 아래로 읽히는지 ② 신뢰 배지(<i class="ph-light ph-check-circle" aria-hidden="true"></i><i class="ph-light ph-diamond" aria-hidden="true"></i><i class="ph-light ph-warning" aria-hidden="true"></i>️<i class="ph-light ph-question" aria-hidden="true"></i>)만 봐도 프로그램이 뭘 믿어도 되는지 구분되는지 ③ 검산 영수증 숫자가 실측과 같은지 · 미실측(<i class="ph-light ph-question" aria-hidden="true"></i>) 0건 — 롯데온 N쇼핑도 사장님 확정(제휴할인 자동 반영)으로 해소</div>
       </div>
     </div>
 
     <!-- 4 매트릭스 로그 (한눈 + 셀/매트릭스/로그 표) -->
     <div class="sec" id="s4">
       <div class="lead"><span class="klabel">핵심</span><span class="sum">셀·매트릭스 보기는 같은 데이터 한 벌(window.DATA) 공유, 로그만 별도 실시간.</span></div>
-      <div class="card"><span class="ti">📐 데이터 4층</span>
+      <div class="card"><span class="ti"><i class="ph-light ph-ruler" aria-hidden="true"></i> 데이터 4층</span>
         <div class="erow" style="margin-top:4px;">
           <span class="elabel">원천·DB</span>표면가 <span class="mono">last_price</span> · 재고 <span class="mono">current_stock</span> · 혜택 <span class="mono">dynamic_benefits_json</span><br>
           <span class="elabel">계산·fx</span>표면 − 혜택 = <span class="ink">final_price</span> · <span class="mono">api_benefits.py:496</span><br>
@@ -1108,19 +1108,19 @@
           <span class="elabel">표시</span>셀 · 매트릭스 보기 | 크롤 로그(별도 실시간)</div></div>
       <table class="dt">
         <tr><th style="width:96px;">요소</th><th>위치</th><th>형태</th><th>호출</th></tr>
-        <tr><td class="el">📍 셀</td><td>_matrix_v3.html ~5691</td><td><b>큰 숫자=최종매입가</b> + 작게 판매가 + 재고 + fx뱃지 + ★최저</td><td>loadMatrix→window.DATA · fx=후보별 키</td></tr>
-        <tr><td class="el">🔲 매트릭스 보기</td><td>render() 1269~</td><td>옵션 × 소싱처 격자 + 상태점(🟢🟠🔴⚪)</td><td>같은 window.DATA(추가 호출 없음)</td></tr>
-        <tr><td class="el">📊 로그</td><td>crawl_log.js · ext_bridge</td><td>진행바 + 소싱처 카드 + 표면가(취소선)·최종매입가(fx)</td><td>별도 실시간 background.js→moum-crawl-log</td></tr>
+        <tr><td class="el"><i class="ph-light ph-map-pin" aria-hidden="true"></i> 셀</td><td>_matrix_v3.html ~5691</td><td><b>큰 숫자=최종매입가</b> + 작게 판매가 + 재고 + fx뱃지 + ★최저</td><td>loadMatrix→window.DATA · fx=후보별 키</td></tr>
+        <tr><td class="el"><i class="ph-light ph-square" aria-hidden="true"></i> 매트릭스 보기</td><td>render() 1269~</td><td>옵션 × 소싱처 격자 + 상태점(<i class="ph-light ph-circle" aria-hidden="true"></i><i class="ph-light ph-circle" aria-hidden="true"></i><i class="ph-light ph-circle" aria-hidden="true"></i><i class="ph-light ph-circle" aria-hidden="true"></i>)</td><td>같은 window.DATA(추가 호출 없음)</td></tr>
+        <tr><td class="el"><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 로그</td><td>crawl_log.js · ext_bridge</td><td>진행바 + 소싱처 카드 + 표면가(취소선)·최종매입가(fx)</td><td>별도 실시간 background.js→moum-crawl-log</td></tr>
       </table>
-      <div class="card"><span class="ti">⭐ 완전한 B — 한 소싱처에 URL 여러 개</span>
+      <div class="card"><span class="ti"><i class="ph-light ph-star" aria-hidden="true"></i> 완전한 B — 한 소싱처에 URL 여러 개</span>
         <div class="detail">셀은 그중 <span class="ink">최종매입가가 가장 낮은 URL(후보)</span>을 골라 표시. <span class="ink">셀과 계산식은 반드시 같은 후보</span>를 써야 함(fx 단건에 <span class="mono">source_product_id</span> 첨부). 안 하면 셀 ≠ 계산식 = 단일 진실원천 위반.</div></div>
-      <div class="warn">⚠️ 최저 후보가 stale면 실제보다 싼 값 표시 → 폴백가 금지, best는 last_status≠error·재고있음만.</div>
+      <div class="warn"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 최저 후보가 stale면 실제보다 싼 값 표시 → 폴백가 금지, best는 last_status≠error·재고있음만.</div>
     </div>
 
     <!-- 5 에러이력 (각 그룹 맨 위 🛡️철칙 카드 + 에러, 동일 카드 템플릿) -->
     <div class="sec" id="s6">
       <div class="lead"><span class="klabel">핵심</span><span class="sum">방향 복귀 기준 4가지 + 과거 발생 에러 — 신규 추가·수정 전 먼저 확인.</span></div>
-      <div class="e3">🛑 <b>신규 소싱처 추가·크롤/저장 수정 전, 이 카탈로그부터 확인</b> — 같은 원인이 다른 소싱처에서 재발합니다. (자세한 분류·원칙·거버넌스는 아래 표와 <b>원문(MD)</b> 참고)</div>
+      <div class="e3"><i class="ph-light ph-stop-circle" aria-hidden="true"></i> <b>신규 소싱처 추가·크롤/저장 수정 전, 이 카탈로그부터 확인</b> — 같은 원인이 다른 소싱처에서 재발합니다. (자세한 분류·원칙·거버넌스는 아래 표와 <b>원문(MD)</b> 참고)</div>
       <div id="syncdash"></div>
     </div>
 
@@ -1149,7 +1149,7 @@
             <span class="win one">창 1개 · same-origin fetch</span> WAF(Sec-Fetch 차단)로 밖에서 못 부름 → <b>그 도메인 탭 1개</b>를 열고 그 안에서 same-origin fetch(렌더는 안 함). <b>SSG·롯데아이몰</b>. URL 여러 개여도 탭 1개서 동시 fetch.<br>
             <span class="win yes">창 N개 · 렌더</span> 값이 JS로 그려져야 생김(로그인 혜택 등) → 페이지를 실제로 <b>렌더</b>. <b>무신사·롯데온</b>. 실패 시 fetch형도 이 렌더로 폴백(자가보호).
           </div></div>
-        <div class="d"><b>가로 게이트(어느 순위든 적용):</b> 방화벽·게이트웨이(현대H몰 API 차단)·CORS → 한 단계 내림 / WAF·봇차단(SSG·롯데아이몰) → <b>도메인 탭 same-origin fetch</b>(창 1개)로 통과, 안 되면 렌더 창 폴백 / 로그인은 <b>혜택만</b> → 혜택만 확장 / 정량 비공개(무신사 정상재고·SSF 일반재고) → <b>999가 정답</b>(가짜 숫자 금지) / <b>수집 실패·파싱 실패 → 999 아닌 ⚪확인불가</b>(오버셀 방지).</div>
+        <div class="d"><b>가로 게이트(어느 순위든 적용):</b> 방화벽·게이트웨이(현대H몰 API 차단)·CORS → 한 단계 내림 / WAF·봇차단(SSG·롯데아이몰) → <b>도메인 탭 same-origin fetch</b>(창 1개)로 통과, 안 되면 렌더 창 폴백 / 로그인은 <b>혜택만</b> → 혜택만 확장 / 정량 비공개(무신사 정상재고·SSF 일반재고) → <b>999가 정답</b>(가짜 숫자 금지) / <b>수집 실패·파싱 실패 → 999 아닌 <i class="ph-light ph-circle" aria-hidden="true"></i>확인불가</b>(오버셀 방지).</div>
       </div></div>
       <div class="step"><div class="stepn">3</div><div class="sc"><div class="st">항목별 위치 추출 (재고 3단계 규칙 포함)<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">2 재고</span> + <span class="lk">3 가격</span></div></div></div>
       <div class="step"><div class="stepn">4</div><div class="sc"><div class="st">혜택 종합 — 여러 URL 교차분석<span class="tag">신설</span><span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 모든 URL=상시 / 일부=조건부 + 트리거</div></div></div>
@@ -1171,7 +1171,7 @@
           <tr><td class="el">B9</td><td>재고 센티넬 분기(필요 시)</td><td class="mono">api_pricing.py:196 _resolve_stock</td><td>특수 상한값이 '재고있음' 둔갑</td></tr>
         </table>
         <div class="d" style="margin-bottom:4px"><b>확장 4지점</b> <span style="color:var(--sub)">(심볼 기준 · 확장 v0.7.x churn 잦음)</span></div>
-        <div class="d" style="margin-bottom:4px;color:var(--red,#c0392b)"><b>⚠️ 실제 확장 = 데스크톱 로드본(v0.7.6)</b> · repo extension/(v0.4.3) 구버전 — 심볼 기준 인용</div>
+        <div class="d" style="margin-bottom:4px;color:var(--red,#c0392b)"><b><i class="ph-light ph-warning" aria-hidden="true"></i>️ 실제 확장 = 데스크톱 로드본(v0.7.6)</b> · repo extension/(v0.4.3) 구버전 — 심볼 기준 인용</div>
         <table class="dt" style="margin-bottom:8px">
           <tr><th style="width:40px">#</th><th>무엇</th><th>파일:심볼</th><th>비고</th></tr>
           <tr><td class="el">E1</td><td>도메인 권한</td><td class="mono">manifest.json:7 host_permissions</td><td>두 경로 모두 필수(없으면 접근 차단)</td></tr>
@@ -1182,10 +1182,10 @@
         <div class="d" style="margin-bottom:4px"><b>표시 배선 2지점</b> <span style="color:var(--sub)">(크롤·계산은 돼도 화면에 안 보이는 누락 차단)</span></div>
         <table class="dt" style="margin-bottom:8px">
           <tr><th style="width:40px">#</th><th>무엇</th><th>파일:심볼</th><th>안 하면 생기는 증상</th></tr>
-          <tr><td class="el">D1</td><td>전체크롤 위젯 라벨·순서</td><td class="mono">crawl_log.js orderedUrlCards · SOURCE_LABELS</td><td>✅(2026-06-28) 커스텀 소싱처(현대H몰·롯데아이몰) 진행카드·완료/성공/실패 합 누락 수정 — orderedUrlCards가 b.sources 의 커스텀 베이스도 순회 + SOURCE_LABELS에 한글 추가(확장 재로드 불필요, 페이지측 JS)</td></tr>
+          <tr><td class="el">D1</td><td>전체크롤 위젯 라벨·순서</td><td class="mono">crawl_log.js orderedUrlCards · SOURCE_LABELS</td><td><i class="ph-light ph-check-circle" aria-hidden="true"></i>(2026-06-28) 커스텀 소싱처(현대H몰·롯데아이몰) 진행카드·완료/성공/실패 합 누락 수정 — orderedUrlCards가 b.sources 의 커스텀 베이스도 순회 + SOURCE_LABELS에 한글 추가(확장 재로드 불필요, 페이지측 JS)</td></tr>
           <tr><td class="el">D2</td><td>매트릭스 소싱처 색상</td><td class="mono">_matrix_v3.html:1198~ 색상맵</td><td>새 소싱처 기본 파랑(#5b8def) 표시(폴백 있어 경미)</td></tr>
         </table>
-        <div class="d"><b>✅ 라이브 자가검증 6종</b> (하나 빠지면 역추적): ①소싱처 드롭다운 뜨나→<b>B3</b> / ②URL 붙이면 자동크롤 도나→<b>B4·B5</b>(+E1·E2) / ③셀에 표면가→크롤러·영속(B1)/E2 / ④계산식에 혜택→<b>B6→B7→B8</b>(DB엔 저장됐는데 안 뜨면 B7)·라이브갱신은 E4 / ⑤재고 3상태→크롤러 정규식·B9 / ⑥전체크롤 위젯에 진행카드 뜨나→<b>D1</b>·색 기본파랑이면 D2. <span class="ink">dev DB는 stale 주의 → 라이브 대조 필수.</span></div>
+        <div class="d"><b><i class="ph-light ph-check-circle" aria-hidden="true"></i> 라이브 자가검증 6종</b> (하나 빠지면 역추적): ①소싱처 드롭다운 뜨나→<b>B3</b> / ②URL 붙이면 자동크롤 도나→<b>B4·B5</b>(+E1·E2) / ③셀에 표면가→크롤러·영속(B1)/E2 / ④계산식에 혜택→<b>B6→B7→B8</b>(DB엔 저장됐는데 안 뜨면 B7)·라이브갱신은 E4 / ⑤재고 3상태→크롤러 정규식·B9 / ⑥전체크롤 위젯에 진행카드 뜨나→<b>D1</b>·색 기본파랑이면 D2. <span class="ink">dev DB는 stale 주의 → 라이브 대조 필수.</span></div>
       </div></div>
     </div>
 
@@ -1205,8 +1205,8 @@
       <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">배너 0 확인<span class="who c">CLAUDE</span></div><div class="d">배포 직후 스스로 확인 — 빨강이면 2로 복귀</div></div></div>
       <div class="step"><div class="stepn u">6</div><div class="sc"><div class="st">육안 확인(장기 안전망)<span class="who u">사용자</span></div><div class="d">평소 데이터지도 보다 배너 뜨면 인지</div></div></div>
       <div class="d" style="margin-top:8px"><b>자동 vs 절차:</b> 소싱처 누락·확장버전·심볼변경 = <b>자동 감지</b> / 순수 로직만 조용히 바뀜(버전·심볼 그대로) = <b>절차</b>(코드 고칠 때 가이드도 같이).</div>
-      <div class="why" style="margin-top:8px">✅ <b>현재 상태</b>: 4·5의 자동 배너 <b>적용 완료</b> — 데이터지도 상단에 소싱처 누락(P1)·심볼 사라짐(C2)·확장 버전 불일치(C1) 자동 표시. 순수 로직 변경은 여전히 절차로.</div>
-      <div class="why" style="margin-top:8px;background:var(--연한-초록,#F0FDFA);border:1px solid var(--연한-초록,#99F6E4)"><b style="color:#0F766E">[2026-07-08] 재고 게이트 로직 = A 트랙 동기화 대상</b> — 재고 판정 우선순위(⓪수집성공→⚪확인불가 / ①옵션존재→②품절→③한정→④충분)·<b>파싱/수집 실패 → 999 아닌 확인불가(-1)</b>·충분 신호 종류(실수량/상한/추론)는 <b>순수 로직</b>이라 자동 감지 밖 → 코드(ssg.py·musinsa.py·api_pricing.py) 바뀌면 §2 재고 탭·<span class="mono">.md</span> 를 <b>같은 작업에서</b> 갱신한다.</div>
+      <div class="why" style="margin-top:8px"><i class="ph-light ph-check-circle" aria-hidden="true"></i> <b>현재 상태</b>: 4·5의 자동 배너 <b>적용 완료</b> — 데이터지도 상단에 소싱처 누락(P1)·심볼 사라짐(C2)·확장 버전 불일치(C1) 자동 표시. 순수 로직 변경은 여전히 절차로.</div>
+      <div class="why" style="margin-top:8px;background:var(--연한-초록,#F0FDFA);border:1px solid var(--연한-초록,#99F6E4)"><b style="color:#0F766E">[2026-07-08] 재고 게이트 로직 = A 트랙 동기화 대상</b> — 재고 판정 우선순위(⓪수집성공→<i class="ph-light ph-circle" aria-hidden="true"></i>확인불가 / ①옵션존재→②품절→③한정→④충분)·<b>파싱/수집 실패 → 999 아닌 확인불가(-1)</b>·충분 신호 종류(실수량/상한/추론)는 <b>순수 로직</b>이라 자동 감지 밖 → 코드(ssg.py·musinsa.py·api_pricing.py) 바뀌면 §2 재고 탭·<span class="mono">.md</span> 를 <b>같은 작업에서</b> 갱신한다.</div>
     </div>
 
     <!-- 9 개발 체크리스트 — 껍데기만 둔다. 표는 조각(_checklist_matrix.html)이 그린다.
@@ -1270,7 +1270,7 @@
       if (!bar) {
         bar = document.createElement('div');
         bar.className = 'syncbar'; bar.id = 'syncbar';
-        bar.innerHTML = '<b>⚠️ 가이드 ↔ 코드 동기화 필요</b><br>';
+        bar.innerHTML = '<b>가이드 ↔ 코드 동기화 필요</b><br>';
         var seg = root.querySelector('.seg');
         if (seg && seg.parentNode) seg.parentNode.insertBefore(bar, seg);
       }
@@ -1337,15 +1337,15 @@
     var key=hasC?c.file+'::'+c.func:null;
     var sh=key&&shared[key]?shared[key]:null;
     var symTxt=hasC?((c.file.split('/').pop())+' : '+c.func):'';
-    var area=({재고가격:'📦+💰',재고:'📦 재고',가격:'💰 가격',기타:'🛠️ 기타'})[e.g]||e.g;
+    var area=({재고가격:'+',재고:'재고',가격:'가격',기타:'기타'})[e.g]||e.g;
     var layer={be:'백엔드',fe:'프론트',etc:'기타'};
     var lay=layer[e.l]||e.l||'';if(e.l2)lay+=' · '+(layer[e.l2]||e.l2);
     var autoCls=e.crawl==='ok'?'ok':(e.crawl==='no'?'no':'warn');
-    var autoTxt=e.crawl==='ok'?'⚙ 심볼 확인':(e.crawl==='no'?'⚙ 심볼 미발견':'⚙ 검증필요');
+    var autoTxt=e.crawl==='ok'?'심볼 확인':(e.crawl==='no'?'심볼 미발견':'검증필요');
     var crawlCell=gl(e.crawl);
     var rsn=e.reason&&REASON[e.reason]?'<span class="rsn">'+REASON[e.reason][0]+' '+REASON[e.reason][1]+'</span>':'';
     var codeLine=hasC?('<div class="sym"><span class="auto '+autoCls+'">'+autoTxt+'</span>'
-        +esc(symTxt)+(sh?' <span class="shtag">🔗 공유 · '+esc(sh.join('·'))+'</span>':'')+'</div>'):'';
+        +esc(symTxt)+(sh?' <span class="shtag">공유 · '+esc(sh.join('·'))+'</span>':'')+'</div>'):'';
     var revH=(e.rev||[]).map(function(r){
       return '<div class="rv"><span class="d">'+esc(r.d)+'</span>'
         +'<span class="a '+esc(r.a)+'">'+({add:'추가',mod:'수정',del:'삭제'}[r.a]||r.a)+'</span>'
@@ -1360,7 +1360,7 @@
       +'<tr class="det"><td colspan="8"><div class="inner">'
       +'<div class="dl"><span class="dk">원인</span><span>'+rich(e.cz)+'</span></div>'
       +'<div class="dl"><span class="dk">재발방지</span><span>'+rich(e.pv)+'</span></div>'
-      +(sh?'<div class="note warn">🔗 공유 코드 — '+esc(sh.join('·'))+' 함께 영향. 수정 시 이 소싱처들 회귀 재크롤 필수.</div>':'')
+      +(sh?'<div class="note warn">공유 코드 — '+esc(sh.join('·'))+' 함께 영향. 수정 시 이 소싱처들 회귀 재크롤 필수.</div>':'')
       +'<div class="rev"><div class="rev-t">rev</div>'+revH+'</div>'
       +'</div></td></tr>';
   }
@@ -1368,7 +1368,7 @@
     var rules=items.filter(function(e){return e.rule;});
     if(!rules.length)return '';
     var rows=rules.map(function(e){
-      return '<tr><td class="rl-n">🛡️ '+rich(e.sy)+'</td>'
+      return '<tr><td class="rl-n">'+rich(e.sy)+'</td>'
         +'<td>'+rich(e.cz)+'</td>'
         +'<td class="rl-w">'+rich(e.pv)+'</td></tr>';
     }).join('');
@@ -1384,9 +1384,9 @@
     var groups={no:[],warn:[],note:[],lag:[],ok:[]};
     errs.forEach(function(e){groups[bucket(e)].push(e);});
     var meta={no:{t:'코드 미반영',h:'진짜 손볼 곳 — 코드에 재발방지 없음'},
-              warn:{t:'검증 필요',h:'라이브엔 반영됐을 것 — 재크롤로 ✓ 승격'},
-              note:{t:'📌 주의 · 코드 수정 대상 아님',h:'원칙 차원 완료 · 의도적 미구현 · 드문 엣지(완화됨)'},
-              lag:{t:'문서 뒤처짐',h:'코드는 ✓, 가이드만 갱신하면 끝'},
+              warn:{t:'검증 필요',h:'라이브엔 반영됐을 것 — 재크롤로 승격'},
+              note:{t:'주의 · 코드 수정 대상 아님',h:'원칙 차원 완료 · 의도적 미구현 · 드문 엣지(완화됨)'},
+              lag:{t:'문서 뒤처짐',h:'코드는 , 가이드만 갱신하면 끝'},
               ok:{t:'완전 동기화',h:''}};
     var H='<div class="sum">'
       +stat(errs.length,'총 에러','')+stat(groups.ok.length,'완전 동기화','ok')
@@ -1485,7 +1485,7 @@
     c.setAttribute('data-sgsrc', src.id);
     c.setAttribute('data-sgname', src.name);
     var b = document.createElement('span');
-    b.className = 'sg-editbtn'; b.textContent = '✏️ 고치기';
+    b.className = 'sg-editbtn'; b.textContent = '고치기';
     c.appendChild(b);
   });
 

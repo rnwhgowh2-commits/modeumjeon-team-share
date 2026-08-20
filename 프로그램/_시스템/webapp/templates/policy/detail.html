@@ -355,7 +355,7 @@
     <a class="mtab {{ 'on' if mk == market }} {{ 'mkoff' if off }}"
        href="/policies/{{ policy.id }}?m={{ mk }}"
        {% if off %}title="안 켠 마켓입니다 — 적어 둔 값은 그대로 남아 있어요"{% endif %}>
-      {{ label }}{% if off %}<span class="mklock">🔒</span>{% endif %}
+      {{ label }}{% if off %}<span class="mklock"><i class="ph-light ph-lock" aria-hidden="true"></i></span>{% endif %}
       {% if mk == common_key %}
         <span class="st">여기서 채웁니다</span>
       {% else %}
@@ -375,7 +375,7 @@
   {# 안 켠 마켓이 있을 때만 말한다 — 없으면 군더더기다. 셈은 서버(fill_sum)가 한다. #}
   {% if fill_sum.off %}
   <div class="mkoff-note">
-    🔒 가 붙은 <b>{{ fill_sum.off }}곳</b>은 <b>안 켠 마켓</b>이라 가공할 필요가 없습니다.
+    <i class="ph-light ph-lock" aria-hidden="true"></i> 가 붙은 <b>{{ fill_sum.off }}곳</b>은 <b>안 켠 마켓</b>이라 가공할 필요가 없습니다.
     적어 둔 값은 <b>그대로 남아</b> 다시 켜면 살아납니다 —
     켜고 끄기는 <b>아래 체크박스</b>에서 바로 하실 수 있습니다.
   </div>
@@ -489,7 +489,7 @@
            공통 불러오기)는 펼쳐야 보이는 자리(.it-b 의 .statusrow)로 옮겼다. #}
       {% set rq = req.get(it.key) %}
       {% if rq and rq.state == 'required' and not saved %}
-      <span class="reqwarn" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">⚠ 필수인데 비어 있음</span>
+      <span class="reqwarn" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}"><i class="ph-light ph-warning" aria-hidden="true"></i> 필수인데 비어 있음</span>
       {% endif %}
       <span class="chev">›</span>
     </div>
@@ -783,7 +783,7 @@
             태그·케어라벨·브랜드 공식 홈페이지에서 확인됩니다. 상품마다 값이 달라
             <b>상품 화면에서</b> 넣습니다. 여기 「모델번호·바코드」 항목은
             <b>비었을 때 어떻게 할지</b>만 정합니다.</div>
-            <div class="tapewarn">🔴 쿠팡은 임의로 만든 숫자·판매자 내부 관리코드를
+            <div class="tapewarn"><i class="ph-light ph-circle" aria-hidden="true"></i> 쿠팡은 임의로 만든 숫자·판매자 내부 관리코드를
               상품 식별번호로 쓰는 것을 금지합니다(공지 2026-05-27 · API 등록 상품
               2026-08-01 시행) — 없으면 비워 두는 것이 맞습니다.</div>
           </div>
@@ -944,7 +944,7 @@
       <label class="{{ 'mkoff' if mk not in enabled }}"
              {% if mk not in enabled %}title="안 켠 마켓입니다 — 넣어 둬도 지금은 안 나갑니다"{% endif %}>
         <input type="checkbox" class="mkPick" value="{{ mk }}"
-                    data-label="{{ label }}" data-state="{{ summary[mk].state }}"> {{ label }}{% if mk not in enabled %}<span class="mklock">🔒</span>{% endif %}
+                    data-label="{{ label }}" data-state="{{ summary[mk].state }}"> {{ label }}{% if mk not in enabled %}<span class="mklock"><i class="ph-light ph-lock" aria-hidden="true"></i></span>{% endif %}
         <span class="src {{ summary[mk].state }}">
           {% if summary[mk].state == 'common' %}공통
           {% elif summary[mk].state == 'own' %}직접{% else %}없음{% endif %}</span></label>
@@ -977,11 +977,11 @@
      여기 남긴 것은 **이 정책에 빨리 붙일 때**만 쓰는 지름길 — 같은 일을 두 화면이
      하니, 어느 쪽이 본자리인지 화면이 말해 준다. #}
   <div class="card">
-    <div class="card-t">📌 이 정책을 상품에 붙이기 <span style="font-size:12px;font-weight:500;
+    <div class="card-t"><i class="ph-light ph-push-pin" aria-hidden="true"></i> 이 정책을 상품에 붙이기 <span style="font-size:12px;font-weight:500;
       color:var(--sub,#8B95A1)">— 빠른 길</span></div>
     <div class="card-d">상품 하나에 정책 하나가 붙습니다.
       브랜드로 걸러내며 여러 정책을 견주려면 <a href="/policies/apply"
-      style="color:var(--primary,#3182F6);font-weight:700">🧩 정책 매칭</a> 화면이 편합니다.</div>
+      style="color:var(--primary,#3182F6);font-weight:700"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i> 정책 매칭</a> 화면이 편합니다.</div>
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <input id="bq" placeholder="상품 이름·번호·브랜드로 찾기"
              style="flex:1;min-width:220px;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;font-size:12px;font-family:inherit">
@@ -1111,7 +1111,7 @@ document.querySelectorAll('.pairs').forEach(box => {
       + (rows.length ? rows.map((r, i) =>
           '<div class="pr"><input value="' + (r[0] || '').replace(/"/g, '&quot;') + '" data-i="' + i + '" data-c="0">'
           + '<input value="' + (r[1] || '').replace(/"/g, '&quot;') + '" data-i="' + i + '" data-c="1">'
-          + '<button type="button" data-del="' + i + '">✕</button></div>').join('')
+          + '<button type="button" data-del="' + i + '"></button></div>').join('')
         : '<div class="none">아직 등록된 규칙이 없습니다</div>')
       + '<button type="button" class="add">+ 행 추가</button>';
     box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {

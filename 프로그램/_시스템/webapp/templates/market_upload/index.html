@@ -72,7 +72,7 @@
             <label class="field-label">옵션 매핑 (사이즈)</label>
             <input class="field-input" value="{{ active_market.option_map }}">
             {% if active_market.status == 'in_progress' %}
-            <div class="field-hint" style="color:var(--warn-strong, var(--amber,#b45309));font-weight:600">⚠ 옵션 매핑 미완 — 검토 필요</div>
+            <div class="field-hint" style="color:var(--warn-strong, var(--amber,#b45309));font-weight:600"><i class="ph-light ph-warning" aria-hidden="true"></i> 옵션 매핑 미완 — 검토 필요</div>
             {% else %}
             <div class="field-hint">사이즈 코드 표준화</div>
             {% endif %}

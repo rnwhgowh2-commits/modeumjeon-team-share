@@ -11,7 +11,7 @@
 <div id="mobile-menu">
   {% if phone_native %}
   <div style="margin-bottom:14px">
-    <div class="mm-stage">📱 폰 전용 화면</div>
+    <div class="mm-stage"><i class="ph-light ph-device-mobile" aria-hidden="true"></i> 폰 전용 화면</div>
     <div class="m-card" style="padding:4px 0">
       {# 이 구역은 정의상 전부 폰 전용이다(배지 주소가 이 목록에서 나온다).
          그래서 배지를 따져 묻지 않고 고정한다 — 조건을 두면 'PC 화면' 갈래가
@@ -57,9 +57,9 @@
   {% endfor %}
 
   <div class="m-card" style="padding:4px 0;margin-top:20px">
-    <a href="/mobile/install" class="mm-row"><span class="mm-emoji">📲</span><span class="mm-name">앱 설치 방법</span></a>
-    <a href="/auth/me" class="mm-row"><span class="mm-emoji">👤</span><span class="mm-name">내 계정</span></a>
-    <a href="/auth/logout" class="mm-row"><span class="mm-emoji">🚪</span><span class="mm-name mm-danger">로그아웃</span></a>
+    <a href="/mobile/install" class="mm-row"><span class="mm-emoji"><i class="ph-light ph-device-mobile" aria-hidden="true"></i></span><span class="mm-name">앱 설치 방법</span></a>
+    <a href="/auth/me" class="mm-row"><span class="mm-emoji"><i class="ph-light ph-user" aria-hidden="true"></i></span><span class="mm-name">내 계정</span></a>
+    <a href="/auth/logout" class="mm-row"><span class="mm-emoji"><i class="ph-light ph-door" aria-hidden="true"></i></span><span class="mm-name mm-danger">로그아웃</span></a>
   </div>
 </div>
 

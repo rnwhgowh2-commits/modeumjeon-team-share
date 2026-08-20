@@ -779,7 +779,7 @@
       else if (st === 'pause') { subTxt = '⏸ 일시중지 ' + prog.done + '/' + (prog.total || '?'); barCol = '#FBBF24'; }
       else if (st === 'wait') { subTxt = '⏳ 대기 중'; barCol = '#4B5563'; }
       else if (st === 'stop') { subTxt = '■ 중지됨 ' + prog.done + '/' + (prog.total || '?'); barCol = '#F87171'; }
-      else { subTxt = '✓ 완료 ' + prog.done + '/' + (prog.total || prog.done); barCol = '#34D399'; }
+      else { subTxt = '완료 ' + prog.done + '/' + (prog.total || prog.done); barCol = '#34D399'; }
 
       var row = document.createElement('div');
       row.className = 'mcl-rb' + (code === selected ? ' sel' : '');
@@ -925,8 +925,8 @@
       var _reg = (s.total != null) ? (s.done + '/' + s.total) : (s.done || 0);
       var _res = '';
       if (s.status !== 'wait') {
-        _res = ' <span class="mcl-vdiv">│</span> <span class="mcl-c-ok">✓ ' + _ok + '</span>'
-             + (_fail > 0 ? ' <span class="mcl-c-no" title="클릭 → 옵션 매트릭스">✗ ' + _fail + '</span>' : '');
+        _res = ' <span class="mcl-vdiv">│</span> <span class="mcl-c-ok">' + _ok + '</span>'
+             + (_fail > 0 ? ' <span class="mcl-c-no" title="클릭 → 옵션 매트릭스">' + _fail + '</span>' : '');
       }
       // [2026-07-13] 진행 중이면 「N창」 표시. 창 수(wins)는 소싱처(sk) 단위 항목에만
       //   저장되는데(window-open 이벤트가 sk 로 기록), 카드는 url_type(sk|단품 등)이라
@@ -1129,8 +1129,8 @@
       orderedUrlCards(b).forEach(function (uc) { ok += (uc.s.ok || 0); fail += (uc.s.fail || 0); });
       if (sumEl) {
         sumEl.style.display = 'flex';
-        sumEl.innerHTML = '<span class="ok">✓ 성공 ' + ok + '</span>'
-          + (fail > 0 ? '<span class="dot">\xb7</span><span class="blk">⛔ 차단 ' + fail + '</span>' : '');
+        sumEl.innerHTML = '<span class="ok">성공 ' + ok + '</span>'
+          + (fail > 0 ? '<span class="dot">\xb7</span><span class="blk">차단 ' + fail + '</span>' : '');
       }
       if (hintEl) hintEl.style.display = 'block';
     } else {

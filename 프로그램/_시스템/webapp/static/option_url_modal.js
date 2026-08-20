@@ -194,14 +194,14 @@
          단일 진실 원천: opt-on / url-on 클래스만 의미. */
       .oum-cell.disabled,
       .oum-cell.off,
-      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:pointer; }  /* ⬜ 옅음 — 비활성/미선택. cursor:pointer (클릭으로 ON 토글 가능) */
+      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:pointer; }  /* 옅음 — 비활성/미선택. cursor:pointer (클릭으로 ON 토글 가능) */
       .oum-cell.disabled:hover,
       .oum-cell.off:hover,
       .oum-cell.mapped-off:hover { background:#E5E8EB !important; color:#4E5968 !important; }
-      .oum-cell.opt-on { background:#9CA3AF !important; color:#fff !important; border:none; cursor:pointer; }                            /* 🩶 회색 — 옵션 ON */
+      .oum-cell.opt-on { background:#9CA3AF !important; color:#fff !important; border:none; cursor:pointer; }                            /* 회색 — 옵션 ON */
       .oum-cell.url-on,
       .oum-cell.opt-on.url-on,
-      .oum-cell.on { background:#4F67FF !important; color:#fff !important; border:none; cursor:pointer; }                                /* 🟦 파랑 — + URL 매핑 */
+      .oum-cell.on { background:#4F67FF !important; color:#fff !important; border:none; cursor:pointer; }                                /* 파랑 — + URL 매핑 */
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
 
       /* [2026-05-29] 시안 v3 C3 — 우측 패널 [URL]/[재고관리] 2탭 + B3-3 in-place 매핑 표 */
@@ -362,7 +362,7 @@
       .oum-url-tog:hover, .oum-url-copy:hover { background:#F0FDF4; }
       .oum-url-del { color:#dc2626; border-color:#fecaca; }
       .oum-url-del:hover { background:#FEF2F2; }
-      /* [2026-06-05] 크롤 실패 URL — 빨강 카드 + ❌ 배지 + 🔄 재크롤 */
+      /* [2026-06-05] 크롤 실패 URL — 빨강 카드 + 배지 + 재크롤 */
       .oum-url-card.crawl-fail { border-color:#fca5a5; background:#FFF7F7; }
       .oum-url-card.crawl-fail .oum-url-ch { background:#FEF2F2; }
       .oum-url-cnt.fail { background:#FEE2E2; }
@@ -400,7 +400,7 @@
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
       .oum-url-mini:hover:not(:disabled) { background:#3B82F6; color:#fff; border-color:#3B82F6; }
       .oum-url-mini:disabled { opacity:.35; cursor:not-allowed; }
-      /* [2026-05-27] C5 복사 버튼 — SVG 아이콘 + "복사" 텍스트 콤보 (▸매핑·✕ 와 동일 톤) */
+      /* [2026-05-27] C5 복사 버튼 — SVG 아이콘 + "복사" 텍스트 콤보 (▸매핑·와 동일 톤) */
       /* [2026-05-27] oum-url-copy 는 위 통일 스타일 사용 — active scale 만 유지 */
       .oum-url-copy:active { transform:scale(.97); }
       /* [2026-05-27] 드래그앤드랍 — ⋮⋮ 핸들 + 드래그 시각 피드백 + 드롭 라인 */
@@ -505,8 +505,8 @@
       .oum-cat-addbtn.done, .oum-cat-addbtn:disabled { background:#F2F4F6; color:#9CA3AF; cursor:default; }
 
       /* ── [2026-08-14 사장님 확정 ㉰] SKU 번호 격자 — 줄 = SKU · 칸 = 품번·바코드·GTIN ──
-         🔴 공란은 **미입력**이다. 안 채웠다고 막지 않는다 — 나중에 채운다.
-         🔴 이 판은 'scheduleRerender' 가 '#oum-left' 를 통째로 갈아끼울 때 같이 지워진다.
+         공란은 **미입력**이다. 안 채웠다고 막지 않는다 — 나중에 채운다.
+         이 판은 'scheduleRerender' 가 '#oum-left' 를 통째로 갈아끼울 때 같이 지워진다.
             그래서 적어 넣은 값은 DOM 이 아니라 'state.skuVals' 에 산다(아래 JS 주석 참조). */
       .oum-sku { margin-top:24px; background:#fff; border:1.5px solid #e5e8eb; border-radius:18px; overflow:hidden; }
       .oum-sku-h { display:flex; align-items:center; gap:15px; padding:21px 24px; border-bottom:1px solid #eef1f4; flex-wrap:wrap; }
@@ -527,7 +527,7 @@
       .oum-sku-tb input { width:100%; box-sizing:border-box; border:1.5px solid #e5e8eb; border-radius:10px; padding:10.5px 13.5px; font:inherit; font-size:21px; background:#fff; }
       .oum-sku-tb input:focus { outline:none; border-color:#3B82F6; }
       .oum-sku-tb input.bad { border-color:#E5484D; background:#FEF2F2; }
-      /* 🔴 거부 사유는 **그 칸 밑에** 적는다. 위에 몰아 두면 어느 줄 얘긴지 못 찾는다. */
+      /* 거부 사유는 **그 칸 밑에** 적는다. 위에 몰아 두면 어느 줄 얘긴지 못 찾는다. */
       .oum-sku-why { color:#B91C1C; font-size:17.5px; line-height:1.5; margin-top:6px; }
       .oum-sku-empty { padding:36px 24px; text-align:center; color:#9ca3af; font-size:21px; line-height:1.7; }
       /* 저장 단추 — 「자체 바코드 생성」(보조·테두리)과 갈라 보이게 원색 채움 */
@@ -655,15 +655,15 @@
     modal.innerHTML = `
       <div class="oum-mh">
         <h2>옵션 조합 생성 및 수정 + 소싱처 URL 매핑</h2>
-        <span class="pill">✨ 동시 입력</span>
+        <span class="pill">동시 입력</span>
         <button class="close" type="button">×</button>
       </div>
       <div class="oum-mb">
         <div class="oum-legend">
-          <b style="color:#191F28;">📖 셀 색 (좌측 매트릭스):</b>
+          <b style="color:#191F28;">셀 색 (좌측 매트릭스):</b>
           <span><span class="leg-empty"></span>OFF (꺼짐)</span>
           <span><span class="leg-gray"></span>ON (옵션 켜짐)</span>
-          <span style="margin-left:auto; color:#92400E;">💡 좌측에서 옵션 만들고 [URL 매핑에 적용 →] · 매핑 색(파랑/초록)은 우측 탭 안에서</span>
+          <span style="margin-left:auto; color:#92400E;">좌측에서 옵션 만들고 [URL 매핑에 적용 →] · 매핑 색(파랑/초록)은 우측 탭 안에서</span>
         </div>
         <div class="oum-split">
           <div class="oum-panel oum-blue" id="oum-left"></div>
@@ -901,7 +901,7 @@
       html += '</div>';
 
       html += `<div class="oum-ph">
-        <span>🧩</span><span>옵션 매트릭스</span>
+        <span></span><span>옵션 매트릭스</span>
         <span class="badge">${onCnt}개</span>
         <span class="right">${valid.map(a => a.values.length).join(' × ') || '축 미정'}</span>
       </div>`;
@@ -912,7 +912,7 @@
           <div class="oum-axis-h">
             <div style="display:flex; align-items:center; gap:7px;">
               <span class="pos">${POS[i] || `${i + 1}축`}</span>
-              <span class="rec">💡 추천: ${REC[i] || '-'}</span>
+              <span class="rec">추천: ${REC[i] || '-'}</span>
             </div>
             <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
               <span class="oum-sortbtns">
@@ -966,7 +966,7 @@
       const total = rows.length;
 
       let head = `<div class="oum-sku-h">
-        <span class="oum-sku-t">🔢 SKU 번호 (품번 · 바코드 · GTIN)</span>`;
+        <span class="oum-sku-t">SKU 번호 (품번 · 바코드 · GTIN)</span>`;
       if (total) {
         const parts = SKU_FIELDS.map(f => {
           const n = rows.filter(o => ((state.skuVals[o.sku] || {})[f] || '').trim()).length;
@@ -1127,7 +1127,7 @@
       m.className = 'oum-ctxmenu';
       const label = axisValues.filter(Boolean).join(' · ') || '(빈 조합)';
       m.innerHTML = `<div class="oum-ctx-hd">${esc(label)}</div>
-        <button type="button" data-act="adopt">📥 미구성 SKU 등록…</button>`;
+        <button type="button" data-act="adopt">미구성 SKU 등록…</button>`;
       document.body.appendChild(m);
       // 화면 밖으로 안 나가게 — 먼저 붙이고 실제 크기로 다시 자리를 잡는다
       const w = m.offsetWidth, h = m.offsetHeight;
@@ -1292,7 +1292,7 @@
     //     - URL 카드(매핑): cellState(active, urlMapped, _) → opt-on / url-on / disabled
     function cellState(active, urlMapped) {
       if (!active) return { cls: 'disabled', inner: '<span>·</span>' };
-      if (urlMapped) return { cls: 'opt-on url-on', inner: '<span>✓</span>' };
+      if (urlMapped) return { cls: 'opt-on url-on', inner: '<span></span>' };
       return { cls: 'opt-on', inner: '<span>ON</span>' };
     }
 
@@ -1403,12 +1403,12 @@
           ${state.axisBusy ? '불러오는 중…' : '↻ 소싱처 옵션 불러오기'}</button>
         <span class="ax-note">주소 있는 소싱처 <b>${srcs.length}곳</b></span>
         <a class="ax-go" data-ax-matrix style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
-           href="/matrix/product/${encodeURIComponent(bundleCode)}" target="_blank">📐 매트릭스에서 값 확인</a>
+           href="/matrix/product/${encodeURIComponent(bundleCode)}" target="_blank">매트릭스에서 값 확인</a>
       </div>`;
 
       if (!srcs.length) {
         return h + `<div class="ax-empty">주소가 등록된 소싱처가 없습니다.<br>
-          왼쪽 「📍 소싱처 URL 매핑」 탭에서 주소를 먼저 넣어 주세요.</div>`;
+          왼쪽 「소싱처 URL 매핑」 탭에서 주소를 먼저 넣어 주세요.</div>`;
       }
       const loaded = srcs.filter(k => state.axisBySrc[k]);
       if (!loaded.length) {
@@ -1566,7 +1566,7 @@
 
       const notDone = srcs.filter(k => !(state.axisBySrc[k] || {}).confirmed);
       if (notDone.length) {
-        h += `<div class="oum-inv-filter-hint" style="margin-top:10px">⚠ 아직 확인 안 한 소싱처
+        h += `<div class="oum-inv-filter-hint" style="margin-top:10px">아직 확인 안 한 소싱처
           <b>${notDone.length}곳</b> — ${notDone.map(k => esc(SRC_LABELS[k] || k)).join(' · ')}</div>`;
       }
       return h;
@@ -1711,8 +1711,8 @@
         _axN += (sm.review || 0) + (sm.none || 0);
       });
       let html = `<div class="oum-rt-tabs">
-        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
-        <button class="oum-rt-tab ${state.rightTab === 'axis' ? 'on' : ''}" data-rt-tab="axis" type="button">🔗 소싱처 옵션 맞추기 <span class="cnt">${_axN}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'axis' ? 'on' : ''}" data-rt-tab="axis" type="button">소싱처 옵션 맞추기 <span class="cnt">${_axN}</span></button>
       </div>`;
 
       // [2026-08-02] 축 맞추기 탭 — 조합이 아니라 **축**을 맞춘다. 축 하나를 맞추면
@@ -1733,18 +1733,18 @@
         const _items = _dupGroups.map(g => {
           const _lab = SRC_LABELS[g.srcKey] || g.srcKey;
           const _names = g.entries.map(en => esc(en.label || '(라벨 없음)')).join(' ＝ ');
-          const _cr = g.crossOption ? ` <em>⚠ 다른 옵션끼리 — 오타 의심</em>` : '';
+          const _cr = g.crossOption ? ` <em>다른 옵션끼리 — 오타 의심</em>` : '';
           return `<button class="oum-dupwarn-item${g.crossOption ? ' cross' : ''}" data-dupjump="${esc(g.srcKey)}" type="button">[${esc(_lab)}] ${_names}${_cr}</button>`;
         }).join('');
         html += `<div class="oum-dupwarn${_hasCross ? ' cross' : ''}" data-dupwarn>
-          <div class="oum-dupwarn-h">⚠ 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
+          <div class="oum-dupwarn-h">등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
           <div class="oum-dupwarn-list">${_items}</div>
         </div>`;
       }
 
       // URL 탭 — 기존 헤더 + 적용 가드 + [A10] 우측 플로팅 '신규 소싱처 추가' 버튼
       html += `<div class="oum-ph">
-        <span>📍</span><span>소싱처 URL 매핑</span>
+        <span></span><span>소싱처 URL 매핑</span>
         <span class="badge">${urlCount} URL</span>
         <span class="right">${state.applied ? `활성 옵션 ${totalActive}개에 매핑` : '먼저 좌측에서 [적용 →] 클릭'}</span>
         ${state.applied ? `<button class="oum-addsrc-btn ${state.currentSrc === ADD_SRC_KEY ? 'on' : ''}" data-src-tab="${ADD_SRC_KEY}" type="button"><span class="ic">+</span> 신규 소싱처 추가</button>` : ''}
@@ -1752,7 +1752,7 @@
 
       if (!state.applied) {
         html += `<div style="padding:60px 20px; text-align:center; color:#9ca3af; background:#fff; border:2px dashed #bbf7d0; border-radius:8px;">
-          <div style="font-size:32px; margin-bottom:10px;">⬅</div>
+          <div style="font-size:32px; margin-bottom:10px;"></div>
           <div style="font-size:13px; font-weight:600; color:#15803d;">좌측에서 옵션 만들고 [적용 →] 클릭하면 활성화</div>
         </div>`;
         right.innerHTML = html;
@@ -1804,7 +1804,7 @@
           return `<span class="oum-failsum-item">${esc(_nm)} <em>(${esc(_reason)})</em></span>`;
         }).join('');
         html += `<div class="oum-failsum" data-failsum>
-          <div class="oum-failsum-h">⚠ ${esc(srcLabel)} URL ${_failArr.length}개 크롤 실패 — 가격·재고를 못 받았어요 <button class="oum-failsum-jump" data-failsum-jump type="button">↓ 실패 URL로 이동</button></div>
+          <div class="oum-failsum-h">${esc(srcLabel)} URL ${_failArr.length}개 크롤 실패 — 가격·재고를 못 받았어요 <button class="oum-failsum-jump" data-failsum-jump type="button">↓ 실패 URL로 이동</button></div>
           <div class="oum-failsum-list">${_items}</div>
         </div>`;
       }
@@ -1872,8 +1872,8 @@
       } else {
         const added = !!entry.added;
         const crawlerBadge = entry.has_adapter
-          ? `<span class="oum-cat-badge ok">✓ 자동크롤 지원</span>`
-          : `<span class="oum-cat-badge warn">⚠ 크롤 미지원 (URL만 저장 가능)</span>`;
+          ? `<span class="oum-cat-badge ok">자동크롤 지원</span>`
+          : `<span class="oum-cat-badge warn">크롤 미지원 (URL만 저장 가능)</span>`;
         detail = `
           <div class="oum-cat-dh">
             <span class="oum-cat-lg lg-lg" style="background:${esc(entry.logo_color || '#3B82F6')};">${esc(entry.glyph || abbr(entry.label))}</span>
@@ -1897,7 +1897,7 @@
 
       return `<div class="oum-addsrc-wrap">
           <div class="oum-addsrc-left">
-            <div class="oum-cat-search-wrap"><span>🔍</span><input class="oum-cat-search" data-cat-search type="text" placeholder="소싱처 이름 검색…" autocomplete="off"></div>
+            <div class="oum-cat-search-wrap"><span></span><input class="oum-cat-search" data-cat-search type="text" placeholder="소싱처 이름 검색…" autocomplete="off"></div>
             <div class="oum-cat-hint">크롤링 가이드 등록 ${cat.length}곳 — 이미 추가된 곳은 회색</div>
             <div class="oum-cat-list" data-cat-list>${rows}</div>
           </div>
@@ -1969,11 +1969,11 @@
           </div>
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
-          <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션">📌 <b>${mapped}</b>/${totalActive}</span>
+          <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션"><b>${mapped}</b>/${totalActive}</span>
           ${isFail ? `<button class="oum-url-recrawl" data-url-recrawl type="button" title="이 URL 다시 크롤">🔄 재크롤</button>` : ''}
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
-          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">📋 복사</button>
-          <button class="oum-url-del" data-url-del type="button">✕ 삭제</button>
+          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">복사</button>
+          <button class="oum-url-del" data-url-del type="button">삭제</button>
         </div>
         ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}
         ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}`;
@@ -1994,7 +1994,7 @@
 
       // [2026-05-26] 헤더 클릭 일괄 선택 안내 — 사용자가 헤더 클릭 가능함을 인지하게
       let html = `<div style="font-size:11px; color:#15803d; padding:4px 8px 8px; display:flex; gap:10px; flex-wrap:wrap;">
-        <span>💡 <b>색상/사이즈 헤더 클릭</b> → 그 줄 전체 일괄 ON/OFF</span>
+        <span><b>색상/사이즈 헤더 클릭</b> → 그 줄 전체 일괄 ON/OFF</span>
         <span>·</span>
         <span>⌐ 코너 클릭 → 전체</span>
       </div>`;
@@ -2779,7 +2779,7 @@
             if (r.ok) {
               u.crawled = true; u.lastStatus = 'ok';
               renderRight();
-              alert('재크롤 성공 ✓  표면가: ' + (r.price != null ? r.price.toLocaleString() + '원' : '없음'));
+              alert('재크롤 성공  표면가: ' + (r.price != null ? r.price.toLocaleString() + '원' : '없음'));
             } else {
               alert('재크롤 실패: ' + (r.error || '알 수 없는 오류') + '\n\n크롤 위젯 로그에서 상세 에러를 확인하세요.');
             }
@@ -2787,7 +2787,7 @@
             alert('크롤 오류: ' + err.message);
           } finally {
             recrawlBtn.disabled = false;
-            recrawlBtn.textContent = '🔄 재크롤';
+            recrawlBtn.textContent = '재크롤';
           }
         }
         return;
@@ -3347,10 +3347,10 @@
       bg.remove();
       Promise.resolve(p).then(result => {
         if (result && result.ok === false) {
-          alert('⚠️ 변경사항이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n모달을 다시 열어 [저장]을 눌러 주세요.');
+          alert('변경사항이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n모달을 다시 열어 [저장]을 눌러 주세요.');
         }
       }).catch(e => {
-        alert('⚠️ 저장 실패: ' + (e && e.message || e) + '\n모달을 다시 열어 [저장]해 주세요.');
+        alert('저장 실패: ' + (e && e.message || e) + '\n모달을 다시 열어 [저장]해 주세요.');
       });
     }
     $('.oum-mh .close').addEventListener('click', _closeWithSave);
@@ -3388,7 +3388,7 @@
               + '그대로 저장하면 그 옵션은\n'
               + '소싱처 값이 비어\n'
               + '재고·가격을 못 읽습니다.\n\n'
-              + '「🔗 소싱처 옵션 맞추기」에서\n'
+              + '「소싱처 옵션 맞추기」에서\n'
               + '그 줄을 골라 주세요.\n\n'
               + '그 소싱처에 정말 없는 값이면\n'
               + '「매칭 옵션 없을 시 선택」을\n'
@@ -3416,7 +3416,7 @@
         const result = await autoSave();
         // [2026-06-26] 정직성 — 실패를 "저장 완료" 로 위장하지 않음. 실패 시 모달 유지·재시도 가능.
         if (result && result.ok === false) {
-          alert('⚠️ 일부 항목이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n다시 [저장]을 눌러 재시도하세요.');
+          alert('일부 항목이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n다시 [저장]을 눌러 재시도하세요.');
           save.disabled = false; save.textContent = '옵션 + URL 저장';
           return;
         }

@@ -61,7 +61,7 @@ def _ok(**kw):
 def _tpl_get(tpl, name, default=None):
     """가격 템플릿(또는 **정책 껍데기**)에서 한 칸을 꺼낸다 — 없거나 안 정했으면 기본값.
 
-    🔴 2026-08-12 라이브 500 의 정체.
+    [중요] 2026-08-12 라이브 500 의 정체.
       정책이 붙으면 `tpl` 은 PriceTemplate 이 아니라 **정책 껍데기**로 바뀐다
       (`policy_as_template`). 그 껍데기는 정책이 아는 칸만 답하고, 모르는 칸은
       **되받을 템플릿(fallback)에 넘긴다**. 그런데 **가격 템플릿이 아예 없는 상품**은
@@ -543,7 +543,7 @@ def _sp_norm_pairs(rows, batch=None):
     [perf 2026-08-07] 같은 소싱상품 표를 매트릭스(첫 행 승)와 혜택 캐시(마지막 행 승)가
     각자 색인하는데, 둘 다 `normalize_url` 을 전 행에 돌려 **같은 계산이 두 벌** 돌았다
     (합성 2만 행 실측: 4만 회·2.3초). 여기서는 **정규화 결과만** 나눠 쓰고
-    🔴 인덱싱 정책(중복 URL 에서 누가 이기나)은 양쪽 것을 **그대로** 둔다 —
+    [중요] 인덱싱 정책(중복 URL 에서 누가 이기나)은 양쪽 것을 **그대로** 둔다 —
     그 정책이 바뀌면 소싱처 가격이 다른 행 값으로 바뀐다(금전).
     """
     if batch is not None and "sp_norm_pairs" in batch:
@@ -644,7 +644,7 @@ def _drop_model_scoped(batch: dict) -> None:
 def _prime_matrix_batch(s, batch: dict, codes) -> None:
     """모델코드별로 **똑같이 반복되던 조회**를 앞에서 한 번에 모아 그릇에 담는다.
 
-    🔴 여기서 값을 만들지 않는다 — 뒤(`_option_matrix_one`)가 쓰던 것과 **같은 조회**를
+    [중요] 여기서 값을 만들지 않는다 — 뒤(`_option_matrix_one`)가 쓰던 것과 **같은 조회**를
       범위만 넓혀 미리 담아 둘 뿐이다. 담긴 게 없으면 뒤는 예전처럼 스스로 조회한다
       (그래서 이 함수가 통째로 실패해도 답은 안 바뀐다 — 느려질 뿐이다).
 
@@ -730,7 +730,7 @@ def _bucket_sku(s, batch, key, skus, model, col, keyof, one=False):
 def _primed_for(batch, seen_key, keys):
     """그 열쇠들을 **정말로 미리 담았나**. 안 담은 걸 담긴 것처럼 쪼개 쓰면 값이 빈다.
 
-    🔴 「없어서 빈 것」과 「안 담아서 빈 것」은 구별이 안 된다 — 가격설정·재고연결이
+    [중요] 「없어서 빈 것」과 「안 담아서 빈 것」은 구별이 안 된다 — 가격설정·재고연결이
       통째로 사라져도 화면은 조용하다. 그래서 담은 범위를 따로 들고 확인한다.
     """
     seen = batch.get(seen_key)
@@ -742,7 +742,7 @@ def _primed_for(batch, seen_key, keys):
 def _ordered_rows(store, sku_list):
     """sku 별로 나눠 담은 `(차례, 행)` 을 **읽은 차례 그대로** 다시 이어 붙인다.
 
-    🔴 차례가 왜 중요한가 — 셀 목록에 담기는 순서가 곧 화면의 소싱처 차례이고,
+    [중요] 차례가 왜 중요한가 — 셀 목록에 담기는 순서가 곧 화면의 소싱처 차례이고,
       「같은 URL 이 이미 있나」(중복 판정)도 먼저 담긴 것이 이긴다. sku 별로 모았다가
       sku 순서로 이어 붙이면 예전(한 번에 읽던 것)과 차례가 갈린다.
     """
@@ -784,7 +784,7 @@ def _prime_inventory(s, batch, skus):
 def _prime_source_links(s, batch, skus, model_codes):
     """소싱처 URL·매핑 — sku·모델코드 IN 으로 한 번에.
 
-    🔴 `id` 오름차순을 **명시**한다. 예전엔 정렬을 안 걸어 DB 가 주는 대로 담았는데,
+    [중요] `id` 오름차순을 **명시**한다. 예전엔 정렬을 안 걸어 DB 가 주는 대로 담았는데,
       한 모델만 물을 때와 여럿을 물을 때 순서가 갈리면 셀 차례가 달라진다.
       id 순은 지금까지 실제로 나오던 순서(입력 순)와 같다.
     """
@@ -917,7 +917,7 @@ def _option_matrix_data(code: str, *, batch=None):
     `batch`: 여러 모델코드를 잇달아 부를 때 **모델코드와 무관한 조회를 나눠 쓰는 그릇**
       (호출자가 dict 하나 만들어 계속 넘긴다). 안 주면 예전과 똑같이 매번 새로 읽는다.
 
-    🔴 **한 건짜리 겉껍데기다** — 속은 일괄 함수(`_option_matrix_data_many`) 하나뿐이다.
+    [중요] **한 건짜리 겉껍데기다** — 속은 일괄 함수(`_option_matrix_data_many`) 하나뿐이다.
       규칙을 두 벌 두면 화면(매트릭스)과 업로드가 다른 답을 낸다.
     """
     return _option_matrix_data_many([code], batch=batch)[code]
@@ -938,7 +938,7 @@ def _option_matrix_data_many(codes, *, batch=None) -> dict:
 
     `batch` 를 주면 그 그릇을 이어 쓴다(요청이 끝나면 같이 사라진다 — 모듈 캐시 아님).
 
-    🔴 **한 번에 다 안 담는다** — 상품별로 모으는 것(옵션·가격설정·혜택 캐시)은
+    [중요] **한 번에 다 안 담는다** — 상품별로 모으는 것(옵션·가격설정·혜택 캐시)은
       `_WINDOW` 개씩 끊어 담고 다음 묶음에서 비운다. 400종을 통째로 담으면 옵션만
       수만 행이라 라이브 워커 램을 밀어낸다(2026-06 프리즈와 같은 방향). 표 전체를
       훑는 무거운 것(소싱상품 색인·소싱처 명부)은 끊지 않고 **한 벌 그대로** 이어 쓴다.
@@ -1846,7 +1846,7 @@ def _option_matrix_one(s, code: str, batch: dict):
 def get_option_matrix(code: str):
     """라우트 래퍼 — 데이터는 _option_matrix_data(단일 진실 원천), 여기선 응답 직렬화만.
 
-    🔴 **터진 이유를 반드시 남긴다.** 2026-08-08 라이브에서 상품 91개 중 1개가
+    [중요] **터진 이유를 반드시 남긴다.** 2026-08-08 라이브에서 상품 91개 중 1개가
        여기서 500 을 냈는데, 화면엔 「internal_error」 다섯 글자만 떴고 서버에도
        아무것도 안 남아 **아무도 고칠 수 없었다**(코드를 읽어도 못 찾음).
        값을 못 만드는 것과 **그 사실을 안 말하는 것은 다른 잘못**이다.
@@ -1975,7 +1975,7 @@ def _build_crawl_snapshot(item: dict, *, now_iso: str) -> dict:
     benefit_lines/benefit_amounts 가 오면 benefits_ok=True. 없으면 빈 스냅샷
     (benefits_ok=False) — 빈 배열을 '혜택 없음'으로 둔갑시키지 않는다(미수집).
 
-    ⚠️ 2026-06-22 stale 머지에서 유실 → 2026-06-28 복원(순수 헬퍼). 현재 save_crawl_result
+    [주의] 2026-06-22 stale 머지에서 유실 → 2026-06-28 복원(순수 헬퍼). 현재 save_crawl_result
        는 호출하지 않음(혜택 영속은 별개 워크스트림). 회귀 테스트·향후 배선용으로 보존.
     """
     lines = item.get('benefit_lines')
@@ -3619,12 +3619,12 @@ def admin_price_integrity():
                 f"<td><b>{_html.escape(c['title'])}</b>{samples}</td></tr>")
 
         if errored:
-            banner = (f"<div class='ban err'>⚠️ 점검 {errored}건 실행 실패 — "
+            banner = (f"<div class='ban err'>점검 {errored}건 실행 실패 — "
                       f"DB 연결/스키마 확인 필요(판정 불가)</div>")
         elif total == 0:
-            banner = "<div class='ban ok'>✅ 모든 불변식 위반 0건 — 이 시점 전 데이터에서 성립</div>"
+            banner = "<div class='ban ok'>모든 불변식 위반 0건 — 이 시점 전 데이터에서 성립</div>"
         else:
-            banner = f"<div class='ban err'>❌ 총 위반 {total}건 — 아래 ❌ 항목 확인</div>"
+            banner = f"<div class='ban err'>총 위반 {total}건 — 아래 ❌ 항목 확인</div>"
 
         page = f"""<!doctype html><html lang=ko><head><meta charset=utf-8>
 <meta name=viewport content='width=device-width,initial-scale=1'>

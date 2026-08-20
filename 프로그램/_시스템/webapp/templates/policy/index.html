@@ -242,7 +242,7 @@
             </td>
             <td class="tr"><span class="pl-act">
               <a class="btn2 ghost" href="/policies/{{ it.id }}" style="text-decoration:none">항목 채우기</a>
-              <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})">📄 복사</button>
+              <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})"><i class="ph-light ph-file" aria-hidden="true"></i> 복사</button>
               {% if not it.is_default %}
               <button class="btn2 ghost" type="button" onclick="setDef({{ it.id }})">기본으로</button>
               {% endif %}
@@ -266,7 +266,7 @@
   {# ── 만들기 창 (시안 v3 확정 — 점선 카드를 누르면 열림) ── #}
   <div class="np-back" id="npback">
     <div class="np-box">
-      <div class="np-t">🆕 새 정책 만들기</div>
+      <div class="np-t"><i class="ph-light ph-sparkle" aria-hidden="true"></i> 새 정책 만들기</div>
       <div class="np-d">마켓마다 어떻게 올릴지 한 벌을 새로 만들어요.</div>
       <div class="np-f"><label>정책 이름</label>
         <input id="pname" placeholder="예: 르무통 기본"></div>
@@ -438,7 +438,7 @@ const HV = {
       + '<div class="hv-todo">할 일 — 「항목 채우기」로 숫자를 채우거나, 안 쓸 정책이면 지우기</div>'},
   working: {t:'상품이 붙어 있는 정책',
     b:'실제 상품에 붙어 <b>그 상품들의 판매 방식을 정하고 있어요.</b> 몇 개를 맡았는지는 카드의 「붙은 상품」 숫자로 보여요.'
-      + '<div class="hv-todo warn">⚠️ 이 표시가 「작성 중」과 겹치면 그 상품들은 가격이 안 나와요 — 그때만 손보면 돼요</div>'},
+      + '<div class="hv-todo warn">이 표시가 「작성 중」과 겹치면 그 상품들은 가격이 안 나와요 — 그때만 손보면 돼요</div>'},
   star: {t:'맨 앞에 고정되는 표시',
     b:'목록 <b>맨 앞에 고정</b>해 두는 이름표예요. 자동으로 뭘 하지는 않아요 — 팀이 「우리 기준은 이것」을 알아보는 용도이고, <b>하나만</b> 지정할 수 있어요.'
       + '<div class="hv-todo ok">할 일 없음 — 카드의 「기본으로」 버튼으로 바꿔요</div>'}

@@ -358,7 +358,7 @@
           {% else %}<span class="twr-u">—</span>{% endif %}
         </td>
         <td><span class="twr-mks">{% for mk, label, g in tower_markets %}<span class="twr-mk{% if mk in it.markets %} y{% endif %}" title="{{ label }}{% if mk in it.markets %} 등록됨{% else %} 미등록{% endif %}">{{ g }}</span>{% endfor %}</span></td>
-        <td>{% if it.issues %}<span class="twr-badge err">⚠ {{ it.issues }}건</span>{% else %}<span class="twr-badge sale">없음</span>{% endif %}</td>
+        <td>{% if it.issues %}<span class="twr-badge err"><i class="ph-light ph-warning" aria-hidden="true"></i> {{ it.issues }}건</span>{% else %}<span class="twr-badge sale">없음</span>{% endif %}</td>
         <td><button class="twr-btn gho sm twr-open" type="button">자세히 보기</button></td>
       </tr>
       {% endfor %}
@@ -531,8 +531,8 @@ function expand(tr){
     '<div class="twr-tabs">' + tabsHtml +
       '<div style="flex:1"></div>' +
       '<div style="display:flex;gap:8px;padding:8px 0;align-items:center">' +
-        '<a class="twr-btn pri sm" href="' + editHref + '">✏️ 편집 (생성 탭)</a>' +
-        '<a class="twr-btn gho sm" href="/market-send">📤 전송</a>' +
+        '<a class="twr-btn pri sm" href="' + editHref + '">편집 (생성 탭)</a>' +
+        '<a class="twr-btn gho sm" href="/market-send">전송</a>' +
         '<button class="twr-btn gho sm twr-dup" type="button">복제</button>' +
         '<button class="twr-btn gho sm danger twr-del" type="button">삭제</button>' +
       '</div>' +
@@ -994,13 +994,13 @@ function renderT2(j){
   var h = '<div class="tcard"><div class="tcard-t">옵션 매트릭스 (최저가만)' +
     '<span class="cap">칸 = 최저 최종매입가 · 재고 · <b style="color:var(--ap-링크파랑,#0066CC)">최저 소싱처</b> — 누르면 소싱처 전체 비교</span>' +
     '<span class="sp"></span>' +
-    '<a class="twr-btn pri sm" href="/bundles/' + encodeURIComponent(open.tr.dataset.code) + '/all">🧾 소싱처 ' +
+    '<a class="twr-btn pri sm" href="/bundles/' + encodeURIComponent(open.tr.dataset.code) + '/all">소싱처 ' +
       (소싱처수 ? 소싱처수 + '곳 ' : '') + '전부 보기 →</a>' +
-    '<a class="twr-btn gho sm" href="/inventory/">🏷 사입 재고 (재고관리)</a>' +
+    '<a class="twr-btn gho sm" href="/inventory/">사입 재고 (재고관리)</a>' +
     /* [2026-08-12] 원본이 없으면 단추가 아예 사라지던 자리 — 머리줄 「편집」과 같은
        문(코드 기준)으로 보낸다. 같은 일을 하는 단추가 서로 다른 데로 가면 안 된다. */
     '<a class="twr-btn pri sm" href="/optgen/product/by-code/' +
-      encodeURIComponent(open.tr.dataset.code) + '">✏️ 매트릭스 수정 (생성 탭)</a>' +
+      encodeURIComponent(open.tr.dataset.code) + '">매트릭스 수정 (생성 탭)</a>' +
     '</div>';
   if(!j.cells.length){
     h += '<div class="twr-u">옵션이 아직 없어요.</div></div>';
@@ -1072,7 +1072,7 @@ function renderT2Detail(cell){
 function renderT3(j){
   var h = '<div class="tcard"><div class="tcard-t">소싱처 수집 이력 ' +
     '<span class="cap">주소 ' + j.urls.length + '개 · 실패 ' + j.fail + '</span>' +
-    '<span class="sp"></span><button class="twr-btn pri sm" id="t3crawl" type="button">🔄 이 상품 지금 수집</button></div>';
+    '<span class="sp"></span><button class="twr-btn pri sm" id="t3crawl" type="button">이 상품 지금 수집</button></div>';
   h += '<div class="tinfo">「지금 수집」을 누르면 이 상품이 수집 줄 맨 앞에 서고, 사장님 컴퓨터의 수집기(크롬 확장)가 다음 바퀴에 바로 가져옵니다 — 보통 몇 분 안에 반영돼요.</div>';
   if(!j.urls.length) h += '<div class="twr-u" style="padding:8px 0">연결된 소싱처 주소가 없어요.</div>';
   j.urls.forEach(function(u){
@@ -1110,7 +1110,7 @@ function renderT3(j){
   if(btn) btn.addEventListener('click', function(){
     btn.disabled = true; btn.textContent = '넣는 중…';
     fetch(api('crawl-now'), {method:'POST'}).then(function(r){ return r.json(); }).then(function(x){
-      btn.textContent = x.ok ? (x.queued ? '✅ 줄 맨 앞에 세웠어요' : '✅ 이미 줄에 서 있어요') : '넣지 못했어요';
+      btn.textContent = x.ok ? (x.queued ? '줄 맨 앞에 세웠어요' : '이미 줄에 서 있어요') : '넣지 못했어요';
     }).catch(function(){ btn.textContent = '넣지 못했어요'; });
   });
 }
@@ -1218,7 +1218,7 @@ function namePanel(list){
           esc(m.reg_name || '정책이 만든 이름') + '"' + (own ? '' : ' disabled') +
           '>' + nameCounter(m, (m.name_override || '').length) + '</div>';
     }).join('') +
-    '<div class="cpn-p-n">🔴 상세페이지·추가이미지는 <b>담을 칸이 아직 없습니다</b> — ' +
+    '<div class="cpn-p-n">상세페이지·추가이미지는 <b>담을 칸이 아직 없습니다</b> — ' +
       '지금은 어느 마켓에도 빈 값으로 나갑니다.</div></div>';
 }
 
@@ -1354,7 +1354,7 @@ function renderT4(j){
       }).join('') + '</table></td></tr>';
   });
   h += '</table>';
-  h += '<div class="tnote">노출가 = 정책 판매가 − 즉시할인쿠폰(쿠팡은 마켓 캐시 실측값) · 마진 = preview 계산(정책 수수료·최저 매입가 기준) · 「옵션별 ▾」 = 그 마켓에 실제 전송된 옵션 단위 값 · <a href="/market-send">📤 미등록 마켓에 보내러 가기 →</a></div></div>';
+  h += '<div class="tnote">노출가 = 정책 판매가 − 즉시할인쿠폰(쿠팡은 마켓 캐시 실측값) · 마진 = preview 계산(정책 수수료·최저 매입가 기준) · 「옵션별 ▾」 = 그 마켓에 실제 전송된 옵션 단위 값 · <a href="/market-send">미등록 마켓에 보내러 가기 →</a></div></div>';
   /* 쿠폰 판 — 표 밑에 한 장(사장님 확정 A2) */
   var _cp = (j.markets || []).filter(function(x){ return x.market === 'coupang'; })[0];
   h += couponPanel(_cp);
@@ -1444,8 +1444,8 @@ function renderT5(sum){
   var h = '<div class="tcard"><div class="tcard-t">가격/재고 변동 이력' +
     '<span class="cap">소싱처 실측값(표면가) 기준 — 기존 가격 이력 기록을 그대로 봅니다</span>' +
     '<span class="sp"></span><div class="tseg" id="t5seg">' +
-    '<button class="on" data-m="g" type="button">📈 그래프</button>' +
-    '<button data-m="l" type="button">📋 날짜별 목록</button></div></div>';
+    '<button class="on" data-m="g" type="button">그래프</button>' +
+    '<button data-m="l" type="button">날짜별 목록</button></div></div>';
   if(!opts.length){
     h += '<div class="twr-u">옵션이 없어요.</div></div>';
     body().innerHTML = h; return;

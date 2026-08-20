@@ -4,7 +4,7 @@
   GET /api/admin/option-owner/snapshot          전체 지문 + 묶음별 지문
   GET /api/admin/option-owner/snapshot/<code>   한 묶음을 한 줄씩 (달라진 곳 찾을 때)
 
-⚠️ **아무것도 고치지 않는다.** 이관(2단계) 전후로 두 번 불러 대조하는 용도다.
+[주의] **아무것도 고치지 않는다.** 이관(2단계) 전후로 두 번 불러 대조하는 용도다.
    로컬에서는 라이브 DB 에 붙을 수 없어(.env 없음) 이 창구가 유일한 방법이다.
 
 계산은 lemouton/matrix/owner_snapshot.py 가 단일 원천. 여기는 창구일 뿐이다.
@@ -51,7 +51,7 @@ def snapshot():
 def backfill():
     """옵션에 새 주인(원본 매트릭스)을 붙인다. 멱등.
 
-    🔴 **틀리면 스스로 되돌린다.** 붙이기 전후로 기준 지문을 떠서, 하나라도
+    [중요] **틀리면 스스로 되돌린다.** 붙이기 전후로 기준 지문을 떠서, 하나라도
        달라졌으면 커밋하지 않고 rollback 한 뒤 409 로 어디가 달라졌는지 돌려준다.
 
     2a 단계라 읽는 곳이 아직 없다 → 지문은 **반드시 같아야 한다.**
@@ -158,7 +158,7 @@ def derived_drift():
 def derived_sync():
     """갈린 것을 원본에 맞춘다. 원본이 진실이다.
 
-    🔴 옵션 자체는 건드리지 않는다 — 소싱처 연결만 맞춘다.
+    [중요] 옵션 자체는 건드리지 않는다 — 소싱처 연결만 맞춘다.
        그래서 기준 지문(옵션·주소)은 그대로여야 하고, 다르면 되돌린다.
     """
     from lemouton.matrix.derived_sync import check
@@ -208,7 +208,7 @@ def soldout_scan():
 def soldout_notify():
     """새로 전수 품절된 상품만 알린다. 이미 알린 것은 다시 안 보낸다.
 
-    🔴 상품을 내리지 않는다 — 알림만 보낸다(사장님 확정).
+    [중요] 상품을 내리지 않는다 — 알림만 보낸다(사장님 확정).
     """
     from lemouton.matrix.soldout_alert import notify_new, scan
     s = SessionLocal()

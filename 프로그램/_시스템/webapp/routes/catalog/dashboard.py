@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """현황 보기 — 건수 스냅샷을 화면 모양으로 빚는다.
 
-★ 28만 행을 세지 않는다. market_product_counts 스냅샷만 읽어 즉시 뜬다.
+ 28만 행을 세지 않는다. market_product_counts 스냅샷만 읽어 즉시 뜬다.
 """
 from flask import jsonify, request
 
@@ -59,7 +59,7 @@ def api_dashboard():
 
     scope='bundle'(기본) — 마켓에 올라간 상품 전체(우리 캐시)
     scope='bulk'         — 우리가 대량등록으로 올린 상품만
-    ★ 탭이 실제로 다른 숫자를 보여줘야 한다. 같은 값을 주면 거짓 기능이다.
+     탭이 실제로 다른 숫자를 보여줘야 한다. 같은 값을 주면 거짓 기능이다.
     """
     from lemouton.catalog import repository as R
     from lemouton.catalog.bulk_scope import bulk_counts
@@ -103,7 +103,7 @@ def api_dashboard():
 def api_sync():
     """「지금 동기화」 — 마켓 하나 또는 계정 하나만 다시 훑는다.
 
-    ⚠️ 전체(28만 건)는 30~60분이 걸려 웹 요청으로 감당할 수 없다.
+    [주의] 전체(28만 건)는 30~60분이 걸려 웹 요청으로 감당할 수 없다.
        market 을 반드시 찍어야 한다.
     """
     from lemouton.catalog import sync as S

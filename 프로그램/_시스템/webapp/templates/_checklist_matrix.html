@@ -402,7 +402,7 @@
     /* 🔴 어긋남 배너 — 있으면 전부 보인다. 이게 안 뜨면 거짓 검증완료를 아무도 못 본다. */
     var banner = root.querySelector('.ckdrift'), drift = d.drift || [];
     if (drift.length) {
-      banner.innerHTML = '<b>⚠ 어긋남 ' + drift.length + '건</b><ul>'
+      banner.innerHTML = '<b>어긋남 ' + drift.length + '건</b><ul>'
         + drift.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul>';
       banner.classList.add('on');
     } else {

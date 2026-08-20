@@ -279,17 +279,17 @@
 </style>
 
 <div class="dm2">
-  <h2>📖 데이터 코드 지도 — 판매처</h2>
+  <h2><i class="ph-light ph-book-open" aria-hidden="true"></i> 데이터 코드 지도 — 판매처</h2>
   <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 API를 <b>그 마켓 공식 문서의 카테고리 그대로</b> 왼쪽에 나열(네이버 9·롯데온 13). 색은 <b>상태</b>에만, 방향은 <b>보내기/받기</b> 위치로.</div>
 
   <div class="flow">
-    <div class="fstep"><div class="fic">🗂️</div><div class="fnm">프로그램</div><div class="fds">가격·재고</div></div>
+    <div class="fstep"><div class="fic"><i class="ph-light ph-folders" aria-hidden="true"></i>️</div><div class="fnm">프로그램</div><div class="fds">가격·재고</div></div>
     <div class="ar">→</div>
-    <div class="fstep"><div class="fic">📤</div><div class="fnm">전송 대기</div><div class="fds">스냅샷</div></div>
+    <div class="fstep"><div class="fic"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i></div><div class="fnm">전송 대기</div><div class="fds">스냅샷</div></div>
     <div class="ar">→</div>
-    <div class="fstep"><div class="fic">🔌</div><div class="fnm">판매처 API</div><div class="fds">스스 OAuth·쿠팡 HMAC</div></div>
+    <div class="fstep"><div class="fic"><i class="ph-light ph-plug" aria-hidden="true"></i></div><div class="fnm">판매처 API</div><div class="fds">스스 OAuth·쿠팡 HMAC</div></div>
     <div class="ar">→</div>
-    <div class="fstep dim"><div class="fic">🛒</div><div class="fnm">마켓 반영</div><div class="fds">상품·재고 갱신</div></div>
+    <div class="fstep dim"><div class="fic"><i class="ph-light ph-shopping-cart" aria-hidden="true"></i></div><div class="fnm">마켓 반영</div><div class="fds">상품·재고 갱신</div></div>
   </div>
   <div class="branches">갈래 A · <b>신규 상품 등록</b>(모음전 상품을 마켓에 처음 올림) &nbsp;·&nbsp; 갈래 B · <b>기존 상품 연동</b>(이미 올라간 상품과 매칭 → 가격·재고만 동기화, 현재 우선 경로)</div>
 
@@ -308,8 +308,8 @@
     <div class="cm"><div>구 마켓 프로파일(이관 중)</div><div class="f">docs/markets/*.yaml (쿠팡·스스 이관완료 / 롯데온·11번가·ESM 잔여)</div></div>
     <div class="cm"><div>확장 기능 커넥터·마스터 게이트</div><div class="f">markets/capabilities.py · MOUM_MARKET_EXTRA</div></div>
     <div class="cm"><div>새 마켓 추가 가이드</div><div class="f">docs/markets/_새-마켓-추가-가이드.md</div></div>
-    <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>MOUM_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 폴백 금지. 상태 = <b>씀</b>(우리 코드로 연결됨 — 실사용 or <b>검증대기</b>) / <b>안 씀</b>(마켓 공식 문서엔 있으나 우리 코드 없음). 세부 동작은 <b>보내기</b>(등록·수정·삭제)/<b>받기</b>(조회) 위치와 색으로 구분.</div>
-    <div class="risk" style="background:var(--연한-파랑,#EEF4FF));border-color:var(--연한-파랑,#C7DBFF);color: var(--글자-파랑, var(--primary,#0C447C));">📚 <b>공식 API 카탈로그 채워가는 중</b> — 각 마켓 공식 문서(로그인 SPA라 자동 판독 불가)에서 <b>확인된 그룹부터</b> 넣는다. 현재 <b>정산</b> 그룹 반영 완료(네이버·롯데온). 남은 그룹은 문서 화면을 주시면 추가: <b>네이버</b> = 상품·주문/교환·문의·N배송·통계 · <b>롯데온</b> = 거래처·상품속성·상품·판촉·주문·클레임·고객센터·배송·전시·스마트픽·공통.</div>
+    <div class="risk"><i class="ph-light ph-warning" aria-hidden="true"></i>️ <b>정직성</b> — 실전송 기본 OFF(<code>MOUM_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 폴백 금지. 상태 = <b>씀</b>(우리 코드로 연결됨 — 실사용 or <b>검증대기</b>) / <b>안 씀</b>(마켓 공식 문서엔 있으나 우리 코드 없음). 세부 동작은 <b>보내기</b>(등록·수정·삭제)/<b>받기</b>(조회) 위치와 색으로 구분.</div>
+    <div class="risk" style="background:var(--연한-파랑,#EEF4FF));border-color:var(--연한-파랑,#C7DBFF);color: var(--글자-파랑, var(--primary,#0C447C));"><i class="ph-light ph-books" aria-hidden="true"></i> <b>공식 API 카탈로그 채워가는 중</b> — 각 마켓 공식 문서(로그인 SPA라 자동 판독 불가)에서 <b>확인된 그룹부터</b> 넣는다. 현재 <b>정산</b> 그룹 반영 완료(네이버·롯데온). 남은 그룹은 문서 화면을 주시면 추가: <b>네이버</b> = 상품·주문/교환·문의·N배송·통계 · <b>롯데온</b> = 거래처·상품속성·상품·판촉·주문·클레임·고객센터·배송·전시·스마트픽·공통.</div>
   </div>
 </div>
 
@@ -347,7 +347,7 @@ async function loadData(){
     buildAdapters();
   }catch(e){
     document.getElementById('dm-body').innerHTML=
-      `<div class="empty"><div class="big">⚠️</div>데이터를 불러오지 못했어요.<br><span style="font-size:12px;color:var(--faint)">${e.message}</span></div>`;
+      `<div class="empty"><div class="big"></div>데이터를 불러오지 못했어요.<br><span style="font-size:12px;color:var(--faint)">${e.message}</span></div>`;
     throw e;
   }
 }
@@ -358,7 +358,7 @@ let DM_TOP='all', DM_MK=null, DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx', DM_HOW
 // 과거이력 필터 상태 — 빈 Set = 전체. (마켓·영역 각각 다중 토글)
 let INC_MK=new Set(), INC_AREA=new Set(), INC_OPEN=new Set();
 const dmMkbId=id=>{const lb=(MK_META[id]||{}).label||id;const cls=(INC_MKMETA[id]||{}).cls||'';return `<span class="mkbadge ${cls}">${lb}</span>`;};
-const dmVb=v=>v==='done'?'<span class="vb done">✅ 검증완료</span>':'<span class="vb wait">⏳ 검증대기</span>';
+const dmVb=v=>v==='done'?'<span class="vb done">검증완료</span>':'<span class="vb wait">⏳ 검증대기</span>';
 const dmSt=s=>`<span class="st ${s}">${DM_LBL[s]}</span>`; const dmN=()=>dmStar.size;
 function dmSave(){try{localStorage.setItem(DM_KEY,JSON.stringify([...dmStar]));}catch(e){}}
 // 고급형 A — 항목의 세부 동작(등록/수정/삭제/조회) 자동 분류 + 씀 판정
@@ -380,7 +380,7 @@ function dmIdChips(ids){return ids.split('·').map(s=>`<span class="idchip">${s.
 function dmTransRail(){
   const AC=DATA.autoConfirm||{markets:[]};
   let h=`<div class="rt">주문상태 전환</div>`;
-  h+=`<button class="railbtn${DM_TSUB==='summary'?' on':''}" data-ts="summary">📋 실배선 현황</button>`;
+  h+=`<button class="railbtn${DM_TSUB==='summary'?' on':''}" data-ts="summary">실배선 현황</button>`;
   AC.markets.forEach(m=>{const lb=(MK_META[m.id]||{}).label||m.id;const d=m.v==='done'?'done':'wait';
     h+=`<button class="railbtn${DM_TSUB===m.id?' on':''}" data-ts="${m.id}"><span>${lb}</span><span class="rdot ${d}"></span></button>`;});
   return h;
@@ -443,14 +443,14 @@ function hwSnip(){let h='<div class="risk" style="margin-top:0;margin-bottom:12p
  h+='<table class="cmp"><tr><th style="width:120px">항목</th><th>규칙</th></tr>';
  HW_SNIP.forEach(r=>h+=`<tr><td class="el">${r[0]}</td><td>${r[1]}</td></tr>`);return h+'</table>';}
 function dmHowto(){
- const head=`<div class="favhead"><span class="ft">📘 API 문서 수집법</span><span class="fs">마켓 공식 API 문서를 어느 경로로 · 어떤 순서로 뚫는지 (F12 반복 노가다 종식용)</span></div>`;
+ const head=`<div class="favhead"><span class="ft">API 문서 수집법</span><span class="fs">마켓 공식 API 문서를 어느 경로로 · 어떤 순서로 뚫는지 (F12 반복 노가다 종식용)</span></div>`;
  // 정본(JSON) 지연 로드 — 아직이면 안내 후 로드되면 자동 재렌더 (조용한 실패 금지)
  if(!HW_LOADED){
   hwLoad().then(ok=>{ if(ok) dmRender();
    else { const b=document.querySelector('.dm2 .md'); if(b) b.innerHTML='<div class="risk">수집법 정본(/marketplace-guide/ingest-paths.json)을 불러오지 못했습니다. 새로고침하거나 관리자에게 알려주세요.</div>'; } });
   return head+`<div class="md"><div class="risk" style="margin:0">정본 불러오는 중…</div></div>`;
  }
- const MENU=[['routes','경로 도구 A~I'],['grades','신뢰도 등급'],['matrix','마켓×경로 매트릭스'],['hier','마켓별 전체 계층'],['play','플레이북(순서)'],['snip','I · 콘솔 스니펫 규칙'],['tpl','📋 스니펫 템플릿(복붙)']];
+ const MENU=[['routes','경로 도구 A~I'],['grades','신뢰도 등급'],['matrix','마켓×경로 매트릭스'],['hier','마켓별 전체 계층'],['play','플레이북(순서)'],['snip','I · 콘솔 스니펫 규칙'],['tpl','스니펫 템플릿(복붙)']];
  const menu=`<div class="hwm">${MENU.map(m=>`<button class="${DM_HOW===m[0]?'on':''}" data-how="${m[0]}">${m[1]}</button>`).join('')}</div>`;
  let pane;
  if(DM_HOW==='routes')pane=hwRoutes();
@@ -465,13 +465,13 @@ function dmHowto(){
 }
 function dmTransSummary(){
   const AC=DATA.autoConfirm||{markets:[],cautions:[]};
-  let h=`<div class="favhead"><span class="ft">⚡ 주문상태 전환</span><span class="fs">결제완료 → 배송준비중 · 마켓별 실배선/검증 현황</span></div>`;
-  h+=`<div class="apih3" style="margin-top:0">📋 실배선 현황</div>`;
+  let h=`<div class="favhead"><span class="ft">주문상태 전환</span><span class="fs">결제완료 → 배송준비중 · 마켓별 실배선/검증 현황</span></div>`;
+  h+=`<div class="apih3" style="margin-top:0">실배선 현황</div>`;
   h+=`<div class="wrapbox"><table class="cmp"><tr><th style="width:100px">마켓</th><th>전환 API</th><th style="width:172px">필요 식별자</th><th class="c" style="width:44px">배선</th><th class="c" style="width:86px">검증</th></tr>`;
-  AC.markets.forEach(m=>{h+=`<tr><td class="el">${dmMkbId(m.id)}</td><td class="url">${esc(m.api)}</td><td class="idcell">${dmIdChips(m.ids)}</td><td class="c">✅</td><td class="c">${dmVb(m.v)}</td></tr>`;});
+  AC.markets.forEach(m=>{h+=`<tr><td class="el">${dmMkbId(m.id)}</td><td class="url">${esc(m.api)}</td><td class="idcell">${dmIdChips(m.ids)}</td><td class="c"></td><td class="c">${dmVb(m.v)}</td></tr>`;});
   h+=`</table></div>`;
   if((AC.cautions||[]).length){
-    h+=`<div class="warnbox"><div class="wt">⚠️ 마켓별 주의</div>`;
+    h+=`<div class="warnbox"><div class="wt">마켓별 주의</div>`;
     // c.text = SOT(marketplace_api_map.json autoConfirm.cautions)의 의도적 raw HTML(<b> 강조) — esc 제외
     AC.cautions.forEach(c=>{h+=`<div class="wr">${dmMkbId(c.id)}<span>${c.text}</span></div>`;});
     h+=`</div>`;
@@ -481,18 +481,18 @@ function dmTransSummary(){
 function dmTransMarket(id){
   const AC=DATA.autoConfirm||{markets:[],calls:{}};
   const lb=(MK_META[id]||{}).label||id, c=(AC.calls||{})[id], t=(AC.markets||[]).filter(x=>x.id===id)[0];
-  if(!c)return `<div class="empty"><div class="big">📄</div>${lb} 전환 API 정보가 아직 없어요.</div>`;
+  if(!c)return `<div class="empty"><div class="big"></div>${lb} 전환 API 정보가 아직 없어요.</div>`;
   let h=`<div class="favhead"><span class="ft">${lb} · 주문상태 전환</span><span class="fs">${esc(c.auth)}</span></div>`;
-  if(t)h+=`<div style="font-size:12px;margin-bottom:8px">배선 <b style="color:var(--ok)">✅</b> · 검증 ${dmVb(t.v)} · 식별자 <span class="ids2">${esc(t.ids)}</span></div>`;
+  if(t)h+=`<div style="font-size:12px;margin-bottom:8px">배선 <b style="color:var(--ok)"></b> · 검증 ${dmVb(t.v)} · 식별자 <span class="ids2">${esc(t.ids)}</span></div>`;
   h+=`<table class="cmp"><tr><th style="width:120px">용도</th><th>메서드 · URL</th><th style="width:120px">성공·비고</th></tr>`;
   c.rows.forEach(r=>{const st=r[0][0]==='★';h+=`<tr><td class="el${st?' star':''}">${esc(r[0])}</td><td class="url">${esc(r[1])}</td><td class="g">${esc(r[2])}</td></tr>`;});
   h+=`</table>`;
-  if(c.note)h+=`<div class="apinote">⚠️ ${esc(c.note)}</div>`;
+  if(c.note)h+=`<div class="apinote">${esc(c.note)}</div>`;
   return h;
 }
 function dmSettle(){
   const SC=DATA.settleCalc;
-  if(!SC)return `<div class="empty"><div class="big">⚠️</div>정산 계산 데이터를 불러오지 못했어요.</div>`;
+  if(!SC)return `<div class="empty"><div class="big"></div>정산 계산 데이터를 불러오지 못했어요.</div>`;
   const STL_C={coupang:'#AE3FE0',smartstore:'#03C75A',lotteon:'#DA2128',eleven11:'#FF4800'};  // 표현색(데이터 아님)
   const mks=SC.markets.map(m=>({id:m.id,g:m.g,api:m.api,nm:(MK_META[m.id]||{}).label||m.id,c:STL_C[m.id]||'#888'}));
   const cell=(v)=>v.inc?`<span class="inc"><span class="cc">${v.inc}</span><span class="t">에 포함${v.n?' ('+v.n+')':''}</span></span>`:`<span class="cc">${v.c}</span>`;
@@ -516,7 +516,7 @@ function dmSettle(){
       +`</div></div>`;}).join('')+`</div>`
       +`<div class="stlnote">${SC.noteFml}</div>`;
   }
-  return `<div class="favhead"><span class="ft">💰 정산 계산 항목 — API 필드 코드</span><span class="fs">각 항목이 어느 API 필드에서 오는지. 별도 필드 없는 항목은 「~에 포함」으로 흡수처 표시.</span></div>`+sub+bd;
+  return `<div class="favhead"><span class="ft">정산 계산 항목 — API 필드 코드</span><span class="fs">각 항목이 어느 API 필드에서 오는지. 별도 필드 없는 항목은 「~에 포함」으로 흡수처 표시.</span></div>`+sub+bd;
 }
 // 🧾 프로그램 주문조회 — 항목×마켓 코드 지도 (주문내역·마진계산기 단일원천). 인라인 데이터(정산탭과 동일 방식).
 const _PL_G={'쿠팡':'쿠','스마트스토어':'N','롯데온':'롯','11번가':'11','옥션·G마켓':'ES'};
@@ -580,22 +580,22 @@ function dmProgLookup(){
     +`<td style="text-align:center"><span class="pill ${r[5]}">${r[5]==='par'?'병렬':'순차'}</span></td>`
     +`<td style="font-size:12px;color:var(--sub)">${r[6]}</td></tr>`).join('');
   const callTable=`<div style="overflow-x:auto"><table class="stlmtx pl"><thead>${callHead}</thead><tbody>${callBody}</tbody></table></div>`;
-  return `<div class="favhead"><span class="ft">🧾 프로그램 주문조회 — 항목별 마켓 코드</span><span class="fs">한 줄 = 한 항목. 주문내역·마진계산기가 각 항목을 어느 API 필드에서 받는지 마켓별로. 신규 마켓은 빈 칸을 채우면 됩니다.</span></div>`
-    +`<div class="aplink">🔗 적용 화면 — <b>주문 내역</b> · <b>마진 계산기</b> (두 탭이 아래 항목을 같은 원천에서 받아옵니다)</div>`
+  return `<div class="favhead"><span class="ft">프로그램 주문조회 — 항목별 마켓 코드</span><span class="fs">한 줄 = 한 항목. 주문내역·마진계산기가 각 항목을 어느 API 필드에서 받는지 마켓별로. 신규 마켓은 빈 칸을 채우면 됩니다.</span></div>`
+    +`<div class="aplink">적용 화면 — <b>주문 내역</b> · <b>마진 계산기</b> (두 탭이 아래 항목을 같은 원천에서 받아옵니다)</div>`
     +`<div class="plleg"><span><span class="sw" style="background:var(--line2,#eef2f7);border-color:var(--line,#dbe1e8)"></span>실제 API 필드</span><span><span class="sw" style="background:#FEF3C7"></span>파생(계산으로 만듦)</span><span><span class="sw" style="background:var(--line2,#F1F3F5)"></span>미매핑·흡수</span><span><span class="shb" style="margin:0">공유</span> 주문내역·마진계산기 같은 원천</span></div>`
-    +`<details class="hacc" open><summary>📦 주문조회 <span class="hroute">${ORD.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(ORD)}</div></details>`
-    +`<details class="hacc" open><summary>💰 정산·마진 <span class="hroute">${STL.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(STL)}<div class="stlnote"><b>공유</b> = 주문내역·마진계산기 모두 <span class="cc">order_export.combined_order_rows</span> 단일 원천. 마진계산기는 그 위에 <b>롯데온 실결제→정산 환산</b>·<b>미정산분 추정계수</b>(롯데온 0.947/0.884·11번가 0.964/0.869)만 덧붙입니다.</div></div></details>`
-    +`<details class="hacc" open><summary>📡 마켓별 1년치 주문조회 전략 <span class="hroute">저장분 vs 백필 · 과거회수 실측</span></summary><div class="hbody" style="color:var(--ink)">${_plQueryStrategy()}</div></details>`;
+    +`<details class="hacc" open><summary>주문조회 <span class="hroute">${ORD.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(ORD)}</div></details>`
+    +`<details class="hacc" open><summary>정산·마진 <span class="hroute">${STL.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(STL)}<div class="stlnote"><b>공유</b> = 주문내역·마진계산기 모두 <span class="cc">order_export.combined_order_rows</span> 단일 원천. 마진계산기는 그 위에 <b>롯데온 실결제→정산 환산</b>·<b>미정산분 추정계수</b>(롯데온 0.947/0.884·11번가 0.964/0.869)만 덧붙입니다.</div></div></details>`
+    +`<details class="hacc" open><summary>마켓별 1년치 주문조회 전략 <span class="hroute">저장분 vs 백필 · 과거회수 실측</span></summary><div class="hbody" style="color:var(--ink)">${_plQueryStrategy()}</div></details>`;
 }
 function _plQueryStrategy(){
   // 마켓별 1년치 주문조회(백필) 방식 — 값은 코드 실측(2026-07-25). 순서 = 사이트 CALL 표와 동일.
   const M=[
     {k:'쿠',nm:'쿠팡',c:'#AE3FE0',win:'7일(백필 축소)',split:'상태 5개',wins:'~53',rate:'초당 5번',par:'병렬 2',pg:'50건/쪽',per:'~0.4초',
-     mp:'🔴 약 4개월',mps:'2026-03월~ · 이전 API 복구불가',mpred:1,
-     how:'원래 31일 되지만 옛 구간이 100초를 넘겨 통째로 날아가서 백필은 7일로 줄임. 계정별 제한이라 2계정 동시.',trap:'🔴 발주서 API가 최근 ~4개월만 돌려줌(창고엔 2025-09부터 있지만 이전은 라이브 재조회 0건) → 그 이전은 이미 저장된 것만 존재',fix:'백필 7일씩·상태 5개 다·2계정'},
+     mp:'약 4개월',mps:'2026-03월~ · 이전 API 복구불가',mpred:1,
+     how:'원래 31일 되지만 옛 구간이 100초를 넘겨 통째로 날아가서 백필은 7일로 줄임. 계정별 제한이라 2계정 동시.',trap:'발주서 API가 최근 ~4개월만 돌려줌(창고엔 2025-09부터 있지만 이전은 라이브 재조회 0건) → 그 이전은 이미 저장된 것만 존재',fix:'백필 7일씩·상태 5개 다·2계정'},
     {k:'스',nm:'스마트스토어',c:'#03C75A',win:'24시간(1일)',split:'단일',wins:'~365',rate:'초당 5번',par:'순차',pg:'300건/쪽',per:'~0.2초',
-     mp:'🔴 약 5개월',mps:'2026-02월~ · 이전 API 복구불가',mpred:1,
-     how:'하루씩만 물을 수 있어 1년이면 365번. 우리 서버 IP로 제한이 걸려 계정을 동시에 못 돌린다.',trap:'🔴 변경주문 API가 최근 ~5개월만 돌려줌(창고엔 2025-12부터 있지만 이전은 라이브 0건) · 2일치 물으면 에러(400)',fix:'하루씩·계정 하나씩 순서대로'},
+     mp:'약 5개월',mps:'2026-02월~ · 이전 API 복구불가',mpred:1,
+     how:'하루씩만 물을 수 있어 1년이면 365번. 우리 서버 IP로 제한이 걸려 계정을 동시에 못 돌린다.',trap:'변경주문 API가 최근 ~5개월만 돌려줌(창고엔 2025-12부터 있지만 이전은 라이브 0건) · 2일치 물으면 에러(400)',fix:'하루씩·계정 하나씩 순서대로'},
     {k:'롯',nm:'롯데온',c:'#DA2128',win:'29일(정산API)',split:'단일',wins:'~13',rate:'초당 50번',par:'병렬 3',pg:'100건/쪽',per:'~0.1초',
      mp:'전 이력',mps:'판매시작(~2025-08)까지 회수',
      how:'백필은 정산용 API로 29일씩 → 13번이면 끝(주문 API는 하루씩이라 이걸 씀). 계정별 제한이라 3계정 동시.',trap:'주문 API는 1일 초과 시 에러(2003)',fix:'백필은 29일 정산 API·계정 동시'},
@@ -630,10 +630,10 @@ function _plQueryStrategy(){
     +`</tbody></table></div>`;
   // 저장분 vs 백필 개념 + 최대 3년
   const concept=`<div style="display:flex;gap:12px;margin:0px 0 16px;flex-wrap:wrap">`
-    +`<div style="flex:1;min-width:240px;border:1px solid var(--연한-파랑,#c9ddfb);background:var(--offb);border-radius:12px;padding:12px 16px"><div style="font-size:14px;font-weight:800;color:var(--off);margin-bottom:4px">📦 저장분(창고) — 자동</div><div style="font-size:12px;color:var(--글자-기본,#4b5563);line-height:1.6">프로그램이 <b style="color:${V}">20분마다</b> 마켓에서 최근 주문을 받아 창고에 쌓아둬요. 마진 분석은 이 창고만 읽어 <b style="color:${V}">몇 초</b>면 끝. 단, <b style="color:${V}">최근 것만</b> 있어요.</div></div>`
+    +`<div style="flex:1;min-width:240px;border:1px solid var(--연한-파랑,#c9ddfb);background:var(--offb);border-radius:12px;padding:12px 16px"><div style="font-size:14px;font-weight:800;color:var(--off);margin-bottom:4px">저장분(창고) — 자동</div><div style="font-size:12px;color:var(--글자-기본,#4b5563);line-height:1.6">프로그램이 <b style="color:${V}">20분마다</b> 마켓에서 최근 주문을 받아 창고에 쌓아둬요. 마진 분석은 이 창고만 읽어 <b style="color:${V}">몇 초</b>면 끝. 단, <b style="color:${V}">최근 것만</b> 있어요.</div></div>`
     +`<div style="flex:1;min-width:240px;border:1px solid var(--연한-주황,#f3ddb4);background:${WARNB};border-radius:12px;padding:12px 16px"><div style="font-size:14px;font-weight:800;color:${STAR};margin-bottom:4px">⏳ 백필(과거 채우기) — 한 번 수동</div><div style="font-size:12px;color:var(--글자-기본,#4b5563);line-height:1.6">창고에 없는 <b style="color:${V}">과거 1년치</b>를 마켓에서 통째로 끌어와 채우는 것. 마켓 API를 수십~수백 번 불러 <b style="color:${V}">오래 걸려요</b>. 프로그램은 <b style="color:${V}">최대 3년(1,095일)</b>까지 요청하지만, <b style="color:${DEL}">실제 회수는 마켓 API 보존한도에 막혀요</b>.</div></div>`
     +`</div>`
-    +`<div style="border:1px solid var(--연한-주황,#f3ddb4);background:${WARNB};border-radius:12px;padding:12px 16px;margin:0 0 16px"><div style="font-size:12px;font-weight:800;color:${DEL};margin-bottom:4px">🔴 실측: 마켓 API가 돌려주는 과거는 마켓마다 다르다 (2026-07-25 라이브 실측)</div><div style="font-size:12px;color:var(--글자-기본,#4b5563);line-height:1.65">·<b style="color:${OK}">옥션·G마켓·롯데온</b> = 우리 판매 시작(~2025-08)까지 전부 회수 가능(정산·주문일 기준 API 장기 보존).<br>·<b style="color:${DEL}">쿠팡(~최근 4개월)·스마트스토어(~최근 5개월)</b> = 그 이전은 마켓 API가 <b style="color:${DEL}">0건</b>으로 돌려줌 → <b style="color:${V}">이미 창고에 저장된 것만</b> 존재하고, 전수 재백필해도 복구 안 됨.<br>·<b style="color:${STAR}">11번가</b> = 주문 API는 현재 상태 기준이라 과거 조회 불가 → 과거는 정산(settlementList)로만.<br><span style="color:${SUB}">※ 쿠팡·스스 보존한도는 오늘 기준 상대 구간이라 시간이 지나면 함께 밀립니다.</span></div></div>`;
+    +`<div style="border:1px solid var(--연한-주황,#f3ddb4);background:${WARNB};border-radius:12px;padding:12px 16px;margin:0 0 16px"><div style="font-size:12px;font-weight:800;color:${DEL};margin-bottom:4px">실측: 마켓 API가 돌려주는 과거는 마켓마다 다르다 (2026-07-25 라이브 실측)</div><div style="font-size:12px;color:var(--글자-기본,#4b5563);line-height:1.65">·<b style="color:${OK}">옥션·G마켓·롯데온</b> = 우리 판매 시작(~2025-08)까지 전부 회수 가능(정산·주문일 기준 API 장기 보존).<br>·<b style="color:${DEL}">쿠팡(~최근 4개월)·스마트스토어(~최근 5개월)</b> = 그 이전은 마켓 API가 <b style="color:${DEL}">0건</b>으로 돌려줌 → <b style="color:${V}">이미 창고에 저장된 것만</b> 존재하고, 전수 재백필해도 복구 안 됨.<br>·<b style="color:${STAR}">11번가</b> = 주문 API는 현재 상태 기준이라 과거 조회 불가 → 과거는 정산(settlementList)로만.<br><span style="color:${SUB}">※ 쿠팡·스스 보존한도는 오늘 기준 상대 구간이라 시간이 지나면 함께 밀립니다.</span></div></div>`;
   // 마켓별 대응
   const mtbl=`<div style="overflow-x:auto;margin-top:4px"><table class="stlmtx" style="width:100%;font-size:12px">`
     +`<thead><tr><th style="text-align:left;width:150px;background:${BG}">마켓</th><th style="text-align:left;background:${BG}">어떻게 조회하나</th><th style="text-align:left;width:210px;background:${BG}">함정</th><th style="text-align:left;width:200px;background:${BG}">우리가 이렇게</th></tr></thead><tbody>`
@@ -735,14 +735,14 @@ function dmSpeed(){
    +`<div class="up2row hd acct"><div>마켓</div><div>실측 성공속도</div><div>계정 수</div><div style="text-align:right">처리량</div></div>${A.map(arow).join('')}</div>`
    +`<div class="up2grp srv"><div class="up2ghd">— 서버 천장 (계정 늘려도 우리 서버가 병목·마켓 한도 미측정)<span class="gs">공유/전역</span></div>`
    +`<div class="up2row hd srv"><div>마켓</div><div>실측 성공속도</div><div style="text-align:right">현재 실효(설정)</div></div>${S.map(srow).join('')}</div>`
-   +`<div class="up2cav">🧪 <b>측정법</b> — 동시호출로 밀어 <b>429(거절) 지점</b>을 찾음. 429가 안 나면 「한도 없음」이 아니라 「우리 서버(2코어)로는 측정 불가」. <b>계정별(쿠팡·스스)</b>은 계정 늘리면 총량 증가 → 한도는 「계정당」으로. 계정 입력값은 <b>현재 설정(안전마진) 기준 이론치</b>. 실측일 2026-07-21~22 · 무변화 프로브 · 재고 손상 0.</div>`;
+   +`<div class="up2cav"><b>측정법</b> — 동시호출로 밀어 <b>429(거절) 지점</b>을 찾음. 429가 안 나면 「한도 없음」이 아니라 「우리 서버(2코어)로는 측정 불가」. <b>계정별(쿠팡·스스)</b>은 계정 늘리면 총량 증가 → 한도는 「계정당」으로. 계정 입력값은 <b>현재 설정(안전마진) 기준 이론치</b>. 실측일 2026-07-21~22 · 무변화 프로브 · 재고 손상 0.</div>`;
  const ep=`<table class="up2tbl"><thead><tr><th>마켓</th><th>가격 EP</th><th>재고 EP</th><th>인증</th><th>전송 단위</th></tr></thead><tbody>`+list.map(m=>{var x=_UPX[m.id];return `<tr><td>${mkc(m)}</td><td><span class="cc">${x.pep}</span></td><td><span class="cc">${x.sep}</span></td><td style="color:var(--sub)">${x.auth}</td><td style="color:var(--sub)">${x.unit}</td></tr>`;}).join('')+`</tbody></table>`;
- const pg=`<table class="up2tbl"><thead><tr><th>마켓</th><th>보내는 값</th><th>안전 가드</th><th style="text-align:center">라이브</th></tr></thead><tbody>`+list.map(m=>{var x=_UPX[m.id];return `<tr><td>${mkc(m)}</td><td style="color:var(--sub)">${x.pay}</td><td class="up2warn">⚠ ${x.guard}</td><td style="text-align:center">${live(m)}</td></tr>`;}).join('')+`</tbody></table>`;
+ const pg=`<table class="up2tbl"><thead><tr><th>마켓</th><th>보내는 값</th><th>안전 가드</th><th style="text-align:center">라이브</th></tr></thead><tbody>`+list.map(m=>{var x=_UPX[m.id];return `<tr><td>${mkc(m)}</td><td style="color:var(--sub)">${x.pay}</td><td class="up2warn">${x.guard}</td><td style="text-align:center">${live(m)}</td></tr>`;}).join('')+`</tbody></table>`;
  const steps=[['🕷️','크롤','가격·재고'],['🧮','가격 결정','마켓별'],['📦','포매팅','전송대기'],['🔒','2중 잠금','서버키+화면키'],['🔍','변동감지','토글'],['⬆️','전송','옵션별 페이싱'],['✅','성공/DLQ','등록·재시도']];
  const flow=`<div class="up2flow">`+steps.map((s,i)=>`<div class="up2step${s[0]==='🔒'?' lock':''}"><div class="fi">${s[0]}</div><div class="fn">${s[1]}</div><div class="fd">${s[2]}</div></div>`+(i<steps.length-1?`<div class="up2ar">→</div>`:'')).join('')+`</div>`;
  const sec=(n,t,b)=>`<div class="up2sec"><div class="up2h"><span class="no">${n}</span>${t}</div>${b}</div>`;
- return `<div class="favhead"><span class="ft">⬆️ 마켓별 업로드</span><span class="fs">가격·재고 실전송 속도(실측)·엔드포인트·payload·프로세스. 계정 수 입력은 계정별 확정 마켓(쿠팡·스스)만.</span></div>`
-   +`<div class="aplink">🔗 적용 화면 — <b>자동화 실전송</b> · <b>대량등록</b> (가격·재고 쓰기가 실제 이 경로로 나갑니다)</div>`
+ return `<div class="favhead"><span class="ft">마켓별 업로드</span><span class="fs">가격·재고 실전송 속도(실측)·엔드포인트·payload·프로세스. 계정 수 입력은 계정별 확정 마켓(쿠팡·스스)만.</span></div>`
+   +`<div class="aplink">적용 화면 — <b>자동화 실전송</b> · <b>대량등록</b> (가격·재고 쓰기가 실제 이 경로로 나갑니다)</div>`
    +sec(1,'속도 — 실측 기준 · 계정별만 계정 수 입력', speed)
    +`<hr class="up2div">`+sec(2,'엔드포인트 — 실제 호출 주소', ep)
    +`<hr class="up2div">`+sec(3,'보내는 값 · 안전 가드', pg)
@@ -770,7 +770,7 @@ function dmIncidents(){
       return `<button class="fchip${INC_MK.has(m)?' on':''}" data-mk="${m}"><span class="cdot" style="background:${meta.dot}"></span>${lb}</button>`;}).join('');
   const arChips=`<span class="fl">영역</span><button class="fchip all${INC_AREA.size===0?' on':''}" data-ar="__all">전체</button>`
     +arSet.map(a=>`<button class="fchip${INC_AREA.has(a)?' on':''}" data-ar="${esc(a)}">${esc(a)}</button>`).join('');
-  const stmap={resolved:['✔ 해결됨','status-ok'],mitigated:['◑ 임시조치','status-mit'],open:['● 미해결','status-open']};
+  const stmap={resolved:['해결됨','status-ok'],mitigated:['◑ 임시조치','status-mit'],open:['● 미해결','status-open']};
   const rows=shown.map(i=>{
     const open=INC_OPEN.has(i.id);
     const mkcell=(i.markets||[]).map(incMkBadge).join(' ');
@@ -792,8 +792,8 @@ function dmIncidents(){
   }).join('');
   const empty=`<tr><td colspan="5" class="incempty">이 조건에 해당하는 이력이 없어요.</td></tr>`;
   return `<div class="inclead"><span class="kl">핵심</span><span class="sm">마켓 연동에서 <b>발생했던 문제와 그 해결</b>을 한곳에 축적 — 같은 원인이 다른 마켓·계정에서 재발하면 여기부터 확인.</span></div>`
-    +`<div class="inccall">🛑 <b>새 문제를 해결하면 여기에 한 줄 추가</b> — 증상 · 원인 · 해결 · 교훈 · 커밋을 남기면, 다음에 같은 벽을 만났을 때 바로 참고할 수 있어요. 최신순 정렬.`
-    +`<div class="incrule">📌 <b>기록 지침</b> — 「해결」 칸에는 <b>코드로 어떻게 고쳤는지</b>를 반드시 명확하게 적는다: <b>바꾼 함수·파일 이름</b>, <b>이전 로직 → 바뀐 로직</b>, 핵심 코드 조각. "고쳤음"만 적지 말 것 — 다음 사람이 그 코드를 바로 찾아갈 수 있어야 함.</div></div>`
+    +`<div class="inccall"><b>새 문제를 해결하면 여기에 한 줄 추가</b> — 증상 · 원인 · 해결 · 교훈 · 커밋을 남기면, 다음에 같은 벽을 만났을 때 바로 참고할 수 있어요. 최신순 정렬.`
+    +`<div class="incrule"><b>기록 지침</b> — 「해결」 칸에는 <b>코드로 어떻게 고쳤는지</b>를 반드시 명확하게 적는다: <b>바꾼 함수·파일 이름</b>, <b>이전 로직 → 바뀐 로직</b>, 핵심 코드 조각. "고쳤음"만 적지 말 것 — 다음 사람이 그 코드를 바로 찾아갈 수 있어야 함.</div></div>`
     +`<div class="incfil">${mkChips}</div><div class="incfil incbar2">${arChips}</div>`
     +`<table class="inctbl"><thead><tr><th style="text-align:center">날짜</th><th style="text-align:center">마켓</th><th style="text-align:center">영역</th><th>문제</th><th style="text-align:center">심각도</th></tr></thead><tbody>${rows||empty}</tbody></table>`;
 }
@@ -875,10 +875,10 @@ function dmRender(){
     if(DM_SUBG>=cats.length) DM_SUBG=0;
     let h=`<div class="env"><span class="k">인증</span><span class="v">${m.auth}</span><span class="k">base</span><span class="v"><span class="mono">${m.base_url}</span></span><span class="k">계정</span><span class="v"><span class="mono">${(m.env_prefixes||[]).join(', ')}</span></span><span class="k">병렬</span><span class="v">${m.concurrency||'—'}</span>${m.rate?`<span class="k">속도(실측)</span><span class="v" style="grid-column:span 3">${m.rate}</span>`:''}</div>`;
     const ntb=DM_NOTAB[DM_MK]||0;
-    if(ntb) h+=`<div style="font-size:12px;color:var(--sub);margin:-8px 0 12px">⚠️ 업무탭 미배정 <b>${ntb}개</b> — 이 항목들은 위 업무별 탭(상품 조회 등)에는 안 보여요. 항목 옆 <span class="notabChip">탭없음</span> 표시.</div>`;
+    if(ntb) h+=`<div style="font-size:12px;color:var(--sub);margin:-8px 0 12px">업무탭 미배정 <b>${ntb}개</b> — 이 항목들은 위 업무별 탭(상품 조회 등)에는 안 보여요. 항목 옆 <span class="notabChip">탭없음</span> 표시.</div>`;
     const gr=cats[DM_SUBG]; const send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
     let right;
-    if(!gr.items.length){ right=`<div class="empty" style="padding:32px 16px;"><div style="font-size:24px">📄</div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:12px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
+    if(!gr.items.length){ right=`<div class="empty" style="padding:32px 16px;"><div style="font-size:24px"></div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:12px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
     else { right=`<div class="two">${dmColLux('send','📤 보내기','프로그램 → 마켓',send)}${dmColLux('recv','📥 받기','마켓 → 프로그램',recv)}</div>`; }
     h+=`<div class="md"><div class="ml">`+cats.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length||'…'}</span></button>`).join('')+`</div><div class="mr">${right}</div></div>`;
     body.innerHTML=h;
@@ -887,7 +887,7 @@ function dmRender(){
   document.querySelectorAll('.dm2 .hwm button[data-how]').forEach(b=>b.onclick=()=>{DM_HOW=b.dataset.how;dmRender();});
   document.querySelectorAll('.dm2 button.tplcp').forEach(b=>b.onclick=async()=>{
     const t=HW_TPL[+b.dataset.tpl]; if(!t)return;
-    try{ await navigator.clipboard.writeText(t.code||''); b.textContent='복사됨 ✓'; }
+    try{ await navigator.clipboard.writeText(t.code||''); b.textContent='복사됨'; }
     catch(e){ b.textContent='복사 실패'; }
     setTimeout(()=>{b.textContent='복사';},1500);
   });

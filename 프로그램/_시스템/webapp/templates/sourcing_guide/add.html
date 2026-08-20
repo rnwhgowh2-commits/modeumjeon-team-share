@@ -48,7 +48,7 @@
     <label>샘플 URL <span style="color: var(--글자-희미, #8B95A1);font-weight:500;">(URL마다 유형: 단품·색상모음전·모델모음전 · 첫 줄 = 대표)</span></label>
     <div id="newUrls"></div>
     <button class="btn add" type="button" onclick="addUrlRow('newUrls')">+ URL 추가</button>
-    <br><button class="btn primary" type="button" onclick="submitNew()">📋 추가 + Claude Code 프롬프트 생성</button>
+    <br><button class="btn primary" type="button" onclick="submitNew()"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 추가 + Claude Code 프롬프트 생성</button>
     <div class="toast" id="newToast"></div>
     <div class="prm" id="newPrm"><div class="cap">⬇ 이 프롬프트를 복사해 Claude Code에 붙여넣으세요</div><button class="cp" type="button" onclick="copyPrm('newPrmText')">복사</button><pre id="newPrmText"></pre></div>
   </div>
@@ -65,7 +65,7 @@
     <button class="btn add" type="button" onclick="addUrlRow('updUrls')">+ URL 추가</button>
     <label>업데이트 사유(선택)</label>
     <input type="text" id="updNote" placeholder="예: 가격이 0으로 나옴 / 재고가 다 '있음'으로 둔갑">
-    <br><button class="btn primary" type="button" onclick="submitUpd()">📋 저장 + Claude Code 프롬프트 생성</button>
+    <br><button class="btn primary" type="button" onclick="submitUpd()"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 저장 + Claude Code 프롬프트 생성</button>
     <div class="toast" id="updToast"></div>
     <div class="prm" id="updPrm"><div class="cap">⬇ 이 프롬프트를 복사해 Claude Code에 붙여넣으세요</div><button class="cp" type="button" onclick="copyPrm('updPrmText')">복사</button><pre id="updPrmText"></pre></div>
   </div>
@@ -86,7 +86,7 @@ function addUrlRow(boxId, val, kind){
     + segHtml
     + '<input type="text" placeholder="https://...">'
     + '<button class="btn" type="button" onclick="openUrl(this)">↗</button>'
-    + '<button class="btn del" type="button" onclick="this.closest(\'.urlrow\').remove()">🗑</button>';
+    + '<button class="btn del" type="button" onclick="this.closest(\'.urlrow\').remove()"></button>';
   row.querySelector('input').value = val || '';   // 속성 주입(value=) → 따옴표/태그 탈출 차단
   box.appendChild(row);
 }
@@ -135,7 +135,7 @@ async function submitNew(){
   if(!name){toast('newToast','소싱처명을 입력하세요.',false);return;}
   var res=await postJSON('/sourcing-guide/api/add-source',{name:name,urls:rows.map(function(r){return r.url;})});
   if(res.ok&&res.data.ok){
-    toast('newToast','✓ "'+name+'" 추가됨 — 전체보기에 등장. 아래 프롬프트를 Claude Code에 붙여넣으세요.',true);
+    toast('newToast','"'+name+'" 추가됨 — 전체보기에 등장. 아래 프롬프트를 Claude Code에 붙여넣으세요.',true);
     showPrm('newPrm','newPrmText', buildPrompt('신규 소싱처', name, rows, '→ add-source 스킬대로 분석·검증·구현해줘.', res.data.id, 'new'));
   } else if(res.data.exists){
     // 존재검사 게이트 — 이미 있는 소싱처 → 기존 업데이트 탭으로 유도(중복 방지)
@@ -170,7 +170,7 @@ async function submitUpd(){
   if(!r1.ok||!r1.data.ok){ toast('updToast','URL 저장 실패: '+((r1.data&&r1.data.error)||'오류'),false); return; }
   var res=await postJSON('/sourcing-guide/api/'+sid+'/request-update',{note:note});
   if(res.ok&&res.data.ok){
-    toast('updToast','✓ 저장+업데이트 요청됨. 아래 프롬프트를 Claude Code에 붙여넣으세요.',true);
+    toast('updToast','저장+업데이트 요청됨. 아래 프롬프트를 Claude Code에 붙여넣으세요.',true);
     var tail=note? ('증상/사유: '+note+'\n→ add-source 스킬대로 진단·교정·검증해줘.') : '→ add-source 스킬대로 진단·교정·검증해줘.';
     showPrm('updPrm','updPrmText', buildPrompt('기존 소싱처 크롤 업데이트', name, rows, tail, sid, 'update'));
   } else { toast('updToast','업데이트 요청 실패',false); }

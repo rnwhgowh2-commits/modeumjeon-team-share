@@ -14,7 +14,7 @@
 (function () {
   'use strict';
 
-  const HINT_DEFAULT = '📷 바코드를 비춰주세요';
+  const HINT_DEFAULT = '바코드를 비춰주세요';
 
   class Camera {
     constructor(opts) {
@@ -166,13 +166,13 @@
       const caps = this.track.getCapabilities ? this.track.getCapabilities() : {};
       if (!caps.focusMode || !caps.focusMode.includes('manual')) {
         try { await this.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
-        this.onHint('🎯 재초점');
+        this.onHint('재초점');
         setTimeout(() => this.onHint(HINT_DEFAULT), 700);
         return;
       }
       try {
         await this.track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: 0.15 }] });
-        this.onHint('🎯 매크로 초점');
+        this.onHint('매크로 초점');
         setTimeout(() => this.onHint(HINT_DEFAULT), 1500);
       } catch (e) { console.warn('focus fail', e); }
     }

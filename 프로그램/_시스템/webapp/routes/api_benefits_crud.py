@@ -12,7 +12,7 @@
 
 기존 api_benefits.py 와 분리 (충돌 0, 단일 책임). url prefix 도 다름.
 
-✅ 기존 코드 안 건드림 — 단일 추가만.
+[확인] 기존 코드 안 건드림 — 단일 추가만.
 """
 from __future__ import annotations
 

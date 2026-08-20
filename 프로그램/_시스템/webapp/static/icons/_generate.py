@@ -57,7 +57,7 @@ def main():
     # Apple touch icon
     make_icon(180).save(OUT / "apple-touch-icon.png")
 
-    print("✅ 아이콘 5종 생성:")
+    print("아이콘 5종 생성:")
     for f in OUT.glob("*.png"):
         print(f"   {f.name} ({f.stat().st_size:,} bytes)")
 

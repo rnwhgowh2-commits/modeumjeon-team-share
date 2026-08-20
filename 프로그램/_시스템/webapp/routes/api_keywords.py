@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 r"""카드별 분류 키워드 API — `/api/keywords` (GET/POST).
 
-마진 계산기 페이지(/orders/margin-embed 의 ⚙️설정 탭)가 이 리터럴 경로를 호출한다.
+마진 계산기 페이지(/orders/margin-embed 의 설정 탭)가 이 리터럴 경로를 호출한다.
 `/api/margin` 프리픽스가 아니라 최상위 `/api/keywords` 여야 한다 — 이식된 원본 페이지
 (_getCardKeywords / _saveKeywordEditor) 가 그 경로를 하드코딩했기 때문.
 

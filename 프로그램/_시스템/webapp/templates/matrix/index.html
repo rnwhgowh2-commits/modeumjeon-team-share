@@ -507,7 +507,7 @@
       }).join(' ');
     }
     function prodTree(p){
-      return '<div class="nd">📦 <span class="mx-no">' + esc(p.no || p.model_code) + '</span> <b>'
+      return '<div class="nd"><span class="mx-no">' + esc(p.no || p.model_code) + '</span> <b>'
         + esc(p.name) + '</b> <span class="mxp-dim">· 옵션 ' + p.copied + '개 담김</span></div>'
         + '<div class="lv"><div class="nd">' + marks(p.markets) + '</div></div>';
     }
@@ -582,11 +582,11 @@
         th = '<div class="mxp-note">연결 정보를 찾지 못했어요.</div>';
       } else {
         th = '<div class="mxp-sect">이 묶음이 어디에 쓰이고 있나 <span class="mxp-dim" style="font-weight:400">— 원본 → 파생 → 상품 → 마켓</span></div>'
-          + '<div class="mxp-tree"><div class="nd">🧱 <span class="mx-no">' + esc(t.origin.no || '')
+          + '<div class="mxp-tree"><div class="nd"><span class="mx-no">' + esc(t.origin.no || '')
           + '</span> <b>' + esc(t.origin.name) + '</b> <span class="mx-badge o">원본</span>'
           + (t.origin.here ? ' <span class="mxp-here">지금 보는 중</span>' : '') + '</div><div class="lv">'
           + t.derived.map(function (d) {
-              return '<div class="nd">✂️ <span class="mx-no">' + esc(d.no || '') + '</span> '
+              return '<div class="nd"><span class="mx-no">' + esc(d.no || '') + '</span> '
                 + esc(d.name) + ' <span class="mx-badge d">파생</span> <span class="mxp-dim">· 옵션 '
                 + d.count + '개</span>' + (d.here ? ' <span class="mxp-here">지금 보는 중</span>' : '')
                 + '</div>' + (d.products.length

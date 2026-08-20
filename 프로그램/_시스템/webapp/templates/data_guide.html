@@ -211,7 +211,7 @@
       <td>행 클릭 → 상세, 배지로 작업 우선순위</td>
     </tr>
     <tr><td>옵션 카운트(색×사이즈)</td><td><code>Option.canonical_sku</code> COUNT</td><td>모음전 규모 표시</td></tr>
-    <tr><td>소싱처 분포(이름·URL 수)</td><td><code>OptionSourceUrl</code> + <code>SourceRegistry</code></td><td>매핑 진행도("🛒 N · N URL")</td></tr>
+    <tr><td>소싱처 분포(이름·URL 수)</td><td><code>OptionSourceUrl</code> + <code>SourceRegistry</code></td><td>매핑 진행도("<i class="ph-light ph-shopping-cart" aria-hidden="true"></i> N · N URL")</td></tr>
     <tr><td>마켓 매칭 상태(스스/쿠팡)</td><td><code>Option.naver_option_id</code>·<code>coupang_option_id</code></td><td>업로드 준비도(N/M 매칭 칩)</td></tr>
     <tr><td>크롤·업로드 최근 시각</td><td><code>Model.last_crawled_at</code>·<code>last_uploaded_at</code></td><td>stale 경고(12h+) · DLQ 배지</td></tr>
     <tr>
@@ -305,7 +305,7 @@
       <td class="node">주문 내역 · 마진 계산기 <span class="fp">/orders</span></td>
       <td>6마켓 주문·정산 통합 조회 · 항목별 마켓 API 코드 매핑</td>
       <td><code>lemouton/markets/order_export.py</code> (<code>combined_order_rows</code>) · <code>margin/sell_source.py</code></td>
-      <td><span class="st st-ok">구현</span> 두 탭 단일 원천. <b>항목×마켓 코드·호출전략·업로드 제한</b>은 → <a href="/marketplace-guide/map"><b>판매처 데이터 코드 지도</b></a>의 「🧾 프로그램 주문조회 · ⬆️ 마켓별 업로드」 탭</td>
+      <td><span class="st st-ok">구현</span> 두 탭 단일 원천. <b>항목×마켓 코드·호출전략·업로드 제한</b>은 → <a href="/marketplace-guide/map"><b>판매처 데이터 코드 지도</b></a>의 「<i class="ph-light ph-receipt" aria-hidden="true"></i> 프로그램 주문조회 · ⬆️ 마켓별 업로드」 탭</td>
     </tr>
     <tr>
       <td class="node">휴지통·변경 이력 <span class="fp">/trash · /audit</span></td>

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 r"""소싱처 계정 관리 API — `/api/sourcing-sites` + `/api/settings` (GET/POST).
 
-마진 계산기 페이지(`/orders/margin-embed` 의 ⚙️설정 → 소싱처 계정 관리 탭)가
+마진 계산기 페이지(`/orders/margin-embed` 의 설정 → 소싱처 계정 관리 탭)가
 이 리터럴 경로를 호출한다. `/api/margin` 프리픽스가 아니라 최상위 `/api/*` 여야
 한다 — 이식된 원본 페이지(renderSourcingAccounts / saveSourcingAccounts)가
 그 경로를 하드코딩했기 때문(D1 `api_keywords` 와 동일 패턴).

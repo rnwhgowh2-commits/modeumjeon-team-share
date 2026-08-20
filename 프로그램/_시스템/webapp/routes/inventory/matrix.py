@@ -1,4 +1,4 @@
-"""[I] /inventory/matrix — 옵션 매트릭스 (R2 ★★★ 핵심).
+"""[I] /inventory/matrix — 옵션 매트릭스 (R2  핵심).
 
 ai-workflow STEP 7 Sprint 2 Task 2.6
 

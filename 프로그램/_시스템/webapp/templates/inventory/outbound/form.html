@@ -33,8 +33,8 @@
         <label style="font-size:14px;color:var(--ink,#191F28);font-weight:600">제품 목록</label>
         <div style="margin-left:auto;display:flex;gap:4px">
           <button type="button" onclick="openProductModal()" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">➕ 일괄 추가</button>
-          <button type="button" onclick="alert('엑셀 가져오기 — 준비 중')" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">📊 엑셀 가져오기</button>
-          <button type="button" onclick="alert('바코드 스캔 — 준비 중')" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px">📷 바코드 스캔</button>
+          <button type="button" onclick="alert('엑셀 가져오기 — 준비 중')" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px"><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 엑셀 가져오기</button>
+          <button type="button" onclick="alert('바코드 스캔 — 준비 중')" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px"><i class="ph-light ph-camera" aria-hidden="true"></i> 바코드 스캔</button>
         </div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -143,7 +143,7 @@ function renderModalRows(list){
       : `${o.color} / ${o.size}${o.bh?' <span style="font-family:ui-monospace,monospace;font-size:12px;color:var(--sub,#8F91A0);margin-left:4px">'+o.bh+'</span>':''}`;
     const stockCell = o.is_bundle ? '—' : `<span style="color:${o.stock>0?'var(--green,#22C55E)':'var(--sub,#8F91A0)'}">${o.stock}</span>`;
     const avgCell = o.is_bundle ? '—' : (o.avg?o.avg.toLocaleString():'—');
-    const imgEl=o.img?`<img src="${o.img}" style="width:32px;height:32px;object-fit:cover;border-radius:0px;border:1px solid var(--line,#E5E8EB)" alt="">`:`<div style="width:32px;height:32px;background:var(--n100,#F2F4F6);border-radius:0px;display:inline-flex;align-items:center;justify-content:center;color: var(--글자-희미, var(--faint,#CBCCD3));font-size:14px">👟</div>`;
+    const imgEl=o.img?`<img src="${o.img}" style="width:32px;height:32px;object-fit:cover;border-radius:0px;border:1px solid var(--line,#E5E8EB)" alt="">`:`<div style="width:32px;height:32px;background:var(--n100,#F2F4F6);border-radius:0px;display:inline-flex;align-items:center;justify-content:center;color: var(--글자-희미, var(--faint,#CBCCD3));font-size:14px"></div>`;
     return `<tr style="border-bottom:1px solid var(--line2,#F1F1F4)"><td style="padding:8px 8px;text-align:center"><input type="checkbox" class="modal-pick" value="${o.sku}" data-bundle="${o.is_bundle?1:0}" data-stock="${o.stock||0}" data-name="${o.color}/${o.size}" data-img="${o.img||''}" onchange="updateSelectedCount()" style="accent-color:var(--primary,#4F67FF)"></td><td style="padding:4px 4px;text-align:center">${imgEl}</td><td style="padding:8px 8px;font-family:ui-monospace,monospace;font-size:12px;color:${skuColor}">${o.sku}</td><td style="padding:8px 8px">${nameCell}</td><td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace">${stockCell}</td><td style="padding:8px 8px;text-align:right;font-family:ui-monospace,monospace">${avgCell}</td></tr>`;
   }).join('');
   document.getElementById('modalCount').textContent=`전체 ${list.length} / 선택 0`;
@@ -161,11 +161,11 @@ function addSelected(){
 function renderLines(){
   const tb=document.getElementById('lines');
   if(!lines.length){
-    tb.innerHTML='<tr id="emptyRow"><td colspan="5" style="padding:32px;text-align:center;color: var(--글자-희미, var(--faint,#9CA3AF));font-size:12px">제품 없음 — 우측 [➕ 일괄 추가] 또는 아래 검색</td></tr>';
+    tb.innerHTML='<tr id="emptyRow"><td colspan="5" style="padding:32px;text-align:center;color: var(--글자-희미, var(--faint,#9CA3AF));font-size:12px">제품 없음 — 우측 [일괄 추가] 또는 아래 검색</td></tr>';
   } else {
     tb.innerHTML=lines.map((l,i)=>{
       const bundleTag=l.is_bundle?'<span style="display:inline-block;background:var(--연한-파랑,#EEF1FE);color: var(--글자-파랑, var(--primary,#1E40AF));padding:0px 4px;border-radius:0px;font-size:12px;margin-right:4px;font-weight:600">묶음</span>':'';
-      const imgEl=l.img?`<img src="${l.img}" style="width:36px;height:36px;object-fit:cover;border-radius:8px;border:1px solid var(--line,#E5E8EB)" alt="">`:`<div style="width:36px;height:36px;background:var(--n100,#F2F4F6);border-radius:8px;display:flex;align-items:center;justify-content:center;color: var(--글자-희미, var(--faint,#CBCCD3));font-size:14px">👟</div>`;
+      const imgEl=l.img?`<img src="${l.img}" style="width:36px;height:36px;object-fit:cover;border-radius:8px;border:1px solid var(--line,#E5E8EB)" alt="">`:`<div style="width:36px;height:36px;background:var(--n100,#F2F4F6);border-radius:8px;display:flex;align-items:center;justify-content:center;color: var(--글자-희미, var(--faint,#CBCCD3));font-size:14px"></div>`;
       return `<tr style="border-bottom:1px solid var(--line2,#F1F1F4)">
         <td style="padding:8px 4px;text-align:center"><button type="button" onclick="removeLine(${i})" title="제거" style="background:var(--연한-빨강,#FEF2F2);border:1px solid var(--연한-빨강,#FCA5A5);color: var(--글자-빨강, var(--red,#DC2626));border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;line-height:1;padding:0">−</button></td>
         <td style="padding:4px 4px"><div style="display:flex;align-items:center;gap:8px"><input type="hidden" name="option_canonical_sku" value="${l.sku}">${imgEl}<div style="min-width:0"><div style="font-size:14px;color:var(--ink,#191F28)">${bundleTag}${l.name||l.sku}</div><div style="font-size:12px;color:var(--글자-보조,#6B7684);font-family:ui-monospace,monospace;margin-top:0px">${l.sku}</div></div></div></td>

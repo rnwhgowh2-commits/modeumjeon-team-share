@@ -285,12 +285,12 @@
       <input class="sf-in" id="sf-url" placeholder="https://www.musinsa.com/search/goods?keyword=나이키">
       <div class="sf-grid">
         <label>몇 개까지<input class="sf-in sm" id="sf-max" placeholder="비우면 상한 없음"></label>
-        {# ★ 소싱처에 따라 주소로 넘기거나(무신사·SSF·르무통) 「다음」 단추를 눌러
+        {# 소싱처에 따라 주소로 넘기거나(무신사·SSF·르무통) 「다음」 단추를 눌러
            넘긴다(롯데온·롯데아이몰). 사장님은 몇 쪽인지만 적으면 된다 —
            같은 뜻인데 칸이 둘이면 어느 쪽을 채워야 할지 모른다. #}
         <label title="비우면 첫 쪽만 봅니다">몇 쪽부터<input class="sf-in sm" id="sf-pf" placeholder="1"></label>
         <label title="최대 60쪽. 무신사 한 쪽 60개 · 롯데온 47개 · 롯데아이몰 60개">몇 쪽까지<input class="sf-in sm" id="sf-pt" placeholder="1"></label>
-        <!-- 🔴 한 줄짜리 칸이라 줄바꿈을 못 넣는다 — 쉼표로 여러 개를 적는다. -->
+        <!-- 한 줄짜리 칸이라 줄바꿈을 못 넣는다 — 쉼표로 여러 개를 적는다. -->
         <label>뺄 옵션(쉼표)<input class="sf-in sm" id="sf-ex" placeholder="예: 샘플, 중고"></label>
         <label>이름(비우면 자동)<input class="sf-in sm" id="sf-nm" placeholder="무신사_나이키_001"></label>
         <label>소싱처<input class="sf-in sm" id="sf-src" value="musinsa"></label>
@@ -300,7 +300,7 @@
         <button class="sf-btn pri" id="sf-save">만들기</button>
         <button class="sf-btn" id="sf-cancel">그만두기</button>
         <span class="sf-hint" id="sf-msg">만든 뒤 「지금 수집」을 눌러야 훑기 시작합니다</span>
-        {# 🔴 소싱처마다 「여러 쪽을 걷을 수 있나」가 다르다 — 실측(2026-08-08).
+        {# 소싱처마다 「여러 쪽을 걷을 수 있나」가 다르다 — 실측(2026-08-08).
            안 되는 곳에 쪽수를 적으면 같은 1쪽을 반복하므로 미리 알린다. #}
         <span class="sf-hint" style="display:block;margin-top:6px;line-height:1.7">
           여러 쪽 걷기 —
@@ -525,7 +525,7 @@
           // 🔴 크롤이 꺼져 있으면 「기다리면 된다」고 말하면 안 된다 — 영영 안 늘어난다.
           //   대기에 넣은 것과 그게 처리되는 것은 다른 사실이다.
           msg += (j.crawl_enabled === false)
-            ? '\n\n⚠️ 지금 크롤 자동 실행이 꺼져 있습니다.'
+            ? '\n\n지금 크롤 자동 실행이 꺼져 있습니다.'
               + '\n켜기 전에는 기다려도 상품이 늘어나지 않습니다.'
               + '\n「자동화」 화면에서 크롤을 켜 주세요.'
             : '\n\n크롤은 이 PC 의 크롬이 차례로 돕니다.'

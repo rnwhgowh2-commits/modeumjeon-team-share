@@ -4,18 +4,18 @@
 실수집은 서버에서만 의미가 있다(마켓 API=서버 단일IP·IP 등록 게이트).
 수집 실패는 사유 원문을 그대로 노출한다 — 실패를 성공으로 칠하지 않는다.
 
-⚠️ 마켓별 path·인증은 `webapp/data/marketplace_api_map.json` 이 정본이다(consult-market-map
+[주의] 마켓별 path·인증은 `webapp/data/marketplace_api_map.json` 이 정본이다(consult-market-map
 게이트). 스마트스토어 카테고리 path 는 [2026-07-22 라이브 실측] 지도 문서 표기(`/v1/categories`)
 로는 **HTTP 404** — 실서버는 다른 스스 API 와 같이 `/external` 프리픽스가 필요해
 `/external/v1/categories` 를 쓴다(문서의 /v1 표기는 프리픽스 생략 관례. 지도 되채움 완료).
 
-★ [2026-07-22 코드리뷰 수정] 수집은 백그라운드 스레드로 돈다. Dockerfile 이 gunicorn 을
+ [2026-07-22 코드리뷰 수정] 수집은 백그라운드 스레드로 돈다. Dockerfile 이 gunicorn 을
 `--timeout 60`(sync worker)로 띄우는데, 쿠팡 BFS 는 노드당 1콜+0.2s 슬립이라 카테고리
 트리가 조금만 커도 수 분이 걸린다 — 동기 처리였으면 워커가 60초에 죽어 요청도 응답도
 증발했다(거짓 실패). POST 는 시작만 확인해 주고(202), 실제 진행상황·성공/실패는
 GET status 를 폴링해서 읽는다.
 
-★★ [2026-07-22 코드리뷰 수정 #2] 실행 상태를 DB 테이블(MarketCategoryHarvestRun)로 옮겼다.
+ [2026-07-22 코드리뷰 수정 #2] 실행 상태를 DB 테이블(MarketCategoryHarvestRun)로 옮겼다.
 라이브 배포는 gunicorn `--workers 3`(OS 프로세스 3개)이라, 이전의 모듈 레벨
 dict+threading.Lock 은 프로세스 로컬이었다 — ①같은 마켓 중복실행 방지(409)가 요청이
 다른 워커로 가면 무효였고 ②GET status 폴링이 harvest 를 돌린 워커가 아닌 다른 워커에
@@ -32,7 +32,7 @@ advisory lock(webapp/routes/api.py 의 `pg_advisory_xact_lock` 참조)은 여기
 죽은 실행으로 보고 새 POST 가 이를 회수해 다시 시작한다. 데몬 스레드는 워커가 재시작(배포·
 크래시)되면 자기 상태를 정리할 새 없이 함께 죽어 running=True 로 영원히 남을 수 있기 때문이다.
 
-★★★ [2026-07-23 실측 사고 대응] 쿠팡 수집이 두 번 연속 완주 실패했다 — 1,534건에서 22분간
+ [2026-07-23 실측 사고 대응] 쿠팡 수집이 두 번 연속 완주 실패했다 — 1,534건에서 22분간
 progress_count/progress_at 갱신이 멈춘 채(=백그라운드 데몬 스레드 사망) `running=True` 로
 남아 있었다. 살아있는 실행은 `_make_progress_writer` 가 20초 스로틀로 `progress_at` 을
 계속 갱신하므로 10분이면 "죽었다"고 보기에 충분히 넉넉하다 — 예전에 있던 쿠팡 전용
@@ -42,7 +42,7 @@ progress_count/progress_at 갱신이 멈춘 채(=백그라운드 데몬 스레�
 죽어도 마지막 청크까지는 DB 에 남는다 — 회수된 재실행은 이미 저장된 코드를 updated 로
 흡수하고 새 코드만 added 로 이어 붙인다(전부 유실 → 마지막 청크까지만 유실로 개선).
 
-★★★★ [2026-07-23 실측 사고 대응 #3 — 이어받기] 위 대응 후에도 세 번째로 죽었다. 이번엔
+ [2026-07-23 실측 사고 대응 #3 — 이어받기] 위 대응 후에도 세 번째로 죽었다. 이번엔
 **124건**에서 정지 — 200건 문턱을 한 번도 못 넘겨 첫 청크조차 저장 못 했다(저장 0건).
 근본 원인 두 가지를 같이 고쳤다:
 ①청크를 200 → 50(`CHUNK_SIZE`, `lemouton/registration/category_harvest.py`)으로 줄여 죽기
@@ -53,7 +53,7 @@ fetch 없이 지나가고 그 자식만 큐에 이어 넣는다. `_run_harvest` 
 `market_categories` 를 읽어 `known` 을 구성한다 — 기존 「재수집」 버튼을 다시 누르면
 자동으로 이어받기가 된다(새 버튼 없음).
 
-★★★★★ [2026-07-23 자식누락 차단] 위 ②의 "children 이 하나라도 있으면 skip" 판정은
+ [2026-07-23 자식누락 차단] 위 ②의 "children 이 하나라도 있으면 skip" 판정은
 자식이 DB 에 '일부만' 저장된 채 죽은 경우(실제 자식 A,B,C 중 A 만 저장)를 걸러내지
 못해 B,C 를 영원히 놓칠 위험이 있었다(사용자는 완료됐다고 믿는데 카테고리가 조용히
 빠짐). `market_categories.child_count`(그 노드를 fetch 했을 때 마켓이 알려준 자식 수)를
@@ -61,7 +61,7 @@ fetch 없이 지나가고 그 자식만 큐에 이어 넣는다. `_run_harvest` 
 하나라도 안 맞으면(개수 부족·NULL=옛 데이터) 안전 우선으로 재fetch 한다(`category_harvest.py`
 의 `harvest_coupang`/`_build_coupang_known` docstring 참조).
 
-★6 [2026-07-23 사고 #5 — "한 번에 조금씩, 확실히 전진"] 위 대응들에도 다섯 번째로 실패했다.
+6 [2026-07-23 사고 #5 — "한 번에 조금씩, 확실히 전진"] 위 대응들에도 다섯 번째로 실패했다.
 저장 4,200건에서 **전혀 늘지 않는** 정체 — 이어받기가 리프(2,510건)는 건너뛰지만 비-리프는
 child_count 불일치로 재fetch 하느라, 매 실행이 앞 구간만 다시 훑다가 2~3분 만에 죽었다.
 스레드가 죽으면 최종 저장·마무리가 통째로 날아간다는 게 실패의 공통 원인이다. 그래서
@@ -69,7 +69,7 @@ child_count 불일치로 재fetch 하느라, 매 실행이 앞 구간만 다시 
 ①`harvest_coupang(max_calls=...)` — 콜 예산(`COUPANG_MAX_CALLS_PER_RUN`)을 다 쓰면 큐가
   남아도 예외 없이 정상 반환한다. 죽어서 끝나는 게 아니라 스스로 끝내므로 저장·마무리가 보장.
 ②미완 통지는 반환값 계약을 깨지 않도록 `progress_state` dict 로 받는다(`incomplete`).
-③★ 미완이면 최종 저장을 반드시 `partial=True` 로 한다 — 안 그러면 아직 안 훑은 카테고리가
+③ 미완이면 최종 저장을 반드시 `partial=True` 로 한다 — 안 그러면 아직 안 훑은 카테고리가
   전부 removed_at 으로 마킹되고 맵핑까지 re_confirm 으로 강등된다(이 수정의 최우선 안전장치).
 ④미완은 「완료」가 아니다 — `category_harvest_runs.incomplete` 에 남겨 GET status·설정 탭
   카드가 "이어받는 중 (N건 확보)" 로 정직하게 보여준다.
@@ -177,7 +177,7 @@ def _run_harvest(market, on_progress=None, on_chunk=None, progress_state=None):
     progress_state — 선택. 쿠팡에만 의미가 있다(다른 마켓은 무시). `harvest_coupang` 이
     'calls'/'incomplete'/'pending' 를 여기에 기록한다 — 반환값(행 리스트) 계약을 깨지 않고
     "예산 소진으로 미완" 을 위로 알리는 통지 수단이다. `_harvest_and_save` 가 이 값으로
-    최종 저장의 partial 여부를 정한다(★ 미완인데 partial=False 로 저장하면 아직 안 훑은
+    최종 저장의 partial 여부를 정한다( 미완인데 partial=False 로 저장하면 아직 안 훑은
     카테고리가 전부 removed_at 으로 마킹되는 대참사가 난다).
 
     쿠팡 분기는 시작 전 `_build_coupang_known` 으로 이미 DB 에 있는 가지를 읽어

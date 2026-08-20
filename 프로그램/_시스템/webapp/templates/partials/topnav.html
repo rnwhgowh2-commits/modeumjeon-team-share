@@ -6,7 +6,7 @@
 <header class="tn" id="tn-root">
   {# 로고 = 홈. 애플도 로고를 누르면 홈으로 간다 → 탭 한 칸을 아낀다 #}
   <a class="tn-lg" href="{{ topnav.home.url if topnav.home else '/' }}" title="홈">
-    <span class="tn-lg-i">📦</span>
+    <span class="tn-lg-i"><i class="ph-light ph-package" aria-hidden="true"></i></span>
     <b>모음전 자동화</b>
     <span class="tn-lg-home">⌂ {{ topnav.home.name if topnav.home else '홈' }}</span>
   </a>
@@ -51,7 +51,7 @@
        안전망(「기존 타입」으로 즉시 되돌리기)은 그 부품이 그대로 이어받았고,
        그 부품은 토큰을 안 써서 이 막대가 통째로 깨져도 살아 있다. #}
 
-    <span class="tn-user">👤 {{ current_user.username if current_user is defined and current_user.is_authenticated else '' }}</span>
+    <span class="tn-user"><i class="ph-light ph-user" aria-hidden="true"></i> {{ current_user.username if current_user is defined and current_user.is_authenticated else '' }}</span>
   </div>
 </header>
 
