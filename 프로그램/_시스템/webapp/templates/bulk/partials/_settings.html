@@ -169,7 +169,7 @@
 </script>
 
 {# ── 카테고리 사전 (6마켓) (2026-07-22 M1 Task 10) ───────────────────── #}
-<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📂 카테고리 사전 (6마켓)</h2>
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px"><i class="ph-light ph-folder-open" aria-hidden="true"></i> 카테고리 사전 (6마켓)</h2>
 <p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   마켓별 카테고리 전체를 공식 API로 수집해 둡니다. 등록 화면의 카테고리 검색이 이 사전을 씁니다.
   마켓이 카테고리를 개편할 수 있으니 가끔 「재수집」을 눌러 주세요.
@@ -224,12 +224,12 @@
         // [2026-07-23] 「멈췄다」 판정은 서버가 회수 기준과 같은 잣대로 내려준다(r.stalled).
         //   여기서 따로 계산하면 「멈췄다는데 재수집이 409」 같은 모순이 생긴다.
         const last = (r.running && r.stalled)
-          ? '<span style="color:#B45309">⚠️ 멈춘 것 같습니다</span>' + progressText(r)
+          ? '<span style="color:#B45309">멈춘 것 같습니다</span>' + progressText(r)
           : (r.running
             ? '<span style="color:#1B64DA">수집 중…</span>' + progressText(r)
             : esc(r.last_harvested || '수집 전'));
         const warn = (!r.running && r.last_error)
-          ? '<div style="color:#B91C1C;font-size:12px;margin-top:3px">⚠️ ' + esc(r.last_error) + '</div>'
+          ? '<div style="color:#B91C1C;font-size:12px;margin-top:3px">' + esc(r.last_error) + '</div>'
           : '';
         // [2026-07-23 사고 #5] 「완료」는 완주했을 때만 쓴다. 콜 예산을 다 써서 큐가 남은 채
         // 스스로 끝낸 실행(incomplete)은 "이어받는 중" 으로 정직하게 보여준다 — 「재수집」을
@@ -238,7 +238,7 @@
           ? '<div style="color:#B45309;font-size:12px;margin-top:3px">⏳ 이어받는 중 ('
               + r.total + '건 확보) — 「재수집」을 다시 누르면 이어서 채웁니다</div>'
           : ((!r.running && r.last_summary)
-            ? '<div style="color:#15803D;font-size:12px;margin-top:3px">✅ 완료 · '
+            ? '<div style="color:#15803D;font-size:12px;margin-top:3px">완료 · '
                 + esc(summaryText(r.last_summary)) + '</div>'
             : '');
         return '<tr data-row="' + esc(r.market) + '">'
@@ -333,7 +333,7 @@
 </script>
 
 {# ── 🚫 브랜드 제한 (2026-07-23 M2 Task 7) ───────────────────────────── #}
-<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🚫 브랜드 제한</h2>
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px"><i class="ph-light ph-prohibit" aria-hidden="true"></i> 브랜드 제한</h2>
 <p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   지재권 문제 등으로 특정 브랜드를 특정 마켓(또는 그 마켓의 카테고리 이하)에 못 올리게 막습니다.
   등록 시점에 걸리면 <b>그 마켓 호출 없이</b> 자동 제외되고 사유가 표시됩니다.</p>
@@ -442,7 +442,7 @@
 </script>
 
 {# ── 🛒 쿠팡 계정정보 (2026-07-23 M4-2) ──────────────────────────────── #}
-<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🛒 쿠팡 계정정보</h2>
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px"><i class="ph-light ph-shopping-cart" aria-hidden="true"></i> 쿠팡 계정정보</h2>
 <p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   쿠팡 등록에는 <b>반품지·출고지 정보</b>가 반드시 붙어야 합니다. 상품마다 다른 값이 아니라
   <b>계정에 한 번만</b> 정해 두는 값이라 여기서 저장하고, 등록할 때 자동으로 채워집니다.
@@ -493,7 +493,7 @@
       + (a.env_prefix === current ? ' selected' : '') + '>'
       + esc(a.display_name) + ' [' + esc(a.env_prefix) + ']'
       + (a.in_use ? ' · 등록에 쓰임' : ' · 등록에 안 쓰임')
-      + (a.complete ? ' ✅' : (a.saved ? ' ⚠️ 일부만 저장' : ' — 저장 전')) + '</option>').join('');
+      + (a.complete ? ' ✅' : (a.saved ? ' 일부만 저장' : ' — 저장 전')) + '</option>').join('');
 
     const a = acct(current);
     const saved = (a && a.saved) || {};
@@ -503,7 +503,7 @@
     const useBadge = !a ? ''
       : (a.in_use
         ? '<div style="color:#15803D;font-size:12px;margin-top:8px">'
-          + '🟢 지금 쿠팡 등록은 <b>이 계정</b>으로 나갑니다.</div>'
+          + '지금 쿠팡 등록은 <b>이 계정</b>으로 나갑니다.</div>'
         : '<div style="color:#B45309;font-size:12px;margin-top:8px">'
           + '이 계정은 지금 등록에 쓰이지 않습니다'
           + (activePrefix ? ' — 실제로 쓰이는 계정은 <b>' + esc(activePrefix) + '</b> 입니다.'
@@ -513,10 +513,10 @@
     const state = !a ? ''
       : (a.complete
         ? '<div style="color:#15803D;font-size:12px;margin-top:8px">'
-          + '✅ 이 계정은 등록에 필요한 값이 모두 저장돼 있습니다.</div>'
+          + '이 계정은 등록에 필요한 값이 모두 저장돼 있습니다.</div>'
         : (a.saved
           ? '<div style="color:#B45309;font-size:12px;margin-top:8px">'
-            + '⚠️ 아직 비어 있는 칸이 있습니다 — 등록이 막힙니다. 비어 있는 칸: <b>'
+            + '아직 비어 있는 칸이 있습니다 — 등록이 막힙니다. 비어 있는 칸: <b>'
             + esc((a.missing || []).join(', ')) + '</b></div>'
           : '<div style="color:#B91C1C;font-size:12px;margin-top:8px">'
             + '아직 저장하지 않았습니다 — 지금 이 계정으로는 쿠팡 등록이 막힙니다.</div>'));
@@ -712,7 +712,7 @@
 </script>
 
 {# ── 🗺 카테고리 맵핑 (2026-07-23 M2 Task 7) ─────────────────────────── #}
-<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🗺 카테고리 맵핑</h2>
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px"><i class="ph-light ph-map-trifold" aria-hidden="true"></i> 카테고리 맵핑</h2>
 <p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   소싱처 카테고리 경로 → 6마켓 카테고리 맵핑 현황입니다. 「제안」은 참고용일 뿐 —
   등록 화면에서 직접 고르거나 승인해야 「확정」이 되고, 다음부터 자동 적용됩니다.
@@ -1151,7 +1151,7 @@
 </script>
 
 {# ── 📋 고시정보 기본값 (2026-07-23 M4-3) ────────────────────────────── #}
-<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📋 고시정보 기본값</h2>
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 고시정보 기본값</h2>
 <p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   스마트스토어는 <b>상품고시정보</b>가 다 채워져야 등록됩니다. 그런데 품질보증기준·A/S책임자
   같은 값은 소싱처를 아무리 긁어도 안 나옵니다 — 그래서 상품마다 손으로 넣어야 했습니다.
@@ -1161,7 +1161,7 @@
   <b>소싱처 값이 전역보다 먼저</b>이고, 드래프트에 직접 넣은 값이 가장 먼저입니다.
   <br>빈 칸은 <b>비운 채로 둡니다</b> — 없는 값을 지어내 실제 판매 상품에 올리지 않습니다.
   채워지지 않은 칸은 사전 점검에서 그대로 「보충 필요」로 뜹니다.
-  <br><span style="color:#F2994A">⚠️ 지금은 <b>전역</b>만 실제로 적용됩니다.</span>
+  <br><span style="color:#F2994A"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 지금은 <b>전역</b>만 실제로 적용됩니다.</span>
   소싱처별 값은 <b>소싱처 주소로 자동 만든 상품</b>에만 붙는데, 그 기능이 아직 연결 전이라
   손으로 만든 상품에는 적용되지 않습니다(연결되면 저장해 두신 값이 그대로 쓰입니다).</p>
 <div id="nd-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
@@ -1287,11 +1287,11 @@
 {# ── 📞 A/S 안내 기본값 (2026-08-02) — 고시정보 기본값 바로 아래 (사장님 확정 A안) ──
    마켓은 A/S 전화번호·안내가 있어야 상품을 받는다. 회사에 하나뿐인 값이라
    여기 한 번만 정해 두면 모든 등록이 가져다 쓴다. #}
-<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📞 A/S 안내 기본값</h2>
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px"><i class="ph-light ph-phone" aria-hidden="true"></i> A/S 안내 기본값</h2>
 <p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:0 0 12px;line-height:1.7">
   마켓은 <b>A/S 전화번호와 안내</b>가 있어야 상품을 받습니다. 회사에 하나뿐인 값이라
   여기서 <b>한 번만</b> 정해 두면 모든 등록에 자동으로 들어갑니다.
-  <br>🔴 <b>비워 두면 신규 등록이 막힙니다</b> — 가짜 번호를 실제 판매 상품에 올리지 않습니다.</p>
+  <br><i class="ph-light ph-circle" aria-hidden="true"></i> <b>비워 두면 신규 등록이 막힙니다</b> — 가짜 번호를 실제 판매 상품에 올리지 않습니다.</p>
 <div id="as-root" style="background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
      border-radius:12px;padding:14px;max-width:640px">
   <div style="margin-bottom:10px">

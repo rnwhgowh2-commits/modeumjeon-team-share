@@ -4,7 +4,7 @@
 [2026-08-19] 사장님 확정 재개명). 노션 원문은 「상품 가공 (정책 생성 & 정책 적용)」.
 규칙은 lemouton/policy/service.py 가 단일 원천.
 
-🔴 값이 비어 있는 정책은 **가격 계산에 물리지 않는다**. 화면이 「아직 못 씀」을 보여준다.
+[중요] 값이 비어 있는 정책은 **가격 계산에 물리지 않는다**. 화면이 「아직 못 씀」을 보여준다.
 """
 from __future__ import annotations
 
@@ -199,7 +199,7 @@ def policy_detail(pid: int):
 def api_preview(pid: int):
     """「이 정책으로 계산하면」 — 상품 하나를 골라 옵션별 판매가 미리보기.
 
-    🔴 보여주기만 한다. 실제 전송 경로는 부르지 않는다 — 수수료율·마진율이 비어 있는
+    [중요] 보여주기만 한다. 실제 전송 경로는 부르지 않는다 — 수수료율·마진율이 비어 있는
       동안 계산에 물리면 0%로 계산된 가격이 그대로 마켓에 나간다.
 
     query: ?m=마켓 &model=모델코드 (model 생략 시 이 정책이 붙은 첫 상품)
@@ -283,13 +283,13 @@ def api_save_values(pid: int):
 def _auto_coupon(s, pid: int) -> dict:
     """정책 자동(사장님 확정 **c**) — 쿠팡이면 쿠폰까지 함께 건다.
 
-    🔴 쿠팡엔 즉시할인을 적을 칸이 없다. 쿠폰을 만들어 옵션에 붙여야 값이 깎인다.
+    [중요] 쿠팡엔 즉시할인을 적을 칸이 없다. 쿠폰을 만들어 옵션에 붙여야 값이 깎인다.
       정책만 붙이고 끝내면 「할인을 걸었는데 안 깎인다」가 된다.
-    🔴 **즉시할인이 적힌 정책만** 태운다 — 안 그러면 온 상품에 시킨 적 없는
+    [중요] **즉시할인이 적힌 정책만** 태운다 — 안 그러면 온 상품에 시킨 적 없는
       기본값 100원 쿠폰이 저절로 걸린다.
-    🔴 여기서 **직접 걸지 않는다.** 한 상품이 최대 21번 왕복이라 화면이 못 기다린다 →
+    [중요] 여기서 **직접 걸지 않는다.** 한 상품이 최대 21번 왕복이라 화면이 못 기다린다 →
       대기열에 넣고 스케줄러(1분 틱)가 처리한다.
-    🔴 쿠폰이 실패해도 **정책 붙이기는 성공이다** — 여기서 터뜨리면 정책까지 못 붙는다.
+    [중요] 쿠폰이 실패해도 **정책 붙이기는 성공이다** — 여기서 터뜨리면 정책까지 못 붙는다.
     """
     try:
         from lemouton.policy import coupon_service as CS
@@ -355,7 +355,7 @@ def api_apply_sets(pid: int):
 def api_add_bundle(model_code: str):
     """{policy_id, copy_from, name} — 이 상품에 **구성을 하나 더** 만든다.
 
-    🔴 이 상품이 마켓에 **한 번 더 올라간다**. 옵션은 기본으로 지금 구성과 똑같이 베낀다
+    [중요] 이 상품이 마켓에 **한 번 더 올라간다**. 옵션은 기본으로 지금 구성과 똑같이 베낀다
       (안 베끼면 빈 구성이라 못 올라간다).
     """
     from lemouton.policy.bundles import add_bundle
@@ -680,7 +680,7 @@ def fee_defaults_page():
 def api_save_fee_defaults():
     """마켓별 수수료 기준 저장. 한 줄이라도 틀리면 **아무것도 안 고친다.**
 
-    🔴 반쯤 저장되면 어떤 마켓이 새 값이고 어떤 게 옛 값인지 알 수 없다 —
+    [중요] 반쯤 저장되면 어떤 마켓이 새 값이고 어떤 게 옛 값인지 알 수 없다 —
       돈이 걸린 표라 전부 되거나 전부 안 되거나여야 한다.
     """
     from lemouton.pricing import fee_defaults
@@ -715,7 +715,7 @@ def policy_apply_page():
     """「정책 매칭」(구 「상품 정책 적용」) — 노션 하위탭 ②.
 
     왼쪽에서 상품을 고르고 오른쪽에서 정책을 골라 한 번에 붙인다(그룹핑).
-    🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
+    [중요] 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
       하면 거짓 기능이 된다(「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤).
     """
     from lemouton.policy.fields import MARKET_KEYS, MARKET_LABEL
@@ -873,7 +873,7 @@ def api_bundle_policy_result(model_code: str):
     """상품 상세 「정책 정보」 탭 — 붙은 정책 목록 + 고른 정책의 마켓별 결과(H1).
 
     query: ?policy=<id> (생략하면 붙어 있는 정책)
-    🔴 계산은 preview.result_by_market 이 한다 — 여기서 산식을 다시 쓰면 갈린다.
+    [중요] 계산은 preview.result_by_market 이 한다 — 여기서 산식을 다시 쓰면 갈린다.
     """
     from lemouton.policy.bundles import bundles_of
     from lemouton.policy.fields import MARKETS
@@ -934,7 +934,7 @@ def api_bundle_policy_result(model_code: str):
         if not attached:
             return jsonify({'ok': True, 'policies': [], 'rows': [],
                             'reason': '이 상품에 붙은 정책이 없습니다 — '
-                                      '「🧩 정책 매칭」에서 먼저 붙여 주세요.'})
+                                      '「 정책 매칭」에서 먼저 붙여 주세요.'})
         pid = int(want) if (want or '').isdigit() else attached[0]['id']
         if pid not in {a['id'] for a in attached}:
             pid = attached[0]['id']
@@ -957,7 +957,7 @@ def api_bundle_policy_result(model_code: str):
 def api_coupon_status(model_code: str):
     """지금 이 상품의 쿠폰 상태 — 「아직 / 대기 중 / 걸림 / 실패」를 가른다.
 
-    🔴 「대기열에 넣었다」와 「걸렸다」는 다르다. 화면이 둘을 같은 말로 하면
+    [중요] 「대기열에 넣었다」와 「걸렸다」는 다르다. 화면이 둘을 같은 말로 하면
       사장님은 안 걸린 걸 걸린 줄 안다.
     """
     from lemouton.policy import coupon_service as CS
@@ -998,7 +998,7 @@ def api_coupon_status(model_code: str):
 def api_coupon_plan(pid: int):
     """확인창(사장님 확정 B5) 자료 — 몇 개가 바뀌고 몇 개는 안 건드리나.
 
-    🔴 저장하기 **전에** 보여 준다. 몇 개가 바뀌는지 모르고 누르면, 정책 하나로
+    [중요] 저장하기 **전에** 보여 준다. 몇 개가 바뀌는지 모르고 누르면, 정책 하나로
       상품 수십 개의 쿠폰이 한꺼번에 새로 만들어지고 옛 것이 내려간다.
     """
     from lemouton.policy import coupon_service as CS
@@ -1035,11 +1035,11 @@ def api_name_override(model_code: str):
 
     body: {market:'coupang'|'smartstore', value:str}
 
-    🔴 이 칸은 **전송 코드가 이미 읽고 있었는데 적을 화면이 없어 늘 비어 있었다**
+    [중요] 이 칸은 **전송 코드가 이미 읽고 있었는데 적을 화면이 없어 늘 비어 있었다**
       (인수인계 C1 「죽은 자료」). 창구를 여는 것으로 살아난다.
-    🔴 **비우면 None 으로 지운다.** 빈 글자를 그대로 두면 마켓에 **빈 상품명**이
+    [중요] **비우면 None 으로 지운다.** 빈 글자를 그대로 두면 마켓에 **빈 상품명**이
       나가 상품 이름이 사라진다 — 「없음」과 「빈 글자」는 다른 것이다.
-    🔴 마켓 한도를 넘으면 **보내기 전에** 사람 말로 막는다. 마켓까지 가면
+    [중요] 마켓 한도를 넘으면 **보내기 전에** 사람 말로 막는다. 마켓까지 가면
       「유효하지 않습니다」만 돌아와 무엇이 잘못인지 알 수 없다.
     """
     from lemouton.registration.market_limits import name_max_len
@@ -1084,9 +1084,9 @@ def api_coupon_override(model_code: str):
 
     body: {mode:'policy'|'own', value:int|null}
 
-    🔴 「비정책」으로 돌리면 **정책을 바꿔도 이 상품은 안 따라간다.** 그게 이 스위치의
+    [중요] 「비정책」으로 돌리면 **정책을 바꿔도 이 상품은 안 따라간다.** 그게 이 스위치의
       전부다 — 상품에 따로 정해 둔 값이 조용히 날아가지 않게 하는 것.
-    🔴 값이 10원 단위가 아니면 여기서 **사람 말로** 막는다. 마켓까지 가면
+    [중요] 값이 10원 단위가 아니면 여기서 **사람 말로** 막는다. 마켓까지 가면
       「입력한 데이터가 유효하지 않습니다」만 돌아와 무엇이 잘못인지 알 수 없다.
     """
     from lemouton.policy import coupon_service as CS
@@ -1118,7 +1118,7 @@ def api_coupon_override(model_code: str):
 def api_coupon_apply(model_code: str):
     """단추 — 이 상품에 쿠폰을 걸어 달라고 요청한다(실제 걸기는 1분 틱이 한다).
 
-    🔴 여기서 직접 걸지 않는 이유: 거부되면 300원까지 최대 21번 되풀이하고
+    [중요] 여기서 직접 걸지 않는 이유: 거부되면 300원까지 최대 21번 되풀이하고
       한 번마다 접수 확인을 기다린다 — 몇 분이 걸려 화면이 끊긴다.
     """
     from lemouton.policy import coupon_service as CS
@@ -1141,7 +1141,7 @@ def api_coupon_apply(model_code: str):
 def _parity_rows():
     """지금 가격 템플릿 전부를 **임시 메모리 DB 에서** 옮겨 보고 값만 비교한다.
 
-    🔴 라이브에는 한 글자도 쓰지 않는다 — 템플릿 값을 읽어다 임시 DB 에서만 돌린다.
+    [중요] 라이브에는 한 글자도 쓰지 않는다 — 템플릿 값을 읽어다 임시 DB 에서만 돌린다.
     """
     from sqlalchemy import create_engine, select
     from sqlalchemy.orm import sessionmaker
@@ -1202,7 +1202,7 @@ def api_price_parity():
 def api_migrate_template():
     """{template_id} — 그 가격 템플릿을 정책으로 옮긴다.
 
-    🔴 **대조를 통과한 템플릿만** 옮긴다. 값이 달라지는 상태로 옮기면
+    [중요] **대조를 통과한 템플릿만** 옮긴다. 값이 달라지는 상태로 옮기면
       그 가격이 그대로 마켓에 나간다.
     """
     from lemouton.policy.migrate_from_template import (attach_to_template_users,

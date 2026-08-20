@@ -51,7 +51,7 @@ class _SingleFlightTTLCache:
     get(key, producer): 그 key 값이 신선하면 즉시 반환. 만료+직전값 있음 → 한 스레드만
     producer()로 갱신하고 경쟁 스레드는 직전값(stale) 반환. 직전값 없음 → 락 잡고 1회만 채움.
 
-    ★키 분리 이유 — 실행/정지(crawl_auto_enabled) 같은 사용자 토글은 즉시 반영돼야 한다.
+    키 분리 이유 — 실행/정지(crawl_auto_enabled) 같은 사용자 토글은 즉시 반영돼야 한다.
       단일값 캐시로 상태를 뭉개면 정지시켜도 최대 8초간 '실행 중' 페이로드가 서빙되고,
       테스트에서도 enabled=True 결과가 enabled=False 케이스로 새어 나온다(교차 오염).
       key 에 토글 상태를 실으면 값이 바뀌는 즉시 다른 캐시 슬롯 → 지연 없이 정확.
@@ -129,17 +129,17 @@ def crawl_queue():
 def crawl_due_urls():
     """[읽기전용] 확장이 폴링 → **구성에 안 걸린 낱개** 크롤 대상.
 
-    🔴 이게 없어서 검색필터가 넣은 주소 30개가 크롤 4바퀴 도는 동안 하나도 안 긁혔다
+    [중요] 이게 없어서 검색필터가 넣은 주소 30개가 크롤 4바퀴 도는 동안 하나도 안 긁혔다
       (2026-08-07 라이브). 확장이 받는 `due-bundles` 는 due 인 `SourceProduct.url` 을
       `BundleSourceUrl`(모음전 구성에 등록된 URL)과 맞춰 **그 모음전 코드만** 준다.
       검색필터가 넣은 낱개 주소는 어느 구성에도 안 걸리므로 영영 목록에 안 들어간다.
       에러도 안 난다 — `due_bundle_codes` 주석이 스스로 「조용한 누락」이라 부르는 모양.
 
-    🔴 **`due-bundles` 를 건드리지 않는다.** 그건 모음전 자동화가 쓰는 살아 있는 길이고,
+    [중요] **`due-bundles` 를 건드리지 않는다.** 그건 모음전 자동화가 쓰는 살아 있는 길이고,
       거기에 낱개를 섞으면 「모음전 코드 하나 = 크롤 한 묶음」 전제가 깨진다.
       옆에 하나 더 둔다(`due-listings` 를 붙였던 것과 같은 방식).
 
-    ★ 대상 고르기는 `due_products`(가중 랩·계수·느리게배수)를 **그대로** 쓴다.
+     대상 고르기는 `due_products`(가중 랩·계수·느리게배수)를 **그대로** 쓴다.
       여기서 다시 고르면 두 경로가 다른 순서로 돌아 계수 설정이 무의미해진다.
     """
     from lemouton.pricing.settings import get_or_init
@@ -175,11 +175,11 @@ def crawl_due_listings():
     페이지를 여는 것은 브라우저가 해야 하므로 로컬 PC 가 한다(크롤=로컬 원칙).
     서버는 **어느 주소를 훑을지**만 알려준다.
 
-    🔴 `due-bundles` 와 나란히 두는 이유 — `CrawlJob` 표가 있지만 **그 큐를 소비하는
+    [중요] `due-bundles` 와 나란히 두는 이유 — `CrawlJob` 표가 있지만 **그 큐를 소비하는
       워커가 저장소에 없다**(`sourcing_guide.py:975` 원문: "영원히 '대기'였다").
       살아 있는 경로는 확장의 이 폴링 하나뿐이라 여기에 붙인다.
 
-    🔴 캐시를 두지 않는다 — 「지금 수집」을 누른 직후 8초를 기다리게 하면
+    [중요] 캐시를 두지 않는다 — 「지금 수집」을 누른 직후 8초를 기다리게 하면
       사장님은 버튼이 안 먹은 줄 안다. 조회가 가볍다(도장 찍힌 행만).
     """
     from lemouton.registration.models import SearchFilter
@@ -246,16 +246,16 @@ def crawl_listing_result():
     """확장이 훑어 온 **상품 주소 목록** 접수 → 필터에 모아 둔다.
 
     payload: {filter_id: int, ids: [str], error?: str}
-      ★ 확장은 **상품번호만** 보낸다. 주소 조립은 서버(`listing_discover.product_url_for`)가
+       확장은 **상품번호만** 보낸다. 주소 조립은 서버(`listing_discover.product_url_for`)가
         한다 — 주소 모양을 아는 곳이 둘이 되면 소싱처를 붙일 때마다 확장까지 고쳐야 한다.
         (`urls` 로 완성된 주소를 직접 줄 수도 있다 — 시험·수동 보정용.)
     returns: {ok, found, new}
 
-    ★ 여기서 크롤하거나 초안을 만들지 않는다 — 그건 이미 있는 경로다
+     여기서 크롤하거나 초안을 만들지 않는다 — 그건 이미 있는 경로다
       (`draft_from_url`). 이 라우트는 **주소를 기억**할 뿐이다. 두 벌로 만들지 않는다.
-    ★ 접수하면 도장(`run_requested_at`)을 지운다 — 안 지우면 확장이 같은 필터를
+     접수하면 도장(`run_requested_at`)을 지운다 — 안 지우면 확장이 같은 필터를
       무한히 다시 훑는다.
-    ★ 0 건은 오류가 아니다. 검색 결과가 없을 수 있다(정직한 답).
+     0 건은 오류가 아니다. 검색 결과가 없을 수 있다(정직한 답).
     """
     from lemouton.registration.models import SearchFilter, SearchFilterItem
     from lemouton.sources import listing_discover as LD
@@ -527,7 +527,7 @@ def crawl_weight_tree():
 def crawl_lap_report():
     """[읽기] N회차(오늘 기준) 크롤 보고서 — 요약 · 변동(가격/재고) · 성공.
 
-    ★실패는 회차별로 기록되지 않는다 → result.failing_now 는 '지금 실패 중'(현재 기준).
+    실패는 회차별로 기록되지 않는다 → result.failing_now 는 '지금 실패 중'(현재 기준).
       회차 실패 건수를 지어내지 않기 위함.
     """
     from datetime import datetime as _dt
@@ -550,9 +550,9 @@ def crawl_lap_report():
 def crawl_change_stats():
     """[읽기] 최근 N 바퀴 소싱처×브랜드 변동률 순위 + 현재/권장 계수 (계수의 근거).
 
-    ★기준선이 둘이다 — 변동률은 **소싱처**(CrawlDelta), P2 스킵은 **마켓**(GateDecision).
+    기준선이 둘이다 — 변동률은 **소싱처**(CrawlDelta), P2 스킵은 **마켓**(GateDecision).
       응답의 ``sources`` 가 어느 지표가 어디서 왔는지 알려준다(화면이 지어내지 않게).
-    ★권장은 **표시만** 한다 — 이 라우트도, 아래 통계 모듈도 CrawlWeightRule 을
+    권장은 **표시만** 한다 — 이 라우트도, 아래 통계 모듈도 CrawlWeightRule 을
       직접 쓰지 않는다. 계수 적용은 사람이 기존 계수 편집 화면에서 한다.
     """
     from lemouton.sources.crawl_change_stats import (
@@ -1521,13 +1521,13 @@ def sync_ss_options(code: str):
 def open_ss_edit(code: str):
     """[E] 모음전 → 스마트스토어 판매자 센터 상품 편집 페이지 자동 진입.
 
-    영구 로그인 세션(persistent_context)을 사용 — 한 번 [🔐 로그인] 한 후로는
+    영구 로그인 세션(persistent_context)을 사용 — 한 번 [ 로그인] 한 후로는
     매번 자동 로그인 상태로 페이지가 열린다.
 
     Flow:
       1. 모음전의 naver_product_id (originProductNo) 조회
       2. bundle_account_registrations 에서 smartstore 계정 찾기 → 없으면 기본 계정 사용
-      3. profile 디렉터리 존재 확인 (없으면 "먼저 [🔐 로그인]" 안내)
+      3. profile 디렉터리 존재 확인 (없으면 "먼저 [ 로그인]" 안내)
       4. detached 프로세스로 Playwright 띄움 → /products/v2/{originProductNo} 로 직행
     """
     s = SessionLocal()
@@ -1569,7 +1569,7 @@ def open_ss_edit(code: str):
     if not store.has_profile('smartstore', env_prefix):
         return _err(
             f"{display_name} 영구 로그인이 안 돼있어요. "
-            "「판매처 계정」 페이지의 [🔐 로그인] 버튼으로 1회 로그인 먼저 해주세요.",
+            "「판매처 계정」 페이지의 [ 로그인] 버튼으로 1회 로그인 먼저 해주세요.",
             400,
         )
 
@@ -1602,13 +1602,13 @@ def open_ss_edit(code: str):
 def open_coupang_edit(code: str):
     """[E] 모음전 → 쿠팡 Wing 상품 검색 페이지 자동 진입.
 
-    영구 로그인 세션(persistent_context) 사용 — 한 번 [🔐 로그인] 한 후로는
+    영구 로그인 세션(persistent_context) 사용 — 한 번 [ 로그인] 한 후로는
     매번 자동 로그인 상태로 페이지가 열린다.
 
     Flow:
       1. 모음전의 coupang_product_id (sellerProductId) 조회
       2. bundle_account_registrations 에서 coupang 계정 찾기 → 없으면 기본 활성 계정 사용
-      3. profile 디렉터리 존재 확인 (없으면 "먼저 [🔐 로그인]" 안내)
+      3. profile 디렉터리 존재 확인 (없으면 "먼저 [ 로그인]" 안내)
       4. detached 프로세스로 Playwright 띄움 → vendor-inventory/list?keyword={id} 진입
     """
     s = SessionLocal()
@@ -1653,7 +1653,7 @@ def open_coupang_edit(code: str):
     if not store.has_profile('coupang', env_prefix):
         return _err(
             f"{display_name} 영구 로그인이 안 돼있어요. "
-            "「판매처 계정」 페이지의 [🔐 로그인] 버튼으로 1회 로그인 먼저 해주세요.",
+            "「판매처 계정」 페이지의 [ 로그인] 버튼으로 1회 로그인 먼저 해주세요.",
             400,
         )
 
@@ -2619,7 +2619,7 @@ def test_crawl_single(code: str):
 
 @bp.post('/bundles/<code>/recrawl-url')
 def recrawl_single_url(code: str):
-    """[2026-06-13] 단일 등록 URL 재크롤 — 옵션 모달의 🔄 재크롤 버튼용.
+    """[2026-06-13] 단일 등록 URL 재크롤 — 옵션 모달의  재크롤 버튼용.
 
     body: {source_key, url}
     서버사이드 HTTP 크롤러(ssf·ssg·lemouton·smartstore)는 즉시 크롤·저장 후 결과 반환.
@@ -3818,7 +3818,7 @@ def bundle_option_orphans(code: str):
 def bundle_option_orphans_resolve(code: str):
     """유령 정리 — body: {"skus": [...], "action": "off"|"delete"}.
 
-    🔴 `delete` 라도 걸린 데(URL 매핑·재고 이력 등)가 있으면 지우지 않고 끈다.
+    [중요] `delete` 라도 걸린 데(URL 매핑·재고 이력 등)가 있으면 지우지 않고 끈다.
        지운 것과 끈 것을 나눠 돌려주므로 화면이 사실대로 알릴 수 있다.
     """
     from lemouton.sourcing.option_orphans import resolve_orphans
@@ -3948,7 +3948,7 @@ def cycle_crawl_all():
             record_end(cid, status=st, details=d, error=err)
             per_child[code] = {'ok': st != 'failed', 'status': st,
                                 'duration_sec': d['duration_sec'], 'saved': d.get('saved', 0)}
-            try: progress_tick('crawl', delta=1, current=f'{code} ✓ ({len(per_child)}/{len(codes)})')
+            try: progress_tick('crawl', delta=1, current=f'{code} ({len(per_child)}/{len(codes)})')
             except Exception: pass
 
         if codes:
@@ -4057,7 +4057,7 @@ def cycle_upload_all():
             record_end(cid, status=st, details=d, error=err)
             per_child[code] = {'ok': st != 'failed', 'status': st,
                                 'duration_sec': d['duration_sec']}
-            try: _ptick('upload', delta=1, current=f'{code} ✓ ({len(per_child)}/{len(codes)})')
+            try: _ptick('upload', delta=1, current=f'{code} ({len(per_child)}/{len(codes)})')
             except Exception: pass
 
         if codes:
@@ -4363,7 +4363,7 @@ def _new_option_payload(session, src, color_code, size_code, *,
                         color_display=None, size_display=None):
     """기준 옵션 src 를 베이스로 새 Option 생성용 kwargs. 색·사이즈만 바꾸고 모델 그대로.
 
-    🔴 [2026-08-06] 표준 SKU 로 통일했다. 예전엔 `{model_code}-{색}-{사이즈}` 를
+    [중요] [2026-08-06] 표준 SKU 로 통일했다. 예전엔 `{model_code}-{색}-{사이즈}` 를
       발급하고 **바코드를 안 넣었다**. 그 결과:
         · 라벨 인쇄가 붙일 바코드가 없어 한글이 섞인 SKU 를 CODE128 로 찍으려다 깨진다
         · SKU 매핑 큐에 영구 미매핑으로 쌓인다(라이브 89건의 발원지 중 하나)

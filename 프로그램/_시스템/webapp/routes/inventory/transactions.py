@@ -25,7 +25,7 @@ _BUNDLE_FILE = Path(__file__).resolve().parents[3] / 'data' / 'bundles.json'
 def _ledger_stock(session, skus) -> dict:
     """SKU → **원장 기준** 재고. 스냅샷(`boxhero_stock_total`)은 쓰지 않는다.
 
-    🔴 스냅샷은 `shared/inventory_stock.py` 머리말이 「신뢰 X」로 못 박은 값이다.
+    [중요] 스냅샷은 `shared/inventory_stock.py` 머리말이 「신뢰 X」로 못 박은 값이다.
       폰 조정 등 다른 창구가 그걸 안 고쳐 원장과 벌어진다 — 화면과 서버가 다른
       숫자를 쓰면 「20 보고 +5 했는데 23」이 된다(2026-08-13 실측).
     """

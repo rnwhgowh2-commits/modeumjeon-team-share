@@ -97,7 +97,7 @@ class _Choice:
 def _is_naver_pay(it) -> bool:
     """네이버페이 적립 항목.
 
-    ⚠️ ``_is_payment`` 가 '네이버' 를 False 로 돌려주는 건 의도된 설계다(네이버페이는
+    [주의] ``_is_payment`` 가 '네이버' 를 False 로 돌려주는 건 의도된 설계다(네이버페이는
     카드와 **동시 적용**). 그래서 결제카드 축과 별개 축으로 따로 본다.
     """
     return '네이버' in (getattr(it, 'benefit_name', '') or '')

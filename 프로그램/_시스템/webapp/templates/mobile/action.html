@@ -9,9 +9,9 @@
 
 <div id="action-tabs" style="display: none;">
   <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 16px 0 12px; background: var(--n100); border-radius: 8px; padding: 4px;">
-    <button type="button" class="tab-btn" data-action="in">📥 입고</button>
-    <button type="button" class="tab-btn" data-action="out">📤 출고</button>
-    <button type="button" class="tab-btn" data-action="adjust">⚖️ 조정</button>
+    <button type="button" class="tab-btn" data-action="in"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 입고</button>
+    <button type="button" class="tab-btn" data-action="out"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 출고</button>
+    <button type="button" class="tab-btn" data-action="adjust"><i class="ph-light ph-scales" aria-hidden="true"></i>️ 조정</button>
   </div>
 
   <div id="location-section" class="m-field">
@@ -73,7 +73,7 @@
       const d = await r.json();
       if (!d.ok) {
         document.getElementById('option-info').innerHTML =
-          `<div class="m-empty"><div class="icon">❌</div>${d.error}</div>`;
+          `<div class="m-empty"><div class="icon"></div>${d.error}</div>`;
         return;
       }
       optionData = d.option;
@@ -85,7 +85,7 @@
       document.getElementById('action-tabs').style.display = 'block';
     } catch (e) {
       document.getElementById('option-info').innerHTML =
-        '<div class="m-empty"><div class="icon">❌</div>옵션 불러오기 실패</div>';
+        '<div class="m-empty"><div class="icon"></div>옵션 불러오기 실패</div>';
     }
   }
 
@@ -93,7 +93,7 @@
     const info = document.getElementById('option-info');
     const img = optionData.image_url
       ? `<img src="${optionData.image_url}" style="width: 60px; height: 60px; border-radius: 8px; object-fit: cover;">`
-      : `<div style="width: 60px; height: 60px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 24px;">📦</div>`;
+      : `<div style="width: 60px; height: 60px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 24px;"></div>`;
     const barcodes = [];
     if (optionData.barcode) barcodes.push({label: '바코드', value: optionData.barcode, color: 'var(--color-ok, #16a34a)'});
     if (optionData.boxhero_sku) barcodes.push({label: '박스히어로', value: optionData.boxhero_sku, color: 'var(--primary, #3182F6)'});
@@ -127,13 +127,13 @@
 
       <!-- 위치별 재고 분포 -->
       <div id="stock-by-location" class="m-card" style="padding: 12px 12px; margin-bottom: 12px;">
-        <div style="font-size: 14px; color: var(--n600); font-weight: 600; margin-bottom: 8px;">📍 위치별 재고</div>
+        <div style="font-size: 14px; color: var(--n600); font-weight: 600; margin-bottom: 8px;">위치별 재고</div>
         <div id="stock-rows"><div class="m-loading" style="padding: 8px;"><span class="m-spinner"></span>불러오는 중...</div></div>
       </div>
 
       <!-- 추가 정보 (매입가·박스히어로·이력) -->
       <div class="m-card" style="padding: 12px 12px; margin-bottom: 16px;">
-        <div style="font-size: 14px; color: var(--n600); font-weight: 600; margin-bottom: 8px;">📊 부가 정보</div>
+        <div style="font-size: 14px; color: var(--n600); font-weight: 600; margin-bottom: 8px;">부가 정보</div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px;">
           <div>
             <div style="color: var(--n500);">평균 매입가</div>
@@ -268,7 +268,7 @@
         return;
       }
       const labels = { in: '입고', out: '출고', adjust: '조정' };
-      showToast(`✅ ${labels[currentAction]} 완료 (${d.applied_qty > 0 ? '+' : ''}${d.applied_qty}) · 총 ${d.new_total_stock}`, 'success');
+      showToast(`${labels[currentAction]} 완료 (${d.applied_qty > 0 ? '+' : ''}${d.applied_qty}) · 총 ${d.new_total_stock}`, 'success');
       // 1.5초 후 자동으로 스캔 페이지로
       setTimeout(() => location.href = '/mobile/scan?action=' + currentAction, 1500);
     } catch (e) {

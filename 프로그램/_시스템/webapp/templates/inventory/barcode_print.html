@@ -44,7 +44,7 @@ svg.ds-bc { shape-rendering: crispEdges; }
 <body>
 <div class="toolbar">
   <button class="btn sec" onclick="window.history.back()">← 돌아가기</button>
-  <button class="btn" onclick="window.print()">🖨 인쇄</button>
+  <button class="btn" onclick="window.print()"><i class="ph-light ph-printer" aria-hidden="true"></i> 인쇄</button>
 </div>
 {% set per_page = template.per_page %}
 {% set total = rows|length %}
@@ -136,7 +136,7 @@ document.querySelectorAll('.label').forEach(el => {
   // white-space:nowrap = 모든 텍스트 자식 줄바꿈 금지 (overflow:hidden 으로 cell 가장자리 클립)
   const wrap = `style="width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:var(--surface,#ffffff);color:#000;overflow:hidden;white-space:nowrap"`;
   const svg = `<div style="width:${sBcw}mm;height:${sBch}mm;margin-top:${gAB};margin-bottom:${gBC};flex-shrink:0;overflow:hidden;"><svg class="ds-bc" data-code="${code}" width="${sBcw}mm" height="${sBch}mm" preserveAspectRatio="none" style="display:block;"></svg></div>`;
-  const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">★ 자동</span>' : '');
+  const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">자동</span>' : '');
   const bundleTag = isBundle ? `<div class="bundle-tag">묶음</div>` : '';
 
   // 모델명 line (variant 3: 검은 배경 chip)
@@ -189,7 +189,7 @@ document.querySelectorAll('svg.ds-bc').forEach(svg => {
     svg.setAttribute('height', hMm);
     svg.setAttribute('preserveAspectRatio', 'none');
   } catch (e) {
-    svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444">⚠ ' + c.substring(0,30) + '</div>';
+    svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444">' + c.substring(0,30) + '</div>';
   }
 });
 </script>

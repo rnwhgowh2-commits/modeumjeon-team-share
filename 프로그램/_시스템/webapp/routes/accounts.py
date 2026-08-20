@@ -148,17 +148,17 @@ def upload_accounts_view():
         for acc in accounts:
             try:
                 creds = S.load_credentials(market=acc.market, env_prefix=acc.env_prefix)
-                cred_status = "✅ 등록"
+                cred_status = "등록"
                 cred_state = "ok"
                 missing_count = 0
                 masked_id = _first_field_masked(creds)
             except S.SecretsMissingError as e:
-                cred_status = f"⚠️ 누락 ({len(e.missing_keys)} 키)"
+                cred_status = f"누락 ({len(e.missing_keys)} 키)"
                 cred_state = "missing"
                 missing_count = len(e.missing_keys)
                 masked_id = "—"
             except S.SecretsUnknownMarketError:
-                cred_status = "❌ 미지원 market"
+                cred_status = "미지원 market"
                 cred_state = "unknown"
                 missing_count = 0
                 masked_id = "—"
@@ -177,7 +177,7 @@ def upload_accounts_view():
                 profile_dir = profile_store.profile_dir(acc.market, acc.env_prefix)
                 if not profile_store.has_profile(acc.market, acc.env_prefix):
                     login_state = "not_logged_in"
-                    login_status = "⚪ 로그인 안됨"
+                    login_status = "로그인 안됨"
                 elif _has_persistent_auth_cookie(profile_dir, acc.market):
                     cookies_path = profile_dir / "Default" / "Network" / "Cookies"
                     if not cookies_path.exists():
@@ -187,19 +187,19 @@ def upload_accounts_view():
                     login_age = age_days
                     if age_days <= 30:
                         login_state = "logged_in"
-                        login_status = f"🟢 영구 로그인 ({age_days:.0f}일 경과)"
+                        login_status = f"영구 로그인 ({age_days:.0f}일 경과)"
                     else:
                         login_state = "stale"
-                        login_status = f"🟡 30일 초과 ({age_days:.0f}일 — 재로그인 권장)"
+                        login_status = f"30일 초과 ({age_days:.0f}일 — 재로그인 권장)"
                 elif _has_session_trace(profile_dir, acc.market):
                     profile_mtime = profile_dir.stat().st_mtime
                     age_days = (datetime.now().timestamp() - profile_mtime) / 86400.0
                     login_age = age_days
                     login_state = "session_only"
-                    login_status = "⚠ 세션 only (재로그인 필요할 수 있음)"
+                    login_status = "세션 only (재로그인 필요할 수 있음)"
                 else:
                     login_state = "incomplete"
-                    login_status = "⚠ 로그인 미완료"
+                    login_status = "로그인 미완료"
 
             meta = MARKET_METADATA.get(acc.market, {})
             rows.append({
@@ -365,9 +365,9 @@ def sourcing_accounts_view():
             if not has_session:
                 session_status = "⏸ 미로그인"
             elif is_expired:
-                session_status = "⚠️ 만료 (재로그인 필요)"
+                session_status = "만료 (재로그인 필요)"
             else:
-                session_status = f"✅ 활성 ({age_days:.0f}일 경과)"
+                session_status = f"활성 ({age_days:.0f}일 경과)"
             session_rows.append({
                 "id": acc.id,
                 "source": acc.source,
@@ -678,7 +678,7 @@ def list_markets():
     Response: ``{
         "ok": true,
         "markets": [
-            {"key": "smartstore", "label": "스마트스토어", "icon": "🟢",
+            {"key": "smartstore", "label": "스마트스토어", "icon": "[정상]",
              "api_type": "OAuth", "key_count": 2, "status": "ready", ...},
             ...
         ]
@@ -902,7 +902,7 @@ def create_upload_account():
             "account_key": acc.account_key,
             "env_prefix": acc.env_prefix,
             "market": acc.market,
-            "message": f"{display_name} 계정 등록 완료. 다음 단계: 🔑 키 입력으로 API 키를 등록하세요.",
+            "message": f"{display_name} 계정 등록 완료. 다음 단계: 키 입력으로 API 키를 등록하세요.",
         })
     except Exception as e:
         s.rollback()
@@ -1120,7 +1120,7 @@ def test_upload_account_api(account_id: int):
         return jsonify({
             "ok": False,
             "error": f"키 누락 — {', '.join(e.missing_keys)}",
-            "hint": "🔑 키 입력 으로 먼저 등록하세요.",
+            "hint": "키 입력 으로 먼저 등록하세요.",
         }), 400
     except S.SecretsUnknownMarketError:
         return jsonify({"ok": False, "error": f"미지원 market: {market}"}), 400
@@ -1281,7 +1281,7 @@ def _test_coupang(creds, display_name: str, env_prefix: str):
         except Exception:
             return jsonify({
                 "ok": True,
-                "message": f"✅ 쿠팡 API 응답 (200, JSON 파싱 실패)",
+                "message": f"쿠팡 API 응답 (200, JSON 파싱 실패)",
                 "status_code": r.status_code,
                 "elapsed_sec": elapsed,
             })
@@ -1343,7 +1343,7 @@ def _test_lotteon(creds, display_name: str, env_prefix: str):
         except Exception:
             return jsonify({
                 "ok": True,
-                "message": "✅ 롯데온 API 응답 (200, JSON 파싱 실패)",
+                "message": "롯데온 API 응답 (200, JSON 파싱 실패)",
                 "status_code": 200,
                 "elapsed_sec": elapsed,
             })
@@ -1600,7 +1600,7 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
                     f"옵션 {len(opt.options)}개 / 총재고 {stock_total}"
                 )
     except Exception as e:  # noqa: BLE001
-        steps.append(f"⚠️ 상품/재고 조회 단계 실패: {type(e).__name__}: {e}")
+        steps.append(f"상품/재고 조회 단계 실패: {type(e).__name__}: {e}")
 
     return jsonify({
         "ok": True,
@@ -1639,7 +1639,7 @@ def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DA
 
     cli = _oe._account_client(market, env_prefix)
     if cli is None:
-        raise RuntimeError("API 키가 등록돼 있지 않습니다 — 먼저 🔑 키로 등록하세요.")
+        raise RuntimeError("API 키가 등록돼 있지 않습니다 — 먼저 키로 등록하세요.")
     until = _dt.datetime.now(_oe.KST)
     since = until - _dt.timedelta(days=days)
     # 정산 조인은 검증에 불필요하고 호출만 늘린다(ESM 주문조회 5초/1회 제한).
@@ -1745,7 +1745,7 @@ def _live_verify_judge(rows: list, market: str = ""):
 def verify_live_account(account_id: int):
     """라이브 검증 실행 — 실주문을 불러와 자동판정 + 샘플 3건 반환.
 
-    ★ 여기서는 기록하지 않는다. 사장님이 샘플을 마켓 화면과 대조한 뒤
+     여기서는 기록하지 않는다. 사장님이 샘플을 마켓 화면과 대조한 뒤
       /verify-live/confirm 을 눌러야 저장되고 마켓이 열린다.
     """
     from lemouton.markets import order_export as _oe
@@ -2030,7 +2030,7 @@ def verify_live_account(account_id: int):
         rows = _live_verify_fetch(market, prefix, diag=diag)
     except Exception as e:  # noqa: BLE001 — 원인을 그대로 보여준다(조용한 실패 금지).
         return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}",
-                        "hint": "🔌 연결 테스트가 통과하는지, 서버 IP가 등록됐는지 확인하세요."}), 502
+                        "hint": "연결 테스트가 통과하는지, 서버 IP가 등록됐는지 확인하세요."}), 502
 
     auto_pass, issues, samples, tech = _live_verify_judge(rows, market)
     # 어느 조회가 몇 건을 줬는지 — 본 조회에서 이미 세어 왔다(추가 호출 없음).
@@ -2540,7 +2540,7 @@ def wizard_start():
             "ok": True,
             "wizard_id": f"wiz_upload_{target_key}",
             "status": "info",
-            "message": "마켓 셀러는 브라우저 로그인 불필요 — '🔑 키 입력' 으로 시크릿만 등록하세요.",
+            "message": "마켓 셀러는 브라우저 로그인 불필요 — '키 입력' 으로 시크릿만 등록하세요.",
         })
 
     # type == "sourcing" → Phase 2-C 실 동작
@@ -2897,7 +2897,7 @@ def source_add():
                 s.add(src); s.commit()
                 from flask import flash, redirect, url_for
                 try:
-                    flash(f"✓ '{form['label']}' 소싱처 추가됨 (key: {form['source_key']})", "success")
+                    flash(f"'{form['label']}' 소싱처 추가됨 (key: {form['source_key']})", "success")
                 except Exception:
                     pass
                 return redirect(url_for("accounts.source_add"))
@@ -3088,7 +3088,7 @@ def crawl_login_accounts():
     하는지' 알아야 한다. 예전엔 페이지가 렌더된 카드(.cl-card)를 읽어 계정을 알았다 →
     탭이 없으면 계정도 모름. 그래서 같은 질의를 JSON 으로 낸다(위 crawl_login_view 와
     동일 원천 — 목록이 두 곳에서 갈리지 않게).
-    ★비밀번호는 절대 안 싣는다. 자격증명은 계정별 /creds 가 따로 낸다(기존 경로 유지).
+    비밀번호는 절대 안 싣는다. 자격증명은 계정별 /creds 가 따로 낸다(기존 경로 유지).
     """
     import os as _os
     from lemouton.auth import crawl_login as _cl
@@ -3186,7 +3186,7 @@ def save_crawl_login(env_prefix: str):
 def crawl_login_creds(env_prefix: str):
     """[방식A 자동로그인] 저장된 판매자센터 자격증명(복호화)을 반환 — 확장이 로그인폼 자동입력용.
 
-    ⚠️ 평문 비밀번호를 이 사용자의 인증된 브라우저에 전달한다(방식A 고지된 트레이드오프,
+    [주의] 평문 비밀번호를 이 사용자의 인증된 브라우저에 전달한다(방식A 고지된 트레이드오프,
     crawl_login.py 보안설계 참조). 임의 키 주입 방지 위해 크롤 로그인 대상 계정만 허용.
     """
     from lemouton.auth import crawl_login as _cl

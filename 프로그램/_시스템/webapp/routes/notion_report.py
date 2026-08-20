@@ -49,7 +49,7 @@ _CSS = """
 --c-ok:#00B368;--c-warn:#F59E0B;--c-danger:#F04452;--c-kakao:#FEE500;
 --r:12px;--r-s:8px}
 *{box-sizing:border-box}
-/* 🔴 [2026-08-03] 이 화면만 「맑은 고딕」으로 그려지고 있었다(라이브 실측).
+/* [중요] [2026-08-03] 이 화면만 「맑은 고딕」으로 그려지고 있었다(라이브 실측).
    규칙서가 정한 글꼴은 Pretendard 하나다(tokens.css --글꼴).
    줄간격 1.6 도 규칙값(1.57)이 아니었다 — 같이 맞춘다. */
 body{margin:0;background:var(--c-bg);color:var(--c-text);font-size:15px;
@@ -191,7 +191,7 @@ padding:9px 12px;font-size:13px;cursor:pointer}
 .flow{position:static}.grid2,.kk-row,.lights{grid-template-columns:1fr}}
 /* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — 860px 블록(위)이 이미 한 줄로
    접어 준다. 여기선 손끝 목표·글자 크기·여백만 다듬는다. PC 렌더는 안 바뀐다.
-   ★ 이 화면은 base.html 밖 독립 화면이라 껍데기(노란 띠)가 애초에 안 뜬다 —
+    이 화면은 base.html 밖 독립 화면이라 껍데기(노란 띠)가 애초에 안 뜬다 —
      MOBILE_READY 등록은 메뉴 배지(폰 전용) 몫이다. */
 @media (max-width: 768px) {
 .wrap{padding:16px 12px 56px}
@@ -345,7 +345,7 @@ def save_keys():
 def save_page():
     """읽을 노션 문서 갈아타기.
 
-    🔴 **번호만 바꾸면 안 된다.** 어제 기준선이 남의 문서 것이라 다음 회차가
+    [중요] **번호만 바꾸면 안 된다.** 어제 기준선이 남의 문서 것이라 다음 회차가
     「전부 신규」로 잡혀 수백 건짜리 거짓 보고가 나간다 → `set_page` 가 기준선을
     같이 비운다. 비운 뒤 첫 회차는 발송 없이 기준선만 저장한다.
     """
@@ -565,7 +565,7 @@ def _bubbles(report: dict) -> str:
     #   실제 발송이 쓰는 것과 **같은 판정**(shot_store.public_url)으로 표시한다.
     shot_live = shot_store.public_url()
     if shot_live:
-        photo_note = "「캡처 크게 보기」+「노션에서 보기」 · 📷 캡처 붙어서 나갑니다"
+        photo_note = "「캡처 크게 보기」+「노션에서 보기」 · 캡처 붙어서 나갑니다"
         photo_btns = [("캡처 크게 보기", nt.shot_url()),
                       ("노션에서 보기", nt.link_url())]
     else:
@@ -611,7 +611,7 @@ def _bubbles(report: dict) -> str:
 
 _CHANGE_LABELS = [("completed", "✅", "완료"), ("added", "🆕", "신규"),
                   ("edited", "✏️", "문구수정"), ("removed", "🗑", "삭제"),
-                  ("reopened", "↩️", "체크해제")]
+                  ("reopened", "↩", "체크해제")]
 
 
 def _step_today(report, refreshing: bool) -> str:
@@ -653,7 +653,7 @@ def _step_today(report, refreshing: bool) -> str:
     # ── 요일 판정 · 어제 대비 변경 ──
     picked = report.get("picked") or {}
     out.append("<div class='grid2'><div class='card'><div class='card-h'>"
-               "<b>오늘 요일 블록을 제대로 골랐나 (★확인 필요)</b>"
+               "<b>오늘 요일 블록을 제대로 골랐나 (확인 필요)</b>"
                "<span class='badge badge--warn'>눈으로 확인</span></div>"
                "<div class='kv'>"
                "<div class='kv-r'><span class='kv-k'>고른 요일</span>"

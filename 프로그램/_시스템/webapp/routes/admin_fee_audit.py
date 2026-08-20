@@ -7,7 +7,7 @@
   POST /api/admin/fee/restore  apply 가 돌려준 「바꾸기 전 값」으로 되돌리기
                                body: {"before": [...]}
 
-⚠️ 판매가가 움직이는 일이다. 그래서 순서를 강제한다 — 재기(GET) → 눈으로 → 고치기.
+[주의] 판매가가 움직이는 일이다. 그래서 순서를 강제한다 — 재기(GET) → 눈으로 → 고치기.
    계산은 `lemouton/pricing/fee_audit.py` 가 단일 원천. 여기는 창구일 뿐이다.
 """
 from __future__ import annotations

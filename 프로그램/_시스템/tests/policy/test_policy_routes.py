@@ -175,7 +175,9 @@ def test_브랜드_없음만_따로_걸러낸다(client):
 
 def test_목록에_복사_단추가_있다(client):
     _new_policy(client, '복사단추')
-    assert '📄 복사' in client.get('/policies').get_data(as_text=True)
+    _목록 = client.get('/policies').get_data(as_text=True)
+    assert 'ph-file' in _목록, '복사 아이콘이 없다'
+    assert '복사</' in _목록
 
 
 def test_상세에_마켓_공통_탭이_있다(client):
@@ -397,7 +399,7 @@ def test_가격을_아직_못_채운_정책은_카드가_잠긴다(client):
     _enable_market(client, pid, ['coupang'])
     body = client.get('/policies/apply').get_data(as_text=True)
     assert 'class="polcard locked"' in body
-    assert '🔒 미완성' in body
+    assert 'ph-lock' in body and '미완성' in body
     assert f'value="{pid}" data-nm="미완성정책"\n                   disabled>' in body
 
 
@@ -415,7 +417,7 @@ def test_가격을_채운_정책은_잠기지_않는다(client):
         s.close()
     body = client.get('/policies/apply').get_data(as_text=True)
     assert 'class="polcard locked"' not in body
-    assert '🔒 미완성' not in body
+    assert '미완성' not in body
     assert f'value="{pid}" data-nm="완성정책"\n                   >' in body, 'disabled 가 없어야 한다'
 
 
@@ -841,7 +843,7 @@ def test_안_켠_마켓은_흐려지고_자물쇠가_붙는다(client):
     _set_markets(client, pid, ['smartstore', 'coupang'])
     body = client.get(f'/policies/{pid}').get_data(as_text=True)
     assert 'mkoff' in body, '안 켠 마켓 표시가 없다'
-    assert '🔒' in body
+    assert 'ph-lock' in body
     assert '안 켠 마켓입니다' in body
 
 

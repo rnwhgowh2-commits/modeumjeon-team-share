@@ -49,7 +49,7 @@ def data_boxhero_import_upload():
         result = import_xlsx(tmp_path, s, threshold_auto=threshold)
         s.commit()
         msg = (
-            f"✅ 박스히어로 import 완료 — "
+            f"[확인] 박스히어로 import 완료 — "
             f"records {result['records_count']} | "
             f"자동 매핑 {len(result['mapped'])} | "
             f"검토 큐 {len(result['queued'])} | "

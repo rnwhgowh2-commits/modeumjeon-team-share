@@ -317,7 +317,7 @@
                 <span class="pc-nm">{{ p.name }}</span>
                 {% if p.is_default %}<span class="tag def">기본</span>{% endif %}
                 {% if p.brand %}<span class="tag br">{{ p.brand }}</span>{% endif %}
-                {% if not p.usable %}<span class="pc-lock">🔒 미완성</span>{% endif %}
+                {% if not p.usable %}<span class="pc-lock"><i class="ph-light ph-lock" aria-hidden="true"></i> 미완성</span>{% endif %}
               </span>
               <span class="pc-mk">
                 {% for m in market_keys %}<span class="mkbadge {{ 'on' if m in p.enabled else 'off' }}">{{ market_label[m] }}</span>{% endfor %}

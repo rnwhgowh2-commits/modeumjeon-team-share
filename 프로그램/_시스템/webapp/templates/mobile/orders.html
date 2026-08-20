@@ -396,7 +396,7 @@
     <div class="mo-mg-note" id="mo-mg-note"></div>
   </div>
   <div class="mo-mg-month" id="mo-mg-month">
-    <div class="m-empty"><div class="icon">🧮</div>이번 달은 아직 못 담았어요<br>
+    <div class="m-empty"><div class="icon"><i class="ph-light ph-calculator" aria-hidden="true"></i></div>이번 달은 아직 못 담았어요<br>
       <span style="font-size:12px;color:var(--n500,#8B95A1)">마켓 실조회가 한 달치엔 너무 무거워요(6마켓 7일에도 ~60초).<br>
       숫자를 지어내는 대신 PC 에서 보시게 안내드려요.</span><br>
       <a href="/orders/?tab=margin" style="font-size:13px">PC 「마진 계산기」에서 →</a></div>
@@ -765,7 +765,7 @@
            +(st==='saving'?' saving':'')+(st==='err'?' bad':'');
     var dot=d?('<span class="d mo-od-'+esc(d.color||'gray')+'"></span>'):'';
     var txt=d?(esc(d.name)+(d.is_fallback?' 기본':'')):(ostOk?'상태':'확인 불가');
-    if(st==='err')txt='✗ 실패';
+    if(st==='err')txt='실패';
     var tip=(!d&&!ostOk)?' title="상태를 불러오지 못했어요 — 지워진 게 아닙니다."':'';
     return '<span class="'+cls+'" data-ost="'+esc(uid)+'"'+tip+'>'+dot+txt+'</span>';
   }
@@ -912,7 +912,7 @@
     var fb=document.getElementById('mo-fail');
     if(!sp.fails.length){fb.className='mv-fail';fb.innerHTML='';}
     else{
-      var h='<div class="wt">⚠️ 계정 '+sp.fails.length+'곳을 못 불러왔어요 — 아래 숫자에서 빠져 있어요</div>';
+      var h='<div class="wt">계정 '+sp.fails.length+'곳을 못 불러왔어요 — 아래 숫자에서 빠져 있어요</div>';
       sp.fails.forEach(function(w){
         var k=warnMkKey(w), busy=!!retryBusy[k];
         h+='<div class="it"><div class="tx">'+esc(warnText(w))+'</div>'
@@ -929,7 +929,7 @@
     if(!sp.dups.length){db.className='mv-dup';db.innerHTML='';}
     else{
       db.className='mv-dup show';
-      db.innerHTML='ℹ️ 중복 등록된 계정은 한 번만 조회했어요(주문이 두 배로 잡히는 걸 막습니다)<br>'
+      db.innerHTML='ℹ중복 등록된 계정은 한 번만 조회했어요(주문이 두 배로 잡히는 걸 막습니다)<br>'
         +sp.dups.map(function(w){return esc(warnWho(w));}).join(' · ');
     }
   }
@@ -1317,12 +1317,12 @@
     if(!vis.length){
       // 못 불러온 것과 진짜 0건은 다른 사실이다 — 「주문이 없어요」로 뭉치면 거짓 화면.
       if(!scopeTrusted()){
-        box.innerHTML='<div class="m-empty"><div class="icon">⚠️</div>주문을 불러오지 못했어요<br>'
+        box.innerHTML='<div class="m-empty"><div class="icon"></div>주문을 불러오지 못했어요<br>'
           +'<span style="font-size:12px;color:var(--n500,#8B95A1)">위 「다시 시도」를 눌러 주세요</span></div>';
         return;
       }
       // 빈 안내도 고른 기간·범위를 그대로 말한다 — 30일을 보는데 「최근 7일」이라 말하면 거짓 화면.
-      box.innerHTML='<div class="m-empty"><div class="icon">📭</div>'
+      box.innerHTML='<div class="m-empty"><div class="icon"></div>'
         +esc(pdLabel())+(selLabel()?' · '+esc(selLabel()):'')+' 주문이 없어요</div>';
       return;
     }
@@ -1422,7 +1422,7 @@
     var sr=shipRowsOf();
     if(!sr.length){
       var okAny=scopeTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
-      box.innerHTML='<div class="m-empty"><div class="icon">📦</div>'
+      box.innerHTML='<div class="m-empty"><div class="icon"></div>'
         +(okAny?'발송대기 주문이 없어요':'주문을 불러오지 못했어요')+'</div>';
       return;
     }
@@ -1449,7 +1449,7 @@
           h+='<div class="t">이 주문엔 이미 송장('+esc(String(r['송장입력']).trim())+')이 들어가 있어요 — 덮어쓰지 않아요</div>';
         }else if(res&&res.success&&!res.dry_run){
           h+='<div class="t">전송됨 — 마켓 등록 번호 '+esc(res.market_invoice_no||'(확인 대기)')+'</div>'
-            +(res.mismatch?'<div class="mo-ed-msg bad show">⚠ 마켓에 등록된 번호가 입력값과 달라요 — PC 에서 확인하세요</div>':'');
+            +(res.mismatch?'<div class="mo-ed-msg bad show">마켓에 등록된 번호가 입력값과 달라요 — PC 에서 확인하세요</div>':'');
         }else{
           h+='<div class="t">'+esc(r['상품명']||'')+' — 송장 입력</div>'
             +'<div class="fr"><select class="mo-inp cou mo-ed-cou">'
@@ -1503,7 +1503,7 @@
         var res=(j.results||[])[0]||{};
         if(!j.live){
           // 서버 실전송 스위치 OFF — 보낸 척 금지: 저장 안 됐음을 그대로 말한다.
-          shipOpen.msg='⚠ 실전송 스위치가 꺼져 있어 미리보기로 처리했어요 — 마켓에는 저장되지 않았습니다';
+          shipOpen.msg='실전송 스위치가 꺼져 있어 미리보기로 처리했어요 — 마켓에는 저장되지 않았습니다';
           shipOpen.msgCls='warn2'; renderShipList(); return;
         }
         if(res.success){
@@ -1618,7 +1618,7 @@
     if(loading&&!items.length){return;}           // 스피너 유지
     var vis=items.filter(function(it){return csFilter==='all'||it.kind===csFilter;});
     if(!vis.length){
-      box.innerHTML='<div class="m-empty"><div class="icon">💬</div>'
+      box.innerHTML='<div class="m-empty"><div class="icon"></div>'
         +(csFilter==='all'?'최근 7일 CS 가 없어요':'해당 유형이 없어요')+'</div>';
       return;
     }

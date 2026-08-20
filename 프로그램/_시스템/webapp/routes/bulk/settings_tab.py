@@ -160,7 +160,7 @@ def save_speed_settings():
     body: {"market": "coupang", "window_seconds": 1, "max_count": 5}
        또는 {"account_id": 3, "window_seconds": 1, "max_count": 2}
 
-    ★ 둘 다 오면 거부한다 — 어느 쪽을 고쳤는지 모호하면 안 된다.
+     둘 다 오면 거부한다 — 어느 쪽을 고쳤는지 모호하면 안 된다.
     """
     from lemouton.pricing.settings import set_account_rate, set_market_rate
     from lemouton.sourcing.models_v2 import UploadAccount
@@ -359,7 +359,7 @@ def _vendor_id_for(env_prefix: str) -> str:
 def _coupang_client_for(env_prefix: str):
     """계정별 쿠팡 클라이언트. 테스트 주입점 — 실호출은 이 함수를 통해서만.
 
-    ★ [2026-07-23 리뷰 I4] 기본 클라이언트로 폴백하지 않는다. 폴백하면 **남의 계정 키로
+     [2026-07-23 리뷰 I4] 기본 클라이언트로 폴백하지 않는다. 폴백하면 **남의 계정 키로
       서명해** 다른 셀러의 반품지·출고지를 이 계정 칸에 채워 넣게 된다(그 값으로 저장하면
       반품이 엉뚱한 곳으로 간다). 지금은 도달 불가한 분기지만, 남겨 두면 언젠가 열린다.
     """
@@ -376,7 +376,7 @@ def _coupang_client_for(env_prefix: str):
 def fetch_coupang_vendor():
     """「쿠팡에서 불러오기」 — Wing 에 등록해 둔 반품지·출고지를 그대로 가져온다.
 
-    ⚠ 이 라우트는 **쿠팡 조회 API 를 실제로 부른다**(사장님이 버튼을 눌렀을 때만).
+    [주의] 이 라우트는 **쿠팡 조회 API 를 실제로 부른다**(사장님이 버튼을 눌렀을 때만).
       사전점검(preflight)은 여전히 마켓을 한 번도 부르지 않는다 — 서로 다른 계층이다.
       조회 전용이라 쿠팡에 아무것도 쓰지 않는다.
     """

@@ -218,7 +218,7 @@
            data-icon-edit="hub|registered"
            data-icon-current="📦"
            data-icon-color="default"
-           data-icon-label="등록된 상품">📦</div>
+           data-icon-label="등록된 상품"><i class="ph-light ph-package" aria-hidden="true"></i></div>
       <div class="hub-hero-body">
         <h2>등록된 상품 <span class="hub-hero-cnt">{{ (counts.registered|default(0)) + (counts.draft|default(0)) }}</span></h2>
         <div class="hub-hero-desc">현재 운영 중인 모음전 모두 보기 — 매트릭스·재고·가격·자동화</div>
@@ -253,7 +253,7 @@
       <span class="lbl-all">전체 크롤링 실행</span><span class="lbl-sel hidden">선택 크롤</span>
     </button>
     <button class="bl-ab-btn upload" data-action="open-upload-modal" data-ab="upload">
-      <span class="ic">📤</span> <span class="lbl-all">전체 업로드 실행</span><span class="lbl-sel hidden">선택 업로드</span>
+      <span class="ic"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i></span> <span class="lbl-all">전체 업로드 실행</span><span class="lbl-sel hidden">선택 업로드</span>
       <span class="caret">▼</span>
     </button>
     <button class="bl-ab-btn primary hidden" data-ab="run-full" id="bl-ab-runfull">
@@ -273,17 +273,17 @@
   <div class="bl-seg-tabs" role="tablist">
     <a class="bl-seg{% if selected_status == 'registered' %} on reg{% endif %}"
        href="/bundles?status=registered{{ _seg_brand }}{{ _seg_q }}" role="tab">
-      📦 등록 상태 <b>{{ counts.registered|default(0) }}</b>
+      <i class="ph-light ph-package" aria-hidden="true"></i> 등록 상태 <b>{{ counts.registered|default(0) }}</b>
     </a>
     <a class="bl-seg{% if selected_status == 'draft' %} on draft{% endif %}"
        href="/bundles?status=draft{{ _seg_brand }}{{ _seg_q }}" role="tab">
-      📝 등록전 <b>{{ counts.draft|default(0) }}</b>
+      <i class="ph-light ph-note-pencil" aria-hidden="true"></i> 등록전 <b>{{ counts.draft|default(0) }}</b>
     </a>
   </div>
 
   <form method="get" action="/bundles" class="qsearch" style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
     <input type="hidden" name="status" value="{{ selected_status }}">
-    <span class="qsearch-icon">🔍</span>
+    <span class="qsearch-icon"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
     {% with search_placeholder='모음전 코드 / 상품명 / 브랜드 / 모상품번호(M…) / 브랜드 품번...' %}{% include 'partials/search_chips.html' %}{% endwith %}
   </form>
 
@@ -342,12 +342,12 @@
               data-icon-edit="model|{{ b.model_code }}"
               data-icon-current="{% if b.category == '의류' %}👕{% else %}👟{% endif %}"
               data-icon-color="default"
-              data-icon-label="{{ b.group_name or b.model_code }}">{% if b.category == '의류' %}👕{% else %}👟{% endif %}</span>
+              data-icon-label="{{ b.group_name or b.model_code }}">{% if b.category == '의류' %}<i class="ph-light ph-t-shirt" aria-hidden="true"></i>{% else %}<i class="ph-light ph-sneaker" aria-hidden="true"></i>{% endif %}</span>
         <span>
           <strong>{{ b.group_name or b.model_code }}</strong>
           {% if b.cluster_size and b.cluster_size > 1 %}<span class="bl-cluster">{{ b.cluster_size }}모델</span>{% endif %}
           {# ★ Phase 8.8.4 — 무신사 비회원가 ⚠ 배지 (회원가 추출 실패 옵션 카운트) #}
-          {% if b.musinsa_non_member_count %}<span class="nm-row-badge" title="무신사 비회원가 크롤링 — 재로그인 필요. 클릭하여 대시보드 ⚠ 카드 확인.">⚠ 무신사 비회원가 {{ b.musinsa_non_member_count }}건</span>{% endif %}
+          {% if b.musinsa_non_member_count %}<span class="nm-row-badge" title="무신사 비회원가 크롤링 — 재로그인 필요. 클릭하여 대시보드 ⚠ 카드 확인."><i class="ph-light ph-warning" aria-hidden="true"></i> 무신사 비회원가 {{ b.musinsa_non_member_count }}건</span>{% endif %}
           <div class="bl-name-sub">{{ b.category }} · 코드 {{ b.model_code }}</div>
         </span>
       </a>
@@ -454,7 +454,7 @@
       </div>
 
       <div class="bl-modal-section">
-        <div class="bl-modal-section-title">✎ 수동 추가 (마켓 선택 → 계정 연동)</div>
+        <div class="bl-modal-section-title"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 수동 추가 (마켓 선택 → 계정 연동)</div>
         <p class="bl-modal-section-desc">아직 계정이 없는 마켓을 추가하려면 — 마켓 선택 후 <b>계정 등록 페이지로 이동</b>해 ID/Secret 입력. 등록 즉시 column 노출.</p>
         <div class="bl-manual-mkt-list" id="manual-mkt-list">
           <div class="bl-loading">마켓 레지스트리 로딩…</div>
@@ -932,7 +932,7 @@
     const w = window.open(url, '_blank');
     // 사용자에게 안내
     setTimeout(() => {
-      alert(`💡 새 탭에서 ${label} 계정을 등록해주세요.\n\n등록 완료되면 이 탭으로 돌아와 페이지를 새로고침하면 자동으로 column 이 추가됩니다.`);
+      alert(`새 탭에서 ${label} 계정을 등록해주세요.\n\n등록 완료되면 이 탭으로 돌아와 페이지를 새로고침하면 자동으로 column 이 추가됩니다.`);
     }, 200);
   };
 
@@ -951,7 +951,7 @@
   <div class="modal modal-upload">
     <div class="modal-head">
       <div>
-        <h3 style="margin:0 0 4px;font-size:17px">📤 업로드 실행</h3>
+        <h3 style="margin:0 0 4px;font-size:17px"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 업로드 실행</h3>
         <p style="margin:0;color:var(--n600);font-size:12px">전체 모음전 → 어떤 마켓에 업로드할까요?</p>
       </div>
       <button class="modal-close" data-action="close-upload-modal" type="button">✕</button>

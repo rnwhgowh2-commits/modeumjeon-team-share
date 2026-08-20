@@ -91,7 +91,7 @@
     return '<div style="margin-top:8px;padding:6px 8px;border-radius:6px;'
       + 'background:#fff5f5;border:1px solid #fecaca;color:#DC2626;'
       + 'font-size:11.5px;font-weight:600;line-height:1.5;text-align:left">'
-      + '⚠️ 이 안에 <b>손해 본 주문 ' + fmt(rows.length) + '건</b>'
+      + '이 안에 <b>손해 본 주문 ' + fmt(rows.length) + '건</b>'
       + '<div style="font-weight:500;color:#991b1b;margin-top:2px">'
       + '가장 나쁜 건 ' + fmt(Number(worst['마진율']) || 0) + '%</div></div>';
   }

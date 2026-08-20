@@ -198,7 +198,7 @@
     // 카테고리·사유·주의 = 6). 어긋나면 표가 어긋나 보인다.
     return `<tr data-fa-market="${esc(market)}"><td colspan="6">` +
       '<details style="font-size:12px">' +
-      `<summary style="cursor:pointer">🔴 타 마켓 이미지 ${assets.length}개 — ` +
+      `<summary style="cursor:pointer">타 마켓 이미지 ${assets.length}개 — ` +
       '눌러서 확인하고 뺄 것만 고르세요</summary>' +
       `<div style="margin:6px 0 0">${items}</div>` +
       '<p class="muted" style="margin:6px 0">되돌리려면 다시 크롤해야 합니다 — ' +
@@ -758,7 +758,7 @@
     //   성공도 실패도 아니라는 사실이 이 화면에서 가장 중요한 정보다.
     const warn = (body.uncertain && body.uncertain.message)
       ? '<p style="font-size:12px;margin:6px 0;padding:8px;border-radius:6px;' +
-        'background:#fff4e5"><b>⚠ ' + esc(body.uncertain.message) + '</b></p>' : '';
+        'background:#fff4e5"><b>' + esc(body.uncertain.message) + '</b></p>' : '';
     const err = body.error
       ? `<p class="muted" style="font-size:11.5px;margin:4px 0">${esc(body.error)}</p>` : '';
     return head + warn + err +
@@ -1367,7 +1367,7 @@
       : ((pSkip.filter((s) => s.blocking).length
         ? '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
           pSkip.filter((s) => s.blocking)
-            .map((s) => `<li>🔴 ${esc(s.reason)}</li>`).join('') + '</ul>'
+            .map((s) => `<li>${esc(s.reason)}</li>`).join('') + '</ul>'
         : '') + gapHtml);
     return '<div class="card" style="margin-top:10px">' +
       `<b>#${r.draft_id} ${esc(r.filled.name) || '(상품명 없음)'}</b> ` +

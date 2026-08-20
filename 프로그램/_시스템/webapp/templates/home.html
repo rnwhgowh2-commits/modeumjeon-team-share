@@ -45,7 +45,7 @@
         {% if bundle_toggle_rows %}
         {% for b in bundle_toggle_rows[:6] %}
         <a href="/bundles/{{ b.code }}" class="x-row">
-          <div class="x-row-ic">📦</div>
+          <div class="x-row-ic"><i class="ph-light ph-package" aria-hidden="true"></i></div>
           <div class="x-row-body">
             <div class="x-row-nm">{{ b.name }}</div>
             <div class="x-row-sub">{{ b.code }}</div>
@@ -102,7 +102,7 @@
   {% if bundle_toggle_rows %}
   <div class="x-card x-card-auto">
     <div class="x-card-h">
-      <div class="x-card-t">⚙ 자동화 토글</div>
+      <div class="x-card-t"><i class="ph-light ph-gear" aria-hidden="true"></i> 자동화 토글</div>
       <div class="x-card-s">{{ kpis.auto_on|default(0) }} / {{ kpis.bundles|default(0) }} ON</div>
       <a href="/bundles" class="x-card-link">전체 →</a>
     </div>

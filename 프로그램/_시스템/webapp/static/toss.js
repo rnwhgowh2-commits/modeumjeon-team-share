@@ -8,8 +8,8 @@ window.MOUM_DRAFT_KEYS = {
   migrate: 'lemouton:draft:migrate',
 };
 const DRAFT_PAGE_LABEL = {
-  new: '🆕 신규 모음전 등록',
-  migrate: '🔄 기존 마켓 상품 연동',
+  new: '신규 모음전 등록',
+  migrate: '기존 마켓 상품 연동',
 };
 const DRAFT_PAGE_URL = {
   new: '/bundles/new',
@@ -69,7 +69,7 @@ function refreshDraftBubble() {
       <div class="draft-key">${_draftSummary(d.page, d.data)}</div>
       <div class="draft-actions">
         <a href="${DRAFT_PAGE_URL[d.page]}">이어서 작업 →</a>
-        <button data-discard="${d.key}">🗑 버리기</button>
+        <button data-discard="${d.key}">버리기</button>
       </div>
     </div>
   `).join('');
@@ -156,9 +156,9 @@ function setAutoSaveIndicator(state, msg) {
   if (!ind) return;
   const map = {
     idle:   { html: '', cls: 'idle' },
-    saving: { html: '✏ 저장 중...', cls: 'saving' },
-    saved:  { html: '💾 저장됨 ✓', cls: 'saved' },
-    error:  { html: '⚠ 저장 실패 (다시 시도)', cls: 'error' },
+    saving: { html: '저장 중...', cls: 'saving' },
+    saved:  { html: '저장됨', cls: 'saved' },
+    error:  { html: '저장 실패 (다시 시도)', cls: 'error' },
   };
   const v = map[state] || map.idle;
   ind.innerHTML = v.html;
@@ -248,7 +248,7 @@ document.addEventListener('click', (e) => {
   // 같은 페이지 내 링크 무시
   if (href === window.location.pathname || href === window.location.href) return;
   if (window.__lemoutonDirty) {
-    if (!confirm('💾 저장 안 한 변경사항이 있습니다.\n정말 페이지를 떠나시겠어요?\n\n(확인 = 변경사항 잃고 이동, 취소 = 머무름)')) {
+    if (!confirm('저장 안 한 변경사항이 있습니다.\n정말 페이지를 떠나시겠어요?\n\n(확인 = 변경사항 잃고 이동, 취소 = 머무름)')) {
       e.preventDefault();
       e.stopPropagation();
     } else {
@@ -521,7 +521,7 @@ document.addEventListener('click', async (e) => {
     msg += `• 마켓 등록된 항목 ${preview.registered_in_marketplaces || 0}개\n`;
     msg += `• 옵션 등록 매핑 ${preview.option_registrations || 0}개\n`;
     msg += `• 소싱 링크 ${preview.source_links || 0}개\n\n`;
-    if (preview.warning) msg += `⚠ ${preview.warning}\n\n`;
+    if (preview.warning) msg += `${preview.warning}\n\n`;
     msg += '진짜 삭제할까요? (이 작업은 되돌리기 어려움)';
     if (!confirm(msg)) return;
     const res = await apiPost(`/api/bundles/${encodeURIComponent(code)}/delete`, {});
@@ -925,7 +925,7 @@ function openStepDesignModal(code) {
   const box = _modalBox('단계형 옵션 생성',
     '<div style="font-size:13px;color:var(--n500,#888);margin-bottom:12px">'
     + '축마다 이름과 값(쉼표 구분)을 넣으면 값이 칩으로 정리되고 <b>조합 매트릭스</b>가 나옵니다. '
-    + '칸을 클릭해 켜고(✓) 끄세요 — 켜진 칸만 옵션으로 만들어집니다.</div>'
+    + '칸을 클릭해 켜고() 끄세요 — 켜진 칸만 옵션으로 만들어집니다.</div>'
     + '<div id="sd-steps"></div>'
     + '<button class="btn btn-sm" id="sd-add-step" type="button" style="margin-top:6px">+ 축 추가 (최대 3축)</button>'
     + '<div class="sd-mtxhead"><span class="lbl">조합 매트릭스</span>'
@@ -1455,7 +1455,7 @@ async function ptmRenderOptCost(box, tplAvg) {
     if (dLo !== 0 || dHi !== 0) {
       const cheap = dLo > 0;   // 적어놓은 값이 실제보다 싸다 = 마진을 실제보다 크게 본다
       alertHtml = `<div class="oc-alert${cheap ? '' : ' hi'}">`
-        + `<div class="oc-al-t">❗ 「평균 매입가」 ${won(tplAvg)}원이 실제보다 `
+        + `<div class="oc-al-t">「평균 매입가」 ${won(tplAvg)}원이 실제보다 `
         + `${won(Math.abs(dLo))}~${won(Math.abs(dHi))}원 ${cheap ? '쌉니다' : '비쌉니다'}</div>`
         + `<div class="oc-al-b">최신 크롤 기준 실제 최종매입가는 <b>${won(lo)}원 ~ ${won(hi)}원</b>입니다. `
         + `이 칸의 값은 <b>사입</b> 판매가·마진 계산에 그대로 쓰이고 있어요.</div></div>`;
@@ -1743,10 +1743,10 @@ async function openPriceTplModal(id, initialTab, opts) {
   //   사입 카드 0원 차단 UX 의 단일 진실 원천. 같은 템플릿 옵션 모두 일괄 적용.
   //   설명은 초딩도 알아듣게 평이하게. 버튼 선택에 따라 PRIO_DESC 로 교체.
   const PRIO_DESC = {
-    template: `📌 <b>이 칸에 직접 적은 매입가</b>를 먼저 써요.<br>` +
+    template: `<b>이 칸에 직접 적은 매입가</b>를 먼저 써요.<br>` +
               `• 이 칸이 비어 있으면(0원) → <b>옵션마다 실제로 사온 평균 가격</b>을 대신 써요.<br>` +
               `• 두 값이 모두 없으면 → 원가를 몰라 손해 볼 수 있으니 <b style="color:#DC2626;">판매를 멈춰요.</b>`,
-    avg: `📌 <b>옵션마다 실제로 사온 평균 가격</b>을 먼저 써요.<br>` +
+    avg: `<b>옵션마다 실제로 사온 평균 가격</b>을 먼저 써요.<br>` +
          `• 그 값이 없으면(0원) → <b>이 칸에 직접 적은 매입가</b>를 대신 써요.<br>` +
          `• 두 값이 모두 없으면 → 원가를 몰라 손해 볼 수 있으니 <b style="color:#DC2626;">판매를 멈춰요.</b>`,
   };
@@ -1833,7 +1833,7 @@ async function openPriceTplModal(id, initialTab, opts) {
       ${row('평균 매입가', num('boxhero_purchase_price', '원'))}
       ${prioSubRow(v('price_source_priority') || 'template')}
       <div class="ptm-guard">
-        <div class="ptm-guard-h">🔒 안전선 <span>— 이 범위를 벗어난 원가면 표시로 알려줘요</span></div>
+        <div class="ptm-guard-h">안전선 <span>— 이 범위를 벗어난 원가면 표시로 알려줘요</span></div>
         ${row('매입가 하한', num('guardrail_lower', '원'))}
         ${row('매입가 상한', num('guardrail_upper', '원'))}
       </div>
@@ -1844,19 +1844,19 @@ async function openPriceTplModal(id, initialTab, opts) {
     </div>
     <div class="ptm-panel" data-panel="margin" style="display:none">
       ${_mkOrder.map(p => marginCard(p)).join('')}
-      <div style="font-size:12px;color:#8B95A1;margin-top:2px">💡 수수료는 마켓별로 자동 적용돼요. 배송·반품·교환·정상가는 「고급」에 있어요.</div>
+      <div style="font-size:12px;color:#8B95A1;margin-top:2px">수수료는 마켓별로 자동 적용돼요. 배송·반품·교환·정상가는 「고급」에 있어요.</div>
     </div>
     <div class="ptm-panel" data-panel="adv" style="display:none">
       ${policyBlock()}
       <div style="height:8px"></div>
-      <div style="font-size:12.5px;font-weight:700;color:#3182F6;margin:8px 0 10px">🚚 마켓별 부대비용</div>
+      <div style="font-size:12.5px;font-weight:700;color:#3182F6;margin:8px 0 10px">마켓별 부대비용</div>
       ${advMarket('ss')}
       ${advMarket('coupang', row('위너 프리미엄가', num('winner_premium_price', '원')))}
       ${_mkOrder.filter(p => p !== 'ss' && p !== 'coupang').map(p => advMarket(p)).join('')}
     </div>`;
 
   const box = _modalBox(
-    id ? `💰 가격 템플릿 편집 (id=${id})` : '💰 새 가격 템플릿',
+    id ? `가격 템플릿 편집 (id=${id})` : '새 가격 템플릿',
     inner,
     `<button class="btn" id="ptm-cancel">취소</button>
      <button class="btn btn-primary" id="ptm-save">저장</button>`
@@ -1884,9 +1884,9 @@ async function openPriceTplModal(id, initialTab, opts) {
       document.head.appendChild(st);
     }
     const SM = {
-      cost: { t: '💵 원가', tag: '사올 때', stripBg: '#E8F3FF', stripFg: '#1D4CB0', tagFg: '#6B8CC0' },
-      margin: { t: '🏷️ 마진', tag: '팔 때', hero: true },
-      adv: { t: '⚙️ 고급', tag: '', stripBg: '#F1F3F5', stripFg: '#4E5968', tagFg: '#8B95A1' },
+      cost: { t: '원가', tag: '사올 때', stripBg: '#E8F3FF', stripFg: '#1D4CB0', tagFg: '#6B8CC0' },
+      margin: { t: '마진', tag: '팔 때', hero: true },
+      adv: { t: '고급', tag: '', stripBg: '#F1F3F5', stripFg: '#4E5968', tagFg: '#8B95A1' },
     };
     const secs = {};
     box.querySelectorAll('.ptm-panel').forEach(p => {
@@ -2061,7 +2061,7 @@ async function openPriceTplModal(id, initialTab, opts) {
       <div style="margin-top:22px; display:flex; flex-direction:column; gap:14px;">
         <div style="padding:22px 25px; border-radius:12px; background:#0F141A;">
           <div style="display:flex; align-items:center; gap:14px; font-size:22px; font-weight:700; color:#FCA5A5; letter-spacing:-.1px;">
-            <span style="font-size:23px;">⚪</span>끄면 · 옵션별 cheapest (기본)
+            <span style="font-size:23px;"></span>끄면 · 옵션별 cheapest (기본)
           </div>
           <p style="margin:13px 0 0; color:#CBD5E1; font-size:22px; line-height:1.75;">
             판매가는 <span style="color:#fff; font-weight:600;">90,000원</span>인데 240mm가 팔리면 <span style="color:#fff; font-weight:600;">100,000원</span>에 사야 해요.<br>
@@ -2070,7 +2070,7 @@ async function openPriceTplModal(id, initialTab, opts) {
         </div>
         <div style="padding:22px 25px; border-radius:12px; background:#0F141A;">
           <div style="display:flex; align-items:center; gap:14px; font-size:22px; font-weight:700; color:#9BE0BD; letter-spacing:-.1px;">
-            <span style="font-size:23px;">🟢</span>켜면 · 색상 통일
+            <span style="font-size:23px;"></span>켜면 · 색상 통일
           </div>
           <p style="margin:13px 0 0; color:#CBD5E1; font-size:22px; line-height:1.75;">
             판매가를 <span style="color:#fff; font-weight:600;">100,000원</span>으로 통일해요.<br>
@@ -2337,9 +2337,9 @@ async function openColorTplModal(id) {
     if (!j.ok) { alert('불러오기 실패: ' + (j.error || '')); return; }
     initial = j.template || initial;
   }
-  const codesHtml = (initial.color_codes || []).map(c => `<span class="chip on" data-code="${c}" style="cursor:pointer">${c} ✕</span>`).join('');
+  const codesHtml = (initial.color_codes || []).map(c => `<span class="chip on" data-code="${c}" style="cursor:pointer">${c} </span>`).join('');
   const box = _modalBox(
-    id ? `🎨 색상 템플릿 편집 (id=${id})` : '🎨 새 색상 템플릿',
+    id ? `색상 템플릿 편집 (id=${id})` : '새 색상 템플릿',
     `
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">이름</label>
@@ -2367,7 +2367,7 @@ async function openColorTplModal(id) {
   const bg = _modalBg(box);
   const refreshChips = () => {
     const codes = Array.from(box.querySelectorAll('#ctm-chips .chip')).map(c => c.getAttribute('data-code'));
-    box.querySelector('#ctm-chips').innerHTML = codes.map(c => `<span class="chip on" data-code="${c}" style="cursor:pointer">${c} ✕</span>`).join('');
+    box.querySelector('#ctm-chips').innerHTML = codes.map(c => `<span class="chip on" data-code="${c}" style="cursor:pointer">${c} </span>`).join('');
   };
   box.querySelector('#ctm-add').addEventListener('click', () => {
     const inp = box.querySelector('#ctm-new-code');
@@ -2411,10 +2411,10 @@ async function openColorDictModal(code) {
     initial = j.item || initial;
   }
   const variantsHtml = (initial.variants || []).map(v =>
-    `<span class="chip on" data-v="${v}" style="cursor:pointer">${v} ✕</span>`
+    `<span class="chip on" data-v="${v}" style="cursor:pointer">${v} </span>`
   ).join('');
   const box = _modalBox(
-    code ? `🎨 색상 사전 편집 — ${code}` : '🎨 새 색상 사전 항목',
+    code ? `색상 사전 편집 — ${code}` : '새 색상 사전 항목',
     `
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">표준 색상명 (예: 블랙)</label>
@@ -2492,9 +2492,9 @@ async function openComboModal(cid) {
   sizeOptions = Array.from(new Set(sizeOptions));
 
   const colorChips = (initial.colors || []).map(c =>
-    `<span class="chip on" data-c="${c}" style="cursor:pointer">${c} ✕</span>`).join('');
+    `<span class="chip on" data-c="${c}" style="cursor:pointer">${c} </span>`).join('');
   const sizeChips = (initial.sizes || []).map(s =>
-    `<span class="chip on" data-s="${s}" style="cursor:pointer">${s} ✕</span>`).join('');
+    `<span class="chip on" data-s="${s}" style="cursor:pointer">${s} </span>`).join('');
   const colorSuggest = colorOptions.length
     ? colorOptions.filter(c => !(initial.colors || []).includes(c))
         .map(c => `<span class="chip" data-suggest="color" data-v="${c}" style="cursor:pointer">+ ${c}</span>`).join('')
@@ -2505,7 +2505,7 @@ async function openComboModal(cid) {
     : '<span style="font-size:12px;color:#888">사이즈 템플릿 적용 시 추천 표시 (지금은 직접 입력)</span>';
 
   const box = _modalBox(
-    cid ? '🧩 조합 편집' : '🧩 새 조합 추가',
+    cid ? '조합 편집' : '새 조합 추가',
     `
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">조합 이름 (선택)</label>
@@ -2514,7 +2514,7 @@ async function openComboModal(cid) {
              style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px">
     </div>
     <div style="margin-bottom:14px">
-      <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">🎨 색상 (선택된 색상은 ✕ 클릭 = 제거)</label>
+      <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">색상 (선택된 색상은 클릭 = 제거)</label>
       <div id="cmb-colors" class="chip-row" style="margin-bottom:8px;min-height:30px">${colorChips}</div>
       ${colorOptions.length ? `<div style="font-size:12px;color:#666;margin-bottom:4px">템플릿 추천:</div><div class="chip-row" id="cmb-color-suggest" style="margin-bottom:8px">${colorSuggest}</div>` : ''}
       <div style="display:flex;gap:6px">
@@ -2524,7 +2524,7 @@ async function openComboModal(cid) {
       </div>
     </div>
     <div style="margin-bottom:14px">
-      <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">📐 사이즈 (선택된 사이즈는 ✕ 클릭 = 제거)</label>
+      <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">사이즈 (선택된 사이즈는 클릭 = 제거)</label>
       <div id="cmb-sizes" class="chip-row" style="margin-bottom:8px;min-height:30px">${sizeChips}</div>
       <div style="font-size:12px;color:#666;margin-bottom:4px">템플릿 추천:</div>
       <div class="chip-row" id="cmb-size-suggest" style="margin-bottom:8px">${sizeSuggest}</div>
@@ -2535,7 +2535,7 @@ async function openComboModal(cid) {
       </div>
     </div>
     <div style="font-size:12px;color:#666;background:#f7f9fc;padding:10px;border-radius:6px">
-      💡 저장 시 색상×사이즈 cartesian product 로 옵션 매트릭스 자동 생성됩니다.
+      저장 시 색상×사이즈 cartesian product 로 옵션 매트릭스 자동 생성됩니다.
     </div>
     `,
     `<button class="btn" id="cmb-cancel">취소</button>
@@ -2623,7 +2623,7 @@ function openSsMatchingModal(code, syncResult, market) {
     const left = `<td style="font-weight:600">${esc(m.color_code)} / ${esc(m.size_code)}</td>`;
     if (m.confidence === 'auto') {
       return `<tr style="background:#f0fdf4">${left}
-        <td>🟢 자동 매칭</td>
+        <td>자동 매칭</td>
         <td><strong>${esc(m.matched_external_name || '')}</strong> <span style="font-size:11px;color:#666">(${m.matched_option_id})</span></td>
         <td>—</td></tr>`;
     }
@@ -2641,8 +2641,8 @@ function openSsMatchingModal(code, syncResult, market) {
           <select class="field-input ssm-mode" style="padding:6px;font-size:12px;width:100%">
             <option value="">— 선택 —</option>
             ${cands.length ? `<optgroup label="추천 후보">${candOpts}</optgroup>` : ''}
-            <option value="__search__">🔍 전체 마켓 옵션에서 검색…</option>
-            <option value="__direct__">✏️ 옵션 ID 직접 입력…</option>
+            <option value="__search__">전체 마켓 옵션에서 검색…</option>
+            <option value="__direct__">옵션 ID 직접 입력…</option>
           </select>
           <div class="ssm-search-box" style="display:none;margin-top:5px">
             <input class="field-input ssm-search" placeholder="마켓 옵션명 검색 (예: 블랙)" style="padding:6px;font-size:12px;width:100%">
@@ -2662,14 +2662,14 @@ function openSsMatchingModal(code, syncResult, market) {
       <strong>${esc(syncResult.product_name || '상품')}</strong>
       (originProductNo: ${syncResult.origin_product_no})<br>
       외부 옵션 ${syncResult.external_total}개 / 우리 옵션 ${syncResult.total}개<br>
-      🟢 자동 ${auto.length}  🟡 확인 필요 ${fuzzy.length}  🔴 실패 ${failed.length}
+      자동 ${auto.length}  확인 필요 ${fuzzy.length}  실패 ${failed.length}
     </div>`;
 
   const tableRows = [...auto, ...fuzzy, ...failed].map(renderRow).join('');
 
   const bulkPanel = groupsWithBulk.length === 0 ? '' : `
     <div style="margin-bottom:14px;padding:12px;background:#f8f9fa;border-radius:8px;border:1px solid #ddd">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">🎯 색상별 일괄 적용 (사이즈만 다른 경우)</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">색상별 일괄 적용 (사이즈만 다른 경우)</div>
       ${groupsWithBulk.map(([color, g]) => `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
           <span style="min-width:120px;font-weight:600">${esc(color)}</span>
@@ -2680,11 +2680,11 @@ function openSsMatchingModal(code, syncResult, market) {
           </select>
         </div>
       `).join('')}
-      <div style="font-size:11px;color:#666;margin-top:6px">💡 외부 색상을 선택하면 같은 색상의 모든 사이즈가 자동으로 채워져요.</div>
+      <div style="font-size:11px;color:#666;margin-top:6px">외부 색상을 선택하면 같은 색상의 모든 사이즈가 자동으로 채워져요.</div>
     </div>`;
 
   const box = _modalBox(
-    isCp ? '📥 쿠팡 옵션 매칭 결과' : '📥 스마트스토어 옵션 매칭 결과',
+    isCp ? '쿠팡 옵션 매칭 결과' : '스마트스토어 옵션 매칭 결과',
     summary + bulkPanel + `
     <div style="overflow:auto;max-height:58vh;border:1px solid #ddd;border-radius:8px">
       <table class="opt-table" style="width:100%">
@@ -2693,7 +2693,7 @@ function openSsMatchingModal(code, syncResult, market) {
       </table>
     </div>
     <div style="font-size:12px;color:#666;margin-top:10px">
-      💡 🟡·🔴 옵션은 <b>추천 후보</b>에서 고르거나, 없으면 <b>검색</b>·<b>ID 직접 입력</b>으로 지정하세요. 미지정 옵션은 저장 안 됩니다.
+      ·옵션은 <b>추천 후보</b>에서 고르거나, 없으면 <b>검색</b>·<b>ID 직접 입력</b>으로 지정하세요. 미지정 옵션은 저장 안 됩니다.
     </div>`,
     `<button class="btn" id="ssm-cancel">취소</button>
      <button class="btn btn-primary" id="ssm-apply">전체 매칭 적용</button>`
@@ -2702,7 +2702,7 @@ function openSsMatchingModal(code, syncResult, market) {
 
   function setChosen(picker, optId, label) {
     picker.dataset.optid = optId || '';
-    picker.querySelector('.ssm-chosen').textContent = optId ? `✓ 선택: ${label}` : '';
+    picker.querySelector('.ssm-chosen').textContent = optId ? `선택: ${label}` : '';
   }
 
   box.addEventListener('change', (e) => {
@@ -2807,11 +2807,11 @@ async function openSizeTplModal(id) {
     if (!j.ok) { alert('불러오기 실패: ' + (j.error || '')); return; }
     initial = j.template || initial;
   }
-  const codesHtml = (initial.size_codes || []).map(c => `<span class="chip on" data-code="${c}" style="cursor:pointer">${c} ✕</span>`).join('');
+  const codesHtml = (initial.size_codes || []).map(c => `<span class="chip on" data-code="${c}" style="cursor:pointer">${c} </span>`).join('');
   const cats = ['신발', '의류', '가방'];
   const catOpts = cats.map(c => `<option value="${c}" ${c === initial.category ? 'selected' : ''}>${c}</option>`).join('');
   const box = _modalBox(
-    id ? `📐 사이즈 템플릿 편집 (id=${id})` : '📐 새 사이즈 템플릿',
+    id ? `사이즈 템플릿 편집 (id=${id})` : '새 사이즈 템플릿',
     `
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">이름</label>
@@ -2901,8 +2901,8 @@ function showActionResult(res, label) {
   const mktParts = Object.entries(markets).map(([k, v]) =>
     `${k}: ${v.ok ? `변동${v.uploaded || 0}/스킵${v.skipped || 0}/실패${v.failed || 0}` : '✗'}`);
   const summary = [
-    srcParts.length ? `🌐 ${srcParts.join(' · ')}` : '',
-    mktParts.length ? `📤 ${mktParts.join(' · ')}` : '',
+    srcParts.length ? `${srcParts.join(' · ')}` : '',
+    mktParts.length ? `${mktParts.join(' · ')}` : '',
   ].filter(Boolean).join(' | ') || '완료';
   flash(`${label} 완료 — ${summary}`, 'ok');
 }
@@ -3049,11 +3049,11 @@ window.dissolveBundleGroup = async function (btn) {
   const gname = btn.getAttribute('data-group-name') || '(이름없음)';
   const members = btn.getAttribute('data-cluster-models') || '';
   if (!gid) { alert('group_id 누락'); return; }
-  const msg = `🔓 '${gname}' 그룹을 해체할까요?\n\n` +
+  const msg = `'${gname}' 그룹을 해체할까요?\n\n` +
               `포함 모델: ${members}\n\n` +
               `→ 각 모델은 자신만의 단독 모음전으로 분리됩니다.\n` +
               `→ 가격·재고·소싱처 URL 데이터는 보존됩니다 (그룹 연결만 끊음).\n\n` +
-              `📌 기존 마켓 상품(스마트스토어·쿠팡)은 그대로 유지됩니다.\n` +
+              `기존 마켓 상품(스마트스토어·쿠팡)은 그대로 유지됩니다.\n` +
               `   분리/해제는 정보 수집 단위 변경이며,\n` +
               `   분리된 그룹의 신규 등록은 별도로 진행됩니다.`;
   if (!confirm(msg)) return;
@@ -3083,7 +3083,7 @@ window.removeModelFromGroup = async function (btn) {
   if (!confirm(`'${mc}' 모델을 이 그룹에서 분리할까요?\n\n` +
                `→ 자신만의 단독 모음전으로 복원됩니다.\n` +
                `→ 가격·재고·소싱처 URL 데이터는 보존됩니다.\n\n` +
-               `📌 기존 마켓 상품(스마트스토어·쿠팡)은 그대로 유지됩니다.\n` +
+               `기존 마켓 상품(스마트스토어·쿠팡)은 그대로 유지됩니다.\n` +
                `   분리는 정보 수집 단위 변경이며, 신규 등록은 별도로 진행됩니다.`)) return;
   const original = btn.innerHTML;
   btn.disabled = true;
@@ -3217,14 +3217,14 @@ document.addEventListener('click', (e) => {
   }
 
   function phaseLabel(p) {
-    return p === 'crawl' ? '🌐 크롤링' : p === 'upload' ? '📤 업로드' : '▶ 전체';
+    return p === 'crawl' ? '크롤링' : p === 'upload' ? '업로드' : '▶ 전체';
   }
 
   function statusBadge(s) {
     const t = s === 'running' ? '⏳ 실행 중'
-            : s === 'ok' ? '✅ 완료'
-            : s === 'partial' ? '⚠ 부분'
-            : s === 'failed' ? '❌ 실패' : s;
+            : s === 'ok' ? '완료'
+            : s === 'partial' ? '부분'
+            : s === 'failed' ? '실패' : s;
     return `<span class="status ${s}">${t}</span>`;
   }
 
@@ -3275,7 +3275,7 @@ document.addEventListener('click', (e) => {
       if (v.ok) {
         const detail = isCrawl
           ? (v.items_crawled != null ? `${v.items_crawled} 건` : 'ok')
-          : `↑${v.uploaded || 0} ⏭${v.skipped || 0} ✗${v.failed || 0}`;
+          : `↑${v.uploaded || 0} ⏭${v.skipped || 0}${v.failed || 0}`;
         lines.push(`<div><span class="ts">[${startTs}]</span> <span class="ok">${lbl}: ${detail}</span></div>`);
       } else if (v.error) {
         lines.push(`<div><span class="ts">[${startTs}]</span> <span class="err">${lbl}: ${linkifyUrls(String(v.error).slice(0, 200))}</span></div>`);
@@ -3300,14 +3300,14 @@ document.addEventListener('click', (e) => {
 
     // sub 라벨
     const subParts = [];
-    subParts.push(`🕒 ${startedAgo}`);
-    if (item.triggered_by && item.triggered_by !== 'manual') subParts.push(`⚡ ${item.triggered_by}`);
+    subParts.push(`${startedAgo}`);
+    if (item.triggered_by && item.triggered_by !== 'manual') subParts.push(`${item.triggered_by}`);
     if (item.is_bulk && item.phase === 'full') subParts.push('phase=full');
 
     // 추가 펼침 영역
     const extraKv = [
       ['실행 ID', '#' + item.id],
-      ['대상', item.is_bulk ? '🌐 전체 모음전' : '📦 ' + item.model_code],
+      ['대상', item.is_bulk ? '전체 모음전' : '📦 ' + item.model_code],
       ['단계', phaseLabel(item.phase)],
       ['트리거', item.triggered_by || 'manual'],
       ['시작', item.started_at || '—'],
@@ -3458,7 +3458,7 @@ document.addEventListener('click', (e) => {
             <div class="pg-icon ${isCrawl ? '' : 'upload'}">${icon}</div>
             <div class="pg-name-wrap">
               <div class="pg-name" title="${code}">${code}</div>
-              <div class="pg-sub">🕒 방금 · 시작 중...</div>
+              <div class="pg-sub">방금 · 시작 중...</div>
             </div>
             <span class="pg-status running">⏳ 시작 중</span>
           </div>

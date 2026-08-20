@@ -85,7 +85,7 @@
 </style>
 
 <div class="ccpage">
-  <h2>🔎 크롤링 검사</h2>
+  <h2><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 크롤링 검사</h2>
   <p class="sub">무슨 검사를 할지 고르고, 검사할 모음전·소싱처를 담으면 그 범위만 담은 프롬프트를 만들어 Claude Code 에 붙여넣습니다.</p>
 
   <!-- ═══ 선택 화면 (3단 타임라인) ═══ -->
@@ -95,9 +95,9 @@
         <span class="stepn">1</span>
         <div class="stept">무슨 검사를 할까요?</div>
         <div class="ccseg">
-          <button type="button" class="ccs on" data-kind="stock">📦 재고 정합성</button>
-          <button type="button" class="ccs" data-kind="price">💰 가격 정합성</button>
-          <button type="button" class="ccs" data-kind="both">🔄 재고+가격</button>
+          <button type="button" class="ccs on" data-kind="stock"><i class="ph-light ph-package" aria-hidden="true"></i> 재고 정합성</button>
+          <button type="button" class="ccs" data-kind="price"><i class="ph-light ph-coins" aria-hidden="true"></i> 가격 정합성</button>
+          <button type="button" class="ccs" data-kind="both"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i> 재고+가격</button>
         </div>
       </div>
 
@@ -105,7 +105,7 @@
         <span class="stepn">2</span>
         <div class="stept">검사할 모음전</div>
         <div class="chips" id="ccChips"></div>
-        <div class="srch">🔍 <input type="text" id="ccSearch" placeholder="모음전 이름 검색 (예: 르무통, 나이키)" autocomplete="off"></div>
+        <div class="srch"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> <input type="text" id="ccSearch" placeholder="모음전 이름 검색 (예: 르무통, 나이키)" autocomplete="off"></div>
         <div class="allrow" id="ccAllRow"><span class="cb" id="ccAllCb"></span><span>모음전 전체 선택</span><span class="mmeta" id="ccAllCnt" style="margin-left:auto"></span></div>
         <div class="list" id="ccList"><div class="loading">모음전 목록 불러오는 중…</div></div>
       </div>
@@ -128,7 +128,7 @@
     <button type="button" class="backbtn" id="ccBack">← 범위 다시 고르기</button>
     <div class="promptwrap">
       <div class="plabel">
-        <span class="l">📋 복사할 프롬프트 <span class="tag" id="ccResTag">· 재고 정합성 조사</span></span>
+        <span class="l"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 복사할 프롬프트 <span class="tag" id="ccResTag">· 재고 정합성 조사</span></span>
         <button type="button" class="copybtn-top" id="ccCopyTop">전체 복사</button>
       </div>
 
@@ -276,7 +276,7 @@
 - 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
 - <span class="star">1단계(재고) 완료 전 2단계(가격) 착수 금지.</span></div>
     </div>
-    <button type="button" class="copybtn-big" id="ccCopyBig">📋 프롬프트 전체 복사</button>
+    <button type="button" class="copybtn-big" id="ccCopyBig"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 프롬프트 전체 복사</button>
   </div>
 </div>
 
@@ -303,7 +303,7 @@
   function renderChips(){
     var codes = selCodes();
     if (!codes.length){ chipsEl.innerHTML = '<span class="chip empty">아직 고른 모음전이 없습니다 — 아래에서 선택</span>'; return; }
-    chipsEl.innerHTML = codes.map(function(c){ return '<span class="chip">'+c+' <span class="cs">·'+SEL[c].size+'소싱처</span> <span class="cx" data-uncheck="'+c+'">✕</span></span>'; }).join('');
+    chipsEl.innerHTML = codes.map(function(c){ return '<span class="chip">'+c+' <span class="cs">·'+SEL[c].size+'소싱처</span> <span class="cx" data-uncheck="'+c+'"></span></span>'; }).join('');
   }
   function renderList(){
     var q = (searchEl.value || '').trim().toLowerCase();
@@ -394,7 +394,7 @@
   });
   document.getElementById('ccBack').addEventListener('click', function(){ result.classList.remove('on'); pick.classList.add('on'); });
 
-  function feedback(btn, label){ btn.classList.add('done'); btn.textContent='✓ 복사됨'; setTimeout(function(){ btn.classList.remove('done'); btn.textContent=label; },1400); }
+  function feedback(btn, label){ btn.classList.add('done'); btn.textContent='복사됨'; setTimeout(function(){ btn.classList.remove('done'); btn.textContent=label; },1400); }
   function copyText(text, btn, label){
     var ok=function(){feedback(btn,label);};
     var fb=function(){var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();var d=document.execCommand('copy');document.body.removeChild(ta);if(d)ok();};
@@ -402,7 +402,7 @@
   }
   function curBox(){ return boxes[KIND]; }
   document.getElementById('ccCopyTop').addEventListener('click', function(){ copyText(curBox().innerText, this, '전체 복사'); });
-  document.getElementById('ccCopyBig').addEventListener('click', function(){ copyText(curBox().innerText, this, '📋 프롬프트 전체 복사'); });
+  document.getElementById('ccCopyBig').addEventListener('click', function(){ copyText(curBox().innerText, this, '프롬프트 전체 복사'); });
 
   fetch('/api/bundles/with-sources').then(function(r){ return r.json(); }).then(function(d){
     if (!d || !d.ok || !Array.isArray(d.bundles)){ listEl.innerHTML = '<div class="loading">목록을 불러오지 못했습니다</div>'; return; }

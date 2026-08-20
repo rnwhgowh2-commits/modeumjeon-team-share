@@ -34,7 +34,7 @@
           <td style="padding:8px 8px;color:var(--sub,#8F91A0)">{{ loc.sort_order }}</td>
           <td style="padding:8px 8px">
             <span style="display:inline-flex;align-items:center;gap:4px">
-              <span style="color:{% if loc.is_default %}var(--primary,#4F67FF){% else %}#F59E0B{% endif %};font-size:14px">📍</span>
+              <span style="color:{% if loc.is_default %}var(--primary,#4F67FF){% else %}#F59E0B{% endif %};font-size:14px"><i class="ph-light ph-map-pin" aria-hidden="true"></i></span>
               <form method="post" action="{{ url_for('inventory.data_locations_update', loc_id=loc.id) }}" style="display:inline-flex;gap:4px;align-items:center">
                 <input name="name" value="{{ loc.name }}" style="padding:4px 8px;border:1px solid var(--line,#E5E8EB);border-radius:0px;font-size:14px;min-width:200px;color:var(--ink,#292A2F)">
                 <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer;color:var(--ink,#292A2F)">수정</button>
@@ -42,13 +42,13 @@
             </span>
           </td>
           <td style="padding:8px 8px;text-align:center">{% if loc.is_default %}<span style="background:var(--연한-파랑,#EEF1FE);color: var(--글자-파랑, var(--primary,#4F67FF));padding:0px 8px;border-radius:8px;font-size:12px;font-weight:600">기본</span>{% else %}—{% endif %}</td>
-          <td style="padding:8px 8px;text-align:right">{% if not loc.is_default %}<form method="post" action="{{ url_for('inventory.data_locations_delete', loc_id=loc.id) }}" style="display:inline" onsubmit="return confirm('정말 삭제?')"><button type="submit" style="background:var(--연한-빨강,#FEF2F2);color: var(--글자-빨강, var(--red,#991B1B));border:1px solid var(--연한-빨강,#FCA5A5);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer">🗑 삭제</button></form>{% endif %}</td>
+          <td style="padding:8px 8px;text-align:right">{% if not loc.is_default %}<form method="post" action="{{ url_for('inventory.data_locations_delete', loc_id=loc.id) }}" style="display:inline" onsubmit="return confirm('정말 삭제?')"><button type="submit" style="background:var(--연한-빨강,#FEF2F2);color: var(--글자-빨강, var(--red,#991B1B));border:1px solid var(--연한-빨강,#FCA5A5);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button></form>{% endif %}</td>
         </tr>
         {% else %}<tr><td colspan="4" style="padding:48px;text-align:center;color:var(--sub,#8F91A0)">위치 없음<form method="post" action="{{ url_for('inventory.data_locations_seed') }}" style="display:inline;margin-left:8px"><button type="submit" style="background:var(--primary,#4F67FF);color:#fff;padding:4px 12px;border:none;border-radius:8px;font-size:12px;cursor:pointer">기본 3 위치 시드</button></form></td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
 
-  <div style="margin-top:12px;font-size:12px;color:var(--sub,#8F91A0);line-height:1.7">★ 박스히어로 1:1 — 위치는 그로스 / 기본 위치 / 판매불가 같은 보관·상태 구분. 거래 시 위치 의무 선택. 📍 핀 색 — 기본 위치(인디고) / 일반 위치(오렌지).</div>
+  <div style="margin-top:12px;font-size:12px;color:var(--sub,#8F91A0);line-height:1.7">★ 박스히어로 1:1 — 위치는 그로스 / 기본 위치 / 판매불가 같은 보관·상태 구분. 거래 시 위치 의무 선택. <i class="ph-light ph-map-pin" aria-hidden="true"></i> 핀 색 — 기본 위치(인디고) / 일반 위치(오렌지).</div>
 </div>
 {% endblock %}

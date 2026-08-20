@@ -34,32 +34,32 @@
 
 <div id="instDim" class="instm-dim" hidden></div>
 <div id="instModal" class="instm" hidden>
-  <div class="instm-h"><span class="ic">🧩</span>
+  <div class="instm-h"><span class="ic"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i></span>
     <div><h3>크롤러 설치</h3><div class="s">본인 PC 크롬에 한 번만 설치하면 무신사·롯데온까지 긁어 모음전에 자동 저장됩니다.</div></div>
     <button type="button" class="instm-x" id="instClose">✕</button></div>
   <div class="instm-b">
-    <div class="instm-note">💡 무신사·롯데온은 <b>로그인·SPA</b>라 서버가 직접 못 긁어, <b>내 로그인 크롬</b> 확장이 대신 긁습니다. 크롤 결과는 모두 www.mou-m.com에 저장돼 팀 전체가 함께 봅니다.</div>
+    <div class="instm-note"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 무신사·롯데온은 <b>로그인·SPA</b>라 서버가 직접 못 긁어, <b>내 로그인 크롬</b> 확장이 대신 긁습니다. 크롤 결과는 모두 www.mou-m.com에 저장돼 팀 전체가 함께 봅니다.</div>
 
     <div class="instm-grp">
       <div class="instm-gh"><span class="gi">1</span>설치 <span class="who">한 번만</span></div>
       <div class="instm-gb">
         <div class="instm-row"><span class="instm-num">1</span><div>
-          <div class="instm-rt">📥 확장 파일 다운로드</div>
+          <div class="instm-rt"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 확장 파일 다운로드</div>
           <div class="instm-rd">「모음전 크롤러」 압축파일(zip)을 받습니다.</div>
           {% if ext_available %}
-          <a class="instm-dl" href="/sourcing-guide/install/download">📥 모음전 크롤러 다운로드 <span class="sz">(.zip{% if ext_version %} · 항상 최신 v{{ ext_version }}{% endif %})</span></a>
+          <a class="instm-dl" href="/sourcing-guide/install/download"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 모음전 크롤러 다운로드 <span class="sz">(.zip{% if ext_version %} · 항상 최신 v{{ ext_version }}{% endif %})</span></a>
           {% else %}
-          <div class="instm-dloff">⚠️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>
+          <div class="instm-dloff"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>
           {% endif %}
         </div></div>
         <div class="instm-row"><span class="instm-num">2</span><div>
-          <div class="instm-rt">🗂️ 압축 풀기</div>
+          <div class="instm-rt"><i class="ph-light ph-folders" aria-hidden="true"></i>️ 압축 풀기</div>
           <div class="instm-rd">받은 zip 우클릭 → "압축 풀기" → <code>moum-crawler</code> 폴더가 생깁니다.</div></div></div>
         <div class="instm-row"><span class="instm-num">3</span><div>
-          <div class="instm-rt">🧩 크롬 확장 페이지 열기</div>
+          <div class="instm-rt"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i> 크롬 확장 페이지 열기</div>
           <div class="instm-rd">주소창에 <code>chrome://extensions</code> 입력 → 오른쪽 위 「개발자 모드」 켜기.</div></div></div>
         <div class="instm-row"><span class="instm-num">4</span><div>
-          <div class="instm-rt">📂 확장 불러오기</div>
+          <div class="instm-rt"><i class="ph-light ph-folder-open" aria-hidden="true"></i> 확장 불러오기</div>
           <div class="instm-rd">「압축해제된 확장 프로그램을 로드합니다」 → 방금 푼 <code>moum-crawler</code> 폴더 선택. 목록에 "모음전 크롤러"가 뜨면 완료.</div></div></div>
       </div>
     </div>
@@ -68,16 +68,16 @@
       <div class="instm-gh"><span class="gi">2</span>로그인 &amp; 크롤 <span class="who">매번</span></div>
       <div class="instm-gb">
         <div class="instm-row"><span class="instm-num">5</span><div>
-          <div class="instm-rt">🔑 무신사·롯데온 로그인</div>
+          <div class="instm-rt"><i class="ph-light ph-key" aria-hidden="true"></i> 무신사·롯데온 로그인</div>
           <div class="instm-rd">같은 크롬에서 로그인해 둡니다. (회원가를 읽으려면 필수 — 로그아웃 상태면 비회원가로 긁힙니다.)</div></div></div>
         <div class="instm-row"><span class="instm-num">6</span><div>
-          <div class="instm-rt">🚀 크롤 실행</div>
-          <div class="instm-rd"><code>www.mou-m.com</code> 접속(IP 주소 ❌) → 상품에서 「전체 크롤」. 이제 무신사·롯데온 카드도 0% → 채워집니다.</div></div></div>
+          <div class="instm-rt"><i class="ph-light ph-rocket" aria-hidden="true"></i> 크롤 실행</div>
+          <div class="instm-rd"><code>www.mou-m.com</code> 접속(IP 주소 <i class="ph-light ph-x-circle" aria-hidden="true"></i>) → 상품에서 「전체 크롤」. 이제 무신사·롯데온 카드도 0% → 채워집니다.</div></div></div>
       </div>
     </div>
 
     <details class="instm-help">
-      <summary>🛟 안 될 때 (펼치기 ▾)</summary>
+      <summary><i class="ph-light ph-lifebuoy" aria-hidden="true"></i> 안 될 때 (펼치기 ▾)</summary>
       <div class="qa"><b>Q. 설치했는데 계속 "확장 필요"가 떠요.</b><br>주소가 <b>www.mou-m.com</b>인지 확인하세요. IP 주소(54.x)에서는 작동하지 않습니다.</div>
       <div class="qa" style="margin-top:8px;"><b>Q. 무신사 가격이 비싸게 나와요.</b><br>무신사에 로그인됐는지 확인하세요. 로그아웃 상태면 비회원가로 읽힙니다.</div>
       <div class="qa" style="margin-top:8px;"><b>Q. 잘 깔렸는지 확인하고 싶어요.</b><br>www.mou-m.com 새로고침 → <b>F12</b> → Console에 <code>document.documentElement.getAttribute('data-moum-ext')</code> 입력 → 버전 번호가 나오면 성공.</div>

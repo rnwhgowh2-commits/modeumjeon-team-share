@@ -274,7 +274,7 @@
   <div class="og-back" id="ob-back">
     <div class="og-mbox">
       <button class="og-mx" type="button" id="ob-close" aria-label="닫기">✕</button>
-      <div class="og-mt">🆕 새 옵션 매트릭스 만들기</div>
+      <div class="og-mt"><i class="ph-light ph-sparkle" aria-hidden="true"></i> 새 옵션 매트릭스 만들기</div>
       {# [2026-08-05 사장님] 뒷문장이 「상품은 / 나중에」로 갈라져 읽힘 — 줄을 분리 #}
       <div class="og-md">색상·사이즈를 짜서 옵션을 담을 매트릭스를 새로 만들어요.<br>
         <b>상품은 나중에 만듭니다.</b></div>
@@ -326,9 +326,9 @@
        방금 만든 것을 알리고 다음 단계(상품 가공)를 가리킨다. #}
     {% if made %}
     <div class="og-made">
-      <span class="og-made-t">✅ 「{{ made.no }}」 상품이 만들어졌어요{% if made.options %} — 옵션 {{ made.options }}개{% endif %}</span>
+      <span class="og-made-t"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 「{{ made.no }}」 상품이 만들어졌어요{% if made.options %} — 옵션 {{ made.options }}개{% endif %}</span>
       <span class="og-made-n">다음 단계: <b>상품 정책화</b>에서 정책을 붙이면 마켓에 보낼 수 있어요.</span>
-      <a class="og-made-a" href="/policies/apply">🔧 정책 매칭으로 →</a>
+      <a class="og-made-a" href="/policies/apply"><i class="ph-light ph-wrench" aria-hidden="true"></i> 정책 매칭으로 →</a>
       {% if made.code %}<a class="og-made-a ghost" href="/bundles/{{ made.code }}">만든 상품 보기</a>{% endif %}
     </div>
     {% endif %}
@@ -420,7 +420,7 @@
                 {%- set 정책수 = m.made | selectattr('has_policy') | list | length -%}
                 <span class="og-polbar" title="정책 적용 {{ 정책수 }}/{{ m.made | length }}">{% for d in m.made %}<i class="{{ 'on' if d.has_policy else '' }}"></i>{% endfor %}</span>
                 <span class="og-polbar-n">{{ 정책수 }}/{{ m.made | length }}</span>
-                <div class="og-made-links">{% for d in m.made %}<div class="og-made-one"><a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a><a class="og-pol" href="{{ d.policy_url }}" title="{{ d.policy_tip }}">🔧</a></div>{% endfor %}</div>
+                <div class="og-made-links">{% for d in m.made %}<div class="og-made-one"><a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a><a class="og-pol" href="{{ d.policy_url }}" title="{{ d.policy_tip }}"><i class="ph-light ph-wrench" aria-hidden="true"></i></a></div>{% endfor %}</div>
               {%- elif m.made_ok %}<div class="og-pp2">
                   <span class="og-badge stgb sale">상품 생성</span>
                   <span class="og-badge stgb {{ 'sale' if m.policy_ok else 'wait' }}">정책 적용</span>
@@ -465,7 +465,7 @@
     <div class="og-back" id="mb-back">
       <div class="og-mbox">
         <button class="og-mx" type="button" id="mb-close" aria-label="닫기">✕</button>
-        <div class="og-mt">📦 고른 묶음으로 상품 만들기</div>
+        <div class="og-mt"><i class="ph-light ph-package" aria-hidden="true"></i> 고른 묶음으로 상품 만들기</div>
         <div class="og-md" id="mb-sum"></div>
         {# [이슈 #1074 · 사장님 확정 순서] 브랜드 → 상품 이름 → 카테고리. 이 창은
            「고른 묶음으로 상품 만들기」·「+ 새 상품 생성」 두 진입점이 같이 쓴다 —
@@ -1356,7 +1356,7 @@
       if (q) 이름표.push('「' + find.value.trim() + '」');
       cap.innerHTML = escHtml(이름표.join(' + ')) + ' 만 보는 중 — 전체 ' + total +
                       '개 중 <b>' + shown + '개</b>' +
-                      '<a href="#" id="og-cap-x">전체 보기 ✕</a>';
+                      '<a href="#" id="og-cap-x">전체 보기 </a>';
       cap.hidden = false;
       document.getElementById('og-cap-x').addEventListener('click', function (e) {
         e.preventDefault();

@@ -54,7 +54,7 @@ def _rows_for(session, skus: list[str]) -> tuple[list[dict], list[str], list[str
                 sources:[{site,label,no,surface,final,stock,url}],
                 min_surface, min_final, src_count}
 
-    🔴 가격은 **두 값을 나눠서** 준다.
+    [중요] 가격은 **두 값을 나눠서** 준다.
        surface = 표면노출가 (소싱처 페이지에 크게 적힌 값)
        final   = 최종매입가 (혜택을 차례로 뺀, 우리가 실제로 내는 값)
        2026-07-31 이전엔 표면가 하나를 「매입가」라고 내보내서, 혜택이 큰 소싱처일수록
@@ -126,12 +126,12 @@ def _index_stats(session, matrices) -> dict[int, dict]:
     [2026-08-05 A안] 매트릭스마다 쿼리를 돌리면 목록이 N+1 로 터진다 —
     원본(모델 소유)과 파생(멤버 명시) 두 갈래를 각각 **그룹 쿼리 몇 개**로 끝낸다.
 
-    🔴 마켓 등록의 정본 = MarketRegistration(market_product_id 있는 행).
+    [중요] 마켓 등록의 정본 = MarketRegistration(market_product_id 있는 행).
        SetChannel·계정별 기록과 3벌 공존하는데, 옵션함 삭제 가드(optgen.py)가
        읽는 것과 같은 원천을 읽어야 화면끼리 안 갈린다.
-    🔴 품절 = 「그 옵션의 연결 소싱처 중 재고를 아는 곳이 있고, 아는 값이 전부 0」.
+    [중요] 품절 = 「그 옵션의 연결 소싱처 중 재고를 아는 곳이 있고, 아는 값이 전부 0」.
        모르는 것(None)은 품절이 아니라 「확인 불가」 — 여기 안 센다(무결성 원칙 1).
-    🔴 소싱처 연결은 **URL 단위 합집합** — 옵션 매칭(OptionSourceLink)이 아직 없어도
+    [중요] 소싱처 연결은 **URL 단위 합집합** — 옵션 매칭(OptionSourceLink)이 아직 없어도
        모델에 붙인 주소(BundleSourceUrl)가 있으면 「연결됨」이다. 라이브 실측에서
        옵션 매칭만 세면 거의 전부 「—」로 뭉개져 실태와 달랐다(2026-08-05).
     """
@@ -355,14 +355,14 @@ def _attach_stage_matrix(session, items):
 def _attach_model(session, mo, rows) -> list[str]:
     """줄마다 **모델명**을 붙이고, 격자에 쓸 모델 목록을 돌려준다.
 
-    🔴 [2026-08-12 노션 상품 c-2 옆에서 드러난 것 · 사장님 B2 확정]
+    [중요] [2026-08-12 노션 상품 c-2 옆에서 드러난 것 · 사장님 B2 확정]
        격자는 색상 × 사이즈 두 축만 그린다. 그래서 모델모음전(3축)은
        「메이트 블랙 250」과 「데일리 블랙 250」이 **같은 칸 하나에 겹쳤다**
        (실측: 옵션 3개 → 격자 2칸). 모델을 격자 위 탭으로 갈라 준다.
 
     모델이 없고 따로 적어 둔 모델명도 없는 묶음은 빈 목록 — 화면이 오늘 그대로 그린다.
 
-    🔴 [2026-08-13] 여기는 **모델명을 알면서 빈 값을 내놓던 유일한 자리**였다.
+    [중요] [2026-08-13] 여기는 **모델명을 알면서 빈 값을 내놓던 유일한 자리**였다.
        `model_name_of('', …)` 로 매트릭스 이름을 일부러 빈 문자열로 넘겼기 때문에,
        축 값을 못 믿는 옛 옵션(`len(vals) != len(names)`)은 모델명이 '' 이 되고
        격자에서 **조용히 사라졌다**(그 칸을 그리는 열쇠가 없어진다).
@@ -370,7 +370,7 @@ def _attach_model(session, mo, rows) -> list[str]:
        (`policy/to_payload._options_json`). 화면과 나가는 값이 달랐던 것이다.
        → 진짜 이름을 넘긴다. 「보는 것 = 나가는 것」.
 
-    🔴 넘기는 이름은 `mo.name`(매트릭스 이름)이 **아니라 모델(Model) 이름**이다.
+    [중요] 넘기는 이름은 `mo.name`(매트릭스 이름)이 **아니라 모델(Model) 이름**이다.
        전송·대조가 모두 모델 이름을 쓰기 때문이다(to_payload·set_link_service·
        optgen box 셋 다 `model_name_display or model_name_raw or model_code`).
        파생 매트릭스도 옵션의 주인은 원본의 모델이라 같은 행을 본다.
@@ -421,12 +421,12 @@ def _attach_model(session, mo, rows) -> list[str]:
 def _made_from(session, mo, rows) -> list[dict]:
     """이 묶음으로 **이미 만든 상품**들 — 그때 넣은 값과 담은 칸까지.
 
-    🔴 [2026-08-12 노션 상품 b-1] 조립대가 `BundleMatrixLink` 를 아예 안 봐서,
+    [중요] [2026-08-12 노션 상품 b-1] 조립대가 `BundleMatrixLink` 를 아예 안 봐서,
        상품을 만든 묶음을 열어도 **백지**로 떴다(라이브 실측: U…000189 는
        「상품 만듦」 배지인데 이름·브랜드·카테고리가 전부 빈 칸).
        목록 화면은 이미 보고 있었는데(optgen._attach_made) 조립대만 못 봤다.
 
-    🔴 「그때 담은 옵션」은 **(색상, 사이즈) 대조로 되짚는다 — 추정이다.**
+    [중요] 「그때 담은 옵션」은 **(색상, 사이즈) 대조로 되짚는다 — 추정이다.**
        상품을 만들 때 옵션을 **복제**하면서 어느 원본에서 왔는지 안 남겼기 때문이다
        (build_service 는 copied_count 숫자만 남긴다). 복제는 color_code/size_code 를
        그대로 옮기고 격자도 (색상,사이즈)를 유일 키로 전제하므로 이 대조가 성립한다.
@@ -470,8 +470,8 @@ def _made_from(session, mo, rows) -> list[dict]:
             'picked': picked,
             'policy_url': (f'/policies/product/{quote(code)}' if code in has_policy
                            else f'/policies/apply?model={quote(code)}'),
-            'policy_label': ('🔧 정책·가격 보기' if code in has_policy
-                             else '🔧 정책 붙이러 가기'),
+            'policy_label': ('정책·가격 보기' if code in has_policy
+                             else '정책 붙이러 가기'),
         })
     return out
 
@@ -705,7 +705,7 @@ def price_history_api():
     query: ?sku=SKU-XXXX &days=30
     응답: {ok, days, points:{소싱처라벨: [{t, price, stock, changed}]}, total, note}
 
-    🔴 표면가 기준이다(혜택 차감 전). 최종매입가는 혜택 템플릿이 바뀌면 과거 시점
+    [중요] 표면가 기준이다(혜택 차감 전). 최종매입가는 혜택 템플릿이 바뀌면 과거 시점
       값도 달라져 「그때 얼마였나」의 답이 못 된다 — 화면이 그 사실을 밝힌다.
     """
     from lemouton.sources import price_history as ph
@@ -757,7 +757,7 @@ def product_info_api():
     query: ?model=<model_code>
     응답: {ok, policy:{...}|None, category:{sources:[...], rows:[...]}}
 
-    🔴 값을 지어내지 않는다. 정책이 안 붙었으면 None, 맵핑이 없으면 빈 목록이고
+    [중요] 값을 지어내지 않는다. 정책이 안 붙었으면 None, 맵핑이 없으면 빈 목록이고
       화면이 「아직 없다」고 말한다.
     """
     from lemouton.policy.fields import MARKET_LABEL, MARKETS

@@ -34,13 +34,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="search"><span class="mag">🔍</span>
+<div class="search"><span class="mag"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
   <input id="mm-q" type="search" placeholder="옵션·모음전 검색 (예: 니트 블랙 M)"
          autocomplete="off" enterkeyhint="search">
 </div>
 
 <div id="mm-empty" class="m-empty">
-  <div class="icon">🧱</div>
+  <div class="icon"><i class="ph-light ph-wall" aria-hidden="true"></i></div>
   <div>옵션이나 모음전 이름을 검색하면<br>소싱처별 가격·재고가 카드로 떠요</div>
   <div class="mm-chips" id="mm-recent" style="justify-content:center"></div>
 </div>
@@ -121,7 +121,7 @@
         if (!j.ok) { $status.textContent = j.error || '불러오지 못했어요'; return; }
         $status.style.display = 'none';
         if (!j.items.length) {
-          $cards.innerHTML = '<div class="m-empty"><div class="icon">🔍</div>'
+          $cards.innerHTML = '<div class="m-empty"><div class="icon"></div>'
             + '<div>「' + esc(q) + '」 에 맞는 옵션이 없어요</div></div>';
           return;
         }

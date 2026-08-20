@@ -6,7 +6,7 @@
 [2026-08-12] 노션 「상품가공 > 하위탭 b-1·b-3」 — 화면 이름이 「가격 정책」에서
   「옵션 맵핑 템플릿」이 되고 가격 판이 빠졌다. 그래서 여기서 `PriceTemplate` 을
   더 이상 조회하지 않는다.
-  🔴 모델·API·가격 엔진은 **그대로 살아 있다**(사장님 확정 「화면에서만 빼기」).
+  [중요] 모델·API·가격 엔진은 **그대로 살아 있다**(사장님 확정 「화면에서만 빼기」).
      정책(MarketPolicy)은 가격 템플릿을 대체한 게 아니라 「정책이 못 채운 칸이
      되돌아갈 자리」다 — `lemouton/policy/as_template.py` 의 fallback.
      가격 템플릿을 만들고 고치는 입구는 모음전 상세(`/policies/product/<코드>`)와
@@ -33,7 +33,7 @@ def _count_apply(s, attr_name, tpl_id):
 def _templates_context(s) -> dict:
     """색상·사이즈 사전 + 템플릿 한 벌 — 화면(/templates)과 옵션 조합 창의
 
-    「🎨 템플릿 참고」 드로어가 같이 쓴다. 두 벌로 나누면 반드시 갈린다.
+    「 템플릿 참고」 드로어가 같이 쓴다. 두 벌로 나누면 반드시 갈린다.
     """
     color_tpls = s.query(ColorTemplate).order_by(ColorTemplate.id).all()
     size_tpls = s.query(SizeTemplate).order_by(SizeTemplate.id).all()
@@ -77,7 +77,7 @@ def index():
 
 @bp.get('/templates/api/data')
 def api_data():
-    """색상·사이즈 사전 + 템플릿을 JSON 으로 — 옵션 조합 창의 「🎨 템플릿 참고」 드로어가 연다.
+    """색상·사이즈 사전 + 템플릿을 JSON 으로 — 옵션 조합 창의 「 템플릿 참고」 드로어가 연다.
 
     `/templates` 화면과 같은 자료(`_templates_context`)를 그대로 읽는다.
     """

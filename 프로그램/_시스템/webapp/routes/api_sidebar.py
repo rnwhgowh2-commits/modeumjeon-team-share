@@ -95,9 +95,80 @@ _SEND_STAGE_NAME = '상품수집&전송'
 #     순서를 두 곳에 적으면 다음에 한 곳만 고쳐서 또 어긋난다(_SEND2 와 같은 이유).
 _CATALOG3: tuple[str, ...] = ('i_matrix', 'i_bundles', 'i_catalog')
 
-#: 저장본 세대. 9 = 상품관리 하위탭 1회 재정렬 완료(_migrate_catalog_order).
+#: 저장본 세대. 10 = 메뉴 선 아이콘 심기 완료(_migrate_icons).
+#  9 = 상품관리 하위탭 1회 재정렬 완료(_migrate_catalog_order).
 #  🔴 이 표시가 없으면 재정렬이 매 요청마다 돌아 사장님 드래그를 되돌린다.
-_SCHEMA = 9
+_SCHEMA = 10
+
+#: 메뉴 아이콘 — 그림문자 대신 쓰는 선 아이콘 이름(Phosphor).
+#  🔴 화면(partials/sidebar.html)은 `{% if it.icon %}` 로 **아이콘을 먼저** 본다.
+#     그래서 여기만 채우면 그림문자는 화면에서 사라진다(저장본의 emoji 는 그대로 둔다 —
+#     옛 마이그레이션들이 emoji 값을 비교해 판단하므로 없애면 조용히 헛돈다).
+#  🔴 저장본이 이긴다. 코드 기본값만 고치면 라이브 화면은 안 바뀐다 →
+#     _SCHEMA 를 올리고 _migrate_icons 가 저장본에도 심는다.
+_ICONS: dict[str, str] = {
+    'i_home': 'house',
+    's_collect': 'squares-four',
+    'i_optgen_direct': 'pencil-simple',
+    'i_optgen_market': 'storefront',
+    'i_optgen_product': 'package',
+    'i_bulk': 'stack',
+    's_process': 'wrench',
+    'i_policies': 'note-pencil',
+    'i_policy_apply': 'puzzle-piece',
+    's_auto': 'upload-simple',
+    'i_market_send': 'paper-plane-tilt',
+    'i_automation': 'gear',
+    's_catalog': 'package',
+    'i_bundles': 'clipboard-text',
+    'i_matrix': 'grid-four',
+    'i_catalog': 'storefront',
+    's_order': 'receipt',
+    'i_orders': 'list-bullets',
+    'i_ship': 'truck',
+    'i_cs': 'chat-circle',
+    'i_settle_plan': 'coins',
+    's_stats': 'chart-bar',
+    'i_margin': 'calculator',
+    's_inventory': 'tag',
+    'i_inventory': 'tag',
+    's_etc': 'dots-three-circle',
+    'i_templates': 'link',
+    'i_crawl_guide': 'buildings',
+    'i_mk_acct': 'storefront',
+    'i_live_send_test': 'rocket-launch',
+    'i_trash': 'trash',
+    'i_alerts': 'bell',
+    'i_data_guide': 'book-open',
+    'i_notion_report': 'calendar',
+}
+
+
+def _icon_of(node_id: str) -> str:
+    """메뉴 id → 선 아이콘 이름. 모르는 id 는 빈 값(화면이 옛 표시로 떨어진다)."""
+    return _ICONS.get(node_id, '')
+
+
+def _migrate_icons(layout: dict) -> bool:
+    """저장본의 모든 메뉴에 선 아이콘을 심는다 (세대 10, 1회).
+
+    사용자가 손수 고른 아이콘(icon 이 이미 있음)은 건드리지 않는다.
+    """
+    if int(layout.get('schema') or 0) >= _SCHEMA:
+        return False
+    n = 0
+    for it in (layout.get('standalone') or []):
+        if not it.get('icon') and _icon_of(it.get('id') or ''):
+            it['icon'] = _icon_of(it['id']); n += 1
+    for st in (layout.get('stages') or []):
+        if not st.get('icon') and _icon_of(st.get('id') or ''):
+            st['icon'] = _icon_of(st['id']); n += 1
+        for it in (st.get('items') or []):
+            if not it.get('icon') and _icon_of(it.get('id') or ''):
+                it['icon'] = _icon_of(it['id']); n += 1
+    layout['schema'] = _SCHEMA      # 아이콘이 하나도 안 심겨도 표시는 남긴다(재실행 방지)
+    return n > 0
+
 
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
 _STAGE_SPEC: list[tuple] = [
@@ -173,8 +244,9 @@ def _item(item_id: str, saved: dict | None = None) -> dict:
     """항목 1개 생성. 저장본이 있으면 사용자가 고친 이모지·이름을 보존(개명 대상 제외)."""
     base = dict(_ITEM_DEFS[item_id])
     base['id'] = item_id
+    base.setdefault('icon', _icon_of(item_id))
     if saved and item_id not in _FORCE_RENAME:
-        for k in ('emoji', 'name'):
+        for k in ('emoji', 'icon', 'name'):
             if saved.get(k):
                 base[k] = saved[k]
     return base
@@ -186,7 +258,8 @@ def _build_stages(saved_items: dict[str, dict] | None = None) -> list[dict]:
     out = []
     for sid, emoji, name, color, item_ids in _STAGE_SPEC:
         out.append({
-            'id': sid, 'emoji': emoji, 'name': name, 'color': color, 'collapsed': False,
+            'id': sid, 'emoji': emoji, 'icon': _icon_of(sid),
+            'name': name, 'color': color, 'collapsed': False,
             'items': [_item(i, saved_items.get(i)) for i in item_ids],
         })
     return out
@@ -255,11 +328,11 @@ def _migrate_sell_group(layout: dict) -> bool:
 
 
 def _add_ship(layout: dict) -> bool:
-    """[2026-07-24] 「📦 송장 작업」 메뉴 추가 — 주문 내역 바로 아래(idempotent).
+    """[2026-07-24] 「 송장 작업」 메뉴 추가 — 주문 내역 바로 아래(idempotent).
 
     저장된 레이아웃이 기본값을 덮으므로, 기본값에만 넣으면 이미 쓰던 사람에게는
     메뉴가 영영 안 보인다(라이브 실측: 탭은 살아 있는데 메뉴가 없었다).
-    주문 내역 아이콘도 📦 → 📋 로 바꾼다 — 둘 다 📦 면 무엇이 무엇인지 안 보인다.
+    주문 내역 아이콘도  →  로 바꾼다 — 둘 다  면 무엇이 무엇인지 안 보인다.
     """
     changed = False
     for st in layout.get('stages') or []:
@@ -283,7 +356,7 @@ def _add_ship(layout: dict) -> bool:
 def _migrate_to_8groups(layout: dict) -> bool:
     """[2026-07-30] 저장 레이아웃을 노션 8분류로 재편(1회, idempotent).
 
-    🔴 기본값만 고치면 라이브에 안 나온다 — 서버는 사장님이 드래그로 저장한 레이아웃을 쓴다.
+    [중요] 기본값만 고치면 라이브에 안 나온다 — 서버는 사장님이 드래그로 저장한 레이아웃을 쓴다.
        그래서 **저장본 자체를 갈아끼운다**. (api_sidebar.py:257 실사고 기록 참조)
 
     사용자가 고친 이모지·이름은 살리고(개명 확정분 제외), 스테이지 구성만 스펙대로 재배치.
@@ -306,7 +379,7 @@ def _migrate_to_8groups(layout: dict) -> bool:
 def _migrate_optgen(layout: dict) -> bool:
     """[2026-08-01] 「상품수집·생성」 → 「옵션생성 & 상품생성」 재편(1회, idempotent).
 
-    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 사장님이 드래그로
+    [중요] 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 사장님이 드래그로
        저장한 레이아웃을 쓴다. 그래서 **저장본 자체를 갈아끼운다.**
 
     · 수집 스테이지 항목을 i_optgen 하나로
@@ -361,7 +434,7 @@ def _migrate_optgen(layout: dict) -> bool:
 def _migrate_optgen3(layout: dict) -> bool:
     """[2026-08-02] 「옵션생성 & 상품생성」 합본 1개 → 노션 하위탭 3개(1회, idempotent).
 
-    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 저장본을 쓴다.
+    [중요] 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 저장본을 쓴다.
        그래서 **저장본 자체를 갈아끼운다.** (i_policies 때와 같은 자리의 함정)
 
     사장님 실측: 상단 메뉴 「옵션생성 & 상품생성」 을 펼치면 한 줄만 떴다.
@@ -394,7 +467,7 @@ def _migrate_optgen3(layout: dict) -> bool:
 def _migrate_send2(layout: dict) -> bool:
     """[2026-08-02] 「자동화」 분류 → 전송 분류 + 하위탭 2개(1회, idempotent).
 
-    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
+    [중요] 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
        optgen 하위탭 때 겪은 그 자리라, 저장본 자체를 갈아끼운다.
 
     분류 이름·이모지도 바꾼다 — 항목만 넣고 이름을 두면 「자동화」 안에 「마켓 전송」이
@@ -430,7 +503,7 @@ def _migrate_send_rename(layout: dict) -> bool:
     이 분류는 소싱처에서 **긁는 것**과 마켓으로 **보내는 것**을 함께 담고 있어, 옛 이름은
     「보내기」만 하는 곳처럼 읽혔다.
 
-    🔴 왜 _migrate_send2 를 고치는 것으로 끝나지 않나 — 그 마이그레이션은
+    [중요] 왜 _migrate_send2 를 고치는 것으로 끝나지 않나 — 그 마이그레이션은
        `if _has_item_id(layout, 'i_market_send'): return False` 로 **이미 끝난 것**이라
        다시 돌지 않는다. 라이브 저장본(sidebar_layout)엔 옛 이름이 그대로 남아 있어,
        코드 상수만 고치면 화면은 안 바뀐다(i_policies 때 겪은 바로 그 자리).
@@ -458,7 +531,7 @@ def _migrate_catalog_rename(layout: dict) -> bool:
       모음전 상품관리 → 상품관리 · 모음전 옵션관리 → 옵션관리
       마켓 상품 현황 → 실마켓 상품 현황
 
-    🔴 왜 `_FORCE_RENAME` 만으로는 안 되나 — 그건 `_item()` 이 불릴 때만 작동하는데,
+    [중요] 왜 `_FORCE_RENAME` 만으로는 안 되나 — 그건 `_item()` 이 불릴 때만 작동하는데,
        `get_layout_for_template()` 은 저장본에 **이미 있는** 항목을 `_item()` 없이
        그대로 통과시킨다. 세 항목 다 저장본에 있으므로 영영 안 닿는다.
        (i_policies · i_automation · s_auto 때 반복된 그 자리 — `_migrate_send_rename` 참조)
@@ -475,6 +548,8 @@ def _migrate_catalog_rename(layout: dict) -> bool:
             spec = _ITEM_DEFS.get(it.get('id'))
             if not spec or it.get('id') not in _CATALOG3:
                 continue
+            # 🔴 여기에 'icon' 을 넣으면 안 된다 — _ITEM_DEFS 에는 icon 칸이 없어
+            #    spec[k] 가 KeyError 로 터진다(아이콘은 _ICONS 표가 따로 갖고 있다).
             for k in ('emoji', 'name'):
                 if it.get(k) != spec[k]:
                     it[k] = spec[k]
@@ -488,7 +563,7 @@ def _migrate_gagong_rename(layout: dict) -> bool:
       상품 가공(s_process) → 상품 정책화 · 정책 적용(i_policy_apply) → 정책 매칭
       (정책 생성 i_policies 는 이름 그대로 — 화면 내용만 손본다)
 
-    🔴 `_FORCE_RENAME` 에 `i_policy_apply` 를 넣어 둔 것만으로는 **저장본에 이미 있는
+    [중요] `_FORCE_RENAME` 에 `i_policy_apply` 를 넣어 둔 것만으로는 **저장본에 이미 있는
        항목**엔 안 닿는다 — `_item()` 이 불릴 때만 작동하는데 `get_layout_for_template()`
        은 저장본에 이미 있는 항목을 `_item()` 없이 그대로 통과시킨다
        (i_policies·i_automation·s_auto·상품관리 3탭 때 반복된 바로 그 자리).
@@ -517,12 +592,12 @@ def _migrate_gagong_rename(layout: dict) -> bool:
 def _migrate_catalog_order(layout: dict) -> bool:
     """[2026-08-12 노션 b항] 상품 관리 하위탭을 **딱 한 번** 옵션관리 먼저로 재정렬.
 
-    🔴 왜 스펙만 고치면 안 되나 — `get_layout_for_template()` 은 「이미 있는 항목의
+    [중요] 왜 스펙만 고치면 안 되나 — `get_layout_for_template()` 은 「이미 있는 항목의
        순서는 건드리지 않는다」(사장님이 드래그로 둔 자리가 곧 의도다). 그래서
        `_STAGE_SPEC` 순서를 바꿔도 화면 순서는 안 바뀐다. 순서를 바꾸는 일은
        **저장본을 한 번 갈아끼우는** 마이그레이션의 몫이다.
 
-    🔴 왜 「스펙과 다르면 고친다」가 아니라 schema 표시인가 — 그렇게 짜면 사장님이
+    [중요] 왜 「스펙과 다르면 고친다」가 아니라 schema 표시인가 — 그렇게 짜면 사장님이
        나중에 이 셋을 드래그로 되돌려도 **다음 요청마다 되돌아온다**(드래그가 안 먹는
        것처럼 보인다). 「의도된 1회 재정렬」과 「드래그 순서 보존」은 이 표시 하나로만
        양립한다. 개명(_migrate_catalog_rename)은 반대로 늘 다시 걸어야 하므로 따로 뒀다.
@@ -546,7 +621,7 @@ def _migrate_catalog_order(layout: dict) -> bool:
 def _migrate_bulk_loose(layout: dict) -> bool:
     """[2026-08-02 사장님 확정] 「대량등록」을 오른쪽 바로가기로 넣는다(1회, idempotent).
 
-    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
+    [중요] 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
        (i_ship·i_policies·optgen 하위탭·노션 일일보고 때 반복된 그 자리)
 
     여태 이 화면은 **어느 메뉴에도 링크가 없어** 주소를 직접 쳐야 들어갔다.
@@ -563,9 +638,9 @@ def _migrate_bulk_loose(layout: dict) -> bool:
 
 
 def _migrate_notion_report(layout: dict) -> bool:
-    """[2026-08-02] 「📅 노션 일일보고」 메뉴 추가 — 기타 분류 맨 아래(1회, idempotent).
+    """[2026-08-02] 「 노션 일일보고」 메뉴 추가 — 기타 분류 맨 아래(1회, idempotent).
 
-    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
+    [중요] 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
        (i_ship·i_policies·optgen 하위탭 때 반복된 그 자리)
 
     여태 이 화면은 **어느 메뉴에도 링크가 없어** 주소를 직접 쳐야 들어갔다.
@@ -589,9 +664,9 @@ def _migrate_notion_report(layout: dict) -> bool:
 
 
 def _migrate_settle_plan(layout: dict) -> bool:
-    """[2026-08-06] 「💰 정산예정금액」 메뉴 — 주문 관리 분류에 추가(1회, idempotent).
+    """[2026-08-06] 「 정산예정금액」 메뉴 — 주문 관리 분류에 추가(1회, idempotent).
 
-    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다
+    [중요] 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다
        (_migrate_notion_report 와 같은 자리·같은 이유).
     """
     if _has_item_id(layout, 'i_settle_plan'):
@@ -610,13 +685,13 @@ def _migrate_templates_to_etc(layout: dict) -> bool:
 
     노션 「상품가공 > 하위탭 b-2. 기타 상위탭 아래로 옮기기」.
 
-    🔴 _STAGE_SPEC 만 고치면 **절대 안 옮겨진다.** get_layout_for_template() 의
+    [중요] _STAGE_SPEC 만 고치면 **절대 안 옮겨진다.** get_layout_for_template() 의
        주입 로직은 「스펙엔 있는데 저장본엔 없는」 항목만 붙인다 — i_templates 는
        저장본에 이미 있으므로 「빠진 것」으로 안 잡혀 상품 가공에 그대로 남는다.
        그래서 저장본 자체를 갈아끼운다 (_migrate_optgen 이 i_bundles·i_matrix 를
        옮긴 것과 같은 자리·같은 방법).
 
-    🔴 「이미 했나」 판정은 **목적지에 있나**로 한다. `_has_item_id` 로 존재만
+    [중요] 「이미 했나」 판정은 **목적지에 있나**로 한다. `_has_item_id` 로 존재만
        보면 옮기기 전에도 True 라 한 번도 안 돈다.
     """
     stages = layout.get('stages') or []
@@ -684,6 +759,7 @@ def _load() -> dict:
         _mig10 = _migrate_settle_plan(data)   # [2026-08-06] 정산예정금액 메뉴(1회)
         _mig11 = _migrate_send_rename(data)   # [2026-08-06] s_auto → 「상품수집&전송」 개명
         _mig12 = _migrate_catalog_rename(data)  # [2026-08-12] 상품관리 하위탭 개명(늘)
+        _mig14 = _migrate_icons(data)          # [2026-08-19] 메뉴 선 아이콘 심기(1회)
         _mig13 = _migrate_catalog_order(data)   # [2026-08-12] 상품관리 하위탭 재정렬(1회)
         # [2026-08-12] 상품가공 — 옵션 맵핑 템플릿 → 기타(1회).
         #   🔴 다른 세션(상품관리 #963)과 **같은 번호(_mig12)로 부딪혔다.**
@@ -788,7 +864,8 @@ def get_layout_for_template() -> dict:
             if st is None:
                 if not _missing[sid]:
                     continue
-                st = {'id': sid, 'emoji': emoji, 'name': name, 'color': color, 'collapsed': False, 'items': []}
+                st = {'id': sid, 'emoji': emoji, 'icon': _icon_of(sid), 'name': name,
+                      'color': color, 'collapsed': False, 'items': []}
             else:
                 st = dict(st)
             if _missing[sid]:
@@ -813,7 +890,7 @@ def get_layout_for_template() -> dict:
 def api_get_layout():
     """편집 화면이 읽는 것 — **실제 사이드바와 같은 것**을 준다.
 
-    🔴 전에는 `_load()` 저장본을 날것으로 줬다. 저장본에 없고 스펙에서 주입되는
+    [중요] 전에는 `_load()` 저장본을 날것으로 줬다. 저장본에 없고 스펙에서 주입되는
       항목(정책 생성·정책 적용)이 편집 화면에서만 사라져, 「상품 가공」 서랍이
       텅 빈 채로 보였다 — 실제 사이드바에는 둘 다 있는데.
       편집 화면과 실물이 다르면 사장님이 「없어졌다」로 읽는다.

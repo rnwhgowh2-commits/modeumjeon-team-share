@@ -327,7 +327,7 @@ def api_lookup():
 def api_stock(sku: str):
     """위치별 재고 분포 — SSOT(shared.inventory_stock) 부호 규약으로 계산.
 
-    🔴 [2026-08-05] raw `sum(qty)` → SSOT 로 교체. 이 시스템의 저장 규약은
+    [중요] [2026-08-05] raw `sum(qty)` → SSOT 로 교체. 이 시스템의 저장 규약은
     「qty 양수 저장, 부호는 tx_type 이 결정」(in=+, out=-, move=출발지-·도착지+)라
     raw 합은 out/move 를 **더해 버린다** — 데스크탑 화면들과 다른 숫자를 말하는 모순.
     응답 모양(by_location/total)은 그대로라 action.html 등 기존 호출부는 무수정.
@@ -368,7 +368,7 @@ def api_product(sku: str):
         PC data_items rows 의 'brand'·'name_raw'·'article_no'·'barcode'·'avg' 와
         같은 컬럼(drift 는 tests/mobile 값 대조 시험이 지킨다)
       - usage: OptionProductLink(product_canonical_sku==sku) 개수 — PC usage_map 과 동일.
-        🔴 「모음전 적용」은 스위치가 아니라 이 개수의 **읽기전용 배지**다(켜고 끄기 발명 금지).
+        [중요] 「모음전 적용」은 스위치가 아니라 이 개수의 **읽기전용 배지**다(켜고 끄기 발명 금지).
       - matrix: 같은 model_code 활성 옵션 전체의 색상×사이즈 SSOT 재고 미니표.
         셀 = 재고 수(0 포함) / **조합 없음 = null** — 0 과 없음을 구분(모순 표기 금지).
     """
@@ -864,7 +864,7 @@ def api_scan_ship():
     payload: {line_uid, sku, location_id, qty?, sale_price?}
     응답: {ok, result, supply_mode, deducted_qty, stock_after, warning}
       · result = deducted(사입 — 깎음) | no_deduct(무재고 — 안 깎음) | already(두 번 찍음)
-      · 🔴 warning 은 재고가 모자란데 그대로 기록했다는 뜻이다(막지 않는다 — 사장님 확정).
+      · [중요] warning 은 재고가 모자란데 그대로 기록했다는 뜻이다(막지 않는다 — 사장님 확정).
         화면은 이 문구를 반드시 띄워야 한다. 조용히 넘기면 장부가 실물과 어긋난 채 굳는다.
     """
     from lemouton.inventory import order_outbound as _oo

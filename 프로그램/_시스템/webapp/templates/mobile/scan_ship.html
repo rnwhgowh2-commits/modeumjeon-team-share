@@ -1,5 +1,5 @@
 {% extends "mobile/_base.html" %}
-{% block title %}📦 포장 스캔 출고{% endblock %}
+{% block title %}<i class="ph-light ph-package" aria-hidden="true"></i> 포장 스캔 출고{% endblock %}
 {% set back_url = '/mobile' %}
 
 {% block extra_head %}
@@ -120,19 +120,19 @@
     </div>
     <div class="ss-ov">
       <div class="ss-line"></div>
-      <div class="ss-hint" id="scan-hint">📷 포장할 상품의 바코드를 비춰주세요</div>
+      <div class="ss-hint" id="scan-hint"><i class="ph-light ph-camera" aria-hidden="true"></i> 포장할 상품의 바코드를 비춰주세요</div>
       <div class="ss-stats">
         <span id="stat-engine">…</span><span id="stat-res">…</span><span id="stat-tries">0회</span>
       </div>
       {# 컨트롤 — 일괄·단독과 동일 (플래시·줌·카메라 전환) #}
       <div class="ss-ctrl">
-        <button id="btn-torch" title="플래시" onclick="toggleTorch()">🔦</button>
+        <button id="btn-torch" title="플래시" onclick="toggleTorch()"><i class="ph-light ph-flashlight" aria-hidden="true"></i></button>
         <div class="zoom" id="zoom-wrap" style="display:none">
-          <span>🔍</span>
+          <span><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
           <input type="range" id="zoom-range" min="1" max="3" step="0.1" value="1">
           <span id="zoom-val">1x</span>
         </div>
-        <button id="btn-cam" title="카메라 전환" style="display:none" onclick="switchCam()">🔄</button>
+        <button id="btn-cam" title="카메라 전환" style="display:none" onclick="switchCam()"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i></button>
       </div>
     </div>
   </div>
@@ -141,13 +141,13 @@
   <div id="scan-error-area"></div>
 
   <div class="ss-bar">
-    <span class="lbl">📦 포장 스캔 출고</span>
+    <span class="lbl"><i class="ph-light ph-package" aria-hidden="true"></i> 포장 스캔 출고</span>
     <select id="location-sel"><option value="">위치 선택…</option></select>
   </div>
 
   <div class="ss-list" id="order-list">
     <div class="ss-empty" id="empty">
-      <div class="ic">📦</div>
+      <div class="ic"><i class="ph-light ph-package" aria-hidden="true"></i></div>
       <div>바코드를 찍으면 그 상품의 최근 주문이 여기 뜹니다.</div>
       <div style="margin-top:4px">「사입」으로 표시된 주문만 재고가 깎입니다.</div>
     </div>
@@ -225,14 +225,14 @@
   function renderOrders(sku, orders){
     var wrap=document.getElementById('order-list');
     if(!orders||!orders.length){
-      wrap.innerHTML='<div class="ss-empty"><div class="ic">🔍</div>'
+      wrap.innerHTML='<div class="ss-empty"><div class="ic"></div>'
         +'<div><b>'+esc(sku)+'</b> 로 최근 30일 주문을 못 찾았습니다.</div>'
         +'<div style="margin-top:4px">주문이 아직 안 들어왔거나, 이 상품이 주문과 연결되지 않았습니다.</div></div>';
       return;
     }
     wrap.innerHTML=orders.map(function(o){
       var isStock=(o.supply_mode==='stock');
-      var tag=o.shipped?'<span class="ss-tag done">✓ 이미 찍음</span>'
+      var tag=o.shipped?'<span class="ss-tag done">이미 찍음</span>'
         :(isStock?'<span class="ss-tag stock">사입 — 재고 깎임</span>'
                  :'<span class="ss-tag drop">무재고 — 안 깎음</span>');
       return '<div class="ss-card'+(o.shipped?' done':'')+'" data-uid="'+esc(o.line_uid)+'">'
@@ -266,20 +266,20 @@
                              location_id:loc, qty:parseInt(btn.dataset.qty||1)})});
       var j=await r.json();
       if(!j.ok){ btn.disabled=false; btn.textContent='출고 확정';
-        msg.innerHTML='<div class="ss-warn">✗ '+esc(j.error||'처리하지 못했어요')+'</div>'; return; }
+        msg.innerHTML='<div class="ss-warn">'+esc(j.error||'처리하지 못했어요')+'</div>'; return; }
       card.classList.add('done');
       btn.textContent='처리됨';
-      var say=(j.result==='deducted')?('✓ 재고 '+j.deducted_qty+'개 깎았습니다 (남은 재고 '+j.stock_after+'개)')
-             :(j.result==='already')?'✓ 이미 처리된 주문입니다 (재고 그대로)'
-             :'✓ 무재고 주문이라 재고는 깎지 않았습니다';
+      var say=(j.result==='deducted')?('재고 '+j.deducted_qty+'개 깎았습니다 (남은 재고 '+j.stock_after+'개)')
+             :(j.result==='already')?'이미 처리된 주문입니다 (재고 그대로)'
+             :'무재고 주문이라 재고는 깎지 않았습니다';
       // 🔴 서버가 준 경고는 반드시 띄운다 — 조용히 넘기면 장부가 실물과 어긋난 채 굳는다
       // 배경은 연한 초록, 글자는 진한 초록 — 둘 다 같은 색 토큰을 쓰면 글자가 사라진다(실측)
       msg.innerHTML='<div class="ss-warn" style="background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#1D7A3D)">'
-        +esc(say)+'</div>'+(j.warning?('<div class="ss-warn">⚠️ '+esc(j.warning)+'</div>'):'');
+        +esc(say)+'</div>'+(j.warning?('<div class="ss-warn">'+esc(j.warning)+'</div>'):'');
       if(navigator.vibrate)navigator.vibrate(60);
     }catch(e){
       btn.disabled=false; btn.textContent='출고 확정';
-      msg.innerHTML='<div class="ss-warn">✗ 네트워크 오류로 처리하지 못했어요</div>';
+      msg.innerHTML='<div class="ss-warn">네트워크 오류로 처리하지 못했어요</div>';
     }
   }
 
@@ -293,7 +293,7 @@
     if(계속같은물건)return;
     lastCode=code; busy=true;
     var hint=document.getElementById('scan-hint');
-    hint.textContent='🔍 주문 찾는 중…';
+    hint.textContent='주문 찾는 중…';
     try{
       var j=await (await fetch('/mobile/api/scan-orders',{method:'POST',
         headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})})).json();
@@ -301,7 +301,7 @@
       hint.textContent='✅ '+j.sku+' — 주문 '+(j.orders||[]).length+'건';
       renderOrders(j.sku, j.orders||[]);
       flashFound(j.sku + ' · 주문 ' + (j.orders||[]).length + '건');
-    }catch(e){ hint.textContent='❌ 네트워크 오류'; }
+    }catch(e){ hint.textContent='네트워크 오류'; }
     // 왕복이 끝난 시점부터 다시 잰다 — 조회하는 동안은 스캔이 멈춰 있어 그 시간은 「안 보인 것」이 아니다
     lastAt=Date.now(); lastSeenTries=scanTries;
     busy=false;
@@ -371,8 +371,8 @@
       var msg=ScanCamera.friendlyError(e);
       console.error('[scan-ship]',e);
       document.getElementById('scan-error-area').innerHTML=
-        '<div class="ss-error">⚠️ '+esc(msg)+'<br><span>아래 칸에 SKU·바코드를 직접 입력해 주문을 찾을 수 있어요.</span></div>';
-      document.getElementById('scan-hint').textContent='❌ 카메라 실패';
+        '<div class="ss-error">'+esc(msg)+'<br><span>아래 칸에 SKU·바코드를 직접 입력해 주문을 찾을 수 있어요.</span></div>';
+      document.getElementById('scan-hint').textContent='카메라 실패';
       showToast(msg,'error');
     }
   })();

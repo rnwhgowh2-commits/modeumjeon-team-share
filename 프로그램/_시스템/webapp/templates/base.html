@@ -144,7 +144,7 @@
 {% if active_app == 'inventory' %}
 <div id="bell-wrap" style="position:fixed;top:16px;right:130px;z-index:500">
   <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:var(--surface,#ffffff);border:1.5px solid var(--n200,var(--line,#E5E8EB));border-radius:999px;cursor:pointer;font-size:17px;">
-    🔔
+    <i class="ph-light ph-bell" aria-hidden="true"></i>
     <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:var(--red,#C53030);color:#fff;border-radius:999px;font-size: 12px;font-weight:700;line-height:16px;text-align:center">0</span>
   </button>
   <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:var(--surface,#ffffff);border:1.5px solid var(--n200,var(--line,#E5E8EB));border-radius:8px;overflow:hidden">
@@ -171,7 +171,7 @@
     fetch('/inventory/api/notifications/recent').then(r=>r.json()).then(d=>{
       if(!d.items || !d.items.length){ list.innerHTML='<div style="padding:32px;text-align:center;color: var(--글자-희미, var(--faint,#9CA3AF));font-size: 14px">새 알림이 없습니다</div>'; return; }
       list.innerHTML = d.items.map(n => {
-        const icon = n.severity==='error'?'🛑':(n.severity==='warning'?'⚠️':(n.severity==='success'?'✅':'ℹ️'));
+        const icon = n.severity==='error'?'🛑':(n.severity==='warning'?'⚠️':(n.severity==='success'?'✅':'ℹ'));
         const bg = n.is_read?'#fff':'#F0F9FF';
         return `<div style="display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--n100,#F2F4F6);background:${bg}"><span style="font-size:14px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size: 14px;font-weight:600;color:var(--ink,#191F28);margin-bottom:0px">${n.title}</div>${n.body?`<div style="font-size: 14px;color:var(--글자-기본,#4E5968);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${n.body}</div>`:''}<div style="font-size: 12px;color: var(--글자-희미, var(--faint,#9CA3AF));margin-top:4px">${n.created_at}</div></div></div>`;
       }).join('');

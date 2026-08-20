@@ -17,7 +17,7 @@ concat → pipeline → aggregate → R2 + DB 저장) → 목록/로드/삭제/�
   전역 dict 였는데, 앱이 gunicorn 워커 3개로 돌아 업로드(A워커)와 분석(B워커)이 갈리면
   "먼저 더망고 매입 엑셀을 업로드하세요"가 떴다(2026-07-23 실제 사고 — 분석 전에 마켓별
   수집 6요청이 끼면서 워커가 갈릴 확률이 올라가 재현됨).
-  ★워커가 여럿이면 프로세스 전역 변수는 '저장'이 아니다.
+  워커가 여럿이면 프로세스 전역 변수는 '저장'이 아니다.
   동시에 둘이 올리면 마지막 업로더가 이긴다 — 팀 공유 단일 행이라 기존과 같은 성질이다.
 """
 import datetime as _dt
@@ -286,14 +286,14 @@ def upload():
 def _share_to_purchase_store(buy_df, filename: str) -> dict:
     """마진 계산기에 올린 매입 엑셀을 **실매입가 단일 원천에도** 저장한다.
 
-    🔴 왜 필요한가 — 사장님 확정 규칙 6 「실매입가가 입력되면 실마진이 필요한 곳에
+    [중요] 왜 필요한가 — 사장님 확정 규칙 6 「실매입가가 입력되면 실마진이 필요한 곳에
       데이터 공유한다」. 여기서 안 하면 같은 엑셀을 올려도 **마진 계산기만 알고
       주문 내역·상품관리는 모르는** 상태가 되어 같은 상품 마진이 화면마다 갈린다
       (설계서 §8 「같은 정보 두 화면 = 같은 값」).
 
     · 저장 경로는 주문 내역 업로드와 **완전히 같은 코드**(`purchase_mango.apply`)다 —
       규칙을 두 번 구현하지 않는다. 후보가 여럿이면 저장하지 않는 것도 그대로다.
-    · 🔴 실패해도 업로드를 되돌리지 않는다. 대신 `error` 를 담아 **조용히 넘어가지 않는다**.
+    · [중요] 실패해도 업로드를 되돌리지 않는다. 대신 `error` 를 담아 **조용히 넘어가지 않는다**.
     """
     from lemouton.markets import order_store as _os
     from lemouton.markets import purchase_mango as _pm
@@ -414,12 +414,12 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
       · summary.mango_total / mango_with_order_no / mango_with_trace — 검증 카운트(1401~1418).
       · missing_order_no — G열 미기입 매입 행(1419~1422).
 
-    ★ finite 가드: classified·보강행은 matcher.match_for_classifier 의 raw .to_dict()
+     finite 가드: classified·보강행은 matcher.match_for_classifier 의 raw .to_dict()
       에서 와 빈 셀이 NaN(float) 로 남는다. 라우트가 저장 전 _assert_finite 로 NaN 을 크게
       실패시키므로, buy_missing 과 동일하게 pipeline._json_safe(coerce_numeric=False) 로
       '표시 전용'(하류 집계 없음) NaN→"" 정리해 통과시킨다. (원본은 finite 가드 없이 저장했다.)
 
-    ★ 분류기 입력 = buy_valid(사이트주문번호 있는 행) — 원본 app.py 355행과 동일.
+     분류기 입력 = buy_valid(사이트주문번호 있는 행) — 원본 app.py 355행과 동일.
       full staged df 를 넣으면 buy_missing 흔적행까지 classified 에 들어가 보강 로직이
       죽는다(match_data 가 모든 매입행을 matched/unmatched 로 이미 덮으므로).
     """
@@ -681,7 +681,7 @@ def export_route():
 @bp.route("/lotteon-settlement/stats", methods=["GET"])
 def lotteon_settlement_stats():
     """제휴 판단 반영 현황(읽기 전용·집계) — 판매경로 값별 건수·계정별 커버리지.
-    ★목적: '제휴'가 실제 주문건에 붙었는지를 추측이 아니라 데이터로 확인.
+    목적: '제휴'가 실제 주문건에 붙었는지를 추측이 아니라 데이터로 확인.
       판매경로가 코드번호로 저장되면 order_export 의 `"제휴" in sl_chnl` 이 영영 False →
       2% 미적용인데 에러는 안 난다(무증상 오류). distinct 값을 그대로 노출해 눈으로 판정한다.
       개인정보 없음(주문번호는 앞 4자리만).
@@ -788,16 +788,16 @@ def lotteon_crawl_run_report():
       result = ok | verify(본인인증 필요) | fail
       via    = auto(확장 자동 회차) / manual(화면에서 손으로 돌림). 기본 auto.
 
-    🔴 via 를 나누는 이유 — 배너("정산 수집이 N시간째 멈춤")는 「**자동**이 살아 있나」를
+    [중요] via 를 나누는 이유 — 배너("정산 수집이 N시간째 멈춤")는 「**자동**이 살아 있나」를
       묻는다. 수동 실행까지 같이 세면 손으로 한 번 돌린 것만으로 배너가 조용해져
       **자동이 죽어 있어도 모른다**. 화면엔 둘 다 보여주고 배너는 auto 만 본다.
 
-    🔴 왜 이게 필요한가 — 예전엔 「자동이 돌고 있나」를 lotteon_settlements.updated_at 으로
+    [중요] 왜 이게 필요한가 — 예전엔 「자동이 돌고 있나」를 lotteon_settlements.updated_at 으로
       짐작했다. 그건 「값이 바뀐 시각」이지 「성공한 시각」이 아니라 두 방향으로 다 틀린다
       (안 바뀌면 멀쩡한데 낡아 보이고, 한 계정이 막혀도 다른 계정 값 하나면 경보가 안 뜬다).
       회차를 직접 기록해 짐작을 없앤다.
 
-    ★실패도 반드시 받는다 — 정작 알아야 하는 게 실패인데 성공만 남기면 표가 늘 초록이다.
+    실패도 반드시 받는다 — 정작 알아야 하는 게 실패인데 성공만 남기면 표가 늘 초록이다.
     """
     from lemouton.sourcing.models_v2 import LotteonCrawlRun
     body = request.get_json(silent=True) or {}
@@ -847,12 +847,12 @@ def lotteon_settle_parity():
 
     `?days=30&alias=` — 기본 최근 30일. 계정을 안 주면 저장된 계정 전부를 순회한다.
 
-    🔴 「불일치 0」이 곧 「정확」은 아니다. 겹치는 라인만 비교할 수 있다 —
+    [중요] 「불일치 0」이 곧 「정확」은 아니다. 겹치는 라인만 비교할 수 있다 —
       공식 API 는 **구매확정 뒤**에만 값을 주므로 미정산 구간은 애초에 대조 대상이 아니다.
       그래서 겹친 수(`비교`)를 반드시 같이 낸다. 비교가 0이면 그건 「합격」이 아니라
       「아직 검사할 게 없음」이다.
 
-    🔴 알려진 잡음 — `procSeq` 가 1 이 아닌 행(예 202, spdNo 공란)은 상품 정산이 아닌
+    [중요] 알려진 잡음 — `procSeq` 가 1 이 아닌 행(예 202, spdNo 공란)은 상품 정산이 아닌
       별도 라인인데 parse_itmd_lines 가 구분 없이 합산한다(2026-08-04 실측 4건, 전부
       정확히 10,000원·전부 반품완료 클레임 행). 그 사정을 알 수 있게 응답에 raw 를 싣는다.
     """
@@ -964,7 +964,7 @@ def lotteon_settlement_ingest():
     옛 형태를 계속 받는 이유: 확장은 사장님 크롬에 설치돼 있어 서버와 동시에 안 바뀐다.
     새 서버 + 옛 확장이 조용히 0건이 되면 정산이 통째로 멈춘다.
 
-    ★od_no 는 숫자만 받는다 — lotteon_so.upsert_rows 와 같은 규약.
+    od_no 는 숫자만 받는다 — lotteon_so.upsert_rows 와 같은 규약.
       이 가드가 없어서 진단 프로브가 넣은 'TESTOD999'(12,345원)가 표에 남아 있었다
       (2026-08-02 라이브 stats 실측). 가짜 행이 실주문과 같은 표에 있으면
       대조·합계가 조용히 틀어진다.
@@ -1016,13 +1016,13 @@ def lotteon_settlement_ingest():
 def rg_settlement_ingest():
     """로켓그로스 정산 회차 push → (group_key, ratio)별 upsert.
 
-    🔴 왜 크롤 push 인가(2026-08-07 실측) — 로켓그로스 정산액을 주는 **OpenAPI 가 없다**.
+    [중요] 왜 크롤 push 인가(2026-08-07 실측) — 로켓그로스 정산액을 주는 **OpenAPI 가 없다**.
        Wing 화면 API(`/tenants/rfm/v2/settlements/status/api`)가 유일한데 로그인 세션
        쿠키가 필요해 서버에서 못 부른다 → 로컬 크롤이 긁어 여기로 보낸다(롯데온과 동형).
 
     본문: {"account": "세소(쿠팡)", "source": "auto"|"manual",
            "rows": [ settlementStatusReports[] 원형 그대로 ]}
-    ★ 버린 행 수를 응답에 남긴다 — 조용히 삼키면 크롤이 멈춘 걸 아무도 모른다.
+     버린 행 수를 응답에 남긴다 — 조용히 삼키면 크롤이 멈춘 걸 아무도 모른다.
     """
     from lemouton.margin import rg_settlement as RG
     body = request.get_json(silent=True)
@@ -1044,14 +1044,14 @@ def rg_settlement_ingest():
 def lotteon_paid_ingest():
     """롯데온 지급내역 push → (판매자ID, 정산기준일)별 upsert.
 
-    🔴 왜(2026-08-07 실브라우저 실측) — 롯데온은 정산 OpenAPI 8종·정산예정금액조회·정산요약·
+    [중요] 왜(2026-08-07 실브라우저 실측) — 롯데온은 정산 OpenAPI 8종·정산예정금액조회·정산요약·
        셀러머니를 다 뒤져도 **실지급일이 없다**(pymtTgtAmt 는 예정액). 셀러오피스
        「중개거래정산관리 > 지급내역」의 `seCmptDt`(정산완료일)가 유일한 답이다.
        소스: GET soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail
 
     본문: {"trNo": "LO10161082", "account": "브랜드박스(롯데온)", "source": "auto"|"manual",
            "rows": [ … 응답 그대로 또는 data.settleDetailList.dataList[] ]}
-    ★ 버린 행 수를 응답에 남긴다 — 조용히 삼키면 크롤이 멈춘 걸 아무도 모른다.
+     버린 행 수를 응답에 남긴다 — 조용히 삼키면 크롤이 멈춘 걸 아무도 모른다.
     """
     from lemouton.margin import lotteon_paid as LP
     body = request.get_json(silent=True)
@@ -1074,14 +1074,14 @@ def lotteon_paid_ingest():
 def eleven11_unconf_ingest():
     """11번가 **구매확정 전** 정산예정액 push → 주문라인에 실값 반영.
 
-    🔴 왜(2026-08-08) — 하루 전 나는 「11번가는 구매확정 전 정산예정액을 안 준다」고
+    [중요] 왜(2026-08-08) — 하루 전 나는 「11번가는 구매확정 전 정산예정액을 안 준다」고
        잘못 결론 냈다. 조회 축을 구매확정일로만 봐서 0건이 나온 걸 「없다」로 읽었다.
        결제일(STL_DT) 축 + 정산 미확정(N) 으로 보니 주문번호·금액이 그대로 나온다.
        이 창구가 붙기 전까지 그 구간(라이브 246만)은 발송대기 때 값(store) 상속이었다.
        자세한 근거·응답 실측은 `lemouton/margin/eleven11_unconf.py` 머리말.
 
     본문: {"rows": [...응답 그대로 또는 list[]], "account": "…", "source": "auto"|"manual"}
-    ★ 미매칭 건을 응답에 그대로 돌려준다 — 조인 축이 어긋나 0건이 되어도
+     미매칭 건을 응답에 그대로 돌려준다 — 조인 축이 어긋나 0건이 되어도
       「성공」으로 보이면 안 된다(조용한 실패 방지).
     """
     from lemouton.margin import eleven11_unconf as EU

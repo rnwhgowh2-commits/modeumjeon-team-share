@@ -4,7 +4,7 @@
 설계서: 2026-07-17-신규상품등록-가공템플릿-design.md §7 · 시안 13 Ⅲ-E안
 사장님 확정: "E + 선택하면 상세페이지로 이동하여 편집 + 검색/필터 + 정책 추가 버튼(A안)"
 
-★ E안을 고른 이유 — **정책이 안 붙은 URL 이 눈에 띈다.**
+ E안을 고른 이유 — **정책이 안 붙은 URL 이 눈에 띈다.**
   정책 중심 화면에서는 「크롤은 되는데 어디에도 안 올라가는 URL」이 안 보인다.
 """
 from flask import jsonify, render_template, request
@@ -26,7 +26,7 @@ def _crawled_compositions(session):
 def _live_policy(session, policy_id: int):
     """살아 있는 정책. 없거나 지워졌으면 None.
 
-    🔴 [2026-07-24] 이 검사가 없어서 **없는 정책 id 로도 200 이 나고** 주인 없는
+    [중요] [2026-07-24] 이 검사가 없어서 **없는 정책 id 로도 200 이 나고** 주인 없는
       규칙 행(고아)이 DB 에 남았다. 정책에 무언가를 붙이거나 저장하는 라우트는
       전부 여기를 먼저 지난다 — 판정은 한 곳에서만 한다.
     """
@@ -154,7 +154,7 @@ def attach_policy_source(policy_id: int):
 
     body: `{source_key, brand, url?, confirm_move?}`
 
-    🔴 **한 구성은 한 정책에만** — 이미 다른 정책에 붙어 있으면 **409 + 되묻기**다.
+    [중요] **한 구성은 한 정책에만** — 이미 다른 정책에 붙어 있으면 **409 + 되묻기**다.
       두 정책을 따르면 가공 결과가 실행 순서에 따라 달라진다. 사장님이
       `confirm_move` 로 「옮기겠다」고 답한 뒤에만 옮기고, 옮겼으면 **어디서
       왔는지**를 응답에 실어 화면이 알린다(조용한 이동 금지).
@@ -221,7 +221,7 @@ def attach_policy_source(policy_id: int):
 def _current_policy_of(source_key: str, brand: str):
     """그 구성이 지금 붙어 있는 정책 {id, name}. 없으면 None.
 
-    ★ 충돌 응답을 만들려고 **새 세션**으로 다시 읽는다 — 충돌이 난 세션은
+     충돌 응답을 만들려고 **새 세션**으로 다시 읽는다 — 충돌이 난 세션은
       rollback 된 뒤라 그 안에서 읽으면 값이 불안정하다.
     """
     from lemouton.registration.process_policy import policy_for_source
@@ -283,7 +283,7 @@ def _source_row(session, source_key: str, brand: str):
 def peek_policy_source():
     """이 구성이 지금 어디에 붙어 있고 **떼면 무엇을 잃는지** — 되묻기 전에 읽는다.
 
-    🔴 [리뷰 중요②] 떼기는 행을 통째로 지운다(URL 포함). 화면이 그걸 모르고 물으면
+    [중요] [리뷰 중요②] 떼기는 행을 통째로 지운다(URL 포함). 화면이 그걸 모르고 물으면
       「무엇을 잃는지 모르고 예」가 된다. 확인 문구의 내용도 **서버가 쥔 사실 하나**
       에서 나오게 한다 — 화면이 자체 규칙을 세우지 않는다.
     """
@@ -311,7 +311,7 @@ def peek_policy_source():
 def attach_policy_market(policy_id: int):
     """정책이 내보낼 판매처 마켓을 붙인다. body: `{market, account_key?}`.
 
-    ★ 우리가 올릴 수 있는 6마켓만 받는다. 모르는 값은 **조용히 저장하지 않고**
+     우리가 올릴 수 있는 6마켓만 받는다. 모르는 값은 **조용히 저장하지 않고**
       400 + 사유 — 오타로 만든 'coupng' 이 저장되면 「왜 안 올라가지」로 헤맨다.
     """
     from lemouton.registration.process_policy import attach_market
@@ -390,7 +390,7 @@ def process_schema():
 def get_policy_rules(policy_id: int):
     """그 마켓에 실제로 적용될 규칙 한 벌 (공통 + 마켓별 덮어쓰기).
 
-    ★ `market_saved_keys` = **이 마켓 전용으로 굳어 있는** 항목들.
+     `market_saved_keys` = **이 마켓 전용으로 굳어 있는** 항목들.
       덮어쓰기는 항목 단위라, 한 번 마켓 전용으로 저장하면 그 항목은 공통을
       아무리 고쳐도 이 마켓에 안 닿는다. 화면이 배지로 알려 줘야
       「공통 치환표를 고쳤는데 쿠팡만 옛 표로 나간다」를 막는다.
@@ -425,11 +425,11 @@ def get_policy_rules(policy_id: int):
 def save_policy_rule(policy_id: int):
     """항목 규칙 저장. market='' 이면 모든 마켓 공통.
 
-    ★ 검사·정리는 서버 :func:`validate_config` **한 벌**이 한다(화면은 안 한다).
+     검사·정리는 서버 :func:`validate_config` **한 벌**이 한다(화면은 안 한다).
       정리하면서 손댄 내용(빈 줄 제거·앞뒤 공백·같은 말 중복)은 `notices` 로 돌려줘
       화면이 그대로 띄운다 — 사장님이 넣은 값을 몰래 고치면 안 되기 때문이다.
 
-    🔴 [2026-07-24] **정책 존재 검사가 없었다.** 없는 정책 id 로 불러도 200 이 나고
+    [중요] [2026-07-24] **정책 존재 검사가 없었다.** 없는 정책 id 로 불러도 200 이 나고
       주인 없는 규칙 행이 DB 에 남았다(조회는 이미 404 를 내는데 저장만 뚫려 있었다).
       :func:`_live_policy` 로 먼저 막는다.
     """

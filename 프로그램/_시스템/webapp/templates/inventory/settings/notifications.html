@@ -14,7 +14,7 @@
   <form method="post" action="{{ url_for('inventory.settings_notifications_save') }}">
     {# 채널 활성화 #}
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 16px;margin-bottom:12px">
-      <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--ink,#292A2F)">📡 채널 활성화</h3>
+      <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--ink,#292A2F)"><i class="ph-light ph-broadcast" aria-hidden="true"></i> 채널 활성화</h3>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
         <label style="display:flex;align-items:start;gap:8px;padding:12px;border:1px solid var(--line,#E5E8EB);border-radius:8px;cursor:pointer">
           <input type="checkbox" name="channel_inapp" checked disabled style="margin-top:4px;accent-color:var(--primary,#4F67FF)">
@@ -26,14 +26,14 @@
         <label style="display:flex;align-items:start;gap:8px;padding:12px;border:1px solid {% if pref.channel_email %}var(--primary,#4F67FF){% else %}var(--line,#E5E8EB){% endif %};border-radius:8px;cursor:pointer;{% if pref.channel_email %}background:var(--연한-파랑,#EEF1FE){% endif %}">
           <input type="checkbox" name="channel_email" {% if pref.channel_email %}checked{% endif %} style="margin-top:4px;accent-color:var(--primary,#4F67FF)">
           <div>
-            <div style="font-size:14px;font-weight:600;color:var(--ink,#292A2F)">📧 이메일</div>
+            <div style="font-size:14px;font-weight:600;color:var(--ink,#292A2F)"><i class="ph-light ph-envelope" aria-hidden="true"></i> 이메일</div>
             <div style="font-size:12px;color:var(--sub,#8F91A0);line-height:1.5;margin-top:4px">SMTP 발송 — 받는 주소 아래에 입력.</div>
           </div>
         </label>
         <label style="display:flex;align-items:start;gap:8px;padding:12px;border:1px solid {% if pref.channel_push %}var(--primary,#4F67FF){% else %}var(--line,#E5E8EB){% endif %};border-radius:8px;cursor:pointer;{% if pref.channel_push %}background:var(--연한-파랑,#EEF1FE){% endif %}">
           <input type="checkbox" name="channel_push" {% if pref.channel_push %}checked{% endif %} style="margin-top:4px;accent-color:var(--primary,#4F67FF)">
           <div>
-            <div style="font-size:14px;font-weight:600;color:var(--ink,#292A2F)">📱 푸시 (WebPush)</div>
+            <div style="font-size:14px;font-weight:600;color:var(--ink,#292A2F)"><i class="ph-light ph-device-mobile" aria-hidden="true"></i> 푸시 (WebPush)</div>
             <div style="font-size:12px;color:var(--sub,#8F91A0);line-height:1.5;margin-top:4px">브라우저 권한 필요 — 활성 시 자동 요청.</div>
           </div>
         </label>
@@ -57,14 +57,14 @@
 
     {# 카테고리별 채널 매트릭스 #}
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 16px;margin-bottom:12px">
-      <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--ink,#292A2F)">🗂 카테고리별 알림</h3>
+      <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--ink,#292A2F)"><i class="ph-light ph-folders" aria-hidden="true"></i> 카테고리별 알림</h3>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <thead style="background:var(--line2,#F1F1F4)">
           <tr>
             <th style="padding:8px 12px;text-align:left;font-size:12px;color:var(--ink,#292A2F);font-weight:600">카테고리</th>
             <th style="padding:8px 8px;text-align:center;font-size:12px;color:var(--ink,#292A2F);font-weight:600;width:90px">인앱</th>
-            <th style="padding:8px 8px;text-align:center;font-size:12px;color:var(--ink,#292A2F);font-weight:600;width:90px">📧 이메일</th>
-            <th style="padding:8px 8px;text-align:center;font-size:12px;color:var(--ink,#292A2F);font-weight:600;width:90px">📱 푸시</th>
+            <th style="padding:8px 8px;text-align:center;font-size:12px;color:var(--ink,#292A2F);font-weight:600;width:90px"><i class="ph-light ph-envelope" aria-hidden="true"></i> 이메일</th>
+            <th style="padding:8px 8px;text-align:center;font-size:12px;color:var(--ink,#292A2F);font-weight:600;width:90px"><i class="ph-light ph-device-mobile" aria-hidden="true"></i> 푸시</th>
           </tr>
         </thead>
         <tbody>
