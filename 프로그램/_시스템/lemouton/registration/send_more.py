@@ -183,6 +183,20 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
                     cat_code=spec['cat_code'], site_cat_code=spec['site_cat_code'],
                     err=e, rollback=rollback),
                 product_id=goods_no_new) from e
+
+    # ★ 등록(+옵션부착) 끝난 뒤 판매중지 — 스마트스토어(service.py:_send_live)와 같은
+    #   안전장치. ESM 은 등록 즉시 판매중(11)으로 뜬다(스마트스토어는 mark_suspension
+    #   이 이미 이 역할을 한다 — ESM 만 빠져 있었다). 실패해도 상품ID 는 잃지 않는다
+    #   (best-effort — 옵션부착 실패 시의 위 롤백 경로와는 별개: 저건 실패 회수,
+    #   이건 성공 직후 정상 경로의 안전장치다).
+    from shared.platforms.esm.inventory import set_sold_out
+    try:
+        suspended = set_sold_out(goods_no_new, market, client=client)
+        if not suspended:
+            logger.warning('%s 판매중지 전환 실패 goodsNo=%s — 상품이 판매중 상태로 남았습니다.',
+                            market, goods_no_new)
+    except Exception:  # noqa: BLE001 — best-effort. 등록 자체는 이미 성공했다(상품ID 확보).
+        logger.exception('%s 판매중지 전환 예외 goodsNo=%s', market, goods_no_new)
     return {'product_id': goods_no_new, 'raw': result}
 
 
