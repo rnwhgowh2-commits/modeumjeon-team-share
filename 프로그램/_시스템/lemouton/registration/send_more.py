@@ -435,8 +435,14 @@ def _register_eleven11(spec: dict, account_key: str = '') -> dict:
 #: (`dmstOvsDvDvsCdNm` = "국내배송"). 우리는 국내 소싱·국내 배송이다.
 _LOTTEON_DOMESTIC = 'DMST'
 
-#: 판매자상품 판매상태 「판매중」. 실측 근거 — 같은 덤프 :37 `"spdSlStatCd": "SALE"`
-#: (`spdSlStatCdNm` = "판매중"). products.set_sale_status 의 코드계 [SALE/SOUT/END] 와 같다.
+#: 판매자상품 판매상태 「판매중」. products.set_sale_status 의 코드계 [SALE/SOUT/END] 와 같다.
+#: [2026-08-20 정정] `_lotteon_pbf_dump/lemouton_base.json` 의 `spdSlStatCd` 는
+#:   실제 등록 흐름이 쓰는 product/detail 응답이 아니라 **다른 API(PBF)의 응답**이었다
+#:   (그 덤프는 data.basicInfo.{pdSlStatCd,itmSlStatCd,spdSlStatCd,sitmSlStatCd} 처럼
+#:   여러 단위가 섞여 있다). 실제로 `get_product_detail()`(product/detail)이 돌려주는
+#:   최상위 필드는 `slStatCd` 하나뿐 — 라이브 재현(roundtrip-probe)으로 실측 확인,
+#:   `spdSlStatCd` 키는 그 응답에 아예 없어 판매중인 본보기도 매번 "판매상태 없음"으로
+#:   막고 있었다.
 _LOTTEON_ON_SALE = 'SALE'
 
 
@@ -466,10 +472,9 @@ def _assert_lotteon_template_safe(template: dict, spd_no: str) -> None:
             f'해외직구로 나가고 마켓에서 바꿀 수 없습니다(삭제 후 재등록만 가능). '
             f'국내배송 판매중 상품번호로 바꿔 주세요.')
 
-    sale = str(template.get('spdSlStatCd') or '').strip().upper()
+    sale = str(template.get('slStatCd') or '').strip().upper()
     if sale != _LOTTEON_ON_SALE:
-        shown = (str(template.get('spdSlStatCdNm') or '').strip()
-                 or sale or '(값 없음)')
+        shown = sale or '(값 없음)'
         raise PrereqError(
             f'롯데온 본보기 상품({spd_no})이 판매중이 아닙니다 — 판매상태 「{shown}」. '
             f'판매가 끝난 상품은 롯데온이 정리해 없앨 수 있고, 그러면 이 본보기를 쓰는 '
@@ -515,7 +520,7 @@ def _register_lotteon(spec: dict, account_key: str = '') -> dict:
     #   0000 이어도 data[] 항목별 resultCode 는 실패일 수 있음, 같은 spdLst 래퍼 구조)와
     #   같은 위험을 안고 있고, set_sale_status 자체 docstring 도 "반환 True 여도
     #   호출부가 get_product_detail 로 slStatCd 재조회 검증 권장"이라 명시한다. 그래서
-    #   True 를 받아도 get_product_detail 로 spdSlStatCd == 'END' 인지 재조회 확인한다.
+    #   True 를 받아도 get_product_detail 로 slStatCd == 'END' 인지 재조회 확인한다.
     from shared.platforms.lotteon.products import set_sale_status
     try:
         ok = set_sale_status(spd_no, 'END', client=client)
@@ -529,11 +534,11 @@ def _register_lotteon(spec: dict, account_key: str = '') -> dict:
                 logger.exception('lotteon 판매종료 재조회 예외 spdNo=%s', spd_no)
                 result['_suspend_failed'] = True
             else:
-                spd_sl_stat_cd = str((detail or {}).get('spdSlStatCd') or '')
-                if spd_sl_stat_cd != 'END':
+                sl_stat_cd = str((detail or {}).get('slStatCd') or '')
+                if sl_stat_cd != 'END':
                     logger.warning(
                         'lotteon 판매종료 재조회 검증 실패(응답은 성공이었으나 여전히 '
-                        '판매종료 아님) spdNo=%s spdSlStatCd=%s', spd_no, spd_sl_stat_cd)
+                        '판매종료 아님) spdNo=%s slStatCd=%s', spd_no, sl_stat_cd)
                     result['_suspend_failed'] = True
     except Exception:  # noqa: BLE001
         logger.exception('lotteon 판매종료 예외 spdNo=%s', spd_no)

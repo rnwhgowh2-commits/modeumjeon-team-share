@@ -13,9 +13,11 @@
     해외직구로 나간다. **마켓에서 이 값을 바꿀 수 없다** — 삭제 후 재등록만이 복구다.
     대량등록이면 수천 건이 한 번에 잘못 나간다.
 
-실측 근거 (scripts/_lotteon_pbf_dump/lemouton_base.json — 라이브 상품 덤프):
+실측 근거 (dmstOvsDvDvsCd — scripts/_lotteon_pbf_dump/lemouton_base.json — 라이브 상품 덤프):
     "dmstOvsDvDvsCd": "DMST", "dmstOvsDvDvsCdNm": "국내배송"   ← :191~192
-    "spdSlStatCd": "SALE",    "spdSlStatCdNm": "판매중"        ← :37~38
+판매상태는 그 덤프가 아니라 실제 등록흐름이 부르는 get_product_detail(product/detail)의
+응답 최상위 `slStatCd` 다 — [2026-08-20 정정] 원래 `spdSlStatCd`로 읽던 것이 그 덤프가
+다른 API(PBF) 응답이라 실제 응답엔 없는 키였음을 라이브 재현으로 확인, `slStatCd`로 수정.
 
 우리는 **국내 소싱·국내 배송**이다. 그래서 판정은 화이트리스트다 —
 `DMST` 가 **아니면 전부 막는다.** 해외 코드값을 모르기 때문에 「아는 것만 통과」로 둔다
@@ -49,8 +51,7 @@ def _detail(**over):
     d = {
         'dmstOvsDvDvsCd': 'DMST',      # 국내배송
         'dmstOvsDvDvsCdNm': '국내배송',
-        'spdSlStatCd': 'SALE',         # 판매중
-        'spdSlStatCdNm': '판매중',
+        'slStatCd': 'SALE',            # 판매중
         'itmLst': [{'sitmNm': '기본', 'slPrc': 10000, 'stkQty': 1}],
     }
     d.update(over)
@@ -116,7 +117,7 @@ def test_본보기가_판매중이_아니면_막는다(market_boundary):
     """판매종료·품절 본보기는 롯데온이 지울 수 있다 — 그 배치가 통째로 조용히 죽는다."""
     from lemouton.registration import send_more as SM
     calls, set_detail = market_boundary
-    set_detail(_detail(spdSlStatCd='END', spdSlStatCdNm='판매종료'))
+    set_detail(_detail(slStatCd='END'))
 
     with pytest.raises(PrereqError) as e:
         SM._register_lotteon(_spec())

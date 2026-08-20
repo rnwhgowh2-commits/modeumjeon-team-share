@@ -26,7 +26,7 @@ END 를 고른 이유: SOUT(품절)은 재고 수치에 연동된 상태라, 이
   str(resp.get("returnCode")) in ("0000", "SUCCESS")), register_product 의 「함정2」
   (최상위 0000 이어도 data[] 항목별 resultCode 가 실패일 수 있음, 같은 spdLst 래퍼
   구조)와 동일한 위험을 안고 있다. 그래서 11번가와 같은 패턴으로 get_product_detail
-  재조회(spdSlStatCd == 'END' 확인)를 추가한다. get_product_detail 은 이미
+  재조회(slStatCd == 'END' 확인)를 추가한다. get_product_detail 은 이미
   _register_lotteon 안에서 본보기 조회용으로 top-of-function import 돼 있으므로
   재사용한다(별도 로컬 import 불필요).
 """
@@ -35,7 +35,7 @@ from unittest.mock import MagicMock, patch
 from lemouton.registration.send_more import _register_lotteon
 
 _TEMPLATE = {
-    'dmstOvsDvDvsCd': 'DMST', 'spdSlStatCd': 'SALE',
+    'dmstOvsDvDvsCd': 'DMST', 'slStatCd': 'SALE',
     'itmLst': [{'itmImgLst': [{'origImgFileNm': 'old.jpg'}]}],
 }
 _SPEC = {
@@ -62,7 +62,7 @@ def test_register_lotteon_calls_set_sale_status_after_success(monkeypatch):
          patch('shared.platforms.lotteon.products.set_sale_status') as mock_status:
         mock_detail.side_effect = [
             dict(_TEMPLATE),              # ① 본보기 조회
-            {'spdSlStatCd': 'END'},       # ② 판매종료 재조회 검증
+            {'slStatCd': 'END'},          # ② 판매종료 재조회 검증
         ]
         mock_status.return_value = True
         result = _register_lotteon(dict(_SPEC), '')
@@ -114,7 +114,7 @@ def test_register_lotteon_marks_suspend_failed_when_reverify_still_on_sale(monke
 
     set_sale_status 는 최상위 returnCode 만 보고 boolean 을 만든다 — register_product
     의 「함정2」(최상위 0000 이어도 항목별 resultCode 는 실패일 수 있음)와 같은 위험을
-    안고 있어, get_product_detail 로 spdSlStatCd 를 재조회 확인해야 이 「거짓 성공」을
+    안고 있어, get_product_detail 로 slStatCd 를 재조회 확인해야 이 「거짓 성공」을
     잡을 수 있다.
     """
     fake_client = MagicMock()
@@ -128,7 +128,7 @@ def test_register_lotteon_marks_suspend_failed_when_reverify_still_on_sale(monke
          patch('shared.platforms.lotteon.products.set_sale_status', return_value=True):
         mock_detail.side_effect = [
             dict(_TEMPLATE),
-            {'spdSlStatCd': 'SALE'},   # 거짓 성공 — 여전히 판매중
+            {'slStatCd': 'SALE'},   # 거짓 성공 — 여전히 판매중
         ]
         result = _register_lotteon(dict(_SPEC), '')
 
