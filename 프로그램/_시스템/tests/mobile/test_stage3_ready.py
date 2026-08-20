@@ -743,8 +743,10 @@ def test_표_처리_구조가_박혀있다():
         'market-send: 첫 열(소싱처) 붙박이가 없다'
     assert 'background: var(--surface, #fff);' in ms, \
         'market-send: 붙박이 열에 밑칠이 없다 — 밀린 칸 글자가 비쳐 보인다'
-    assert '.flb { min-width: 0; flex-basis: 100%;' in ms, \
-        'market-send: 필터 이름표 고정폭(158px)이 폰에서 안 풀린다'
+    # 2026-08-19 조건검색 3분류 개편 — 옛 .flb(단일줄 이름표) 대신 .g3-row 가
+    # 폰에서 세로 라벨+줄 구조를 1단으로 접는다(같은 목적: 고정폭이 폰을 안 짓누름).
+    assert '.g3-row { grid-template-columns: 1fr; }' in ms, \
+        'market-send: 조건검색 이름표 칸(104px 고정)이 폰에서 안 풀린다'
     # 자동화: zoom 해제 + 두 카드 세로 접힘 + 표 4벌 스크롤 + 보고서 팝업 폭
     au = _media_body(_template('automation/index.html'))
     assert '.au-wrap { zoom: 1; }' in au, \
