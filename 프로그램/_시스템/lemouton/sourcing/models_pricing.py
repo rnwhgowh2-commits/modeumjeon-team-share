@@ -121,6 +121,14 @@ def calc_auto_price(
 ) -> tuple[int, dict]:
     """판매가 = 원가 × (1 + 마진율) × (1 + 수수료율) + 배송비.
 
+    🔴 [2026-08-13] **즉시할인을 모른다 — 새로 쓰지 마라.**
+      할인은 가공정책에 있는데 이 함수는 마진율·수수료율 숫자만 받아
+      정책을 볼 길이 없다. 그래서 판매자 부담 할인이 걸린 상품에서
+      **실제 업로드가보다 낮은 값**을 돌려준다.
+      지금 남은 호출처는 `/api/options/<sku>/price-calc` 하나뿐이고
+      화면 어디서도 부르지 않는다(전수 확인). 정책이 있는 자리에서는
+      `unified.compute_market_price` 를 쓴다.
+
     [ai-workflow Phase 1 — 가격 계산기 통합]
     실제 계산은 lemouton.pricing.unified.compute_sale_price_unified 에 위임한다.
     가격 계산이 3곳(스케줄러·매트릭스·재고관리)으로 흩어져 값이 어긋나던 것을

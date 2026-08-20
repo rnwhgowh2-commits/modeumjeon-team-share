@@ -45,8 +45,12 @@ COUPANG_DEFAULT_WON = 100
 COUPANG_OBSERVED_OK_PCT = 1.0      # 통과가 확인된 최저 비율(1.09% → 보수적으로 1.0)
 
 #: 화면·로그에 쓸 안내 — 나머지 마켓은 왜 안 나가는지 말한다(조용한 무시 금지)
-UNSUPPORTED_NOTE = ('이 마켓은 즉시할인을 보낼 자리를 아직 못 찾았습니다 — '
-                    '저장은 되지만 마켓으로 나가지 않습니다.')
+#: 🔴 [2026-08-13] 「나가지 않습니다」만 말하면 사장님이 **안 적으신다.** 그런데 이
+#:   값은 이제 판매가 계산에 들어간다 — 안 적으면 마켓에 걸린 할인만큼 그대로 손해다.
+UNSUPPORTED_NOTE = ('이 마켓은 즉시할인을 **마켓으로 보낼** 자리를 아직 못 찾았습니다 — '
+                    '할인은 마켓 관리자 화면에서 직접 거셔야 합니다. 다만 여기 적으신 '
+                    '값은 **판매가 계산에 들어갑니다**(판매자 부담만큼 판매가를 올려 '
+                    '잡습니다). 걸어 두신 할인이 있으면 꼭 적어 주세요.')
 
 _UNITS = ('WON', 'PERCENT')
 
@@ -107,6 +111,48 @@ def warn_for(market: str, discount, sale_price) -> str | None:
             f'판매가 {price:,}원의 {pct:.2f}% 입니다. '
             f'라이브 실측에서 0.07%는 거부([CIE06] 할인이 너무 작거나 너무 큽니다), '
             f'1.09%는 통과했습니다. 그래도 보내 볼 수 있습니다.')
+
+
+def seller_share(price_cfg) -> tuple[str, float]:
+    """(단위, **판매자가 실제로 내는 몫**) — 판매가를 올려 잡을 근거는 이것뿐이다.
+
+    사장님 확정(2026-08-13): 마진 기준가 = 판매가 − **판매자 부담** 할인액.
+    마켓이 같이 내는 몫은 우리 수입이라 빼지 않는다.
+
+    🔴 이 규칙은 **여기 한 곳에만** 둔다. 실제 업로드가(`resolve_market_policy`)와
+      사장님이 보는 미리보기(`policy/preview.py`)가 각자 계산하면 두 화면이 갈리고,
+      이 저장소에서 그건 곧 금전 사고다.
+
+    🔴 모를 땐 **판매자 부담**으로 본다 — 「마켓 부담」으로 잘못 보면 판매가를
+      안 올려 그대로 손해가 난다. 반반인데 몫을 안 적은 경우도 마찬가지다.
+
+    Args:
+        price_cfg: 가공정책 「판매가」 항목 그대로
+            (`discount_unit` · `discount_value` · `discount_burden` ·
+             `discount_burden_pct`).
+
+    Returns:
+        (단위, 우리 몫). 할인이 아니면 (단위, 0.0).
+    """
+    cfg = price_cfg or {}
+    # 🔴 「할인인가」 판정은 `discount_of` 하나로 — 여기서 다시 쓰면 판정이 갈린다.
+    got = discount_of({'price': cfg})
+    if not got:
+        return (str(cfg.get('discount_unit') or 'WON').upper(), 0.0)
+
+    unit, value = got['unitType'], float(got['value'])
+    burden = str(cfg.get('discount_burden') or 'seller').lower()
+    if burden == 'market':
+        return (unit, 0.0)                  # 우리가 내는 몫이 없다 → 안 올린다
+    if burden == 'split':
+        pct = cfg.get('discount_burden_pct')
+        try:
+            if pct is not None:
+                return (unit, value * (float(pct) / 100.0))
+        except (TypeError, ValueError):
+            pass
+        return (unit, value)                # 몫을 안 적었다 → 보수적으로 전액
+    return (unit, value)                    # seller(기본)
 
 
 def problem_for(market: str, discount) -> str | None:

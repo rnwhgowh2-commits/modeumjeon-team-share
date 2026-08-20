@@ -240,7 +240,16 @@ def compute_margin_amount(price_result, final_purchase_price) -> int | None:
     if fee_rate is None:
         return None
     shipping = int(bd.get("shipping_fee") or 0)
-    net = (int(upload) - shipping) * (1.0 - float(fee_rate))
+    # 🔴 [2026-08-13] **우리 수입 기준가**로 잰다 = 판매가 − 판매자 부담 할인.
+    #   판매자 부담 할인이 있으면 표시 판매가(final_price)와 기준가(net_basis_price)가
+    #   갈린다. 표시가로 재면 마진이 크게 부풀고(스스 20% 기준 +5,573 → +19,466),
+    #   그 숫자가 역마진 가드의 입력이라 **적자 상품이 조용히 통과한다.**
+    #   할인이 없으면 두 값이 같아 지금과 한 원도 다르지 않다.
+    #   🔴 고객이 내는 값과는 다르다 — 마켓이 같이 부담한 몫은 우리에게 들어온다.
+    charged = bd.get("net_basis_price")
+    if charged is None:
+        charged = upload          # 옛 결과(기준가 없음) — 할인 없던 시절과 같다
+    net = (int(charged) - shipping) * (1.0 - float(fee_rate))
     return int(round(net)) - int(final_purchase_price)
 
 

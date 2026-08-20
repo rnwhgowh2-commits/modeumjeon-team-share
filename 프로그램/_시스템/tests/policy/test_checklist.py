@@ -180,10 +180,27 @@ def test_build_marks_lotteon_as_evidence_missing():
     assert lotteon["counts"]["todo"] >= 10
 
 
+def _stored_column(market="smartstore"):
+    """지금 **저장만**인 열 하나를 골라 준다 — (열번호, 이름).
+
+    🔴 표본을 손으로 박아 두면 배선이 이어질 때마다 이 시험이 낡는다. 실제로
+      4번(카테고리)·16번(원산지)이 차례로 「나감」이 되면서 두 번 옮겼다.
+      셋째 번은 없게, **지금 상태에서 골라** 쓴다. (「저장만인 칸에 검증완료가
+      달리면 알린다」가 이 시험의 뜻이지, 「어느 항목이 저장만인가」가 아니다.)
+    """
+    for col in C.load_columns():
+        if not (col.get("specs") or {}).get(market):
+            continue
+        if C.cell_state(market, col) == C.STORED:
+            return col["col"], col["name"]
+    pytest.fail("저장만인 열이 하나도 없다 — 표본을 고를 수 없다")
+
+
 def test_drift_flags_verified_on_something_that_never_goes_out():
     """🔴 조용한 통과 금지 — 나가지도 않는 값에 「검증완료」가 달려 있으면 알린다."""
-    problems = C.drift({"smartstore:4": {"verified": "2026-08-12"}})   # 4 = 카테고리(저장만 됨)
-    assert problems and "카테고리" in problems[0]
+    n, name = _stored_column()
+    problems = C.drift({f"smartstore:{n}": {"verified": "2026-08-12"}})
+    assert problems and name in problems[0], f"{n}번({name}) 을 안 짚었다: {problems}"
 
 
 def test_drift_silent_when_marks_are_sane():
@@ -273,7 +290,8 @@ def test_cells_without_a_program_field_say_none_not_blank():
 def test_verified_is_only_carried_on_done_cells(monkeypatch):
     """🔴 초록이 아닌 칸에 날짜가 실리면 화면이 「반쯤 검증됨」으로 읽힌다."""
     from lemouton.policy import checklist as CK
-    seeded = {"smartstore:4": {"verified": "2026-08-12"},   # 저장만 됨(카테고리)
+    저장만, _이름 = _stored_column()                        # 지금 저장만인 열을 고른다
+    seeded = {f"smartstore:{저장만}": {"verified": "2026-08-12"},
               "lotteon:6": {"verified": "2026-08-12"},      # 해당없음
               "coupang:13": {"verified": "2026-08-12"},     # 불가
               "smartstore:5": {"verified": "2026-08-12"}}   # 나감 → 검증완료
@@ -281,7 +299,7 @@ def test_verified_is_only_carried_on_done_cells(monkeypatch):
                         lambda name="dev_checklist_marks.json": (seeded, ""))
     cells = CK.build()["cells"]
     assert cells["smartstore:5"]["verified"] == "2026-08-12"
-    for k in ("smartstore:4", "lotteon:6", "coupang:13"):
+    for k in (f"smartstore:{저장만}", "lotteon:6", "coupang:13"):
         assert cells[k]["verified"] == "", f"{k} 에 날짜가 실렸다 ({cells[k]['state']})"
 
 
@@ -689,3 +707,32 @@ def test_all_eight_crawlers_are_registered_today():
     """오늘의 사실을 못 박는다 — 하나라도 빠지면 그 소싱처는 아무것도 시작 안 된 것이다."""
     for key, label in C.SOURCES:
         assert C._crawler_registered(key), f"{label}({key}) 크롤러가 build_crawlers 에 없다"
+
+
+def test_discount_column_does_not_borrow_the_price_wiring():
+    """🔴 한 항목에 여러 열이 붙는다 — 판매가(5열)와 할인가/쿠폰(6열)이 둘 다 `price` 다.
+
+    항목으로만 배선을 보면 **할인 열이 판매가의 초록불을 빌려 쓴다.**
+    실측(2026-08-13): 6마켓 중 5곳이 「나감」으로 떴는데 할인은 어디로도 안 나갔다.
+
+    ⚠️ 그 뒤 main(#1018)이 **쿠팡만** 실제로 뚫었다(즉시할인쿠폰). 그래도 상태는
+      「저장만」이 맞다 — 여섯 중 하나만 나가는데 「나감」으로 적으면 나머지
+      다섯이 조용히 묻힌다. 안내가 그 사실을 정확히 말하는지도 함께 본다.
+    """
+    cells = C.build()["cells"]
+    for mk in ("coupang", "smartstore", "eleven11", "auction", "gmarket"):
+        c = cells[f"{mk}:6"]
+        assert c["wiring"] != "wired", f"{mk} 할인 열이 아직 「나감」이다: {c['wiring_note']}"
+        note = c["wiring_note"]
+        assert "판매가 계산" in note, f"{mk} 할인 열 설명이 판매가 것이다: {note}"
+        # 🔴 어디로 나가고 어디로 안 나가는지 **둘 다** 말해야 한다
+        assert "쿠팡" in note and "못 찾았습니다" in note, \
+            f"{mk} 나가는 곳/안 나가는 곳을 안 가른다: {note}"
+    # 판매가(5열)는 그대로 나가야 한다 — 같이 죽이면 안 된다
+    assert cells["smartstore:5"]["wiring"] == "wired"
+
+
+def test_column_may_point_at_a_different_wiring_than_its_item():
+    """열이 `wiring_item` 을 선언하면 그걸 쓰고, 없으면 항목 이름을 쓴다."""
+    assert C._wiring_key({"item": "price", "wiring_item": "discount"}) == "discount"
+    assert C._wiring_key({"item": "price"}) == "price"

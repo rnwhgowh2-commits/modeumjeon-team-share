@@ -744,6 +744,35 @@ def _apply_lightweight_migrations() -> None:
                 except Exception as e:  # noqa: BLE001
                     _log.warning('[색인] %s 생성 실패 — 찾기가 느릴 수 있습니다: %s', idx, e)
 
+        # [2026-08-13 사장님 확정] 마켓 수수료 기준 두 곳을 바로잡는다.
+        #   · 롯데온 18 → 13  (18% 는 어디서도 뒷받침되지 않았다. 실정산 엑셀 86행
+        #     오차0 으로 검증된 lotteon_settlement 도 상품 요율 0.13 을 쓴다)
+        #   · 11번가 11 → 13 · 1년 이내 8 → 10  (가격비교 노출 2% 가 **미포함**이라
+        #     확인해 주셨고, 그 기능을 늘 켜므로 실제로 떼이는 값은 +2%p 다)
+        #
+        # 🔴 **옛 씨앗과 똑같을 때만** 고친다. 사장님이 화면(`/policies/fees`)에서
+        #   손수 바꿔 둔 값이 있으면 그건 그대로 둔다 — 돈에 닿는 값을 남의 뜻과
+        #   무관하게 덮어쓰면 안 된다.
+        # 🔴 씨앗(fee_defaults.SEED)만 고치면 **이미 심긴 행은 안 바뀐다.** 그래서
+        #   여기서 한 번 정정한다. 두 번 돌아도 안전하다(옛 값이 아니면 안 건드림).
+        for _mk, _old, _new, _oa, _na in (
+                ('lotteon', 18.0, 15.0, None, None),
+                ('eleven11', 11.0, 13.0, 8.0, 10.0)):
+            try:
+                conn.execute(
+                    text("UPDATE market_fee_defaults SET base_pct = :new "
+                         "WHERE market = :mk AND base_pct = :old"),
+                    {'new': _new, 'old': _old, 'mk': _mk})
+                if _oa is not None:
+                    conn.execute(
+                        text("UPDATE market_fee_defaults SET alt_pct = :na "
+                             "WHERE market = :mk AND alt_pct = :oa"),
+                        {'na': _na, 'oa': _oa, 'mk': _mk})
+            except Exception as e:      # noqa: BLE001
+                # 조용히 넘어가지 않는다 — 안 고쳐졌으면 판매가가 옛 요율로 나간다.
+                _log.warning('[수수료] %s 기준 정정 실패 — 화면에서 직접 고쳐 주세요: %s',
+                             _mk, e)
+
         # ESM 주문조회 5초/1회 스로틀을 gunicorn 워커 3개가 공유하기 위한 테이블.
         #   '다음 허용 시각(epoch)'을 계정 키별로 한 행에 둔다. 인메모리 dict 는
         #   프로세스 간 공유가 안 돼 3000('불러오지 못했어요')의 원인이었다(2026-07-22).
