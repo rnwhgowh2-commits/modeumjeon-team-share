@@ -174,9 +174,16 @@ FIXED['gmarket'] = list(_ESM_FIXED)
 
 #: 마켓과 무관하게 초안(상품) 기본값이 그대로 나가는 것
 COMMON_DEFAULTS: list = [
-    Fixed('고시 유형', '의류', FROM_DEFAULT,
-          'registration/models.py:43', 'notice',
-          '🔴 모음전 경로에서는 신발·가방도 「의류」 고시로 나갑니다.'),
+    # [2026-08-20] 이어졌다 — 전에는 모음전 경로가 notice_type 을 전혀 채우지 않아
+    #   신발·가방도 전부 「의류」로 나갔다. 이제 source_category_path 텍스트로
+    #   신발·가방을 판정해 자동으로 채운다(send/as_draft.py::upsert →
+    #   registration/notice_type_guess.guess_notice_type). 패션잡화(벨트·모자 등)
+    #   는 판정하지 않는다(범위 밖 — 모듈 docstring 참고).
+    Fixed('고시 유형', '의류(신발·가방은 자동 판정)', FROM_DEFAULT,
+          'send/as_draft.py:notice_type_guess (registration/models.py:43 기본값)',
+          'notice',
+          '카테고리 텍스트로 신발·가방을 판정하지 못하면(애매하거나 패션잡화 등)'
+          ' 여전히 「의류」로 나갑니다 — 잘못 단정하는 것보다 안전하기 때문입니다.'),
     Fixed('배송비', '3,000원', FROM_DEFAULT,
           'registration/models.py:54', 'shipping',
           '정책에서 정하면 그 금액이 나갑니다 — 안 정하면 이 값입니다.',
