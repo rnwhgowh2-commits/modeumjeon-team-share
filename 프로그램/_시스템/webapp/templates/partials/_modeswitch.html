@@ -1,0 +1,13 @@
+{# 모드 전환 카드 — 3 사이드바가 공유하는 단일 원천. 개별 사이드바에 복제 금지. #}
+<div class="sb-modeswitch">
+  <a href="/" class="sb-mode {% if active_app == 'bundles' %}on{% endif %}">
+    <span class="sb-mode-ic" data-icon-edit="mode|bundles" data-icon-current="{{ sidebar_mode_icons.bundles.emoji }}" data-icon-label="모음전 모드"{% if sidebar_mode_icons.bundles.color %} style="color:{{ sidebar_mode_icons.bundles.color }}"{% endif %}>{{ sidebar_mode_icons.bundles.emoji }}</span>
+    <span class="sb-mode-nm">모음전</span>
+  </a>
+  {# [2026-07-30] 모드 전환은 「모음전 ↔ 대량등록」 2개로. 재고관리는 사이드바 ⑦ 항목으로 내려감
+     (사장님 확정). 재고관리 화면에서는 자기 사이드바가 「재고관리 모드」임을 따로 표시한다. #}
+  <a href="{{ samba_wave_url or '/bulk/' }}" class="sb-mode {% if active_app == 'bulk' %}on{% endif %}">
+    <span class="sb-mode-ic" data-icon-edit="mode|bulk" data-icon-current="{{ sidebar_mode_icons.bulk.emoji }}" data-icon-label="대량등록 모드"{% if sidebar_mode_icons.bulk.color %} style="color:{{ sidebar_mode_icons.bulk.color }}"{% endif %}>{{ sidebar_mode_icons.bulk.emoji }}</span>
+    <span class="sb-mode-nm">대량등록</span>
+  </a>
+</div>

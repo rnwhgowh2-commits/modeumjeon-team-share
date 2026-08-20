@@ -11,16 +11,54 @@
 - **목적**: 팀 공유 (현재 2명, 향후 5명) 가능한 멀티유저 재고·모음전·소싱·발주 관리 시스템
 - **데이터 모델**: 팀 전체가 같은 데이터 공유 (per-user 분리 ❌)
 - **권한**: admin / member 2단계
-- **개발·배포**: `C:\dev\모음전 프로젝트` 단독 개발 → GitHub Actions → Fly.io 자동 배포
+- **개발·배포**: `C:\dev\모음전 프로젝트` 단독 개발 → GitHub Actions → AWS Lightsail 자동 배포
+
+## 🔒 데이터 정합성 3대 원칙 (절대 규칙 · 2026-07-03 사용자 못 박음 · 예외 없음)
+
+> 최상위 도메인 규칙. 위반 = 금전 손실·계정 위험. 상세·코드 매핑은 크롤링 가이드 §4([`/sourcing-guide/map`](/) 1번 전체흐름 탭 · 정본 `docs/크롤링-가이드.md`).
+
+1. **재고 기준 = 소싱처 "실제 상품 브라우저 URL"의 재고.** 추정·폴백·평균 금지 — 그 URL 상품 페이지의 **실제 데이터로만** 확인·판정. 확인 못 하면 **"확인 불가"로 표기**(있다고 단정 금지).
+2. **가격 기준 = 위와 동일하게 실브라우저 소싱처 상품 URL이 기준.** 표면노출가·최종매입가 모두 그 URL 실값으로 확인. 매칭·크롤 실패 시 대표가(평균·최저) **폴백 금지** → "가격 없음 + 크롤 실패" 표면화.
+3. **크롤은 서버가 아닌 로컬 PC로 한다.** 크롤 = 로컬(크롬 확장 / Playwright), 업로드 = 서버. "서버 크롤 실패"는 설계상 정상이지 버그가 아니다.
 
 ## 🌐 인프라
 
 - **DB**: Supabase PostgreSQL (무료 티어, 500MB)
-- **호스팅**: Fly.io (Flask 웹앱, 도쿄 리전)
+- **호스팅**: AWS Lightsail (Flask 웹앱) — Cloudflare ▶ Caddy(:80 상시) ▶ 앱 컨테이너 무중단 교체.
+  라이브 도메인 `https://mou-m.com`. **Fly.io 는 더 이상 쓰지 않는다**(2026-08-01 사장님 확정 — `fly.toml` 은 잔재).
+  - ⚠️ **앱 컨테이너 안 `data/` 는 배포마다 사라진다** (호스트 마운트는 `/data/secrets` 하나뿐).
+    배포를 견뎌야 하는 상태 파일은 `shared/state_store.py` 의 `state_path()` 를 쓸 것.
 - **크롤러**: 사용자 PC 에서 실행 (Playwright) → Supabase 에 결과 푸시 (Plan A 하이브리드)
 - **알림**: 토스트 알림 (당분간) → Telegram 봇 (나중)
 
+## 🔀 Git/GitHub 작업 흐름 (필독 — 모든 코드 변경 공통 · 2026-08-19 확정)
+
+> 절차 정본 = `.claude/skills/git-issue-flow/SKILL.md` (여긴 요약만). add-source·update-data-code-map 등 다른 스킬의 "브랜치 생성"·"PR·머지" 단계도 전부 이 스킬을 참조한다.
+
+- **main 직접 push 금지.** 항상 origin/main 기준 이슈 브랜치에서 작업 → push → PR 생성 → **사용자 확인 후에만 merge**. merge 시점에 push-to-main이 AWS 자동배포를 트리거한다.
+- **세션 시작 시 main을 자동으로 최신화**한다 (`.claude/settings.json`의 SessionStart 훅). 브랜치 생성 직전에도 한 번 더 `git pull origin main` 확인.
+- 각 단계(브랜치 생성/push/PR 생성/머지)마다 무엇을/왜 했는지 1~2줄로 짧게 보고한다.
+- 예외(긴급 핫픽스 등)로 main 직접 push가 필요하면, 사용자가 명시적으로 그렇게 지시할 때만 따른다.
+
+## 🗺️ 크롤링·가격·재고 작업 시 (필독 — 방향 복귀 정본)
+
+> 소싱처 **크롤링·재고·가격(표면노출가−혜택=최종매입가)·매트릭스 표시** 관련 작업을 시작하기 전,
+> **먼저 [`프로그램/_시스템/docs/크롤링-가이드.md`](프로그램/_시스템/docs/크롤링-가이드.md)를 그대로 읽고** 방향을 잡는다.
+> 이 문서가 단일 진실 원천(데이터 흐름 4층·소싱처별 수집 로직·핵심 코드 파일:라인·무결성 원칙·재발 문제 체크리스트).
+> 인앱에서도 같은 문서를 본다: `/sourcing-guide/map` (렌더) · `/sourcing-guide/map.md` (원문).
+> 코드를 고쳤으면 이 정본의 해당 `💻` 블록·소싱처 표도 같이 갱신한다.
+
+## 🗺️ 판매처(마켓) API 작업 시 (필독 — 전수정독 게이트)
+
+> 판매처 **API 연동·가격·재고·주문·정산·클레임·송장** 작업 시작 전 **`consult-market-map` 스킬을 먼저 발동**한다.
+> 절차·브리핑 경로·되채움 원칙의 정본 = `.claude/skills/consult-market-map/SKILL.md` (여긴 포인터만).
+> 사장님이 **"판매처관리(또는 소싱처관리) 업데이트 해줘"** 라고 하면 = 지도 자체 최신화 → **`update-data-code-map` 스킬** (되묻기 금지, 정본 = `.claude/skills/update-data-code-map/SKILL.md`).
+
 ## ✅ 검증
 
-- DB 스키마 변경 시 Alembic 마이그레이션 생성 → Supabase 적용
+- **DB 스키마 변경 (Alembic 은 이 저장소에 없다 — 2026-07-10 확인)**
+  - 신규 **테이블** → `shared/db.py:init_db()` 의 `Base.metadata.create_all` 이 생성한다.
+    단 **모델 모듈을 `app.py` 가 import 해야** 등록된다 (`import lemouton.xxx.models  # noqa: F401`).
+  - 기존 테이블의 신규 **컬럼** → `shared/db.py:_apply_lightweight_migrations()` 의
+    `migrations` 리스트에 `(table, column, dtype)` 추가.
 - 데이터 무결성: 중복·모순 절대 금지 (가격·재고 오류 = 금전 손실)

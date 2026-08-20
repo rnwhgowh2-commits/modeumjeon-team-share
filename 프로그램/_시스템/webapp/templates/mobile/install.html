@@ -1,0 +1,104 @@
+{% extends "mobile/_base.html" %}
+{% block title %}앱 설치{% endblock %}
+
+{#
+  [2026-08-04] 설치 안내 — 팀원에게는 이 주소만 보내고 말로 안 잡아 준다.
+  그래서 "적어 둔 대로만 따라 해도 끝나야" 한다.
+
+  🔴 아이폰은 설치 버튼을 띄울 방법이 **없다**. beforeinstallprompt 는 사파리에
+     아예 없는 이벤트라, 아이폰 쪽은 처음부터 끝까지 손으로 하는 절차를 글로
+     적어 주는 것 말고 길이 없다. 아래 두 칸이 다른 이유가 이것이다.
+#}
+
+{% block content %}
+<div id="mobile-install">
+
+  {# 판정 전에는 숨어 있어야 한다 — 평범하게 웹으로 보는 분께 「이미 설치됐다」고
+     말해 버리면 이 화면이 통째로 쓸모없어진다. 그래서 기본값이 display:none 이고,
+     판정이 죽으면 '안 보이는' 쪽으로 넘어진다. #}
+  <div id="mi-done" class="m-card"
+       style="padding:14px;margin-bottom:14px;display:none;background:#F0FDF4;border:1px solid #BBF7D0">
+    <b style="color:#15803D"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 이미 앱으로 실행 중입니다</b>
+    <div style="font-size:12px;color:#4B5563;margin-top:4px">
+      설치가 끝났습니다. 홈 화면 아이콘으로 열고 계십니다.
+    </div>
+  </div>
+
+  <div id="mi-iphone" class="m-card" style="padding:16px;margin-bottom:12px">
+    <div style="font-weight:800;font-size:16px;margin-bottom:10px"><i class="ph-light ph-apple-logo" aria-hidden="true"></i> 아이폰</div>
+    {# id 가 붙은 이유 — 시험이 **따라 하는 단계**만 본다. 아래 보충 설명에도
+       '사파리'·'홈 화면에 추가'가 나오는데, 칸 전체를 보면 단계에서 그 말이 사라져도
+       보충 설명이 낱말을 대 줘서 시험이 통과해 버린다(변이 시험에서 실제로 놓쳤다). #}
+    <ol id="mi-iphone-steps" style="margin:0;padding-left:18px;font-size:14px;line-height:2">
+      {# 보충 설명에서 '사파리'·'홈 화면에 추가'를 되풀이하지 않는다 —
+         한 단계를 통째로 지워도 옆 문장이 낱말을 대 주면 시험이 못 잡는다. #}
+      <li><b style="color:#DC2626">사파리</b>로 <code>mou-m.com</code> 접속<br>
+        <span style="font-size:12px;color:var(--n500,#8B95A1)">크롬·엣지로도 되지만(iOS 16.4 이상) 메뉴 생김새가 달라 아래 그대로는 안 됩니다</span></li>
+      <li>화면 <b>아래 가운데 공유 버튼</b>(네모에 위 화살표) 누르기</li>
+      <li>목록을 <b>아래로 내려</b> <b>"홈 화면에 추가"</b> 누르기</li>
+      <li>오른쪽 위 <b>"추가"</b> 누르면 끝</li>
+    </ol>
+    <div style="font-size:12px;color:var(--n500,#8B95A1);line-height:1.7;margin-top:10px">
+      {# '아이폰'은 위 제목에 한 번만 — 여기서 되풀이하면 제목을 지워도 시험이 못 잡는다 #}
+      설치를 대신 눌러 드릴 수 없습니다 — 위 4단계가 유일한 방법입니다.<br>
+      홈 화면 아이콘으로 처음 열면 <b>로그인을 한 번 더</b> 해야 할 수 있습니다.
+    </div>
+  </div>
+
+  <div id="mi-android" class="m-card" style="padding:16px;margin-bottom:12px">
+    <div style="font-weight:800;font-size:16px;margin-bottom:10px"><i class="ph-light ph-robot" aria-hidden="true"></i> 안드로이드</div>
+    <ol id="mi-android-steps" style="margin:0;padding-left:18px;font-size:14px;line-height:2">
+      <li>크롬으로 <code>mou-m.com</code> 접속</li>
+      <li>아래에 <b>"앱 설치"</b> 안내가 저절로 뜨면 누르기</li>
+      <li>안 뜨면 오른쪽 위 <b>⋮</b> → <b>"앱 설치"</b> 또는 <b>"홈 화면에 추가"</b></li>
+    </ol>
+    {# 처음엔 숨어 있고 beforeinstallprompt 가 올 때만 나타난다.
+       그 이벤트는 아이폰엔 없고, 이미 설치했거나 조건이 안 맞으면 안드로이드에서도
+       안 온다 → '눌러도 아무 일 없는 버튼'이 남지 않게 기본값이 숨김이다.
+       되살릴 때 쓰는 'flex' 는 _base.html 의 .m-action-btn 이 실제로 쓰는 값이다
+       (세로 flex 라 block 으로 되살리면 가운데 정렬이 깨진다).
+       min-height 는 격자 타일용 110px 을 이 한 줄짜리 버튼에 맞게 줄인 것. #}
+    <button id="mi-prompt" class="m-action-btn primary"
+            style="width:100%;margin-top:12px;min-height:52px;padding:14px 12px;display:none">
+      지금 설치하기
+    </button>
+    <div style="font-size:12px;color:var(--n500,#8B95A1);line-height:1.7;margin-top:10px">
+      삼성 인터넷은 아래 <b>≡</b> → <b>"현재 페이지 추가"</b> → <b>"홈 화면"</b> 입니다.
+    </div>
+  </div>
+
+  <p style="font-size:12px;color:var(--n500,#8B95A1);line-height:1.8;padding:0 4px">
+    설치하면 주소창 없이 앱처럼 열립니다. 팀원에게는 <b>이 주소</b>만 알려주면 됩니다.
+  </p>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+(function () {
+  const standalone = window.matchMedia('(display-mode: standalone)').matches
+                  || window.navigator.standalone === true;
+  if (standalone) document.getElementById('mi-done').style.display = 'block';
+
+  // 안드로이드 크롬 — 설치 배너를 우리 버튼으로 띄운다
+  let deferred = null;
+  const $btn = document.getElementById('mi-prompt');
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    if (!standalone) $btn.style.display = 'flex';
+    // _base.html 의 공용 배너(#install-banner)도 같은 이벤트로 뜬다. 이 화면에서는
+    // 카드 위에 겹칠 뿐이고, 게다가 prompt() 는 한 번만 부를 수 있어 둘 다 누르면
+    // 두 번째가 조용히 실패한다. 그래서 이 화면에서만 접어 둔다(공용 코드는 안 건드림).
+    document.getElementById('install-banner')?.classList.remove('show');
+  });
+  $btn.addEventListener('click', async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice;
+    deferred = null;
+    $btn.style.display = 'none';
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,16 @@
+{
+ "respCode": "dp.clt.00001",
+ "successYn": "Y",
+ "respData": {
+  "itemPtc": {
+   "htmlItstCntnList": [
+    {
+     "slitmCd": "2225894478",
+     "htmlItstCntn": "<img src='https://ai.esmplus.com/oozootech/Lemouton/1200/notis_all.png' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/1.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/2.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/3.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/4.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/5.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/6.gif' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/7.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/8.gif' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/9.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/10.gif' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/11.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/12.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/13.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/14.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/15.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202606/mate/16.jpg' /><br /><img src='https://ai.esmplus.com/oozootech/Lemouton/202407/manual.jpg' />",
+     "htmlItstGbcd": "00"
+    }
+   ],
+   "ptcDescInfList": []
+  }
+ }
+}

@@ -11,8 +11,15 @@ from lemouton.sets.models import SetChannel
 def add_channel(session: Session, *, set_id: int, market: str,
                 account_key: Optional[str] = None) -> SetChannel:
     # account_key 는 nullable=False — None/빈값이면 'default' 로 보정(유니크 제약 보존).
-    c = SetChannel(set_id=set_id, market=market,
-                   account_key=account_key or "default")
+    key = account_key or "default"
+    existing = (
+        session.query(SetChannel)
+        .filter_by(set_id=set_id, market=market, account_key=key)
+        .first()
+    )
+    if existing is not None:
+        return existing
+    c = SetChannel(set_id=set_id, market=market, account_key=key)
     session.add(c)
     session.flush()
     return c

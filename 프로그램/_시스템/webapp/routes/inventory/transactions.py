@@ -22,6 +22,22 @@ from . import bp
 _BUNDLE_FILE = Path(__file__).resolve().parents[3] / 'data' / 'bundles.json'
 
 
+def _ledger_stock(session, skus) -> dict:
+    """SKU → **원장 기준** 재고. 스냅샷(`boxhero_stock_total`)은 쓰지 않는다.
+
+    [중요] 스냅샷은 `shared/inventory_stock.py` 머리말이 「신뢰 X」로 못 박은 값이다.
+      폰 조정 등 다른 창구가 그걸 안 고쳐 원장과 벌어진다 — 화면과 서버가 다른
+      숫자를 쓰면 「20 보고 +5 했는데 23」이 된다(2026-08-13 실측).
+    """
+    if not skus:
+        return {}
+    from shared.inventory_stock import get_stock_batch
+    try:
+        return {k: int(v or 0) for k, v in get_stock_batch(session, list(skus)).items()}
+    except Exception:   # noqa: BLE001 — 화면이 죽지 않게. 다만 0 으로 떨어뜨리지 않는다
+        return {}
+
+
 def _load_bundles_map() -> dict:
     """Bundle SKU → list[(component_sku, component_qty)] 맵."""
     if not _BUNDLE_FILE.exists():
@@ -190,13 +206,16 @@ def inbound_new():
         # * LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(options)
+        # 🔴 화면이 보여 주는 「현재 N」도 **원장** 기준이어야 한다. 스냅샷을 보여 주면
+        #   사장님이 20 을 보고 「+5」 했는데 결과가 23 이 되어(원장 18) 어긋난다.
+        _st = _ledger_stock(s, [o.canonical_sku for o in options])
         opt_data = [{
             'sku': o.canonical_sku, 'model': o.model_code,
             'name': display_pname.get(o.canonical_sku, o.canonical_sku),
             'article_no': (getattr(o.model, 'article_no', None) or '') if o.model else '',
             'color': cleaned_color.get(o.canonical_sku, 'ONE Color'),
             'size': (o.size_display or o.size_code or 'FREE'),
-            'bh': o.boxhero_sku or '', 'stock': o.boxhero_stock_total or 0,
+            'bh': o.boxhero_sku or '', 'stock': _st.get(o.canonical_sku, 0),
             'avg': o.boxhero_avg_purchase_price or 0,
             # [2부-3] 옵션 사진 — 라인·모달에서 썸네일 표시 (2부-1 그룹 사진)
             'img': getattr(o, 'image_url', '') or '',
@@ -269,13 +288,14 @@ def _opt_data_all(s, include_bundles: bool = False):
     # * LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
     from shared.product_display import compute_display_maps
     cleaned_color, display_pname = compute_display_maps(options)
+    _st = _ledger_stock(s, [o.canonical_sku for o in options])
     out = [{
         'sku': o.canonical_sku, 'model': o.model_code,
         'name': display_pname.get(o.canonical_sku, o.canonical_sku),
         'article_no': (getattr(o.model, 'article_no', None) or '') if o.model else '',
         'color': cleaned_color.get(o.canonical_sku, 'ONE Color'),
         'size': (o.size_display or o.size_code or 'FREE'),
-        'bh': o.boxhero_sku or '', 'stock': o.boxhero_stock_total or 0,
+        'bh': o.boxhero_sku or '', 'stock': _st.get(o.canonical_sku, 0),
         'avg': o.boxhero_avg_purchase_price or 0,
         'img': o.image_url or '',
         'is_bundle': False,
@@ -562,7 +582,13 @@ def adjust_create():
                 if not opt:
                     err += 1
                     continue
-                cur_stock = opt.boxhero_stock_total or 0
+                # 🔴 기준은 **원장**이다. `boxhero_stock_total` 은 수집 시점 스냅샷이라
+                #   `shared/inventory_stock.py` 머리말이 「신뢰 X」로 못 박은 값이고,
+                #   폰 조정 등 다른 창구는 그걸 안 고쳐 원장과 벌어진다.
+                #   실측: 원장 18 · 스냅샷 20 에서 「+5 습득」 → 25 (기대 23) — 없던 2개.
+                #   ± 는 「그 창고에서 몇 개 늘고 줄었나」이므로 **그 창고 기준**으로 센다.
+                from shared.inventory_stock import get_stock_batch as _gsb
+                cur_stock = int(_gsb(s, [sku], location_id=loc_id).get(sku) or 0)
                 if mode == 'plus':
                     new_qty = cur_stock + input_qty
                     line_memo = f'+{input_qty} 습득 ({memo})' if memo else f'+{input_qty} 습득'
@@ -884,6 +910,55 @@ def inventory_export():
 
 # ============ 거래 수정/삭제 (박스히어로 1:1) ============
 
+# ── 옛 조정 버그가 남긴 흔적을 세는 도구 (읽기 전용) ──────────────────────────
+#  2026-08-13 이전 `create_adjustment` 는 차이의 기준을 **전 창고 합**으로 잡았다.
+#  창고가 둘 이상이면(사장님은 사무실·로켓그로스 2곳) 한 창고 실사가 그 창고를
+#  음수로 만들고 총합에서 재고를 지웠다. 아래 둘은 **정상 운영에서 나올 수 없는** 값이다.
+
+def _음수_창고재고(session) -> list:
+    """창고별 재고가 음수인 것 — 있을 수 없는 값이다."""
+    from lemouton.inventory.models import InventoryLocation, InventoryTx
+    from shared.inventory_stock import get_stock_by_location_batch
+    skus = [r[0] for r in session.query(InventoryTx.option_canonical_sku)
+            .filter(InventoryTx.status == 'completed').distinct().all() if r[0]]
+    if not skus:
+        return []
+    이름 = {l.id: l.name for l in session.query(InventoryLocation).all()}
+    out = []
+    for sku, per in (get_stock_by_location_batch(session, skus) or {}).items():
+        for loc_id, qty in (per or {}).items():
+            if int(qty or 0) < 0:
+                out.append({"sku": sku, "location": 이름.get(loc_id, str(loc_id)),
+                            "qty": int(qty)})
+    out.sort(key=lambda r: r["qty"])
+    return out
+
+
+def _스냅샷_어긋남(session, 상한: int = 200) -> list:
+    """저장된 스냅샷(boxhero_stock_total)이 원장 합과 다른 것.
+
+    스냅샷은 「신뢰 X」라 화면이 쓰면 안 되는 값이지만, 어긋남 자체가 옛 버그의 흔적이다.
+    """
+    from lemouton.sourcing.models import Option
+    from lemouton.inventory.models import InventoryTx
+    from shared.inventory_stock import get_stock_batch
+    skus = [r[0] for r in session.query(InventoryTx.option_canonical_sku)
+            .filter(InventoryTx.status == 'completed').distinct().all() if r[0]]
+    if not skus:
+        return []
+    원장 = get_stock_batch(session, skus) or {}
+    out = []
+    for o in session.query(Option).filter(Option.canonical_sku.in_(skus)).all():
+        snap = int(o.boxhero_stock_total or 0)
+        led = int(원장.get(o.canonical_sku) or 0)
+        if snap != led:
+            out.append({"sku": o.canonical_sku, "스냅샷": snap, "원장": led,
+                        "차이": snap - led})
+    out.sort(key=lambda r: -abs(r["차이"]))
+    return out[:상한]
+
+
+
 @bp.route('/history/<int:tx_id>/edit', methods=['GET', 'POST'])
 def tx_edit(tx_id: int):
     """거래 수정 (입고서·출고서·조정서·이동서 통합).
@@ -1084,3 +1159,28 @@ def tx_statement(tx_id: int):
             tx=tx, opt=opt, mdl=mdl, loc=loc, loc_to=loc_to)
     finally:
         s.close()
+
+
+@bp.route('/diag/adjust-damage')
+def inventory_diag_adjust_damage():
+    """옛 조정 버그의 흔적을 **세기만** 한다(쓰기 없음).
+
+    창고가 둘 이상일 때 한 창고 실사가 전 창고 합을 기준으로 빠져, 그 창고가
+    음수가 되고 총합에서 재고가 지워졌다(2026-08-13 고침). 얼마나 남았는지 본다.
+    """
+    from flask import jsonify
+    from shared.db import SessionLocal
+    s = SessionLocal()
+    try:
+        음수 = _음수_창고재고(s)
+        어긋남 = _스냅샷_어긋남(s)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 200
+    finally:
+        try:
+            s.close()
+        except Exception:   # noqa: BLE001
+            pass
+    return jsonify(ok=True,
+                   음수재고건수=len(음수), 음수재고=음수[:100],
+                   스냅샷어긋남건수=len(어긋남), 스냅샷어긋남=어긋남[:100])

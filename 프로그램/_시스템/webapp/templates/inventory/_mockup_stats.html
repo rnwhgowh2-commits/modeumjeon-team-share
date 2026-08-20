@@ -3,52 +3,52 @@
 {% block content %}
 <style>
   :root{
-    --tk-primary:#3182F6; --tk-violet:#7C3AED; --tk-emerald:#10B981; --tk-orange:#FF8E3C;
-    --tk-n900:#191F28; --tk-n700:#4E5968; --tk-n600:#6B7684; --tk-n400:#9CA3AF;
-    --tk-n200:#E5E8EB; --tk-n100:#F2F4F6; --tk-n50:#F9FAFB; --tk-bg:#fff;
+    --tk-primary:var(--primary,#3182F6); --tk-violet:#7C3AED; --tk-emerald:var(--green,#10B981); --tk-orange:var(--amber,#FF8E3C);
+    --tk-n900:var(--ink,#191F28); --tk-n700:var(--글자-기본,#4E5968); --tk-n600:var(--글자-보조,#6B7684); --tk-n400:var(--faint,#9CA3AF);
+    --tk-n200:var(--line,#E5E8EB); --tk-n100:var(--n100,#F2F4F6); --tk-n50:var(--bg,#F9FAFB); --tk-bg:#fff;
     --tk-fs-h2:20px; --tk-fs-body:15px; --tk-fs-caption:12px; --tk-fs-micro:10.5px;
     --tk-w-reg:400; --tk-w-mid:600; --tk-w-bold:700;
     --tk-sp-1:4px; --tk-sp-2:8px; --tk-sp-3:12px; --tk-sp-4:16px; --tk-sp-6:24px; --tk-sp-8:32px;
   }
-  .mockup-frame{width:1920px;height:1080px;background:#fff;margin:0 auto;border:1px solid var(--tk-n200);
-                box-shadow:0 4px 24px rgba(0,0,0,0.06);overflow:hidden;display:flex;flex-direction:column}
+  .mockup-frame{width:1920px;height:1080px;background:var(--surface,#ffffff);margin:0 auto;border:1px solid var(--tk-n200);
+                overflow:hidden;display:flex;flex-direction:column}
   .mockup-tabs{display:flex;gap:0;border-bottom:2px solid var(--tk-n200);background:var(--tk-n50);padding:0 24px;flex-shrink:0}
-  .mockup-tab{padding:14px 22px;font-size:var(--tk-fs-body);font-weight:var(--tk-w-mid);color:var(--tk-n600);
+  .mockup-tab{padding:12px 24px;font-size:var(--tk-fs-body);font-weight:var(--tk-w-mid);color:var(--tk-n600);
               border-bottom:3px solid transparent;cursor:pointer;background:none;border:none;outline:none}
   .mockup-tab.active{color:var(--tk-primary);border-bottom-color:var(--tk-primary)}
-  .mockup-tab .pill{background:var(--tk-n200);color:var(--tk-n700);padding:1px 7px;border-radius:8px;
-                    font-size:10.5px;margin-left:6px;font-weight:var(--tk-w-mid)}
+  .mockup-tab .pill{background:var(--tk-n200);color:var(--tk-n700);padding:0px 8px;border-radius:8px;
+                    font-size:12px;margin-left:4px;font-weight:var(--tk-w-mid)}
   .mockup-tab.active .pill{background:var(--tk-primary);color:#fff}
-  .mockup-pane{display:none;padding:40px 56px;flex:1;overflow:auto;background:var(--tk-n50)}
+  .mockup-pane{display:none;padding:32px 48px;flex:1;overflow:auto;background:var(--tk-n50)}
   .mockup-pane.active{display:block}
-  .pane-title{font-size:14px;color:var(--tk-n600);margin-bottom:18px;font-weight:var(--tk-w-mid)}
-  .pane-title strong{color:var(--tk-n900);font-weight:var(--tk-w-bold);font-size:16px}
-  .pane-title .badge{background:#EFF6FF;color:var(--tk-primary);padding:2px 8px;border-radius:10px;
-                     font-size:10.5px;margin-left:8px;font-weight:var(--tk-w-mid)}
+  .pane-title{font-size:14px;color:var(--tk-n600);margin-bottom:16px;font-weight:var(--tk-w-mid)}
+  .pane-title strong{color:var(--tk-n900);font-weight:var(--tk-w-bold);font-size:17px}
+  .pane-title .badge{background:var(--연한-파랑,#EFF6FF);color:var(--tk-primary);padding:0px 8px;border-radius:8px;
+                     font-size:12px;margin-left:8px;font-weight:var(--tk-w-mid)}
 
   /* 공통 */
-  .ck-card{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:14px 16px}
+  .ck-card{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;padding:12px 16px}
   .ck-label{font-size:var(--tk-fs-micro);color:var(--tk-n600);margin-bottom:4px}
-  .ck-value{font-size:24px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.02em}
+  .ck-value{font-size:24px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace;letter-spacing:0}
 
   /* 검색 + 필터 바 (공통) */
-  .filter-bar{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:10px 14px;
-              margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .filter-bar select,.filter-bar input{padding:6px 10px;border:1px solid #CBCCD3;border-radius:5px;
+  .filter-bar{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;padding:8px 12px;
+              margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .filter-bar select,.filter-bar input{padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;
                                         font-size:14px;color:var(--tk-n900);outline:none}
-  .filter-bar .chip-box{flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;
-                        padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;background:#fff;min-height:32px}
-  .filter-bar .chip{display:inline-flex;align-items:center;gap:4px;background:#EFF6FF;color:var(--tk-primary);
-                    border-radius:14px;padding:2px 4px 2px 10px;font-size:12px;font-weight:var(--tk-w-mid)}
+  .filter-bar .chip-box{flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;
+                        padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;background:var(--surface,#ffffff);min-height:32px}
+  .filter-bar .chip{display:inline-flex;align-items:center;gap:4px;background:var(--연한-파랑,#EFF6FF);color:var(--tk-primary);
+                    border-radius:12px;padding:0px 4px 0px 8px;font-size:12px;font-weight:var(--tk-w-mid)}
   .filter-bar .chip button{background:transparent;border:0;color:var(--tk-primary);cursor:pointer;
-                            padding:0 6px;font-size:14px;line-height:1}
-  .filter-bar .btn{background:var(--tk-primary);color:#fff;padding:6px 14px;border:none;border-radius:5px;
+                            padding:0 4px;font-size:14px;line-height:1}
+  .filter-bar .btn{background:var(--tk-primary);color:#fff;padding:4px 12px;border:none;border-radius:8px;
                    font-size:12px;font-weight:var(--tk-w-mid);cursor:pointer}
-  .filter-bar label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--tk-n700);font-weight:var(--tk-w-mid)}
+  .filter-bar label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--tk-n700);font-weight:var(--tk-w-mid)}
 
   /* 표 (공통) */
-  .table-wrap{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;overflow:hidden;margin-top:14px}
-  .table-head{padding:10px 16px;display:flex;justify-content:space-between;align-items:center;
+  .table-wrap{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;overflow:hidden;margin-top:12px}
+  .table-head{padding:8px 16px;display:flex;justify-content:space-between;align-items:center;
               border-bottom:1px solid var(--tk-n200);background:var(--tk-n50);font-size:12px;
               font-weight:var(--tk-w-mid);color:var(--tk-n700)}
   .table-head .right{color:var(--tk-n600);font-weight:var(--tk-w-reg);font-size:12px}
@@ -57,7 +57,7 @@
   .row{display:flex;padding:8px 16px;border-bottom:1px solid var(--tk-n100);font-size:12px;color:var(--tk-n900);align-items:center}
   .row:last-child{border-bottom:0}
   .row .sku{flex:1;font-family:ui-monospace,monospace;font-size:12px}
-  .row .meta{font-size:12px;color:var(--tk-n600);margin-right:18px}
+  .row .meta{font-size:12px;color:var(--tk-n600);margin-right:16px}
   .row .stock{font-weight:var(--tk-w-mid);font-family:ui-monospace,monospace;min-width:48px;text-align:right}
   .row .stock.pos{color:var(--tk-violet)}
   .row .stock.zero{color:var(--tk-n400)}
@@ -69,44 +69,44 @@
   .a-stats .ck-card.blue .ck-value{color:var(--tk-primary)}
 
   /* === 시안 B — 컴팩트 한 줄 인라인 (카드 X, 작은 통계 그룹) === */
-  .b-inline{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:14px 18px;
+  .b-inline{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;padding:12px 16px;
             display:flex;gap:32px;align-items:baseline}
   .b-inline .pair{display:flex;align-items:baseline;gap:8px}
   .b-inline .pair .lbl{font-size:12px;color:var(--tk-n600)}
-  .b-inline .pair .val{font-size:22px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace}
+  .b-inline .pair .val{font-size:24px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace}
   .b-inline .pair .val.violet{color:var(--tk-violet)}
   .b-inline .pair .val.blue{color:var(--tk-primary)}
   .b-inline .divider{width:1px;height:32px;background:var(--tk-n200);align-self:center}
 
   /* === 시안 C — KPI 강조 (큰 숫자 + 비율 보조) === */
   .c-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .c-card{background:#fff;border:1px solid var(--tk-n200);border-radius:10px;padding:18px 22px}
+  .c-card{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;padding:16px 24px}
   .c-card .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid);text-transform:uppercase;letter-spacing:0.04em}
-  .c-card .val{font-size:36px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
-               font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:6px;line-height:1.1}
+  .c-card .val{font-size:32px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
+               font-family:'SF Mono',ui-monospace,monospace;letter-spacing:0;margin-top:4px;line-height:1.1}
   .c-card .val.violet{color:var(--tk-violet)}
   .c-card .val.blue{color:var(--tk-primary)}
-  .c-card .sub{font-size:12px;color:var(--tk-n600);margin-top:6px}
+  .c-card .sub{font-size:12px;color:var(--tk-n600);margin-top:4px}
   .c-card .sub b{color:var(--tk-n900);font-weight:var(--tk-w-mid)}
 
   /* === 시안 D — 단일 통합 카드 (한 카드 안에 모든 KPI) === */
-  .d-card{background:linear-gradient(135deg,#fff 0%,#F9FAFB 100%);border:1px solid var(--tk-n200);
-          border-radius:12px;padding:24px 28px;display:flex;align-items:center;gap:48px}
+  .d-card{background:linear-gradient(135deg,var(--surface,#ffffff) 0%,var(--bg,#F9FAFB) 100%);border:1px solid var(--tk-n200);
+          border-radius:12px;padding:24px 24px;display:flex;align-items:center;gap:48px}
   .d-card .kpi{display:flex;flex-direction:column}
   .d-card .kpi .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid)}
-  .d-card .kpi .val{font-size:30px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
-                     font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:4px}
+  .d-card .kpi .val{font-size:32px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
+                     font-family:'SF Mono',ui-monospace,monospace;letter-spacing:0;margin-top:4px}
   .d-card .kpi .val.violet{color:var(--tk-violet)}
   .d-card .kpi .val.blue{color:var(--tk-primary)}
-  .d-card .kpi .sub{font-size:12px;color:var(--tk-n600);margin-top:2px}
+  .d-card .kpi .sub{font-size:12px;color:var(--tk-n600);margin-top:0px}
   .d-card .vbar{width:1px;background:var(--tk-n200);align-self:stretch}
 
   /* === 시안 E — 사이드 KPI + 메인 표 (좌측 narrow 사이드) === */
-  .e-grid{display:grid;grid-template-columns:220px 1fr;gap:14px;align-items:start}
-  .e-side{display:flex;flex-direction:column;gap:10px}
-  .e-side .ck-card{padding:14px}
+  .e-grid{display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:start}
+  .e-side{display:flex;flex-direction:column;gap:8px}
+  .e-side .ck-card{padding:12px}
   .e-side .ck-card .ck-label{font-size:12px}
-  .e-side .ck-card .ck-value{font-size:22px}
+  .e-side .ck-card .ck-value{font-size:24px}
   .e-side .ck-card.violet .ck-value{color:var(--tk-violet)}
   .e-side .ck-card.blue .ck-value{color:var(--tk-primary)}
   .e-main{flex:1}
@@ -144,7 +144,7 @@
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
         <div class="chip-box">
-          <span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span>
+          <span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span>
         </div>
         <label><input type="checkbox"> 재고 보유</label>
         <label><input type="checkbox"> 묶어보기</label>
@@ -179,7 +179,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span></div>
         <label><input type="checkbox"> 재고 보유</label>
         <button class="btn">필터 적용</button>
       </div>
@@ -223,7 +223,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span></div>
         <label><input type="checkbox"> 재고 보유</label>
         <button class="btn">필터 적용</button>
       </div>
@@ -267,7 +267,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span></div>
         <button class="btn">필터 적용</button>
       </div>
 
@@ -306,7 +306,7 @@
         <div class="e-main">
           <div class="filter-bar" style="margin-top:0">
             <select><option>모든 위치</option></select>
-            <div class="chip-box"><span style="font-size:14px;color:#999">이름, 바코드, 속성 검색</span></div>
+            <div class="chip-box"><span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span></div>
             <label><input type="checkbox"> 재고 보유</label>
             <button class="btn">필터 적용</button>
           </div>
@@ -331,41 +331,41 @@
   </div>
 
   <div style="max-width:1920px;margin:24px auto 32px;padding:0 24px">
-    <h2 style="font-size:16px;font-weight:700;color:var(--tk-n900);margin-bottom:12px"><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 시안 비교 매트릭스</h2>
-    <table style="width:100%;background:#fff;border:1px solid var(--tk-n200);border-radius:8px;border-collapse:collapse;font-size:14px;overflow:hidden">
+    <h2 style="font-size:17px;font-weight:700;color:var(--tk-n900);margin-bottom:12px"><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 시안 비교 매트릭스</h2>
+    <table style="width:100%;background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;border-collapse:collapse;font-size:14px;overflow:hidden">
       <thead style="background:var(--tk-n50)">
-        <tr><th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">시안</th>
-        <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">스타일</th>
-        <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">장점</th>
-        <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">단점</th>
-        <th style="padding:10px 14px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">추천 시점</th></tr>
+        <tr><th style="padding:8px 12px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">시안</th>
+        <th style="padding:8px 12px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">스타일</th>
+        <th style="padding:8px 12px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">장점</th>
+        <th style="padding:8px 12px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">단점</th>
+        <th style="padding:8px 12px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">추천 시점</th></tr>
       </thead>
       <tbody>
-        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">A</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">박스히어로 1:1 카드 3장</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">기존 사용자 학습 0 · 일관성</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">평이 — 차별성 없음</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)"><i class="ph-light ph-star" aria-hidden="true"></i> 기본값 추천</td></tr>
-        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">B</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">한 줄 인라인</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">표가 더 잘 보임 · 모바일 친화</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">통계 강조 약함</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">표 작업 위주일 때</td></tr>
-        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">C</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">KPI 강조 + 비율 보조</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">비즈니스 인사이트 풍부 (27% 등)</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">공간 가장 많이 차지</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">대시보드 페이지</td></tr>
-        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">D</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">단일 통합 카드</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">시각 응집감 · 토스 느낌</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">각 KPI 식별성 다소 약함</td>
-        <td style="padding:10px 14px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">모바일·임원 보고</td></tr>
-        <tr><td style="padding:10px 14px;color:var(--tk-n900);font-weight:600">E</td>
-        <td style="padding:10px 14px;color:var(--tk-n700)">사이드 KPI + 메인 표</td>
-        <td style="padding:10px 14px;color:var(--tk-n700)">KPI 항상 보임 · 표 영역 최대</td>
-        <td style="padding:10px 14px;color:var(--tk-n700)">좁은 화면(1280) 압박</td>
-        <td style="padding:10px 14px;color:var(--tk-n700)">와이드 모니터 운영</td></tr>
+        <tr><td style="padding:8px 12px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">A</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">박스히어로 1:1 카드 3장</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">기존 사용자 학습 0 · 일관성</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">평이 — 차별성 없음</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)"><i class="ph-light ph-star" aria-hidden="true"></i> 기본값 추천</td></tr>
+        <tr><td style="padding:8px 12px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">B</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">한 줄 인라인</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">표가 더 잘 보임 · 모바일 친화</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">통계 강조 약함</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">표 작업 위주일 때</td></tr>
+        <tr><td style="padding:8px 12px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">C</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">KPI 강조 + 비율 보조</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">비즈니스 인사이트 풍부 (27% 등)</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">공간 가장 많이 차지</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">대시보드 페이지</td></tr>
+        <tr><td style="padding:8px 12px;color:var(--tk-n900);font-weight:600;border-bottom:1px solid var(--tk-n100)">D</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">단일 통합 카드</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">시각 응집감 · 토스 느낌</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">각 KPI 식별성 다소 약함</td>
+        <td style="padding:8px 12px;color:var(--tk-n700);border-bottom:1px solid var(--tk-n100)">모바일·임원 보고</td></tr>
+        <tr><td style="padding:8px 12px;color:var(--tk-n900);font-weight:600">E</td>
+        <td style="padding:8px 12px;color:var(--tk-n700)">사이드 KPI + 메인 표</td>
+        <td style="padding:8px 12px;color:var(--tk-n700)">KPI 항상 보임 · 표 영역 최대</td>
+        <td style="padding:8px 12px;color:var(--tk-n700)">좁은 화면(1280) 압박</td>
+        <td style="padding:8px 12px;color:var(--tk-n700)">와이드 모니터 운영</td></tr>
       </tbody>
     </table>
   </div>

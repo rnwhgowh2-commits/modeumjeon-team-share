@@ -29,14 +29,17 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
     Returns: {resolved_side, src: {ss,cp}, pur: {ss,cp}|None, upload: {ss,cp}}.
     """
     # 원가(소싱) = 매트릭스와 100% 동일 규칙: 재고존재+크롤성공(error X) 중 최저 크롤가
-    #   (_pick_cheapest_buyable) → 없으면 템플릿 매입가 → 95000.
+    #   (_pick_cheapest_buyable) → 없으면 None.
     #   [2026-06-05] api_pricing 의 원가 선정과 같은 함수를 써서 '표시가=업로드가' 보장.
     #   stale(크롤 실패+옛값) 배제는 _pick_cheapest_buyable 내부 is_crawl_valid 가 담당.
-    from webapp.routes.api_pricing import _pick_cheapest_buyable
+    #   [2026-06-14 #1 폴백금지] 매트릭스와 동일하게 _resolve_sourcing_cost 사용 — 크롤
+    #   실제가가 없으면 None(가짜 95000·사입가 폴백 절대 금지). 과거엔 `or boxhero or 95000`
+    #   폴백이 있어 크롤 실패 옵션이 가짜 95000 기반 '업로드가'로 둔갑 → 마켓 오송신/손실 위험.
+    #   crawl_blocked 게이트(build_upload_preview)가 1차로 막지만, 게이트가 stale·미설정인
+    #   경우까지 대비한 방어선(price_guard 는 0/비정상만 거르고 95000 둔갑은 못 잡음).
+    from webapp.routes.api_pricing import _pick_cheapest_buyable, _resolve_sourcing_cost
     _cost_src = _pick_cheapest_buyable(sources_for_opt)
-    purchase = ((_cost_src or {}).get('crawled_price')
-                or (tpl.boxhero_purchase_price if tpl else None)
-                or 95000)
+    purchase = _resolve_sourcing_cost(_cost_src)  # 크롤 실제가 int | None
 
     # 매입가(사입) 우선순위 (template/avg) — api_pricing 동일
     _avg = o.boxhero_avg_purchase_price or 0
@@ -45,28 +48,30 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
     resolved_avg = (_avg or _tpl_purchase) if _src_pri == 'avg' else (_tpl_purchase or _avg)
     purchase_blocked = (resolved_avg == 0)
 
-    # 우선 공급 — 재고≥1 무조건 사입 / 0 이면 priority 따름
-    _pri = (o.purchase_priority or 'auto').lower()
-    if stock >= 1:
-        resolved_side = 'purchase'
-    elif _pri == 'purchase':
-        resolved_side = 'purchase'
-    else:
-        resolved_side = 'source'
+    # [2026-07-20] 우선 공급 = 사장님 규칙(원가 낮은 쪽). api_pricing 과 같은 함수를 쓴다.
+    #   후보 사입가는 옵션 실측(_avg) — 템플릿 손입력 폴백(resolved_avg)은 후보가 아니다.
+    from lemouton.pricing.cost_basis import resolve_cost_basis
+    basis = resolve_cost_basis(purchase, _avg, stock)
+    resolved_side = 'purchase' if basis.side == 'purchase' else 'source'
 
-    # 소싱 카드 가격 (옵션별 지정가 토글 최우선)
-    src_ss = compute_market_price(tpl, 'ss', 'sourcing', purchase).final_price
-    src_cp = compute_market_price(tpl, 'coupang', 'sourcing', purchase).final_price
+    # 소싱 카드 가격 — 크롤 실제가 있을 때만 산출. 없으면 None(가격없음/크롤실패) — 매트릭스
+    #   (_option_matrix_data: purchase None → ss/cp None)와 100% 동일. 폴백 조작 금지.
+    if purchase is not None:
+        src_ss = compute_market_price(tpl, 'ss', 'sourcing', purchase).final_price
+        src_cp = compute_market_price(tpl, 'coupang', 'sourcing', purchase).final_price
+    else:
+        src_ss = src_cp = None
+    # 옵션별 지정가 토글은 크롤가와 무관한 사용자 확정값 → 최우선(폴백 아님).
     if o.src_fixed_ss_active and o.src_fixed_ss_price:
         src_ss = o.src_fixed_ss_price
     if o.src_fixed_cp_active and o.src_fixed_cp_price:
         src_cp = o.src_fixed_cp_price
 
-    # 사입 카드 가격 (재고≥1 & 매입가 있을 때만)
+    # 사입 카드 가격 — 원가는 그 옵션의 **실측** 매입가만(basis.purchase_cost).
     pur = None
-    if stock >= 1 and not purchase_blocked:
-        pur_ss = compute_market_price(tpl, 'ss', 'purchase', resolved_avg).final_price
-        pur_cp = compute_market_price(tpl, 'coupang', 'purchase', resolved_avg).final_price
+    if basis.purchase_cost:
+        pur_ss = compute_market_price(tpl, 'ss', 'purchase', basis.purchase_cost).final_price
+        pur_cp = compute_market_price(tpl, 'coupang', 'purchase', basis.purchase_cost).final_price
         if o.pur_fixed_ss_active and o.pur_fixed_ss_price:
             pur_ss = o.pur_fixed_ss_price
         if o.pur_fixed_cp_active and o.pur_fixed_cp_price:
@@ -85,6 +90,9 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
         'pur': pur,
         'upload': upload,
         'purchase_blocked': purchase_blocked,
+        'effective_cost': basis.cost,
+        'cost_basis_side': basis.side,
+        'cost_basis_reason': basis.reason,
     }
 
 
@@ -120,6 +128,19 @@ def build_upload_preview(s: Session, code: str) -> dict:
     tpl = (s.query(PriceTemplate).filter_by(id=m.price_template_id).first()
            if m.price_template_id else None)
 
+    # [2026-08-01] 가격은 **정책이 이긴다**(사장님 확정).
+    #   🔴 정책이 안 정한 칸은 쓰던 템플릿을 그대로 쓴다 — 가격은 정책이 값을
+    #     정한 자리에서만 바뀐다. 정책이 없으면 None → 템플릿 그대로.
+    try:
+        from lemouton.policy.as_template import policy_template_for_model
+        _pol = policy_template_for_model(s, m.model_code, fallback=tpl)
+        if _pol is not None:
+            tpl = _pol
+    except Exception:                       # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception(
+            '[정책] 가격 껍데기 조회 실패 — 템플릿을 그대로 씁니다 model=%s', m.model_code)
+
     stock_dict: dict[str, int] = {}
     try:
         from shared.inventory_stock import get_stock_batch
@@ -134,7 +155,13 @@ def build_upload_preview(s: Session, code: str) -> dict:
 
     rows = []
     ss_ready = cp_ready = 0
+    excluded_blocked = 0
     for o in opts:
+        # [2026-06-13] 판매 게이트 — 사용자 OFF(is_active=False) 또는 크롤 차단(crawl_blocked)
+        #   옵션은 업로드(판매)에서 제외. 옛/잘못된 가격·재고로 파는 치명적 사고 방지.
+        if (not getattr(o, 'is_active', True)) or getattr(o, 'crawl_blocked', False):
+            excluded_blocked += 1
+            continue
         stock = stock_dict.get(o.canonical_sku, 0)
         r = _resolve_option_upload(o, cfg_dict.get(o.canonical_sku), tpl,
                                    sku_to_sources.get(o.canonical_sku, []), stock)
@@ -156,6 +183,12 @@ def build_upload_preview(s: Session, code: str) -> dict:
             'ss_option_id': ss_oid, 'cp_option_id': cp_oid,
             'ss_ready': ss_ok, 'cp_ready': cp_ok,
         })
+
+    # [2026-07-15] 마켓별 색상 통일 — 최종 업로드가를 같은 색끼리 하나로 (정책 'color' 인 마켓만).
+    #   기본 'cheapest' 면 no-op → 회귀 없음. 업로드가(rows[].ss_price/cp_price)에만 적용해
+    #   화면(옵션 트리 카드) 대비 어긋남 없이 '실제 나가는 값'을 통일한다.
+    from lemouton.pricing.color_unify import apply_color_unify
+    apply_color_unify(rows, tpl)
 
     total = len(opts)
     missing = []
@@ -180,6 +213,7 @@ def build_upload_preview(s: Session, code: str) -> dict:
                         'matched': cp_ready, 'total': total},
         },
         'ready_to_upload': (ss_ready + cp_ready),
+        'excluded_blocked': excluded_blocked,  # [2026-06-13] 크롤차단·비활성으로 판매 제외된 옵션 수
         'missing': missing,
         'rows': rows,
         'note': '드라이런 — 실제 마켓 전송 없음. 표시(옵션트리) 가격과 동일 산출.',

@@ -21,6 +21,7 @@ from webapp.routes.api_pricing import (
     _match_option_stock,
     _build_so_index,
     _pick_cheapest_buyable,
+    _resolve_sourcing_cost,
     _STOCK_CAP,
 )
 
@@ -41,9 +42,47 @@ class TestResolveStock:
         assert _resolve_stock('lemouton', 0) == (0, '품절', True)
         assert _resolve_stock('ssg', 0) == (0, '품절', True)
 
-    def test_none_is_instock_unknown(self):
-        # 크롤은 됐으나 수량 미상 → '재고있음' (가짜 숫자 금지)
-        assert _resolve_stock('lemouton', None) == (None, '재고있음', False)
+    def test_unknown_sentinel_is_warning_and_out(self):
+        # -1 = 불명(크롤됐으나 신호 못 읽음): 수량0·판매제외·라벨은 품절과 구분
+        from webapp.routes.api_pricing import _STOCK_UNKNOWN
+        assert _STOCK_UNKNOWN == -1
+        qty, label, out = _resolve_stock('musinsa', -1)
+        assert qty == 0
+        assert out is True
+        assert label == '⚠️확인필요'
+        assert label != '품절'
+
+    def test_lotteon_999_is_unknown_not_instock(self):
+        # 롯데온 999 = 대체상품 센티넬 → ⚠️확인필요(out). 다른 소싱처 999는 '재고있음' 유지.
+        assert _resolve_stock('lotteon', 999) == (0, '⚠️확인필요', True)
+        assert _resolve_stock('lotte', 6993) == (None, '재고있음', False)  # 상품합계 더미는 충분 유지
+        assert _resolve_stock('ssf', 999) == (None, '재고있음', False)      # 타 소싱처 불변
+        assert _resolve_stock('lotteon', 41) == (41, '41개', False)         # 실수량 불변
+        assert _resolve_stock('lotteon', 0) == (0, '품절', True)            # 품절 불변
+
+    def test_unknown_distinct_from_none_and_zero(self):
+        # None(미크롤)·0(품절)·-1(불명) 셋이 각각 다른 라벨
+        assert _resolve_stock('lotteon', None)[1] == '미크롤'
+        assert _resolve_stock('lotteon', 0)[1] == '품절'
+        assert _resolve_stock('lotteon', -1)[1] == '⚠️확인필요'
+
+    def test_none_by_last_status(self):
+        # [2026-06-28] raw None = 재고값 없음 → last_status 로 구분 (가짜 '재고있음' 금지).
+        #   시도조차 안 함(pending·None·no_crawler) → '미크롤' / 시도+실패(error) → '크롤실패'
+        #   / 성공·수량미상(ok) → '재고있음'(드묾, 본래 999여야)
+        assert _resolve_stock('lemouton', None) == (None, '미크롤', False)
+        assert _resolve_stock('lemouton', None, 'pending') == (None, '미크롤', False)
+        assert _resolve_stock('lemouton', None, 'no_crawler') == (None, '미크롤', False)
+        assert _resolve_stock('lemouton', None, 'error') == (None, '크롤실패', False)
+        assert _resolve_stock('lemouton', None, 'ok') == (None, '재고있음', False)
+
+    def test_uncollected_cell_is_confirm_unavailable_not_instock(self):
+        # [2026-07-04] 매칭됐으나 그 셀 per-size 재고 미수집(uncollected) → '재고있음' 둔갑 금지.
+        #   상품 크롤은 ok지만 이 사이즈 값이 안 긁힘 = '확인 불가'(품절둔갑=금전위험 방지).
+        assert _resolve_stock('lotteon', None, 'uncollected') == (None, '확인 불가', False)
+        assert _resolve_stock('ssg', None, 'uncollected') == (None, '확인 불가', False)
+        # 대조: 진짜 수량미상(ok)은 '재고있음' 유지 (기존 동작 불변)
+        assert _resolve_stock('musinsa', None, 'ok') == (None, '재고있음', False)
 
     def test_999_sentinel_is_instock(self):
         # 르무통/롯데온/SSF '충분' 센티넬
@@ -125,6 +164,86 @@ class TestMatchOptionStock:
         idx = _build_so_index([_so(57, '', '220', 0)])
         assert _match_option_stock(idx, 57, '그레이', '220') == 0
 
+    # ── H1 회귀: 색상 부분일치(substring) 오매칭 봉쇄 (2026-06-12) ──
+    def test_exact_color_preferred_over_substring(self):
+        # '그레이' 는 '라이트그레이'(부분포함)가 후보 먼저 와도 정확매칭을 골라야 한다.
+        #   기존: oc in sc 로 '라이트그레이'(111) 를 먼저 잡아 엉뚱한 색 재고/가격 반환.
+        idx = _build_so_index([
+            _so(5, '240mm', '라이트그레이', 111),
+            _so(5, '240mm', '그레이', 999),
+        ])
+        assert _match_option_stock(idx, 5, '그레이', '240') == 999
+        # 순서 반대여도 동일.
+        idx2 = _build_so_index([
+            _so(5, '240mm', '그레이', 999),
+            _so(5, '240mm', '라이트그레이', 111),
+        ])
+        assert _match_option_stock(idx2, 5, '그레이', '240') == 999
+
+    def test_stale_dup_none_does_not_beat_stocked_row(self):
+        # [2026-07-04] SSG 단품: size_text 표기차('220' vs '220mm')로 정규화-동일 중복행이
+        #   생김(옛 stale=current_stock None + 신규=실재고). 매칭이 stale None 을 먼저 고르면
+        #   '확인 불가' 둔갑. 같은 (색,사이즈) 후보 중 재고 있는 행을 골라야 한다.
+        idx = _build_so_index([
+            _so(76, '220', '블랙', None),     # 옛 중복(stale, 재고 None)
+            _so(76, '220mm', '블랙', 10),     # 신규(실재고)
+        ])
+        assert _match_option_stock(idx, 76, '블랙', '220') == 10
+        # 순서 반대여도 동일
+        idx2 = _build_so_index([
+            _so(76, '220mm', '블랙', 10),
+            _so(76, '220', '블랙', None),
+        ])
+        assert _match_option_stock(idx2, 76, '블랙', '220') == 10
+        # 단일색(size-only) 형태의 중복도 동일 — 재고행 우선
+        idx3 = _build_so_index([
+            _so(88, '', '220', None),         # size-only stale
+            _so(88, '220mm', '', 7),          # size-only 실재고
+        ])
+        assert _match_option_stock(idx3, 88, '블랙', '220') == 7
+
+    def test_ambiguous_substring_returns_none(self):
+        # 정확매칭 없고 부분매칭 후보가 2개 이상이면 추측 금지 → None.
+        #   (엉뚱한 색을 비결정적으로 찍느니 미매칭이 안전 — 금전 사고 방지)
+        idx = _build_so_index([
+            _so(5, '240mm', '라이트그레이', 111),
+            _so(5, '240mm', '다크그레이', 222),
+        ])
+        assert _match_option_stock(idx, 5, '그레이', '240') is None
+
+    def test_single_substring_descriptor_still_matches(self):
+        # 정당한 부분매칭은 유지: '블랙' ↔ '블랙(아웃솔)' 단일 후보면 매칭.
+        idx = _build_so_index([_so(5, '250mm', '블랙(아웃솔)', 7)])
+        assert _match_option_stock(idx, 5, '블랙', '250') == 7
+
+
+# ─────────────────────────────────────────────────────────────
+# _resolve_sourcing_cost — 소싱 카드 원가 = 최종매입가(혜택 차감 후). 폴백 금지(#4)
+#   [2026-07-19] 사장님 확정 "원가는 최종매입가다. 원가로부터 마진을 붙인다."
+#   표면노출가(crawled_price)로 마진을 붙이면 원가 과대계상 → 판매가가 부당하게 높음.
+# ─────────────────────────────────────────────────────────────
+class TestResolveSourcingCost:
+    def test_uses_final_purchase_price_not_surface(self):
+        # 표면 112,000 / 혜택 차감 후 103,500 → 원가는 103,500.
+        assert _resolve_sourcing_cost(
+            {'crawled_price': 112000, 'final_purchase_price': 103500}) == 103500
+
+    def test_surface_only_is_not_a_fallback(self):
+        # 최종매입가 계산 실패(키 없음/None) → 표면가로 대체 금지 → None(가격 없음).
+        #   표면가를 원가로 쓰면 실제보다 비싼 원가 = 부풀려진 판매가.
+        assert _resolve_sourcing_cost({'crawled_price': 112000}) is None
+        assert _resolve_sourcing_cost(
+            {'crawled_price': 112000, 'final_purchase_price': None}) is None
+
+    def test_none_when_no_source(self):
+        # 전 소싱처 실패(_pick_cheapest_buyable=None) → 폴백 금지 → None.
+        #   (기존엔 boxhero 사입가/95000 으로 메워 가짜 판매가 표시 → 손실)
+        assert _resolve_sourcing_cost(None) is None
+
+    def test_none_when_zero_or_missing(self):
+        assert _resolve_sourcing_cost({'final_purchase_price': 0}) is None
+        assert _resolve_sourcing_cost({}) is None
+
 
 # ─────────────────────────────────────────────────────────────
 # _pick_cheapest_buyable — 재고존재+최저가 winner/원가 정의
@@ -164,3 +283,62 @@ class TestPickCheapestBuyable:
 
     def test_empty_returns_none(self):
         assert _pick_cheapest_buyable([]) is None
+
+
+# ─────────────────────────────────────────────────────────────
+# _effective_stock_status — 셀 status 확정 (match_failed→품절 / uncollected→확인불가)
+#   [2026-07-08] (다) 소멸 vs 이름불일치 구분:
+#     match_failed = 소싱처가 옵션 목록을 성공(ok) 크롤했는데 이 색×사이즈가 목록에 없음
+#       = 소싱처 미판매/소멸 → '품절'(not_sold). 재고있음(ample=oversell) 둔갑 금지.
+#       단 크롤 실패·미크롤이면 목록이 최신 아님 → 품절 둔갑 금지, '확인 불가'.
+#     stock_uncollected = 매칭은 됐으나 이 셀 per-size 재고 미수집(애매) → '확인 불가'.
+# ─────────────────────────────────────────────────────────────
+class TestEffectiveStockStatus:
+    def test_match_failed_ok_is_not_sold_soldout(self):
+        from webapp.routes.api_pricing import _effective_stock_status
+        # 소싱처 목록에 없음(미판매/소멸) + 크롤 성공 → '품절'(not_sold)
+        assert _effective_stock_status(
+            {'match_failed': True, 'last_status': 'ok'}) == 'not_sold'
+
+    def test_match_failed_not_ok_is_uncollected_not_soldout(self):
+        from webapp.routes.api_pricing import _effective_stock_status
+        # 크롤 실패·미크롤 = 목록 최신 아님 → 품절 둔갑 금지, '확인 불가'
+        assert _effective_stock_status(
+            {'match_failed': True, 'last_status': 'error'}) == 'uncollected'
+        assert _effective_stock_status(
+            {'match_failed': True, 'last_status': None}) == 'uncollected'
+
+    def test_uncollected_still_uncollected(self):
+        from webapp.routes.api_pricing import _effective_stock_status
+        assert _effective_stock_status(
+            {'stock_uncollected': True, 'last_status': 'ok'}) == 'uncollected'
+
+    def test_normal_passes_through_last_status(self):
+        from webapp.routes.api_pricing import _effective_stock_status
+        assert _effective_stock_status({'last_status': 'ok'}) == 'ok'
+        assert _effective_stock_status({'last_status': 'error'}) == 'error'
+
+    def test_match_failed_ok_resolves_to_soldout_not_ample(self):
+        # 통합: match_failed+ok 셀은 '품절'로 풀려야 한다 (재고있음/ample 아님).
+        from webapp.routes.api_pricing import (
+            _effective_stock_status, _resolve_stock, _stock_state)
+        d = {'match_failed': True, 'last_status': 'ok',
+             'site': 'lemouton', 'crawled_stock': None}
+        eff = _effective_stock_status(d)
+        assert _resolve_stock(d['site'], d['crawled_stock'], eff) == (0, '품절', True)
+        assert _stock_state(d['site'], d['crawled_stock'], eff) == 'soldout'
+        assert _stock_state(d['site'], d['crawled_stock'], eff) != 'ample'
+
+
+# ─────────────────────────────────────────────────────────────
+# _stock_state — 재고 원시값 → 상태 문자열 (프론트 스타일/툴팁용)
+# ─────────────────────────────────────────────────────────────
+class TestStockState:
+    def test_states(self):
+        from webapp.routes.api_pricing import _stock_state
+        assert _stock_state('lotteon', -1) == 'unknown'
+        assert _stock_state('lotteon', 0) == 'soldout'
+        assert _stock_state('lotteon', 5) == 'limited'
+        assert _stock_state('lotteon', 999) == 'unknown'
+        assert _stock_state('lotteon', None) == 'uncrawled'
+        assert _stock_state('musinsa', 10) == 'ample'

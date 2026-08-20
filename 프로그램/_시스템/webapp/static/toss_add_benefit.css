@@ -9,29 +9,29 @@
  *   - hidden bug fix: [hidden] 속성이 .add-form { display:flex } 에 가려지는 문제
  *
  * 토큰 (무채색만)
- *   --m-ink: #191F28   --m-body: #4E5968   --m-text2: #6B7684
- *   --m-muted: #8B95A1 --m-border: #D1D6DB --m-line: #E5E8EB
- *   --m-fill: #F2F4F6  --m-bg: #F9FAFB     --m-white: #FFFFFF
+ *   --m-ink: var(--ink,#191F28)   --m-body: var(--글자-기본,#4E5968)   --m-text2: var(--글자-보조,#6B7684)
+ *   --m-muted: var(--sub,#8B95A1) --m-border: var(--faint,#D1D6DB) --m-line: var(--line,#E5E8EB)
+ *   --m-fill: var(--n100,#F2F4F6)  --m-bg: var(--bg,#F9FAFB)     --m-white: #FFFFFF
  *
  * 사용 위치: .cell-fx-pop 안 .pop-add 버튼 클릭 시 .add-form 노출
  * ───────────────────────────────────────────────────────────── */
 
 /* ============== 토큰 ============== */
 .cell-fx-pop {
-  --m-ink: #191F28;
-  --m-body: #4E5968;
-  --m-text2: #6B7684;
-  --m-muted: #8B95A1;
-  --m-border: #D1D6DB;
-  --m-line: #E5E8EB;
-  --m-fill: #F2F4F6;
-  --m-bg: #F9FAFB;
+  --m-ink: var(--ink,#191F28);
+  --m-body: var(--글자-기본,#4E5968);
+  --m-text2: var(--글자-보조,#6B7684);
+  --m-muted: var(--sub,#8B95A1);
+  --m-border: var(--faint,#D1D6DB);
+  --m-line: var(--line,#E5E8EB);
+  --m-fill: var(--n100,#F2F4F6);
+  --m-bg: var(--bg,#F9FAFB);
   --m-white: #FFFFFF;
 
   /* B2 적용범위 색 매핑 (영향도 점진) */
-  --scope-option: #10B981; --scope-option-bg: #ECFDF5;
-  --scope-color:  #14B8A6; --scope-color-bg:  #F0FDFA;
-  --scope-bundle: #3182F6; --scope-bundle-bg: #EFF6FF;
+  --scope-option: var(--green,#10B981); --scope-option-bg: var(--연한-초록,#ECFDF5);
+  --scope-color:  #14B8A6; --scope-color-bg:  var(--연한-초록,#F0FDFA);
+  --scope-bundle: var(--primary,#3182F6); --scope-bundle-bg: var(--연한-파랑,#EFF6FF);
   --scope-source: #8B5CF6; --scope-source-bg: #F5F3FF;
 }
 

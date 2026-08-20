@@ -1,0 +1,1257 @@
+{% extends 'base.html' %}
+{% block title %}자동화 설정 — 모음전 자동화{% endblock %}
+{% block head %}
+<style>
+  .au-wrap{max-width:900px;padding:4px 4px;font-family:Pretendard,system-ui,sans-serif;zoom:1.3;}
+  .au-h{font-size:40px;font-weight:600;color:var(--ink,#191F28);line-height:1.2;margin-bottom:10px;}  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+  .au-sub{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5;margin-bottom:28px;}  /* [2026-08-06 확정 5안] 부제 17·600·검정 */
+  .au-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch;}
+  .au-card{background:var(--surface,#ffffff);border:1px solid var(--line,#e5e8eb);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;}
+  .au-band{color:#fff;font-size:12px;font-weight:700;padding:8px 16px;}
+  .au-band.src{background: var(--바탕-흐리게, var(--sub,#8B95A1));} .au-band.mkt{background:var(--amber,#854F0B);}
+  /* 판매처 카드 = 소싱처와 같은 계열: 실행중=초록 / 그 외=회색 + 돈 나감 빨간 배지 */
+  .au-band.mkt-run{background:var(--green,#12B886);} .au-band.mkt-idle{background: var(--바탕-흐리게, var(--sub,#8B95A1));}
+  .band-flex{display:flex;align-items:center;gap:8px;}
+  .band-chip{margin-left:auto;font-size:12px;font-weight:700;background:rgba(255,255,255,.22);padding:0px 8px;border-radius:18px;}
+  .rbadge{background: var(--바탕-빨강, var(--red,#F04452));color:#fff;font-size:12px;font-weight:800;padding:0px 8px;border-radius:18px;display:none;align-items:center;gap:4px;}
+  .rbadge.on{display:inline-flex;}
+  .rbadge .blip{width:6px;height:6px;border-radius:50%;background:var(--surface,#ffffff);}
+  .au-card.run{border-color:var(--연한-초록,#9BE7C9);}
+  .au-body{padding:16px 16px;display:flex;flex-direction:column;flex:1;}
+  .au-ct{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .au-title{font-size:14px;font-weight:700;color:var(--ink,#191F28);}
+  .au-d{font-size:12px;color:var(--sub,#8b95a1);margin:4px 0 12px;}
+  .tog{width:44px;height:25px;border-radius:99px;background: var(--바탕-흐리게, var(--faint,#d1d6db));position:relative;flex-shrink:0;cursor:pointer;transition:.15s;}
+  .tog::after{content:'';position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:var(--surface,#ffffff);transition:.15s;}
+  .tog.on{background:var(--primary,#3182f6);}.tog.on::after{left:22px;}
+  .au-q{font-size:12px;font-weight:600;margin-bottom:8px;}
+  .au-freq{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .chip{font-size:12px;font-weight:600;border:1px solid var(--faint,#d1d6db);background:var(--surface,#ffffff);color:var(--글자-기본,#4e5968);border-radius:8px;padding:8px 12px;cursor:pointer;}
+  .chip.on{background:var(--연한-파랑,#e8f1ff);border-color:var(--primary,#3182f6);color:#1b64da;}
+  .hm{display:inline-flex;align-items:center;border:1px solid var(--faint,#d1d6db);border-radius:8px;overflow:hidden;background:var(--surface,#ffffff);margin-left:0px;}
+  .hm input{width:42px;height:36px;border:0;text-align:center;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;font-family:inherit;color:var(--ink,#191F28);-moz-appearance:textfield;}
+  .hm input::-webkit-outer-spin-button,.hm input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .hm .colon{font-size:14px;font-weight:800;color:var(--sub,#8b95a1);}
+  .hm .u{font-size:12px;color:var(--sub,#8b95a1);padding:0 8px 0 4px;}
+  .au-next{font-size:12px;color:var(--sub,#8b95a1);margin-top:auto;padding-top:12px;}
+  .au-next b{color:var(--글자-기본,#4e5968);}
+  .au-radio{display:flex;flex-direction:column;gap:4px;margin:0px 0 12px;}
+  .rd{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line,#e5e8eb);border-radius:8px;cursor:pointer;}
+  .rd .dot{width:17px;height:17px;border-radius:50%;border:2px solid var(--line,#c5ccd4);flex-shrink:0;position:relative;}
+  /* [2026-08-02] `small` 은 부모의 0.83배로 그려져 12px 부모 밑에서 10px 가 된다 —
+     규칙 하한(11px)보다 작아 눈에 안 잡힌다. 크기를 못 박아 하한을 지킨다. */
+  .rd .rt{font-size:12px;font-weight:600;color:var(--글자-기본,#4e5968);} .rd .rt small{font-size:12px;font-weight:400;color:var(--sub,#8b95a1);}
+  .rd.on{border-color:var(--primary,#3182f6);background:var(--n100,#f5f9ff);}
+  .rd.on .dot{border-color:var(--primary,#3182f6);} .rd.on .dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--primary,#3182f6);}
+  .rd.real.on{border-color:#e03a3e;background:var(--n100,#fff6f6);}
+  .rd.real.on .dot{border-color:#e03a3e;} .rd.real.on .dot::after{background:#e03a3e;}
+  .au-warn{background:var(--n100,#fff5f5);border:1px solid var(--연한-빨강,#f3c2c2);border-radius:8px;padding:8px 12px;font-size:12px;color: var(--글자-빨강, var(--red,#c0392b));line-height:1.55;margin-bottom:8px;display:none;}
+  .au-warn.on{display:block;}
+  /* 두 겹 잠금 상태 바 + 페이지 배너 */
+  .live-banner{border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .live-banner.safe{background:var(--n100,#f2f4f6);color:var(--글자-기본,#4e5968);}
+  .live-banner.live{background:var(--연한-초록,#e6f9f1);color: var(--글자-초록, var(--green,#0b7a54));border:1px solid var(--연한-초록,#9be7c9);}
+  .live-banner .em{font-size:17px;}
+  .locks{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0px 0 12px;}
+  .lock{border:1px solid var(--line,#e5e8eb);border-radius:8px;padding:8px 12px;background:var(--bg,#f9fafb);}
+  .lock.hot{border-color:var(--연한-초록,#9be7c9);background:var(--연한-초록,#e6f9f1);}
+  .pv-box{border:1px dashed var(--faint,#d1d6db);border-radius:8px;padding:12px 12px;margin:0px 0 12px;background:var(--surface,#ffffff);}
+  .pv-h{font-weight:700;font-size:12px;margin-bottom:8px;} .pv-h small{font-size:12px;color:var(--sub,#8b95a1);font-weight:400;}
+  table.pv-t{width:100%;border-collapse:collapse;font-size:12px;}
+  table.pv-t th,table.pv-t td{padding:4px 8px;border-bottom:1px solid var(--line2,#eef0f2);}
+  table.pv-t th{color:var(--sub,#8b95a1);font-weight:600;text-align:left;font-size:12px;}
+  table.pv-t th.r,table.pv-t td.r{text-align:right;font-variant-numeric:tabular-nums;font-family:ui-monospace,Consolas,monospace;}
+  table.pv-t tr.pv-sum td{font-weight:700;border-bottom:0;}
+  .pv-empty{font-size:12px;color:var(--sub,#8b95a1);}
+  .lock .l-top{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--sub,#8b95a1);}
+  .lock .l-val{font-weight:700;font-size:12px;margin-top:0px;}
+  .pill{font-size:12px;font-weight:700;padding:0px 8px;border-radius:18px;}
+  .pill.off{background:var(--n100,#f2f4f6);color:var(--sub,#8b95a1);} .pill.on{background:var(--연한-초록,#e6f9f1);color: var(--글자-초록, var(--green,#0b7a54));} .pill.red{background:var(--연한-빨강,#fdecee);color: var(--글자-빨강, var(--red,#c0343f));}
+  .rd.locked{opacity:.5;pointer-events:none;}
+  .rd.locked .rt small{color: var(--글자-빨강, var(--red,#c0343f));}
+  .sec{font-size:12px;font-weight:700;color:var(--sub,#8b95a1);margin:4px 0 0px;}
+  .cond{display:flex;align-items:center;gap:8px;padding:12px 0;border-top:1px solid var(--line2,#f1f3f5);}
+  .cl{flex:1;font-size:12px;font-weight:600;}
+  .cl small{display:block;font-size:12px;font-weight:400;color:var(--sub,#8b95a1);margin-top:0px;}
+  .thr{display:inline-flex;align-items:center;gap:4px;background:var(--line2,#f1f3f5);border-radius:8px;padding:0px 8px;}
+  .thr input{width:44px;height:30px;border:1px solid var(--faint,#d1d6db);border-radius:8px;text-align:right;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;padding:0 8px;font-family:inherit;}
+  .thr .u{font-size:12px;color:var(--글자-보조,#6b7684);}
+  .au-saved{font-size:12px;color: var(--글자-초록, var(--green,#0F6E56));margin-top:auto;padding-top:12px;display:flex;align-items:center;gap:4px;opacity:0;transition:opacity .2s;}
+  .au-saved.on{opacity:1;}
+  /* [2026-08-06] 저장 실패 — 같은 토스트 부품을 빨갛게 돌려 쓴다(새 부품 발명 금지). */
+  .au-saved.err{color: var(--글자-빨강, var(--red,#c0343f));font-weight:700;}
+  /* ③ 마켓별 속도 표 */
+  .spd{margin-top:12px;border-top:1px solid var(--line2,#f1f3f5);padding-top:12px;}
+  .spd-h{font-size:12px;font-weight:700;color: var(--글자-주황, var(--amber,#854F0B));margin-bottom:8px;}
+  table.spd-t{width:100%;border-collapse:collapse;font-size:12px;}
+  table.spd-t th,table.spd-t td{padding:4px 8px;border-bottom:1px solid var(--line2,#f0f2f5);}
+  table.spd-t th{font-size:12px;color:var(--sub,#8b95a1);font-weight:600;text-align:left;}
+  table.spd-t th.r,table.spd-t td.r{text-align:right;}
+  table.spd-t td.r{font-variant-numeric:tabular-nums;font-weight:700;}
+  table.spd-t td.mkt{font-weight:700;color: var(--글자-주황, var(--amber,#854F0B));}
+  .spd-in{width:44px;text-align:right;border:1px solid var(--faint,#d1d6db);border-radius:8px;padding:4px 4px;font-size:12px;font-variant-numeric:tabular-nums;font-family:inherit;}
+  .spd-sum td{background:var(--연한-주황,#f6eee6);font-weight:700;color: var(--글자-주황, var(--amber,#7a5320));font-size:12px;}
+  .spd-empty{font-size:12px;color:var(--sub,#8b95a1);padding:8px 0px;}
+  /* 실행중 + 실패 유형화 (full width) */
+  .runsec{margin-top:16px;background:var(--surface,#ffffff);border:1px solid var(--line,#e5e8eb);border-radius:12px;overflow:hidden;}
+  .runsec .rs-band{background: var(--바탕-초록, var(--green,#0F6E56));color:#fff;font-size:12px;font-weight:700;padding:8px 16px;display:flex;align-items:center;gap:8px;}
+  .rs-live{width:8px;height:8px;border-radius:50%;background:var(--surface,#ffffff);display:none;animation:rspulse 1.1s infinite;}
+  .runsec.on .rs-live{display:inline-block;}
+  @keyframes rspulse{0%{}70%{}}
+  .rs-body{padding:12px 16px;}
+  .rs-run{display:flex;align-items:center;gap:12px;margin-bottom:8px;color:var(--글자-보조,#6b7684);font-size:12px;}
+  .rs-ring{width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--green,#12B76A) var(--p,0%),var(--line2,#E6EBF1) 0);-webkit-mask:radial-gradient(farthest-side,transparent 64%,#000 65%);mask:radial-gradient(farthest-side,transparent 64%,#000 65%);flex:none;}
+  .rs-fail-h{font-size:12px;font-weight:700;color: var(--글자-빨강, var(--red,#c0392b));margin:4px 0 8px;}
+  /* [항목5] 크롤 실패 B 아코디언 — 소싱처 > (브랜드) > 옵션·url·유형 */
+  .facc{border:1px solid var(--line2,#f0f2f5);border-radius:8px;margin-bottom:8px;overflow:hidden;}
+  .facc-h{display:flex;align-items:center;gap:8px;width:100%;border:0;background:var(--n100,#FBFCFD);padding:8px 12px;font-size:12px;font-weight:600;color:var(--ink,#191F28);cursor:pointer;font-family:inherit;text-align:left;}
+  .facc-h .fcnt{margin-left:auto;background:var(--연한-빨강,#FFECEC);color: var(--글자-빨강, var(--red,#C92A2A));border-radius:18px;font-size:12px;font-weight:700;padding:0px 8px;}
+  .facc-h .fcar{color: var(--글자-희미, var(--faint,#b0b8c1));font-size:12px;transition:transform .15s;}
+  .facc.open .facc-h .fcar{transform:rotate(90deg);}
+  .fsic{width:18px;height:18px;border-radius:8px;background: var(--바탕-파랑, var(--primary,#185FA5));color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;}
+  .fbr{background:var(--연한-파랑,#EEF2FF);color: var(--글자-파랑, var(--primary,#4263EB));border-radius:8px;padding:0px 8px;font-size:12px;font-weight:600;}
+  .facc-b{display:none;padding:0px 12px 8px;}
+  .facc.open .facc-b{display:block;}
+  .frow{display:flex;align-items:center;gap:8px;padding:8px 0px;border-top:1px solid var(--n100,#f5f6f8);font-size:12px;}
+  .frow .fopt{font-weight:600;white-space:nowrap;}
+  .frow .furl{color:var(--sub,#8b95a1);font-family:ui-monospace,monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+  .frow .ftime{color:var(--sub,#8b95a1);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums;opacity:.85;}
+  .frow .ftg{border-radius:8px;padding:0px 8px;font-size:12px;font-weight:700;white-space:nowrap;}
+  .ftg.t-etc{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4e5968);} .ftg.t-block{background:var(--연한-빨강,#FFECEC);color: var(--글자-빨강, var(--red,#C92A2A));}
+  .ftg.t-login{background:var(--연한-주황,#FFF3BF);color: var(--글자-주황, var(--amber,#8a6d00));} .ftg.t-parse{background:var(--연한-파랑,#E7F5FF);color: var(--글자-파랑, var(--primary,#1971C2));} .ftg.t-network{background:var(--연한-주황,#FFF4E6);color: var(--글자-주황, var(--amber,#E8590C));}
+  .fbadge{background:var(--연한-빨강,#fdecec);color:#e03a3e;font-size:12px;font-weight:700;padding:0px 8px;border-radius:8px;font-variant-numeric:tabular-nums;}
+  .fsplit{display:grid;grid-template-columns:140px 1fr;gap:12px;}
+  .ftypes{display:flex;flex-direction:column;gap:4px;}
+  .ftype{border:1px solid var(--line,#e5e8eb);background:var(--surface,#ffffff);border-radius:8px;padding:8px 8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+  .ftype.on{background:var(--연한-빨강,#fdecec);border-color:var(--연한-빨강,#f3b0b0);color: var(--글자-빨강, var(--red,#c0392b));}
+  .ftype .n{font-variant-numeric:tabular-nums;}
+  .fopt{margin:4px 0 0;}
+  .fopt-nm{font-size:12px;font-weight:600;color:var(--ink,#191F28);display:flex;align-items:center;gap:4px;}
+  .fopt-url{margin:0px 0 0 16px;font-size:12px;color:var(--sub,#8b95a1);font-family:ui-monospace,monospace;word-break:break-all;}
+  .fopt-url::before{content:'└ ';color: var(--글자-희미, var(--line,#c2c9d2));}
+  .fnone{font-size:12px;color: var(--글자-초록, var(--green,#0F6E56));padding:4px 0px;}
+  /* [2026-07-05] 확정 크롤 카드 — 실행/정지 세그먼트 + 진행 링 + 실시간 로그 + 계수 미니표 */
+  .au-card.src-run.crawl-on{border-color:var(--연한-초록,#9be7c9);}
+  .au-card.src-run.crawl-on .au-band.src{background:var(--green,#12B886);}
+  .rsc{display:inline-flex;border:1px solid var(--line,#e5e8eb);border-radius:8px;overflow:hidden;flex:none;}
+  .rsc button{border:0;background:var(--surface,#ffffff);padding:4px 16px;font-size:12px;font-weight:600;color:var(--글자-보조,#6b7684);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;}
+  .rsc .run.on{background: var(--바탕-초록, var(--green,#12B76A));color:#fff;} .rsc .stop.on{background:var(--line2,#EEF1F4);color:var(--ink,#191F28);}
+  .rsc .ic{width:8px;height:8px;background:currentColor;} .rsc .run .ic{border-radius:50%;} .rsc .stop .ic{border-radius:0px;}
+  .cz{border-radius:8px;background:var(--n100,#F7F9FB);border:1px solid var(--line,#e5e8eb);padding:12px;margin:12px 0;overflow:hidden;position:relative;}
+  /* C 배치 — 왼쪽 「오늘 N바퀴」 · 가운데 링 · 오른쪽 평균+막대 (수직 가운데) */
+  .cz-row{display:flex;align-items:center;justify-content:center;gap:16px;}
+  .cz-today{text-align:center;flex:none;}
+  .cz-today .lbl{display:block;font-size:12px;color:var(--sub,#8b95a1);font-weight:600;}
+  .cz-today b{font-size:32px;font-weight:800;color: var(--글자-초록, var(--green,#0CA678));line-height:1.05;font-variant-numeric:tabular-nums;}
+  .cz-ring{width:104px;height:104px;border-radius:50%;background:conic-gradient(var(--green,#12B76A) var(--p,0%),var(--line2,#E6EBF1) 0);-webkit-mask:radial-gradient(farthest-side,transparent 65%,#000 66%);mask:radial-gradient(farthest-side,transparent 65%,#000 66%);flex:none;}
+  .cz-ringwrap{position:relative;width:104px;height:104px;display:flex;align-items:center;justify-content:center;flex:none;}
+  .cz-rtxt{position:absolute;text-align:center;line-height:1.05;} .cz-rtxt b{font-size:24px;font-weight:800;letter-spacing:0;font-variant-numeric:tabular-nums;color:var(--ink,#191F28);} .cz-rtxt small{display:block;font-size:12px;color:var(--sub,#8b95a1);font-weight:600;}
+  .cz-right{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:8px;}
+  .cz-avg{display:inline-flex;align-items:center;gap:4px;background:var(--연한-파랑,#EEF4FF);color: var(--글자-파랑, var(--primary,#3556C9));border-radius:8px;padding:4px 8px;font-size:12px;font-weight:600;align-self:flex-start;white-space:nowrap;}
+  .cz-avg b{font-weight:700;}
+  .cz-bars{display:flex;gap:0px;align-items:flex-end;height:36px;}
+  .cz-bars i{flex:1;min-width:3px;background:var(--green,#12B76A);border-radius:0px;display:block;}
+  .cz-bars i.cur{background:var(--primary,#3182f6);}
+  .cz-bars .cz-none{color: var(--글자-희미, var(--faint,#b0b8c1));font-size:12px;align-self:center;}
+  .cz-feed{font-size:12px;line-height:1.5;color:var(--sub,#8b95a1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cz-feed .k{color: var(--글자-초록, var(--green,#12B76A));font-weight:700;} .cz-feed .r{color: var(--글자-파랑, var(--primary,#3182f6));font-weight:700;}
+  .cz-paused{position:absolute;inset:0;background:rgba(247,249,251,.92);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--sub,#8b95a1);font-weight:600;}
+  .cz-ring.spin{animation:cz-spin 2.4s linear infinite;}
+  @keyframes cz-spin{to{transform:rotate(360deg);}}
+  .au-cont{font-size:12px;font-weight:700;border-radius:18px;padding:0px 8px;background:var(--연한-초록,#E7F7EF);color: var(--글자-초록, var(--green,#0e8f54));margin-left:8px;}
+  .base-freq{font-size:12px;color:var(--sub,#8b95a1);display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+  .base-freq .mini{width:40px;height:28px;border:1px solid var(--faint,#d1d6db);border-radius:8px;text-align:center;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;font-family:inherit;color:var(--ink,#191F28);}
+  /* [차수별 완료 시각] A안 리스트 + 펼치기/접기 */
+  .czlog{margin-top:12px;border-top:1px dashed var(--line,#e5e8eb);padding-top:12px;}
+  .czlog-h{font-size:12px;font-weight:700;color: var(--글자-초록, var(--green,#0CA678));margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .czlog-tg{margin-left:auto;border:1px solid var(--연한-파랑,#cfe1fb);background:var(--연한-파랑,#EAF2FE);color:#1b64da;border-radius:8px;padding:0px 8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .czlog-list{max-height:640px;overflow-y:auto;}
+  .czlog-row{display:flex;align-items:baseline;gap:8px;padding:8px 0px;border-bottom:1px solid var(--n100,#f2f4f6);font-size:12px;cursor:pointer;}
+  .czlog-row:last-child{border-bottom:0;}
+  .czlog-row:hover{background:var(--n100,#FBFCFD);}
+  .czlog-row.on{background:var(--n100,#F4F8FF);}
+  .czlog-rc{color:#1b64da;font-weight:700;width:46px;flex:none;}
+  /* [2026-07-10] 실시 시각·소요시간 = 검정 굵게 */
+  .czlog-tm{margin-left:auto;font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;color:var(--ink,#191F28);font-weight:700;}
+  .czlog-dur{color:var(--ink,#191F28);font-weight:700;font-variant-numeric:tabular-nums;margin-left:12px;}
+  .czlog-ch{color:var(--sub,#8b95a1);margin-left:8px;font-size:12px;transition:.15s;display:inline-block;}
+  .czlog-row.on .czlog-ch{transform:rotate(90deg);color: var(--글자-파랑, var(--primary,#3182F6));}
+
+  /* [2026-07-10] 회차 보고서 팝업 (1200px · 결과 상단 · 묶음+더보기) */
+  .lrmask{position:fixed;inset:0;background:rgba(15,20,30,.42);z-index:9000;display:flex;align-items:center;justify-content:center;}
+    /* [2026-07-10] 140% 확대 — 본문(zoom:1.3)보다 작아 보이던 문제.
+     zoom 이 곱해지므로 폭·높이를 1.4 로 나눠 잡아야 화면을 안 넘긴다(렌더 = 1200*1.4 / 90vh). */
+.lrbox{zoom:1.4;width:min(1200px,calc(94vw / 1.4));height:calc(90vh / 1.4);background:var(--surface,#ffffff);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;}
+  .lrh{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--line2,#EFF1F3);flex:none;}
+  .lrh-no{font-size:17px;font-weight:700;}
+  .lrh-tm,.lrh-du{font-size:14px;font-weight:700;color:var(--ink,#191F28);font-variant-numeric:tabular-nums;}
+  .lrh-du small{font-size:12px;font-weight:500;color:var(--sub,#8B95A1);margin-left:4px;}
+  .lrh-sp{flex:1;}
+  .lrh-nav button{border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;padding:4px 12px;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit;margin-left:4px;}
+  .lrh-nav button[disabled]{opacity:.4;cursor:default;}
+  .lrh-x{border:0;background:transparent;font-size:17px;color:var(--sub,#8B95A1);cursor:pointer;padding:0px 4px;margin-left:8px;font-family:inherit;}
+  .lrb{flex:1;overflow-y:auto;padding:16px 24px 24px;font-size:12px;}
+
+  /* 상단: 요약 + 결과 나란히 */
+  .lrtop{display:grid;grid-template-columns:1.35fr 1fr;gap:32px;align-items:start;}
+  .lrblk-h{font-size:12px;font-weight:700;color:var(--sub,#8B95A1);margin-bottom:8px;letter-spacing:.03em;}
+  .lrep{padding:16px 4px 8px;font-size:12px;}
+  /* [2026-07-10] C안 — 빈 상태 · 그대로 소싱처 토글 · 영수증 · 색×사이즈 격자 */
+  .lrempty{border:1px dashed var(--line,#E5E8EB);border-radius:8px;padding:16px;text-align:center;color: var(--글자-희미, var(--faint,#B0B8C1));font-size:12px;}
+  .lrkeep{margin-top:32px;opacity:.82;}                    /* 위=주인공 / 아래=배경 (흐린 글자) */
+  .lrkrow{border-top:1px solid var(--line2,#EFF1F3);}
+  .lrkh{display:grid;grid-template-columns:16px 1fr 90px 22px;align-items:center;gap:12px;height:44px;cursor:pointer;font-size:12px;}
+  .lrkh:hover{background:var(--n100,#FBFCFD);}
+  .lrkh .knm{font-weight:600;color:var(--글자-기본,#4E5968);}
+  .lrkh .kx{color: var(--글자-희미, var(--faint,#B0B8C1));text-align:center;font-size:12px;}
+  .lrkb{display:none;padding:4px 0 16px 24px;}
+  .lrkrow.open .lrkb{display:block;}
+  .lrksec{font-size:12px;font-weight:700;color:var(--sub,#8B95A1);margin:8px 0 4px;}
+  /* 소싱처 → 상품(URL) 2단. 값의 진짜 단위는 상품이다. */
+  .lrkh .kcnt{font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1));text-align:right;font-variant-numeric:tabular-nums;}
+  .lrpcolh{display:grid;grid-template-columns:1fr 96px 130px 20px;gap:12px;font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1));padding:4px 0 4px;}
+  .lrpcolh span:nth-child(2),.lrpcolh span:nth-child(3){text-align:right;}
+  .lrprow{border-top:1px solid var(--line2,#EFF1F3);}
+  .lrph{display:grid;grid-template-columns:1fr 96px 130px 20px;gap:12px;align-items:center;height:40px;cursor:pointer;font-size:12px;}
+  .lrph:hover{background:var(--n100,#FBFCFD);}
+  .lrph .pn{color:var(--ink,#191F28);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lrph .pp{text-align:right;font-variant-numeric:tabular-nums;color:var(--글자-기본,#4E5968);}
+  .lrph .pf{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}
+  .lrph .pf.unk{font-weight:600;color:var(--sub,#8B95A1);font-size:12px;}
+  .lrph .px{color: var(--글자-희미, var(--faint,#B0B8C1));text-align:center;font-size:12px;}
+  .lrpb{display:none;padding:8px 0 16px 4px;}
+  .lrprow.open .lrpb{display:block;}
+  /* 가격 = 영수증 (확인불가는 마지막 줄에서 조용히) */
+  .rcpt{display:grid;grid-template-columns:170px 110px;gap:4px 12px;font-size:12px;max-width:300px;}
+  .rcpt .l{color:var(--글자-기본,#4E5968);} .rcpt .v{text-align:right;font-variant-numeric:tabular-nums;}
+  .rcpt .m{color:var(--sub,#8B95A1);}
+  .rcpt .tot{border-top:1px solid var(--line,#E5E8EB);margin-top:4px;padding-top:8px;font-weight:700;color:var(--ink,#191F28);}
+  .rcpt .unk{color:var(--sub,#8B95A1);font-weight:600;font-size:12px;}
+  .rtail{font-size:12px;color:var(--sub,#8B95A1);margin-top:4px;}
+  /* 재고 = 촘촘한 사이즈 칸 (칸=글자 폭 / 충분은 배경으로 가라앉히고 문제만 진하게) */
+  .sgrow{display:flex;align-items:center;gap:12px;padding:4px 0;}
+  .sgnm{width:110px;flex:none;font-size:12px;color:var(--글자-기본,#4E5968);}
+  .sgg{display:flex;gap:4px;flex-wrap:wrap;}
+  .sgg span{width:46px;text-align:center;font-size:12px;border-radius:8px;padding:4px 0;font-variant-numeric:tabular-nums;}
+  .g-am{background:var(--line2,#F1F7F3);color:var(--sub,#8FA898)}
+  .g-li{background:var(--연한-주황,#FFE9A8);color: var(--글자-주황, var(--amber,#7A4E00));font-weight:700}
+  .g-so{background:var(--line,#DDE1E6);color:var(--글자-보조,#6B7684);text-decoration:line-through}
+  .g-un{background:var(--amber,#FFB84D);color: var(--글자-주황, var(--amber,#5C3200));font-weight:700}
+  .g-na{background:transparent;color: var(--글자-희미, var(--line,#E5E8EB));}   /* 그 소싱처가 안 파는 조합 — 확인불가 아님 */
+  .sglg{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--sub,#8B95A1);margin-top:8px;}
+  .sglg i{display:inline-block;width:10px;height:10px;border-radius:0px;margin-right:4px;vertical-align:-1px;}
+  .nofin{color:var(--sub,#8B95A1);font-size:12px;}
+  .lrep-sum{display:flex;flex-wrap:wrap;gap:16px;color:var(--글자-기본,#4E5968);}
+  .lrep-sum b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums;}
+  .lrep-sum .exc{color: var(--글자-희미, var(--faint,#B0B8C1));}
+  .lrep-rule{height:2px;background:var(--line,#E5E8EB);margin:24px 0 16px;}   /* ★D6 굵은 구분선 */
+  .lrep-chg{display:grid;grid-template-columns:1fr 1.35fr;gap:32px;}   /* 가격 좁게 · 재고 넓게 */
+  /* 묶음(소싱처 · 변동유형) + 5건 미리 + 더 보기 */
+  .lrg{display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;background:var(--n100,#F7F8F9);border-radius:8px;cursor:pointer;margin-bottom:4px;}
+  .lrg .gi{font-size:12px;}
+  .lrg .gn{font-weight:700;color:var(--ink,#191F28);}
+  .lrg .gt{color:var(--글자-기본,#4E5968);}
+  .lrg .gc{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;}
+  .lrg .gx{color:var(--sub,#8B95A1);font-size:12px;}
+  .lrglist{padding-left:12px;border-left:2px solid var(--line2,#EFF1F3);margin:0px 0 8px;}
+  .lrmore{font-size:12px;color: var(--글자-파랑, var(--primary,#3182F6));font-weight:600;padding:8px 0;cursor:pointer;}
+  .lrow .vt{white-space:nowrap;}    /* 「옵션 사라짐」 줄바꿈 금지 */
+  .lrow{height:38px;padding:0;}     /* 행 높이 균일 */
+  .lrep-ch{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin-bottom:8px;}
+  .lrep-ch i{font-style:normal;color:var(--sub,#8b95a1);margin-left:4px;font-variant-numeric:tabular-nums;}
+  .lrow{display:grid;align-items:center;gap:12px;padding:8px 0;}
+  .lrow.p{grid-template-columns:14px minmax(80px,1fr) 148px 66px;}
+  .lrow.s{grid-template-columns:14px minmax(80px,1fr) 128px;}
+  .lrow + .lrow{border-top:1px solid var(--n100,#F2F4F6);}
+  .lrow .ic{font-size:12px;text-align:center;}
+  .lrow .nm{color:var(--ink,#191F28);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lrow .nm small{color: var(--글자-희미, var(--faint,#B0B8C1));margin-left:4px;font-size:12px;}
+  .lrow .val{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;}
+  .lrow .vf{text-align:right;color: var(--글자-희미, var(--faint,#B0B8C1));font-variant-numeric:tabular-nums;}
+  .lrow .va{text-align:center;color: var(--글자-희미, var(--faint,#B0B8C1));font-size:12px;}
+  .lrow .vt{text-align:left;font-weight:700;color:var(--ink,#191F28);font-variant-numeric:tabular-nums;}
+  .lrow .dt{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;}
+  .lc-up{color:#EF4444;} .lc-dn{color: var(--글자-파랑, var(--primary,#3182F6));} .lc-so{color:var(--sub,#8B95A1);} .lc-re{color: var(--글자-초록, var(--green,#22C55E));}
+  .lc-unk{color:#F59E0B;} .lc-chg,.lc-flat{color:var(--글자-기본,#4E5968);}   /* 확인불가 = 주의 노랑 */
+  .lrep-empty{color: var(--글자-희미, var(--faint,#B0B8C1));padding:8px 0;}
+  .lrep-sf{margin-top:32px;padding-top:16px;border-top:1px solid var(--n100,#F2F4F6);}
+  .lrep-sfh{font-size:12px;font-weight:700;color:var(--sub,#8B95A1);margin-bottom:4px;}
+  .lrep-sfb{display:flex;gap:16px;align-items:baseline;color:var(--글자-기본,#4E5968);flex-wrap:wrap;}
+  .lrep-sfb b{font-variant-numeric:tabular-nums;font-size:14px;}
+  .lrep-sfb .ok b{color: var(--글자-초록, var(--green,#22C55E));} .lrep-sfb .er b{color:#EF4444;}
+  .lrep-sfb .why{color: var(--글자-희미, var(--faint,#B0B8C1));font-size:12px;}
+  .km-lab{font-size:12px;font-weight:700;color: var(--글자-초록, var(--green,#1D9E75));margin:12px 0 4px;}
+  table.km{width:100%;border-collapse:collapse;font-size:12px;}
+  table.km td{padding:4px 8px;border-bottom:1px solid var(--line2,#f0f2f5);}
+  table.km td.r{text-align:right;}
+  .km-src{display:inline-flex;align-items:center;gap:4px;font-weight:600;}
+  .km-ic{width:17px;height:17px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;background: var(--바탕-파랑, var(--primary,#185FA5));display:inline-flex;align-items:center;justify-content:center;}
+  .km-step{display:inline-flex;align-items:center;border:1px solid var(--faint,#d1d6db);border-radius:8px;overflow:hidden;}
+  .km-step button{width:24px;height:24px;border:0;background:var(--surface,#ffffff);font-size:14px;color:var(--글자-보조,#6b7684);cursor:pointer;}
+  .km-step button:disabled{opacity:.35;cursor:default;}
+  .km-step .v{min-width:34px;text-align:center;font-size:12px;font-weight:700;color:#1b64da;font-variant-numeric:tabular-nums;}
+  .km-step.conc .v{color: var(--글자-초록, var(--green,#0b7a54));min-width:26px;}
+  .km-th{font-size:12px;color:var(--sub,#8b95a1);font-weight:600;padding:4px 8px;}
+  .km-wl{font-size:12px;font-weight:700;padding:0px 4px;border-radius:8px;background:var(--연한-초록,#e6f9f1);color: var(--글자-초록, var(--green,#0b7a54));margin-left:4px;white-space:nowrap;}
+  .km-wl.win{background:var(--연한-주황,#fff7e6);color: var(--글자-주황, var(--amber,#8a5a06));}
+  .km-prep{font-size:12px;color: var(--글자-빨강, var(--red,#c0343f));font-weight:700;}
+  /* 지금 진행(실시간 창 수) — 위젯과 같은 점 게이지(C안) */
+  .km-live{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end;}
+  .km-live .dots{display:inline-flex;gap:4px;}
+  .km-live .dot{width:8px;height:8px;border-radius:50%;background:var(--line,#E4E8EC);}
+  .km-live .dot.on{background:var(--green,#12B886);}
+  .km-live .runn{font-weight:700;color: var(--글자-초록, var(--green,#0b7a54));min-width:12px;text-align:right;font-variant-numeric:tabular-nums;}
+  .km-live .runn.idle{color: var(--글자-희미, var(--faint,#c0c6cd));}
+  .km-more{display:inline-flex;align-items:center;gap:4px;background:var(--연한-파랑,#EAF2FE);border:1px solid var(--연한-파랑,#cfe1fb);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;color:#1b64da;text-decoration:none;margin-top:8px;}
+  /* [2026-08-02] 하위탭 — 「마켓 전송」 화면과 **같은 모양**이어야 한 탭으로 읽힌다 */
+  .ms-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line,#E5E8EB);margin-bottom:16px;}
+  /* 안 고른 탭 글자는 `--sub` 로 하면 밝은 화면에서 2.91 로 흐리다(라이브 실측) */
+  .ms-tab{padding:8px 16px;font-size:14px;font-weight:600;color:var(--글자-보조,#6B7684);
+    border-bottom:2px solid transparent;text-decoration:none;}
+  .ms-tab.on{color: var(--글자-파랑, var(--primary,#3182F6));border-bottom-color:var(--primary,#3182F6);}
+</style>
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* PC 는 zoom:1.3 으로 키워 본다 — 폰에서 그대로면 375px 이 288px 폭처럼 좁아져 넘친다 */
+  .au-wrap { zoom: 1; }
+  .ms-tab { min-height: 44px; display: inline-flex; align-items: center; }
+  /* 소싱처(좌)·판매처(우) 두 카드 — 세로 한 줄로 */
+  .au-pair { grid-template-columns: 1fr; }
+  .locks { grid-template-columns: 1fr; }
+  .cz-row { flex-wrap: wrap; }
+  /* 본문 글자 하한 14px (PC 는 12px) */
+  .au-sub, .au-d, .cl, .rd .rt { font-size: 14px; }
+  /* 손끝 목표 44px */
+  .rsc button { min-height: 44px; }
+  .rd { min-height: 44px; }
+  .cond { min-height: 44px; }
+  .czlog-tg { min-height: 44px; }
+  .czlog-row { min-height: 44px; }
+  .facc-h { min-height: 44px; }
+  .km-step button { min-height: 44px; min-width: 44px; }
+  /* 입력칸 16px = iOS 포커스 확대 방지 */
+  .thr input { font-size: 16px; min-height: 44px; }
+  .spd-in { font-size: 16px; min-height: 44px; }
+  #au-one-q { font-size: 16px; min-height: 44px; }
+  /* 표 4벌(계수·속도·미리보기·보고서) — 가로 스크롤 + 첫 열 붙박이 */
+  table.km, table.spd-t, table.pv-t, table.rpt-t {
+    display: block; overflow-x: auto; font-size: 14px; }
+  table.km th:first-child, table.km td:first-child,
+  table.rpt-t th:first-child, table.rpt-t td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  /* 회차 보고서 팝업 — PC 는 zoom:1.4 확대 판, 폰은 화면에 꽉 차게 */
+  .lrbox { zoom: 1; width: calc(100vw - 16px); height: 92vh; }
+  .lrtop { grid-template-columns: 1fr; }
+  .lrep-chg { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-automation">
+<div class="au-wrap" id="au-root"
+     data-crawl-on="{{ 1 if a.crawl_auto_enabled else 0 }}"
+     data-hh="{{ a.crawl_interval_hours }}" data-mm="{{ a.crawl_interval_minutes }}"
+     data-mode="{{ a.autosend_mode }}"
+     data-pur="{{ 1 if a.autosend_on_purchase else 0 }}"
+     data-stk="{{ 1 if a.autosend_on_stock else 0 }}"
+     data-thr="{{ a.autosend_stock_threshold }}"
+     data-prc="{{ 1 if a.autosend_on_price else 0 }}"
+     data-server="{{ 1 if server_unlocked else 0 }}"
+     data-armed="{{ 1 if armed else 0 }}">
+  {# [2026-08-02] 「상품수집&전송」 하위탭 ② — 옆 탭(마켓 전송)과 오갈 수 있어야 한다.
+     탭 목록의 원천은 `webapp/routes/market_send.py:SUBTABS` 하나다. #}
+  <div class="ms-tabs">
+    {% for t in send_subtabs %}
+      <a class="ms-tab {% if t.key == 'auto' %}on{% endif %}" href="{{ t.url }}">{{ t.label }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="au-h">자동화 설정</div>
+  <div class="au-sub">쉬지 않고 오래된 것부터 자동으로 긁고, 값이 바뀌면 자동으로 판매처에 보냅니다. (팀 공유 · 켜고 끄면 바로 저장돼요)</div>
+  <div class="live-banner {{ 'live' if armed else 'safe' }}" id="page-banner">
+    {% if armed %}<span class="em"><i class="ph-light ph-circle" aria-hidden="true"></i></span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요.
+      <span class="rbadge on"><span class="blip"></span>실제 나감</span>
+    {% else %}<span class="em"><i class="ph-light ph-circle" aria-hidden="true"></i></span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.{% endif %}
+  </div>
+
+  {# [2026-08-02 설계서 §4] 상품 하나만 골라 크롤 — 「모음전 상세」에 섞여 있던
+     전체 크롤·소싱처별 진행·최저가·실행 이력이 이 메뉴로 왔다. #}
+  <div class="au-card" id="au-one">
+    <div class="au-band src">상품 하나만 · 크롤 돌리고 진행 보기</div>
+    <div class="au-body">
+      <div class="au-d">전체 크롤 · 소싱처별 진행 · 최저가 1위 · 실행 이력을 <b>그 상품만</b> 봅니다.</div>
+      <input id="au-one-q" class="field-input" style="margin-top:10px"
+             placeholder="모음전 이름 · 번호 · 브랜드로 찾기" autocomplete="off">
+      <div id="au-one-list" class="au-one-list"></div>
+    </div>
+  </div>
+  <style>
+    #au-one .au-one-list { margin-top:8px; display:flex; flex-direction:column; }
+    #au-one .au-one-list a { display:flex; align-items:center; gap:10px; padding:9px 11px;
+      border-radius:8px; text-decoration:none; color:var(--ink,#191F28); font-size:14px; }
+    #au-one .au-one-list a:hover { background:var(--surface2,#F9FAFB); }
+    #au-one .au-one-list .no { font-family:ui-monospace,monospace; font-size:12px;
+      color:var(--글자-보조,#6B7684); }
+    #au-one .au-one-list .go { margin-left:auto; color:var(--글자-파랑,#3182F6); font-size:13px; }
+    #au-one .au-one-empty { padding:9px 11px; font-size:13px; color:var(--글자-보조,#6B7684); }
+  </style>
+  <script>
+  (function auOnePicker(){
+    const q = document.getElementById('au-one-q');
+    const box = document.getElementById('au-one-list');
+    if (!q || !box) return;
+    const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g,
+      c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    let timer = null;
+    function render(rows) {
+      if (!rows.length) {
+        box.innerHTML = '<div class="au-one-empty">찾는 모음전이 없습니다.</div>';
+        return;
+      }
+      box.innerHTML = rows.slice(0, 8).map(r =>
+        '<a href="/automation/product/' + encodeURIComponent(r.model_code) + '">'
+        + '<b>' + esc(r.name || r.no || r.model_code) + '</b>'
+        + '<span class="no">' + esc(r.no || r.model_code) + '</span>'
+        + (r.brand ? '<span class="no">' + esc(r.brand) + '</span>' : '')
+        + '<span class="go">크롤·진행 보기 →</span></a>').join('');
+    }
+    function load() {
+      const kw = q.value.trim();
+      if (!kw) { box.innerHTML = ''; return; }
+      fetch('/api/policies/bundles?q=' + encodeURIComponent(kw))
+        .then(r => r.json())
+        .then(j => render((j && j.rows) || []))
+        .catch(() => { box.innerHTML =
+          '<div class="au-one-empty">목록을 못 불러왔어요 — 잠시 뒤 다시 시도해 주세요.</div>'; });
+    }
+    q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(load, 250); });
+  })();
+  </script>
+
+  <div class="au-pair">
+    <!-- 소싱처 (좌) -->
+    <div class="au-card src-run {{ 'crawl-on' if a.crawl_auto_enabled else '' }}" id="crawl-card">
+      <div class="au-band src">소싱처 · 자동으로 긁기</div>
+      <div class="au-body">
+        <div class="au-ct"><div class="au-title"><i class="ph-light ph-database" aria-hidden="true"></i> 크롤 · 자동으로 긁기<span class="au-cont">연속</span></div>
+          <div class="rsc" id="crawl-seg">
+            <button type="button" class="run" data-run="1"><span class="ic"></span>실행</button>
+            <button type="button" class="stop" data-run="0"><span class="ic"></span>정지</button>
+          </div>
+        </div>
+        <div class="au-d">쉬지 않고 오래된 것부터 계속 긁어요 — 시간표 없이 항상 돕니다.</div>
+        <div class="cz" id="cz">
+          <div class="cz-row">
+            <div class="cz-today"><span class="lbl">오늘</span><b id="cz-laps">0</b><span class="lbl">바퀴</span></div>
+            <div class="cz-ringwrap"><div class="cz-ring" id="cz-ring"></div><div class="cz-rtxt"><b id="cz-pct">0%</b><small>이번 바퀴</small></div></div>
+            <div class="cz-right">
+              <div class="cz-avg" id="cz-avg">⏱ 평균 1바퀴 <b>–</b></div>
+              <div class="cz-bars" id="cz-bars"><span class="cz-none">아직 완료한 바퀴가 없어요</span></div>
+              {# 첫 렌더 문구도 서버 진실을 따른다 — 실행 중인데 「실행을 켜면」이 잠깐이라도
+                 보이면 그 순간은 거짓 화면이다(paintRun 이 곧 덮지만 첫 프레임이 남는다). #}
+              <div class="cz-feed" id="cz-feed">{% if a.crawl_auto_enabled %}실행 중 — 다음 소싱처를 기다리는 중이에요{% else %}정지 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요{% endif %}</div>
+            </div>
+          </div>
+          <div class="cz-paused" id="cz-paused">⏸ 정지됨 — 「실행」을 켜면 시작해요</div>
+        </div>
+        <div class="czlog" id="czlog" style="display:none">
+          <div class="czlog-h"><i class="ph-light ph-clock" aria-hidden="true"></i> 차수별 완료 시각<button type="button" class="czlog-tg" id="czlog-tg"></button></div>
+          <div class="czlog-list" id="czlog-list"></div>
+        </div>
+        <div class="km-lab"><i class="ph-light ph-tree" aria-hidden="true"></i> 소싱처별 설정 — 계수(자주 긁을수록 ×N) · 동시 상한(한 번에 몇 갈래)</div>
+        <table class="km">
+          <thead><tr><th class="km-th" style="text-align:left">소싱처</th><th class="km-th r">계수</th><th class="km-th r">동시 상한 <span class="km-prep">· 한 번에 몇 개</span></th><th class="km-th r">지금 진행</th></tr></thead>
+          <tbody id="km-body"><tr><td colspan="4" class="km-empty" style="font-size:12px;color:var(--sub,#8b95a1);padding:8px 0px">불러오는 중…</td></tr></tbody>
+        </table>
+        <a class="km-more" href="/automation/weights">브랜드·모음전별까지 자세히 설정 →</a>
+      </div>
+    </div>
+
+    <!-- 판매처 (우) -->
+    <div class="au-card {{ 'run' if armed else '' }}" id="mkt-card">
+      <div class="au-band band-flex {{ 'mkt-run' if armed else 'mkt-idle' }}" id="mkt-band">
+        <span><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 판매처 · 자동으로 보내기</span>
+        <span class="rbadge {{ 'on' if armed else '' }}" id="mkt-rbadge"><span class="blip"></span>실제 나감</span>
+        <span class="band-chip" id="mkt-chip">{{ '실행중' if armed else '안 나감' }}</span>
+      </div>
+      <div class="au-body">
+        <div class="au-ct"><div class="au-title"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 자동 전송</div></div>
+        <div class="au-d">값이 바뀌면 자동으로 판매처에 보내요. 기본은 안전하게 「미리보기만」이에요.</div>
+        <div class="locks">
+          <div class="lock" id="lk-server">
+            <div class="l-top"><i class="ph-light ph-lock" aria-hidden="true"></i> 서버 잠금 <span class="pill {{ 'on' if server_unlocked else 'off' }}">{{ '열림' if server_unlocked else '잠김' }}</span></div>
+            <div class="l-val">{{ '실제 전송 허용됨' if server_unlocked else '실제 전송 차단' }}</div>
+          </div>
+          <div class="lock {{ 'hot' if armed else '' }}" id="lk-ui">
+            <div class="l-top"><i class="ph-light ph-monitor" aria-hidden="true"></i>️ 화면 스위치 <span class="pill {{ 'red' if armed else 'off' }}" id="lk-ui-pill">{{ '실제 전송' if armed else '미리보기만' }}</span></div>
+            <div class="l-val" id="lk-ui-val">{{ '🔴 나가는 중' if armed else '안 나감' }}</div>
+          </div>
+        </div>
+        {% set pv = (preview or {}).get('markets') or {} %}
+        <div class="pv-box">
+          <div class="pv-h"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 미리보기 결과 · 이번에 나갈 값 <small>{% if preview and preview.get('at') %}(마지막 확인 방금){% else %}(아직 집계 전){% endif %}</small></div>
+          {% if pv %}
+          <table class="pv-t"><thead><tr><th>마켓</th><th class="r">보낼 건수</th><th class="r">가격 바뀜</th><th class="r">재고 바뀜</th></tr></thead>
+          <tbody>
+          {% set ns = {'c':0,'p':0,'s':0} %}
+          {% for mk, v in pv.items() %}
+            <tr><td>{{ mk }}</td><td class="r">{{ v.get('count',0) }}</td><td class="r">{{ v.get('price',0) }}</td><td class="r">{{ v.get('stock',0) }}</td></tr>
+            {% if ns.update({'c': ns.c + v.get('count',0), 'p': ns.p + v.get('price',0), 's': ns.s + v.get('stock',0)}) %}{% endif %}
+          {% endfor %}
+            <tr class="pv-sum"><td>합계</td><td class="r">{{ ns.c }}</td><td class="r">{{ ns.p }}</td><td class="r">{{ ns.s }}</td></tr>
+          </tbody></table>
+          {% else %}
+          <div class="pv-empty">아직 나갈 값이 없어요. 크롤이 한 바퀴 돌면 여기에 「무엇이·몇 건」 나갈지 뜹니다.</div>
+          {% endif %}
+        </div>
+        <div class="au-radio" id="seg">
+          <label class="rd" data-mode="preview"><span class="dot"></span><span class="rt">미리보기만 <small>· 마켓에 안 보내고 「보낼 값」만 만들어 둠 (안전)</small></span></label>
+          <label class="rd real{{ ' locked' if not server_unlocked else '' }}" data-mode="real"><span class="dot"></span><span class="rt">실제 전송 <small>{% if server_unlocked %}· 쿠팡·스마트스토어에 바로 반영{% else %}· 서버 잠금이 걸려 지금은 고를 수 없어요{% endif %}</small></span></label>
+        </div>
+        <div class="au-warn" id="warn"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 「실제 전송」은 쿠팡·스마트스토어에 바로 반영됩니다. 처음 한 번은 확인을 거쳐요.</div>
+
+        <div class="sec">어떤 변동이면 보낼까요?</div>
+        <div class="cond" style="opacity:.55;"><div class="cl">사입(직접 매입) 재고·가격 변동 <small style="color: var(--글자-빨강, var(--red,#c0343f));">준비 중 — 아직 전송에 반영 안 됨</small></div><div class="tog" id="t-pur"></div></div>
+        <div class="cond"><div class="cl">소싱처 재고 변동<small>재고가 <span class="thr"><input id="in-thr" type="number" min="0" value="4"><span class="u">개 이하</span></span>로 바뀐 것만 보냄</small></div><div class="tog" id="t-stk"></div></div>
+        <div class="cond"><div class="cl">소싱처 가격 변동</div><div class="tog" id="t-prc"></div></div>
+
+        <div class="spd">
+          <div class="spd-h"><i class="ph-light ph-truck" aria-hidden="true"></i> 마켓 · 계정(API)별 업로드 속도</div>
+          <table class="spd-t" id="spd-t"><thead><tr>
+            <th>마켓 · 계정</th><th class="r">1개당 초</th><th class="r">시간당 개수</th>
+          </tr></thead><tbody id="spd-body"><tr><td colspan="3" class="spd-empty">불러오는 중…</td></tr></tbody></table>
+        </div>
+        <div class="au-saved" id="saved">✓ 자동 저장됨</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="runsec" id="runsec">
+    <div class="rs-band"><i class="ph-light ph-siren" aria-hidden="true"></i> 크롤 실패<span class="rs-live" id="rs-live"></span></div>
+    <div class="rs-body">
+      <div class="rs-fail-h">크롤 실패 <span class="fbadge" id="f-count">0</span> · 소싱처별</div>
+      <div id="f-acc"><div class="fnone">불러오는 중…</div></div>
+    </div>
+  </div>
+
+  {# ══ [2026-07-30] 없앤 화면에서 옮겨온 보고서 2개 ══════════════════════
+       · 「미맵핑 큐」  → 소싱처 수집 · 매칭 실패 목록
+       · 「업로드 실패함」 → 판매처 전송 · 실패 내역
+     0건이면 한 줄로만 접혀 평소 화면을 어지럽히지 않는다. #}
+  <style>
+    .rpt-n{margin-left:8px;background:#EF4444;color:#fff;font-size:12px;font-weight:800;
+           padding:0px 8px;border-radius:999px;font-variant-numeric:tabular-nums}
+    .rpt-n.zero{background:var(--green,#22C55E)}
+    .rpt-ok{color: var(--글자-초록, var(--green,#15803D));font-size:12px;padding:4px 0px}
+    .rpt-lead{font-size:12px;color:var(--글자-기본,#4E5968);margin-bottom:8px}
+    .rpt-lead b{color:var(--ink,#191F28)}
+    .rpt-chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+    .rpt-chip{font-size:12px;font-weight:600;padding:4px 8px;border-radius:999px;
+              background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
+    .rpt-chip b{font-variant-numeric:tabular-nums;color:var(--ink,#191F28);margin-left:4px}
+    table.rpt-t{width:100%;border-collapse:collapse;font-size:12px}
+    table.rpt-t th{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);font-size:12px;font-weight:600;
+                   padding:8px 8px;border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap}
+    table.rpt-t td{padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    table.rpt-t .l{text-align:left}
+    table.rpt-t .c{text-align:center}
+    table.rpt-t .mono{font-family:ui-monospace,monospace;font-size:12px}
+    .rpt-more{font-size:12px;color:var(--sub,#8B95A1);padding-top:8px}
+  </style>
+
+  <div class="runsec">
+    <div class="rs-band"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 소싱처 수집 · 매칭 실패
+      <span class="rpt-n {{ 'zero' if not match_fail.total }}">{{ match_fail.total }}</span></div>
+    <div class="rs-body">
+      {% if not match_fail.total %}
+        <div class="rpt-ok">✓ 매칭 실패 0건 — 크롤이 찾은 것을 모두 우리 옵션에 이어 붙였어요</div>
+      {% else %}
+        <div class="rpt-lead">크롤이 <b>새로 본 것</b>인데 우리 옵션에 이어 붙이지 못한 것들이에요.
+          그냥 두면 그 옵션은 가격·재고가 안 채워집니다.</div>
+        <div class="rpt-chips">
+          {% for c, n in match_fail.cats.items() %}{% if n %}
+            <span class="rpt-chip">{{ c }}<b>{{ n }}</b></span>
+          {% endif %}{% endfor %}
+        </div>
+        <table class="rpt-t">
+          <thead><tr><th class="c">분류</th><th class="l">발견한 소싱처</th>
+            <th class="l">크롤이 읽은 것</th><th class="l">짐작되는 모델</th></tr></thead>
+          <tbody>
+          {% for r in match_fail.rows %}
+            <tr><td class="c">{{ r.cat }}</td><td class="l">{{ r.where }}</td>
+                <td class="l">{{ r.what }}</td><td class="l">{{ r.model }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if match_fail.total > match_fail.rows|length %}
+          <div class="rpt-more">+ {{ match_fail.total - match_fail.rows|length }}건 더 있음</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="runsec">
+    <div class="rs-band"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 판매처 전송 · 실패 내역
+      <span class="rpt-n {{ 'zero' if not upload_fail.total }}">{{ upload_fail.total }}</span></div>
+    <div class="rs-body">
+      {% if not upload_fail.total %}
+        <div class="rpt-ok">✓ 업로드 실패 0건 — 모두 정상</div>
+      {% else %}
+        <div class="rpt-lead">판매처로 보내다 <b>실패한 것</b>들이에요.
+          가장 흔한 원인: <b>{{ upload_fail.top_reason }}</b></div>
+        <table class="rpt-t">
+          <thead><tr><th class="c">마켓</th><th class="l">옵션번호</th>
+            <th class="c">실패 시각</th><th class="l">실패 원인</th></tr></thead>
+          <tbody>
+          {% for r in upload_fail.rows %}
+            <tr><td class="c">{{ r.market }}</td><td class="l mono">{{ r.sku }}</td>
+                <td class="c">{{ r.at.strftime('%m-%d %H:%M') if r.at else '—' }}</td>
+                <td class="l">{{ r.error }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if upload_fail.total > upload_fail.rows|length %}
+          <div class="rpt-more">+ {{ upload_fail.total - upload_fail.rows|length }}건 더 있음</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  var R=document.getElementById('au-root');
+  var st={
+    crawl_auto_enabled: R.dataset.crawlOn==='1',
+    crawl_interval_hours: parseInt(R.dataset.hh,10)||0,
+    crawl_interval_minutes: parseInt(R.dataset.mm,10)||0,
+    autosend_mode: R.dataset.mode||'preview',
+    autosend_on_purchase: R.dataset.pur==='1',
+    autosend_on_stock: R.dataset.stk==='1',
+    autosend_stock_threshold: parseInt(R.dataset.thr,10)||0,
+    autosend_on_price: R.dataset.prc==='1'
+  };
+  var savedEl=document.getElementById('saved'), _st;
+  function toast(){ savedEl.classList.remove('err'); savedEl.textContent='자동 저장됨'; savedEl.classList.add('on'); clearTimeout(_st); _st=setTimeout(function(){ savedEl.classList.remove('on'); },1400); }
+  // [2026-08-06] 저장 실패를 조용히 삼키지 않는다 — 옛 코드는 `.catch(function(){})` 로
+  //   먹어버려, 저장이 안 나갔는데도 화면은 바뀐 척했다(사장님 「눌러도 아무 일이 없다」).
+  //   부품은 새로 만들지 않고 같은 토스트(#saved)를 빨갛게 돌려 쓴다.
+  function toastFail(msg){ savedEl.classList.add('err'); savedEl.textContent='⚠ '+(msg||'저장 실패')+' — 서버에 반영되지 않았어요'; savedEl.classList.add('on'); clearTimeout(_st); _st=setTimeout(function(){ savedEl.classList.remove('on'); savedEl.classList.remove('err'); savedEl.textContent='자동 저장됨'; },6000); }
+  function save(patch){ return fetch('/api/automation/save',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ toast(); return true; } toastFail((d&&d.error)||'저장 실패'); return false; }).catch(function(){ toastFail('서버에 닿지 못했어요'); return false; }); }
+
+  function tog(el,on){ el.classList.toggle('on',!!on); }
+  function paintSeg(){
+    var run=st.crawl_auto_enabled;
+    var seg=document.getElementById('crawl-seg');
+    seg.querySelector('.run').classList.toggle('on',run);
+    seg.querySelector('.stop').classList.toggle('on',!run);
+    document.getElementById('crawl-card').classList.toggle('crawl-on',run);
+    document.getElementById('cz-paused').style.display=run?'none':'flex';
+  }
+  var serverUnlocked = R.dataset.server==='1';   // 서버 열쇠(MOUM_LIVE_UPLOAD) — 페이지 로드시 고정
+  function paintMode(){
+    document.querySelectorAll('#seg .rd').forEach(function(s){ s.classList.toggle('on',s.dataset.mode===st.autosend_mode); });
+    document.getElementById('warn').classList.toggle('on',st.autosend_mode==='real');
+    // 두 겹 잠금 = 서버 열림 AND 화면 실제전송. 화면 스위치 잠금칸 + 페이지 배너를 같이 갱신.
+    var armed = serverUnlocked && st.autosend_mode==='real';
+    var pill=document.getElementById('lk-ui-pill'), val=document.getElementById('lk-ui-val'), lk=document.getElementById('lk-ui');
+    if(pill){ pill.textContent=armed?'실제 전송':'미리보기만'; pill.className='pill '+(armed?'on':'off'); }
+    if(val){ val.textContent=armed?'나가는 중':'안 나감'; }
+    if(lk){ lk.classList.toggle('hot',armed); }
+    // 판매처 카드 = 소싱처와 같은 계열: 실행중=초록 / 그 외=회색 + 빨간 배지·상태칩
+    var band=document.getElementById('mkt-band'), card=document.getElementById('mkt-card');
+    if(band){ band.classList.toggle('mkt-run',armed); band.classList.toggle('mkt-idle',!armed); }
+    if(card){ card.classList.toggle('run',armed); }
+    var rb=document.getElementById('mkt-rbadge'); if(rb){ rb.classList.toggle('on',armed); }
+    var chip=document.getElementById('mkt-chip'); if(chip){ chip.textContent=armed?'실행중':'안 나감'; }
+    var b=document.getElementById('page-banner');
+    if(b){ b.className='live-banner '+(armed?'live':'safe');
+      b.innerHTML=armed
+        ? '<span class="em"></span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요. <span class="rbadge on"><span class="blip"></span>실제 나감</span>'
+        : '<span class="em"></span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.'; }
+  }
+
+  // 초기 렌더
+  tog(document.getElementById('t-pur'),st.autosend_on_purchase);
+  tog(document.getElementById('t-stk'),st.autosend_on_stock);
+  tog(document.getElementById('t-prc'),st.autosend_on_price);
+  document.getElementById('in-thr').value=st.autosend_stock_threshold;
+  // [연속 전용] 시간칸 제거 — 기본 주기를 0(항상 마감=연속)으로 맞춤. 0 아니면 1회 저장(사용자 세션).
+  if(st.crawl_interval_hours!==0 || st.crawl_interval_minutes!==0){ st.crawl_interval_hours=0; st.crawl_interval_minutes=0; save({crawl_interval_hours:0,crawl_interval_minutes:0}); }
+  paintSeg(); paintMode();
+
+  // 이벤트
+  // ── 「실행 / 정지」 ────────────────────────────────────────────────────
+  // 🔴 [2026-08-06 사장님 신고·라이브 실측] 화면엔 「실행」이 켜져 보이는데 서버는
+  //    crawl_auto_enabled=false 였다(/api/crawl/due-bundles → enabled:false, count:0).
+  //    st 는 페이지 로드 때 R.dataset.crawlOn 한 번으로만 채워져서, 딴 탭·폰 리모컨·딴
+  //    세션이 서버 값을 바꾸면 이 화면만 옛값으로 굳는다. 옛 코드엔
+  //      `if(run===st.crawl_auto_enabled) return;`
+  //    가 있어서, 그 어긋난 상태에서 「실행」을 눌러도 **저장이 아예 안 나갔다** —
+  //    눌러도 아무 일이 없던 정확한 원인. → early-return 을 없앤다. 같은 값이어도
+  //    저장을 보낸다(멱등: 서버는 같은 값을 다시 저장할 뿐) → 사용자가 눌러서 빠져나온다.
+  var _crawlGen=0;      // 저장 세대 — 올라가면 그 전에 나간 폴링 응답(옛값)은 버린다
+  var _crawlSaving=0;   // 저장 in-flight 수 — 0 일 때만 서버 값으로 다시 칠한다
+  function setRun(run){
+    _crawlGen++; _crawlSaving++;
+    st.crawl_auto_enabled=run; paintSeg(); paintRun();          // 낙관적 표시
+    // 저장이 실패하면 되돌리지 않고 그대로 둔다 — 아래 폴링이 **서버 진실**로 다시 칠한다.
+    save({crawl_auto_enabled:run}).then(function(){ _crawlSaving--; });
+    try{ if(window.MoumExt){ if(run){ MoumExt.autoPollStart(); } else { MoumExt.autoPollStop(); /* [2026-07-10] 정지 = 예약중단 + 지금 도는 크롤도 즉시 중지(안 그러면 진행중인 건 끝까지 감) */ if(MoumExt.stopCrawl){ var _sc=MoumExt.stopCrawl(); if(_sc&&_sc.catch)_sc.catch(function(){}); } } } }catch(_){}
+  }
+  document.querySelectorAll('#crawl-seg button').forEach(function(b){ b.addEventListener('click',function(){ setRun(this.dataset.run==='1'); }); });
+  // 서버가 말한 실행/정지로 화면을 다시 칠한다(pollLap 이 1.5초마다 넘겨준다).
+  //   ★낙관적 표시 충돌 방지 — ① 내 저장이 도는 중(_crawlSaving>0)이면 무시,
+  //     ② 이 응답이 나간 뒤 내가 또 눌렀으면(gen!==_crawlGen) 그 응답은 옛값이라 버린다.
+  function applyServerRun(d, gen){
+    if(!d || typeof d.enabled!=='boolean') return;
+    if(_crawlSaving>0 || gen!==_crawlGen) return;
+    if(d.enabled===st.crawl_auto_enabled) return;
+    st.crawl_auto_enabled=d.enabled; paintSeg(); paintRun();
+    // 딴 데서 켰으면 이 화면의 확장 예약도 따라 살린다(끌 땐 예약만 멈춤 —
+    // 지금 도는 크롤을 서버 읽기만으로 끊지는 않는다).
+    try{ if(window.MoumExt){ if(d.enabled){ if(MoumExt.autoPollStart){ var _a=MoumExt.autoPollStart(); if(_a&&_a.catch)_a.catch(function(){}); } } else if(MoumExt.autoPollStop){ MoumExt.autoPollStop(); } } }catch(_){}
+  }
+
+  document.querySelectorAll('#seg .rd').forEach(function(s){ s.addEventListener('click',function(){
+    var mode=s.dataset.mode;
+    // 서버 잠금이 걸려 있으면 실제전송은 못 고른다(두 겹 잠금 바깥 열쇠).
+    if(mode==='real' && !serverUnlocked){ alert('서버 잠금이 걸려 있어 「실제 전송」을 켤 수 없어요.\n\n실제로 켜려면 관리자에게 서버 잠금 해제를 요청하세요. 지금은 미리보기만 동작합니다.'); return; }
+    // 실제전송으로 바꿀 때 한 번 더 확인(무장 확인).
+    if(mode==='real' && st.autosend_mode!=='real'){
+      if(!confirm('「실제 전송」을 켜면, 값이 바뀔 때마다 쿠팡·스마트스토어·롯데온에 실제로 나갑니다.\n\n정말 켤까요?')) return;
+    }
+    st.autosend_mode=mode; paintMode(); save({autosend_mode:st.autosend_mode});
+  }); });
+  document.getElementById('t-pur').addEventListener('click',function(){ st.autosend_on_purchase=!st.autosend_on_purchase; tog(this,st.autosend_on_purchase); save({autosend_on_purchase:st.autosend_on_purchase}); });
+  document.getElementById('t-stk').addEventListener('click',function(){ st.autosend_on_stock=!st.autosend_on_stock; tog(this,st.autosend_on_stock); save({autosend_on_stock:st.autosend_on_stock}); });
+  document.getElementById('t-prc').addEventListener('click',function(){ st.autosend_on_price=!st.autosend_on_price; tog(this,st.autosend_on_price); save({autosend_on_price:st.autosend_on_price}); });
+  document.getElementById('in-thr').addEventListener('change',function(){ st.autosend_stock_threshold=Math.max(0,parseInt(this.value,10)||0); this.value=st.autosend_stock_threshold; save({autosend_stock_threshold:st.autosend_stock_threshold}); });
+
+  // ── ③ 마켓 계정별 속도 표 ──
+  var _mktStyle='font-size:11px;font-weight:700;color:#fff;background:#854F0B;border-radius:5px;padding:1px 6px;';
+  function renderSpeed(){
+    fetch('/api/upload/account-speed').then(function(r){return r.json();}).then(function(d){
+      var tb=document.getElementById('spd-body'); tb.innerHTML='';
+      var accs=(d&&d.accounts)||[]; var totals=(d&&d.market_totals)||{};
+      if(!accs.length){ tb.innerHTML='<tr><td colspan="3" class="spd-empty">등록된 판매처 계정이 없어요. 「판매처 계정」에서 추가하면 여기 나와요.</td></tr>'; return; }
+      var byMkt={}; accs.forEach(function(a){ (byMkt[a.market]=byMkt[a.market]||[]).push(a); });
+      Object.keys(byMkt).forEach(function(mkt){
+        byMkt[mkt].forEach(function(a,i){
+          var tr=document.createElement('tr');
+          tr.innerHTML='<td>'+(i===0?'<span style="'+_mktStyle+'">'+mkt+'</span> ':'&nbsp;&nbsp;&nbsp;')+a.account_name+'</td>'+
+            '<td class="r"><input class="spd-in" type="number" min="1" value="'+a.seconds_per_item+'" data-acc="'+a.account_id+'"></td>'+
+            '<td class="r" data-hr="'+a.account_id+'">'+a.per_hour+'</td>';
+          tb.appendChild(tr);
+        });
+        var s=document.createElement('tr'); s.className='spd-sum';
+        s.innerHTML='<td>↳ 총 스토어 업로드수</td><td></td><td class="r">'+(totals[mkt]||0)+'개/1시간</td>';
+        tb.appendChild(s);
+      });
+      tb.querySelectorAll('.spd-in').forEach(function(inp){
+        inp.addEventListener('change',function(){
+          var sec=Math.max(1,parseInt(this.value,10)||1); this.value=sec; var acc=this.dataset.acc;
+          fetch('/api/upload/account-speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:parseInt(acc,10),seconds_per_item:sec})})
+            .then(function(r){return r.json();}).then(function(rr){ if(rr&&rr.ok){ renderSpeed(); toast(); } });
+        });
+      });
+    }).catch(function(){});
+  }
+
+  // ── ⑤ 크롤 실패 — B 아코디언(소싱처 > 브랜드 > 옵션·url·유형) ──
+  function _esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
+  function _dec(s){ try{ return decodeURIComponent(s); }catch(e){ return s; } }
+  function _shortUrl(u){ try{ var x=new URL(u); var t=_dec(x.pathname+x.search); return _esc(x.hostname.replace(/^www\./,'')+(t.length>26?'…'+t.slice(-24):t)); }catch(e){ u=_esc(_dec(u)); return u.length>36?'…'+u.slice(-34):u; } }
+  // 에러 발견 시각 → 절대시각 「26.07.06 오후 1:30」(한국시간). naive UTC → Z 붙여 파싱, 브라우저 로컬(KST) 표기.
+  function _absTime(iso){
+    if(!iso) return '';
+    var s=/[Zz]|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z';
+    var t=new Date(s); if(isNaN(t.getTime())) return '';
+    var p=function(n){return ('0'+n).slice(-2);};
+    var yy=p(t.getFullYear()%100), mm=p(t.getMonth()+1), dd=p(t.getDate());
+    var h=t.getHours(), ap=h<12?'오전':'오후', h12=h%12||12;
+    return yy+'.'+mm+'.'+dd+' '+ap+' '+h12+':'+p(t.getMinutes());
+  }
+  function renderFailures(){
+    fetch('/api/crawl/failures').then(function(r){return r.json();}).then(function(d){
+      var groups=(d&&d.groups)||[];
+      var total=groups.reduce(function(s,g){return s+g.count;},0);
+      document.getElementById('f-count').textContent=total;
+      var acc=document.getElementById('f-acc');
+      if(!total){ acc.innerHTML='<div class="fnone">크롤 실패 없음</div>'; return; }
+      // 모든 실패 item 평탄화(+유형) → 소싱처별 그룹
+      var bySite={};
+      groups.forEach(function(g){ (g.items||[]).forEach(function(it){
+        var k=it.site||'?';
+        var s=bySite[k]||(bySite[k]={label:it.site_label||it.site||'?', items:[]});
+        s.items.push({br:it.brand, opt:it.option_scope, url:it.url, tl:g.label, em:g.emoji, tc:g.type, at:it.detected_at});
+      }); });
+      acc.innerHTML=Object.keys(bySite).map(function(k){
+        var s=bySite[k];
+        var brands=Array.from(new Set(s.items.map(function(x){return x.br;}).filter(Boolean)));
+        var rows=s.items.map(function(it){
+          var at=_absTime(it.at);
+          return '<div class="frow"><span class="fopt">'+_esc(it.opt||'')+'</span>'+
+            '<span class="furl">'+_shortUrl(it.url)+'</span>'+
+            (at?'<span class="ftime">'+at+'</span>':'')+
+            '<span class="ftg t-'+_esc(it.tc)+'">'+_esc(it.em+' '+it.tl)+'</span></div>';
+        }).join('');
+        return '<div class="facc open"><button class="facc-h" type="button">'+
+          '<span class="fcar">▶</span><span class="fsic">'+_esc((s.label||'?').charAt(0))+'</span>'+_esc(s.label)+
+          (brands.length?' <span class="fbr">'+_esc(brands.join(', '))+'</span>':'')+
+          '<span class="fcnt">'+s.items.length+'</span></button>'+
+          '<div class="facc-b">'+rows+'</div></div>';
+      }).join('');
+      acc.querySelectorAll('.facc-h').forEach(function(b){ b.addEventListener('click',function(){ this.parentElement.classList.toggle('open'); }); });
+    }).catch(function(){});
+  }
+
+  // ── 링('이번 바퀴') — 크롤 중엔 확장 실시간, 유휴엔 서버 랩 진행률 ──
+  //   크롤 중: 링 = 확장의 실시간 진행(위젯과 동일 done/total). 서버 폴링(3초·배치 저장)은
+  //     한 박자 늦어 '느리게 오른다'처럼 보였음 → paintRun 이 1초마다 확장값으로 매끄럽게 갱신.
+  //   유휴(정지·크롤끝): 링 = 서버 lap_progress(영속 — 확장 잠깐 쉬어도 이어짐).
+  //   오늘 N바퀴·평균·막대 = 항상 서버(pollLap).
+  var _lapPct=0;
+  function renderBars(recent){
+    var el=document.getElementById('cz-bars'); if(!el) return;
+    if(!recent||!recent.length){ el.innerHTML='<span class="cz-none">아직 완료한 바퀴가 없어요</span>'; return; }
+    var mx=Math.max.apply(null,recent)||1;
+    var html=recent.map(function(m){ var h=Math.max(14,Math.round(m/mx*100)); return '<i style="height:'+h+'%"></i>'; }).join('');
+    html+='<i class="cur" style="height:60%"></i>';   // 지금 진행 중 바퀴(파랑)
+    el.innerHTML=html;
+  }
+  function pollLap(){
+    // 오늘 바퀴·평균·막대만 서버에서(링 %는 안 건드림 — paintRun 이 위젯값으로만 그린다).
+    // [2026-08-06] 여기 실려 오는 enabled 로 「실행/정지」를 다시 칠한다 —
+    //   폴링을 새로 만들지 않는다(이미 도는 이 폴링에 얹는다).
+    var _gen=_crawlGen;
+    fetch('/api/crawl/queue').then(function(r){return r.json();}).then(function(d){
+      applyServerRun(d, _gen);
+      var ls=(d&&d.lap_stats)||{};
+      var laps=document.getElementById('cz-laps'), avg=document.getElementById('cz-avg');
+      if(laps) laps.textContent=(ls.laps_today!=null?ls.laps_today:0);
+      if(avg) avg.innerHTML='⏱ 평균 1바퀴 <b>'+(ls.avg_lap_minutes!=null?ls.avg_lap_minutes+'분':'–')+'</b>';
+      renderBars(ls.recent_lap_minutes);
+      _lastLaps=ls.today_laps||[]; renderLapLog();
+    }).catch(function(){});
+  }
+  // ── 차수별 완료 시각 (A안 리스트 + 펼치기/접기) ──
+  var _lastLaps=[], _lapsExpanded=false;
+  function _kstLap(iso){   // ISO(naive UTC) → "26.07.07. 06:10" (브라우저 로컬=KST)
+    if(!iso) return '';
+    var s=/[Zz]|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z';
+    var t=new Date(s); if(isNaN(t.getTime())) return '';
+    var p=function(n){return ('0'+n).slice(-2);};
+    return p(t.getFullYear()%100)+'.'+p(t.getMonth()+1)+'.'+p(t.getDate())+'. '+p(t.getHours())+':'+p(t.getMinutes());
+  }
+  function _kstDate(iso){ if(!iso) return null;
+    var s=/[Zz]|[+-]\d\d:?\d\d$/.test(iso)?iso:iso+'Z';
+    var t=new Date(s); return isNaN(t.getTime())?null:t; }
+  function _kstHM(iso){ var t=_kstDate(iso); if(!t) return '';
+    var p=function(n){return ('0'+n).slice(-2);};
+    return p(t.getHours())+':'+p(t.getMinutes()); }
+  function _sameDayIso(a,b){ var x=_kstDate(a), y=_kstDate(b);
+    return !!(x&&y&&x.toDateString()===y.toDateString()); }
+  function renderLapLog(){
+    var sec=document.getElementById('czlog'), list=document.getElementById('czlog-list'), tg=document.getElementById('czlog-tg');
+    if(!sec||!list) return;
+    var laps=_lastLaps||[];
+    if(!laps.length){ sec.style.display='none'; return; }
+    sec.style.display='';
+    var rev=laps.slice().reverse();              // 최신 회차 먼저
+    var show=_lapsExpanded?rev:[];               // 접힘=완전히 숨김 / 펼침=전체
+    list.style.display=_lapsExpanded?'':'none';
+    // [2026-07-10] 폴링이 열어둔 보고서를 닫지 않게 — 회차 목록이 그대로면 다시 그리지 않는다.
+    var sig=laps.map(function(x){return x.no+'@'+x.at;}).join('|')+'#'+(_lapsExpanded?1:0);
+    if(sig!==_lapSig){
+      _lapSig=sig;
+      var idxByNo={}; laps.forEach(function(y,i){ idxByNo[y.no]=i; });
+      list.innerHTML=show.map(function(x){
+        var i=idxByNo[x.no], dur=_lapMin(laps,i);
+        // 시작~종료. 같은 날이면 시:분만("19:48~19:51") — 날짜 두 번 안 쓰게.
+        var _st=(i>0? laps[i-1].at : null);
+        var tm=(_st? (_sameDayIso(_st,x.at)? _kstHM(_st) : _kstLap(_st))+'~' : '')+_kstHM(x.at);
+        return '<div class="czlog-row" data-no="'+x.no+'">'
+          +'<span class="czlog-rc">'+x.no+'회차</span>'
+          +'<span class="czlog-tm">'+tm+'</span>'
+          +(dur?'<span class="czlog-dur">'+dur+'분</span>':'')
+          +'<span class="czlog-ch">▸</span></div>';
+      }).join('');
+    }
+    if(tg){ tg.style.display=''; tg.textContent=_lapsExpanded?'접기 ▴':('펼치기 ▾ ('+laps.length+')'); }
+  }
+  var _lapSig='';
+  function _lapMin(chrono,i){ if(i<=0) return null;
+    var a=Date.parse(chrono[i-1].at+'Z'), b=Date.parse(chrono[i].at+'Z');
+    if(isNaN(a)||isNaN(b)) return null;
+    return Math.max(1, Math.round((b-a)/60000)); }
+
+  // ── 회차 보고서 그리기 (D6 — 요약 │ 굵은 선 │ 가격·재고 2열 │ 결과) ──
+  function _esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  // ── 회차 보고서 팝업 (결과 상단 · 가격/재고 2열 · 소싱처·유형 묶음 + 5건 미리) ──
+  var _lrOpen=null;
+  function _grpLabel(kind,x){
+    if(kind==='price') return x.dir==='up'?'가격 오름':(x.dir==='dn'?'가격 내림':'가격 변동');
+    if(x.to==='옵션 사라짐') return '옵션 사라짐';
+    return x.dir==='so'?'품절 전환':(x.dir==='re'?'재입고':(x.dir==='unk'?'확인불가':'재고 변동'));
+  }
+  function _icon(kind,x){
+    if(kind==='price') return x.dir==='up'?'▲':(x.dir==='dn'?'▼':'·');
+    return (x.to==='옵션 사라짐'||x.dir==='so')?'■':(x.dir==='re'?'+':'·');
+  }
+  function _rowHtml(kind,x){
+    if(kind==='price'){
+      var dl=(x.delta==null)?'':((x.delta>0?'+':'−')+Math.abs(x.delta).toLocaleString());
+      return '<div class="lrow p"><span class="ic lc-'+x.dir+'">'+_icon(kind,x)+'</span>'
+        +'<span class="nm">'+_esc(x.option)+'</span>'
+        +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt">'+_esc(x.to)+'</span></span>'
+        +'<span class="dt lc-'+x.dir+'">'+dl+'</span></div>';
+    }
+    return '<div class="lrow s"><span class="ic lc-'+x.dir+'">'+_icon(kind,x)+'</span>'
+      +'<span class="nm">'+_esc(x.option)+'</span>'
+      +'<span class="val"><span class="vf">'+_esc(x.from)+'</span><span class="va">→</span><span class="vt lc-'+x.dir+'">'+_esc(x.to)+'</span></span></div>';
+  }
+  function _groups(kind,list){
+    if(!list || !list.length) return '<div class="lrep-empty">'+(kind==='price'?'가격':'재고')+' 변동 없음</div>';
+    var g={}, order=[]; var SEP=' ·· ';
+    list.forEach(function(x){ var k=(x.site_label||x.site)+SEP+_grpLabel(kind,x); if(!g[k]){g[k]=[];order.push(k);} g[k].push(x); });
+    return order.map(function(k,gi){
+      var arr=g[k], p=k.split(SEP), site=p[0], lab=p[1];
+      var id='lrg-'+kind+'-'+gi, rest=arr.length-5;
+      return '<div class="lrg" data-t="'+id+'"><span class="gi lc-'+arr[0].dir+'">'+_icon(kind,arr[0])+'</span>'
+        +'<span class="gn">'+_esc(site)+'</span><span class="gt">· '+lab+'</span>'
+        +'<span class="gc">'+arr.length+'건</span><span class="gx">▾</span></div>'
+        +'<div class="lrglist" id="'+id+'">'
+        +arr.slice(0,5).map(function(x){return _rowHtml(kind,x);}).join('')
+        +(rest>0? '<div style="display:none" id="'+id+'-rest">'+arr.slice(5).map(function(x){return _rowHtml(kind,x);}).join('')+'</div>'
+                 +'<div class="lrmore" data-more="'+id+'">'+rest+'건 더 보기 ▾</div>' : '')
+        +'</div>';
+    }).join('');
+  }
+  // ── C안: 위=변동(좌 가격/우 재고) · 아래=그대로(이름만 → 클릭 토글) ──
+  var _keepMap = {}, _prodMap = {};
+  function lapRepHtml(d){
+    var s=d.summary||{}, c=d.changes||{}, r=d.result||{}, lp=d.lap||{};
+    var exc=(s.excluded_sites||[]).length? '<span class="exc">'+_esc(s.excluded_sites.join(' · '))+' 제외</span>' : '';
+    var fs=(s.first_seen||0)? '<span class="exc">처음 수집 <b style="color:var(--sub,#8B95A1)">'+Number(s.first_seen).toLocaleString()+'</b>건(변동 아님)</span>' : '';
+    var fl=r.failing_now||[], fn=fl.reduce(function(a,b){return a+(b.count||0);},0);
+    var why=fl.map(function(f){return _esc(f.reason)+' '+f.count+'건';}).join(' · ');
+    var pn=(c.price||[]).length, sn=(c.stock||[]).length;
+    var pbody = pn? _groups('price',c.price) : '<div class="lrempty">이번 바퀴 가격 변동 0건</div>';
+    var sbody = sn? _groups('stock',c.stock) : '<div class="lrempty">이번 바퀴 재고 변동 0건</div>';
+    // 하단 '그대로' 소싱처
+    _keepMap={};
+    var keep=(d.keep_sources||[]);
+    keep.forEach(function(k){ _keepMap[k.site]=k; });
+    var kb = keep.length
+      ? keep.map(function(k){
+          return '<div class="lrkrow" data-site="'+_esc(k.site)+'"><div class="lrkh">'
+            +'<span style="color: var(--글자-희미, var(--faint,#B0B8C1));text-align:center">·</span>'
+            +'<span class="knm">'+_esc(k.site_label||k.site)+'</span>'
+            +'<span class="kcnt">상품 '+(k.product_count||0)+'개</span>'
+            +'<span class="kx">▸</span></div><div class="lrkb"></div></div>';
+        }).join('')
+      : '<div class="lrempty">변동 없는 소싱처가 없어요</div>';
+    return '<div class="lrtop">'
+      +'<div><div class="lrblk-h">이번 바퀴</div><div class="lrep-sum">'
+      +'<span>긁은 URL <b>'+(s.urls||0)+'</b>개</span><span>소싱처 <b>'+(s.sites||0)+'</b>곳</span>'
+      +(lp.minutes!=null? '<span>소요 <b>'+lp.minutes+'분</b></span>' : '')+fs+exc+'</div></div>'
+      +'<div><div class="lrblk-h">결과</div><div class="lrep-sfb">'
+      +'<span class="ok">저장 <b>'+(r.saved||0)+'</b>건</span>'
+      +(fn? '<span class="er">지금 실패 중 <b>'+fn+'</b>건</span>' : '')
+      +'<span class="why">'+(fn? why+' · 회차별이 아니라 <b>현재</b> 기준이에요' : '지금 실패 중인 주소는 없어요')+'</span>'
+      +'</div></div></div>'
+      +'<div class="lrep-rule"></div>'
+      +'<div class="lrep-chg">'
+      +'<div><div class="lrep-ch">가격 변동<i>'+pn+'</i></div>'+pbody+'</div>'
+      +'<div><div class="lrep-ch">재고 변동<i>'+sn+'</i></div>'+sbody+'</div>'
+      +'</div>'
+      +'<div class="lrkeep"><div class="lrep-ch" style="margin-top:4px">변동 없음 — 소싱처를 누르면 가격·재고가 펼쳐져요</div>'+kb+'</div>';
+  }
+  function _receipt(p, br){
+    var sp = (br && br.sale_price!=null) ? br.sale_price : p.surface_price;
+    var head = '<div class="l">표면노출가</div><div class="v">'+(sp!=null? Number(sp).toLocaleString() : '확인불가')+'</div>';
+    // ★ 일괄 계산(/breakdowns) 응답엔 ok 플래그가 없다(래퍼에만 있음). 최종매입가 유무로 판단.
+    if(!br || br.final_price==null){
+      return '<div class="rcpt">'+head
+        +'<div class="l tot">= 최종매입가</div><div class="v tot unk">확인불가</div></div>'
+        +'<div class="rtail">혜택을 읽지 못했어요. 추측한 값 대신 「확인불가」로 둡니다.</div>';
+    }
+    var steps=(br.steps||[]).filter(function(x){return x.deduct;});
+    return '<div class="rcpt">'+head
+      +steps.map(function(x){ return '<div class="l m">− '+_esc(x.name)+'</div><div class="v m">'+Number(x.deduct).toLocaleString()+'</div>'; }).join('')
+      +'<div class="l tot">= 최종매입가</div><div class="v tot">'+Number(br.final_price).toLocaleString()+'</div>'
+      +'</div>';
+  }
+  function _grid(p){
+    var g=p.stock_grid||[];
+    if(!g.length) return '<div class="nofin">재고 정보 없음</div>';
+    var colors=[], sizes=[];
+    g.forEach(function(o){ var c=o.color||'단품';
+      if(colors.indexOf(c)<0) colors.push(c);
+      if(o.size && sizes.indexOf(o.size)<0) sizes.push(o.size); });
+    sizes.sort(function(a,b){                       // 220mm·230mm… 숫자 순 (글자 순 아님)
+      var x=parseFloat(a), y=parseFloat(b);
+      if(isNaN(x)||isNaN(y)) return String(a).localeCompare(String(b));
+      return x-y; });
+    if(!sizes.length) sizes=[''];
+    var idx={}; g.forEach(function(o){ idx[(o.color||'단품')+'|'+(o.size||'')]=o.stock; });
+    // ★색×사이즈를 곱하면 '그 소싱처가 안 파는 조합'까지 칸이 생긴다(9색×14사이즈=126 > 실제 102).
+    //   없는 조합을 확인불가로 칠하면 "재고를 못 읽었다"는 거짓말 + 범례(확인불가 0)와 모순.
+    //   → 데이터에 있는 조합만 상태를 칠하고, 없는 조합은 빈 칸으로 둔다.
+    function has(k){ return Object.prototype.hasOwnProperty.call(idx,k); }
+    function cls(q){ if(q==null||q<0) return 'g-un'; if(q===0) return 'g-so'; if(q>=999) return 'g-am'; return 'g-li'; }
+    function word(q){ return q==null||q<0? '확인불가' : (q===0? '품절' : (q>=999? '충분' : q+'개')); }
+    var html = colors.map(function(c){
+      return '<div class="sgrow"><div class="sgnm">'+_esc(c)+'</div><div class="sgg">'
+        +sizes.map(function(z){ var k=c+'|'+z;
+            if(!has(k)) return '<span class="g-na" title="'+_esc(c+' '+(z||'단품')+' — 이 소싱처엔 없는 조합')+'">'+_esc(z||'단품')+'</span>';
+            var q=idx[k];
+            return '<span class="'+cls(q)+'" title="'+_esc(c+' '+(z||'단품')+' — '+word(q))+'">'+_esc(z||'단품')+'</span>'; }).join('')
+        +'</div></div>';
+    }).join('');
+    var su=p.stock_summary||{};
+    return html+'<div class="sglg">'
+      +'<span><i style="background:var(--line2,#F1F7F3)"></i>충분 '+(su.ample||0)+'</span>'
+      +'<span><i style="background:var(--연한-주황,#FFE9A8)"></i>한정 '+(su.limited||0)+'</span>'
+      +'<span><i style="background:var(--line,#DDE1E6)"></i>품절 '+(su.soldout||0)+'</span>'
+      +'<span><i style="background:var(--amber,#FFB84D)"></i>확인불가 '+(su.unknown||0)+'</span>'
+      +'<span style="color:var(--faint,#B0B8C1)">빈 칸 = 이 소싱처엔 없는 조합</span>'
+      +'</div>';
+  }
+  // 소싱처를 펼치면 상품 줄. 최종매입가는 상품마다 다르므로 한 번에 일괄 계산한다.
+  function openKeep(row){
+    var site=row.getAttribute('data-site'), k=_keepMap[site]; if(!k) return;
+    var body=row.querySelector('.lrkb');
+    var prods=k.products||[];
+    if(!prods.length){ body.innerHTML='<div class="lrempty">상품이 없어요</div>'; return; }
+    _prodMap[site]=prods;
+    body.innerHTML='<div class="lrpcolh"><span>상품</span><span>표면노출가</span><span>최종매입가</span><span></span></div>'
+      + prods.map(function(p,i){
+          return '<div class="lrprow" data-site="'+_esc(site)+'" data-i="'+i+'"><div class="lrph">'
+            +'<div class="pn" title="'+_esc(p.url||'')+'">'+_esc(p.name||p.url||'상품')+'</div>'
+            +'<div class="pp">'+(p.surface_price!=null? Number(p.surface_price).toLocaleString() : '확인불가')+'</div>'
+            +'<div class="pf unk" data-fin>…</div>'
+            +'<div class="px">▸</div></div><div class="lrpb"></div></div>';
+        }).join('');
+    // 일괄 계산 — 열쇠(sku·source_id)가 없는 상품은 애초에 보내지 않는다(확인불가 확정).
+    var items=[];
+    prods.forEach(function(p,i){
+      if(p.sku && p.source_id!=null && p.surface_price)
+        items.push({key:'i'+i, sku:p.sku, source_id:p.source_id,
+                    sale_price:p.surface_price, source_product_id:p.source_product_id});
+    });
+    var cells=body.querySelectorAll('[data-fin]');
+    var paint=function(res){
+      prods.forEach(function(p,i){
+        var br=res? res['i'+i] : null;
+        p._br = (br && br.final_price!=null) ? br : null;
+        var c=cells[i]; if(!c) return;
+        if(p._br){ c.textContent=Number(p._br.final_price).toLocaleString(); c.classList.remove('unk'); }
+        else { c.textContent='확인불가'; c.classList.add('unk'); }
+      });
+    };
+    if(!items.length){ paint(null); return; }
+    fetch('/api/source-benefits/breakdowns',{method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({items:items})})
+      .then(function(r){return r.json();})
+      .then(function(d){ paint((d&&d.results)||null); })
+      .catch(function(){ paint(null); });
+  }
+  function openProduct(prow){
+    var site=prow.getAttribute('data-site'), i=+prow.getAttribute('data-i');
+    var p=(_prodMap[site]||[])[i]; if(!p) return;
+    prow.querySelector('.lrpb').innerHTML =
+      '<div class="lrksec">가격</div>'+_receipt(p, p._br)
+      +'<div class="lrksec" style="margin-top:12px">재고</div>'+_grid(p);
+  }
+  function closeLap(){ var m=document.getElementById('lrmask'); if(m) m.style.display='none'; _lrOpen=null; }
+  function openLap(no){
+    no=parseInt(no,10); if(isNaN(no)) return;
+    var laps=_lastLaps||[]; if(!laps.length) return;
+    var nos=laps.map(function(x){return x.no;});
+    var mn=Math.min.apply(null,nos), mx=Math.max.apply(null,nos);
+    if(no<mn||no>mx) return;
+    _lrOpen=no;
+    var i=-1; for(var k=0;k<laps.length;k++){ if(laps[k].no===no){ i=k; break; } }
+    var cur=(i>=0)?laps[i]:null;
+    var tm=cur? ((i>0? (_sameDayIso(laps[i-1].at,cur.at)? _kstHM(laps[i-1].at) : _kstLap(laps[i-1].at))+'~' : '')+_kstHM(cur.at)) : '';
+    var dur=(i>0)? _lapMin(laps,i) : null;
+    document.getElementById('lrmask').style.display='flex';
+    document.getElementById('lrh-no').textContent=no+'회차';
+    document.getElementById('lrh-tm').textContent=tm;
+    document.getElementById('lrh-du').textContent=dur? (dur+'분') : '';
+    var pb=document.getElementById('lr-prev'), nb=document.getElementById('lr-next');
+    pb.disabled=(no<=mn); nb.disabled=(no>=mx);
+    pb.textContent='◂ '+(no-1)+'회차'; nb.textContent=(no+1)+'회차 ▸';
+    var body=document.getElementById('lrb');
+    body.innerHTML='<div class="lrep-empty">불러오는 중…</div>';
+    fetch('/api/crawl/lap-report?no='+encodeURIComponent(no))
+      .then(function(x){return x.json();})
+      .then(function(d){ body.innerHTML=(d&&d.ok)? lapRepHtml(d) : '<div class="lrep-empty">'+_esc((d&&d.error)||'불러오지 못했어요')+'</div>'; })
+      .catch(function(){ body.innerHTML='<div class="lrep-empty">불러오지 못했어요</div>'; });
+  }
+  // 팝업 뼈대 1회 생성 + 닫기/이동/묶음 토글
+  (function(){
+    var m=document.createElement('div'); m.className='lrmask'; m.id='lrmask'; m.style.display='none';
+    m.innerHTML='<div class="lrbox"><div class="lrh">'
+      +'<span class="lrh-no" id="lrh-no"></span><span class="lrh-tm" id="lrh-tm"></span>'
+      +'<span class="lrh-du" id="lrh-du"></span><span class="lrh-sp"></span>'
+      +'<span class="lrh-nav"><button type="button" id="lr-prev"></button><button type="button" id="lr-next"></button></span>'
+      +'<button type="button" class="lrh-x" id="lr-x"></button></div>'
+      +'<div class="lrb" id="lrb"></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(e){ if(e.target===m) closeLap(); });
+    document.getElementById('lr-x').addEventListener('click',closeLap);
+    document.getElementById('lr-prev').addEventListener('click',function(){ if(_lrOpen) openLap(_lrOpen-1); });
+    document.getElementById('lr-next').addEventListener('click',function(){ if(_lrOpen) openLap(_lrOpen+1); });
+    document.getElementById('lrb').addEventListener('click',function(e){
+      var ph=e.target.closest && e.target.closest('.lrph');
+      if(ph){ var prow=ph.parentElement, pwas=prow.classList.contains('open');
+        prow.classList.toggle('open');
+        ph.querySelector('.px').textContent = pwas? '\u25b8' : '\u25be';
+        if(!pwas && !prow.getAttribute('data-loaded')){ prow.setAttribute('data-loaded','1'); openProduct(prow); }
+        return; }
+      var kh=e.target.closest && e.target.closest('.lrkh');
+      if(kh){ var row=kh.parentElement, was=row.classList.contains('open');
+        row.classList.toggle('open');
+        kh.querySelector('.kx').textContent = was? '▸' : '▾';
+        if(!was && !row.getAttribute('data-loaded')){ row.setAttribute('data-loaded','1'); openKeep(row); }
+        return; }
+      var g=e.target.closest && e.target.closest('.lrg');
+      if(g){ var el=document.getElementById(g.getAttribute('data-t'));
+        if(el){ var on=el.style.display!=='none'; el.style.display=on?'none':''; var x=g.querySelector('.gx'); if(x) x.textContent=on?'▸':'▾'; }
+        return; }
+      var mo=e.target.closest && e.target.closest('.lrmore');
+      if(mo){ var rest=document.getElementById(mo.getAttribute('data-more')+'-rest'); if(rest){ rest.style.display=''; mo.style.display='none'; } }
+    });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape' && _lrOpen) closeLap(); });
+  })();
+  // 회차 줄 클릭 → 팝업 열기
+  (function(){ var list=document.getElementById('czlog-list'); if(!list) return;
+    list.addEventListener('click', function(e){
+      var row=e.target.closest && e.target.closest('.czlog-row'); if(!row) return;
+      openLap(row.getAttribute('data-no'));
+    });
+  })();
+  (function(){ var tg=document.getElementById('czlog-tg'); if(tg) tg.addEventListener('click',function(){ _lapsExpanded=!_lapsExpanded; renderLapLog(); }); })();
+  function _extState(){ try{ return (window.MoumExt&&MoumExt.getCrawlState&&MoumExt.getCrawlState())||{}; }catch(e){ return {}; } }
+  // 링 % = 오직 위젯(crawl_log)의 __moumOverall 값 — 같은 페이지·같은 계산 → 위젯과 항상 일치.
+  //   ★서버 랩 진행률(65/74=89% 잔값)은 절대 안 씀(그게 위젯과 안 맞던 원인). fresh 없으면 0%.
+  //   paintRun(1초)이 링의 유일한 소유자 — pollLap 과 충돌 없음.
+  function paintRun(){
+    var o=window.__moumOverall;
+    var fresh=!!(o && (Date.now()-(o.ts||0)<15000) && (+o.total>0));
+    var running=fresh ? (o.active!==false) : false;
+    if(!running){ try{ running=!!_extState().running; }catch(e){} }   // 회전 표시만 보정
+    var card=document.getElementById('crawl-card'); if(card) card.classList.toggle('is-running',running);
+    var rs=document.getElementById('runsec'); if(rs) rs.classList.toggle('on',running);
+    var ring=document.getElementById('cz-ring'), feed=document.getElementById('cz-feed'), pct=document.getElementById('cz-pct');
+    if(!ring) return;
+    var p=fresh ? Math.min(100,Math.round(+o.pct||0)) : 0;   // 위젯값만
+    ring.style.setProperty('--p',p+'%');
+    if(pct) pct.textContent=p+'%';
+    if(running){
+      var nm=_extState().running||'';
+      if(feed) feed.innerHTML='<span class="r">↻</span> '+nm+' 긁는 중…';
+      ring.classList.add('spin');
+    } else {
+      /* 🔴 [2026-08-06 라이브 실측] 실행이 켜져 있고 실제로 바퀴가 도는 중인데도
+         「대기 중… 「실행」을 켜면 …」 이 떠 있었다 — 이미 켠 사람에게 켜라고 말하는
+         거짓 문구다(오늘 18바퀴·19번째 진행 중인 화면에서 확인).
+         원인: 이 갈래는 「지금 이 순간 긁는 창이 없다」는 뜻일 뿐인데(확장이 다음 대상으로
+         넘어가는 사이·창 없이 훑는 구간) 문구는 「정지 상태」를 말하고 있었다.
+         켜짐/꺼짐은 실행·정지 단추의 실제 표시(paintSeg 가 서버 진실로 칠한다)에서 읽는다 —
+         이 함수 밖 변수에 기대지 않는다. */
+      var autoOn=!!document.querySelector('#crawl-seg .run.on');
+      if(feed) feed.textContent = autoOn
+        ? '실행 중 — 다음 소싱처를 기다리는 중이에요'
+        : '정지 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요';
+      ring.classList.remove('spin');
+    }
+  }
+  // ── 계수 미니표 (소싱처별 ×N, 스텝퍼로 바로 조절) ──
+  function renderKmini(){
+    fetch('/api/crawl/weight-tree').then(function(r){return r.json();}).then(function(d){
+      var tb=document.getElementById('km-body'); if(!tb) return; tb.innerHTML='';
+      var src=(d&&d.src)||[];
+      if(!src.length){ tb.innerHTML='<tr><td colspan="4" class="km-empty" style="font-size:12px;color:var(--sub,#8b95a1);padding:8px 0px">아직 소싱처가 없어요.</td></tr>'; return; }
+      src.forEach(function(s){
+        var lab=s.label||s.scope_key||'?';
+        var c=(s.concurrency==null?'':s.concurrency);
+        var wl=s.winless?'<span class="km-wl">창없이</span>':'<span class="km-wl win">창 필요</span>';
+        var tr=document.createElement('tr');
+        tr.innerHTML='<td><span class="km-src"><span class="km-ic">'+lab.charAt(0)+'</span>'+lab+'</span>'+wl+'</td>'+
+          '<td class="r"><span class="km-step wt" data-key="'+encodeURIComponent(s.scope_key)+'" data-w="'+s.weight+'"><button data-d="-1"'+(s.weight<=0?' disabled':'')+'>−</button>'+(s.weight<=0?'<span class="v" style="color:var(--sub,#8b95a1)">제외</span>':'<span class="v">×'+s.weight+'</span>')+'<button data-d="1"'+(s.weight>=5?' disabled':'')+'>+</button></span></td>'+
+          '<td class="r"><span class="km-step conc" data-src="'+encodeURIComponent(s.scope_key)+'" data-c="'+c+'"><button data-d="-1"'+(c<=1?' disabled':'')+'>−</button><span class="v">'+c+'</span><button data-d="1"'+(c>=10?' disabled':'')+'>+</button></span></td>'+
+          '<td class="r"><span class="km-live" data-live="'+encodeURIComponent(s.scope_key)+'"><span class="dots"></span><span class="runn idle">0</span></span></td>';
+        tb.appendChild(tr);
+      });
+      paintKmLive();   // 새로 그린 행에 현재 실시간 값 즉시 반영
+      // 계수 스테퍼(×N, 0~5)
+      tb.querySelectorAll('.km-step.wt button').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var stp=this.parentElement; var cur=parseInt(stp.dataset.w,10); if(isNaN(cur))cur=1;
+          var nw=Math.max(0,Math.min(5,cur+parseInt(this.dataset.d,10))); if(nw===cur) return;   // 0=크롤 제외
+          fetch('/api/crawl/weight-rule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope_type:'source',scope_key:decodeURIComponent(stp.dataset.key),weight:nw})})
+            .then(function(r){return r.json();}).then(function(rr){ if(rr&&rr.ok){ toast(); renderKmini(); } });
+        });
+      });
+      // 동시 상한 스테퍼(N, 1~10)
+      tb.querySelectorAll('.km-step.conc button').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var stp=this.parentElement; var cur=parseInt(stp.dataset.c,10); if(isNaN(cur))cur=3;
+          var nv=Math.max(1,Math.min(10,cur+parseInt(this.dataset.d,10))); if(nv===cur) return;
+          fetch('/api/crawl/concurrency-rule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source_key:decodeURIComponent(stp.dataset.src),limit:nv})})
+            .then(function(r){return r.json();}).then(function(rr){ if(rr&&rr.ok){ toast(); renderKmini(); } });
+        });
+      });
+    }).catch(function(){});
+  }
+  // ── 「지금 진행」 실시간 창 수 (위젯과 같은 moum-crawl-log 이벤트 구독) ──
+  //   소싱처(sk)가 지금 열고 있는 창 수를, 모음전(bundle)별로 쌓아 합산.
+  //   → 순차면 한 모음전분(예: 롯데온 1창), 나중에 B(여러 모음전 동시)면 자동 합산.
+  var _liveByBundle = {};   // { bundleCode: { sk: winsNow } }
+  function _liveSum(sk){
+    var n=0; for(var code in _liveByBundle){ if(_liveByBundle[code] && _liveByBundle[code][sk]) n+=_liveByBundle[code][sk]; } return n;
+  }
+  function paintKmLive(){
+    var els=document.querySelectorAll('.km-live[data-live]'); if(!els.length) return;
+    els.forEach(function(el){
+      var sk=decodeURIComponent(el.getAttribute('data-live'));
+      var n=_liveSum(sk);
+      var dots=''; for(var i=0;i<4;i++){ dots+='<span class="dot'+(i<n?' on':'')+'"></span>'; }
+      el.querySelector('.dots').innerHTML=dots;
+      var rn=el.querySelector('.runn'); rn.textContent=(n>0?n:'0'); rn.className='runn'+(n>0?'':' idle');
+    });
+  }
+  window.addEventListener('moum-crawl-log', function(e){
+    try{
+      var d=(e&&e.detail)||{}; var code=d.bundle, sk=d.source, t=d.type;
+      if(!code) return;
+      if(t==='start'){ _liveByBundle[code]={}; }
+      else if(t==='window-open'){ if(sk){ if(!_liveByBundle[code])_liveByBundle[code]={}; _liveByBundle[code][sk]=(d.wins!=null?d.wins:1); } }
+      else if(t==='source-done'){ if(sk && _liveByBundle[code]) delete _liveByBundle[code][sk]; }
+      else if(t==='finish'){ delete _liveByBundle[code]; }
+      else return;
+      paintKmLive();
+    }catch(_){}
+  });
+  renderSpeed(); renderFailures(); renderKmini(); pollLap(); paintRun();
+  // 로드 시 실행 상태면 확장 폴링 재개(서비스워커 재시작·페이지 재방문 대비).
+  //   토글 클릭 때만 시작하면, 실행 ON인 채 새로고침하면 폴링이 안 살아나던 갭 보완.
+  //   확장 미설치면 send()가 reject → 조용히 무시.
+  try{ if(st.crawl_auto_enabled && window.MoumExt && MoumExt.autoPollStart){ var _ap=MoumExt.autoPollStart(); if(_ap&&_ap.catch)_ap.catch(function(){}); } }catch(_){}
+  setInterval(paintRun,1000);   // 회전·로그(확장 상태)
+  setInterval(pollLap,1500);    // 서버 링 %·오늘바퀴·평균·막대 (반응성 위해 1.5초)
+  setInterval(renderFailures,15000);
+})();
+</script>
+{% endblock %}

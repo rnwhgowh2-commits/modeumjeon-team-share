@@ -1,0 +1,53 @@
+{
+ "data": {
+  "goodsNo": 4800825,
+  "goodsNm": "메이트 크림핑크",
+  "thumbnailImageUrl": "/images/goods_img/20250218/4800825/4800825_17401126635997_500.jpg",
+  "goodsImages": [
+   {
+    "imageUrl": "/images/prd_img/20250218/4800825/detail_4800825_17401126843126_500.jpg"
+   },
+   {
+    "imageUrl": "/images/prd_img/20250218/4800825/detail_4800825_17401126983997_500.jpg"
+   }
+  ],
+  "goodsContents": "<img src=\"https://ai.esmplus.com/oozootech/Lemouton/1200/notis_all.png\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/1.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/2.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/3.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/4.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/5.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/6.gif\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/7.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/8.gif\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/9.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/10.gif\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/11.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/12.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/13.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/14.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/15.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202606/mate/16.jpg\"><br>\n<img src=\"https://ai.esmplus.com/oozootech/Lemouton/202407/manual.jpg\">",
+  "category": {
+   "categoryDepth1Code": "103",
+   "categoryDepth1Title": "신발",
+   "categoryDepth1Name": "신발",
+   "categoryDepth2Code": "103004",
+   "categoryDepth2Title": "스니커즈",
+   "categoryDepth2Name": "스니커즈",
+   "categoryDepth3Code": "103004005",
+   "categoryDepth3Title": "라이프스타일화",
+   "categoryDepth3Name": "라이프스타일화",
+   "categoryDepth4Code": "",
+   "categoryDepth4Title": "",
+   "categoryDepth4Name": "",
+   "storeCode": "sneaker"
+  },
+  "goodsPrice": {
+   "salePrice": 119900,
+   "normalPrice": 149000,
+   "discountRate": 20.0,
+   "type": "DEFAULT",
+   "isSale": true,
+   "savePoint": 0,
+   "savePointPercent": 0.0,
+   "partnerInformation": null,
+   "memberDiscountRate": 0.0,
+   "memberSavePointRate": 0.0,
+   "memberSaveMoneyRate": 0.0,
+   "partnerDiscountOn": false,
+   "couponPrice": 119900,
+   "totalDiscount": 20,
+   "couponDiscount": false,
+   "extraDiscountAmount": 0,
+   "finalPrice": 119900,
+   "finalDiscount": 20,
+   "isLowestPrice": false,
+   "currency": "KRW"
+  }
+ }
+}

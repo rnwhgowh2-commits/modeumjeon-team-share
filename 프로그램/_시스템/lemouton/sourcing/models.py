@@ -45,9 +45,39 @@ class Model(Base):
     model_name_display = Column(String(255))
     category = Column(String(100))
     brand = Column(String(100), default="르무통", nullable=False)
-    # 품번 — 박스히어로 'model_name' 컬럼 원본 (예: 'FV5420-002')
-    # 우리 양식 export/import 의 '품번' 필드와 매핑
+    # 브랜드 품번 — 브랜드사가 부여한 품번 (예: 'FV5420-002'). 없으면 공란.
+    #   [2026-07-30] 화면 이름을 「품번」 → 「브랜드 품번」 으로 확정(사장님).
+    #   ★ 「품번호」와 다른 것이다 — 그쪽은 마켓이 발급한 상품번호(originProductNo 등).
     article_no = Column(String(64))
+
+    # [2026-07-30] 모상품번호 — 사람이 보고 검색하는 번호. 'M20260730-000001'
+    #   열쇠는 여전히 model_code. 이건 옆에 붙는 표시용 칸이다(shared/display_no.py).
+    display_no = Column(String(24), index=True)
+
+    # [2026-08-01] 옵션함 — 「아직 안 파는 묶음」. 설계서 규칙 3·5.
+    #   하위탭①에서 옵션만 만들면 매트릭스(U…)만 생기고 M… 은 없어야 한다.
+    #   그런데 옵션은 반드시 모델 하나에 매달려야 저장되므로(model_code NOT NULL),
+    #   속으로 짝이 되는 모델 줄을 만들되 **판매용이 아님**을 여기 표시한다.
+    #   🔴 「번호가 없다」로는 못 가른다 — 판매용 신규도 번호가 없는 순간이 있다.
+    #      그래서 display_no_assign 이 이 표시를 보고 M… 부여를 건너뛴다.
+    is_option_box = Column(Boolean, default=False, nullable=False,
+                           server_default='0')
+
+    # [2026-08-13] 이 묶음의 **모델명** — 마켓 전송 payload 의 `model` 로 나가는 값.
+    #   왜 칸을 만들었나: 지금까지는 매트릭스 이름을 그대로 모델명으로 썼는데,
+    #   사장님 확인 결과 「매트릭스명은 사용자가 지정하기 나름. 대부분
+    #   **브랜드 + 모델명 + (사용자 추가)**」 라 이름이 「르무통 메이트 24FW」면
+    #   모델명도 「르무통 메이트 24FW」로 나가고 있었다(데이터 오류).
+    #   🔴 NULL = 「따로 안 정함」이다 — 「모델명이 없다」가 아니다.
+    #      NOT NULL·기본값을 주면 기존 172개 묶음의 모델명이 한꺼번에 바뀌어
+    #      마켓에 나가는 값이 조용히 달라진다. 반드시 nullable 로 둔다.
+    #   값을 읽는 곳은 `lemouton/matrix/option_name.model_name_of` 하나뿐이다.
+    bundle_model_name = Column(String(255))
+
+    # [2026-08-01] 전수 품절을 알린 시각. 설계서 규칙 9.
+    #   🔴 같은 상품을 매번 다시 알리지 않기 위한 표시다. 다시 팔 수 있게 되면
+    #      비운다 — 그래야 다음에 또 품절될 때 다시 알린다.
+    soldout_alerted_at = Column(DateTime)
 
     # 소싱처 URL (5개)
     url_lemouton = Column(Text)
@@ -61,6 +91,9 @@ class Model(Base):
     naver_channel_product_id = Column(String(64))    # channelProductNo (셀러센터 검색·진입 용 — 엑셀 "상품번호")
     coupang_product_id = Column(String(64))            # productId (구매자 페이지 URL 용)
     coupang_seller_product_id = Column(String(64))   # sellerProductId (셀러센터 상품수정 + GET·매핑 API 용)
+    lotteon_product_id = Column(String(64))          # 롯데온 판매자상품번호(spdNo) — 자동전송 formatter 용
+    auction_product_id = Column(String(64))          # 옥션(ESM) 마스터 상품번호(goodsNo) — 자동전송 formatter 용
+    gmarket_product_id = Column(String(64))          # G마켓(ESM) 마스터 상품번호(goodsNo) — 자동전송 formatter 용
 
     # [B] 추가 — 가격 오버라이드
     boxhero_purchase_price_override = Column(Integer)
@@ -195,6 +228,20 @@ class Option(Base):
 
     canonical_sku = Column(String(128), primary_key=True)
     model_code = Column(String(64), ForeignKey("models.model_code"), nullable=False)
+
+    # [2026-08-01] 옵션의 새 주인 — 원본 매트릭스. 설계서 §9 · 규칙 1.
+    #   노션 순서(옵션 먼저 → 상품 나중)를 하려면 「상품 없는 옵션」이 저장돼야 하는데,
+    #   지금은 model_code 가 NOT NULL 이라 불가능하다. 그래서 주인을 매트릭스로 옮긴다.
+    #   🔴 2a 단계에서는 **채우기만** 한다 — 읽는 곳이 없어 화면·크롤·전송은 안 바뀐다.
+    #      옛 칸(model_code)은 지우지 않는다(되돌릴 수 있어야 한다).
+    #   🔴 nullable 이어야 한다 — 처음엔 전부 비어 있고, NOT NULL 이면 배포 즉시 저장이 막힌다.
+    matrix_option_id = Column(Integer, ForeignKey("matrix_options.id"), index=True)
+
+    # [2026-08-01] 옵션번호 — 사람이 보고 검색하는 번호. 'U20260801-000003-01'
+    #   노션 「옵션별 개별 옵션번호」. 매트릭스 번호 + 순번(lemouton/matrix/option_no.py).
+    #   🔴 열쇠는 여전히 canonical_sku — 252파일 1,715곳이 그걸로 돈다. 이건 옆칸이다.
+    display_no = Column(String(32), index=True)
+
     color_code = Column(String(32), nullable=False)
     color_display = Column(String(64))
     size_code = Column(String(32), nullable=False)
@@ -212,6 +259,12 @@ class Option(Base):
     # True (기본) = 활성. 셀 클릭으로 토글.
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # [2026-06-13 / 복원 2026-06-28] 크롤 차단 — 크롤 시작 시 pessimistic True, 종료 후
+    #   '유효 소싱가(is_crawl_valid)' 있는 옵션만 False 로 해제. 옛/잘못된 값 판매 사고 방지.
+    #   판매가능 = is_active(사용자 수동 ON) AND NOT crawl_blocked(크롤 정상).
+    #   ⚠️ 2026-06-22 stale 브랜치 머지(94466889)에서 컬럼·함수 동반 유실 → preview 게이트 inert.
+    crawl_blocked = Column(Boolean, default=False, nullable=False)
+
     # 소싱처별 옵션 ID (NULL 가능)
     option_id_lemouton = Column(String(128))
     option_id_musinsa = Column(String(128))
@@ -222,10 +275,34 @@ class Option(Base):
     # 마켓 옵션 ID
     naver_option_id = Column(String(128))
     coupang_option_id = Column(String(128))
+    lotteon_option_id = Column(String(128))          # 롯데온 판매자단품번호(sitmNo) — 자동전송 formatter 용
+    auction_option_id = Column(String(128))          # 옥션(ESM) 옵션 판매자코드(manageCode) — 자동전송 formatter 용
+    gmarket_option_id = Column(String(128))          # G마켓(ESM) 옵션 판매자코드(manageCode) — 자동전송 formatter 용
 
     # 박스히어로 매핑
     boxhero_sku = Column(String(64))
     barcode = Column(String(64))  # 박스히어로 EAN-13 바코드 (라벨 인쇄용)
+
+    # ── [2026-08-14 사장님] SKU 하나하나의 번호 세 가지 — 품번 · 바코드 · GTIN ──
+    #
+    # 🔴 `Option.article_no`(여기)와 `Model.article_no`(모델 표)는 **다른 것**이다.
+    #    · `Model.article_no` = 묶음(모델) 전체에 하나 붙는 품번. 우리 엑셀 양식의 5번째 칸.
+    #    · `Option.article_no` = **색상·사이즈까지 갈라진 낱개 SKU 마다** 붙는 품번.
+    #      브랜드가 「블랙 260」과 「블랙 265」에 서로 다른 품번을 매기기 때문에
+    #      모델 칸 하나로는 담을 수 없다. 그래서 칸을 새로 판다.
+    #    안 가르면 무슨 사고가 나나 — 모델 품번을 옵션 품번인 양 마켓에 보내면
+    #    한 상품의 모든 사이즈가 **같은 번호**로 나가고, 브랜드·마켓이 그 번호로 물건을
+    #    맞춰 볼 때 사이즈가 뒤섞인다.
+    #
+    # 🔴 셋 다 **NULL = 「아직 안 적음」** 이다. 기본값(빈 문자열·'-')을 주면 안 된다.
+    #    빈 문자열을 넣는 순간 「적었는데 비웠다」와 「아직 안 적었다」가 화면에서
+    #    같은 모습이 되고, 「몇 개 채웠나」 세는 곳이 안 채운 것을 채운 걸로 센다.
+    #
+    # GTIN 은 세계 공용 상품 번호(GTIN-8/12/13/14)라 **최대 14자리**다.
+    # 우리가 만드는 `shared/sku_format.gen_barcode()` 번호(200~ 로 시작)는
+    # 가게 안에서만 쓰는 번호라 GTIN 칸에 넣으면 안 된다 — 그쪽 주석에 까닭이 있다.
+    article_no = Column(String(64))
+    gtin = Column(String(14))
 
     # ★ STEP 7 Task 0.2 — 박스히어로 재고관리 (R2 옵션 매트릭스, ADR-002)
     boxhero_stock_total = Column(Integer, default=0)               # 자동 집계 (위치별 합)
@@ -269,6 +346,11 @@ class Option(Base):
 
     # 르무통 공홈 한정 사이즈
     lemouton_only = Column(Boolean, default=False, nullable=False)
+
+    # [2026-07-05] 옵션별 브랜드 — 한 모음전에 여러 브랜드가 섞일 때.
+    #   NULL/빈값 = 미지정 → Model.brand 상속(effective_option_brand).
+    #   "르무통 자동 채움" 금지 — 미지정은 미지정으로 둔다.
+    brand = Column(String(100))
 
     # [B] 옵션 단위 오버라이드
     option_ss_price_override = Column(Integer)
@@ -400,6 +482,11 @@ class SourceBenefitTemplate(Base):
     apply_mode = Column(String(16))   # preapplied|deduct|accrue|payment|cashback (NULL=미분류→category 휴리스틱)
     pay_method = Column(String(16))   # affiliate_card|naver_pay|other_pay (payment 혜택만, NULL=미지정)
     channel = Column(String(16))      # naver_via|normal (NULL=normal)
+    # 2026-07-19: 캐시백 기준금액 계수 (대량등록 Phase 1B)
+    #   캐시백 사이트는 결제 전액이 아니라 **부가세 뺀 공급가**에 적립한다.
+    #   0.9 = 공급가 기준(기본) / 1.0 = 전액 기준(SSG·신세계쇼핑·CJ 예외 3사).
+    #   NULL = 1.0 (계수 없음). 캐시백 행이 아니면 엔진이 무시한다(_base_ratio).
+    base_ratio = Column(Float, default=1.0)
     enabled = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -427,6 +514,9 @@ class SourcingSource(Base):
     needs_login = Column(Boolean, nullable=False, default=False)
     has_adapter = Column(Boolean, nullable=False, default=False)  # 어댑터 작성 후 True
     is_active = Column(Boolean, nullable=False, default=True)
+    # [2026-06-30 단일명부 통합] 빌트인(기본 6) 여부 + 가이드 카드 JSON(기존 SourceRegistry.crawl_guide 이관)
+    is_builtin = Column(Boolean, nullable=False, default=False)
+    crawl_guide = Column(Text)
     sort_order = Column(Integer, default=100)  # 기본 5개는 1~5, 추가분은 100+
     created_by = Column(String(120))  # 추가한 사용자 email
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -453,6 +543,10 @@ class OptionBenefitOverride(Base):
     apply_mode = Column(String(16))   # preapplied|deduct|accrue|payment|cashback (NULL=미분류→category 휴리스틱)
     pay_method = Column(String(16))   # affiliate_card|naver_pay|other_pay (payment 혜택만, NULL=미지정)
     channel = Column(String(16))      # naver_via|normal (NULL=normal)
+    # 2026-07-19: 캐시백 기준금액 계수 — SourceBenefitTemplate.base_ratio 와 같은 의미.
+    #   override 에도 있어야 옵션별로 덮었을 때 계수가 조용히 사라지지 않는다
+    #   (사라지면 캐시백 10% 과다 차감 = 매입가 과소 = 마진 과대 = 언더프라이싱).
+    base_ratio = Column(Float, default=1.0)
     enabled = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -553,7 +647,8 @@ class CrawlWorker(Base):
     """등록된 팀 크롤 PC(워커).
 
     식별자 = name(별명, 중복 불가). 우선순위는 낮을수록 먼저(priority ASC).
-    online 판정 = last_heartbeat_at 이 HEARTBEAT_ONLINE_SEC(기본 90초) 이내.
+    online 판정 = last_heartbeat_at 이 HEARTBEAT_ONLINE_SEC(기본 180초) 이내.
+                 판정 규칙 자체는 crawl_queue._is_online 한 곳에만 있다.
     logins_json = 이 PC 가 크롤 가능한(로그인 보유) 소싱처 키 목록 ["musinsa", ...].
     ip_address = 선택. 등록 시 그 IP 에서 '전체 크롤' 누르면 자동으로 이 PC 를
                  '내 PC' 로 인식(미등록이면 수동 선택).
@@ -616,4 +711,70 @@ class CrawlJob(Base):
         Index("ix_crawl_jobs_lease", "lease_expires_at"),
         Index("ix_crawl_jobs_created", "created_at"),
         Index("ix_crawl_jobs_dispatch", "status", "priority", "created_at"),
+    )
+
+
+class PurchasePriceVerification(Base):
+    """[2026-07-19 Phase 1B] 소싱처별 최종매입가 3층 대조 검증 이력.
+
+    배경: 가격 오류 6건 중 3건이 코드 검증으로 안 잡히고 라이브 화면 대조에서만
+    드러났다. 이력이 쌓여야 재발을 안다 — 그래서 판정만 하고 버리지 않고 저장한다.
+
+        ① 소싱처 실제 페이지 (사람이 눈으로 본 값)  = human_*
+              ↕ 갈리면 크롤 파싱 문제
+        ② 우리가 수집한 데이터                      = ours_*
+              ↕ 갈리면 계산 로직 문제
+        ③ 우리 계산 결과 (fx영수증)                 = computed_*
+
+    판정 로직은 lemouton/sourcing/price_verify.py (순수 함수).
+    ③ 계산은 기존 엔진 compute_breakdown 이 한다 — 여기 재구현 없음.
+
+    ⚠️ 컬럼 폭 주의: create_all 은 기존 테이블에 컬럼을 추가하지 않으므로 처음에
+      다 넣는다. URL 은 길다(롯데온·SSG 추적 파라미터가 붙으면 500자를 쉽게 넘김)
+      → String 이 아니라 Text. 개발기 SQLite 는 길이를 안 지키고 라이브 Supabase
+      PostgreSQL 에서만 저장이 깨진다.
+    """
+    __tablename__ = "purchase_price_verifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 언제 · 누가
+    created_at = Column(DateTime, nullable=False,
+                        default=lambda: datetime.now(timezone.utc))
+    created_by = Column(String(120))                  # 검증한 사용자 email
+
+    # 어느 소싱처 · 어느 URL
+    source_key = Column(String(40), nullable=False, index=True)  # 'lotteimall' 등
+    source_label = Column(String(80))                 # 표시용 스냅샷('롯데아이몰')
+    product_url = Column(Text, nullable=False)        # ★ Text — URL 은 길다
+    canonical_sku = Column(String(128))               # 매칭된 옵션 SKU (없으면 NULL)
+    source_product_id = Column(Integer)               # 매칭된 SourceProduct id
+
+    # ① 사람이 페이지에서 본 값
+    human_surface_price = Column(Integer)             # 표면노출가 (필수 입력)
+    human_benefits_json = Column(Text)                # [{"name","amount"}, ...] 선택
+    benefits_complete = Column(Boolean, nullable=False, default=False)
+    # ↑ 사람이 "혜택을 빠짐없이 다 적었다" 고 선언했는지. True 라야 '우리에게만 있는
+    #   혜택' 을 불일치로 셀 수 있다(아니면 추측으로 불일치를 만드는 셈).
+
+    # ② 우리가 수집한 값
+    ours_surface_price = Column(Integer)              # SourceProduct.last_price
+    ours_benefits_json = Column(Text)                 # dynamic_benefits + 템플릿 목록
+
+    # ③ 우리 계산 결과 (compute_breakdown)
+    computed_final_price = Column(Integer)            # 최종매입가
+    computed_steps_json = Column(Text)                # fx영수증 steps 원문
+    compute_error = Column(Text)                      # 계산 실패 사유 (→ 확인불가)
+
+    # 판정
+    verdict = Column(String(16), nullable=False, index=True)  # match/mismatch/unknown
+    diverged_layers = Column(String(64))              # 'crawl' / 'calc' / 'crawl,calc'
+    summary = Column(String(255))                     # 한 줄 요약
+    detail_json = Column(Text)                        # 층별 상세 판정 전문
+    note = Column(Text)                               # 사람 메모
+
+    __table_args__ = (
+        Index("ix_ppv_source_created", "source_key", "created_at"),
+        Index("ix_ppv_verdict", "verdict"),
+        Index("ix_ppv_created", "created_at"),
     )

@@ -26,6 +26,12 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // SKU 번호 세 가지 — 순서·이름은 lemouton/matrix/sku_info.py 의 FIELDS·LABELS 와
+  // 반드시 같아야 한다. 이 파일은 정적 자산이라 Jinja 로 서버 값을 못 받는다 —
+  // 그래서 여기 한 번만 옮겨 적는다(바꾸려면 두 곳 다 고칠 것).
+  const SKU_FIELDS = ['article_no', 'barcode', 'gtin'];
+  const SKU_LABELS = { article_no: '품번', barcode: '바코드', gtin: 'GTIN' };
+
   // [2026-05-27] URL → 도메인 강조용 분리 (시안 2 적용)
   //   "https://www.lemouton.co.kr/product/detail.html?product_no=121&..."
   //   → { domain: "lemouton.co.kr", rest: "/product/detail.html?product_no=121&..." }
@@ -69,7 +75,7 @@
     s.id = 'oum-style';
     s.textContent = `
       .oum-bg { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:9999; display:flex; align-items:center; justify-content:center; padding:15px; }
-      .oum-modal { background:#fff; border-radius:21px; width:2880px; max-width:97vw; max-height:96vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.18); font-size:27px; }
+      .oum-modal { background:#fff; border-radius:21px; width:2880px; max-width:97vw; max-height:96vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.18); font-size:27px; position:relative; }
       .oum-mh { padding:40.5px 42px; border-bottom:1px solid #e5e8eb; display:flex; align-items:center; gap:18px; }
       .oum-mh h2 { margin:0; font-size:33px; font-weight:700; }
       .oum-mh .pill { background:#F0FDF4; color:#10b981; font-size:21px; font-weight:700; padding:6.75px 16.5px; border-radius:16.5px; }
@@ -80,6 +86,79 @@
       .oum-btn-pri { background:#3B82F6; color:#fff; }
       .oum-btn-pri:disabled { opacity:.4; cursor:not-allowed; }
       .oum-btn-sec { background:#fff; color:#4e5968; border:1px solid #d1d6db; }
+
+      /* [2026-08-19 사장님 확정] 재고 입력·템플릿 참고·SKU 번호 — 오른쪽에서 열리는 서랍(드로어).
+         기존 2탭(URL 매핑·옵션 맞추기) 화면은 그대로 두고, 이 셋만 필요할 때 겹쳐 연다. */
+      .oum-drawer-toolbar { display:flex; gap:12px; justify-content:flex-end; margin-bottom:21px; }
+      .oum-drawer-backdrop { position:absolute; inset:0; background:rgba(15,20,28,.32); z-index:40; }
+      .oum-drawer-backdrop[hidden] { display:none; }
+      .oum-drawer { position:absolute; top:0; right:0; bottom:0; width:47%; background:#fff; z-index:41;
+        box-shadow:-15px 0 42px rgba(0,0,0,.16); transform:translateX(100%); transition:transform .22s ease;
+        display:flex; flex-direction:column; }
+      .oum-drawer.on { transform:translateX(0); }
+      .oum-drawer-head { padding:27px 33px; font-weight:700; font-size:24px; border-bottom:1px solid #E5E8EB;
+        display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+      .oum-drawer-head .close { color:#9ca3af; font-size:36px; cursor:pointer; background:none; border:0; }
+      .oum-drawer-body { padding:27px 33px; overflow-y:auto; flex:1; }
+
+      /* 서랍 공통 부품 — SKU 격자와 같은 톤(oum-sku-*)을 재사용, 여기는 새로 필요한 것만 */
+      .oum-sku-empty { padding:36px 24px; text-align:center; color:#9ca3af; font-size:21px; line-height:1.7; }
+      .oum-sku-h { display:flex; align-items:center; gap:15px; padding:0 0 15px; flex-wrap:wrap; }
+      .oum-sku-n { font-size:19.5px; color:#8b95a1; }
+      .oum-sku-gen { margin-left:auto; background:#fff; border:1.5px solid #d1d6db; border-radius:12px; padding:12px 21px; font:inherit; font-size:21px; font-weight:700; color:#4e5968; cursor:pointer; }
+      .oum-sku-gen:hover { border-color:#3B82F6; color:#3B82F6; }
+      .oum-sku-gen:disabled { opacity:.45; cursor:default; }
+      .oum-sku-note { padding:0 0 15px; font-size:19.5px; color:#8b95a1; line-height:1.6; }
+      .oum-sku-msg { margin:0 0 15px; padding:13.5px 18px; border-radius:12px; font-size:19.5px; line-height:1.6; background:#F0FDF4; color:#15803d; }
+      .oum-sku-msg.bad { background:#FEF2F2; color:#B91C1C; }
+      .oum-sku-box { max-height:900px; overflow:auto; }
+      .oum-sku-tb { width:100%; border-collapse:collapse; font-size:21px; }
+      .oum-sku-tb th { position:sticky; top:0; background:#FAFBFC; color:#6b7684; font-size:19.5px; font-weight:700; text-align:left; padding:13.5px 15px; border-bottom:1px solid #eef1f4; z-index:1; }
+      .oum-sku-tb td { padding:9px 15px; border-bottom:1px solid #f4f6f8; vertical-align:top; }
+      .oum-sku-lb { font-weight:700; color:#191F28; white-space:nowrap; }
+      .oum-sku-id { font-family:ui-monospace,monospace; font-size:18px; color:#8b95a1; }
+      .oum-sku-tb input { width:100%; box-sizing:border-box; border:1.5px solid #e5e8eb; border-radius:10px; padding:10.5px 13.5px; font:inherit; font-size:21px; background:#fff; }
+      .oum-sku-tb input:focus { outline:none; border-color:#3B82F6; }
+      .oum-sku-tb input.bad { border-color:#E5484D; background:#FEF2F2; }
+      .oum-sku-why { color:#B91C1C; font-size:17.5px; line-height:1.5; margin-top:6px; }
+      .oum-sku-f { display:flex; align-items:center; justify-content:flex-end; padding:18px 0 0; border-top:1px solid #eef1f4; margin-top:18px; }
+      .oum-sku-save { background:#3B82F6; color:#fff; border:0; border-radius:12px; padding:13.5px 27px; font:inherit; font-size:21px; font-weight:700; cursor:pointer; }
+      .oum-sku-save:hover { background:#2563EB; }
+      .oum-sku-save:disabled { opacity:.45; cursor:default; }
+
+      /* 재고 입력 서랍 전용 */
+      .oum-stk-dim { color:#9ca3af; }
+      .oum-stk-none { color:#DC2626; font-weight:700; }
+      .oum-stk-bar { display:flex; gap:18px; align-items:flex-start; border-radius:15px; padding:18px 24px; margin:0 0 21px; flex-wrap:wrap; }
+      .oum-stk-bar.bad { background:#FEF2F2; border:1px solid #FECACA; }
+      .oum-stk-bar.ok { background:#F0FDF4; border:1px solid #BBF7D0; }
+      .oum-stk-big { font-size:22.5px; font-weight:700; }
+      .oum-stk-bar.bad .oum-stk-big { color:#B91C1C; }
+      .oum-stk-bar.ok .oum-stk-big { color:#15803D; }
+      .oum-stk-sub { font-size:18.5px; line-height:1.65; margin-top:4.5px; color:#6b7684; }
+      .oum-stk-lh { font-size:24px; font-weight:700; margin-bottom:15px; }
+      .oum-stk-cnt { font-size:19.5px; font-weight:700; color:#8b95a1; background:#F2F4F6; border-radius:999px; padding:3px 13px; margin-left:9px; }
+      .oum-stk-bulk { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:#fff; border:1px solid #e5e8eb; border-radius:12px; padding:13px 18px; margin-bottom:12px; font-size:19.5px; }
+      .oum-stk-bulkhint { color:#8b95a1; font-size:18px; margin-left:auto; }
+      .oum-stk-tb { width:100%; border-collapse:collapse; font-size:19.5px; }
+      .oum-stk-tb th { background:#FAFBFC; color:#6b7684; font-weight:700; padding:12px 15px; text-align:left; font-size:18px; }
+      .oum-stk-tb td { padding:12px 15px; border-top:1px solid #eef1f4; }
+      .oum-stk-tb .r { text-align:right; font-variant-numeric:tabular-nums; }
+      .oum-stk-tb .c { text-align:center; }
+      .oum-stk-tb .ck { width:1px; white-space:nowrap; text-align:center; }
+      .oum-stk-has { color:#191F28; font-weight:700; }
+      .oum-stk-edit { margin-left:9px; font-size:16.5px; color:#8b95a1; text-decoration:underline; }
+      .oum-stk-in { width:108px; border:1.5px solid #e5e8eb; border-radius:9px; padding:6px 10px; font-family:inherit; font-size:19.5px; text-align:right; }
+      .oum-stk-in:focus { outline:0; border-color:#3B82F6; }
+
+      /* 템플릿 참고 서랍 전용 */
+      .oum-tpl-tabs { display:flex; gap:9px; margin-bottom:18px; }
+      .oum-tpl-tab { background:#fff; border:1.5px solid #e5e8eb; border-radius:12px; padding:12px 24px; font:inherit; font-size:19.5px; font-weight:700; color:#6b7684; cursor:pointer; }
+      .oum-tpl-tab.on { background:#EFF6FF; border-color:#3B82F6; color:#1B64DA; }
+      .oum-tpl-card { border:1.5px solid #e5e8eb; border-radius:15px; padding:18px 21px; margin-bottom:15px; }
+      .oum-tpl-name { font-weight:700; font-size:21px; margin-bottom:9px; }
+      .oum-tpl-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:9px; }
+      .oum-tpl-chip { background:#F2F4F6; border-radius:8px; padding:4.5px 12px; font-size:18px; font-weight:600; color:#4e5968; }
 
       .oum-legend { display:flex; gap:18px; font-size:18px; color:#6b7684; padding:18px 24px; background:#fff; border-radius:12px; margin-bottom:21px; align-items:center; flex-wrap:wrap; border:1px solid #e5e8eb; }
       .oum-legend span { display:inline-flex; align-items:center; gap:7.5px; }
@@ -185,21 +264,17 @@
       .oum-cell { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:56px; height:38px; line-height:1.1; border-radius:6px; cursor:pointer; font-size:14px; font-weight:700; position:relative; user-select:none; padding:2px 0; }
       .oum-cell .tag { font-size:9.5px; font-weight:600; opacity:.92; letter-spacing:.2px; margin-top:1px; }
       /* [2026-05-29] 시안 v6 E3 — 누적 색 시스템 (회색→파랑→초록) + 상태 태그.
-         단일 진실 원천: opt-on / url-on / has-inv 클래스만 의미. */
+         단일 진실 원천: opt-on / url-on 클래스만 의미. */
       .oum-cell.disabled,
       .oum-cell.off,
-      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:pointer; }  /*  옅음 — 비활성/미선택. cursor:pointer (클릭으로 ON 토글 가능) */
+      .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:pointer; }  /* 옅음 — 비활성/미선택. cursor:pointer (클릭으로 ON 토글 가능) */
       .oum-cell.disabled:hover,
       .oum-cell.off:hover,
       .oum-cell.mapped-off:hover { background:#E5E8EB !important; color:#4E5968 !important; }
-      .oum-cell.opt-on { background:#9CA3AF !important; color:#fff !important; border:none; cursor:pointer; }                            /*  회색 — 옵션 ON */
+      .oum-cell.opt-on { background:#9CA3AF !important; color:#fff !important; border:none; cursor:pointer; }                            /* 회색 — 옵션 ON */
       .oum-cell.url-on,
       .oum-cell.opt-on.url-on,
-      .oum-cell.on { background:#4F67FF !important; color:#fff !important; border:none; cursor:pointer; }                                /*  파랑 — + URL 매핑 */
-      .oum-cell.has-inv,
-      .oum-cell.opt-on.has-inv,
-      .oum-cell.url-on.has-inv,
-      .oum-cell.on.has-inv { background:#03A65A !important; color:#fff !important; border:none; cursor:pointer; }                        /*  초록 — + 재고 매핑 */
+      .oum-cell.on { background:#4F67FF !important; color:#fff !important; border:none; cursor:pointer; }                                /* 파랑 — + URL 매핑 */
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
 
       /* [2026-05-29] 시안 v3 C3 — 우측 패널 [URL]/[재고관리] 2탭 + B3-3 in-place 매핑 표 */
@@ -210,136 +285,90 @@
       .oum-rt-tab .cnt { background:#F2F4F6; color:#8B95A1; padding:1px 8px; border-radius:99px; font-size:11.5px; font-weight:700; }
       .oum-rt-tab.on .cnt { background:#F0FDF4; color:#03A65A; }
       .oum-rt-tab.on[data-rt-tab="url"] .cnt { background:#EFF6FF; color:#3B82F6; }
-      /* [v20 D4] 통계 흡수 — 탭 우측 인라인 (E4 폰트 150% = 17px) */
-      .oum-rt-stats { margin-left:auto; padding-bottom:8px; font-size:17px; color:#6B7684; display:inline-flex; align-items:center; gap:10px; }
-      .oum-rt-stats b { font-weight:800; }
-      .oum-rt-stats .ok b { color:#15803d; }
-      .oum-rt-stats .wn b { color:#F59E0B; }
-      .oum-rt-stats .er b { color:#DC2626; }
-      .oum-rt-stats .sep { color:#D1D6DB; }
-
-      /* [v20] 재고관리 매핑 — 액션바 (정리 + 브랜드/모델 + 자동매칭) */
-      .oum-inv-action { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
-      .oum-inv-action-left, .oum-inv-action-right { display:inline-flex; align-items:center; gap:7px; flex-wrap:wrap; }
-      .oum-inv-label { font-size:13px; font-weight:600; color:#6B7684; }
-      .oum-grp-dd { position:relative; display:inline-block; }
-      .oum-grp-dd-btn { background:#fff; border:1px solid #BBF7D0; color:#03A65A; padding:6px 12px; border-radius:6px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
-      .oum-grp-dd-btn::after { content:'▾'; font-size:10px; margin-left:3px; }
-      .oum-grp-dd-menu { position:absolute; top:38px; left:0; background:#fff; border:1px solid #E5E8EB; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:200px; z-index:20; overflow:hidden; }
-      .oum-grp-dd-it { padding:9px 14px; font-size:13px; cursor:pointer; color:#4E5968; }
-      .oum-grp-dd-it:hover { background:#F0FDF4; color:#03A65A; }
-      .oum-grp-dd-it.on { background:#F0FDF4; color:#03A65A; font-weight:700; }
-      .oum-grp-dd-it.on::before { content:' '; }
-      /* 브랜드 검색 (보라) */
-      .oum-br-search { position:relative; display:inline-block; }
-      .oum-br-search .ic { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:12px; pointer-events:none; }
-      .oum-br-search input { padding:6px 10px 6px 30px; border:1px solid #DDD6FE; border-radius:6px; font:inherit; font-size:13px; width:130px; outline:none; }
-      .oum-br-search input:focus { border-color:#7C3AED; }
-      .oum-br-dd { position:absolute; top:38px; left:0; background:#fff; border:1px solid #DDD6FE; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:260px; max-height:260px; overflow-y:auto; z-index:21; }
-      .oum-br-it { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #F1F1F4; display:flex; align-items:center; gap:8px; }
-      .oum-br-it:hover { background:#F5F3FF; }
-      .oum-br-it.on { background:#F5F3FF; color:#7C3AED; font-weight:700; }
-      .oum-br-it.on::before { content:''; color:#7C3AED; font-weight:800; margin-right:3px; }
-      .oum-br-it.kbd-hl, .oum-md-it.kbd-hl { background:#F5F3FF; box-shadow:inset 3px 0 0 #7C3AED; }
-      .oum-md-it.kbd-hl { background:#EFF6FF; box-shadow:inset 3px 0 0 #3B82F6; }
-
-      /* [v20.2/v20.7] 인라인 SKU/제품명 자동완성 dropdown — body 직속 + position:fixed (JS 로 위치 계산) */
-      .oum-ac-wrap { position:relative; }
-      .oum-inv-ac-dd { background:#fff; border:1px solid #03A65A; border-radius:7px; box-shadow:0 6px 18px rgba(0,0,0,0.15); overflow-y:auto; z-index:99999; }
-      .oum-inv-ac-dd::-webkit-scrollbar { width:8px; }
-      .oum-inv-ac-dd::-webkit-scrollbar-thumb { background:#BBF7D0; border-radius:4px; }
-      .oum-inv-ac-dd::-webkit-scrollbar-thumb:hover { background:#03A65A; }
-      .oum-inv-ac-it { padding:8px 12px; font-size:12.5px; cursor:pointer; border-bottom:1px solid #F1F1F4; }
-      .oum-inv-ac-it:last-child { border-bottom:0; }
-      .oum-inv-ac-it:hover, .oum-inv-ac-it.kbd-hl { background:#F0FDF4; box-shadow:inset 3px 0 0 #03A65A; }
-      .oum-inv-ac-it .nm { font-weight:600; color:#191F28; margin-bottom:2px; }
-      .oum-inv-ac-it .meta { font-size:10.5px; color:#15803d; font-family:ui-monospace,monospace; display:flex; gap:8px; align-items:center; }
-      .oum-inv-ac-it .meta .stk { color:#03A65A; font-weight:700; font-family:inherit; }
-      .oum-inv-ac-it .meta .stk.zero { color:#DC2626; }
-      .oum-br-it:not(.on)::before { content:''; display:inline-block; width:12px; }
-      .oum-br-it .swatch { width:22px; height:22px; border-radius:5px; background:#7C3AED; color:#fff; font-size:10px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0; }
-      .oum-br-it .nm { flex:1; }
-      .oum-br-it .meta { font-size:10.5px; color:#9CA3AF; font-weight:600; }
-      .oum-step-arrow { color:#9CA3AF; font-size:13px; margin:0 2px; }
-      /* 모델 검색 (파랑) */
-      .oum-md-search { position:relative; display:inline-block; }
-      .oum-md-search .ic { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:12px; pointer-events:none; }
-      .oum-md-search input { padding:6px 10px 6px 30px; border:1px solid #BFDBFE; border-radius:6px; font:inherit; font-size:13px; width:170px; outline:none; }
-      .oum-md-search input:focus { border-color:#3B82F6; }
-      .oum-md-search.disabled input { background:#F9FAFB; color:#9CA3AF; cursor:not-allowed; border-color:#E5E8EB; }
-      .oum-md-search.disabled .ic { opacity:.4; }
-      .oum-md-dd { position:absolute; top:38px; left:0; background:#fff; border:1px solid #BFDBFE; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:260px; max-height:260px; overflow-y:auto; z-index:20; }
-      .oum-md-grp-h { padding:5px 12px; background:#F5F3FF; font-size:11px; color:#7C3AED; font-weight:800; }
-      .oum-md-it { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #F1F1F4; display:flex; align-items:center; gap:8px; }
-      .oum-md-it:hover { background:#EFF6FF; }
-      .oum-md-it.on { background:#EFF6FF; color:#1d4ed8; font-weight:700; }
-      .oum-md-it.on::before { content:''; color:#3B82F6; font-weight:800; margin-right:3px; }
-      .oum-md-it:not(.on)::before { content:''; display:inline-block; width:12px; }
-      .oum-md-it .nm { flex:1; }
-      .oum-md-it .meta { font-size:10.5px; color:#9CA3AF; font-family:ui-monospace,monospace; }
-      /* 자동 매칭 (옅은 outline) */
-      .oum-auto-btn-sm { background:#fff; border:1px solid #FED7AA; color:#92400E; padding:6px 12px; border-radius:6px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
-      .oum-auto-btn-sm:hover { background:#FFF7ED; }
-
-      /* 매칭 범위 안내 */
-      .oum-inv-filter-hint { padding:7px 11px; background:#F5F3FF; border:1px solid #DDD6FE; border-radius:6px; font-size:12px; color:#6B21A8; margin-bottom:10px; }
-      .oum-inv-filter-hint b { color:#7C3AED; font-weight:800; }
-
-      /* 그룹 details */
-      .oum-inv-grp { border:1px solid #E5E8EB; border-radius:8px; margin-bottom:8px; overflow:hidden; background:#fff; }
-      .oum-inv-grp summary { padding:11px 14px; background:#F9FAFB; cursor:pointer; display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; list-style:none; }
-      .oum-inv-grp summary::-webkit-details-marker { display:none; }
-      .oum-inv-grp summary::before { content:'▶'; font-size:10px; color:#9CA3AF; margin-right:5px; transition:transform 0.15s; }
-      .oum-inv-grp[open] summary { border-bottom:1px solid #E5E8EB; }
-      .oum-inv-grp[open] summary::before { transform:rotate(90deg); }
-      .oum-inv-grp summary .val { font-weight:800; font-size:14px; }
-      .oum-inv-grp summary .cnt { background:#F0FDF4; color:#15803d; padding:2px 10px; border-radius:99px; font-size:12px; font-weight:700; margin-left:auto; white-space:nowrap; }
-      .oum-inv-grp summary .cnt.warn { background:#FFFBEB; color:#92400E; }
-      .oum-inv-grp summary .cnt.err { background:#FEF2F2; color:#991B1B; }
-
-      /* [v20.8 T1] 정렬 가능 컬럼 헤더 */
-      .oum-inv-sort-head { display:flex; background:#F9FAFB; font-size:11.5px; color:#6B7684; font-weight:700; border-bottom:1px solid #E5E8EB; }
-      .oum-inv-sort-col { padding:9px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; user-select:none; transition:background .1s; }
-      .oum-inv-sort-col:hover { background:#F2F4F6; }
-      .oum-inv-sort-col.sorted { color:#1d4ed8; background:#EFF6FF; }
-      .oum-inv-sort-col .arrow { font-size:10px; opacity:.4; font-weight:800; }
-      .oum-inv-sort-col.sorted .arrow { opacity:1; color:#3B82F6; }
-      .oum-inv-sort-col.col-opt { width:120px; }
-      .oum-inv-sort-col.col-prod { flex:1; }
-      .oum-inv-sort-col.col-stat { width:90px; justify-content:center; }
-
-      /* 표 (행 색 G1: 자동=초록 / 수기=노랑 / 미매핑=빨강) */
-      .oum-inv-tbl-new { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
-      .oum-inv-tbl-new td { padding:10px 14px; border-bottom:1px solid #F1F1F4; vertical-align:middle; }
-      .oum-inv-tbl-new tr:last-child td { border-bottom:0; }
-      .oum-inv-tbl-new tr.auto { background:#F0FDF4; }
-      .oum-inv-tbl-new tr.manual { background:#FFFBEB; }
-      .oum-inv-tbl-new tr.empty { background:#FEF2F2; }
-      .oum-col-opt { width:120px; font-weight:600; color:#191F28; }
-      .oum-col-prod { color:#191F28; }
-      .oum-col-stat { width:90px; text-align:center; }
-      .oum-prod-info { display:flex; flex-direction:column; gap:2px; }
-      .oum-prod-name { font-weight:600; font-size:13px; color:#191F28; display:inline-flex; align-items:center; gap:6px; }
-      .oum-prod-meta { font-size:11px; color:#15803d; font-family:ui-monospace,monospace; font-weight:600; }
-      /* [v20.4] 수기 매핑 행의  다시 입력 버튼 */
-      .oum-row-reedit { background:#fff; border:1px solid #FCD34D; color:#92400E; width:22px; height:22px; border-radius:5px; font-size:11px; cursor:pointer; padding:0; line-height:1; display:inline-flex; align-items:center; justify-content:center; transition:all .12s; }
-      .oum-row-reedit:hover { background:#FFFBEB; border-color:#F59E0B; }
-      /* 상태 뱃지 (한 줄, min-width 보장) */
-      .oum-stat-pill { padding:3px 10px; border-radius:99px; font-size:12px; font-weight:700; color:#fff; white-space:nowrap; display:inline-flex; align-items:center; gap:3px; min-width:54px; justify-content:center; }
-      .oum-stat-pill.auto { background:#03A65A; }
-      .oum-stat-pill.manual { background:#F59E0B; }
-      .oum-stat-pill.empty { background:#9CA3AF; }
-      /* 인라인 SKU 검색 input */
-      .oum-inv-search { width:100%; padding:6px 10px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:12.5px; background:transparent; font-family:ui-monospace,monospace; outline:none; }
-      .oum-inv-tbl-new tr.manual .oum-inv-search { background:#FFFBEB; border-color:#F59E0B; }
-      .oum-inv-tbl-new tr.empty .oum-inv-search { background:#FEF2F2; border-color:#FCA5A5; color:#991B1B; }
-      .oum-inv-tbl-new .oum-inv-search:focus { background:#fff; border-color:#F59E0B; }
-      .oum-ac-wrap { position:relative; }
-
-      /* 적용 버튼 */
-      .oum-inv-foot-new { margin-top:12px; display:flex; justify-content:flex-end; }
-      .oum-apply-btn-new { background:#03A65A; color:#fff; border:0; padding:9px 18px; border-radius:7px; font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; }
-      .oum-apply-btn-new:hover { background:#15803d; }
+      .oum-rt-tab.on[data-rt-tab="axis"] { color:#1B64DA; border-bottom-color:#1B64DA; }
+      .oum-rt-tab.on[data-rt-tab="axis"] .cnt { background:#EFF6FF; color:#1B64DA; }
+      /* ── 축 맞추기 (2026-08-02, 시안 v6) ── */
+      .ax-bar { display:flex; align-items:center; gap:10px; margin:0 0 12px; flex-wrap:wrap; }
+      .ax-go { background:#3182F6; color:#fff; border:0; border-radius:8px; padding:8px 16px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+      .ax-go:disabled { background:#C6D3E1; cursor:default; }
+      .ax-note { font-size:12.5px; color:#6B7684; }
+      .ax-sum { display:flex; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+      /* [2026-08-03] 카드 최소 폭 — 표가 짧으면 덩어리가 같이 줄어 카드가 58px 로
+         쪼그라들고 「사전이 붙임」이 두 줄로 접혔다(실측). 좁으면 두 줄로 넘긴다. */
+      .ax-kpi { flex:1; min-width:118px; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
+      .ax-kpi .lb { font-size:11.5px; color:#6B7684; }
+      .ax-kpi .vl { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; }
+      .ax-kpi.g .vl { color:#03A65A; } .ax-kpi.b .vl { color:#1B64DA; }
+      .ax-kpi.y .vl { color:#B45309; } .ax-kpi.r .vl { color:#DC2626; }
+      .ax-box { border:1px solid #E5E8EB; border-radius:10px; margin-bottom:12px; background:#fff; }
+      .ax-box > .ah { display:flex; align-items:center; gap:10px; padding:9px 13px; background:#FCFCFD; border-bottom:1px solid #EEF1F5; border-radius:9px 9px 0 0; }
+      .ax-box .an { font-size:13.5px; font-weight:800; }
+      .ax-box .ac { font-size:12px; color:#8B95A1; }
+      .ax-box .ast { margin-left:auto; font-size:12px; }
+      .ax-box .ast .ok { color:#03A65A; } .ax-box .ast .mn { color:#1B64DA; }
+      .ax-box .ast .wn { color:#B45309; } .ax-box .ast .er { color:#DC2626; }
+      .ax-box .abody { padding:5px 8px 9px; }
+      .ax-row { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; padding:4px 6px; }
+      .ax-row .a { text-align:right; font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+      .ax-row .m { text-align:center; color:#8B95A1; }
+      .ax-row .b { text-align:left; display:flex; align-items:center; gap:7px; }
+      .ax-sel { min-width:210px; max-width:320px; background:#fff; border:2px solid #D1D6DB; border-radius:8px; padding:5px 9px; font:inherit; font-size:13px; cursor:pointer; }
+      .ax-sel.ok { border-color:#03A65A; background:#F0FDF4; }
+      .ax-sel.man { border-color:#3182F6; background:#EFF6FF; color:#1B64DA; }
+      .ax-sel.warn { border-color:#F59E0B; background:#FFFBEB; color:#92400E; }
+      .ax-sel.none { border-color:#FCA5A5; background:#FEF2F2; color:#B91C1C; }
+      .ax-tag { border-radius:99px; padding:1px 8px; font-size:11px; font-weight:800; background:#DBEAFE; color:#1B64DA; }
+      .ax-na { padding:9px 13px; font-size:12.5px; color:#B45309; background:#FFFBEB; border-radius:0 0 9px 9px; }
+      .ax-empty { padding:44px 18px; text-align:center; color:#8B95A1; background:#fff; border:2px dashed #D1D6DB; border-radius:10px; font-size:13px; line-height:1.8; }
+      /* ── 격자 (G2 · 2026-08-02 사장님 확정) ── */
+      /* [2026-08-03 · 3차] 소싱처 1곳일 때 오른쪽 빈 칸 — 세 번 만에 정리.
+         1차(#725) 상자를 표에 맞춰 줄임 → 빈 칸은 사라진 게 아니라 **상자 밖으로 이사**,
+                   넓은 화면에서 위 카드 줄과 오른쪽 끝이 어긋남.
+         2차(#727) 표를 폭 100%로 늘리고 드롭다운이 칸을 채우게 함 → 끝은 맞았지만
+                   넓은 화면에서 **드롭다운이 700px 넘게 길어져** 보기 흉함(사장님 캡처).
+         3차(지금) 늘리지 말고 **묶는다.** 카드 줄과 표를 한 덩어리(.ax-block)로 싸고
+                   덩어리를 표 폭에 맞춘다 → 카드와 표의 좌우 끝이 늘 맞고,
+                   드롭다운은 제 크기를 지키며, 남는 폭은 덩어리 바깥 여백이 된다. */
+      .ax-block { width:fit-content; max-width:100%; }
+      .ax-block .ax-sum { width:100%; }
+      .axg-wrap { background:#fff; border:1px solid #E5E8EB; border-radius:10px; overflow:auto;
+                  width:100%; }
+      /* 마지막 열의 오른쪽 선은 상자 테두리와 겹치므로 지운다(이중선 방지) */
+      table.axg th:last-child, table.axg td:last-child { border-right:0; }
+      table.axg { border-collapse:separate; border-spacing:0; font-size:13px;
+                  width:100%; min-width:max-content; }
+      table.axg th, table.axg td { border-bottom:1px solid #EEF1F5; border-right:1px solid #EEF1F5; padding:7px 11px; white-space:nowrap; }
+      table.axg thead th { background:#F9FAFB; font-weight:700; position:sticky; top:0; z-index:3; text-align:left; }
+      /* 우리 값 열 고정 — 소싱처가 늘어도 어느 줄인지 안 잃는다 */
+      table.axg .axg-our { position:sticky; left:0; z-index:2; background:#fff; text-align:left; font-weight:700; box-shadow:1px 0 0 #E5E8EB; }
+      table.axg thead .axg-our { z-index:4; background:#F9FAFB; }
+      table.axg tr.axg-axis td { background:#F5F7FA; font-weight:800; font-size:12px; color:#6B7684; position:sticky; left:0; }
+      td.axg-c.dict { background:#F0FDF4; } td.axg-c.man { background:#EFF6FF; }
+      td.axg-c.warn { background:#FFFBEB; } td.axg-c.none { background:#FEF2F2; }
+      td.axg-c.na { background:#FAFAFA; color:#B0B8C1; }
+      .axg-cell { display:flex; align-items:center; gap:6px; }
+      .axg-dot { width:8px; height:8px; border-radius:50%; flex:none; }
+      .axg-dot.dict{background:#03A65A} .axg-dot.man{background:#3182F6}
+      .axg-dot.warn{background:#F59E0B} .axg-dot.none{background:#DC2626}
+      /* 드롭다운은 칸을 채우되 **300px 까지만** — 2차에서 700px 넘게 늘어나 흉했다 */
+      .axg-cell { width:100%; }
+      .axg-cell > .axg-sel { flex:1 1 auto; min-width:0; }
+      .axg-sel { border:1px solid #D1D6DB; border-radius:6px; padding:3px 7px; font:inherit; font-size:12.5px; background:#fff; max-width:300px; }
+      .axg-sel.dict { border-color:#03A65A; } .axg-sel.man { border-color:#3182F6; color:#1B64DA; font-weight:700; }
+      .axg-sel.warn { border-color:#F59E0B; color:#92400E; font-weight:700; } .axg-sel.none { border-color:#FCA5A5; color:#B91C1C; }
+      /* 눌러야 하는 것은 눌러 보이게 — 글자만 있으면 누를 수 있는 줄 모른다 */
+      .axg-stamp { display:inline-block; margin-top:5px; font-size:11.5px; font-weight:700;
+                   border:1px solid; border-radius:999px; background:#fff; cursor:pointer;
+                   padding:2px 9px; font-family:inherit; line-height:1.5; }
+      .axg-stamp.done { color:#0d7656; border-color:#9BE0C4; background:#F0FDF4; }
+      .axg-stamp.todo { color:#B45309; border-color:#FCD34D; background:#FFFBEB; }
+      .axg-stamp:hover { filter:brightness(.97); }
+      .axg-lg { display:flex; gap:14px; font-size:12px; color:#6B7684; margin:0 0 9px; flex-wrap:wrap; }
+      .axg-lg i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
+      .axg-lg i.dict{background:#03A65A} .axg-lg i.man{background:#3182F6}
+      .axg-lg i.warn{background:#F59E0B} .axg-lg i.none{background:#DC2626}
+      /* [2026-08-02] 재고관리 매핑 전용 CSS 일괄 제거 (통계 배지·액션바·브랜드/모델 검색·
+         자동완성 dropdown·매핑 표·적용 버튼) — 탭 삭제로 렌더되지 않는다. */
 
       /* (옛 oum-rt-tabs 정의는 위에서 v20 으로 갈음 — 아래 옛 정의 유지) */
 
@@ -354,27 +383,6 @@
       .oum-step-dot .lbl { margin-top:5px; font-size:12px; color:#9CA3AF; font-weight:600; }
       .oum-step-dot.done .lbl { color:#15803d; }
       .oum-step-dot.now .lbl { color:#1d4ed8; font-weight:700; }
-      /* B3-3 in-place 표 */
-      .oum-inv-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; background:#fff; border:1px solid #E5E8EB; border-radius:8px; overflow:hidden; }
-      .oum-inv-tbl th { background:#F9FAFB; padding:8px 10px; text-align:left; font-weight:700; color:#4E5968; font-size:11.5px; border-bottom:1px solid #E5E8EB; }
-      .oum-inv-tbl td { padding:7px 10px; border-bottom:1px solid #F1F1F4; vertical-align:middle; }
-      .oum-inv-tbl tr.auto-matched { background:#F0FDF4; }                   /* 초록 — 자동 매칭 */
-      .oum-inv-tbl tr.manual { background:#FFFBEB; }                          /* 노란 — 수동 입력 (시안 v3) */
-      .oum-inv-tbl tr.unused { background:#F9FAFB; color:#9CA3AF; font-style:italic; }
-      .oum-inv-tbl input { width:100%; padding:4px 7px; border:1px dashed transparent; border-radius:3px; font-size:12px; background:transparent; font-family:inherit; }
-      .oum-inv-tbl tr.manual input { background:#FFFBEB; border-color:#F59E0B; }
-      .oum-inv-tbl input:focus { background:#fff; border:1px solid #F59E0B; outline:none; }
-      .oum-inv-tbl .stat-ok { background:#03A65A; color:#fff; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
-      .oum-inv-tbl .stat-manual { background:#FFB454; color:#fff; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
-      .oum-inv-tbl .stat-empty { background:#E5E8EB; color:#6B7684; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
-      .oum-inv-tbl .sku-mono { font-family:ui-monospace,monospace; color:#292A2F; }
-      .oum-inv-toolbar { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; margin-bottom:12px; font-size:12.5px; }
-      .oum-inv-toolbar .auto-btn { background:#F59E0B; color:#fff; border:0; padding:6px 13px; border-radius:5px; font-size:12px; font-weight:700; cursor:pointer; margin-left:auto; }
-      .oum-inv-toolbar .auto-btn:hover { background:#D97706; }
-      .oum-inv-foot { display:flex; align-items:center; gap:10px; margin-top:10px; font-size:11.5px; color:#6B7684; }
-      .oum-inv-foot .legend-sw { display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:middle; margin-right:4px; }
-      .oum-inv-foot .add-btn { background:#fff; border:1px solid #CBCCD3; color:#292A2F; padding:5px 11px; border-radius:5px; font-size:11.5px; cursor:pointer; margin-left:auto; }
-      .oum-inv-foot .apply-btn { background:#03A65A; color:#fff; border:0; padding:6px 13px; border-radius:5px; font-size:12px; font-weight:700; cursor:pointer; margin-left:6px; }
 
       /* 적용 바 (좌측) - 가운데 정렬 */
       .oum-apply-bar { background:#fff; border:1px solid #bfdbfe; border-radius:10.5px; padding:16.5px; margin-top:15px; display:flex; flex-direction:column; align-items:center; gap:10.5px; }
@@ -386,7 +394,20 @@
       .oum-apply-btn.applied { background:#10b981; }
 
       /* 우측 USL */
-      .oum-src-tabs { display:flex; gap:2px; border-bottom:1.5px solid #bbf7d0; padding:9px 6px 0; margin-bottom:12px; flex-wrap:wrap; }
+      /* [2026-06-26 B1] 소싱처 탭 = 한 줄 가로 스크롤 (◂▸ + 휠) */
+      .oum-srcscroll { display:flex; align-items:stretch; gap:6px; border-bottom:1.5px solid #bbf7d0; margin-bottom:12px; }
+      .oum-srcscroll-vp { overflow-x:auto; flex:1; scrollbar-width:thin; scrollbar-color:#bbf7d0 transparent; }
+      .oum-srcscroll-vp::-webkit-scrollbar { height:8px; }
+      .oum-srcscroll-vp::-webkit-scrollbar-thumb { background:#bbf7d0; border-radius:4px; }
+      .oum-srcscroll-vp::-webkit-scrollbar-thumb:hover { background:#10b981; }
+      .oum-srcscroll-arr { flex-shrink:0; width:36px; min-height:48px; align-self:center; border:1px solid #bbf7d0; background:#fff; color:#10b981; font-size:27px; font-weight:900; line-height:1; cursor:pointer; border-radius:9px; padding:0; }
+      .oum-srcscroll-arr:hover { background:#F0FDF4; }
+      .oum-src-tabs { display:flex; gap:2px; padding:9px 6px 0; flex-wrap:nowrap; width:max-content; }
+      /* [2026-06-26 A10] '신규 소싱처 추가' = 탭줄 밖, 헤더 우측 플로팅 버튼 (위상 구분) */
+      .oum-addsrc-btn { margin-left:14px; flex-shrink:0; background:#10b981; color:#fff; border:0; border-radius:12px; padding:13.5px 22.5px; font:inherit; font-size:21px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:9px; white-space:nowrap; box-shadow:0 3px 8px rgba(16,185,129,.28); }
+      .oum-addsrc-btn:hover { background:#15803d; }
+      .oum-addsrc-btn.on { background:#0d7656; box-shadow:0 0 0 4px rgba(16,185,129,.28); }
+      .oum-addsrc-btn .ic { font-size:24px; font-weight:800; line-height:1; }
       .oum-src-tab { background:none; border:0; padding:13.5px 15px; font:inherit; font-size:17.25px; font-weight:700; color:#8b95a1; cursor:pointer; display:flex; align-items:center; gap:7.5px; border-bottom:2px solid transparent; margin-bottom:-1.5px; }
       .oum-src-tab.on { color:#10b981; border-bottom-color:#10b981; }
       .oum-src-tab .lg { width:30px; height:30px; border-radius:7.5px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:14.25px; font-weight:800; letter-spacing:.3px; flex-shrink:0; }
@@ -414,7 +435,7 @@
       .oum-url-tog:hover, .oum-url-copy:hover { background:#F0FDF4; }
       .oum-url-del { color:#dc2626; border-color:#fecaca; }
       .oum-url-del:hover { background:#FEF2F2; }
-      /* [2026-06-05] 크롤 실패 URL — 빨강 카드 +  배지 +  재크롤 */
+      /* [2026-06-05] 크롤 실패 URL — 빨강 카드 + 배지 + 재크롤 */
       .oum-url-card.crawl-fail { border-color:#fca5a5; background:#FFF7F7; }
       .oum-url-card.crawl-fail .oum-url-ch { background:#FEF2F2; }
       .oum-url-cnt.fail { background:#FEE2E2; }
@@ -452,7 +473,7 @@
       .oum-url-mini { background:#fff; border:1px solid #d1d6db; border-radius:6px; width:33px; height:33px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; color:#4e5968; cursor:pointer; padding:0; line-height:1; transition:all .12s; }
       .oum-url-mini:hover:not(:disabled) { background:#3B82F6; color:#fff; border-color:#3B82F6; }
       .oum-url-mini:disabled { opacity:.35; cursor:not-allowed; }
-      /* [2026-05-27] C5 복사 버튼 — SVG 아이콘 + "복사" 텍스트 콤보 (▸매핑· 와 동일 톤) */
+      /* [2026-05-27] C5 복사 버튼 — SVG 아이콘 + "복사" 텍스트 콤보 (▸매핑·와 동일 톤) */
       /* [2026-05-27] oum-url-copy 는 위 통일 스타일 사용 — active scale 만 유지 */
       .oum-url-copy:active { transform:scale(.97); }
       /* [2026-05-27] 드래그앤드랍 — ⋮⋮ 핸들 + 드래그 시각 피드백 + 드롭 라인 */
@@ -521,6 +542,102 @@
       .oum-url-go { background:#fff; border:1px solid #bbf7d0; border-radius:7.5px; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#3B82F6; font-size:18px; font-weight:700; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; box-sizing:border-box; }
       .oum-url-go:hover { background:#EFF6FF; border-color:#bfdbfe; }
       .oum-url-go:active { transform:scale(.95); }
+
+      /* [2026-06-26] 신규 소싱처 추가 탭 — 크롤링 가이드 카탈로그 2단(시안 D) */
+      .oum-addsrc-tab .lg { font-size:24px; font-weight:800; background:#0ea5e9; }
+      .oum-addsrc-wrap { display:grid; grid-template-columns:480px 1fr; gap:21px; }
+      .oum-addsrc-left { display:flex; flex-direction:column; }
+      .oum-cat-search-wrap { display:flex; align-items:center; gap:12px; background:#fff; border:1.5px solid #bbf7d0; border-radius:13px; padding:16.5px 19.5px; margin-bottom:12px; }
+      .oum-cat-search-wrap span { font-size:24px; }
+      .oum-cat-search { border:0; outline:0; font:inherit; font-size:24px; flex:1; background:transparent; color:#15803d; }
+      .oum-cat-hint { font-size:18px; color:#8b95a1; margin:0 6px 12px; }
+      .oum-cat-list { display:flex; flex-direction:column; gap:9px; max-height:840px; overflow-y:auto; padding-right:4px; }
+      .oum-cat-row { display:flex; align-items:center; gap:16.5px; padding:18px 19.5px; border:1.5px solid #e5e8eb; border-radius:13px; cursor:pointer; background:#fff; }
+      .oum-cat-row:hover { border-color:#bbf7d0; background:#F0FDF4; }
+      .oum-cat-row.sel { border-color:#10b981; background:#F0FDF4; box-shadow:0 3px 10px rgba(16,185,129,.14); }
+      .oum-cat-row.added { opacity:.55; }
+      .oum-cat-lg { width:45px; height:45px; border-radius:12px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:20.25px; font-weight:800; flex-shrink:0; letter-spacing:.3px; }
+      .oum-cat-lg.lg-lg { width:63px; height:63px; border-radius:16.5px; font-size:27px; }
+      .oum-cat-nm { flex:1; font-size:24px; font-weight:700; color:#191F28; }
+      .oum-cat-added { font-size:18px; font-weight:700; color:#9CA3AF; }
+      .oum-cat-go { font-size:30px; color:#10b981; font-weight:800; }
+      .oum-addsrc-right { background:#fff; border:1.5px solid #bbf7d0; border-radius:18px; padding:33px 36px; }
+      .oum-cat-dh { display:flex; align-items:center; gap:19.5px; margin-bottom:24px; }
+      .oum-cat-dtitle { font-size:31.5px; font-weight:800; color:#191F28; }
+      .oum-cat-dsub { font-size:19.5px; color:#8b95a1; margin-top:6px; display:flex; align-items:center; gap:10.5px; flex-wrap:wrap; }
+      .oum-cat-badge { font-size:16.5px; font-weight:800; border-radius:8px; padding:3px 12px; }
+      .oum-cat-badge.ok { background:#F0FDF4; color:#15803d; }
+      .oum-cat-badge.warn { background:#FFF7ED; color:#92400E; }
+      .oum-cat-tbl { width:100%; border-collapse:collapse; font-size:22.5px; }
+      .oum-cat-tbl td { border:1px solid #eef1f4; padding:18px 21px; vertical-align:top; line-height:1.5; }
+      .oum-cat-tbl td:first-child { width:180px; font-weight:700; color:#4e5968; background:#FAFBFC; white-space:nowrap; }
+      .oum-cat-empty { padding:75px 24px; text-align:center; color:#9ca3af; font-size:22.5px; }
+      .oum-cat-dfoot { display:flex; justify-content:flex-end; margin-top:27px; }
+      .oum-cat-addbtn { background:#10b981; color:#fff; border:0; border-radius:13.5px; padding:21px 42px; font:inherit; font-size:24px; font-weight:800; cursor:pointer; }
+      .oum-cat-addbtn:hover { background:#15803d; }
+      .oum-cat-addbtn.done, .oum-cat-addbtn:disabled { background:#F2F4F6; color:#9CA3AF; cursor:default; }
+
+      /* ── [2026-08-14 사장님 확정 ㉰] SKU 번호 격자 — 줄 = SKU · 칸 = 품번·바코드·GTIN ──
+         공란은 **미입력**이다. 안 채웠다고 막지 않는다 — 나중에 채운다.
+         이 판은 'scheduleRerender' 가 '#oum-left' 를 통째로 갈아끼울 때 같이 지워진다.
+            그래서 적어 넣은 값은 DOM 이 아니라 'state.skuVals' 에 산다(아래 JS 주석 참조). */
+      .oum-sku { margin-top:24px; background:#fff; border:1.5px solid #e5e8eb; border-radius:18px; overflow:hidden; }
+      .oum-sku-h { display:flex; align-items:center; gap:15px; padding:21px 24px; border-bottom:1px solid #eef1f4; flex-wrap:wrap; }
+      .oum-sku-t { font-size:24px; font-weight:700; color:#191F28; }
+      .oum-sku-n { font-size:19.5px; color:#8b95a1; }
+      .oum-sku-gen { margin-left:auto; background:#fff; border:1.5px solid #d1d6db; border-radius:12px; padding:12px 21px; font:inherit; font-size:21px; font-weight:700; color:#4e5968; cursor:pointer; }
+      .oum-sku-gen:hover { border-color:#3B82F6; color:#3B82F6; }
+      .oum-sku-gen:disabled { opacity:.45; cursor:default; }
+      .oum-sku-note { padding:15px 24px 0; font-size:19.5px; color:#8b95a1; line-height:1.6; }
+      .oum-sku-msg { margin:15px 24px 0; padding:13.5px 18px; border-radius:12px; font-size:19.5px; line-height:1.6; background:#F0FDF4; color:#15803d; }
+      .oum-sku-msg.bad { background:#FEF2F2; color:#B91C1C; }
+      .oum-sku-box { max-height:660px; overflow:auto; margin-top:15px; }
+      .oum-sku-tb { width:100%; border-collapse:collapse; font-size:21px; }
+      .oum-sku-tb th { position:sticky; top:0; background:#FAFBFC; color:#6b7684; font-size:19.5px; font-weight:700; text-align:left; padding:13.5px 15px; border-bottom:1px solid #eef1f4; z-index:1; }
+      .oum-sku-tb td { padding:9px 15px; border-bottom:1px solid #f4f6f8; vertical-align:top; }
+      .oum-sku-lb { font-weight:700; color:#191F28; white-space:nowrap; }
+      .oum-sku-id { font-family:ui-monospace,monospace; font-size:18px; color:#8b95a1; }
+      .oum-sku-tb input { width:100%; box-sizing:border-box; border:1.5px solid #e5e8eb; border-radius:10px; padding:10.5px 13.5px; font:inherit; font-size:21px; background:#fff; }
+      .oum-sku-tb input:focus { outline:none; border-color:#3B82F6; }
+      .oum-sku-tb input.bad { border-color:#E5484D; background:#FEF2F2; }
+      /* 거부 사유는 **그 칸 밑에** 적는다. 위에 몰아 두면 어느 줄 얘긴지 못 찾는다. */
+      .oum-sku-why { color:#B91C1C; font-size:17.5px; line-height:1.5; margin-top:6px; }
+      .oum-sku-empty { padding:36px 24px; text-align:center; color:#9ca3af; font-size:21px; line-height:1.7; }
+      /* 저장 단추 — 「자체 바코드 생성」(보조·테두리)과 갈라 보이게 원색 채움 */
+      .oum-sku-f { display:flex; justify-content:flex-end; padding:18px 24px; border-top:1px solid #eef1f4; }
+      .oum-sku-save { background:#3B82F6; color:#fff; border:0; border-radius:12px; padding:13.5px 27px; font:inherit; font-size:21px; font-weight:700; cursor:pointer; }
+      .oum-sku-save:hover { background:#2563EB; }
+      .oum-sku-save:disabled { opacity:.45; cursor:default; }
+      /* ── 미구성 SKU 등록 — 축 값 우클릭 (W12) ────────────────────── */
+      .oum-ctxmenu { position:fixed; z-index:10050; background:#fff; border:1px solid #e5e8eb; border-radius:12px;
+        box-shadow:0 12px 32px rgba(0,0,0,.18); padding:6px; min-width:270px; font-size:21px; }
+      .oum-ctxmenu button { display:block; width:100%; text-align:left; background:none; border:0; border-radius:9px;
+        padding:13.5px 15px; font:inherit; font-size:inherit; color:#191F28; cursor:pointer; }
+      .oum-ctxmenu button:hover { background:#F0F5FF; color:#3B82F6; }
+      .oum-ctxmenu .oum-ctx-hd { padding:9px 15px 6px; font-size:16.5px; color:#8b95a1;
+        border-bottom:1px solid #f4f6f8; margin-bottom:6px; }
+      .oum-adopt-bg { position:fixed; inset:0; background:rgba(0,0,0,.32); z-index:10060;
+        display:flex; align-items:center; justify-content:center; }
+      .oum-adopt-box { background:#fff; border-radius:18px; width:900px; max-width:92vw; max-height:80vh;
+        display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 48px rgba(0,0,0,.2); }
+      .oum-adopt-hd { padding:24px 27px; border-bottom:1px solid #e5e8eb; }
+      .oum-adopt-hd h3 { margin:0 0 6px; font-size:24px; font-weight:700; color:#191F28; }
+      .oum-adopt-hd p { margin:0; font-size:17px; color:#6b7684; line-height:1.5; }
+      .oum-adopt-hd b { color:#191F28; }
+      .oum-adopt-q { margin:15px 0 0; width:100%; box-sizing:border-box; border:1.5px solid #e5e8eb; border-radius:10px;
+        padding:12px 15px; font:inherit; font-size:19.5px; }
+      .oum-adopt-q:focus { outline:none; border-color:#3B82F6; }
+      .oum-adopt-list { overflow-y:auto; flex:1; padding:9px; }
+      .oum-adopt-row { display:flex; align-items:center; gap:12px; padding:13.5px 15px; border-radius:12px; cursor:pointer; }
+      .oum-adopt-row:hover { background:#F7F9FC; }
+      .oum-adopt-row .nm { font-weight:700; color:#191F28; font-size:19.5px; }
+      .oum-adopt-row .meta { font-size:15px; color:#8b95a1; margin-top:2px; }
+      .oum-adopt-row .go { margin-left:auto; color:#3B82F6; font-size:15px; font-weight:700; white-space:nowrap; }
+      .oum-adopt-empty { padding:48px 24px; text-align:center; color:#9ca3af; font-size:18px; line-height:1.7; }
+      .oum-adopt-ft { padding:15px 27px; border-top:1px solid #eef1f4; display:flex; justify-content:space-between; align-items:center; }
+      .oum-adopt-close { background:none; border:1.5px solid #e5e8eb; border-radius:10px; padding:10.5px 21px;
+        font:inherit; font-size:16.5px; color:#6b7684; cursor:pointer; }
+      .oum-adopt-msg { font-size:15px; color:#B91C1C; }
     `;
     document.head.appendChild(s);
   }
@@ -561,52 +678,58 @@
     // 상태
     const state = {
       axes: [{ name: '', values: '' }, { name: '', values: '' }],  // [{name, values}]
+      // [2026-08-02] 서버에 저장돼 있던 축 값 — 이름 정정을 「바꾸기」로 알아보는 유일한 기준.
+      //   저장할 때 이것과 지금 값을 견줘 old→new 짝을 만들어 보낸다. 없으면 서버는
+      //   이름 고친 것을 「처음 보는 조합」으로 봐 새 옵션을 만들고 옛 옵션이 남는다.
+      _srvAxes: null,          // [[값,...], ...] — 축 순서대로
       selected: new Set(),     // 옵션 활성 (JSON.stringify(axisVals))
       seen: new Set(),         // 매트릭스 변경 시 자동 ON 보존
       // [2026-05-27 D1] is_active=false 옵션 — 사용자 OFF 했지만 매핑 있어 데이터 보존
-      // 매트릭스에서 mapped-off (노란 빗금 + [링크] + tooltip) 으로 표시. selected 에는 들어가지 않음.
+      // 매트릭스에서 mapped-off (노란 빗금 + 🔗 + tooltip) 으로 표시. selected 에는 들어가지 않음.
       mappedOff: new Set(),
       applied: false,          // 좌→우 적용 여부
+      // [2026-08-02] 우측 탭 — 'url'(주소) | 'axis'(축 맞추기). 설계 §15·§16 6단계
+      rightTab: 'url',
+      axisData: null,          // (호환) 현재 소싱처 preview 응답
+      // [2026-08-02 G2] 소싱처별 결과 — {소싱처키: preview 응답}. 격자는 이걸로 그린다.
+      axisBySrc: {},
+      axisBusy: false,
+      axisResync: false,       // 축이 바뀌어 다시 맞추는 중 (재진입 방지)
       sources: [],             // [{key, label, color}]
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
       tempIdSeq: 1,
-      // [2026-05-29 시안 v3 C3] 우측 패널 탭 — 'url' (소싱처 URL) | 'inv' (재고관리 매핑 B3-3)
-      rightTab: 'url',
-      // [B3-3] 재고관리 매핑 표 — {bundleSku: {invSku, color, size, model, isManual, isUnused}}
-      //   (셀 자동매칭 결과 + 사용자 수정값. 적용 클릭 시 서버에 mappings 로 push)
-      invRows: {},
-      // candidates 백업 (서버 alias 매칭 결과)
-      invCandidates: {},
-      // 재고 옵션 풀 (검색·드롭다운용)
-      invOptions: [],
-      // [perf 2026-05-29] 재고 매핑 셀(초록) 표시용 — 배경 로드 전 빈 Set 으로 안전
-      invMappedKeys: new Set(),
-      // [v20 2026-05-30] 브랜드 → 모델 2단계 검색 메타
-      invBrands: [],                          // [{name, model_count, option_count}]
-      invModelsByBrand: {},                   // {brand: [{model_name, option_count}]}
-      invBundleMeta: { brand: '', model_name: '', model_code: '' },  // 모음전 자체 메타 (자동 추론용)
-      invFilter: { brand: '', model: '' },    // 사용자 선택 필터 (없으면 bundle_meta 사용)
-      // [v20.4] 사용자가 직접 변경했는지 추적 — 변경 후엔 bundle_meta fallback 안 함
-      invFilterUserSet: { brand: false, model: false },
-      invGroupBy: 'axis-0',                   // 그룹화 기준 — 'axis-0' / 'axis-1' / ... / 'flat' / 'status'
-      // [v20.8] 표 컬럼 정렬 — col: 'opt' (옵션값=사이즈 등) / 'prod' (제품명) / 'status' (자동/수기/미매핑)
-      invSort: { col: 'opt', dir: 'asc' },
-      invBrandDdOpen: false,
-      invModelDdOpen: false,
+      // ── [2026-08-19] 오른쪽 서랍 3개 — 필요할 때만 불러온다(연 적 없으면 요청도 안 함) ──
+      drawerLoaded: {},        // {tpl:bool, stock:bool, sku:bool} — 서랍마다 한 번만 불러옴
+      // 📦 재고 입력 서랍
+      stockRows: [],           // 서버가 준 옵션 표 줄 [{sku, no, name, ...}]
+      stockLink: null,         // /api/bundles/<code>/source-urls 응답(연동 확인 배너용)
+      stockQty: {},            // {sku: 화면에 입력한 수량 문자열}
+      stockMsg: null,          // {ok, text}
+      stockSaving: false,
+      stockFilterOn: false,    // 「주소 없는 것만 보기」 토글 — box.html 원본 그대로
+      // 🎨 템플릿 참고 서랍
+      tplData: null,           // /templates/api/data 응답
+      tplPane: 'color',        // 'color' | 'size'
+      tplMsg: null,
+      // ── 🔢 SKU 번호 서랍(㉰) — 품번·바코드·GTIN. 이미 저장된 SKU(=Option 행)에만 적는다.
+      //   🔴 값은 여기(state.skuVals)에만 산다. `scheduleRerender` 가 `#oum-left` 를
+      //      통째로 갈아끼워도 render 는 이 값을 다시 읽어 넣으므로 입력이 안 날아간다.
+      skuRows: [],              // 서버가 준 줄 목록 [{sku, no, label, article_no, barcode, gtin, active}]
+      skuVals: {},              // {sku: {article_no, barcode, gtin}} — 화면이 지금 들고 있는 값
+      skuErrors: {},            // {'sku:field': 거부사유} — 마지막 저장 시도 결과
+      skuMsg: null,             // {ok, text} — 저장/생성 결과 배너
+      skuSaving: false,
+      skuGenBusy: false,
     };
 
     // 모달 마크업
     const bg = document.createElement('div');
     bg.className = 'oum-bg';
-    // 배경 클릭 닫기 — 자동 저장 fire-and-forget + 마지막 상태 기록
-    //   (snapshotLastState 는 아래에서 정의되므로 클로저 캡처 가능 — addEventListener 호출 시점은 정의 이후)
+    // 배경 클릭 닫기 — 저장을 기다린 뒤 목록으로 돌아간다(아래 _closeToList 와 동일 경로).
+    //   (_closeToList 는 아래에서 정의되므로 클로저 캡처 가능 — addEventListener 호출 시점은 정의 이후)
     bg.addEventListener('click', e => {
-      if (e.target === bg) {
-        try { snapshotLastState(); } catch (err) {}
-        autoSave();
-        bg.remove();
-      }
+      if (e.target === bg) _closeToList();
     });
 
     const modal = document.createElement('div');
@@ -614,21 +737,39 @@
     modal.innerHTML = `
       <div class="oum-mh">
         <h2>옵션 조합 생성 및 수정 + 소싱처 URL 매핑</h2>
-        <span class="pill"> 동시 입력</span>
+        <span class="pill">동시 입력</span>
         <button class="close" type="button">×</button>
       </div>
       <div class="oum-mb">
         <div class="oum-legend">
-          <b style="color:#191F28;"> 셀 색 (좌측 매트릭스):</b>
+          <b style="color:#191F28;">셀 색 (좌측 매트릭스):</b>
           <span><span class="leg-empty"></span>OFF (꺼짐)</span>
           <span><span class="leg-gray"></span>ON (옵션 켜짐)</span>
-          <span style="margin-left:auto; color:#92400E;"> 좌측에서 옵션 만들고 [URL 매핑에 적용 →] · 매핑 색(파랑/초록)은 우측 탭 안에서</span>
+          <span style="margin-left:auto; color:#92400E;">좌측에서 옵션 만들고 [URL 매핑에 적용 →] · 매핑 색(파랑/초록)은 우측 탭 안에서</span>
+        </div>
+        <div class="oum-drawer-toolbar">
+          <button class="oum-btn oum-btn-sec" data-drawer-open="tpl" type="button">템플릿 참고</button>
+          <button class="oum-btn oum-btn-sec" data-drawer-open="stock" type="button">재고 입력</button>
+          <button class="oum-btn oum-btn-sec" data-drawer-open="sku" type="button">SKU 번호 (품번 · 바코드 · GTIN)</button>
         </div>
         <div class="oum-split">
           <div class="oum-panel oum-blue" id="oum-left"></div>
           <div class="oum-bridge"><div class="arr">→</div><div class="lbl">적용</div></div>
           <div class="oum-panel oum-green" id="oum-right"></div>
         </div>
+      </div>
+      <div class="oum-drawer-backdrop" data-drawer-backdrop hidden></div>
+      <div class="oum-drawer" data-drawer-panel="tpl">
+        <div class="oum-drawer-head">템플릿 참고<button class="close" data-drawer-close type="button">×</button></div>
+        <div class="oum-drawer-body" id="oum-drawer-tpl-body"></div>
+      </div>
+      <div class="oum-drawer" data-drawer-panel="stock">
+        <div class="oum-drawer-head">재고 입력<button class="close" data-drawer-close type="button">×</button></div>
+        <div class="oum-drawer-body" id="oum-drawer-stock-body"></div>
+      </div>
+      <div class="oum-drawer" data-drawer-panel="sku">
+        <div class="oum-drawer-head">SKU 번호 (품번 · 바코드 · GTIN)<button class="close" data-drawer-close type="button">×</button></div>
+        <div class="oum-drawer-body" id="oum-drawer-sku-body"></div>
       </div>
       <div class="oum-mf">
         <button class="oum-btn oum-btn-sec" id="oum-cancel" type="button">취소</button>
@@ -646,59 +787,18 @@
     $('#oum-left').innerHTML = '<div style="padding:48px 16px;text-align:center;color:#8B95A1;font-size:14px">옵션 매트릭스 불러오는 중…</div>';
     $('#oum-right').innerHTML = '<div style="padding:48px 16px;text-align:center;color:#8B95A1;font-size:14px">불러오는 중…</div>';
 
-    // [perf 2026-05-29] 함수 스코프로 hoist — 재고 매핑은 배경 로드(.then) 후 적용하므로
-    //   keyBySku / _invMapPromise 를 try 바깥에서 참조 가능해야 함.
     let keyBySku = {};
-    let _invMapPromise = null;
-
-    // 재고 매핑 데이터 적용 — 배경 로드 완료 시 호출 (모달 초기 표시를 막지 않음).
-    //   기존: source-urls 처리 중 await 로 블로킹 → 안 보이는 재고탭 데이터 때문에 표시 지연.
-    //   변경: 옵션·URL UI 는 즉시 렌더, 재고 매핑은 도착하면 셀 초록색·재고탭만 갱신.
-    function applyInvData(ij) {
-      if (!ij || !ij.ok) return;
-      state.invOptions = ij.inventory_options || [];
-      state.invCandidates = ij.candidates || {};
-      // [v20] 브랜드 → 모델 검색 메타
-      state.invBrands = ij.brands || [];
-      state.invModelsByBrand = ij.models_by_brand || {};
-      state.invBundleMeta = ij.bundle_meta || { brand: '', model_name: '', model_code: '' };
-      // [v20.6] 초기 필터 = 서버가 받은 값 그대로 (공란이면 공란 유지, bundle_meta fallback 없음)
-      if (ij.filter_applied) {
-        state.invFilter = {
-          brand: ij.filter_applied.brand || '',
-          model: ij.filter_applied.model || '',
-        };
-      }
-      state.invMappedKeys = new Set();
-      state.invRows = {};
-      Object.entries(ij.mappings || {}).forEach(([bSku, invList]) => {
-        if (Array.isArray(invList) && invList.length > 0) {
-          const k = keyBySku[bSku];
-          if (k) state.invMappedKeys.add(k);
-          // B3-3 표는 1:1 — 첫 매핑 inv_sku 표시
-          const inv = state.invOptions.find(o => o.sku === invList[0]);
-          state.invRows[bSku] = {
-            invSku: invList[0],
-            model: inv ? inv.model_name : '',
-            color: inv ? inv.color : '',
-            size: inv ? inv.size : '',
-            isManual: false,
-            isUnused: false,
-          };
-        }
-      });
-    }
 
     // 소싱처 목록 + 기존 옵션 로드 (기존 모음전 GET 활용)
     try {
-      // [perf 2026-05-29] 두 요청 병렬화 — inventory-mapping 을 배경으로 먼저 띄워두고
-      //   source-urls 만 await. 재고 매핑은 아래 rerender 이후 .then 으로 비동기 적용.
-      _invMapPromise = fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`)
-        .then(res => res.json()).catch(() => null);
+      // [2026-08-02] 재고 매핑 배경 로드 제거 — 탭이 없어져 쓰는 곳이 없다.
+      //   (이 호출은 옵션 999개 + 후보 점수 계산을 서버에 시키던 무거운 요청)
       const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
       const j = await r.json();
       if (j && j.ok) {
         state.sources = (j.sources || []).map(k => ({ key: k, label: k }));
+        // [2026-06-26] 소싱처 메타(custom 탭 라벨·색·약자) — builtin 은 아래 하드코딩 우선
+        state.srcMeta = j.source_meta || {};
         // [2026-05-25] 옵션 canonical_sku ↔ axis values key 매핑 — 매핑 복원·자동저장 공용
         //   재진입 시 option_ids 를 option_keys 로 복원해야 매트릭스 매핑이 살아 있음
         keyBySku = {};
@@ -711,8 +811,6 @@
           }
         });
         state.skuByKey = skuByKey;
-        // 재고 매핑(invRows/invOptions/...)은 await 하지 않음 → 모달 즉시 표시.
-        //   실제 적용은 함수 끝 rerender() 직후 _invMapPromise.then(applyInvData) 에서.
 
         // 기존 URL 도 가져옴 (있으면 표시) — option_ids → option_keys 복원
         //   [2026-05-27] 옛 sku + 새 sku 가 같은 axis_values 로 중복 매핑된 경우
@@ -751,6 +849,8 @@
             values: (st.values || []).join(','),
           }));
           state.applied = true;
+          // [2026-08-02] 저장돼 있던 값을 그대로 기억해 둔다 — 이름 정정 판정의 기준선.
+          state._srvAxes = axisSteps.map(st => (st.values || []).map(v => String(v)));
           // [2026-05-27 FIX] 비활성 상태 보존 — 매트릭스 전체 콤보를 seen 에 미리 채움
           //   배경: recalcMatrix() 가 seen 에 없는 콤보를 "처음 보는 새 콤보" 로 인식해
           //   자동 활성화함. DB 엔 활성 옵션만 저장돼 재진입 시 비활성 24 개가 seen 누락
@@ -799,17 +899,38 @@
       }
     } catch (e) { console.warn('sources load fail', e); }
 
-    // 소싱처 라벨 매핑 (사용자 친화)
+    // ── SKU 번호(품번·바코드·GTIN) — 이미 저장된 옵션(Option 행)에만 붙는다.
+    //   판정·저장 규칙은 전부 서버(`lemouton/matrix/sku_info.py`) 한 곳 — 여기서는
+    //   받고·보여주고·보낼 뿐이다.
+    try {
+      const r2 = await fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}`);
+      const j2 = await r2.json();
+      if (j2 && j2.ok) {
+        state.skuRows = j2.rows || [];
+        state.skuRows.forEach(o => {
+          state.skuVals[o.sku] = {
+            article_no: o.article_no || '',
+            barcode: o.barcode || '',
+            gtin: o.gtin || '',
+          };
+        });
+      }
+    } catch (e) { console.warn('sku-info load fail', e); }
+
+    // 소싱처 라벨 매핑 (사용자 친화) — [2026-06-30 단일명부] 명부 라벨로 덮어씀
     const SRC_LABELS = {
       lemouton: '르무통 공홈', musinsa: '무신사', ssf: 'SSF샵', ssg: 'SSG',
       lotteon: '롯데온', ss_lemouton: '스마트스토어 르무통',
     };
+    try { Object.assign(SRC_LABELS, window.MOUM_SOURCE_LABELS || {}); } catch (e) {}
     const SRC_COLORS = {
       lemouton: '#a78bfa', musinsa: '#191F28', ssf: '#14b8a6', ssg: '#F47216',
       lotteon: '#ef4444', ss_lemouton: '#22c55e',
     };
     // 약식 오버라이드 — abbr(label) 이 SSF/SSG 둘 다 'ss' 로 만들어 혼동되는 케이스 구분
     const SRC_ABBR = { ssg: 'sg' };
+    // [2026-06-26] '신규 소싱처 추가' 가상 탭 sentinel
+    const ADD_SRC_KEY = '__addsrc__';
 
     // 활성 소싱처 (기본 6개 보장)
     const builtinKeys = ['lemouton', 'musinsa', 'ssf', 'ssg', 'lotteon', 'ss_lemouton'];
@@ -891,7 +1012,7 @@
           <div class="oum-axis-h">
             <div style="display:flex; align-items:center; gap:7px;">
               <span class="pos">${POS[i] || `${i + 1}축`}</span>
-              <span class="rec"> 추천: ${REC[i] || '-'}</span>
+              <span class="rec">추천: ${REC[i] || '-'}</span>
             </div>
             <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
               <span class="oum-sortbtns">
@@ -902,14 +1023,19 @@
             </div>
           </div>
           <div class="oum-axis-in">
-            <input data-axis-name="${i}" placeholder="축 이름 (예: ${REC[i] || '용량'})" value="${esc(axis.name)}">
-            <input data-axis-values="${i}" placeholder="값 — 쉼표 구분 (예: 그레이,블랙,옐로우)" value="${esc(axis.values)}">
+            <!-- [2026-08-02] 안내글이 칸보다 훨씬 길어 **한 글자도 안 보였다**(라이브 실측:
+                 「축 이름 (예: 색상)」이 160px 칸에 25.5px 글자 → 절반 넘게 잘림).
+                 안내글은 짧게, 자세한 설명은 마우스를 올리면 뜨게 옮긴다. -->
+            <input data-axis-name="${i}" placeholder="예: ${REC[i] || '용량'}"
+                   title="이 축의 이름 — 예: ${REC[i] || '용량'}" value="${esc(axis.name)}">
+            <input data-axis-values="${i}" placeholder="예: 그레이,블랙,옐로우"
+                   title="값을 쉼표로 나눠 적습니다 — 예: 그레이,블랙,옐로우" value="${esc(axis.values)}">
           </div>
           <div class="oum-axis-chips">${parseValues(axis.values).map(v => `<span class="c">${esc(v)}</span>`).join('')}<span class="oum-drag-hint">순서 변경: 아래 매트릭스 헤더를 드래그하세요</span></div>
         </div>`;
       });
 
-      html += `<button class="oum-add-axis" id="oum-add-axis" ${state.axes.length >= 3 ? 'disabled' : ''} type="button">＋ 축 추가 (현재 ${state.axes.length}축 / 최대 3축)</button>`;
+      html += `<button class="oum-add-axis" id="oum-add-axis" ${state.axes.length >= 3 ? 'disabled' : ''} type="button">+ 축 추가 (현재 ${state.axes.length}축 / 최대 3축)</button>`;
 
       // [2026-05-24] 빠른 선택 칩 영역 제거 — 사용자 피드백 (매트릭스 행/열 헤더 클릭으로 충분)
 
@@ -929,6 +1055,234 @@
       </div>`;
 
       left.innerHTML = html;
+    }
+
+    // 🔴 [2026-08-20 병합 정리] SKU 번호 격자는 origin/main 이 왼쪽 패널에 항상 보이는
+    //   형태로 만들었지만(사장님 확정 ㉰), 이 브랜치는 같은 기능을 오른쪽 서랍(C안 —
+    //   사장님이 고른 「사이드 드로어형」 설계)으로 만들었다. 화면 하나에 같은 표가
+    //   두 번 뜨는 걸 막기 위해 왼쪽 패널 렌더는 지우고 서랍 쪽(renderSkuDrawer, 아래)
+    //   하나만 남긴다 — 왼쪽 패널에 다시 필요하면 이 커밋을 되짚어 복원할 것.
+
+    // 자체 바코드 생성 — **빈 칸만** 채운다. 사용자가 손으로 적어 둔(아직 저장 전) 값은
+    // 이 화면(state.skuVals)이 갖고 있어서, 서버는 판단 못 하고 화면이 골라 보낸다.
+    function skuGenBarcodes() {
+      const empties = (state.skuRows || [])
+        .map(o => o.sku)
+        .filter(sku => !((state.skuVals[sku] || {}).barcode || '').trim());
+      if (!empties.length) {
+        state.skuMsg = { ok: true, text: '이미 모든 SKU 에 바코드가 있습니다 — 채울 빈 칸이 없습니다.' };
+        renderLeft();
+        return;
+      }
+      state.skuGenBusy = true;
+      renderLeft();
+      fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}/gen-barcodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skus: empties }),
+      })
+        .then(r => r.json())
+        .then(j => {
+          if (j && j.ok) {
+            const made = j.barcodes || {};
+            let n = 0;
+            Object.keys(made).forEach(sku => {
+              if (!state.skuVals[sku]) state.skuVals[sku] = {};
+              // 🔴 「빈 것만」— 응답이 오는 사이 손으로 적었으면 덮지 않는다.
+              if (!(state.skuVals[sku].barcode || '').trim()) {
+                state.skuVals[sku].barcode = made[sku];
+                n++;
+              }
+            });
+            state.skuMsg = { ok: true, text: n
+              ? `바코드 ${n}개를 만들었습니다 — 아직 저장 전입니다. [SKU 번호 저장]을 눌러야 실제로 저장됩니다.`
+              : '만든 번호가 없습니다.' };
+          } else {
+            state.skuMsg = { ok: false, text: '바코드를 만들지 못했습니다 — ' + ((j && j.error) || '서버 응답 없음') };
+          }
+        })
+        .catch(e => {
+          state.skuMsg = { ok: false, text: '바코드를 만들지 못했습니다 — ' + (e && e.message || e) };
+        })
+        .finally(() => {
+          state.skuGenBusy = false;
+          renderLeft();
+        });
+    }
+
+    // SKU 번호 저장 — 맞는 칸은 들어가고, 틀린/겹친 칸은 사유가 그 칸 밑에 남는다
+    // (되돌리기 없음 — 까닭은 `lemouton/matrix/sku_info.py` 머리말 참조).
+    function skuSaveGrid() {
+      const rows = state.skuRows || [];
+      if (!rows.length) return;
+      const items = rows.map(o => {
+        const v = state.skuVals[o.sku] || {};
+        const it = { sku: o.sku };
+        SKU_FIELDS.forEach(f => { it[f] = v[f] || ''; });
+        return it;
+      });
+      state.skuSaving = true;
+      renderLeft();
+      fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+        .then(r => r.json())
+        .then(j => {
+          state.skuErrors = {};
+          (j.rejected || []).forEach(r => { state.skuErrors[r.sku + ':' + r.field] = r.reason; });
+          const warnN = (j.warnings || []).length;
+          if (j.ok) {
+            state.skuMsg = { ok: true, text: `저장했습니다 (${j.saved || 0}칸)`
+              + (warnN ? ` · 주의 ${warnN}건 — 아래 칸을 확인하세요` : '') };
+          } else {
+            state.skuMsg = { ok: false, text: `일부를 저장하지 못했습니다 — 거부 ${(j.rejected || []).length}건, `
+              + `저장 ${j.saved || 0}칸. 빨간 칸의 사유를 확인하세요.` };
+          }
+        })
+        .catch(e => {
+          state.skuMsg = { ok: false, text: '저장하지 못했습니다 — ' + (e && e.message || e) };
+        })
+        .finally(() => {
+          state.skuSaving = false;
+          renderLeft();
+        });
+    }
+
+    // ── 미구성 SKU 등록 — 축 값 우클릭 (W12) ─────────────────────────
+    // 재고관리에서 「모음전으로도 판다」 없이 낱개로만 등록된 SKU(=미구성 SKU)를
+    // 지금 짜는 축 값 조합 자리로 그대로 이사시킨다. 판정·이사는 서버
+    // (lemouton/matrix/unbuilt.py·webapp/routes/optgen_sku.py) 하나뿐 — 여기는
+    // 고르기 UI만 담당하고 조건을 다시 적지 않는다(그 파일 머리말 규칙과 같은 이유).
+    // 🔴 adopt-sku 는 호출 즉시 서버에 커밋된다(좌측 매트릭스의 다른 셀과 달리
+    //    [옵션 + URL 저장]을 눌러야 반영되는 초안이 아니다) — 이사는 실수 방지를 위해
+    //    그 자리에서 바로 끝내는 편이 "저장을 깜빡해 미구성 SKU만 사라진" 혼란을 막는다.
+    let _ctxMenuEl = null;
+    function _closeCtxMenu() {
+      if (_ctxMenuEl) { _ctxMenuEl.remove(); _ctxMenuEl = null; }
+    }
+
+    function showAdoptMenu(x, y, axisValues) {
+      _closeCtxMenu();
+      const m = document.createElement('div');
+      m.className = 'oum-ctxmenu';
+      const label = axisValues.filter(Boolean).join(' · ') || '(빈 조합)';
+      m.innerHTML = `<div class="oum-ctx-hd">${esc(label)}</div>
+        <button type="button" data-act="adopt">미구성 SKU 등록…</button>`;
+      document.body.appendChild(m);
+      // 화면 밖으로 안 나가게 — 먼저 붙이고 실제 크기로 다시 자리를 잡는다
+      const w = m.offsetWidth, h = m.offsetHeight;
+      m.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 12)) + 'px';
+      m.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 12)) + 'px';
+      _ctxMenuEl = m;
+      m.querySelector('[data-act="adopt"]').addEventListener('click', () => {
+        _closeCtxMenu();
+        openAdoptPicker(axisValues);
+      });
+      // 같은 클릭으로 바로 닫히지 않도록 다음 이벤트 루프에 걸어 둔다
+      setTimeout(() => {
+        document.addEventListener('click', _closeCtxMenu, { once: true });
+        document.addEventListener('contextmenu', _closeCtxMenu, { once: true });
+      }, 0);
+    }
+
+    function openAdoptPicker(axisValues) {
+      const label = axisValues.filter(Boolean).join(' · ') || '(빈 조합)';
+      const bg = document.createElement('div');
+      bg.className = 'oum-adopt-bg';
+      bg.innerHTML = `<div class="oum-adopt-box">
+        <div class="oum-adopt-hd">
+          <h3>미구성 SKU 등록</h3>
+          <p><b>${esc(label)}</b> 자리에 넣을, 재고관리에 낱개로만 등록된 SKU를 고르세요.
+            고르면 그 SKU가 그대로 이 매트릭스로 옮겨오고(같은 SKU·재고이력 유지),
+            원래 있던 옵션함에서는 빠집니다.</p>
+          <input class="oum-adopt-q" type="text" placeholder="이름 · SKU · 브랜드로 찾기">
+        </div>
+        <div class="oum-adopt-list"><div class="oum-adopt-empty">찾는 중…</div></div>
+        <div class="oum-adopt-ft"><span class="oum-adopt-msg"></span>
+          <button type="button" class="oum-adopt-close">닫기</button></div>
+      </div>`;
+      document.body.appendChild(bg);
+      bg.addEventListener('click', e => { if (e.target === bg) bg.remove(); });
+      bg.querySelector('.oum-adopt-close').addEventListener('click', () => bg.remove());
+
+      const listEl = bg.querySelector('.oum-adopt-list');
+      const msgEl = bg.querySelector('.oum-adopt-msg');
+      const qEl = bg.querySelector('.oum-adopt-q');
+
+      let _seq = 0;
+      function search(q) {
+        const mySeq = ++_seq;
+        listEl.innerHTML = '<div class="oum-adopt-empty">찾는 중…</div>';
+        fetch(`/optgen/api/unbuilt-skus?limit=30&q=${encodeURIComponent(q || '')}`)
+          .then(r => r.json())
+          .then(j => {
+            if (mySeq !== _seq) return;   // 늦게 도착한 옛 응답은 버린다(빠른 타이핑 대비)
+            if (!j || !j.ok) {
+              listEl.innerHTML = '<div class="oum-adopt-empty">불러오지 못했습니다.</div>';
+              return;
+            }
+            if (!j.items.length) {
+              listEl.innerHTML = `<div class="oum-adopt-empty">${q
+                ? '찾는 말과 맞는 미구성 SKU가 없습니다.'
+                : '아직 미구성 SKU가 없습니다 — 재고관리에서 낱개로 등록한 물건이 여기 뜹니다.'}</div>`;
+              return;
+            }
+            listEl.innerHTML = '';
+            j.items.forEach(it => {
+              const row = document.createElement('div');
+              row.className = 'oum-adopt-row';
+              row.innerHTML = `<div><div class="nm">${esc(it.name)}</div>
+                <div class="meta">${esc(it.sku)}${it.brand ? ' · ' + esc(it.brand) : ''} · 재고 ${it.stock}개</div></div>
+                <div class="go">이 자리로 →</div>`;
+              row.addEventListener('click', () => adopt(it.sku, row));
+              listEl.appendChild(row);
+            });
+          })
+          .catch(() => {
+            if (mySeq === _seq) listEl.innerHTML = '<div class="oum-adopt-empty">불러오지 못했습니다.</div>';
+          });
+      }
+
+      function adopt(sku, rowEl) {
+        msgEl.textContent = '';
+        rowEl.style.opacity = '.5';
+        fetch(`/optgen/api/box/${encodeURIComponent(bundleCode)}/adopt-sku`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sku, axis_values: axisValues }),
+        })
+          .then(r => r.json())
+          .then(j => {
+            if (!j || !j.ok) {
+              msgEl.textContent = (j && j.error) || '등록하지 못했습니다.';
+              rowEl.style.opacity = '';
+              return;
+            }
+            // 다시 불러오지 않고 이 자리만 "이미 있음"으로 반영 — 나머지 상태(URL 매핑 등)는 그대로 둔다
+            const key = keyOf(axisValues);
+            state.selected.add(key);
+            state.seen.add(key);
+            state.skuByKey = state.skuByKey || {};
+            state.skuByKey[key] = j.sku;
+            keyBySku[j.sku] = key;
+            bg.remove();
+            rerender();
+          })
+          .catch(e => {
+            msgEl.textContent = '등록하지 못했습니다 — ' + (e && e.message || e);
+            rowEl.style.opacity = '';
+          });
+      }
+
+      let _deb = null;
+      qEl.addEventListener('input', () => {
+        clearTimeout(_deb);
+        _deb = setTimeout(() => search(qEl.value.trim()), 250);
+      });
+      search('');
+      qEl.focus();
     }
 
     function filterCombos(axisName, val) {
@@ -978,8 +1332,7 @@
     //   urlMapped 인자로 분기:
     //     - 좌측(주 옵션 매트릭스): cellState(active, false, _) → opt-on / disabled
     //     - URL 카드(매핑): cellState(active, urlMapped, _) → opt-on / url-on / disabled
-    //   재고 매핑(has-inv) 은 더 이상 매트릭스 색으로 표시 안 함 (재고관리 매핑 탭의 그룹 표에서 상태)
-    function cellState(active, urlMapped, _hasInvLegacy) {
+    function cellState(active, urlMapped) {
       if (!active) return { cls: 'disabled', inner: '<span>·</span>' };
       if (urlMapped) return { cls: 'opt-on url-on', inner: '<span></span>' };
       return { cls: 'opt-on', inner: '<span>ON</span>' };
@@ -993,9 +1346,8 @@
         const on = state.selected.has(k);
         // [2026-06-04 FIX] mappedOff(is_active=false)는 OFF 로 표시해야 함.
         //   기존 active = on||mappedOff → OFF 저장한 옵션이 재진입 시 ON 으로 보이던 버그.
-        const hasInv = on && state.invMappedKeys && state.invMappedKeys.has(k);
         // 좌측 매트릭스: URL 매핑은 표시 안 함 (우측에서) → urlMapped=false. ON 은 selected 만.
-        const s = cellState(on, false, hasInv);
+        const s = cellState(on, false);
         html += `<td><span class="oum-cell ${s.cls}" data-cell-key='${esc(k)}'>${s.inner}</span></td>`;
       });
       html += `</tr></tbody></table>`;
@@ -1028,8 +1380,7 @@
           const k = keyOf(arr);
           const on = state.selected.has(k);
           // [2026-06-04 FIX] mappedOff 는 OFF 로 표시 (ON 은 selected 만).
-          const hasInv = on && state.invMappedKeys && state.invMappedKeys.has(k);
-          const s = cellState(on, false, hasInv);
+          const s = cellState(on, false);
           html += `<td><span class="oum-cell ${s.cls}" data-cell-key='${esc(k)}'>${s.inner}</span></td>`;
         });
         html += `</tr>`;
@@ -1039,260 +1390,348 @@
       return html;
     }
 
-    // [B3-3] 자동 매칭 — candidates(서버 alias 매칭) 결과 → invRows
-    function invAutoMatch() {
-      const skuByKey = state.skuByKey || {};
-      [...state.selected].forEach(k => {
-        const bSku = skuByKey[k];
-        if (!bSku) return;
-        const cands = state.invCandidates[bSku] || [];
-        if (cands.length > 0) {
-          const invSku = cands[0];
-          const inv = (state.invOptions || []).find(o => o.sku === invSku);
-          state.invRows[bSku] = {
-            invSku: invSku,
-            model: inv ? inv.model_name : '',
-            color: inv ? inv.color : '',
-            size: inv ? inv.size : '',
-            isManual: false,
-            isUnused: false,
-          };
-          state.invMappedKeys.add(k);
-        }
-      });
+    // [2026-08-02] 재고관리 매핑 전용 함수 일괄 제거 (invAutoMatch·ensureSkusForSelected·
+    //   refreshSkuByKey·reloadInvCandidates·syncInvForUnsavedOptions·buildInvMappings·
+    //   invApplyMapping·renderInvPanel·buildInvGroups) — 탭 삭제로 호출부가 사라졌다.
+
+    // ═══════════════════════════════════════════════════════════════
+    //  축 맞추기 (2026-08-02 · 설계 §15·§16 6단계 · 시안 v6)
+    //
+    //  왜 축인가
+    //    6색 × 10사이즈면 조합은 60. 축만 맞추면 색 6 + 사이즈 10 = 16이고,
+    //    한 번 맞춘 것은 그 **소싱처** 의 다음 상품에서 다시 묻지 않는다(0).
+    //  상태 4색 — 초록 자동 / 파랑 수기 / 노랑 확인 필요 / 빨강 못 찾음.
+    //    초록도 잠기지 않는다(자동은 「먼저 골라준 것」일 뿐, 최종 결정은 사장님).
+    // ═══════════════════════════════════════════════════════════════
+
+    function axisUrlsOfCurrentSource() {
+      return (state.urls[state.currentSrc] || [])
+        .map(u => (u.url || '').trim()).filter(Boolean);
     }
 
-    // [B3-3] 매핑 서버 저장 (POST /api/bundles/<code>/inventory-mapping)
-    async function invApplyMapping(bundleCode) {
-      const skuByKey = state.skuByKey || {};
-      const mappings = {};
-      [...state.selected].forEach(k => {
-        const bSku = skuByKey[k];
-        if (!bSku) return;
-        const row = state.invRows[bSku];
-        if (row && row.invSku && row.invSku.trim()) {
-          mappings[bSku] = [row.invSku.trim()];
-        }
+    // [2026-08-02] 주소마다 **유형**을 함께 보낸다.
+    //   단품 = URL 하나 = 색 하나 → 색은 맞출 것이 없다(사이즈만).
+    //   색 후보는 색상모음전·모델모음전 주소에서만 모은다. 라벨은 색으로 쓰지 않는다 —
+    //   라벨 「무신사_화이트」의 실물이 「클래식 2 블랙(화이트 아웃솔)」이었다(라이브 실측).
+    // [G2] 주소가 등록된 소싱처 전부 — 격자의 가로축
+    function axisSourcesWithUrls() {
+      return state.sources
+        .filter(sr => sr.key !== ADD_SRC_KEY && (state.urls[sr.key] || []).some(u => (u.url || '').trim()))
+        .map(sr => sr.key);
+    }
+
+    function axisUrlItemsOf(srcKey) {
+      return (state.urls[srcKey] || [])
+        .filter(u => (u.url || '').trim())
+        .map(u => ({ url: u.url.trim(), label: u.label || '', url_type: u.url_type || '단품' }));
+    }
+
+    function axisUrlItemsOfCurrentSource() {
+      return (state.urls[state.currentSrc] || [])
+        .filter(u => (u.url || '').trim())
+        .map(u => ({ url: u.url.trim(), label: u.label || '',
+                    url_type: u.url_type || '단품' }));
+    }
+
+    // [G2 · 2026-08-02 사장님 확정] 소싱처 × 우리 값 격자.
+    //   · 우리 값 열은 왼쪽 고정 — 소싱처가 늘어 옆으로 밀어도 어느 줄인지 안 잃는다.
+    //   · 모든 칸이 드롭다운 — 어디든 바로 고칠 수 있다.
+    //     (실수로 바꿔도 파란 「수기」로 흔적이 남는다 — 그게 이 방식의 안전장치다.)
+    //   · 소싱처 열마다 「확인 도장」 — 사장님이 눈으로 본 것을 남긴다. 맞춤이 바뀌면 저절로 풀린다.
+    function renderAxisPanel() {
+      const srcs = axisSourcesWithUrls();
+      let h = `<div class="ax-bar">
+        <button class="ax-go" data-ax-load type="button" ${state.axisBusy ? 'disabled' : ''}>
+          ${state.axisBusy ? '불러오는 중…' : '↻ 소싱처 옵션 불러오기'}</button>
+        <span class="ax-note">주소 있는 소싱처 <b>${srcs.length}곳</b></span>
+        <a class="ax-go" data-ax-matrix style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
+           href="/matrix/product/${encodeURIComponent(bundleCode)}" target="_blank">매트릭스에서 값 확인</a>
+      </div>`;
+
+      if (!srcs.length) {
+        return h + `<div class="ax-empty">주소가 등록된 소싱처가 없습니다.<br>
+          왼쪽 「소싱처 URL 매핑」 탭에서 주소를 먼저 넣어 주세요.</div>`;
+      }
+      const loaded = srcs.filter(k => state.axisBySrc[k]);
+      if (!loaded.length) {
+        return h + `<div class="ax-empty">아직 소싱처 옵션을 불러오지 않았습니다.<br>
+          위 「↻ 소싱처 옵션 불러오기」를 누르면 소싱처가 파는 값을 가져옵니다.<br>
+          <b>저장하지 않아도 됩니다.</b></div>`;
+      }
+
+      // 축이나 주소가 바뀌었으면 옛 결과를 그대로 보여주지 않는다 — 스스로 다시 맞춘다.
+      //   (크롤은 다시 안 한다. 이미 받아 둔 소싱처 값으로 줄만 다시 맞춘다.)
+      const _staleSrcs = loaded.filter(k => (state.axisBySrc[k] || {})._sig !== axesSig(k));
+      const _stale = _staleSrcs.length > 0;
+      if (_stale && !state.axisResync && !state.axisBusy) {
+        state.axisResync = true;
+        setTimeout(async () => {
+          try {
+            // 내용이 바뀌었으니 「확인함」 도장도 푼다 — 사장님이 못 본 표에 도장이
+            // 찍혀 있으면 확인이 오히려 사고를 만든다.
+            for (const k of _staleSrcs) {
+              if (!(state.axisBySrc[k] || {}).confirmed) continue;
+              try {
+                await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-confirm`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ source_key: k, confirmed: false }),
+                });
+              } catch (e) { console.warn('[oum] 도장 풀기 실패:', k, e); }
+            }
+            await axisPreviewAll();
+          } finally { state.axisResync = false; renderRight(); }
+        }, 250);   // 타자 치는 중이면 잠깐 기다렸다 한 번만
+      }
+      if (_stale) {
+        return h + `<div class="ax-empty">축이나 주소를 고치셨습니다 — 바뀐 값으로 <b>다시 맞추는 중…</b><br>
+          <span style="color:#8B95A1">옛 결과를 그대로 보여 드리지 않으려고 잠깐 비웁니다.</span></div>`;
+      }
+
+      // 요약 — 네 갈래
+      const tot = { saved: 0, auto: 0, review: 0, none: 0 };
+      srcs.forEach(k => {
+        const d = state.axisBySrc[k];
+        if (!d) return;
+        Object.keys(tot).forEach(x => { tot[x] += (d.summary || {})[x] || 0; });
+        tot.saved += (d.summary || {}).absent || 0;   // 「없음으로 정함」도 내가 정한 것
       });
+      // [2026-08-03 · 3차] 요약 카드 줄 + 격자를 **한 덩어리**로 묶는다.
+      //   덩어리 = 표 폭(내용 폭), 카드 줄 = 그 덩어리를 채움
+      //   → 표를 억지로 늘리지 않아도 카드와 표의 좌우 끝이 항상 맞는다.
+      h += '<div class="ax-block">';
+      h += `<div class="ax-sum">
+        <div class="ax-kpi g"><div class="lb">사전이 붙임</div><div class="vl">${tot.auto}</div></div>
+        <div class="ax-kpi b"><div class="lb">내가 정함</div><div class="vl">${tot.saved}</div></div>
+        <div class="ax-kpi y"><div class="lb">확인 필요</div><div class="vl">${tot.review}</div></div>
+        <div class="ax-kpi r"><div class="lb">못 찾음</div><div class="vl">${tot.none}</div></div>
+      </div>`;
+      h += `<div class="axg-lg">
+        <span><i class="dict"></i>사전이 붙임</span><span><i class="man"></i>내가 정함</span>
+        <span><i class="warn"></i>확인 필요</span><span><i class="none"></i>못 찾음</span></div>`;
+
+      // 축 목록 — 어느 소싱처에서든 나온 축 이름을 순서대로
+      const axisNames = [];
+      srcs.forEach(k => ((state.axisBySrc[k] || {}).axes || []).forEach(a => {
+        if (!axisNames.includes(a.axis_name)) axisNames.push(a.axis_name);
+      }));
+
+      h += '<div class="axg-wrap"><table class="axg"><thead><tr><th class="axg-our">우리 값</th>';
+      srcs.forEach(k => {
+        const d = state.axisBySrc[k] || {};
+        const done = !!d.confirmed;
+        h += `<th>${esc(SRC_LABELS[k] || k)}
+          <button class="axg-stamp ${done ? 'done' : 'todo'}" data-ax-stamp="${esc(k)}" type="button">
+            ${done ? '✔ 확인함' : '● 확인 안 함'}</button></th>`;
+      });
+      h += '</tr></thead><tbody>';
+
+      axisNames.forEach(axName => {
+        const _naAx = srcs.map(k => ((state.axisBySrc[k] || {}).axes || [])
+          .find(a => a.axis_name === axName)).filter(Boolean);
+        const _allNa = _naAx.length > 0 && _naAx.every(a => !a.available);
+        const _why = _allNa ? ((_naAx[0] || {}).reason || '') : '';
+        h += `<tr class="axg-axis"><td colspan="${srcs.length + 1}">${esc(axName)}${
+          _why ? ` <span style="font-weight:400;color:#8B95A1">— ${esc(_why)}</span>` : ''}</td></tr>`;
+        // 우리 값 목록 — 축 설계에서 그대로
+        const ax0 = srcs.map(k => ((state.axisBySrc[k] || {}).axes || [])
+          .find(a => a.axis_name === axName)).find(Boolean);
+        const ourValues = ((ax0 || {}).rows || []).map(r => r.our_value);
+        ourValues.forEach(our => {
+          h += `<tr><td class="axg-our">${esc(our)}</td>`;
+          srcs.forEach(k => {
+            const ax = ((state.axisBySrc[k] || {}).axes || []).find(a => a.axis_name === axName);
+            if (!ax || !ax.available) {
+              // 이유를 마우스 올려야 보이는 곳에만 두면 사장님은 「—」 넉 줄만 본다.
+              //   설계서 약속대로 **화면에** 적는다.
+              h += `<td class="axg-c na" title="${esc((ax || {}).reason || '')}">맞출 것 없음</td>`;
+              return;
+            }
+            const r = (ax.rows || []).find(x => x.our_value === our);
+            if (!r) { h += '<td class="axg-c na">—</td>'; return; }
+            const cls = r.status === 'absent' ? 'man'
+              : (r.status === 'saved' ? (r.origin === 'manual' ? 'man' : 'dict')
+                 : (r.status === 'auto' ? 'dict' : (r.status === 'review' ? 'warn' : 'none')));
+            const cur = r.source_value || '';
+            const opts = [];
+            // [2026-08-04 · 시안 3안 확정] 드롭다운 구성 — 구분줄로 세 구역을 나눈다.
+            //   ① 「매칭 옵션 없을 시 선택」 맨 위 항시 고정
+            //   ─ ② 현재 값(선택됨) · 되돌리기
+            //   ─ ③ 「~ 옵션에서 선택 완료」(회색·못 고름)를 먼저
+            //   ─ ④ 선택 안 된 값들을 아래에
+            //   뜻 = ①을 고르면 이 값은 이 소싱처에서 안 판다 —
+            //        사전이 다시 못 붙이고, 재고·가격은 비워 둔다.
+            const SEP = '<option disabled>──────────────</option>';
+            if (r.status === 'absent') {
+              opts.push('<option value="" selected>매칭 옵션 없을 시 선택 (내가 정함)</option>');
+              opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+            } else {
+              opts.push('<option value="">매칭 옵션 없을 시 선택</option>');
+              opts.push(SEP);
+              if (!cur) {
+                // 표시용 자리 글 — 목록엔 안 보이고(hidden) 선택 칸에만 보인다.
+                //   값이 "" 이면 위 「없을 시 선택」과 겹쳐 골라도 변화가 안 생기므로 별도 값.
+                opts.push(`<option value="__ph__" selected disabled hidden>${r.status === 'review'
+                  ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개` : '못 찾음 — 직접 고르세요'}</option>`);
+              } else {
+                opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
+                if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+              }
+            }
+            // 드롭다운에는 그 주소의 값 **전부** — 다른 줄이 쓰는 값은 회색(못 고름).
+            //   우리 값 하나 = 소싱처 값 하나. 나눠 쓰면 그 재고가 두 배로 잡혀 초과 판매.
+            const _norm = v => String(v || '').toLowerCase().replace(/[\s._-]/g, '');
+            const _owner = new Map();
+            (ax.rows || []).forEach(x => {
+              if (x.our_value !== our && x.source_value) _owner.set(_norm(x.source_value), x.our_value);
+            });
+            const _takenOpts = [], _freeOpts = [];
+            (ax.source_values || []).forEach(cv => {
+              if (cv === cur) return;
+              const who = _owner.get(_norm(cv));
+              if (who) _takenOpts.push(`<option value="${esc(cv)}" disabled>${esc(cv)} — ${esc(who)} 옵션에서 선택 완료</option>`);
+              else _freeOpts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`);
+            });
+            if (_takenOpts.length || _freeOpts.length) opts.push(SEP);
+            opts.push(..._takenOpts);
+            if (_takenOpts.length && _freeOpts.length) opts.push(SEP);
+            opts.push(..._freeOpts);
+            h += `<td class="axg-c ${cls}"><div class="axg-cell"><span class="axg-dot ${cls}"></span>
+              <select class="axg-sel ${cls}" data-ax-set data-ax-src="${esc(k)}"
+                      data-ax-axis="${esc(axName)}" data-ax-our="${esc(our)}">${opts.join('')}</select>
+              </div></td>`;
+          });
+          h += '</tr>';
+        });
+      });
+      h += '</tbody></table></div>';
+      h += '</div>';   // .ax-block 닫기
+
+      const notDone = srcs.filter(k => !(state.axisBySrc[k] || {}).confirmed);
+      if (notDone.length) {
+        h += `<div class="oum-inv-filter-hint" style="margin-top:10px">아직 확인 안 한 소싱처
+          <b>${notDone.length}곳</b> — ${notDone.map(k => esc(SRC_LABELS[k] || k)).join(' · ')}</div>`;
+      }
+      return h;
+    }
+
+    // 소싱처 옵션 불러오기 — 정규 크롤(크롬 확장)과 **같은 방식**. 주소만 있으면 저장 전에도 된다.
+    async function axisLoad() {
+      const srcs = axisSourcesWithUrls();
+      if (!srcs.length) return;
+      state.axisBusy = true; renderRight();
       try {
-        const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`, {
+        for (const k of srcs) {
+          const items = axisUrlItemsOf(k);
+          if (window.MoumExt && window.MoumExt.installed && window.MoumExt.installed()) {
+            try {
+              const res = await window.MoumExt.crawl({
+                model_code: bundleCode,
+                sources: items.map(it => ({ source_key: k, url: it.url,
+                                            url_type: it.url_type === '단품' ? 'dan' : 'bundle' })),
+              }, 300000);
+              const results = (res && res.results) || [];
+              if (results.length) {
+                await fetch('/api/sources/crawl-result', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ items: results.map(x => ({
+                    url: x.url, price: x.price, stock: x.stock, options: x.options || [],
+                    status: x.ok ? 'ok' : 'error', product_name: x.product_name, error: x.error,
+                  })) }),
+                });
+              }
+            } catch (e) { console.warn('[oum] 축 불러오기 크롤 실패:', k, e); }
+          }
+          await axisPreviewOne(k);
+        }
+      } finally {
+        state.axisBusy = false; renderRight();
+      }
+    }
+
+    // 지금 화면의 축 값 지문 — 이 결과가 「어떤 축으로」 맞춘 것인지 표시해 둔다.
+    //   [2026-08-03] 축을 고쳐도(화이트→그레이) 표는 옛 줄을 그대로 들고 있었다.
+    //   그래서 없는 색을 「못 찾음 1」로 세고, 새로 넣은 색은 아예 줄이 없었다.
+    //   [2026-08-03 · 2] 축뿐 아니라 **주소·주소 유형**이 바뀌어도 답이 달라진다.
+    //   실측: 주소 유형을 단품 → 색상모음전으로 바꿨는데 표는 「단품이라 맞출 것 없음」
+    //   그대로였다. 그래서 지문에 그 소싱처의 주소 목록·유형까지 넣는다.
+    function axesSig(srcKey) {
+      return JSON.stringify([
+        validAxes().map(a => [a.name, (a.values || []).join('')]),
+        (srcKey ? axisUrlItemsOf(srcKey) : []).map(u => [u.url, u.url_type]),
+      ]);
+    }
+
+    // 소싱처 한 곳의 제안을 받아 온다 (DB 쓰기 없음)
+    async function axisPreviewOne(srcKey) {
+      const axes = validAxes().map(a => ({ axis_name: a.name, values: a.values }));
+      const sig = axesSig(srcKey);
+      try {
+        const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping/preview`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mappings }),
+          body: JSON.stringify({ source_key: srcKey, url_items: axisUrlItemsOf(srcKey), axes }),
         });
         const j = await r.json();
-        if (j && j.ok) {
-          alert(' 재고 매핑 저장 완료 — ' + (j.mapped || 0) + '건');
-        } else {
-          alert(' 저장 실패: ' + (j.error || '알 수 없음'));
-        }
-      } catch (err) {
-        alert(' 요청 실패: ' + err.message);
-      }
+        if (j && j.ok) { j._sig = sig; state.axisBySrc[srcKey] = j; }
+      } catch (e) { console.warn('[oum] 축 미리보기 실패:', srcKey, e); }
     }
 
-    // [v20 2026-05-30] 재고관리 매핑 패널 — D4 통계 흡수 + 브랜드/모델 검색 + 그룹 details
-    //   변경 사항:
-    //     - 큰 통계 카드 3개 → renderRight 에서 탭 우측 인라인 흡수
-    //     - 옵션축 박스 / "정리 기준" 박스 → 작은 액션바
-    //  - "alias 자동매칭" → " 자동 매칭"
-    //     - 그룹 details (첫 축 기준) + 행 색 3색 (auto/manual/empty)
-    //     - 인라인 자동완성 (브랜드/모델 그룹 헤더)
-    //     - 뱃지 한 줄 (white-space:nowrap + min-width)
-    function renderInvPanel() {
-      const selectedKeys = [...state.selected];
-      const skuByKey = state.skuByKey || {};
+    async function axisPreviewAll() {
+      for (const k of axisSourcesWithUrls()) await axisPreviewOne(k);
+    }
 
-      if (!state.applied) {
-        return `<div style="padding:60px 20px; text-align:center; color:#9CA3AF; background:#fff; border:2px dashed #FBBF24; border-radius:8px;">
-          <div style="font-size:32px; margin-bottom:10px;"></div>
-          <div style="font-size:13px; font-weight:600; color:#92400E;">좌측에서 옵션 만들고 [적용 →] 클릭하면 활성화</div>
-        </div>`;
-      }
-
-      if (selectedKeys.length === 0) {
-        return `<div style="padding:50px 20px;text-align:center;color:#9CA3AF;background:#fff;border:1px dashed #BBF7D0;border-radius:8px;font-size:13px">활성 옵션이 없습니다 — 좌측 매트릭스에서 옵션 ON 후 [적용 →]</div>`;
-      }
-
-      // 액션바 — 정리 + 브랜드/모델 + 자동매칭
-      const valid = validAxes();
-      const groupOpts = [];
-      valid.forEach((ax, i) => {
-        groupOpts.push({ key: 'axis-' + i, label: `축 ${i+1} (${ax.name || '이름없음'})별` });
-      });
-      groupOpts.push({ key: 'flat', label: '그룹화 X (평면)' });
-      groupOpts.push({ key: 'status', label: '매핑 상태별' });
-      const curGrp = groupOpts.find(g => g.key === state.invGroupBy) || groupOpts[0];
-
-      // [v20.6] invFilter 그대로 사용 (bundle_meta 자동 추론 제거 — 초기엔 공란)
-      const fb = state.invFilter.brand || '';
-      const fm = state.invFilter.model || '';
-
-      let html = '<div class="oum-inv-action">';
-      html += '<div class="oum-inv-action-left">';
-      html += '<span class="oum-inv-label">정리</span>';
-      html += `<div class="oum-grp-dd"><button class="oum-grp-dd-btn" data-grp-toggle type="button">${esc(curGrp.label)}</button>`;
-      html += `<div class="oum-grp-dd-menu" style="display:none">`;
-      groupOpts.forEach(g => {
-        html += `<div class="oum-grp-dd-it ${g.key === state.invGroupBy ? 'on' : ''}" data-grp-key="${esc(g.key)}">${esc(g.label)}</div>`;
-      });
-      html += `</div></div>`;
-      html += '</div>';
-
-      html += '<div class="oum-inv-action-right">';
-      html += '<span class="oum-inv-label">매칭</span>';
-      // 브랜드 검색
-      html += `<div class="oum-br-search"><span class="ic"></span><input id="oum-br-in" type="text" placeholder="브랜드" value="${esc(fb)}" autocomplete="off">`;
-      html += `<div class="oum-br-dd" style="display:none">`;
-      (state.invBrands || []).forEach(b => {
-        const on = b.name === fb;
-        html += `<div class="oum-br-it ${on ? 'on' : ''}" data-br-name="${esc(b.name)}"><span class="swatch">${esc((b.name||'?').slice(0,2))}</span><span class="nm">${esc(b.name)}</span><span class="meta">${b.model_count} 모델 · ${b.option_count} 옵션</span></div>`;
-      });
-      if (fb) html += `<div class="oum-br-it" data-br-clear style="color:#9CA3AF"><span style="font-style:italic">필터 해제 (모든 브랜드)</span></div>`;
-      html += `</div></div>`;
-      html += `<span class="oum-step-arrow">→</span>`;
-      // 모델 검색
-      const modelsForBrand = (state.invModelsByBrand && fb) ? (state.invModelsByBrand[fb] || []) : [];
-      const mdDisabled = !fb ? ' disabled' : '';
-      html += `<div class="oum-md-search${mdDisabled ? ' disabled' : ''}"><span class="ic"></span><input id="oum-md-in" type="text" placeholder="${fb ? '모델' : '브랜드 먼저'}" value="${esc(fm)}" autocomplete="off"${mdDisabled}>`;
-      html += `<div class="oum-md-dd" style="display:none">`;
-      if (fb) html += `<div class="oum-md-grp-h"> ${esc(fb)}</div>`;
-      modelsForBrand.forEach(m => {
-        const on = m.model_name === fm;
-        html += `<div class="oum-md-it ${on ? 'on' : ''}" data-md-name="${esc(m.model_name)}"><span class="nm">${esc(m.model_name)}</span><span class="meta">${m.option_count} 옵션</span></div>`;
-      });
-      html += `</div></div>`;
-      html += `<button class="oum-auto-btn-sm" data-inv-auto type="button"> 자동 매칭</button>`;
-      html += '</div>';
-      html += '</div>';
-
-      // 매칭 범위 안내 (얇게)
-      if (fb && fm) {
-        html += `<div class="oum-inv-filter-hint"> 매칭 범위: <b>${esc(fb)}</b> · <b>${esc(fm)}</b></div>`;
-      }
-
-      // 그룹화 + 표
-      const groups = buildInvGroups(selectedKeys, skuByKey, valid);
-      groups.forEach(g => {
-        const cntCls = g.matchedN === g.total ? '' : (g.matchedN === 0 ? ' err' : ' warn');
-        html += `<details class="oum-inv-grp" ${g.open ? 'open' : ''}>`;
-        html += `<summary><span class="val">${esc(g.label)}</span><span class="cnt${cntCls}">${g.matchedN}/${g.total} 매핑</span></summary>`;
-        // [v20.8 T1] 정렬 가능 컬럼 헤더 — 정렬 컬럼은 옅은 파란 배경 + ▲▼
-        const sc = state.invSort && state.invSort.col || 'opt';
-        const sd = state.invSort && state.invSort.dir || 'asc';
-        const arr = (col) => sc === col ? (sd === 'asc' ? '▲' : '▼') : '⬍';
-        const cls = (col) => sc === col ? 'sorted' : '';
-        html += `<div class="oum-inv-sort-head">`;
-        html += `<div class="oum-inv-sort-col col-opt ${cls('opt')}" data-inv-sort="opt">옵션값 <span class="arrow">${arr('opt')}</span></div>`;
-        html += `<div class="oum-inv-sort-col col-prod ${cls('prod')}" data-inv-sort="prod">제품 정보 <span class="arrow">${arr('prod')}</span></div>`;
-        html += `<div class="oum-inv-sort-col col-stat ${cls('status')}" data-inv-sort="status">상태 <span class="arrow">${arr('status')}</span></div>`;
-        html += `</div>`;
-        html += '<table class="oum-inv-tbl-new"><tbody>';
-        g.rows.forEach(r => {
-          const cls = r.cls;  // auto / manual / empty
-          const opt = r.opt;
-          const statHtml = r.status === 'auto'
-            ? '<span class="oum-stat-pill auto"> 자동</span>'
-            : r.status === 'manual'
-              ? '<span class="oum-stat-pill manual"> 수기</span>'
-              : '<span class="oum-stat-pill empty"> 미매핑</span>';
-          html += `<tr class="${cls}" data-inv-row='${esc(r.key)}'>`;
-          html += `<td class="oum-col-opt">${esc(r.optLabel)}</td>`;
-          // [v20.4] 자동/수기 매핑 완료 (opt 있음) = 동일 양식 (모델명+색상+사이즈 + SKU)
-          //         미매핑 = 검색 input
-          if (opt) {
-            // 수기 행에도 "다시 입력" 버튼 (data-inv-reedit) 제공 → 클릭 시 input 모드
-            const reEdit = r.status === 'manual'
-              ? `<button class="oum-row-reedit" data-inv-reedit='${esc(r.key)}' title="다시 입력" type="button"></button>`
-              : '';
-            html += `<td class="oum-col-prod"><div class="oum-prod-info"><span class="oum-prod-name">${esc(opt.model_name)} ${esc(opt.color)} ${esc(opt.size)} ${reEdit}</span><span class="oum-prod-meta">${esc(opt.sku)}</span></div></td>`;
+    // 칸에서 고치기 — 그 축 전체에 적용되고 그 소싱처 사전에 쌓인다.
+    async function axisSet(srcKey, axisName, ourValue, sourceValue) {
+      // 빈 값 = 「매칭 옵션 없을 시 선택」으로 **정함** / __reset__ = 사전에 다시 맡김
+      const reset = sourceValue === '__reset__';
+      const send = (takeover) => fetch(
+        `/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_key: srcKey, axis_name: axisName,
+                                 our_value: ourValue,
+                                 source_value: reset ? null : (sourceValue || null),
+                                 reset: reset, takeover: !!takeover }),
+        }).then(async (r) => ({ ok: r.ok, j: await r.json() }));
+      try {
+        let { ok, j } = await send(false);
+        // 1:1 위반 — 나눠 쓰면 그 소싱처 옵션 재고가 두 배로 잡혀 초과 판매가 난다.
+        // [2026-08-12 노션 옵션 c] 그렇다고 **막다른 골목**으로 두지 않는다.
+        //   붙잡고 있는 값이 지금 어느 매트릭스에서도 안 쓰이면(유령) 그 사실을 말하고,
+        //   쓰이는 중이면 어디서 쓰는지 나열한 뒤 「그래도 빼앗기」를 묻는다.
+        //   빼앗기는 놓기+잡기를 한 번에 하므로 1:1 은 그대로 지켜진다.
+        const c = j && j.conflict;
+        if ((!ok || !j.ok) && c && c.holder) {
+          const 쓰임 = c.ghost
+            ? `「${c.holder}」 은(는) 지금 **어느 매트릭스에서도 안 쓰이는** 값입니다`
+                .replace(/\*\*/g, '')
+            : `「${c.holder}」 은(는) ${c.holder_used_by.length}곳에서 쓰고 있습니다`
+              + `\n  · ${c.holder_used_by.slice(0, 5).join('\n  · ')}`;
+          const 경고 = c.ghost ? '' : '\n\n빼앗으면 그쪽 맞춤은 풀립니다.';
+          if (confirm(`「${sourceValue}」 을(를) 「${ourValue}」 에 맞추려 합니다.\n\n`
+                      + 쓰임 + 경고 + '\n\n빼앗아 올까요?')) {
+            ({ ok, j } = await send(true));
           } else {
-            const bSku = skuByKey[r.key];
-            const row = (bSku && state.invRows[bSku]) || { invSku: '' };
-            html += `<td class="oum-col-prod"><div class="oum-ac-wrap"><input class="oum-inv-search" data-inv-search-key='${esc(r.key)}' value="${esc(row.invSku || '')}" placeholder=" SKU/제품명 검색..."></div></td>`;
+            // 안 빼앗기로 했으면 고른 값을 되돌린다 — 화면에만 남으면 거짓이 된다.
+            await axisPreviewOne(srcKey);
+            return renderRight();
           }
-          html += `<td class="oum-col-stat">${statHtml}</td>`;
-          html += '</tr>';
-        });
-        html += '</tbody></table>';
-        html += '</details>';
-      });
-
-      // [v31] 적용 버튼 제거 — on/off 우측 패널 자동 반영. (foot div 통째 삭제)
-      return html;
+        }
+        if (!ok || !j.ok) alert(j.error || '맞추지 못했습니다.');
+      } catch (e) { alert('맞추지 못했습니다: ' + e.message); }
+      await axisPreviewOne(srcKey);      // 도장은 서버가 풀어 준다(맞춤이 바뀌었으므로)
+      renderRight();
     }
 
-    // [v20] 그룹화 빌더 — state.invGroupBy 기반 행 묶음
-    function buildInvGroups(selectedKeys, skuByKey, valid) {
-      const groupBy = state.invGroupBy || 'axis-0';
-      // 키 → 행 정보
-      const rows = selectedKeys.map(k => {
-        const bSku = skuByKey[k];
-        const row = (bSku && state.invRows[bSku]) || null;
-        let status = 'empty', cls = 'empty', optMatched = null;
-        if (row && row.invSku) {
-          status = row.isManual ? 'manual' : 'auto';
-          cls = status;
-          optMatched = (state.invOptions || []).find(o => o.sku === row.invSku) || null;
-        }
-        // 축 값 파싱 (k = JSON stringified array)
-        let arr = [];
-        try { arr = JSON.parse(k); } catch (e) { arr = []; }
-        const optLabel = arr.length === 1 ? String(arr[0])
-                       : (arr.slice(1).map(String).join(' · ') || String(arr[0] || ''));
-        const allLabel = arr.map(String).join(' · ');
-        return { key: k, status, cls, opt: optMatched, axes: arr, optLabel, allLabel };
-      });
-
-      // [v20.8] 정렬 — col: 'opt'(옵션값) / 'prod'(제품명) / 'status'(자동→수기→미매핑)
-      //   자연 정렬 (220, 240, 250 / S, M, L / SKU 등 적절히)
-      const _statusOrder = { auto: 1, manual: 2, empty: 3 };
-      function _sortRows(rs) {
-        const { col, dir } = state.invSort || { col: 'opt', dir: 'asc' };
-        const sign = dir === 'desc' ? -1 : 1;
-        const cmp = (a, b) => {
-          let ka, kb;
-          if (col === 'status') { ka = _statusOrder[a.status] || 9; kb = _statusOrder[b.status] || 9; }
-          else if (col === 'prod') {
-            ka = a.opt ? `${a.opt.model_name} ${a.opt.color} ${a.opt.size}` : 'zzz';
-            kb = b.opt ? `${b.opt.model_name} ${b.opt.color} ${b.opt.size}` : 'zzz';
-            return sign * String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' });
-          }
-          else { ka = a.optLabel || ''; kb = b.optLabel || ''; return sign * String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' }); }
-          if (ka === kb) return 0;
-          return sign * (ka < kb ? -1 : 1);
-        };
-        return rs.slice().sort(cmp);
-      }
-
-      // 그룹화
-      const groups = [];  // [{label, rows, total, matchedN, open}]
-      const grpMap = new Map();
-      if (groupBy === 'flat') {
-        groups.push({ label: '전체', rows: _sortRows(rows), total: rows.length,
-                      matchedN: rows.filter(r => r.status !== 'empty').length, open: true });
-      } else if (groupBy === 'status') {
-        const buckets = { auto: [], manual: [], empty: [] };
-        rows.forEach(r => buckets[r.status].push(r));
-        if (buckets.auto.length) groups.push({ label: ' 자동 매칭', rows: _sortRows(buckets.auto), total: buckets.auto.length, matchedN: buckets.auto.length, open: false });
-        if (buckets.manual.length) groups.push({ label: ' 수기 입력', rows: _sortRows(buckets.manual), total: buckets.manual.length, matchedN: buckets.manual.length, open: true });
-        if (buckets.empty.length) groups.push({ label: ' 미매핑', rows: _sortRows(buckets.empty), total: buckets.empty.length, matchedN: 0, open: true });
-      } else {
-        // axis-N
-        const axisIdx = parseInt(String(groupBy).split('-')[1] || '0', 10) || 0;
-        rows.forEach(r => {
-          const gv = (r.axes[axisIdx] != null) ? String(r.axes[axisIdx]) : '(없음)';
-          // 그룹 안 행 라벨 = 나머지 축 값
-          const otherVals = r.axes.filter((_, i) => i !== axisIdx).map(String);
-          const innerLabel = otherVals.join(' · ') || gv;
-          if (!grpMap.has(gv)) grpMap.set(gv, []);
-          grpMap.get(gv).push({ ...r, optLabel: innerLabel });
+    // 「이 소싱처 확인했습니다」 도장
+    async function axisStamp(srcKey) {
+      const now = !!(state.axisBySrc[srcKey] || {}).confirmed;
+      try {
+        await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-confirm`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_key: srcKey, confirmed: !now }),
         });
-        [...grpMap.entries()].forEach(([label, gRows]) => {
-          const matchedN = gRows.filter(r => r.status !== 'empty').length;
-          groups.push({ label, rows: _sortRows(gRows), total: gRows.length, matchedN, open: matchedN < gRows.length });
-        });
-      }
-      return groups;
+      } catch (e) { console.warn('[oum] 확인 도장 실패:', e); }
+      await axisPreviewOne(srcKey);
+      renderRight();
     }
 
     // ─── 우측 렌더 (시안 v3 C3 — 2탭 분기) ───
@@ -1300,33 +1739,28 @@
       const right = $('#oum-right');
       const totalActive = state.selected.size;
       const urlCount = countAllUrls();
-      const invCount = Object.keys(state.invRows || {}).filter(k => (state.invRows[k] || {}).invSku).length;
 
-      // [v20 D4] 재고 탭 통계 흡수 — 자동/수기/미매핑 카운트
-      let invAuto = 0, invManual = 0, invEmpty = 0;
-      if (state.rightTab === 'inv') {
-        const skuByKey0 = state.skuByKey || {};
-        [...state.selected].forEach(k => {
-          const bSku = skuByKey0[k];
-          const row = (bSku && state.invRows[bSku]) || null;
-          if (!row || !row.invSku) invEmpty++;
-          else if (row.isManual) invManual++;
-          else invAuto++;
-        });
-      }
-      const invStatsHtml = state.rightTab === 'inv'
-        ? `<div class="oum-rt-stats"><span class="ok">자동 <b>${invAuto}</b></span><span class="sep">·</span><span class="wn">수기 <b>${invManual}</b></span><span class="sep">·</span><span class="er">미매핑 <b>${invEmpty}</b></span></div>`
-        : '';
-
-      // 탭 nav (항상)
+      // [2026-08-02] 「재고관리 매핑」 탭 제거 — 옵션 1개 = 재고 SKU 1개로 확정(사장님).
+      //   옵션 SKU 자체가 재고 수량을 들고 있어 별도 연결이 필요 없다.
+      //   라이브 실측 근거: 모음전 90개 중 매핑 보유 2개, 링크 103건 전부 자기 자신(self),
+      //   다른 SKU 를 가리키는 매핑 0건. 가격·재고·업로드·마진 어디서도 이 링크를 읽지 않음.
+      //   option_inventory_links 표와 기존 데이터는 되돌릴 수 있게 그대로 둔다.
+      // [2026-08-02] 격자로 바꾸면서 세는 곳을 안 고쳐 탭이 늘 「0」이었다(라이브에서 잡힘).
+      //   이제 소싱처별 결과(axisBySrc)에서 손볼 줄 수를 센다 — 확인 필요 + 못 찾음.
+      let _axN = 0;
+      Object.values(state.axisBySrc || {}).forEach(d => {
+        const sm = (d || {}).summary || {};
+        _axN += (sm.review || 0) + (sm.none || 0);
+      });
       let html = `<div class="oum-rt-tabs">
-        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button"> 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
-        <button class="oum-rt-tab ${state.rightTab === 'inv' ? 'on' : ''}" data-rt-tab="inv" type="button"> 재고관리 매핑 <span class="cnt">${invCount}</span></button>
-        ${invStatsHtml}
+        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'axis' ? 'on' : ''}" data-rt-tab="axis" type="button">소싱처 옵션 맞추기 <span class="cnt">${_axN}</span></button>
       </div>`;
 
-      if (state.rightTab === 'inv') {
-        html += renderInvPanel();
+      // [2026-08-02] 축 맞추기 탭 — 조합이 아니라 **축**을 맞춘다. 축 하나를 맞추면
+      //   그 축에 걸린 값 전부에 적용되고, 같은 소싱처의 다음 상품에서는 다시 묻지 않는다.
+      if (state.rightTab === 'axis') {
+        html += renderAxisPanel();
         right.innerHTML = html;
         return;
       }
@@ -1341,20 +1775,21 @@
         const _items = _dupGroups.map(g => {
           const _lab = SRC_LABELS[g.srcKey] || g.srcKey;
           const _names = g.entries.map(en => esc(en.label || '(라벨 없음)')).join(' ＝ ');
-          const _cr = g.crossOption ? ` <em> 다른 옵션끼리 — 오타 의심</em>` : '';
+          const _cr = g.crossOption ? ` <em>다른 옵션끼리 — 오타 의심</em>` : '';
           return `<button class="oum-dupwarn-item${g.crossOption ? ' cross' : ''}" data-dupjump="${esc(g.srcKey)}" type="button">[${esc(_lab)}] ${_names}${_cr}</button>`;
         }).join('');
         html += `<div class="oum-dupwarn${_hasCross ? ' cross' : ''}" data-dupwarn>
-          <div class="oum-dupwarn-h"> 등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
+          <div class="oum-dupwarn-h">등록 <b>${_reg}개</b> ≠ 실제 크롤 <b>${_uniq}개</b> — 같은 주소 <b>${_extra}건</b>이 중복이라 크롤은 1번만 가져옵니다 (아래 클릭 시 해당 소싱처로 이동)</div>
           <div class="oum-dupwarn-list">${_items}</div>
         </div>`;
       }
 
-      // URL 탭 — 기존 헤더 + 적용 가드
+      // URL 탭 — 기존 헤더 + 적용 가드 + [A10] 우측 플로팅 '신규 소싱처 추가' 버튼
       html += `<div class="oum-ph">
         <span></span><span>소싱처 URL 매핑</span>
         <span class="badge">${urlCount} URL</span>
         <span class="right">${state.applied ? `활성 옵션 ${totalActive}개에 매핑` : '먼저 좌측에서 [적용 →] 클릭'}</span>
+        ${state.applied ? `<button class="oum-addsrc-btn ${state.currentSrc === ADD_SRC_KEY ? 'on' : ''}" data-src-tab="${ADD_SRC_KEY}" type="button"><span class="ic">+</span> 신규 소싱처 추가</button>` : ''}
       </div>`;
 
       if (!state.applied) {
@@ -1366,20 +1801,34 @@
         return;
       }
 
-      // 소싱처 탭
-      html += `<div class="oum-src-tabs">`;
+      // 소싱처 탭 — [B1] 한 줄 가로 스크롤(◂▸ + 휠). 추가 버튼은 헤더로 분리(A10).
+      html += `<div class="oum-srcscroll">
+        <button class="oum-srcscroll-arr" data-srcscroll="-1" type="button" aria-label="이전">‹</button>
+        <div class="oum-srcscroll-vp"><div class="oum-src-tabs">`;
       state.sources.forEach(src => {
         const cnt = (state.urls[src.key] || []).length;
         const isOn = src.key === state.currentSrc;
-        const label = SRC_LABELS[src.key] || src.label;
-        const color = SRC_COLORS[src.key] || '#3B82F6';
+        const meta = (state.srcMeta || {})[src.key] || {};
+        // builtin 은 하드코딩 우선(시각 불변) → custom 은 서버 메타 → 폴백
+        const label = SRC_LABELS[src.key] || meta.label || src.label;
+        const color = SRC_COLORS[src.key] || meta.color || '#3B82F6';
+        const glyph = SRC_ABBR[src.key] || meta.glyph || abbr(label);
         html += `<button class="oum-src-tab ${isOn ? 'on' : ''}" data-src-tab="${esc(src.key)}" type="button">
-          <span class="lg" style="background:${color};">${SRC_ABBR[src.key] || abbr(label)}</span>
+          <span class="lg" style="background:${color};">${esc(glyph)}</span>
           <span class="full">${esc(label)}</span>
           <span class="cnt">${cnt}</span>
         </button>`;
       });
-      html += `</div>`;
+      html += `</div></div>
+        <button class="oum-srcscroll-arr" data-srcscroll="1" type="button" aria-label="다음">›</button>
+      </div>`;
+
+      // [2026-06-26] 추가 탭 활성 시 — 2단 카탈로그 패널로 교체 (URL 카드 영역 대신)
+      if (state.currentSrc === ADD_SRC_KEY) {
+        right.innerHTML = html + renderAddSourcePanel();
+        ensureCatalogLoaded();
+        return;
+      }
 
       // 현재 탭 URL 카드 리스트
       const srcLabel = SRC_LABELS[state.currentSrc] || state.currentSrc;
@@ -1397,7 +1846,7 @@
           return `<span class="oum-failsum-item">${esc(_nm)} <em>(${esc(_reason)})</em></span>`;
         }).join('');
         html += `<div class="oum-failsum" data-failsum>
-          <div class="oum-failsum-h"> ${esc(srcLabel)} URL ${_failArr.length}개 크롤 실패 — 가격·재고를 못 받았어요 <button class="oum-failsum-jump" data-failsum-jump type="button">↓ 실패 URL로 이동</button></div>
+          <div class="oum-failsum-h">${esc(srcLabel)} URL ${_failArr.length}개 크롤 실패 — 가격·재고를 못 받았어요 <button class="oum-failsum-jump" data-failsum-jump type="button">↓ 실패 URL로 이동</button></div>
           <div class="oum-failsum-list">${_items}</div>
         </div>`;
       }
@@ -1410,7 +1859,7 @@
         });
       }
 
-      html += `<button class="oum-add-url" data-add-url type="button">＋ 새 ${esc(srcLabel)} URL 추가</button>`;
+      html += `<button class="oum-add-url" data-add-url type="button">+ 새 ${esc(srcLabel)} URL 추가</button>`;
 
       right.innerHTML = html;
     }
@@ -1419,6 +1868,83 @@
       let n = 0;
       Object.values(state.urls).forEach(arr => { n += arr.length; });
       return n;
+    }
+
+    // ─── [2026-06-26] 신규 소싱처 추가 — 카탈로그 lazy load + 2단 패널(시안 D) ───
+    let _catalogFetching = false;
+    async function ensureCatalogLoaded() {
+      if (state.catalog || _catalogFetching) return;
+      _catalogFetching = true;
+      try {
+        const r = await fetch('/api/sources/catalog');
+        const j = await r.json();
+        state.catalog = (j && j.ok) ? (j.items || []) : [];
+        // 기본 선택 = 첫 미추가 항목 (없으면 첫 항목)
+        const firstAddable = state.catalog.find(c => !c.added);
+        state.catalogSel = firstAddable ? firstAddable.key
+          : (state.catalog[0] ? state.catalog[0].key : null);
+      } catch (e) {
+        state.catalog = [];
+      } finally {
+        _catalogFetching = false;
+        if (state.currentSrc === ADD_SRC_KEY) renderRight();
+      }
+    }
+
+    function renderAddSourcePanel() {
+      const cat = state.catalog;
+      if (!cat) {
+        return `<div class="oum-cat-empty">소싱처 목록 불러오는 중…</div>`;
+      }
+      const sel = state.catalogSel;
+      const rows = cat.map(c => {
+        const added = !!c.added;
+        const isSel = c.key === sel;
+        return `<div class="oum-cat-row ${isSel ? 'sel' : ''} ${added ? 'added' : ''}" data-cat-row="${esc(c.key)}" data-cat-label="${esc(c.label)}">
+            <span class="oum-cat-lg" style="background:${esc(c.logo_color || '#3B82F6')};">${esc(c.glyph || abbr(c.label))}</span>
+            <span class="oum-cat-nm">${esc(c.label)}</span>
+            ${added ? `<span class="oum-cat-added">추가됨 ✓</span>` : `<span class="oum-cat-go">›</span>`}
+          </div>`;
+      }).join('');
+
+      const entry = cat.find(c => c.key === sel);
+      let detail;
+      if (!entry) {
+        detail = `<div class="oum-cat-empty">왼쪽에서 소싱처를 선택하세요</div>`;
+      } else {
+        const added = !!entry.added;
+        const crawlerBadge = entry.has_adapter
+          ? `<span class="oum-cat-badge ok">자동크롤 지원</span>`
+          : `<span class="oum-cat-badge warn">크롤 미지원 (URL만 저장 가능)</span>`;
+        detail = `
+          <div class="oum-cat-dh">
+            <span class="oum-cat-lg lg-lg" style="background:${esc(entry.logo_color || '#3B82F6')};">${esc(entry.glyph || abbr(entry.label))}</span>
+            <div>
+              <div class="oum-cat-dtitle">${esc(entry.label)}</div>
+              <div class="oum-cat-dsub">크롤링 가이드 등록 소싱처 ${crawlerBadge}</div>
+            </div>
+          </div>
+          <table class="oum-cat-tbl">
+            <tr><td>수집 방식</td><td>${esc(entry.crawl_method || '-')}</td></tr>
+            <tr><td>재고 판정</td><td>${esc(entry.stock_rule || '-')}</td></tr>
+            <tr><td>혜택</td><td>${esc(entry.benefit || '-')}</td></tr>
+            <tr><td>도메인</td><td>${esc(entry.domain || '-')}</td></tr>
+          </table>
+          <div class="oum-cat-dfoot">
+            ${added
+              ? `<button class="oum-cat-addbtn done" type="button" disabled>이미 추가된 소싱처</button>`
+              : `<button class="oum-cat-addbtn" data-cat-add="${esc(entry.key)}" type="button">이 소싱처 추가하기</button>`}
+          </div>`;
+      }
+
+      return `<div class="oum-addsrc-wrap">
+          <div class="oum-addsrc-left">
+            <div class="oum-cat-search-wrap"><span></span><input class="oum-cat-search" data-cat-search type="text" placeholder="소싱처 이름 검색…" autocomplete="off"></div>
+            <div class="oum-cat-hint">크롤링 가이드 등록 ${cat.length}곳 — 이미 추가된 곳은 회색</div>
+            <div class="oum-cat-list" data-cat-list>${rows}</div>
+          </div>
+          <div class="oum-addsrc-right">${detail}</div>
+        </div>`;
     }
 
     // [2026-06-13] 등록 URL 중복 검사 — 같은 주소(정규화 후)를 2번 이상 등록한 그룹 반환.
@@ -1461,7 +1987,7 @@
       const isOpen = state.openUrlId === u.tempId;
       const totalActive = state.selected.size;
       const mapped = (u.option_keys || []).length;
-      // [2026-06-05] 크롤 실패 URL — 빨강 카드 + [안됨] 배지 +  재크롤. (신규 추가 URL=undefined 는 정상 취급)
+      // [2026-06-05] 크롤 실패 URL — 빨강 카드 + ❌ 배지 + 🔄 재크롤. (신규 추가 URL=undefined 는 정상 취급)
       // [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL로 커버되는 허브 → 'covered' 중립 상태.
       //   실패가 아니므로 빨강 카드/재크롤 대상에서 제외, 안내 배지만 표시.
       const isCovered = u.lastStatus === 'covered';
@@ -1485,11 +2011,11 @@
           </div>
           <input class="oum-url-input" data-field="url" value="${esc(u.url)}" placeholder="URL 입력">
           ${goBtn}
-          <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션"> <b>${mapped}</b>/${totalActive}</span>
+          <span class="oum-url-cnt ${isFail ? 'fail' : ''}" title="이 URL 에 매핑된 옵션 / 전체 활성 옵션"><b>${mapped}</b>/${totalActive}</span>
           ${isFail ? `<button class="oum-url-recrawl" data-url-recrawl type="button" title="이 URL 다시 크롤">🔄 재크롤</button>` : ''}
           <button class="oum-url-tog" data-url-tog type="button">${isOpen ? '▾ 닫기' : '▸ 매핑'}</button>
-          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사"> 복사</button>
-          <button class="oum-url-del" data-url-del type="button"> 삭제</button>
+          <button class="oum-url-copy" data-url-copy type="button" title="이 카드 그대로 복사">복사</button>
+          <button class="oum-url-del" data-url-del type="button">삭제</button>
         </div>
         ${isFail ? `<div class="oum-url-failmsg">❌ 크롤 실패 (${esc(statusTxt)}) — 이 URL 의 옵션 <b>${mapped}건</b>은 가격/재고를 못 받았어요. 🔄 재크롤하거나 URL 을 확인하세요.</div>` : ''}
         ${isCovered ? `<div class="oum-url-covered">📦 딜·기획전 허브 — 색상별 단품 URL로 가격·재고가 커버됩니다. 이 URL은 따로 크롤하지 않아요 (정상).</div>` : ''}`;
@@ -1510,7 +2036,7 @@
 
       // [2026-05-26] 헤더 클릭 일괄 선택 안내 — 사용자가 헤더 클릭 가능함을 인지하게
       let html = `<div style="font-size:11px; color:#15803d; padding:4px 8px 8px; display:flex; gap:10px; flex-wrap:wrap;">
-        <span> <b>색상/사이즈 헤더 클릭</b> → 그 줄 전체 일괄 ON/OFF</span>
+        <span><b>색상/사이즈 헤더 클릭</b> → 그 줄 전체 일괄 ON/OFF</span>
         <span>·</span>
         <span>⌐ 코너 클릭 → 전체</span>
       </div>`;
@@ -1530,10 +2056,9 @@
           const k = keyOf([v]);
           const active = state.selected.has(k);
           const urlMapped = mappedSet.has(k);
-          const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
           const info = sharedMap[k] || { count: 0, mappings: [] };
           const sh = info.count;
-          const s = cellState(active, urlMapped, hasInv);
+          const s = cellState(active, urlMapped);
           let cls = s.cls;
           if (urlMapped && sh > 1) cls += ' shared';
           const sharedAttr = (urlMapped && sh > 1) ? ` data-shared="${sh}"` : '';
@@ -1584,10 +2109,9 @@
           const k = keyOf(arr);
           const active = state.selected.has(k);
           const urlMapped = mappedSet.has(k);
-          const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
           const info = sharedMap[k] || { count: 0, mappings: [] };
           const sh = info.count;
-          const s = cellState(active, urlMapped, hasInv);
+          const s = cellState(active, urlMapped);
           let cls = s.cls;
           if (urlMapped && sh > 1) cls += ' shared';
           const sharedAttr = (urlMapped && sh > 1) ? ` data-shared="${sh}"` : '';
@@ -1870,9 +2394,30 @@
         rerender();
         return;
       }
+      // SKU 번호 — 자체 바코드 생성 (빈 칸만 채운다 · 든 값은 안 덮는다)
+      if (e.target.closest('#oum-sku-gen')) {
+        skuGenBarcodes();
+        return;
+      }
+      // SKU 번호 — 저장
+      if (e.target.closest('#oum-sku-save')) {
+        skuSaveGrid();
+        return;
+      }
       } catch (err) {
         console.error('[oum] click handler error:', err);
       }
+    });
+
+    // 매트릭스 셀 우클릭 — 미구성 SKU 등록 (W12). 브라우저 기본 메뉴 대신 이걸 띄운다.
+    $('#oum-left').addEventListener('contextmenu', e => {
+      const cell = e.target.closest('[data-cell-key]');
+      if (!cell) return;
+      e.preventDefault();
+      let axisValues;
+      try { axisValues = JSON.parse(cell.dataset.cellKey); } catch (err) { return; }
+      if (!Array.isArray(axisValues)) return;
+      showAdoptMenu(e.clientX, e.clientY, axisValues);
     });
 
     // ─── [순서 v33] 칩 드래그앤드랍 수동 순서 변경 (axis.values 재배열) ───
@@ -1975,6 +2520,17 @@
     });
 
     $('#oum-left').addEventListener('input', e => {
+      // SKU 번호 격자 — 값은 state 에만 쓰고 **rerender 하지 않는다**. renderLeft() 가
+      // 통째로 갈아끼워도 다음에 다시 그릴 때 이 값을 읽어 넣으므로 입력이 안 끊긴다.
+      const skuF = e.target.closest('[data-sku-field]');
+      if (skuF) {
+        const sku = skuF.dataset.skuSku;
+        const f = skuF.dataset.skuFname;
+        if (!state.skuVals[sku]) state.skuVals[sku] = {};
+        state.skuVals[sku][f] = e.target.value;
+        return;
+      }
+
       const nm = e.target.closest('[data-axis-name]');
       const vl = e.target.closest('[data-axis-values]');
 
@@ -2023,7 +2579,74 @@
       }, 250);
     }
 
+    // [2026-06-29 P12] 축 값 rename(예: 240→245) 시 매핑 키 마이그레이션(prune 전).
+    //   recalcMatrix 가 debounce 라 직전 커밋값(_valSnap) vs 현재값 1회 비교로 충분.
+    //   순수 1-토큰 rename 만 감지 → 콤보 키의 해당 축 위치값을 old→new 로 치환.
+    //   대상 키 저장소 4곳(selected·seen·mappedOff·urls.option_keys). 인메모리만(백엔드·크롤 무관).
+    // [2026-08-02] 축 하나에서 「자리는 그대로, 글자만 바뀐」 값들을 뽑는다.
+    //   값 개수가 같으면 자리끼리 짝이 확실하다 — 개수가 달라지면(추가·삭제 섞임)
+    //   자리가 밀려 엉뚱하게 짝지어지므로 **아무것도 짝짓지 않는다**(틀린 짝 = URL·재고 오배치).
+    function _renamePairsFor(oldVals, newVals) {
+      if (!oldVals || !newVals || oldVals.length !== newVals.length) return [];
+      const out = [];
+      for (let j = 0; j < oldVals.length; j++) {
+        const o = String(oldVals[j] || '').trim(), n = String(newVals[j] || '').trim();
+        if (o && n && o !== n) out.push({ o, n });
+      }
+      // 자리만 맞바꾼 경우(A↔B)는 이름 바꾸기가 아니다 — 값 집합이 그대로면 건드리지 않는다.
+      const same = new Set(oldVals.map(String));
+      if (out.length && out.every(p => same.has(p.n))) return [];
+      return out;
+    }
+
+    // 저장할 때 서버로 보낼 이름 바꾸기 짝 — 저장돼 있던 값 vs 지금 값.
+    function _pendingRenames() {
+      const srv = state._srvAxes;
+      if (!srv) return [];
+      const out = [];
+      for (let ai = 0; ai < state.axes.length && ai < srv.length; ai++) {
+        _renamePairsFor(srv[ai], parseValues(state.axes[ai].values || ''))
+          .forEach(p => out.push({ axis: ai, from: p.o, to: p.n }));
+      }
+      return out;
+    }
+
+    function _migrateRenamedKeys() {
+      const snap = state._valSnap;
+      if (!snap || snap.length !== state.axes.length) return;
+      const renames = {}; // axisIndex -> [{ o:oldTok, n:newTok }, ...]
+      for (let ai = 0; ai < state.axes.length; ai++) {
+        const pairs = _renamePairsFor(parseValues(snap[ai] || ''),
+                                      parseValues(state.axes[ai].values || ''));
+        if (pairs.length) renames[ai] = pairs;
+      }
+      const ais = Object.keys(renames);
+      if (!ais.length) return;
+      const remapKey = (k) => {
+        let arr; try { arr = JSON.parse(k); } catch (e) { return k; }
+        if (!Array.isArray(arr)) return k;
+        let changed = false;
+        ais.forEach(ai => {
+          const hit = renames[ai].find(p => p.o === arr[ai]);
+          if (hit) { arr[ai] = hit.n; changed = true; }
+        });
+        return changed ? JSON.stringify(arr) : k;
+      };
+      const remapSet = (set) => {
+        if (!set) return;
+        const next = new Set();
+        set.forEach(k => next.add(remapKey(k)));
+        set.clear(); next.forEach(k => set.add(k));
+      };
+      remapSet(state.selected); remapSet(state.seen); remapSet(state.mappedOff);
+      Object.keys(state.urls || {}).forEach(sk => {
+        (state.urls[sk] || []).forEach(u => { if (u.option_keys && u.option_keys.length) u.option_keys = u.option_keys.map(remapKey); });
+      });
+    }
+
     function recalcMatrix() {
+      _migrateRenamedKeys();                                     // P12: rename 키 마이그레이션 (prune 전)
+      state._valSnap = state.axes.map(a => a.values);            // 다음 비교용 커밋 스냅샷
       const valid = validAxes();
       if (!valid.length) { state.selected.clear(); state.seen.clear(); return; }
       const combos = cartesian(valid.map(a => a.values));
@@ -2036,6 +2659,10 @@
       Object.keys(state.urls || {}).forEach(sk => {
         (state.urls[sk] || []).forEach(u => {
           if (u.option_keys && u.option_keys.length) {
+            // [2026-06-28 P12] 축 값 rename 등으로 사라진 키를 '조용히' 버리지 않고 경고(silent 차단).
+            //   ⚠️ 완전 수정(old→new 키 마이그레이션)은 rename 흐름에서 별도 — 여기선 유실 표면화만.
+            const _orphan = u.option_keys.filter(k => !curKeys.has(k));
+            if (_orphan.length) console.warn('[옵션매핑] 축 변경으로 매핑 키 ' + _orphan.length + '개 유실 — rename 시 매핑 재확인 필요:', sk, _orphan);
             u.option_keys = u.option_keys.filter(k => curKeys.has(k));
           }
         });
@@ -2174,16 +2801,6 @@
 
     // 우측 이벤트 — async (autoSave 는 fire-and-forget, await 안 함)
     $('#oum-right').addEventListener('click', async e => {
-      // [2026-05-29 시안 v3 C3] 우측 탭 전환 (URL ↔ 재고관리)
-      const rtTab = e.target.closest('[data-rt-tab]');
-      if (rtTab) {
-        const tgt = rtTab.dataset.rtTab;
-        if (tgt && tgt !== state.rightTab) {
-          state.rightTab = tgt;
-          renderRight();
-        }
-        return;
-      }
       // 크롤 실패 URL 재크롤 — 크롬 확장으로 단일 URL 크롤 후 저장
       const recrawlBtn = e.target.closest('[data-url-recrawl]');
       if (recrawlBtn) {
@@ -2204,7 +2821,7 @@
             if (r.ok) {
               u.crawled = true; u.lastStatus = 'ok';
               renderRight();
-              alert('재크롤 성공   표면가: ' + (r.price != null ? r.price.toLocaleString() + '원' : '없음'));
+              alert('재크롤 성공  표면가: ' + (r.price != null ? r.price.toLocaleString() + '원' : '없음'));
             } else {
               alert('재크롤 실패: ' + (r.error || '알 수 없는 오류') + '\n\n크롤 위젯 로그에서 상세 에러를 확인하세요.');
             }
@@ -2212,120 +2829,13 @@
             alert('크롤 오류: ' + err.message);
           } finally {
             recrawlBtn.disabled = false;
-            recrawlBtn.textContent = ' 재크롤';
+            recrawlBtn.textContent = '재크롤';
           }
         }
         return;
       }
-      // [B3-3] 재고 자동 매칭 버튼
-      if (e.target.closest('[data-inv-auto]')) {
-        // [v20] 필터(브랜드+모델) 가 변경됐을 수 있으니 서버에 재요청 후 자동 매칭
-        const fb = state.invFilter.brand || '';
-        const fm = state.invFilter.model || '';
-        const qs = (fb || fm) ? `?brand=${encodeURIComponent(fb)}&model=${encodeURIComponent(fm)}` : '';
-        try {
-          const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping${qs}`);
-          const ij = await r.json();
-          if (ij && ij.ok) {
-            state.invCandidates = ij.candidates || {};
-            state.invOptions = ij.inventory_options || [];
-          }
-        } catch (err) { /* fallback to cached candidates */ }
-        invAutoMatch();
-        renderRight();
-        rerender();
-        return;
-      }
-      // [v20] 정리 기준 드롭다운 토글
-      const grpTog = e.target.closest('[data-grp-toggle]');
-      if (grpTog) {
-        const menu = grpTog.parentElement.querySelector('.oum-grp-dd-menu');
-        if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-        return;
-      }
-      const grpIt = e.target.closest('[data-grp-key]');
-      if (grpIt) {
-        state.invGroupBy = grpIt.dataset.grpKey;
-        renderRight();
-        return;
-      }
-      // [v20] 브랜드 선택
-      const brIt = e.target.closest('[data-br-name]');
-      if (brIt) {
-        state.invFilter.brand = brIt.dataset.brName;
-        state.invFilter.model = '';  // 브랜드 바뀌면 모델 초기화
-        // [v20.4] 사용자 직접 설정 — bundle_meta fallback 비활성 (모델 input 공란 유지)
-        state.invFilterUserSet.brand = true;
-        state.invFilterUserSet.model = true;
-        renderRight();
-        return;
-      }
-      if (e.target.closest('[data-br-clear]')) {
-        state.invFilter.brand = '';
-        state.invFilter.model = '';
-        state.invFilterUserSet.brand = true;
-        state.invFilterUserSet.model = true;
-        renderRight();
-        return;
-      }
-      // [v20] 모델 선택
-      const mdIt = e.target.closest('[data-md-name]');
-      if (mdIt) {
-        state.invFilter.model = mdIt.dataset.mdName;
-        state.invFilterUserSet.model = true;
-        renderRight();
-        return;
-      }
-      // [v20.8 T1] 컬럼 헤더 클릭 → 정렬 토글
-      const sortCol = e.target.closest('[data-inv-sort]');
-      if (sortCol) {
-        const c = sortCol.dataset.invSort;
-        if (!state.invSort) state.invSort = { col: 'opt', dir: 'asc' };
-        if (state.invSort.col === c) {
-          // 같은 컬럼 → 방향 반전
-          state.invSort.dir = state.invSort.dir === 'asc' ? 'desc' : 'asc';
-        } else {
-          state.invSort.col = c;
-          state.invSort.dir = 'asc';
-        }
-        renderRight();
-        return;
-      }
-      // [v20.4] 수기 행의 [수정] 다시 입력 — invRows[bSku] 비우고 input 모드로
-      const reEdit = e.target.closest('[data-inv-reedit]');
-      if (reEdit) {
-        e.stopPropagation();
-        const k = reEdit.dataset.invReedit;
-        const skuByKey = state.skuByKey || {};
-        const bSku = skuByKey[k];
-        if (bSku && state.invRows[bSku]) {
-          delete state.invRows[bSku];
-          state.invMappedKeys.delete(k);
-        }
-        renderRight();
-        return;
-      }
-      // [v20.7] 인라인 SKU 자동완성 항목 클릭은 body 레벨 _handleInvAcPickClick 가 처리
-      // [v20] 브랜드/모델 input 클릭 — dropdown 열기
-      if (e.target.id === 'oum-br-in') {
-        const dd = e.target.parentElement.querySelector('.oum-br-dd');
-        if (dd) dd.style.display = 'block';
-        return;
-      }
-      if (e.target.id === 'oum-md-in' && !e.target.disabled) {
-        const dd = e.target.parentElement.querySelector('.oum-md-dd');
-        if (dd) dd.style.display = 'block';
-        return;
-      }
-      // 외부 클릭 시 dropdown 닫기
-      if (!e.target.closest('.oum-br-search') && !e.target.closest('.oum-md-search') && !e.target.closest('.oum-grp-dd')) {
-        modal.querySelectorAll('.oum-br-dd, .oum-md-dd, .oum-grp-dd-menu').forEach(d => d.style.display = 'none');
-      }
-      // [B3-3] 적용 버튼 — 매핑 서버 저장
-      if (e.target.closest('[data-inv-apply]')) {
-        await invApplyMapping(bundleCode);
-        return;
-      }
+      // [2026-08-02] 재고관리 매핑 클릭 핸들러 일괄 제거 (자동 매칭·정리 기준·브랜드/모델
+      //   필터·정렬·수기 재입력·적용) — 탭 삭제로 해당 DOM 이 더 이상 렌더되지 않는다.
       // [2026-05-27] 탭 전환 즉시 — autoSave 백그라운드 (사용자 대기 X)
       //   pending 큐 가드로 inflight 중 호출도 마지막 저장 보장
       // [2026-06-11] 실패 요약 배너 "↓ 실패 URL로 이동" — 첫 실패 카드로 스크롤·강조
@@ -2344,6 +2854,58 @@
         }
         return;
       }
+      // [2026-06-26 B1] 소싱처 탭 가로 스크롤 ◂▸
+      const scrollBtn = e.target.closest('[data-srcscroll]');
+      if (scrollBtn) {
+        const vp = scrollBtn.parentElement.querySelector('.oum-srcscroll-vp');
+        if (vp) vp.scrollBy({ left: (+scrollBtn.dataset.srcscroll) * 260, behavior: 'smooth' });
+        return;
+      }
+      // [2026-08-02] 우측 탭 전환 — 「주소」 ↔ 「축 맞추기」 (설계 §16 6단계)
+      const rtTab = e.target.closest('[data-rt-tab]');
+      if (rtTab) {
+        const want = rtTab.dataset.rtTab;
+        if (want !== state.rightTab) {
+          state.rightTab = want;
+          renderRight();
+          // 축 탭으로 들어오면 이미 쌓인 소싱처 옵션으로 즉시 제안(크롤 없이).
+          if (want === 'axis' && !Object.keys(state.axisBySrc).length) {
+            axisPreviewAll().then(renderRight);
+          }
+        }
+        return;
+      }
+      // 소싱처 옵션 불러오기 — 정규 크롤(크롬 확장)과 같은 방식
+      if (e.target.closest('[data-ax-load]')) { axisLoad(); return; }
+      // [2026-08-04] 매트릭스는 **띄우는 창**으로 — 몰라서 다른 탭을 찾지 않게.
+      //   띄우기가 막힐 수 있으므로(브라우저 차단) 실패하면 새 탭으로 마저 간다.
+      const _mx = e.target.closest('[data-ax-matrix]');
+      if (_mx) {
+        e.preventDefault();
+        // 화면 크기를 못 읽는 환경이 있다(실측: availWidth=0) — 0이면 창이 안 보이므로 받침값.
+        const aw = screen.availWidth || window.outerWidth || 1440;
+        const ah = screen.availHeight || window.outerHeight || 900;
+        const w = Math.max(900, Math.min(1400, Math.round(aw * 0.9)));
+        const hgt = Math.max(600, Math.min(900, Math.round(ah * 0.9)));
+        const left = Math.max(0, Math.round((aw - w) / 2));
+        const top = Math.max(0, Math.round((ah - hgt) / 2));
+        const win = window.open(_mx.href, 'oum_matrix',
+          `popup=yes,width=${w},height=${hgt},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+        if (win) { try { win.focus(); } catch (err) {} } else { window.open(_mx.href, '_blank'); }
+        return;
+      }
+      const stamp = e.target.closest('[data-ax-stamp]');
+      if (stamp) { axisStamp(stamp.dataset.axStamp); return; }
+
+      // [2026-06-26] 신규 소싱처 추가 탭 — 카탈로그 패널 진입 (last-state 저장 안 함)
+      const addTab = e.target.closest(`[data-src-tab="${ADD_SRC_KEY}"]`);
+      if (addTab) {
+        if (state.currentSrc !== ADD_SRC_KEY) autoSave();
+        state.currentSrc = ADD_SRC_KEY;
+        state.openUrlId = null;
+        renderRight();
+        return;
+      }
       const tab = e.target.closest('[data-src-tab]');
       if (tab) {
         if (tab.dataset.srcTab !== state.currentSrc) {
@@ -2353,6 +2915,62 @@
         state.openUrlId = null;
         renderRight();
         saveLastState(bundleCode, state.currentSrc, null);
+        return;
+      }
+      // [2026-06-26] 카탈로그 행 선택 → 우측 상세 갱신
+      const catRow = e.target.closest('[data-cat-row]');
+      if (catRow) {
+        state.catalogSel = catRow.dataset.catRow;
+        renderRight();
+        return;
+      }
+      // [2026-06-26] 소싱처 추가 실행 → SourcingSource 전역 등록 후 새 탭으로 이동
+      const catAdd = e.target.closest('[data-cat-add]');
+      if (catAdd) {
+        const key = catAdd.dataset.catAdd;
+        catAdd.disabled = true;
+        catAdd.textContent = '추가 중…';
+        try {
+          const r = await fetch('/api/sources/catalog/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key }),
+          });
+          const j = await r.json();
+          if (!j || !j.ok) {
+            alert((j && j.error) || '추가에 실패했어요.');
+            catAdd.disabled = false;
+            catAdd.textContent = '이 소싱처 추가하기';
+            return;
+          }
+          const sd = j.source || {};
+          if (!state.sources.find(x => x.key === key)) {
+            state.sources.push({ key, label: sd.label || key });
+          }
+          state.srcMeta = state.srcMeta || {};
+          state.srcMeta[key] = { label: sd.label || key, color: sd.color || '#3B82F6', glyph: sd.glyph || '' };
+          if (state.catalog) {
+            const c = state.catalog.find(x => x.key === key);
+            if (c) c.added = true;
+          }
+          if (!state.urls[key]) state.urls[key] = [];
+          // 새 소싱처 탭으로 이동 + 첫 URL 입력칸 자동 열기 (③-(2))
+          state.currentSrc = key;
+          const newU = { tempId: state.tempIdSeq++, label: '', url: '', option_keys: [] };
+          state.urls[key].push(newU);
+          state.openUrlId = newU.tempId;
+          renderRight();
+          saveLastState(bundleCode, state.currentSrc, null);
+          setTimeout(() => {
+            const card = modal.querySelector(`[data-url-id="${newU.tempId}"]`);
+            const inp = card && card.querySelector('.oum-url-input');
+            if (inp) inp.focus();
+          }, 0);
+        } catch (err) {
+          alert('추가 중 오류: ' + err);
+          catAdd.disabled = false;
+          catAdd.textContent = '이 소싱처 추가하기';
+        }
         return;
       }
       // 매트릭스 헤더 (col/row/corner/group) — 활성 옵션 한정 일괄 토글
@@ -2488,279 +3106,25 @@
       }
     });
 
-    // [v20.2 2026-05-31] 인라인 SKU/제품명 자동완성 — 미매칭/수기 행 input 에 dropdown 표시
-    //   state.invOptions(모음전 외 모든 재고 옵션) 에서 brand/model_name/color/size/sku 매칭
-    //   [v20.7] dropdown 을 body 직속 + position:fixed 로 띄워 그룹 details overflow:hidden 클리핑 회피
-    function _removeAllInvAcDd() {
-      document.querySelectorAll('.oum-inv-ac-dd').forEach(d => d.remove());
-    }
-    function _positionInvAcDd(dd, input) {
-      const r = input.getBoundingClientRect();
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const maxH = 280;
-      // 아래 공간 우선, 부족하면 위로
-      const spaceBelow = vh - r.bottom - 8;
-      const spaceAbove = r.top - 8;
-      const useAbove = spaceBelow < 180 && spaceAbove > spaceBelow;
-      const h = Math.min(maxH, useAbove ? spaceAbove : spaceBelow);
-      dd.style.position = 'fixed';
-      dd.style.left = r.left + 'px';
-      dd.style.width = r.width + 'px';
-      dd.style.maxHeight = h + 'px';
-      if (useAbove) { dd.style.bottom = (vh - r.top + 4) + 'px'; dd.style.top = ''; }
-      else          { dd.style.top    = (r.bottom + 4) + 'px';   dd.style.bottom = ''; }
-      dd.style.zIndex = 99999;
-    }
-    function showInvSearchDd(input, key) {
-      _removeAllInvAcDd();  // 모든 기존 dropdown 제거 (다른 input 의 것도)
-      const q = (input.value || '').trim().toLowerCase();
-      if (!q || q.length < 1) return;
-      // brand/model 필터 우선 + 텍스트 매칭
-      // [v20.4] 사용자 직접 설정 우선
-      const fb = state.invFilterUserSet.brand
-        ? state.invFilter.brand
-        : (state.invFilter.brand || state.invBundleMeta.brand || '');
-      const fm = state.invFilterUserSet.model
-        ? state.invFilter.model
-        : (state.invFilter.model || state.invBundleMeta.model_name || '');
-      const matched = [];
-      for (const o of (state.invOptions || [])) {
-        const hay = `${o.brand} ${o.model_name} ${o.color} ${o.size} ${o.sku}`.toLowerCase();
-        if (!hay.includes(q)) continue;
-        let score = 0;
-        if (fb && o.brand === fb) score += 10;
-        if (fm && o.model_name === fm) score += 10;
-        matched.push({ o, score });
-        if (matched.length > 30) break;  // 안전 cap
-      }
-      matched.sort((a, b) => b.score - a.score);
-      if (!matched.length) return;
-      // dropdown DOM
-      const dd = document.createElement('div');
-      dd.className = 'oum-inv-ac-dd';
-      dd.setAttribute('data-key', key);
-      let html = '';
-      matched.slice(0, 15).forEach((m, i) => {
-        const o = m.o;
-        const stock = (o.stock_total != null) ? o.stock_total : 0;
-        const stockHtml = stock > 0 ? `<span class="stk"> ${stock}개</span>` : '<span class="stk zero"> 0개</span>';
-        html += `<div class="oum-inv-ac-it ${i===0?'kbd-hl':''}" data-inv-pick-sku="${esc(o.sku)}" data-inv-pick-key="${esc(key)}">
-          <div class="nm">${esc(o.brand)} ${esc(o.model_name)} ${esc(o.color)} ${esc(o.size)}</div>
-          <div class="meta">${esc(o.sku)} ${stockHtml}</div>
-        </div>`;
-      });
-      dd.innerHTML = html;
-      // [v20.7] body 직속 + position:fixed → 그룹 details overflow:hidden 클리핑 회피
-      document.body.appendChild(dd);
-      _positionInvAcDd(dd, input);
-      // input ↔ dd 연결 (이벤트 핸들러용)
-      dd.__sourceInput = input;
-      input.__activeDd = dd;
-    }
+    // [2026-08-02] 인라인 SKU/제품명 자동완성 일괄 제거 (_removeAllInvAcDd·_positionInvAcDd·
+    //   showInvSearchDd·filterDdItems·_handleInvAcPickClick + 전역 click/scroll 리스너).
 
-    // [v20.1 2026-05-31] 브랜드/모델 input 자동완성 — typing 시 dropdown 필터
-    function filterDdItems(input, ddSel, itemSel, getTextFn) {
-      const dd = input.parentElement.querySelector(ddSel);
-      if (!dd) return [];
-      dd.style.display = 'block';
-      const q = (input.value || '').trim().toLowerCase();
-      let visibleItems = [];
-      dd.querySelectorAll(itemSel).forEach(it => {
-        const txt = (getTextFn ? getTextFn(it) : it.textContent).toLowerCase();
-        const show = !q || txt.includes(q);
-        it.style.display = show ? '' : 'none';
-        if (show) visibleItems.push(it);
-      });
-      // 첫 visible item 강조 (keyboard nav 용)
-      dd.querySelectorAll('.kbd-hl').forEach(x => x.classList.remove('kbd-hl'));
-      if (visibleItems[0]) visibleItems[0].classList.add('kbd-hl');
-      return visibleItems;
-    }
-    // [v20.7] body 직속 dropdown 클릭 → 매핑 확정 (body 레벨 핸들러)
-    function _handleInvAcPickClick(e) {
-      const acPick = e.target.closest('[data-inv-pick-sku]');
-      if (!acPick) {
-        // 외부 클릭 시 dropdown 닫기 (input 도 제외)
-        if (!e.target.closest('[data-inv-search-key]')) _removeAllInvAcDd();
-        return;
-      }
-      const pickSku = acPick.dataset.invPickSku;
-      const k = acPick.dataset.invPickKey;
-      const skuByKey = state.skuByKey || {};
-      const bSku = skuByKey[k];
-      if (bSku) {
-        const inv = (state.invOptions || []).find(o => o.sku === pickSku);
-        state.invRows[bSku] = {
-          invSku: pickSku,
-          model: inv ? inv.model_name : '',
-          color: inv ? inv.color : '',
-          size: inv ? inv.size : '',
-          isManual: true,
-          isUnused: false,
-        };
-        state.invMappedKeys.add(k);
-      }
-      _removeAllInvAcDd();
-      renderRight();
-    }
-    document.addEventListener('click', _handleInvAcPickClick);
-    // 모달 닫힐 때 핸들러 제거 + dropdown 정리
-    bg.addEventListener('click', e => { if (e.target === bg) { document.removeEventListener('click', _handleInvAcPickClick); _removeAllInvAcDd(); } });
-    // 스크롤 시 dropdown 재배치
-    document.addEventListener('scroll', () => {
-      document.querySelectorAll('.oum-inv-ac-dd').forEach(dd => {
-        if (dd.__sourceInput && document.body.contains(dd.__sourceInput)) {
-          _positionInvAcDd(dd, dd.__sourceInput);
-        } else {
-          dd.remove();
-        }
-      });
-    }, true);
-
-    // [v20.1/v20.2] 키보드 — Enter(첫매칭 선택) / Esc(닫기) / ArrowUp/Down(이동)
-    $('#oum-right').addEventListener('keydown', e => {
-      // [v20.2] 인라인 SKU 검색 input — Enter 시 첫 매칭 자동 선택
-      const acInp = e.target.closest('[data-inv-search-key]');
-      if (acInp) {
-        // [v20.7] dropdown 이 body 직속이라 input.__activeDd 로 직접 참조
-        const dd = acInp.__activeDd || document.querySelector('.oum-inv-ac-dd');
-        if (!dd) return;
-        const visible = [...dd.querySelectorAll('.oum-inv-ac-it')];
-        const curHl = dd.querySelector('.oum-inv-ac-it.kbd-hl');
-        const curIdx = visible.indexOf(curHl);
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          (curHl || visible[0])?.click();
-          return;
-        }
-        if (e.key === 'Escape') { e.preventDefault(); dd.remove(); acInp.blur(); return; }
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          if (curHl) curHl.classList.remove('kbd-hl');
-          const next = visible[Math.min(curIdx + 1, visible.length - 1)] || visible[0];
-          if (next) { next.classList.add('kbd-hl'); next.scrollIntoView({block:'nearest'}); }
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          if (curHl) curHl.classList.remove('kbd-hl');
-          const prev = visible[Math.max(curIdx - 1, 0)] || visible[visible.length - 1];
-          if (prev) { prev.classList.add('kbd-hl'); prev.scrollIntoView({block:'nearest'}); }
-          return;
-        }
-        return;
-      }
-      const isBr = e.target.id === 'oum-br-in';
-      const isMd = e.target.id === 'oum-md-in' && !e.target.disabled;
-      if (!isBr && !isMd) return;
-      const ddSel = isBr ? '.oum-br-dd' : '.oum-md-dd';
-      const itemSel = isBr ? '.oum-br-it' : '.oum-md-it';
-      const dd = e.target.parentElement.querySelector(ddSel);
-      if (!dd) return;
-      const visible = [...dd.querySelectorAll(itemSel)].filter(it => it.style.display !== 'none');
-      const curHl = dd.querySelector('.kbd-hl');
-      const curIdx = visible.indexOf(curHl);
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const pick = curHl || visible[0];
-        if (!pick) return;
-        const brName = pick.dataset.brName;
-        const mdName = pick.dataset.mdName;
-        if (brName !== undefined) {
-          state.invFilter.brand = brName;
-          state.invFilter.model = '';
-          renderRight();
-        } else if (mdName !== undefined) {
-          state.invFilter.model = mdName;
-          renderRight();
-        } else if (pick.dataset.brClear !== undefined) {
-          state.invFilter.brand = '';
-          state.invFilter.model = '';
-          renderRight();
-        }
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        dd.style.display = 'none';
-        e.target.blur();
-        return;
-      }
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (curHl) curHl.classList.remove('kbd-hl');
-        const next = visible[Math.min(curIdx + 1, visible.length - 1)] || visible[0];
-        if (next) { next.classList.add('kbd-hl'); next.scrollIntoView({block: 'nearest'}); }
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (curHl) curHl.classList.remove('kbd-hl');
-        const prev = visible[Math.max(curIdx - 1, 0)] || visible[visible.length - 1];
-        if (prev) { prev.classList.add('kbd-hl'); prev.scrollIntoView({block: 'nearest'}); }
-        return;
-      }
-    });
+    // [2026-08-02] 재고관리 매핑 키보드 핸들러(Enter/Esc/화살표) 제거 — 대상 input 이 사라졌다.
     $('#oum-right').addEventListener('input', e => {
-      // [v20.1] 브랜드 input 자동완성
-      if (e.target.id === 'oum-br-in') {
-        filterDdItems(e.target, '.oum-br-dd', '.oum-br-it', it => {
-          const nm = it.querySelector('.nm');
-          return (nm ? nm.textContent : it.textContent);
-        });
-        return;
-      }
-      // [v20.1] 모델 input 자동완성
-      if (e.target.id === 'oum-md-in' && !e.target.disabled) {
-        filterDdItems(e.target, '.oum-md-dd', '.oum-md-it', it => {
-          const nm = it.querySelector('.nm');
-          return (nm ? nm.textContent : it.textContent);
-        });
-        return;
-      }
-      // [v20] 새 oum-inv-search input — 수기 입력 시 invRows 갱신 + 자동완성 dropdown
-      const searchInp = e.target.closest('[data-inv-search-key]');
-      if (searchInp) {
-        const k = searchInp.dataset.invSearchKey;
-        const skuByKey = state.skuByKey || {};
-        const bSku = skuByKey[k];
-        // [v20.2] 자동완성 dropdown — invOptions 필터링
-        showInvSearchDd(searchInp, k);
-        if (!bSku) return;
-        if (!state.invRows[bSku]) state.invRows[bSku] = {};
-        state.invRows[bSku].invSku = searchInp.value.trim();
-        state.invRows[bSku].isManual = true;
-        if (searchInp.value.trim()) state.invMappedKeys.add(k);
-        else state.invMappedKeys.delete(k);
-        return;
-      }
-      const invInp = e.target.closest('[data-inv-fld]');
-      if (invInp) {
-        const k = invInp.dataset.key;
-        const fld = invInp.dataset.invFld;
-        const skuByKey = state.skuByKey || {};
-        const bSku = skuByKey[k];
-        if (!bSku) return;
-        if (!state.invRows[bSku]) state.invRows[bSku] = {};
-        state.invRows[bSku][fld] = invInp.value;
-        state.invRows[bSku].isManual = true;  // 사용자 수정 → 수동 표시
-        // 매트릭스 셀 색 갱신 (invMappedKeys)
-        if (fld === 'invSku') {
-          if (invInp.value.trim()) state.invMappedKeys.add(k);
-          else state.invMappedKeys.delete(k);
-        }
-        // 상태 chip 갱신 + 행 배경만 부분 갱신 (전체 rerender 피함)
-        const tr = invInp.closest('tr');
-        if (tr) {
-          tr.classList.remove('auto-matched');
-          tr.classList.add('manual');
-          const statTd = tr.querySelector('td:last-child');
-          if (statTd && state.invRows[bSku].invSku) {
-            statTd.innerHTML = '<span class="stat-manual">수정</span>';
-          }
+      // [2026-06-26] 소싱처 카탈로그 검색 — 행 필터(포커스 유지 위해 re-render 안 함)
+      if (e.target.closest('[data-cat-search]')) {
+        const q = (e.target.value || '').trim().toLowerCase();
+        const wrap = e.target.closest('.oum-addsrc-left');
+        const list = wrap && wrap.querySelector('[data-cat-list]');
+        if (list) {
+          list.querySelectorAll('[data-cat-row]').forEach(row => {
+            const lbl = (row.dataset.catLabel || '').toLowerCase();
+            row.style.display = (!q || lbl.indexOf(q) >= 0) ? '' : 'none';
+          });
         }
         return;
       }
+      // [2026-08-02] 재고관리 매핑 input 핸들러 제거 (브랜드/모델 자동완성·SKU 검색·행 수정)
       // 우측 input 변경 (label / url)
       const card = e.target.closest('[data-url-id]');
       if (!card) return;
@@ -2853,8 +3217,9 @@
     }
 
     // ─── 자동 저장 ───────────────────────────────────────────────
-    //   가로 탭 전환·모달 닫기 직전 호출 — 옵션·URL·매핑 모두 저장
-    //   실패는 console.warn 만 — 사용자 알림 X (사용자 결정)
+    //   가로 탭 전환·모달 닫기 직전 호출 — 옵션·URL·재고매핑 모두 저장
+    //   [2026-06-26] 실패를 { ok, errors[] } 로 반환 → [저장] 버튼이 정직하게 표면화
+    //   (이전엔 console.warn 만 하고 항상 "저장 완료" 표시 = 거짓 성공).
     //   - 새 URL 카드 (dbId 없음) → POST → 응답 id 를 dbId 로 설정
     //   - 기존 URL (dbId 있음) → PUT
     //   - 옵션 매트릭스 매핑(option_keys) → axis_values → canonical_sku 변환 → option_ids
@@ -2862,77 +3227,153 @@
     //   탭 빠르게 전환해도 마지막 상태가 반드시 저장됨
     let _autoSaveInflight = null;
     let _autoSavePending = false;
+    // [2026-06-26] 마지막 저장 결과 — { ok, errors[] }. 저장 버튼이 정직하게 표면화.
+    let _lastSaveResult = { ok: true, errors: [] };
+    // [2026-08-02] 저장하며 조용히 치운 게 있으면 알린다 — 말없이 지우지 않는다.
+    let _saveNotice = '';
     async function autoSave() {
-      if (!state.selected.size || !state.applied) return;
+      if (!state.selected.size || !state.applied) return _lastSaveResult;
       // 중복 호출 — pending 표시만 하고 첫 promise 만 기다림 (실제 저장은 첫 promise 의 do-while 가 처리)
-      if (_autoSaveInflight) { _autoSavePending = true; try { await _autoSaveInflight; } catch (e) {} return; }
+      if (_autoSaveInflight) { _autoSavePending = true; try { await _autoSaveInflight; } catch (e) {} return _lastSaveResult; }
       _autoSaveInflight = (async () => {
         // do-while 로 pending 플래그 처리 — 도중에 들어온 변경도 한 번 더 저장
         do {
           _autoSavePending = false;
+        // [2026-06-26] catch 에서도 보이도록 try 바깥(do 안)에서 선언
+        let errors = [];
         try {
           // 1. 옵션 콤보 (prune=true) — selected 와 동기화
           const validList = validAxes();
           const selectedArr = [...state.selected].map(getAxisValuesArray);
-          await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
+          // [2026-08-02] 이름 정정을 「바꾸기」로 알려준다 — 없으면 서버가 새 옵션을 만들고
+          //   옛 옵션이 판매 켜진 채 남는다(24개여야 할 상품이 42개가 됐던 원인).
+          const renames = _pendingRenames();
+          const comboRes = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true }),
+            body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true, renames }),
           });
+          // [2026-06-26 D2] 콤보 저장 실패 시 즉시 중단 — stale skuByKey 로 URL/재고를 저장하면
+          //   신규 매핑 유실·기존 매핑 손상. 옵션 구성(step1)은 이미 반영됐으므로 재시도로 정합 회복.
+          if (!comboRes.ok) {
+            errors.push(`옵션 구성 저장 실패 (HTTP ${comboRes.status}) — URL·재고는 저장 안 함(다시 [저장] 눌러 재시도)`);
+            _lastSaveResult = { ok: false, errors };
+            return;
+          }
+          // [2026-08-02] 저장이 끝났으니 기준선을 지금 값으로 옮긴다 —
+          //   안 옮기면 다음 저장에서 같은 이름 바꾸기를 또 보낸다.
+          try {
+            const cj = await comboRes.clone().json();
+            state._srvAxes = validList.map(st => (st.values || []).map(v => String(v)));
+            if (cj && cj.orphan_kept) {
+              _saveNotice = `옛 옵션 ${cj.orphan_kept}개는 판매 기록이 있어 지우지 않고 판매만 껐어요`;
+            } else if (cj && cj.orphan_deleted) {
+              _saveNotice = `매트릭스에서 빠진 옛 옵션 ${cj.orphan_deleted}개를 정리했어요`;
+            }
+          } catch (e) {}
 
           // 2. 옵션 axis_values → canonical_sku 매핑 재로딩
           const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
-          const j = await r.json();
-          const skuByKey = {};
-          if (j && Array.isArray(j.options)) {
-            j.options.forEach(o => {
-              if (Array.isArray(o.axis_values)) {
-                skuByKey[JSON.stringify(o.axis_values.map(v => String(v)))] = o.canonical_sku;
-              }
-            });
+          // [2026-06-26 D1] 빈 body(게이트웨이 502/504·세션만료 HTML)면 r.json() 이 throw 해
+          //   URL·재고 단계가 통째로 무산되고 'Unexpected end of JSON input' 로만 떴음.
+          //   가드해서 명확한 메시지로 중단(콤보는 반영됨 → 재시도 시 정합 회복).
+          let j = null;
+          try { j = await r.json(); } catch (e) {}
+          if (!r.ok || !j || !Array.isArray(j.options)) {
+            errors.push('옵션 정보 재로딩 실패(서버 일시 응답 없음) — URL·재고는 저장 안 함(다시 [저장] 눌러 재시도)');
+            _lastSaveResult = { ok: false, errors };
+            return;
           }
+          const skuByKey = {};
+          j.options.forEach(o => {
+            if (Array.isArray(o.axis_values)) {
+              skuByKey[JSON.stringify(o.axis_values.map(v => String(v)))] = o.canonical_sku;
+            }
+          });
+          // 최신 매핑을 state 에도 반영 — 재고 매핑 저장(4단계)이 같은 기준 사용.
+          state.skuByKey = skuByKey;
 
           // 3. 각 URL 카드 저장 — POST(new) / PUT(existing) + option_ids + sort_order (배열 인덱스)
-          //   [v27 2026-06-02] 병렬화 — for-await 순차 처리에서 Promise.all 로 변경.
-          //   기존: 41개 URL × ~50ms = 2초+ 직렬. 변경 후: 41개 동시 = ~200ms.
-          //   PUT/POST 페이로드·endpoint·DB 동작 100% 그대로. 처리 순서만 병렬.
-          const urlSavePromises = [];
+          //   [2026-06-26] 동시성 제한 + 일시 5xx 재시도.
+          //   기존 Promise.all(48개 동시)는 Supabase 풀(15) 초과로 매 저장마다 임의 ~7건이
+          //   HTTP 500 → 그 URL 의 option_ids 가 조용히 유실됐음(라이브 실측: 매 저장 실패 셋이 바뀜).
+          //   동시 5개로 제한 + 일시 실패(5xx·네트워크) 시 PUT(멱등)만 최대 3회 재시도(백오프).
+          //   POST(신규)는 중복 생성 위험 있어 재시도 안 함(실패 보고).
+          const POOL = 5, MAX_TRY = 3;
+          const urlTasks = [];
           for (const sk of Object.keys(state.urls)) {
             const arr = state.urls[sk] || [];
             for (let i = 0; i < arr.length; i++) {
               const u = arr[i];
               if (!u.url || !u.url.trim()) continue;
-              const option_ids = (u.option_keys || [])
-                .map(k => skuByKey[k])
-                .filter(Boolean);
-              const task = (async () => {
-                try {
-                  if (u.dbId) {
-                    await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
-                      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', option_ids, sort_order: i }),
-                    });
-                  } else {
-                    const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
-                      method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ source_key: sk, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', option_ids }),
-                    });
-                    const rj = await res.json();
-                    if (rj && rj.id) u.dbId = rj.id;
+              const optionKeys = u.option_keys || [];
+              const option_ids = optionKeys.map(k => skuByKey[k]).filter(Boolean);
+              // [2026-06-26] desync 가드 — 매핑 키는 있는데 전부 해소 실패하면(콤보 실패·prune
+              //   직후 stale) 빈 list 가 백엔드에서 기존 URL↔옵션 매핑을 전부 삭제함.
+              //   이때는 option_ids 를 아예 omit 해서 기존 매핑을 보존(백엔드: None=무변경).
+              const omitIds = optionKeys.length > 0 && option_ids.length === 0;
+              if (omitIds) errors.push(`URL "${u.label || u.url}" 옵션 매핑 동기화 실패 — 기존 매핑 보존(재시도 권장)`);
+              const label = u.label ? `"${u.label}"` : u.url;
+              const sortIdx = i, srcKey = sk;
+              const canRetry = !!u.dbId;  // PUT 만 멱등 → 재시도 허용
+              urlTasks.push(async () => {
+                for (let attempt = 1; attempt <= MAX_TRY; attempt++) {
+                  try {
+                    let res;
+                    if (u.dbId) {
+                      const body = { url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품', sort_order: sortIdx };
+                      if (!omitIds) body.option_ids = option_ids;
+                      res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls/${u.dbId}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                      });
+                    } else {
+                      const body = { source_key: srcKey, url: u.url.trim(), label: u.label || null, url_type: u.url_type || '단품' };
+                      if (!omitIds) body.option_ids = option_ids;
+                      res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                      });
+                    }
+                    if (res.ok) {
+                      if (!u.dbId) { try { const rj = await res.json(); if (rj && rj.id) u.dbId = rj.id; } catch (e) {} }
+                      return; // 성공
+                    }
+                    // 4xx(영구) 또는 마지막 시도 또는 재시도불가(POST) → 보고 후 종료
+                    if (res.status < 500 || attempt === MAX_TRY || !canRetry) {
+                      errors.push(`URL 저장 실패: ${label} (HTTP ${res.status})`);
+                      return;
+                    }
+                  } catch (e) {
+                    if (attempt === MAX_TRY || !canRetry) {
+                      errors.push(`URL 저장 오류: ${label}`);
+                      console.warn('[oum] auto-save URL fail:', e);
+                      return;
+                    }
                   }
-                } catch (e) {
-                  console.warn('[oum] auto-save URL fail:', e);
+                  await new Promise(r => setTimeout(r, 250 * attempt)); // 백오프 후 재시도
                 }
-              })();
-              urlSavePromises.push(task);
+              });
             }
           }
-          await Promise.all(urlSavePromises);
+          // 동시성 제한 실행 — 워커 POOL 개가 큐를 나눠 처리(풀 초과 500 방지)
+          {
+            let _i = 0;
+            const workers = Array.from({ length: Math.min(POOL, urlTasks.length) }, async () => {
+              while (_i < urlTasks.length) { const fn = urlTasks[_i++]; await fn(); }
+            });
+            await Promise.all(workers);
+          }
+
+          // [2026-08-02] 4단계(재고관리 매핑 저장) 제거 — 탭이 없어져 저장할 내용이 없다.
+          //   기존 option_inventory_links 행은 건드리지 않고 그대로 남는다.
+
+          _lastSaveResult = { ok: errors.length === 0, errors };
         } catch (e) {
           console.warn('[oum] auto-save fail:', e);
+          _lastSaveResult = { ok: false, errors: [...errors, `저장 중 오류: ${e.message || e}`] };
         }
         } while (_autoSavePending);  // pending 있으면 한 번 더
       })();
       try { await _autoSaveInflight; } finally { _autoSaveInflight = null; _autoSavePending = false; }
+      return _lastSaveResult;
     }
 
     // 모달 닫기 / 저장 — X·취소 클릭 시 자동 저장 fire-and-forget + 마지막 상태 기록
@@ -2940,28 +3381,577 @@
       const openedU = state.openUrlId ? (state.urls[state.currentSrc] || []).find(u => u.tempId === state.openUrlId) : null;
       saveLastState(bundleCode, state.currentSrc, openedU ? openedU.dbId : null);
     }
-    $('.oum-mh .close').addEventListener('click', () => { snapshotLastState(); hideSharedTip(); autoSave(); bg.remove(); });
-    $('#oum-cancel').addEventListener('click', () => { snapshotLastState(); hideSharedTip(); autoSave(); bg.remove(); });
+    // [2026-08-19 사장님 확정] X·취소·배경 닫기 — 셋 다 저장을 기다린 뒤 옵션함 목록으로 돌아간다.
+    //   🔴 예전엔 닫아도 이 옵션함 화면(box.html)에 그대로 남아 "닫았는데 왜 안 없어지지" 로 보였다.
+    //      이제 화면을 완전히 떠나므로, 저장 요청을 매달아 둔 채 이동하면 유실 위험이 있어
+    //      **저장이 끝날 때까지 기다린 뒤에만** 이동한다(즉시 닫기 UX 는 포기).
+    //   저장이 실패하면 목록으로 보내지 않는다 — 창을 그대로 열어 두고 다시 시도하게 한다
+    //      (반쪽 저장 상태로 화면을 떠나는 것이 더 나쁘다).
+    let _closing = false;
+    function _closeToList() {
+      if (_closing) return;
+      _closing = true;
+      snapshotLastState(); hideSharedTip();
+      const closeBtn = $('.oum-mh .close'), cancelBtn = $('#oum-cancel');
+      if (closeBtn) closeBtn.disabled = true;
+      if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.textContent = '닫는 중…'; }
+      const _reopen = () => {
+        _closing = false;
+        if (closeBtn) closeBtn.disabled = false;
+        if (cancelBtn) { cancelBtn.disabled = false; cancelBtn.textContent = '취소'; }
+      };
+      Promise.resolve(autoSave()).then(result => {
+        if (result && result.ok === false) {
+          alert('변경사항이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n다시 시도해 주세요.');
+          _reopen();
+          return;
+        }
+        location.href = '/optgen?tab=direct';
+      }).catch(e => {
+        alert('저장 실패: ' + (e && e.message || e) + '\n다시 시도해 주세요.');
+        _reopen();
+      });
+    }
+    $('.oum-mh .close').addEventListener('click', _closeToList);
+    $('#oum-cancel').addEventListener('click', _closeToList);
+
+    // ════════════════════════════════════════════════════════════════════
+    //  [2026-08-19 사장님 확정] 오른쪽 서랍 3개 — 템플릿 참고 · 재고 입력 · SKU 번호
+    //  기존 2탭(URL 매핑·옵션 맞추기) 화면은 그대로 두고, 필요할 때만 겹쳐 연다.
+    //  🔴 한 번도 안 열면 그 서랍의 요청도 안 나간다(drawerLoaded) — 새 옵션함
+    //     만들 때마다 세 번 더 불러오는 낭비를 막는다.
+    // ════════════════════════════════════════════════════════════════════
+    const drawerBackdrop = $('[data-drawer-backdrop]');
+    function closeDrawers() {
+      $$('.oum-drawer').forEach(d => d.classList.remove('on'));
+      if (drawerBackdrop) drawerBackdrop.hidden = true;
+    }
+    $$('[data-drawer-open]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-drawer-open');
+        closeDrawers();
+        const panel = $(`.oum-drawer[data-drawer-panel="${key}"]`);
+        if (panel) panel.classList.add('on');
+        if (drawerBackdrop) drawerBackdrop.hidden = false;
+        if (!state.drawerLoaded[key]) {
+          state.drawerLoaded[key] = true;
+          if (key === 'stock') loadStockDrawer();
+          else if (key === 'tpl') loadTplDrawer();
+          else if (key === 'sku') loadSkuDrawer();
+        }
+      });
+    });
+    $$('[data-drawer-close]').forEach(btn => btn.addEventListener('click', closeDrawers));
+    if (drawerBackdrop) drawerBackdrop.addEventListener('click', closeDrawers);
+
+    // ── 📦 재고 입력 서랍 — box.html 의 초기 재고 입력표 + 소싱처 연동 확인 배너를
+    //    그대로 옮겨온 것. box.html 자체는 더는 이 표를 안 그린다(중복 화면 제거). ──
+    function loadStockDrawer() {
+      const body = $('#oum-drawer-stock-body');
+      if (body) body.innerHTML = '<div class="oum-sku-empty">불러오는 중…</div>';
+      Promise.all([
+        fetch(`/optgen/api/box/${encodeURIComponent(bundleCode)}/rows`).then(r => r.json()),
+        fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`).then(r => r.json()),
+      ]).then(([boxJ, linkJ]) => {
+        state.stockRows = (boxJ && boxJ.ok) ? (boxJ.rows || []) : [];
+        state.stockBrand = (boxJ && boxJ.ok) ? boxJ.brand : '';
+        state.stockLink = (linkJ && linkJ.ok) ? linkJ : null;
+        renderStockDrawer();
+      }).catch(e => {
+        if (body) body.innerHTML = '<div class="oum-stk-bar bad"><div><div class="oum-stk-big">연동 상태를 확인하지 못했습니다</div>'
+          + '<div class="oum-stk-sub">' + esc(e && e.message || e) + ' — 새로고침해 보세요</div></div></div>';
+      });
+    }
+
+    function _stockLinkBySku() {
+      // (색상,사이즈) → 옵션 열쇠로 잇는다 — 표 행은 열쇠를 안 실어서(box.html 의 원래 방식 그대로).
+      const j = state.stockLink;
+      const out = { bySku: {}, dead: [], urlTotal: 0 };
+      if (!j) return out;
+      const urls = [];
+      Object.keys(j.urls || {}).forEach(src => {
+        (j.urls[src] || []).forEach(u => { u._src = src; urls.push(u); });
+      });
+      out.urlTotal = urls.length;
+      urls.forEach(u => {
+        (u.option_ids || []).forEach(sku => {
+          (out.bySku[sku] = out.bySku[sku] || []).push(u);
+        });
+      });
+      out.dead = urls.filter(u => !(u.option_ids || []).length);
+      return out;
+    }
+
+    function renderStockDrawer() {
+      const body = $('#oum-drawer-stock-body');
+      if (!body) return;
+      const rows = state.stockRows || [];
+      const link = _stockLinkBySku();
+
+      // 옵션 열쇠는 표 행에 없으므로 (색상,사이즈) 로 맞춰 잇는다.
+      const keyByAxis = {};
+      const srcOptions = (state.stockLink && state.stockLink.options) || [];
+      srcOptions.forEach(o => {
+        keyByAxis[(o.color_display || o.color_code || '') + '|' + (o.size_display || o.size_code || '')] = o.canonical_sku;
+      });
+
+      let empty = 0;
+      const rowsHtml = rows.map(r => {
+        const sku = keyByAxis[(r.color || '') + '|' + (r.size || '')] || r.sku;
+        const covers = (sku && link.bySku[sku]) || [];
+        if (!covers.length) empty++;
+        // 「주소 없는 것만 보기」— box.html 원본 그대로, 걸러도 셈(empty)은 전체 기준.
+        if (state.stockFilterOn && covers.length) return null;
+        let linkTds;
+        if (!covers.length) {
+          linkTds = `<td class="c"><span class="oum-stk-none">주소 없음</span></td>
+            <td class="c oum-stk-dim">—</td><td class="r oum-stk-dim">확인 불가</td>`;
+        } else {
+          const crawled = covers.filter(u => u.crawled);
+          const okAll = crawled.length && crawled.every(u => u.last_status === 'ok');
+          const stat = !crawled.length ? '크롤 전' : (okAll ? '정상' : '실패 있음');
+          const prices = covers.map(u => u.last_price).filter(p => p != null);
+          linkTds = `<td class="c">${covers.length}곳</td>
+            <td class="c${stat === '정상' ? '' : ' oum-stk-dim'}">${esc(stat)}</td>
+            <td class="r">${prices.length ? Math.min.apply(null, prices).toLocaleString() : '<span class="oum-stk-dim">확인 불가</span>'}</td>`;
+        }
+        const already = !!r.tx;
+        const stockCell = already
+          ? `<b class="oum-stk-has">${r.stock}</b><a class="oum-stk-edit" href="/inventory/?sku=${encodeURIComponent(r.sku)}" title="재고관리에서 고치기">고치기</a>`
+          : `<input class="oum-stk-in" type="number" min="0" step="1" data-stock-sku="${esc(r.sku)}"
+                    value="${esc(state.stockQty[r.sku] || '')}" inputmode="numeric">`;
+        return `<tr data-stock-covered="${covers.length ? '1' : '0'}">
+          <td class="ck"><label><input type="checkbox" class="oum-stk-ck" data-stock-ck="${esc(r.sku)}"
+                aria-label="${esc(r.name)} 고르기" ${already ? 'disabled' : ''}></label></td>
+          <td class="mono">${esc(r.no || '—')}</td>
+          <td><b>${esc(r.name)}</b></td>
+          <td>${esc(state.stockBrand || '—')}</td>
+          <td>${esc(r.model_name || '—')}</td>
+          <td>${esc(r.color || '—')}</td>
+          <td>${esc(r.size || '—')}</td>
+          <td class="c">${r.active ? '켜짐' : '<span class="oum-stk-dim">꺼짐</span>'}</td>
+          <td class="c">${r.stock_on ? '함' : '<span class="oum-stk-dim">안 함</span>'}</td>
+          <td class="r">${stockCell}</td>
+          ${linkTds}
+        </tr>`;
+      }).filter(Boolean).join('');
+
+      const total = rows.length;
+      const bad = empty > 0 || link.dead.length > 0;
+      const deadTxt = link.dead.length
+        ? ` · 주소 ${link.urlTotal}개 중 ${link.dead.length}개는 <b>어느 옵션도 덮지 않습니다</b>` : '';
+      const banner = total ? `<div class="oum-stk-bar ${bad ? 'bad' : 'ok'}">
+          <div><div class="oum-stk-big">${bad
+            ? `아직 팔 수 없는 옵션이 ${empty}개 있습니다`
+            : `옵션 ${total}개 전부 소싱처 주소가 붙어 있습니다`}</div>
+          <div class="oum-stk-sub">${bad
+            ? `옵션 ${total}개 중 ${total - empty}개만 소싱처 주소가 붙었습니다${deadTxt}`
+            : `주소 ${link.urlTotal}개 · 값은 마지막 크롤 기준입니다`}</div></div>
+          ${empty ? `<button class="oum-stk-filter${state.stockFilterOn ? ' on' : ''}" type="button" id="oum-stk-filter">${
+            state.stockFilterOn ? '전체 보기' : '주소 없는 것만 보기'}</button>` : ''}
+        </div>` : '';
+
+      const msg = state.stockMsg
+        ? `<div class="oum-sku-msg${state.stockMsg.ok ? '' : ' bad'}">${esc(state.stockMsg.text)}</div>` : '';
+
+      body.innerHTML = total ? `
+        ${banner}
+        <div class="oum-stk-lh">만들어진 옵션 <span class="oum-stk-cnt">${total}</span></div>
+        <div class="oum-stk-bulk">
+          <span>고른 옵션 <b id="oum-stk-cksel">0</b>개</span>
+          <input class="oum-stk-in" id="oum-stk-bulkq" type="number" min="0" step="1" placeholder="수량" inputmode="numeric">
+          <button class="oum-btn oum-btn-sec" type="button" id="oum-stk-bulkgo">고른 것에 넣기</button>
+          <span class="oum-stk-bulkhint">공란은 안 넣습니다 · <b>0</b>도 적으면 「0개」로 저장됩니다</span>
+        </div>
+        <div class="oum-sku-box"><table class="oum-stk-tb" id="oum-stk-tb">
+          <thead><tr><th class="ck"><label><input type="checkbox" id="oum-stk-ckall" aria-label="전체 고르기"></label></th>
+            <th>옵션번호</th><th>옵션명</th><th>브랜드</th><th>모델명</th><th>색상</th><th>사이즈</th>
+            <th class="c">판매</th><th class="c">사입</th><th class="r">초기 사입 재고</th>
+            <th class="c">소싱처</th><th class="c">마지막 확인</th><th class="r">최저 매입가</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table></div>
+        ${msg}
+        <div class="oum-sku-f">
+          <span class="oum-stk-note" style="margin-right:auto;font-size:16.5px;color:#8b95a1">
+            공란은 안 넣습니다 — 0 을 적으면 「세어 보니 0개」로 남습니다.</span>
+          <button class="oum-sku-save" type="button" id="oum-stk-save" ${state.stockSaving ? 'disabled' : ''}>
+            ${state.stockSaving ? '저장 중…' : '초기 재고 저장'}</button>
+        </div>` : '<div class="oum-sku-empty">아직 만들어진 옵션이 없습니다 — 왼쪽에서 축 값을 채우고 [옵션 + URL 저장]을 먼저 눌러 주세요.</div>';
+    }
+
+    $('#oum-drawer-stock-body').addEventListener('input', e => {
+      const inp = e.target.closest('[data-stock-sku]');
+      if (inp) state.stockQty[inp.dataset.stockSku] = inp.value;
+    });
+    $('#oum-drawer-stock-body').addEventListener('click', e => {
+      if (e.target.closest('#oum-stk-filter')) {
+        state.stockFilterOn = !state.stockFilterOn;
+        renderStockDrawer();
+        return;
+      }
+      if (e.target.closest('#oum-stk-ckall')) {
+        const on = e.target.checked;
+        $$('#oum-drawer-stock-body .oum-stk-ck:not(:disabled)').forEach(c => { c.checked = on; });
+        return;
+      }
+      if (e.target.closest('#oum-stk-bulkgo')) {
+        const v = ($('#oum-stk-bulkq') || {}).value;
+        $$('#oum-drawer-stock-body .oum-stk-ck:checked').forEach(c => {
+          const sku = c.dataset.stockCk;
+          state.stockQty[sku] = (v === '' || v == null) ? '' : String(parseInt(v, 10));
+        });
+        renderStockDrawer();
+        return;
+      }
+      if (e.target.closest('#oum-stk-save')) {
+        const qty = {};
+        Object.keys(state.stockQty).forEach(sku => {
+          const n = parseInt(state.stockQty[sku], 10);
+          if (n >= 0) qty[sku] = n;
+        });
+        if (!Object.keys(qty).length) {
+          state.stockMsg = { ok: false, text: '넣을 수량을 적어주세요.' };
+          renderStockDrawer();
+          return;
+        }
+        state.stockSaving = true;
+        renderStockDrawer();
+        fetch(`/optgen/api/box/${encodeURIComponent(bundleCode)}/initial-stock`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qty }),
+        }).then(r => r.json()).then(j => {
+          if (!j.ok) {
+            state.stockMsg = { ok: false, text: j.error || '저장하지 못했습니다.' };
+          } else {
+            state.stockMsg = { ok: true, text: j.added + '개 옵션에 입고했어요'
+              + (j.skipped && j.skipped.length ? ' · 이미 재고가 있어 ' + j.skipped.length + '개는 건너뜀' : '') };
+            state.stockQty = {};
+            state.drawerLoaded.stock = false;   // 다음에 열 때 최신 상태로 다시 불러온다
+          }
+        }).catch(e => {
+          state.stockMsg = { ok: false, text: '저장하지 못했습니다 — ' + (e && e.message || e) };
+        }).finally(() => {
+          state.stockSaving = false;
+          if (state.drawerLoaded.stock === false) loadStockDrawer();
+          else renderStockDrawer();
+        });
+      }
+    });
+
+    // ── 🎨 색상·사이즈 템플릿 참고 서랍 — 값을 눌러 지금 짜는 축에 바로 적용 ──
+    function loadTplDrawer() {
+      const body = $('#oum-drawer-tpl-body');
+      if (body) body.innerHTML = '<div class="oum-sku-empty">불러오는 중…</div>';
+      fetch('/templates/api/data').then(r => r.json()).then(j => {
+        state.tplData = (j && j.ok) ? j : null;
+        renderTplDrawer();
+      }).catch(e => {
+        if (body) body.innerHTML = '<div class="oum-sku-empty">불러오지 못했습니다 — ' + esc(e && e.message || e) + '</div>';
+      });
+    }
+
+    function _applyTplToAxis(axisName, codes) {
+      // 지금 짜는 축 중 이름이 같은 칸(예: "색상")에 값을 채운다 — 없으면 알려준다.
+      const idx = (state.axes || []).findIndex(a => (a.name || '').trim() === axisName);
+      if (idx < 0) {
+        state.tplMsg = { ok: false, text: `왼쪽에 「${axisName}」 축이 없습니다 — 먼저 그 이름으로 축을 만들어 주세요.` };
+        renderTplDrawer();
+        return;
+      }
+      const input = $(`[data-axis-values="${idx}"]`);
+      if (input) {
+        input.value = codes.join(',');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      state.tplMsg = { ok: true, text: `「${axisName}」 축에 ${codes.length}개 값을 넣었습니다.` };
+      renderTplDrawer();
+    }
+
+    function renderTplDrawer() {
+      const body = $('#oum-drawer-tpl-body');
+      if (!body) return;
+      const d = state.tplData;
+      if (!d) { body.innerHTML = '<div class="oum-sku-empty">템플릿을 불러오지 못했습니다.</div>'; return; }
+      const msg = state.tplMsg
+        ? `<div class="oum-sku-msg${state.tplMsg.ok ? '' : ' bad'}">${esc(state.tplMsg.text)}</div>` : '';
+      const tabs = `<div class="oum-tpl-tabs">
+        <button class="oum-tpl-tab${state.tplPane === 'color' ? ' on' : ''}" data-tpl-pane="color" type="button">색상</button>
+        <button class="oum-tpl-tab${state.tplPane === 'size' ? ' on' : ''}" data-tpl-pane="size" type="button">사이즈</button>
+      </div>`;
+      let pane;
+      if (state.tplPane === 'color') {
+        const dictRows = (d.color.dict || []).map(c => `<tr><td><strong>${esc(c.code)}</strong></td>
+          <td class="oum-stk-dim">${esc((c.variants || []).join(', '))}</td></tr>`).join('')
+          || '<tr><td colspan="2" class="oum-sku-empty">색상 사전이 비어 있어요.</td></tr>';
+        const tpls = (d.color.templates || []).map(t => `<div class="oum-tpl-card">
+          <div class="oum-tpl-name">${esc(t.name)}</div>
+          <div class="oum-tpl-chips">${(t.codes || []).map(c => `<span class="oum-tpl-chip">${esc(c)}</span>`).join('')}</div>
+          <div class="oum-stk-dim" style="font-size:16.5px;margin:6px 0">${t.apply_count}개 모음전 적용</div>
+          <button class="oum-btn oum-btn-sec" type="button" data-tpl-apply="색상" data-tpl-codes='${esc(JSON.stringify(t.codes || []))}'>이 값으로 「색상」 축 채우기</button>
+        </div>`).join('') || '<div class="oum-sku-empty">색상 템플릿이 없어요.</div>';
+        pane = `<h4 style="margin:12px 0 6px">색상 사전</h4><table class="oum-stk-tb"><tbody>${dictRows}</tbody></table>
+          <h4 style="margin:18px 0 6px">색상 템플릿</h4>${tpls}`;
+      } else {
+        const ruleRows = (d.size.rules || []).map(r => `<tr><td><strong>${esc(r.category)}</strong></td>
+          <td>${esc(r.standard_size)}${r.suggested_variant ? ` (${esc(r.suggested_variant)})` : ''}</td></tr>`).join('')
+          || '<tr><td colspan="2" class="oum-sku-empty">사이즈 사전이 비어 있어요.</td></tr>';
+        const tpls = (d.size.templates || []).map(t => `<div class="oum-tpl-card">
+          <div class="oum-tpl-name">${esc(t.name)}</div>
+          <div class="oum-tpl-chips">${(t.codes || []).map(c => `<span class="oum-tpl-chip">${esc(c)}</span>`).join('')}</div>
+          <div class="oum-stk-dim" style="font-size:16.5px;margin:6px 0">${t.apply_count}개 모음전 적용</div>
+          <button class="oum-btn oum-btn-sec" type="button" data-tpl-apply="사이즈" data-tpl-codes='${esc(JSON.stringify(t.codes || []))}'>이 값으로 「사이즈」 축 채우기</button>
+        </div>`).join('') || '<div class="oum-sku-empty">사이즈 템플릿이 없어요.</div>';
+        pane = `<h4 style="margin:12px 0 6px">사이즈 사전</h4><table class="oum-stk-tb"><tbody>${ruleRows}</tbody></table>
+          <h4 style="margin:18px 0 6px">사이즈 템플릿</h4>${tpls}`;
+      }
+      body.innerHTML = tabs + msg + pane;
+    }
+
+    $('#oum-drawer-tpl-body').addEventListener('click', e => {
+      const paneBtn = e.target.closest('[data-tpl-pane]');
+      if (paneBtn) { state.tplPane = paneBtn.dataset.tplPane; renderTplDrawer(); return; }
+      const applyBtn = e.target.closest('[data-tpl-apply]');
+      if (applyBtn) {
+        let codes = [];
+        try { codes = JSON.parse(applyBtn.dataset.tplCodes || '[]'); } catch (e) { codes = []; }
+        _applyTplToAxis(applyBtn.dataset.tplApply, codes);
+      }
+    });
+
+    // ── 🔢 SKU 번호(품번·바코드·GTIN) 서랍 — 저장된 옵션(=Option 행)에만 적는다 ──
+    //    판정·저장 규칙은 전부 서버(lemouton/matrix/sku_info.py) 한 곳 — 여기서는
+    //    받고·보여주고·보낼 뿐이다.
+    function loadSkuDrawer() {
+      const body = $('#oum-drawer-sku-body');
+      if (body) body.innerHTML = '<div class="oum-sku-empty">불러오는 중…</div>';
+      fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}`).then(r => r.json()).then(j => {
+        if (j && j.ok) {
+          state.skuRows = j.rows || [];
+          state.skuRows.forEach(o => {
+            state.skuVals[o.sku] = {
+              article_no: o.article_no || '', barcode: o.barcode || '', gtin: o.gtin || '',
+            };
+          });
+        }
+        renderSkuDrawer();
+      }).catch(e => {
+        if (body) body.innerHTML = '<div class="oum-sku-empty">불러오지 못했습니다 — ' + esc(e && e.message || e) + '</div>';
+      });
+    }
+
+    function renderSkuDrawer() {
+      const body = $('#oum-drawer-sku-body');
+      if (!body) return;
+      const rows = state.skuRows || [];
+      const total = rows.length;
+
+      let head = '';
+      if (total) {
+        const parts = SKU_FIELDS.map(f => {
+          const n = rows.filter(o => ((state.skuVals[o.sku] || {})[f] || '').trim()).length;
+          return `${SKU_LABELS[f]} ${n}/${total}`;
+        });
+        head = `<div class="oum-sku-h"><span class="oum-sku-n">${parts.join(' · ')}</span>
+          <button class="oum-sku-gen" id="oum-sku-gen" type="button" ${state.skuGenBusy ? 'disabled' : ''}>
+            ${state.skuGenBusy ? '만드는 중…' : '자체 바코드 생성 (빈 칸만)'}</button></div>`;
+      }
+
+      const note = `<div class="oum-sku-note">공란은 <b>아직 안 적음</b>입니다(값이 없다고 저장을 막지 않습니다).
+        바코드 · GTIN 은 다른 SKU 와 겹치면 그 칸만 저장되지 않습니다 — 마켓에서 상품이 뒤섞이는 걸 막기 위해서입니다.</div>`;
+      const msg = state.skuMsg
+        ? `<div class="oum-sku-msg${state.skuMsg.ok ? '' : ' bad'}">${esc(state.skuMsg.text)}</div>` : '';
+
+      let mainBody;
+      if (!total) {
+        mainBody = `<div class="oum-sku-empty">아직 저장된 SKU 가 없습니다 — 왼쪽 매트릭스에서 조합을 켜고
+          [옵션 + URL 저장]을 먼저 눌러야 여기서 품번 · 바코드 · GTIN 을 채울 수 있습니다.</div>`;
+      } else {
+        const trs = rows.map(o => {
+          const v = state.skuVals[o.sku] || {};
+          const tds = SKU_FIELDS.map(f => {
+            const err = state.skuErrors[o.sku + ':' + f];
+            const ph = f === 'article_no' ? '미입력' : (f === 'barcode' ? 'EAN-13 13자리' : '8·12·13·14자리');
+            return `<td><input type="text" data-sku-field data-sku-sku="${esc(o.sku)}" data-sku-fname="${f}"
+                     class="${err ? 'bad' : ''}" placeholder="${ph}" value="${esc(v[f] || '')}">
+              ${err ? `<div class="oum-sku-why">${esc(err)}</div>` : ''}</td>`;
+          }).join('');
+          return `<tr><td><div class="oum-sku-lb">${esc(o.label || o.no || o.sku)}</div><div class="oum-sku-id">${esc(o.sku)}</div></td>${tds}</tr>`;
+        }).join('');
+        mainBody = `<div class="oum-sku-box"><table class="oum-sku-tb">
+          <thead><tr><th>옵션</th><th>품번</th><th>바코드</th><th>GTIN</th></tr></thead>
+          <tbody>${trs}</tbody></table></div>`;
+      }
+
+      const footer = total ? `<div class="oum-sku-f">
+        <button class="oum-sku-save" id="oum-sku-save" type="button" ${state.skuSaving ? 'disabled' : ''}>
+          ${state.skuSaving ? '저장 중…' : 'SKU 번호 저장'}</button>
+      </div>` : '';
+
+      body.innerHTML = head + note + msg + mainBody + footer;
+    }
+
+    $('#oum-drawer-sku-body').addEventListener('input', e => {
+      const f = e.target.closest('[data-sku-field]');
+      if (!f) return;
+      const sku = f.dataset.skuSku, fname = f.dataset.skuFname;
+      if (!state.skuVals[sku]) state.skuVals[sku] = {};
+      state.skuVals[sku][fname] = e.target.value;
+    });
+    $('#oum-drawer-sku-body').addEventListener('click', e => {
+      if (e.target.closest('#oum-sku-gen')) {
+        const empties = (state.skuRows || []).map(o => o.sku)
+          .filter(sku => !((state.skuVals[sku] || {}).barcode || '').trim());
+        if (!empties.length) {
+          state.skuMsg = { ok: true, text: '이미 모든 SKU 에 바코드가 있습니다 — 채울 빈 칸이 없습니다.' };
+          renderSkuDrawer();
+          return;
+        }
+        state.skuGenBusy = true;
+        renderSkuDrawer();
+        fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}/gen-barcodes`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skus: empties }),
+        }).then(r => r.json()).then(j => {
+          if (j && j.ok) {
+            const made = j.barcodes || {};
+            let n = 0;
+            Object.keys(made).forEach(sku => {
+              if (!state.skuVals[sku]) state.skuVals[sku] = {};
+              if (!(state.skuVals[sku].barcode || '').trim()) { state.skuVals[sku].barcode = made[sku]; n++; }
+            });
+            state.skuMsg = { ok: true, text: n
+              ? `바코드 ${n}개를 만들었습니다 — 아직 저장 전입니다. [SKU 번호 저장]을 눌러야 실제로 저장됩니다.`
+              : '만든 번호가 없습니다.' };
+          } else {
+            state.skuMsg = { ok: false, text: '바코드를 만들지 못했습니다 — ' + ((j && j.error) || '서버 응답 없음') };
+          }
+        }).catch(e => {
+          state.skuMsg = { ok: false, text: '바코드를 만들지 못했습니다 — ' + (e && e.message || e) };
+        }).finally(() => { state.skuGenBusy = false; renderSkuDrawer(); });
+        return;
+      }
+      if (e.target.closest('#oum-sku-save')) {
+        const rows = state.skuRows || [];
+        if (!rows.length) return;
+        const items = rows.map(o => {
+          const v = state.skuVals[o.sku] || {};
+          const it = { sku: o.sku };
+          SKU_FIELDS.forEach(f => { it[f] = v[f] || ''; });
+          return it;
+        });
+        state.skuSaving = true;
+        renderSkuDrawer();
+        fetch(`/optgen/api/sku-info/${encodeURIComponent(bundleCode)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        }).then(r => r.json()).then(j => {
+          state.skuErrors = {};
+          (j.rejected || []).forEach(r => { state.skuErrors[r.sku + ':' + r.field] = r.reason; });
+          const warnN = (j.warnings || []).length;
+          if (j.ok) {
+            state.skuMsg = { ok: true, text: `저장했습니다 (${j.saved || 0}칸)`
+              + (warnN ? ` · 주의 ${warnN}건 — 아래 칸을 확인하세요` : '') };
+          } else {
+            state.skuMsg = { ok: false, text: `일부를 저장하지 못했습니다 — 거부 ${(j.rejected || []).length}건, `
+              + `저장 ${j.saved || 0}칸. 빨간 칸의 사유를 확인하세요.` };
+          }
+        }).catch(e => {
+          state.skuMsg = { ok: false, text: '저장하지 못했습니다 — ' + (e && e.message || e) };
+        }).finally(() => { state.skuSaving = false; renderSkuDrawer(); });
+      }
+    });
 
     // [2026-05-26 BUG-FIX] [저장] 버튼은 이전에 dbId 검사 없이 무조건 POST 했음 → 누를 때마다
     //   같은 URL 카드가 새로 생성되어 누적되는 심각한 버그. autoSave() 로 통일 — dbId 있으면 PUT,
     //   없으면 POST 후 응답.id 를 dbId 로 설정. matrix option_ids 매핑도 함께 저장.
     $('#oum-save').addEventListener('click', async () => {
       if (!state.selected.size) return;
+      // [2026-08-04] 저장 게이트 (설계 §16 7단계) — **막는다.**
+      //   사장님 확정: 「사용자가 직접 한 번 확인하는 게 필수야. 그래야 사고가 안 나」
+      //   ⚠️ 이전 코드는 state.axisData(옛 단일 소싱처 칸)를 봤는데 지금은 아무도 안 채운다
+      //      → 경고가 **한 번도 안 떴다**(2026-08-04 발견). 소싱처별 결과로 고친다.
+      //   막는 건 「불러온 소싱처」에만. 한 번도 안 불러왔으면 예전처럼 그냥 저장 —
+      //   신상품이거나 확장이 꺼져 못 불러온 때 옵션 자체를 못 만들면 안 되기 때문.
+      {
+        const _srcs = Object.keys(state.axisBySrc || {});
+        if (_srcs.length) {
+          let _review = 0, _none = 0;
+          const _todo = [];
+          _srcs.forEach(k => {
+            const d = state.axisBySrc[k] || {};
+            _review += (d.summary || {}).review || 0;
+            _none += (d.summary || {}).none || 0;
+            if (!d.confirmed) _todo.push(SRC_LABELS[k] || k);
+          });
+          // [2026-08-04] 브라우저 기본 경고창은 줄을 제멋대로 접는다
+          //   (사장님 실측: 「…을 눌러 주」에서 잘려 다음 줄 「세요.」).
+          //   한 줄을 짧게(≈20자) 끊어 접힐 일 자체를 없앤다.
+          if (_review + _none > 0) {
+            alert('아직 맞추지 못한 줄이\n'
+              + (_review + _none) + '줄 있습니다.\n'
+              + '(확인 필요 ' + _review + ' · 못 찾음 ' + _none + ')\n\n'
+              + '그대로 저장하면 그 옵션은\n'
+              + '소싱처 값이 비어\n'
+              + '재고·가격을 못 읽습니다.\n\n'
+              + '「소싱처 옵션 맞추기」에서\n'
+              + '그 줄을 골라 주세요.\n\n'
+              + '그 소싱처에 정말 없는 값이면\n'
+              + '「매칭 옵션 없을 시 선택」을\n'
+              + '골라 주시면 됩니다.');
+            return;
+          }
+          if (_todo.length) {
+            alert('아직 확인 안 한 소싱처:\n'
+              + _todo.join(' · ') + '\n\n'
+              + '맞춘 결과를 눈으로 보신 뒤\n'
+              + '소싱처 이름 옆의\n'
+              + '「● 확인 안 함」을 눌러\n'
+              + '확인 도장을 찍어 주세요.\n\n'
+              + '잘못 맞춰진 채로 저장되면\n'
+              + '남의 색 가격·재고가 올라갑니다.');
+            return;
+          }
+        }
+      }
       const save = $('#oum-save');
       save.disabled = true; save.textContent = '저장 중...';
 
       try {
         snapshotLastState();
-        await autoSave();
-        if (typeof flash === 'function') flash('저장 완료');
-        bg.remove();
-        // [v27 2026-06-02] reload 대기 700 → 200ms — 체감 즉시 갱신
-        setTimeout(() => location.reload(), 200);
+        const result = await autoSave();
+        // [2026-06-26] 정직성 — 실패를 "저장 완료" 로 위장하지 않음. 실패 시 모달 유지·재시도 가능.
+        if (result && result.ok === false) {
+          alert('일부 항목이 저장되지 않았습니다:\n\n' + (result.errors || []).join('\n') + '\n\n다시 [저장]을 눌러 재시도하세요.');
+          save.disabled = false; save.textContent = '옵션 + URL 저장';
+          return;
+        }
+        // [2026-08-19 사장님 확정] 저장을 마치면 옵션함 화면이 아니라 곧장 목록으로 돌아간다.
+        //   🔴 예전엔 이 옵션함 화면(box.html)으로 새로고침했는데, 그 화면은 들어오면 이 창을
+        //      **자동으로 다시 연다** — 그래서 저장 → 새로고침 → 창이 또 뜨고, 사장님 눈에는
+        //      저장이 안 된 것처럼 보였다(라이브 실측 — 저장은 정상, 창만 다시 열렸다).
+        //      이제 그 화면 자체를 거치지 않고 목록으로 바로 가므로 이 문제가 원천적으로 없다.
+        //   알림은 sessionStorage 에 남겨 다음 화면(목록)에서 띄운다 — 페이지 이동이 지금
+        //   띄운 알림을 지워버리기 때문이다(소비 쪽은 toss.js 전역 처리).
+        try {
+          sessionStorage.setItem('oum:justSaved', JSON.stringify({
+            code: bundleCode,
+            msg: _saveNotice ? `저장 완료 — ${_saveNotice}` : '저장 완료',
+          }));
+        } catch (e) { /* 세션스토리지가 막혀 있어도 저장 자체는 이미 끝났다 — 이동은 계속한다 */ }
+        _saveNotice = '';
+        location.href = '/optgen?tab=direct';
       } catch (e) {
         alert('저장 중 오류: ' + e.message);
         save.disabled = false; save.textContent = '옵션 + URL 저장';
       }
+    });
+
+    // [2026-08-02] 축 드롭다운 — 고르면 그 축 전체에 적용되고 사전에 쌓인다.
+    //   초록(자동)도 잠기지 않는다 — 자동은 「먼저 골라준 것」일 뿐이다.
+    $('#oum-right').addEventListener('change', e => {
+      const sel = e.target.closest('[data-ax-set]');
+      if (!sel) return;
+      axisSet(sel.dataset.axSrc, sel.dataset.axAxis, sel.dataset.axOur, sel.value);
     });
 
     // 초기 렌더 — source-urls 만으로 옵션 매트릭스·URL UI 즉시 표시 (재고 매핑 기다리지 않음)
@@ -2974,14 +3964,6 @@
       setTimeout(() => { try { scrollToFirstFail(); } catch (e) {} }, 120);
     }
 
-    // [perf 2026-05-29] 재고 매핑은 배경 로드 → 도착 시 셀 초록색·재고탭 갱신.
-    //   모달 표시·옵션 작업은 이미 가능한 상태. 데이터 도착이 늦어도 UI 안 막힘.
-    if (_invMapPromise) {
-      _invMapPromise.then(ij => {
-        applyInvData(ij);
-        rerender();
-      }).catch(() => { /* 재고 매핑 실패해도 모달은 정상 동작 */ });
-    }
   }
 
   window.openOptionUrlModal = openOptionUrlModal;

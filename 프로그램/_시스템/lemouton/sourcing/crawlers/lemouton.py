@@ -32,6 +32,7 @@ Python 환경 한계 보강 (V7 로직 보존, 셀렉터 동일):
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Optional
@@ -40,7 +41,10 @@ from urllib.parse import urlparse, parse_qs
 import requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -130,6 +134,15 @@ def _parse_product_name(soup: BeautifulSoup, override_name: Optional[str]) -> st
     if override_name:
         return override_name
 
+    # [2026-06-21] og:title 우선 — 페이지 head 의 정식 상품명. 르무통 PC 페이지의 '첫 h2'가
+    #   '메인메뉴'(내비)라서 그게 상품명으로 잘못 잡히던 문제(상품명='메인메뉴' 사고). og:title 은
+    #   PC·모바일 모두 정확한 상품명("르무통 메이트 발 편한 메리노울 운동화")이라 최우선으로 쓴다.
+    og = soup.find("meta", attrs={"property": "og:title"})
+    if og and og.get("content"):
+        _ogt = og["content"].strip()
+        if _ogt and 2 < len(_ogt) < 150:
+            return _ogt
+
     # V7 원본 제외어 (background.js: '확대','Ambassador','Natural','Travel','리뷰')
     # + 모바일 페이지 전용 섹션·마케팅 헤더 (V7 PC 페이지엔 없던 h2 들 — 상품명이 아님).
     excluded_substrings = (
@@ -139,6 +152,8 @@ def _parse_product_name(soup: BeautifulSoup, override_name: Optional[str]) -> st
         "상품상세", "추가구성", "WITH ITEM",
         # 모바일 추가 — 마케팅 h2 (메리노울 모델 모음전 페이지 공통)
         "MerinoWool", "Performance", "Fiber", "LeMouton", "100%",
+        # [2026-06-21] PC 페이지 내비 헤더 (상품명 아님)
+        "메인메뉴",
     )
     for h2 in soup.find_all("h2"):
         t = h2.get_text(strip=True)
@@ -167,6 +182,118 @@ def _parse_product_name(soup: BeautifulSoup, override_name: Optional[str]) -> st
         return og["content"].strip()
 
     return ""
+
+
+def _parse_category_path(soup: BeautifulSoup) -> str:
+    """[2026-07-23 M3] Cafe24 '현재 위치' 빵부스러기 → '대>중>소'.
+
+    실화면 확인(lemouton.co.kr 상품 페이지, 2026-07-23):
+        <div class="xans-element- xans-product xans-product-headcategory path ">
+          <span>현재 위치</span>
+          <ol><li><a href="/">홈</a></li>
+              <li><a href="/category/men/63/">Men</a></li>
+              <li><a href="/category/클래식/64/">클래식</a></li>
+              <li class="displaynone"><a href=""></a></li>   ← 빈 자리(4·5단계 미사용)
+              <li class="displaynone"><strong><a href=""></a></strong></li></ol></div>
+
+    빈 `displaynone` 항목은 텍스트가 없어 `build_category_path` 가 자동으로 걸러낸다.
+    ⚠️ Cafe24 빵부스러기는 URL 의 `cate_no` 로 결정된다 — `cate_no` 없이 들어온 URL 은
+       '홈' 만 남아 빈 문자열이 된다(= 카테고리 확인불가. 지어내지 않는다).
+    """
+    box = soup.select_one("div.xans-product-headcategory")
+    if not box:
+        return ""
+    return build_category_path([a.get_text(strip=True) for a in box.select("ol li a")])
+
+
+def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] 르무통(Cafe24) 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실화면 확인(lemouton.co.kr 상품 219, 2026-07-23 브라우저 DOM + HEAD 요청):
+      대표 = ``<meta property="og:image">`` (절대 URL)
+             = ``.detailArea .keyImg img.BigImage`` 와 같은 파일
+      추가 = ``.xans-product-addimage img`` (`//lemouton.co.kr/web/product/...`,
+             프로토콜 상대 → `build_image_urls` 가 https 로 절대화)
+
+    ⚠️ `small` → `big` 경로 치환을 **하지 않는다**(추측 금지). 실측 결과:
+       ① `/web/product/extra/small/…` 과 `/web/product/extra/big/…` 은 같은 파일
+          (둘 다 200, content-length 70037 동일) → 바꿔도 얻는 게 없다.
+       ② 대표 썸네일의 `/web/product/small/…` 을 `/big/` 으로 바꾸면 **404**.
+          치환했으면 마켓에 깨진 이미지가 올라갔을 것이다.
+
+    ⚠️ `.keyImg` 안에는 Cafe24 스킨의 확대 아이콘(`img.echosting.cafe24.com/…zoom.gif`)
+       도 있다 — 그래서 `img.BigImage` 로 좁힌다(상품 사진만).
+
+    ★ 지재권 — 여기서 만드는 건 URL 문자열뿐이다. 파일은 받지 않는다.
+    """
+    urls: list[str] = []
+    og = soup.select_one('meta[property="og:image"]')
+    if og and og.get("content"):
+        urls.append(og["content"])
+    for img in soup.select("div.detailArea div.keyImg img.BigImage"):
+        urls.append(img.get("src") or "")
+    for img in soup.select("div.xans-product-addimage img"):
+        urls.append(img.get("src") or "")
+    return dedupe_cafe24_main_renditions(build_image_urls(urls, product_url))
+
+
+# Cafe24 이미지 경로 규칙 — 대표이미지는 `/web/product/<렌디션>/…`,
+#   추가이미지는 `/web/product/extra/<렌디션>/…`.
+_CAFE24_MAIN_RENDITION_RE = re.compile(
+    r"/web/product/(?:big|medium|small|tiny)/", re.I)
+
+
+def dedupe_cafe24_main_renditions(urls: list[str]) -> list[str]:
+    """🟠 [2026-07-23 리뷰지적 I6] 대표사진이 갤러리에 두 번 실리는 것 제거.
+
+    Cafe24 는 업로드한 **대표이미지 1장**을 `/web/product/{big|medium|small|tiny}/`
+    로 복제 저장하는데 **렌디션마다 파일명 해시가 다르다** → URL 문자열 dedup 이
+    못 잡는다. 그리고 `.xans-product-addimage` 목록의 **첫 항목이 그 small 렌디션**
+    이라, 6마켓 전부 「대표 = A, 추가1 = A」로 같은 사진이 두 번 올라갔다.
+
+    라이브 실측(2026-07-23, lemouton.co.kr, HEAD content-length):
+
+      | 상품 | og:image (대표)            | addimage[0]                 | 크기       |
+      |------|----------------------------|-----------------------------|------------|
+      | 219  | /big/202508/9644b99….jpg   | /small/202508/b6352ad8….jpg | 81,946 동일 |
+      | 140  | /big/202605/2f9c1646….jpg  | /small/202605/55931ab9….jpg | 146,270 동일|
+      | 233  | /big/202311/b728730e….jpg  | /small/202311/a0d6db75….jpg | 77,041 동일 |
+      | 235  | /big/202508/04d40730….jpg  | /small/202508/a96e237b….jpg | 65,913 동일 |
+
+    4건 모두 addimage[0] 이 대표와 **바이트 크기까지 같고**, addimage[1..] 은 전부
+    `extra/` 이며 서로 다른 크기다 → 규칙: **`extra/` 없는 렌디션 = 대표, 1장만 남긴다.**
+    (첫 원소를 남긴다 = og:image 의 `big` 판 = 마켓 대표이미지로 가장 큰 것.)
+
+    ⚠️ 경로 치환은 여전히 **안 한다** — `/small/…` 을 `/big/…` 으로 바꾸면 404 다.
+       여기서 하는 건 '버리기'뿐이고, 남기는 URL 은 소싱처가 준 문자열 그대로다.
+    """
+    out: list[str] = []
+    seen_main = False
+    for u in (urls or []):
+        if _CAFE24_MAIN_RENDITION_RE.search(u) and "/web/product/extra/" not in u:
+            if seen_main:
+                continue                      # 같은 대표사진의 다른 렌디션 = 중복
+            seen_main = True
+        out.append(u)
+    return out
+
+
+def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
+    """[2026-07-23 M4-4] 르무통 상품상세 영역 HTML(스크립트 제거본).
+
+    실화면 확인(2026-07-23): 상세는 ``#proDetail`` 안 ``div.inner > div.cont`` 하나뿐
+    (innerHTML 4,104자 · `<img>` 18개 · 텍스트 없는 이미지형 상세).
+
+    ⚠️ ``#proDetail`` 을 통째로 쓰면 안 된다 — 그 위쪽 `.eventArea` 는 **상품이 아니라
+       쇼핑몰 시즌 이벤트 배너**(여름세일·공휴일 배송안내)라 마켓 상세에 올리면
+       남의 몰 홍보가 그대로 나간다. `.inner .cont` 로 좁힌다.
+    ⚠️ Cafe24 edibot 지연로딩 — `src` 는 1px base64 placeholder 이고 실주소는
+       ``ec-data-src`` 에 있다(`sanitize_detail_html` 이 살려낸다). 그냥 두면 백지.
+    """
+    box = soup.select_one("#proDetail div.inner div.cont")
+    if box is None:
+        return ""
+    return sanitize_detail_html(box, product_url)
 
 
 def _parse_prices(soup: BeautifulSoup, html: str) -> tuple[int, int, int]:
@@ -229,6 +356,83 @@ def _parse_prices(soup: BeautifulSoup, html: str) -> tuple[int, int, int]:
     return sale_price, origin_price, discount_rate
 
 
+def _parse_option_stock_data(html: str) -> list[dict] | None:
+    """Cafe24 가 raw HTML 에 심어둔 ``var option_stock_data`` JSON 을 파싱.
+
+    이 변수는 색상×사이즈 **실제 조합** 만 키로 가지며, 각 조합의 실재고
+    (``stock_number``)·판매여부(``is_selling``)·노출여부(``is_display``)·
+    조합가(``option_price``)·축원본값(``option_value_orginal`` = [색상, 사이즈]) 을 담는다.
+
+    ``_parse_buttons`` 의 데카르트 곱(색상 × 사이즈 전체 → 미판매 사이즈까지 999 로 날조)과
+    달리, 여기엔 그 색상이 **실제로 파는 사이즈만** 들어있다. 따라서 미판매 조합
+    (예: 오렌지 260~290mm) 은 키 자체가 없어 원천적으로 제외되고, 품절(stock_number=0)·
+    실수량(stock_number>0) 이 정확히 구분된다. 정적 HTML 만으로 Playwright 동등 정확도.
+
+    Returns:
+        조합 dict 리스트 ``[{color_text, size_text, price, stock}, ...]``.
+        변수 부재(구형 템플릿)·파싱 실패·빈 데이터면 ``None`` → 호출자는 레거시 버튼 파서로 폴백.
+    """
+    m = re.search(r"var\s+option_stock_data\s*=\s*'(.*?)';", html, re.S)
+    if not m:
+        return None
+    try:
+        # JS 단일따옴표 문자열 본문 = JSON 문자열 본문(\" \\ \\uXXXX 이스케이프) → 2단 디코드.
+        #   1단: json.loads('"' + 본문 + '"')  → JS 이스케이프 해제 → JSON 텍스트
+        #   2단: json.loads(JSON 텍스트)        → dict
+        data = json.loads(json.loads('"' + m.group(1) + '"'))
+    except (ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or not data:
+        return None
+
+    rows: list[dict] = []
+    for entry in data.values():
+        if not isinstance(entry, dict):
+            continue
+        # 페이지에 노출되지 않는 옵션(is_display=F)은 판매 대상이 아님 → 제외.
+        if str(entry.get("is_display", "T")).upper() == "F":
+            continue
+        ov = entry.get("option_value_orginal")
+        if not isinstance(ov, list) or not ov:
+            continue
+        # 축 순서 무관 분류: mm 로 끝나는 토큰 = 사이즈, 나머지 = 색상
+        # (V7 버튼 분류 ``/mm$/i`` 와 동일 규칙 — 단품/사이즈만 옵션도 안전 처리).
+        size_text = ""
+        color_parts: list[str] = []
+        for tok in ov:
+            tok = (tok or "").strip()
+            if not tok:
+                continue
+            if not size_text and SIZE_PATTERN.search(tok):
+                size_text = tok
+            else:
+                color_parts.append(tok)
+        color_text = " ".join(color_parts)
+
+        # 재고: stock_number 가 실수량. 판매중지(is_selling=F)면 품절(0)로 표면화.
+        try:
+            stock = int(entry.get("stock_number"))
+        except (TypeError, ValueError):
+            stock = 0
+        if stock < 0:
+            stock = 0
+        if str(entry.get("is_selling", "T")).upper() == "F":
+            stock = 0
+
+        try:
+            price = int(entry.get("option_price"))
+        except (TypeError, ValueError):
+            price = 0
+
+        rows.append({
+            "color_text": color_text,
+            "size_text": size_text,
+            "price": price,
+            "stock": stock,
+        })
+    return rows or None
+
+
 class LemoutonCrawler(AbstractCrawler):
     """르무통 공식몰 크롤러 — Playwright 우선, 정적 HTML fallback.
 
@@ -263,20 +467,60 @@ class LemoutonCrawler(AbstractCrawler):
                 )
         return self._fetch_static(product_url)
 
-    def _fetch_static(self, product_url: str) -> CrawlResult:
-        resp = requests.get(
-            product_url,
-            headers={"User-Agent": USER_AGENT},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        resp.raise_for_status()
-        html = resp.text
+    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+        """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
+
+        _fetch_static 의 순수 파싱 부분을 분리한 메서드.
+        fetch / _fetch_static 의 동작은 100% 불변.
+        """
         soup = BeautifulSoup(html, "lxml")
 
         product_no = _extract_product_no(product_url)
         product_name = _parse_product_name(soup, override_name=None)
         sale_price, origin_price, discount_rate = _parse_prices(soup, html)
+        category_path = _parse_category_path(soup)   # [2026-07-23 M3] 못 뽑으면 ''
+        # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지)
+        image_urls = _parse_image_urls(soup, product_url)
+        detail_html = _parse_detail_html(soup, product_url)
 
+        # ★ 1순위: Cafe24 ``option_stock_data`` (실조합·실재고).
+        #   색상별 실제 판매 사이즈만 들어있어 미판매 사이즈가 원천 배제되고,
+        #   품절/실수량이 정확. 버튼 데카르트 곱(전 색상 × 전 사이즈 = 999 날조)을 대체.
+        stock_rows = _parse_option_stock_data(html)
+        if stock_rows:
+            name_parts = product_name.split(" ")
+            fallback_color = name_parts[-1] if name_parts else ""
+            options: list[dict] = []
+            for r in stock_rows:
+                color_text = r["color_text"] or fallback_color
+                price = r["price"] or sale_price
+                options.append({
+                    "option_id": f"{product_no}|{color_text}|{r['size_text']}",
+                    "color_text": color_text,
+                    "size_text": r["size_text"],
+                    "price": price,
+                    "sale_price": price,
+                    "stock": r["stock"],
+                })
+            return CrawlResult(
+                source=self.source_name,
+                product_url=product_url,
+                product_name_raw=product_name,
+                options=options,
+                brand="르무통",
+                discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
+                category_path=category_path,
+                image_urls=image_urls,
+                detail_html=detail_html,
+            )
+
+        # 폴백: option_stock_data 부재(구형 템플릿/비정상 페이지) → 레거시 버튼 파서.
+        #   ⚠️ 이 경로는 색상별 사이즈 가용 정보를 raw HTML 에서 알 수 없어 데카르트 곱을
+        #   쓴다(미판매 사이즈가 999 로 섞일 수 있음). 정상 상품은 항상 1순위로 처리됨.
+        logger.warning(
+            "[lemouton] option_stock_data 없음 — 레거시 버튼 파서 폴백 (데카르트 곱). url=%s",
+            product_url,
+        )
         btns = _parse_buttons(soup)
         color_btns = [b for b in btns if not b["isMm"]]
         size_btns = [b for b in btns if b["isMm"]]
@@ -341,4 +585,17 @@ class LemoutonCrawler(AbstractCrawler):
             options=options,
             brand="르무통",
             discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
+            category_path=category_path,
+            image_urls=image_urls,
+            detail_html=detail_html,
         )
+
+    def _fetch_static(self, product_url: str) -> CrawlResult:
+        resp = requests.get(
+            product_url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=DEFAULT_TIMEOUT,
+        )
+        resp.raise_for_status()
+        html = resp.text
+        return self.parse_html(html, product_url)

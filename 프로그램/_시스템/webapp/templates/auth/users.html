@@ -10,21 +10,28 @@
     .container { max-width: 960px; margin: 0 auto; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .header h1 { margin: 0; font-size: var(--fs-h1); font-weight: 700; }
-    .btn { padding: 10px 16px; font-size: var(--fs-caption); font-weight: 600; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; }
-    .btn-primary { background: var(--primary); color: white; border: none; }
+    .btn { padding: 8px 16px; font-size: var(--fs-caption); font-weight: 600; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; }
+    .btn-primary { background: var(--바탕-파랑, var(--primary)); color: white; border: none; }
     .btn-primary:hover { background: var(--primary-strong); }
     table { width: 100%; background: var(--surface); border: 1px solid var(--n200); border-radius: 12px; border-collapse: separate; border-spacing: 0; overflow: hidden; }
-    th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--n200); font-size: var(--fs-body); }
+    th, td { padding:12px 16px; text-align: left; border-bottom: 1px solid var(--n200); font-size: var(--fs-body); }
     th { background: var(--n100); font-weight: 600; font-size: var(--fs-caption); color: var(--n700); }
     tr:last-child td { border-bottom: none; }
-    .badge { padding: 2px 8px; border-radius: 99px; font-size: var(--fs-caption); font-weight: 600; }
-    .badge-admin { background: var(--primary-tint); color: var(--primary-strong); }
+    .badge { padding: 0px 8px; border-radius: 99px; font-size: var(--fs-caption); font-weight: 600; }
+    .badge-admin { background: var(--primary-tint); color: var(--글자-파랑, var(--primary-strong)); }
     .badge-member { background: var(--n100); color: var(--n700); }
-    .badge-inactive { background: var(--danger-bg); color: var(--danger); }
+    .badge-inactive { background: var(--danger-bg); color: var(--글자-빨강, var(--danger)); }
     .flash { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: var(--fs-caption); }
-    .flash-success { background: var(--color-ok-bg); color: var(--color-ok); }
-    .flash-error { background: var(--danger-bg); color: var(--danger); }
+    .flash-success { background: var(--color-ok-bg); color: var(--글자-초록, var(--color-ok)); }
+    .flash-error { background: var(--danger-bg); color: var(--글자-빨강, var(--danger)); }
   </style>
+{# [2026-08-03] 표 정렬 — 머리글·내용 둘 다 가운데 (사장님 확정 「1-C」).
+   base.html 을 안 물려받는 독립 화면이라 여기에도 따로 싣는다. #}
+{# [2026-08-03] 글꼴 한 벌 — 화면마다 굴림체·맑은 고딕으로 갈리던 것을 Pretendard 로.
+   라이브 실측 131개 화면 중 40곳이 규칙 밖 글꼴이었다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='font_unify.css') }}?v={{ STATIC_VER|default('') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER|default('') }}">
+<script src="{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER|default('') }}" defer></script>
 </head>
 <body>
   <div class="container">
@@ -64,7 +71,7 @@
           <td style="font-size: var(--fs-caption); color: var(--n600);">{% if u.last_login_at %}{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') }}{% else %}—{% endif %}</td>
           <td>
             <form action="{{ url_for('auth.toggle_active', user_id=u.id) }}" method="post" style="display: inline;">
-              <button type="submit" style="background: none; border: 1px solid var(--n300); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: var(--fs-caption);">
+              <button type="submit" style="background: none; border: 1px solid var(--n300); padding: 4px 8px; border-radius: 8px; cursor: pointer; font-size: var(--fs-caption);">
                 {% if u.is_active %}비활성화{% else %}활성화{% endif %}
               </button>
             </form>

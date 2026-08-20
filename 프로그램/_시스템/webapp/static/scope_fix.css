@@ -1,0 +1,53 @@
+/* 이 파일은 손으로 고치지 말 것 — scripts/gen_scope_fix.py 가 만든다.
+   화면 CSS 에 공용 색 이름을 새로 못 박으면 tests/design/test_dark_scope.py 가 잡는다.
+
+   어두운 모드에서 「화면이 자기 안에서 다시 정의한 공용 색 이름」을 되돌리는 CSS 를 만든다.
+   
+   무슨 일이 있었나
+     주문 화면 CSS 안에 `.o7 { --ink:#191F28 }` 처럼 밝은 모드 색이 못 박혀 있었다.
+     위(.ds.ds-light)에서 색을 정해도 그 화면 안쪽은 못 박힌 값을 쓰므로
+     검정 배경에 검정 글자가 된다.
+     라이브 실측(2026-07-31 mou-m.com/orders, 검정 한 판): 기준 미달 507곳, 최악 1.11.
+   
+   왜 지우지 않고 덮어쓰나
+     「현재」 모드에는 .ds 가 안 붙어 tokens.css 의 색이 아예 없다. 화면이 못 박아 둔
+     값이 그 모드의 유일한 색이라, 지우면 「현재」(안전망)가 깨진다.
+   
+   [2026-08-02 사장님 확정] 타입이 화이트 하나뿐이라 `.ds.ds-light …` 한 벌만 낸다
+     「밝은 카드」에서도 화면이 못 박은 --sub(#8B95A1)이 흰 바탕에서 3.04 로 미달이었다.
+     (예전에는 검정A·검정B 몫까지 세 벌을 냈다 — 그 타입들을 지우면서 한 벌로 줄었다.)
+     「현재」에는 어느 것도 안 걸린다.
+   
+   쓰는 법
+     python scripts/gen_scope_fix.py        # webapp/static/scope_fix.css 를 다시 만든다
+     python scripts/gen_scope_fix.py --check # 최신인지만 확인 (테스트가 쓴다)
+
+   왜 이기나 — `.ds.ds-dark .o7` 은 클래스 3개(0,3,0), 원래 `.o7` 은 1개(0,1,0).
+   같은 요소에 걸린 규칙이라 더 구체적인 쪽이 이긴다. */
+
+/* templates/sourcing_guide/crawl_check.html */
+.ds.ds-light .ccpage { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
+/* templates/_checklist_matrix.html */
+.ds.ds-light .ckroot { --bg: #FFFFFF; --faint: var(--ap-g3); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
+/* templates/orders/index.html */
+.ds.ds-light .cskb { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --red: var(--ap-red); --sub: #6E6E73; }
+/* templates/data_guide.html */
+.ds.ds-light .dg-doc { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --sub: #6E6E73; }
+/* templates/orders/index.html */
+.ds.ds-light .di { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
+/* templates/marketplace_guide/map.html */
+.ds.ds-light .dm2 { --bg: #FFFFFF; --faint: var(--ap-g3); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
+/* templates/orders/index.html */
+.ds.ds-light .o7 { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --faint: var(--ap-g3); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
+/* templates/orders/index.html */
+.ds.ds-light .ord5 { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --faint: var(--ap-g3); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
+/* templates/sourcing_guide/price_verify.html */
+.ds.ds-light .pvfpage { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
+/* templates/sourcing_guide/map.html */
+.ds.ds-light .sgmap { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
+/* templates/orders/index.html */
+.ds.ds-light .smr { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
+/* templates/orders/index.html */
+.ds.ds-light .spn { --amber: var(--ap-orange); --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
+/* templates/sourcing_guide/map.html */
+.ds.ds-light .v3n { --sub: #6E6E73; }

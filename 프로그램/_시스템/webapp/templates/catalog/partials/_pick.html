@@ -1,0 +1,271 @@
+{# 상품 담기 — 확정 시안 ④(치는 대로 결과가 바뀜) + ⑤(대표를 정하고 붙이기) #}
+<style>
+  .pk-wrap{display:grid;grid-template-columns:1fr 380px;gap:var(--sp-5);align-items:start}
+  .pk-panel{background:var(--surface,#ffffff);border:1px solid var(--color-border);border-radius:12px;
+    padding:var(--sp-5)}
+  .pk-srch{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-3)}
+  .pk-srch input{flex:1;border:1px solid var(--color-border);border-radius:8px;
+    padding:12px 12px;font-family:inherit;font-size:14px}
+  .pk-srch input:focus{outline:0;border-color:var(--color-primary)}
+  .pk-srch select{border:1px solid var(--color-border);border-radius:8px;
+    padding:0 8px;font-family:inherit;font-size:12px;color:var(--color-text-secondary)}
+  .pk-hint{font-size:12px;color:var(--color-text-tertiary);margin-bottom:var(--sp-3)}
+  .pk-row{display:grid;grid-template-columns:1fr 100px 150px 66px;gap:var(--sp-3);
+    align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-border-soft);
+    font-size:12px;cursor:pointer;border-radius:8px}
+  .pk-row:hover{background:var(--color-primary-light)}
+  .pk-row.taken{opacity:.45;cursor:default}
+  .pk-row.taken:hover{background:transparent}
+  .pk-nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pk-sub{font-size:12px;color:var(--color-text-tertiary);margin-top:0px}
+  .pk-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pk-mk{display:inline-block;font-size:12px;font-weight:600;padding:0px 8px;
+    border-radius:999px;background:var(--color-primary-light);color:var(--color-primary-dark)}
+  .pk-st{display:inline-block;font-size:12px;font-weight:600;padding:0px 8px;
+    border-radius:999px;background:var(--color-bg-muted);color:var(--color-text-secondary)}
+  .pk-st.sale{background:var(--연한-초록,#EAFBF0);color: var(--글자-초록, var(--green,#15803D))}
+  .pk-st.soldout{background:var(--연한-주황,#FEF6E7);color: var(--글자-주황, var(--amber,#8A5A00))}
+  .pk-st.unknown{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+  .pk-add{border:1px solid var(--color-border);background:var(--surface,#ffffff);border-radius:8px;
+    padding:4px 8px;font-family:inherit;font-size:12px;font-weight:700;
+    color:var(--color-text-secondary);cursor:pointer}
+  /* 오른쪽 — 담을 목록 */
+  .pk-cart{position:sticky;top:var(--sp-4)}
+  .pk-lead{border:2px solid var(--color-primary);border-radius:8px;padding:12px 12px;
+    margin-bottom:var(--sp-3);background:var(--color-primary-light)}
+  .pk-lead .tag{font-size:12px;font-weight:700;color:var(--color-primary-dark)}
+  .pk-item{border:1px solid var(--color-border);border-radius:8px;padding:8px 12px;
+    margin-bottom:8px;font-size:12px}
+  .pk-item .top{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+  .pk-x{margin-left:auto;color:var(--color-text-tertiary);cursor:pointer;font-weight:700}
+  .pk-mini{border:1px solid var(--color-border);background:var(--surface,#ffffff);border-radius:8px;
+    padding:0px 8px;font-family:inherit;font-size:12px;font-weight:700;
+    color:var(--color-text-secondary);cursor:pointer}
+  .pk-btn{width:100%;border:1px solid var(--color-primary);background:var(--color-primary);
+    color:#fff;border-radius:8px;padding:12px 0;font-family:inherit;font-size:14px;
+    font-weight:700;cursor:pointer;margin-top:var(--sp-2)}
+  .pk-btn[disabled]{background:var(--color-bg-muted);border-color:var(--color-border);
+    color:var(--color-text-tertiary);cursor:default}
+  .pk-empty{padding:24px 8px;text-align:center;color:var(--color-text-tertiary);font-size:12px}
+  .pk-note{background:var(--color-bg-muted);border-radius:8px;padding:12px 12px;
+    font-size:12px;color:var(--color-text-secondary);line-height:1.7;margin-top:var(--sp-3)}
+  .pk-ok{background:var(--연한-초록,#EAFBF0);border:1px solid var(--연한-초록,#A7E8C0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color: var(--글자-초록, var(--green,#15803D));margin-bottom:var(--sp-3)}
+  .pk-warn{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));margin-bottom:var(--sp-3)}
+</style>
+
+<style>
+/* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 좌(검색 결과)·우(담을 목록) 두 판 → 세로 한 줄. */
+  .pk-wrap { grid-template-columns: 1fr; }
+  /* 담을 목록 sticky 해제 — 한 줄이 된 뒤에도 붙어 있으면 스크롤을 가린다. */
+  .pk-cart { position: static; }
+  /* 검색줄: 입력칸이 한 줄 전체, 선택 2개는 아랫줄 반반. 16px = iOS 포커스 확대 방지. */
+  .pk-srch { flex-wrap: wrap; }
+  .pk-srch input { flex-basis: 100%; min-height: 44px; font-size: 16px; }
+  .pk-srch select { flex: 1; min-height: 44px; font-size: 14px; }
+  /* 결과 줄 4열(이름·가격·마켓·담기) → 2×2 격자. */
+  .pk-row { grid-template-columns: 1fr auto; font-size: 14px; }
+  .pk-row .pk-nm { white-space: normal; }
+  .pk-sub, .pk-hint { font-size: 14px; }
+  /* 손끝 목표 44px — 담기·대표로·이대로 담기·× 지우기. */
+  .pk-add, .pk-mini { min-height: 44px; padding: 8px 14px; font-size: 14px; }
+  .pk-btn { min-height: 44px; }
+  .pk-x { padding: 12px; margin: -12px -12px -12px auto; }
+}
+</style>
+
+<div class="pk-wrap">
+  <div class="pk-panel">
+    <div class="pk-srch">
+      <input id="pk-q" type="search" placeholder="상품명 · 브랜드 · 상품번호" autocomplete="off">
+      <select id="pk-market">
+        <option value="">모든 마켓</option>
+        <option value="lotteon">롯데온</option>
+        <option value="eleven11">11번가</option>
+        <option value="coupang">쿠팡</option>
+        <option value="smartstore">스마트스토어</option>
+        <option value="auction">옥션</option>
+        <option value="gmarket">G마켓</option>
+      </select>
+      <select id="pk-status">
+        <option value="">모든 상태</option>
+        <option value="sale">판매중</option>
+        <option value="soldout">품절</option>
+        <option value="stopped">판매중지</option>
+        <option value="waiting">승인대기</option>
+      </select>
+    </div>
+    <div class="pk-hint" id="pk-hint">치는 대로 결과가 바뀝니다 — 「찾기」를 누를 필요가 없습니다.</div>
+    <div id="pk-list"><div class="pk-empty">불러오는 중…</div></div>
+  </div>
+
+  <div class="pk-cart">
+    <div class="pk-panel">
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">담을 목록</div>
+      <div class="pk-hint" id="pk-cart-hint">왼쪽에서 상품을 눌러 담으세요.</div>
+      <div id="pk-msg"></div>
+      <div id="pk-cart"></div>
+      <button class="pk-btn" id="pk-save" disabled>이대로 담기</button>
+      <div class="pk-note">
+        <b>맨 위가 대표입니다.</b> 대표의 이름이 모음전 상품 이름이 됩니다.
+        다른 것을 대표로 삼으려면 「대표로」를 누르세요.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const N = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR') + '원');
+  const MK = {smartstore:'스마트스토어', coupang:'쿠팡', lotteon:'롯데온',
+              eleven11:'11번가', auction:'옥션', gmarket:'G마켓'};
+  const ST = {sale:'판매중', soldout:'품절', stopped:'판매중지',
+              waiting:'승인대기', unknown:'모름'};
+
+  const listEl = document.getElementById('pk-list');
+  const cartEl = document.getElementById('pk-cart');
+  const msgEl = document.getElementById('pk-msg');
+  const hintEl = document.getElementById('pk-hint');
+  const saveBtn = document.getElementById('pk-save');
+  let cart = [];          // [{id, name, market, ...}] — 0번이 대표
+  let timer = null;
+
+  function row(r) {
+    const taken = cart.some((c) => c.id === r.id);
+    const picked = r.group_id != null;
+    return `<div class="pk-row ${taken ? 'taken' : ''}" data-id="${r.id}">
+      <div><div class="pk-nm">${esc(r.name || '(이름 없음)')}</div>
+        <div class="pk-sub">${esc(r.brand || '브랜드 없음')} ·
+          ${esc(r.account_key)} · ${esc(r.market_product_id)}
+          ${picked ? ' · <b>이미 담김</b>' : ''}</div></div>
+      <div class="pk-num">${N(r.sale_price)}</div>
+      <div><span class="pk-mk">${esc(MK[r.market] || r.market)}</span>
+        <span class="pk-st ${esc(r.status)}">${esc(ST[r.status] || r.status)}</span></div>
+      <div style="text-align:right">${taken ? '<span class="pk-sub">담김</span>'
+        : '<button class="pk-add">담기</button>'}</div>
+    </div>`;
+  }
+
+  function renderList(j) {
+    const rows = j.rows || [];
+    if (!rows.length) {
+      listEl.innerHTML = `<div class="pk-empty">찾는 상품이 없습니다.<br>
+        <span style="font-size:12px">아직 마켓에서 안 가져왔을 수도 있습니다 —
+        「현황 보기」에서 「지금 동기화」를 눌러보세요.</span></div>`;
+    } else {
+      listEl.innerHTML = rows.map(row).join('');
+    }
+    hintEl.textContent = j.total > rows.length
+      ? `${j.total.toLocaleString('ko-KR')}건 중 ${rows.length}건을 보여드립니다 — 더 좁혀보세요.`
+      : `${j.total.toLocaleString('ko-KR')}건`;
+    listEl.querySelectorAll('.pk-row').forEach((el) => {
+      el.onclick = () => add(rows.find((r) => String(r.id) === el.dataset.id));
+    });
+  }
+
+  function renderCart() {
+    document.getElementById('pk-cart-hint').textContent = cart.length
+      ? `${cart.length}개 골랐습니다.` : '왼쪽에서 상품을 눌러 담으세요.';
+    if (!cart.length) {
+      cartEl.innerHTML = '<div class="pk-empty">아직 고른 것이 없습니다.</div>';
+      saveBtn.disabled = true;
+      return;
+    }
+    cartEl.innerHTML = cart.map((c, i) => i === 0
+      ? `<div class="pk-lead"><div class="tag">대표</div>
+          <div style="font-weight:700;font-size:12px;margin:0px 0">${esc(c.name)}</div>
+          <div class="pk-sub">${esc(MK[c.market] || c.market)} · ${esc(c.market_product_id)}
+            <span class="pk-x" data-rm="${c.id}">×</span></div></div>`
+      : `<div class="pk-item"><div class="top">
+          <span class="pk-mk">${esc(MK[c.market] || c.market)}</span>
+          <span class="pk-x" data-rm="${c.id}">×</span></div>
+          <div style="font-weight:600">${esc(c.name)}</div>
+          <div class="pk-sub">${esc(c.market_product_id)} ·
+            <button class="pk-mini" data-lead="${c.id}">대표로</button></div></div>`
+    ).join('');
+    saveBtn.disabled = false;
+    cartEl.querySelectorAll('[data-rm]').forEach((el) => {
+      el.onclick = (e) => { e.stopPropagation(); remove(+el.dataset.rm); };
+    });
+    cartEl.querySelectorAll('[data-lead]').forEach((el) => {
+      el.onclick = (e) => { e.stopPropagation(); makeLead(+el.dataset.lead); };
+    });
+  }
+
+  function add(r) {
+    if (!r || cart.some((c) => c.id === r.id)) return;
+    cart.push(r); renderCart(); load();
+  }
+  function remove(id) { cart = cart.filter((c) => c.id !== id); renderCart(); load(); }
+  function makeLead(id) {
+    const i = cart.findIndex((c) => c.id === id);
+    if (i > 0) { cart.unshift(cart.splice(i, 1)[0]); renderCart(); }
+  }
+
+  function load() {
+    const p = new URLSearchParams();
+    const q = document.getElementById('pk-q').value.trim();
+    const m = document.getElementById('pk-market').value;
+    const st = document.getElementById('pk-status').value;
+    if (q) p.set('q', q);
+    if (m) p.set('market', m);
+    if (st) p.set('status', st);
+    fetch('/catalog/api/search?' + p.toString())
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || j.error) {
+          listEl.innerHTML = `<div class="pk-warn">${esc(j.detail || j.error)}</div>`;
+          return;
+        }
+        renderList(j);
+      })
+      .catch((e) => {
+        listEl.innerHTML = `<div class="pk-warn">불러오지 못했습니다 — ${esc(e.message)}</div>`;
+      });
+  }
+
+  function save() {
+    if (!cart.length) return;
+    saveBtn.disabled = true; saveBtn.textContent = '담는 중…';
+    fetch('/catalog/api/groups', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leader_id: cart[0].id, ids: cart.map((c) => c.id) }),
+    })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        saveBtn.textContent = '이대로 담기';
+        if (!ok || !j.ok) {
+          msgEl.innerHTML = `<div class="pk-warn">${esc(j.error || '담지 못했습니다.')}</div>`;
+          saveBtn.disabled = false;
+          return;
+        }
+        const moved = (j.moved || []).length;
+        msgEl.innerHTML = `<div class="pk-ok"><b>「${esc(j.group.name)}」로 담았습니다</b>
+          — 마켓 상품 ${j.group.member_count}개.
+          ${moved ? `<br>${moved}개는 다른 묶음에 있던 것이라 여기로 옮겼습니다.` : ''}</div>`;
+        cart = []; renderCart(); load();
+      })
+      .catch((e) => {
+        saveBtn.disabled = false; saveBtn.textContent = '이대로 담기';
+        msgEl.innerHTML = `<div class="pk-warn">${esc(e.message)}</div>`;
+      });
+  }
+
+  // ④ 치는 대로 — 250ms 뒤 자동 조회. 「찾기」 버튼 없음.
+  document.getElementById('pk-q').oninput = () => {
+    clearTimeout(timer); timer = setTimeout(load, 250);
+  };
+  document.getElementById('pk-market').onchange = load;
+  document.getElementById('pk-status').onchange = load;
+  saveBtn.onclick = save;
+
+  renderCart();
+  load();
+})();
+</script>

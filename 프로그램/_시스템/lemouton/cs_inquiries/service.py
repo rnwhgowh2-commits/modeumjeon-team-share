@@ -1,0 +1,446 @@
+"""CS 고객문의 서비스 — 마켓별 조회 정규화 + 그룹핑 + 완료 7일/삭제 필터.
+
+★쿠팡/스스 응답 필드는 미검증 → _normalize_* 에서 방어적 폴백. 라이브 보정 대상.
+전송(reply)은 LEMOUTON_LIVE_INQUIRY_REPLY OFF(기본) — 미리보기만.
+"""
+import datetime as _dt
+import os as _os
+import re as _re
+
+from shared.db import SessionLocal
+from lemouton.cs_inquiries.models import InquiryHandling
+from shared.platforms.coupang.inquiries import (
+    fetch_online_inquiries as _cp_fetch,
+    fetch_call_center_inquiries as _cp_cc_fetch,
+    reply_online_inquiry as _cp_reply,
+)
+from shared.platforms.smartstore.orders import (
+    fetch_inquiries as _ss_fetch,
+    fetch_product_qnas as _ss_qna,
+    reply_inquiry as _ss_reply,
+)
+from shared.platforms.lotteon.inquiries import (
+    iter_product_qna as _lo_pdqna,
+    iter_seller_inquiries as _lo_seller,
+)
+from shared.platforms.eleven11.inquiries import (
+    iter_product_qna as _e11_pdqna,
+    iter_emergency as _e11_alimi,
+)
+
+_SUPPORTED = {"coupang", "smartstore", "lotteon", "eleven11",
+              "auction", "gmarket"}   # 실조회 코드 있음 (옥션·G마켓 2026-07-21 배선)
+_MK_KO = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온",
+          "eleven11": "11번가", "auction": "옥션", "gmarket": "G마켓"}
+
+
+def _ymd(s):
+    m = _re.search(r"(\d{4})[-./]?(\d{2})[-./]?(\d{2})", str(s or ""))
+    if not m:
+        return None
+    try:
+        return _dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
+def _g(d, *keys, default=""):
+    for k in keys:
+        v = d.get(k)
+        if v not in (None, ""):
+            return v
+    return default
+
+
+def _normalize_coupang(it):
+    """쿠팡 온라인 고객문의(상품 상세 문의). ★라이브 실측 필드(2026-07-16).
+
+    응답에 구매자명·상품명 없음(productId/sellerProductId만) — 상품=판매자상품번호로 대체.
+    답변여부=commentDtoList(답변 목록) 비어있지 않으면 답변완료.
+    """
+    comments = it.get("commentDtoList")
+    answered = bool(comments) if isinstance(comments, list) else bool(_g(it, "answeredAt"))
+    return {"마켓": "쿠팡", "문의형태": "온라인문의", "문의ID": str(_g(it, "inquiryId")),
+            "고객": "",                                    # API 미제공
+            "상품": _g(it, "sellerProductId", "productId"),  # 상품명 없음 → 판매자상품번호
+            "문의내용": _g(it, "content"), "일시": _g(it, "inquiryAt"),
+            "상태": "답변완료" if answered else "미답변", "답변내용": "",
+            "답변일": _g(it, "answeredAt")}
+
+
+def _normalize_coupang_cc(it):
+    """쿠팡 고객센터 문의(상담 경유). ★라이브 실측 필드(2026-07-16).
+
+    content 는 "상담이력" 고정 → receiptCategory(유형)로 대체. 상품=itemName(실명 있음).
+    고객=buyerEmail/buyerPhone(마스킹). 답변여부=csPartnerCounselingStatus/answeredAt.
+    """
+    st = str(_g(it, "csPartnerCounselingStatus", "inquiryStatus")).lower()
+    answered = bool(_g(it, "answeredAt")) or st in ("answered", "answer", "completed", "complete")
+    body = _g(it, "content")
+    cat = _g(it, "receiptCategory")
+    if body in ("", "상담이력"):
+        body = cat or "상담 문의"
+    return {"마켓": "쿠팡", "문의형태": "고객센터문의", "문의ID": str(_g(it, "inquiryId")),
+            "고객": _g(it, "buyerEmail", "buyerPhone"),
+            "상품": _g(it, "itemName", "vendorItemId"),
+            "문의내용": (f"[{cat}] {body}" if cat and body != cat else body),
+            "일시": _g(it, "inquiryAt", "orderDate"),
+            "상태": "답변완료" if answered else "미답변", "답변내용": "",
+            "답변일": _g(it, "answeredAt")}
+
+
+def _normalize_ss_customer(it):
+    """스스 고객 문의(주문·고객문의, pay-user/inquiries). ★API 센터 실측 필드."""
+    ttl = _g(it, "title")
+    body = _g(it, "inquiryContent")
+    return {"마켓": "스마트스토어", "문의형태": "주문고객문의", "문의ID": str(_g(it, "inquiryNo")),
+            "고객": _g(it, "customerName"), "상품": _g(it, "productName", "productOrderOption"),
+            "문의내용": (f"[{_g(it,'category')}] {ttl} · {body}" if ttl else body),
+            "일시": _g(it, "inquiryRegistrationDateTime"),
+            "상태": "답변완료" if bool(it.get("answered")) else "미답변",
+            "답변내용": _g(it, "answerContent"), "답변일": _g(it, "answerRegistrationDateTime")}
+
+
+def _normalize_ss_qna(it):
+    """스스 상품 문의(상품Q&A, contents/qnas). ★API 센터 실측 필드."""
+    return {"마켓": "스마트스토어", "문의형태": "상품문의", "문의ID": str(_g(it, "questionId")),
+            "고객": _g(it, "maskedWriterId"), "상품": _g(it, "productName"),
+            "문의내용": _g(it, "question"), "일시": _g(it, "createDate"),
+            "상태": "답변완료" if bool(it.get("answered")) else "미답변",
+            "답변내용": _g(it, "answer"), "답변일": ""}
+
+
+def _normalize_lotteon_pdqna(it):
+    """롯데온 상품QnA(상품문의). 응답에 고객명·상품명 없음(spdNo=판매자상품번호만)."""
+    st = _g(it, "qnaStatCd")
+    return {"마켓": "롯데온", "문의형태": "상품문의", "문의ID": str(_g(it, "pdQnaNo")),
+            "고객": "", "상품": _g(it, "spdNo"),
+            "문의내용": _g(it, "qstCnts"), "일시": _g(it, "regDttm"),
+            "상태": "미답변" if st == "NPROC" else "답변완료",   # PROC/CC_TCTL=처리됨
+            "답변내용": "", "답변일": ""}
+
+
+def _normalize_lotteon_seller_inq(it):
+    """롯데온 판매자문의. 상품명(pdNm)·답변(ansCnts) 있음."""
+    st = _g(it, "slrInqProcStatCd")
+    ttl = _g(it, "inqTtl")
+    body = _g(it, "inqCnts")
+    return {"마켓": "롯데온", "문의형태": "판매자문의", "문의ID": str(_g(it, "slrInqNo")),
+            "고객": "", "상품": _g(it, "pdNm", "spdNm"),
+            "문의내용": (f"{ttl} · {body}" if ttl else body),
+            "일시": _g(it, "accpDttm"),
+            "상태": "답변완료" if st == "ANS" else "미답변",
+            "답변내용": _g(it, "ansCnts"), "답변일": _g(it, "procDttm")}
+
+
+def _normalize_eleven11_qna(it):
+    """11번가 상품 QnA(상품문의). ★셀러 API 실측 필드(XML)."""
+    ttl = _g(it, "brdInfoSbjct")
+    body = _g(it, "brdInfoCont")
+    cat = _g(it, "qnaDtlsCdNm")
+    return {"마켓": "11번가", "문의형태": "상품문의", "문의ID": str(_g(it, "brdInfoNo")),
+            "고객": _g(it, "memNM", "memID"), "상품": _g(it, "prdNm", "brdInfoClfNo"),
+            "문의내용": (f"[{cat}] {ttl} · {body}" if ttl else (f"[{cat}] {body}" if cat else body)),
+            "일시": _g(it, "createDt"),
+            "상태": "답변완료" if _g(it, "answerYn") == "Y" else "미답변",
+            "답변내용": _g(it, "answerCont"), "답변일": _g(it, "answerDt")}
+
+
+def _normalize_esm_qna(market_ko, it):
+    """ESM 판매자문의(bulletin-board).
+
+    ★ 실제 응답 필드는 전부 소문자 camelCase 다(2026-07-22 라이브 실측:
+      messageNo·details·title·inquirerName·informStatus·receiveDate·answerDate…).
+      문서(지도)는 PascalCase 로 적혀 있어 그대로 쓰면 전부 빈칸이 된다 — 문서 표기는 폴백.
+    문의 본문 = title + details. reply 용 token 도 응답에 있다(답변 배선 시 사용).
+    """
+    st = str(_g(it, "informStatus", "InformStatus"))
+    ttl = str(_g(it, "title", default="")).strip()
+    body = str(_g(it, "details", "question", "contents", default="")).strip()
+    cat = _g(it, "contractType")
+    txt = " · ".join(x for x in (ttl, body) if x)
+    return {"마켓": market_ko, "문의형태": "판매자문의",
+            "문의ID": str(_g(it, "messageNo", "MessageNo")),
+            "고객": _g(it, "inquirerName", "BuyerId"),
+            "상품": str(_g(it, "siteGoodsNo", "goodsNo", "GoodsName", default="")),
+            "문의내용": (f"[{cat}] {txt}" if cat else txt),
+            "일시": _g(it, "receiveDate", "ReceiveDate"),
+            "상태": "답변완료" if "완료" in st else "미답변",
+            "답변내용": _g(it, "answer"), "답변일": _g(it, "answerDate", "AnswerDate")}
+
+
+def _normalize_esm_alimi(market_ko, it):
+    """ESM 긴급알리미. 판매자문의와 같은 이유로 소문자 camelCase 우선(문서 표기는 폴백)."""
+    st = str(_g(it, "informStatus", "InformStatus"))
+    ttl = str(_g(it, "title", default="")).strip()
+    body = str(_g(it, "details", "contents", "question", default="")).strip()
+    cat = _g(it, "contactType", "ContactType")
+    ono = _g(it, "orderNo", "OrderNo")
+    txt = " · ".join(x for x in (ttl, body) if x)
+    return {"마켓": market_ko, "문의형태": "긴급알리미",
+            "문의ID": str(_g(it, "emerMessageNo", "EmerMessageNo")),
+            "고객": _g(it, "inquirerName", "buyerId", "BuyerId"),
+            "상품": str(_g(it, "siteGoodsNo", "goodsNo", "GoodsName", default="")),
+            "문의내용": (f"[{cat}] {txt}" if cat else txt)
+                      + (f" (주문 {ono})" if ono and str(ono) != "-" else ""),
+            "일시": _g(it, "receiveDate", "ReceiveDate"),
+            "상태": "답변완료" if "완료" in st else "미답변",
+            "답변내용": _g(it, "answer", "Comments"), "답변일": _g(it, "answerDate", "AnswerDate")}
+
+
+def _normalize_eleven11_alimi(it):
+    """11번가 긴급알리미(긴급문의·긴급알림톡). ★셀러 API 실측 필드(XML). 조회 전용(답변 API 중지)."""
+    kind = _g(it, "emerNtceClfNm1") or "긴급알리미"
+    subj = _g(it, "emerNtceSubject")
+    body = _g(it, "emerCtnt")
+    cat = "/".join([c for c in (_g(it, "emerNtceClfNm2"), _g(it, "emerNtceClfNm3")) if c])
+    dt = (_g(it, "createDt") + " " + _g(it, "createTm")).strip()
+    st = _g(it, "emerNtceCrntCd")   # 03답변완료·05재답변완료·06처리완료=처리됨
+    return {"마켓": "11번가", "문의형태": kind, "문의ID": str(_g(it, "emerNtceSeq")),
+            "고객": _g(it, "memNm", "memId"), "상품": _g(it, "prdNm"),
+            "문의내용": (f"[{cat}] {subj} · {body}" if subj else (f"[{cat}] {body}" if cat else body)),
+            "일시": dt,
+            "상태": "답변완료" if st in ("03", "05", "06") else "미답변",
+            "답변내용": _g(it, "emerReplyCtnt"), "답변일": ""}
+
+
+def _acct_clients(market):
+    """판매처관리 등록 계정별 설정 클라이언트(인증키·IP 포함). 없으면 대표계정 폴백."""
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    out = []
+    for prefix, _name in _active_accounts(market):
+        c = _account_client(market, prefix)
+        if c is not None:
+            out.append(c)
+    if not out:
+        c = _account_client(market, None)
+        if c is not None:
+            out.append(c)
+    return out
+
+
+def _coupang_clients():
+    """판매처관리에 등록된 쿠팡 계정별 설정 클라이언트(_cfg.vendor_id 포함). 없으면 대표계정 폴백."""
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    out = []
+    for prefix, _name in _active_accounts("coupang"):
+        c = _account_client("coupang", prefix)
+        if c is not None:
+            out.append(c)
+    if not out:
+        c = _account_client("coupang", None)
+        if c is not None:
+            out.append(c)
+    return out
+
+
+def _cp_items(raw):
+    """쿠팡 문의 응답에서 문의 리스트 추출. 응답이 봉투형(data.content 등)이든 평탄이든 안전하게.
+
+    ★실제 키는 라이브 검증 대상 — content/inquiries/onlineInquiries/items 순으로 시도.
+    """
+    if not isinstance(raw, dict):
+        return []
+    data = raw.get("data")
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for k in ("content", "inquiries", "onlineInquiries", "items", "list"):
+            v = data.get(k)
+            if isinstance(v, list):
+                return v
+    # data 없거나 구조 다름 — 최상위에서도 흔한 키 시도
+    for k in ("content", "inquiries", "items"):
+        v = raw.get(k)
+        if isinstance(v, list):
+            return v
+    return []
+
+
+def _cp_inq_windows(since, until, days=6):
+    """쿠팡 문의 조회 최대 7일 제약 → [since,until]을 ≤days 청크로 분할(경계 안전 6일)."""
+    cur = since
+    step = _dt.timedelta(days=days)
+    if until <= since:
+        yield since, until
+        return
+    while cur < until:
+        nxt = min(cur + step, until)
+        yield cur, nxt
+        cur = nxt
+
+
+def _fetch_market(market, since, until, status):
+    """마켓 어댑터 → 정규화 dict 리스트. 페이지네이션(안전상한). ★필드명 라이브 보정 대상."""
+    if market == "coupang":
+        out = []
+        for _cli in _coupang_clients():
+            for _w0, _w1 in _cp_inq_windows(since, until):   # 쿠팡 문의 조회 최대 7일 → 6일 청크 분할
+                page = 1
+                for _ in range(30):   # 온라인 고객문의(상품)
+                    raw = _cp_fetch(_w0, _w1, client=_cli, answered_type="ALL", page_size=50, page_num=page)
+                    items = _cp_items(raw)   # data 가 봉투(dict{content}) or 리스트 — 방어적 추출
+                    out.extend(_normalize_coupang(it) for it in items if isinstance(it, dict))
+                    if len(items) < 50:
+                        break
+                    page += 1
+                page = 1
+                for _ in range(30):   # 고객센터 문의(상담 경유)
+                    try:
+                        raw = _cp_cc_fetch(_w0, _w1, client=_cli, counseling_status="NONE", page_size=50, page_num=page)
+                    except Exception:   # noqa: BLE001 — 고객센터 조회 실패는 온라인 문의 유지(부가)
+                        break
+                    items = _cp_items(raw)
+                    out.extend(_normalize_coupang_cc(it) for it in items if isinstance(it, dict))
+                    if len(items) < 50:
+                        break
+                    page += 1
+        return out
+    if market == "smartstore":
+        out = []
+        for _cli in _acct_clients("smartstore"):
+            page = 1   # 고객문의(주문·고객) — content[] / last
+            for _ in range(30):
+                raw = _ss_fetch(since, until, client=_cli, page_size=200, page_number=page)
+                items = raw.get("content") or []
+                out.extend(_normalize_ss_customer(it) for it in items if isinstance(it, dict))
+                if raw.get("last") is True or len(items) < 200:
+                    break
+                page += 1
+            page = 1   # 상품Q&A — contents[] / last
+            for _ in range(30):
+                try:
+                    raw = _ss_qna(since, until, client=_cli, page_size=100, page_number=page)
+                except Exception:   # noqa: BLE001 — Q&A 실패는 고객문의 유지(부분성공)
+                    break
+                items = raw.get("contents") or []
+                out.extend(_normalize_ss_qna(it) for it in items if isinstance(it, dict))
+                if raw.get("last") is True or len(items) < 100:
+                    break
+                page += 1
+        return out
+    if market == "lotteon":
+        out = []
+        for _cli in _acct_clients("lotteon"):
+            try:   # 상품QnA(상품문의)
+                out.extend(_normalize_lotteon_pdqna(it) for it in _lo_pdqna(since, until, client=_cli))
+            except Exception:   # noqa: BLE001 — 한 종류 실패는 다른 종류 유지
+                pass
+            try:   # 판매자문의
+                out.extend(_normalize_lotteon_seller_inq(it) for it in _lo_seller(since, until, client=_cli))
+            except Exception:   # noqa: BLE001
+                pass
+        return out
+    if market == "eleven11":
+        out, last_err = [], None
+        for _cli in _acct_clients("eleven11"):
+            cfg = getattr(_cli, "_cfg", None)   # CS 인박스=대화형 → 빠른 실패(경고 표면화)
+            if isinstance(cfg, dict):
+                cfg["request_timeout_sec"] = min(int(cfg.get("request_timeout_sec", 30) or 30), 10)
+                cfg["max_retries"] = 0
+            try:   # 상품 QnA(상품문의)
+                out.extend(_normalize_eleven11_qna(it) for it in _e11_pdqna(since, until, client=_cli))
+            except Exception as e:   # noqa: BLE001 — 한 계정/종류 실패는 나머지 유지
+                last_err = e
+            try:   # 긴급알리미 중 '고객 문의'만(긴급문의·톡). 긴급알림=셀러 공지(페널티/발송지연)라 제외
+                out.extend(_normalize_eleven11_alimi(it) for it in _e11_alimi(since, until, client=_cli)
+                           if ("문의" in _g(it, "emerNtceClfNm1")) or ("톡" in _g(it, "emerNtceClfNm1")))
+            except Exception as e:   # noqa: BLE001
+                last_err = e
+        if not out and last_err is not None:
+            raise last_err   # 전부 실패 → list_inquiries가 warnings로 표면화(조용한 실패 금지)
+        return out
+    if market in ("auction", "gmarket"):
+        from shared.platforms.esm import inquiries as _esm_inq
+        mk_ko = _MK_KO[market]
+        out, last_err = [], None
+        for _cli in _acct_clients(market):
+            try:   # 판매자문의
+                out.extend(_normalize_esm_qna(mk_ko, it)
+                           for it in _esm_inq.iter_seller_qna(market, since, until, client=_cli))
+            except Exception as e:   # noqa: BLE001 — 한 계정/종류 실패는 나머지 유지
+                last_err = e
+            try:   # 긴급알리미
+                out.extend(_normalize_esm_alimi(mk_ko, it)
+                           for it in _esm_inq.iter_emergency(market, since, until, client=_cli))
+            except Exception as e:   # noqa: BLE001
+                last_err = e
+        if not out and last_err is not None:
+            raise last_err   # 전부 실패 → warnings 로 표면화(조용한 실패 금지)
+        return out
+    raise RuntimeError(f"{_MK_KO.get(market, market)} 문의 연동 준비 중")
+
+
+def inquiry_key_of(row):
+    return f'{row.get("마켓","")}:{row.get("문의ID","")}'
+
+
+def list_inquiries(markets, *, since, until, now=None, session=None):
+    own = session is None
+    session = session or SessionLocal()
+    try:
+        today = (now or _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=9)))).date()
+        _KST = _dt.timezone(_dt.timedelta(hours=9))
+        _until = until or (now or _dt.datetime.now(_KST))
+        _since = since or (_until - _dt.timedelta(days=7))
+        all_rows, warnings = [], []
+        for mk in markets:
+            if mk not in _SUPPORTED:
+                warnings.append(f"[{_MK_KO.get(mk, mk)}] 문의 연동 준비 중")
+                continue
+            try:
+                all_rows.extend(_fetch_market(mk, _since, _until, "ALL"))
+            except Exception as e:   # noqa: BLE001
+                warnings.append(f"[{_MK_KO.get(mk, mk)}] 문의 조회 실패: {e}")
+        keys = [inquiry_key_of(r) for r in all_rows]
+        dismissed = {h.inquiry_key for h in
+                     session.query(InquiryHandling).filter(InquiryHandling.inquiry_key.in_(keys or [""])).all()
+                     if h.dismissed_at is not None}
+        groups = {"미답변": [], "답변완료": []}
+        counts = {"전체": 0}
+        for r in all_rows:
+            r = dict(r)
+            r["inquiry_key"] = inquiry_key_of(r)
+            if r["상태"] == "답변완료":
+                d = _ymd(r.get("답변일") or r.get("일시"))
+                if r["inquiry_key"] in dismissed or (d is not None and (today - d).days > 7):
+                    continue
+            groups[r["상태"]].append(r)
+            counts["전체"] += 1
+            counts[r["마켓"]] = counts.get(r["마켓"], 0) + 1
+        return {"groups": groups, "market_counts": counts, "warnings": warnings}
+    finally:
+        if own:
+            session.close()
+
+
+def dismiss_inquiry(inquiry_key, *, market="", session=None):
+    own = session is None
+    session = session or SessionLocal()
+    try:
+        row = session.query(InquiryHandling).filter_by(inquiry_key=inquiry_key).one_or_none()
+        if row is None:
+            row = InquiryHandling(inquiry_key=inquiry_key, market=market)
+            session.add(row)
+        row.dismissed_at = _dt.datetime.now(_dt.timezone.utc)
+        session.commit()
+    finally:
+        if own:
+            session.close()
+
+
+def _live_reply_on():
+    return _os.getenv("LEMOUTON_LIVE_INQUIRY_REPLY", "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def reply_preview(market, inquiry_id, content):
+    """답변 미리보기. LIVE OFF(기본)면 실전송 안 함(거짓 전송 금지)."""
+    if not _live_reply_on():
+        return {"sent": False, "preview": content, "note": "전송 준비 중(검증 후 열림)"}
+    if market == "coupang":
+        _cp_reply(inquiry_id, content)
+    elif market == "smartstore":
+        _ss_reply(inquiry_id, content)
+    else:
+        raise RuntimeError(f"{market} 답변 전송 미지원")
+    return {"sent": True, "preview": content}

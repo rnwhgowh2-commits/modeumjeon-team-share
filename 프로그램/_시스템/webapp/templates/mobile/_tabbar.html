@@ -1,0 +1,14 @@
+{# 하단 탭 — 항목은 webapp/routes/mobile_shell.py 의 PHONE_NATIVE_ROWS(tab 필드)에서만 온다.
+   여기에 주소·이름을 직접 적으면 「같은 사실 두 곳에 적기」가 폰 안에서 재발한다
+   (시험 test_탭은_주소를_템플릿에_직접_적지_않는다 가 지킨다).
+   ms_tab_rows 가 admin 여부까지 반영한다 — member 에게 크롤 칸은 아예 안 실린다
+   (남기면 누르는 순간 403, '눌러도 아무 일 없는 버튼'). 빈 자리는 안 남는다:
+   .ms-tab 이 flex:1 이라 3칸이면 3등분된다. #}
+{% set ms_active = ms_active_tab(request.path) %}
+<nav class="ms-tabbar" role="navigation" aria-label="하단 탭">
+  {% for t in ms_tab_rows() %}
+  <a href="{{ t.url }}" class="ms-tab{% if t.tab.key == ms_active %} on{% endif %}"
+     {%- if t.tab.key == ms_active %} aria-current="page"{% endif %}><span
+      class="ms-tab-icon" aria-hidden="true">{{ t.tab.icon }}</span>{{ t.tab.label }}</a>
+  {% endfor %}
+</nav>

@@ -4,197 +4,179 @@
 <style>
 /* ── 소싱처 크롤링 가이드 상세 · 에어리 클린 스타일 ── scoped under .sgd */
 .sgd *{box-sizing:border-box;}
-.sgd{max-width:980px;margin:0 auto;padding:32px 20px 80px;font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;font-size:14px;line-height:1.6;color:#191F28;-webkit-font-smoothing:antialiased;}
-.sgd .hd{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
-.sgd .hd .back{font-size:12.5px;color:#3182F6;font-weight:600;cursor:pointer;text-decoration:none;}
-.sgd .hd h2{font-size:19px;font-weight:800;}
-.sgd .hd .save-btn{margin-left:auto;font-size:12.5px;font-weight:700;color:#fff;background:#3182F6;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;}
-.sgd .hd .save-btn:hover{background:#1a6fe0;}
-.sgd .sec{margin-bottom:22px;}
-.sgd .st{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-.sgd .st .n{width:21px;height:21px;border-radius:6px;background:#191F28;color:#fff;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;}
-.sgd .st .tt{font-size:14.5px;font-weight:700;}
-.sgd .st .sub{font-size:11.5px;color:#8B95A1;font-weight:500;}
-.sgd .card{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 10px rgba(0,0,0,.05);}
+.sgd{max-width:980px;margin:0 auto;padding:32px 16px 48px;font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;font-size:14px;line-height:1.6;color:var(--ink,#191F28);-webkit-font-smoothing:antialiased;}
+.sgd .hd{display:flex;align-items:center;gap:8px;margin-bottom:24px;}
+.sgd .hd .back{font-size:12px;color: var(--글자-파랑, var(--primary,#3182F6));font-weight:600;cursor:pointer;text-decoration:none;}
+.sgd .hd h2{font-size:17px;font-weight:800;}
+.sgd .hd .save-btn{margin-left:auto;font-size:12px;font-weight:700;color:#fff;background: var(--바탕-파랑, var(--primary,#3182F6));border:none;border-radius:8px;padding:8px 16px;cursor:pointer;}
+.sgd .hd .save-btn:hover{background:var(--primary,#1a6fe0);}
+.sgd .sec{margin-bottom:24px;}
+.sgd .st{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.sgd .st .n{width:21px;height:21px;border-radius:8px;background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.sgd .st .tt{font-size:14px;font-weight:700;}
+.sgd .st .sub{font-size:12px;color:var(--sub,#8B95A1);font-weight:500;}
+.sgd .card{background:var(--surface,#ffffff);border-radius:12px;padding:16px 16px;}
 
 /* ① URL 행 */
-.sgd .urlrow{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;background:#F7F8FA;margin-bottom:6px;font-size:12.5px;}
-.sgd .urlrow .lead-chip{font-size:10px;font-weight:700;color:#3182F6;border:1px solid #3182F6;border-radius:999px;padding:1px 6px;text-align:center;white-space:nowrap;}
+.sgd .urlrow{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--n100,#F7F8FA);margin-bottom:4px;font-size:12px;}
+.sgd .urlrow .lead-chip{font-size:12px;font-weight:700;color: var(--글자-파랑, var(--primary,#3182F6));border:1px solid var(--primary,#3182F6);border-radius:999px;padding:0px 4px;text-align:center;white-space:nowrap;}
 .sgd .urlrow .lead-empty{border:none;width:34px;}
-.sgd .urlrow .u{font-family:ui-monospace,monospace;color:#3A4A5A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sgd .urlrow .op{font-size:11.5px;color:#3182F6;white-space:nowrap;text-decoration:none;}
+.sgd .urlrow .u{font-family:ui-monospace,monospace;color:var(--글자-기본,#3A4A5A);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sgd .urlrow .op{font-size:12px;color: var(--글자-파랑, var(--primary,#3182F6));white-space:nowrap;text-decoration:none;}
 .sgd .urlrow .op:hover{text-decoration:underline;}
-.sgd .addbtn{font-size:12px;color:#6B7684;padding:8px 2px 0;cursor:pointer;background:none;border:none;}
+.sgd .addbtn{font-size:12px;color:var(--글자-보조,#6B7684);padding:8px 0px 0;cursor:pointer;background:none;border:none;}
+.sgd .urlrow .ops{display:flex;align-items:center;gap:8px;white-space:nowrap;}
+.sgd .urlrow .op.del{color: var(--글자-빨강, var(--red,#C0392B));cursor:pointer;}
+.sgd .urlrow input.newu{width:100%;border:1px solid var(--faint,#D1D6DB);border-radius:8px;padding:4px 8px;font-size:12px;font-family:ui-monospace,monospace;}
+.sgd .urlrow.bad input.newu{border-color:var(--red,#C0392B);background:var(--n100,#FFF7F7);}
+.sgd .urlrow .badmsg{grid-column:2/4;font-size:12px;color: var(--글자-빨강, var(--red,#C0392B));padding-top:4px;}
 
 /* ② 크롤 구조 분석 테이블 */
-.sgd table.t2{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
-.sgd table.t2 th{text-align:left;font-size:11px;color:#8B95A1;font-weight:700;padding:8px;border-bottom:1px solid #EEF0F3;}
-.sgd table.t2 td{padding:10px 8px;border-bottom:1px solid #F4F5F7;vertical-align:middle;}
+.sgd table.t2{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+.sgd table.t2 th{text-align:left;font-size:12px;color:var(--sub,#8B95A1);font-weight:700;padding:8px;border-bottom:1px solid var(--line2,#EEF0F3);}
+.sgd table.t2 td{padding:8px 8px;border-bottom:1px solid var(--line2,#F4F5F7);vertical-align:middle;}
 .sgd table.t2 tr:last-child td{border-bottom:none;}
 /* inputs styled as chips/loc */
-.sgd .sg-method{display:inline-block;border:1px solid #E1E4E8;border-radius:6px;padding:3px 8px;font-size:11.5px;font-family:ui-monospace,monospace;color:#4E5968;background:#FAFBFC;width:100%;}
-.sgd .sg-loc{font-family:ui-monospace,monospace;color:#3A4A5A;font-size:11.5px;border:1px solid #E1E4E8;border-radius:4px;padding:3px 6px;width:100%;background:#FAFBFC;}
-.sgd .sg-fstatus{font-size:11.5px;border:1px solid #E1E4E8;border-radius:4px;padding:3px 6px;width:54px;background:#FAFBFC;}
-.sgd .ok-badge{color:#10B981;font-weight:700;font-size:11.5px;}
-.sgd .wn-badge{color:#F59E0B;font-weight:700;font-size:11.5px;}
+.sgd .sg-method{display:inline-block;border:1px solid var(--line,#E1E4E8);border-radius:8px;padding:4px 8px;font-size:12px;font-family:ui-monospace,monospace;color:var(--글자-기본,#4E5968);background:var(--n100,#FAFBFC);width:100%;}
+.sgd .sg-loc{font-family:ui-monospace,monospace;color:var(--글자-기본,#3A4A5A);font-size:12px;border:1px solid var(--line,#E1E4E8);border-radius:0px;padding:4px 4px;width:100%;background:var(--n100,#FAFBFC);}
+.sgd .sg-fstatus{font-size:12px;border:1px solid var(--line,#E1E4E8);border-radius:0px;padding:4px 4px;width:54px;background:var(--n100,#FAFBFC);}
+.sgd .ok-badge{color: var(--글자-초록, var(--green,#10B981));font-weight:700;font-size:12px;}
+.sgd .wn-badge{color:#F59E0B;font-weight:700;font-size:12px;}
 /* ② 2축 분류 배지 (수집 방식 + 인증 + 상태) — Claude가 채운 결과 읽기용 */
-.sgd table.t2 td .fico{font-size:14px;margin-right:6px;}
-.sgd .bdg{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
-.sgd .bdg.m-html{background:#EAF2FF;color:#1B64DA;}
-.sgd .bdg.m-api{background:#FFF3E6;color:#E8830C;}
-.sgd .bdg.m-crawl{background:#EEF1F4;color:#4E5968;}
+.sgd table.t2 td .fico{font-size:14px;margin-right:4px;}
+.sgd .bdg{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:4px 8px;border-radius:18px;white-space:nowrap;}
+.sgd .bdg.m-html{background:var(--연한-파랑,#EAF2FF);color:#1B64DA;}
+.sgd .bdg.m-api{background:var(--연한-주황,#FFF3E6);color: var(--글자-주황, var(--amber,#E8830C));}
+.sgd .bdg.m-crawl{background:var(--line2,#EEF1F4);color:var(--글자-기본,#4E5968);}
 .sgd .bdg.m-manual{background:#F3EEFF;color:#7C3AED;}
-.sgd .bdg.m-none{background:#F4F5F7;color:#B0B8C1;}
-.sgd .bdg.a-auth{background:#FFEDED;color:#E0392B;}
-.sgd .bdg.a-open{background:#EEF1F4;color:#8B95A1;}
-.sgd .bdg.s-ok{background:#E7F6EF;color:#11A36B;}
-.sgd .bdg.s-warn{background:#FFF3E0;color:#E8830C;}
-.sgd .bdg.s-none{background:#F4F5F7;color:#B0B8C1;}
-.sgd .t2-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px;font-size:10.5px;color:#8B95A1;}
-.sgd .t2-legend b{color:#4E5968;}
-.sgd .note-row td{border-bottom:1px solid #F4F5F7;padding-top:0;padding-bottom:9px;}
-.sgd .note-cell{display:flex;align-items:center;gap:6px;padding-left:22px;}
-.sgd .note-cell .tg{font-size:9.5px;font-weight:700;color:#B0B8C1;background:#F2F4F6;padding:1px 6px;border-radius:5px;flex:0 0 auto;}
-.sgd .sg-note{border:none;border-bottom:1px dashed #DDE1E6;font-size:11px;color:#6B7684;padding:2px 0;width:100%;background:transparent;}
+.sgd .bdg.m-none{background:var(--line2,#F4F5F7);color: var(--글자-희미, var(--faint,#B0B8C1));}
+.sgd .bdg.a-auth{background:var(--연한-빨강,#FFEDED);color: var(--글자-빨강, var(--red,#E0392B));}
+.sgd .bdg.a-open{background:var(--line2,#EEF1F4);color:var(--sub,#8B95A1);}
+.sgd .bdg.s-ok{background:var(--연한-초록,#E7F6EF);color: var(--글자-초록, var(--green,#11A36B));}
+.sgd .bdg.s-warn{background:var(--연한-주황,#FFF3E0);color: var(--글자-주황, var(--amber,#E8830C));}
+.sgd .bdg.s-none{background:var(--line2,#F4F5F7);color: var(--글자-희미, var(--faint,#B0B8C1));}
+.sgd .t2-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-bottom:8px;font-size:12px;color:var(--sub,#8B95A1);}
+.sgd .t2-legend b{color:var(--글자-기본,#4E5968);}
+.sgd .note-row td{border-bottom:1px solid var(--line2,#F4F5F7);padding-top:0;padding-bottom:8px;}
+.sgd .note-cell{display:flex;align-items:center;gap:4px;padding-left:24px;}
+.sgd .note-cell .tg{font-size:12px;font-weight:700;color: var(--글자-희미, var(--faint,#B0B8C1));background:var(--n100,#F2F4F6);padding:0px 4px;border-radius:8px;flex:0 0 auto;}
+.sgd .sg-note{border:none;border-bottom:1px dashed var(--line,#DDE1E6);font-size:12px;color:var(--글자-보조,#6B7684);padding:0px 0;width:100%;background:transparent;}
 
-/* ③ 최종 매입가 로직 — 포함(혜택별)/제외(공통) */
-.sgd .sg3card{padding:18px 20px;}
-.sgd .sg3{display:grid;grid-template-columns:1fr 320px;gap:22px;align-items:start;}
-.sgd .sg3-side{position:sticky;top:14px;background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:14px;}
-.sgd .zhead{font-size:14.5px;font-weight:800;margin-bottom:13px;}
-.sgd .zhead span{font-size:12px;font-weight:600;color:#5E6670;}
-.sgd .cat{margin-bottom:16px;}
-.sgd .cathead{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-.sgd .cbadge{color:#fff;font-size:11.5px;font-weight:800;border-radius:7px;padding:3px 11px;}
-.sgd .cnt{font-size:11.5px;color:#5E6670;font-weight:700;}
-.sgd .cardlist{display:flex;flex-direction:column;gap:10px;}
-.sgd .bcard{background:#fff;border:1px solid #E1E5EA;border-radius:11px;padding:13px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05);}
-.sgd .bcard .bch{display:flex;align-items:center;gap:6px;margin-bottom:7px;}
-.sgd .bcard .bn{font-size:14px;font-weight:600;flex:1;border:1px solid transparent;border-radius:8px;padding:6px 10px;color:#4E5968;min-width:0;font-family:inherit;background:#F1F3F5;}
-.sgd .bcard .bn:focus{outline:none;background:#fff;border-color:#3182F6;color:#191F28;}
-.sgd .bcard .bn::placeholder{color:#9aa3ab;font-weight:500;}
-.sgd .bcard .bdel,.sgd .exdel{border:none;background:#F2F4F6;color:#7a838c;width:22px;height:22px;border-radius:6px;font-size:14px;cursor:pointer;flex:0 0 22px;line-height:1;}
-.sgd .bcard .bdel:hover,.sgd .exdel:hover{background:#FFE9EC;color:#E0392B;}
-.sgd .brule{width:100%;font-size:12px;color:#46505B;font-weight:600;border:none;padding:3px 0;margin-bottom:11px;font-family:inherit;background:none;}
-.sgd .brule:focus{outline:none;color:#191F28;}
-/* 혜택 '값' 입력칸 + 단위 토글 (시안 B) */
-.sgd .bvalrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:7px;}
-.sgd .bval-wrap{display:inline-flex;align-items:center;border:1.5px solid #DCE0E5;border-radius:10px;overflow:hidden;background:#fff;}
-.sgd .bval-wrap:focus-within{border-color:#3182F6;}
-.sgd .bval{border:none;outline:none;font-size:18px;font-weight:800;color:#191F28;font-family:inherit;width:94px;text-align:right;padding:7px 4px 7px 13px;background:none;}
-.sgd .bval::placeholder{color:#C2C8CF;}
-.sgd .bunit{font-size:15px;font-weight:800;color:#8B95A1;padding:0 13px 0 6px;}
-.sgd .btgl-seg{display:inline-flex;border:1px solid #DCE0E5;border-radius:9px;overflow:hidden;}
-.sgd .btgl{border:none;background:#F1F3F5;color:#6B7684;font-size:12px;font-weight:800;padding:8px 14px;cursor:pointer;font-family:inherit;}
-.sgd .btgl.on{background:#3182F6;color:#fff;}
-.sgd .bprev{font-size:11.5px;color:#0E7C3A;font-weight:700;margin-bottom:11px;min-height:13px;}
-.sgd .battrs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:15px;}
-.sgd .pill{display:inline-flex;align-items:center;border:1px solid #DCE0E5;border-radius:999px;overflow:hidden;font-size:12px;}
-.sgd .pill em{font-style:normal;background:#F1F3F5;color:#46505B;font-weight:700;font-size:11px;padding:5px 9px;}
-.sgd .pill select{border:none;background:none;font-size:12px;font-weight:800;color:#191F28;font-family:inherit;cursor:pointer;padding:5px 11px 5px 8px;}
-.sgd .pill select:focus{outline:none;}
-.sgd .bkwl{font-size:11px;color:#3a424b;font-weight:800;margin-bottom:6px;}
-.sgd .bkw{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border:1px solid #E1E5EA;border-radius:9px;padding:7px 9px;background:#fff;}
-.sgd .kc{display:inline-flex;align-items:center;gap:6px;border-radius:7px;padding:3px 5px 3px 10px;font-size:12px;font-weight:700;}
-.sgd .kc.inc{background:#EAF1FB;color:#1B5FC4;} .sgd .kc.dn{background:#FBEEE9;color:#B45427;} .sgd .kc.nx{background:#E8F4EE;color:#1B8A5A;}
-.sgd .kc i{font-style:normal;cursor:pointer;opacity:.6;font-size:12px;} .sgd .kc i:hover{opacity:1;}
-.sgd .kin{border:none;background:none;font-size:12px;flex:1;min-width:70px;padding:2px;font-family:inherit;color:#191F28;font-weight:600;} .sgd .kin:focus{outline:none;} .sgd .kin::placeholder{color:#9aa3ab;font-weight:500;}
-.sgd .bcrit{margin-top:15px;padding-top:13px;border-top:1px solid #F0F1F3;}
-.sgd .bcrit .cl{font-style:normal;font-weight:800;color:#3a424b;font-size:11.5px;display:block;margin-bottom:8px;}
-.sgd .bcrit .copts{display:flex;gap:16px;flex-wrap:wrap;}
-.sgd .bcrit label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#3a424b;font-weight:600;}
-.sgd .bcrit input{accent-color:#3182F6;width:15px;height:15px;}
-.sgd .bcrit input:checked+span{color:#191F28;font-weight:800;}
-.sgd .empty{font-size:11.5px;color:#9aa3ab;padding:13px;border:1px dashed #D7DDE3;border-radius:10px;text-align:center;font-weight:600;}
-.sgd .addb{margin-top:10px;border:1px dashed;background:#fff;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
-.sgd .exhint{font-size:11px;color:#5E6670;margin-bottom:12px;font-weight:600;}
-.sgd .exrule{background:#fff;border:1px solid #E1E5EA;border-radius:11px;padding:12px 13px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.04);}
-.sgd .exrh{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
-.sgd .exw{font-size:13.5px;font-weight:600;flex:1;border:1px solid transparent;border-radius:8px;padding:6px 10px;color:#4E5968;min-width:0;font-family:inherit;background:#F1F3F5;}
-.sgd .exw:focus{outline:none;background:#fff;border-color:#3182F6;color:#191F28;}
-.sgd .exw::placeholder{color:#9aa3ab;font-weight:500;}
-.sgd .exl{font-size:11px;font-weight:800;color:#3a424b;margin:0 0 6px;}
-.sgd .exl em{font-style:normal;font-weight:600;color:#5E6670;font-size:10.5px;margin-left:5px;}
-.sgd .exl + .bkw{margin-bottom:10px;}
-.sgd .addex{width:100%;border:1px dashed #E0392B;color:#E0392B;background:#fff;border-radius:9px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
-@media(max-width:760px){.sgd .sg3{grid-template-columns:1fr;} .sgd .sg3-side{position:static;}}
+/* ③ 최종 매입가 로직 — 혜택 편집기 (변형10 · 미니멀 라인) */
+.sgd .sg3card{padding:16px 16px;}
+.sgd .bcard .bn{font-size:14px;font-weight:700;border:none;border-bottom:1px solid transparent;border-radius:0;padding:8px 0px;width:100%;font-family:inherit;box-sizing:border-box;background:transparent;}
+.sgd .bcard .bn:focus{outline:none;border-bottom-color:#1B64DA;}
+.sgd .bcard .bn::placeholder{color: var(--글자-희미, var(--faint,#9AA4B0));font-weight:500;}
+.sgd .bcard .bdel{border:none;background:none;color: var(--글자-희미, var(--faint,#B0B8C1));width:24px;height:24px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1;}
+.sgd .bcard .bdel:hover{background:var(--연한-빨강,#FFE9EC);color: var(--글자-빨강, var(--red,#DC2626));}
+/* 미니멀 라인 그리드 — 박스 대신 구분선 */
+.GR{display:grid;grid-template-columns:1fr 94px 88px 96px 104px 28px;gap:8px;align-items:center;}
+.ghead{padding:0 0px 8px;border-bottom:1px solid var(--line,#E5E8EB);margin-bottom:0px;} .ghead .gh{font-size:12px;font-weight:800;color: var(--글자-희미, var(--faint,#9AA4B0));text-transform:uppercase;} .ghead .gh.c{text-align:center;}
+.bcard{background:transparent;border:none;border-bottom:1px solid var(--line2,#EEF0F3);border-radius:0;padding:12px 0px;margin-bottom:0;}
+.bcard:last-of-type{border-bottom:none;}
+.vseg{display:inline-flex;background:none;border-radius:0;padding:0;width:100%;gap:0px;} .vseg b{flex:1;text-align:center;font-size:12px;font-weight:700;padding:4px 0;border-radius:8px;color: var(--글자-희미, var(--faint,#B0B8C1));cursor:pointer;} .vseg b.on{background:var(--line2,#F4F5F7);color:var(--ink,#191F28);} .vseg b.on.crawl{color:#1B64DA;background:var(--연한-파랑,#EAF2FF);}
+.bval,.bcrawl{width:100%;height:32px;border-radius:8px;font-size:12px;box-sizing:border-box;font-variant-numeric:tabular-nums;}
+.bval{font-family:inherit;font-weight:600;text-align:right;border:none;border-bottom:1.5px solid #1B64DA;padding:0 0px;background:transparent;}
+.bval:focus{outline:none;}
+.bcrawl{font-weight:700;color:#1B64DA;background:none;border:1px dashed var(--연한-파랑,#9DC3F0);display:flex;align-items:center;justify-content:center;font-size:12px;}
+.b-ty{width:100%;height:32px;font-size:12px;font-weight:700;color:var(--글자-보조,#6B7684);background:none;border:none;border-bottom:1px solid var(--line,#E5E8EB);border-radius:0;font-family:inherit;text-align:center;text-align-last:center;}
+.always{width:100%;height:32px;font-size:12px;font-weight:700;color: var(--글자-초록, var(--green,#15803D));background:none;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.ctg{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;color: var(--글자-희미, var(--faint,#B0B8C1));cursor:pointer;height:32px;} .ctg .sw{width:28px;height:16px;border-radius:18px;background:var(--line,#E5E8EB);position:relative;flex:none;} .ctg.on .sw{background:#1B64DA;} .ctg.on{color:var(--ink,#191F28);} .ctg .sw i{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--surface,#ffffff);font-style:normal;} .ctg.on .sw i{left:14px;}
+.cond{margin-top:12px;border-top:none;padding-top:0;display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.cond .clab{font-size:12px;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:4px;} .clab.i{color: var(--글자-초록, var(--green,#15803D));} .clab.e{color: var(--글자-빨강, var(--red,#DC2626));}
+.chips{display:flex;flex-wrap:wrap;gap:4px;border:none;border-bottom:1px solid var(--line,#E5E8EB);border-radius:0;padding:0px 0 8px;min-height:28px;}
+.chip{font-size:12px;font-weight:600;border-radius:18px;padding:4px 8px;display:inline-flex;gap:4px;align-items:center;} .chip.i{background:var(--연한-초록,#E6F6EC);color: var(--글자-초록, var(--green,#15803D));} .chip.e{background:var(--연한-빨강,#FBE9E9);color: var(--글자-빨강, var(--red,#DC2626));} .chip i{cursor:pointer;font-style:normal;opacity:.55;} .chip i:hover{opacity:1;}
+.cin{border:none;outline:none;font-size:12px;min-width:60px;flex:1;background:transparent;font-family:inherit;padding:4px 0;}
+.modeg{display:inline-flex;gap:4px;} .modeg b{font-size:12px;font-weight:700;padding:4px 8px;border-radius:18px;border:1px solid var(--line,#E5E8EB);color:var(--sub,#8B95A1);cursor:pointer;background:none;} .modeg b.on{background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;border-color:var(--ink,#191F28);}
+.csum{grid-column:1/3;font-size:12px;color: var(--글자-희미, var(--faint,#9AA4B0));margin-top:0px;}
+.sgd .inc-add{margin-top:12px;border:none;color:#1B64DA;background:none;border-radius:0;padding:8px 0px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;width:100%;text-align:left;}
+.sgd .inc-add:hover{color: var(--글자-파랑, var(--primary,#1546a0));}
+.sgd .empty-b{font-size:12px;color: var(--글자-희미, var(--faint,#9aa3ab));padding:16px 0px;border:none;border-bottom:1px solid var(--line2,#EEF0F3);border-radius:0;text-align:left;font-weight:500;margin-bottom:0;}
+/* 키워드 입력 힌트 */
+.sgd .kw-hint{font-size:12px;color: var(--글자-희미, var(--faint,#9AA4B0));margin-top:4px;}
+/* 따라쓰기 */
+.sgd .aa-wrap{margin-top:16px;border-top:1px solid var(--line2,#EEF0F3);padding-top:12px;}
+/* exrule — 제외 키워드(per-benefit) */
+.sgd .kc{display:inline-flex;align-items:center;gap:4px;border-radius:18px;padding:4px 8px;font-size:12px;font-weight:600;} .sgd .kc.inc{background:var(--연한-초록,#E6F6EC);color: var(--글자-초록, var(--green,#15803D));} .sgd .kc.e{background:var(--연한-빨강,#FBE9E9);color: var(--글자-빨강, var(--red,#DC2626));}
+.sgd .kc i{font-style:normal;cursor:pointer;opacity:.55;} .sgd .kc i:hover{opacity:1;}
+.sgd .kin{border:none;background:none;font-size:12px;flex:1;min-width:50px;padding:0px;font-family:inherit;color:var(--ink,#191F28);font-weight:600;} .sgd .kin:focus{outline:none;}
 
 /* ④ 가격 검증 — 서브탭 */
-.sgd .sg-sub{display:flex;gap:20px;border-bottom:1px solid #E5E8EB;margin-bottom:16px;}
-.sgd .sg-sub button{font-size:13px;font-weight:700;padding:7px 1px 10px;border:none;border-bottom:2px solid transparent;cursor:pointer;color:#8B95A1;background:none;}
-.sgd .sg-sub button.on{color:#3182F6;border-bottom-color:#3182F6;}
+.sgd .sg-sub{display:flex;gap:16px;border-bottom:1px solid var(--line,#E5E8EB);margin-bottom:16px;}
+.sgd .sg-sub button{font-size:12px;font-weight:700;padding:8px 0px 8px;border:none;border-bottom:2px solid transparent;cursor:pointer;color:var(--sub,#8B95A1);background:none;}
+.sgd .sg-sub button.on{color: var(--글자-파랑, var(--primary,#3182F6));border-bottom-color:var(--primary,#3182F6);}
 .sgd .sg-subpane{display:none;}
 .sgd .sg-subpane.on{display:block;}
 
 /* 예제 카드 */
-.sgd .ex{border:1px solid #EEF0F3;border-radius:12px;padding:14px;margin-bottom:12px;}
+.sgd .ex{border:1px solid var(--line2,#EEF0F3);border-radius:12px;padding:12px;margin-bottom:12px;}
 .sgd .ex:last-child{margin-bottom:0;}
-.sgd .exh{display:flex;align-items:center;gap:9px;margin-bottom:11px;}
-.sgd .exh .qn{width:20px;height:20px;border-radius:50%;background:#EEF1F4;color:#4E5968;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.sgd .exh .nm{font-weight:700;font-size:13.5px;}
-.sgd .exh .ex-url{font-family:ui-monospace,monospace;font-size:11px;color:#A8B0B8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sgd .exh .ex-go{flex:0 0 auto;font-size:11px;font-weight:700;color:#3182F6;background:#EAF1FB;border-radius:7px;padding:3px 10px;text-decoration:none;white-space:nowrap;}
-.sgd .exh .ex-go:hover{background:#3182F6;color:#fff;}
-.sgd .exh .price{margin-left:auto;font-size:14px;font-weight:800;color:#3182F6;font-variant-numeric:tabular-nums;white-space:nowrap;}
-.sgd .exb{display:grid;grid-template-columns:188px 1fr;gap:14px;align-items:start;}
-.sgd .shot{border:1px solid #E5E8EB;border-radius:9px;background:#F4F6F8;height:172px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#A0A8B0;font-size:11px;gap:5px;text-align:center;padding:8px;}
-.sgd .exshot{position:relative;border-radius:9px;}
-.sgd .exshot img{border-radius:9px;width:100%;height:auto;max-height:360px;object-fit:contain;border:1px solid #E5E8EB;background:#fff;display:block;}
-.sgd .exshot .drop-hint{color:#3182F6;font-weight:700;}
-.sgd .exshot.drag{outline:2px dashed #3182F6;outline-offset:2px;}
-.sgd .exshot.drag::after{content:"여기에 놓기";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#3182F6cc;color:#fff;font-weight:800;font-size:13px;border-radius:9px;}
-.sgd .exshot.busy::after{content:"업로드 중…";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#191F28aa;color:#fff;font-weight:700;font-size:12px;border-radius:9px;}
-.sgd .exshot.capturing::after{content:"캡처 중… (약 10초)";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#191F28cc;color:#fff;font-weight:700;font-size:12px;border-radius:9px;}
-.sgd .shot-auto{margin-top:2px;border:1px solid #3182F6;background:#fff;color:#3182F6;font-size:11px;font-weight:700;border-radius:7px;padding:4px 10px;cursor:pointer;}
-.sgd .shot-auto:hover{background:#3182F6;color:#fff;}
-.sgd .shot .cam{font-size:22px;}
-.sgd .shot .dt{font-size:10px;color:#B8C0C8;}
+.sgd .exh{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.sgd .exh .qn{width:20px;height:20px;border-radius:50%;background:var(--line2,#EEF1F4);color:var(--글자-기본,#4E5968);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sgd .exh .nm{font-weight:700;font-size:14px;}
+.sgd .exh .ex-url{font-family:ui-monospace,monospace;font-size:12px;color: var(--글자-희미, var(--faint,#A8B0B8));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sgd .exh .ex-go{flex:0 0 auto;font-size:12px;font-weight:700;color: var(--글자-파랑, var(--primary,#3182F6));background:var(--연한-파랑,#EAF1FB);border-radius:8px;padding:4px 8px;text-decoration:none;white-space:nowrap;}
+.sgd .exh .ex-go:hover{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;}
+.sgd .exh .price{margin-left:auto;font-size:14px;font-weight:800;color: var(--글자-파랑, var(--primary,#3182F6));font-variant-numeric:tabular-nums;white-space:nowrap;}
+.sgd .exb{display:grid;grid-template-columns:188px 1fr;gap:12px;align-items:start;}
+.sgd .shot{border:1px solid var(--line,#E5E8EB);border-radius:8px;background:var(--line2,#F4F6F8);height:172px;display:flex;flex-direction:column;align-items:center;justify-content:center;color: var(--글자-희미, var(--faint,#A0A8B0));font-size:12px;gap:4px;text-align:center;padding:8px;}
+.sgd .exshot{position:relative;border-radius:8px;}
+.sgd .exshot img{border-radius:8px;width:100%;height:auto;max-height:360px;object-fit:contain;border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);display:block;}
+.sgd .exshot .drop-hint{color: var(--글자-파랑, var(--primary,#3182F6));font-weight:700;}
+.sgd .exshot.drag{outline:2px dashed var(--primary,#3182F6);outline-offset:2px;}
+.sgd .exshot.drag::after{content:"여기에 놓기";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#3182F6cc;color:#fff;font-weight:800;font-size:12px;border-radius:8px;}
+.sgd .exshot.busy::after{content:"업로드 중…";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#191F28aa;color:#fff;font-weight:700;font-size:12px;border-radius:8px;}
+.sgd .exshot.capturing::after{content:"캡처 중… (약 10초)";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#191F28cc;color:#fff;font-weight:700;font-size:12px;border-radius:8px;}
+.sgd .shot-auto{margin-top:0px;border:1px solid var(--primary,#3182F6);background:var(--surface,#ffffff);color: var(--글자-파랑, var(--primary,#3182F6));font-size:12px;font-weight:700;border-radius:8px;padding:4px 8px;cursor:pointer;}
+.sgd .shot-auto:hover{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;}
+.sgd .shot .cam{font-size:24px;}
+.sgd .shot .dt{font-size:12px;color: var(--글자-희미, var(--faint,#B8C0C8));}
 /* FX 영수증 */
-.sgd .rc{background:#F7F8FA;border-radius:10px;padding:11px 14px;font-variant-numeric:tabular-nums;}
-.sgd .rc .l{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:12.5px;}
-.sgd .rc .l .lb{color:#4E5968;}
-.sgd .rc .l .nm{font-weight:700;color:#191F28;}
-.sgd .rc .l.base .lb,.sgd .rc .l.base .nm{color:#3182F6;font-weight:700;}
-.sgd .rc .l.disc .nm{color:#F04452;}
+.sgd .rc{background:var(--n100,#F7F8FA);border-radius:8px;padding:12px 12px;font-variant-numeric:tabular-nums;}
+.sgd .rc .l{display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:12px;}
+.sgd .rc .l .lb{color:var(--글자-기본,#4E5968);}
+.sgd .rc .l .nm{font-weight:700;color:var(--ink,#191F28);}
+.sgd .rc .l.base .lb,.sgd .rc .l.base .nm{color: var(--글자-파랑, var(--primary,#3182F6));font-weight:700;}
+.sgd .rc .l.disc .nm{color: var(--글자-빨강, var(--red,#F04452));}
 .sgd .rc .l.in{padding-left:12px;}
-.sgd .rc .l.in .lb{color:#8B95A1;}
-.sgd .rc .dv{border-top:1px dashed #D7DDE3;margin:5px 0;}
-.sgd .rc .l.fin .lb{font-weight:800;color:#3182F6;}
-.sgd .rc .l.fin .nm{font-size:16px;font-weight:800;color:#3182F6;}
-.sgd .exnote{margin-top:8px;font-size:11px;color:#8B95A1;}
-.sgd .fxnote{font-size:11.5px;color:#8B95A1;margin-top:12px;}
+.sgd .rc .l.in .lb{color:var(--sub,#8B95A1);}
+.sgd .rc .dv{border-top:1px dashed var(--line,#D7DDE3);margin:4px 0;}
+.sgd .rc .l.fin .lb{font-weight:800;color: var(--글자-파랑, var(--primary,#3182F6));}
+.sgd .rc .l.fin .nm{font-size:17px;font-weight:800;color: var(--글자-파랑, var(--primary,#3182F6));}
+.sgd .exnote{margin-top:8px;font-size:12px;color:var(--sub,#8B95A1);}
+.sgd .fxnote{font-size:12px;color:var(--sub,#8B95A1);margin-top:12px;}
 /* 신규 검증 탭 */
-.sgd .sg-nvin{display:flex;gap:8px;margin-bottom:10px;}
-.sgd .sg-nvin input{flex:1;border:1px solid #E1E4E8;border-radius:8px;padding:8px 12px;font-size:13px;}
-.sgd .sg-nvin button{font-size:13px;font-weight:700;color:#fff;background:#3182F6;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;}
-.sgd .muted{color:#8B95A1;font-size:13px;}
+.sgd .sg-nvin{display:flex;gap:8px;margin-bottom:8px;}
+.sgd .sg-nvin input{flex:1;border:1px solid var(--line,#E1E4E8);border-radius:8px;padding:8px 12px;font-size:12px;}
+.sgd .sg-nvin button{font-size:12px;font-weight:700;color:#fff;background: var(--바탕-파랑, var(--primary,#3182F6));border:none;border-radius:8px;padding:8px 16px;cursor:pointer;}
+.sgd .muted{color:var(--sub,#8B95A1);font-size:12px;}
 /* 신규 검증 2열 + 저장된 검증 (시안 2-C) */
 .sgd .sg-new-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;align-items:start;}
-.sgd .sg-saved{background:#F8FAFB;border:1px solid #EEF0F3;border-radius:12px;padding:14px 15px;position:sticky;top:12px;}
-.sgd .sg-saved-h{font-size:13px;font-weight:800;color:#191F28;margin-bottom:11px;}
-.sgd .sg-saved-item{background:#fff;border:1px solid #EAECEF;border-radius:10px;padding:10px 12px;margin-bottom:8px;}
-.sgd .sg-saved-item .nm{font-weight:700;font-size:12.5px;color:#191F28;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sgd .sg-saved-item .meta{font-size:11px;color:#8B95A1;margin-top:2px;}
-.sgd .sg-saved-item .meta b{color:#3182F6;font-weight:800;}
-.sgd .sg-saved-empty{font-size:11.5px;color:#A0A8B0;line-height:1.6;padding:8px 2px;}
+.sgd .sg-saved{background:var(--n100,#F8FAFB);border:1px solid var(--line2,#EEF0F3);border-radius:12px;padding:12px 16px;position:sticky;top:12px;}
+.sgd .sg-saved-h{font-size:12px;font-weight:800;color:var(--ink,#191F28);margin-bottom:12px;}
+.sgd .sg-saved-item{background:var(--surface,#ffffff);border:1px solid var(--line2,#EAECEF);border-radius:8px;padding:8px 12px;margin-bottom:8px;}
+.sgd .sg-saved-item .nm{font-weight:700;font-size:12px;color:var(--ink,#191F28);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sgd .sg-saved-item .meta{font-size:12px;color:var(--sub,#8B95A1);margin-top:0px;}
+.sgd .sg-saved-item .meta b{color: var(--글자-파랑, var(--primary,#3182F6));font-weight:800;}
+.sgd .sg-saved-empty{font-size:12px;color: var(--글자-희미, var(--faint,#A0A8B0));line-height:1.6;padding:8px 0px;}
 @media(max-width:900px){.sgd .sg-new-grid{grid-template-columns:1fr;}}
 /* 시안 2: 라벨 + 하이라이트 미리보기 + ③ 키워드 칩 */
-.sgd .sg-kw-lbl{font-size:12px;font-weight:800;color:#191F28;margin-bottom:6px;}
-.sgd .sg-kw-lbl .x{color:#8B95A1;font-weight:600;font-size:11px;}
-.sgd .sg-hlbox{border:1px solid #E5E8EB;border-radius:8px;background:#fff;padding:10px 12px;font-size:12.5px;line-height:2;color:#3a424b;min-height:40px;}
-.sgd .sg-hlbox .ln{padding:1px 0;}
-.sgd .hit-inc{background:#DDF3E6;border-bottom:2px solid #1FA463;border-radius:3px;padding:0 2px;}
-.sgd .hit-exc{color:#C0392B;text-decoration:line-through;}
-.sgd .sg-hlbox .why{font-size:10.5px;margin-left:6px;}
-.sgd .sg-hlbox .why.inc{color:#1FA463;}.sgd .sg-hlbox .why.exc{color:#C0392B;}
-.sgd .sg-kwchips{background:#F4F8FF;border:1px solid #D6E6FF;border-radius:12px;padding:13px 14px;}
-.sgd .sg-kwchips-h{font-size:11.5px;font-weight:800;color:#1B64DA;margin-bottom:8px;display:flex;align-items:center;}
-.sgd .sg-kwchips-h .sg-go3{margin-left:auto;font-size:11px;font-weight:700;color:#3182F6;text-decoration:none;background:#fff;border:1px solid #D6E6FF;border-radius:6px;padding:2px 8px;}
-.sgd .sg-kwchips .g{font-size:11px;font-weight:800;margin:6px 0 4px;}
-.sgd .sg-kwchips .g.inc{color:#1A7F52;}.sgd .sg-kwchips .g.exc{color:#C0392B;}
-.sgd .sg-kwchips .chip{display:inline-block;border-radius:999px;padding:3px 11px;font-size:11.5px;font-weight:700;margin:2px 4px 2px 0;}
-.sgd .sg-kwchips .chip.inc{background:#E3F2EA;color:#1A7F52;}.sgd .sg-kwchips .chip.exc{background:#FCE6E6;color:#C0392B;}
-.sgd .sg-kwchips .chip-empty{font-size:11px;color:#A0A8B0;}
+.sgd .sg-kw-lbl{font-size:12px;font-weight:800;color:var(--ink,#191F28);margin-bottom:4px;}
+.sgd .sg-kw-lbl .x{color:var(--sub,#8B95A1);font-weight:600;font-size:12px;}
+.sgd .sg-hlbox{border:1px solid var(--line,#E5E8EB);border-radius:8px;background:var(--surface,#ffffff);padding:8px 12px;font-size:12px;line-height:2;color:var(--ink,#3a424b);min-height:40px;}
+.sgd .sg-hlbox .ln{padding:0px 0;}
+.sgd .hit-inc{background:var(--연한-초록,#DDF3E6);border-bottom:2px solid var(--green,#1FA463);border-radius:0px;padding:0 0px;}
+.sgd .hit-exc{color: var(--글자-빨강, var(--red,#C0392B));text-decoration:line-through;}
+.sgd .sg-hlbox .why{font-size:12px;margin-left:4px;}
+.sgd .sg-hlbox .why.inc{color: var(--글자-초록, var(--green,#1FA463));}.sgd .sg-hlbox .why.exc{color: var(--글자-빨강, var(--red,#C0392B));}
+.sgd .sg-kwchips{background:var(--n100,#F4F8FF);border:1px solid var(--연한-파랑,#D6E6FF);border-radius:12px;padding:12px 12px;}
+.sgd .sg-kwchips-h{font-size:12px;font-weight:800;color:#1B64DA;margin-bottom:8px;display:flex;align-items:center;}
+.sgd .sg-kwchips-h .sg-go3{margin-left:auto;font-size:12px;font-weight:700;color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none;background:var(--surface,#ffffff);border:1px solid var(--연한-파랑,#D6E6FF);border-radius:8px;padding:0px 8px;}
+.sgd .sg-kwchips .g{font-size:12px;font-weight:800;margin:4px 0 4px;}
+.sgd .sg-kwchips .g.inc{color: var(--글자-초록, var(--green,#1A7F52));}.sgd .sg-kwchips .g.exc{color: var(--글자-빨강, var(--red,#C0392B));}
+.sgd .sg-kwchips .chip{display:inline-block;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;margin:0px 4px 0px 0;}
+.sgd .sg-kwchips .chip.inc{background:var(--line2,#E3F2EA);color: var(--글자-초록, var(--green,#1A7F52));}.sgd .sg-kwchips .chip.exc{background:var(--연한-빨강,#FCE6E6);color: var(--글자-빨강, var(--red,#C0392B));}
+.sgd .sg-kwchips .chip-empty{font-size:12px;color: var(--글자-희미, var(--faint,#A0A8B0));}
 </style>
 
 <div class="sgd sg-wrap" data-sid="{{ src.id }}">
@@ -214,7 +196,10 @@
         <div class="urlrow sg-urlrow" data-url="{{ u.url }}">
           {% if u.is_lead %}<span class="lead-chip tagk">대표</span>{% else %}<span class="lead-empty"></span>{% endif %}
           <span class="u">{{ u.url }}</span>
-          <a href="{{ u.url }}" target="_blank" class="op">↗ 열기</a>
+          <span class="ops">
+            <a href="{{ u.url }}" target="_blank" class="op">↗ 열기</a>
+            <span class="op del" data-del-url><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</span>
+          </span>
         </div>
         {% endfor %}
       </div>
@@ -243,7 +228,7 @@
           {% for key, lab in labels.items() %}
           {% set f = guide.fields[key] %}
           <tr data-field="{{ key }}" data-method="{{ f.method }}" data-mechanism="{{ f.mechanism }}" data-auth="{{ f.auth }}" data-status="{{ f.status }}">
-            <td style="font-size:13px;font-weight:600;"><span class="fico">{{ lab[1]|safe }}</span>{{ lab[0] }}</td>
+            <td style="font-size:12px;font-weight:600;"><span class="fico">{{ lab[1]|safe }}</span>{{ lab[0] }}</td>
             <td><span class="bdg m-{{ f.mechanism }}">{{ mlab[f.mechanism] }}</span></td>
             <td><span class="bdg a-{{ f.auth }}">{{ alab[f.auth] }}</span></td>
             <td><input class="sg-loc" value="{{ f.locator }}" style="width:100%;"></td>
@@ -258,85 +243,119 @@
 
   <!-- ③ 최종 매입가 로직 -->
   <div class="sec">
-    <div class="st"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="sub">{{ src.name }} · 확정</span></div>
+    <div class="st"><span class="n">3</span><span class="tt">최종 매입가 로직</span><span class="sub">{{ src.name }} · 혜택 편집</span></div>
     <div class="card sg3card">
-      {% set CATS = [('선반영',['preapplied'],'#3182F6'),('후반영',['deduct','accrue'],'#10B981'),('결제',['payment'],'#8B5CF6'),('캐시백',['cashback'],'#F59E0B')] %}
       {% set M_OPTS = ['정률(%)','정액(원)','정액·정률','적립(%→원)','고정액','옵션(개월)'] %}
-      {% set B_OPTS = ['표면 노출가','베이스금액①','베이스금액②','—'] %}
-      {% set F_OPTS = ['무제한','정기','1회성'] %}
-      {% set S_OPTS = [('always','상시'),('conditional','조건부'),('optional','선택'),('planned','예정')] %}
       {% set ns = namespace(i=0) %}
-      <div class="sg3">
-        <div class="sg3-main">
-          <div class="zhead">포함 키워드 <span>· 혜택별</span></div>
-          <div id="sg-inc">
-          {% for cname, applies, color in CATS %}
-          {% set cnt = namespace(n=0) %}
-          {% for b in guide.pricing.benefits if b.apply in applies %}{% set cnt.n = cnt.n + 1 %}{% endfor %}
-          <div class="cat" data-cat="{{ cname }}" data-color="{{ color }}">
-            <div class="cathead"><span class="cbadge" style="background:{{ color }}">{{ cname }} 혜택</span><span class="cnt">{{ cnt.n }}개</span></div>
-            <div class="cardlist">
-              {% for b in guide.pricing.benefits if b.apply in applies %}
-              {% set ns.i = ns.i + 1 %}
-              <div class="bcard" data-apply="{{ b.apply }}" style="border-left:3px solid {{ color }}">
-                <div class="bch"><input class="bn" value="{{ b.name }}" placeholder="혜택명"><button type="button" class="bdel" title="삭제">×</button></div>
-                {% set _bv = b.get('value') %}
-                <div class="bvalrow">
-                  <span class="bval-wrap"><input class="bval" inputmode="decimal" value="{{ _bv if _bv is not none else '' }}" placeholder="0"><span class="bunit"></span></span>
-                  <span class="btgl-seg"><button type="button" class="btgl" data-u="rate">% 정률</button><button type="button" class="btgl" data-u="amount">원 정액</button></span>
-                </div>
-                <div class="bprev"></div>
-                <input type="hidden" class="brule" value="{{ b.rule }}">
-                <div class="battrs">
-                  <span class="pill"><em>방식</em><select class="s-m">{% for o in M_OPTS %}<option{% if o==b.method %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
-                  <span class="pill"><em>기준</em><select class="s-b">{% for o in B_OPTS %}<option{% if o==b.base %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
-                  <span class="pill"><em>상시</em><select class="s-s">{% for code,lab in S_OPTS %}<option value="{{ code }}"{% if code==b.status %} selected{% endif %}>{{ lab }}</option>{% endfor %}</select></span>
-                  <span class="pill"><em>횟수</em><select class="s-c">{% for o in F_OPTS %}<option{% if o==b.freq %} selected{% endif %}>{{ o }}</option>{% endfor %}</select></span>
-                </div>
-                <div class="bkwl">포함 키워드</div>
-                <div class="bkw" data-kind="inc">{% for w in b.triggers %}<span class="kc inc">{{ w }}<i>×</i></span>{% endfor %}<input class="kin" data-kind="inc" placeholder="단어 추가"></div>
-                <div class="bcrit"><em class="cl">혜택 적용 기준</em><div class="copts"><label><input type="radio" name="mt{{ ns.i }}" value="any"{% if b.match != 'all' %} checked{% endif %}><span>키워드 1개 이상 포함</span></label><label><input type="radio" name="mt{{ ns.i }}" value="all"{% if b.match == 'all' %} checked{% endif %}><span>키워드 모두 포함</span></label></div></div>
-              </div>
-              {% endfor %}
-              {% if cnt.n == 0 %}<div class="empty">아직 혜택 없음</div>{% endif %}
-            </div>
-            <button type="button" class="addb" data-cat="{{ cname }}" data-apply="{{ applies[0] }}" data-color="{{ color }}" style="color:{{ color }};border-color:{{ color }}">＋ {{ cname }} 혜택 추가</button>
-          </div>
-          {% endfor %}
-          </div>
-        </div>
-        <div class="sg3-side">
-          <div class="zhead">제외 키워드 <span>· 공통</span></div>
-          <div class="exhint">함께 = 같이 있으면 제외 / 예외 = 같이 있으면 포함(제외 취소)</div>
-          <div id="sg-exlist">
-            {% for ex in guide.exclude_keywords %}
-            <div class="exrule">
-              <div class="exrh"><input class="exw" value="{{ ex.word }}" placeholder="제외 단어"><button type="button" class="exdel" title="삭제">×</button></div>
-              <div class="exl">함께 <em>이 단어와 같이 있으면 제외</em></div>
-              <div class="bkw" data-kind="with">{% for w in ex['with'] %}<span class="kc dn">{{ w }}<i>×</i></span>{% endfor %}<input class="kin" data-kind="with" placeholder="단어 추가"></div>
-              <div class="exl">예외 <em>이 단어와 같이 있으면 포함</em></div>
-              <div class="bkw" data-kind="except">{% for w in ex['except'] %}<span class="kc nx">{{ w }}<i>×</i></span>{% endfor %}<input class="kin" data-kind="except" placeholder="단어 추가"></div>
-            </div>
-            {% endfor %}
-          </div>
-          <button type="button" class="addex">＋ 제외 단어 추가</button>
-        </div>
+
+      <!-- 헤더 행 -->
+      <div class="GR ghead">
+        <span class="gh">혜택명</span>
+        <span class="gh c">값출처</span>
+        <span class="gh c">값</span>
+        <span class="gh c">유형</span>
+        <span class="gh c">적용</span>
+        <span class="gh"></span>
       </div>
 
-      <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용, 위 카드와 동일 benefits 소스) -->
+      <!-- 혜택 카드 목록 -->
+      <div id="sg-inc">
+        {% if guide.pricing.benefits %}
+          {% for b in guide.pricing.benefits %}
+          {% set ns.i = ns.i + 1 %}
+          {% set _vs = b.get('value_source','fixed') if b is mapping else 'fixed' %}
+          {% set _st = b.get('status','always') if b is mapping else 'always' %}
+          {% set _trigs = b.get('triggers',[]) if b is mapping else [] %}
+          {% set _excl = b.get('excludes',[]) if b is mapping else [] %}
+          {% set _em = b.get('exclude_match','any') if b is mapping else 'any' %}
+          {% set _tm = b.get('match','any') if b is mapping else 'any' %}
+          {% set _val = b.get('value') if b is mapping else none %}
+          <div class="bcard GR" data-idx="{{ loop.index0 }}" data-vs="{{ _vs }}" data-status="{{ _st }}">
+            <input class="bn" value="{{ b.name }}" placeholder="혜택명">
+            <!-- 값출처 세그 -->
+            <div class="vseg">
+              <b class="vs-fixed{% if _vs != 'crawl' %} on{% endif %}" data-v="fixed">고정값</b>
+              <b class="vs-crawl{% if _vs == 'crawl' %} on crawl{% endif %}" data-v="crawl">크롤값</b>
+            </div>
+            <!-- 값 칸 (고정=number input / 크롤=badge) -->
+            <div class="val-cell">
+              <input class="bval" type="number" step="any" placeholder="0" value="{{ _val if _val is not none else '' }}" {% if _vs == 'crawl' %}style="display:none"{% endif %}>
+              <div class="bcrawl" {% if _vs != 'crawl' %}style="display:none"{% endif %}>크롤값 ⟳</div>
+            </div>
+            <!-- 유형 -->
+            <select class="b-ty">
+              {% for opt in M_OPTS %}<option{% if b.get('method') == opt %} selected{% endif %}>{{ opt }}</option>{% endfor %}
+            </select>
+            <!-- 적용 (고정값=상시 배지 / 크롤값=조건부 토글) -->
+            <div class="apply-cell">
+              <div class="always" {% if _vs == 'crawl' %}style="display:none"{% endif %}>✓ 상시</div>
+              <div class="ctg{% if _st == 'conditional' %} on{% endif %}" {% if _vs != 'crawl' %}style="display:none"{% endif %}>
+                <span class="sw"><i></i></span>조건부
+              </div>
+            </div>
+            <button type="button" class="bdel" title="삭제">×</button>
+            <!-- 조건 펼침 패널 (.cond) — 크롤값+조건부 ON일 때만 표시 -->
+            <div class="cond" style="grid-column:1/-1;{% if not (_vs == 'crawl' and _st == 'conditional') %}display:none;{% endif %}">
+              <div>
+                <div class="clab i">적용 키워드
+                  <span class="modeg">
+                    <b class="tm{% if _tm != 'all' %} on{% endif %}" data-m="any">하나라도 있으면</b>
+                    <b class="tm{% if _tm == 'all' %} on{% endif %}" data-m="all">모두 있어야</b>
+                  </span>
+                </div>
+                <div class="chips trig-chips">
+                  {% for t in _trigs %}<span class="chip i">{{ t }}<i data-role="del">×</i></span>{% endfor %}
+                  <input class="cin trig-in" placeholder="키워드 추가…">
+                </div>
+              </div>
+              <div>
+                <div class="clab e">제외 키워드
+                  <span class="modeg">
+                    <b class="em{% if _em != 'all' %} on{% endif %}" data-m="any">하나라도 있으면</b>
+                    <b class="em{% if _em == 'all' %} on{% endif %}" data-m="all">모두 있어야</b>
+                  </span>
+                </div>
+                <div class="chips excl-chips">
+                  {% for t in _excl %}<span class="chip e">{{ t }}<i data-role="del">×</i></span>{% endfor %}
+                  <input class="cin excl-in" placeholder="제외 키워드 추가…">
+                </div>
+                <div class="kw-hint">여러 개는 쉼표로 한 번에</div>
+              </div>
+              <div class="csum"></div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-b">아직 혜택이 없습니다.</div>
+        {% endif %}
+      </div>
+      <button type="button" class="inc-add">+ 혜택 추가</button>
+
+      <!-- 따라쓰기 -->
+      <div class="aa-wrap">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600;cursor:pointer;">
+          <input type="checkbox" id="aa-confirm" style="accent-color:var(--primary,#3182F6);width:15px;height:15px;">
+          <span>이 소싱처 혜택 기본값을 전 모음전에 덮어씁니다 (주의)</span>
+        </label>
+        <div id="aa-toast" style="display:none;margin-top:4px;font-size:12px;color: var(--글자-빨강, var(--red,#E0392B));font-weight:700;"></div>
+        <button type="button" id="aa-btn" disabled style="margin-top:8px;width:100%;padding:8px;border:none;border-radius:8px;background:var(--연한-빨강,#F4C7CB);color:#fff;font-weight:800;font-size:12px;cursor:not-allowed;font-family:inherit"><i class="ph-light ph-lock" aria-hidden="true"></i> 따라쓰기 (잠김)</button>
+      </div>
+
+      <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용) -->
       {% set SMAP = {'always':'상시','conditional':'조건부','optional':'선택','planned':'예정'} %}
-      <div class="sg3-logic" style="margin-top:18px;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden">
-        <div style="padding:13px 16px;background:#F9FAFB;border-bottom:1px solid #E5E8EB;font-size:13.5px;font-weight:800;color:#191F28"><i class="ph-light ph-coins" aria-hidden="true"></i> 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:#8B95A1;font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
+      {% set CATS = [('선반영',['preapplied'],'#3182F6'),('후반영',['deduct','accrue'],'#10B981'),('결제',['payment'],'#8B5CF6'),('캐시백',['cashback'],'#F59E0B')] %}
+      <div class="sg3-logic" style="margin-top:16px;border:1px solid var(--line,#E5E8EB);border-radius:12px;overflow:hidden">
+        <div style="padding:12px 16px;background:var(--bg,#F9FAFB);border-bottom:1px solid var(--line,#E5E8EB);font-size:14px;font-weight:800;color:var(--ink,#191F28)"><i class="ph-light ph-coins" aria-hidden="true"></i> 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:var(--sub,#8B95A1);font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
         <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px">
           <thead>
-            <tr style="background:#FBFCFD;color:#4E5968;font-weight:700;text-align:left">
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">단계</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">혜택</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">방식</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">기준</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">값 · 규칙</th>
-              <th style="padding:9px 12px;border-bottom:1px solid #E5E8EB">조건</th>
+            <tr style="background:var(--n100,#FBFCFD);color:var(--글자-기본,#4E5968);font-weight:700;text-align:left">
+              <th style="padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB)">단계</th>
+              <th style="padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB)">혜택</th>
+              <th style="padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB)">방식</th>
+              <th style="padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB)">기준</th>
+              <th style="padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB)">값 · 규칙</th>
+              <th style="padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB)">조건</th>
             </tr>
           </thead>
           <tbody>
@@ -346,60 +365,26 @@
             {% set lg.rows = lg.rows + 1 %}
             {% set _method = b.method or ('정률' if '%' in (b.rule or '') else ('정액' if '원' in (b.rule or '') else '—')) %}
             {% set _base = b.base or ('베이스금액②' if '베이스금액②' in (b.rule or '') else ('베이스금액①' if '베이스금액①' in (b.rule or '') else ('표면 노출가' if '표면' in (b.rule or '') else '—'))) %}
-            <tr style="border-bottom:1px solid #F2F4F6">
-              <td style="padding:9px 12px;white-space:nowrap"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:{{ color }};color:#fff;font-weight:700;font-size:11px">{{ cname }}</span></td>
-              <td style="padding:9px 12px;font-weight:600;color:#191F28">{{ b.name }}</td>
-              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _method }}</td>
-              <td style="padding:9px 12px;white-space:nowrap;color:#4E5968">{{ _base }}</td>
-              <td style="padding:9px 12px;color:#4E5968">{{ b.rule or '—' }}</td>
-              <td style="padding:9px 12px;white-space:nowrap;color:#8B95A1">{{ SMAP.get(b.status, b.status or '—') }}</td>
+            <tr style="border-bottom:1px solid var(--n100,#F2F4F6)">
+              <td style="padding:8px 12px;white-space:nowrap"><span style="display:inline-block;padding:0px 8px;border-radius:8px;background:{{ color }};color:#fff;font-weight:700;font-size:12px">{{ cname }}</span></td>
+              <td style="padding:8px 12px;font-weight:600;color:var(--ink,#191F28)">{{ b.name }}</td>
+              <td style="padding:8px 12px;white-space:nowrap;color:var(--글자-기본,#4E5968)">{{ _method }}</td>
+              <td style="padding:8px 12px;white-space:nowrap;color:var(--글자-기본,#4E5968)">{{ _base }}</td>
+              <td style="padding:8px 12px;color:var(--글자-기본,#4E5968)">{{ b.rule or '—' }}</td>
+              <td style="padding:8px 12px;white-space:nowrap;color:var(--sub,#8B95A1)">{{ SMAP.get(b.status, b.status or '—') }}</td>
             </tr>
             {% endfor %}
           {% endfor %}
           {% if lg.rows == 0 %}
-            <tr><td colspan="6" style="padding:16px;text-align:center;color:#B0B8C1">등록된 혜택이 없습니다.</td></tr>
+            <tr><td colspan="6" style="padding:16px;text-align:center;color:var(--faint,#B0B8C1)">등록된 혜택이 없습니다.</td></tr>
           {% endif %}
           </tbody>
         </table>
         </div>
       </div>
 
-      <!-- B1 — 모든 모음전에 따라쓰기 (2중 잠금). 스냅샷 모델: 기본값을 전 모음전에 덮어씀. -->
-      <div class="sg3-applyall" style="margin-top:16px;border:1.5px solid #F04452;background:#FFF0F1;border-radius:12px;padding:16px 18px">
-        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#191F28;margin-bottom:6px"><i class="ph-light ph-lock" aria-hidden="true"></i> 모든 모음전에 따라쓰기</div>
-        <div style="font-size:12.5px;color:#4E5968;line-height:1.55;margin-bottom:13px">평소 모음전은 <b>생성 시점의 기본값을 복사</b>해 독립적으로 동작합니다. 이 버튼은 이 소싱처의 현재 기본값을 <b style="color:#F04452">기존 모음전 전부</b>에 덮어씁니다. 각 모음전에서 직접 수정한 값은 사라지며 <b>되돌릴 수 없습니다.</b></div>
-        <label style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:#fff;border:1px solid #E5E8EB;border-radius:9px;margin-bottom:10px;font-size:12.5px;cursor:pointer">
-          <input type="checkbox" id="aa-confirm" style="width:17px;height:17px;cursor:pointer;flex:0 0 auto">
-          <span>네, <b>모든 모음전</b>이 이 소싱처 기본값으로 덮어써지는 것을 이해합니다.</span>
-        </label>
-        <button type="button" id="aa-btn" disabled style="width:100%;padding:10px;border:none;border-radius:9px;background:#F4C7CB;color:#fff;font-weight:800;font-size:13px;cursor:not-allowed;font-family:inherit"><i class="ph-light ph-lock" aria-hidden="true"></i> 따라쓰기 (잠김)</button>
-        <div id="aa-toast" style="display:none;margin-top:10px;font-size:12.5px;font-weight:700;color:#0E7C3A"></div>
-      </div>
     </div>
   </div>
-  <script>
-  (function(){
-    var cb=document.getElementById('aa-confirm'), btn=document.getElementById('aa-btn'), toast=document.getElementById('aa-toast');
-    if(!cb||!btn) return;
-    var SID={{ src.id }};
-    cb.addEventListener('change',function(){
-      btn.disabled=!cb.checked;
-      btn.style.background=cb.checked?'#F04452':'#F4C7CB';
-      btn.style.cursor=cb.checked?'pointer':'not-allowed';
-      btn.textContent=cb.checked?' 모든 모음전에 따라쓰기':' 따라쓰기 (잠김)';
-    });
-    btn.addEventListener('click',function(){
-      if(btn.disabled) return;
-      btn.disabled=true; btn.textContent='적용 중...';
-      fetch('/api/source-benefits/templates/'+SID+'/apply-to-all',{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})
-      }).then(function(r){return r.json();}).then(function(j){
-        if(j.ok){ toast.style.display='block'; toast.textContent='✓ '+j.bundles+'개 모음전에 적용되었습니다.'; btn.textContent=' 적용 완료'; cb.checked=false; }
-        else { alert('따라쓰기 실패: '+(j.error||'오류')); btn.disabled=false; btn.textContent=' 모든 모음전에 따라쓰기'; }
-      }).catch(function(e){ alert('오류: '+e.message); btn.disabled=false; btn.textContent=' 모든 모음전에 따라쓰기'; });
-    });
-  })();
-  </script>
 
   <!-- ④ 가격 검증 -->
   <div class="sec">
@@ -483,14 +468,14 @@
             <div style="text-align:center;"><span class="sg-status" id="sg-verify-status" style="display:none;"><span class="d"></span><span id="sg-verify-msg"></span></span></div>
             <div id="sg-verify-result"></div>
 
-            <!--  키워드 게이트 검증 — ③ 포함/제외 키워드 반영 영수증 (시안 2: 좌 문구+하이라이트) -->
-            <div class="sg-kwgate" style="margin-top:20px;border-top:1px dashed #E5E8EB;padding-top:15px;">
-              <div class="fxnote" style="margin-bottom:9px;"><i class="ph-light ph-key" aria-hidden="true"></i> <b>키워드 게이트 검증</b> — ③에서 정한 포함/제외 키워드가 실제 상품 혜택에 제대로 먹히는지 확인. (포함/제외 키워드는 오른쪽 ③ 칩 / 여기엔 <b>긁은 문구</b>만)</div>
+            <!-- 키워드 게이트 검증 — ③ 포함/제외 키워드 반영 영수증 (시안 2: 좌 문구+하이라이트) -->
+            <div class="sg-kwgate" style="margin-top:16px;border-top:1px dashed var(--line,#E5E8EB);padding-top:16px;">
+              <div class="fxnote" style="margin-bottom:8px;"><i class="ph-light ph-key" aria-hidden="true"></i> <b>키워드 게이트 검증</b> — ③에서 정한 포함/제외 키워드가 실제 상품 혜택에 제대로 먹히는지 확인. (포함/제외 키워드는 오른쪽 ③ 칩 / 여기엔 <b>긁은 문구</b>만)</div>
               <div class="sg-kw-lbl"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 긁은 혜택 문구 <span class="x">— 키워드 넣는 칸 아님! 상품 페이지에 적힌 글자 그대로</span></div>
-              <textarea id="sg-kw-lines" placeholder="상품 페이지 혜택 문구를 한 줄에 하나씩 붙여넣기 (키워드 )&#10;예)&#10;등급 할인 불가&#10;상품 쿠폰&#10;구매 적립 / 선할인&#10;10% 추가 적립&#10;결제혜택" style="width:100%;min-height:78px;box-sizing:border-box;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.7;color:#3a424b;resize:vertical;"></textarea>
-              <div class="sg-kw-lbl" style="margin-top:11px;">③ 키워드 적용 미리보기 <span class="x">포함=<b style="color:#1FA463;">초록</b> / 제외=<b style="color:#C0392B;">빨강취소선</b></span></div>
-              <div id="sg-kw-hl" class="sg-hlbox"><span class="muted" style="font-size:11.5px;">위에 문구를 붙여넣으면 ③ 키워드가 어디에 걸리는지 색으로 표시됩니다.</span></div>
-              <div class="sg-nvin" style="margin-top:11px;"><input id="sg-kw-base" type="number" placeholder="회원가(표면 노출가) — 매입가 계산용(선택)"><button id="sg-kw-btn">키워드 게이트 검증</button></div>
+              <textarea id="sg-kw-lines" placeholder="상품 페이지 혜택 문구를 한 줄에 하나씩 붙여넣기 (키워드 )&#10;예)&#10;등급 할인 불가&#10;상품 쿠폰&#10;구매 적립 / 선할인&#10;10% 추가 적립&#10;결제혜택" style="width:100%;min-height:78px;box-sizing:border-box;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.7;color:var(--ink,#3a424b);resize:vertical;"></textarea>
+              <div class="sg-kw-lbl" style="margin-top:12px;">③ 키워드 적용 미리보기 <span class="x">포함=<b style="color: var(--글자-초록, var(--green,#1FA463));">초록</b> / 제외=<b style="color: var(--글자-빨강, var(--red,#C0392B));">빨강취소선</b></span></div>
+              <div id="sg-kw-hl" class="sg-hlbox"><span class="muted" style="font-size:12px;">위에 문구를 붙여넣으면 ③ 키워드가 어디에 걸리는지 색으로 표시됩니다.</span></div>
+              <div class="sg-nvin" style="margin-top:12px;"><input id="sg-kw-base" type="number" placeholder="회원가(표면 노출가) — 매입가 계산용(선택)"><button id="sg-kw-btn">키워드 게이트 검증</button></div>
               <div id="sg-kw-result"></div>
             </div>
           </div>
@@ -498,13 +483,14 @@
           <!-- 우측: ③ 키워드 칩(시안 2) + 저장된 검증(2-C) -->
           <div class="sg-saved">
             <div class="sg-kwchips">
-              <div class="sg-kwchips-h">적용할 ③ 키워드 <a href="#" class="sg-go3">③에서 수정 ↗</a></div>
-              {% set kwns = namespace(inc=[]) %}
-              {% for b in guide.pricing.benefits %}{% for t in b.triggers %}{% if t not in kwns.inc %}{% set kwns.inc = kwns.inc + [t] %}{% endif %}{% endfor %}{% endfor %}
+              <div class="sg-kwchips-h">적용할 ③ 키워드 <a href="#sg-inc" class="sg-go3">③에서 수정 ↗</a></div>
+              {% set kwns = namespace(inc=[], exc=[]) %}
+              {% for b in guide.pricing.benefits %}{% for t in b.get('triggers',[]) %}{% if t not in kwns.inc %}{% set kwns.inc = kwns.inc + [t] %}{% endif %}{% endfor %}{% endfor %}
+              {% for b in guide.pricing.benefits %}{% for t in b.get('excludes',[]) %}{% if t not in kwns.exc %}{% set kwns.exc = kwns.exc + [t] %}{% endif %}{% endfor %}{% endfor %}
               <div class="g inc">포함</div>
               {% if kwns.inc %}{% for t in kwns.inc %}<span class="chip inc">{{ t }}</span>{% endfor %}{% else %}<span class="chip-empty">— 없음 (③에서 추가)</span>{% endif %}
               <div class="g exc">제외</div>
-              {% if guide.exclude_keywords %}{% for e in guide.exclude_keywords %}<span class="chip exc">{{ e.word }}</span>{% endfor %}{% else %}<span class="chip-empty">— 없음</span>{% endif %}
+              {% if kwns.exc %}{% for t in kwns.exc %}<span class="chip exc">{{ t }}</span>{% endfor %}{% else %}<span class="chip-empty">— 없음</span>{% endif %}
             </div>
             <div class="sg-saved-h" style="margin-top:16px;"><i class="ph-light ph-files" aria-hidden="true"></i> 저장된 검증</div>
             <div id="sg-saved-list">

@@ -1,0 +1,908 @@
+{% extends 'base.html' %}
+{% block title %}마켓 전송 — 상품수집&amp;전송{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-header__title">상품수집&amp;전송</h1>
+    <p class="page-sub">
+      {{ subtabs | selectattr('key', 'equalto', tab) | map(attribute='desc') | first }}</p>
+  </div>
+
+  {# 하위탭 — 상단 메뉴 펼침(api_sidebar._SEND2)과 **같은 순서**여야 한다. #}
+  <div class="ms-tabs">
+    {% for t in subtabs %}
+      <a class="ms-tab {% if t.key == tab %}on{% endif %}" href="{{ t.url }}">{{ t.label }}</a>
+    {% endfor %}
+  </div>
+
+  {# ── 조건검색 — 상품·소싱처·판매처 3기준(1-B 확정: 세로 라벨+줄) ──────── #}
+  <div class="fbox">
+    <div class="g3">
+      <div class="g3-row">
+        <div class="g3-lbl">상품 기준</div>
+        <div class="g3-body">
+          <div class="g3-line">
+            <div class="ac-box">
+              <input class="fin" id="fKw" placeholder="브랜드·모델명·상품명 검색" autocomplete="off">
+              <div class="ac-drop" id="acDrop" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="g3-row">
+        <div class="g3-lbl">소싱처 기준</div>
+        <div class="g3-body">
+          <div class="g3-line">
+            <select class="fsel" id="fBasis">
+              <option value="">날짜로 안 거름</option>
+              {% for k, lb in date_basis %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
+            </select>
+            <input class="fdt" type="date" id="fFrom"><span class="fw">~</span>
+            <input class="fdt" type="date" id="fTo">
+            <select class="fsel" id="fSort">
+              {% for k, lb in sort_options %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="g3-line">
+            <span class="lnlbl">소싱처 <small>(하나라도 물고 있으면)</small></span>
+            {% for k, lb in sources %}
+            <label class="chip"><input type="checkbox" class="fSrc" value="{{ k }}">{{ lb }}</label>
+            {% else %}<span class="fnote">아직 붙은 소싱처가 없습니다</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="g3-row">
+        <div class="g3-lbl">판매처 기준</div>
+        <div class="g3-body">
+          <div class="g3-line">
+            <span class="lnlbl">마켓</span>
+            {% for mk, acct_list in accounts.items() %}
+              {% for k, lb in acct_list %}
+              <label class="chip"><input type="checkbox" class="fAcct" data-market="{{ mk }}" value="{{ k }}">{{ lb }}</label>
+              {% endfor %}
+            {% else %}<span class="fnote">아직 등록된 판매처 계정이 없습니다</span>{% endfor %}
+          </div>
+          <div class="g3-line">
+            <span class="lnlbl">재고상태</span>
+            <select class="fsel" id="fStock">
+              <option value="">전체</option>
+              <option value="instock">재고</option>
+              <option value="soldout">품절</option>
+            </select>
+            <span class="fnote">삭제(마켓 잔존 확인)는 준비 중입니다</span>
+          </div>
+          <div class="g3-line">
+            <label class="chip"><input type="checkbox" id="fUnlisted">미판매중 — 곧 올릴 것</label>
+            <label class="chip"><input type="checkbox" id="fRegistered">등록됨만 — 계속 관리할 것</label>
+          </div>
+          <div class="g3-line">
+            {# 우리에게만 있는 안전 필터 — 파랗게 눈에 띄게(사장님 확정 ③) #}
+            <select class="fsel hot" id="fPolicy">
+              {% for k, lb in policy_filter %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}
+            </select>
+            <div class="ac-box" style="max-width:260px">
+              <input class="fin" id="fPolKw" placeholder="정책 이름 검색" autocomplete="off">
+              <div class="ac-drop" id="acPolDrop" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fr run">
+      <button class="btn2" id="btnSearch">검색</button>
+      <span class="fcount right">총 <b id="cTotal">–</b> 개 구성</span>
+    </div>
+  </div>
+
+  {# ── 왼쪽 소싱처 수집 · 오른쪽 판매처 전송 — 독립 ON/OFF(2-A 확정) ────── #}
+  <div class="p2box">
+    <div class="p2">
+      <div class="p2-panel" id="pCollect">
+        <div class="p2-h"><span class="p2-t">소싱처 수집</span>
+          <span class="tgl on" id="tglCollect" role="switch" aria-checked="true" tabindex="0"><i></i></span></div>
+        <div class="p2-sub">위 조건에 맞는 상품을 내 PC 크롬으로 다시 긁어옵니다</div>
+        <span class="fnote" id="extNote">크롬 확장을 확인하는 중…</span>
+      </div>
+      <div class="p2-panel off" id="pSend">
+        <div class="p2-h"><span class="p2-t">판매처 전송</span>
+          <span class="tgl" id="tglSend" role="switch" aria-checked="false" tabindex="0"><i></i></span></div>
+        <div class="p2-sub">위 조건에 맞는 상품을 골라 마켓으로 보냅니다</div>
+        <div class="g3-line">
+          {% for k, lb in markets %}
+          <label class="chip on"><input type="checkbox" class="fMkt" value="{{ k }}" checked>{{ lb }}</label>
+          {% endfor %}
+        </div>
+        <span class="fnote">정책에서 꺼 둔 마켓은 골라도 건너뜁니다</span>
+      </div>
+    </div>
+    <div id="selBar"><span><b id="selCount">0</b>개 선택됨</span>
+      <button type="button" id="selClear" class="btn2 sm">선택 해제</button></div>
+    <div class="fr run">
+      <button class="btn2 big" id="btnSend">시작 (검색결과 전부)</button>
+      {# 🔴 실제 마켓 호출은 두 겹 잠금 뒤다(서버 열쇠 + 자동화 화면 열쇠).
+         꺼져 있으면 게이트까지만 돌고 「왜 안 나갔는지」를 로그에 적는다. #}
+      <span class="fnote">재고를 못 읽은 옵션이 있으면 <b>그 구성은 보내지 않습니다</b> —
+        지어낸 재고가 나가면 오버셀입니다.</span>
+    </div>
+  </div>
+
+  {# ── 실시간 전송 로그 (A안: 목록 위) — 사장님 확정 「전송은 실시간으로」 ── #}
+  <div class="lgbox" id="lgBox" style="display:none">
+    <div class="lg-h"><span class="dot" id="lgDot"></span><b id="lgTitle">전송 진행 중</b>
+      <span class="lg-p" id="lgProg"></span></div>
+    <div class="lg-b" id="lgBody"></div>
+    <div class="lg-f"><i class="ph-light ph-circle" aria-hidden="true"></i> <b>「마켓 원문」이라고 붙은 것만 마켓이 한 말</b>입니다 —
+      나머지 문구는 우리가 붙인 안내입니다.</div>
+  </div>
+
+  <div id="msList"><div class="empty">불러오는 중…</div></div>
+</div>
+
+<style>
+  .ms-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line,#E5E8EB);margin-bottom:16px}
+  /* 안 고른 탭 글자 — 밝은 화면 대비 때문에 3차색이 아니라 보조색을 쓴다(라이브 실측 2.91) */
+  .ms-tab{padding:8px 16px;font-size:14px;font-weight:600;color:var(--글자-보조,#6B7684);
+    border-bottom:2px solid transparent;text-decoration:none}
+  .ms-tab.on{color: var(--글자-파랑, var(--primary,#3182F6));border-bottom-color:var(--primary,#3182F6)}
+
+  .fbox{background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px}
+  .fr{display:flex;align-items:center;gap:6px;padding:5px 0}
+  .fr.wrap{flex-wrap:wrap}
+  .fr.run{border-top:1px dashed var(--line,#E5E8EB);margin-top:6px;padding-top:10px;flex-wrap:wrap}
+  .fsel,.fin,.fdt{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:6px 10px;
+    font-size:12px;font-family:inherit;background:var(--surface,#fff);color:var(--ink,#191F28)}
+  .fsel.hot{border-color:var(--primary,#3182F6);color: var(--글자-파랑, var(--primary,#1B64DA));font-weight:700}
+  .fin{min-width:200px}
+  .fw{font-size:12px;color:var(--sub,#8B95A1)}
+  .fnote{font-size:12px;color: var(--글자-주황, var(--amber,#B45309));line-height:1.6}
+  .fcount{font-size:12px;color:var(--글자-보조,#6B7684)} .fcount b{color:var(--ink,#191F28)}
+  .fcount.right{margin-left:auto}
+  .chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line,#E5E8EB);
+    border-radius:999px;padding:4px 11px;font-size:12px;color:var(--글자-기본,#4E5968);
+    background:var(--surface,#fff);cursor:pointer}
+  .chip.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);
+    color: var(--글자-파랑, var(--primary,#1B64DA));font-weight:700}
+  .chip input{width:13px;height:13px}
+  .btn2{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;
+    padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+  .btn2.big{padding:10px 18px;font-size:13px}
+  /* 잠긴 버튼도 읽혀야 한다 — `--sub` 는 밝은 화면에서 2.76 이다(라이브 실측) */
+  .btn2:disabled{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684);cursor:default}
+
+  /* ── 조건검색 3분류 — 세로 라벨 + 줄(1-B 확정) ──────────────────────── */
+  .g3{border:1px solid var(--n100,#F2F4F6);border-radius:10px;overflow:hidden}
+  .g3-row{display:grid;grid-template-columns:104px 1fr;border-top:1px solid var(--n100,#F2F4F6)}
+  .g3-row:first-child{border-top:none}
+  .g3-lbl{background:var(--n100,#F2F4F6);display:flex;align-items:center;padding:0 14px;
+    font-size:12px;font-weight:700;color:var(--글자-보조,#6B7684)}
+  .g3-body{padding:8px 14px;display:flex;flex-direction:column;gap:6px}
+  .g3-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .g3-line .lnlbl{font-size:12px;color:var(--글자-보조,#6B7684)}
+  .g3-line .lnlbl small{font-weight:500;color:var(--글자-희미,#B0B8C1)}
+
+  /* 자동완성 검색창(3-A 확정: 통합 1칸 + 종류 표시) */
+  .ac-box{position:relative}
+  .ac-drop{position:absolute;top:100%;left:0;right:0;border:1px solid var(--line,#E5E8EB);
+    border-top:none;border-radius:0 0 10px 10px;background:var(--surface,#fff);
+    box-shadow:0 6px 16px rgba(0,0,0,.08);overflow:hidden;z-index:5;max-height:260px;overflow-y:auto}
+  .ac-item{padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer}
+  .ac-item:hover{background:var(--n100,#F2F4F6)}
+  .ac-item .tag{font-size:10px;font-weight:700;color: var(--글자-파랑, var(--primary,#1B64DA));
+    background:var(--연한-파랑,#E8F2FF);border-radius:5px;padding:1px 6px;flex:none}
+
+  /* ── 왼쪽 소싱처 수집 · 오른쪽 판매처 전송(2-A 확정: 큰 스위치) ──────── */
+  .p2box{background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px}
+  .p2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .p2-panel{border:1px solid var(--n100,#F2F4F6);border-radius:10px;padding:12px 14px;
+    transition:opacity .2s}
+  .p2-panel.off{opacity:.45;filter:grayscale(.6)}
+  .p2-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .p2-t{font-size:14px;font-weight:700;color:var(--ink,#191F28)}
+  .p2-sub{font-size:12px;color:var(--글자-희미,#B0B8C1);margin-bottom:6px}
+  .tgl{width:38px;height:22px;border-radius:999px;background:var(--n100,#F2F4F6);
+    position:relative;cursor:pointer;flex:none}
+  .tgl.on{background: var(--바탕-파랑, var(--primary,#3182F6))}
+  .tgl i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+    background:#fff;transition:.15s}
+  .tgl.on i{left:18px}
+
+  table.lst{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface,#fff);
+    border:1px solid var(--line,#E5E8EB);border-radius:12px;overflow:hidden}
+  table.lst th{background:var(--n100,#F2F4F6);font-size:12px;font-weight:600;
+    color:var(--글자-기본,#4E5968);padding:9px 10px;border-bottom:1px solid var(--line,#E5E8EB);
+    text-align:left;white-space:nowrap}
+  table.lst td{padding:9px 10px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:top}
+  table.lst th.c,table.lst td.c{text-align:center}
+  table.lst td.dt{font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.lst .setnm{color: var(--글자-파랑, var(--primary,#1B64DA));font-weight:700}
+  .srcs{display:flex;gap:3px;flex-wrap:wrap}
+  .sc{font-size:12px;border-radius:8px;padding:1px 7px;white-space:nowrap;
+    background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
+  .pol{font-size:12px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap;
+    background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+  .pol.no{background:var(--연한-빨강,#FEECEC);color: var(--글자-빨강, var(--red,#B91C1C))}
+  .mkrow{display:flex;gap:3px;flex-wrap:wrap}
+  .mk{font-size:12px;font-weight:700;border-radius:8px;padding:1px 6px;white-space:nowrap;cursor:help}
+  .mk.on{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+  /* 「아직 안 보냄」도 읽혀야 한다 — 안 보낸 마켓을 찾는 게 이 칸의 목적이다 */
+  .mk.off{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
+  .lgbox{background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
+    border-radius:12px;margin-bottom:10px;overflow:hidden}
+  .lg-h{display:flex;align-items:center;gap:9px;padding:9px 13px;background:var(--n100,#F7FAFF);
+    border-bottom:1px solid var(--line,#E5E8EB);font-size:13px}
+  .lg-h .dot{width:8px;height:8px;border-radius:50%;background:var(--green,#12B886);
+    animation:lgbl 1s infinite}
+  .lg-h .dot.off{background:var(--sub,#8B95A1);animation:none}
+  @keyframes lgbl{50%{opacity:.25}}
+  .lg-p{font-size:12px;color:var(--글자-보조,#6B7684);margin-left:auto}
+  .lg-p b{color:var(--ink,#191F28)}
+  .lg-p .er{color: var(--글자-빨강, var(--red,#B91C1C))}
+  .lg-b{max-height:230px;overflow:auto;padding:6px 0}
+  .lg{display:flex;align-items:baseline;gap:6px;padding:3px 13px;font-size:12px;
+    line-height:1.7;white-space:nowrap}
+  .lg .lt{font-family:ui-monospace,monospace;color:var(--글자-보조,#6B7684);
+    font-variant-numeric:tabular-nums}
+  .lg .lm{font-weight:700;color:var(--ink,#191F28)}
+  .lg .la{color: var(--글자-파랑, var(--primary,#1B64DA));font-family:ui-monospace,monospace}
+  .lg .lc{color:var(--글자-보조,#6B7684);font-family:ui-monospace,monospace}
+  .lg .lar{color:var(--글자-보조,#6B7684)}
+  .lg .lr{font-weight:700}
+  .lg-p .stg{color:var(--글자-보조,#6B7684)}
+  .lg.ok .lr{color: var(--글자-초록, var(--green,#15803D))}
+  .lg.skip .lr{color:var(--글자-보조,#6B7684)}
+  .lg.fail .lr{color: var(--글자-빨강, var(--red,#B91C1C))}
+  .lg .raw{display:inline-flex;align-items:baseline;gap:5px;background:var(--연한-빨강,#FEECEC);
+    border-radius:8px;padding:0 8px;margin-left:4px}
+  .lg .raw code{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;
+    color: var(--글자-빨강, var(--red,#B91C1C))}
+  .lg .raw em{font-style:normal;font-size:12px;color: var(--글자-빨강, var(--red,#B91C1C))}
+  .lg .note{color:var(--글자-보조,#6B7684);white-space:normal}
+  .lg-f{padding:8px 13px;background:var(--연한-주황,#FFFBEB);
+    border-top:1px solid var(--연한-주황,#FDE68A);font-size:12px;
+    color: var(--글자-주황, var(--amber,#92400E));line-height:1.6}
+  .empty{background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:12px;
+    padding:28px;text-align:center;font-size:13px;color:var(--글자-보조,#6B7684)}
+  .pager{display:flex;gap:6px;align-items:center;justify-content:center;padding:12px 0;
+    font-size:12px;color:var(--글자-보조,#6B7684)}
+  .pager button{border:1px solid var(--line,#E5E8EB);background:var(--surface,#fff);
+    border-radius:8px;padding:5px 12px;font-size:12px;font-family:inherit;cursor:pointer;
+    color:var(--글자-기본,#4E5968)}
+  .pager button:disabled{color: var(--글자-희미, var(--faint,#B0B8C1));cursor:default}
+
+  /* ══ 2026-08 개편 — ①상품명 2줄 ══ */
+  .bl-name-sub2{display:flex;align-items:center;gap:0;margin-top:4px;font-size:12px;color:var(--글자-기본,#4E5968);flex-wrap:wrap}
+  .lbl-chip{display:inline-flex;align-items:center;justify-content:center;width:34px;height:17px;border:1px solid var(--line,#E5E8EB);border-radius:5px;color:var(--글자-보조,#8B95A1);font-size:10px;font-weight:700;flex-shrink:0;margin-right:5px}
+  .lbl-val{margin-right:12px;font-family:ui-monospace,monospace}
+
+  /* ══ 2026-08 개편 — ①NO+체크박스 ══ */
+  .ck-th,.ck-td{width:56px;text-align:center}
+  .ck-cell{display:flex;align-items:center;gap:6px;justify-content:center;cursor:pointer;user-select:none}
+  .rowno{color:var(--글자-보조,#8B95A1);font-size:12px;font-family:ui-monospace,monospace}
+  .btn2.sm{padding:5px 12px;font-size:12px}
+  #selBar{display:none;align-items:center;gap:10px;margin-bottom:8px;font-size:13px}
+  #selBar.on{display:flex}
+  #selBar b{color:var(--primary,#3182F6)}
+
+  /* ══ 2026-08 개편 — ②정책 클릭 메뉴 ══ */
+  /* .pol-menu 는 .pol 버튼의 형제(같은 td 안)라 .pol 의 relative 는 기준이 안 된다 — td 자체가 기준이어야 함 */
+  .pol-td{position:relative}
+  .pol{cursor:pointer;position:relative;border:none;font-family:inherit}
+  .pol-menu{display:none;position:absolute;top:22px;left:0;z-index:60;background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.16);width:180px;padding:5px;text-align:left}
+  .pol-menu.on{display:block}
+  .pol-menu a{display:block;padding:8px 9px;border-radius:7px;font-size:12px;font-weight:600;color:var(--ink,#191F28);text-decoration:none}
+  .pol-menu a:hover{background:var(--n100,#F2F4F6)}
+
+  /* ══ 2026-08 개편 — ③소싱처·마켓 로고그리드 (기존 brand-app-logo 팔레트에 없던 것만 추가) ══ */
+  .brand-app-logo.lotteimall{background:#E60000}
+  .brand-app-logo.ss_lemouton{background:#03C75A}
+  .brand-app-logo.ssg{background:#FFD400;color:#191F28}
+  .brand-app-logo.hmall{background:#001F5C}
+  .brand-app-logo.eleven11{background:#ff0038}
+  .lg-grid{display:flex;gap:4px;flex-wrap:wrap;max-width:180px}
+  .lg-cell{min-width:21px;height:21px;padding:0 2px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:9.5px;letter-spacing:-.2px;white-space:nowrap;position:relative;cursor:help}
+  .lg-cell.off{opacity:.28;cursor:default}
+  /* ④ 소싱처 칸은 호버(URL)뿐 아니라 클릭도 된다(옵션관리 열기) — off 여도 모델 단위라 눌린다 */
+  .lg-cell[data-src-hover]{cursor:pointer}
+  .lg-cell .dot{position:absolute;bottom:-2px;right:-2px;width:6px;height:6px;border-radius:50%;background:var(--green,#22C55E);border:1.5px solid var(--surface,#fff)}
+
+  /* ══ 2026-08 개편 — 칸 호버카드 (소싱처 URL + 옵션별 가격·재고 이력, red=오름·blue=내림) ══ */
+  .when-trig{color:var(--글자-기본,#4E5968);cursor:pointer;border-bottom:1px dotted var(--n400,#B0B8C1)}
+  .pm-card{display:none;position:fixed;z-index:9999;background:var(--surface,#fff);border:1px solid var(--line,#d1d6db);border-radius:12px;padding:11px 13px;font-size:12px;text-align:left;width:250px;max-height:60vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.18)}
+  .pm-card.on{display:block}
+  .pmc-h{font-weight:800;color:var(--ink,#191F28);margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed var(--line,#e5e8eb)}
+  .pmc-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0}
+  .pmc-row .l{color:var(--글자-보조,#8B95A1)}
+  .pmc-row .r{font-family:ui-monospace,monospace;font-weight:700;color:var(--ink,#191F28)}
+  .pmc-url{font-family:ui-monospace,monospace;font-size:11px;color:var(--글자-보조,#6b7684);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+  .pmc-go{color:var(--글자-파랑,#3182F6);text-decoration:none;font-weight:700;flex-shrink:0}
+  .mxh-opt{font-weight:800;margin:8px 0 3px;color:var(--ink,#191F28)}
+  .mxh-opt:first-child{margin-top:0}
+  .mxh-src-row{padding:3px 0;border-top:1px dashed var(--n100,#F2F4F6)}
+  .mxh-src-row:first-of-type{border-top:none}
+  .mxh-src-name{font-size:11px;color:var(--글자-보조,#8B95A1);font-weight:700}
+  .mxh-metric{display:flex;align-items:baseline;gap:5px;font-size:12px}
+  .mxh-metric .k{width:24px;flex-shrink:0;font-size:10px;color:var(--글자-보조,#8B95A1);font-weight:700}
+  .mtx-trend{font-size:9.5px;font-weight:700;margin-left:2px}
+  .mtx-trend.up{color:var(--글자-빨강,#EF4444)}
+  .mtx-trend.down{color:var(--글자-파랑,#3182F6)}
+</style>
+
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  .ms-tab { min-height: 44px; display: inline-flex; align-items: center; }
+  .fbox { padding: 10px 10px; }
+  .fr { flex-wrap: wrap; }
+  .fin { min-width: 0; flex: 1; }
+  .fsel, .fin, .fdt { font-size: 16px; min-height: 44px; }
+  .chip { min-height: 44px; font-size: 14px; }
+  .btn2 { min-height: 44px; }
+  .btn2.big { width: 100%; }
+  .fnote { font-size: 12px; }
+  .fcount.right { margin-left: 0; }
+  .g3-row { grid-template-columns: 1fr; }
+  .g3-lbl { padding: 6px 14px; }
+  .p2 { grid-template-columns: 1fr; }
+  /* 목록 표(7열) — 가로 스크롤 + 첫 열(체크박스) 붙박이 */
+  #msList { overflow-x: auto; }
+  table.lst { min-width: 720px; font-size: 14px; }
+  table.lst th { font-size: 12px; }
+  table.lst .bl-name-sub2 { font-size: 12px; }
+  table.lst th:first-child, table.lst td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  /* 실시간 로그 — 한 줄 고정(nowrap)이면 폰에서 오른쪽이 잘린다 */
+  .lg { white-space: normal; font-size: 14px; }
+  .pager button { min-height: 44px; }
+}
+</style>
+
+<script>
+(function(){
+  const MK = {{ markets | tojson }};
+  const SRC_UNIVERSE = {{ source_universe | tojson }};
+  const SRC_LABEL = {{ source_labels | tojson }};
+  let page = 1;
+  const selected = new Set();     // ① 체크된 set_id — 비어 있으면 「검색결과 전부」로 보낸다
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  // 자동으로 앞글자만 자르면 겹친다(롯데아이몰·롯데온 둘 다 '롯' / SSF·SSG 둘 다 'S') —
+  // 같은 칸(소싱처 그리드) 안에서 안 겹치게 손으로 고른다.
+  const GLYPH_OVERRIDE = {lotteimall: '몰', lotteon: '온', ssf: 'SF', ssg: 'SG', hmall: 'H몰', ss_lemouton: '스마'};
+  const glyph = k => GLYPH_OVERRIDE[k] || (SRC_LABEL[k] || MK.find(m => m[0] === k)?.[1] || k).slice(0, 1);
+
+  function params(){
+    const p = new URLSearchParams({page: page, per_page: 50,
+      date_basis: $('fBasis').value, date_from: $('fFrom').value, date_to: $('fTo').value,
+      sort: $('fSort').value, policy: $('fPolicy').value, stock_status: $('fStock').value,
+      unlisted_only: $('fUnlisted').checked ? '1' : '', registered_only: $('fRegistered').checked ? '1' : '',
+      search_in: window.__searchIn || 'name', keyword: $('fKw').value});
+    const src = [...document.querySelectorAll('.fSrc:checked')].map(x => x.value);
+    if (src.length) p.set('sources', src.join(','));
+    const acct = [...document.querySelectorAll('.fAcct:checked')].map(x => x.value);
+    if (acct.length) p.set('accounts', acct.join(','));
+    return p;
+  }
+
+  // ③ 소싱처·마켓 로고그리드 — 고정 명부 순서로 전부 그리고, 안 붙은 건 흐리게.
+  //    🔴 소싱처가 여럿이다. 「지금 사오는 곳」은 안 정했으므로(listing.py 원칙) 켜진 칸이
+  //       여러 개 있는 게 정상이다 — 하나로 뭉개지 않는다.
+  function srcGrid(r){
+    return '<div class="lg-grid">' + SRC_UNIVERSE.map(k => {
+      const on = r.sources.includes(k);
+      const lbl = SRC_LABEL[k] || k;
+      return '<span class="lg-cell brand-app-logo ' + k + ' ' + (on ? '' : 'off') + '"'
+        + ' data-src-hover="' + r.set_id + '|' + k + '" title="' + esc(lbl) + (on ? '' : ' (안 붙음)') + '">'
+        + esc(glyph(k)) + (on ? '<span class="dot"></span>' : '') + '</span>';
+    }).join('') + '</div>';
+  }
+  function mktGrid(r){
+    return '<div class="lg-grid">' + MK.map(([k, lb]) => {
+      const at = r.sent[k], id = r.listed[k];
+      const on = !!at;
+      const tip = at ? ('마지막 전송 ' + at) : (id ? ('등록됨 ' + id + ' · 이 화면으로 보낸 적 없음') : lb + ' — 아직 안 보냄');
+      return '<span class="lg-cell brand-app-logo ' + k + ' ' + (on ? '' : 'off') + '"'
+        + ' title="' + esc(tip) + '">' + esc(glyph(k)) + (on ? '<span class="dot"></span>' : '') + '</span>';
+    }).join('') + '</div>';
+  }
+
+  function row(r, no){
+    // NO + 체크박스 — 왼쪽에 체크박스, 오른쪽에 번호(사장님 확정)
+    const ck = '<label class="ck-cell"><input type="checkbox" class="rowck" data-id="' + r.set_id
+      + '"><span class="rowno">' + no + '</span></label>';
+
+    // ① 상품명 2줄 — 1행: 상품명 + 브랜드 + 구성명 / 2행: 품번·SKU 라벨칩
+    const name = '<b>' + esc(r.name) + '</b> '
+      + (r.brand ? '<span class="brand-pill-v2">' + esc(r.brand) + '</span> ' : '')
+      + '<span class="setnm">' + esc(r.set_name) + '</span>'
+      + '<div class="bl-name-sub2">'
+      + '<span class="lbl-chip">품번</span><span class="lbl-val">' + esc(r.display_no) + '</span>'
+      + '<span class="lbl-chip">SKU</span><span class="lbl-val">' + r.options + '개</span>'
+      + '</div>';
+
+    // ② 정책 배지 — 클릭하면 「정책 편집 / 적용 정책 변경」 중 고르는 작은 메뉴
+    const polMenuId = 'polm' + r.set_id;
+    const editRow = r.policy_id
+      ? '<a href="/policies/' + r.policy_id + '" target="_blank">정책 편집</a>' : '';
+    const applyRow = '<a href="/policies/apply?model=' + encodeURIComponent(r.model_code)
+      + '" target="_blank">적용 정책 변경</a>';
+    const pol = (r.policy
+      ? '<button type="button" class="pol" data-pol-toggle="' + polMenuId + '" title="'
+        + (r.policy_from === 'set' ? '이 구성에 직접 붙임' : '상품에 붙은 것을 따름') + '">' + esc(r.policy) + '</button>'
+      : '<button type="button" class="pol no" data-pol-toggle="' + polMenuId
+        + '" title="정책이 없으면 어떤 값으로 올릴지 정해지지 않습니다">없음</button>')
+      + '<div class="pol-menu" id="' + polMenuId + '">' + editRow + applyRow + '</div>';
+
+    // ④ 소싱처 수집 날짜 — 호버하면 옵션별·소싱처별 최근 가격·재고 2줄
+    const crawl = r.crawled_at
+      ? '<span class="when-trig" data-hist-set="' + r.set_id + '">' + esc(r.crawled_at) + '</span>'
+      : '<span class="sc">아직 안 긁음</span>';
+
+    // ⑦ 판매처 수집 날짜 — 호버하면 마켓별 판매가·재고·예상마진
+    const mktCollected = r.market_collected_at
+      ? '<span class="when-trig" data-mkt-hist-set="' + r.set_id + '">' + esc(r.market_collected_at) + '</span>'
+      : '<span class="sc">아직 안 긁음</span>';
+
+    return '<tr><td class="ck-td">' + ck + '</td>'
+      + '<td>' + srcGrid(r) + '</td>'
+      + '<td>' + name + '</td>'
+      + '<td class="pol-td">' + pol + '</td>'
+      + '<td class="dt">' + crawl + '</td>'
+      + '<td class="dt">' + mktCollected + '</td>'
+      + '<td>' + mktGrid(r) + '</td></tr>';
+  }
+
+  // ── ②③④ 호버카드·클릭메뉴 — body-fixed 포털(표 스크롤 안에서도 안 잘림) ──
+  let floatEl = null, hideT = null;
+  function ensureFloat(){
+    if (floatEl) return floatEl;
+    floatEl = document.createElement('div');
+    floatEl.className = 'pm-card';
+    floatEl.addEventListener('mouseenter', () => { if (hideT) { clearTimeout(hideT); hideT = null; } });
+    floatEl.addEventListener('mouseleave', scheduleHide);
+    document.body.appendChild(floatEl);
+    return floatEl;
+  }
+  function scheduleHide(){
+    if (hideT) clearTimeout(hideT);
+    hideT = setTimeout(() => { if (floatEl) floatEl.classList.remove('on'); }, 200);
+  }
+  function showFloat(anchor, html){
+    if (hideT) { clearTimeout(hideT); hideT = null; }
+    const el = ensureFloat();
+    el.innerHTML = html;
+    el.classList.add('on');
+    el.style.left = '-9999px'; el.style.top = '-9999px';
+    requestAnimationFrame(() => {
+      const rect = anchor.getBoundingClientRect();
+      const cw = el.offsetWidth, ch = el.offsetHeight;
+      let L = rect.left, T = rect.bottom + 6;
+      if (L + cw > window.innerWidth - 8) L = window.innerWidth - cw - 8;
+      if (T + ch > window.innerHeight - 8) T = rect.top - ch - 6;
+      el.style.left = L + 'px'; el.style.top = T + 'px';
+    });
+  }
+
+  function srcHoverHtml(setId, key){
+    const r = (window.__rows || []).find(x => String(x.set_id) === String(setId));
+    const lbl = SRC_LABEL[key] || key;
+    const urls = (r && r.source_detail && r.source_detail[key]) || [];
+    let h = '<div class="pmc-h">' + esc(lbl) + '</div>';
+    if (!urls.length) return h + '<div class="pmc-row"><span class="l">등록된 URL 없음</span></div>';
+    urls.forEach(u => {
+      h += '<div class="pmc-row">'
+        + '<div class="pmc-url" title="' + esc(u.url) + '">' + esc(u.label || u.url) + '</div>'
+        + '<a class="pmc-go" href="' + esc(u.url) + '" target="_blank" rel="noopener noreferrer">↗</a></div>';
+    });
+    return h;
+  }
+
+  function trendBadge(delta, unit){
+    if (!delta) return '';
+    const cls = delta > 0 ? 'up' : 'down';
+    const arrow = delta > 0 ? '▲' : '▼';
+    return ' <span class="mtx-trend ' + cls + '">' + arrow + Math.abs(delta).toLocaleString() + unit + '</span>';
+  }
+
+  const histCache = {};
+  async function showHistoryHover(anchor, setId){
+    showFloat(anchor, '<div class="pmc-h">불러오는 중…</div>');
+    try {
+      let d = histCache[setId];
+      if (!d) {
+        const res = await fetch('/api/market-send/rows/' + setId + '/history');
+        d = await res.json();
+        histCache[setId] = d;
+      }
+      if (!d.ok || !d.skus.length) { showFloat(anchor, '<div class="pmc-h">최근 이력 없음</div>'); return; }
+      let h = '<div class="pmc-h">옵션별·소싱처별 최근 가격·재고</div>';
+      d.skus.forEach(sk => {
+        h += '<div class="mxh-opt">' + esc(sk.color) + ' · ' + esc(sk.size) + '</div>';
+        Object.keys(sk.sources).forEach(srcKey => {
+          const sd = sk.sources[srcKey];
+          const pts = sd.history || [];
+          const prev = pts.length > 1 ? pts[pts.length - 2] : null;
+          const stockDelta = (prev && prev.stock != null && sd.current_stock != null) ? sd.current_stock - prev.stock : 0;
+          const priceDelta = (prev && prev.price != null && sd.current_price != null) ? sd.current_price - prev.price : 0;
+          h += '<div class="mxh-src-row"><div class="mxh-src-name">' + esc(SRC_LABEL[srcKey] || srcKey) + '</div>'
+            + '<div class="mxh-metric"><span class="k">재고</span><span>' + (sd.current_stock == null ? '—' : sd.current_stock) + '개</span>' + trendBadge(stockDelta, '') + '</div>'
+            + '<div class="mxh-metric"><span class="k">가격</span><span>₩' + (sd.current_price == null ? '—' : sd.current_price.toLocaleString()) + '</span>' + trendBadge(priceDelta, '') + '</div>'
+            + '</div>';
+        });
+      });
+      showFloat(anchor, h);
+    } catch (e) { showFloat(anchor, '<div class="pmc-h">이력을 못 불러왔습니다</div>'); }
+  }
+
+  // ⑦ 판매처 수집 호버 — 마켓별 판매가·재고·최근변동·예상마진
+  const mktHistCache = {};
+  async function showMarketMarginHover(anchor, setId){
+    showFloat(anchor, '<div class="pmc-h">불러오는 중…</div>');
+    try {
+      let d = mktHistCache[setId];
+      if (!d) {
+        const res = await fetch('/api/market-send/rows/' + setId + '/margin');
+        d = await res.json();
+        mktHistCache[setId] = d;
+      }
+      if (!d.ok || !d.skus.length) { showFloat(anchor, '<div class="pmc-h">최근 이력 없음</div>'); return; }
+      let h = '<div class="pmc-h">옵션별·마켓별 판매가·예상마진</div>';
+      d.skus.forEach(sk => {
+        h += '<div class="mxh-opt">' + esc(sk.color) + ' · ' + esc(sk.size) + '</div>';
+        Object.keys(sk.markets).forEach(mkKey => {
+          const md = sk.markets[mkKey];
+          const priceDelta = (md.prev_price != null && md.price != null) ? md.price - md.prev_price : 0;
+          const priceTxt = md.price == null ? '확인 불가' : '₩' + md.price.toLocaleString();
+          const marginTxt = md.margin == null
+            ? '<span class="sc">' + esc(md.margin_reason || '확인 불가') + '</span>'
+            : (md.margin >= 0 ? '+' : '') + md.margin.toLocaleString() + '원';
+          h += '<div class="mxh-src-row"><div class="mxh-src-name">' + esc(MK.find(m => m[0] === mkKey)?.[1] || mkKey) + '</div>'
+            + '<div class="mxh-metric"><span class="k">판매가</span><span>' + priceTxt + '</span>' + trendBadge(priceDelta, '') + '</div>'
+            + '<div class="mxh-metric"><span class="k">예상마진</span><span>' + marginTxt + '</span></div>'
+            + '</div>';
+        });
+      });
+      showFloat(anchor, h);
+    } catch (e) { showFloat(anchor, '<div class="pmc-h">이력을 못 불러왔습니다</div>'); }
+  }
+
+  // 델리게이션 — #msList 는 안 갈아 끼우고 안쪽만 다시 그리므로 여기 한 번만 건다.
+  const listEl = $('msList');
+  listEl.addEventListener('mouseover', e => {
+    const srcEl = e.target.closest('[data-src-hover]');
+    if (srcEl) {
+      if (srcEl.classList.contains('off')) return;   // 안 붙은 칸은 보여줄 URL이 없다
+      const [setId, key] = srcEl.dataset.srcHover.split('|');
+      showFloat(srcEl, srcHoverHtml(setId, key));
+      return;
+    }
+    const histEl = e.target.closest('[data-hist-set]');
+    if (histEl) { showHistoryHover(histEl, histEl.dataset.histSet); return; }
+    const mktHistEl = e.target.closest('[data-mkt-hist-set]');
+    if (mktHistEl) showMarketMarginHover(mktHistEl, mktHistEl.dataset.mktHistSet);
+  });
+  listEl.addEventListener('mouseout', e => {
+    if (e.target.closest('[data-src-hover]') || e.target.closest('[data-hist-set]')
+        || e.target.closest('[data-mkt-hist-set]')) scheduleHide();
+  });
+  listEl.addEventListener('click', e => {
+    const pol = e.target.closest('[data-pol-toggle]');
+    if (pol) {
+      e.stopPropagation();
+      const menu = $(pol.dataset.polToggle);
+      const wasOn = menu.classList.contains('on');
+      document.querySelectorAll('.pol-menu.on').forEach(m => m.classList.remove('on'));
+      if (!wasOn) menu.classList.add('on');
+      return;
+    }
+    // ④ 소싱처 로고 클릭 → 상품관리 > 옵션관리 > 그 모델의 옵션 조합 생성 열기
+    const srcCell = e.target.closest('[data-src-hover]');
+    if (srcCell) {
+      const [setId] = srcCell.dataset.srcHover.split('|');
+      const r = (window.__rows || []).find(x => String(x.set_id) === String(setId));
+      if (r && r.model_code && typeof window.openOptionUrlModal === 'function') {
+        window.openOptionUrlModal(r.model_code);
+      }
+    }
+  });
+  listEl.addEventListener('change', e => {
+    const ck = e.target.closest('.rowck');
+    if (!ck) return;
+    if (ck.checked) selected.add(ck.dataset.id); else selected.delete(ck.dataset.id);
+    paintSelBar();
+  });
+  document.addEventListener('click', e => {
+    document.querySelectorAll('.pol-menu.on').forEach(m => m.classList.remove('on'));
+    if (!e.target.closest('.ac-box')) { $('acDrop').hidden = true; $('acPolDrop').hidden = true; }
+  });
+
+  // ── 상품 기준 자동완성 (3-A 확정: 통합 1칸 + 종류 표시) ─────────────
+  const KIND_LABEL = {brand: '브랜드', name: '상품명'};
+  let acTimer = null;
+  $('fKw').addEventListener('input', () => {
+    clearTimeout(acTimer);
+    const q = $('fKw').value.trim();
+    if (q.length < 2){ $('acDrop').hidden = true; window.__searchIn = 'name'; return; }
+    acTimer = setTimeout(async () => {
+      try{
+        const r = await fetch('/api/market-send/suggest/products?q=' + encodeURIComponent(q));
+        const d = await r.json();
+        const rows = (d.rows || []).slice(0, 10);
+        $('acDrop').innerHTML = rows.map(x =>
+          '<div class="ac-item" data-kind="' + x.kind + '" data-value="' + esc(x.value) + '">'
+          + '<span class="tag">' + KIND_LABEL[x.kind] + '</span>' + esc(x.value) + '</div>').join('');
+        $('acDrop').hidden = rows.length === 0;
+      }catch(_){ $('acDrop').hidden = true; }
+    }, 250);
+  });
+  $('acDrop').addEventListener('click', e => {
+    const it = e.target.closest('.ac-item');
+    if (!it) return;
+    $('fKw').value = it.dataset.value;
+    window.__searchIn = it.dataset.kind;
+    $('acDrop').hidden = true;
+    page = 1; load();
+  });
+
+  // ── 판매처 기준 정책 이름 자동완성 ──────────────────────────────────
+  let polTimer = null;
+  $('fPolKw').addEventListener('input', () => {
+    clearTimeout(polTimer);
+    const q = $('fPolKw').value.trim();
+    if (q.length < 2){ $('acPolDrop').hidden = true; return; }
+    polTimer = setTimeout(async () => {
+      try{
+        const r = await fetch('/api/market-send/suggest/policies?q=' + encodeURIComponent(q));
+        const d = await r.json();
+        const rows = (d.rows || []).slice(0, 10);
+        $('acPolDrop').innerHTML = rows.map(x =>
+          '<div class="ac-item" data-name="' + esc(x.name) + '">' + esc(x.name) + '</div>').join('');
+        $('acPolDrop').hidden = rows.length === 0;
+      }catch(_){ $('acPolDrop').hidden = true; }
+    }, 250);
+  });
+  $('acPolDrop').addEventListener('click', e => {
+    const it = e.target.closest('.ac-item');
+    if (!it) return;
+    $('fPolKw').value = it.dataset.name;
+    $('acPolDrop').hidden = true;
+    page = 1; load();
+  });
+
+  // ① 체크박스 선택 — 비었으면 「검색결과 전부」, 있으면 「선택 N개만」
+  function paintSelBar(){
+    const n = selected.size;
+    $('selBar').classList.toggle('on', n > 0);
+    $('selCount').textContent = n;
+    if (!$('btnSend').disabled) {
+      $('btnSend').textContent = n > 0
+        ? '시작 (선택 ' + n + '개)' : '시작 (검색결과 전부)';
+    }
+    const all = $('ckAll');
+    if (all) {
+      const boxes = [...document.querySelectorAll('.rowck')];
+      all.checked = boxes.length > 0 && boxes.every(b => selected.has(b.dataset.id));
+    }
+  }
+
+  function render(d){
+    window.__rows = d.rows;              // 이번 쪽에 보이는 구성 = 보낼 대상
+    for (const k in histCache) delete histCache[k];   // 새로 그리면 이력 캐시도 새로
+    for (const k in mktHistCache) delete mktHistCache[k];
+    $('cTotal').textContent = (d.total || 0).toLocaleString();
+    if (!d.rows.length){
+      $('msList').innerHTML = '<div class="empty">조건에 맞는 구성이 없습니다 — 위에서 조건을 바꿔 보세요.</div>';
+      return;
+    }
+    const last = Math.max(1, Math.ceil(d.total / d.per_page));
+    selected.clear(); paintSelBar();
+    const rowOffset = (d.page - 1) * d.per_page;
+    $('msList').innerHTML =
+      '<table class="lst"><thead><tr>'
+      + '<th class="ck-th"><input type="checkbox" id="ckAll" title="전체 선택"></th>'
+      + '<th>소싱처</th><th>상품 · 구성</th>'
+      + '<th>정책</th><th>소싱처 수집</th><th>판매처 수집</th><th>마켓 전송</th></tr></thead><tbody>'
+      + d.rows.map((r, i) => row(r, rowOffset + i + 1)).join('') + '</tbody></table>'
+      + '<div class="pager"><button id="pPrev"' + (d.page <= 1 ? ' disabled' : '') + '>이전</button>'
+      + '<span>' + d.page + ' / ' + last + '</span>'
+      + '<button id="pNext"' + (d.page >= last ? ' disabled' : '') + '>다음</button></div>';
+    const pv = $('pPrev'), nx = $('pNext');
+    if (pv) pv.onclick = () => { page--; load(); };
+    if (nx) nx.onclick = () => { page++; load(); };
+    $('ckAll').onclick = () => {
+      const on = $('ckAll').checked;
+      document.querySelectorAll('.rowck').forEach(b => {
+        b.checked = on;
+        if (on) selected.add(b.dataset.id); else selected.delete(b.dataset.id);
+      });
+      paintSelBar();
+    };
+  }
+
+  async function load(){
+    $('msList').innerHTML = '<div class="empty">불러오는 중…</div>';
+    try{
+      const r = await fetch('/api/market-send/rows?' + params().toString());
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || '불러오지 못했습니다');
+      render(d);
+    }catch(e){
+      // 🔴 조용히 빈 목록으로 두지 않는다 — 「없다」와 「못 읽었다」는 다르다.
+      $('msList').innerHTML = '<div class="empty">목록을 불러오지 못했습니다 — '
+        + esc(e.message) + '</div>';
+    }
+  }
+
+  // ── 실시간 전송 ──────────────────────────────────────────────
+  //  🔴 요청 안에서 돌리지 않는다 — 서버가 백그라운드로 돌고, 여기는 **새 줄만** 받는다.
+  //     통째로 다시 받으면 목록이 깜빡이고 스크롤이 튄다.
+  let jobId = null, lastId = 0, timer = null;
+
+  function logLine(l){
+    // 더망고 형식 + 우리 것 둘: **계정 칸**과 **마켓 원문 표시**
+    const raw = (l.market_code || l.market_message)
+      ? '<span class="raw"><code>' + esc(l.market_code) + '</code>'
+        + esc(l.market_message) + '<em>← 마켓 원문</em></span>' : '';
+    const note = l.our_note ? ' <span class="note">' + esc(l.our_note) + '</span>' : '';
+    return '<div class="lg ' + l.tone + '">'
+      + '<span class="lt">' + esc(l.at) + '</span>'
+      + '<span class="lm">[' + esc(l.market) + ']</span>'
+      + '<span class="la">[' + esc(l.account || '—') + ']</span>'
+      + '<span class="lc">[' + esc(l.model_code || ('구성 ' + l.set_id)) + ']</span>'
+      + '<span class="lar">→</span>'
+      + '<span class="lr">' + esc(l.label) + '</span>' + raw + note + '</div>';
+  }
+
+  async function poll(){
+    try{
+      const r = await fetch('/api/market-send/jobs/' + jobId + '/log?after=' + lastId);
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || '로그를 못 읽었습니다');
+      if (d.lines.length){
+        lastId = d.last_id;
+        const b = $('lgBody');
+        const 바닥 = b.scrollTop + b.clientHeight >= b.scrollHeight - 8;
+        b.insertAdjacentHTML('beforeend', d.lines.map(logLine).join(''));
+        if (바닥) b.scrollTop = b.scrollHeight;   // 보고 있던 자리를 뺏지 않는다
+      }
+      // 🔴 큰 상품은 사본 조립만 100초+ — 그동안 로그가 0줄이라 「죽었나」로 보인다.
+      //   서버가 알려주는 「지금 뭘 하는 중인지」를 같이 보여준다.
+      $('lgProg').innerHTML = '보냄 <b>' + d.sent + '</b> · 실패 <b class="er">'
+        + d.fail + '</b> · 처리 <b>' + d.total + '</b>'
+        + (d.stage ? ' · <span class="stg">' + esc(d.stage) + '</span>' : '');
+      if (!d.running && d.status !== 'running'){
+        clearInterval(timer); timer = null;
+        $('lgDot').classList.add('off');
+        $('lgTitle').textContent = '전송 끝';
+        $('btnSend').disabled = false;
+        paintSelBar();
+        load();                                   // 목록을 새로 그린다
+      }
+    }catch(e){
+      // 🔴 조용히 멈추지 않는다 — 멈춘 걸 「끝났다」로 읽으면 안 된다.
+      clearInterval(timer); timer = null;
+      $('lgDot').classList.add('off');
+      $('lgTitle').textContent = '로그를 못 읽었습니다 — ' + e.message;
+      $('btnSend').disabled = false;
+      paintSelBar();
+    }
+  }
+
+  // ── 왼쪽=소싱처 수집 · 오른쪽=판매처 전송, 독립 ON/OFF(2-A 확정) ─────
+  //  🔴 서버는 소싱처를 못 긁는다(크롤=로컬 PC 원칙). 확장이 없으면 왼쪽을
+  //     켤 수 없게 막는다 — 조용히 건너뛰면 옛 값이 그대로 마켓에 나간다.
+  function extReady(){
+    try { return !!(window.MoumExt && window.MoumExt.installed()); } catch(_) { return false; }
+  }
+  function setToggle(tgl, panel, on){
+    tgl.classList.toggle('on', on);
+    tgl.setAttribute('aria-checked', on ? 'true' : 'false');
+    panel.classList.toggle('off', !on);
+  }
+  function paintExt(){
+    const on = extReady();
+    const tglC = $('tglCollect');
+    if (!on){ setToggle(tglC, $('pCollect'), false); }
+    $('extNote').innerHTML = on
+      ? '내 PC 크롬 확장이 켜져 있습니다 — 수집을 맡길 수 있습니다.'
+      : '<b>크롬 확장이 꺼져 있어 긁을 수 없습니다</b> — 수집 스위치를 켤 수 없습니다.';
+  }
+  setTimeout(paintExt, 600);        // 확장이 붙을 시간을 준다
+  setInterval(paintExt, 5000);
+
+  function bindToggle(tglId, panelId){
+    const tgl = $(tglId), panel = $(panelId);
+    const flip = () => {
+      if (tglId === 'tglCollect' && !tgl.classList.contains('on') && !extReady()){
+        alert('크롬 확장이 꺼져 있어 소싱처 수집을 켤 수 없습니다.');
+        return;
+      }
+      setToggle(tgl, panel, !tgl.classList.contains('on'));
+    };
+    tgl.addEventListener('click', flip);
+    tgl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+  }
+  bindToggle('tglCollect', 'pCollect');
+  bindToggle('tglSend', 'pSend');
+
+  function askCrawl(codes){
+    // 모음전 번호 기준으로 일감을 넣는다(같은 모음전의 구성들은 같은 소싱처를 본다).
+    const uniq = [...new Set(codes)].filter(Boolean);
+    uniq.forEach(c => { try { window.MoumExt.enqueueCrawl(c, true); } catch(_) {} });
+    return uniq.length;
+  }
+
+  $('btnSend').onclick = async () => {
+    const doCollect = $('tglCollect').classList.contains('on');
+    const doSend = $('tglSend').classList.contains('on');
+    if (!doCollect && !doSend){ alert('왼쪽(소싱처 수집) 또는 오른쪽(판매처 전송) 중 하나는 켜 주세요.'); return; }
+    // ① 체크된 게 있으면 그것만, 없으면 검색결과 전부(기존 동작 그대로)
+    const targetRows = selected.size
+      ? (window.__rows || []).filter(r => selected.has(String(r.set_id)))
+      : (window.__rows || []);
+    const rowsOnPage = targetRows.map(r => r.set_id);
+    if (!rowsOnPage.length){ alert('대상 구성이 없습니다.'); return; }
+
+    $('lgBox').style.display = '';
+    $('lgBody').innerHTML = '';
+    if (doCollect && extReady()){
+      const n = askCrawl(targetRows.map(r => r.model_code));
+      $('lgBody').insertAdjacentHTML('beforeend', '<div class="lg skip"><span class="lt">지금</span>'
+        + '<span class="lm">[소싱처 수집]</span><span class="lar">→</span>'
+        + '<span class="lr">내 PC 크롬에 ' + n + '개 모음전 수집을 맡겼습니다</span></div>');
+    }
+    if (!doSend){
+      $('lgDot').classList.add('off');
+      $('lgTitle').textContent = '수집만 진행';
+      return;
+    }
+    const markets = [...document.querySelectorAll('.fMkt:checked')].map(x => x.value);
+    if (!markets.length){ alert('보낼 마켓을 하나 이상 골라 주세요.'); return; }
+
+    $('btnSend').disabled = true;
+    $('btnSend').textContent = '전송이 진행중입니다…';
+    $('lgDot').classList.remove('off');
+    $('lgTitle').textContent = '전송 진행 중';
+    lastId = 0;
+    try{
+      const r = await fetch('/api/market-send/start', {method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({set_ids: rowsOnPage, markets: markets})});
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || '시작하지 못했습니다');
+      jobId = d.job_id;
+      poll();
+      timer = setInterval(poll, 1000);
+    }catch(e){
+      $('lgTitle').textContent = '시작하지 못했습니다 — ' + e.message;
+      $('lgDot').classList.add('off');
+      $('btnSend').disabled = false;
+      paintSelBar();
+    }
+  };
+
+  $('selClear').onclick = () => {
+    selected.clear();
+    document.querySelectorAll('.rowck').forEach(b => { b.checked = false; });
+    paintSelBar();
+  };
+
+  $('btnSearch').onclick = () => { page = 1; load(); };
+  $('fKw').addEventListener('keydown', e => { if (e.key === 'Enter') { page = 1; load(); } });
+  ['fBasis','fFrom','fTo','fSort','fPolicy','fStock','fUnlisted','fRegistered'].forEach(
+    id => $(id).addEventListener('change', () => { page = 1; load(); }));
+  document.querySelectorAll('.fSrc, .fAcct').forEach(
+    c => c.addEventListener('change', () => { page = 1; load(); }));
+  document.querySelectorAll('.fMkt').forEach(c => c.addEventListener('change', () => {
+    c.closest('.chip').classList.toggle('on', c.checked);
+  }));
+  load();
+})();
+</script>
+{% endblock %}

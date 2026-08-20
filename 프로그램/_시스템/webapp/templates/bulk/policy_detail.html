@@ -1,0 +1,691 @@
+{% extends 'base.html' %}
+{% block title %}가공정책{% endblock %}
+{% block content %}
+{# 가공정책 상세 — 목록(E안)에서 고르면 여기로 온다. 항목별 규칙 편집.
+   ★ 목록형 칸(치환표·금지어·고정태그·상세 이미지…)도 여기서 직접 넣는다.
+     검사는 서버 validate_config 한 벌이 하고, 화면은 그 답을 보여주기만 한다. #}
+<style>
+  .pd-head{display:flex;align-items:baseline;gap:12px;margin-bottom:4px}
+  .pd-back{color:var(--sub,#8B95A1);text-decoration:none;font-size:12px}
+  .pd-back:hover{color:#1B64DA}
+  .pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+  .pd-card{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-left-width:3px;border-radius:8px;padding:16px}
+  .pd-card h3{font-size:12px;font-weight:700;margin:0 0 8px;color:var(--ink,#191F28)}
+  .chip{display:inline-block;font-size:12px;font-weight:600;padding:4px 8px;border-radius:8px;
+    background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);margin:0px 4px 0px 0}
+  .chip.src{background:var(--연한-주황,#FFF4E6);color: var(--글자-주황, var(--amber,#B45309))}
+  .chip.mkt{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+  .chip.none{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+  /* ── 붙은 소싱처·마켓 한 줄씩 (목록형 칸과 같은 결) ── */
+  .pd-line{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--n100,#F7F8F9)}
+  .pd-line:last-child{border-bottom:0}
+  .pd-lineurl{font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1));font-family:ui-monospace,monospace;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .pd-off{margin-left:auto;border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;
+    padding:4px 8px;font-family:inherit;font-size:12px;font-weight:600;color:var(--sub,#8B95A1);cursor:pointer}
+  .pd-off:hover{border-color:#B91C1C;color:#B91C1C}
+  .pd-addbar{display:flex;align-items:center;gap:4px;margin-top:8px;flex-wrap:wrap}
+  .pd-addbar select,.pd-addbar input{border:1px solid var(--line,#E5E8EB);border-radius:8px;
+    padding:4px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28);background:var(--surface,#ffffff)}
+  .pd-addbar input{width:150px}
+  .pd-addbar select:focus,.pd-addbar input:focus{outline:none;border-color:#1B64DA}
+  .pd-addmkt-btn{border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;padding:4px 12px;
+    font-family:inherit;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
+  .pd-addmkt-btn:hover{border-color:#1B64DA;color:#1B64DA}
+  .pd-msg{font-size:12px;font-weight:600;margin-top:8px;line-height:1.6}
+  .pd-msg.ok{color: var(--글자-초록, var(--green,#15803D))}
+  .pd-msg.no{color:#B91C1C}
+  .pd-msg.wait{color:var(--sub,#8B95A1)}
+  .pd-hint{font-size:12px;color:var(--sub,#8B95A1);margin-top:8px;line-height:1.7}
+  .pd-items{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .pd-item{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-left:3px solid var(--line,#E5E8EB);
+    border-radius:8px;padding:12px 12px}
+  .pd-item.on{border-left-color:var(--green,#22C55E)}
+  .pd-item .nm{font-size:12px;font-weight:700}
+  .pd-item .st{font-size:12px;color:var(--sub,#8B95A1);margin-top:4px}
+  .pd-note{font-size:12px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
+    padding:12px 12px;margin-top:12px;line-height:1.8}
+  .pd-miss{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));line-height:1.8;margin-bottom:12px}
+  .pd-mkt select{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:4px 8px;
+    font-family:inherit;font-size:12px;color:var(--ink,#191F28)}
+  .pd-acc{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;margin-bottom:8px;overflow:hidden}
+  .pd-acc.on{border-color:var(--line,#C6CDD6)}
+  .pd-acch{width:100%;display:flex;align-items:center;gap:8px;padding:12px 12px;border:0;
+    background:none;cursor:pointer;font-family:inherit;text-align:left}
+  .pd-acch .nm{font-size:12px;font-weight:700;color:var(--ink,#191F28)}
+  .pd-acch .ref{font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1))}
+  .pd-acch .tog{margin-left:auto;font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1))}
+  .pd-accb{padding:4px 12px 12px;border-top:1px solid var(--n100,#F2F4F6)}
+  .pd-note2{font-size:12px;color:var(--sub,#8B95A1);background:var(--bg,#F9FAFB);border-radius:8px;
+    padding:8px 12px;margin:8px 0 12px;line-height:1.7}
+  .pd-f{display:grid;grid-template-columns:150px 1fr;gap:8px 12px;align-items:center;
+    padding:8px 0;border-bottom:1px solid var(--n100,#F7F8F9)}
+  .pd-f:last-of-type{border-bottom:0}
+  .pd-f.wide{align-items:start;padding:12px 0}
+  .pd-f.wide label{padding-top:4px}
+  .pd-f label{font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600}
+  .pd-fi input[type=text],.pd-fi input[type=number],.pd-fi select{border:1px solid var(--line,#E5E8EB);
+    border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28)}
+  .pd-fi .u{font-size:12px;color:var(--sub,#8B95A1);margin-left:4px}
+  .pd-h{grid-column:2;font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1));margin-top:-4px}
+  .pd-save{margin-top:12px;display:flex;align-items:center;gap:8px}
+  .pd-save button{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:8px 16px;
+    font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .pd-save .msg{font-size:12px;font-weight:600}
+  .pd-save .msg.ok{color: var(--글자-초록, var(--green,#15803D))}.pd-save .msg.no{color:#B91C1C}
+  /* ── 목록형 칸 (1열 목록 · 2열 치환표) — 기존 설정 카드와 같은 결 ── */
+  .pd-ta{width:100%;max-width:520px;box-sizing:border-box;border:1px solid var(--line,#E5E8EB);
+    border-radius:8px;padding:8px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28);
+    line-height:1.7;resize:vertical}
+  .pd-ta:focus,.pd-pair input:focus{outline:none;border-color:#1B64DA}
+  .pd-cnt{font-size:12px;color:var(--sub,#8B95A1);margin-top:4px}
+  .pd-cnt b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+  .pd-pair{max-width:520px}
+  .pd-pair table{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);
+    border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+  .pd-pair th{background:var(--n100,#FBFCFD);font-size:12px;font-weight:600;color:var(--sub,#8B95A1);
+    padding:8px 8px;border-bottom:1px solid var(--line,#E5E8EB);text-align:left}
+  .pd-pair td{padding:0;border-bottom:1px solid var(--n100,#F2F4F6)}
+  .pd-pair tr:last-child td{border-bottom:0}
+  .pd-pair input{width:100%;box-sizing:border-box;border:0;background:none;
+    padding:8px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28)}
+  .pd-pair td.del{width:34px;text-align:center}
+  .pd-delrow{border:0;background:none;color: var(--글자-희미, var(--faint,#B0B8C1));font-size:12px;cursor:pointer;
+    padding:4px 4px;line-height:1}
+  .pd-delrow:hover{color:#B91C1C}
+  .pd-pair-empty{border:1px dashed var(--line,#E5E8EB);border-radius:8px;padding:8px;text-align:center;
+    font-size:12px;color:var(--sub,#8B95A1);margin-top:8px}
+  .pd-pair-bar{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .pd-addrow{border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;padding:4px 12px;
+    font-family:inherit;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
+  .pd-addrow:hover{border-color:#1B64DA;color:#1B64DA}
+  .pd-noti{font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
+    border-radius:8px;padding:8px 12px;margin-top:8px;line-height:1.7}
+  .pd-noti:empty{display:none;border:0;padding:0;margin:0}
+  /* ── 이 마켓 전용으로 굳은 항목 표시 ── */
+  .pd-only{font-size:12px;font-weight:700;padding:4px 8px;border-radius:8px;
+    background:var(--연한-주황,#FFF4E6);color: var(--글자-주황, var(--amber,#B45309))}
+  .pd-freeze{font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
+    border-radius:8px;padding:8px 12px;margin:8px 0 12px;line-height:1.75}
+  .pd-freeze b{color: var(--글자-주황, var(--amber,#6B4300))}</style>
+
+<div class="page">
+  {% if not policy %}
+    <h1 class="page-title">가공정책</h1>
+    <div class="pd-miss"><b>없는 정책입니다</b> — 지워졌거나 주소가 잘못됐습니다.
+      <a href="/bulk/?tab=process">목록으로 돌아가기</a></div>
+  {% else %}
+    <div class="pd-head">
+      <h1 class="page-title" style="margin:0">{{ policy.name }}</h1>
+      <a class="pd-back" href="/bulk/?tab=process">← 가공정책 목록</a>
+    </div>
+    <p class="page-sub">
+      소싱처 <span id="pd-subsrc">{{ policy.sources | length }}</span>곳 ·
+      마켓 <span id="pd-submkt">{{ policy.markets | length }}</span>곳 ·
+      규칙 {{ policy.rules | length }}/13
+    </p>
+
+    {% if policy.markets | length == 0 %}
+      <div class="pd-miss" id="pd-nomkt"><b>내보낼 마켓이 없습니다</b> —
+        이 정책에 묶인 상품은 <b>어디에도 올라가지 않습니다.</b></div>
+    {% endif %}
+
+    <div class="pd-grid" id="pd-grid">
+      {# ── 가져오는 곳 — 붙어 있는 소싱처 목록 + 떼기 ── #}
+      <div class="pd-card" style="border-left-color:var(--amber,#B45309)">
+        <h3>가져오는 곳 — 소싱처 URL <b id="pd-srccnt">{{ policy.sources | length }}</b></h3>
+        <div id="pd-srcs">
+          {% for s in policy.sources %}
+            <div class="pd-line" data-src="{{ s.source_key }}" data-brand="{{ s.brand }}"
+                 data-url="{{ s.url or '' }}">
+              <span class="chip src">{{ s.source_key }} &gt; {{ s.brand }}</span>
+              {% if s.url %}<span class="pd-lineurl">{{ s.url }}</span>{% endif %}
+              <button type="button" class="pd-off" data-off="source">떼기</button>
+            </div>
+          {% else %}
+            <span class="chip none">아직 없음</span>
+          {% endfor %}
+        </div>
+        <div class="pd-msg" id="pd-srcmsg"></div>
+        <div class="pd-hint">소싱처를 <b>붙이는 곳은 목록 화면</b>입니다 —
+          목록에서 그 구성의 줄을 찾아 「가공정책」 칸에서 이 정책을 고르면 여기에 나타납니다.
+          <a class="pd-back" href="/bulk/?tab=process">목록 열기</a></div>
+      </div>
+
+      {# ── 내보내는 곳 — 마켓 목록 + 추가 + 떼기 ── #}
+      <div class="pd-card" style="border-left-color:#1B64DA">
+        <h3>내보내는 곳 — 판매처 마켓 <b id="pd-mktcnt">{{ policy.markets | length }}</b></h3>
+        <div id="pd-mkts">
+          {% for m in policy.markets %}
+            <div class="pd-line" data-market="{{ m.market }}" data-acc="{{ m.account_key }}">
+              <span class="chip mkt">{{ market_labels.get(m.market, m.market) }}{% if m.account_key %} · {{ m.account_key }}{% endif %}</span>
+              <button type="button" class="pd-off" data-off="market">떼기</button>
+            </div>
+          {% else %}
+            <span class="chip none">아직 없음</span>
+          {% endfor %}
+        </div>
+        <div class="pd-addbar">
+          <select id="pd-addmkt" autocomplete="off">
+            {% for c in market_choices %}
+              <option value="{{ c.key }}">{{ c.label }}</option>
+            {% endfor %}
+          </select>
+          {# 크롬 자동완성이 값을 덮어쓴다 — 고유 name + autocomplete=off + 포커스 전 readonly 3종 #}
+          <input type="text" id="pd-addacc" name="pd_policy_market_account_nofill"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 readonly onfocus="this.removeAttribute('readonly')"
+                 placeholder="계정 이름 (비워도 됩니다)">
+          <button type="button" class="pd-addmkt-btn" id="pd-addbtn">+ 마켓 추가</button>
+        </div>
+        <div class="pd-msg" id="pd-mktmsg"></div>
+        <div class="pd-hint">같은 마켓이라도 <b>계정이 다르면 따로</b> 붙습니다 —
+          계정을 여러 개 쓰면 계정마다 한 줄씩 추가해 주세요.</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:baseline;gap:12px;margin:0 0 8px">
+      <h2 class="card-title" style="font-size:14px;margin:0">가공 규칙</h2>
+      <div class="pd-mkt" id="pd-mkt"></div>
+    </div>
+    <div id="pd-rules"><p style="color:var(--sub,#8B95A1);font-size:12px">불러오는 중…</p></div>
+
+    <div class="pd-note">
+      <b>마켓을 고르면 그 마켓 규칙</b>을 봅니다. 「모든 마켓 공통」에서 정한 값을 깔고,
+      마켓별로 고친 항목만 덮어씁니다 — 「스스는 100자, 쿠팡은 50자」가 이렇게 됩니다.<br>
+      <b>한 구성은 한 정책에만</b> 붙습니다 — 두 정책을 따르면 가공 결과가 실행 순서에 따라 달라집니다.<br>
+      <b>목록 칸</b>(금지어·고정 태그·이미지 주소)은 <b>한 줄에 하나씩</b> 적습니다.
+      <b>치환표</b>는 엑셀에서 두 열을 복사해 그대로 붙여넣을 수 있습니다.
+    </div>
+
+<script src="{{ url_for('static', filename='process_list_editor.js') }}?v=20260723_ple1"></script>
+<script>
+(function () {
+  const POLICY_ID = {{ policy.id }};
+  // 마켓을 붙이거나 떼면 이 목록도 같이 바뀐다(아래 syncMarkets) — 규칙 편집기의
+  // 「마켓 고르기」가 붙어 있지도 않은 마켓을 보여주면 안 된다.
+  let MARKETS = {{ policy.markets | map(attribute='market') | list | tojson }};
+  const MARKET_LABELS = {{ market_labels | tojson }};
+  const box = document.getElementById('pd-rules');
+  const mkbox = document.getElementById('pd-mkt');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let schema = null, rules = null, market = '', open = null, uid = 0;
+  let marketOnly = [];        // 이 마켓 전용으로 굳어 있는 항목들(서버가 알려준다)
+
+  const CHOICE_LABEL = {
+    upper: '대문자', as_is: '원본 그대로', margin_rate: '마진율(%)',
+    fixed_amount: '고정 금액', rep_only: '대표만', rep_plus_extra: '대표 + 추가',
+    range: 'N~M번째', recombine: '이미지 재조합', original: '원본 통째',
+    frame: '프레임 템플릿', auto: '자동(크롤·브랜드)', fixed: '고정값',
+    hold: '보류 (안 올림)', default_category: '기본 카테고리로',
+    small_to_big: '작은 → 큰', free: '무료', paid: '유료(1개당)',
+    free_over: 'N원 이상 무료', korean: '국문', english: '영문', both: '국문+영문',
+    front: '맨 앞', back: '맨 뒤', none: '안 붙임',
+    // [2026-08-13] 「옵션 축 구성」 — 목록에 없어서 사장님 화면에 `one`·`two`·`three`
+    //   가 **영어 그대로** 나오고 있었다. 3갈래를 연 김에 우리말로 맞춘다.
+    //   글자는 `registration/options.py` 가 마켓에 내보내는 그룹 이름과 같게 둔다
+    //   (`_ONE_GROUP='옵션'` · `_MODEL_GROUP='모델명'` · `_COLOR_GROUP='색상'` · `_SIZE_GROUP='사이즈'`)
+    //   — 화면에서 고른 말과 구매자가 보는 말이 달라지면 안 된다.
+    one: '한 갈래 (메이트 블랙 260)', two: '색상 · 사이즈',
+    three: '모델명 · 색상 · 사이즈',
+    into_price: '판매가에 합침',
+    // 위와 같은 까닭으로 빠져 있던 것들 — 전수로 세어 한꺼번에 채웠다
+    // (`process_rule_schema.py` 의 `choices=` 값 중 우리말 라벨이 없던 9개).
+    // 뜻은 그 파일 `hint` 원문 그대로 옮겼다 — 지어내지 않는다.
+    margin_amount: '마진금액 (매입가 + 금액)', fixed_price: '지정가 (이 값으로 못 박음)',
+    cheapest: '가장 싼 곳', priciest: '가장 비싼 곳', average: '평균',
+    max: '가장 비싼 값으로', min: '가장 싼 값으로',
+    WON: '정액 (원)', PERCENT: '정률 (%)',
+  };
+  const cl = (v) => CHOICE_LABEL[v] || v;
+
+  // ── 목록형 칸 ────────────────────────────────────────────────
+  // 크롬은 autocomplete="off" 를 무시하고 저장된 값으로 덮어쓴다.
+  // 칸마다 **고유한 name** + 포커스 전 readonly 까지 걸어야 막힌다(3종 세트).
+  const NOFILL = (name) => `name="${esc(name)}_nofill" autocomplete="off" autocorrect="off"
+    autocapitalize="off" spellcheck="false"
+    readonly onfocus="this.removeAttribute('readonly')"`;
+
+  /** 1열 목록 — 한 줄에 하나씩.
+   *  ★ 카운터는 「N줄」이다. **몇 개 저장됐는지는 서버만 센다**(저장 뒤 표시). */
+  function textListEditor(item, f, val) {
+    const id = `f-${item.key}-${f.key}`;
+    const lines = Array.isArray(val) ? val : [];
+    return `<textarea id="${id}" class="pd-ta" rows="5"
+        ${NOFILL(`pl_${item.key}_${f.key}`)}
+        placeholder="한 줄에 하나씩 적어주세요">${esc(lines.join('\n'))}</textarea>
+      <div class="pd-cnt">지금 <b data-cnt="${esc(id)}">${lines.length}</b>줄 ·
+        빈 줄과 앞뒤 공백은 저장할 때 지웁니다 ·
+        한 줄에 <b>한 개만</b> — 엑셀 두 열을 붙여넣으면 저장이 막힙니다</div>`;
+  }
+
+  /** 2열 표 한 줄 (치환표). */
+  function pairRow(itemKey, fieldKey, a, b) {
+    uid += 1;
+    const nm = `pr_${itemKey}_${fieldKey}_${uid}`;
+    return `<tr>
+      <td><input type="text" class="pc-a" value="${esc(a)}" ${NOFILL(nm + '_a')}></td>
+      <td><input type="text" class="pc-b" value="${esc(b)}" ${NOFILL(nm + '_b')}></td>
+      <td class="del"><button type="button" class="pd-delrow" title="이 줄 지우기"></button></td>
+    </tr>`;
+  }
+
+  /** 2열 표 (치환표) — 행 추가·삭제 + 엑셀 붙여넣기.
+   *
+   * 🔴 표는 **늘 최소 한 줄**을 띄운다. 줄이 하나도 없으면 붙여넣을 칸(input)이
+   *   아예 없어서 Ctrl+V 가 어디에도 닿지 않는다 — 「엑셀에서 붙여넣을 수
+   *   있습니다」라고 써놓고 실제로는 아무 일도 안 일어나는 상태가 된다.
+   */
+  function pairEditor(item, f, val) {
+    const rows = ListEditor.atLeastOneRow(Array.isArray(val) ? val : []);
+    const cols = (f.columns && f.columns.length) ? f.columns : ['찾을 말', '바꿀 말'];
+    return `<div class="pd-pair" id="pair-${esc(item.key)}-${esc(f.key)}"
+         data-item="${esc(item.key)}" data-field="${esc(f.key)}">
+      <table>
+        <thead><tr><th>${esc(cols[0])}</th><th>${esc(cols[1])}</th><th></th></tr></thead>
+        <tbody>${rows.map((r) => pairRow(item.key, f.key,
+          (r && r[0]) || '', (r && r[1]) || '')).join('')}</tbody>
+      </table>
+      <div class="pd-pair-empty">아직 등록된 치환 규칙이 없습니다</div>
+      <div class="pd-pair-bar">
+        <button type="button" class="pd-addrow">+ 행 추가</button>
+        <span class="pd-cnt">지금 <b class="pd-paircnt">${rows.length}</b>줄 ·
+          엑셀에서 두 열을 복사해 칸 안에 붙여넣으면 여러 줄로 들어갑니다 ·
+          아무것도 안 적은 줄은 저장하지 않습니다</span>
+      </div>
+    </div>`;
+  }
+
+  function fieldRow(item, f, val) {
+    const id = `f-${item.key}-${f.key}`;
+    // 2열 표는 id 를 가진 칸이 없다 — for 를 붙이면 눌러도 아무 반응이 없다.
+    const isPair = (f.type === 'list' && f.item_shape === 'pair');
+    let input, wide = '';
+    if (f.type === 'bool') {
+      input = `<input type="checkbox" id="${id}" ${val ? 'checked' : ''}>`;
+    } else if (f.type === 'choice') {
+      input = `<select id="${id}">${f.choices.map((c) =>
+        `<option value="${esc(c)}" ${c === val ? 'selected' : ''}>${esc(cl(c))}</option>`).join('')}</select>`;
+    } else if (f.type === 'int') {
+      input = `<input type="number" id="${id}" min="0" value="${val == null ? '' : val}"
+        style="width:110px">${f.unit ? ` <span class="u">${esc(f.unit)}</span>` : ''}`;
+    } else if (f.type === 'list') {
+      wide = ' wide';
+      input = (f.item_shape === 'pair') ? pairEditor(item, f, val) : textListEditor(item, f, val);
+    } else {
+      input = `<input type="text" id="${id}" value="${esc(val == null ? '' : val)}" style="width:180px">`;
+    }
+    return `<div class="pd-f${wide}">
+      <label${isPair ? '' : ` for="${id}"`}>${esc(f.label)}</label>
+      <div class="pd-fi">${input}</div>
+      ${f.hint ? `<div class="pd-h">${esc(f.hint)}</div>` : ''}</div>`;
+  }
+
+  /** 표에 지금 적혀 있는 값 (화면 그대로). */
+  function pairRowsFromDom(pb) {
+    return Array.from(pb.querySelectorAll('tbody tr')).map((tr) => [
+      tr.querySelector('.pc-a').value, tr.querySelector('.pc-b').value]);
+  }
+
+  function refreshPair(pb) {
+    const rows = pairRowsFromDom(pb);
+    pb.querySelector('.pd-paircnt').textContent = rows.length;
+    // 「아직 등록된 치환 규칙이 없습니다」 — 빈 입력줄만 있는 상태도 '없음'이다.
+    pb.querySelector('.pd-pair-empty').hidden = ListEditor.formRowsToSend(rows).length > 0;
+  }
+
+  /** 표를 값 배열로 다시 그린다 (늘 최소 한 줄). */
+  function renderPairRows(pb, rows) {
+    pb.querySelector('tbody').innerHTML = ListEditor.atLeastOneRow(rows)
+      .map((r) => pairRow(pb.dataset.item, pb.dataset.field,
+                          (r && r[0]) || '', (r && r[1]) || '')).join('');
+    refreshPair(pb);
+  }
+
+  const rowIndexOf = (tr) => Array.prototype.indexOf.call(tr.parentNode.children, tr);
+
+  /** 그린 뒤 목록 편집기에 손잡이를 붙인다. */
+  function wireLists() {
+    box.querySelectorAll('.pd-ta').forEach((ta) => {
+      const cnt = box.querySelector(`[data-cnt="${ta.id}"]`);
+      ta.addEventListener('input', () => {
+        if (cnt) cnt.textContent = ListEditor.parseLines(ta.value).length;
+      });
+    });
+
+    box.querySelectorAll('.pd-pair').forEach((pb) => {
+      refreshPair(pb);
+      pb.addEventListener('input', () => refreshPair(pb));
+
+      pb.querySelector('.pd-addrow').addEventListener('click', () => {
+        renderPairRows(pb, pairRowsFromDom(pb).concat([['', '']]));
+        const last = pb.querySelector('tbody tr:last-child .pc-a');
+        if (last) { last.removeAttribute('readonly'); last.focus(); }
+      });
+
+      pb.addEventListener('click', (e) => {
+        const btn = e.target.closest('.pd-delrow');
+        if (!btn) return;
+        const rows = pairRowsFromDom(pb);
+        rows.splice(rowIndexOf(btn.closest('tr')), 1);
+        renderPairRows(pb, rows);          // 마지막 줄을 지워도 빈 줄 하나는 남는다
+      });
+
+      // 엑셀 붙여넣기 — 열은 탭, 행은 줄바꿈. 단어 하나면 평범한 붙여넣기로 둔다.
+      pb.addEventListener('paste', (e) => {
+        const cb = e.clipboardData || window.clipboardData;
+        const txt = cb ? cb.getData('text') : '';
+        if (!ListEditor.looksTabular(txt)) return;
+        const pasted = ListEditor.parseTable(txt);
+        if (!pasted.length) return;
+        e.preventDefault();
+        const tr = e.target.closest('tr');
+        renderPairRows(pb, ListEditor.planPaste(
+          pairRowsFromDom(pb), tr ? rowIndexOf(tr) : -1, pasted));
+      });
+    });
+  }
+
+  /** 「마켓 고르기」 칸만 다시 그린다.
+   *
+   *  🔴 [리뷰 중요③] 마켓을 붙이거나 뗄 때 규칙 칸(box)까지 다시 그리면 **사장님이
+   *    치고 있던(아직 저장 안 한) 값이 말없이 사라진다.** 이 파일이 「사장님이 넣은
+   *    값을 몰래 고치면 안 된다」고 적어 둔 바로 그 자리다. 그래서 마켓 목록이
+   *    바뀔 때는 **이 칸만** 손댄다.
+   */
+  function renderMarketSelect() {
+    mkbox.innerHTML = `<select id="pd-mksel">
+      <option value="">모든 마켓 공통</option>
+      ${MARKETS.map((m) => `<option value="${esc(m)}" ${m === market ? 'selected' : ''}>${esc(MARKET_LABELS[m] || m)} 전용</option>`).join('')}
+    </select>`;
+    document.getElementById('pd-mksel').onchange = (e) => { market = e.target.value; load(); };
+  }
+
+  function render() {
+    renderMarketSelect();
+
+    box.innerHTML = schema.items.map((it) => {
+      const cfg = (rules && rules[it.key]) || {};
+      const isOpen = open === it.key;
+      const frozen = market && marketOnly.indexOf(it.key) >= 0;
+      return `<div class="pd-acc ${isOpen ? 'on' : ''}">
+        <button class="pd-acch" data-k="${esc(it.key)}">
+          <span class="nm">${esc(it.label)}</span>
+          <span class="ref">${esc(it.spec_ref)}</span>
+          ${frozen ? `<span class="pd-only">${esc(market)} 전용</span>` : ''}
+          <span class="tog">${isOpen ? '▲' : '▼'}</span>
+        </button>
+        ${isOpen ? `<div class="pd-accb">
+          ${frozen ? `<div class="pd-freeze">
+            <b>이 항목은 「모든 마켓 공통」을 따르지 않습니다</b> —
+            ${esc(market)} 전용으로 따로 저장돼 있습니다.
+            공통에서 이 항목을 고쳐도 <b>${esc(market)} 에는 반영되지 않습니다</b>
+            (덮어쓰기는 항목 통째로 일어납니다).</div>`
+          : (market ? `<div class="pd-freeze">
+            <b>지금 저장하면 이 항목 전체가 ${esc(market)} 전용으로 굳습니다</b> —
+            여기 보이는 값이 통째로 복사되고, 이후 공통을 고쳐도
+            ${esc(market)} 에는 안 닿습니다. 공통을 바꾸려면 위에서
+            「모든 마켓 공통」을 고르고 저장하세요.</div>` : '')}
+          ${it.note ? `<div class="pd-note2">${esc(it.note)}</div>` : ''}
+          ${it.fields.map((f) => fieldRow(it, f, cfg[f.key])).join('')}
+          <div class="pd-save">
+            <button data-save="${esc(it.key)}">저장</button>
+            <span class="msg" id="msg-${esc(it.key)}"></span>
+          </div>
+          <div class="pd-noti" id="noti-${esc(it.key)}"></div>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+
+    box.querySelectorAll('.pd-acch').forEach((b) => {
+      b.onclick = () => { open = (open === b.dataset.k) ? null : b.dataset.k; render(); };
+    });
+    const sv = box.querySelector('[data-save]');
+    if (sv) sv.onclick = () => save(sv.dataset.save);
+    wireLists();
+  }
+
+  /** 화면에 적힌 값을 **그대로** 모은다 — 다듬는 일은 서버 한 곳에서만 한다. */
+  function collect(itemKey) {
+    const it = schema.items.find((x) => x.key === itemKey);
+    const cfg = {};
+    it.fields.forEach((f) => {
+      if (f.type === 'list') {
+        if (f.item_shape === 'pair') {
+          const pb = document.getElementById(`pair-${itemKey}-${f.key}`);
+          if (!pb) return;
+          // 아직 아무것도 안 적은 빈 입력줄은 '값'이 아니라 빈 폼이라 안 보낸다.
+          // 한쪽만 적힌 줄은 그대로 보낸다 — 옳고 그름은 서버가 판정한다.
+          cfg[f.key] = ListEditor.formRowsToSend(pairRowsFromDom(pb));
+        } else {
+          const ta = document.getElementById(`f-${itemKey}-${f.key}`);
+          if (!ta) return;
+          cfg[f.key] = ta.value === '' ? [] : ListEditor.splitLines(ta.value);
+        }
+        return;
+      }
+      const el = document.getElementById(`f-${itemKey}-${f.key}`);
+      if (!el) return;
+      if (f.type === 'bool') cfg[f.key] = el.checked;
+      else if (f.type === 'int') cfg[f.key] = el.value === '' ? f.default : Number(el.value);
+      else cfg[f.key] = el.value;
+    });
+    return cfg;
+  }
+
+  function setMsg(itemKey, text, cls, notices) {
+    const m = document.getElementById(`msg-${itemKey}`);
+    if (m) { m.textContent = text; m.className = 'msg ' + (cls || ''); }
+    const n = document.getElementById(`noti-${itemKey}`);
+    if (n) n.innerHTML = (notices || []).map((x) => `<div>· ${esc(x)}</div>`).join('');
+  }
+
+  /** 「금지어 3개 저장됨」— 몇 개가 들어갔는지는 **서버가 돌려준 값**으로 센다. */
+  function savedSummary(itemKey, config) {
+    const it = schema.items.find((x) => x.key === itemKey);
+    const parts = it.fields
+      .filter((f) => f.type === 'list' && Array.isArray(config[f.key]))
+      .map((f) => `${f.label} ${config[f.key].length}개 저장됨`);
+    return parts.length ? ' — ' + parts.join(' · ') : '';
+  }
+
+  function save(itemKey) {
+    setMsg(itemKey, '저장 중…', '');
+    fetch(`/bulk/api/process/policies/${POLICY_ID}/rules`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_key: itemKey, market, config: collect(itemKey) }),
+    }).then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!(ok && j.ok)) {
+          setMsg(itemKey, j.error || '저장하지 못했습니다.', 'no');
+          return;
+        }
+        rules[itemKey] = j.config;
+        // 마켓 전용으로 저장했으면 이제 이 항목은 공통을 안 따른다 — 바로 배지를 단다.
+        if (market && marketOnly.indexOf(itemKey) < 0) marketOnly.push(itemKey);
+        render();                      // 저장된 값 그대로 다시 그린다(눈으로 확인)
+        setMsg(itemKey, '저장했습니다.' + savedSummary(itemKey, j.config), 'ok', j.notices);
+      })
+      .catch((e) => setMsg(itemKey, e.message, 'no'));
+  }
+
+  // ── 붙은 소싱처·마켓 손보기 ──────────────────────────────────
+  //   판정은 전부 서버가 한다. 여기서는 **서버가 돌려준 답**만 그린다.
+  const srcMsg = document.getElementById('pd-srcmsg');
+  const mktMsg = document.getElementById('pd-mktmsg');
+
+  function say(el, text, cls) {
+    el.textContent = text;
+    el.className = 'pd-msg ' + (cls || '');
+  }
+
+  function send(url, method, body) {
+    return fetch(url, {
+      method: method, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json().then((j) => ({ status: r.status, j })));
+  }
+
+  /** 줄 수를 다시 세고, 하나도 없으면 「아직 없음」을 띄운다. */
+  function recount(boxId, cntId, subId) {
+    const box = document.getElementById(boxId);
+    const n = box.querySelectorAll('.pd-line').length;
+    document.getElementById(cntId).textContent = n;
+    const sub = document.getElementById(subId);
+    if (sub) sub.textContent = n;
+    const none = box.querySelector('.chip.none');
+    if (n === 0 && !none) {
+      box.insertAdjacentHTML('beforeend', '<span class="chip none">아직 없음</span>');
+    } else if (n > 0 && none) {
+      none.remove();
+    }
+    return n;
+  }
+
+  /** 마켓이 하나도 없으면 「어디에도 안 올라갑니다」 경고를 되살린다. */
+  function syncNoMarketWarn(n) {
+    const cur = document.getElementById('pd-nomkt');
+    if (n === 0 && !cur) {
+      document.getElementById('pd-grid').insertAdjacentHTML('beforebegin',
+        '<div class="pd-miss" id="pd-nomkt"><b>내보낼 마켓이 없습니다</b> — '
+        + '이 정책에 묶인 상품은 <b>어디에도 올라가지 않습니다.</b></div>');
+    } else if (n > 0 && cur) {
+      cur.remove();
+    }
+  }
+
+  /** 규칙 편집기의 「마켓 고르기」를 지금 붙어 있는 마켓으로 맞춘다.
+   *
+   *  ★ 규칙 칸(box)은 **건드리지 않는다** — 편집 중인 값이 사라지면 안 된다(리뷰 ③).
+   *    보고 있던 마켓 자체가 사라진 경우에만 어쩔 수 없이 다시 불러온다(그 경우는
+   *    떼기 전에 미리 물어본다 — detachMarket).
+   */
+  function syncMarkets() {
+    const n = recount('pd-mkts', 'pd-mktcnt', 'pd-submkt');
+    syncNoMarketWarn(n);
+    MARKETS = Array.from(document.querySelectorAll('#pd-mkts .pd-line'))
+      .map((el) => el.dataset.market)
+      .filter((m, i, a) => a.indexOf(m) === i);
+    if (market && MARKETS.indexOf(market) < 0) {
+      market = '';                 // 뗀 마켓의 규칙을 계속 보여주면 안 된다
+      load();
+      return;
+    }
+    if (schema) renderMarketSelect();   // 아직 못 불러왔으면 load() 가 곧 그린다
+  }
+
+  function marketLine(mk, acc) {
+    const label = MARKET_LABELS[mk] || mk;
+    return `<div class="pd-line" data-market="${esc(mk)}" data-acc="${esc(acc)}">
+      <span class="chip mkt">${esc(label)}${acc ? ' · ' + esc(acc) : ''}</span>
+      <button type="button" class="pd-off" data-off="market">떼기</button></div>`;
+  }
+
+  /** 🔴 떼기는 **한 번 되묻는다** — 저장돼 있던 목록 주소까지 같이 사라진다(리뷰 ②). */
+  function detachSource(line) {
+    const sk = line.dataset.src, br = line.dataset.brand;
+    const url = line.dataset.url || '';
+    const ok = window.confirm(
+      '「' + sk + ' > ' + br + '」 을(를) 이 정책에서 뗄까요?\n\n'
+      + '이 구성은 어디에도 안 올라가게 됩니다.'
+      + (url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + url : ''));
+    if (!ok) { say(srcMsg, '떼지 않았습니다 — 그대로 있습니다.', 'no'); return; }
+    say(srcMsg, '떼는 중…', 'wait');
+    send('/bulk/api/process/sources', 'DELETE', { source_key: sk, brand: br })
+      .then(({ j }) => {
+        if (!j.ok) { say(srcMsg, j.error || '떼지 못했습니다.', 'no'); return; }
+        line.remove();
+        recount('pd-srcs', 'pd-srccnt', 'pd-subsrc');
+        say(srcMsg, j.message || '뗐습니다.', 'ok');
+      })
+      .catch((e) => say(srcMsg, e.message, 'no'));
+  }
+
+  function detachMarket(line) {
+    const mk = line.dataset.market, acc = line.dataset.acc || '';
+    // 지금 보고 있는 마켓을 떼면 화면이 「모든 마켓 공통」으로 되돌아간다 —
+    // 저장 안 한 입력이 있으면 사라지므로 먼저 알린다(리뷰 ③).
+    const viewing = (market === mk)
+      && MARKETS.filter((m) => m === mk).length === 1;
+    if (viewing && !window.confirm(
+        '지금 「' + (MARKET_LABELS[mk] || mk) + ' 전용」 규칙을 보고 있습니다.\n'
+        + '떼면 「모든 마켓 공통」 화면으로 돌아갑니다 —\n'
+        + '저장하지 않은 입력은 사라집니다. 계속할까요?')) {
+      say(mktMsg, '떼지 않았습니다.', 'no');
+      return;
+    }
+    say(mktMsg, '떼는 중…', 'wait');
+    send(`/bulk/api/process/policies/${POLICY_ID}/markets`, 'DELETE',
+         { market: mk, account_key: acc })
+      .then(({ j }) => {
+        if (!j.ok) { say(mktMsg, j.error || '떼지 못했습니다.', 'no'); return; }
+        line.remove();
+        syncMarkets();
+        say(mktMsg, j.message || '뗐습니다.', 'ok');
+      })
+      .catch((e) => say(mktMsg, e.message, 'no'));
+  }
+
+  function addMarket() {
+    const sel = document.getElementById('pd-addmkt');
+    const accEl = document.getElementById('pd-addacc');
+    const mk = sel.value, acc = accEl.value.trim();
+    say(mktMsg, '붙이는 중…', 'wait');
+    send(`/bulk/api/process/policies/${POLICY_ID}/markets`, 'POST',
+         { market: mk, account_key: acc })
+      .then(({ j }) => {
+        if (!j.ok) { say(mktMsg, j.error || '붙이지 못했습니다.', 'no'); return; }
+        // 이미 있는 줄이면 또 만들지 않는다(서버는 같은 마켓·계정을 한 번만 둔다).
+        const dup = Array.from(document.querySelectorAll('#pd-mkts .pd-line'))
+          .some((el) => el.dataset.market === j.market
+                        && (el.dataset.acc || '') === (j.account_key || ''));
+        if (!dup) {
+          document.getElementById('pd-mkts')
+            .insertAdjacentHTML('beforeend', marketLine(j.market, j.account_key || ''));
+        }
+        syncMarkets();
+        accEl.value = '';
+        say(mktMsg, dup ? '이미 붙어 있습니다.' : (j.message || '붙였습니다.'), 'ok');
+      })
+      .catch((e) => say(mktMsg, e.message, 'no'));
+  }
+
+  document.getElementById('pd-addbtn').onclick = addMarket;
+  document.getElementById('pd-grid').addEventListener('click', (e) => {
+    const btn = e.target.closest('.pd-off');
+    if (!btn) return;
+    const line = btn.closest('.pd-line');
+    if (btn.dataset.off === 'source') detachSource(line);
+    else detachMarket(line);
+  });
+
+  function load() {
+    Promise.all([
+      schema ? Promise.resolve(schema) : fetch('/bulk/api/process/schema').then((r) => r.json()),
+      fetch(`/bulk/api/process/policies/${POLICY_ID}/rules?market=${encodeURIComponent(market)}`)
+        .then((r) => r.json()),
+    ]).then(([sc, rl]) => {
+      schema = sc;
+      // 🔴 [2026-08-13] 라벨의 단일 원천은 `process_rule_schema.CHOICE_LABELS` 다.
+      //   여기 아래 `CHOICE_LABEL` 은 화면이 따로 들고 있던 사본이라, 스키마에
+      //   선택지가 늘 때마다 한쪽만 갱신돼 **영어가 샜다**(실제로 13개가 샜다).
+      //   스키마가 실어 주는 `choice_labels` 를 덮어씌워 항상 서버를 따르게 한다.
+      (sc.items || []).forEach((it) => (it.fields || []).forEach((f) => {
+        Object.assign(CHOICE_LABEL, f.choice_labels || {});
+      }));
+      rules = rl.rules || {};
+      marketOnly = rl.market_saved_keys || [];
+      render();
+    }).catch((e) => {
+      box.innerHTML = '<div class="pd-miss"><b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';
+    });
+  }
+
+  load();
+})();
+</script>
+  {% endif %}
+</div>
+{% endblock %}

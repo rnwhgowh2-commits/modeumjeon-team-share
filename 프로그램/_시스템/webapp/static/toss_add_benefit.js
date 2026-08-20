@@ -290,7 +290,7 @@
         throw new Error(data.error || `HTTP ${resp.status}`);
       }
       const appliedCount = data.applied_count || 0;
-      const msg = ` "${name}" 추가 — ${appliedCount}개 옵션에 적용`;
+      const msg = `"${name}" 추가 — ${appliedCount}개 옵션에 적용`;
       if (window.tossToast) {
         window.tossToast(msg, 'success');
       } else {

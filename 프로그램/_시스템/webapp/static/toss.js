@@ -3,13 +3,13 @@
 // ============================================================
 // [v2] 임시저장 Floating Bubble — 시안 C
 // ============================================================
-window.LEMOUTON_DRAFT_KEYS = {
+window.MOUM_DRAFT_KEYS = {
   new: 'lemouton:draft:new',
   migrate: 'lemouton:draft:migrate',
 };
 const DRAFT_PAGE_LABEL = {
-  new: ' 신규 모음전 등록',
-  migrate: ' 기존 마켓 상품 연동',
+  new: '신규 모음전 등록',
+  migrate: '기존 마켓 상품 연동',
 };
 const DRAFT_PAGE_URL = {
   new: '/bundles/new',
@@ -18,7 +18,7 @@ const DRAFT_PAGE_URL = {
 
 function getAllDrafts() {
   const out = [];
-  for (const [page, key] of Object.entries(window.LEMOUTON_DRAFT_KEYS)) {
+  for (const [page, key] of Object.entries(window.MOUM_DRAFT_KEYS)) {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
@@ -69,7 +69,7 @@ function refreshDraftBubble() {
       <div class="draft-key">${_draftSummary(d.page, d.data)}</div>
       <div class="draft-actions">
         <a href="${DRAFT_PAGE_URL[d.page]}">이어서 작업 →</a>
-        <button data-discard="${d.key}"> 버리기</button>
+        <button data-discard="${d.key}">버리기</button>
       </div>
     </div>
   `).join('');
@@ -97,7 +97,7 @@ function mountDraftBubble() {
 
 // 페이지별 자동 임시저장 helper (input 변경 시 debounce 저장)
 function setupDraftAutoSave(page, inputIds) {
-  const key = window.LEMOUTON_DRAFT_KEYS[page];
+  const key = window.MOUM_DRAFT_KEYS[page];
   if (!key) return;
   let timer;
   function save() {
@@ -132,7 +132,7 @@ function setupDraftAutoSave(page, inputIds) {
 }
 
 function clearDraft(page) {
-  const key = window.LEMOUTON_DRAFT_KEYS[page];
+  const key = window.MOUM_DRAFT_KEYS[page];
   if (key) localStorage.removeItem(key);
   refreshDraftBubble();
 }
@@ -156,9 +156,9 @@ function setAutoSaveIndicator(state, msg) {
   if (!ind) return;
   const map = {
     idle:   { html: '', cls: 'idle' },
-    saving: { html: ' 저장 중...', cls: 'saving' },
-    saved:  { html: ' 저장됨 ', cls: 'saved' },
-    error:  { html: ' 저장 실패 (다시 시도)', cls: 'error' },
+    saving: { html: '저장 중...', cls: 'saving' },
+    saved:  { html: '저장됨', cls: 'saved' },
+    error:  { html: '저장 실패 (다시 시도)', cls: 'error' },
   };
   const v = map[state] || map.idle;
   ind.innerHTML = v.html;
@@ -248,7 +248,7 @@ document.addEventListener('click', (e) => {
   // 같은 페이지 내 링크 무시
   if (href === window.location.pathname || href === window.location.href) return;
   if (window.__lemoutonDirty) {
-    if (!confirm(' 저장 안 한 변경사항이 있습니다.\n정말 페이지를 떠나시겠어요?\n\n(확인 = 변경사항 잃고 이동, 취소 = 머무름)')) {
+    if (!confirm('저장 안 한 변경사항이 있습니다.\n정말 페이지를 떠나시겠어요?\n\n(확인 = 변경사항 잃고 이동, 취소 = 머무름)')) {
       e.preventDefault();
       e.stopPropagation();
     } else {
@@ -354,6 +354,19 @@ function flash(msg, kind) {
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 2600);
 }
+
+// [2026-08-19] 옵션 조합 창을 저장하고 닫으면 그 자리(옵션함 화면)가 아니라 목록으로
+//   이동한다 — 새로 도착한 화면에서 "저장 완료" 를 여기 한 곳에서 띄운다(어느 화면으로
+//   이동하든 공통). option_url_modal.js 가 sessionStorage 에 남겨 둔 메시지를 소비한다.
+(function () {
+  try {
+    const raw = sessionStorage.getItem('oum:justSaved');
+    if (!raw) return;
+    sessionStorage.removeItem('oum:justSaved');   // 한 번만 보여준다
+    const v = JSON.parse(raw);
+    if (v && v.msg) flash(v.msg);
+  } catch (e) { /* 알림 하나 놓치는 것보다 화면이 깨지는 게 더 나쁘다 */ }
+})();
 
 // 모음전 코드 추출 — 이미 인코딩된 path를 1회만 인코딩하기 위해 디코드 후 다시 인코딩.
 function currentBundleCode() {
@@ -508,7 +521,7 @@ document.addEventListener('click', async (e) => {
     msg += `• 마켓 등록된 항목 ${preview.registered_in_marketplaces || 0}개\n`;
     msg += `• 옵션 등록 매핑 ${preview.option_registrations || 0}개\n`;
     msg += `• 소싱 링크 ${preview.source_links || 0}개\n\n`;
-    if (preview.warning) msg += ` ${preview.warning}\n\n`;
+    if (preview.warning) msg += `${preview.warning}\n\n`;
     msg += '진짜 삭제할까요? (이 작업은 되돌리기 어려움)';
     if (!confirm(msg)) return;
     const res = await apiPost(`/api/bundles/${encodeURIComponent(code)}/delete`, {});
@@ -675,31 +688,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // ----- Templates 페이지 -----
-  if (action === 'new-price-tpl') {
-    e.preventDefault();
-    openPriceTplModal(null);
-    return;
-  }
-  if (action === 'edit-price-tpl' || action === 'dup-price-tpl' || action === 'del-price-tpl') {
-    e.preventDefault();
-    const id = btn.getAttribute('data-id');
-    if (action === 'del-price-tpl') {
-      if (!confirm('삭제할까요?')) return;
-      const res = await apiPost(`/api/templates/price/${id}/delete`, {});
-      flash(res.ok ? '삭제 완료' : ('실패: ' + (res.error || '')), res.ok ? 'ok' : 'err');
-      if (res.ok) setTimeout(() => location.reload(), 600);
-      return;
-    }
-    if (action === 'dup-price-tpl') {
-      const res = await apiPost(`/api/templates/price/${id}/duplicate`, {});
-      flash(res.ok ? '복제 완료' : '실패', res.ok ? 'ok' : 'err');
-      if (res.ok) setTimeout(() => location.reload(), 600);
-      return;
-    }
-    openPriceTplModal(id);
-    return;
-  }
+  // ----- 옵션 맵핑 템플릿 페이지 (구 「템플릿」) -----
+  // [2026-08-12] 노션 「b-3. 가로탭 3개 중 가격 템플릿 삭제」 —
+  //   가격 판이 화면에서 빠져 new/edit/dup/del-price-tpl 을 다는 곳이 한 군데도
+  //   없어졌다(저장소 전체 grep 0건). 그래서 그 4개 동작을 여기서 없앤다.
+  //   🔴 `openPriceTplModal()` **함수 본체는 남긴다** — 모음전 상세
+  //      (bundles/_matrix_v3.html 의 가격 템플릿 고르는 칸)가 그대로 부른다.
   if (action === 'new-color-tpl') { e.preventDefault(); openColorTplModal(null); return; }
   if (action === 'edit-color-tpl') { e.preventDefault(); openColorTplModal(btn.getAttribute('data-id')); return; }
   if (action === 'dup-color-tpl') {
@@ -933,7 +927,7 @@ function openStepDesignModal(code) {
     + '축마다 이름과 값(쉼표 구분)을 넣으면 값이 칩으로 정리되고 <b>조합 매트릭스</b>가 나옵니다. '
     + '칸을 클릭해 켜고() 끄세요 — 켜진 칸만 옵션으로 만들어집니다.</div>'
     + '<div id="sd-steps"></div>'
-    + '<button class="btn btn-sm" id="sd-add-step" type="button" style="margin-top:6px">＋ 축 추가 (최대 3축)</button>'
+    + '<button class="btn btn-sm" id="sd-add-step" type="button" style="margin-top:6px">+ 축 추가 (최대 3축)</button>'
     + '<div class="sd-mtxhead"><span class="lbl">조합 매트릭스</span>'
     + '<span id="sd-count" class="cnt"></span>'
     + '<button class="btn btn-sm" id="sd-all" type="button" style="margin-left:auto">전체 선택/해제</button></div>'
@@ -1135,7 +1129,7 @@ function openOptionUrlModal(sku, onChange) {
     + '<div style="font-size:12.5px;color:var(--n500,#888);margin-bottom:14px">한 소싱처에 URL을 여러 개 등록할 수 있어요. URL 없이 둬도 됩니다 (오프라인 전용 옵션).</div>'
     + '<div id="ou-list" style="font-size:13px;color:var(--n500,#888)">불러오는 중…</div>'
     + '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #f0f2f4">'
-    + '<div style="font-size:12px;font-weight:800;color:#4e5968;margin-bottom:7px">＋ URL 추가</div>'
+    + '<div style="font-size:12px;font-weight:800;color:#4e5968;margin-bottom:7px">+ URL 추가</div>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
     + '<select id="ou-src" style="font:inherit;font-size:13px;padding:8px 10px;border:1px solid #d8dce0;border-radius:8px;flex:0 0 150px"></select>'
     + '<input id="ou-url" placeholder="https://..." style="font:inherit;font-size:13px;padding:8px 10px;border:1px solid #d8dce0;border-radius:8px;flex:1;min-width:200px">'
@@ -1273,7 +1267,328 @@ function openAddSourceModal() {
   paintLogo();
 }
 
-async function openPriceTplModal(id, initialTab) {
+// ─────────────────────────────────────────────────────────────────────────────
+// [2026-07-20] 「원가 · 사올 때」 안 '옵션별 실제 매입가'.
+//   왜: 「평균 매입가」 한 칸이 사입 판매가·마진을 좌우하는데, 그 값이 최신 크롤 실매입가와
+//   얼마나 어긋나는지 확인할 방법이 화면에 없었다(라이브 실측: 95,000 vs 107,700~113,500).
+//   데이터: window.DATA(= /api/bundles/<code>/option-matrix 응답). 서버 추가 호출 없음.
+//   영수증 단계만 POST /api/source-benefits/breakdowns 로 받는다(매트릭스 fx 팝업과 같은 원천).
+//   ★ 폴백 금지 — 최종매입가 없는 옵션은 '확인 불가'로 분리한다(CLAUDE.md 정합성 원칙 2).
+//   ★ 템플릿은 여러 모음전이 공유하므로(Model.price_template_id) '이 모음전 기준'임을 명시한다.
+//     모음전 컨텍스트(window.DATA)가 없는 「템플릿 관리」 경로에서는 아예 렌더하지 않는다.
+const OC_PALETTE = ['#3182F6', '#12B886', '#E8833A', '#8B5CF6', '#EC4899', '#0EA5E9', '#F59E0B'];
+
+// 파일 하단의 escapeHtml 은 다른 스코프에 갇혀 있어 여기서 못 쓴다 — 전용 이스케이프.
+function ocEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function ocPickSource(opt) {
+  // 매트릭스와 같은 기준: 최종매입가가 있는 소싱처 중 → 재고 있는 것 우선 → 그중 최저가.
+  const priced = (opt.sources || []).filter(s => s.final_purchase_price != null);
+  if (!priced.length) return null;
+  const buyable = priced.filter(s => !s.stock_out);
+  const pool = buyable.length ? buyable : priced;
+  return pool.reduce((a, b) => (b.final_purchase_price < a.final_purchase_price ? b : a));
+}
+
+function ocBuildGroups(options) {
+  // [2026-07-20] 묶는 기준 = **실제로 적용된 원가**.
+  //   서버(cost_basis)가 옵션마다 사입/소싱 중 낮은 쪽을 고르므로, 판도 그 결과를 보여야 한다.
+  //   이전엔 소싱가로만 묶어서 「롯데아이몰 106,300원 · 87개」라고 했는데
+  //   그중 42개는 실제로 사입 95,000원에 팔리고 있었다(화면이 거짓말).
+  //   · 사입 기준 옵션 → '사입' 묶음 (영수증 없음 — 크롤 혜택 내역이 아니라 내가 산 값)
+  //   · 소싱 기준 옵션 → 소싱처 + 표면가 + 최종매입가로 묶음(영수증이 하나로 떨어짐)
+  const map = new Map(); const unknown = [];
+  (options || []).forEach(o => {
+    if (o.cost_basis_side === 'purchase' && o.effective_cost) {
+      const key = `PUR|${o.effective_cost}`;
+      if (!map.has(key)) map.set(key, {
+        key, kind: 'purchase', cost: o.effective_cost,
+        src: { source_name: '사입 재고', final_purchase_price: o.effective_cost, crawled_price: null },
+        opts: [], utypes: new Set(),
+      });
+      map.get(key).opts.push(o);
+      return;
+    }
+    const p = ocPickSource(o);
+    if (!p || !o.effective_cost) { unknown.push(o); return; }
+    const key = `SRC|${p.source_name}|${p.crawled_price}|${p.final_purchase_price}`;
+    if (!map.has(key)) map.set(key, {
+      key, kind: 'sourcing', cost: p.final_purchase_price, src: p, opts: [], utypes: new Set(),
+    });
+    const g = map.get(key); g.opts.push(o); g.utypes.add(p.url_type || '');
+  });
+  const groups = [...map.values()].sort((a, b) => a.cost - b.cost);
+  groups.forEach((g, i) => { g.color = OC_PALETTE[i % OC_PALETTE.length]; g.idx = i; });
+  return { groups, unknown };
+}
+
+// [2026-07-20] N축(최대 3축) 대응. 서버가 axis_steps(축 이름·순서)를 주면 그대로 쓰고,
+//   없으면(레거시 모음전) 색상·사이즈 2축으로 폴백한다.
+//   축 이름은 자유(색상·사이즈·안감·재질…)이므로 이름을 하드코딩하지 않는다.
+function ocAxisValuesOf(o) {
+  if (Array.isArray(o.axis_values) && o.axis_values.length) return o.axis_values.map(String);
+  const c = o.color_display || o.color_code || '';
+  const s = o.size_display || o.size_code || '';
+  return [c, s].filter(Boolean).map(String);
+}
+
+function ocAxes(options, axisSteps) {
+  const opts = options || [];
+  const steps = (Array.isArray(axisSteps) && axisSteps.length) ? axisSteps : null;
+  const depth = steps ? steps.length
+    : Math.max(1, ...opts.map(o => ocAxisValuesOf(o).length || 1));
+  const names = steps ? steps.map(st => st.axis_name || `${st.step_no}축`)
+    : (depth >= 2 ? ['색상', '사이즈'] : ['옵션']).slice(0, depth);
+  // 값 목록은 **실제 옵션에 있는 것만** 쓴다(축 정의에만 있고 옵션이 없는 값은 빈 줄이 된다).
+  const vals = Array.from({ length: depth }, () => []);
+  opts.forEach(o => {
+    const av = ocAxisValuesOf(o);
+    for (let i = 0; i < depth; i++) {
+      const v = av[i] != null ? String(av[i]) : '-';
+      if (!vals[i].includes(v)) vals[i].push(v);
+    }
+  });
+  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isNaN(n) ? null : n; };
+  vals.forEach(list => { if (list.length > 1 && list.every(v => num(v) != null)) list.sort((a, b) => num(a) - num(b)); });
+  // 판은 [세로축, 가로축] 두 개를 쓰고, 3축부터는 레이어(판을 겹쳐 반복)로 뺀다.
+  //   2축: 세로=2축(사이즈) 가로=1축(색상) — 사장님이 고른 축 전환 배치 그대로.
+  const colIdx = 0, rowIdx = depth >= 2 ? 1 : 0;
+  const layerIdx = depth >= 3 ? 2 : -1;
+  return {
+    depth, names, vals,
+    colIdx, rowIdx, layerIdx,
+    colors: vals[colIdx] || [],            // 하위호환(기존 호출부)
+    sizes: depth >= 2 ? vals[rowIdx] : [''],
+    layers: layerIdx >= 0 ? vals[layerIdx] : [null],
+  };
+}
+
+function ocReceiptHtml(bd) {
+  // 매트릭스 fx 팝업(smRenderFxPopBody)과 같은 마크업·클래스 — 영수증은 한 모양이어야 한다.
+  if (!bd || !bd.steps) return '<div class="oc-note">영수증을 불러오지 못했어요.</div>';
+  const circ = n => ['', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'][n] || String(n);
+  const won = n => (Number(n) || 0).toLocaleString('ko-KR') + '원';
+  const steps = bd.steps || [];
+  let ln = `<div class="cf-rc-ln"><span class="lbl">표면 노출가</span><span class="num">${won(bd.sale_price)}</span></div>`;
+  steps.forEach((st, i) => {
+    const pct = st.type === 'rate' ? ` <span class="rc-pct">(${(st.value * 100).toFixed(2)}%)</span>` : '';
+    ln += `<div class="cf-rc-ln sub"><span class="lbl">└ ${ocEsc(st.name)}${pct}</span>`
+       +  `<span class="num">-${won(st.deduct)}</span></div>`;
+    if (st.base_note && st.base_ratio != null && st.base_ratio !== 1) {
+      const b = Math.round((st.base_after || 0) + (st.deduct || 0));
+      ln += `<div class="cf-rc-ln cf-rc-note">${ocEsc(st.base_note)} · ${b.toLocaleString('ko-KR')}원 × `
+         +  `${(st.base_ratio * 100).toFixed(0)}% × ${(st.value * 100).toFixed(2)}% = ${won(st.deduct)}</div>`;
+    }
+    if (i < steps.length - 1) {
+      const nx = steps[i + 1];
+      const nr = (nx.base_ratio != null && nx.base_ratio !== 1) ? `공급가 ${(nx.base_ratio * 100).toFixed(0)}% × ` : '';
+      const tag = nx.type === 'rate' ? `<span class="tag">${nr}${(nx.value * 100).toFixed(2)}% 기준</span>` : '';
+      ln += `<div class="cf-rc-ln base"><span class="lbl">베이스금액${circ(i + 1)}${tag}</span>`
+         +  `<span class="num">${won(st.base_after)}</span></div>`;
+    }
+  });
+  return `<div class="cf-receipt">${ln}<div class="cf-rc-div"></div>`
+       + `<div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span><span class="num">${won(bd.final_price)}</span></div></div>`;
+}
+
+async function ocFetchBreakdowns(groups) {
+  // 사입 묶음은 크롤 혜택 영수증이 없다(내가 산 값) → 요청하지 않는다.
+  const items = groups.map((g, i) => (g.kind === 'purchase' ? null : ({
+    sku: g.opts[0].sku, source_id: g.src.source_id, sale_price: g.src.crawled_price,
+    source_product_id: g.src.source_product_id, key: 'g' + i,
+  }))).filter(Boolean);
+  if (!items.length) return {};
+  try {
+    const r = await fetch('/api/source-benefits/breakdowns', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }),
+    });
+    const j = await r.json();
+    return (j && j.ok && j.results) ? j.results : {};
+  } catch (e) { return {}; }
+}
+
+async function ptmRenderOptCost(box, tplAvg) {
+  const host = box.querySelector('#ptm-optcost');
+  if (!host) return;
+  // 모음전 페이지인지 먼저 판별. 「템플릿 관리」 화면에는 BUNDLE_CODE 가 없고 DATA 도 영영 안 온다
+  //   → 여기서 바로 빠져야 20초를 헛기다리지 않는다.
+  if (!window.BUNDLE_CODE) return;
+  // window.DATA 는 매트릭스 페이지가 비동기로 채운다(인라인 마운트가 먼저 돌 수 있음) → 잠깐 기다린다.
+  const started = Date.now();
+  while (!(window.DATA && window.DATA.options) && Date.now() - started < 20000) {
+    await new Promise(r => setTimeout(r, 300));
+  }
+  const options = (window.DATA && window.DATA.options) || null;
+  if (!options) return;            // 모음전 컨텍스트 없음(「템플릿 관리」 경로) → 렌더 생략
+
+  const { groups, unknown } = ocBuildGroups(options);
+  const AX = ocAxes(options, (window.DATA && window.DATA.axis_steps) || null);
+  const { colors, sizes, layers, names, colIdx, rowIdx, layerIdx, depth } = AX;
+  const gOf = new Map();
+  groups.forEach(g => g.opts.forEach(o => gOf.set(o.sku, g)));
+  // 축값 조합 → 옵션 색인. 칸마다 배열을 훑으면 옵션이 많은 모음전에서 급격히 느려진다.
+  const cellKey = (c, r, l) => `${c} ${r} ${l == null ? '' : l}`;
+  const byCell = new Map();
+  options.forEach(o => {
+    const av = ocAxisValuesOf(o);
+    byCell.set(cellKey(av[colIdx] != null ? av[colIdx] : '-',
+                       depth >= 2 ? (av[rowIdx] != null ? av[rowIdx] : '-') : '',
+                       layerIdx >= 0 ? (av[layerIdx] != null ? av[layerIdx] : '-') : null), o);
+  });
+  const cell = (c, r, l) => {
+    const o = byCell.get(cellKey(c, r, l));
+    if (!o) return { kind: 'none' };
+    const g = gOf.get(o.sku);
+    return g ? { kind: 'g', g, o } : { kind: 'u', o };
+  };
+  const won = n => (Number(n) || 0).toLocaleString('ko-KR');
+
+  // ① 평균 매입가 ↔ 실제 매입가 어긋남 경고 (차이가 있을 때만)
+  let alertHtml = '';
+  if (groups.length && Number(tplAvg) > 0) {
+    const lo = groups[0].src.final_purchase_price;
+    const hi = groups[groups.length - 1].src.final_purchase_price;
+    const dLo = lo - Number(tplAvg), dHi = hi - Number(tplAvg);
+    if (dLo !== 0 || dHi !== 0) {
+      const cheap = dLo > 0;   // 적어놓은 값이 실제보다 싸다 = 마진을 실제보다 크게 본다
+      alertHtml = `<div class="oc-alert${cheap ? '' : ' hi'}">`
+        + `<div class="oc-al-t">「평균 매입가」 ${won(tplAvg)}원이 실제보다 `
+        + `${won(Math.abs(dLo))}~${won(Math.abs(dHi))}원 ${cheap ? '쌉니다' : '비쌉니다'}</div>`
+        + `<div class="oc-al-b">최신 크롤 기준 실제 최종매입가는 <b>${won(lo)}원 ~ ${won(hi)}원</b>입니다. `
+        + `이 칸의 값은 <b>사입</b> 판매가·마진 계산에 그대로 쓰이고 있어요.</div></div>`;
+    }
+  }
+
+  // ② 판 — 세로 = 2축 / 가로 = 1축. 구분은 오직 칸 색으로(글자·기호 없음).
+  //    1축 값 바로 아래 줄에 그 값의 매입가(P1) — 여러 가격이면 한 줄에 하나씩.
+  //    3축이면 3축 값마다 판을 하나씩 반복한다(겹).
+  const kindsOfCol = (c, l) => {
+    const seen = [];
+    sizes.forEach(r => {
+      const cl = cell(c, r, l);
+      if (cl.kind === 'none') return;
+      const k = (cl.kind === 'u') ? 'u' : cl.g.idx;
+      if (!seen.includes(k)) seen.push(k);
+    });
+    return seen;
+  };
+  const lbl = (c, r, l) => [c, depth >= 2 ? r : null, l].filter(x => x != null && x !== '').join('/');
+  const boardOf = (l) => {
+    let head = `<tr><th class="ch">${ocEsc(names[rowIdx] || '')}</th>`
+             + colors.map(c => `<th class="cv">${ocEsc(c)}</th>`).join('') + '</tr>'
+             + '<tr class="oc-prow"><th class="ch"></th>'
+             + colors.map(c => '<td>' + kindsOfCol(c, l).map(k => k === 'u'
+                 ? '<span class="p uk">확인 불가</span>'
+                 : `<span class="p" style="color:${groups[k].color}">${won(groups[k].src.final_purchase_price)}</span>`
+               ).join('') + '</td>').join('') + '</tr>';
+    let rows = '';
+    sizes.forEach(r => {
+      let tds = '';
+      colors.forEach(c => {
+        const cl = cell(c, r, l);
+        if (cl.kind === 'none') { tds += '<td class="oc-na"></td>'; return; }
+        if (cl.kind === 'u') {
+          tds += `<td class="oc-uk" title="${ocEsc(lbl(c, r, l))} · 확인 불가">-</td>`;
+        } else {
+          const t = `${ocEsc(lbl(c, r, l))} · ${won(cl.g.src.final_purchase_price)}원 · ${ocEsc(cl.g.src.source_name || '')}`;
+          tds += `<td class="oc-c" style="background:${cl.g.color}2E" title="${t}"></td>`;
+        }
+      });
+      rows += `<tr class="oc-row"><th class="c">${ocEsc(r)}</th>${tds}</tr>`;
+    });
+    return `<table class="oc-mtx"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  };
+  const boardsHtml = layers.map(l => (l == null ? boardOf(l)
+    : `<div class="oc-layer"><div class="oc-layer-h">${ocEsc(names[layerIdx] || '3축')} `
+      + `<b>${ocEsc(l)}</b></div>${boardOf(l)}</div>`)).join('');
+  const legend = groups.map(g =>
+      `<span class="oc-lgi"><i style="background:${g.color}22;border:1px solid ${g.color}"></i>`
+    + `${won(g.src.final_purchase_price)}원 · ${ocEsc(g.src.source_name || '')} <b>${g.opts.length}개</b></span>`
+    ).join('')
+    + (unknown.length ? `<span class="oc-lgi"><i class="uk"></i>확인 불가 <b>${unknown.length}개</b></span>` : '');
+
+  // ③ 그룹별 줄 + 영수증
+  let rows = '';
+  groups.forEach((g, i) => {
+    const p = g.src;
+    const isPur = g.kind === 'purchase';
+    // 사입 묶음은 '사입 재고' 수량, 소싱 묶음은 소싱처 재고
+    const stocks = g.opts.map(o => isPur ? o.purchase_stock
+                                         : (ocPickSource(o) || {}).stock_qty)
+                         .filter(q => q != null);
+    const stk = stocks.length
+      ? (Math.min(...stocks) === Math.max(...stocks) ? `재고 ${won(Math.min(...stocks))}개`
+        : `재고 ${won(Math.min(...stocks))}~${won(Math.max(...stocks))}개`)
+      : '재고 수량 미표기';
+    const uts = [...g.utypes].filter(Boolean).map(u => `<span class="oc-ut">${ocEsc(u)}</span>`).join('');
+    const badge = isPur ? '<span class="oc-ut pur">사입</span>' : uts;
+    const meta = isPur
+      ? `내가 사둔 재고로 팔아요 · ${stk} · 소싱처보다 싸서 이 값을 씁니다`
+      : `표면 노출가 ${won(p.crawled_price)}원 · ${stk}`
+        + `${p.last_fetched_at ? ' · 마지막 크롤 ' + ocEsc(String(p.last_fetched_at).replace('T', ' ').slice(0, 16)) : ''}`;
+    const body = isPur
+      ? '<div class="oc-note">사입 매입가는 내가 산 값이라 크롤 혜택 영수증이 없어요.</div>'
+      : '불러오는 중…';
+    rows += `<div class="oc-g" data-g="${i}" style="border-left-color:${g.color}">`
+      + `<div class="oc-g-h" role="button" tabindex="0">`
+      + `<span class="oc-dot" style="background:${g.color}"></span>`
+      + `<span class="oc-fin" style="color:${g.color}">${won(g.cost)}<i>원</i></span>`
+      + `<span class="oc-src">${ocEsc(p.source_name || '')}${badge}</span>`
+      + `<span class="oc-n">${g.opts.length}개</span>`
+      + `<span class="oc-cv">${isPur ? '자세히' : '영수증'} ▾</span></div>`
+      + `<div class="oc-rc" data-rc="${i}"><div class="oc-rc-m">${meta}</div>`
+      + `<div class="oc-rc-b">${body}</div></div></div>`;
+  });
+  if (unknown.length) {
+    const chips = unknown.map(o => `<span class="oc-chip${(o.sources || []).length ? ' m' : ''}">`
+      + `${ocEsc((o.color_display || '-') + '/' + (o.size_display || '-'))}</span>`).join('');
+    const withSrc = unknown.filter(o => (o.sources || []).length).length;
+    rows += `<div class="oc-g uk" data-g="u"><div class="oc-g-h" role="button" tabindex="0">`
+      + `<span class="oc-dot uk"></span><span class="oc-fin uk">확인 불가</span>`
+      + `<span class="oc-src">가격을 못 구한 옵션</span><span class="oc-n">${unknown.length}개</span>`
+      + `<span class="oc-cv">목록 ▾</span></div>`
+      + `<div class="oc-rc" data-rc="u"><div class="oc-rc-m">소싱 URL 없음 ${unknown.length - withSrc}개`
+      + ` · 크롤은 됐지만 매칭/가격 없음 ${withSrc}개(주황)</div>`
+      + `<div class="oc-chips">${chips}</div></div></div>`;
+  }
+
+  host.innerHTML = alertHtml
+    + `<div class="oc"><div class="oc-h"><b>옵션별 실제 매입가</b>`
+    + `<span class="oc-scope">이 모음전 기준</span>`
+    + `<span class="oc-sum">옵션 ${options.length}개 → 가격 ${groups.length}종`
+    + `${unknown.length ? ' · 확인 불가 ' + unknown.length + '개' : ''}</span></div>`
+    + `<div class="oc-mtx-wrap">${boardsHtml}`
+    + `<div class="oc-lg">${legend}<span class="oc-lgn">· 칸 색 = 그 옵션을 어디서 사는지 · `
+    + `<b>-</b> = 가격을 못 구한 옵션</span></div></div>`
+    + `<div class="oc-list">${rows}</div></div>`;
+
+  host.querySelectorAll('.oc-g-h').forEach(h => {
+    const toggle = () => {
+      const g = h.parentElement.dataset.g;
+      const rc = host.querySelector(`.oc-rc[data-rc="${g}"]`);
+      const on = !rc.classList.contains('on');
+      rc.classList.toggle('on', on);
+      const cv = h.querySelector('.oc-cv');
+      if (cv) cv.textContent = cv.textContent.replace(/[▾▴]/, on ? '▴' : '▾');
+    };
+    h.addEventListener('click', toggle);
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
+
+  // 영수증 단계는 서버에서(매트릭스 fx 팝업과 같은 원천). 실패해도 위 목록은 그대로 남는다.
+  const res = await ocFetchBreakdowns(groups);
+  groups.forEach((g, i) => {
+    if (g.kind === 'purchase') return;      // 사입은 영수증 없음(위에서 안내문 표시)
+    const slot = host.querySelector(`.oc-rc[data-rc="${i}"] .oc-rc-b`);
+    if (slot) slot.innerHTML = ocReceiptHtml(res['g' + i]);
+  });
+}
+
+async function openPriceTplModal(id, initialTab, opts) {
+  opts = opts || {};
   let initial = {};
   if (id) {
     const r = await fetch(`/api/templates/price/${id}`);
@@ -1346,9 +1661,9 @@ async function openPriceTplModal(id, initialTab) {
       : {bg:'#FEF3C7', tx:'#92400E'};
     const defaultRate = prefix === 'ss' ? '9.45' : '12.42';
     return `
-      <div style="background:#FAFBFC;border:1px solid #EAEDF0;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+      <div class="ptm-side" data-prefix="${prefix}" data-side="${side}" style="background:#FAFBFC;border:1px solid #EAEDF0;border-radius:8px;padding:12px 14px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:700;color:#4E5968;margin-bottom:8px;display:flex;align-items:center;gap:6px">
-          <span style="background:${sideColor.bg};color:${sideColor.tx};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${sideLabel}</span>
+          <span class="ptm-side-tag" style="background:${sideColor.bg};color:${sideColor.tx};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${sideLabel}</span>
           책정 방식
         </div>
         <div style="display:flex;flex-direction:column;gap:3px">
@@ -1357,28 +1672,81 @@ async function openPriceTplModal(id, initialTab) {
           ${radioRow('fixed',  '지정가',   fixedKey,  '원 (할인가)', '')}
         </div>
         <input type="hidden" data-key="${modeKey}" data-mode-hidden="${prefix}-${side}" value="${curMode}">
+        <div class="ptm-res" data-prefix="${prefix}" data-side="${side}" style="margin-top:9px;padding-top:9px;border-top:1px dashed #E5E8EB;display:flex;justify-content:flex-end;gap:14px;align-items:baseline">
+          <span style="font-size:11px;color:#8B95A1">판매가 <b class="ptm-sell" style="font-size:15px;color:#191F28;font-weight:800;font-variant-numeric:tabular-nums">–</b></span>
+          <span style="font-size:11px;color:#8B95A1">마진 <b class="ptm-keep" style="font-size:13px;color:#12B886;font-weight:700;font-variant-numeric:tabular-nums">–</b></span>
+        </div>
       </div>`;
   };
-  const market = (prefix, topHtml) => `
-    ${topHtml || ''}
-    ${row('마켓 수수료율', num(prefix + '_fee_rate', '0.06 = 6%', '0.0001'))}
-    ${row('정상가', num(prefix + '_normal_price', '원'))}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+  // [2026-07-15] 마진 UI 재설계 — 마켓 카드(소싱·사입 합침 토글) + 고급(부대비용) 분리
+  const _mkMeta = {
+    ss:       { name: '스마트스토어', dot: '#03C75A', letter: 'N' },
+    coupang:  { name: '쿠팡',        dot: '#F53C3C', letter: 'C' },
+    // [2026-07-20] 4개 마켓도 같은 3가지 책정 방식(마진율·마진금액·지정가) 설정 가능.
+    lotteon:  { name: '롯데온',      dot: '#DA291C', letter: 'L' },
+    eleven11: { name: '11번가',      dot: '#FF0038', letter: '11' },
+    auction:  { name: '옥션',        dot: '#C4161C', letter: 'A' },
+    gmarket:  { name: 'G마켓',       dot: '#00A64F', letter: 'G' },
+  };
+  const _mkOrder = ['ss', 'coupang', 'lotteon', 'eleven11', 'auction', 'gmarket'];
+  // 수수료 기본 — 사장님 2026-07-20 (롯데온·옥션·G마켓은 '+α' 라 실정산에서 더 뗄 수 있음)
+  const _mkDefaultFee = { ss: 6, coupang: 11.55, lotteon: 13, eleven11: 13, auction: 13, gmarket: 13 };
+  const feePct = (prefix) => {
+    const raw = initial[`${prefix}_fee_rate`];
+    const pct = raw != null ? (Number(raw) * 100) : (_mkDefaultFee[prefix] != null ? _mkDefaultFee[prefix] : 11.55);
+    return Math.round(pct * 100) / 100;
+  };
+  // 소싱·사입이 같은 설정이면 '합침'(토글 꺼짐) 기본. 다르면 '다르게'(펼침).
+  const isUnified = (prefix) => {
+    const mS = initial[`${prefix}_mode_sourcing`] || 'rate';
+    const mP = initial[`${prefix}_mode_purchase`] || 'rate';
+    if (mS !== mP) return false;
+    if (mS === 'fixed') return (initial[`${prefix}_external_sale_price`] || 0) == (initial[`${prefix}_boxhero_sale_price`] || 0);
+    const suf = mS === 'amount' ? 'amount' : 'rate';
+    return (initial[`${prefix}_${suf}_sourcing`] || 0) == (initial[`${prefix}_${suf}_purchase`] || 0);
+  };
+  const marginCard = (prefix) => {
+    const m = _mkMeta[prefix];
+    const uni = isUnified(prefix);
+    return `
+    <div class="ptm-mcard" data-prefix="${prefix}" data-unified="${uni ? '1' : '0'}" style="border:1px solid #E5E8EB;border-radius:12px;padding:15px 16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;margin-bottom:12px;gap:8px">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-weight:700"><span style="width:22px;height:22px;border-radius:6px;background:${m.dot};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px">${m.letter}</span>${m.name}</span>
+        <span class="ptm-fee-badge" data-prefix="${prefix}" style="font-size:11.5px;color:#8B95A1;background:#F2F4F6;border:1px solid #E5E8EB;border-radius:20px;padding:2px 9px">수수료 ${feePct(prefix)}%</span>
+        <label class="ptm-uni-toggle" data-prefix="${prefix}" style="margin-left:auto;font-size:12.5px;color:${uni ? '#8B95A1' : '#3182F6'};font-weight:${uni ? '400' : '600'};display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none">
+          <span class="ptm-uni-sw" style="width:36px;height:20px;background:${uni ? '#CDD3D8' : '#3182F6'};border-radius:20px;position:relative;flex-shrink:0;display:inline-block">
+            <span style="position:absolute;left:${uni ? '2px' : '18px'};top:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.15s"></span>
+          </span>소싱·사입 다르게</label>
+      </div>
       ${modeCards(prefix, 'sourcing')}
-      ${modeCards(prefix, 'purchase')}
-    </div>
-    ${row('배송타입', delivery(prefix))}
-    ${row('반품비', num(prefix + '_return_fee', '원'))}
-    ${row('교환비', num(prefix + '_exchange_fee', '원'))}`;
+      <div class="ptm-purchase-wrap" data-prefix="${prefix}" style="display:${uni ? 'none' : 'block'}">
+        ${modeCards(prefix, 'purchase')}
+      </div>
+      <div class="ptm-uni-note" data-prefix="${prefix}" style="display:${uni ? 'block' : 'none'};font-size:12px;color:#8B95A1;margin-top:-2px">한 번 정하면 소싱·사입에 같이 적용돼요.</div>
+    </div>`;
+  };
+  const advMarket = (prefix, extraTop) => {
+    const m = _mkMeta[prefix];
+    return `
+    <div style="border:1px solid #E5E8EB;border-radius:12px;padding:14px 16px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px"><span style="width:18px;height:18px;border-radius:5px;background:${m.dot};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px">${m.letter}</span>${m.name}</div>
+      ${extraTop || ''}
+      ${row('마켓 수수료율', `<div style="display:flex;align-items:center;gap:6px"><input type="number" data-key="${prefix}_fee_rate" data-rate-display="1" step="0.01" value="${feePct(prefix)}" style="width:90px;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;text-align:right;font-variant-numeric:tabular-nums"><span style="font-size:12px;color:#6B7684">%</span></div>`)}
+      ${row('정상가', num(prefix + '_normal_price', '원'))}
+      ${row('배송타입', delivery(prefix))}
+      ${row('반품비', num(prefix + '_return_fee', '원'))}
+      ${row('교환비', num(prefix + '_exchange_fee', '원'))}
+    </div>`;
+  };
 
   // [2026-06-02] 매입가 산정 우선순위 — 「평균 매입가」 바로 아래 보조행 (시안3)
   //   사입 카드 0원 차단 UX 의 단일 진실 원천. 같은 템플릿 옵션 모두 일괄 적용.
   //   설명은 초딩도 알아듣게 평이하게. 버튼 선택에 따라 PRIO_DESC 로 교체.
   const PRIO_DESC = {
-    template: ` <b>이 칸에 직접 적은 매입가</b>를 먼저 써요.<br>` +
+    template: `<b>이 칸에 직접 적은 매입가</b>를 먼저 써요.<br>` +
               `• 이 칸이 비어 있으면(0원) → <b>옵션마다 실제로 사온 평균 가격</b>을 대신 써요.<br>` +
               `• 두 값이 모두 없으면 → 원가를 몰라 손해 볼 수 있으니 <b style="color:#DC2626;">판매를 멈춰요.</b>`,
-    avg: ` <b>옵션마다 실제로 사온 평균 가격</b>을 먼저 써요.<br>` +
+    avg: `<b>옵션마다 실제로 사온 평균 가격</b>을 먼저 써요.<br>` +
          `• 그 값이 없으면(0원) → <b>이 칸에 직접 적은 매입가</b>를 대신 써요.<br>` +
          `• 두 값이 모두 없으면 → 원가를 몰라 손해 볼 수 있으니 <b style="color:#DC2626;">판매를 멈춰요.</b>`,
   };
@@ -1401,48 +1769,60 @@ async function openPriceTplModal(id, initialTab) {
   };
 
   // [2026-05-25] D3 시안 — 판매가 정책 토글 (색상 통일 / 옵션별 cheapest) + 르무통 케이스 ! 툴팁
-  const policyBlock = (curPolicy) => {
-    const isColor = curPolicy === 'color';
-    const sliderBg = isColor ? '#3182F6' : '#D1D6DB';
-    const knobX = isColor ? '23px' : '3px';
-    const pillBg = isColor ? '#3182F6' : '#E5E8EB';
-    const pillFg = isColor ? '#fff' : '#4E5968';
-    const pillTx = isColor ? '켜짐' : '꺼짐';
-    const statusTx = isColor ? '색상 통일' : '옵션별 cheapest (기본)';
+  // [2026-07-15] 마켓별 색상 통일 (design 4 — 토글 + 규칙 카드 택1). 스스/쿠팡 각각.
+  const policyMarketCard = (prefix, mkName, dotColor, letter) => {
+    // [2026-07-20] 마켓 6개로 늘면서 2분기 하드코딩 제거 — 컬럼 이름 규칙이 같다.
+    const policyKey = `${prefix}_pricing_policy`;
+    const ruleKey   = `${prefix}_unify_rule`;
+    const on   = (initial[policyKey] || 'cheapest') === 'color';
+    const rule = initial[ruleKey] || 'max';
+    const isMax = rule !== 'src_cheapest';
+    const dot = (sel) => sel ? '<span style="position:absolute;inset:3px;background:#3182F6;border-radius:50%;"></span>' : '';
+    const ruleCard = (r, title, desc, sel) => `
+      <div class="ptm-cu-rule" data-prefix="${prefix}" data-rule="${r}" style="border:${sel ? '2px solid #3182F6' : '1px solid #E5E8EB'};background:${sel ? '#E8F3FF' : '#fff'};border-radius:10px;padding:10px 12px;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:${sel ? '#191F28' : '#6B7684'};">
+          <span class="ptm-cu-radio" style="width:14px;height:14px;border-radius:50%;border:1.5px solid ${sel ? '#3182F6' : '#CDD3D8'};position:relative;flex-shrink:0;display:inline-block;">${dot(sel)}</span>${title}</div>
+        <div style="font-size:11px;color:#8B95A1;margin-top:5px;line-height:1.5;">${desc}</div>
+      </div>`;
     return `
-    <div class="ptm-policy-block" style="margin-top:14px; padding-top:14px; border-top:1px dashed #E5E8EB;">
-      <div style="font-size:12.5px; color:#3182F6; font-weight:700; margin-bottom:10px; letter-spacing:.2px;">▦ 판매가 정책</div>
-      <div style="display:flex; align-items:flex-start; gap:14px; padding:14px 16px; background:#FAFBFC; border:1.5px solid #E5E8EB; border-radius:12px;">
-        <label id="ptm-policy-switch" style="position:relative; width:48px; height:28px; flex-shrink:0; cursor:pointer; margin-top:2px;">
-          <span class="ptm-policy-slider" style="position:absolute; inset:0; background:${sliderBg}; border-radius:28px; transition:.2s;">
-            <span class="ptm-policy-knob" style="position:absolute; height:22px; width:22px; left:${knobX}; top:3px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 2px 6px rgba(0,0,0,.2);"></span>
-          </span>
-        </label>
-        <div style="flex:1; min-width:0;">
-          <div style="display:flex; align-items:center; gap:7px; font-size:15px; font-weight:700; color:#191F28; letter-spacing:-.2px;">
-            색상 통일 모드
-            <span class="ptm-policy-info" style="position:relative; display:inline-flex; width:18px; height:18px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:11px; font-weight:800; cursor:help; font-family:inherit; font-style:normal; user-select:none; line-height:1;">!</span>
-          </div>
-          <div style="font-size:13px; color:#6B7684; margin-top:3px; line-height:1.55;">
-            같은 색상은 같은 가격으로 통일해요.<br>비싼 소싱처 기준이라 손해 볼 일이 없어요.
-          </div>
-          <div style="font-size:12px; color:#8B95A1; margin-top:6px;">
-            현재 <span class="ptm-policy-pill" style="display:inline-block; padding:2px 8px; background:${pillBg}; color:${pillFg}; border-radius:5px; font-weight:700; font-size:11px;">${pillTx}</span> · <span class="ptm-policy-status">${statusTx}</span>
-          </div>
-        </div>
+    <div class="ptm-cu-card" data-prefix="${prefix}" style="border:1px solid #E5E8EB;border-radius:12px;padding:13px 15px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13.5px;"><span style="width:20px;height:20px;border-radius:5px;background:${dotColor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;">${letter}</span>${mkName}</span>
+        <span class="ptm-cu-pill" data-prefix="${prefix}" style="margin-left:auto;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:${on ? '#3182F6' : '#E5E8EB'};color:${on ? '#fff' : '#4E5968'};">${on ? '켜짐' : '꺼짐'}</span>
+        <span class="ptm-cu-sw" data-prefix="${prefix}" style="width:40px;height:23px;border-radius:23px;position:relative;flex-shrink:0;cursor:pointer;background:${on ? '#3182F6' : '#CDD3D8'};display:inline-block;">
+          <span style="position:absolute;top:3px;left:${on ? '20px' : '3px'};width:17px;height:17px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.15s;"></span>
+        </span>
       </div>
-      <input type="hidden" data-key="pricing_policy" id="ptm-policy-hidden" value="${curPolicy}">
+      <div class="ptm-cu-rules" data-prefix="${prefix}" style="display:${on ? 'grid' : 'none'};grid-template-columns:1fr 1fr;gap:9px;margin-top:12px;border-top:1px dashed #E5E8EB;padding-top:12px;">
+        ${ruleCard('max', '가장 비싼 사이즈', '그 색 최고가로 통일 · 원가보다 싸게 팔 일 없음(손해 방지)', isMax)}
+        ${ruleCard('src_cheapest', '최저가 소싱처', '그 색 최저가로 통일 · 마진 최대', !isMax)}
+      </div>
+      <input type="hidden" data-key="${policyKey}" class="ptm-cu-policy" data-prefix="${prefix}" value="${on ? 'color' : 'cheapest'}">
+      <input type="hidden" data-key="${ruleKey}" class="ptm-cu-rulehidden" data-prefix="${prefix}" value="${rule}">
     </div>`;
   };
+  const policyBlock = () => `
+    <div class="ptm-policy-block" style="margin-top:14px; padding-top:14px; border-top:1px dashed #E5E8EB;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:12.5px; color:#3182F6; font-weight:700; margin-bottom:4px;">▦ 색상 통일 모드
+        <span class="ptm-policy-info" style="display:inline-flex; width:17px; height:17px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:10px; font-weight:800; cursor:help; font-style:normal;">!</span></div>
+      <div style="font-size:12px;color:#8B95A1;margin-bottom:11px;line-height:1.55;">같은 색은 같은 가격으로 통일해요(스스에서 사이즈별 가격이 달라 경고 나는 걸 막음). 마켓마다 켜고, 켜면 기준을 고르세요.</div>
+      ${_mkOrder.map(p => policyMarketCard(p, _mkMeta[p].name, _mkMeta[p].dot, _mkMeta[p].letter)).join('')}
+    </div>`;
   const tabBtn = (key, label) => `
     <button type="button" class="ptm-tab" data-tab="${key}"
             style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;font-size:14px;color:#8B95A1;font-weight:500;cursor:pointer">${label}</button>`;
 
   const inner = `
-    <div style="display:flex;gap:2px;border-bottom:1px solid #E5E8EB;margin-bottom:6px">
-      ${tabBtn('basic', '기본정보')}${tabBtn('ss', '스마트스토어')}${tabBtn('cp', '쿠팡')}
+    <div class="ptm-tabbar" style="display:flex;gap:30px;border-bottom:1px solid #E5E8EB;margin-bottom:16px;padding-left:4px">
+      <div class="ptm-tab" data-tab="cost" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">원가</span><span class="s" style="font-size:11.5px;color:#8B95A1">사올 때</span></div>
+      <div class="ptm-tab" data-tab="margin" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">마진</span><span class="s" style="font-size:11.5px;color:#8B95A1">팔 때</span></div>
+      <div class="ptm-tab" data-tab="adv" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">고급</span></div>
     </div>
-    <div class="ptm-panel" data-panel="basic">
+    <div class="ptm-panel" data-panel="cost">
+     <!-- [2026-07-20] 원가 2열: 왼쪽 = 가격 기준 + 안전선(배경 구역으로 위상 구분) / 오른쪽 = 옵션별 실제 매입가.
+          안전선을 오른쪽에서 왼쪽으로 내려, 남는 폭을 전부 매입가 판에 준다. -->
+     <div class="ptm-cost-2">
+      <div class="pc-a">
       <div style="position:relative;margin:8px 0 4px">
         <input id="ptm-prod-search" type="text" autocomplete="off"
                placeholder="제품(모델) 검색 — 선택 시 평균 매입가 자동 입력"
@@ -1452,26 +1832,120 @@ async function openPriceTplModal(id, initialTab) {
       ${row('템플릿명', txt('name', '브랜드명 + 모델명 (예: 르무통 클래식)'))}
       ${row('평균 매입가', num('boxhero_purchase_price', '원'))}
       ${prioSubRow(v('price_source_priority') || 'template')}
-      ${row('매입가 하한', num('guardrail_lower', '원'))}
-      ${row('매입가 상한', num('guardrail_upper', '원'))}
+      <div class="ptm-guard">
+        <div class="ptm-guard-h">안전선 <span>— 이 범위를 벗어난 원가면 표시로 알려줘요</span></div>
+        ${row('매입가 하한', num('guardrail_lower', '원'))}
+        ${row('매입가 상한', num('guardrail_upper', '원'))}
+      </div>
+      </div>
+      <!-- 옵션별 실제 매입가 — 이 모음전 기준. 컨텍스트(window.DATA) 없으면 렌더 생략. -->
+      <div class="pc-b"><div id="ptm-optcost"></div></div>
+     </div>
     </div>
-    <div class="ptm-panel" data-panel="ss" style="display:none">
-      ${market('ss')}
-      ${policyBlock(v('pricing_policy') || 'cheapest')}
+    <div class="ptm-panel" data-panel="margin" style="display:none">
+      ${_mkOrder.map(p => marginCard(p)).join('')}
+      <div style="font-size:12px;color:#8B95A1;margin-top:2px">수수료는 마켓별로 자동 적용돼요. 배송·반품·교환·정상가는 「고급」에 있어요.</div>
     </div>
-    <div class="ptm-panel" data-panel="cp" style="display:none">
-      ${market('coupang', row('위너 프리미엄가', num('winner_premium_price', '원')))}
+    <div class="ptm-panel" data-panel="adv" style="display:none">
+      ${policyBlock()}
+      <div style="height:8px"></div>
+      <div style="font-size:12.5px;font-weight:700;color:#3182F6;margin:8px 0 10px">마켓별 부대비용</div>
+      ${advMarket('ss')}
+      ${advMarket('coupang', row('위너 프리미엄가', num('winner_premium_price', '원')))}
+      ${_mkOrder.filter(p => p !== 'ss' && p !== 'coupang').map(p => advMarket(p)).join('')}
     </div>`;
 
   const box = _modalBox(
-    id ? ` 가격 템플릿 편집 (id=${id})` : ' 새 가격 템플릿',
+    id ? `가격 템플릿 편집 (id=${id})` : '새 가격 템플릿',
     inner,
     `<button class="btn" id="ptm-cancel">취소</button>
      <button class="btn btn-primary" id="ptm-save">저장</button>`
   );
-  // [2026-05-25] B6 좌우 병렬 적용 — 소싱처/사입 2열 들어가도록 모달 폭 확장
-  box.style.maxWidth = '960px';
-  const bg = _modalBg(box);
+  // [2026-07-15] 인라인 마운트 — 팝업 대신 옵션 탭 페이지에 5번(엘리베이션) 섹션으로.
+  //   같은 inner·핸들러·저장을 그대로 재사용(로직 중복 0). 탭 대신 원가/마진/고급 3섹션 전부 표시.
+  let bg;
+  if (opts.inlineContainer) {
+    box.style.cssText += ';max-width:none;box-shadow:none;border:none;border-radius:0;padding:0;max-height:none;overflow:visible;';
+    box.classList.add('ptm-inline');
+    const _h2 = box.querySelector('h2'); if (_h2) _h2.style.display = 'none';
+    const tbar = box.querySelector('.ptm-tabbar'); if (tbar) tbar.style.display = 'none';
+    // 인라인 전용: 입력칸이 화면 폭 전체로 늘어나지 않게 상한 + 좁은 왼쪽 칼럼 라벨 축소
+    if (!document.getElementById('ptm-inline-style')) {
+      const st = document.createElement('style'); st.id = 'ptm-inline-style';
+      st.textContent = '.ptm-inline input[type=number],.ptm-inline input[type=text]{max-width:260px}'
+        + '.ptm-inline-left label[style*="200px"]{flex:0 0 116px !important}'
+        + '.ptm-inline-left #ptm-prio-desc{padding-left:0 !important}'
+        + '.ptm-inline-left [style*="flex:0 0 200px"]{flex:0 0 116px !important}'
+        // [2026-07-20] 원가 전폭 3분할 — 설정 | 옵션별 실제 매입가 | 안전선.
+        //   모달(좁은 폭)에서는 grid 를 걸지 않아 기존처럼 위에서 아래로 쌓인다.
+        + '.ptm-inline .ptm-cost-2{display:grid;grid-template-columns:minmax(330px,380px) 1fr;gap:22px;align-items:start}'
+        + '.ptm-inline .ptm-cost-2 .pc-b{min-width:0}'
+        + '@media (max-width:1100px){.ptm-inline .ptm-cost-2{grid-template-columns:1fr}}';
+      document.head.appendChild(st);
+    }
+    const SM = {
+      cost: { t: '원가', tag: '사올 때', stripBg: '#E8F3FF', stripFg: '#1D4CB0', tagFg: '#6B8CC0' },
+      margin: { t: '마진', tag: '팔 때', hero: true },
+      adv: { t: '고급', tag: '', stripBg: '#F1F3F5', stripFg: '#4E5968', tagFg: '#8B95A1' },
+    };
+    const secs = {};
+    box.querySelectorAll('.ptm-panel').forEach(p => {
+      p.style.display = '';
+      const meta = SM[p.dataset.panel]; if (!meta) return;
+      const sec = document.createElement('div');
+      secs[p.dataset.panel] = sec;
+      if (meta.hero) {
+        sec.style.cssText = 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;box-shadow:0 6px 18px rgba(49,130,246,.14)';
+        const h = document.createElement('div');
+        h.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:#191F28;margin-bottom:12px';
+        h.innerHTML = meta.t + ' <span style="font-size:10px;color:#fff;background:#12B886;border-radius:20px;padding:1px 8px">핵심</span>' + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:#8B95A1">· ' + meta.tag + '</span>' : '');
+        sec.appendChild(h); sec.appendChild(p);
+      } else {
+        // 시안11 4번 — 컬러 헤더 스트립 카드 (원가=파랑 / 고급=회색)
+        sec.style.cssText = 'background:#fff;border:1px solid #E5E8EB;border-radius:12px;overflow:hidden';
+        const strip = document.createElement('div');
+        strip.style.cssText = 'background:' + meta.stripBg + ';color:' + meta.stripFg + ';font-size:13px;font-weight:700;padding:9px 15px';
+        strip.innerHTML = meta.t + (meta.tag ? ' <span style="font-size:11px;font-weight:500;color:' + (meta.tagFg || meta.stripFg) + '">· ' + meta.tag + '</span>' : '');
+        const bodyWrap = document.createElement('div');
+        bodyWrap.style.cssText = 'padding:13px 15px';
+        bodyWrap.appendChild(p);
+        sec.appendChild(strip); sec.appendChild(bodyWrap);
+      }
+      if (p.dataset.panel === 'margin') {
+        // 마켓 카드 2개씩(2열) — 마켓 많아도 항상 2개씩 줄바꿈
+        p.style.display = 'grid';
+        p.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        p.style.gap = '14px';
+        p.style.alignItems = 'start';
+        p.querySelectorAll('.ptm-mcard').forEach(c => { c.style.marginBottom = '0'; });
+        [...p.children].forEach(c => { if (!c.classList.contains('ptm-mcard')) c.style.gridColumn = '1 / -1'; });
+      }
+    });
+    // [2026-07-20] L1 2행 배치: 1행 = 원가(전폭, 안에서 3분할) / 2행 = 고급(좁게) + 마진(넓게).
+    //   원가에 '옵션별 실제 매입가' 가 들어와 세로로 길어져, 좁은 칼럼에 두면 스크롤만 길어진다.
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:flex;flex-direction:column;gap:16px';
+    if (secs.cost) { secs.cost.classList.add('ptm-inline-left'); grid.appendChild(secs.cost); }
+    const row2 = document.createElement('div');
+    row2.style.cssText = 'display:grid;grid-template-columns:minmax(320px, 360px) 1fr;gap:16px;align-items:start';
+    const leftCol = document.createElement('div');
+    leftCol.className = 'ptm-inline-left';
+    leftCol.style.cssText = 'display:flex;flex-direction:column;gap:14px;min-width:0';
+    if (secs.adv) { leftCol.appendChild(secs.adv); }
+    row2.appendChild(leftCol);
+    if (secs.margin) { secs.margin.style.minWidth = '0'; row2.appendChild(secs.margin); }
+    grid.appendChild(row2);
+    const mbody = box.querySelector('.modal-body') || box;
+    mbody.insertBefore(grid, mbody.firstChild);
+    opts.inlineContainer.replaceChildren(box);
+    // [2026-07-20] 옵션별 실제 매입가 — 인라인(모음전 안)에서만. 실패해도 편집기는 정상 동작.
+    ptmRenderOptCost(box, initial.boxhero_purchase_price).catch(e => console.warn('[optcost]', e));
+    bg = { remove: () => {} };   // 인라인은 닫기 no-op (저장 성공 시 페이지 reload)
+  } else {
+    // [2026-05-25] B6 좌우 병렬 — 소싱처/사입 2열 들어가도록 모달 폭 확장
+    box.style.maxWidth = '960px';
+    bg = _modalBg(box);
+  }
 
   // 탭 전환
   const tabs = box.querySelectorAll('.ptm-tab');
@@ -1479,16 +1953,19 @@ async function openPriceTplModal(id, initialTab) {
   const activateTab = (name) => {
     tabs.forEach(t => {
       const on = t.dataset.tab === name;
-      t.style.color = on ? '#3182F6' : '#8B95A1';
-      t.style.fontWeight = on ? '700' : '500';
       t.style.borderBottomColor = on ? '#3182F6' : 'transparent';
+      const tl = t.querySelector('.t');
+      if (tl) { tl.style.color = on ? '#3182F6' : '#8B95A1'; tl.style.fontWeight = on ? '700' : '600'; }
     });
     panels.forEach(p => { p.style.display = p.dataset.panel === name ? '' : 'none'; });
   };
   tabs.forEach(t => t.addEventListener('click', () => activateTab(t.dataset.tab)));
-  // [2026-05-25] 호출자가 initialTab 전달 시 해당 탭 활성 (예: 마켓 행 "수정" → 'ss'/'cp')
-  const validTabs = ['basic', 'ss', 'cp'];
-  activateTab(validTabs.includes(initialTab) ? initialTab : 'basic');
+  // 호출자 initialTab 매핑 (구 basic→원가 / ss·cp→마진)
+  const _tabMap = { basic: 'cost', cost: 'cost', ss: 'margin', cp: 'margin', margin: 'margin', adv: 'adv' };
+  if (!opts.inlineContainer) {
+    activateTab(_tabMap[initialTab] || 'cost');
+  }
+  // 인라인은 위 마운트 분기에서 패널 display(마진=grid 포함)를 이미 설정 — 여기서 리셋하지 않음
 
   // 배송타입 라디오 ↔ 배송비 입력 연동 (무료배송 = 배송비 0)
   ['ss', 'coupang'].forEach(prefix => {
@@ -1508,29 +1985,36 @@ async function openPriceTplModal(id, initialTab) {
     });
   });
 
-  // [2026-05-25] D3 — 정책 토글 스위치 (색상 통일 ↔ 옵션별 cheapest)
-  const policySwitch = box.querySelector('#ptm-policy-switch');
-  const policyHidden = box.querySelector('#ptm-policy-hidden');
-  if (policySwitch && policyHidden) {
-    policySwitch.addEventListener('click', () => {
-      const cur = policyHidden.value === 'color' ? 'color' : 'cheapest';
-      const next = cur === 'color' ? 'cheapest' : 'color';
-      policyHidden.value = next;
-      const isColor = next === 'color';
-      const slider = policySwitch.querySelector('.ptm-policy-slider');
-      const knob   = policySwitch.querySelector('.ptm-policy-knob');
-      if (slider) slider.style.background = isColor ? '#3182F6' : '#D1D6DB';
-      if (knob)   knob.style.left = isColor ? '23px' : '3px';
-      const pill = box.querySelector('.ptm-policy-pill');
-      if (pill) {
-        pill.textContent = isColor ? '켜짐' : '꺼짐';
-        pill.style.background = isColor ? '#3182F6' : '#E5E8EB';
-        pill.style.color = isColor ? '#fff' : '#4E5968';
-      }
-      const status = box.querySelector('.ptm-policy-status');
-      if (status) status.textContent = isColor ? '색상 통일' : '옵션별 cheapest (기본)';
+  // [2026-07-15] 마켓별 색상 통일 — 토글 + 규칙 카드 택1
+  box.querySelectorAll('.ptm-cu-sw').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const prefix = sw.dataset.prefix;
+      const hidden = box.querySelector(`.ptm-cu-policy[data-prefix="${prefix}"]`);
+      const on = hidden.value !== 'color';   // 토글
+      hidden.value = on ? 'color' : 'cheapest';
+      sw.style.background = on ? '#3182F6' : '#CDD3D8';
+      const knob = sw.firstElementChild;
+      if (knob) knob.style.left = on ? '20px' : '3px';
+      const pill = box.querySelector(`.ptm-cu-pill[data-prefix="${prefix}"]`);
+      if (pill) { pill.textContent = on ? '켜짐' : '꺼짐'; pill.style.background = on ? '#3182F6' : '#E5E8EB'; pill.style.color = on ? '#fff' : '#4E5968'; }
+      const rules = box.querySelector(`.ptm-cu-rules[data-prefix="${prefix}"]`);
+      if (rules) rules.style.display = on ? 'grid' : 'none';
     });
-  }
+  });
+  box.querySelectorAll('.ptm-cu-rule').forEach(card => {
+    card.addEventListener('click', () => {
+      const prefix = card.dataset.prefix, rule = card.dataset.rule;
+      box.querySelector(`.ptm-cu-rulehidden[data-prefix="${prefix}"]`).value = rule;
+      box.querySelectorAll(`.ptm-cu-rule[data-prefix="${prefix}"]`).forEach(c => {
+        const on = c.dataset.rule === rule;
+        c.style.border = on ? '2px solid #3182F6' : '1px solid #E5E8EB';
+        c.style.background = on ? '#E8F3FF' : '#fff';
+        c.querySelector('div').style.color = on ? '#191F28' : '#6B7684';
+        const radio = c.querySelector('.ptm-cu-radio');
+        if (radio) { radio.style.border = `1.5px solid ${on ? '#3182F6' : '#CDD3D8'}`; radio.innerHTML = on ? '<span style="position:absolute;inset:3px;background:#3182F6;border-radius:50%;"></span>' : ''; }
+      });
+    });
+  });
   // [2026-06-02] 매입가 우선순위 토글 (template / avg) — 선택 시 설명도 교체
   const prioHidden = box.querySelector('#ptm-prio-hidden');
   const prioBtns = box.querySelectorAll('.ptm-prio-opt');
@@ -1712,6 +2196,104 @@ async function openPriceTplModal(id, initialTab) {
     });
   });
 
+  // ── [2026-07-15] 라이브 미리보기 (판매가·마진) — 백엔드 compute_sale_price_unified 와 동일식 ──
+  const _roundUnit = (val, unit) => {
+    // 백엔드 round_to_unit 와 동일 — 버림(floor). (2026-07-02 규칙: 백원 이하 버림)
+    unit = +unit || 100;
+    if (unit <= 0) return val;
+    return Math.floor(val / unit) * unit;
+  };
+  const _calcSale = (purchase, mode, rate, amount, fixed, fee, ship, unit) => {
+    purchase = Math.trunc(+purchase || 0); fee = +fee || 0; ship = Math.trunc(+ship || 0); unit = +unit || 100;
+    mode = (mode || 'rate').toLowerCase(); amount = Math.trunc(+amount || 0); fixed = Math.trunc(+fixed || 0);
+    if (mode === 'fixed' && fixed <= 0) mode = 'rate';
+    if (mode === 'fixed') { const sell = fixed; return { sell, keep: Math.round(sell * (1 - fee)) - purchase }; }
+    if (purchase <= 0) return { sell: 0, keep: 0 };
+    if (mode === 'amount') {
+      const denom = (1 - fee) || 1e-9;
+      const sell = _roundUnit(Math.round((purchase + amount) / denom + ship), unit);
+      return { sell, keep: amount };   // 마진금액 = 수수료 뒤 목표 실수령 (사용자 입력값 그대로)
+    }
+    // [2026-07-20] 마진율 = 판매가 대비. 백엔드 unified.py mode='rate' 와 같은 식이어야 한다
+    //   (어긋나면 "화면에 보이는 값 ≠ 실제 올라가는 값"이 된다).
+    //   판매가 × (1-수수료) - 원가 = 판매가 × 마진율  →  판매가 = 원가 / (1 - 수수료 - 마진율)
+    const rDenom = 1 - fee - rate;
+    if (rDenom <= 0) return { sell: 0, keep: 0, impossible: true };
+    const sell = _roundUnit(Math.round(purchase / rDenom + ship), unit);
+    return { sell, keep: Math.round(sell * (1 - fee)) - purchase };
+  };
+  const _readSide = (prefix, side) => {
+    const hid = box.querySelector(`input[data-mode-hidden="${prefix}-${side}"]`);
+    const mode = (hid && hid.value) || 'rate';
+    const fixedKey = side === 'sourcing' ? `${prefix}_external_sale_price` : `${prefix}_boxhero_sale_price`;
+    let rate = 0, amount = 0, fixed = 0;
+    if (mode === 'rate') { const e = box.querySelector(`input[data-key="${prefix}_rate_${side}"]`); rate = (parseFloat(e && e.value) || 0) / 100; }
+    else if (mode === 'amount') { const e = box.querySelector(`input[data-key="${prefix}_amount_${side}"]`); amount = parseFloat(e && e.value) || 0; }
+    else { const e = box.querySelector(`input[data-key="${fixedKey}"]`); fixed = parseFloat(e && e.value) || 0; }
+    return { mode, rate, amount, fixed };
+  };
+  const _fmt = (n) => (n || n === 0) ? Number(n).toLocaleString() : '–';
+  const recompute = () => {
+    const ppEl = box.querySelector('input[data-key="boxhero_purchase_price"]');
+    const purchase = parseFloat(ppEl && ppEl.value) || 0;
+    const unitEl = box.querySelector('input[data-key="rounding_unit"]');
+    const unit = parseFloat(unitEl && unitEl.value) || 100;
+    ['ss', 'coupang'].forEach(prefix => {
+      const feeEl = box.querySelector(`input[data-key="${prefix}_fee_rate"]`);
+      const fee = (parseFloat(feeEl && feeEl.value) || 0) / 100;
+      const shipEl = box.querySelector(`input[data-key="${prefix}_delivery_fee"]`);
+      const ship = parseFloat(shipEl && shipEl.value) || 0;
+      const badge = box.querySelector(`.ptm-fee-badge[data-prefix="${prefix}"]`);
+      if (badge) badge.textContent = `수수료 ${Math.round(fee * 10000) / 100}%`;
+      ['sourcing', 'purchase'].forEach(side => {
+        const s = _readSide(prefix, side);
+        const r = _calcSale(purchase, s.mode, s.rate, s.amount, s.fixed, fee, ship, unit);
+        const resEl = box.querySelector(`.ptm-res[data-prefix="${prefix}"][data-side="${side}"]`);
+        if (!resEl) return;
+        const sellEl = resEl.querySelector('.ptm-sell'), keepEl = resEl.querySelector('.ptm-keep');
+        if (r.sell > 0) {
+          sellEl.textContent = _fmt(r.sell) + '원';
+          keepEl.textContent = _fmt(r.keep) + '원';
+          keepEl.style.color = r.keep < 0 ? '#F04452' : '#12B886';
+        } else { sellEl.textContent = '원가 필요'; keepEl.textContent = '–'; }
+      });
+    });
+  };
+  // 합침 토글 (소싱·사입 다르게)
+  box.querySelectorAll('.ptm-uni-toggle').forEach(tg => {
+    tg.addEventListener('click', () => {
+      const prefix = tg.dataset.prefix;
+      const card = box.querySelector(`.ptm-mcard[data-prefix="${prefix}"]`);
+      const next = card.dataset.unified === '1';   // 현재 합침이면 → 다르게(펼침)
+      card.dataset.unified = next ? '0' : '1';
+      const splitOn = next;   // true = 다르게 펼침
+      const wrap = box.querySelector(`.ptm-purchase-wrap[data-prefix="${prefix}"]`);
+      const note = box.querySelector(`.ptm-uni-note[data-prefix="${prefix}"]`);
+      if (wrap) wrap.style.display = splitOn ? 'block' : 'none';
+      if (note) note.style.display = splitOn ? 'none' : 'block';
+      const sw = tg.querySelector('.ptm-uni-sw'), knob = sw && sw.firstElementChild;
+      if (sw) sw.style.background = splitOn ? '#3182F6' : '#CDD3D8';
+      if (knob) knob.style.left = splitOn ? '18px' : '2px';
+      tg.style.color = splitOn ? '#3182F6' : '#8B95A1';
+      tg.style.fontWeight = splitOn ? '600' : '400';
+      const srcTag = box.querySelector(`.ptm-side[data-prefix="${prefix}"][data-side="sourcing"] .ptm-side-tag`);
+      if (srcTag) srcTag.textContent = splitOn ? '소싱처' : '마진';
+      recompute();
+    });
+  });
+  // 초기: 합침 상태면 소싱 카드 태그를 '마진'으로
+  ['ss', 'coupang'].forEach(prefix => {
+    const card = box.querySelector(`.ptm-mcard[data-prefix="${prefix}"]`);
+    if (card && card.dataset.unified === '1') {
+      const srcTag = box.querySelector(`.ptm-side[data-prefix="${prefix}"][data-side="sourcing"] .ptm-side-tag`);
+      if (srcTag) srcTag.textContent = '마진';
+    }
+  });
+  box.addEventListener('input', recompute);
+  box.addEventListener('change', recompute);
+  box.querySelectorAll('.ptm-modecard').forEach(c => c.addEventListener('click', () => setTimeout(recompute, 0)));
+  recompute();
+
   box.querySelector('#ptm-cancel').addEventListener('click', () => bg.remove());
   box.querySelector('#ptm-save').addEventListener('click', async () => {
     const payload = id ? { id: parseInt(id) } : {};
@@ -1726,9 +2308,19 @@ async function openPriceTplModal(id, initialTab) {
       }
       payload[k] = parsed;
     });
+    // 합침(소싱·사입 같게) 마켓 → 소싱 값을 사입에 복사
+    ['ss', 'coupang'].forEach(prefix => {
+      const card = box.querySelector(`.ptm-mcard[data-prefix="${prefix}"]`);
+      if (!card || card.dataset.unified !== '1') return;
+      const cp = (from, to) => { if (payload[from] !== undefined) payload[to] = payload[from]; };
+      cp(`${prefix}_mode_sourcing`, `${prefix}_mode_purchase`);
+      cp(`${prefix}_rate_sourcing`, `${prefix}_rate_purchase`);
+      cp(`${prefix}_amount_sourcing`, `${prefix}_amount_purchase`);
+      cp(`${prefix}_external_sale_price`, `${prefix}_boxhero_sale_price`);
+    });
     if (!payload.name || !String(payload.name).trim()) {
       alert('템플릿명을 입력하세요.');
-      activateTab('basic');
+      activateTab('cost');
       return;
     }
     const res = await apiPost('/api/templates/price', payload);
@@ -1747,7 +2339,7 @@ async function openColorTplModal(id) {
   }
   const codesHtml = (initial.color_codes || []).map(c => `<span class="chip on" data-code="${c}" style="cursor:pointer">${c} </span>`).join('');
   const box = _modalBox(
-    id ? ` 색상 템플릿 편집 (id=${id})` : ' 새 색상 템플릿',
+    id ? `색상 템플릿 편집 (id=${id})` : '새 색상 템플릿',
     `
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">이름</label>
@@ -1822,7 +2414,7 @@ async function openColorDictModal(code) {
     `<span class="chip on" data-v="${v}" style="cursor:pointer">${v} </span>`
   ).join('');
   const box = _modalBox(
-    code ? ` 색상 사전 편집 — ${code}` : ' 새 색상 사전 항목',
+    code ? `색상 사전 편집 — ${code}` : '새 색상 사전 항목',
     `
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">표준 색상명 (예: 블랙)</label>
@@ -1913,7 +2505,7 @@ async function openComboModal(cid) {
     : '<span style="font-size:12px;color:#888">사이즈 템플릿 적용 시 추천 표시 (지금은 직접 입력)</span>';
 
   const box = _modalBox(
-    cid ? ' 조합 편집' : ' 새 조합 추가',
+    cid ? '조합 편집' : '새 조합 추가',
     `
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">조합 이름 (선택)</label>
@@ -1922,7 +2514,7 @@ async function openComboModal(cid) {
              style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px">
     </div>
     <div style="margin-bottom:14px">
-      <label style="display:block;font-size:13px;color:#555;margin-bottom:4px"> 색상 (선택된 색상은  클릭 = 제거)</label>
+      <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">색상 (선택된 색상은 클릭 = 제거)</label>
       <div id="cmb-colors" class="chip-row" style="margin-bottom:8px;min-height:30px">${colorChips}</div>
       ${colorOptions.length ? `<div style="font-size:12px;color:#666;margin-bottom:4px">템플릿 추천:</div><div class="chip-row" id="cmb-color-suggest" style="margin-bottom:8px">${colorSuggest}</div>` : ''}
       <div style="display:flex;gap:6px">
@@ -1932,7 +2524,7 @@ async function openComboModal(cid) {
       </div>
     </div>
     <div style="margin-bottom:14px">
-      <label style="display:block;font-size:13px;color:#555;margin-bottom:4px"> 사이즈 (선택된 사이즈는  클릭 = 제거)</label>
+      <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">사이즈 (선택된 사이즈는 클릭 = 제거)</label>
       <div id="cmb-sizes" class="chip-row" style="margin-bottom:8px;min-height:30px">${sizeChips}</div>
       <div style="font-size:12px;color:#666;margin-bottom:4px">템플릿 추천:</div>
       <div class="chip-row" id="cmb-size-suggest" style="margin-bottom:8px">${sizeSuggest}</div>
@@ -1943,7 +2535,7 @@ async function openComboModal(cid) {
       </div>
     </div>
     <div style="font-size:12px;color:#666;background:#f7f9fc;padding:10px;border-radius:6px">
-       저장 시 색상×사이즈 cartesian product 로 옵션 매트릭스 자동 생성됩니다.
+      저장 시 색상×사이즈 cartesian product 로 옵션 매트릭스 자동 생성됩니다.
     </div>
     `,
     `<button class="btn" id="cmb-cancel">취소</button>
@@ -2031,7 +2623,7 @@ function openSsMatchingModal(code, syncResult, market) {
     const left = `<td style="font-weight:600">${esc(m.color_code)} / ${esc(m.size_code)}</td>`;
     if (m.confidence === 'auto') {
       return `<tr style="background:#f0fdf4">${left}
-        <td> 자동 매칭</td>
+        <td>자동 매칭</td>
         <td><strong>${esc(m.matched_external_name || '')}</strong> <span style="font-size:11px;color:#666">(${m.matched_option_id})</span></td>
         <td>—</td></tr>`;
     }
@@ -2049,8 +2641,8 @@ function openSsMatchingModal(code, syncResult, market) {
           <select class="field-input ssm-mode" style="padding:6px;font-size:12px;width:100%">
             <option value="">— 선택 —</option>
             ${cands.length ? `<optgroup label="추천 후보">${candOpts}</optgroup>` : ''}
-            <option value="__search__"> 전체 마켓 옵션에서 검색…</option>
-            <option value="__direct__"> 옵션 ID 직접 입력…</option>
+            <option value="__search__">전체 마켓 옵션에서 검색…</option>
+            <option value="__direct__">옵션 ID 직접 입력…</option>
           </select>
           <div class="ssm-search-box" style="display:none;margin-top:5px">
             <input class="field-input ssm-search" placeholder="마켓 옵션명 검색 (예: 블랙)" style="padding:6px;font-size:12px;width:100%">
@@ -2070,14 +2662,14 @@ function openSsMatchingModal(code, syncResult, market) {
       <strong>${esc(syncResult.product_name || '상품')}</strong>
       (originProductNo: ${syncResult.origin_product_no})<br>
       외부 옵션 ${syncResult.external_total}개 / 우리 옵션 ${syncResult.total}개<br>
-       자동 ${auto.length}   확인 필요 ${fuzzy.length}   실패 ${failed.length}
+      자동 ${auto.length}  확인 필요 ${fuzzy.length}  실패 ${failed.length}
     </div>`;
 
   const tableRows = [...auto, ...fuzzy, ...failed].map(renderRow).join('');
 
   const bulkPanel = groupsWithBulk.length === 0 ? '' : `
     <div style="margin-bottom:14px;padding:12px;background:#f8f9fa;border-radius:8px;border:1px solid #ddd">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px"> 색상별 일괄 적용 (사이즈만 다른 경우)</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">색상별 일괄 적용 (사이즈만 다른 경우)</div>
       ${groupsWithBulk.map(([color, g]) => `
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
           <span style="min-width:120px;font-weight:600">${esc(color)}</span>
@@ -2088,11 +2680,11 @@ function openSsMatchingModal(code, syncResult, market) {
           </select>
         </div>
       `).join('')}
-      <div style="font-size:11px;color:#666;margin-top:6px"> 외부 색상을 선택하면 같은 색상의 모든 사이즈가 자동으로 채워져요.</div>
+      <div style="font-size:11px;color:#666;margin-top:6px">외부 색상을 선택하면 같은 색상의 모든 사이즈가 자동으로 채워져요.</div>
     </div>`;
 
   const box = _modalBox(
-    isCp ? ' 쿠팡 옵션 매칭 결과' : ' 스마트스토어 옵션 매칭 결과',
+    isCp ? '쿠팡 옵션 매칭 결과' : '스마트스토어 옵션 매칭 결과',
     summary + bulkPanel + `
     <div style="overflow:auto;max-height:58vh;border:1px solid #ddd;border-radius:8px">
       <table class="opt-table" style="width:100%">
@@ -2101,7 +2693,7 @@ function openSsMatchingModal(code, syncResult, market) {
       </table>
     </div>
     <div style="font-size:12px;color:#666;margin-top:10px">
-       · 옵션은 <b>추천 후보</b>에서 고르거나, 없으면 <b>검색</b>·<b>ID 직접 입력</b>으로 지정하세요. 미지정 옵션은 저장 안 됩니다.
+      ·옵션은 <b>추천 후보</b>에서 고르거나, 없으면 <b>검색</b>·<b>ID 직접 입력</b>으로 지정하세요. 미지정 옵션은 저장 안 됩니다.
     </div>`,
     `<button class="btn" id="ssm-cancel">취소</button>
      <button class="btn btn-primary" id="ssm-apply">전체 매칭 적용</button>`
@@ -2110,7 +2702,7 @@ function openSsMatchingModal(code, syncResult, market) {
 
   function setChosen(picker, optId, label) {
     picker.dataset.optid = optId || '';
-    picker.querySelector('.ssm-chosen').textContent = optId ? ` 선택: ${label}` : '';
+    picker.querySelector('.ssm-chosen').textContent = optId ? `선택: ${label}` : '';
   }
 
   box.addEventListener('change', (e) => {
@@ -2219,7 +2811,7 @@ async function openSizeTplModal(id) {
   const cats = ['신발', '의류', '가방'];
   const catOpts = cats.map(c => `<option value="${c}" ${c === initial.category ? 'selected' : ''}>${c}</option>`).join('');
   const box = _modalBox(
-    id ? ` 사이즈 템플릿 편집 (id=${id})` : ' 새 사이즈 템플릿',
+    id ? `사이즈 템플릿 편집 (id=${id})` : '새 사이즈 템플릿',
     `
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:13px;color:#555;margin-bottom:4px">이름</label>
@@ -2291,18 +2883,9 @@ document.addEventListener('input', (e) => {
   });
 });
 
-// ===== 홈 — 지금 바로 실행 / 일시정지 (overrideable global) =====
-window.runFullCycleNow = async function () {
-  if (!confirm('지금 바로 풀 사이클을 실행할까요?')) return;
-  const res = await apiPost('/api/scheduler/run-now', {});
-  flash(res.ok ? '사이클 실행 시작 — 완료 시 알림으로 안내' : ('실패: ' + res.error),
-        res.ok ? 'ok' : 'err');
-};
-window.pauseScheduler = async function () {
-  const res = await apiPost('/api/scheduler/pause', {});
-  flash(res.ok ? (res.paused ? '일시 정지됨' : '재개됨') : ('실패: ' + res.error),
-        res.ok ? 'ok' : 'err');
-};
+// [2026-07-19 제거] 홈 「지금 바로 실행」·「일시정지」(runFullCycleNow/pauseScheduler).
+//   호출하는 버튼이 템플릿에 없는 고아였고, 서버 풀사이클(=서버 크롤)을 부르던 통로다.
+//   크롤 진입점은 ①「전체 크롤」·「자동화 설정」 ②소싱처 지도 예시 URL 크롤 둘로 한정.
 
 // ===== 모음전 목록 — 툴바 (전체 크롤링 / 업로드 실행 모달) + 카드별 실행 =====
 function showActionResult(res, label) {
@@ -2318,8 +2901,8 @@ function showActionResult(res, label) {
   const mktParts = Object.entries(markets).map(([k, v]) =>
     `${k}: ${v.ok ? `변동${v.uploaded || 0}/스킵${v.skipped || 0}/실패${v.failed || 0}` : '✗'}`);
   const summary = [
-    srcParts.length ? ` ${srcParts.join(' · ')}` : '',
-    mktParts.length ? ` ${mktParts.join(' · ')}` : '',
+    srcParts.length ? `${srcParts.join(' · ')}` : '',
+    mktParts.length ? `${mktParts.join(' · ')}` : '',
   ].filter(Boolean).join(' | ') || '완료';
   flash(`${label} 완료 — ${summary}`, 'ok');
 }
@@ -2341,38 +2924,86 @@ document.addEventListener('click', async (e) => {
   btn.classList.add('running');
   flash(`'${code}' ${phaseLabel} 시작 — 완료 시 결과 표시`, 'ok');
   try {
-    const res = await apiPost(
-      `/api/bundles/${encodeURIComponent(code)}/run-now`, { phase });
-    // [2026-06-03] run-now 는 백그라운드 스레드 → 즉시 'running' 반환.
-    //   예전엔 이 즉시 응답을 showActionResult 가 "완료"로 잘못 표시했음(가짜 완료).
-    //   백그라운드면 '진행 중'만 안내 → 실제 완료는 아래 crawl-status 폴러가 알림.
-    if (!res.ok) {
-      showActionResult(res, `'${code}' ${phaseLabel}`);  // 실패 표시
-    } else if (res.accepted || res.status === 'running') {
-      flash(`'${code}' ${phaseLabel} 진행 중 — 우상단 진행 위젯에서 실시간 확인`, 'ok');
-    } else {
-      showActionResult(res, `'${code}' ${phaseLabel}`);  // 동기 완료(레거시)
+    // [2026-06-11] 전체 로컬 크롤(A안): 확장 설치 시 6개 소싱처 전부 이 PC(확장)가
+    //   보이는 창으로 크롤한다(crawlBundleAll, 적응형 동시성). 서버 자동 크롤은 호출 안 함.
+    //   - phase 'crawl' → 로컬 크롤만(서버 run-now 미호출).
+    //   - phase 'full'  → 로컬 크롤 완료 후 서버 업로드(run-now phase='upload')만 호출.
+    //   - phase 'upload'→ 서버 run-now 그대로(확장 무관).
+    //   확장 미설치 → 기존 폴백: 서버 run-now(주어진 phase) + 설치 안내.
+    const extInstalled = !!(window.MoumExt && window.MoumExt.installed());
+    // [2026-06-11] 버전 게이트: 전부-로컬(crawlBundleAll)은 grabHtml/sysinfo 가 있는
+    //   확장 v0.4.0+ 에서만 사용. 구버전(v0.3.x)이 설치돼 있으면 grabHtml 미지원이라
+    //   4개 공개 소싱처가 깨지므로 → 서버 run-now 폴백으로 안전 처리(배포-재설치 순서 무관).
+    function _verGte(v, min) {
+      const a = String(v || '0').split('.').map((n) => parseInt(n, 10) || 0);
+      const b = String(min).split('.').map((n) => parseInt(n, 10) || 0);
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+      }
+      return true;
     }
-    // [2026-06-06] 무신사·롯데온은 서버가 못 긁음(로그인·SPA) → '전체크롤 누른 이 PC'의
-    //   크롬 확장(로그인 브라우저)이 직접 크롤·저장. 서버 크롤(HTTP 4소싱처)과 병행.
-    //   확장 미설치면 기존 동작 유지(서버만) + 안내. 기존 흐름 깨지 않게 방어적.
-    if (phase === 'crawl' || phase === 'full') {
-      if (window.MoumExt && window.MoumExt.installed()) {
-        flash(`'${code}' 무신사·롯데온은 이 PC(확장)에서 크롤 중...`, 'ok');
-        window.MoumExt.crawlBundle(code).then((r) => {
-          if (r && r.ok) {
-            const saved = (r.save && r.save.updated) || 0;
-            flash(`확장 크롤 완료 — ${r.ok_count}/${r.crawled} 성공 · 저장 ${saved}건`, 'ok');
-            if (typeof loadMatrix === 'function') { try { loadMatrix(); } catch (_) {} }
-          } else {
-            flash(`확장 크롤 실패: ${(r && r.error) || '알 수 없음'}`, 'err');
-          }
-        }).catch((e) => flash('확장 크롤 오류: ' + e, 'err'));
+    let extV4 = false;
+    if (extInstalled && (phase === 'crawl' || phase === 'full')) {
+      try { const p = await window.MoumExt.ping(); extV4 = _verGte(p && p.version, '0.4.0'); } catch (_) {}
+    }
+
+    if ((phase === 'crawl' || phase === 'full') && extV4) {
+      // [2026-06-14] 멀티 모음전 큐 — 이미 크롤 중이면 줄세움(동시 실행 금지),
+      //   아니면 즉시 시작. 진행/대기/완료는 우상단 마스터–디테일 위젯에서 확인.
+      //   crawlBundleAll 을 직접 await 하지 않고 enqueueCrawl(비동기 러너)로 위임 →
+      //   여러 번 눌러도 안전하고 일시중지/중지가 올바르게 걸린다.
+      let busy = false;
+      try {
+        const st = window.MoumExt.getCrawlState && window.MoumExt.getCrawlState();
+        busy = !!(st && (st.running || (st.queue && st.queue.length)));
+      } catch (_) {}
+      try {
+        if (window.MoumExt.enqueueCrawl) {
+          window.MoumExt.enqueueCrawl(code, true);   // 상세 「전체크롤」 = 최우선(큐 맨 앞)
+        } else {
+          // [2026-07-19] 구버전 폴백 제거 — crawlBundleAll 은 ext_bridge 에 없어 항상 던지던 죽은 분기.
+          //   확장이 낡았으면 조용히 실패시키지 말고 업데이트를 안내한다.
+          flash('크롤러 확장이 오래된 버전이에요. 「크롤러 설치」에서 최신으로 갱신해 주세요.', 'err');
+        }
+      } catch (e) { flash('로컬 크롤 오류: ' + e, 'err'); }
+      flash(busy
+        ? `'${code}' 크롤 대기열에 추가 — 우상단 위젯에서 진행 확인`
+        : `'${code}' 6개 소싱처 로컬 크롤 시작 — 우상단 위젯에서 진행 확인`, 'ok');
+      // full 이면 이 모음전 크롤 완료(finish 이벤트) 시 1회 업로드.
+      if (phase === 'full') {
+        const onFin = (ev) => {
+          const dd = ev.detail;
+          if (!dd || dd.type !== 'finish' || dd.bundle !== code) return;
+          window.removeEventListener('moum-crawl-log', onFin);
+          if (dd.stopped) { flash(`'${code}' 크롤 중지됨 — 업로드 생략`, 'warn'); return; }
+          apiPost(`/api/bundles/${encodeURIComponent(code)}/run-now`, { phase: 'upload' })
+            .then((up) => { if (up && up.ok) flash(`'${code}' 업로드 진행 중 — 우상단 위젯에서 확인`, 'ok'); })
+            .catch(() => {});
+        };
+        window.addEventListener('moum-crawl-log', onFin);
+      }
+    } else {
+      // 확장 미설치(또는 upload 전용) → 기존 서버 run-now 경로
+      const res = await apiPost(
+        `/api/bundles/${encodeURIComponent(code)}/run-now`, { phase });
+      // [2026-06-03] run-now 는 백그라운드 스레드 → 즉시 'running' 반환.
+      if (!res.ok) {
+        showActionResult(res, `'${code}' ${phaseLabel}`);  // 실패 표시
+      } else if (res.accepted || res.status === 'running') {
+        flash(`'${code}' ${phaseLabel} 진행 중 — 우상단 진행 위젯에서 실시간 확인`, 'ok');
       } else {
-        flash('무신사·롯데온 크롤은 "모음전 크롤러" 확장 필요 — 설치 후 가능', 'err');
+        showActionResult(res, `'${code}' ${phaseLabel}`);  // 동기 완료(레거시)
+      }
+      if (phase === 'crawl' || phase === 'full') {
+        if (!extInstalled) {
+          flash('전체 로컬 크롤은 "모음전 크롤러" 확장 필요 — 설치 시 6개 소싱처 모두 이 PC에서 크롤', 'err');
+        } else if (!extV4) {
+          flash('확장이 구버전이에요 — v0.4.0으로 업데이트하면 6개 소싱처 전부 이 PC에서 크롤됩니다(지금은 서버 크롤).', 'err');
+        }
       }
     }
-    if (res.ok && phase === 'crawl') {
+
+    if (!extV4 && phase === 'crawl') {
       // 백그라운드 크롤 완료 폴링 — page reload 없이 ticker 자동 갱신
       // (run-now 는 background thread, API 는 즉시 반환 → record_end 가
       //  last_crawled_at 업데이트할 때까지 polling)
@@ -2418,11 +3049,11 @@ window.dissolveBundleGroup = async function (btn) {
   const gname = btn.getAttribute('data-group-name') || '(이름없음)';
   const members = btn.getAttribute('data-cluster-models') || '';
   if (!gid) { alert('group_id 누락'); return; }
-  const msg = ` '${gname}' 그룹을 해체할까요?\n\n` +
+  const msg = `'${gname}' 그룹을 해체할까요?\n\n` +
               `포함 모델: ${members}\n\n` +
               `→ 각 모델은 자신만의 단독 모음전으로 분리됩니다.\n` +
               `→ 가격·재고·소싱처 URL 데이터는 보존됩니다 (그룹 연결만 끊음).\n\n` +
-              ` 기존 마켓 상품(스마트스토어·쿠팡)은 그대로 유지됩니다.\n` +
+              `기존 마켓 상품(스마트스토어·쿠팡)은 그대로 유지됩니다.\n` +
               `   분리/해제는 정보 수집 단위 변경이며,\n` +
               `   분리된 그룹의 신규 등록은 별도로 진행됩니다.`;
   if (!confirm(msg)) return;
@@ -2452,7 +3083,7 @@ window.removeModelFromGroup = async function (btn) {
   if (!confirm(`'${mc}' 모델을 이 그룹에서 분리할까요?\n\n` +
                `→ 자신만의 단독 모음전으로 복원됩니다.\n` +
                `→ 가격·재고·소싱처 URL 데이터는 보존됩니다.\n\n` +
-               ` 기존 마켓 상품(스마트스토어·쿠팡)은 그대로 유지됩니다.\n` +
+               `기존 마켓 상품(스마트스토어·쿠팡)은 그대로 유지됩니다.\n` +
                `   분리는 정보 수집 단위 변경이며, 신규 등록은 별도로 진행됩니다.`)) return;
   const original = btn.innerHTML;
   btn.disabled = true;
@@ -2481,7 +3112,10 @@ document.addEventListener('click', async (e) => {
   btn.disabled = true;
   const res = await apiPost('/api/cycle/crawl', {});
   btn.disabled = false;
-  if (res.ok) {
+  if (res && res.server_crawl_disabled) {
+    // 크롤=로컬 원칙 — 서버 전체크롤 비활성. 로컬 확장(각 모음전 '실행'/크롤 위젯)이 담당.
+    flash(res.message || '서버 크롤은 비활성 — 로컬 확장이 크롤합니다.', 'ok');
+  } else if (res.ok) {
     flash('전체 크롤링 시작 — 완료 시 텔레그램·실행 이력으로 결과 안내', 'ok');
   } else {
     flash('전체 크롤링 실패: ' + (res.error || 'unknown'), 'err');
@@ -2583,14 +3217,14 @@ document.addEventListener('click', (e) => {
   }
 
   function phaseLabel(p) {
-    return p === 'crawl' ? ' 크롤링' : p === 'upload' ? ' 업로드' : '▶ 전체';
+    return p === 'crawl' ? '크롤링' : p === 'upload' ? '업로드' : '▶ 전체';
   }
 
   function statusBadge(s) {
     const t = s === 'running' ? '⏳ 실행 중'
-            : s === 'ok' ? ' 완료'
-            : s === 'partial' ? ' 부분'
-            : s === 'failed' ? ' 실패' : s;
+            : s === 'ok' ? '완료'
+            : s === 'partial' ? '부분'
+            : s === 'failed' ? '실패' : s;
     return `<span class="status ${s}">${t}</span>`;
   }
 
@@ -2641,7 +3275,7 @@ document.addEventListener('click', (e) => {
       if (v.ok) {
         const detail = isCrawl
           ? (v.items_crawled != null ? `${v.items_crawled} 건` : 'ok')
-          : `↑${v.uploaded || 0} ⏭${v.skipped || 0} ${v.failed || 0}`;
+          : `↑${v.uploaded || 0} ⏭${v.skipped || 0}${v.failed || 0}`;
         lines.push(`<div><span class="ts">[${startTs}]</span> <span class="ok">${lbl}: ${detail}</span></div>`);
       } else if (v.error) {
         lines.push(`<div><span class="ts">[${startTs}]</span> <span class="err">${lbl}: ${linkifyUrls(String(v.error).slice(0, 200))}</span></div>`);
@@ -2666,14 +3300,14 @@ document.addEventListener('click', (e) => {
 
     // sub 라벨
     const subParts = [];
-    subParts.push(` ${startedAgo}`);
-    if (item.triggered_by && item.triggered_by !== 'manual') subParts.push(` ${item.triggered_by}`);
+    subParts.push(`${startedAgo}`);
+    if (item.triggered_by && item.triggered_by !== 'manual') subParts.push(`${item.triggered_by}`);
     if (item.is_bulk && item.phase === 'full') subParts.push('phase=full');
 
     // 추가 펼침 영역
     const extraKv = [
       ['실행 ID', '#' + item.id],
-      ['대상', item.is_bulk ? ' 전체 모음전' : '📦 ' + item.model_code],
+      ['대상', item.is_bulk ? '전체 모음전' : '📦 ' + item.model_code],
       ['단계', phaseLabel(item.phase)],
       ['트리거', item.triggered_by || 'manual'],
       ['시작', item.started_at || '—'],
@@ -2824,7 +3458,7 @@ document.addEventListener('click', (e) => {
             <div class="pg-icon ${isCrawl ? '' : 'upload'}">${icon}</div>
             <div class="pg-name-wrap">
               <div class="pg-name" title="${code}">${code}</div>
-              <div class="pg-sub"> 방금 · 시작 중...</div>
+              <div class="pg-sub">방금 · 시작 중...</div>
             </div>
             <span class="pg-status running">⏳ 시작 중</span>
           </div>

@@ -66,18 +66,19 @@ def rename_model_code(
     if session.get(Model, new_code) is not None:
         raise FileExistsError(f"코드 '{new_code}' 가 이미 사용 중입니다.")
 
-    # 자식 행 개수 (보고용)
+    # ── [2026-08-02] PostgreSQL 에서 되도록 재설계 ───────────────────────────
+    #  기존: PRAGMA 로 FK 를 꺼두고 PK 를 제자리에서 UPDATE.
+    #    · PG 엔 PRAGMA 가 없어 문법 오류 → 트랜잭션 abort (라이브에서 항상 실패)
+    #    · PRAGMA 를 걷어내도 「자식이 옛 코드를 가리키는 동안 부모 PK 변경」은 FK 위반
+    #    · 옮길 표 목록도 손으로 적혀 model_code 참조 10곳 중 3곳만 갱신하고 있었다
+    #  지금: **새 행 만들기 → 자식 옮기기 → 옛 행 지우기.** 어느 시점에도 FK 가
+    #        안 깨져 PG·SQLite 양쪽에서 성립한다. 옮길 표는 fk_map(메타데이터)에서.
+    from sqlalchemy import inspect as sa_inspect
+
+    from .fk_map import model_child_columns, option_child_columns
+
     options_before = (session.query(Option)
                       .filter_by(model_code=old_code).all())
-    options_count = len(options_before)
-
-    # SQLite FK 제약 우회 — PRAGMA 로 일시적 OFF
-    # rename 시작 전 baseline 캡처 (무관한 leftover violation 무시 위해)
-    baseline_violations = set(
-        tuple(row) for row in
-        session.execute(text("PRAGMA foreign_key_check")).fetchall()
-    )
-    session.execute(text("PRAGMA foreign_keys=OFF"))
 
     counts = {
         'options_updated': 0,
@@ -91,82 +92,68 @@ def rename_model_code(
         'bundle_account_regs': 0,
         'discovery_queue': 0,
     }
+    _COUNT_KEY = {
+        'combo_sets': 'combos_updated',
+        'model_source_links': 'model_source_links',
+        'bundle_account_registrations': 'bundle_account_regs',
+        'discovery_queue': 'discovery_queue',
+        'etc_source_urls': 'etc_source_urls',
+        'price_track_history': 'price_track_history',
+        'market_registrations': 'market_registrations',
+        'option_source_links': 'option_source_links',
+        'option_account_registrations': 'option_account_regs',
+    }
 
-    # SKU prefix 매핑: '{old_code}-' → '{new_code}-'
+    def _move(table: str, column: str, old_val: str, new_val: str) -> None:
+        """한 문이 실패해도(표 부재 등) 트랜잭션 전체가 abort 되지 않게 격리."""
+        sp = session.begin_nested()
+        try:
+            r = session.execute(
+                text(f"UPDATE {table} SET {column} = :n WHERE {column} = :o"),
+                {"o": old_val, "n": new_val},
+            )
+            sp.commit()
+            key = _COUNT_KEY.get(table)
+            if key:
+                counts[key] += r.rowcount or 0
+        except Exception:
+            sp.rollback()
+
+    # 1) 새 모음전 행 먼저 (자식이 가리킬 부모가 있어야 한다)
+    model_cols = {c.key: getattr(m_old, c.key)
+                  for c in sa_inspect(Model).mapper.column_attrs}
+    model_cols['model_code'] = new_code
+    session.add(Model(**model_cols))
+    session.flush()
+
+    # 2) 옵션 — 새 행 만들고 자식 옮긴 뒤 옛 행 삭제
+    _opt_children = option_child_columns()
     for o in options_before:
         old_sku = o.canonical_sku
         new_sku = f"{new_code}-{o.color_code}-{o.size_code}"
+        opt_cols = {c.key: getattr(o, c.key)
+                    for c in sa_inspect(Option).mapper.column_attrs}
+        opt_cols['model_code'] = new_code
+        opt_cols['canonical_sku'] = new_sku
+        if opt_cols.get('boxhero_sku') == old_sku:
+            opt_cols['boxhero_sku'] = new_sku
+        session.add(Option(**opt_cols))
+        session.flush()
 
-        # canonical_sku 참조하는 모든 자식 행 cascade
-        for table_name in ('etc_source_urls', 'price_track_history',
-                           'market_registrations',
-                           'option_source_links',
-                           'option_account_registrations'):
-            r = session.execute(
-                text(f"UPDATE {table_name} "
-                     f"SET canonical_sku = :n WHERE canonical_sku = :o"),
-                {"o": old_sku, "n": new_sku},
-            )
-            key_map = {
-                'etc_source_urls': 'etc_source_urls',
-                'price_track_history': 'price_track_history',
-                'market_registrations': 'market_registrations',
-                'option_source_links': 'option_source_links',
-                'option_account_registrations': 'option_account_regs',
-            }
-            counts[key_map[table_name]] += r.rowcount or 0
+        for tbl, col in _opt_children:
+            _move(tbl, col, old_sku, new_sku)
 
-        # options 행 자체 갱신 (PK + FK 동시)
-        session.execute(
-            text("UPDATE options "
-                 "SET model_code = :nc, canonical_sku = :ns "
-                 "WHERE canonical_sku = :os"),
-            {"os": old_sku, "nc": new_code, "ns": new_sku},
-        )
+        session.delete(o)
+        session.flush()
         counts['options_updated'] += 1
 
-    # model_code 만 참조하는 자식들
-    for table_name in ('combo_sets', 'model_source_links',
-                       'bundle_account_registrations'):
-        r = session.execute(
-            text(f"UPDATE {table_name} "
-                 f"SET model_code = :n WHERE model_code = :o"),
-            {"o": old_code, "n": new_code},
-        )
-        key_map = {
-            'combo_sets': 'combos_updated',
-            'model_source_links': 'model_source_links',
-            'bundle_account_registrations': 'bundle_account_regs',
-        }
-        counts[key_map[table_name]] = r.rowcount or 0
+    # 3) model_code 만 참조하는 자식들 (options 는 위에서 처리)
+    for tbl, col in model_child_columns():
+        _move(tbl, col, old_code, new_code)
 
-    # discovery_queue 텍스트 참조
-    r = session.execute(
-        text("UPDATE discovery_queue "
-             "SET suggested_model_code = :n "
-             "WHERE suggested_model_code = :o"),
-        {"o": old_code, "n": new_code},
-    )
-    counts['discovery_queue'] = r.rowcount or 0
-
-    # 마지막으로 부모 PK 변경
-    session.execute(
-        text("UPDATE models SET model_code = :n WHERE model_code = :o"),
-        {"o": old_code, "n": new_code},
-    )
-
-    # FK 무결성 재확인 — rename 으로 새로 생긴 violation 만 catch
-    session.execute(text("PRAGMA foreign_keys=ON"))
-    after = set(
-        tuple(row) for row in
-        session.execute(text("PRAGMA foreign_key_check")).fetchall()
-    )
-    new_violations = after - baseline_violations
-    if new_violations:
-        session.rollback()
-        raise RuntimeError(
-            f"FK 무결성 위반 — 롤백됨. 위반: {sorted(new_violations)}"
-        )
+    # 4) 옛 모음전 행 삭제 — 이 시점엔 아무도 옛 코드를 가리키지 않아야 한다
+    session.delete(m_old)
+    session.flush()
 
     # Audit 기록 (선택 — 호출자가 commit 전 기록)
     try:

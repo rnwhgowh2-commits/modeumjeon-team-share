@@ -7,127 +7,222 @@
   html, body { overflow: hidden !important; height: 100dvh; height: 100vh; }
   .m-content { padding: 0 !important; max-width: none !important; }
 
-  .sb-shell { display: flex; flex-direction: column; height: calc(100dvh - 70px); }
+  /* 높이는 fitShell() 이 상단 머리·하단 탭을 실제로 재서 넣는다.
+     예전엔 「100dvh - 70px」로 탭만 빼고 머리 높이를 빼먹어, 화면이 머리 높이만큼
+     넘쳐 맨 아래 「입고 저장」 단추가 탭 뒤로 밀려 안 보였다. */
+  .sb-shell {
+    display: flex; flex-direction: column;
+    height: calc(100dvh - 56px - 68px);
+  }
 
-  /* 상단 카메라 — 40% 높이 */
+  /* 카메라 칸 — 단독 스캔(100dvh-200px ≈ 610px)에 견줘 40%(≈276px)로 절반도 안 됐다.
+     작은 창으로는 초점이 맞았는지 눈으로 알 수 없어 자꾸 확대·회전을 시도하게 된다.
+     담긴 목록은 어차피 스크롤되므로 카메라 쪽에 자리를 더 준다. */
+  /* [2026-08-07 실측] 55%·최소 340px 로는 실제 폰에서 **늘 최소값에 걸려** 340px 고정이었다
+     (SE 553px·아이폰14 664px 화면 모두). 단독 스캔은 같은 폰에서 400·464px 이라 여전히 작았다.
+     줄 두 개(모드 줄·직접 입력 줄)를 걷어내 그 자리를 카메라에 주고, 최소값도 올린다.
+     담긴 목록은 스크롤이라 조금 작아도 되지만, 카메라는 작으면 초점을 눈으로 못 본다. */
   .sb-cam {
     position: relative;
     background: black;
     overflow: hidden;
-    height: 40%;
-    min-height: 240px;
-    flex-shrink: 0;
+    flex: 1 1 auto;        /* ★ 남는 자리를 카메라가 전부 갖는다 */
+    /* 최소값을 크게 잡으면 작은 폰(SE 553px)에서 저장 줄을 화면 밖으로 밀어낸다 —
+       「카메라를 키우려다 저장을 못 누르게」 되는 게 더 나쁘다. 바닥만 지킨다. */
+    min-height: 200px;
   }
   #scan-video { width: 100%; height: 100%; object-fit: cover; }
   .sb-cam-overlay { position: absolute; inset: 0; pointer-events: none; }
   .sb-scan-line {
     position: absolute; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, #3182F6 30%, #3182F6 70%, transparent);
+    background: linear-gradient(90deg, transparent, var(--primary,#3182F6) 30%, var(--primary,#3182F6) 70%, transparent);
     animation: sb-scan 1.8s ease-in-out infinite;
-    box-shadow: 0 0 8px rgba(49,130,246,0.6);
+    
   }
   @keyframes sb-scan { 0%,100% {top: 8%;} 50% {top: 92%;} }
   .sb-cam-hint {
     position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
     background: rgba(0,0,0,0.72); color: white;
-    padding: 5px 12px; border-radius: 99px; font-size: 14px; font-weight: 600;
+    padding: 4px 12px; border-radius: 99px; font-size: 14px; font-weight: 600;
   }
   .sb-cam-stats {
     position: absolute; top: 10px; right: 10px;
-    display: flex; flex-direction: column; gap: 3px;
+    display: flex; flex-direction: column; gap: 4px;
     font-size: 12px; color: white; pointer-events: none;
   }
   .sb-cam-stats span {
-    background: rgba(0,0,0,0.55); padding: 2px 7px; border-radius: 99px;
+    background: rgba(0,0,0,0.55); padding: 0px 8px; border-radius: 99px;
     backdrop-filter: blur(4px);
   }
   .sb-cam-ctrl {
     position: absolute; bottom: 10px; left: 10px; right: 10px;
-    display: flex; gap: 6px; align-items: center; pointer-events: auto;
+    display: flex; gap: 4px; align-items: center; pointer-events: auto;
   }
   .sb-cam-ctrl button {
     width: 38px; height: 38px;
     background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
-    color: white; border: 0; border-radius: 50%; font-size: 15px;
+    color: white; border: 0; border-radius: 50%; font-size: 14px;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
-  .sb-cam-ctrl button.on { background: #FFD700; color: #000; }
-
-  /* 모드 헤더 */
-  .sb-mode {
-    padding: 10px 14px; background: white;
-    border-bottom: 1px solid #E5E8EB;
-    display: flex; align-items: center; gap: 10px;
-    flex-shrink: 0;
+  .sb-cam-ctrl button.on { background: var(--amber,#FFD700); color: #000; }
+  .sb-cam-stats .nat { background: rgba(29,78,216,0.85); }
+  /* 담긴 개수 — 카메라 왼쪽 위 (예전엔 아래 모드 줄에 있었다) */
+  .sb-cam-count {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(0,0,0,0.55); color: white; backdrop-filter: blur(4px);
+    padding: 2px 10px; border-radius: 99px;
+    font-size: 14px; font-weight: 800; font-family: 'SF Mono', monospace;
   }
-  .sb-mode.in    { border-top: 3px solid #22C55E; }
-  .sb-mode.out   { border-top: 3px solid #EF4444; }
-  .sb-mode .ic { font-size: 17px; }
-  .sb-mode .lbl { flex: 1; font-size: 13px; font-weight: 800; color: #191F28; }
-  .sb-mode .cnt { font-size: 14px; font-weight: 700; color: #3182F6; font-family: 'SF Mono', monospace; }
-  .sb-mode .locsel select { padding: 5px 9px; border: 1px solid #CBCCD3; border-radius: 5px; font-size: 14px; }
 
-  /* 스크롤 list */
+  /* 「담겼다」 순간 표시 — 카메라를 보고 있는 눈에 바로 걸리게 (사진 찍히는 느낌).
+     아래 목록은 눈이 가 있지 않아 놓친다 — 그래서 카메라 위에서 번쩍인다. */
+  .sb-flash {
+    position: absolute; inset: 0; pointer-events: none;
+    background: white; opacity: 0;
+  }
+  .sb-flash.go { animation: sb-flash-anim 320ms ease-out; }
+  @keyframes sb-flash-anim {
+    0%   { opacity: 0.85; }
+    100% { opacity: 0; }
+  }
+  .sb-caught {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+  }
+  .sb-caught.go { animation: sb-caught-anim 900ms ease-out; }
+  .sb-caught .badge {
+    background: rgba(34,197,94,0.95); color: white;
+    border-radius: 99px; padding: 10px 20px;
+    font-size: 17px; font-weight: 800;
+    display: flex; align-items: center; gap: 8px;
+    max-width: 88%;
+  }
+  .sb-caught .badge .nm {
+    font-size: 14px; font-weight: 700; opacity: 0.95;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  @keyframes sb-caught-anim {
+    0%   { opacity: 0; transform: scale(0.82); }
+    18%  { opacity: 1; transform: scale(1.04); }
+    32%  { transform: scale(1); }
+    78%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  /* 테두리도 같이 초록으로 한 번 — 화면을 흘깃 봐도 「됐다」가 보이게 */
+  .sb-cam.hit {  }
+  /* 줌 — 단독 스캔과 같은 슬라이더 (지원 기기에서만 표시) */
+  .sb-cam-ctrl .zoom {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    color: white; border-radius: 99px; padding: 0 12px; height: 38px; font-size: 14px;
+  }
+  .sb-cam-ctrl .zoom input { flex: 1; height: 4px; accent-color: var(--primary,#3182F6); }
+
+  /* 카메라 실패 사유 — 화면에 남는다 */
+  #scan-error-area:empty { display: none; }
+  .sb-error {
+    background: var(--연한-빨강,#FEF2F2); color: var(--글자-빨강, var(--red,#DC2626));
+    border-bottom: 1px solid var(--line,#E5E8EB);
+    padding: 8px 12px; font-size: 14px; font-weight: 700; flex-shrink: 0;
+  }
+  .sb-error span { font-weight: 500; color: var(--글자-기본,#4E5968); font-size: 12px; }
+
+  /* 직접 입력 줄 */
+  .sb-manual {
+    display: flex; gap: 4px; align-items: center;
+    padding: 8px 12px; background: var(--surface,#FFFFFF);
+    border-top: 1px solid var(--line,#E5E8EB); flex-shrink: 0;
+  }
+  /* ★ `display:flex` 는 브라우저 기본 `[hidden]{display:none}` 을 이긴다 —
+     이 줄이 없으면 접어 놨다고 믿는 칸이 61px 를 계속 차지한다(실측). */
+  .sb-manual[hidden] { display: none; }
+  .sb-manual input {
+    flex: 1; padding: 8px 12px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px;
+    font-size: 16px; min-height: 44px; box-sizing: border-box;
+  }
+  .sb-manual button { padding: 8px 16px; white-space: nowrap; min-height: 44px; }
+
+  /* [2026-08-07] 모드 줄(.sb-modebar)은 없앴다 — 화면 이름이 이미 「연속 입고 스캔」이고,
+     담긴 개수는 카메라 위 배지로, 위치 선택은 저장 줄로 옮겨 그 64px 를 카메라에 줬다.
+     (예전 기록: `.sb-mode` 라는 이름이 toss.css 의 「모드 전환 단추」와 겹쳐
+      flex-direction:column 을 뒤집어써 한 줄이 네 줄 145px 로 늘어난 적이 있다.) */
+
+  /* 담긴 목록 — 자리를 정해 두고 그 안에서 스크롤한다.
+     예전엔 `flex:1` 이라 카메라가 자리를 다 먹으면 16px 로 찌그러졌다.
+     이제 카메라가 flex:1 이고, 목록은 「한 줄이 보이는 만큼」 고정으로 확보한다. */
   .sb-list {
-    flex: 1; overflow-y: auto;
-    padding: 8px 10px;
-    background: #F9FAFB;
+    flex: 0 0 92px; overflow-y: auto;
+    padding: 8px 8px;
+    background: var(--bg,#F9FAFB);
     -webkit-overflow-scrolling: touch;
   }
   .sb-it {
-    background: white; border: 1px solid #E5E8EB; border-radius: 10px;
-    padding: 10px 11px; margin-bottom: 6px;
-    display: flex; align-items: center; gap: 9px;
+    background: var(--surface,#FFFFFF); border: 1px solid var(--line,#E5E8EB); border-radius: 8px;
+    padding: 8px 12px; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 8px;
   }
   .sb-it .img {
-    width: 36px; height: 36px; border-radius: 6px; background: #F2F4F6;
+    width: 36px; height: 36px; border-radius: 8px; background: var(--n100,#F2F4F6);
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 17px; color: #9CA3AF; flex-shrink: 0;
+    font-size: 17px; color: var(--글자-희미, var(--faint,#9CA3AF)); flex-shrink: 0;
   }
   .sb-it .nm { flex: 1; min-width: 0; }
-  .sb-it .nm .ti { font-size: 14px; font-weight: 700; color: #191F28; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sb-it .nm .sku { font-size: 12px; color: #6B7684; font-family: 'SF Mono', monospace; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sb-it .qty { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .sb-it .nm .ti { font-size: 14px; font-weight: 700; color: var(--ink,#191F28); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-it .nm .sku { font-size: 12px; color: var(--글자-보조,#6B7684); font-family: 'SF Mono', monospace; margin-top: 0px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-it .qty { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
   .sb-it .qty button {
     width: 28px; height: 28px; border-radius: 50%;
-    border: 1px solid #CBCCD3; background: white; color: #4E5968;
+    border: 1px solid var(--faint,#CBCCD3); background: var(--surface,#FFFFFF); color: var(--글자-기본,#4E5968);
     font-size: 14px; font-weight: 700; cursor: pointer;
   }
-  .sb-it .qty button:active { background: #F2F4F6; }
+  .sb-it .qty button:active { background: var(--n100,#F2F4F6); }
   .sb-it .qty .val {
     font-size: 14px; font-weight: 800; font-family: 'SF Mono', monospace;
-    min-width: 28px; text-align: center; color: #191F28;
+    min-width: 28px; text-align: center; color: var(--ink,#191F28);
   }
   .sb-it .del {
     width: 28px; height: 28px; border-radius: 50%;
-    background: transparent; color: #DC2626; border: 0;
-    font-size: 13px; cursor: pointer; flex-shrink: 0;
+    background: transparent; color: var(--글자-빨강, var(--red,#DC2626)); border: 0;
+    font-size: 12px; cursor: pointer; flex-shrink: 0;
   }
   .sb-it.new { animation: sb-flash 0.8s ease; }
-  @keyframes sb-flash { 0% { background: #DCFCE7; } 100% { background: white; } }
+  @keyframes sb-flash { 0% { background: var(--연한-초록,#DCFCE7); } 100% { background: var(--surface,#FFFFFF); } }
 
   .sb-empty {
-    text-align: center; padding: 36px 16px; color: #8B95A1; font-size: 13px;
+    text-align: center; padding: 32px 16px; color: var(--sub,#8B95A1); font-size: 12px;
   }
-  .sb-empty .ic { font-size: 40px; margin-bottom: 8px; opacity: 0.5; }
+  .sb-empty .ic { font-size: 32px; margin-bottom: 8px; opacity: 0.5; }
 
   /* 하단 저장 footer */
   .sb-foot {
-    background: white;
-    border-top: 1px solid #E5E8EB;
-    padding: 11px 14px;
+    background: var(--surface,#FFFFFF);
+    border-top: 1px solid var(--line,#E5E8EB);
+    padding: 12px 12px;
     display: flex; gap: 8px; align-items: center;
     flex-shrink: 0;
   }
-  .sb-foot .total { flex: 1; font-size: 14px; color: #4E5968; }
-  .sb-foot .total b { color: #191F28; font-weight: 800; font-size: 16px; }
-  .sb-foot .btn {
-    padding: 11px 18px; border: 0; border-radius: 8px;
-    font-weight: 800; font-size: 14px; cursor: pointer; font-family: inherit;
+  /* 위치 선택이 이 줄로 내려왔다 — iOS 확대 방지 16px + 손끝 44px */
+  .sb-foot select {
+    flex: 1; min-width: 0; padding: 4px 8px; border: 1px solid var(--faint,#CBCCD3);
+    border-radius: 8px; font-size: 16px; min-height: 44px; font-family: inherit;
   }
-  .sb-foot .btn.in { background: #22C55E; color: white; }
+  .sb-foot .kbd {
+    width: 44px; min-height: 44px; flex-shrink: 0;
+    border: 1px solid var(--faint,#CBCCD3); border-radius: 8px;
+    background: var(--surface,#FFFFFF); color: var(--글자-기본,#4E5968);
+    font-size: 17px; cursor: pointer;
+  }
+  .sb-foot .kbd.on { background: var(--n100,#F2F4F6); }
+  .sb-foot .btn {
+    padding: 12px 16px; border: 0; border-radius: 8px; flex-shrink: 0;
+    font-weight: 800; font-size: 14px; cursor: pointer; font-family: inherit;
+    min-height: 44px;
+  }
+  .sb-foot .btn b { font-size: 17px; }
+  .sb-foot .btn.in { background: var(--바탕-초록, var(--green,#22C55E)); color: white; }
   .sb-foot .btn.out { background: #EF4444; color: white; }
-  .sb-foot .btn:disabled { background: #CBCCD3; cursor: not-allowed; }
+  .sb-foot .btn:disabled { background: var(--바탕-흐리게, var(--faint,#CBCCD3)); cursor: not-allowed; }
 </style>
 {% endblock %}
 
@@ -136,57 +231,72 @@
   {# 상단 카메라 #}
   <div class="sb-cam">
     <video id="scan-video" autoplay playsinline muted onclick="tapFocus(event)"></video>
+    <div class="sb-flash" id="cam-flash"></div>
+    <div class="sb-caught" id="cam-caught">
+      <div class="badge"><span>✓ 담김</span><span class="nm" id="caught-name"></span></div>
+    </div>
     <div class="sb-cam-overlay">
       <div class="sb-scan-line"></div>
+      {# 담긴 개수 — 카메라를 보는 눈 바로 옆에 둔다(예전엔 아래 줄에 있었다) #}
+      <div class="sb-cam-count" id="header-count">0개 · 0건</div>
       <div class="sb-cam-hint" id="scan-hint"><i class="ph-light ph-camera" aria-hidden="true"></i> 바코드를 비춰주세요</div>
       <div class="sb-cam-stats" id="scan-stats">
         <span id="stat-engine">…</span>
+        <span id="stat-res">…</span>
         <span id="stat-tries">0회</span>
       </div>
+      {# 컨트롤 — 단독 스캔과 동일 (플래시·줌·카메라 전환) #}
       <div class="sb-cam-ctrl">
-        <button id="btn-torch" onclick="toggleTorch()"><i class="ph-light ph-flashlight" aria-hidden="true"></i></button>
+        <button id="btn-torch" title="플래시" onclick="toggleTorch()"><i class="ph-light ph-flashlight" aria-hidden="true"></i></button>
+        <div class="zoom" id="zoom-wrap" style="display:none">
+          <span><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
+          <input type="range" id="zoom-range" min="1" max="3" step="0.1" value="1">
+          <span id="zoom-val">1x</span>
+        </div>
+        <button id="btn-cam" title="카메라 전환" style="display:none" onclick="switchCam()"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i></button>
       </div>
     </div>
   </div>
 
-  {# 모드 + 위치 선택 #}
-  <div class="sb-mode {{ mode }}">
-    <span class="ic">{% if mode == 'in' %}<i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i>{% else %}<i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i>{% endif %}</span>
-    <span class="lbl">{% if mode == 'in' %}연속 입고{% else %}연속 출고{% endif %}</span>
-    <span class="locsel">
-      <select id="location-sel"><option value="">위치 선택…</option></select>
-    </span>
-    <span class="cnt" id="header-count">0개 · 0건</span>
-  </div>
+  {# 카메라 실패 사유 — 토스트와 달리 사라지지 않는다 #}
+  <div id="scan-error-area"></div>
+
+  {# 담긴 개수 — 카메라 위 배지로 올려 줄 하나를 없앴다(모드 이름은 화면 제목에 이미 있다) #}
 
   {# 스크롤 list #}
   <div class="sb-list" id="cart-list">
     <div class="sb-empty" id="cart-empty">
       <div class="ic">{% if mode == 'in' %}<i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i>{% else %}<i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i>{% endif %}</div>
       <div>바코드를 스캔하면 여기 추가됩니다.</div>
-      <div style="font-size: 14px;margin-top:6px;color:#9CA3AF">같은 SKU 다시 스캔 = 수량 +1</div>
+      <div style="font-size:14px;margin-top:4px;color:var(--글자-희미, var(--faint,#9CA3AF))">같은 물건을 계속 비춰도 1개 — 치웠다 다시 비추면 +1</div>
     </div>
   </div>
 
-  {# 하단 저장 #}
+  {# 직접 입력 — 평소엔 숨긴다(카메라 자리를 60px 잡아먹는다).
+     카메라가 안 될 때 저절로 펴지고, 평소엔 저장 줄의 「⌨」 로 열 수 있다. #}
+  <div class="sb-manual" id="manual-row" hidden>
+    <input type="text" id="manual-sku" placeholder="SKU·바코드 직접 입력" autocomplete="off">
+    <button class="m-btn primary" id="manual-search">담기</button>
+  </div>
+
+  {# 하단 저장 — 위치 선택을 여기로 합쳐 줄 하나를 없앴다 #}
   <div class="sb-foot">
-    <span class="total"><span id="cart-skus">0</span> SKU · 총 <b id="cart-total">0</b>개</span>
+    <select id="location-sel" aria-label="담을 위치"><option value="">위치 선택…</option></select>
+    <button class="kbd" id="manual-toggle" type="button" title="직접 입력" aria-label="SKU·바코드 직접 입력 열기">⌨</button>
     <button class="btn {{ mode }}" id="save-btn" onclick="saveAll()" disabled>
-      <i class="ph-light ph-check" aria-hidden="true"></i> {% if mode == 'in' %}입고 저장{% else %}출고 저장{% endif %}
+      <i class="ph-light ph-check" aria-hidden="true"></i> <b id="cart-total">0</b>개 {% if mode == 'in' %}입고{% else %}출고{% endif %}
     </button>
   </div>
 </div>
 {% endblock %}
 
 {% block extra_script %}
-<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
-<script src="https://unpkg.com/@zxing/library@0.21.0/umd/index.min.js"></script>
-<script type="module">
-  try {
-    const m = await import('https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/+esm');
-    window.ZBarWasm = m;
-  } catch(e) { console.warn('[scan] ZBar WASM fail', e); }
-</script>
+{# 로컬 번들 — CDN 장애·지연이 곧 「스캔 먹통」이 되는 구조 제거 (2026-08-05) #}
+<script src="{{ url_for('static', filename='vendor/zxing-browser-0.1.5.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zxing-library-0.21.0.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zbar-wasm-inlined-0.10.1.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan_engine.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan_camera.js') }}"></script>
 <script>
   const MODE = '{{ mode }}';
   // ─── 장바구니 (SKU → {qty, name}) ───
@@ -227,9 +337,30 @@
     // header / footer 갱신
     const totalQty = [...cart.values()].reduce((s, v) => s + v.qty, 0);
     document.getElementById('header-count').textContent = `${totalQty}개 · ${cart.size}건`;
-    document.getElementById('cart-skus').textContent = cart.size;
     document.getElementById('cart-total').textContent = totalQty;
     document.getElementById('save-btn').disabled = (cart.size === 0);
+  }
+
+  /* 담긴 순간을 카메라 화면 위에서 알린다 — 사진 찍히듯 한 번 번쩍 + 이름표 + 진동.
+     다음 물건으로 넘어가도 되는지 눈으로 확인시켜 주는 신호다. */
+  function flashCaught(name, qty){
+    const flash = document.getElementById('cam-flash');
+    const caught = document.getElementById('cam-caught');
+    const cam = document.querySelector('.sb-cam');
+    const nm = document.getElementById('caught-name');
+    if (nm) nm.textContent = (name || '') + (qty > 1 ? ` (총 ${qty})` : '');
+    [[flash, 320], [caught, 900]].forEach(([el, ms]) => {
+      if (!el) return;
+      el.classList.remove('go');
+      void el.offsetWidth;          // 연속 스캔에서 애니메이션을 다시 트리거
+      el.classList.add('go');
+      setTimeout(() => el.classList.remove('go'), ms);
+    });
+    if (cam) {
+      cam.classList.add('hit');
+      setTimeout(() => cam.classList.remove('hit'), 420);
+    }
+    if (navigator.vibrate) navigator.vibrate([40, 40, 60]);
   }
 
   function addToCart(sku, name){
@@ -240,8 +371,7 @@
     } else {
       cart.set(sku, { qty: 1, name: name || sku, justAdded: true });
     }
-    renderCart();
-    if (navigator.vibrate) navigator.vibrate(60);
+    renderCart();   // 진동은 flashCaught 가 담당 (여기서 또 울리면 두 번 떨린다)
   }
   window.adjustQty = function(sku, delta){
     const info = cart.get(sku);
@@ -257,7 +387,8 @@
   function escapeHTML(s){return String(s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"})[c]);}
   function escapeAttr(s){return String(s).replace(/['"\\]/g,'');}
 
-  // ─── 위치 목록 로딩 ───
+  // ─── 위치 목록 로딩 (카메라와 나란히 — 저장할 때 이 약속을 기다린다) ───
+  let locationsReady = null;
   async function loadLocations(){
     try {
       const r = await fetch('/mobile/api/locations');
@@ -278,9 +409,11 @@
 
   // ─── 저장 — 일괄 ───
   window.saveAll = async function(){
+    if (cart.size === 0) return;
+    // 위치 목록을 아직 못 받았을 수 있다(카메라를 먼저 켰으므로) — 여기서 기다린다
+    if (locationsReady) { try { await locationsReady; } catch(e) {} }
     const locId = parseInt(document.getElementById('location-sel').value || 0);
     if (!locId) { showToast('위치 선택', 'error'); return; }
-    if (cart.size === 0) return;
 
     const items = [...cart.entries()].map(([sku, info]) => ({ sku, qty: info.qty }));
     const btn = document.getElementById('save-btn');
@@ -293,7 +426,7 @@
       });
       const j = await r.json();
       if (j.ok) {
-        const msg = ` ${j.total_saved}건 저장됨` + (j.total_failed ? ` · 실패 ${j.total_failed}건` : '');
+        const msg = `${j.total_saved}건 저장됨` + (j.total_failed ? ` · 실패 ${j.total_failed}건` : '');
         showToast(msg, 'success');
         if (j.total_failed && j.failed) {
           console.warn('failed:', j.failed);
@@ -322,168 +455,206 @@
     }
   };
 
-  // ─── 카메라 & 디코더 (scan.html 로직 — 단순화 + 인식 시 addToCart) ───
-  let stream = null, track = null, detector = null;
-  let codeReader = null, frozen = false, triesCount = 0;
-  let lastScanCode = null, lastScanAt = 0;
-  let refocusInterval = null, refocusPhase = 0;
+  // ─── 카메라 & 디코더 (공용 scan_camera.js + scan_engine.js — 단독 스캔과 같은 사다리) ───
+  let cam = null, engine = null;
+  /* 조회 중인 코드들. 예전엔 busy 플래그로 조회하는 동안 스캔을 통째로 멈췄는데,
+     그러면 「아직 그 물건이 보인다」는 신호에 왕복 시간만큼 구멍이 뚫린다.
+     로컬은 조회가 빨라 안 드러났지만 라이브에선 그 구멍이 0.8초를 넘겨
+     들고만 있어도 수량이 하나 더 올랐다(2026-08-06 라이브 실측: 20초에 1→2).
+     이제 스캔은 계속 돌려 신호를 살려 두고, 중복은 여기서만 막는다. */
+  const inFlight = new Set();
+  let lastCode = null, lastSeenAt = 0;    // 「사라졌다 다시 들어왔는가」 판정용
+  let scanTries = 0, lastSeenTries = -99; // 스캔이 몇 번째 시도인지 (엔진이 알려준다)
+
+  /* ms — 이만큼 지나야 「새로 비춘 것」 후보가 된다.
+     사장님 확정(2026-08-06): 연달아 찍는 속도를 우선해 0.8초. */
+  const SAME_CODE_GAP = 800;
+
+  /* ★ 시간만 보면 안 된다 — 기기가 느려지면 그대로 재고가 부푼다.
+     라이브 실측(2026-08-06): 25초쯤부터 인식 한 번에 320ms → 1,100~1,450ms 로 늘었고
+     (발열·부하로 느려지는 구간), 물건은 손에 그대로 있는데 「0.8초 넘게 안 보였다」가
+     되어 수량이 저 혼자 1 → 3 까지 올랐다.
+     그래서 시간과 함께 **스캔이 실제로 헛돈 횟수**를 본다. 한 번도 놓치지 않고
+     계속 보였다면(시도 간격이 아무리 느려도) 그건 여전히 그 물건이다. */
+  const MISS_TRIES_FOR_NEW = 2;   // 이만큼 「못 본 시도」가 있어야 새 물건으로 친다
+
+  /* 인식 직후 쉬는 시간 — 짧을수록 「아직 그 물건」 신호가 촘촘하다. */
+  const SCAN_HIT_COOLDOWN = 150;
+
+  function setHint(msg){
+    const el = document.getElementById('scan-hint');
+    if (el) el.textContent = msg;
+  }
 
   async function startCamera(){
-    const tryConstraints = [
-      { video: { facingMode: { ideal: 'environment' }, width:{ideal:3840}, height:{ideal:2160}, advanced:[{focusMode:'continuous'}] }, audio: false },
-      { video: { facingMode: { ideal: 'environment' }, width:{ideal:1920}, height:{ideal:1080}, advanced:[{focusMode:'continuous'}] }, audio: false },
-    ];
-    for (const c of tryConstraints) {
-      try { stream = await navigator.mediaDevices.getUserMedia(c); break; }
-      catch(e) { continue; }
-    }
-    if (!stream) throw new Error('카메라 시작 실패');
-    track = stream.getVideoTracks()[0];
-    const video = document.getElementById('scan-video');
-    video.srcObject = stream;
-    await video.play();
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    document.getElementById('btn-torch').style.display = caps.torch ? '' : 'none';
+    cam = await ScanCamera.open({
+      video: document.getElementById('scan-video'),
+      onHint: setHint,
+      els: {
+        torch:     document.getElementById('btn-torch'),
+        camSwitch: document.getElementById('btn-cam'),
+        zoomWrap:  document.getElementById('zoom-wrap'),
+        zoomRange: document.getElementById('zoom-range'),
+        zoomVal:   document.getElementById('zoom-val'),
+        res:       document.getElementById('stat-res'),
+      },
+    });
   }
 
   async function startDecoder(){
-    const Z = window.ZXing || window.ZXingBrowser;
-    const hints = new Map();
-    if (Z && Z.DecodeHintType) {
-      hints.set(Z.DecodeHintType.TRY_HARDER, true);
-      if (Z.DecodeHintType.ALSO_INVERTED) hints.set(Z.DecodeHintType.ALSO_INVERTED, true);
-    }
-    if ('BarcodeDetector' in window) {
-      const supported = await BarcodeDetector.getSupportedFormats();
-      const formats = supported.filter(f => ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code','data_matrix'].includes(f));
-      detector = new BarcodeDetector({ formats: formats.length ? formats : undefined });
-      document.getElementById('stat-engine').textContent = 'Native+ZBar';
-    } else {
-      codeReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
-      document.getElementById('stat-engine').textContent = 'ZXing+ZBar';
-      codeReader.decodeFromVideoElement(document.getElementById('scan-video'), (result) => {
-        if (result) onScan(result.getText());
-      });
-    }
-    if (detector) decoderLoop();
-  }
-
-  async function decoderLoop(){
-    const video = document.getElementById('scan-video');
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    while (true) {
-      if (video.readyState >= 2 && video.videoWidth) {
-        triesCount++;
-        document.getElementById('stat-tries').textContent = triesCount + '회';
-        if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; }
-        try {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          if (detector) {
-            const codes = await detector.detect(canvas);
-            if (codes.length) onScan(codes[0].rawValue);
-          }
-          if (window.ZBarWasm && window.ZBarWasm.scanImageData) {
-            try {
-              const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const r = await window.ZBarWasm.scanImageData(img);
-              if (r && r.length) {
-                const code = r[0].decode ? r[0].decode() : (r[0].data || '');
-                if (code) onScan(code);
-              }
-            } catch(e) {}
-          }
-        } catch(e) {}
-      }
-      await new Promise(r => setTimeout(r, 80));
-    }
+    engine = await ScanEngine.start({
+      video: document.getElementById('scan-video'),
+      hitCooldown: SCAN_HIT_COOLDOWN,
+      onStats: ({engine: label, tries}) => {
+        scanTries = tries;              // 「몇 번 헛돌았나」를 세기 위한 시도 번호
+        const el = document.getElementById('stat-engine');
+        if (el) { el.textContent = label; if (label.startsWith('Native')) el.classList.add('nat'); }
+        const t = document.getElementById('stat-tries');
+        if (t) t.textContent = tries + '회';
+      },
+      onCode: (text) => { onScan(text); return false; },  // 연속 스캔 — 루프 유지
+    });
   }
 
   async function onScan(code){
     if (!code) return;
     code = code.trim();
     if (code.length < 4) return;
-    // 1초 내 같은 코드 중복 무시
+
+    /* 같은 물건을 계속 비추고 있는 동안 수량이 저 혼자 올라가면 안 된다(돈·재고 사고).
+       새 물건으로 치려면 **둘 다** 맞아야 한다:
+         ① 마지막으로 본 뒤 0.8초 이상 지났다
+         ② 그 사이 스캔이 실제로 2번 이상 헛돌았다(= 정말 안 보였다)
+       ②가 없으면, 기기가 느려져 인식이 1.4초에 한 번씩 되는 것만으로도
+       「사라졌다 다시 왔다」가 되어 손에 든 물건이 계속 더해진다(라이브 실측). */
     const now = Date.now();
-    if (code === lastScanCode && (now - lastScanAt) < 1500) return;
-    lastScanCode = code; lastScanAt = now;
-    // 옵션 lookup (조용히)
+    const 시간충분 = (now - lastSeenAt) >= SAME_CODE_GAP;
+    const 헛돈횟수 = scanTries - lastSeenTries;
+    const stillSameItem = (code === lastCode) && !(시간충분 && 헛돈횟수 >= MISS_TRIES_FOR_NEW);
+    lastSeenAt = now;
+    lastSeenTries = scanTries;
+    if (stillSameItem) return;
+    if (inFlight.has(code)) return;   // 같은 코드 조회가 이미 가는 중 — 두 번 세지 않는다
+    lastCode = code;
+
+    inFlight.add(code);
     try {
       const r = await fetch('/mobile/api/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       });
-      const j = await r.json();
-      if (!j.ok) {
-        showToast(' 매칭 안 됨: ' + code, 'error');
+      let d, rawText;
+      try {
+        rawText = await r.text();
+        d = JSON.parse(rawText);
+      } catch(e) {
+        // 로그인 만료 시 HTML(로그인 페이지)이 온다 — 「매칭 안 됨」으로 오해하면 안 됨
+        if ((rawText||'').toLowerCase().includes('login') || r.status === 401) {
+          showToast('로그인 만료 — 새로고침', 'error');
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          showToast('응답 파싱 실패 (status ' + r.status + ')', 'error');
+        }
         return;
       }
-      const opt = j.option;
+      if (!d.ok) {
+        showToast('❌ ' + (d.error || '매칭 안 됨: ' + code), 'error');
+        setHint('매칭 안 됨: ' + code);
+        setTimeout(() => setHint('바코드를 비춰주세요'), 1500);
+        return;
+      }
+      const opt = d.option;
       const sku = opt.canonical_sku;
       const name = opt.model_name || sku;
       addToCart(sku, name);
-      document.getElementById('scan-hint').textContent = ` ${name} +1 (총 ${cart.get(sku).qty})`;
-      setTimeout(() => { document.getElementById('scan-hint').textContent = ' 바코드를 비춰주세요'; }, 1500);
+      flashCaught(name, cart.get(sku).qty);
+      setHint(`${name} +1 (총 ${cart.get(sku).qty})`);
+      setTimeout(() => setHint('바코드를 비춰주세요'), 1500);
     } catch(e) {
       console.error('lookup', e);
       showToast('네트워크 오류', 'error');
+    } finally {
+      lastSeenAt = Date.now();
+      lastSeenTries = scanTries;
+      inFlight.delete(code);
     }
   }
 
-  // iOS 자동 재초점 트리거
-  function startAutoRefocus(){
-    if (refocusInterval || !track) return;
-    refocusInterval = setInterval(async () => {
-      if (!track) return;
-      try {
-        const caps = track.getCapabilities();
-        if (caps.zoom) {
-          const cur = track.getSettings().zoom || caps.zoom.min;
-          const delta = (caps.zoom.max - caps.zoom.min) * 0.02;
-          const n = Math.max(caps.zoom.min, Math.min(caps.zoom.max, cur + (refocusPhase % 2 ? -delta : delta)));
-          await track.applyConstraints({ advanced: [{ zoom: n }] });
-          await new Promise(r => setTimeout(r, 50));
-          await track.applyConstraints({ advanced: [{ zoom: cur }] });
-        }
-        refocusPhase++;
-      } catch(e) {}
-    }, 1500);
-  }
+  // ─── 카메라 컨트롤 — 전부 공용 모듈로 위임 (단독 스캔과 동일 동작) ───
+  window.toggleTorch = () => cam && cam.toggleTorch();
+  window.tapFocus    = () => cam && cam.tapFocus();
+  window.switchCam   = () => cam && cam.switchCam();
 
-  window.toggleTorch = async function(){
-    if (!track) return;
-    const caps = track.getCapabilities();
-    if (!caps.torch) return;
-    const btn = document.getElementById('btn-torch');
-    const on = btn.classList.toggle('on');
-    try { await track.applyConstraints({ advanced: [{ torch: on }] }); } catch(e) {}
+  // ─── 직접 입력 — 카메라가 안 될 때도 일이 멈추지 않게 (단독 스캔에 있던 안전줄) ───
+  window.manualAdd = function(){
+    const el = document.getElementById('manual-sku');
+    const v = (el.value || '').trim();
+    if (!v) { showToast('SKU·바코드를 입력해주세요', 'error'); return; }
+    lastCode = null;            // 직접 입력은 중복 판정에서 제외
+    onScan(v).then(() => { el.value = ''; });
   };
-  window.tapFocus = async function(e){
-    if (!track) return;
-    try {
-      await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-      document.getElementById('scan-hint').textContent = ' 재초점';
-      setTimeout(() => { document.getElementById('scan-hint').textContent = ' 바코드를 비춰주세요'; }, 700);
-    } catch(e2) {}
-  };
+
+  /* 화면 높이 맞추기 — 「입고 저장」 단추가 하단 탭 뒤로 숨지 않게.
+     기종마다 머리·탭 높이가 다르고 iOS 는 주소창이 접혔다 펴지며 100dvh 가 변한다
+     → 상수로 빼지 말고 실제로 잰다. */
+  function fitShell(){
+    const shell = document.querySelector('.sb-shell');
+    if (!shell) return;
+    const hdr = document.querySelector('.m-header');
+    const tab = document.querySelector('.ms-tabbar');
+    const hdrH = hdr ? hdr.getBoundingClientRect().height : 0;
+    const tabH = tab ? tab.getBoundingClientRect().height : 0;
+    shell.style.height = Math.max(360, window.innerHeight - hdrH - tabH) + 'px';
+  }
+  fitShell();
+  window.addEventListener('resize', fitShell);
+  window.addEventListener('orientationchange', () => setTimeout(fitShell, 250));
 
   // 시작
   (async () => {
-    await loadLocations();
+    /* ★ 카메라가 먼저다. 예전엔 위치 목록을 「받아온 뒤에」 카메라를 켰는데,
+       그 네트워크 왕복만큼 화면을 대도 아무 일이 안 일어나는 시간이 생겼다
+       (2026-08-06 라이브 실측: 카메라 켜기까지 단독 552ms · 일괄 887ms,
+        첫 인식은 단독 0.25초 · 일괄 1.1초 — 「연속은 한참 걸린다」의 정체).
+       위치 목록은 저장할 때나 필요하니 카메라와 나란히 받는다. */
+    locationsReady = loadLocations();
     try {
       await startCamera();
       await startDecoder();
-      startAutoRefocus();
     } catch(e) {
-      showToast('카메라 시작 실패: ' + e.message, 'error');
+      // 토스트는 2.5초면 사라진다 — 왜 안 되는지는 화면에 남아 있어야 한다
+      const msg = ScanCamera.friendlyError(e);
+      console.error('[scan-batch]', e);
+      document.getElementById('scan-error-area').innerHTML =
+        `<div class="sb-error">${msg}<br><span>아래 칸에 SKU·바코드를 직접 입력해 담을 수 있어요.</span></div>`;
+      setHint('카메라 실패');
+      직접입력열기(true);      // 카메라가 안 되면 이 줄이 유일한 길이다 — 저절로 편다
+      showToast(msg, 'error');
     }
   })();
 
+  /* 직접 입력 줄 — 평소엔 접어 카메라에 자리를 준다.
+     ⌨ 로 열고, 카메라가 실패하면 저절로 열린다(그때는 이 줄이 유일한 길이다). */
+  function 직접입력열기(열까){
+    const row = document.getElementById('manual-row');
+    const btn = document.getElementById('manual-toggle');
+    const 열림 = (열까 === undefined) ? row.hidden : 열까;
+    row.hidden = !열림;
+    btn.classList.toggle('on', 열림);
+    fitShell();
+    if (열림) document.getElementById('manual-sku').focus();
+  }
+  document.getElementById('manual-toggle').addEventListener('click', () => 직접입력열기());
+
+  document.getElementById('manual-search').addEventListener('click', manualAdd);
+  document.getElementById('manual-sku').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') manualAdd();
+  });
+
   window.addEventListener('beforeunload', () => {
-    if (refocusInterval) clearInterval(refocusInterval);
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    if (codeReader) codeReader.reset?.();
+    if (cam) cam.stop();
+    if (engine) engine.stop();
   });
 </script>
 {% endblock %}

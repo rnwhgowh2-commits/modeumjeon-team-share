@@ -3,6 +3,9 @@
 UI에서 호출되는 모든 변경/조회 엔드포인트. 자동 등록(SS·쿠팡)은 T14/T15에서 wiring.
 """
 import json
+import logging
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
@@ -16,6 +19,8 @@ from lemouton.uploader.models import MarketRegistration
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
+logger = logging.getLogger(__name__)
+
 
 def _ok(**kw):
     return jsonify({'ok': True, **kw})
@@ -23,6 +28,709 @@ def _ok(**kw):
 
 def _err(msg, code=400):
     return jsonify({'ok': False, 'error': msg}), code
+
+
+# ---------- Crawl queue (읽기 전용) ----------
+
+# 폴링 완화용 프로세스-로컬 짧은 TTL 캐시 + 싱글플라이트.
+#   자동화 페이지가 /api/crawl/queue·due-bundles 를 1~2초마다 폴링하는데 그 계산은
+#   무겁다(수백 쿼리·수초 — 라이브 장애 시 449q/5~13s 관측). 잦은 폴링이 그대로
+#   DB·워커를 마비시켜 전체 사이트가 521/500 이 됐다(2026-07-12). 크롤 큐는 초 단위
+#   staleness 가 무해(주기적 크롤)하므로 짧게 캐시해 폭주를 막는다.
+#   ★싱글플라이트: gunicorn 3워커 × 워커당 스레드들이 캐시 만료 순간 동시에 무거운
+#     쿼리를 돌리는 stampede(thundering herd)를 막는다. 캐시가 만료됐어도 **직전 값이
+#     있으면** 한 스레드만 갱신하고 나머지는 직전(수초 stale)을 그대로 받는다. 값이 아예
+#     없을 때만 락 잡고 채운다. (배치 리졸버로 개별 계산도 가볍게 만들었지만, 캐시 없이도
+#     견디도록 이중 방어.)
+_CRAWL_QUEUE_TTL = 8.0
+
+
+class _SingleFlightTTLCache:
+    """프로세스-로컬 키별 TTL 캐시 + 싱글플라이트 갱신.
+
+    get(key, producer): 그 key 값이 신선하면 즉시 반환. 만료+직전값 있음 → 한 스레드만
+    producer()로 갱신하고 경쟁 스레드는 직전값(stale) 반환. 직전값 없음 → 락 잡고 1회만 채움.
+
+    키 분리 이유 — 실행/정지(crawl_auto_enabled) 같은 사용자 토글은 즉시 반영돼야 한다.
+      단일값 캐시로 상태를 뭉개면 정지시켜도 최대 8초간 '실행 중' 페이로드가 서빙되고,
+      테스트에서도 enabled=True 결과가 enabled=False 케이스로 새어 나온다(교차 오염).
+      key 에 토글 상태를 실으면 값이 바뀌는 즉시 다른 캐시 슬롯 → 지연 없이 정확.
+    """
+
+    def __init__(self, ttl: float):
+        self.ttl = ttl
+        self.entries: dict = {}     # key -> [at(mono), payload]
+        self.lock = threading.Lock()
+
+    def get(self, key, producer):
+        e = self.entries.get(key)
+        if e is not None and (time.monotonic() - e[0]) < self.ttl:
+            return e[1]                               # 신선
+        if e is not None:
+            # 만료지만 직전값 있음 — 한 스레드만 갱신, 나머지는 stale 반환(stampede 차단)
+            if not self.lock.acquire(blocking=False):
+                return e[1]
+            try:
+                e2 = self.entries.get(key)
+                if e2 is not None and (time.monotonic() - e2[0]) < self.ttl:
+                    return e2[1]                      # 다른 스레드가 이미 갱신함
+                payload = producer()
+                self.entries[key] = [time.monotonic(), payload]
+                return payload
+            finally:
+                self.lock.release()
+        # 이 key 캐시가 아예 비어있음 — 락 잡고 딱 1회만 채운다(첫 요청만 대기)
+        with self.lock:
+            e2 = self.entries.get(key)
+            if e2 is not None:                        # 대기 중 다른 스레드가 채움
+                return e2[1]
+            payload = producer()
+            self.entries[key] = [time.monotonic(), payload]
+            return payload
+
+
+_crawl_queue_cache = _SingleFlightTTLCache(_CRAWL_QUEUE_TTL)
+_crawl_due_bundles_cache = _SingleFlightTTLCache(_CRAWL_QUEUE_TTL)
+_crawl_failures_cache = _SingleFlightTTLCache(_CRAWL_QUEUE_TTL)
+
+
+@bp.route('/crawl/queue')
+def crawl_queue():
+    """[읽기전용] 로컬 크롤러(확장)가 폴링하는 '지금 긁을 URL' 목록 + 실행/정지.
+
+    서버는 목록만 알려줄 뿐 소싱처에 접속하지 않는다(크롤=로컬 원칙).
+    잦은 폴링 대비 8초 TTL 캐시 + 싱글플라이트(위 주석 참조).
+    """
+    from lemouton.sources.crawl_schedule import due_crawl_payload
+    from lemouton.pricing.settings import get_or_init
+
+    def _produce():
+        s = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
+            return due_crawl_payload(s, now=now)
+        finally:
+            s.close()
+
+    # 실행/정지 토글은 즉시 반영돼야 하므로 캐시 키에 싣는다(가벼운 단일행 조회).
+    s = SessionLocal()
+    try:
+        enabled = bool(get_or_init(s).crawl_auto_enabled)
+    finally:
+        s.close()
+    # 🔴 여기엔 생존 신호(touch_worker_heartbeat)를 붙이지 않는다 — 이 엔드포인트를
+    #   부르는 건 확장이 아니라 **PC 자동화 화면 JS**(1.5초 폴링)다. 붙이면 확장이
+    #   꺼져 있어도 폰에 '🟢 PC 연결됨'이 떠서, 눌러도 아무 일 없는 버튼이 된다.
+    #   생존 신호는 확장이 실제로 부르는 /crawl/due-bundles 한 곳에만 있다.
+    return jsonify(_crawl_queue_cache.get(enabled, _produce))
+
+
+@bp.route('/crawl/due-urls')
+def crawl_due_urls():
+    """[읽기전용] 확장이 폴링 → **구성에 안 걸린 낱개** 크롤 대상.
+
+    [중요] 이게 없어서 검색필터가 넣은 주소 30개가 크롤 4바퀴 도는 동안 하나도 안 긁혔다
+      (2026-08-07 라이브). 확장이 받는 `due-bundles` 는 due 인 `SourceProduct.url` 을
+      `BundleSourceUrl`(모음전 구성에 등록된 URL)과 맞춰 **그 모음전 코드만** 준다.
+      검색필터가 넣은 낱개 주소는 어느 구성에도 안 걸리므로 영영 목록에 안 들어간다.
+      에러도 안 난다 — `due_bundle_codes` 주석이 스스로 「조용한 누락」이라 부르는 모양.
+
+    [중요] **`due-bundles` 를 건드리지 않는다.** 그건 모음전 자동화가 쓰는 살아 있는 길이고,
+      거기에 낱개를 섞으면 「모음전 코드 하나 = 크롤 한 묶음」 전제가 깨진다.
+      옆에 하나 더 둔다(`due-listings` 를 붙였던 것과 같은 방식).
+
+     대상 고르기는 `due_products`(가중 랩·계수·느리게배수)를 **그대로** 쓴다.
+      여기서 다시 고르면 두 경로가 다른 순서로 돌아 계수 설정이 무의미해진다.
+    """
+    from lemouton.pricing.settings import get_or_init
+    from lemouton.sources.crawl_schedule import (
+        base_crawl_interval_seconds, due_products)
+    from lemouton.sources.service import normalize_url as _norm
+    from lemouton.sourcing.models import BundleSourceUrl
+
+    s = SessionLocal()
+    try:
+        if not bool(get_or_init(s).crawl_auto_enabled):
+            # 실행/정지 스위치를 이 경로만 무시하면 「껐는데 도는」 상태가 된다.
+            return jsonify({'enabled': False, 'count': 0, 'items': []})
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        due = due_products(s, base_interval_seconds=base_crawl_interval_seconds(s),
+                           now=now)
+        # 구성에 걸린 것은 `due-bundles` 가 이미 데려간다 — 겹치면 같은 상품을
+        # 두 경로가 각각 긁어 소싱처를 두 번 두들긴다.
+        in_bundle = {_norm(b.url or '') for b in s.query(BundleSourceUrl).all()}
+        items = [{'source_product_id': p.id, 'site': p.site, 'url': p.url,
+                  'crawl_weight': p.crawl_weight}
+                 for p in due if _norm(p.url or '') not in in_bundle]
+        return jsonify({'enabled': True, 'count': len(items), 'items': items})
+    finally:
+        s.close()
+
+
+@bp.route('/crawl/due-listings')
+def crawl_due_listings():
+    """[읽기전용] 로컬 크롤러(확장)가 폴링 → **지금 훑을 검색필터** 목록.
+
+    대량등록의 입구다. 검색 결과 한 줄에서 상품 주소 수십~수천 개를 캐는 일인데,
+    페이지를 여는 것은 브라우저가 해야 하므로 로컬 PC 가 한다(크롤=로컬 원칙).
+    서버는 **어느 주소를 훑을지**만 알려준다.
+
+    [중요] `due-bundles` 와 나란히 두는 이유 — `CrawlJob` 표가 있지만 **그 큐를 소비하는
+      워커가 저장소에 없다**(`sourcing_guide.py:975` 원문: "영원히 '대기'였다").
+      살아 있는 경로는 확장의 이 폴링 하나뿐이라 여기에 붙인다.
+
+    [중요] 캐시를 두지 않는다 — 「지금 수집」을 누른 직후 8초를 기다리게 하면
+      사장님은 버튼이 안 먹은 줄 안다. 조회가 가볍다(도장 찍힌 행만).
+    """
+    from lemouton.registration.models import SearchFilter
+    from lemouton.sources import listing_discover as LD
+
+    s = SessionLocal()
+    try:
+        rows = (s.query(SearchFilter)
+                .filter(SearchFilter.deleted_at.is_(None))
+                .filter(SearchFilter.run_requested_at.isnot(None))
+                .order_by(SearchFilter.run_requested_at).limit(20).all())
+        out = []
+        for f in rows:
+            try:
+                # ★ 규칙도 같이 내려보낸다 — 확장에 박아 두면 소싱처를 붙일 때마다
+                #   확장을 고치고 「다시 불러오기」를 부탁하게 된다. 규칙은 서버 한 곳.
+                # 🔴 규칙 조회를 이 try 밖에 두면 안 된다. 페이지 범위를 안 준
+                #   필터는 `page_urls_for` 가 주소를 그대로 돌려주고 예외를 안 낸다
+                #   → 모르는 소싱처가 그대로 흘러와 **500** 이 난다(폴링 전체가 죽는다).
+                rule = LD.dom_rule_for(f.source_key)
+                # 🔴 **이어서 걷기** — 지난 회차가 「더 있음」이었으면 그 다음 쪽부터.
+                #   한 회차 상한(60쪽)은 소싱처 보호선이라 못 없앤다. 대신 회차를
+                #   거듭해 끝까지 간다(H몰 「나이키 신발」은 456쪽 16,413개다).
+                _cur = getattr(f, 'next_page_from', None)
+                _lo, _hi = LD.window_for(f.page_from, f.page_to, _cur)
+                pages = LD.page_urls_for(f.listing_url, source_key=f.source_key,
+                                         page_from=_lo, page_to=_hi)
+                # 🔴 **못 걸은 쪽을 맨 앞에 세운다.** 크롬이 바쁠 때 탭이 죽어
+                #   빠진 쪽이다 — 「나중에」로 미루면 영영 안 걷힌다(H몰 16% 실측).
+                _miss = [u for u in
+                         (getattr(f, 'missed_urls', None) or '').splitlines() if u.strip()]
+                if _miss:
+                    pages = _miss + [u for u in pages if u not in set(_miss)]
+            except ValueError:
+                # 규칙을 모르는 소싱처 — 만들 때 막지만, 옛 데이터가 있을 수 있다.
+                #   조용히 빼면 「눌렀는데 아무 일도 안 남」이 된다. 사유를 실어 보낸다.
+                out.append({'filter_id': f.id, 'source_key': f.source_key,
+                            'page_urls': [], 'max_items': f.max_items,
+                            'error': f'{f.source_key} 는 리스팅 규칙이 없습니다'})
+                continue
+            out.append({'filter_id': f.id, 'source_key': f.source_key,
+                        'page_urls': pages, 'max_items': f.max_items,
+                        'sel': rule['sel'], 'attr': rule['attr'],
+                        'id_re': rule['id_re'],
+                        'html_scan': rule['html_scan'],
+                        'more_sel': rule['more_sel'],
+                        'next_url_re': rule['next_url_re'],
+                        'empty_text': rule['empty_text'],
+                        # 단추로 넘기는 곳은 「몇 번 누를지」로 답한다(같은 칸을 쓴다).
+                        'click_pages': LD.click_pages_for(
+                            f.source_key, f.page_from, f.page_to),
+                        # 🔴 「다음」 단추 소싱처의 **이어서 걷기** — 걷기 전에 몇 번
+                        #   눌러 건너뛸지. 늘 1쪽에서 시작해야 하는 곳이라 이 방법뿐이다.
+                        #   ★ 공짜가 아니다(301쪽부터면 300번). 시한에 걸리면 확장이
+                        #     걷은 것을 들고 나오며 「더 있음」이라 말한다.
+                        'click_skip': LD.click_skip_for(f.source_key, _cur)})
+        return jsonify({'count': len(out), 'listings': out})
+    finally:
+        s.close()
+
+
+@bp.route('/crawl/listing-result', methods=['POST'])
+def crawl_listing_result():
+    """확장이 훑어 온 **상품 주소 목록** 접수 → 필터에 모아 둔다.
+
+    payload: {filter_id: int, ids: [str], error?: str}
+       확장은 **상품번호만** 보낸다. 주소 조립은 서버(`listing_discover.product_url_for`)가
+        한다 — 주소 모양을 아는 곳이 둘이 되면 소싱처를 붙일 때마다 확장까지 고쳐야 한다.
+        (`urls` 로 완성된 주소를 직접 줄 수도 있다 — 시험·수동 보정용.)
+    returns: {ok, found, new}
+
+     여기서 크롤하거나 초안을 만들지 않는다 — 그건 이미 있는 경로다
+      (`draft_from_url`). 이 라우트는 **주소를 기억**할 뿐이다. 두 벌로 만들지 않는다.
+     접수하면 도장(`run_requested_at`)을 지운다 — 안 지우면 확장이 같은 필터를
+      무한히 다시 훑는다.
+     0 건은 오류가 아니다. 검색 결과가 없을 수 있다(정직한 답).
+    """
+    from lemouton.registration.models import SearchFilter, SearchFilterItem
+    from lemouton.sources import listing_discover as LD
+
+    body = request.get_json(silent=True) or {}
+    fid = body.get('filter_id')
+    ids = body.get('ids')
+    urls = body.get('urls')
+    if not isinstance(fid, int) or not (isinstance(ids, list) or isinstance(urls, list)):
+        return jsonify({'ok': False, 'message': 'filter_id 와 ids(또는 urls)가 필요합니다'}), 400
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    s = SessionLocal()
+    try:
+        f = s.query(SearchFilter).filter_by(id=fid).first()
+        if f is None:
+            return jsonify({'ok': False, 'message': '검색필터를 찾을 수 없습니다'}), 404
+        if urls is None:
+            try:
+                urls = [LD.product_url_for(i, source_key=f.source_key)
+                        for i in ids if str(i or '').strip()]
+            except ValueError as e:
+                return jsonify({'ok': False, 'message': str(e)}), 400
+
+        seen = {r.product_url: r for r in
+                s.query(SearchFilterItem).filter_by(filter_id=fid).all()}
+        new_n = 0
+        for u in urls:
+            u = (u or '').strip()
+            if not u:
+                continue
+            row = seen.get(u)
+            if row is None:
+                s.add(SearchFilterItem(filter_id=fid, product_url=u,
+                                       first_seen_at=now, last_seen_at=now))
+                seen[u] = True
+                new_n += 1
+            else:
+                # 다시 보였을 뿐 — first_seen_at 은 건드리지 않는다(새 것 판정의 근거).
+                if hasattr(row, 'last_seen_at'):
+                    row.last_seen_at = now
+        f.run_requested_at = None          # 도장 회수 — 무한 재훑기 방지
+        f.last_run_at = now
+        f.last_new_count = new_n
+        # 🔴 [2026-08-08] 여태 `error` 를 받기만 하고 **버렸다.** 확장은 「한 장이
+        #   실패한 걸 0건과 구분해야 한다」며 사유를 실어 보내는데, 서버가 버리니
+        #   화면엔 그냥 「0건」이었다. 보내는 쪽이 정직해도 받는 쪽이 버리면 소용없다.
+        # ★ 성공하면 옛 사유를 **지운다** — 낡은 문구가 남으면 「지금도 고장」으로 읽힌다.
+        # 🔴 0건이면 **무엇을 봤는지**도 사유로 남긴다 — 「상품이 없다」와
+        #   「우리 규칙이 그 화면과 안 맞는다」가 똑같이 0으로 보이면 못 고친다.
+        _why = str(body.get('error') or '').strip()
+        if not _why and not urls:
+            _why = str(body.get('diag') or '').strip()
+        f.last_error = (_why or None)
+        # 확장 판 번호 — 화면만 새로고침한 상태를 알아보려고 남긴다.
+        f.last_ext_version = (str(body.get('ext_version') or '').strip() or None)
+        # 「더 있는데 멈췄다」는 실패와 다른 사실이다. 뭉치면 「끝까지 다 봤다」로 읽혀
+        # 사장님이 없는 상품을 없다고 믿게 된다.
+        f.last_capped = bool(body.get('capped'))
+        # 🔴 **못 걸은 쪽을 기억한다** — 다음 회차가 그것부터 건다.
+        #   이번에 성공한 쪽은 목록에서 뺀다(성공했는데 계속 다시 걸면 헛돈다).
+        if hasattr(f, 'missed_urls'):
+            _was = [u for u in (f.missed_urls or '').splitlines() if u.strip()]
+            _now = [str(u).strip() for u in (body.get('missed') or []) if str(u or '').strip()]
+            # 이번에 시도해 본 쪽 = 지난번 못 걸은 것 중 이번 목록에 있던 것.
+            #   그중 다시 실패한 것만 남긴다.
+            _keep = [u for u in _was if u in set(_now)]
+            for u in _now:
+                if u not in set(_keep):
+                    _keep.append(u)
+            f.missed_urls = ('\n'.join(_keep[:200]) or None)   # 상한 — 끝없이 쌓지 않는다
+        # 🔴 **이어서 걷기 위치를 옮긴다.** 「더 있음」이면 다음 회차가 그 다음 창부터
+        #   걷고, 끝까지 걸었으면 처음으로 되돌린다(새 상품은 앞쪽에 들어온다).
+        #   ★ 주소로 쪽을 넘기는 곳만 이어걷기가 된다 — 「다음」 단추로 넘기는 곳은
+        #     늘 1쪽에서 눌러 가야 해서 중간부터 시작할 방법이 없다.
+        if hasattr(f, 'next_page_from'):
+            if LD.can_resume(f.source_key, f.listing_url):
+                f.next_page_from = LD.next_window(
+                    f.page_from, f.page_to, f.next_page_from, more=f.last_capped)
+            else:
+                f.next_page_from = None
+        # 🔴🔴 **끝까지 걷는다** — 「더 있음」이고 이번에 **새로 걷은 것이 있으면**
+        #   다음 회차를 곧바로 예약한다. 사람이 「지금 수집」을 수십 번 누르지
+        #   않아도 된다(현대H몰 456쪽 = 8회차, 아이몰은 그 이상).
+        #
+        # ★ 스스로 멈추는 조건이 셋이다 — 끝없이 도는 일이 없다:
+        #   ① 「더 있음」이 꺼지면 멈춘다(다 걸었다)
+        #   ② **새로 걷은 것이 0이면 멈춘다** — 더 있다고 하는데 안 늘면 그건
+        #      「같은 쪽 헛돌기」이거나 이미 다 가진 것이다. 계속 두들기지 않는다
+        #   ③ 필터를 꺼 두면(enabled=False) 예약하지 않는다
+        # 🔴 ②가 핵심 안전장치다. 이게 없으면 소싱처가 늘 「더 있다」고 답할 때
+        #   영원히 두들겨 차단당한다.
+        # ★ 못 걸은 쪽이 **줄어들고 있으면** 실패가 있어도 이어간다 — 그건 나아가는
+        #   중이다. 안 줄면(같은 쪽이 계속 실패) 멈춘다.
+        _miss_now = len([u for u in (getattr(f, 'missed_urls', None) or '').splitlines()
+                         if u.strip()])
+        _miss_shrank = hasattr(f, 'missed_urls') and 0 < _miss_now < len(_was)
+        # 🔴 실패 사유가 있으면 멈춘다 — **다만 못 걸은 쪽이 줄고 있으면 예외**다.
+        #   그건 고장이 아니라 **줍는 중**이다(H몰이 빠진 쪽을 되찾는 경우).
+        _broken = bool((body.get('error') or '').strip()) and not _miss_shrank
+        _progress = (new_n > 0) or _miss_shrank
+        if (f.last_capped and _progress and not _broken
+                and bool(getattr(f, 'enabled', True))):
+            f.run_requested_at = now          # 곧바로 이어서
+        s.commit()
+        return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
+                        'new': new_n})
+    finally:
+        s.close()
+
+
+@bp.route('/crawl/due-bundles')
+def crawl_due_bundles():
+    """[읽기전용] 로컬 크롤러가 폴링 → 지금 크롤할 모음전 코드 목록.
+
+    서버는 목록만 알려줄 뿐 크롤하지 않는다(크롤=로컬 원칙). 확장이 이 코드를
+    기존 `mgrEnqueue({codes})` 큐로 넘겨 검증된 크롤 흐름을 재사용한다.
+    queue 와 형제(같이 폴링됨) → 동일 8초 TTL 캐시 + 싱글플라이트.
+    """
+    from lemouton.sources.crawl_schedule import due_bundle_codes
+    from lemouton.pricing.settings import get_or_init
+
+    def _produce():
+        s = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            enabled = bool(get_or_init(s).crawl_auto_enabled)
+            codes = due_bundle_codes(s, now=now)
+            return {"enabled": enabled, "count": len(codes), "codes": codes}
+        finally:
+            s.close()
+
+    # 실행/정지 토글은 즉시 반영 — 캐시 키에 싣는다(가벼운 단일행 조회).
+    s = SessionLocal()
+    try:
+        enabled = bool(get_or_init(s).crawl_auto_enabled)
+    finally:
+        s.close()
+
+    # [모바일 1단계] 폰 리모컨의 'PC 연결됨' 판정 근거 — 여기 온 순간을 남긴다.
+    #   확장은 고치지 않는다. 폰 UA 는 안쪽에서 걸러진다.
+    try:
+        from lemouton.sourcing.crawl_queue import touch_worker_heartbeat
+        touch_worker_heartbeat(ip_address=request.remote_addr,
+                               user_agent=request.user_agent.string)
+    except Exception:       # noqa: BLE001 — 기록 실패가 크롤 폴링을 막으면 안 된다
+        logger.warning("[mobile] heartbeat 기록 실패", exc_info=True)
+
+    return jsonify(_crawl_due_bundles_cache.get(enabled, _produce))
+
+
+@bp.post('/crawl/pass-done')
+def crawl_pass_done():
+    """확장이 '한 크롤 패스(전체 URL 1회) 완료'를 통보 → 오늘 바퀴 +1 기록 + 카운터 리셋.
+
+    한 바퀴 완료 판정의 authoritative 신호. 서버가 완료를 추측(over-serve 등)하면 가짜 바퀴가
+    생기므로, 실제 크롤을 끝낸 쪽(확장 runQueueBG 소진 / 페이지 crawl_log 100%)이 보낸다.
+    다탭·재렌더로 여러 번 와도 최근 20초 내 완료가 있으면 무시(디듀프).
+
+    [2026-07-08] 동시 pass-done 원자적 직렬화. 확장(runQueueBG)과 페이지(crawl_log)가 한 바퀴
+    완료 순간에 ~100ms 안에 둘 다 쏘면, 아래 '조회 후 삽입'이 비원자적이라 둘 다 "최근 없음"을
+    통과해 회차가 2개 박혔다(라이브 확인: 0.0~0.14초 간격 중복쌍 #81/#82·#83/#84 등).
+    운영은 gunicorn 3워커(멀티프로세스)라 파이썬 락은 무효 → DB advisory 락으로 프로세스를
+    넘어 직렬화한다. 두 번째 요청은 첫 번째가 커밋한 회차를 보고 디듀프 → 회차 정확히 1개.
+    SQLite(개발/테스트)는 쓰기가 직렬화돼 이 경합이 없으므로 락을 건너뛴다.
+    """
+    from lemouton.sources.crawl_schedule import start_new_lap
+    from lemouton.sources.models import CrawlLapRun
+    from datetime import datetime, timedelta
+    from sqlalchemy import text
+    s = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        try:
+            if s.bind is not None and s.bind.dialect.name == "postgresql":
+                s.execute(text("SELECT pg_advisory_xact_lock(4823017)"))
+        except Exception:
+            pass   # 락 실패해도 기존 20초 디듀프로 동작(최악의 경우만 경합 잔존)
+        # [2026-07-08] 디듀프 창 20→120초. pass-done POST 가 느려 확장 bgFetch 가 타임아웃→재시도
+        #   하면 같은 바퀴가 ~20초 뒤 두 번째로 도착해 20초 창을 아슬아슬 빠져나가 중복쌍이 됐다
+        #   (라이브: #61 18:40:58 / #62 18:41:18 = 20초). 진짜 바퀴는 ~25분(1400초+) 간격이라
+        #   120초는 절대 안 겹치고, 재시도 쌍은 확실히 흡수한다.
+        recent = (s.query(CrawlLapRun)
+                  .filter(CrawlLapRun.completed_at >= now - timedelta(seconds=120))
+                  .first())
+        if recent is not None:
+            s.rollback()   # advisory xact 락 해제(삽입 안 함)
+            return jsonify({"ok": True, "deduped": True})
+        n = start_new_lap(s, now=now)   # record=True → CrawlLapRun 기록 + crawl_lap_count 리셋
+        s.commit()   # 삽입 영속 + advisory 락 해제
+        return jsonify({"ok": True, "reset": n})
+    finally:
+        s.close()
+
+
+@bp.get('/crawl/laps/audit')
+def crawl_laps_audit():
+    """CrawlLapRun 회차 중복 전수 조사(dry-run, 삭제 안 함). ?window=초(기본 90)."""
+    from lemouton.sources.crawl_schedule import audit_lap_runs
+    s = SessionLocal()
+    try:
+        w = int(request.args.get('window', 120))
+        a = audit_lap_runs(s, window_seconds=w)
+        a.pop('dup_ids', None)   # 요약만(큰 목록 제외)
+        return jsonify(a)
+    finally:
+        s.close()
+
+
+@bp.post('/crawl/laps/dedup')
+def crawl_laps_dedup():
+    """중복 회차 삭제 — 각 바퀴 클러스터의 첫 행만 남김. 기본은 dry-run,
+    ?apply=1 이어야 실제 삭제. ?window=초(기본 90)."""
+    from lemouton.sources.crawl_schedule import audit_lap_runs, dedupe_lap_runs
+    s = SessionLocal()
+    try:
+        w = int(request.args.get('window', 120))
+        if request.args.get('apply') != '1':
+            a = audit_lap_runs(s, window_seconds=w)
+            a.pop('dup_ids', None)
+            return jsonify({**a, "applied": False})
+        a = dedupe_lap_runs(s, window_seconds=w)
+        s.commit()
+        n = len(a.pop('dup_ids', []))
+        return jsonify({**a, "applied": True, "removed": n})
+    finally:
+        s.close()
+
+
+@bp.post('/sources/crawl-weight')
+def set_source_crawl_weight():
+    """URL 계수(1~5) 저장. body: {source_product_id, weight}."""
+    from lemouton.sources.crawl_schedule import set_crawl_weight
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        w = set_crawl_weight(s, int(data.get('source_product_id')), data.get('weight'))
+        s.commit()
+        return jsonify({"ok": True, "weight": w})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 404
+    finally:
+        s.close()
+
+
+@bp.get('/crawl/weight-rules')
+def crawl_weight_rules():
+    """[읽기] 범위별 계수 규칙(화면 트리)."""
+    from lemouton.sources.crawl_schedule import list_weight_rules
+    s = SessionLocal()
+    try:
+        return jsonify(list_weight_rules(s))
+    finally:
+        s.close()
+
+
+@bp.get('/crawl/weight-tree')
+def crawl_weight_tree():
+    """[읽기] 계수 드릴다운 트리(소싱처/브랜드/모음전 3기준). 노드별 weight·direct 정본."""
+    from lemouton.sources.crawl_weight_tree import build_weight_tree
+    s = SessionLocal()
+    try:
+        return jsonify(build_weight_tree(s))
+    finally:
+        s.close()
+
+
+@bp.get('/crawl/lap-report')
+def crawl_lap_report():
+    """[읽기] N회차(오늘 기준) 크롤 보고서 — 요약 · 변동(가격/재고) · 성공.
+
+    실패는 회차별로 기록되지 않는다 → result.failing_now 는 '지금 실패 중'(현재 기준).
+      회차 실패 건수를 지어내지 않기 위함.
+    """
+    from datetime import datetime as _dt
+    from lemouton.sources.lap_report import lap_report
+    try:
+        no = int(request.args.get('no') or 0)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "회차 번호(no)가 필요해요"}), 400
+    s = SessionLocal()
+    try:
+        r = lap_report(s, lap_no=no, now=_dt.utcnow())
+        if r is None:
+            return jsonify({"ok": False, "error": "그 회차 기록이 없어요"}), 404
+        return jsonify({"ok": True, **r})
+    finally:
+        s.close()
+
+
+@bp.get('/crawl/change-stats')
+def crawl_change_stats():
+    """[읽기] 최근 N 바퀴 소싱처×브랜드 변동률 순위 + 현재/권장 계수 (계수의 근거).
+
+    기준선이 둘이다 — 변동률은 **소싱처**(CrawlDelta), P2 스킵은 **마켓**(GateDecision).
+      응답의 ``sources`` 가 어느 지표가 어디서 왔는지 알려준다(화면이 지어내지 않게).
+    권장은 **표시만** 한다 — 이 라우트도, 아래 통계 모듈도 CrawlWeightRule 을
+      직접 쓰지 않는다. 계수 적용은 사람이 기존 계수 편집 화면에서 한다.
+    """
+    from lemouton.sources.crawl_change_stats import (
+        lap_change_report, STATS_RETENTION_LAPS)
+    from datetime import datetime as _dt
+    try:
+        laps = int(request.args.get('laps') or 10)
+    except (TypeError, ValueError):
+        laps = 10
+    # 상한 = 보관 기간. 그보다 긴 구간을 요청받아도 남아 있는 랩이 없어 의미가 없다.
+    laps = max(1, min(STATS_RETENTION_LAPS, laps))
+    s = SessionLocal()
+    try:
+        return jsonify({"ok": True, **lap_change_report(s, laps=laps,
+                                                        now=_dt.utcnow())})
+    finally:
+        s.close()
+
+
+@bp.post('/crawl/weight-rule')
+def set_crawl_weight_rule_route():
+    """계수 규칙 설정/해제. body {scope_type, scope_key, weight?(없으면 해제)}."""
+    from lemouton.sources.crawl_schedule import set_crawl_weight_rule
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        w = set_crawl_weight_rule(s, data.get('scope_type'), data.get('scope_key'),
+                                  data.get('weight'))
+        s.commit()
+        return jsonify({"ok": True, "weight": w})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    finally:
+        s.close()
+
+
+@bp.post('/crawl/concurrency-rule')
+def set_source_concurrency_route():
+    """소싱처 동시 상한 설정/해제. body {source_key, limit?(없으면 성격 기본으로 해제)}."""
+    from lemouton.sources.crawl_schedule import set_source_concurrency
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        v = set_source_concurrency(s, data.get('source_key'),
+                                   data.get('limit'))
+        s.commit()
+        return jsonify({"ok": True, "limit": v})
+    except (ValueError, TypeError) as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    finally:
+        s.close()
+
+
+@bp.get('/upload/account-speed')
+def list_account_upload_speed():
+    """[읽기] 계정별 업로드 속도 + 마켓 총 스토어 업로드수(화면 ③ 표). 커밋 없음(읽기)."""
+    from lemouton.pricing.settings import get_account_policies
+    from lemouton.uploader.throttle import market_hourly_total
+    s = SessionLocal()
+    try:
+        pols = get_account_policies(s)
+        markets = sorted({p["market"] for p in pols})
+        totals = {m: market_hourly_total(s, m) for m in markets}
+        return jsonify({"accounts": pols, "market_totals": totals})
+    finally:
+        s.close()
+
+
+@bp.post('/upload/account-speed')
+def set_account_upload_speed():
+    """계정(API) 업로드 속도 저장. body: {account_id, seconds_per_item?, enabled?}."""
+    from lemouton.pricing.settings import set_account_policy
+    # 2026-07-20 계정 배선 통일 — 판매처 관리가 쓰는 upload_accounts 가 진실 원천.
+    from lemouton.sourcing.models_v2 import UploadAccount
+    data = request.get_json(silent=True) or {}
+    try:
+        acc_id = int(data.get('account_id'))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "account_id 필수(정수)"}), 400
+    s = SessionLocal()
+    try:
+        if s.get(UploadAccount, acc_id) is None:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        r = set_account_policy(s, acc_id,
+                               seconds_per_item=data.get('seconds_per_item'),
+                               enabled=data.get('enabled'))
+        s.commit()
+        return jsonify({"ok": True, **r})
+    finally:
+        s.close()
+
+
+@bp.get('/crawl/failures')
+def crawl_failures():
+    """[읽기전용] 크롤 실패 URL을 유형별로 묶어 반환(화면 ⑤ 실패 유형화).
+
+    자동화 페이지가 함께 폴링 → 동일 8초 TTL 캐시 + 싱글플라이트(폭주 차단)."""
+    from lemouton.sources.failure_classify import list_crawl_failures
+
+    def _produce():
+        s = SessionLocal()
+        try:
+            return {"groups": list_crawl_failures(s)}
+        finally:
+            s.close()
+
+    return jsonify(_crawl_failures_cache.get("all", _produce))
+
+
+# ---------- 옵션별 브랜드 ----------
+
+@bp.get('/options/brands')
+def option_brands_list():
+    """[읽기] 등록된 브랜드 목록(검색 팔레트 — 없으면 「+새 브랜드」)."""
+    from lemouton.sourcing.option_brand import list_brands
+    s = SessionLocal()
+    try:
+        return jsonify({"brands": list_brands(s)})
+    finally:
+        s.close()
+
+
+@bp.post('/options/brand')
+def set_option_brand_route():
+    """옵션 1개 브랜드 저장. body {canonical_sku, brand}. 빈값=미지정(상속)."""
+    from lemouton.sourcing.option_brand import set_option_brand
+    data = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        brand = set_option_brand(s, data.get('canonical_sku'), data.get('brand'))
+        s.commit()
+        return jsonify({"ok": True, "brand": brand})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 404
+    finally:
+        s.close()
+
+
+@bp.get('/bundles/<path:model_code>/brands')
+def bundle_option_brands(model_code):
+    """[읽기] 모음전 옵션별 브랜드 + 요약(스마트바 "미지정 N개")."""
+    from lemouton.sourcing.models import Option
+    from lemouton.sourcing.option_brand import effective_option_brand, brand_summary
+    s = SessionLocal()
+    try:
+        opts = (s.query(Option)
+                .filter(Option.model_code == model_code)
+                .order_by(Option.sort_order, Option.canonical_sku).all())
+        return jsonify({
+            "summary": brand_summary(s, model_code),
+            "options": [{
+                "canonical_sku": o.canonical_sku,
+                "color_display": o.color_display or o.color_code,
+                "size_display": o.size_display or o.size_code,
+                "brand": o.brand,                            # 자체(미지정=None)
+                "effective_brand": effective_option_brand(o),  # 상속 반영
+            } for o in opts],
+        })
+    finally:
+        s.close()
+
+
+@bp.post('/bundles/<path:model_code>/brands/bulk')
+def bundle_option_brands_bulk(model_code):
+    """옵션 브랜드 일괄 적용. body {brand, mode(all|empty|selected), skus?}."""
+    from lemouton.sourcing.option_brand import bulk_apply_brand
+    data = request.get_json(silent=True) or {}
+    mode = data.get('mode') or 'all'
+    if mode not in ('all', 'empty', 'selected'):
+        return jsonify({"ok": False, "error": f"mode: {mode}"}), 400
+    s = SessionLocal()
+    try:
+        n = bulk_apply_brand(s, model_code, data.get('brand'),
+                             mode=mode, skus=data.get('skus'))
+        s.commit()
+        return jsonify({"ok": True, "applied": n})
+    finally:
+        s.close()
 
 
 # ---------- Bundles ----------
@@ -66,26 +774,15 @@ _custom_source_labels: dict[str, str] = {}  # 사용자 추가 소싱처 캐시 
 
 
 def _source_label(key) -> str:
-    """소싱처 key → 사람이 읽는 라벨. 내장 5개 + 사용자 추가분(SourcingSource) 캐시."""
+    """소싱처 key → 사람이 읽는 라벨. [2026-06-30 단일명부] get_labels(명부) 단일원천.
+    이름(껍데기) 수정이 즉시 반영. DB 실패 시 하드코딩 폴백(안전)."""
     if not key:
         return ''
-    if key in _BUILTIN_SOURCE_LABELS:
-        return _BUILTIN_SOURCE_LABELS[key]
-    if key in _custom_source_labels:
-        return _custom_source_labels[key]
-    # 미지의 key — SourcingSource 테이블 1회 로드 후 캐시 (이후엔 메모리 hit)
     try:
-        from lemouton.sourcing.models import SourcingSource
-        from shared.db import SessionLocal as _SL
-        _s = _SL()
-        try:
-            for r in _s.query(SourcingSource).all():
-                _custom_source_labels[r.source_key] = r.label
-        finally:
-            _s.close()
+        from lemouton.sourcing.source_registry import get_labels
+        return get_labels().get(key) or _BUILTIN_SOURCE_LABELS.get(key) or str(key).upper()
     except Exception:
-        pass
-    return _custom_source_labels.get(key, str(key).upper())
+        return _BUILTIN_SOURCE_LABELS.get(key, str(key).upper())
 
 
 def _propagate_bundle_urls_to_options(session, model_code, payload):
@@ -171,7 +868,7 @@ def save_bundle(code: str):
                           actor=payload.get('_actor', 'web_user'))
         except Exception:
             pass
-        # * 번들 url_* → 옵션 OptionSourceUrl 자동 전파
+        # ★ 번들 url_* → 옵션 OptionSourceUrl 자동 전파
         propagate_counts = _propagate_bundle_urls_to_options(s, code, payload)
         s.commit()
         return _ok(model_code=m.model_code, propagated=propagate_counts)
@@ -280,11 +977,30 @@ def options_add(code: str):
         m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
             return _err('모음전을 찾을 수 없어요.', 404)
-        sku = f"{code}-{color}-{size}"
-        if s.query(Option).filter_by(canonical_sku=sku).first():
-            return _err(f"옵션 '{sku}' 가 이미 존재해요.", 409)
+        # 같은 (색상, 사이즈) 조합 중복 차단 — 신원은 SKU 문자열이 아니라 축 조합
+        dup = (s.query(Option)
+               .filter_by(model_code=code, color_code=color, size_code=size)
+               .first())
+        if dup:
+            return _err(f"옵션 '{color}/{size}' 가 이미 존재해요.", 409)
+        # [2026-08-05] 구형식 `{code}-{color}-{size}` 발급 중단 — 조합 생성(combo)과
+        #   같은 표준으로 통일. 구형식은 바코드가 없어 라벨이 한글 SKU 를 CODE128 로
+        #   찍으려다 깨지고, SKU 매핑 큐에 영구 미매핑(라이브 89건)으로 쌓였다.
+        import json as _json
+        from shared.sku_format import gen_sku, gen_barcode
+        sku = None
+        for _ in range(30):
+            cand = gen_sku()
+            if not s.query(Option).filter_by(canonical_sku=cand).first():
+                sku = cand
+                break
+        if not sku:
+            return _err('SKU 자동 생성 실패 — 다시 시도해 주세요.', 500)
         o = Option(canonical_sku=sku, model_code=code,
-                   color_code=color, size_code=size)
+                   boxhero_sku=sku,          # 사용자 룰: 자체 SKU 가 박스히어로 SKU
+                   barcode=gen_barcode(),    # 자동 EAN-13 — 라벨 인쇄·스캔 매칭용
+                   color_code=color, size_code=size,
+                   axis_values_json=_json.dumps([color, size], ensure_ascii=False))
         s.add(o)
         try:
             from lemouton.audit.service import record_create
@@ -300,10 +1016,41 @@ def options_add(code: str):
         s.close()
 
 
+def _option_child_columns() -> list[tuple[str, str]]:
+    """옵션(options.canonical_sku)을 가리키는 (표, 칸) 전부.
+
+    [2026-08-02] 정본은 `lemouton.sourcing.fk_map` 하나 — 삭제·이름변경이 같은 지도를
+      본다. (여기서 따로 들고 있으면 또 어긋난다)
+    """
+    from lemouton.sourcing.fk_map import option_child_columns
+    return option_child_columns()
+
+
 @bp.post('/bundles/<code>/options/<sku>/delete')
 def options_delete(code: str, sku: str):
-    """[v2] 옵션 1개만 삭제 (콤보와 무관)."""
+    """[v2] 옵션 1개만 삭제 (콤보와 무관).
+
+    [2026-08-02] 라이브(PostgreSQL)에서 **항상 500** 이던 것 수정. 원인 두 겹:
+      ① SQLite 전용 `PRAGMA foreign_keys=OFF` 를 그대로 보내 문법 오류 →
+         트랜잭션이 abort 되고 뒤따르는 문이 전부 실패(except 가 삼켜 원인도 안 보임).
+      ② 자식 행 정리 목록이 손으로 적혀 있어 4개 표가 빠져 있었다. 그중
+         matrix_option_members·set_options 는 ondelete 가 없어, PRAGMA 를 걷어내도
+         FK 위반으로 삭제가 막힌다.
+    로컬 SQLite 는 FK 를 느슨하게 봐서 둘 다 드러나지 않았다(이 저장소 재발 패턴).
+    해결: 지울 표를 metadata 에서 뽑고, 각 DELETE 를 SAVEPOINT 로 격리(bundle_delete 와 동일).
+    """
+    from sqlalchemy import text
     s = SessionLocal()
+
+    def _safe(stmt, params):
+        """한 문이 실패해도(표 부재 등) 트랜잭션 전체가 abort 되지 않게 격리."""
+        sp = s.begin_nested()
+        try:
+            s.execute(stmt, params)
+            sp.commit()
+        except Exception:
+            sp.rollback()
+
     try:
         o = s.query(Option).filter_by(canonical_sku=sku, model_code=code).first()
         if o is None:
@@ -316,21 +1063,14 @@ def options_delete(code: str, sku: str):
                           reason='옵션 매트릭스에서 직접 삭제')
         except Exception:
             pass
-        # cascade: 자식 행 정리 (etc_source_urls, etc.)
-        from sqlalchemy import text
-        s.execute(text('PRAGMA foreign_keys=OFF'))
-        for tbl in ('etc_source_urls', 'price_track_history',
-                    'market_registrations', 'option_source_links',
-                    'option_account_registrations'):
-            try:
-                s.execute(text(f"DELETE FROM {tbl} WHERE canonical_sku = :sku"),
-                          {'sku': sku})
-            except Exception:
-                pass
+        for tbl, col in _option_child_columns():
+            _safe(text(f"DELETE FROM {tbl} WHERE {col} = :sku"), {'sku': sku})
         s.delete(o)
-        s.execute(text('PRAGMA foreign_keys=ON'))
         s.commit()
         return _ok(deleted_sku=sku)
+    except Exception as e:      # noqa: BLE001 — 원인을 삼키지 말고 표면화
+        s.rollback()
+        return _err(f'옵션 삭제 실패: {e}', 500)
     finally:
         s.close()
 
@@ -340,6 +1080,17 @@ def options_rename(code: str, sku: str):
     """[v2] 옵션 코드 변경 — canonical_sku cascade rename.
 
     Body: {new_color, new_size, reason?}
+
+    [2026-08-02] 라이브(PostgreSQL)에서 실패하던 것 수정 — 옵션 삭제(PR#672)와 같은 부류.
+      원인 ① SQLite 전용 `PRAGMA foreign_key_check` / `PRAGMA foreign_keys=OFF` 를 그대로
+              보냈다. PG 엔 PRAGMA 가 없어 문법 오류 → 트랜잭션 abort.
+      원인 ② PRAGMA 를 걷어내도 **PK 를 제자리에서 바꾸는 방식 자체가 PG 에선 불가능**하다.
+              자식이 옛 sku 를 가리키는 동안 `UPDATE options SET canonical_sku=...` 은
+              FK 위반이다. (SQLite 는 FK 를 꺼둘 수 있어 그동안 통했다)
+      원인 ③ 옮길 자식 표 목록이 손으로 적혀 있어 절반 넘게 빠져 있었다.
+    해결: **새 행을 먼저 만들고 → 자식을 새 sku 로 옮기고 → 옛 행을 지운다.**
+      이 순서면 어느 시점에도 FK 가 깨지지 않아 PG·SQLite 양쪽에서 성립한다.
+      옮길 표는 fk_map(메타데이터)에서 뽑는다.
     """
     payload = request.get_json(silent=True) or {}
     new_color = (payload.get('new_color') or '').strip()
@@ -349,6 +1100,8 @@ def options_rename(code: str, sku: str):
     new_sku = f"{code}-{new_color}-{new_size}"
     if new_sku == sku:
         return _err('변경 사항이 없어요.', 400)
+
+    from sqlalchemy import inspect as sa_inspect, text
     s = SessionLocal()
     try:
         o = s.query(Option).filter_by(canonical_sku=sku, model_code=code).first()
@@ -356,44 +1109,38 @@ def options_rename(code: str, sku: str):
             return _err('옵션을 찾을 수 없어요.', 404)
         if s.query(Option).filter_by(canonical_sku=new_sku).first():
             return _err(f"옵션 '{new_sku}' 가 이미 존재해요.", 409)
-        from sqlalchemy import text
-        # 기존 FK violation baseline
-        baseline = set(
-            tuple(r) for r in
-            s.execute(text('PRAGMA foreign_key_check')).fetchall()
-        )
-        s.execute(text('PRAGMA foreign_keys=OFF'))
-        # cascade canonical_sku 자식들
-        for tbl in ('etc_source_urls', 'price_track_history',
-                    'market_registrations', 'option_source_links',
-                    'option_account_registrations'):
+
+        before = {'canonical_sku': sku, 'color_code': o.color_code,
+                  'size_code': o.size_code}
+
+        # 1) 새 행 먼저 (자식이 가리킬 부모가 있어야 한다) — 나머지 칸은 그대로 복사
+        data = {c.key: getattr(o, c.key) for c in sa_inspect(Option).mapper.column_attrs}
+        data['canonical_sku'] = new_sku
+        data['color_code'] = new_color
+        data['size_code'] = new_size
+        if data.get('boxhero_sku') == sku:      # 자체 SKU = 박스히어로 SKU 규칙 유지
+            data['boxhero_sku'] = new_sku
+        s.add(Option(**data))
+        s.flush()
+
+        # 2) 자식 행을 새 sku 로 옮긴다
+        for tbl, col in _option_child_columns():
+            sp = s.begin_nested()
             try:
-                s.execute(
-                    text(f"UPDATE {tbl} SET canonical_sku=:n WHERE canonical_sku=:o"),
-                    {'o': sku, 'n': new_sku},
-                )
+                s.execute(text(f"UPDATE {tbl} SET {col} = :n WHERE {col} = :o"),
+                          {'o': sku, 'n': new_sku})
+                sp.commit()
             except Exception:
-                pass
-        # 옵션 자체
-        s.execute(
-            text("UPDATE options SET color_code=:c, size_code=:sz, canonical_sku=:n "
-                 "WHERE canonical_sku=:o"),
-            {'c': new_color, 'sz': new_size, 'n': new_sku, 'o': sku},
-        )
-        s.execute(text('PRAGMA foreign_keys=ON'))
-        after = set(
-            tuple(r) for r in
-            s.execute(text('PRAGMA foreign_key_check')).fetchall()
-        )
-        new_violations = after - baseline
-        if new_violations:
-            s.rollback()
-            return _err(f'cascade FK 위반 (롤백): {sorted(new_violations)}', 500)
+                sp.rollback()   # 표 부재·UNIQUE 충돌 등 — 옛 행은 아래 삭제에서 정리된다
+
+        # 3) 옛 행 삭제 (이 시점엔 아무도 옛 sku 를 가리키지 않아야 한다)
+        s.delete(o)
+        s.flush()
+
         try:
             from lemouton.audit.service import record_update
             record_update(s, target_table='options', target_id=new_sku,
-                          before={'canonical_sku': sku, 'color_code': o.color_code,
-                                  'size_code': o.size_code},
+                          before=before,
                           after={'canonical_sku': new_sku, 'color_code': new_color,
                                  'size_code': new_size},
                           actor='web_user', reason=payload.get('reason'))
@@ -402,6 +1149,9 @@ def options_rename(code: str, sku: str):
         s.commit()
         return _ok(old_sku=sku, new_sku=new_sku,
                    redirect=f'/bundles/{code}/option/{new_sku}')
+    except Exception as e:      # noqa: BLE001 — 원인을 삼키지 말고 표면화
+        s.rollback()
+        return _err(f'옵션 코드 변경 실패 (롤백됨): {e}', 500)
     finally:
         s.close()
 
@@ -572,32 +1322,6 @@ def register_to_market(code: str, market: str):
         sale_price=payload.get('sale_price'),
     )
     return jsonify({'ok': result.get('ok', False), **result})
-
-
-@bp.post('/bundles/<code>/link/<market>')
-def link_to_market(code: str, market: str):
-    """기존 마켓 상품을 모음전 옵션에 연결 (쓰기 없음, 매핑만 저장).
-
-    Body: {"market_product_id": "12345678"}
-    """
-    if market not in ('smartstore', 'coupang'):
-        return _err('market은 smartstore/coupang 중 하나여야 해요.', 400)
-    payload = request.get_json(silent=True) or {}
-    product_id = str(payload.get('market_product_id') or '').strip()
-    if not product_id:
-        return _err('market_product_id 가 필요해요.', 400)
-
-    from lemouton.uploader.link_service import link_bundle_market
-    s = SessionLocal()
-    try:
-        result = link_bundle_market(
-            s, model_code=code, market=market, market_product_id=product_id)
-    finally:
-        s.close()
-
-    if not result.get('ok'):
-        return _err(result.get('error') or '연결 실패', 502)
-    return jsonify(result)
 
 
 @bp.post('/bundles/migrate-from-ss')
@@ -1092,6 +1816,9 @@ def upsert_price_template():
                   'guardrail_lower', 'guardrail_upper', 'rounding_unit',
                   # [2026-05-25] 판매가 정책 ('color' / 'cheapest')
                   'pricing_policy',
+                  # [2026-07-15] 마켓별 색상 통일 (스스/쿠팡) + 통일 규칙
+                  'ss_pricing_policy', 'ss_unify_rule',
+                  'coupang_pricing_policy', 'coupang_unify_rule',
                   # [2026-05-25 V5] 매입가 산정 우선순위 ('template' / 'avg')
                   'price_source_priority',
                   'ss_normal_price', 'ss_boxhero_sale_price', 'ss_external_sale_price',
@@ -1104,7 +1831,16 @@ def upsert_price_template():
                   'coupang_fee_rate', 'coupang_margin_rate', 'coupang_delivery_fee',
                   'coupang_return_fee', 'coupang_exchange_fee',
                   'coupang_mode_sourcing', 'coupang_rate_sourcing', 'coupang_amount_sourcing',
-                  'coupang_mode_purchase', 'coupang_rate_purchase', 'coupang_amount_purchase'):
+                  'coupang_mode_purchase', 'coupang_rate_purchase', 'coupang_amount_purchase',
+                  # [2026-07-20] 롯데온·11번가·옥션·G마켓 — 스스·쿠팡과 같은 항목 일습.
+                  #   ★ 여기 빠지면 화면에서 저장 눌러도 조용히 안 저장된다(화이트리스트 방식).
+                  *[f'{_p}_{_c}'
+                    for _p in ('lotteon', 'eleven11', 'auction', 'gmarket')
+                    for _c in ('fee_rate', 'normal_price', 'boxhero_sale_price',
+                               'external_sale_price', 'delivery_fee', 'return_fee',
+                               'exchange_fee', 'mode_sourcing', 'rate_sourcing',
+                               'amount_sourcing', 'mode_purchase', 'rate_purchase',
+                               'amount_purchase', 'pricing_policy', 'unify_rule')]):
             if f in payload:
                 setattr(t, f, payload[f])
         s.commit()
@@ -1148,7 +1884,7 @@ def search_bundles():
     s = SessionLocal()
     try:
         query = s.query(Model.model_code, Model.model_name_display, Model.category)
-        # * 박스히어로식 다중 키워드 AND 교집합
+        # ★ 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(
             query, tokens,
             Model.model_code, Model.model_name_raw, Model.model_name_display,
@@ -1179,7 +1915,7 @@ def search_templates():
     s = SessionLocal()
     try:
         query = s.query(model.id, model.name)
-        # * 박스히어로식 다중 키워드 AND 교집합
+        # ★ 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(query, tokens, model.name, op='ilike')
         items = [{'id': r[0], 'name': r[1]} for r in query.limit(20).all()]
     finally:
@@ -1290,33 +2026,23 @@ def bundle_delete(code: str):
             {"c": code}).fetchall()]
 
         # 1) 옵션(canonical_sku)을 가리키는 자식 행 정리
+        #   [2026-08-02] 손으로 적던 목록 → _option_child_columns() 로 단일화.
+        #   여기에도 matrix_option_members·set_options·option_price_config·
+        #   option_source_urls 가 빠져 있었다(options_delete 와 같은 구멍).
         if skus:
             in_skus = lambda: bindparam("skus", expanding=True)
-            for tbl, col in (
-                ("etc_source_urls", "canonical_sku"),
-                ("price_track_history", "canonical_sku"),
-                ("market_registrations", "canonical_sku"),
-                ("option_source_links", "canonical_sku"),
-                ("option_account_registrations", "canonical_sku"),
-                ("option_benefit_overrides", "canonical_sku"),
-                ("option_source_url_links", "option_canonical_sku"),
-            ):
+            for tbl, col in _option_child_columns():
                 _safe(text(f"DELETE FROM {tbl} WHERE {col} IN :skus")
                       .bindparams(in_skus()), {"skus": skus})
-            # 양방향(옵션이 매핑 양쪽에 올 수 있음) 정리
-            _safe(text("DELETE FROM option_product_links "
-                       "WHERE option_canonical_sku IN :skus "
-                       "OR product_canonical_sku IN :skus")
-                  .bindparams(in_skus()), {"skus": skus})
-            _safe(text("DELETE FROM option_inventory_links "
-                       "WHERE bundle_option_sku IN :skus "
-                       "OR inventory_option_sku IN :skus")
-                  .bindparams(in_skus()), {"skus": skus})
 
         # 2) 모델(model_code)을 가리키는 자식 행 정리
-        for tbl in ("bundle_account_registrations", "model_source_links",
-                    "bundle_source_urls", "bundle_option_steps", "combo_sets"):
-            _safe(text(f"DELETE FROM {tbl} WHERE model_code = :c"), {"c": code})
+        #   [2026-08-02] 여기도 손으로 적힌 5개뿐이라 matrix_options·product_sets·
+        #   set_products·bundle_matrix_links·bundle_policy_links 가 빠져 있었다.
+        #   라이브 실측: 모음전 삭제가 matrix_options_model_code_fkey 로 500.
+        #   → fk_map(메타데이터)에서 뽑는다. options 는 3) 에서 따로 지운다.
+        from lemouton.sourcing.fk_map import model_child_columns
+        for tbl, col in model_child_columns():
+            _safe(text(f"DELETE FROM {tbl} WHERE {col} = :c"), {"c": code})
 
         # 3) 옵션 → 모델 순서로 삭제
         _safe(text("DELETE FROM options WHERE model_code = :c"), {"c": code})
@@ -1820,40 +2546,10 @@ def boxhero_sync():
     return _ok(synced=len(synced) if hasattr(synced, '__len__') else 0)
 
 
-# ---------- 스케줄러 제어 ----------
-
-@bp.post('/scheduler/run-now')
-def scheduler_run_now():
-    """홈 '지금 바로 실행' — 백그라운드로 full_cycle 트리거."""
-    try:
-        from scheduler.main import get_scheduler
-        from scheduler.jobs import full_cycle
-        sched = get_scheduler()
-        if sched.running:
-            sched.add_job(full_cycle, id='manual_run',
-                          replace_existing=True, max_instances=1)
-        else:
-            # 스케줄러 미가동 시 동기 실행 (테스트/디버그)
-            full_cycle(dry_run=False)
-    except Exception as e:
-        return _err(f'트리거 실패: {e}', 500)
-    return _ok(triggered=True)
-
-
-@bp.post('/scheduler/pause')
-def scheduler_pause():
-    try:
-        from scheduler.main import get_scheduler
-        sched = get_scheduler()
-        if not sched.running:
-            return _ok(paused=False, note='스케줄러 미가동')
-        if sched.state == 2:  # PAUSED
-            sched.resume()
-            return _ok(paused=False)
-        sched.pause()
-        return _ok(paused=True)
-    except Exception as e:
-        return _err(f'토글 실패: {e}', 500)
+# [2026-07-19 제거] 스케줄러 제어 라우트 2종(/scheduler/run-now · /scheduler/pause).
+#   호출하던 홈 버튼이 템플릿에 없는 고아였고, run-now 는 full_cycle(=서버 크롤)의
+#   수동 트리거였다. 크롤 진입점은 ①「전체 크롤」·「자동화 설정」(로컬 확장)
+#   ②소싱처 지도 예시 URL 크롤 둘로 한정한다.
 
 
 # ---------- 모음전 단위 즉시 실행 (지금 전체 / 크롤 / 업로드) ----------
@@ -1919,6 +2615,78 @@ def test_crawl_single(code: str):
         )
     finally:
         s.close()
+
+
+@bp.post('/bundles/<code>/recrawl-url')
+def recrawl_single_url(code: str):
+    """[2026-06-13] 단일 등록 URL 재크롤 — 옵션 모달의  재크롤 버튼용.
+
+    body: {source_key, url}
+    서버사이드 HTTP 크롤러(ssf·ssg·lemouton·smartstore)는 즉시 크롤·저장 후 결과 반환.
+    무신사·롯데온은 서버에 브라우저가 없어 status='need_extension' 반환
+      → 프론트가 크롬 확장(MoumExt)으로 크롤하게 안내.
+
+    Returns: {ok, crawl_ok, status, price, stock, options_count, product_name, error}
+    """
+    from lemouton.sources.service import upsert_source_product, fetch_one_source
+    from lemouton.sourcing.crawlers import build_crawlers
+    payload = request.get_json(silent=True) or {}
+    source_key = (payload.get('source_key') or '').strip()
+    url = (payload.get('url') or '').strip()
+    if not source_key or not url:
+        return _err('source_key·url 필요', 400)
+    s = SessionLocal()
+    try:
+        crawlers = build_crawlers()
+        sp = upsert_source_product(s, site=source_key, url=url)
+        # [2026-06-20 money-safe] SSG 딜(dealItemView)은 자동 대표상품 크롤 금지(광고상품 오긁음).
+        #   잔여(이전 대표상품=무관 광고상품) 데이터 정리 + '모델 선택 필요' 표시.
+        if 'dealitemview' in (url or '').lower():
+            from lemouton.sources.models import SourceOption as _SO
+            from datetime import datetime as _dt, timezone as _tz
+            _now = _dt.now(_tz.utc)
+            sp.product_name = None
+            sp.last_price = None
+            sp.last_stock = None
+            sp.last_status = 'deal_needs_model'
+            sp.last_error_msg = '딜 페이지 — 모델 선택으로 단일 itemView URL 지정 필요(자동 대표상품 금지)'
+            sp.last_fetched_at = _now
+            _n = 0
+            for _so in s.query(_SO).filter(_SO.source_product_id == sp.id,
+                                           _SO.deleted_at.is_(None)).all():
+                _so.deleted_at = _now
+                _n += 1
+            s.commit()
+            return _ok(crawl_ok=False, status='deal_needs_model', options_count=0,
+                       product_name=None, cleared_options=_n,
+                       error='딜 페이지 — 모델 선택 필요(잔여 데이터 정리됨)')
+        r = fetch_one_source(s, source_product_id=sp.id, crawlers=crawlers)
+        st = r.get('status')
+        if st == 'skipped_no_browser':
+            # 서버에 브라우저 없음 — 무신사·롯데온은 크롬 확장으로 크롤해야 함
+            s.rollback()
+            return _ok(crawl_ok=False, status='need_extension',
+                       error='이 소싱처는 로그인 브라우저(크롬 확장)로 크롤합니다')
+        s.commit()
+        cr = r.get('crawl_result')
+        return _ok(
+            crawl_ok=(st == 'ok'),
+            status=st,
+            price=getattr(sp, 'last_price', None),
+            stock=getattr(sp, 'last_stock', None),
+            options_count=(len(getattr(cr, 'options', []) or []) if cr else 0),
+            product_name=(getattr(cr, 'product_name_raw', None) if cr else None),
+            error=r.get('error'),
+        )
+    except Exception as e:
+        try:
+            s.rollback()
+        except Exception:
+            pass
+        return _err(f'재크롤 실패: {type(e).__name__}: {e}', 500)
+    finally:
+        s.close()
+
 
 
 def _build_color_mapping(s, model_code: str, result) -> dict:
@@ -2061,14 +2829,69 @@ def _augment_ssf_to_full_matrix(s, model_code: str, result, color_mapping: dict)
 
 
 def _save_crawl_to_track(s, model_code: str, result) -> int:
-    """crawl 결과 → PriceTrackHistory 저장.
+    """crawl 결과 → PriceTrackHistory 저장. 우리 Option 과 색상/사이즈 매칭. 저장 건수 반환."""
+    import json as _json
+    from lemouton.sourcing.models import Option, ColorDict
+    from lemouton.templates.models import PriceTrackHistory
 
-    [2026-08-19] 같은 로직이 여기와 lemouton/sourcing/bulk_crawl.py 두 곳에
-    복제돼 있었다. 한쪽만 고치면 조용히 어긋나므로 공용 함수로 넘긴다.
-    (그 함수에 '값이 안 바뀌면 안 쌓기' 가 들어 있다 — DB 용량 폭증 원인이던 것)
-    """
-    from lemouton.sourcing.bulk_crawl import save_crawl_to_track
-    return save_crawl_to_track(s, model_code, result)
+    our_options = s.query(Option).filter_by(model_code=model_code).all()
+    if not our_options:
+        return 0
+
+    # 색상 사전: color_code → list of variants (소문자)
+    cdicts: dict = {}
+    for c in s.query(ColorDict).all():
+        try:
+            variants = _json.loads(c.variants_json or '[]')
+            cdicts[c.color_code.lower()] = [v.lower() for v in variants]
+        except Exception:
+            pass
+
+    saved = 0
+    for raw in (result.options or []):
+        c_text = (raw.get('color_text') or '').strip().lower()
+        s_text = (raw.get('size_text') or '').strip()
+        # 사이즈 정규화: '230mm' / '230 mm' / '230' → '230'
+        s_norm = ''.join(ch for ch in s_text if ch.isdigit())
+        if not s_norm:
+            continue
+
+        # 공백 무시 — '올리브 그린'(소싱처) == '올리브그린'(우리)
+        c_text_ns = c_text.replace(' ', '')
+        matched = None
+        for our in our_options:
+            if (our.size_code or '').strip() != s_norm:
+                continue
+            our_color = (our.color_code or '').strip().lower()
+            if not our_color:
+                continue
+            our_color_ns = our_color.replace(' ', '')
+            # 직접 부분 매칭 (양방향, 공백 무시)
+            if our_color_ns in c_text_ns or c_text_ns in our_color_ns:
+                matched = our
+                break
+            # 색상 사전 variants 매칭 (공백 무시)
+            for variant in cdicts.get(our_color, []):
+                v = (variant or '').replace(' ', '')
+                if v and v in c_text_ns:
+                    matched = our
+                    break
+            if matched:
+                break
+
+        if matched:
+            s.add(PriceTrackHistory(
+                canonical_sku=matched.canonical_sku,
+                source=result.source,
+                price=raw.get('price'),
+                stock=raw.get('stock'),
+            ))
+            saved += 1
+
+    if saved:
+        s.commit()
+    return saved
+
 
 def _resolve_models_for_code(s, code: str):
     """[v3 시나리오 C] code 가 model_code 또는 group_code 인지 판별 → 대상 Model list 반환."""
@@ -2229,115 +3052,27 @@ def dissolve_bundle_group(gid: int):
         s.close()
 
 
-@bp.get('/bundle-groups/<int:gid>/option-config')
-def get_bundle_option_config(gid: int):
-    """[v3] 그룹의 마켓별 옵션 축 구성 조회."""
-    from lemouton.sourcing.models import BundleGroup
-    import json as _json
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        cfg = {}
-        if g.option_config_json:
-            try:
-                cfg = _json.loads(g.option_config_json)
-            except Exception:
-                cfg = {}
-        return _ok(group_id=gid, group_code=g.group_code, option_config=cfg)
-    finally:
-        s.close()
-
-
-@bp.post('/bundle-groups/<int:gid>/option-config')
-def set_bundle_option_config(gid: int):
-    """[v3] 그룹의 마켓별 옵션 축 구성 저장.
-
-    Body: {"option_config": {"smartstore": {"axes": [{"name":"색상","source":"color_code"}, ...]}, "coupang": {...}}}
-    검증:
-      - 마켓별 axes 1~3개 (스스 최대 3, 쿠팡 최대 3)
-      - axis.name 비어있지 않음
-      - axis.source ∈ {color_code, size_code, model_code}
-    """
-    from lemouton.sourcing.models import BundleGroup
-    import json as _json
-    payload = request.get_json(silent=True) or {}
-    cfg = payload.get('option_config') or {}
-    valid_sources = {'color_code', 'size_code', 'model_code'}
-    valid_markets = {'smartstore', 'coupang'}
-    # 검증
-    for mk, mk_cfg in cfg.items():
-        if mk not in valid_markets:
-            return _err(f'알 수 없는 마켓: {mk}', 400)
-        axes = (mk_cfg or {}).get('axes') or []
-        if not isinstance(axes, list) or not (1 <= len(axes) <= 3):
-            return _err(f'{mk} axes 1~3개 필요 (받은 수: {len(axes)})', 400)
-        names_seen = set()
-        sources_seen = set()
-        for i, ax in enumerate(axes):
-            name = (ax or {}).get('name', '').strip()
-            src = (ax or {}).get('source', '')
-            if not name:
-                return _err(f'{mk} axis #{i+1} name 비어있음', 400)
-            if src not in valid_sources:
-                return _err(f'{mk} axis #{i+1} source 잘못됨: {src}', 400)
-            if name in names_seen:
-                return _err(f'{mk} axis name 중복: {name}', 400)
-            if src in sources_seen:
-                return _err(f'{mk} axis source 중복: {src}', 400)
-            names_seen.add(name); sources_seen.add(src)
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        g.option_config_json = _json.dumps(cfg, ensure_ascii=False)
-        s.commit()
-        return _ok(group_id=gid, option_config=cfg)
-    finally:
-        s.close()
-
-
-@bp.get('/bundle-groups/<int:gid>/option-payload-preview')
-def get_option_payload_preview(gid: int):
-    """[v3] axes config 로 생성될 마켓별 페이로드 미리보기.
-
-    옵션 데이터(canonical_sku, color_code, size_code, model_code) 를 그룹의 모든 모델에서 모아
-    option_axes.build_payloads_for_group 으로 마켓별 페이로드 생성. 신규 등록 전 검증용.
-    """
-    from lemouton.sourcing.models import BundleGroup
-    from lemouton.formatter.option_axes import build_payloads_for_group
-    import json as _json
-    s = SessionLocal()
-    try:
-        g = s.query(BundleGroup).filter_by(id=gid).first()
-        if not g:
-            return _err('그룹 없음', 404)
-        cfg = {}
-        if g.option_config_json:
-            try: cfg = _json.loads(g.option_config_json)
-            except Exception: cfg = {}
-        # 그룹의 모든 모델 옵션 수집
-        model_codes = [m.model_code for m in g.models]
-        opts = (s.query(Option)
-                .filter(Option.model_code.in_(model_codes))
-                .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
-                .all()) if model_codes else []
-        opt_dicts = [{
-            'canonical_sku': o.canonical_sku,
-            'color_code': o.color_code,
-            'size_code': o.size_code,
-            'model_code': o.model_code,
-        } for o in opts]
-        try:
-            payloads = build_payloads_for_group(cfg, opt_dicts)
-        except Exception as e:
-            return _err(f'페이로드 빌드 실패: {e}', 400)
-        return _ok(group_id=gid, option_count=len(opt_dicts),
-                   option_config=cfg, payloads=payloads)
-    finally:
-        s.close()
+# 🔴 [2026-08-13] 여기 있던 두 라우트를 지웠다 —
+#   `GET  /bundle-groups/<gid>/option-config`          (화면 호출자 0건)
+#   `GET  /bundle-groups/<gid>/option-payload-preview` (화면 호출자 0건)
+#
+#   미리보기 라우트가 쓰던 `lemouton/formatter/option_axes.py` 도 같이 지웠다.
+#   그것은 옵션 페이로드 빌더의 **세 번째 벌**이었고, 실전송
+#   (`registration/options.py`)과 **안전 규칙이 정반대**였다:
+#     · 중복 조합 → 실전송은 사유와 함께 거절 / 그쪽은 `continue` 로 조용히 삭제
+#       (그 줄의 재고가 통째로 증발한다)
+#     · 빈 축 값  → 실전송은 거절 / 그쪽은 **「?」로 지어냄**(구매자 화면에 그대로 노출)
+#     · 재고·가격 → 실전송은 3상태를 갈라 제외+보고 / 그쪽은 없으면 0 폴백
+#     · 마켓 규격 → 그쪽 `optionTypes`·쿠팡 `stockQuantity` 는 지도에 **0건**
+#   미리보기가 실제 나가는 것과 다른 그림을 보여 주면 그게 더 위험하다.
+#
+#   미리보기가 정말 필요하면 **실전송 빌더로** 만들면 된다 —
+#   `policy/to_payload._options_json` 이 만든 옵션 행을 그대로
+#   `registration/options.build_smartstore_options(..., axis=정책axis)` 에 넣으면
+#   **실제 나가는 payload 그 자체**가 나온다. 원천을 늘리지 않는 길이 이미 있다.
+#
+#   POST `/option-config` 는 남겼다 — 매트릭스 패널이 부른다.
+#   🔴 다만 그 설정은 **저장만 되고 전송에 안 쓰인다**(전수 확인). 별건.
 
 
 # ═══════ [제품 공유 v1] 신규 모음전 — 재고제품 검색 + 모음전 생성 ═══════
@@ -2447,11 +3182,14 @@ def inventory_compose_bundle():
     body = request.get_json(silent=True) or {}
     code = (body.get('model_code') or '').strip()
     name = (body.get('model_name_raw') or '').strip()
-    brand = (body.get('brand') or '르무통').strip()
+    # [2026-07-05] 신규 등록 브랜드 필수화 — '르무통' 자동 채움 제거(기존 데이터는 안 건드림).
+    brand = (body.get('brand') or '').strip()
     category = (body.get('category') or '신발').strip()
     product_skus = body.get('product_skus') or []
     if not code or not name:
         return _err('모음전 코드와 모델명을 입력하세요.')
+    if not brand:
+        return _err('브랜드를 입력하세요.')
     if not isinstance(product_skus, list) or not product_skus:
         return _err('옵션으로 추가할 재고제품을 1개 이상 선택하세요.')
     s = SessionLocal()
@@ -2833,7 +3571,10 @@ def bundle_run_now(code: str):
         status = 'ok'
         crawl_ok = True  # [2026-06-03 안정화] 크롤 성공 여부 — full 실행 시 실패면 업로드 스킵
         try:
-            if phase in ('crawl', 'full'):
+            # [크롤=로컬 원칙] 서버 직접 크롤은 기본 OFF — 로컬 확장이 담당(프론트에서 트리거).
+            #   서버 크롤 스킵 시 crawl_ok=True 유지 → 'full' 은 업로드(드라이런)로 진행.
+            from lemouton.sourcing.server_crawl_gate import server_crawl_enabled
+            if phase in ('crawl', 'full') and server_crawl_enabled():
                 progress_set('crawl', total=0,
                              label=f'{code} 전체 크롤링', current='소싱처 URL 집계 중...')
                 sources_result: dict = {}
@@ -2969,7 +3710,8 @@ def bundle_options_combo(code: str):
 
     body: {
       "steps": [{"axis_name": str, "values": [str, ...]}],   # 1~3개
-      "selected": [[str, ...], ...]   # 선택 — 일부 조합만 (2·3축 매트릭스 선택 생성)
+      "selected": [[str, ...], ...],  # 선택 — 일부 조합만 (2·3축 매트릭스 선택 생성)
+      "renames": [{"axis": 0, "from": "색상1", "to": "블랙"}]  # 선택 — 값 이름 바꾸기
     }
     """
     payload = request.get_json(silent=True) or {}
@@ -2977,6 +3719,9 @@ def bundle_options_combo(code: str):
     selected = payload.get('selected')   # None = 전체 cartesian
     # [2026-05-25 A-2-FIX] prune=True 면 selected 에 없는 기존 옵션 삭제 (모달 = 단일 진실 원천).
     prune = bool(payload.get('prune'))
+    # [2026-08-02] 값 이름 바꾸기 — 사장님이 확인창에서 짝지은 것만 온다.
+    #   이게 없으면 이름 정정이 「새 옵션 생성 + 옛 옵션 유령화」가 된다.
+    renames = payload.get('renames') or []
 
     if not steps or not isinstance(steps, list):
         return _err('steps(단계 설계)가 필요해요.')
@@ -2989,8 +3734,107 @@ def bundle_options_combo(code: str):
         m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
             return _err('모음전을 찾을 수 없어요.', 404)
-        result = create_combination_options(s, code, steps, selected=selected, prune=prune)
+        result = create_combination_options(s, code, steps, selected=selected,
+                                            prune=prune, renames=renames)
         return _ok(**result)
+    except Exception as e:
+        s.rollback()
+        return _err(str(e), 500)
+    finally:
+        s.close()
+
+
+@bp.get('/admin/axis-match/diff')
+def admin_axis_match_diff():
+    """[3단계 착수 전 점검] 판정기를 바꾸면 화면 값이 어떻게 달라지나 — 전수.
+
+    읽기 전용. DB 에 아무것도 쓰지 않는다.
+
+    왜 이걸 먼저 보나
+      매트릭스를 새 판정기로 바꾸면 「변경 0건」이 안 나온다. 그동안 부분일치로
+      **잘못 붙어 있던 값이 떨어져 나가기** 때문이다(오프화이트→화이트 등).
+      그 목록을 사장님이 보신 뒤에 바꾼다.
+
+    ?limit=N  상품 N개만 (빠른 확인용)
+    ?full=1   목록 전체 (기본은 종류별 50건까지만)
+    """
+    from lemouton.sourcing.axis_match_audit import compare_all
+    try:
+        limit = int(request.args.get('limit') or 0) or None
+    except (TypeError, ValueError):
+        limit = None
+    full = request.args.get('full') in ('1', 'true', 'yes')
+    s = SessionLocal()
+    try:
+        out = compare_all(s, limit=limit)
+        if not full:
+            for k in ('lost', 'gained', 'changed'):
+                out[k] = out[k][:50]
+            out['truncated'] = True
+        return _ok(**out)
+    finally:
+        s.close()
+
+
+@bp.get('/admin/options/orphan-audit')
+def admin_option_orphan_audit():
+    """전 상품 전수 조사 — 매트릭스 밖 옵션(유령)이 어디에 몇 개 있나.
+
+    한 상품씩 열어보지 않는다. 한 번에 훑어야 「전수」라고 말할 수 있다.
+    읽기 전용 — 치우는 건 `/bundles/<code>/options/orphans/resolve`.
+    """
+    from lemouton.sourcing.option_orphans import audit_all, scan_suspicious_values
+    s = SessionLocal()
+    try:
+        out = audit_all(s)
+        # 🔴 설계가 없는 상품이 대부분이라 매트릭스 대조만으로는 「없다」를 말할 수 없다.
+        #    이름 그물로 따로 훑어 같이 돌려준다(판정 아님 — 눈에 띄게 하는 용도).
+        out['suspect'] = scan_suspicious_values(s)
+        return _ok(**out)
+    finally:
+        s.close()
+
+
+@bp.get('/bundles/<code>/options/orphans')
+def bundle_option_orphans(code: str):
+    """매트릭스 밖 옵션(유령) 목록.
+
+    테스트 이름으로 만들어 두고 이름을 고친 흔적, 축에서 뺀 뒤 남은 옵션들.
+    판매가 켜진 채 남아 있으면 마켓에 그대로 올라간다 — 그걸 보이게 하는 창구.
+    """
+    from lemouton.sourcing.option_orphans import list_orphans
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first() is None:
+            return _err('모음전을 찾을 수 없어요.', 404)
+        rows = list_orphans(s, code)
+        return _ok(items=rows, total=len(rows),
+                   selling=sum(1 for r in rows if r['is_active']))
+    finally:
+        s.close()
+
+
+@bp.post('/bundles/<code>/options/orphans/resolve')
+def bundle_option_orphans_resolve(code: str):
+    """유령 정리 — body: {"skus": [...], "action": "off"|"delete"}.
+
+    [중요] `delete` 라도 걸린 데(URL 매핑·재고 이력 등)가 있으면 지우지 않고 끈다.
+       지운 것과 끈 것을 나눠 돌려주므로 화면이 사실대로 알릴 수 있다.
+    """
+    from lemouton.sourcing.option_orphans import resolve_orphans
+    payload = request.get_json(silent=True) or {}
+    skus = payload.get('skus') or []
+    action = (payload.get('action') or 'off').strip()
+    if action not in ('off', 'delete'):
+        return _err("action 은 'off' 또는 'delete' 예요.")
+    if not skus:
+        return _err('정리할 옵션을 골라주세요.')
+
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first() is None:
+            return _err('모음전을 찾을 수 없어요.', 404)
+        return _ok(**resolve_orphans(s, code, skus, action=action))
     except Exception as e:
         s.rollback()
         return _err(str(e), 500)
@@ -3034,6 +3878,11 @@ def cycle_crawl_all():
       → 우측 실행 로그 패널에서 "한 모음전 = 1행" 으로 동시에 표시
     - 동시 실행 워커 수 제한: max_workers=4 (사이트 부하 방지)
     """
+    # [크롤=로컬 원칙] 서버 직접 크롤은 기본 OFF — 로컬 확장이 담당.
+    from lemouton.sourcing.server_crawl_gate import server_crawl_enabled, DISABLED_MESSAGE
+    if not server_crawl_enabled():
+        return _ok(triggered=False, server_crawl_disabled=True, message=DISABLED_MESSAGE)
+
     from lemouton.sourcing.run_history import (
         record_start, record_end, summarize_status, SOURCE_KEYS,
     )
@@ -3099,7 +3948,7 @@ def cycle_crawl_all():
             record_end(cid, status=st, details=d, error=err)
             per_child[code] = {'ok': st != 'failed', 'status': st,
                                 'duration_sec': d['duration_sec'], 'saved': d.get('saved', 0)}
-            try: progress_tick('crawl', delta=1, current=f'{code}  ({len(per_child)}/{len(codes)})')
+            try: progress_tick('crawl', delta=1, current=f'{code} ({len(per_child)}/{len(codes)})')
             except Exception: pass
 
         if codes:
@@ -3208,7 +4057,7 @@ def cycle_upload_all():
             record_end(cid, status=st, details=d, error=err)
             per_child[code] = {'ok': st != 'failed', 'status': st,
                                 'duration_sec': d['duration_sec']}
-            try: _ptick('upload', delta=1, current=f'{code}  ({len(per_child)}/{len(codes)})')
+            try: _ptick('upload', delta=1, current=f'{code} ({len(per_child)}/{len(codes)})')
             except Exception: pass
 
         if codes:
@@ -3437,32 +4286,131 @@ def api_sources_add():
         s.close()
 
 
+@bp.get('/sources/catalog')
+def api_sources_catalog():
+    """[소싱처 추가] 크롤링 가이드 기반 소싱처 카탈로그 + 추가 여부.
+
+    옵션 모달 '신규 소싱처 추가' 탭(시안 D)이 검색·표시.
+    added=이미 사용 가능(builtin 또는 SourcingSource 등록됨).
+    """
+    from lemouton.sourcing.source_registry import (
+        get_catalog, is_builtin_key, get_all_keys,
+    )
+    existing = set(get_all_keys())
+    items = []
+    for c in get_catalog():
+        c['builtin'] = is_builtin_key(c['key'])
+        c['added'] = c['key'] in existing  # builtin 도 existing 에 포함됨
+        items.append(c)
+    return _ok(items=items)
+
+
+@bp.post('/sources/catalog/add')
+def api_sources_catalog_add():
+    """[소싱처 추가] 카탈로그 항목을 SourcingSource 로 전역 등록.
+
+    Body: {key}. builtin/이미등록 은 거부(중복 차단 — 데이터 무결성).
+    has_adapter=False(예: 롯데아이몰)는 '크롤 미지원'으로 추가 허용(URL 저장 가능,
+    어댑터 작성 후 자동 활성화).
+    """
+    from lemouton.sourcing.models import SourcingSource
+    from lemouton.sourcing.source_registry import (
+        get_catalog_entry, is_builtin_key, get_all_keys,
+    )
+    data = request.get_json(silent=True) or {}
+    key = (data.get('key') or '').strip()
+    entry = get_catalog_entry(key)
+    if not entry:
+        return _err('카탈로그에 없는 소싱처에요.')
+    if is_builtin_key(key):
+        return _err('기본 제공 소싱처라 이미 사용 중이에요.')
+    if key in set(get_all_keys()):
+        return _err(f"'{entry['label']}' 은 이미 추가된 소싱처에요.")
+    s = SessionLocal()
+    try:
+        if s.query(SourcingSource).filter_by(source_key=key).first():
+            return _err(f"'{entry['label']}' 은 이미 추가된 소싱처에요.")
+        row = SourcingSource(
+            source_key=key, label=entry['label'],
+            domain=(entry.get('domain') or key),
+            logo_color=(entry.get('logo_color') or '#3182F6'),
+            logo_letter=((entry.get('glyph') or entry['label'][:1]).upper()[:4]),
+            needs_login=bool(entry.get('needs_login')),
+            has_adapter=bool(entry.get('has_adapter')),
+            is_active=True,
+            sort_order=100 + s.query(SourcingSource).count(),
+        )
+        s.add(row)
+        s.commit()
+        return _ok(source={
+            'key': key, 'label': entry['label'],
+            'color': entry.get('logo_color') or '#3182F6',
+            'glyph': entry.get('glyph') or '',
+            'crawler': bool(entry.get('has_adapter')),
+        })
+    except Exception as e:
+        s.rollback()
+        return _err(str(e), 500)
+    finally:
+        s.close()
+
+
 # ════════════════════════════════════════════════════════════
 #  제품 공유 v1 — 제품 마스터 ② 복사·일괄생성 / ③ 삭제 경고 / ⑤ 역참조
 # ════════════════════════════════════════════════════════════
 
-def _new_option_payload(src, color_code, size_code, *, color_display=None, size_display=None):
-    """기준 옵션 src 를 베이스로 새 Option 생성용 kwargs.
+def _new_option_payload(session, src, color_code, size_code, *,
+                        color_display=None, size_display=None):
+    """기준 옵션 src 를 베이스로 새 Option 생성용 kwargs. 색·사이즈만 바꾸고 모델 그대로.
 
-    canonical_sku = {model_code}-{색상}-{사이즈}. 색상·사이즈만 바꾸고 모델 그대로.
+    [중요] [2026-08-06] 표준 SKU 로 통일했다. 예전엔 `{model_code}-{색}-{사이즈}` 를
+      발급하고 **바코드를 안 넣었다**. 그 결과:
+        · 라벨 인쇄가 붙일 바코드가 없어 한글이 섞인 SKU 를 CODE128 로 찍으려다 깨진다
+        · SKU 매핑 큐에 영구 미매핑으로 쌓인다(라이브 89건의 발원지 중 하나)
+        · 기준 옵션이 「단독_」 모델이면 그 밑으로 옵션이 증식해 「단독=1개」 전제가 깨진다
+      이제 조합 생성(option_service)·제품 추가(data.py)와 **같은 표준**을 쓴다:
+      gen_sku(SKU-8자) + gen_barcode(EAN-13) + boxhero_sku 자기참조 + axis_values_json.
+
     표시명 규칙 — 명시 전달값 우선 → 코드가 src 와 같으면 src 표시명 → 아니면 새 코드.
     (코드가 바뀌었는데 src 표시명을 그대로 쓰면 잘못된 라벨이 됨)
     """
-    from lemouton.sourcing.models import Option as _Opt  # noqa
-    sku = f"{src.model_code}-{color_code}-{size_code}"
+    import json as _json
+    from shared.sku_format import gen_barcode, gen_sku
+
+    sku = None
+    for _ in range(30):
+        cand = gen_sku()
+        if not session.query(Option).filter_by(canonical_sku=cand).first():
+            sku = cand
+            break
+    if not sku:
+        raise RuntimeError('SKU 자동 생성 실패 — 다시 시도해 주세요.')
+
     if color_display is None:
         color_display = (src.color_display or src.color_code) if color_code == src.color_code else color_code
     if size_display is None:
         size_display = (src.size_display or src.size_code) if size_code == src.size_code else size_code
     return sku, dict(
         canonical_sku=sku,
+        boxhero_sku=sku,            # 사용자 룰: 자체 SKU 가 박스히어로 SKU
+        barcode=gen_barcode(),      # 라벨 인쇄·스캔 매칭용 EAN-13
         model_code=src.model_code,
         color_code=color_code,
         color_display=color_display or color_code,
         size_code=size_code,
         size_display=size_display or size_code,
+        axis_values_json=_json.dumps([color_code, size_code], ensure_ascii=False),
         sort_order=getattr(src, 'sort_order', 0) or 0,
     )
+
+
+def _combo_exists(session, model_code, color_code, size_code) -> bool:
+    """같은 모음전에 그 (색상, 사이즈) 조합이 이미 있나.
+
+    SKU 가 랜덤이라 문자열 비교로는 중복을 못 잡는다 — 옵션의 신원인 **축 조합**으로 본다.
+    """
+    return session.query(Option).filter_by(
+        model_code=model_code, color_code=color_code, size_code=size_code).first() is not None
 
 
 def _create_linked_product(s, opt, model):
@@ -3513,13 +4461,14 @@ def inventory_product_copy(  # noqa: C901
             return _err(f'기준 제품을 찾을 수 없어요: {src_sku}', 404)
         model = s.query(Model).filter_by(model_code=src.model_code).first()
 
+        # 중복은 SKU 문자열이 아니라 **축 조합**으로 본다(SKU 가 랜덤이라 문자열 비교 무의미)
+        if _combo_exists(s, src.model_code, color, size):
+            return _err(f"옵션 '{color}/{size}' 가 이미 존재해요.", 409)
         new_sku, kw = _new_option_payload(
-            src, color, size,
+            s, src, color, size,
             color_display=(payload.get('color_display') or '').strip() or None,
             size_display=(payload.get('size_display') or '').strip() or None,
         )
-        if new_sku == src_sku or s.query(Option).filter_by(canonical_sku=new_sku).first():
-            return _err(f"옵션 '{new_sku}' 가 이미 존재해요.", 409)
 
         opt = Option(**kw)
         s.add(opt)
@@ -3566,17 +4515,19 @@ def inventory_product_bulk_generate():  # noqa: C901
             size = (c.get('size_code') or '').strip()
             if not color or not size:
                 continue
+            # 중복 판정은 **축 조합**으로 (SKU 는 랜덤이라 문자열로는 못 잡는다)
+            combo_key = (color, size)
+            if combo_key in seen:
+                continue
+            seen.add(combo_key)
+            if _combo_exists(s, src.model_code, color, size):
+                skipped.append(f'{color}/{size}')
+                continue
             new_sku, kw = _new_option_payload(
-                src, color, size,
+                s, src, color, size,
                 color_display=(c.get('color_display') or '').strip() or None,
                 size_display=(c.get('size_display') or '').strip() or None,
             )
-            if new_sku in seen:
-                continue
-            seen.add(new_sku)
-            if s.query(Option).filter_by(canonical_sku=new_sku).first():
-                skipped.append(new_sku)
-                continue
             opt = Option(**kw)
             s.add(opt)
             s.flush()

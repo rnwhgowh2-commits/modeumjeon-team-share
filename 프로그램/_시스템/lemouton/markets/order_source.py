@@ -1,0 +1,174 @@
+"""주문 조회의 단일 진입점 — 적재분(빠름·완전) + 최근 라이브 보충(신선).
+
+## 왜
+
+마진계산기·주문내역이 지금까지 매번 마켓 API 를 **라이브로** 조회했다. 과거 1년치를
+부르면 창 제약 때문에 수백~수천 번 호출 → 수십 분 or 실패. 사장님이 "수시로 과거
+내역 포함해 마진 조회"를 원하는데 그 구조로는 안 된다.
+
+이 모듈은 **적재분(order_store)에서 과거를 즉시 읽고, 최근 며칠(아직 수집 안 된
+꼬리)만 라이브로 보충**해 합친다. 그래서:
+  · 1년치 조회 = 적재분 읽기(즉시) + 최근 N일 라이브(빠름)
+  · 오늘 들어온 주문도 놓치지 않음(라이브 보충)
+  · 증분 수집이 적재분을 계속 최신으로 유지 → 다음 조회는 더 빠름
+
+## 정직성
+
+- 요청 기간이 적재 범위보다 과거로 더 뻗으면(백필 안 된 마켓·구간) **경고를 남긴다**
+  (빈 결과를 완전한 것처럼 보이면 금전 오판). df/호출부가 warnings 로 노출.
+- 적재분과 라이브가 겹치는 최근 구간은 line_uid 로 중복 제거(라이브가 최신이라 우선).
+- 라이브 보충이 실패하면 그 사유를 warnings 에 담고 적재분만이라도 돌려준다
+  (조용한 실패 금지 — 최근 주문이 빠졌을 수 있음을 명시).
+"""
+from __future__ import annotations
+
+import datetime as _dt
+import logging
+from typing import Optional
+
+from lemouton.markets import line_uid as _luid
+
+logger = logging.getLogger(__name__)
+
+KST = _dt.timezone(_dt.timedelta(hours=9))
+
+# 라이브로 보충하는 최근 일수. 증분 수집이 최근 며칠을 채우지만, 그 사이·오늘 들어온
+# 주문을 놓치지 않도록 넉넉히 겹쳐 라이브 조회한다. 이 구간만 라이브라 빠르다.
+LIVE_TAIL_DAYS = 5
+
+
+def _date_str(v) -> str:
+    if isinstance(v, _dt.datetime):
+        return v.strftime("%Y-%m-%d")
+    return str(v or "")[:10]
+
+
+def _key(row: dict) -> str:
+    """병합 키 — 주문행은 line_uid, 클레임행은 클레임 이벤트키.
+
+    클레임행은 마켓에 따라 주문행과 line_uid 가 **같다**(스스·ESM·롯데온 209경로).
+    한 키로 병합하면 클레임이 매출(주문)행을 삼켜 그 판매가 마진에서 사라진다
+    (2026-07-21 검수: 라이브 74쌍). 반대로 쿠팡 클레임은 line_uid 조각이 없어
+    적재분+라이브 꼬리에 겹치면 2행이 된다 — 이벤트키(claim_event_uid)가 둘 다 푼다.
+    """
+    if str(row.get("_kind") or "") == "change":
+        ev = _luid.claim_event_uid(row)
+        # 마켓 접두어 — uid 폴백(주문번호뿐)일 때 마켓 간 번호 충돌 방지.
+        return f"clm|{row.get('판매처', '')}|{ev}" if ev else ""
+    return str(row.get(_luid.FIELD) or "")
+
+
+def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
+              live_tail_days: int = LIVE_TAIL_DAYS, session=None) -> list[dict]:
+    """[since, until] 주문 행 — 적재분 + 최근 라이브 보충.
+
+    since/until = datetime(또는 date-like). markets = 조회할 마켓 키 목록.
+    """
+    if warnings is None:
+        warnings = []
+    markets = list(markets or [])
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now
+    since_s, until_s = _date_str(since), _date_str(until)
+
+    # ── 1) 적재분(과거·대부분) ──
+    from lemouton.markets import order_store as _store
+    try:
+        stored = _store.load(markets, since=since_s, until=until_s, session=session)
+    except Exception as e:                            # noqa: BLE001
+        logger.exception("적재분 읽기 실패 markets=%s", markets)
+        stored = []
+        warnings.append(f"저장된 주문을 읽지 못했어요({type(e).__name__}) — 라이브로만 조회합니다.")
+
+    # 저장분을 **주문내역 화면과 같은 수준으로** 보강한다(읽기 전용·새 API 호출 없음).
+    #  주문내역은 라이브 조회 결과에 이력 채움·정산 추정을 태워 보여주는데 그 결과가
+    #  저장분에 안 남아, 저장분만 읽는 마진 분석이 같은 주문을 덜 채워진 채로 봤다
+    #  (2026-07-24 실측: 11번가 정산 16·실결제 19·단가 10 / 롯데온 실결제 32 공란).
+    #  사장님 지시: 주문번호가 매칭되는 행에 공란이 있으면 안 된다.
+    if stored:
+        try:
+            from lemouton.markets.order_export import enrich_stored_rows
+            enrich_stored_rows(stored, session=session)
+        except Exception:                             # noqa: BLE001 — 보강 실패는 원본 유지
+            logger.exception("적재분 보강 실패 markets=%s", markets)
+
+    # 적재 범위가 요청 시작보다 과거로 못 미치면 경고(빈 구간을 완전한 것처럼 보이지 않게).
+    try:
+        cov = {c["market"]: c for c in _store.coverage(session=session)}
+    except Exception:                                 # noqa: BLE001
+        cov = {}
+    short = []
+    for m in markets:
+        c = cov.get(m)
+        oldest = (c or {}).get("oldest", "")[:10]
+        if not c or (oldest and oldest > since_s):
+            short.append(f"{m}({oldest or '적재없음'}~)")
+    if short:
+        warnings.append(
+            "요청 기간의 앞부분이 아직 저장돼 있지 않아요 — 저장된 범위: "
+            + ", ".join(short) + ". 「미리 채우기」를 돌리면 과거까지 즉시 조회됩니다.")
+
+    # 적재 최신단이 라이브 꼬리보다 뒤처지면 그 사이가 **무경고 구멍**이 된다
+    #  (증분 수집이 멈춘 경우 — 2026-07-20 에 스케줄러가 실제로 안 돌던 전례).
+    #  ★ 판정 기준일은 최소 1일 — live_tail_days=0(마진 분석: 저장분만)일 때 '오늘'을
+    #    기준으로 삼으면 오늘 주문이 없는 정상 상태까지 '밀렸다'고 외친다(거짓 경보).
+    stale_days = max(1, live_tail_days)
+    tail_start_s = (now - _dt.timedelta(days=stale_days)).strftime("%Y-%m-%d")
+    stale = []
+    for m in markets:
+        c = cov.get(m)
+        newest = (c or {}).get("newest", "")[:10]
+        if c and newest and newest < tail_start_s and until_s > newest:
+            stale.append(f"{m}(~{newest})")
+    if stale:
+        tail_note = (f"라이브 보충(최근 {live_tail_days}일)이 못 덮는 사이 구간의 주문이 "
+                     "빠졌을 수 있어요." if live_tail_days > 0 else
+                     "그 뒤에 들어온 주문은 이번 결과에 없어요.")
+        warnings.append(
+            "최근 주문 수집이 밀려 있어요 — " + ", ".join(stale) + ". "
+            + tail_note + " 증분 수집(스케줄러)을 확인해 주세요.")
+
+    # ── 2) 최근 라이브 보충(신선) ──
+    tail_since = max(_ensure_dt(since, now), now - _dt.timedelta(days=max(0, live_tail_days)))
+    live = []
+    if live_tail_days > 0 and _ensure_dt(until, now) >= tail_since:
+        from lemouton.markets import order_export as _oe
+        try:
+            live = _oe.combined_order_rows(markets, since=tail_since,
+                                           until=_ensure_dt(until, now), warnings=warnings)
+        except Exception as e:                        # noqa: BLE001
+            logger.exception("라이브 보충 실패 markets=%s", markets)
+            warnings.append(
+                f"최근 주문 라이브 보충에 실패했어요({type(e).__name__}: {e}) — "
+                "저장된 주문만 보여드려요(오늘 들어온 주문이 빠졌을 수 있어요).")
+
+    # ※ 11번가 숫자 주문상태 치유는 order_store.load 안에서 한다 — 주문내역 화면은
+    #   order_source 를 거치지 않고 load 를 직접 부르므로, 여기 두면 그 화면이 빠진다.
+
+    # ── 3) 병합(line_uid 로 중복 제거, 라이브가 최신이라 우선) ──
+    merged: dict = {}
+    order: list = []
+    for r in stored:
+        k = _key(r) or f"_s{len(order)}"
+        if k not in merged:
+            order.append(k)
+        merged[k] = r
+    for r in live:
+        k = _key(r)
+        if not k:                     # 키 없는 라이브 행은 그대로 추가(합칠 근거 없음)
+            k = f"_l{len(order)}"
+            order.append(k)
+        elif k not in merged:
+            order.append(k)
+        merged[k] = r                 # 라이브가 이기게(최신 상태·정산)
+    return [merged[k] for k in order]
+
+
+
+def _ensure_dt(v, default):
+    if isinstance(v, _dt.datetime):
+        return v if v.tzinfo else v.replace(tzinfo=KST)
+    if isinstance(v, _dt.date):
+        return _dt.datetime(v.year, v.month, v.day, tzinfo=KST)
+    return default

@@ -1,0 +1,98 @@
+# docs/markets/gmarket.yaml — G마켓(Gmarket · ESM 2.0 이베이코리아) 프로파일
+# 옥션과 동일한 ESM Trading API. 인증·발급·엔드포인트는 auction.yaml 과 공통(같은 ESM+ 마스터 계정).
+#   차이 = Site ID "G"(payload ssi = "G:{판매자ID}") + seller_id 만 다름. master_id·secret_key 공통.
+#   근거 문서: https://etapi.gmarket.com/ · https://etapi.gmarket.com/pages/API-가이드 (2026-07-07 실측)
+#   STEP 0(슬러그·접두)= webapp/routes/accounts.py MARKET_METADATA["gmarket"], default_prefix=GMARKET_MAIN.
+# ⚠️ 라이브 미검증(키없음) — 코드 근거만. 상품/가격/재고 엔드포인트는 공개문서 실측 확보(2026-07-09).
+#    배선 = auction.yaml 과 공통(같은 ESM API, site=G/gmkt). 스펙 상세는 auction.yaml::product_spec 참조.
+
+meta:
+  market: gmarket
+  display_name: G마켓
+  esm_group: true            # 옥션·G마켓 통합(ESM 2.0). auction.yaml 과 인증 공통.
+  last_analyzed: "2026-07-07"
+  base_url: https://etapi.gmarket.com
+  evidence: >
+    ESM Trading API 공개 문서 실측(2026-07-07): 인증=JWT(HS256/HmacSHA256).
+    payload.ssi = "G:{판매자ID}" (site G=G마켓), 그 외 header/payload/서명은 옥션과 동일.
+    옥션·G마켓은 같은 ESM+ 마스터 계정 → master_id·secret_key 공통, seller_id·site 만 다름.
+    라이브 미검증 — 엔드포인트/필드 미확보(문서 문의 etapihelp@gmail.com).
+
+auth:
+  method: JWT (HmacSHA256 서명 · 옥션과 공통)
+  token_endpoint: null
+  env_keys:
+    - GMARKET_MAIN_MASTER_ID    # ESM+ 마스터 ID(옥션과 동일 값) → JWT header.kid
+    - GMARKET_MAIN_SECRET_KEY   # 발급 시크릿 키(옥션과 동일 값) → HmacSHA256 서명(민감)
+    - GMARKET_MAIN_SELLER_ID    # G마켓 판매자 ID → payload.ssi = "G:{SELLER_ID}"
+  jwt_format: >
+    header  = {"alg":"HS256","typ":"JWT","kid":"{MASTER_ID}"}
+    payload = {"iss":"{판매도메인}","sub":"sell","aud":"sa.esmplus.com","ssi":"G:{SELLER_ID}","iat":<epoch>}
+    signature = HmacSHA256(base64url(header)+"."+base64url(payload), SECRET_KEY)
+  signature: HmacSHA256 (payload 서명)
+  ip_allowlist: "ESM API IP 등록 정책 확인 필요(TODO). auction.yaml 참조."
+  key_issue_path: >
+    ESM PLUS 로그인 → 판매자정보 > 판매도구 관리 사용설정 → ESM Trading API secret key 발급
+    (옥션과 동일 발급 경로·키, G마켓 판매자 ID 만 별도).
+
+# 전 엔드포인트 = auction.yaml 과 공통(같은 ESM API). 차이=siteType 2 / site key gmkt. 상품 host=sa2.esmplus.com /item/v1.
+endpoints:
+  fetch_orders:  "POST https://sa2.esmplus.com/shipping/v1/Order/RequestOrders (siteType=2, /67, 구현됨. 스펙 auction.yaml::fetch_orders_spec)"
+  fetch_settlement: "POST /account/v1/settle/getsettleorder (SiteType=G, /41, 구현됨). 배송비=/42(후속)"
+  resolve_goods_no: "GET /item/v1/site-goods/{siteGoodsNo}/goods-no (/30, 구현됨)"
+  fetch_options: "GET /item/v1/goods/{goodsNo} 상세조회 + /recommended-options (/20·/26, 구현=esm/products.py)"
+  update_price:  "PUT /item/v1/goods/{goodsNo}/price body{gmkt:가격} (본품 대표가 /186, 구현=esm/prices.py)"
+  update_stock:  "PUT /item/v1/goods/{goodsNo}/recommended-options full-replace qty.gmkt (옵션 /26, 구현=esm/inventory.py)"
+  register:      "POST /item/v1/goods (상품 등록 /20·/140, 후속)"
+
+option_structure:
+  note: >
+    옵션=recommendedOpts.independent.details[]. option_id=manageCode, 재고=qty.gmkt.
+    상세 스펙은 auction.yaml::product_spec 와 동일(site key 만 gmkt). 미상=None(CLAUDE.md).
+
+fields:
+  connect:
+    - { name: seller_product_id, type: string, required: true, source: 사용자입력(G마켓 상품번호),
+        note: "상세조회로 옵션·가격·재고 자동매칭. 응답 필드명 TODO." }
+
+response:
+  success: "상품/가격/재고 resultCode 0. 주문/정산 ResultCode 0. (auction.yaml 과 공통, 대소문자 무시 파싱)"
+  errors:
+    http:
+      - "401 인증 실패 (JWT 서명/마스터ID/시크릿 확인)"
+      - "403 권한 없음 (판매도구 사용설정/IP)"
+      - "429 호출 횟수 초과"
+      - "5xx 시스템 오류"
+    body: "TODO(조사필요)"
+  rate_limit:
+    policy: "TODO(조사필요). 보수적 기본 5/s(ESM_RATE_LIMIT_PER_SEC)."
+  retry: "권장 max_retries=3, 지수백오프."
+
+safety:
+  price_change_guard: >
+    업로드 전 sanity(확정매입가×1.05 미만 차단·마진 하한·재고≤소싱재고). 실브라우저 소싱처 URL 실값 기준.
+  notes: >
+    라이브 미검증(키없음) — 코드 근거만(엔드포인트 공개문서 확보). 실계정 100% 검증 전 '완료' 선언 금지.
+    배선 완료 = 계정/키 등록 + 인증·클라이언트(옥션과 공용) + 연동(_fetch_esm)·가격·재고 어댑터(EsmAdapter("gmarket"))
+    + 오케스트레이터 라우팅 + 자동전송 formatter(build_gmarket_payload) + DB 매핑컬럼(gmarket_product_id/gmarket_option_id)
+    + 연결테스트(_test_esm). 실전송 게이트 = MOUM_LIVE_UPLOAD(기본 OFF). order_export.SUPPORTED 미포함(주문 엑셀 미노출).
+
+code_map:
+  secrets: lemouton/auth/secrets.py                # EsmCredentials(옥션과 공용) + MARKET_SCHEMAS["gmarket"] (구현됨)
+  platform_config: shared/platforms/__init__.py    # GMARKET dict (site_id="G", paths 상품/가격/재고) (구현됨)
+  accounts_ui: webapp/routes/accounts.py           # MARKET_KEY_SUFFIXES/KEY_LABELS/MARKET_METADATA (구현됨)
+  connection_test: webapp/routes/accounts.py::_test_esm  # JWT 인증 read-only 주문 프로브 (구현됨)
+  auth: shared/platforms/esm/auth.py               # JWT/HmacSHA256 (옥션과 공용, 구현됨)
+  client: shared/platforms/esm/client.py           # HTTP post/request(GET·PUT) (구현됨)
+  orders: shared/platforms/esm/orders.py           # RequestOrders (siteType=2, 구현됨)
+  settlements: shared/platforms/esm/settlements.py  # getsettleorder (SiteType=G, 구현됨)
+  products: shared/platforms/esm/products.py       # 상세조회·옵션추출(qty.gmkt)·goodsNo 변환 (구현됨)
+  prices: shared/platforms/esm/prices.py           # 본품 가격수정(gmkt) (구현됨)
+  inventory: shared/platforms/esm/inventory.py     # 옵션 재고 full-replace(qty.gmkt) (구현됨)
+  adapter: lemouton/uploader/adapters/esm.py       # EsmAdapter("gmarket")·MockEsmAdapter (구현됨)
+  formatter: lemouton/formatter/esm.py             # build_gmarket_payload (미매핑=None) (구현됨)
+  fetch_options: lemouton/uploader/market_fetch.py::_fetch_esm  # 기존 상품 연동 (구현됨)
+  fetch_orders: lemouton/markets/order_export.py::gmarket_order_rows  # 행 매핑(구현됨). 라이브 검증 후 SUPPORTED 추가
+  registry: lemouton/uploader/runtime.py::select_adapters + orchestrator._extract_uploads  # gmarket 라우팅 (구현됨)
+  db_columns: lemouton/sourcing/models.py + shared/db.py  # models.gmarket_product_id·options.gmarket_option_id (구현됨)
+  tests: tests/uploader/test_esm_upload_wiring.py + test_esm_markets_wiring.py  # Mock/Fake 단위테스트 (green)

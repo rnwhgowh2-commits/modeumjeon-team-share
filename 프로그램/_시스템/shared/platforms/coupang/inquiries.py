@@ -38,18 +38,18 @@ def fetch_online_inquiries(since: datetime, until: datetime,
 
     answered_type: NOANSWER / ANSWERED / ALL
     """
-    vid = _vendor_id()
     client = client or CoupangClient()
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
     path = (f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/onlineInquiries")
-    params = {
-        "vendorId":       vid,
-        "inquiryStartAt": since.strftime("%Y-%m-%d"),
-        "inquiryEndAt":   until.strftime("%Y-%m-%d"),
-        "answeredType":   answered_type,
-        "pageSize":       page_size,
-        "pageNum":        page_num,
-    }
-    return client.request("GET", path, query=params)
+    # CoupangClient.request 는 query 를 '문자열'로 받아 HMAC 서명에 그대로 쓴다
+    # (orders.py 동일 패턴). dict 를 넘기면 서명 단계에서 lstrip 크래시.
+    q = (f"vendorId={vid}"
+         f"&inquiryStartAt={since.strftime('%Y-%m-%d')}"
+         f"&inquiryEndAt={until.strftime('%Y-%m-%d')}"
+         f"&answeredType={answered_type}"
+         f"&pageSize={page_size}"
+         f"&pageNum={page_num}")
+    return client.request("GET", path, query=q)
 
 
 def reply_online_inquiry(inquiry_id: str, content: str,
@@ -61,9 +61,9 @@ def reply_online_inquiry(inquiry_id: str, content: str,
 
     body 필드는 공식 docs 에서 일부만 확인. 실 호출 실패 시 content 명 교정 필요.
     """
-    vid = _vendor_id()
-    user = vendor_user_id or os.getenv("COUPANG_VENDOR_USER_ID", "")
     client = client or CoupangClient()
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    user = vendor_user_id or os.getenv("COUPANG_VENDOR_USER_ID", "")
     path = (f"/v2/providers/openapi/apis/api/v4/vendors/{vid}"
             f"/callCenterInquiries/{inquiry_id}/replies")
     body = {
@@ -75,3 +75,24 @@ def reply_online_inquiry(inquiry_id: str, content: str,
         "vendorUserId": user,
     }
     return client.request("POST", path, body=body)
+
+
+def fetch_call_center_inquiries(since: datetime, until: datetime,
+                                 client: Optional[CoupangClient] = None,
+                                 counseling_status: str = "NONE",
+                                 page_size: int = 50,
+                                 page_num: int = 1) -> dict:
+    """고객센터 문의 조회 (GET). 고객센터 상담 경유 문의.
+
+    partnerCounselingStatus: NONE(전체)/ANSWER(답변완료)/NO_ANSWER(미답변)/TRANSFER 등.
+    ★실제 파라미터·응답 필드는 라이브 보정 대상. query 는 문자열(HMAC 서명).
+    """
+    client = client or CoupangClient()
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    path = (f"/v2/providers/openapi/apis/api/v4/vendors/{vid}/callCenterInquiries")
+    q = (f"vendorId={vid}"
+         f"&inquiryStartAt={since.strftime('%Y-%m-%d')}"
+         f"&inquiryEndAt={until.strftime('%Y-%m-%d')}"
+         f"&partnerCounselingStatus={counseling_status}"
+         f"&pageSize={page_size}&pageNum={page_num}")
+    return client.request("GET", path, query=q)

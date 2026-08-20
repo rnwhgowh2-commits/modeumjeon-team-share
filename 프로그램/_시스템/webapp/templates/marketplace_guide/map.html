@@ -1,0 +1,906 @@
+{% extends layout|default("base.html") %}
+{% block title %}데이터 코드 지도 — 판매처{% endblock %}
+{% block content %}
+{% raw %}
+<style>
+  /* 판매처 데이터·코드 지도 — 마켓 가로탭 + 「주요 데이터」(별표로 담아 마켓 비교) + 좌 영역탭 + 보내기/받기 2열.
+     데이터는 실제 코드 근거(shared/platforms/*·lemouton/uploader/*·registration/*)로 작성. 2026-07-05 기준. */
+  .dm2{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;--line:#F1F3F5;--line2:#E5E8EB;--bg:var(--n100,#F8FAFB);
+    --ok:var(--green,#15803D);--okb:var(--연한-초록,#E7F6EC);--code:var(--amber,#B45309);--codeb:var(--연한-주황,#FAF0DE);--off:#1B64DA;--offb:var(--연한-파랑,#E8F0FE);--todo:#98A2B3;--todob:#EEF1F4;--del:var(--red,#DC2626);--star:#F59E0B;--mono:ui-monospace,Menlo,monospace;
+    /* 158% 전체 비례 확대(가독성·팝업 고려 폰트 키움) — zoom 으로 통째 확대 + max-width 950(≈1501/1.58)로 1560px 넓은 팝업(.gpm.wide)에 맞춤(가로 스크롤 방지). */
+    font-family:'Pretendard','Malgun Gothic',sans-serif;color:var(--ink,#191F28);max-width:950px;zoom:1.58;margin:0 auto;padding:24px 24px 32px;}
+  .dm2 *{box-sizing:border-box;}
+  .dm2 h2{font-size:24px;font-weight:800;margin:0 0 4px;}
+  .dm2 .sub{font-size:12px;color:var(--sub);margin-bottom:16px;line-height:1.55;}
+  .dm2 .flow{display:flex;align-items:stretch;gap:8px;margin-bottom:8px;}
+  .dm2 .flow .fstep{flex:1;border:1px solid var(--line2);border-radius:12px;padding:12px 4px;text-align:center;background:var(--surface,#ffffff);}
+  .dm2 .flow .fstep.dim{background:var(--bg);}
+  .dm2 .flow .fstep .fic{font-size:17px;line-height:1;} .dm2 .flow .fstep .fnm{font-size:12px;font-weight:800;margin-top:4px;} .dm2 .flow .fstep .fds{font-size:12px;color: var(--글자-희미, var(--faint));margin-top:0px;}
+  .dm2 .flow .ar{display:flex;align-items:center;color:var(--off);font-weight:800;font-size:14px;}
+  .dm2 .branches{font-size:12px;color:var(--sub);margin-bottom:16px;line-height:1.6;}
+  .dm2 .branches b{color:var(--ink);}
+  .dm2 .mktabs{display:flex;gap:4px;border-bottom:2px solid var(--line2);margin-bottom:12px;align-items:flex-end;flex-wrap:wrap;}
+  .dm2 .mktab{padding:8px 16px;font-size:14px;font-weight:800;color:var(--sub);border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:0px;display:flex;align-items:center;gap:8px;}
+  .dm2 .mktab.on{color:var(--ink);border-bottom-color:var(--ink);} .dm2 .mktab .mini{font-size:12px;font-weight:700;color: var(--글자-희미, var(--faint));} .dm2 .mktab.on .mini{color:var(--sub);}
+  .dm2 .favtab{margin-left:auto;color:var(--sub);border:none;background:none;font-size:14px;font-weight:800;cursor:pointer;padding:8px 12px;border-bottom:3px solid transparent;margin-bottom:0px;display:flex;align-items:center;gap:4px;}
+  .dm2 .favtab::before{content:'';border-left:1px solid var(--line2);height:20px;margin-right:8px;}
+  .dm2 .favtab.on{color:var(--ink);border-bottom-color:var(--star);} .dm2 .favtab .fc{color:var(--star);} .dm2 .favtab .cnt{background:var(--star);color:#fff;border-radius:18px;font-size:12px;padding:0 4px;min-width:16px;text-align:center;}
+  .dm2 .apitab{color:var(--sub);border:none;background:none;font-size:14px;font-weight:800;cursor:pointer;padding:8px 12px;border-bottom:3px solid transparent;margin-bottom:0px;display:flex;align-items:center;gap:4px;}
+  .dm2 .apitab.on{color:var(--ink);border-bottom-color:var(--off);}
+  .dm2 .apih3{font-size:14px;font-weight:800;margin:16px 0 8px;} .dm2 .apih3:first-of-type{margin-top:4px;}
+  .dm2 .apimk{font-weight:800;font-size:12px;margin:12px 0 4px;} .dm2 .apimk small{font-size:12px;color:var(--sub);font-weight:600;}
+  .dm2 .cmp td.url{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--ink);line-height:1.33;}
+  .dm2 .cmp td.g{font-size:12px;color:var(--sub);} .dm2 .cmp td.star{color:var(--ok);font-weight:800;}
+  .dm2 .apinote{font-size:12px;color:var(--code);margin:4px 0 0;}
+  /* 상위탭(대분류) + 실배선 매트릭스 */
+  .dm2 .toptabs{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin:24px 0 16px;border-top:2px solid var(--line2);padding-top:16px;}
+  .dm2 .toprow{display:flex;gap:4px;flex-wrap:wrap;align-items:center;}
+  .dm2 .toptab{font-size:14px;font-weight:800;color:var(--sub);border:1px solid var(--line2);background:var(--surface,#ffffff);cursor:pointer;padding:8px 16px;border-radius:8px;display:flex;align-items:center;gap:4px;}
+  .dm2 .toptab.on{color:#fff;background: var(--바탕-진하게, var(--ink));border-color:var(--ink);}
+  .dm2 .toptab.tr.on{background:var(--ok);border-color:var(--ok);}
+  .dm2 .toptab.fav.on{background:var(--star);border-color:var(--star);}
+  .dm2 .toptab.settle.on{background:var(--ok);border-color:var(--ok);}
+  /* 「API 문서 수집법」 = 보조(사용법 안내) 탭 — 옅은 점선 톤으로 성격 구분(1행에 '마켓별 전체 API'와 함께) */
+  .dm2 .toptab.howto:not(.on){color:var(--sub);background:var(--n100,#F7F9FB);border-style:dashed;border-color:var(--line,#CBD5E1);}
+  /* 「API 문서 수집법」 본문 — 왼쪽 메뉴 + 히트맵 매트릭스 + 접이식 계층 (2026-07-17 B안) */
+  .dm2 .hwm{display:flex;flex-direction:column;gap:4px;}
+  .dm2 .hwm button{text-align:left;font-size:12px;font-weight:700;color:var(--sub);background:none;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;}
+  .dm2 .hwm button:hover{background:var(--n100,#F5F7F9);} .dm2 .hwm button.on{background: var(--바탕-진하게, var(--ink));color:#fff;}
+  .dm2 .hwmx{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;overflow:hidden;}
+  .dm2 .hwmx th,.dm2 .hwmx td{border:1px solid var(--line);padding:0;text-align:center;}
+  .dm2 .hwmx th{background:var(--n100,#F7F9FB);font-weight:800;font-size:12px;color:var(--sub);padding:8px 8px;}
+  .dm2 .hwmx td.mkt{text-align:left;font-weight:800;padding:8px 12px;background:var(--n100,#FCFDFE);white-space:nowrap;}
+  .dm2 .hwmx .hc{padding:8px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:46px;}
+  .dm2 .hwmx .hc.ok{background:var(--okb);} .dm2 .hwmx .hc.part{background:#FEF3C7;} .dm2 .hwmx .hc.bad{background:var(--연한-빨강,#FEE2E2);}
+  .dm2 .hwmx .hc .lb{font-size:12px;font-weight:800;} .dm2 .hwmx .hc.ok .lb{color: var(--글자-초록, var(--green,#15803D));} .dm2 .hwmx .hc.part .lb{color: var(--글자-주황, var(--amber,#92400E));} .dm2 .hwmx .hc.bad .lb{color:#B91C1C;}
+  .dm2 .hwmx .best{font-size:12px;font-weight:800;color: var(--글자-파랑, var(--primary,#0C447C));}
+  .dm2 .grb{display:inline-block;font-size:12px;font-weight:800;border-radius:18px;padding:0px 8px;margin:0 0px;}
+  .dm2 .grb.g1{background:var(--okb);color: var(--글자-초록, var(--green,#087f5b));} .dm2 .grb.g2{background:var(--연한-초록,#E9FAE6);color: var(--글자-초록, var(--green,#2b8a3e));} .dm2 .grb.g3{background:#FEF3C7;color: var(--글자-주황, var(--amber,#b26a00));} .dm2 .grb.g4{background:var(--line2,#F1F3F5);color:var(--글자-기본,#495057);} .dm2 .grb.g5{background:var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red,#c92a2a));}
+  .dm2 .hwleg{font-size:12px;color:var(--sub);display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;} .dm2 .hwleg .sw{width:11px;height:11px;border-radius:0px;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid var(--line);}
+  .dm2 .hacc{border:1px solid var(--line2);border-radius:8px;overflow:hidden;margin-bottom:8px;}
+  .dm2 .hacc>summary{list-style:none;cursor:pointer;padding:8px 12px;font-weight:800;font-size:12px;background:var(--n100,#FAFBFC);display:flex;align-items:center;gap:8px;}
+  .dm2 .hacc>summary::-webkit-details-marker{display:none;}
+  .dm2 .hacc>summary::before{content:'▸';color:var(--off);font-size:12px;}
+  .dm2 .hacc[open]>summary::before{content:'▾';}
+  .dm2 .hacc .hbody{padding:12px 16px;font-size:12px;color:var(--sub);line-height:1.95;border-top:1px solid var(--line);}
+  .dm2 .hacc .hbody b{color:var(--ink);}
+  .dm2 .hchip{font-size:12px;background:var(--line2,#EEF2F6);color:var(--sub);border-radius:8px;padding:0px 8px;font-weight:700;display:inline-block;margin:0px 0px;}
+  .dm2 .hroute{font-size:12px;font-weight:800;background:var(--codeb);color:var(--code);border-radius:8px;padding:0px 8px;margin-left:auto;}
+  .dm2 .hflow{display:flex;flex-direction:column;gap:0;}
+  .dm2 .hstep{display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);} .dm2 .hstep:last-child{border-bottom:none;}
+  .dm2 .hstep .hn{flex:0 0 auto;width:23px;height:23px;border-radius:50%;background: var(--바탕-진하게, var(--ink));color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .dm2 .hstep .hx{font-size:12px;line-height:1.6;} .dm2 .hstep .hx b{color: var(--글자-파랑, var(--primary,#0C447C));} .dm2 .hstep .hx .win{color:var(--ok);font-weight:800;} .dm2 .hstep .hx code{font-family:var(--mono);font-size:12px;background:var(--codeb);color:var(--code);border-radius:0px;padding:0px 4px;}
+  /* 정산탭 — 매트릭스 + 계산식 (API 필드 코드) */
+  .dm2 .stlsub{display:flex;gap:4px;margin:12px 0 12px;}
+  .dm2 .stlsub button{font-size:12px;font-weight:800;color:var(--sub);border:1px solid var(--line2);background:var(--surface,#ffffff);cursor:pointer;padding:4px 12px;border-radius:8px;}
+  .dm2 .stlsub button.on{color:var(--ink);background:var(--bg);border-color:var(--ink);}
+  .dm2 .stlmtx{width:100%;border-collapse:collapse;font-size:12px;}
+  .dm2 .stlmtx th,.dm2 .stlmtx td{border:1px solid var(--line);padding:8px 8px;vertical-align:middle;white-space:nowrap;}
+  .dm2 .stlmtx thead th{background:var(--bg);color:var(--ink);font-weight:800;text-align:center;}
+  .dm2 .stlmtx tbody th{background:var(--n100,#fcfdfe);text-align:left;font-weight:700;width:120px;}
+  .dm2 .stlmtx tbody th .op{display:block;font-size:12px;color: var(--글자-희미, var(--faint));font-weight:600;}
+  .dm2 .stlmtx tr.tot th{background:var(--okb);color:var(--ok);} .dm2 .stlmtx tr.tot td{background:var(--okb);}
+  .dm2 .cc{font-family:var(--mono);font-size:12px;color:var(--code);background:var(--codeb);border-radius:0px;padding:0px 4px;font-weight:600;display:inline-block;}
+  .dm2 .cc.res{color:var(--ok);background:var(--okb);}
+  .dm2 .inc{font-size:12px;color:var(--sub);} .dm2 .inc .cc{font-size:12px;} .dm2 .inc .t{color: var(--글자-희미, var(--faint));}
+  .dm2 .mkc{display:inline-flex;align-items:center;gap:4px;justify-content:center;}
+  .dm2 .mkc .lg{width:19px;height:19px;border-radius:8px;color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+  .dm2 .stlnote{color:var(--sub);font-size:12px;margin-top:12px;line-height:1.6;}
+  .dm2 .fml{display:flex;flex-direction:column;gap:8px;}
+  .dm2 .fr{border:1px solid var(--line2);border-radius:8px;padding:12px 12px;}
+  .dm2 .frh{display:flex;align-items:center;gap:8px;font-weight:800;margin-bottom:8px;font-size:12px;}
+  .dm2 .frh .lg{width:19px;height:19px;border-radius:8px;color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+  .dm2 .fx{display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px;}
+  .dm2 .tm{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 8px;min-width:60px;}
+  .dm2 .tm .t{font-weight:700;font-size:12px;} .dm2 .tm.res{background:var(--okb);border-color:var(--연한-초록,#bfe6cd);}
+  .dm2 .tm.mi{background:var(--surface,#ffffff);border-style:dashed;border-color:var(--line,#e5c9c9);}
+  .dm2 .fo{font-size:14px;font-weight:800;color:var(--sub);padding-top:8px;}
+  .dm2 .toptab .fc{color:var(--star);} .dm2 .toptab.on .fc{color:#fff;} .dm2 .toptab .cnt{background:rgba(0,0,0,.14);color:#fff;border-radius:18px;font-size:12px;padding:0 4px;min-width:16px;text-align:center;} .dm2 .toptab:not(.on) .cnt{background:var(--star);}
+  .dm2 .mkbadge{font-size:12px;font-weight:800;padding:0px 8px;border-radius:8px;white-space:nowrap;}
+  .dm2 .mkbadge.cp{background:var(--연한-빨강,#FEE2E2);color:#B91C1C;} .dm2 .mkbadge.ss{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D));}
+  .dm2 .mkbadge.lo{background:#EDE9FE;color:#6D28D9;} .dm2 .mkbadge.e11{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E));}
+  .dm2 .vb{font-size:12px;font-weight:800;border-radius:18px;padding:0px 8px;white-space:nowrap;} .dm2 .vb.done{background:var(--okb);color:var(--ok);} .dm2 .vb.wait{background:#FEF3C7;color:var(--code);}
+  .dm2 .ids2{font-family:var(--mono);font-size:12px;color:var(--sub);word-break:break-all;}
+  .dm2 .cmp td.c{text-align:center;}
+  .dm2 .wrapbox{border:1px solid var(--line2);border-radius:8px;overflow:hidden;} .dm2 .wrapbox .cmp{border:none;border-radius:0;}
+  .dm2 .legend{font-size:12px;color:var(--sub);display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;} .dm2 .lg{display:inline-flex;align-items:center;gap:4px;} .dm2 .dt{width:8px;height:8px;border-radius:50%;} .dm2 .dt.ok{background:var(--ok);}.dm2 .dt.code{background:var(--code);}.dm2 .dt.off{background:var(--off);}.dm2 .dt.todo{background:var(--todo);}
+  .dm2 .env{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px 12px;font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:16px;} .dm2 .env .k{color: var(--글자-희미, var(--faint));font-weight:700;white-space:nowrap;} .dm2 .env .v{color:var(--ink);} .dm2 .env .v a{color:var(--sub);text-decoration:underline;text-underline-offset:2px;} .dm2 .env .v .mono{font-family:var(--mono);font-size:12px;color:var(--sub);}
+  .dm2 .st{font-size:12px;font-weight:800;border-radius:8px;padding:0px 8px;white-space:nowrap;} .dm2 .st.ok{background:var(--okb);color:var(--ok);} .dm2 .st.code{background:var(--codeb);color:var(--code);} .dm2 .st.off{background:var(--offb);color:var(--off);} .dm2 .st.todo{background:var(--todob);color:var(--todo);}
+  .dm2 .notabChip{font-size:12px;font-weight:800;background:var(--line2,#F1F3F5);color: var(--글자-희미, var(--faint,#98A2B3));border-radius:0px;padding:0px 4px;margin-left:4px;white-space:nowrap;vertical-align:middle;}
+  .dm2 .md{display:grid;grid-template-columns:172px 1fr;gap:16px;}
+  .dm2 .ml{display:flex;flex-direction:column;gap:4px;} .dm2 .ml button{text-align:left;font-size:12px;font-weight:700;color:var(--sub);background:none;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:4px;} .dm2 .ml button .n{font-size:12px;color: var(--글자-희미, var(--faint));} .dm2 .ml button:hover{background:var(--n100,#F5F7F9);} .dm2 .ml button.on{background: var(--바탕-진하게, var(--ink));color:#fff;} .dm2 .ml button.on .n{color: var(--글자-희미, var(--faint,#B9C2CC));}
+  .dm2 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
+  /* 고급형 A — 보내기/받기 컬럼 카드 + 등록·수정·삭제·조회 세분화 */
+  .dm2 .lcol{border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:var(--surface,#ffffff);}
+  .dm2 .lhead{font-size:14px;font-weight:800;padding:8px 12px;display:flex;align-items:center;gap:8px;}
+  .dm2 .lhead small{margin-left:auto;font-size:12px;color: var(--글자-희미, var(--faint));font-weight:600;}
+  .dm2 .lcol.send .lhead{background:linear-gradient(90deg,var(--연한-주황,#FFF6E9),var(--n100,#FFFDF8));color:var(--code);border-bottom:1px solid var(--연한-주황,#F3E2C6);}
+  .dm2 .lcol.recv .lhead{background:linear-gradient(90deg,var(--연한-파랑,#EEF4FF),var(--n100,#FAFCFF));color:var(--off);border-bottom:1px solid var(--연한-파랑,#D6E4FF);}
+  .dm2 .agrp{display:flex;align-items:center;gap:8px;padding:8px 12px 4px;}
+  .dm2 .achip{font-size:12px;font-weight:800;border-radius:8px;padding:0px 8px;white-space:nowrap;}
+  .dm2 .achip.off{background:var(--offb);color:var(--off);} .dm2 .achip.ok{background:var(--okb);color:var(--ok);}
+  .dm2 .achip.code{background:var(--codeb);color:var(--code);} .dm2 .achip.del{background:var(--연한-빨강,#FEE2E2);color:var(--del);}
+  .dm2 .agrp .an{font-size:12px;color: var(--글자-희미, var(--faint));font-weight:700;}
+  .dm2 .litem{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;padding:8px 12px;border-top:1px solid var(--line);}
+  .dm2 .agrp + .litem{border-top:none;} .dm2 .litem:hover{background:var(--n100,#FAFBFC);} .dm2 .litem.off{opacity:.5;}
+  .dm2 .litem .lnm{font-weight:700;font-size:12px;line-height:1.35;}
+  .dm2 .litem .lcode{display:inline-block;margin-top:4px;font-family:var(--mono);font-size:12px;border-radius:8px;padding:0px 8px;word-break:break-all;line-height:1.4;}
+  .dm2 .litem .lcode.use{color:var(--글자-기본,#475569);background:var(--n100,#F4F6F9);border:1px solid var(--line2);} .dm2 .litem .lcode.doc{color: var(--글자-희미, var(--faint));background:var(--n100,#F7F8FA);}
+  .dm2 .litem .lstar{cursor:pointer;font-size:14px;color: var(--글자-희미, var(--line,#D5DBE2));text-align:center;padding-top:0px;} .dm2 .litem .lstar.on{color:var(--star);}
+  .dm2 .luse{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:800;white-space:nowrap;padding-top:0px;}
+  .dm2 .luse .udot{width:7px;height:7px;border-radius:50%;}
+  .dm2 .luse.on{color:var(--ok);} .dm2 .luse.on .udot{background:var(--ok);}
+  .dm2 .luse.no{color: var(--글자-희미, var(--faint));} .dm2 .luse.no .udot{background: var(--바탕-흐리게, var(--faint));}
+  .dm2 .luse .wtag{margin-left:4px;font-size:12px;font-weight:800;background:#FEF3C7;color:var(--code);border-radius:0px;padding:0px 4px;}
+  .dm2 .lempty{padding:16px 12px;color: var(--글자-희미, var(--faint));font-size:12px;}
+  .dm2 .dsec .dh{font-size:12px;font-weight:800;padding-bottom:4px;margin-bottom:0px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:8px;} .dm2 .dsec .dh .ar{color: var(--글자-희미, var(--faint));font-size:12px;} .dm2 .dsec .dh .sub2{font-size:12px;color: var(--글자-희미, var(--faint));font-weight:600;}
+  .dm2 .item{display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px;} .dm2 .item:last-child{border-bottom:none;} .dm2 .star{cursor:pointer;font-size:14px;color: var(--글자-희미, var(--line,#D5DBE2));text-align:center;} .dm2 .star.on{color:var(--star);} .dm2 .item .nm{font-weight:700;} .dm2 .item .nm .code{display:block;font-size:12px;color: var(--글자-희미, var(--faint));font-family:var(--mono);font-weight:400;margin-top:0px;}
+  .dm2 .favhead{display:flex;align-items:baseline;gap:8px;margin-bottom:12px;} .dm2 .favhead .ft{font-size:17px;font-weight:800;} .dm2 .favhead .fs{font-size:12px;color:var(--sub);}
+  .dm2 .cmp{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;overflow:hidden;font-size:12px;} .dm2 .cmp th,.dm2 .cmp td{padding:8px 12px;border-bottom:1px solid var(--line);} .dm2 .cmp th{background:var(--n100,#F7F9FB);font-weight:800;font-size:12px;color:var(--sub);} .dm2 .cmp th.mk,.dm2 .cmp td.stc,.dm2 .cmp td.dc{text-align:center;} .dm2 .cmp td.el{font-weight:700;} .dm2 .cmp td.el .gc{display:block;font-size:12px;color: var(--글자-희미, var(--faint));}
+  .dm2 .empty{padding:32px;text-align:center;color:var(--sub);font-size:12px;line-height:1.7;} .dm2 .empty .big{font-size:24px;color:var(--star);}
+  .dm2 .foot{margin-top:24px;border-top:1px solid var(--line2);padding-top:12px;}
+  .dm2 .foot h3{font-size:12px;font-weight:800;margin:0 0 8px;}
+  .dm2 .cm{display:grid;grid-template-columns:1fr auto;gap:4px;padding:4px 0;border-bottom:1px solid var(--line);font-size:12px;} .dm2 .cm .f{font-family:var(--mono);font-size:12px;color:var(--sub);}
+  .dm2 .risk{margin-top:12px;background:var(--연한-주황,#FFF7ED);border:1px solid var(--연한-주황,#FCD9A8);border-radius:8px;padding:12px 12px;font-size:12px;color: var(--글자-주황, var(--amber,#7C4A03));line-height:1.7;} .dm2 .risk code{background:var(--연한-주황,#FBEBD3);border-radius:0px;padding:0px 4px;font-family:var(--mono);}
+  /* ⚡ 주문상태 전환 — 세로 레일 + 통합 경고 + 식별자 칩 (2026-07-15 재디자인) */
+  .dm2 .tsplit{display:grid;grid-template-columns:176px 1fr;gap:16px;align-items:start;margin-top:16px;}
+  .dm2 .trail{display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line);padding-right:12px;}
+  .dm2 .trail .rt{font-size:12px;font-weight:800;color: var(--글자-희미, var(--faint));padding:0 8px 4px;}
+  .dm2 .trail .railbtn{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;color:var(--ink);background:none;cursor:pointer;}
+  .dm2 .trail .railbtn.on{background: var(--바탕-진하게, var(--ink));color:#fff;}
+  .dm2 .trail .rdot{width:8px;height:8px;border-radius:50%;} .dm2 .trail .rdot.done{background:var(--ok);} .dm2 .trail .rdot.wait{background:var(--code);}
+  .dm2 .idchip{font-family:var(--mono);font-size:12px;color:var(--sub);background:var(--line2,#F1F3F5);border-radius:8px;padding:0px 4px;display:inline-block;margin:0px 0px 0px 0;}
+  .dm2 .cmp td.idcell{line-height:1.33;}
+  .dm2 .warnbox{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-left:3px solid var(--code);border-radius:8px;padding:12px 12px;margin-top:12px;}
+  .dm2 .warnbox .wt{font-size:12px;font-weight:800;color: var(--글자-주황, var(--amber,#92400E));margin-bottom:8px;}
+  .dm2 .warnbox .wr{display:flex;gap:8px;align-items:flex-start;font-size:12px;color: var(--글자-주황, var(--amber,#7C4A03));line-height:1.55;padding:0px 0;}
+  /* 업무탭 — 기능×마켓 비교표(API 칩) + 줄 아래 상세 아코디언 (2026-07-16 Plan 2) */
+  /* 업무탭 표 — 고정 열폭(긴 칩이 열 못 벌리게) + 단어단위 줄바꿈 + 줄간격·여백 ↑ + 가로 스크롤 방지 */
+  .dm2 .wtbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+  .dm2 .wtbl th,.dm2 .wtbl td{border-bottom:1px solid var(--line);padding:12px 12px;line-height:1.33;vertical-align:middle;}
+  .dm2 .wtbl thead th{background:var(--n100,#F7F9FB);font-size:12px;color:var(--sub);font-weight:800;border-bottom:1px solid var(--line2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* 위상 구분(C안): 기능 열=행 라벨(옅은 배경+굵은 세로 경계) / 마켓=「마켓별 지원」 그룹 밴드+브랜드 색점 */
+  .dm2 .wtbl th.fn,.dm2 .wtbl td.fn{text-align:left;width:27%;font-weight:700;background:var(--bg);border-right:2px solid var(--line2);}
+  .dm2 .wtbl thead th.fn{color:var(--ink);}
+  .dm2 .wtbl thead th.grp{background:var(--line2,#EEF2F7);color:var(--ink);text-align:center;font-weight:800;letter-spacing:.02em;}
+  .dm2 .wtbl thead th.mk .mkd{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+  .dm2 .wtbl td.fn .fncell{display:flex;gap:8px;align-items:center;}
+  .dm2 .wtbl td.fn .dir{flex:0 0 auto;font-size:12px;font-weight:800;color:var(--sub);background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;padding:0px 8px;white-space:nowrap;line-height:1.33;}
+  .dm2 .wtbl td.fn .dir.send{color:var(--code);background:var(--codeb);border-color:var(--연한-주황,#EBD6AE);}
+  .dm2 .wtbl td.fn .dir.recv{color:var(--off);background:var(--offb);border-color:var(--연한-파랑,#CFE0FF);}
+  .dm2 .wtbl td.fn .fnnm{font-weight:700;word-break:keep-all;line-height:1.33;}
+  .dm2 .wtbl th.mk,.dm2 .wtbl td.mk{text-align:center;}
+  .dm2 .wchip{display:inline-block;max-width:100%;font-family:var(--mono);font-size:12px;font-weight:600;border-radius:8px;padding:4px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;}
+  .dm2 .wchip.ok{background:var(--okb);color:var(--ok);} .dm2 .wchip.code{background:var(--codeb);color:var(--code);}
+  .dm2 .wchip.off{background:var(--offb);color:var(--off);}
+  .dm2 .wtbl td.mk .wnone{display:inline-block;vertical-align:middle;color: var(--글자-희미, var(--line,#D5DBE2));font-size:12px;line-height:1.33;}
+  .dm2 .wtbl .wrow:hover td.fn{background:var(--line2,#F1F4F7);}
+  .dm2 .wdetail td{background:var(--n100,#FCFDFE);padding:0 4px 12px;}
+  .dm2 .wd{border:1px solid var(--line2);border-radius:8px;padding:12px 16px;}
+  .dm2 .wd .k{font-size:12px;font-weight:800;color:var(--sub);margin:8px 0 4px;text-transform:uppercase;}
+  .dm2 .wd pre{margin:0;background: var(--바탕-진하게, var(--ink,#0F172A));color: var(--글자-희미, var(--line2,#E2E8F0));border-radius:8px;padding:8px 12px;font-family:var(--mono);font-size:12px;line-height:1.55;overflow-x:auto;white-space:pre-wrap;}
+  .dm2 .wd table.f{width:100%;border-collapse:collapse;font-size:12px;}
+  .dm2 .wd table.f td,.dm2 .wd table.f th{border-bottom:1px solid var(--line);padding:4px 8px;text-align:left;}
+  .dm2 .wd table.f td.key{font-family:var(--mono);color: var(--글자-파랑, var(--primary,#0C447C));}
+  .dm2 .wd .succ{background:var(--okb);border:1px solid var(--연한-초록,#BBE6C9);border-radius:8px;padding:8px 12px;font-size:12px;color: var(--글자-초록, var(--green,#14532D));margin-top:8px;}
+  .dm2 .wd .todo{color: var(--글자-희미, var(--faint));font-size:12px;padding:4px 0;}
+  /* 🗂️ 과거이력 — 요약 lead + 콜아웃 + 기록지침 + 다중 필터칩 + 행펼침 표 (소싱처 s6 톤) */
+  .dm2 .inclead{display:flex;align-items:baseline;gap:8px;margin:0px 0 8px;}
+  .dm2 .inclead .kl{font-size:12px;font-weight:800;background: var(--바탕-진하게, var(--ink));color:#fff;border-radius:8px;padding:4px 8px;white-space:nowrap;}
+  .dm2 .inclead .sm{font-size:12px;color:var(--sub);line-height:1.55;} .dm2 .inclead .sm b{color:var(--ink);}
+  .dm2 .inccall{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-left:3px solid var(--code);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color: var(--글자-주황, var(--amber,#7C4A03));line-height:1.6;}
+  .dm2 .inccall b{color: var(--글자-주황, var(--amber,#92400E));}
+  .dm2 .incrule{margin-top:8px;padding-top:8px;border-top:1px dashed var(--연한-주황,#FDE68A);font-size:12px;color: var(--글자-주황, var(--amber,#7C4A03));line-height:1.65;} .dm2 .incrule b{color: var(--글자-주황, var(--amber,#92400E));}
+  .dm2 .incfil{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:4px;}
+  .dm2 .incfil .fl{font-size:12px;font-weight:800;color: var(--글자-희미, var(--faint));margin-right:0px;}
+  .dm2 .incbar2{margin:0 0 12px;}
+  .dm2 .fchip{font-size:12px;font-weight:700;color:var(--sub);border:1px solid var(--line2);background:var(--surface,#ffffff);border-radius:18px;padding:4px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;}
+  .dm2 .fchip:hover{background:var(--n100,#F5F7F9);} .dm2 .fchip.on{color:var(--ink);border-color:var(--ink);background:var(--bg);} .dm2 .fchip.all.on{color:#fff;background: var(--바탕-진하게, var(--ink));border-color:var(--ink);}
+  .dm2 .fchip .cdot{width:9px;height:9px;border-radius:0px;}
+  .dm2 .inctbl{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;overflow:hidden;}
+  .dm2 .inctbl thead th{background:var(--n100,#F7F9FB);font-size:12px;color:var(--sub);font-weight:800;border-bottom:1px solid var(--line2);padding:8px 12px;text-align:left;white-space:nowrap;}
+  .dm2 .inctbl tbody td{border-bottom:1px solid var(--line);padding:8px 12px;vertical-align:middle;}
+  .dm2 .inctbl tbody tr.main{cursor:pointer;} .dm2 .inctbl tbody tr.main:hover{background:var(--n100,#FAFBFC);}
+  .dm2 .inctbl td.date{font-family:var(--mono);font-size:12px;color:var(--sub);white-space:nowrap;text-align:center;}
+  .dm2 .inctbl td.mk{text-align:center;white-space:nowrap;} .dm2 .inctbl td.area{text-align:center;}
+  .dm2 .inctbl td.title{font-weight:700;line-height:1.33;} .dm2 .inctbl td.title .ex{font-size:12px;color: var(--글자-희미, var(--faint));font-weight:600;margin-left:4px;white-space:nowrap;}
+  .dm2 .inctbl td.sev{text-align:center;white-space:nowrap;}
+  .dm2 .inctbl td.incempty{text-align:center;color: var(--글자-희미, var(--faint));padding:24px;font-size:12px;}
+  .dm2 .arbadge{font-size:12px;font-weight:700;color:var(--sub);background:var(--bg);border:1px solid var(--line2);border-radius:8px;padding:0px 8px;white-space:nowrap;}
+  .dm2 .sevb{font-size:12px;font-weight:800;border-radius:18px;padding:0px 8px;white-space:nowrap;}
+  .dm2 .sevb.high{background:var(--연한-빨강,#FEE2E2);color:var(--del);} .dm2 .sevb.med{background:#FEF3C7;color:var(--code);} .dm2 .sevb.low{background:var(--todob);color:var(--todo);}
+  .dm2 .incdetail td{background:var(--n100,#FCFDFE);padding:0 8px 12px;}
+  .dm2 .incd{border:1px solid var(--line2);border-radius:8px;padding:12px 16px;}
+  .dm2 .incd .row{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:4px 0;border-bottom:1px solid var(--line);align-items:start;} .dm2 .incd .row:last-of-type{border-bottom:none;}
+  .dm2 .incd .rk{font-size:12px;font-weight:800;color:#fff;border-radius:8px;padding:4px 0;text-align:center;height:fit-content;}
+  .dm2 .incd .rk.symptom{background:var(--red,#DC2626);} .dm2 .incd .rk.cause{background:var(--amber,#B45309);} .dm2 .incd .rk.fix{background:var(--green,#15803D);} .dm2 .incd .rk.lesson{background:#1B64DA;}
+  .dm2 .incd .rv{font-size:12px;line-height:1.6;color:var(--ink);word-break:break-word;} .dm2 .incd .rv code{font-family:var(--mono);font-size:12px;background:var(--line2,#F1F3F5);border-radius:0px;padding:0px 4px;color: var(--글자-파랑, var(--primary,#0C447C));}
+  .dm2 .incd .lesson-v{display:inline-block;background:var(--연한-파랑,#EEF4FF);border:1px solid var(--연한-파랑,#C7DBFF);border-radius:8px;padding:8px 12px;color: var(--글자-파랑, var(--primary,#0C447C));font-weight:600;}
+  .dm2 .incd .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line2);}
+  .dm2 .incd .commit{font-family:var(--mono);font-size:12px;color:var(--sub);background:var(--line2,#F1F3F5);border-radius:8px;padding:4px 8px;}
+  .dm2 .incd .status-ok{font-size:12px;font-weight:800;color:var(--ok);background:var(--okb);border-radius:8px;padding:4px 8px;}
+  .dm2 .incd .status-mit{font-size:12px;font-weight:800;color:var(--code);background:var(--codeb);border-radius:8px;padding:4px 8px;}
+  .dm2 .incd .status-open{font-size:12px;font-weight:800;color:var(--del);background:var(--연한-빨강,#FEE2E2);border-radius:8px;padding:4px 8px;}
+  /* 🧾 프로그램 주문조회 매트릭스 */
+  .dm2 .stlmtx.pl td{white-space:normal;word-break:keep-all;overflow-wrap:anywhere;vertical-align:top;}
+  .dm2 .stlmtx.pl td .cc{font-size:12px;line-height:1.33;padding:0px 4px;}
+  .dm2 .stlmtx.pl.plm td{text-align:center;}
+  .dm2 .stlmtx.pl thead th{white-space:normal;}
+  .dm2 .stlmtx.pl tbody th{width:112px;font-size:12px;line-height:1.33;font-weight:700;}
+  .dm2 .stlmtx tr.sh th,.dm2 .stlmtx tr.sh td{background:var(--연한-초록,#EAF7EF);}
+  .dm2 .cc.pd{color: var(--글자-주황, var(--amber,#92400E));background:#FEF3C7;} .dm2 .cc.nn{color: var(--글자-희미, var(--faint,#98A2B3));background:var(--line2,#F1F3F5);font-weight:600;}
+  .dm2 .shb{font-size:12px;font-weight:800;color: var(--글자-초록, var(--green,#15803D));background:var(--연한-초록,#DCFCE7);border-radius:18px;padding:0px 4px;margin-left:4px;vertical-align:1px;}
+  .dm2 .ptag{font-size:12px;font-weight:800;color: var(--글자-주황, var(--amber,#92400E));background:#FEF3C7;border-radius:18px;padding:0px 4px;margin-left:4px;}
+  .dm2 .chkb{font-size:12px;font-weight:800;color:#B91C1C;background:var(--연한-빨강,#FEE2E2);border-radius:18px;padding:0px 4px;margin-left:4px;}
+  .dm2 .plcall{background:var(--연한-파랑,#EEF4FF);border:1px solid var(--연한-파랑,#C7DBFF);border-radius:8px;padding:12px 12px;font-size:12px;color: var(--글자-파랑, var(--primary,#0C447C));line-height:1.65;margin:0px 0 12px;} .dm2 .plcall b{color: var(--글자-파랑, var(--primary,#0a3b6e));}
+  .dm2 .plleg{font-size:12px;color:var(--sub);display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0px 0 12px;} .dm2 .plleg .sw{width:11px;height:11px;border-radius:0px;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid var(--line);}
+  /* ⬆️ 마켓별 업로드 (속도 계정별 행입력 + 섹션 구분) */
+  .dm2 .up2sec{margin:12px 0;} .dm2 .up2div{border:0;border-top:1px solid var(--line2);margin:16px 0;}
+  .dm2 .up2h{font-size:14px;font-weight:800;margin:0 0 8px;display:flex;align-items:center;gap:8px;}
+  .dm2 .up2h .no{width:22px;height:22px;border-radius:8px;background: var(--바탕-흐리게, var(--sub));color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .dm2 .up2grp{border:1px solid var(--line2);border-radius:12px;overflow:hidden;margin-bottom:8px;} .dm2 .up2grp.acct{border-color:var(--line,#BEE3D5);}
+  .dm2 .up2ghd{padding:8px 12px;font-weight:800;font-size:12px;display:flex;align-items:baseline;gap:8px;}
+  .dm2 .up2grp.acct .up2ghd{background:var(--okb);color:var(--ok);} .dm2 .up2grp.srv .up2ghd{background:var(--todob);color:var(--sub);}
+  .dm2 .up2ghd .gs{margin-left:auto;font-weight:600;font-size:12px;color:var(--sub);}
+  .dm2 .up2row{display:grid;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;}
+  .dm2 .up2row.acct{grid-template-columns:168px 1fr 150px 210px;} .dm2 .up2row.srv{grid-template-columns:168px 1fr 320px;}
+  .dm2 .up2grp .up2row:first-of-type{border-top:none;}
+  .dm2 .up2row.hd{background:var(--bg);font-weight:800;font-size:12px;color:var(--sub);}
+  .dm2 .up2meas{font-size:12px;color:var(--sub);line-height:1.4;}
+  .dm2 .up2mk{display:inline-flex;align-items:center;gap:8px;font-weight:700;white-space:nowrap;}
+  .dm2 .up2dot{width:19px;height:19px;border-radius:8px;color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .dm2 .up2hr{font-variant-numeric:tabular-nums;font-weight:800;font-size:12px;} .dm2 .up2hr .u{font-size:12px;color: var(--글자-희미, var(--faint));font-weight:600;margin-left:0px;}
+  .dm2 .up2acci{width:46px;font-size:12px;font-weight:800;text-align:center;border:1.5px solid var(--line,#BEE3D5);border-radius:8px;padding:4px;font-family:inherit;color:var(--ok);}
+  .dm2 .up2fix{color: var(--글자-희미, var(--faint));font-weight:700;font-size:12px;}
+  .dm2 .up2tbl{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;overflow:hidden;font-size:12px;}
+  .dm2 .up2tbl th,.dm2 .up2tbl td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;word-break:keep-all;overflow-wrap:anywhere;}
+  .dm2 .up2tbl thead th{background:var(--bg);font-size:12px;font-weight:800;color:var(--sub);} .dm2 .up2tbl tbody tr:last-child td{border-bottom:none;}
+  .dm2 .up2warn{color: var(--글자-주황, var(--amber,#7a4f00));font-size:12px;}
+  .dm2 .up2flow{display:flex;gap:4px;flex-wrap:wrap;align-items:stretch;}
+  .dm2 .up2step{flex:1;min-width:74px;border:1px solid var(--line2);border-radius:8px;padding:8px 4px;text-align:center;background:var(--surface,#ffffff);} .dm2 .up2step.lock{background:var(--codeb);border-color:var(--연한-주황,#EACB8E);}
+  .dm2 .up2step .fi{font-size:14px;} .dm2 .up2step .fn{font-size:12px;font-weight:800;margin-top:0px;} .dm2 .up2step .fd{font-size:12px;color: var(--글자-희미, var(--faint));}
+  .dm2 .up2ar{display:flex;align-items:center;color: var(--글자-희미, var(--faint));font-weight:800;}
+  .dm2 .up2cav{background:var(--codeb);border:1px solid var(--연한-주황,#EACB8E);border-radius:8px;padding:8px 12px;font-size:12px;color: var(--글자-주황, var(--amber,#5b3d08));line-height:1.6;margin-top:8px;} .dm2 .up2cav b{color: var(--글자-주황, var(--amber,#7a4f00));}
+  /* 상단 탭 위상 구분: 프로그램 적용 그룹 vs 마켓 API 참고 */
+  .dm2 .toprow{align-items:center;}
+  .dm2 .grouplab{font-size:12px;font-weight:800;color: var(--글자-희미, var(--faint));letter-spacing:.02em;margin-right:4px;white-space:nowrap;}
+  .dm2 .grouplab.prog{color:var(--ok);}
+  .dm2 .progrow{background:var(--okb);border:1px solid var(--line,#BEE3D5);border-radius:12px;padding:8px 8px;margin-bottom:8px;}
+  .dm2 .progfoot{font-size:12px;color:var(--글자-기본,#3f8a72);margin-left:4px;white-space:nowrap;}
+  .dm2 .toptab.prog{border-color:var(--연한-초록,#9ed6c1);color:var(--ok);background:var(--surface,#ffffff);font-weight:800;}
+  .dm2 .toptab.prog.on{background:var(--ok);border-color:var(--ok);color:#fff;}
+  .dm2 .aplink{display:inline-flex;align-items:center;gap:4px;background:var(--okb);border:1px solid var(--line,#BEE3D5);border-radius:8px;padding:4px 12px;font-size:12px;color:var(--ok);font-weight:700;margin:8px 0 0px;}
+  .dm2 .aplink b{color: var(--글자-초록, var(--green,#0a5a45));}
+  /* 상단 탭 4그룹 · 좌측 세로 라벨(5번안) */
+  .dm2 .dmgrid{display:grid;grid-template-columns:118px 1fr;row-gap:8px;column-gap:16px;align-items:center;}
+  .dm2 .dmgl{font-size:12px;font-weight:800;color:var(--sub);text-align:right;white-space:nowrap;}
+  .dm2 .dmgl.acc{color:var(--ok);}
+  .dm2 .dmgtabs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+</style>
+
+<div class="dm2">
+  <h2><i class="ph-light ph-book-open" aria-hidden="true"></i> 데이터 코드 지도 — 판매처</h2>
+  <div class="sub">각 마켓의 <b>개발환경</b> + 프로그램과 주고받는 API를 <b>그 마켓 공식 문서의 카테고리 그대로</b> 왼쪽에 나열(네이버 9·롯데온 13). 색은 <b>상태</b>에만, 방향은 <b>보내기/받기</b> 위치로.</div>
+
+  <div class="flow">
+    <div class="fstep"><div class="fic"><i class="ph-light ph-folders" aria-hidden="true"></i>️</div><div class="fnm">프로그램</div><div class="fds">가격·재고</div></div>
+    <div class="ar">→</div>
+    <div class="fstep"><div class="fic"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i></div><div class="fnm">전송 대기</div><div class="fds">스냅샷</div></div>
+    <div class="ar">→</div>
+    <div class="fstep"><div class="fic"><i class="ph-light ph-plug" aria-hidden="true"></i></div><div class="fnm">판매처 API</div><div class="fds">스스 OAuth·쿠팡 HMAC</div></div>
+    <div class="ar">→</div>
+    <div class="fstep dim"><div class="fic"><i class="ph-light ph-shopping-cart" aria-hidden="true"></i></div><div class="fnm">마켓 반영</div><div class="fds">상품·재고 갱신</div></div>
+  </div>
+  <div class="branches">갈래 A · <b>신규 상품 등록</b>(모음전 상품을 마켓에 처음 올림) &nbsp;·&nbsp; 갈래 B · <b>기존 상품 연동</b>(이미 올라간 상품과 매칭 → 가격·재고만 동기화, 현재 우선 경로)</div>
+
+  <div class="toptabs" id="dm-toptabs"></div>
+  <div class="mktabs" id="dm-mktabs"></div>
+  <div class="legend"><span class="lg"><span class="dt ok"></span>씀(우리 코드로 연결)</span><span class="lg"><span class="dt code"></span>검증대기</span><span class="lg"><span class="dt off"></span>안 씀(마켓 문서에만)</span><span style="color: var(--글자-희미, var(--line2)">|</span><span class="lg"><span class="achip off">조회</span><span class="achip ok">등록</span><span class="achip code">수정</span><span class="achip del">삭제</span></span></div>
+  <div id="dm-body"></div>
+
+  <div class="foot">
+    <h3>코드 위치</h3>
+    <div class="cm"><div>업로드 실행·전송 플래그</div><div class="f">uploader/runtime.py</div></div>
+    <div class="cm"><div>마켓 정의·키 스키마</div><div class="f">accounts.py · MARKET_METADATA</div></div>
+    <div class="cm"><div>스마트스토어 인증·호출</div><div class="f">shared/platforms/smartstore/*</div></div>
+    <div class="cm"><div>쿠팡 인증·호출</div><div class="f">shared/platforms/coupang/*</div></div>
+    <div class="cm"><div>API 지도 데이터(단일 진실 원천)</div><div class="f">webapp/data/marketplace_api_map.json · /marketplace-guide/map-data.json</div></div>
+    <div class="cm"><div>구 마켓 프로파일(이관 중)</div><div class="f">docs/markets/*.yaml (쿠팡·스스 이관완료 / 롯데온·11번가·ESM 잔여)</div></div>
+    <div class="cm"><div>확장 기능 커넥터·마스터 게이트</div><div class="f">markets/capabilities.py · MOUM_MARKET_EXTRA</div></div>
+    <div class="cm"><div>새 마켓 추가 가이드</div><div class="f">docs/markets/_새-마켓-추가-가이드.md</div></div>
+    <div class="risk"><i class="ph-light ph-warning" aria-hidden="true"></i>️ <b>정직성</b> — 실전송 기본 OFF(<code>MOUM_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 폴백 금지. 상태 = <b>씀</b>(우리 코드로 연결됨 — 실사용 or <b>검증대기</b>) / <b>안 씀</b>(마켓 공식 문서엔 있으나 우리 코드 없음). 세부 동작은 <b>보내기</b>(등록·수정·삭제)/<b>받기</b>(조회) 위치와 색으로 구분.</div>
+    <div class="risk" style="background:var(--연한-파랑,#EEF4FF));border-color:var(--연한-파랑,#C7DBFF);color: var(--글자-파랑, var(--primary,#0C447C));"><i class="ph-light ph-books" aria-hidden="true"></i> <b>공식 API 카탈로그 채워가는 중</b> — 각 마켓 공식 문서(로그인 SPA라 자동 판독 불가)에서 <b>확인된 그룹부터</b> 넣는다. 현재 <b>정산</b> 그룹 반영 완료(네이버·롯데온). 남은 그룹은 문서 화면을 주시면 추가: <b>네이버</b> = 상품·주문/교환·문의·N배송·통계 · <b>롯데온</b> = 거래처·상품속성·상품·판촉·주문·클레임·고객센터·배송·전시·스마트픽·공통.</div>
+  </div>
+</div>
+
+<script>
+// ── Plan 2: 단일 진실 원천 데이터 로드 ──
+let DATA=null;               // {markets, apis, unifiedStatuses, transitions, codes}
+let MK_META={};              // id → market meta
+let MKT_CATS_D={};           // id → [{g, items:[api...]}]  (마켓별 전체 API용)
+let DM_NOTAB={};             // id → 업무탭 미배정 API 개수(조용한 뒤처짐 가드)
+const WORK_TABS=["상품 조회","상품 관리","정산","배송·송장","클레임·CS","주문상태"];
+
+function buildAdapters(){
+  MK_META={}; DATA.markets.forEach(m=>MK_META[m.id]=m);
+  MKT_CATS_D={};
+  DATA.markets.forEach(m=>MKT_CATS_D[m.id]=[]);
+  const byMkCat={};
+  DATA.apis.forEach(a=>{
+    a.code = a.codeRef || a.endpoint || '';   // 기존 dmRowLux 가 it.code 를 쓰므로 매핑(undefined 방지)
+    (byMkCat[a.market]=byMkCat[a.market]||{});
+    (byMkCat[a.market][a.category]=byMkCat[a.market][a.category]||[]).push(a);
+  });
+  for(const mk in byMkCat){
+    MKT_CATS_D[mk]=Object.keys(byMkCat[mk]).map(g=>({g, items:byMkCat[mk][g]}));
+  }
+  DM_NOTAB={}; DATA.markets.forEach(m=>DM_NOTAB[m.id]=0);
+  DATA.apis.forEach(a=>{ if(!(a.tabs||[]).length) DM_NOTAB[a.market]=(DM_NOTAB[a.market]||0)+1; });
+}
+async function loadData(){
+  try{
+    const r=await fetch('/marketplace-guide/map-data.json',{credentials:'same-origin'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    DATA=await r.json();
+    if(DATA.validation_errors && DATA.validation_errors.length)
+      console.warn('map-data 검증 오류', DATA.validation_errors);
+    buildAdapters();
+  }catch(e){
+    document.getElementById('dm-body').innerHTML=
+      `<div class="empty"><div class="big"></div>데이터를 불러오지 못했어요.<br><span style="font-size:12px;color:var(--faint)">${e.message}</span></div>`;
+    throw e;
+  }
+}
+const DM_LBL={ok:'씀',code:'검증대기',off:'안 씀',todo:'안 씀'};
+const DM_KEY='moum_datamap_starred';
+let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
+let DM_TOP='all', DM_MK=null, DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx', DM_HOW='routes';
+// 과거이력 필터 상태 — 빈 Set = 전체. (마켓·영역 각각 다중 토글)
+let INC_MK=new Set(), INC_AREA=new Set(), INC_OPEN=new Set();
+const dmMkbId=id=>{const lb=(MK_META[id]||{}).label||id;const cls=(INC_MKMETA[id]||{}).cls||'';return `<span class="mkbadge ${cls}">${lb}</span>`;};
+const dmVb=v=>v==='done'?'<span class="vb done">검증완료</span>':'<span class="vb wait">⏳ 검증대기</span>';
+const dmSt=s=>`<span class="st ${s}">${DM_LBL[s]}</span>`; const dmN=()=>dmStar.size;
+function dmSave(){try{localStorage.setItem(DM_KEY,JSON.stringify([...dmStar]));}catch(e){}}
+// 고급형 A — 항목의 세부 동작(등록/수정/삭제/조회) 자동 분류 + 씀 판정
+const DM_ACTC={조회:'off',등록:'ok',수정:'code',삭제:'del'};
+function dmActOf(it){if(it.dir==='recv')return '조회';const n=it.nm;if(/삭제|파기/.test(n))return '삭제';if(/생성|등록|업로드|추가|적용|발급|입고|반출/.test(n))return '등록';return '수정';}
+function dmUse(it){return it.st==='ok'||it.st==='code';} // 씀 = 우리 코드로 연결됨(실사용 or 검증대기)
+function dmRowLux(it){const use=dmUse(it),wait=it.st==='code';
+  return `<div class="litem${use?'':' off'}">`
+    +`<div class="lbd"><div class="lnm">${it.nm}${!(it.tabs||[]).length?'<span class="notabChip">탭없음</span>':''}</div><span class="lcode ${use?'use':'doc'}">${use?'':'문서 '}${it.code}</span></div>`
+    +`<span class="luse ${use?'on':'no'}"><span class="udot"></span>${use?'씀':'안 씀'}${wait?'<span class="wtag">검증대기</span>':''}</span></div>`;}
+function dmColLux(cls,head,sub,items){
+  const order=['등록','수정','삭제','조회'],by={};items.forEach(it=>{const a=dmActOf(it);(by[a]=by[a]||[]).push(it);});
+  let inner='';order.forEach(a=>{if(!by[a])return;inner+=`<div class="agrp"><span class="achip ${DM_ACTC[a]}">${a}</span><span class="an">${by[a].length}</span></div>`+by[a].map(dmRowLux).join('');});
+  if(!items.length)inner=`<div class="lempty">— 없음</div>`;
+  return `<div class="lcol ${cls}"><div class="lhead">${head}<small>${sub}</small></div>${inner}</div>`;}
+// ⚡ 주문상태 전환 — 실배선 현황 매트릭스(V1) + 확보 절차
+function dmIdChips(ids){return ids.split('·').map(s=>`<span class="idchip">${s.trim()}</span>`).join('');}
+// ② 세로 레일(주문상태 전환 하위 선택)
+function dmTransRail(){
+  const AC=DATA.autoConfirm||{markets:[]};
+  let h=`<div class="rt">주문상태 전환</div>`;
+  h+=`<button class="railbtn${DM_TSUB==='summary'?' on':''}" data-ts="summary">실배선 현황</button>`;
+  AC.markets.forEach(m=>{const lb=(MK_META[m.id]||{}).label||m.id;const d=m.v==='done'?'done':'wait';
+    h+=`<button class="railbtn${DM_TSUB===m.id?' on':''}" data-ts="${m.id}"><span>${lb}</span><span class="rdot ${d}"></span></button>`;});
+  return h;
+}
+// ── 📘 API 문서 수집법 (2026-07-17 접수경로 실측 연구 · B안: 왼쪽메뉴+히트맵+아코디언) ──
+// ★정본 = webapp/data/api_ingest_paths.json (하드코딩 금지 · 화면과 문서가 같은 원천에서 나온다)
+//   서빙 = /marketplace-guide/ingest-paths.json · 문서 = docs/markets/_API문서수집법.md(자동생성)
+let HW_ROUTES=[], HW_GRADES=[], HW_MX=[], HW_HIER=[], HW_PLAY=[], HW_SNIP=[], HW_TPL=[];
+let HW_DECIDE='', HW_HEAD='', HW_AT='', HW_LOADED=false;
+async function hwLoad(){
+ if(HW_LOADED) return true;
+ try{
+  const r=await fetch('/marketplace-guide/ingest-paths.json',{credentials:'same-origin'});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  HW_ROUTES=d.routes||[]; HW_GRADES=d.grades||[]; HW_MX=d.matrix||[];
+  HW_HIER=d.hier||[]; HW_PLAY=d.play||[]; HW_SNIP=d.snippet_rules||[]; HW_TPL=d.snippets||[];
+  HW_DECIDE=d.decide||''; HW_HEAD=d.headline||''; HW_AT=d.measured_at||'';
+  HW_LOADED=true; return true;
+ }catch(e){ console.error('[수집법] 정본 로드 실패', e); return false; }
+}
+// (HW_HIER · HW_PLAY 도 정본 JSON 에서 로드 — 위 hwLoad() 참조. 하드코딩 사본 없음)
+function hwGr(s){let h='';for(const ch of s){const gi={'①':'g1','②':'g2','③':'g3','④':'g4','⑤':'g5'}[ch];if(gi)h+=`<span class="grb ${gi}">${ch}</span>`;}return h;}
+function hwRoutes(){let h='<table class="cmp"><tr><th style="width:40px">코드</th><th style="width:150px">방법</th><th>강점</th><th>한계</th></tr>';
+ HW_ROUTES.forEach(r=>h+=`<tr><td class="c"><b class="cc">${r[0]}</b></td><td class="el">${r[1]}</td><td>${r[2]}</td><td style="color:var(--sub)">${r[3]}</td></tr>`);return h+'</table>';}
+function hwGrades(){let h='<div class="risk" style="margin:0 0 12px">신뢰도 = 산출물 품질. 운영핵심은 ①(라이브검증), 롱테일은 ②(공식문서 완전)로 접수. <b>⑤ 추정은 절대 금지.</b></div>';
+ h+='<table class="cmp"><tr><th style="width:46px">등급</th><th style="width:150px">뜻</th><th>기준</th></tr>';
+ HW_GRADES.forEach(r=>h+=`<tr><td class="c"><span class="grb ${r[3]}">${r[0]}</span></td><td class="el">${r[1]}</td><td>${r[2]}</td></tr>`);return h+'</table>';}
+function hwMatrix(){let h='<table class="hwmx"><tr><th style="text-align:left;padding-left:12px">마켓</th><th>A 자동읽기</th><th>C 실브라우저</th><th>D 코드</th><th>기타 E/F/H/I</th><th>채택 경로</th><th>접수</th><th>등급</th></tr>';
+ HW_MX.forEach(r=>{h+=`<tr><td class="mkt">${r[0]}</td>`;
+  [1,2,3,4].forEach(i=>h+=`<td><div class="hc ${r[i][0]}"><span class="lb">${r[i][1]}</span></div></td>`);
+  h+=`<td><div class="hc"><span class="best">${r[5]}</span></div></td><td><div class="hc"><b>${r[6]}</b></div></td><td><div class="hc">${hwGr(r[7])}</div></td></tr>`;});
+ return h+'</table><div class="hwleg"><span><span class="sw" style="background:var(--okb)"></span>뚫림</span><span><span class="sw" style="background:#FEF3C7"></span>부분</span><span><span class="sw" style="background:var(--연한-빨강,#FEE2E2)"></span>막힘</span><span style="color:var(--faint)">칸 안 = 상태 · 색 = 뚫린 정도 · 2026-07-17 실측</span></div>';}
+function hwHier(){let h='<div style="font-size:12px;color:var(--sub);margin-bottom:12px">마켓을 눌러 펼치면 <b>상위탭 › 카테고리 › 상세 탭</b> 전체 계층이 나옵니다.</div>';
+ HW_HIER.forEach((m,i)=>{h+=`<details class="hacc"${i===0?' open':''}><summary>${m.mk}<span class="hroute">${m.route}</span></summary><div class="hbody">`;
+  h+=`<b>상위탭</b> : ${m.top.map(t=>`<span class="hchip">${t}</span>`).join('')}<br>`;
+  h+=`<b>${m.catNote}</b><br>`;
+  h+=`<b>카테고리</b> : ${m.cats.map(c=>`${c[0]}${c[1]?` <span style="color:var(--faint)">(${c[1]})</span>`:''}`).join(' · ')}<br>`;
+  h+=`<b>상세 탭</b> : ${m.detail.map(d=>`<span class="hchip">${d}</span>`).join('')}`;
+  h+='</div></details>';});
+ return h;}
+function hwPlay(){let h='<div style="font-size:12px;color:var(--sub);margin-bottom:12px">새 마켓 문서를 접수할 때 <b>위에서부터</b> 시도. 뚫리면 그 자리에서 끝.</div><div class="hflow">';
+ HW_PLAY.forEach(s=>h+=`<div class="hstep"><div class="hn">${s[0]}</div><div class="hx">${s[1]} — <span style="color:var(--sub)">${s[2]}</span></div></div>`);
+ return h+`</div><div class="risk" style="margin-top:12px">${HW_DECIDE}</div>`;}
+function hwEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hwTpl(){
+ let h='<div class="risk" style="margin:0 0 12px"><b>쓰는 법</b> — ①<b>판별</b>부터 돌린다 → ②나온 유형의 템플릿을 복사해 <code>F12 › Console</code>에 붙여넣기(1회) → ③자동 다운로드된 JSON 파일을 Claude에게 준다. <b>페이지 순회·표 추출은 스니펫이 대신한다(반복 0).</b></div>';
+ HW_TPL.forEach((t,i)=>{
+  h+=`<details class="hacc"${i===0?' open':''}><summary>${t.title||''}</summary><div class="hbody">`;
+  if(t.when)  h+=`<b>언제</b> : ${t.when}<br>`;
+  if(t.reads) h+=`<b>근거·주의</b> : ${t.reads}<br>`;
+  h+=`<div style="margin-top:8px;position:relative">
+        <button class="tplcp" data-tpl="${i}" style="position:absolute;right:6px;top:6px;font-size:12px;padding:4px 8px;border:1px solid var(--ln);border-radius:8px;background:var(--surface,#ffffff);cursor:pointer">복사</button>
+        <pre style="background: var(--바탕-진하게, var(--ink,#0f172a));color: var(--글자-희미, var(--line2,#e2e8f0));padding:12px 12px;border-radius:8px;overflow:auto;max-height:340px;font-size:12px;line-height:1.5;margin:0"><code>${hwEsc(t.code)}</code></pre>
+      </div></div></details>`;
+ });
+ return h;
+}
+function hwSnip(){let h='<div class="risk" style="margin-top:0;margin-bottom:12px"><b>경로 I 표준 절차</b> — 로그인 게이트 마켓의 정답. 사용자는 <b>붙여넣기 1회</b>, 나머지는 전부 자동. (11번가 실증)</div>';
+ h+='<table class="cmp"><tr><th style="width:120px">항목</th><th>규칙</th></tr>';
+ HW_SNIP.forEach(r=>h+=`<tr><td class="el">${r[0]}</td><td>${r[1]}</td></tr>`);return h+'</table>';}
+function dmHowto(){
+ const head=`<div class="favhead"><span class="ft">API 문서 수집법</span><span class="fs">마켓 공식 API 문서를 어느 경로로 · 어떤 순서로 뚫는지 (F12 반복 노가다 종식용)</span></div>`;
+ // 정본(JSON) 지연 로드 — 아직이면 안내 후 로드되면 자동 재렌더 (조용한 실패 금지)
+ if(!HW_LOADED){
+  hwLoad().then(ok=>{ if(ok) dmRender();
+   else { const b=document.querySelector('.dm2 .md'); if(b) b.innerHTML='<div class="risk">수집법 정본(/marketplace-guide/ingest-paths.json)을 불러오지 못했습니다. 새로고침하거나 관리자에게 알려주세요.</div>'; } });
+  return head+`<div class="md"><div class="risk" style="margin:0">정본 불러오는 중…</div></div>`;
+ }
+ const MENU=[['routes','경로 도구 A~I'],['grades','신뢰도 등급'],['matrix','마켓×경로 매트릭스'],['hier','마켓별 전체 계층'],['play','플레이북(순서)'],['snip','I · 콘솔 스니펫 규칙'],['tpl','스니펫 템플릿(복붙)']];
+ const menu=`<div class="hwm">${MENU.map(m=>`<button class="${DM_HOW===m[0]?'on':''}" data-how="${m[0]}">${m[1]}</button>`).join('')}</div>`;
+ let pane;
+ if(DM_HOW==='routes')pane=hwRoutes();
+ else if(DM_HOW==='grades')pane=hwGrades();
+ else if(DM_HOW==='matrix')pane=hwMatrix();
+ else if(DM_HOW==='hier')pane=hwHier();
+ else if(DM_HOW==='snip')pane=hwSnip();
+ else if(DM_HOW==='tpl')pane=hwTpl();
+ else pane=hwPlay();
+ const lead=HW_HEAD?`<div class="risk" style="margin:0 0 12px"><b>${HW_HEAD}</b><span style="color:var(--faint)"> · 실측 ${HW_AT}</span></div>`:'';
+ return head+`<div class="md">${lead}<div class="hwm-wrap">${menu}</div><div>${pane}</div></div>`;
+}
+function dmTransSummary(){
+  const AC=DATA.autoConfirm||{markets:[],cautions:[]};
+  let h=`<div class="favhead"><span class="ft">주문상태 전환</span><span class="fs">결제완료 → 배송준비중 · 마켓별 실배선/검증 현황</span></div>`;
+  h+=`<div class="apih3" style="margin-top:0">실배선 현황</div>`;
+  h+=`<div class="wrapbox"><table class="cmp"><tr><th style="width:100px">마켓</th><th>전환 API</th><th style="width:172px">필요 식별자</th><th class="c" style="width:44px">배선</th><th class="c" style="width:86px">검증</th></tr>`;
+  AC.markets.forEach(m=>{h+=`<tr><td class="el">${dmMkbId(m.id)}</td><td class="url">${esc(m.api)}</td><td class="idcell">${dmIdChips(m.ids)}</td><td class="c"></td><td class="c">${dmVb(m.v)}</td></tr>`;});
+  h+=`</table></div>`;
+  if((AC.cautions||[]).length){
+    h+=`<div class="warnbox"><div class="wt">마켓별 주의</div>`;
+    // c.text = SOT(marketplace_api_map.json autoConfirm.cautions)의 의도적 raw HTML(<b> 강조) — esc 제외
+    AC.cautions.forEach(c=>{h+=`<div class="wr">${dmMkbId(c.id)}<span>${c.text}</span></div>`;});
+    h+=`</div>`;
+  }
+  return h;
+}
+function dmTransMarket(id){
+  const AC=DATA.autoConfirm||{markets:[],calls:{}};
+  const lb=(MK_META[id]||{}).label||id, c=(AC.calls||{})[id], t=(AC.markets||[]).filter(x=>x.id===id)[0];
+  if(!c)return `<div class="empty"><div class="big"></div>${lb} 전환 API 정보가 아직 없어요.</div>`;
+  let h=`<div class="favhead"><span class="ft">${lb} · 주문상태 전환</span><span class="fs">${esc(c.auth)}</span></div>`;
+  if(t)h+=`<div style="font-size:12px;margin-bottom:8px">배선 <b style="color:var(--ok)"></b> · 검증 ${dmVb(t.v)} · 식별자 <span class="ids2">${esc(t.ids)}</span></div>`;
+  h+=`<table class="cmp"><tr><th style="width:120px">용도</th><th>메서드 · URL</th><th style="width:120px">성공·비고</th></tr>`;
+  c.rows.forEach(r=>{const st=r[0][0]==='★';h+=`<tr><td class="el${st?' star':''}">${esc(r[0])}</td><td class="url">${esc(r[1])}</td><td class="g">${esc(r[2])}</td></tr>`;});
+  h+=`</table>`;
+  if(c.note)h+=`<div class="apinote">${esc(c.note)}</div>`;
+  return h;
+}
+function dmSettle(){
+  const SC=DATA.settleCalc;
+  if(!SC)return `<div class="empty"><div class="big"></div>정산 계산 데이터를 불러오지 못했어요.</div>`;
+  const STL_C={coupang:'#AE3FE0',smartstore:'#03C75A',lotteon:'#DA2128',eleven11:'#FF4800'};  // 표현색(데이터 아님)
+  const mks=SC.markets.map(m=>({id:m.id,g:m.g,api:m.api,nm:(MK_META[m.id]||{}).label||m.id,c:STL_C[m.id]||'#888'}));
+  const cell=(v)=>v.inc?`<span class="inc"><span class="cc">${v.inc}</span><span class="t">에 포함${v.n?' ('+v.n+')':''}</span></span>`:`<span class="cc">${v.c}</span>`;
+  const sub=`<div class="stlsub"><button class="${DM_STL==='mtx'?'on':''}" data-stl="mtx">항목×마켓 매트릭스</button>`
+           +`<button class="${DM_STL==='fml'?'on':''}" data-stl="fml">계산식 대입</button></div>`;
+  let bd;
+  if(DM_STL==='mtx'){
+    const head=`<tr><th style="text-align:left">항목</th>`+mks.map(m=>`<th><span class="mkc"><span class="lg" style="background:${m.c}">${m.g}</span>${m.nm}</span><br><span style="font-size:12px;color: var(--글자-희미, var(--faint));font-weight:600;font-family:var(--mono)">${m.api}</span></th>`).join('')+`</tr>`;
+    const rows=SC.rows.map(r=>`<tr><th>${r.item}<span class="op">${r.op}</span></th>`+r.cells.map(v=>`<td>${cell(v)}</td>`).join('')+`</tr>`).join('');
+    const tot=`<tr class="tot"><th>= 최종 정산액</th>`+SC.total.map(c=>`<td><span class="cc res">${c}</span></td>`).join('')+`</tr>`;
+    // SC.noteMtx = SOT(settleCalc)의 의도적 raw HTML(<span class="cc"> 칩) — esc 제외
+    bd=`<table class="stlmtx"><thead>${head}</thead><tbody>${rows}${tot}</tbody></table>`
+      +`<div class="stlnote">${SC.noteMtx}</div>`;
+  }else{
+    // SC.noteFml = SOT의 의도적 raw HTML — esc 제외
+    bd=`<div class="fml">`+SC.formulas.map(f=>{const mk=mks.filter(m=>m.id===f.id)[0]||{};
+      return `<div class="fr"><div class="frh"><span class="lg" style="background:${mk.c}">${mk.g}</span> ${mk.nm}</div><div class="fx">`
+      +f.tm.map(t=>(t.o?`<span class="fo"${t.o==='·'?' style="padding-top:16px"':''}>${t.o}</span>`:'')
+        +`<div class="tm${t.res?' res':''}${t.mi?' mi':''}"><span class="t">${t.t}</span>`
+        +(t.mi?`<span class="inc"><span class="t">→ ${t.mi}</span></span>`:`<span class="cc${t.res?' res':''}">${t.c}</span>`)+`</div>`).join('')
+      +`</div></div>`;}).join('')+`</div>`
+      +`<div class="stlnote">${SC.noteFml}</div>`;
+  }
+  return `<div class="favhead"><span class="ft">정산 계산 항목 — API 필드 코드</span><span class="fs">각 항목이 어느 API 필드에서 오는지. 별도 필드 없는 항목은 「~에 포함」으로 흡수처 표시.</span></div>`+sub+bd;
+}
+// 🧾 프로그램 주문조회 — 항목×마켓 코드 지도 (주문내역·마진계산기 단일원천). 인라인 데이터(정산탭과 동일 방식).
+const _PL_G={'쿠팡':'쿠','스마트스토어':'N','롯데온':'롯','11번가':'11','옥션·G마켓':'ES'};
+const _PL_MK=[['쿠','#AE3FE0','쿠팡'],['N','#03C75A','스마트스토어'],['롯','#DA2128','롯데온'],['11','#FF4800','11번가'],['ES','#1f6fd6','옥션·G마켓']];
+function _plCell(v){
+  if(typeof v==='string') v={c:v};
+  if(v.c==='—') return '<span style="color: var(--글자-희미, var(--line,#C5CBD3));font-weight:800">—</span>'+(v.chk?' <span class="chkb">확인</span>':'');
+  const cls=v.st==='d'?'cc pd':(v.st==='n'?'cc nn':'cc');
+  let s=`<span class="${cls}">${v.c}</span>`;
+  if(v.st==='d') s+='<span class="ptag">파생</span>';
+  if(v.chk) s+='<span class="chkb">확인</span>';
+  return s;
+}
+function _plTable(rows){
+  const head=`<tr><th style="text-align:left">항목</th>`+_PL_MK.map(m=>`<th><span class="mkc"><span class="lg" style="background:${m[1]}">${m[0]}</span>${m[2]}</span></th>`).join('')+`</tr>`;
+  const body=rows.map(r=>{const sh=r[1]?' class="sh"':'';const lbl=`${r[0]}${r[1]?'<span class="shb">공유</span>':''}`;
+    return `<tr${sh}><th>${lbl}</th>`+r[2].map(v=>`<td>${_plCell(v)}</td>`).join('')+`</tr>`;}).join('');
+  return `<div style="overflow-x:auto"><table class="stlmtx pl plm"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+function dmProgLookup(){
+  const ORD=[
+    ['오픈마켓 주문번호',1,['orderId','productOrderId','odNo','ordNo','OrderNo']],
+    ['주문일',1,['orderedAt','order.orderDate','odCmptDttm','ordDt','OrderDate']],
+    ['상품명',1,['sellerProductName','productName','spdNm','prdNm','GoodsName']],
+    ['옵션',1,['sellerProductItemName','productOption','sitmNm','slctPrdOptNm','ItemOptionSelectList']],
+    ['수량',1,['shippingCount','quantity','odQty','ordQty','ContrAmount']],
+    ['단가',1,['salesPrice.units','unitPrice','slPrc','selPrc','SalePrice']],
+    ['배송비',1,['shippingPrice.units','deliveryFeeAmount','dvCst','dlvCst·bmDlvCst','ShippingFee']],
+    ['실결제금액',0,['—','totalPaymentAmount','actualAmt','ordPayAmt','—']],
+    ['주문상태(통일)',1,['box.status','productOrderStatus','odPrgsStepCd','상태별 API','OrderStatus']],
+    ['구매자',1,['orderer.name','order.ordererName','odrNm','ordNm','BuyerName']],
+    ['구매자 연락처',1,['orderer.ordererNumber','order.ordererTel','mphnNo','ordPrtblTel',{c:'BuyerId',chk:1}]],
+    ['수령자',1,['receiver.name','shippingAddress.name','dvpCustNm','rcvrNm','ReceiverName']],
+    ['수령자 전화',1,['receiver.receiverNumber','shippingAddress.tel1','dvpMphnNo','rcvrPrtblNo','HpNo']],
+    ['주소',1,['receiver.addr1+addr2','baseAddress+detailedAddress','dvpStnmZipAddr(+상세)','rcvrBaseAddr(+상세)','DelFront+DelBackAddress']],
+    ['우편번호',1,['receiver.postCode','shippingAddress.zipCode','dvpZipNo','rcvrMailNo','ZipCode']],
+    ['배송메시지',1,['box.parcelPrintMessage','shippingMemo','dvMsg','ordDlvReqCont','DelMemo']],
+    ['송장번호',0,['invoiceNumber','delivery.trackingNumber','invcNo(진행단계140)','invcNo',{c:'—',chk:1}]],
+  ];
+  const STL=[
+    ['판매가·기준가',1,['saleAmount','paySettleAmount','slAmt','selPrcAmt','SellOrderPrice']],
+    ['판매수수료',0,['serviceFee(+VAT)','totalPayCommissionAmount',{c:'slAmt×0.13 계약율',st:'d'},'selFee','TotCommission']],
+    ['배송비(정산)',0,['deliveryFee.settlementAmount','settleExpectAmount(DELIVERY)','dvCst','selPrcAmt−deductAmt',{c:'SettlementPrice 흡수',st:'n'}]],
+    ['판매자 할인',0,[{c:'settlementAmount 흡수',st:'n'},{c:'기준가 반영',st:'n'},'sptDcPgmCmsnSum',{c:'deductAmt 흡수',st:'n'},{c:'흡수',st:'n'}]],
+    ['마켓부담 할인',0,['—','benefitSettleAmount','prSfcoShrAmtSum','—','—']],
+    ['정산예정금(최종)',1,['settlementAmount(+배송비)','settleExpectAmount','pymtTgtAmt·pymtAmt','selPrcAmt−deductAmt','SettlementPrice']],
+    ['정산확정 여부',1,['saleType+_settle_source','settleType+_settle_source',{c:'real·estimated',st:'d'},'settlementList·stlPlnAmt','Kind']],
+    ['정산예정일',0,['settlementDate','settleExpectDate',{c:'구매확정일',st:'d'},'pocnfrmDt','RemitDate']],
+  ];
+  const CALL=[
+    ['쿠팡','#AE3FE0','다중','7일(클레임)·주문 페이징','—','par','429 Retry-After 존중'],
+    ['스마트스토어','#03C75A','다중','변경분(last-changed)','—','seq','병렬 시 429 위험'],
+    ['롯데온','#DA2128','다중','주문번호(odNo) 단위','—','seq','IP 등록 필수'],
+    ['11번가','#FF4800','다중','주문 7일 · 정산 31일','3,000','seq','병렬 시 429 전체 다운'],
+    ['옥션·G마켓','#1f6fd6','다중','31일 윈도우','—','seq','SiteType 1·2 · 응답 공유'],
+  ];
+  const callHead=`<tr><th style="text-align:left">마켓</th><th>계정</th><th style="text-align:left">조회 창(윈도우)</th><th style="text-align:right">1회 상한</th><th>호출</th><th style="text-align:left">비고</th></tr>`;
+  const callBody=CALL.map(r=>`<tr><th><span class="mkc"><span class="lg" style="background:${r[1]}">${_PL_G[r[0]]}</span>${r[0]}</span></th>`
+    +`<td style="text-align:center">${r[2]}</td><td>${r[3]}</td>`
+    +`<td class="num">${r[4]}${r[4]!=='—'?'<span class="unit">건</span>':''}</td>`
+    +`<td style="text-align:center"><span class="pill ${r[5]}">${r[5]==='par'?'병렬':'순차'}</span></td>`
+    +`<td style="font-size:12px;color:var(--sub)">${r[6]}</td></tr>`).join('');
+  const callTable=`<div style="overflow-x:auto"><table class="stlmtx pl"><thead>${callHead}</thead><tbody>${callBody}</tbody></table></div>`;
+  return `<div class="favhead"><span class="ft">프로그램 주문조회 — 항목별 마켓 코드</span><span class="fs">한 줄 = 한 항목. 주문내역·마진계산기가 각 항목을 어느 API 필드에서 받는지 마켓별로. 신규 마켓은 빈 칸을 채우면 됩니다.</span></div>`
+    +`<div class="aplink">적용 화면 — <b>주문 내역</b> · <b>마진 계산기</b> (두 탭이 아래 항목을 같은 원천에서 받아옵니다)</div>`
+    +`<div class="plleg"><span><span class="sw" style="background:var(--line2,#eef2f7);border-color:var(--line,#dbe1e8)"></span>실제 API 필드</span><span><span class="sw" style="background:#FEF3C7"></span>파생(계산으로 만듦)</span><span><span class="sw" style="background:var(--line2,#F1F3F5)"></span>미매핑·흡수</span><span><span class="shb" style="margin:0">공유</span> 주문내역·마진계산기 같은 원천</span></div>`
+    +`<details class="hacc" open><summary>주문조회 <span class="hroute">${ORD.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(ORD)}</div></details>`
+    +`<details class="hacc" open><summary>정산·마진 <span class="hroute">${STL.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(STL)}<div class="stlnote"><b>공유</b> = 주문내역·마진계산기 모두 <span class="cc">order_export.combined_order_rows</span> 단일 원천. 마진계산기는 그 위에 <b>롯데온 실결제→정산 환산</b>·<b>미정산분 추정계수</b>(롯데온 0.947/0.884·11번가 0.964/0.869)만 덧붙입니다.</div></div></details>`
+    +`<details class="hacc" open><summary>마켓별 1년치 주문조회 전략 <span class="hroute">저장분 vs 백필 · 과거회수 실측</span></summary><div class="hbody" style="color:var(--ink)">${_plQueryStrategy()}</div></details>`;
+}
+function _plQueryStrategy(){
+  // 마켓별 1년치 주문조회(백필) 방식 — 값은 코드 실측(2026-07-25). 순서 = 사이트 CALL 표와 동일.
+  const M=[
+    {k:'쿠',nm:'쿠팡',c:'#AE3FE0',win:'7일(백필 축소)',split:'상태 5개',wins:'~53',rate:'초당 5번',par:'병렬 2',pg:'50건/쪽',per:'~0.4초',
+     mp:'약 4개월',mps:'2026-03월~ · 이전 API 복구불가',mpred:1,
+     how:'원래 31일 되지만 옛 구간이 100초를 넘겨 통째로 날아가서 백필은 7일로 줄임. 계정별 제한이라 2계정 동시.',trap:'발주서 API가 최근 ~4개월만 돌려줌(창고엔 2025-09부터 있지만 이전은 라이브 재조회 0건) → 그 이전은 이미 저장된 것만 존재',fix:'백필 7일씩·상태 5개 다·2계정'},
+    {k:'스',nm:'스마트스토어',c:'#03C75A',win:'24시간(1일)',split:'단일',wins:'~365',rate:'초당 5번',par:'순차',pg:'300건/쪽',per:'~0.2초',
+     mp:'약 5개월',mps:'2026-02월~ · 이전 API 복구불가',mpred:1,
+     how:'하루씩만 물을 수 있어 1년이면 365번. 우리 서버 IP로 제한이 걸려 계정을 동시에 못 돌린다.',trap:'변경주문 API가 최근 ~5개월만 돌려줌(창고엔 2025-12부터 있지만 이전은 라이브 0건) · 2일치 물으면 에러(400)',fix:'하루씩·계정 하나씩 순서대로'},
+    {k:'롯',nm:'롯데온',c:'#DA2128',win:'29일(정산API)',split:'단일',wins:'~13',rate:'초당 50번',par:'병렬 3',pg:'100건/쪽',per:'~0.1초',
+     mp:'전 이력',mps:'판매시작(~2025-08)까지 회수',
+     how:'백필은 정산용 API로 29일씩 → 13번이면 끝(주문 API는 하루씩이라 이걸 씀). 계정별 제한이라 3계정 동시.',trap:'주문 API는 1일 초과 시 에러(2003)',fix:'백필은 29일 정산 API·계정 동시'},
+    {k:'11',nm:'11번가',c:'#FF4800',win:'7일',split:'주문5+클레임4',wins:'~53',rate:'초당 5번',par:'순차',pg:'창당 대량',per:'~0.2초',
+     mp:'주문API 불가',mps:'과거는 정산 API로만',mpred:1,
+     how:'7일씩 53번. IP 제한이라 계정 하나씩.',trap:'7일 초과 시 에러도 없이 「0건」 → 주문이 조용히 사라진다 · 주문 API는 현재 상태 기준이라 옛 날짜 조회 불가(과거는 정산 settlementList로만)',fix:'딱 7일씩·계정 순서대로'},
+    {k:'옥',nm:'옥션',c:'#1f6fd6',win:'90일(백필 축소)',split:'상태 5개',wins:'~5',rate:'주문 5초에 1번',par:'계정별 병렬',pg:'100건/쪽',per:'~5초',slow:1,
+     mp:'전 이력',mps:'판매시작(~2025-08)까지 회수',
+     how:'원래 180일이라 5번이면 되지만 181일부터 막혀 백필은 90일. 5초에 1번이라 느림·계정 동시.',trap:'181일 넘기면 막힘(3000)',fix:'90일씩·계정 동시'},
+    {k:'G',nm:'G마켓',c:'#1f6fd6',win:'31일',split:'상태 5개',wins:'~12',rate:'주문 5초에 1번',par:'계정별 병렬',pg:'100건/쪽',per:'~5초',slow:1,
+     mp:'전 이력',mps:'판매시작(~2025-08)까지 회수',
+     how:'31일씩 12번. 주문조회가 5초에 1번이라 느리지만 계정별 제한이라 계정 동시로 벌충.',trap:'같은 계정 5초 안에 또 부르면 실패',fix:'계정 동시·창 사이 5초 간격'}
+  ];
+  const V='var(--ink)',SUB='var(--sub)',OKB='var(--okb)',OK='var(--ok)',DEL='var(--del)',DELB='var(--delb)',STAR='var(--star)',WARNB='#FEF3E2',LINE='var(--line)',BG='var(--bg)';
+  const lg=m=>`<span class="mkc" style="justify-content:center"><span class="lg" style="background:${m.c}">${m.k}</span>${m.nm}</span>`;
+  const parP=m=>`<span class="pill ${m.par.indexOf('순차')>=0?'seq':'par'}">${m.par}</span>`;
+  const rateP=m=>m.slow?`<span class="pill" style="background:${WARNB};color:${STAR};font-weight:800;border-radius:18px;padding:0px 8px">${m.rate}</span>`:m.rate;
+  const th=`<th style="text-align:left;width:120px;background:var(--n100,#fcfdfe)">항목</th>`+M.map(m=>`<th style="background:${BG};text-align:center">${lg(m)}</th>`).join('');
+  const rowh=t=>`<th style="text-align:left;background:var(--n100,#fcfdfe);font-weight:700;white-space:nowrap">${t}</th>`;
+  const cell=(v,cls)=>`<td style="text-align:center${cls||''}">${v}</td>`;
+  // 위상 밴드 라벨 행(가로선 = 위상 구분)
+  const band=(t,d)=>`<tr><th colspan="${M.length+1}" style="text-align:left;background:${BG};border-top:2px solid ${V};color:${V};font-weight:800;font-size:12px;padding:8px 8px">${t}<span style="color:${SUB};font-weight:600;margin-left:8px">${d}</span></th></tr>`;
+  const R=(t,f,opt)=>`<tr>${rowh(t)}`+M.map(m=>{let v=(typeof f==='function')?f(m):m[f];return cell(v,(opt==='num')?';text-align:right;font-variant-numeric:tabular-nums;font-weight:700':'');}).join('')+`</tr>`;
+  const perRow=`<tr>`+`<th style="text-align:left;background:${OKB};color:${OK};font-weight:800;white-space:nowrap">100건당 예상</th>`+M.map(m=>`<td style="text-align:center;background:${OKB};color:${OK};font-weight:800">${m.per}</td>`).join('')+`</tr>`;
+  const mtx=`<div style="overflow-x:auto"><table class="stlmtx" style="width:100%;font-size:12px">`
+    +`<thead><tr>${th}</tr></thead><tbody>`
+    +band('① 한 번에 얼마나 · 어디까지','조회창·분할·창수·최대 과거(실측)')
+    +R('1콜 조회창','win')+R('창당 분할','split')+R('1년 창 수','wins','num')
+    +R('라이브 과거 회수(실측)',m=>`<b style="color:${m.mpred?DEL:OK}">${m.mp}</b><span style="display:block;font-size:12px;color:${SUB};font-weight:600;white-space:normal;line-height:1.3">${m.mps}</span>`)
+    +band('② 얼마나 빨리','속도·병렬·페이징·100건당')
+    +R('조회 속도',rateP)+R('계정 병렬',parP)+R('페이징','pg')+perRow
+    +`</tbody></table></div>`;
+  // 저장분 vs 백필 개념 + 최대 3년
+  const concept=`<div style="display:flex;gap:12px;margin:0px 0 16px;flex-wrap:wrap">`
+    +`<div style="flex:1;min-width:240px;border:1px solid var(--연한-파랑,#c9ddfb);background:var(--offb);border-radius:12px;padding:12px 16px"><div style="font-size:14px;font-weight:800;color:var(--off);margin-bottom:4px">저장분(창고) — 자동</div><div style="font-size:12px;color:var(--글자-기본,#4b5563);line-height:1.6">프로그램이 <b style="color:${V}">20분마다</b> 마켓에서 최근 주문을 받아 창고에 쌓아둬요. 마진 분석은 이 창고만 읽어 <b style="color:${V}">몇 초</b>면 끝. 단, <b style="color:${V}">최근 것만</b> 있어요.</div></div>`
+    +`<div style="flex:1;min-width:240px;border:1px solid var(--연한-주황,#f3ddb4);background:${WARNB};border-radius:12px;padding:12px 16px"><div style="font-size:14px;font-weight:800;color:${STAR};margin-bottom:4px">⏳ 백필(과거 채우기) — 한 번 수동</div><div style="font-size:12px;color:var(--글자-기본,#4b5563);line-height:1.6">창고에 없는 <b style="color:${V}">과거 1년치</b>를 마켓에서 통째로 끌어와 채우는 것. 마켓 API를 수십~수백 번 불러 <b style="color:${V}">오래 걸려요</b>. 프로그램은 <b style="color:${V}">최대 3년(1,095일)</b>까지 요청하지만, <b style="color:${DEL}">실제 회수는 마켓 API 보존한도에 막혀요</b>.</div></div>`
+    +`</div>`
+    +`<div style="border:1px solid var(--연한-주황,#f3ddb4);background:${WARNB};border-radius:12px;padding:12px 16px;margin:0 0 16px"><div style="font-size:12px;font-weight:800;color:${DEL};margin-bottom:4px">실측: 마켓 API가 돌려주는 과거는 마켓마다 다르다 (2026-07-25 라이브 실측)</div><div style="font-size:12px;color:var(--글자-기본,#4b5563);line-height:1.65">·<b style="color:${OK}">옥션·G마켓·롯데온</b> = 우리 판매 시작(~2025-08)까지 전부 회수 가능(정산·주문일 기준 API 장기 보존).<br>·<b style="color:${DEL}">쿠팡(~최근 4개월)·스마트스토어(~최근 5개월)</b> = 그 이전은 마켓 API가 <b style="color:${DEL}">0건</b>으로 돌려줌 → <b style="color:${V}">이미 창고에 저장된 것만</b> 존재하고, 전수 재백필해도 복구 안 됨.<br>·<b style="color:${STAR}">11번가</b> = 주문 API는 현재 상태 기준이라 과거 조회 불가 → 과거는 정산(settlementList)로만.<br><span style="color:${SUB}">※ 쿠팡·스스 보존한도는 오늘 기준 상대 구간이라 시간이 지나면 함께 밀립니다.</span></div></div>`;
+  // 마켓별 대응
+  const mtbl=`<div style="overflow-x:auto;margin-top:4px"><table class="stlmtx" style="width:100%;font-size:12px">`
+    +`<thead><tr><th style="text-align:left;width:150px;background:${BG}">마켓</th><th style="text-align:left;background:${BG}">어떻게 조회하나</th><th style="text-align:left;width:210px;background:${BG}">함정</th><th style="text-align:left;width:200px;background:${BG}">우리가 이렇게</th></tr></thead><tbody>`
+    +M.map(m=>`<tr><th style="text-align:left;background:var(--n100,#fcfdfe)">${lg(m)}</th><td style="text-align:left;line-height:1.55">${m.how}</td><td style="text-align:left;line-height:1.55;color:${DEL}">${m.trap}</td><td style="text-align:left;line-height:1.55">${m.fix}</td></tr>`).join('')
+    +`</tbody></table></div>`;
+  // 쉬운 5줄
+  const EASY=[
+    '<b>마켓마다 「한 번에 며칠씩」 물어볼 수 있는지 다르다.</b> 스스·롯데온은 하루씩(느림), 옥션은 180일씩(빠름). <span style="color:'+DEL+';font-weight:700">11번가는 7일 넘게 물으면 에러도 없이 「0건」</span>이라 주문이 사라지니 딱 7일씩.',
+    '<b>무작정 크게 물으면 오히려 손해.</b> 한 번에 너무 많이 물으면 마켓이 100초 안에 답을 못 줘서 그 구간이 통째로 날아간다. 그래서 쿠팡·옥션은 백필 때 창을 <span style="color:'+DEL+';font-weight:700">일부러 줄인다</span>.',
+    '<b>계정 여러 개 동시 vs 하나씩.</b> 롯데온·쿠팡·옥션·G마켓은 계정마다 제한이 따로라 <b>동시</b>로 빨리. 스마트스토어·11번가는 우리 서버 IP 하나로 제한이라 동시에 쏘면 막혀(429) <span style="color:'+DEL+';font-weight:700">하나씩 순서대로</span>.',
+    '<b>조회 속도가 다르다.</b> 롯데온이 제일 빠르고(초당 50번), <span style="color:'+DEL+';font-weight:700">옥션·G마켓은 주문조회만 「5초에 1번」</span>이라 제일 느리다.',
+    '<b>그래서 100건 받는 데 걸리는 시간이 이만큼 다르다.</b> 롯데온 ~0.1초 · 스스·11번가 ~0.2초 · 쿠팡 ~0.4초 · <span style="color:'+DEL+';font-weight:700">옥션·G마켓 ~5초</span> (표 맨 아래).'
+  ];
+  const easy=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">`+EASY.map((t,i)=>`<div style="display:flex;gap:12px;align-items:flex-start;font-size:12px;line-height:1.6"><span style="width:23px;height:23px;border-radius:8px;background:${V};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:0px">${i+1}</span><span style="color:var(--ink,#374151)">${t}</span></div>`).join('')+`</div>`;
+  const sec=t=>`<div style="font-size:14px;font-weight:800;color:${V};margin:16px 0 8px;border-top:2px solid var(--line2);padding-top:12px">${t}</div>`;
+  return concept+mtx
+    +sec('마켓별 — 이렇게 다르고, 이렇게 한다')+mtbl
+    +sec('쉽게 5줄')+easy;
+}
+function dmMkList(){return DATA.markets.map(m=>m.id);}
+function esc(v){return (typeof v==='string'?v:JSON.stringify(v,null,2)).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function dmWorkTab(tab){
+  const list=DATA.apis.filter(a=>(a.tabs||[]).includes(tab));
+  // fnKey 로 묶기(대표 nm/dir = 첫 항목)
+  const byFn={}; list.forEach(a=>{(byFn[a.fnKey]=byFn[a.fnKey]||[]).push(a);});
+  const mks=dmMkList();
+  let h=`<div class="favhead"><span class="ft">${tab}</span><span class="fs">기능별로 마켓이 주는지(칩=실제 API 이름·색=상태) / 칸을 누르면 아래에 실제 요청·응답이 펼쳐집니다</span></div>`;
+  // 2단 헤더: 기능(행 라벨, 세로병합) + 「마켓별 지원」 그룹 밴드 / 아래 각 마켓(브랜드 색점)
+  const mkDot=id=>(INC_MKMETA[id]&&INC_MKMETA[id].dot)||'#98A2B3';
+  h+=`<table class="wtbl"><thead>`
+    +`<tr><th class="fn" rowspan="2">기능</th><th class="grp" colspan="${mks.length}">마켓별 지원 · 실제 API 이름</th></tr>`
+    +`<tr>`+mks.map(id=>`<th class="mk"><span class="mkd" style="background:${mkDot(id)}"></span>${MK_META[id].label}</th>`).join('')+`</tr>`
+    +`</thead><tbody>`;
+  Object.keys(byFn).forEach(fn=>{
+    const rep=byFn[fn][0];
+    let cells='';
+    mks.forEach(id=>{
+      const a=byFn[fn].find(x=>x.market===id);
+      if(!a){ cells+=`<td class="mk"><span class="wnone">–</span></td>`; }
+      else{ const short=(a.endpoint||a.id).split(' ').pop().split('/').slice(-2).join('/');
+        cells+=`<td class="mk"><span class="wchip ${a.st}" data-id="${a.id}" title="${esc(short)}">${esc(short)}</span></td>`; }
+    });
+    const dcls=rep.dir==='recv'?'recv':'send', dlbl=rep.dir==='recv'?'받기':'보내기';
+    h+=`<tr class="wrow" data-fn="${fn}"><td class="fn"><div class="fncell"><span class="dir ${dcls}">${dlbl}</span><span class="fnnm">${esc(rep.nm)}</span></div></td>${cells}</tr>`;
+  });
+  h+=`</tbody></table>`;
+  return h;
+}
+function dmApiDetail(a){
+  const hasReq=a.req&&(typeof a.req!=='object'||Object.keys(a.req).length);
+  const hasRes=a.res&&(typeof a.res!=='object'||Object.keys(a.res).length);
+  if(!hasReq&&!hasRes&&!(a.fields&&a.fields.length)){
+    return `<div class="wd"><div class="todo">아직 실제 요청/응답이 안 채워졌어요. (상태: ${DM_LBL[a.st]||a.st}) — 이 마켓 API 문서를 주시면 채웁니다.</div></div>`;
+  }
+  let f='';
+  (a.fields||[]).forEach(x=>f+=`<tr><td class="key">${x.key}</td><td>${x.meaning}</td><td class="key">${esc(x.example)}</td></tr>`);
+  return `<div class="wd">
+    <div class="k">실제 요청</div><pre>${a.endpoint||''}\n${esc(a.req)}</pre>
+    <div class="k">실제 응답</div><pre>${esc(a.res)}</pre>
+    ${f?`<div class="k">응답 필드 뜻</div><table class="f"><thead><tr><th>키</th><th>뜻</th><th>예시</th></tr></thead><tbody>${f}</tbody></table>`:''}
+    <div class="succ"><b>성공 판정</b> — ${a.success||'—'}</div>
+  </div>`;
+}
+function bindWorkRows(){
+  document.querySelectorAll('.dm2 .wchip[data-id]').forEach(ch=>ch.onclick=(e)=>{
+    e.stopPropagation();
+    const a=DATA.apis.find(x=>x.id===ch.dataset.id);
+    const tr=ch.closest('tr');
+    const nxt=tr.nextElementSibling;
+    if(nxt&&nxt.classList.contains('wdetail')){ nxt.remove(); if(nxt.dataset.id===a.id) return; }
+    document.querySelectorAll('.dm2 .wdetail').forEach(x=>x.remove());
+    const colspan=DATA.markets.length+1;
+    const drow=document.createElement('tr'); drow.className='wdetail'; drow.dataset.id=a.id;
+    drow.innerHTML=`<td colspan="${colspan}">${dmApiDetail(a)}</td>`;
+    tr.after(drow);
+  });
+}
+// ── 🚀 업로드 속도·제한 렌더 ──
+// ⬆️ 마켓별 업로드 — 속도(실측·계정별 행입력)·엔드포인트·payload·프로세스. 속도=DATA.markets[].upload_limit(실측), API세부=_UPX
+const _UPX={
+ coupang:{c:'#AE3FE0',g:'쿠',perAcct:6,live:'ok',pep:'PUT vendor-items/{id}/prices/{price}',sep:'PUT vendor-items/{id}/quantities/{qty}',auth:'HMAC-SHA256 (CEA)',unit:'옵션 단건 · 1옵션=2콜',pay:'vendorItemId별 가격·수량',guard:'0원 금지 · 10원 단위 · 변경률 −50~+100% 초과 시 수동검토'},
+ smartstore:{c:'#03C75A',g:'N',perAcct:1.25,live:'ok',pep:'PUT origin-products/{no} · 상품 전체 재PUT',sep:'동일 EP (전체 PUT)',auth:'OAuth2 + bcrypt → Bearer',unit:'상품 전체 재PUT · 1 GET + 1 PUT',pay:'salePrice · optionCombinations[].stockQuantity',guard:'0원 abort · 부분수정 거부(전체 필요)'},
+ lotteon:{c:'#DA2128',g:'롯',live:'ok',pep:'POST item/price/change · itmPrcLst[]',sep:'POST item/stock/change · itmStkLst[]',auth:'정적 인증키 Bearer + IP 등록',unit:'옵션 단건(배치 가능·미활용)',pay:'spdNo·sitmNo별 가격·재고',guard:'재고 ≥ 0'},
+ eleven11:{c:'#FF4800',g:'11',live:'wait',pep:'GET price/{prdNo}/{selPrc} · 상품 단위',sep:'PUT stockqty/{prdStckNo}',auth:'openapikey + IP 등록 · XML(euc-kr)',unit:'재고번호 단건 · 상품 단위 가격',pay:'selPrc · colCount(0=품절)',guard:'재고 ≥ 0 · colCount 필수 · 단건 재고변경 차단'},
+ auction:{c:'#1f6fd6',g:'옥',live:'wait',pep:'PUT goods/{no}/price · 대표가',sep:'PUT goods/{no}/recommended-options · 옵션 전체 replace',auth:'ESM 2.0 JWT (HmacSHA256)',unit:'옵션 full-replace · 실경로 상품당 ≈0.68건/s',pay:'대표가 · 옵션 details[] 전체',guard:'재고 ≥ 0'},
+ gmarket:{c:'#1f6fd6',g:'G',live:'wait',pep:'PUT goods/{no}/price · 대표가',sep:'PUT goods/{no}/recommended-options · 옵션 전체 replace',auth:'ESM 2.0 JWT (HmacSHA256)',unit:'옵션 full-replace · 실경로 상품당 ≈0.68건/s',pay:'대표가 · 옵션 details[] 전체',guard:'재고 ≥ 0'},
+};
+function recOne(inp){var n=Math.max(1,parseInt(inp.value||'1',10));var t=document.getElementById(inp.dataset.t);if(!t)return;var r=parseFloat(inp.dataset.rate);var ps=Math.round(r*n*10)/10, ph=Math.round(r*n*3600), pd=Math.round(r*n*86400);t.innerHTML='≈'+ps.toLocaleString()+'<span class="u">건/s</span> · ≈'+ph.toLocaleString()+'<span class="u">개/시간</span> · ≈'+pd.toLocaleString()+'<span class="u">개/일</span>';}
+function dmSpeed(){
+ const list=(DATA.markets||[]).filter(m=>m.upload_limit && _UPX[m.id]);
+ const A=list.filter(m=>m.upload_limit.scope_kind==='account'), S=list.filter(m=>m.upload_limit.scope_kind!=='account');
+ const mkc=m=>`<span class="up2mk"><span class="up2dot" style="background:${_UPX[m.id].c}">${_UPX[m.id].g}</span>${esc(m.label)}</span>`;
+ const live=m=>_UPX[m.id].live==='ok'?`<span class="st ok">검증완료</span>`:`<span class="st code">미검증</span>`;
+ const acci=m=>`<span style="font-size:12px;color:var(--sub);white-space:nowrap">계정 <input class="up2acci" type="number" min="1" max="20" value="1" data-t="uphr-${m.id}" data-rate="${_UPX[m.id].perAcct}" oninput="recOne(this)">개</span>`;
+ const hrs=m=>{var r=_UPX[m.id].perAcct;return `<span class="up2hr" id="uphr-${m.id}">≈${r}<span class="u">건/s</span> · ≈${Math.round(r*3600).toLocaleString()}<span class="u">개/시간</span> · ≈${Math.round(r*86400).toLocaleString()}<span class="u">개/일</span></span>`;};
+ const arow=m=>`<div class="up2row acct"><div>${mkc(m)}</div><div class="up2meas">${esc(m.upload_limit.measured||'')}</div><div>${acci(m)}</div><div style="text-align:right">${hrs(m)}</div></div>`;
+ const srow=m=>`<div class="up2row srv"><div>${mkc(m)}</div><div class="up2meas">${esc(m.upload_limit.measured||'')}</div><div style="text-align:right"><span class="up2hr" style="color:var(--sub)">${esc(m.upload_limit.current_setting||'')}</span> <span class="up2fix">계정 무관·서버천장</span></div></div>`;
+ const speed=`<div class="up2grp acct"><div class="up2ghd">▲ 계정 늘리면 빨라짐<span class="gs">계정별 확정 · 행마다 계정 수 입력(현재 설정 기준)</span></div>`
+   +`<div class="up2row hd acct"><div>마켓</div><div>실측 성공속도</div><div>계정 수</div><div style="text-align:right">처리량</div></div>${A.map(arow).join('')}</div>`
+   +`<div class="up2grp srv"><div class="up2ghd">— 서버 천장 (계정 늘려도 우리 서버가 병목·마켓 한도 미측정)<span class="gs">공유/전역</span></div>`
+   +`<div class="up2row hd srv"><div>마켓</div><div>실측 성공속도</div><div style="text-align:right">현재 실효(설정)</div></div>${S.map(srow).join('')}</div>`
+   +`<div class="up2cav"><b>측정법</b> — 동시호출로 밀어 <b>429(거절) 지점</b>을 찾음. 429가 안 나면 「한도 없음」이 아니라 「우리 서버(2코어)로는 측정 불가」. <b>계정별(쿠팡·스스)</b>은 계정 늘리면 총량 증가 → 한도는 「계정당」으로. 계정 입력값은 <b>현재 설정(안전마진) 기준 이론치</b>. 실측일 2026-07-21~22 · 무변화 프로브 · 재고 손상 0.</div>`;
+ const ep=`<table class="up2tbl"><thead><tr><th>마켓</th><th>가격 EP</th><th>재고 EP</th><th>인증</th><th>전송 단위</th></tr></thead><tbody>`+list.map(m=>{var x=_UPX[m.id];return `<tr><td>${mkc(m)}</td><td><span class="cc">${x.pep}</span></td><td><span class="cc">${x.sep}</span></td><td style="color:var(--sub)">${x.auth}</td><td style="color:var(--sub)">${x.unit}</td></tr>`;}).join('')+`</tbody></table>`;
+ const pg=`<table class="up2tbl"><thead><tr><th>마켓</th><th>보내는 값</th><th>안전 가드</th><th style="text-align:center">라이브</th></tr></thead><tbody>`+list.map(m=>{var x=_UPX[m.id];return `<tr><td>${mkc(m)}</td><td style="color:var(--sub)">${x.pay}</td><td class="up2warn">${x.guard}</td><td style="text-align:center">${live(m)}</td></tr>`;}).join('')+`</tbody></table>`;
+ const steps=[['🕷️','크롤','가격·재고'],['🧮','가격 결정','마켓별'],['📦','포매팅','전송대기'],['🔒','2중 잠금','서버키+화면키'],['🔍','변동감지','토글'],['⬆️','전송','옵션별 페이싱'],['✅','성공/DLQ','등록·재시도']];
+ const flow=`<div class="up2flow">`+steps.map((s,i)=>`<div class="up2step${s[0]==='🔒'?' lock':''}"><div class="fi">${s[0]}</div><div class="fn">${s[1]}</div><div class="fd">${s[2]}</div></div>`+(i<steps.length-1?`<div class="up2ar">→</div>`:'')).join('')+`</div>`;
+ const sec=(n,t,b)=>`<div class="up2sec"><div class="up2h"><span class="no">${n}</span>${t}</div>${b}</div>`;
+ return `<div class="favhead"><span class="ft">마켓별 업로드</span><span class="fs">가격·재고 실전송 속도(실측)·엔드포인트·payload·프로세스. 계정 수 입력은 계정별 확정 마켓(쿠팡·스스)만.</span></div>`
+   +`<div class="aplink">적용 화면 — <b>자동화 실전송</b> · <b>대량등록</b> (가격·재고 쓰기가 실제 이 경로로 나갑니다)</div>`
+   +sec(1,'속도 — 실측 기준 · 계정별만 계정 수 입력', speed)
+   +`<hr class="up2div">`+sec(2,'엔드포인트 — 실제 호출 주소', ep)
+   +`<hr class="up2div">`+sec(3,'보내는 값 · 안전 가드', pg)
+   +`<hr class="up2div">`+sec(4,'업로드 프로세스', flow);
+}
+// ── 🗂️ 과거이력 렌더 ──
+const INC_MKMETA={coupang:{cls:'cp',dot:'#B91C1C'},smartstore:{cls:'ss',dot:'#15803D'},lotteon:{cls:'lo',dot:'#6D28D9'},eleven11:{cls:'e11',dot:'#92400E'}};
+function incMkBadge(id){
+  const lb=(MK_META[id]||{}).label||id; const m=INC_MKMETA[id];
+  return m&&m.cls ? `<span class="mkbadge ${m.cls}">${lb}</span>`
+                  : `<span class="mkbadge" style="background:var(--todob);color:var(--todo)">${lb}</span>`;
+}
+function incSev(s){const m={high:['high','높음'],med:['med','보통'],low:['low','낮음']}[s]||['low',s||'—'];return `<span class="sevb ${m[0]}">${m[1]}</span>`;}
+function dmIncidents(){
+  const list=(DATA.incidents||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const mkSet=[],arSet=[];
+  list.forEach(i=>{(i.markets||[]).forEach(m=>{if(mkSet.indexOf(m)<0)mkSet.push(m);});if(i.area&&arSet.indexOf(i.area)<0)arSet.push(i.area);});
+  const shown=list.filter(i=>{
+    const mkOk=INC_MK.size===0||(i.markets||[]).some(m=>INC_MK.has(m));
+    const arOk=INC_AREA.size===0||INC_AREA.has(i.area);
+    return mkOk&&arOk;
+  });
+  const mkChips=`<span class="fl">마켓</span><button class="fchip all${INC_MK.size===0?' on':''}" data-mk="__all">전체</button>`
+    +mkSet.map(m=>{const meta=INC_MKMETA[m]||{dot:'#8B95A1'};const lb=(MK_META[m]||{}).label||m;
+      return `<button class="fchip${INC_MK.has(m)?' on':''}" data-mk="${m}"><span class="cdot" style="background:${meta.dot}"></span>${lb}</button>`;}).join('');
+  const arChips=`<span class="fl">영역</span><button class="fchip all${INC_AREA.size===0?' on':''}" data-ar="__all">전체</button>`
+    +arSet.map(a=>`<button class="fchip${INC_AREA.has(a)?' on':''}" data-ar="${esc(a)}">${esc(a)}</button>`).join('');
+  const stmap={resolved:['해결됨','status-ok'],mitigated:['◑ 임시조치','status-mit'],open:['● 미해결','status-open']};
+  const rows=shown.map(i=>{
+    const open=INC_OPEN.has(i.id);
+    const mkcell=(i.markets||[]).map(incMkBadge).join(' ');
+    let detail='';
+    if(open){
+      const commit=i.commit?`<span class="commit">커밋 ${esc(i.commit)}</span>`:'';
+      const st=stmap[i.status]||['—','status-ok'];
+      detail=`<tr class="incdetail" data-id="${i.id}"><td colspan="5"><div class="incd">`
+        +`<div class="row"><span class="rk symptom">증상</span><span class="rv">${esc(i.symptom)}</span></div>`
+        +`<div class="row"><span class="rk cause">원인</span><span class="rv">${esc(i.cause)}</span></div>`
+        +`<div class="row"><span class="rk fix">해결</span><span class="rv">${esc(i.fix)}</span></div>`
+        +`<div class="row"><span class="rk lesson">교훈</span><span class="rv"><span class="lesson-v">${esc(i.lesson)}</span></span></div>`
+        +`<div class="meta">${commit}<span class="${st[1]}">${st[0]}</span></div></div></td></tr>`;
+    }
+    return `<tr class="main" data-id="${i.id}"><td class="date">${esc((i.date||'').slice(5))}</td>`
+      +`<td class="mk">${mkcell}</td><td class="area"><span class="arbadge">${esc(i.area||'—')}</span></td>`
+      +`<td class="title">${esc(i.title)}<span class="ex">${open?'▴ 접기':'▾ 상세'}</span></td>`
+      +`<td class="sev">${incSev(i.severity)}</td></tr>`+detail;
+  }).join('');
+  const empty=`<tr><td colspan="5" class="incempty">이 조건에 해당하는 이력이 없어요.</td></tr>`;
+  return `<div class="inclead"><span class="kl">핵심</span><span class="sm">마켓 연동에서 <b>발생했던 문제와 그 해결</b>을 한곳에 축적 — 같은 원인이 다른 마켓·계정에서 재발하면 여기부터 확인.</span></div>`
+    +`<div class="inccall"><b>새 문제를 해결하면 여기에 한 줄 추가</b> — 증상 · 원인 · 해결 · 교훈 · 커밋을 남기면, 다음에 같은 벽을 만났을 때 바로 참고할 수 있어요. 최신순 정렬.`
+    +`<div class="incrule"><b>기록 지침</b> — 「해결」 칸에는 <b>코드로 어떻게 고쳤는지</b>를 반드시 명확하게 적는다: <b>바꾼 함수·파일 이름</b>, <b>이전 로직 → 바뀐 로직</b>, 핵심 코드 조각. "고쳤음"만 적지 말 것 — 다음 사람이 그 코드를 바로 찾아갈 수 있어야 함.</div></div>`
+    +`<div class="incfil">${mkChips}</div><div class="incfil incbar2">${arChips}</div>`
+    +`<table class="inctbl"><thead><tr><th style="text-align:center">날짜</th><th style="text-align:center">마켓</th><th style="text-align:center">영역</th><th>문제</th><th style="text-align:center">심각도</th></tr></thead><tbody>${rows||empty}</tbody></table>`;
+}
+function bindIncidents(){
+  document.querySelectorAll('.dm2 .inctbl tr.main').forEach(tr=>tr.onclick=()=>{const id=tr.dataset.id;INC_OPEN.has(id)?INC_OPEN.delete(id):INC_OPEN.add(id);dmRender();});
+  document.querySelectorAll('.dm2 .fchip[data-mk]').forEach(c=>c.onclick=()=>{const v=c.dataset.mk;if(v==='__all')INC_MK.clear();else INC_MK.has(v)?INC_MK.delete(v):INC_MK.add(v);dmRender();});
+  document.querySelectorAll('.dm2 .fchip[data-ar]').forEach(c=>c.onclick=()=>{const v=c.dataset.ar;if(v==='__all')INC_AREA.clear();else INC_AREA.has(v)?INC_AREA.delete(v):INC_AREA.add(v);dmRender();});
+}
+function dmRender(){
+  // 상위탭(대분류)
+  const TOP_DEFS=[
+    {k:'checklist', lb:'개발 체크리스트'},
+    {k:'all',   lb:'마켓별 전체 API'},
+    {k:'proglookup', lb:'프로그램 주문조회'},
+    {k:'work:상품 조회', lb:'상품 조회'},
+    {k:'work:상품 관리', lb:'상품 관리'},
+    {k:'settle', lb:'정산'},
+    {k:'work:배송·송장', lb:'배송·송장'},
+    {k:'work:클레임·CS', lb:'클레임·CS'},
+    {k:'trans',  lb:'주문상태'},
+    {k:'speed', lb:'마켓별 업로드'},
+    {k:'incidents', lb:'과거이력'},
+  ];
+  const tbtn=t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
+  // 2행 구성: 1행=전체·가이드(마켓별 전체 API + API 문서 수집법) / 2행=업무별 탭(상품조회…과거이력)
+  const howtoBtn=`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">API 문서 수집법</button>`;
+  // 위상 구분(4그룹·좌측 세로 라벨): 프로그램 적용 / 마켓 API 참고 / 업무별 카탈로그 / 과거이력
+  const progBtn=t=>`<button class="toptab prog${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
+  const defByK={}; TOP_DEFS.forEach(t=>defByK[t.k]=t);
+  const btnFor=(k,acc)=> k==='howto' ? howtoBtn : (acc?progBtn(defByK[k]):tbtn(defByK[k]));
+  const TAB_GROUPS=[
+    {lab:'프로그램 적용', acc:true, keys:['checklist','proglookup','speed']},
+    {lab:'마켓 API 참고', keys:['all','howto']},
+    {lab:'업무별 카탈로그', keys:['work:상품 조회','work:상품 관리','settle','work:배송·송장','work:클레임·CS','trans']},
+    {lab:'과거이력', keys:['incidents']},
+  ];
+  const gridInner=TAB_GROUPS.map(g=>`<div class="dmgl${g.acc?' acc':''}">${g.lab}</div><div class="dmgtabs">${g.keys.map(k=>btnFor(k,g.acc)).join('')}</div>`).join('');
+  document.getElementById('dm-toptabs').innerHTML=`<div class="dmgrid">${gridInner}</div>`;
+  // 하위탭(마켓)
+  let sub='';
+  if(DM_TOP==='all'){
+    sub=DATA.markets.map(m=>{
+      const done=DATA.apis.some(a=>a.market===m.id && a.st==='ok');
+      return `<button class="mktab${m.id===DM_MK?' on':''}" data-m="${m.id}">${m.label}<span class="mini">${done?'연동완료':'준비중'}</span></button>`;
+    }).join('');
+  }
+  const subEl=document.getElementById('dm-mktabs'); subEl.innerHTML=sub; subEl.style.display=(DM_TOP==='all')?'':'none';
+  const leg=document.querySelector('.dm2 .legend'); if(leg)leg.style.display=(DM_TOP==='all')?'':'none';
+  const body=document.getElementById('dm-body');
+  if(DM_TOP==='checklist'){
+    // 조각(_checklist_matrix.html)이 내놓는 빈 껍데기 + ckInit. 범례는 위 843줄에서 이미 숨는다(DM_TOP!=='all').
+    document.getElementById('dm-mktabs').style.display='none';
+    body.innerHTML=window.CHECKLIST_HTML;
+    window.ckInit('/marketplace-guide/checklist.json');
+  }else if(DM_TOP==='trans'){
+    body.innerHTML=`<div class="tsplit"><div class="trail">${dmTransRail()}</div><div class="tcontent">${(DM_TSUB==='summary')?dmTransSummary():dmTransMarket(DM_TSUB)}</div></div>`;
+  }else if(DM_TOP==='howto'){
+    body.innerHTML=dmHowto();
+  }else if(DM_TOP==='settle'){
+    body.innerHTML=dmSettle();
+  }else if(DM_TOP==='proglookup'){
+    document.getElementById('dm-mktabs').style.display='none';
+    body.innerHTML=dmProgLookup();
+  }else if(DM_TOP==='speed'){
+    document.getElementById('dm-mktabs').style.display='none';
+    body.innerHTML=dmSpeed();
+  }else if(DM_TOP==='incidents'){
+    document.getElementById('dm-mktabs').style.display='none';
+    body.innerHTML=dmIncidents();
+    bindIncidents();
+  }else if(DM_TOP && DM_TOP.startsWith('work:')){
+    const tab=DM_TOP.slice(5);
+    document.getElementById('dm-mktabs').style.display='none';
+    const leg2=document.querySelector('.dm2 .legend'); if(leg2)leg2.style.display='';
+    body.innerHTML=dmWorkTab(tab);
+    bindWorkRows();
+  }else{
+    const m=MK_META[DM_MK]; const cats=MKT_CATS_D[DM_MK]||[];
+    if(DM_SUBG>=cats.length) DM_SUBG=0;
+    let h=`<div class="env"><span class="k">인증</span><span class="v">${m.auth}</span><span class="k">base</span><span class="v"><span class="mono">${m.base_url}</span></span><span class="k">계정</span><span class="v"><span class="mono">${(m.env_prefixes||[]).join(', ')}</span></span><span class="k">병렬</span><span class="v">${m.concurrency||'—'}</span>${m.rate?`<span class="k">속도(실측)</span><span class="v" style="grid-column:span 3">${m.rate}</span>`:''}</div>`;
+    const ntb=DM_NOTAB[DM_MK]||0;
+    if(ntb) h+=`<div style="font-size:12px;color:var(--sub);margin:-8px 0 12px">업무탭 미배정 <b>${ntb}개</b> — 이 항목들은 위 업무별 탭(상품 조회 등)에는 안 보여요. 항목 옆 <span class="notabChip">탭없음</span> 표시.</div>`;
+    const gr=cats[DM_SUBG]; const send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
+    let right;
+    if(!gr.items.length){ right=`<div class="empty" style="padding:32px 16px;"><div style="font-size:24px"></div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:12px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
+    else { right=`<div class="two">${dmColLux('send','📤 보내기','프로그램 → 마켓',send)}${dmColLux('recv','📥 받기','마켓 → 프로그램',recv)}</div>`; }
+    h+=`<div class="md"><div class="ml">`+cats.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length||'…'}</span></button>`).join('')+`</div><div class="mr">${right}</div></div>`;
+    body.innerHTML=h;
+  }
+  document.querySelectorAll('.dm2 .toptab').forEach(t=>t.onclick=()=>{DM_TOP=t.dataset.top;if(DM_TOP==='trans'&&DM_TSUB!=='summary'&&!(DATA.autoConfirm&&DATA.autoConfirm.markets.some(m=>m.id===DM_TSUB)))DM_TSUB='summary';dmRender();});
+  document.querySelectorAll('.dm2 .hwm button[data-how]').forEach(b=>b.onclick=()=>{DM_HOW=b.dataset.how;dmRender();});
+  document.querySelectorAll('.dm2 button.tplcp').forEach(b=>b.onclick=async()=>{
+    const t=HW_TPL[+b.dataset.tpl]; if(!t)return;
+    try{ await navigator.clipboard.writeText(t.code||''); b.textContent='복사됨'; }
+    catch(e){ b.textContent='복사 실패'; }
+    setTimeout(()=>{b.textContent='복사';},1500);
+  });
+  document.querySelectorAll('.dm2 .mktab[data-m]').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_SUBG=0;dmRender();});
+  document.querySelectorAll('.dm2 .mktab[data-ts],.dm2 .railbtn[data-ts]').forEach(t=>t.onclick=()=>{DM_TSUB=t.dataset.ts;dmRender();});
+  document.querySelectorAll('.dm2 .ml button').forEach(b=>b.onclick=()=>{DM_SUBG=+b.dataset.g;dmRender();});
+  document.querySelectorAll('.dm2 .stlsub button').forEach(b=>b.onclick=()=>{DM_STL=b.dataset.stl;dmRender();});
+  document.querySelectorAll('.dm2 .star,.dm2 .lstar').forEach(s=>s.onclick=()=>{const k=s.dataset.k;dmStar.has(k)?dmStar.delete(k):dmStar.add(k);dmSave();dmRender();});
+}
+loadData().then(()=>{ if(!DM_MK && DATA.markets[0]) DM_MK=DATA.markets[0].id; dmRender(); }).catch(()=>{});
+</script>
+{% endraw %}
+{# 개발 체크리스트 표·정보창 공용 조각 — window.CHECKLIST_HTML / window.ckInit 을 내놓는다.
+   {% raw %} 바깥이어야 Jinja 가 실제로 include 한다(안에 두면 글자 그대로 찍힌다). #}
+{% include "_checklist_matrix.html" %}
+{% endblock %}

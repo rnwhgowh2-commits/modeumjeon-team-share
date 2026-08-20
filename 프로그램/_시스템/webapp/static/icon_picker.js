@@ -14,9 +14,13 @@
 (function() {
   'use strict';
 
-  // ─────── 이모지 데이터셋 (간소판 — STEP 2 에서 외부 JSON 으로 확장) ───────
-  // 2026-08-19 디자인 통일 — 그림문자 목록을 선 아이콘 이름으로 교체.
-  // 이 창을 안 바꾸면 새로 고를 때마다 그림문자가 다시 들어온다.
+  // ─────── 고를 수 있는 아이콘 목록 ───────
+  // [2026-08-19] 그림문자 421개 → 선 아이콘 118개.
+  //   🔴 이 목록을 안 바꾸면 화면에서 그림문자를 다 지워도 **사장님이 새로 고를 때마다
+  //     다시 들어온다.** '문' 을 닫는 곳이 여기다.
+  //   값은 Phosphor 아이콘 '이름' 이다(예: 'package'). 저장 방식은 그대로 —
+  //   원래도 문자열 하나를 저장했고 이제 그 자리에 이름이 들어간다.
+  //   그리는 곳은 아래 renderGrid 와 onPick 이 <i class="ph-light ph-이름"> 로 만든다.
   const EMOJI_DATA = {
     '최근': [], // localStorage 기반
     '자주': 'package tag storefront shopping-cart-simple coins money receipt truck barcode clipboard-text list-checks check-circle warning-circle info x-circle star heart'.split(' '),
@@ -28,6 +32,13 @@
     '분석': 'chart-bar chart-line chart-pie trend-up trend-down calculator percent currency-krw calendar clock-counter-clockwise funnel magnifying-glass gear sliders'.split(' '),
     '기타': 'lightbulb sparkle fire lightning gift trophy medal target puzzle-piece wrench toolbox trash broom recycle question'.split(' '),
   };
+
+  // 이름을 실제 그림으로 만드는 단 하나의 자리.
+  //   a-z0-9- 말고는 지운다 — 남의 태그가 이름에 섞여 들어오는 걸 막는다.
+  function iconTag(name) {
+    return '<i class="ph-light ph-' + String(name || '').replace(/[^a-z0-9-]/g, '') +
+           '" aria-hidden="true"></i>';
+  }
 
   // 한글/영문 키워드 매핑 (검색용 간소판)
   // 2026-08-19 — 선 아이콘 이름으로 바뀌면서 한글 열쇠말 표도 갈아끼움
@@ -251,7 +262,7 @@
           <button type="button" class="icp-esc">Esc <i class="ph-light ph-x" aria-hidden="true"></i></button>
         </div>
         <div class="icp-search">
-          <input type="text" placeholder="검색 — 한글로 찾기 (예: 상자·신발·돈)" autocomplete="off">
+          <input type="text" placeholder="검색 — 한글/영문/키워드 (예: 집·home·홈)" autocomplete="off">
           <div class="icp-mode">
             <button type="button" data-mode="color"><i class="ph-light ph-palette" aria-hidden="true"></i> 색상</button>
             <button type="button" data-mode="bw" class="on"><i class="ph-light ph-circle-half" aria-hidden="true"></i> 흑백</button>
@@ -304,7 +315,7 @@
         const cls = ['icp-cell'];
         if (mode === 'color') cls.push('cmode', colorClass(i));
         if (e === curIcon) cls.push('selected');
-        return `<button type="button" class="${cls.join(' ')}" tabindex="0" data-icon="${escapeHtml(e)}" title="${escapeHtml(e)}"><i class="ph-light ph-${escapeHtml(e)}" aria-hidden="true"></i></button>`;
+        return `<button type="button" class="${cls.join(' ')}" tabindex="0" data-icon="${escapeHtml(e)}">${iconTag(e)}</button>`;
       }).join('');
     }
 
@@ -325,7 +336,7 @@
         </div>
 
         <div class="icp-cp-section">
-          <div class="icp-cp-row-label"><i class="ph-light ph-paint-bucket" aria-hidden="true"></i> 바탕색</div>
+          <div class="icp-cp-row-label"><i class="ph-light ph-square" aria-hidden="true"></i> 바탕색</div>
           <div class="icp-cp-photo-host" data-target="bg"></div>
           <div class="icp-cp-grid">
             ${COLOR_PALETTE.map(c => `
@@ -534,20 +545,25 @@
       onPick: async (icon, color, extras) => {
         const bg = (extras && extras.bg_color) || null;
         const fg = (extras && extras.fg_color) || null;
-        // inline 모드 (Type B — 이모지 + 텍스트) 시 첫 글자만 교체
+        // [2026-08-19] 고른 값이 '이름'(package)이라 글자로 넣으면 영어 단어가 그대로 뜬다.
+        //   아이콘 태그로 넣는다. 뒤에 붙는 사람이 쓴 글자는 태그 기호를 지워서 넣는다
+        //   (남의 태그가 화면에 실행되는 걸 막는다).
+        const _tag = iconTag(icon);
         if (trigger.hasAttribute('data-icon-inline')) {
           const oldIcon = trigger.dataset.iconCurrent || '';
           const fullText = trigger.textContent;
           const m = fullText.match(INLINE_EMOJI_RE);
-          // 선 아이콘은 글자가 아니라 태그라 innerHTML 로 넣는다
-          const tag = '<i class="ph-light ph-' + String(icon).replace(/[^a-z0-9-]/g, '') + '" aria-hidden="true"></i>';
-          let rest = fullText;
-          if (m) rest = fullText.slice(m[1].length);
-          else if (oldIcon && fullText.startsWith(oldIcon)) rest = fullText.slice(oldIcon.length);
-          else rest = ' ' + fullText;
-          trigger.innerHTML = tag + rest.replace(/[<>&]/g, '');
+          let rest;
+          if (m) {
+            rest = fullText.slice(m[1].length);
+          } else if (oldIcon && fullText.startsWith(oldIcon)) {
+            rest = fullText.slice(oldIcon.length);
+          } else {
+            rest = ' ' + fullText;
+          }
+          trigger.innerHTML = _tag + rest.replace(/[<>&]/g, '');
         } else {
-          trigger.innerHTML = '<i class="ph-light ph-' + String(icon).replace(/[^a-z0-9-]/g, '') + '" aria-hidden="true"></i>';
+          trigger.innerHTML = _tag;
         }
         trigger.dataset.iconCurrent = icon;
         trigger.dataset.iconColor = color;
@@ -658,7 +674,7 @@
     'nav-item', 'nav-group-title',   // 인벤토리 사이드바
     'draft-fab',                      // 「⏳ 임시저장」 FAB
     'step-tab',                       // 단계 탭 (1·2)
-    'add-item', 'add-stage',          // 「＋ 항목 추가」 / 「＋ 새 카테고리」
+    'add-item', 'add-stage',          // 「+ 항목 추가」 / 「+ 새 카테고리」
     'sj-icon-btn',                    // 소싱처 계정 액션 아이콘
     'btn-sm-emo',                     // 작은 버튼 emoji
     'm4v1-mkt-logo',                  // 매트릭스 마켓 logo wrapper
@@ -680,8 +696,8 @@
   const EMOJI_RE = /^[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F9FF}][\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]*$/u;
 
   // v32 — 이모지 + 텍스트 inline 매칭 정규식 (Type B)
-  //  " 사이트 소싱처 URL" / "＋ 항목 추가" / "⏳ 임시저장 (0)" 처럼 첫 글자가 이모지
-  const INLINE_EMOJI_RE = /^([\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F9FF}][\u{FE0F}\u{200D}\u{20E3}]*|[＋+×])\s+(\S)/u;
+  //   "📍 사이트 소싱처 URL" / "+ 항목 추가" / "⏳ 임시저장 (0)" 처럼 첫 글자가 이모지
+  const INLINE_EMOJI_RE = /^([\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F9FF}][\u{FE0F}\u{200D}\u{20E3}]*|[+×])\s+(\S)/u;
 
   function autoDetect() {
     // 1) 알려진 클래스 — class 매칭 (단일 이모지 검사 생략, known 이면 통과)
@@ -751,7 +767,7 @@
     if (el.closest('.sb-ic-row, .menu-item, .submenu-item, .dropdown-item')) return;
     if (el.closest('[role="button"], [role="menu"], [role="menuitem"]')) return;
     // v32 — 액션 기호 정밀화 — 시스템 UI 핵심 기호만 skip
-    //  사용자 의도: , ＋ 등도 변경 가능해야 → ACTION_SYMBOLS 에서 제거
+    //   사용자 의도: 🔍, + 등도 변경 가능해야 → ACTION_SYMBOLS 에서 제거
     const ACTION_SYMBOLS = new Set(['✕', '✖', '✗', '⠿', '×', '—',
                                      '↑', '↓', '←', '→', '▶', '▼', '◀', '▲', '⋮', '⋯',
                                      '·']);
@@ -1160,12 +1176,12 @@
     pop.className = 'icp-color-pop icp-cp-v34';
     pop.innerHTML = `
       <div class="icp-cp-head">
-        <span class="icp-cp-title">${isBrand ? `<i class="ph-light ph-tag" aria-hidden="true"></i> 브랜드 색상 — ${escapeHtmlSafe(brandKey)}` : '🎨 색상 선택'}</span>
+        <span class="icp-cp-title">${isBrand ? `<i class="ph-light ph-tag" aria-hidden="true"></i> 브랜드 색상 — ${escapeHtmlSafe(brandKey)}` : '<i class="ph-light ph-palette" aria-hidden="true"></i> 색상 선택'}</span>
         ${isBrand ? `<small class="icp-cp-sub">프로그램 전체의 모든 "${escapeHtmlSafe(brandKey)}" 로고에 즉시 적용</small>` : ''}
       </div>
 
       <div class="icp-cp-section">
-        <div class="icp-cp-row-label"><i class="ph-light ph-paint-bucket" aria-hidden="true"></i> 바탕색</div>
+        <div class="icp-cp-row-label"><i class="ph-light ph-square" aria-hidden="true"></i> 바탕색</div>
         <div class="icp-cp-photo-host" data-target="bg"></div>
         <div class="icp-cp-grid">
           ${COLOR_PALETTE.map(c => `
@@ -1196,7 +1212,7 @@
 
       ${isBrand ? `
       <div class="icp-cp-section">
-        <div class="icp-cp-row-label"><i class="ph-light ph-text-aa" aria-hidden="true"></i> 박스 안 글자 (최대 4자)</div>
+        <div class="icp-cp-row-label"><i class="ph-light ph-text-t" aria-hidden="true"></i> 박스 안 글자 (최대 4자)</div>
         <div class="icp-cp-input-row">
           <input type="text" class="icp-cp-letter" value="${escapeHtmlSafe(curLetter)}" placeholder="(자동) — 비우면 기본" maxlength="4" style="flex:1; padding:6px 10px; font-size:13px; border:1.5px solid #E5E8EB; border-radius:6px; font-family:inherit; background:#fff;">
         </div>

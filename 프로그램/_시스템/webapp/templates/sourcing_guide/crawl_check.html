@@ -1,0 +1,414 @@
+{% extends layout|default("base.html") %}
+{% block title %}크롤링 검사{% endblock %}
+{% block content %}
+<style>
+  .ccpage{--ink:#191F28;--sub:var(--글자-보조,#6B7684);--blue:var(--primary,#3182F6);--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
+    --seg-bg:var(--n100,#F2F4F6);--soft:var(--n100,#F6F8FA);--lime:#A9E34B;--mono:ui-monospace,'D2Coding',SFMono-Regular,Menlo,monospace;
+    font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
+    padding:32px 32px 32px;box-sizing:border-box;line-height:1.6;}
+  .ccpage *{box-sizing:border-box;}
+  .ccpage h2{font-size:32px;font-weight:800;letter-spacing:0;margin:0 0 8px;}
+  .ccpage .sub{color:var(--sub);font-size:17px;margin:0 0 4px;line-height:1.59;}
+  .ccpage .ccview{display:none;flex:1;min-height:0;flex-direction:column;}
+  .ccpage .ccview.on{display:flex;}
+
+  /* 세로 스텝 타임라인 (여백 넓게) */
+  .ccpage .cctl{position:relative;padding-left:32px;margin-top:12px;}
+  .ccpage .ccstep{position:relative;margin-bottom:48px;}
+  .ccpage .ccstep:last-child{margin-bottom:8px;}
+  .ccpage .ccstep::before{content:'';position:absolute;left:-28px;top:30px;bottom:-52px;width:2px;background:var(--line);}
+  .ccpage .ccstep:last-child::before{display:none;}
+  .ccpage .stepn{position:absolute;left:-40px;top:0;width:26px;height:26px;border-radius:50%;
+    background: var(--바탕-진하게, var(--ink));color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+  .ccpage .stept{font-weight:800;font-size:17px;margin-bottom:12px;}
+
+  /* ① 검사 종류 세그먼트 */
+  .ccpage .ccseg{display:inline-flex;background:var(--seg-bg);border-radius:12px;padding:4px;gap:4px;}
+  .ccpage .ccs{border:none;background:none;cursor:pointer;font-family:inherit;font-size:17px;font-weight:800;color:var(--sub);
+    padding:12px 24px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;transition:.15s;}
+  .ccpage .ccs.on{background:var(--surface,#ffffff);color:var(--ink);}
+
+  /* ② 모음전 */
+  .ccpage .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;min-height:20px;}
+  .ccpage .chip{display:inline-flex;align-items:center;gap:8px;background:var(--연한-파랑,#E8F1FE);color: var(--글자-파랑, var(--blue-d));border-radius:999px;padding:8px 12px;font-size:14px;font-weight:700;}
+  .ccpage .chip .cx{cursor:pointer;opacity:.6;font-weight:800;}
+  .ccpage .chip .cs{font-size:12px;color: var(--글자-파랑, var(--primary,#4E79B8));font-weight:600;}
+  .ccpage .chip.empty{background:none;color:var(--sub);font-weight:600;font-size:14px;padding:8px 0px;}
+  .ccpage .srch{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:12px 12px;margin-bottom:8px;}
+  .ccpage .srch input{border:0;outline:0;flex:1;font-size:14px;font-family:inherit;color:var(--ink);background:none;}
+  .ccpage .allrow{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--soft);border-radius:8px;margin-bottom:8px;font-size:14px;font-weight:800;cursor:pointer;}
+  .ccpage .list{max-height:200px;overflow:auto;border:1px solid var(--line2);border-radius:12px;background:var(--surface,#ffffff);}
+  .ccpage .mrow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line2);cursor:pointer;}
+  .ccpage .mrow:last-child{border-bottom:0;}
+  .ccpage .cb{width:20px;height:20px;border:2px solid var(--line,#C9D2DC);border-radius:8px;flex:none;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:12px;background:var(--surface,#ffffff);}
+  .ccpage .cb.on{background:var(--blue);border-color:var(--blue);}
+  .ccpage .cb.sm{width:17px;height:17px;font-size:12px;border-radius:8px;}
+  .ccpage .mnm{font-weight:700;flex:1;font-size:14px;}
+  .ccpage .mmeta{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums;}
+
+  /* ③ 소싱처 — 전체선택 버튼(위상) + 칩 */
+  .ccpage .srchint{font-size:14px;color:var(--sub);padding:8px 0px;}
+  .ccpage .srcblk{margin-bottom:12px;}
+  .ccpage .srcblk:last-child{margin-bottom:0;}
+  .ccpage .srchdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;}
+  .ccpage .srchdr .lbl{font-size:14px;font-weight:800;color:var(--sub);}
+  .ccpage .allbtn{font-size:14px;font-weight:800;border:1.5px solid var(--blue);background:var(--surface,#ffffff);color: var(--글자-파랑, var(--blue-d));border-radius:8px;padding:8px 16px;cursor:pointer;font-family:inherit;}
+  .ccpage .allbtn:hover{background:var(--연한-파랑,#EAF2FE);}
+  .ccpage .srcs{display:flex;flex-wrap:wrap;gap:8px;}
+  .ccpage .srcchip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface,#ffffff);font-size:14px;font-weight:700;cursor:pointer;color:var(--sub,#8B95A1);}
+  .ccpage .srcchip.on{border-color:var(--blue);background:var(--연한-파랑,#EAF2FE);color: var(--글자-파랑, var(--blue-d));}
+
+  .ccpage .scopefoot{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:1px solid var(--line2);}
+  .ccpage .scnt{font-size:17px;font-weight:700;}.ccpage .scnt b{color: var(--글자-파랑, var(--blue));}
+  .ccpage .makebtn{background: var(--바탕-파랑, var(--blue));color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .ccpage .makebtn:disabled{background:var(--line,#C9D2DC);cursor:not-allowed;}
+  .ccpage .loading{padding:24px;text-align:center;color:var(--sub);font-size:14px;}
+
+  /* 결과 (프롬프트) */
+  .ccpage .backbtn{align-self:flex-start;background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);border:none;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:12px;}
+  .ccpage .backbtn:hover{background:var(--line2,#E8EBEE);}
+  .ccpage .promptwrap{flex:1;display:flex;flex-direction:column;min-height:0;border:1px solid var(--ink,#2A3038);border-radius:12px;overflow:hidden;}
+  .ccpage .plabel{background: var(--바탕-진하게, var(--ink,#0F141A));color: var(--글자-희미, var(--line,#DCE2EA));font-size:17px;font-weight:800;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--ink,#2A3038);}
+  .ccpage .plabel .l{display:flex;align-items:center;gap:8px;}
+  .ccpage .plabel .l .tag{font-size:12px;font-weight:700;color: var(--글자-희미, var(--faint,#9AA4B0));}
+  .ccpage .copybtn-top{background: var(--바탕-진하게, var(--ink,#2E3742));color: var(--글자-희미, var(--line,#E5E8EB));border:1px solid var(--글자-기본,#3E4854);border-radius:8px;font-size:14px;font-weight:800;padding:8px 16px;cursor:pointer;font-family:inherit;}
+  .ccpage .copybtn-top:hover{background: var(--바탕-진하게, var(--ink,#3A4450));}
+  .ccpage .codebox{background: var(--바탕-진하게, var(--ink,#191F28));color: var(--글자-희미, var(--line2,#E4E9F0));margin:0;padding:24px 24px;flex:1;overflow:auto;font-family:var(--mono);font-size:17px;line-height:1.59;white-space:pre-wrap;word-break:break-word;border:0;}
+  .ccpage .codebox.hide{display:none;}
+  .ccpage .codebox .h{color:var(--lime);font-weight:800;}
+  .ccpage .codebox .star{color: var(--글자-빨강, var(--연한-빨강,#FF7A7A));font-weight:800;}
+  .ccpage .codebox .tgt{color: var(--글자-파랑, var(--연한-파랑,#7DD3FC));}
+  .ccpage .copybtn-big{margin-top:12px;width:100%;border:none;border-radius:12px;flex:none;background: var(--바탕-파랑, var(--blue));color:#fff;font-size:17px;font-weight:800;padding:16px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.15s;}
+  .ccpage .copybtn-big:hover{background:var(--blue-d);}
+  .ccpage .copybtn-big.done{background:var(--green,#1E7C4A);}
+</style>
+
+<div class="ccpage">
+  <h2><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 크롤링 검사</h2>
+  <p class="sub">무슨 검사를 할지 고르고, 검사할 모음전·소싱처를 담으면 그 범위만 담은 프롬프트를 만들어 Claude Code 에 붙여넣습니다.</p>
+
+  <!-- ═══ 선택 화면 (3단 타임라인) ═══ -->
+  <div class="ccview on" id="ccPick">
+    <div class="cctl">
+      <div class="ccstep">
+        <span class="stepn">1</span>
+        <div class="stept">무슨 검사를 할까요?</div>
+        <div class="ccseg">
+          <button type="button" class="ccs on" data-kind="stock"><i class="ph-light ph-package" aria-hidden="true"></i> 재고 정합성</button>
+          <button type="button" class="ccs" data-kind="price"><i class="ph-light ph-coins" aria-hidden="true"></i> 가격 정합성</button>
+          <button type="button" class="ccs" data-kind="both"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i> 재고+가격</button>
+        </div>
+      </div>
+
+      <div class="ccstep">
+        <span class="stepn">2</span>
+        <div class="stept">검사할 모음전</div>
+        <div class="chips" id="ccChips"></div>
+        <div class="srch"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> <input type="text" id="ccSearch" placeholder="모음전 이름 검색 (예: 르무통, 나이키)" autocomplete="off"></div>
+        <div class="allrow" id="ccAllRow"><span class="cb" id="ccAllCb"></span><span>모음전 전체 선택</span><span class="mmeta" id="ccAllCnt" style="margin-left:auto"></span></div>
+        <div class="list" id="ccList"><div class="loading">모음전 목록 불러오는 중…</div></div>
+      </div>
+
+      <div class="ccstep">
+        <span class="stepn">3</span>
+        <div class="stept">그 모음전의 소싱처</div>
+        <div id="ccSrcStep"><div class="srchint">먼저 ② 에서 검사할 모음전을 고르세요.</div></div>
+      </div>
+    </div>
+
+    <div class="scopefoot">
+      <span class="scnt" id="ccScnt">모음전 <b>0개</b> · 소싱처 합계 <b>0개</b></span>
+      <button type="button" class="makebtn" id="ccMake" disabled>프롬프트 만들기 →</button>
+    </div>
+  </div>
+
+  <!-- ═══ 결과 화면 ═══ -->
+  <div class="ccview" id="ccResult">
+    <button type="button" class="backbtn" id="ccBack">← 범위 다시 고르기</button>
+    <div class="promptwrap">
+      <div class="plabel">
+        <span class="l"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 복사할 프롬프트 <span class="tag" id="ccResTag">· 재고 정합성 조사</span></span>
+        <button type="button" class="copybtn-top" id="ccCopyTop">전체 복사</button>
+      </div>
+
+      <div class="codebox" id="ccBoxStock"><span class="h">재고 정합성 조사를 시작한다.</span>
+아래 프로토콜을 순서대로 실행하라.
+
+<span class="h">■ 대상</span>
+<span class="tgt" id="ccTargetStock">- 소싱처 : (소싱처명 입력, 예: 롯데온)
+- URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
+- 프로그램 저장값·등록 URL 읽는 곳 = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix
+  (로그인 불필요) → options[].sources[] 의 product_url·stock_state·stock_label·
+  stock_qty·last_status. 이 값이 3)에서 실측과 맞대는 '크롤 결과값'이다.
+
+<span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
+- 재고 기준 = 실브라우저 상품 URL의 실제 데이터 (추정·폴백·평균 금지)
+- 확인 못 하면 '있음'이 아니라 '확인 불가'로 표기
+- 크롤 = 로컬 PC(크롬 확장/Playwright). 서버 크롤 실패는 정상
+
+<span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
+- <span class="star">★ 먼저 origin/main 으로 전환</span> (정본·라우트·파일 읽기 전 반드시 · 단순 API 조회여도)
+    git fetch origin main → 뒤처졌으면 origin/main 워크트리/체크아웃. 안 하면 작업트리의
+    stale orphan 문서(옛 docs/크롤링-가이드.md, §5/§7 없음)를 읽어 오진
+- 크롤링 가이드 프로그램/_시스템/docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
+    §1 재고편 = 센티넬(0=품절/999=수량미상'있음'/-1=불명/None=미크롤/'확인 불가')
+      + 소싱처별 수집 방식(= 소싱처별 실브라우저 확인법의 근거)
+    §5 재고 에러 카탈로그(S1~S21…) = NG 증상별 사례·근본원인·의심 코드
+      → 귀책=P(코드 수정) 제안 전 반드시 대조(교차회귀 방지)
+    §7 배선·자가검증 = 귀책=P일 때 어디를 고치나(_match_option_so 등)
+- 데이터 가이드 /data-guide = 저장 위치(current_stock)·단일 진실 원천
+    ※ 검사 대상 = 소싱처 크롤 재고(매트릭스 셀), 실물 재고관리(InventoryTx) 아님
+
+<span class="h">■ 5단계</span>
+1) 크롤(로컬 PC) — 크롤은 사용자 로컬 PC의 크롬 확장이 한다(서버·CLI 크롤 없음).
+   너(Claude Code)가 사용자의 로그인된 크롬에 붙어(Claude-in-Chrome) mou-m.com
+   매트릭스에서 대상 소싱처 크롤을 직접 돌리고 완료를 실시간 감시한다. 브라우저에
+   못 붙으면 사용자에게 "이 모음전 크롤을 돌려달라" 요청→완료 신호를 받은 뒤 진행.
+   <span class="star">★ 크롤 최신화 전 다음 단계 금지</span> — 오래된 저장값·dev DB 로 대조하면 품절둔갑 유발(무결성 위반)
+2) 실브라우저 색×사이즈 재고 엑셀 (소싱처별 확인법 = §1 근거)
+3) 매트릭스 대조 (1의 저장값 vs 2의 실측, 색×사이즈 셀 단위)
+4) OK/NG 이중 태그
+   [귀책] U=URL측(대체상품·404·만료→사용자 URL 정정) / P=프로그램측(→코드 수정)
+   [증상] <span class="star">A 품절둔갑</span>★ / B 거짓품절 / C 999·센티넬둔갑 /
+          D 미수집·확인불가 / E 수량불일치
+5) 소싱처별 집계 + 조치 U/P 분리 + 색×사이즈 전수 엑셀
+   (엑셀 = 소싱처별 탭 + 요약 탭[OK/NG·귀책·증상 개수] + 조치 리스트)
+
+<span class="h">■ 진행 방식</span>
+- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인(manifest 동기화)
+- 못 하는 소싱처(로그인 전용 등)는 추측·폴백 말고 '확인 불가'로 정직하게 표기</div>
+
+      <div class="codebox hide" id="ccBoxPrice"><span class="h">가격 정합성 조사를 시작한다.</span>
+아래 프로토콜을 순서대로 실행하라.
+
+<span class="h">■ 대상</span>
+<span class="tgt" id="ccTargetPrice">- 소싱처 : (소싱처명 입력, 예: SSG)
+- URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
+- <span class="star">① 표면노출가·URL</span> = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix (로그인 불필요)
+    → options[].sku · options[].sources[].{product_url, source_id, crawled_price(=표면가), crawled_price_raw}
+- <span class="star">② 최종매입가·계산식(혜택 내역)은 매트릭스에 없음</span> → 별도 브레이크다운 API(로그인 불필요):
+    GET /api/source-benefits/breakdown/&lt;sku&gt;/&lt;int:source_id&gt;?sale_price=&lt;표면가&gt;&amp;source_product_id=&lt;셀 spid&gt;
+    (일괄 = POST /api/source-benefits/breakdowns  {items:[{sku,source_id,sale_price}]})
+    → final_price(=셀 fx뱃지 최종매입가) + steps(=혜택 단계별 계산식). ★source_product_id=셀이 고른 후보 spid 꼭 실어야 완전한B 일치(§3)
+    ※ options[].purchase_final_price 는 옵션 템플릿/매입값(예 95000)이지 소싱처 최종매입가 아님 — 대조에 쓰지 말 것
+- ※ 혜택 층 없는 소싱처(현대H몰·롯데아이몰 = source_id 비정수 키드 카탈로그) = 최종매입가=표면가, 혜택 대조 대상 아님
+
+<span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
+- 가격 기준 = 실브라우저 상품 URL의 실제 값 (표면가·혜택·최종매입가 모두 · 폴백 금지)
+- 매칭·크롤 실패 시 대표가(평균·최저·95000) 폴백 금지 → '가격 없음 + 크롤 실패' 표기
+- 크롤 = 로컬 PC(크롬 확장/Playwright). 서버 크롤 실패는 정상
+
+<span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
+- <span class="star">★ 먼저 origin/main 으로 전환</span> (파일 읽기 전 반드시 · 단순 API 조회여도) : git fetch origin main → 뒤처졌으면 origin/main 기준. 안 하면 작업트리 stale orphan(옛 docs/) 읽어 오진
+- 크롤링 가이드 프로그램/_시스템/docs/크롤링-가이드.md (인앱: /sourcing-guide/map)
+    §2 가격편 = 혜택 4분류(선반영/후반영/결제택1/캐시백)·소싱처별 계산·저장 배선
+    §3 매트릭스 표기 = 셀(표면가+최종매입가)·계산식 영수증·완전한 B(다중 URL 최저)
+    §5 가격 에러(P1~P23)+기타(O) = NG 증상별 사례·의심 코드
+- 데이터 가이드 /data-guide = 핵심 공식·단일 진실 원천(표면가/최종매입가 단일 출처)
+
+<span class="h">■ 3층 (표면노출가 − 혜택 = 최종매입가)</span>
+① 표면노출가  ② 혜택(선반영·후반영·결제택1·캐시백 · %는 베이스금액 기준)  ③ 최종매입가
+
+<span class="h">■ 5단계</span>
+1) 크롤(로컬 PC) — 크롤은 사용자 로컬 PC의 크롬 확장이 한다. 너(Claude Code)가
+   사용자의 로그인된 크롬에 붙어(Claude-in-Chrome) mou-m.com 매트릭스에서 대상 소싱처
+   크롤을 직접 돌리고 완료를 실시간 감시. 못 붙으면 사용자에게 크롤 요청→완료 뒤 진행.
+   <span class="star">★ 최신화 전 다음 단계 금지</span>(오래된 값·폴백가 대조 = 언더프라이싱 오판)
+2) 실브라우저 3층 엑셀 → 3) 매트릭스(셀=표면가+최종매입가·계산식=혜택) 대조
+4) OK/NG 이중 태그
+   [귀책] U/P (재고와 동일)
+   [증상] A 표면가오류 / <span class="star">B 언더프라이싱</span>★ / <span class="star">C 폴백가둔갑</span>★ /
+          D 혜택누락 / E 셀≠계산식
+5) 소싱처별 집계 + 조치 U/P 분리 + 전수 엑셀
+   ※ 완전한 B(다중URL 최저후보 stale=유령가)·라이브확장크롤 혜택미저장(_SITE_BY_SRC) 확인
+
+<span class="h">■ 진행 방식</span>
+- <span class="star">소싱처 많으면 한 번에 다 하지 말고 하나씩</span>(크롤→실측→3층 대조→판정→짧게 보고)→다음 (길면 놓침)
+- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
+- 작업 전 origin/main 최신 대조(stale 워크트리 오진 방지)</div>
+
+      <div class="codebox hide" id="ccBoxBoth"><span class="h">재고·가격 정합성 조사를 순차로 진행한다.</span>
+<span class="star">★ 반드시 순서대로</span> — [1단계] 재고를 완전히 끝낸 뒤에 [2단계] 가격을 시작한다.
+  동시 진행 금지(혼선·오판·에러 위험). 재고 판정·집계 완료 후에만 가격으로.
+
+<span class="h">■ 실행 규칙 (반드시 나눠서 — 한 번에 다 하지 말 것)</span>
+- 프롬프트가 길어도 한꺼번에 처리하면 놓친다. <span class="star">잘게 쪼개 하나씩 완료·짧게 보고 → 다음</span>:
+    · [1단계 재고] 안에서 <span class="star">소싱처 1개씩</span>(크롤→실측→대조→판정→그 소싱처만 보고)→다음 소싱처
+    · 8소싱처 재고 다 끝 + 재고 판정·집계 완료(엑셀은 형식일 뿐, 검증 완료가 기준) 뒤에만 [2단계 가격] 착수 (가격도 소싱처 1개씩)
+- 여러 소싱처·여러 단계 동시 처리 금지. 한 청크 끝낼 때마다 중간 보고.
+
+<span class="h">■ 대상</span>
+<span class="tgt" id="ccTargetBoth">- 소싱처 : (소싱처명 입력, 예: 롯데온)
+- URL    : 해당 소싱처의 매트릭스 등록 URL 전체</span>
+- 재고·표면가·URL = GET https://mou-m.com/api/bundles/&lt;위 '모음전' 값&gt;/option-matrix (로그인 불필요)
+    → 재고=sources[].{stock_state,stock_label,stock_qty} · 표면가=sources[].crawled_price · sku=options[].sku
+- 가격 최종매입가·계산식 = 별도 API GET /api/source-benefits/breakdown/&lt;sku&gt;/&lt;int:source_id&gt;?sale_price=&lt;표면가&gt;
+    → final_price + steps(혜택). ※ purchase_final_price 는 옵션 템플릿값이지 소싱처 최종매입가 아님
+
+<span class="h">■ 절대 원칙 (데이터 무결성 3대)</span>
+- 재고·가격 기준 = 실브라우저 상품 URL의 실제 값 (추정·폴백·평균 금지)
+- 확인 못 하면 '있음'/가격 단정 말고 '확인 불가'·'크롤 실패'로 표기
+- 크롤 = 로컬 PC(크롬 확장/Playwright). 서버 크롤 실패는 정상
+
+<span class="h">■ 먼저 읽을 정본</span> (계속 갱신됨 — 정본 최신본 우선)
+- <span class="star">★ 먼저 origin/main 으로 전환</span> (파일 읽기 전 반드시 · 단순 API 조회여도) : git fetch origin main → 뒤처졌으면 origin/main 기준. 안 하면 작업트리 stale orphan(옛 docs/) 읽어 오진
+- 크롤링 가이드 프로그램/_시스템/docs/크롤링-가이드.md : §1 재고 · §2 가격 · §3 매트릭스 · §5 에러(S/P/O) · §7 배선
+- 데이터 가이드 /data-guide = 저장 위치·단일 진실 원천
+    ※ 재고 검사 대상 = 소싱처 크롤 재고(매트릭스 셀), 실물 재고관리(InventoryTx) 아님
+- 크롤 실행 = 각 단계 시작 시, 너(Claude Code)가 사용자의 로그인된 크롬에 붙어
+  (Claude-in-Chrome) mou-m.com 매트릭스에서 대상 소싱처 크롤을 직접 돌리고 완료 감시.
+  못 붙으면 사용자에게 요청→완료 뒤 진행. 최신화 전 대조 금지.
+
+<span class="h">━━━ [1단계] 재고 정합성 조사 (먼저, 끝까지) ━━━</span>
+1) 크롤(로컬 PC) → 2) 실브라우저 색×사이즈 재고 엑셀 → 3) 매트릭스 대조
+4) OK/NG 이중 태그 [귀책 U/P] [증상 <span class="star">A 품절둔갑</span>★/B 거짓품절/C 999둔갑/D 미수집/E 수량불일치]
+5) 소싱처별 집계 + 조치 U/P 분리 + 전수 엑셀
+   ↳ 여기(재고 엑셀)까지 완료한 뒤에만 [2단계]로.
+
+<span class="h">━━━ [2단계] 가격 정합성 조사 (재고 완료 후) ━━━</span>
+3층 = 표면노출가 − 혜택(선반영/후반영/결제택1/캐시백) = 최종매입가
+1) 크롤 → 2) 실브라우저 3층 엑셀 → 3) 매트릭스(셀=표면가+최종매입가·계산식=혜택) 대조
+4) OK/NG 이중 태그 [귀책 U/P] [증상 A 표면가/<span class="star">B 언더프라이싱</span>★/<span class="star">C 폴백가</span>★/D 혜택누락/E 셀≠계산식]
+5) 소싱처별 집계 + 조치 U/P 분리 + 전수 엑셀
+
+<span class="h">■ 진행 방식</span>
+- 크롤은 실시간 감시(사후 추측 금지). 로드된 확장 버전 먼저 확인
+- <span class="star">1단계(재고) 완료 전 2단계(가격) 착수 금지.</span></div>
+    </div>
+    <button type="button" class="copybtn-big" id="ccCopyBig"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 프롬프트 전체 복사</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KIND = 'stock';
+  document.querySelectorAll('.ccpage .ccs').forEach(function(s){
+    s.addEventListener('click', function(){
+      KIND = s.getAttribute('data-kind');
+      document.querySelectorAll('.ccpage .ccs').forEach(function(x){ x.classList.toggle('on', x === s); });
+    });
+  });
+
+  var BUNDLES = [], SEL = {}, byCode = {};
+  var pick = document.getElementById('ccPick'), result = document.getElementById('ccResult');
+  var listEl = document.getElementById('ccList'), chipsEl = document.getElementById('ccChips');
+  var searchEl = document.getElementById('ccSearch'), scntEl = document.getElementById('ccScnt'), makeEl = document.getElementById('ccMake');
+  var allCb = document.getElementById('ccAllCb'), allCnt = document.getElementById('ccAllCnt'), srcStep = document.getElementById('ccSrcStep');
+  var TAGS = {stock:'· 재고 정합성 조사', price:'· 가격 정합성 조사', both:'· 재고+가격 순차 조사'};
+
+  function selCodes(){ return Object.keys(SEL); }
+  function totalSrc(){ return selCodes().reduce(function(a,c){ return a + SEL[c].size; }, 0); }
+
+  function renderChips(){
+    var codes = selCodes();
+    if (!codes.length){ chipsEl.innerHTML = '<span class="chip empty">아직 고른 모음전이 없습니다 — 아래에서 선택</span>'; return; }
+    chipsEl.innerHTML = codes.map(function(c){ return '<span class="chip">'+c+' <span class="cs">·'+SEL[c].size+'소싱처</span> <span class="cx" data-uncheck="'+c+'"></span></span>'; }).join('');
+  }
+  function renderList(){
+    var q = (searchEl.value || '').trim().toLowerCase();
+    var rows = BUNDLES.filter(function(b){ return !q || b.code.toLowerCase().indexOf(q) >= 0; });
+    if (!rows.length){ listEl.innerHTML = '<div class="loading">검색 결과 없음</div>'; return; }
+    listEl.innerHTML = rows.map(function(b){
+      var on = !!SEL[b.code];
+      return '<div class="mrow" data-check="'+b.code+'"><span class="cb'+(on?' on':'')+'">'+(on?'✓':'')+'</span>'+
+        '<span class="mnm">'+b.code+'</span><span class="mmeta">소싱처 '+b.sources.length+'</span></div>';
+    }).join('');
+  }
+  function renderSrcStep(){
+    var codes = selCodes();
+    if (!codes.length){ srcStep.innerHTML = '<div class="srchint">먼저 ② 에서 검사할 모음전을 고르세요.</div>'; return; }
+    srcStep.innerHTML = codes.map(function(c){
+      var b = byCode[c], sel = SEL[c], allOn = sel.size === b.sources.length;
+      var chips = b.sources.map(function(s){
+        var so = sel.has(s);
+        return '<span class="srcchip'+(so?' on':'')+'" data-src="'+c+'|'+s+'"><span class="cb sm'+(so?' on':'')+'">'+(so?'✓':'')+'</span>'+s+'</span>';
+      }).join('');
+      var lbl = (codes.length > 1 ? c + ' · ' : '') + '소싱처 ' + sel.size + '/' + b.sources.length + ' 켜짐';
+      return '<div class="srcblk"><div class="srchdr"><span class="lbl">'+lbl+'</span>'+
+        '<button type="button" class="allbtn" data-srcall="'+c+'">'+(allOn ? '전체 해제' : '전체 선택')+'</button></div>'+
+        '<div class="srcs">'+chips+'</div></div>';
+    }).join('');
+  }
+  function renderFoot(){
+    scntEl.innerHTML = '모음전 <b>'+selCodes().length+'개</b> · 소싱처 합계 <b>'+totalSrc()+'개</b>';
+    makeEl.disabled = selCodes().length === 0;
+    var total = BUNDLES.length, sel = selCodes().length;
+    allCb.classList.toggle('on', total > 0 && sel === total);
+    allCb.textContent = (total > 0 && sel === total) ? '✓' : (sel > 0 ? '–' : '');
+    allCnt.textContent = total ? ('전체 '+total+'개') : '';
+  }
+  function renderAll(){ renderChips(); renderList(); renderSrcStep(); renderFoot(); }
+
+  function toggleCheck(code){
+    if (SEL[code]) delete SEL[code];
+    else SEL[code] = new Set((byCode[code]||{}).sources || []);
+    renderAll();
+  }
+  function toggleSrc(code, s){
+    if (!SEL[code]) SEL[code] = new Set();
+    if (SEL[code].has(s)) SEL[code].delete(s); else SEL[code].add(s);
+    if (SEL[code].size === 0) delete SEL[code];
+    renderAll();
+  }
+  function toggleSrcAll(code){
+    var b = byCode[code]; if (!b) return;
+    if (SEL[code] && SEL[code].size === b.sources.length) SEL[code] = new Set();   // 전부 켜짐 → 해제
+    else SEL[code] = new Set(b.sources);                                          // → 전부 켜기
+    if (SEL[code].size === 0) delete SEL[code];
+    renderAll();
+  }
+  function toggleAllMoum(){
+    if (selCodes().length === BUNDLES.length){ SEL = {}; }
+    else { BUNDLES.forEach(function(b){ SEL[b.code] = new Set(b.sources); }); }
+    renderAll();
+  }
+
+  listEl.addEventListener('click', function(e){ var r = e.target.closest('[data-check]'); if (r) toggleCheck(r.getAttribute('data-check')); });
+  chipsEl.addEventListener('click', function(e){ var x = e.target.closest('[data-uncheck]'); if (x) toggleCheck(x.getAttribute('data-uncheck')); });
+  srcStep.addEventListener('click', function(e){
+    var all = e.target.closest('[data-srcall]'), sc = e.target.closest('[data-src]');
+    if (all){ toggleSrcAll(all.getAttribute('data-srcall')); return; }
+    if (sc){ var p = sc.getAttribute('data-src').split('|'); toggleSrc(p[0], p[1]); }
+  });
+  document.getElementById('ccAllRow').addEventListener('click', toggleAllMoum);
+  searchEl.addEventListener('input', renderList);
+
+  function injectTargets(){
+    var codes = selCodes(), lines;
+    if (codes.length === 1){
+      var c = codes[0];
+      lines = '- 모음전 : ' + c + '\n- 소싱처 : ' + Array.from(SEL[c]).join(', ') + '\n- URL    : 위 모음전·소싱처의 매트릭스 등록 URL 전체';
+    } else {
+      lines = '- 대상 (모음전 → 소싱처) :\n' + codes.map(function(c){ return '    · ' + c + ' → ' + Array.from(SEL[c]).join(', '); }).join('\n') + '\n- URL : 위 각 모음전·소싱처의 매트릭스 등록 URL 전체';
+    }
+    ['ccTargetStock','ccTargetPrice','ccTargetBoth'].forEach(function(id){ var el = document.getElementById(id); if (el) el.textContent = lines; });
+  }
+  var boxes = {stock:document.getElementById('ccBoxStock'), price:document.getElementById('ccBoxPrice'), both:document.getElementById('ccBoxBoth')};
+  makeEl.addEventListener('click', function(){
+    if (!selCodes().length) return;
+    injectTargets();
+    Object.keys(boxes).forEach(function(k){ boxes[k].classList.toggle('hide', k !== KIND); });
+    document.getElementById('ccResTag').textContent = TAGS[KIND];
+    pick.classList.remove('on'); result.classList.add('on');
+  });
+  document.getElementById('ccBack').addEventListener('click', function(){ result.classList.remove('on'); pick.classList.add('on'); });
+
+  function feedback(btn, label){ btn.classList.add('done'); btn.textContent='복사됨'; setTimeout(function(){ btn.classList.remove('done'); btn.textContent=label; },1400); }
+  function copyText(text, btn, label){
+    var ok=function(){feedback(btn,label);};
+    var fb=function(){var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();var d=document.execCommand('copy');document.body.removeChild(ta);if(d)ok();};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(ok).catch(fb);}else{fb();}
+  }
+  function curBox(){ return boxes[KIND]; }
+  document.getElementById('ccCopyTop').addEventListener('click', function(){ copyText(curBox().innerText, this, '전체 복사'); });
+  document.getElementById('ccCopyBig').addEventListener('click', function(){ copyText(curBox().innerText, this, '프롬프트 전체 복사'); });
+
+  fetch('/api/bundles/with-sources').then(function(r){ return r.json(); }).then(function(d){
+    if (!d || !d.ok || !Array.isArray(d.bundles)){ listEl.innerHTML = '<div class="loading">목록을 불러오지 못했습니다</div>'; return; }
+    BUNDLES = d.bundles; BUNDLES.forEach(function(b){ byCode[b.code] = b; });
+    renderAll();
+  }).catch(function(){ listEl.innerHTML = '<div class="loading">목록을 불러오지 못했습니다</div>'; });
+})();
+</script>
+{% endblock %}

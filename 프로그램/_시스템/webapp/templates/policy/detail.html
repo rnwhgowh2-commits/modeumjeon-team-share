@@ -1,0 +1,1453 @@
+{% extends 'base.html' %}
+{% block title %}{{ policy.name }} — 정책 생성{% endblock %}
+{% block content %}
+<section class="screen active{{ ' mk-off' if not is_common and market not in enabled }}"
+         id="screen-policy-detail">
+  <style>
+    .pd-back{font-size:12px;color:var(--글자-기본,#4E5968);text-decoration:none}
+    .pd-h{display:flex;align-items:center;gap:8px;margin:8px 0 4px;flex-wrap:wrap}
+    .pd-h h1{font-size:40px;font-weight:600;margin:0}  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+    .tag{font-size:12px;font-weight:700;padding:0px 8px;border-radius:999px}
+    .tag.def{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    .pd-sub{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
+
+    .mtabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+    .mtab{display:block;border:1.5px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;
+          padding:8px 12px;text-decoration:none;color:var(--글자-기본,#4E5968);font-size:12px;font-weight:600;min-width:118px}
+    .mtab:hover{border-color:var(--line,#C6CBD3)}
+    .mtab.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .mtab .st{display:block;font-size:12px;font-weight:500;margin-top:4px;color:var(--sub,#8B95A1)}
+    .mtab.on .st{color: var(--글자-파랑, var(--primary,#3F72B8))}
+    .mtab .st.no{color: var(--글자-주황, var(--amber,#B45309))}
+    /* ── [2026-08-12 확정 B2] 안 켠 마켓 — 흐리게 + 자물쇠 (노션 정책생성 a) ──
+       🔴 숨기지 않는다. 숨기면 거기 채워 둔 값을 다시 고칠 길이 사라진다. */
+    .mtab.mkoff{opacity:.42}
+    .mtab.mkoff .st{color:var(--sub,#8B95A1)}
+    .mk-grid label.mkoff{opacity:.5}
+    .mklock{margin-left:3px}
+    .mkoff-note{background:var(--n100,#F2F4F6);border-radius:8px;padding:10px 14px;
+                font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;
+                margin-bottom:10px}
+    .mkoff-note b{color:var(--ink,#191F28)}
+    /* ── [2026-08-20 3차 확정] 안내 상자 통합 ─────────────────────────────────
+       채움 현황·정책설정 체크·필수 현황·공통 불러오기·전송 규칙·항목 설명 — 흩어져
+       있던 5~6개 상자를 카드 둘로 줄였다. 위(sumtop)는 「정책설정」 체크박스가
+       있는 칸 — 흐림 밖에 둔다(다시 켤 단추가 같이 흐려지면 안 된다, 2026-08-12
+       확정 그대로 자리만 옮겼다). 아래(sumbody)는 나머지 — 마켓을 끄면 함께
+       흐려지는 것이 맞다(꺼진 마켓의 현황을 또렷하게 보여줄 이유가 없다). */
+    .sumtop{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+            border-radius:12px;padding:12px 16px;margin-bottom:8px}
+    .sumtop.off{border-color:var(--line,#C6CBD3);background:var(--n50,#F9FAFB)}
+    .sumtop-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    .sumtop-chk{display:flex;align-items:center;gap:9px;cursor:pointer;
+                font-size:14px;font-weight:700}
+    .sumtop-chk input{width:18px;height:18px;accent-color:var(--primary,#3182F6);flex:none}
+    .sumtop-static{font-size:14px;font-weight:700;color:var(--글자-기본,#4E5968)}
+    .sumtop-right{display:flex;align-items:center;gap:12px;margin-left:auto;flex-wrap:wrap}
+    .sumtop-stats{font-size:12px;color:var(--글자-보조,#6B7684)}
+    .sumtop-stats b{font-variant-numeric:tabular-nums;color:var(--ink,#191F28)}
+    /* 「필수인데 비어 있음」은 경고(주황) — 되돌릴 수 없는 오류(빨강)가 아니다 */
+    .sumtop-warn{display:inline-flex;align-items:center;gap:4px;font-weight:700;font-size:12px;
+                 color: var(--글자-주황, var(--amber,#B45309));background:var(--연한-주황,#FFFBEB);
+                 border:1px solid var(--연한-주황,#FDE68A);border-radius:999px;
+                 padding:2px 9px;cursor:help;white-space:nowrap}
+    .sumtop-warn.ok{color: var(--글자-초록, var(--green,#15803D));background:var(--연한-초록,#DCFCE7);
+                    border-color:var(--연한-초록,#DCFCE7)}
+    .sumtop .m{font-size:12px;margin:6px 0 0 27px;min-height:0;color:var(--글자-보조,#6B7684)}
+    .sumtop .m.err{color: var(--글자-빨강, var(--red,#E5484D))}
+    .sumbody{background:var(--n50,#F9FAFB);border:1px solid var(--line,#E5E8EB);border-radius:12px;
+             padding:10px 16px;margin-bottom:14px;display:flex;align-items:center;gap:8px;
+             flex-wrap:wrap;font-size:12px;color:var(--글자-보조,#6B7684)}
+    .sumbody .sep{color:var(--line,#C6CBD3)}
+    .sumbody .lb{font-weight:700;color:var(--글자-기본,#4E5968)}
+    .sumbody .btn2{margin-left:auto}
+    /* 꺼져 있으면 가공 칸을 흐리게. 항목 카드·미리보기만 대상이고
+       탭·안내·채움줄·저장줄은 또렷하게 남는다(끈 상태에서도 고칠 수 있어야 한다). */
+    #screen-policy-detail.mk-off .it,
+    #screen-policy-detail.mk-off .pv{opacity:.45}
+
+    /* 항목 아코디언 — 대량등록 「데이터 가공」과 같은 모양 */
+    .it{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;margin-bottom:8px;overflow:hidden}
+    .it-h{display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;user-select:none;
+          background:var(--n100,#F7FAFF);border-bottom:1px solid transparent}
+    .it.open .it-h{border-bottom-color:var(--line,#E5E8EB)}
+    .it-h .nm{font-size:14px;font-weight:700;color:var(--ink,#191F28)}
+    .it-h .ref{font-size:12px;color:var(--sub,#8B95A1)}
+    .it-h .chev{color:var(--sub,#8B95A1);font-size:12px;transition:transform .15s;margin-left:4px}
+    /* ── [2026-08-20 3차 확정] 지금 상태 줄 — 「공통/직접/없음」·「정함/안 정함」 삭제 ──
+       마켓 탭에 이미 같은 정보(직접·2/16)가 있고, 필수 항목은 접힌 줄의 「⚠ 필수인데
+       비어 있음」이 이미 알려준다 — 항목마다 또 달면 사장님 눈엔 중복이었다.
+       왼쪽 「지금 상태(필수·전송됨)」 / 오른쪽 「공통 불러오기」만 남는다. */
+    .statusrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;
+               padding-bottom:12px;border-bottom:1px dashed var(--line,#E5E8EB)}
+    .statusrow .stgrp{display:inline-flex;align-items:center;gap:6px}
+    .statusrow .acgrp{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
+    /* ── [2026-08-19 2차 확정 → 2026-08-20 3차 확정 재색칠] 접힌 줄 경고 ──────────
+       「필수인데 비어 있음」만 상시 노출. 색은 주황(경고) — 되돌릴 수 없는
+       오류(빨강)가 아니라 지금 채우면 없어지는 경고라서 바꿨다. */
+    .reqwarn{font-size:12px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
+             background:var(--연한-주황,#FFFBEB);
+             color: var(--글자-주황, var(--amber,#B45309));
+             border:1px solid var(--연한-주황,#FDE68A);cursor:help}
+    .it.open .chev{transform:rotate(90deg)}
+    .it-b{display:none;padding:16px 16px 16px}
+    .it.open .it-b{display:block}
+    .it-note{background:var(--bg,#F9FAFB);border-radius:8px;padding:8px 12px;font-size:12px;
+             color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:12px}
+
+    .flds{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+    .fld.wide{grid-column:1/-1}
+    .fld label{display:block;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);margin-bottom:4px}
+    .fld input[type=text],.fld input[type=number],.fld select,.fld textarea{
+      width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;
+      font-size:12px;font-family:inherit;background:var(--surface,#ffffff);color:var(--ink,#191F28)}
+    .fld textarea{min-height:84px;resize:vertical;line-height:1.6}
+    .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--primary,#3182F6);
+      }
+    .fld .hint{font-size:12px;color:var(--sub,#8B95A1);margin-top:4px;line-height:1.5}
+    .fld .hint a{color: var(--글자-파랑, var(--primary,#3182F6))}
+    .fee-alt{display:flex;align-items:center;gap:6px;margin-top:6px;
+             font-size:12px;color:var(--글자-기본,#4E5968);cursor:pointer}
+    .fee-alt input{margin:0}
+    .fld .unit{font-size:12px;color:var(--sub,#8B95A1);font-weight:400;margin-left:4px}
+    .fld.bool{display:flex;align-items:center;gap:8px}
+    .fld.bool label{margin:0}
+    input[type=checkbox]{width:16px;height:16px;accent-color:var(--primary,#3182F6);cursor:pointer}
+    .pairs{border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+    .pairs .ph{display:grid;grid-template-columns:1fr 1fr 34px;background:var(--n100,#F2F4F6);
+               font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968)}
+    .pairs .ph span{padding:8px 8px}
+    .pairs .pr{display:grid;grid-template-columns:1fr 1fr 34px;border-top:1px solid var(--n100,#F2F4F6)}
+    .pairs .pr input{border:0;border-radius:0;padding:8px 8px}
+    .pairs .pr button{border:0;background:transparent;color: var(--글자-희미, var(--faint,#B0B8C1));cursor:pointer;font-size:12px}
+    .pairs .pr button:hover{color: var(--글자-빨강, var(--red,#E5484D))}
+    .pairs .add{width:100%;border:0;border-top:1px dashed var(--line,#E5E8EB);background:var(--n100,#FCFCFD);
+                padding:8px;font-size:12px;color: var(--글자-파랑, var(--primary,#3182F6));cursor:pointer;font-family:inherit}
+    .pairs .none{padding:12px;text-align:center;color:var(--sub,#8B95A1);font-size:12px;border-top:1px solid var(--n100,#F2F4F6)}
+
+    .btn2{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;padding:8px 16px;border-radius:8px;
+          font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+    .btn2.ghost{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
+    .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
+    .savebar{position:sticky;bottom:0;background:var(--surface,#ffffff);border-top:1px solid var(--line,#E5E8EB);
+             padding:12px 0;display:flex;align-items:center;gap:12px;margin-top:8px;z-index:5}
+    .savebar .n{flex:1;font-size:12px;color:var(--글자-보조,#6B7684)}
+    .msg{font-size:12px;min-height:18px}
+    .msg.err{color: var(--글자-빨강, var(--red,#E5484D))}.msg.ok{color: var(--글자-초록, var(--green,#15803D))}
+    .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:12px 16px;
+          font-size:12px;color: var(--글자-주황, var(--amber,#92400E));line-height:1.7;margin-bottom:12px}
+    .card{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px;margin-top:12px}
+    .card-t{font-size:14px;font-weight:700;margin-bottom:4px}
+    .card-d{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:12px;line-height:1.6}
+    table.bl{width:100%;border-collapse:collapse;font-size:12px}
+    table.bl th{background:var(--n100,#F2F4F6);font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);padding:8px 8px;
+                border-bottom:1px solid var(--line,#E5E8EB);text-align:left;white-space:nowrap}
+    table.bl td{padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
+    .code{font-family:ui-monospace,monospace;font-size:12px;background:var(--n100,#F2F4F6);padding:0px 4px;border-radius:8px}
+    .scrollbox{max-height:320px;overflow:auto;border:1px solid var(--line,#E5E8EB);border-radius:8px}
+
+    /* ── 「필수」 표시 + 「지금 실제로 나가는가」 (2026-08-02) ──
+       판정 근거는 마켓 상품등록 API 원문뿐 — lemouton/policy/required.py 가 정본.
+       🔴 글자색은 반드시 `--글자-*` 토큰으로 쓴다. 어두운 화면에서 이 토큰들이
+         밝은 값으로 뒤집혀야 반투명 배경(rgba …,.18) 위에서 읽힌다.
+         하드코딩 hex(#B91C1C)를 쓰면 배경만 어두워지고 글자는 굳어 **대비 1.85**
+         가 된다 — 라이브 4모드 실측으로 확인했고, 옆의 기존 `.src.none` 이 지금
+         그 상태다(별건이라 여기서 손대지 않는다). */
+    .req{font-size:12px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap}
+    /* [2026-08-20 3차 확정] 「필수」는 항목을 펼치면 늘 붙어 있는 분류표다 —
+       빈 채로도 안 채웠어도 항상 뜬다. 채워야 한다는 「경고」(reqwarn, 주황
+       채움)와 색이 같으면 위상 차이가 안 느껴진다는 지적을 받아, 테두리만
+       남기고 옅게 낮췄다. */
+    .req.must{background:transparent;
+              border:1px solid #EF9A9A;
+              color: var(--글자-빨강, var(--red,#B91C1C));cursor:help}
+    .req.cond{background:var(--연한-파랑,#E8F2FF);
+              color: var(--글자-파랑, var(--primary,#1B64DA));cursor:help}
+    .req.unk{background:var(--연한-주황,#FFFBEB);color: var(--글자-주황, var(--amber,#B45309));
+             border:1px solid var(--연한-주황,#FDE68A);cursor:help}
+    .wire{font-size:12px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
+          cursor:help}
+    .wire.on{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    /* 「일부만」 — 반쪽은 작동하고 반쪽은 아직인 항목. 초록(다 됨)과 헷갈리면 안 되므로
+       주황 계열로 가른다. 마우스를 올리면 어디까지 되는지 말해 준다. */
+    .wire.half{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E));cursor:help}
+    /* ── [2026-08-13 확정 A1] 정해져 나가는 값 — 접힌 줄 ── */
+    .fx{background:var(--n50,#F9FAFB);border:1px solid var(--line,#E5E8EB);
+        border-radius:12px;margin-bottom:14px;overflow:hidden}
+    .fx-h{display:flex;align-items:center;gap:8px;padding:11px 15px;cursor:pointer;
+          font-size:13px;font-weight:700;color:var(--글자-기본,#4E5968);list-style:none}
+    .fx-h::-webkit-details-marker{display:none}
+    .fx-h::after{content:'▾';margin-left:auto;color:var(--sub,#8B95A1);font-size:12px}
+    .fx[open] .fx-h::after{content:'▴'}
+    .fx-h .n{background:var(--n100,#F2F4F6);border-radius:999px;padding:1px 9px;
+             font-size:11.5px;font-variant-numeric:tabular-nums}
+    table.fxt{width:100%;border-collapse:collapse;font-size:12.5px;
+              border-top:1px solid var(--line,#E5E8EB)}
+    /* 정렬: 이름·값 왼쪽(내용 폭) · 설명 왼쪽(남는 폭) · 근거는 오른쪽 흐리게 */
+    .fxt td{padding:7px 15px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:top}
+    .fxt tr:last-child td{border-bottom:0}
+    .fxt .lb{color:var(--글자-보조,#6B7684);white-space:nowrap;width:1%}
+    .fxt .vl{font-weight:700;color:var(--ink,#191F28);white-space:nowrap;width:1%}
+    .fxt .no{color:var(--글자-보조,#6B7684);line-height:1.6}
+    .fxt .src{color:var(--글자-희미,#8B95A1);font-size:11px;white-space:nowrap;
+              text-align:right;font-family:ui-monospace,monospace;width:1%}
+    /* ── [2026-08-19 2차 확정] 정책 설정 요약 두 묶음 — 「무조건」 vs 「안 정하면」 ──
+       🔴 policy_wins 플래그로 가른다. 색만으로 가르지 않는다 — 묶음 제목 글자
+         자체가 뜻을 말한다(가독성 원칙 A: 색상만으로 상태 구분 금지). */
+    .fx-group-t{padding:9px 15px 0;font-size:11.5px;font-weight:700;color:var(--sub,#8B95A1)}
+    .fx-group-t.wins{color: var(--글자-파랑, var(--primary,#1B64DA))}
+    .fx-none{background:var(--n100,#F2F4F6);border-radius:12px;padding:11px 15px;
+             font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:14px}
+    /* ── [2026-08-13 확정 B2] 항목 머리 「정책 ○○ / 실제 ○○」 알약 ── */
+    .fxp{font-size:11px;font-weight:600;border-radius:999px;padding:1px 9px;
+         white-space:nowrap;cursor:help}
+    .fxp.same{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
+    .fxp.diff{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
+    .fxp b{font-weight:700}
+    /* 보조 설명줄 — `--sub` 는 밝은 화면에서 2.91 로 흐리다. 본문 보조색을 쓴다. */
+    .req-why{font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.6;margin-bottom:10px}
+    .req-why b{color:var(--ink,#191F28)}
+
+    /* ── 「마켓 공통」 — 값이 어디서 왔는지 · 넣기 · 불러오기 ── */
+    .src{font-size:12px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
+         margin-left:auto}
+    .src.common{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
+    .src.own{background:var(--연한-주황,#FFF7ED);color: var(--글자-주황, var(--amber,#B45309))}
+    .src.none{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+    .btnsm{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);
+           border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:3px 10px;
+           font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;
+           margin-left:6px}
+    .btnsm:hover{border-color:var(--primary,#3182F6);color:#1B64DA}
+    .pb-hint{font-size:12px;color:var(--글자-보조,#6B7684);margin:0 0 12px 4px;line-height:1.7}
+    /* ── [2026-08-19 사장님 확정 시안 1] 물음표 아이콘 — 평소엔 짧게, 올리면 원문 그대로 ──
+       🔴 부연설명 4곳(마켓 끄기·공통 불러오기·전송됨·필수)을 이걸로 줄였다.
+         안에 있던 정보(확인불가=모른다 등)는 안 지웠다 — title 로 그대로 옮겼을 뿐이다. */
+    .qi{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+        border-radius:999px;background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684);
+        font-size:10px;font-weight:800;cursor:help;flex:none;vertical-align:middle}
+    .qi:hover{background:var(--primary,#3182F6);color:#fff}
+    .pushrow{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+             color:var(--ink,#191F28);padding-bottom:8px;margin-bottom:8px;
+             border-bottom:1px dashed var(--line,#E5E8EB)}
+    .mk-grid{display:grid;grid-template-columns:repeat(3,max-content);gap:6px 20px;justify-content:start}
+    .mk-grid label{display:flex;align-items:center;gap:6px;font-size:12px;
+                   color:var(--글자-기본,#4E5968);cursor:pointer}
+    .mk-grid .src{margin-left:2px}
+
+    /* ── 판매가 전용 (확정 G1·I2·J3·K3) ── */
+    .pf-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .pf-box{background:var(--bg,#F9FAFB);border:1px solid var(--line,#E5E8EB);
+            border-radius:8px;padding:12px 12px}
+    .pf-box.src2{border-top:3px solid var(--primary,#3182F6)}
+    .pf-box.buy{border-top:3px solid var(--green,#15803D)}
+    .pf-box .t{font-size:13px;font-weight:700;margin-bottom:2px}
+    .pf-box .d{font-size:12px;color:var(--sub,#8B95A1);margin-bottom:8px}
+    /* 안 고른 방식 — 값은 보이되 「지금 안 먹는다」가 눈에 띄게 */
+    .pf-dim{opacity:.42}
+    .pf-live{font-size:12px;font-weight:700;background:var(--연한-파랑,#E8F2FF);
+             color:#1B64DA;border-radius:999px;padding:0 8px;margin-left:6px}
+    .pf-guard{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line,#E5E8EB)}
+    .pf-guard .gt{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);
+                  margin-bottom:8px}
+    /* [2026-08-06] 즉시할인 (확정 D1·E2) — 안전장치 묶음 안, 끝에 이어 붙인다.
+       🔴 예비값 없는 미정의 토큰을 쓰지 않는다 — 예비값이 없으면 그 선언이 통째로
+         무효가 돼 테두리가 사라진다(2026-08-04 실사고). */
+    .pf-disc{margin-top:12px;padding-top:10px;
+             border-top:1px dashed var(--line,#E5E8EB)}
+    .pf-disc-sub{font-size:12px;font-weight:400;color:var(--sub,#8B95A1);
+                 margin-left:6px}
+    /* 🔴 색 이름을 **지어 쓰지 않는다** — 없는 이름은 예비값(대개 흰색)이 그대로 나와
+       어두운 화면에서 흰 상자가 된다. 바로 위 `.warn` 이 쓰는 이름을 그대로 쓴다. */
+    /* 못 보내는 마켓에서 「안 나간다」고 말하는 줄 — 경고(노랑)와 구분해 회색으로.
+       위험이 아니라 사실 안내다. */
+    .pf-disc-off{background:var(--n100,#F2F4F6);border-radius:8px;padding:7px 12px;
+                 font-size:12px;color:var(--글자-기본,#4E5968);line-height:1.6;
+                 margin-bottom:9px}
+    .pf-disc-warn{background:var(--연한-주황,#FFFBEB);
+                  border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;
+                  padding:7px 12px;font-size:12px;
+                  color: var(--글자-주황, var(--amber,#92400E));line-height:1.6;
+                  margin-bottom:9px}
+    /* 「전 → 후」 3칸 — 현재는 우측·화살표 가운데·바뀔 값 좌측이라
+       줄이 여럿이어도 화살표가 세로로 선다. */
+    .pf-disc-prev{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+                  gap:8px;background:var(--surface,#ffffff);
+                  border:1px solid var(--line,#E5E8EB);border-radius:8px;
+                  padding:6px 12px;font-size:13px;font-variant-numeric:tabular-nums}
+    .pf-disc-prev .b{text-align:right;color:var(--sub,#8B95A1);
+                     text-decoration:line-through}
+    .pf-disc-prev .ar{color:var(--sub,#8B95A1);font-size:12px}
+    .pf-disc-prev .a{text-align:left;font-weight:700;
+                     color: var(--글자-빨강, var(--red,#E5484D))}
+/* ── [2026-08-13 사장님 확정 시안 v2] 여기부터 — 시안 파일에서 그대로 잘라온 부품 ── */
+.hz-wrap{position:relative;border-radius:12px}
+.hz-body{position:relative;opacity:.5;margin-top:10px}
+.hz-body::after{content:'';position:absolute;inset:0;border-radius:12px;pointer-events:none;
+  background:repeating-linear-gradient(135deg,transparent 0 14px,rgba(148,163,184,.13) 14px 28px)}
+.grp{border:1px solid #E5E8EB;border-radius:12px;margin-bottom:10px;overflow:hidden;background:#fff}
+.grp>h4{margin:0;padding:10px 14px;background:#F7FAFF;font-size:12.5px;font-weight:700;color:#4E5968}
+.scope{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;margin-left:6px}
+.scope.pol{background:#E6F1FB;color:#0C447C}
+.scope.prd{background:#FAEEDA;color:#854F0B}
+.scope.opt{background:#EEEDFE;color:#3C3489}
+.ff{display:grid;grid-template-columns:150px 1fr;gap:12px;padding:12px 14px;
+  border-top:1px solid #F2F4F6;align-items:start}
+.ff .fl{font-size:13px;color:#4E5968;padding-top:6px}
+.ff input{height:34px;border:1px solid #E5E8EB;border-radius:8px;padding:0 10px;font-size:13px;width:100%;max-width:420px}
+.rgrp{display:flex;flex-wrap:wrap;gap:8px}
+.rd{display:flex;align-items:center;gap:7px;border:1px solid #E5E8EB;border-radius:8px;
+  padding:8px 12px;font-size:13px;cursor:pointer;background:#fff}
+.rd.on{border-color:#3182F6;background:#F5F9FF}
+.sw{display:inline-flex;align-items:center;gap:8px;border:1px solid #E5E8EB;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;background:#fff}
+.sw.on{border-color:#0F6E56;background:#F2FBF7}
+.rs{font-size:11.5px;color:#8B95A1;margin-left:4px}
+.ff .rs{margin:5px 0 0 2px;display:block}
+.bcrow{display:flex;align-items:center;gap:8px;margin-top:6px}
+.bcb{font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.bcb.ok{background:#E1F5EE;color:#0F6E56}
+.bcb.self{background:#FAEEDA;color:#854F0B}
+.tapewarn{background:#FEF3C7;color:#92400E;border-radius:8px;padding:8px 12px;
+  font-size:11.5px;line-height:1.65;margin-top:8px}
+.mktbl{margin-top:8px}
+.mktbl summary{font-size:12px;color:#4E5968;cursor:pointer}
+.mktbl table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.mktbl th{text-align:left;color:#8B95A1;font-weight:500;padding:5px 8px;border-bottom:1px solid #E5E8EB}
+.mktbl td{padding:5px 8px;border-bottom:1px solid #F2F4F6}
+.mktbl td.lb{color:#191F28;font-weight:700;white-space:nowrap}
+.mktbl td.ok{font-family:ui-monospace,monospace;font-size:11px;color:#0F6E56;white-space:nowrap}
+.mktbl td.unk{color:#8B95A1}
+.mktbl td.no{color:#4E5968}
+
+  /* ── 쿠팡 쿠폰 확인창 (사장님 확정 B5) ─────────────────────────────── */
+  .cpd-wrap{position:fixed;inset:0;background:rgba(15,20,28,.45);z-index:1200;
+            display:grid;place-items:center;padding:20px}
+  .cpd{background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.18);
+       max-width:560px;width:100%;padding:22px 24px;font-size:13px;line-height:1.7}
+  .cpd h3{margin:0 0 6px;font-size:16px}
+  .cpd-s{font-size:12px;color:var(--sub,#8B95A1);display:flex;align-items:center;
+         gap:8px;margin-bottom:6px}
+  /* 🔴 글자 바닥선 12px (사장님 확정 2026-08-13). 이 판은 확대(scale)가 안 걸린
+     보통 판이라 예외가 아니다 — 11.5·10.5 로 두면 #1022 의 감시 시험이 main 을 깬다. */
+  .cpd-s button{border:0;background:none;color:var(--primary,#3182F6);font-size:12px;
+                font-weight:700;cursor:pointer;text-decoration:underline;
+                padding:0;font-family:inherit}
+  .cpd table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+  .cpd th,.cpd td{padding:6px 8px;border-bottom:1px solid var(--n100,#F2F4F6);
+                  text-align:left}
+  .cpd th{color:var(--sub,#8B95A1);font-weight:600}
+  .cpd-next{color:var(--글자-빨강,#D70015);font-weight:700}
+  .cpd-off td{color:var(--sub,#8B95A1)}
+  .cpd-why{font-size:12px}
+  .cpd-w{background:#FFF8E1;border:1px solid #FFE0A3;border-radius:10px;
+         padding:10px 12px;color:#8A6100;font-size:12px;margin-top:12px}
+  .cpd-b{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+  .cpd-b button{border:0;border-radius:9px;padding:9px 18px;font-size:13px;
+                font-weight:700;cursor:pointer;font-family:inherit}
+  .cpd-no{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
+  .cpd-go{background:var(--primary,#3182F6);color:#fff}
+  </style>
+
+  <a class="pd-back" href="/policies">← 정책 생성 목록</a>
+  <div class="pd-h">
+    <h1>{{ policy.name }}</h1>
+    {% if policy.is_default %}<span class="tag def">기본</span>{% endif %}
+  </div>
+  <div class="pd-sub">
+    붙은 상품 {{ applied }}개{% if policy.memo %} · {{ policy.memo }}{% endif %}
+  </div>
+
+  {# ── [2026-08-12 사장님 확정 B2] 안 켠 마켓은 흐리게 + 자물쇠 ────────────────
+     노션 「마켓 활성화 체크 박스 → 체크한 것만 가공 활성화」.
+     🔴 목록에서 빼지 않는다 — 빼면 거기 채워 둔 값을 다시 고칠 길이 사라진다.
+        껐다 켜면 값이 그대로 살아나야 한다는 게 사장님 뜻이라, 「없애기」가 아니라
+        「위상 낮추기」다. #}
+  <div class="mtabs">
+    {% for mk, label in markets %}
+    {% set off = (mk != common_key and mk not in enabled) %}
+    <a class="mtab {{ 'on' if mk == market }} {{ 'mkoff' if off }}"
+       href="/policies/{{ policy.id }}?m={{ mk }}"
+       {% if off %}title="안 켠 마켓입니다 — 적어 둔 값은 그대로 남아 있어요"{% endif %}>
+      {{ label }}{% if off %}<span class="mklock"><i class="ph-light ph-lock" aria-hidden="true"></i></span>{% endif %}
+      {% if mk == common_key %}
+        <span class="st">여기서 채웁니다</span>
+      {% else %}
+        {% set rd = readiness[mk] %}
+        {% set sm = summary[mk] %}
+        <span class="st {{ 'no' if sm.state == 'none' else '' }}">
+          {% if sm.state == 'common' %}공통{% if sm.at %} · {{ sm.at.strftime('%m/%d') }}{% endif %}
+          {% elif sm.state == 'own' %}직접
+          {% else %}없음{% endif %}
+          · {{ rd.filled }}/{{ rd.total }}
+        </span>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  {# 안 켠 마켓이 있을 때만 말한다 — 없으면 군더더기다. 셈은 서버(fill_sum)가 한다. #}
+  {% if fill_sum.off %}
+  <div class="mkoff-note">
+    <i class="ph-light ph-lock" aria-hidden="true"></i> 가 붙은 <b>{{ fill_sum.off }}곳</b>은 <b>안 켠 마켓</b>이라 가공할 필요가 없습니다.
+    적어 둔 값은 <b>그대로 남아</b> 다시 켜면 살아납니다 —
+    켜고 끄기는 <b>아래 체크박스</b>에서 바로 하실 수 있습니다.
+  </div>
+  {% endif %}
+
+  {# ── [2026-08-20 3차 확정] 안내 상자 통합 (5~6개 → 카드 2개) ────────────────
+     채움 현황·정책설정 체크·필수 현황·공통 불러오기·전송 규칙·항목 설명이 따로
+     떠 있어 「뭐가 중요한지 모르겠다」는 지적을 받았다. sumtop(채움+정책설정+
+     필수현황) / sumbody(항목설명+전송규칙+공통불러오기)로 묶었다.
+     🔴 「{{ market_label }} 정책설정」 체크박스는 여전히 빗금 **밖**(sumtop)에 둔다 —
+       그 줄이 같이 흐려지면 다시 켤 단추가 안 보인다(2026-08-12 확정 그대로,
+       자리만 옮겼다). #}
+  {% if not is_common %}{% set mk_on = market in enabled %}{% endif %}
+  <div class="sumtop{{ '' if (is_common or mk_on) else ' off' }}"{% if not is_common %} id="mkgate"{% endif %}>
+    <div class="sumtop-row">
+      {% if not is_common %}
+      <label class="sumtop-chk"><input type="checkbox" id="mkon" {{ 'checked' if mk_on }}>
+        <span>[{{ market_label }} 정책설정]</span>
+        <span class="qi" title="체크를 풀면 이 마켓으로 상품정보를 보내지 않습니다. 적어 둔 값은 그대로 남고, 꺼 둔 동안에도 고칠 수 있습니다.">?</span></label>
+      {% else %}
+      <span class="sumtop-static">마켓 공통</span>
+      {% endif %}
+      <span class="sumtop-right">
+        <span class="sumtop-stats">채움 <b>{{ fill_sum.filled }}</b>/<b>{{ fill_sum.total }}</b>
+          — 켠 <b>{{ fill_sum.on }}</b>곳만 셉니다{% if fill_sum.off %} (안 켠 {{ fill_sum.off }}곳은 뺐습니다){% endif %}</span>
+        {% if req_sum %}
+        <span class="sumtop-warn{{ '' if req_sum.missing else ' ok' }}"
+              title="「필수」는 그 마켓 상품등록 문서에 그렇게 적힌 것만 붙습니다. 「확인 불가」는 「필수가 아니다」가 아니라 「모른다」입니다 — 등록 문서에서 근거를 못 찾아 지어내지 않았습니다. 비워 두고 올리면 마켓이 거부할 수 있습니다.">
+          {% if req_sum.missing %}<i class="ph-light ph-warning" aria-hidden="true"></i> 필수 {{ req_sum.required }}개 중 {{ req_sum.missing|length }}개 비어 있음
+          {% else %}필수 {{ req_sum.required }}개 다 채워졌습니다{% endif -%}
+          {% if req_sum.unknown %} · 확인 불가 {{ req_sum.unknown }}개{% endif %}
+        </span>
+        {% endif %}
+      </span>
+    </div>
+    {% if not is_common %}<div class="m" id="mkmsg"></div>{% endif %}
+  </div>
+
+  {# ── [2026-08-13 사장님 확정 시안 v2 · 1-C] 끈 마켓은 **빗금** ──────────────
+     🔴 빗금은 `pointer-events:none` 이라 **아래 칸은 그대로 눌리고 고쳐진다.**
+       끄는 것은 「안 보낸다」이지 「못 고친다」가 아니다. #}
+  {% if not is_common %}
+  <div class="hz-wrap">
+  <div class="{{ '' if mk_on else 'hz-body' }}" id="hzbody">
+  {% endif %}
+
+  {% if is_common %}
+  {# 공통 값은 「마지막에 넣은 값」이다 — 지금 그 마켓의 값이 아니다. #}
+  <div class="warn">
+    <b>여기 값은 「마지막에 넣은 값」입니다.</b> 마켓에서 따로 고친 곳은 여기를 고쳐도
+    <b>저절로 바뀌지 않습니다</b> — 아래에서 그 마켓을 체크해 다시 넣거나,
+    그 마켓 탭에서 <b>「공통 불러오기」</b>를 눌러야 바뀝니다.
+  </div>
+  {% elif not readiness[market].price_ready %}
+  <div class="warn">
+    <b>이 마켓은 아직 가격 계산에 쓸 수 없습니다.</b>
+    「판매가」 항목을 아직 정하지 않았습니다. 정하지 않은 항목을 임의로 채워 계산하면
+    그 가격이 그대로 마켓에 나갑니다.
+  </div>
+  {% endif %}
+
+  {# ── 채워도 안 나가는 항목이 있다 — 화면이 먼저 말한다 ────────────────────
+     🔴 [2026-08-12 실측 정정] 전에는 「나가는 것은 판매가와 배송비뿐」이라고 적혀 있었다.
+       그 사이 `to_payload → apply_rules → as_draft` 배선이 생겨 **상품명·브랜드·옵션·
+       상세설명도 실제로 나가고 있었다.** 화면이 「안 나간다」고 말하는 바람에, 사장님이
+       그 칸을 안 채우고 넘어가면 그대로 마켓에 나갔을 값이다.
+       ★ 어느 항목이 나가는지는 사람이 여기 적지 않는다 — 항목마다 붙는 초록
+         「전송됨」 배지가 `policy/required.py:WIRING` 을 그대로 읽고, 그 표는
+         `as_draft` 가 실제로 옮겨 담는 칸을 시험이 대조한다. 한 곳만 고치면 어긋난다. #}
+  <div class="sumbody">
+    <span>항목 {{ items|length }}개 — 대량등록 「데이터 가공」의 가공 규칙과 <b>같은 항목</b>입니다.
+      다만 여기서는 <b>마켓마다 따로</b> 정합니다.</span>
+    <span class="sep">·</span>
+    <span><b>초록 「전송됨」 배지</b>가 있는 항목만 실제로 마켓에 나갑니다
+      <span class="qi" title="배지가 없는 항목은 채워 두면 저장은 되지만 아직 마켓으로 나가지 않습니다 — 배지에 마우스를 올리면 그 항목이 어디로 어떻게 나가는지 알려 줍니다.">?</span></span>
+    {% if not is_common %}
+    {% set sm = summary[market] %}
+    <span class="sep">·</span>
+    <span class="lb">공통 불러오기</span>
+    <span class="qi" title="「전체 불러오기」는 「마켓 공통」에 채워 둔 항목만 이 마켓에 덮어씁니다 — 여기서 고친 값이 있으면 사라집니다. 공통에 없는 항목은 그대로 둡니다.">?</span>
+    <span>{% if sm.state == 'common' and sm.at %}마지막으로 불러온 때 · {{ sm.at.strftime('%m월 %d일 %H:%M') }}
+      {% elif sm.state == 'own' %}이 마켓에서 직접 고친 값입니다
+      {% else %}아직 불러온 적이 없습니다{% endif %}</span>
+    <button class="btn2 ghost" id="pullAll" type="button">전체 불러오기</button>
+    {% endif %}
+  </div>
+
+  {% for it in items %}
+  {% set saved = values.get(it.key) %}
+  <div class="it {{ 'open' if loop.first }}" id="it-{{ it.key }}" data-item="{{ it.key }}">
+    <div class="it-h" onclick="tg('{{ it.key }}')">
+      <span class="nm">{{ it.label }}</span>
+      <span class="ref">{{ it.spec_ref or '' }}</span>
+      {# ── [2026-08-13 사장님 확정 B2] 정책값과 실제로 나가는 값을 **늘 나란히** ──
+         다를 때만 보여주면 「같다」는 사실도 확인이 안 되고, 안 보이는 동안
+         사장님은 정책값이 나가는 줄 안다.
+         🔴 색은 다를 때만 준다 — 전부 주황이면 아무도 안 읽는다. #}
+      {# 🔴 색은 **정책에 값을 넣었는데 다를 때만** 준다.
+         「안 정함」까지 주황으로 칠했더니 11개가 전부 주황이 됐다 —
+         전부 경고면 아무도 안 읽는다(만들자마자 그 함정에 빠졌다). #}
+      {% for f in (fixed_by_item or {}).get(it.key, []) %}
+      <span class="fxp {{ 'diff' if (f.policy and not f.same) else 'same' }}"
+            title="{{ f.label }} — 이 값은 프로그램이 정해서 보냅니다 ({{ f.where }})">
+        {{ f.label }}
+        {% if f.policy %}<b>정책 {{ f.policy }}</b> / {% endif %}실제 <b>{{ f.actual }}</b>
+      </span>
+      {% endfor %}
+      {# ── [2026-08-19 2차 확정] 접힌 줄엔 "필수인데 비었음" 경고 하나만 ──────────
+         🔴 1차 정리(정렬+묶음)까지 했는데도 라이브 실측에서 사장님이 다시 짚었다 —
+           「필수」·「없음」 배지가 둘 다 빨간 계열이라 헷갈리고, 줄마다 배지가
+           최대 6개까지 붙어 여전히 촘촘하다. 「평소에 제일 많이 보는 건 필수인데
+           비었다는 경고뿐」이라는 답을 받아, 나머지(전송여부·출처·저장여부·
+           공통 불러오기)는 펼쳐야 보이는 자리(.it-b 의 .statusrow)로 옮겼다. #}
+      {% set rq = req.get(it.key) %}
+      {% if rq and rq.state == 'required' and not saved %}
+      <span class="reqwarn" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}"><i class="ph-light ph-warning" aria-hidden="true"></i> 필수인데 비어 있음</span>
+      {% endif %}
+      <span class="chev">›</span>
+    </div>
+    <div class="it-b">
+      {# ── 지금 상태 + 액션 — 펼쳐야 보인다(2026-08-19 2차 확정). 왼쪽 「지금 상태」
+         묶음 / 오른쪽 「액션 + 저장여부」 묶음은 그대로 유지 — 자리만 옮겼다. #}
+      <div class="statusrow">
+        <span class="stgrp">
+        {# ── 이 마켓이 요구하는가 — 마켓 상품등록 문서에 그렇게 적힌 것만 붙인다.
+           「마켓 공통」 탭에는 req 가 비어 있어 아무것도 안 뜬다(어느 마켓 기준인지
+           정해지지 않아 말할 수 없다). 근거·사유는 마우스를 올리면 보인다. #}
+        {% if rq %}
+          {% if rq.state == 'required' %}
+          <span class="req must" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">필수</span>
+          {% elif rq.state == 'conditional' %}
+          <span class="req cond" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">조건부</span>
+          {% elif rq.state == 'unknown' %}
+          <span class="req unk" title="{{ rq.note }}">확인 불가</span>
+          {% endif %}
+        {% endif %}
+        {# 지금 이 값이 실제로 마켓까지 가는가. 가는 것에만 붙인다 —
+           13항목 중 11개에 회색 배지를 달면 화면이 경고로 뒤덮인다(위 안내 한 줄로 갈음). #}
+        {% if wire.get(it.key) and wire[it.key].state == 'wired' %}
+        <span class="wire on" title="{{ wire[it.key].note }}">전송됨</span>
+        {% elif wire.get(it.key) and wire[it.key].note != stored_only_note %}
+        {# [2026-08-13] 「저장만」인데 **사연이 따로 있는** 항목만 배지를 단다.
+           🔴 저장만 항목 전부에 달면 화면이 회색 배지로 뒤덮여 아무도 안 읽는다.
+             그렇다고 안 달면, 이미지처럼 **반쪽은 실제로 작동하는** 항목을
+             사장님이 「아무것도 안 한다」고 오해한다(제외 브랜드가 전송을 막는데도).
+             그래서 「기본 설명과 다른 사연이 있는 것」만 예외로 보여준다. #}
+        <span class="wire half" title="{{ wire[it.key].note }}">일부만</span>
+        {% endif %}
+        </span>
+        {# ── [2026-08-20 3차 확정] 「공통/직접/없음」·「정함/안 정함」 배지 삭제 ──────
+           마켓 탭에 이미 같은 정보(직접·2/16)가 있고, 필수 항목은 위 접힌 줄의
+           「⚠ 필수인데 비어 있음」이 이미 알려준다 — 항목마다 또 달면 중복이었다.
+           남는 것은 「공통 불러오기」 버튼뿐(액션이라 정보 배지와 다르다). #}
+        {% if not is_common %}
+        <span class="acgrp">
+        <button class="btnsm pull-one" type="button" data-item="{{ it.key }}">공통 불러오기</button>
+        </span>
+        {% endif %}
+      </div>
+      {% if it.note %}<div class="it-note">{{ it.note }}</div>{% endif %}
+      {% if it.key == 'price' %}
+      {# ── 판매가 전용 (확정 G1·I2·J3·K3) ──────────────────────────────
+         G1 = 소싱품·사입품 나란히 · I2 = 방식 세 칸 다 보이되 안 고른 건 흐리게
+         J3 = 안전장치 항상 펼침 · K3 = 사이즈 통일도 그 안에
+         🔴 배송비는 여기 안 만든다 — 「배송」 항목에 이미 있어 중복이 된다. #}
+      {% set cfg = saved or {} %}
+      <div class="pf-two">
+        {% for side, sl, sd, scls in [
+             ('sourcing', '소싱품', '소싱처에서 사서 바로 보내는 상품', 'src2'),
+             ('purchase', '사입품', '우리가 미리 사둔 재고', 'buy')] %}
+        {% set cur = cfg.get(side ~ '_mode') or 'margin_rate' %}
+        <div class="pf-box {{ scls }}">
+          <div class="t">{{ sl }}</div><div class="d">{{ sd }}</div>
+          <div class="fld">
+            <label>정하는 법</label>
+            <select data-k="{{ side }}_mode" data-t="choice">
+              <option value="margin_rate" {{ 'selected' if cur == 'margin_rate' }}>마진율</option>
+              <option value="margin_amount" {{ 'selected' if cur == 'margin_amount' }}>마진금액</option>
+              <option value="fixed_price" {{ 'selected' if cur == 'fixed_price' }}>지정가</option>
+            </select>
+          </div>
+          <div class="flds" style="grid-template-columns:1fr 1fr 1fr;margin-top:8px">
+            {% for fk, fn, fu, fm in [
+                 ('rate', '마진율', '%', 'margin_rate'),
+                 ('amount', '마진금액', '원', 'margin_amount'),
+                 ('fixed', '지정가', '원', 'fixed_price')] %}
+            {# [2026-08-02] 도움말도 항목표에서 꺼낸다 — 「비워두면 무슨 값이 쓰이는지」를
+               화면이 말해야 한다. 빈칸 뒤에 숨은 숫자가 있으면 화면이 거짓말하는 것이다. #}
+            {% set _f = (it.fields | selectattr('key', 'equalto', side ~ '_' ~ fk) | first) %}
+            <div class="fld {{ '' if cur == fm else 'pf-dim' }}">
+              <label>{{ fn }}<span class="unit">{{ fu }}</span>
+                {% if cur == fm %}<span class="pf-live">쓰는 값</span>{% endif %}</label>
+              <input type="number" step="1" data-k="{{ side }}_{{ fk }}" data-t="int"
+                     value="{{ cfg.get(side ~ '_' ~ fk) if cfg.get(side ~ '_' ~ fk) is not none else '' }}"
+                     placeholder="비우면 안 정함">
+              {% if _f and _f.hint and cur == fm %}<div class="hint">{{ _f.hint }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {# [2026-08-02] 🔴 이 칸은 라벨·기본값·도움말을 **손으로 적어 두고** 있었다.
+         그래서 항목표를 고쳐도 화면은 옛 안내를 그대로 띄웠다 — 같은 것 두 벌.
+         라벨·도움말은 항목표에서, **기본값은 그 마켓 표에서** 꺼낸다.
+         🔴 수수료율은 마켓마다 다르므로 항목표에 한 숫자를 적을 수 없다.
+            `fee_default_pct` 는 계산이 쓰는 표(unified._DEFAULT_FEE)에서 왔다. #}
+      {% set _fee = (it.fields | selectattr('key', 'equalto', 'fee_rate') | first) %}
+      <div class="flds" style="margin-top:12px">
+        <div class="fld"><label>{{ _fee.label }}<span class="unit">{{ _fee.unit }}</span></label>
+          <input type="number" step="0.01" data-k="fee_rate" data-t="num"
+                 value="{{ cfg.get('fee_rate') if cfg.get('fee_rate') is not none else (fee_default_pct if fee_default_pct is not none else '') }}"
+                 placeholder="비우면 안 정함">
+          {# [2026-08-02] 조건부 요율 — 예: 11번가 「1년 이내 계정」 이면 8%.
+             🔴 체크박스는 **위 칸의 숫자를 바꿔 놓을 뿐**이다. 계산할 때 다시 판단하지
+                않는다 — 그래야 사장님이 화면에서 본 숫자가 그대로 쓰인다.
+                (조건을 계산 시점에 또 따지면 화면값과 계산값이 갈릴 자리가 생긴다) #}
+          {% if fee_alt and fee_alt.alt_label and fee_alt.alt_pct is not none %}
+          <label class="fee-alt">
+            <input type="checkbox" id="fee-alt-on"
+                   data-base="{{ fee_default_pct }}" data-alt="{{ fee_alt.alt_pct }}">
+            <span>{{ fee_alt.alt_label }} — 체크하면 <b>{{ fee_alt.alt_pct }}%</b></span>
+          </label>
+          {% endif %}
+          <div class="hint">
+            {%- if fee_default_pct is not none %}이 마켓 기본 <b>{{ fee_default_pct }}%</b> — {% endif -%}
+            {{ _fee.hint }}
+            {%- if fee_note %} · {{ fee_note }}{% endif -%}
+          </div>
+          <div class="hint"><a href="/policies/fees">마켓별 수수료 기준 고치기 →</a></div>
+          </div>
+      </div>
+      <div class="pf-guard">
+        <div class="gt">가격 안전장치</div>
+        <div class="flds">
+          <div class="fld"><label>안 내려갈 값<span class="unit">원</span></label>
+            <input type="number" step="1" data-k="floor_price" data-t="int"
+                   value="{{ cfg.get('floor_price') if cfg.get('floor_price') is not none else '' }}"
+                   placeholder="비우면 안 정함">
+            <div class="hint">이 밑으로는 안 나갑니다</div></div>
+          <div class="fld"><label>안 올라갈 값<span class="unit">원</span></label>
+            <input type="number" step="1" data-k="cap_price" data-t="int"
+                   value="{{ cfg.get('cap_price') if cfg.get('cap_price') is not none else '' }}"
+                   placeholder="비우면 안 정함"></div>
+          <div class="fld"><label>끝자리 맞춤<span class="unit">원</span></label>
+            <input type="number" step="1" data-k="rounding_unit" data-t="int"
+                   value="{{ cfg.get('rounding_unit') if cfg.get('rounding_unit') is not none else 100 }}">
+            <div class="hint">이 단위로 버립니다</div></div>
+          <div class="fld"><label>정상가<span class="unit">원</span></label>
+            <input type="number" step="1" data-k="normal_price" data-t="int"
+                   value="{{ cfg.get('normal_price') if cfg.get('normal_price') is not none else '' }}"
+                   placeholder="비우면 안 정함">
+            <div class="hint">할인 전 표시가</div></div>
+          <div class="fld"><label>여러 소싱처일 때</label>
+            {% set sp = cfg.get('source_pick') or 'cheapest' %}
+            <select data-k="source_pick" data-t="choice">
+              <option value="cheapest" {{ 'selected' if sp == 'cheapest' }}>가장 싼 곳</option>
+              <option value="priciest" {{ 'selected' if sp == 'priciest' }}>가장 비싼 곳</option>
+              <option value="average" {{ 'selected' if sp == 'average' }}>평균</option>
+            </select></div>
+          <div class="fld"><label>사이즈별 가격 통일</label>
+            {% set su = cfg.get('size_unify') or '' %}
+            <select data-k="size_unify" data-t="choice">
+              <option value="" {{ 'selected' if su == '' }}>통일 안 함</option>
+              <option value="max" {{ 'selected' if su == 'max' }}>가장 비싼 값으로</option>
+              <option value="min" {{ 'selected' if su == 'min' }}>가장 싼 값으로</option>
+            </select>
+            <div class="hint">사이즈마다 매입가가 다를 때</div></div>
+        </div>
+        {# ── [2026-08-06] 즉시할인 (확정 D1 — 안전장치 묶음 안, 끝자리·정상가 다음) ──
+           사장님 확정: 「즉시할인은 판매가 안에. 굳이 구분할 필요 없다」.
+           🔴 바로 위 「정상가」와 다른 것이다 — 정상가는 **보여주는 숫자**,
+             즉시할인은 **실제로 깎이는 값**. 그 구분을 화면 문구로 못 박는다. #}
+        <div class="pf-disc">
+          {# 확정 E2 — 쿠팡은 다음날 0시부터만 켜진다(문서 명시). 값을 적기 **전에** 본다. #}
+          {% if market == 'coupang' %}
+          <div class="pf-disc-warn">⏰ 쿠팡은 <b>다음날 0시부터</b> 적용됩니다 —
+            오늘 바로는 안 켜집니다.</div>
+          {% endif %}
+          {# 🔴 [2026-08-06 검증에서 발견] 보낼 자리를 못 찾은 마켓에서도
+             「고객에게 보이는 값만 깎습니다」라고 말하고 있었다 — 적어도 안 나가는데
+             깎이는 줄 안다. 화면이 사실과 달라선 안 된다(이 저장소 반복 사고).
+             정본 = lemouton/policy/discount.SUPPORTED. #}
+          {% set disc_sends = market in ('smartstore', 'coupang') %}
+          {% if not disc_sends and not is_common %}
+          <div class="pf-disc-off">이 마켓은 즉시할인을 보낼 자리를 아직 못 찾았습니다 —
+            <b>적어 두면 저장은 되지만 마켓으로 나가지 않습니다.</b></div>
+          {% endif %}
+          <div class="gt">즉시할인 <span class="pf-disc-sub">{% if disc_sends %}판매가는
+            그대로 두고, 고객에게 보이는 값만 깎습니다{% else %}지금 나가는 마켓은
+            스마트스토어·쿠팡뿐입니다{% endif %}</span></div>
+          {# ── [2026-08-13 확정 시안 v2 · 4-D] 켜기 스위치 ─────────────────────
+             전에는 「깎을 값」을 비우는 것이 유일한 끄는 법이라, **껐는지 안 정했는지**
+             화면만 봐선 알 수 없었다. 스위치가 그 상태를 말한다.
+             🔴 저장되는 값은 여전히 「깎을 값」 하나다 — 스위치는 그 칸을 비우고
+               채울 뿐이다(두 곳에 저장하면 둘이 어긋난다). #}
+          <label class="sw {{ 'on' if cfg.get('discount_value') }}" id="disc-sw">
+            <input type="checkbox" {{ 'checked' if cfg.get('discount_value') }}> 씀
+            <span class="rs">고객이 아무것도 안 해도 깎여 보입니다</span></label>
+          <div class="flds" style="grid-template-columns:auto auto 1fr">
+            <div class="fld"><label>깎는 방식</label>
+              {% set du = cfg.get('discount_unit') or 'WON' %}
+              <select data-k="discount_unit" data-t="choice">
+                <option value="WON" {{ 'selected' if du == 'WON' }}>정액 (원)</option>
+                <option value="PERCENT" {{ 'selected' if du == 'PERCENT' }}>정률 (%)</option>
+              </select></div>
+            <div class="fld"><label>깎을 값</label>
+              <input type="number" step="1" min="0" id="pf-disc-val"
+                     data-k="discount_value" data-t="int"
+                     value="{{ cfg.get('discount_value') if cfg.get('discount_value') is not none else '' }}"
+                     placeholder="비우면 할인 없음"></div>
+            {# 미리보기 — 「전 → 후」 3칸(현재 우측·화살표 가운데·바뀔 값 좌측)으로
+               화살표가 세로로 서게 한다. 값이 없으면 아예 안 띄운다(빈 화살표 금지). #}
+            <div class="fld"><label>고객이 보는 값</label>
+              <div id="pf-disc-prev" class="pf-disc-prev" hidden>
+                <span class="b"></span><span class="ar">→</span><span class="a"></span>
+              </div>
+              <div id="pf-disc-none" class="hint">깎을 값을 적으면 여기서 미리 보여드립니다</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% elif it.key == 'listing' %}
+      {# ── [2026-08-13 사장님 확정 시안 v2 · 2번 + 3-B] ────────────────────────
+         2번 = 고르는 값은 **라디오**로 (한눈에 다 보이고, 고르면 무엇이 나가는지
+               바로 옆 접힘표가 마켓마다 알려 준다)
+         3-B = **정하는 곳끼리 묶기** — 정책이 정하는 값 / 상품마다 다른 값 /
+               옵션마다 다른 값. 어디서 정하는지가 섞여 있으면 「여기서 고쳤는데
+               왜 상품마다 다르지」가 된다.
+         🔴 「상품마다」·「옵션마다」 묶음은 **여기서 값을 정하는 자리가 아니다.**
+           그 값들은 상품·옵션에 붙는다 — 어디로 가야 고치는지만 알려 준다. #}
+      {% set cfg = saved or {} %}
+      <div class="grp">
+        <h4>정책이 정합니다 <span class="scope pol">정책</span></h4>
+        {% for f in it.fields %}
+        {% set v = cfg.get(f.key) %}
+        {% if f.type == 'choice' %}
+        <div class="ff">
+          <div class="fl">{{ f.label }}</div>
+          <div class="fv">
+            <div class="rgrp">
+              {% set cur = v if v is not none else f.default %}
+              {# 「— 안 정함 —」도 고를 수 있어야 한다. 라디오라고 없애면
+                 한 번 고른 뒤 되돌릴 길이 사라진다(select 에는 있었다). #}
+              <label class="rd {{ 'on' if not cur }}">
+                <input type="radio" name="rd-{{ f.key }}" value=""
+                       data-k="{{ f.key }}" data-t="choice" {{ 'checked' if not cur }}>
+                안 정함</label>
+              {% for c in f.choices %}
+              <label class="rd {{ 'on' if cur == c }}">
+                <input type="radio" name="rd-{{ f.key }}" value="{{ c }}"
+                       data-k="{{ f.key }}" data-t="choice" {{ 'checked' if cur == c }}>
+                {{ c }}</label>
+              {% endfor %}
+            </div>
+            {% if f.hint %}<div class="rs">{{ f.hint }}</div>{% endif %}
+            {# 마켓마다 어떤 값으로 나가는지 — 표는 사람이 여기 적지 않는다.
+               `policy/fixed_sends.SENDS_BY_MARKET` 가 원천이고, 그 표가 조립기와
+               갈리지 않는지는 시험이 조립기 원본을 읽어 대조한다. #}
+            {% set tbl = (sends_table or {}).get(f.key) %}
+            {% if tbl %}
+            <details class="mktbl">
+              <summary>마켓마다 어떤 값으로 나가는지 보기</summary>
+              <table>
+                <tr><th>마켓</th><th>보내는 칸</th><th>보내는 값</th></tr>
+                {% for r in tbl %}
+                <tr>
+                  <td class="lb">{{ r.label }}</td>
+                  <td class="{{ 'ok' if r.state == 'ok' else 'unk' }}">{{ r.field }}</td>
+                  <td class="no">{{ r.value }}</td>
+                </tr>
+                {% endfor %}
+              </table>
+            </details>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div class="ff">
+          <div class="fl">{{ f.label }}</div>
+          <div class="fv">
+            <input type="text" data-k="{{ f.key }}" data-t="text"
+                   value="{{ v if v is not none else (f.default if f.default is not none else '') }}"
+                   placeholder="비우면 안 정함">
+            {% if f.hint %}<div class="rs">{{ f.hint }}</div>{% endif %}
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {# 아래 두 묶음은 **읽기 전용 길잡이**다 — 값은 상품·옵션에 붙는다. #}
+      <div class="grp">
+        <h4>상품마다 다릅니다 <span class="scope prd">상품</span></h4>
+        <div class="ff">
+          <div class="fl">모델번호(품번)</div>
+          <div class="fv"><div class="rs">브랜드가 공식으로 부여한 품번만 씁니다 —
+            태그·케어라벨·브랜드 공식 홈페이지에서 확인됩니다. 상품마다 값이 달라
+            <b>상품 화면에서</b> 넣습니다. 여기 「모델번호·바코드」 항목은
+            <b>비었을 때 어떻게 할지</b>만 정합니다.</div>
+            <div class="tapewarn"><i class="ph-light ph-circle" aria-hidden="true"></i> 쿠팡은 임의로 만든 숫자·판매자 내부 관리코드를
+              상품 식별번호로 쓰는 것을 금지합니다(공지 2026-05-27 · API 등록 상품
+              2026-08-01 시행) — 없으면 비워 두는 것이 맞습니다.</div>
+          </div>
+        </div>
+        <div class="ff">
+          <div class="fl">검색 태그</div>
+          <div class="fv"><div class="rs">쿠팡·스마트스토어만 나갑니다 —
+            옥션·G마켓엔 칸이 없고, 11번가는 로드샵·아울렛셀러만 쓸 수 있습니다.
+            하나에 20자 이내, 20개까지 나갑니다.</div></div>
+        </div>
+      </div>
+      <div class="grp">
+        <h4>옵션마다 다릅니다 <span class="scope opt">옵션</span></h4>
+        <div class="ff">
+          <div class="fl">바코드</div>
+          <div class="fv">
+            <div class="bcrow"><span class="bcb ok">브랜드 공식</span>
+              <span class="rs">그대로 마켓에 나갑니다</span></div>
+            <div class="bcrow"><span class="bcb self">자체 생성</span>
+              <span class="rs">라벨·재고 스캔용입니다 — <b>어느 마켓에도 안 나갑니다.</b>
+                쿠팡에는 「바코드 없음」으로 사유와 함께 보냅니다</span></div>
+            <div class="tapewarn">비워 두면 <b>2</b>로 시작하는 숫자 13자리를 자동으로
+              만듭니다 — 한국 정식 상품(<b>880</b>)과 겹치지 않는 대역이라 안전합니다.
+              영문은 안 들어갑니다. 11번가·옥션·G마켓 중 바코드 칸이 있는 곳은
+              옥션·G마켓뿐입니다(11번가는 칸 자체가 없습니다).</div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="flds">
+        {% for f in it.fields %}
+        {% set v = (saved or {}).get(f.key) %}
+        {% if f.type == 'bool' %}
+        <div class="fld bool">
+          <input type="checkbox" data-k="{{ f.key }}" data-t="bool"
+                 {{ 'checked' if (v if v is not none else f.default) }}>
+          <label>{{ f.label }}</label>
+        </div>
+        {% elif f.type == 'choice' %}
+        <div class="fld">
+          <label>{{ f.label }}</label>
+          <select data-k="{{ f.key }}" data-t="choice">
+            <option value="">— 안 정함 —</option>
+            {% for c in f.choices %}
+            {# [2026-08-13] `{{ c }}` 생짜로 찍고 있었다 — 사장님 화면에 `one`·`two`·
+               `three`·`WON` 같은 영어가 그대로 보였다. 라벨 단일 원천 =
+               `process_rule_schema.CHOICE_LABELS` (스키마가 `choice_labels` 로 실어 준다).
+               없는 값이면 값 그대로 — 지어내지 않는다. #}
+            <option value="{{ c }}" {{ 'selected' if (v if v is not none else f.default) == c }}>{{ (f.choice_labels or {}).get(c, c) }}</option>
+            {% endfor %}
+          </select>
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% elif f.type == 'int' %}
+        <div class="fld">
+          <label>{{ f.label }}{% if f.unit %}<span class="unit">{{ f.unit }}</span>{% endif %}</label>
+          <input type="number" step="1" data-k="{{ f.key }}" data-t="int"
+                 value="{{ v if v is not none else (f.default if f.default is not none else '') }}"
+                 placeholder="비우면 안 정함">
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% elif f.type == 'list' and f.item_shape == 'pair' %}
+        <div class="fld wide">
+          <label>{{ f.label }}</label>
+          <div class="pairs" data-k="{{ f.key }}" data-t="pair"
+               data-cols='{{ (f.columns or ["찾을 말","바꿀 말"])|tojson }}'
+               data-val='{{ (v if v is not none else (f.default or []))|tojson }}'></div>
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% elif f.type == 'list' %}
+        <div class="fld wide">
+          <label>{{ f.label }}</label>
+          <textarea data-k="{{ f.key }}" data-t="lines"
+                    placeholder="한 줄에 하나씩">{{ (v if v is not none else (f.default or []))|join('\n') }}</textarea>
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% else %}
+        <div class="fld">
+          <label>{{ f.label }}{% if f.unit %}<span class="unit">{{ f.unit }}</span>{% endif %}</label>
+          <input type="text" data-k="{{ f.key }}" data-t="text"
+                 value="{{ v if v is not none else (f.default if f.default is not none else '') }}"
+                 placeholder="비우면 안 정함">
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {# ── [2026-08-13 사장님 확정 A1] 정해져 나가는 값 — 접힌 줄 하나 ────────────
+     [2026-08-19 확정 시안 2] 항목 목록을 다 보신 **다음**에 「결과적으로
+     이렇게 나간다」를 보시도록 맨 아래(저장 바로 위)로 옮기고, 이름도
+     「정책 설정 요약」으로 바꿨다 — 원래 자리(맨 위)에 있으면 사장님이 고르는
+     정책 항목처럼 보여 「고쳤는데 왜 안 먹지」가 됐었다.
+     [2026-08-19 2차 확정] 🔴 여기 있는 값이 **전부** 「사장님이 못 고치는 값」은
+       아니었다 — 절반(policy_wins=True)은 「정책에서 안 정하면 쓰는 기본값」이라
+       배송 항목 등에서 정하면 그 값이 이긴다. 이름을 「요약」으로 바꾼 뒤로 이
+       구분이 더 안 보였다는 실측 지적을 받아, 두 묶음으로 갈라 보여준다.
+     ★ 목록은 사람이 여기 적지 않는다 — `policy/fixed_sends.py` 가 원천이고,
+       그 표가 등록 코드와 갈리지 않는지는 시험이 코드 원본을 읽어 대조한다. #}
+  {% if fixed %}
+  {% if fixed.checked %}
+  {% set fixed_default = fixed.rows|rejectattr('policy_wins')|list %}
+  {% set fixed_fallback = fixed.rows|selectattr('policy_wins')|list %}
+  <details class="fx">
+    <summary class="fx-h">정책 설정 요약
+      <span class="n">{{ fixed.rows|length }}</span></summary>
+    {% if fixed_default %}
+    <div class="fx-group">
+      <div class="fx-group-t">무조건 이 값이 나갑니다 — 사장님이 못 고칩니다</div>
+      <table class="fxt">
+        {% for r in fixed_default %}
+        <tr>
+          <td class="lb">{{ r.label }}</td>
+          <td class="vl">{{ r.value }}</td>
+          <td class="no">{{ r.note }}</td>
+          <td class="src">{{ r.where }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+    {% if fixed_fallback %}
+    <div class="fx-group">
+      <div class="fx-group-t wins">정책에서 안 정하면 이 값이 나갑니다 — 정하면 그 값이 이깁니다</div>
+      <table class="fxt">
+        {% for r in fixed_fallback %}
+        <tr>
+          <td class="lb">{{ r.label }}</td>
+          <td class="vl">{{ r.value }}</td>
+          <td class="no">{{ r.note }}</td>
+          <td class="src">{{ r.where }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+  </details>
+  {% else %}
+  <div class="fx-none">이 마켓에 <b>무엇이 정해져 나가는지 아직 확인하지 못했습니다</b> —
+    {{ fixed.reason }}</div>
+  {% endif %}
+  {% endif %}
+
+  {% if is_common %}
+  {# 넣을 마켓 고르기 — 「직접」인 마켓을 고르면 그 마켓이 고쳐 둔 값이 사라진다. #}
+  <div class="savebar" style="display:block;padding:12px 0 16px">
+    <div class="pushrow"><input type="checkbox" id="mkAll"> 전체 고르기
+      <span style="margin-left:12px;font-weight:400;color:var(--글자-보조,#6B7684)">— 넣을 마켓</span></div>
+    <div class="mk-grid">
+      {% for mk, label in markets %}{% if mk != common_key %}
+      {# [2026-08-12 확정 B2] 안 켠 마켓은 여기서도 흐리게 + 자물쇠.
+         🔴 넣는 것 자체는 막지 않는다 — 값은 남겨 둬야 다시 켤 때 살아난다.
+            「지금 안 쓰는 곳」이라는 표시만 한다. #}
+      <label class="{{ 'mkoff' if mk not in enabled }}"
+             {% if mk not in enabled %}title="안 켠 마켓입니다 — 넣어 둬도 지금은 안 나갑니다"{% endif %}>
+        <input type="checkbox" class="mkPick" value="{{ mk }}"
+                    data-label="{{ label }}" data-state="{{ summary[mk].state }}"> {{ label }}{% if mk not in enabled %}<span class="mklock"><i class="ph-light ph-lock" aria-hidden="true"></i></span>{% endif %}
+        <span class="src {{ summary[mk].state }}">
+          {% if summary[mk].state == 'common' %}공통
+          {% elif summary[mk].state == 'own' %}직접{% else %}없음{% endif %}</span></label>
+      {% endif %}{% endfor %}
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+      <span class="n" style="flex:1">고른 마켓 <b id="mkN" style="font-variant-numeric:tabular-nums">0</b>곳 ·
+        <b style="color:var(--amber,#B45309)">「직접」인 마켓을 고르면 그 마켓이 고쳐 둔 값이 사라집니다</b></span>
+      <span class="msg" id="msg"></span>
+      <button class="btn2 ghost" id="save" type="button">공통만 저장</button>
+      <button class="btn2" id="savePush" type="button">저장하고 넣기</button>
+    </div>
+  </div>
+  {% else %}
+  <div class="savebar">
+    <span class="n">저장한 항목만 <b>「정함」</b>이 됩니다. 안 저장한 항목은 계산에 쓰지 않습니다.</span>
+    <span class="msg" id="msg"></span>
+    <button class="btn2" id="save" type="button">이 마켓 저장</button>
+  </div>
+  {% endif %}
+
+  {# 빗금 끝 — 아래 「상품에 붙이기」는 이 마켓을 껐다고 흐려질 일이 아니다
+     (상품에 정책을 붙이는 것은 마켓 켜고끄기와 다른 일). #}
+  {% if not is_common %}
+  </div>
+  </div>
+  {% endif %}
+
+  {# [2026-08-01] 붙이기의 본자리는 사이드바 「🧩 정책 매칭」이다.
+     여기 남긴 것은 **이 정책에 빨리 붙일 때**만 쓰는 지름길 — 같은 일을 두 화면이
+     하니, 어느 쪽이 본자리인지 화면이 말해 준다. #}
+  <div class="card">
+    <div class="card-t"><i class="ph-light ph-push-pin" aria-hidden="true"></i> 이 정책을 상품에 붙이기 <span style="font-size:12px;font-weight:500;
+      color:var(--sub,#8B95A1)">— 빠른 길</span></div>
+    <div class="card-d">상품 하나에 정책 하나가 붙습니다.
+      브랜드로 걸러내며 여러 정책을 견주려면 <a href="/policies/apply"
+      style="color:var(--primary,#3182F6);font-weight:700"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i> 정책 매칭</a> 화면이 편합니다.</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <input id="bq" placeholder="상품 이름·번호·브랜드로 찾기"
+             style="flex:1;min-width:220px;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;font-size:12px;font-family:inherit">
+      <button class="btn2 ghost" id="bload" type="button">불러오기</button>
+    </div>
+    <div class="scrollbox"><table class="bl">
+      <thead><tr><th style="width:34px"><input type="checkbox" id="ball"></th>
+        <th>상품</th><th>모상품번호</th><th>브랜드</th><th>지금 붙은 정책</th></tr></thead>
+      <tbody id="blist"><tr><td colspan="5" style="text-align:center;color:var(--sub,#8B95A1);padding:24px 0">
+        「불러오기」를 누르면 상품 목록이 나옵니다</td></tr></tbody>
+    </table></div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+      <span style="flex:1;font-size:12px;color:var(--글자-보조,#6B7684)">고른 상품 <b id="bn">0</b>개</span>
+      <span class="msg" id="amsg"></span>
+      <button class="btn2" id="apply" type="button" disabled>이 정책 붙이기</button>
+    </div>
+  </div>
+</section>
+
+<script>
+const PID = {{ policy.id }}, MARKET = {{ market|tojson }};
+
+/* ══ [2026-08-12 사장님 확정 C2] 이 마켓 켜고 끄기 ═══════════════════════════
+   더망고처럼 그 마켓 화면 안에서 바로 켜고 끈다(전에는 정책 목록으로 갔다 와야 했다).
+   🔴 끄면 **흐려지기만** 한다 — 값은 그대로 보이고 그대로 고칠 수 있다.
+     끄는 것은 「안 보낸다」이지 「못 고친다」가 아니다.
+   🔴 켠 마켓 목록은 정책 하나에 한 벌이라, 이 마켓만 넣고 빼서 **통째로** 보낸다.
+     지금 화면의 목록을 서버가 준 값으로만 만든다 — 화면에서 셈하면 어긋난다. */
+(function () {
+  const ck = document.getElementById('mkon');
+  if (!ck) return;                       // 「마켓 공통」 탭에는 없다
+  const gate = document.getElementById('mkgate');
+  const gmsg = document.getElementById('mkmsg');
+  const sec = document.getElementById('screen-policy-detail');
+  const ENABLED = {{ (enabled | list) | tojson }};
+
+  ck.addEventListener('change', async () => {
+    const want = new Set(ENABLED);
+    ck.checked ? want.add(MARKET) : want.delete(MARKET);
+    ck.disabled = true;
+    gmsg.className = 'm'; gmsg.textContent = '바꾸는 중…';
+    try {
+      const r = await fetch('/api/policies/' + PID + '/markets', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({markets: [...want]})});
+      const j = await r.json();
+      if (!j.ok) {
+        ck.checked = !ck.checked;        // 되돌린다 — 안 바뀐 걸 바뀐 척하면 안 된다
+        gmsg.className = 'm err'; gmsg.textContent = j.error;
+        return;
+      }
+      /* 채움 합계·탭 자물쇠가 같이 바뀌어야 하므로 화면을 다시 그린다. */
+      location.reload();
+    } catch (e) {
+      ck.checked = !ck.checked;
+      gmsg.className = 'm err'; gmsg.textContent = e.message;
+    } finally {
+      ck.disabled = false;
+    }
+  });
+})();
+function tg(k){ document.getElementById('it-' + k).classList.toggle('open'); }
+
+/* [2026-08-13 확정 시안 v2 · 2번] 라디오를 고르면 그 칸만 파랗게 —
+   서버가 그려 준 표시는 저장 전까지 안 바뀌므로, 고른 순간 눈에 보이게 한다.
+   🔴 값은 여기서 저장하지 않는다. 저장은 collect() 가 한 벌로 한다 — 두 곳에서
+     저장하면 한쪽만 고쳐졌을 때 화면과 저장분이 갈린다. */
+document.querySelectorAll('.rgrp input[type=radio]').forEach(function (r) {
+  r.addEventListener('change', function () {
+    document.getElementsByName(r.name).forEach
+      ? null : null;                     /* NodeList 호환 */
+    Array.prototype.forEach.call(document.getElementsByName(r.name), function (o) {
+      const lab = o.closest('.rd'); if (lab) lab.classList.toggle('on', o.checked);
+    });
+  });
+});
+
+/* [2026-08-13 확정 시안 v2 · 4-D] 즉시할인 켜기 스위치 —
+   전에는 「깎을 값」을 비우는 것이 유일한 끄는 법이라, 껐는지 안 정했는지
+   화면만 봐선 알 수 없었다. 스위치가 그 상태를 말한다.
+   🔴 스위치는 **칸을 비우고 채우는 일만** 한다 — 저장되는 값은 여전히 「깎을 값」
+     하나뿐이다. 스위치를 따로 저장하면 둘이 어긋난다. */
+(function () {
+  const sw = document.getElementById('disc-sw');
+  const val = document.getElementById('pf-disc-val');
+  if (!sw || !val) return;
+  let remembered = val.value;
+  function paint() {
+    sw.classList.toggle('on', sw.querySelector('input').checked);
+    val.closest('.flds').style.opacity = sw.querySelector('input').checked ? '' : '.5';
+  }
+  sw.querySelector('input').addEventListener('change', function (e) {
+    if (e.target.checked) { val.value = remembered || ''; }
+    else { remembered = val.value; val.value = ''; }
+    val.dispatchEvent(new Event('input', {bubbles: true}));
+    paint();
+  });
+  paint();
+})();
+
+// [2026-08-02] 조건부 수수료율 — 체크하면 수수료율 칸의 숫자를 바꿔 놓는다.
+//   🔴 여기서 하는 일은 **칸을 채워 주는 것뿐**이다. 저장되는 것도, 계산에 쓰이는
+//     것도 언제나 칸의 숫자 하나다. 조건을 계산 시점에 또 따지면 화면값과
+//     계산값이 갈릴 자리가 생긴다.
+//   사장님이 그 뒤 손으로 다른 값을 넣으면 그 값이 이긴다(체크는 자동 해제).
+(function feeAlt(){
+  const box = document.getElementById('fee-alt-on');
+  const fee = document.querySelector('input[data-k="fee_rate"]');
+  if (!box || !fee) return;
+  const base = box.dataset.base, alt = box.dataset.alt;
+  // 지금 값이 조건 요율과 같으면 이미 그 조건인 것으로 보고 켜 둔다
+  if (fee.value !== '' && Number(fee.value) === Number(alt)) box.checked = true;
+  box.addEventListener('change', () => { fee.value = box.checked ? alt : base; });
+  // 손으로 고치면 체크 상태를 실제 값에 맞춘다 — 체크는 켜 있는데 숫자는 다른
+  // 어정쩡한 상태를 남기지 않는다.
+  fee.addEventListener('input', () => {
+    box.checked = fee.value !== '' && Number(fee.value) === Number(alt);
+  });
+})();
+
+/* 두 칸짜리 표(치환표) */
+document.querySelectorAll('.pairs').forEach(box => {
+  const cols = JSON.parse(box.dataset.cols || '["찾을 말","바꿀 말"]');
+  let rows = JSON.parse(box.dataset.val || '[]');
+  function draw(){
+    box.innerHTML = '<div class="ph"><span>' + cols[0] + '</span><span>' + cols[1] + '</span><span></span></div>'
+      + (rows.length ? rows.map((r, i) =>
+          '<div class="pr"><input value="' + (r[0] || '').replace(/"/g, '&quot;') + '" data-i="' + i + '" data-c="0">'
+          + '<input value="' + (r[1] || '').replace(/"/g, '&quot;') + '" data-i="' + i + '" data-c="1">'
+          + '<button type="button" data-del="' + i + '"></button></div>').join('')
+        : '<div class="none">아직 등록된 규칙이 없습니다</div>')
+      + '<button type="button" class="add">+ 행 추가</button>';
+    box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
+      rows[+inp.dataset.i][+inp.dataset.c] = inp.value;
+    }));
+    box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+      rows.splice(+b.dataset.del, 1); draw();
+    }));
+    box.querySelector('.add').addEventListener('click', () => { rows.push(['', '']); draw(); });
+  }
+  box.__get = () => rows.filter(r => (r[0] || '').trim() || (r[1] || '').trim());
+  draw();
+});
+
+function collect(){
+  const out = {};
+  document.querySelectorAll('.it[data-item]').forEach(it => {
+    const cfg = {};
+    it.querySelectorAll('[data-k]').forEach(el => {
+      const k = el.dataset.k, t = el.dataset.t;
+      /* 🔴 [2026-08-13 확정 시안 v2] 라디오는 **한 칸에 여러 개**가 같은 data-k 를
+         단다. 그냥 훑으면 마지막 것이 이겨서, 무엇을 고르든 늘 같은 값이
+         저장된다(고쳤는데 안 바뀌는 얼굴). 체크된 것만 읽는다.
+         값이 '' 인 「안 정함」도 골랐으면 그대로 둔다 — 아래 빈값 거르기가 지운다. */
+      if (el.type === 'radio') { if (el.checked && el.value !== '') cfg[k] = el.value; return; }
+      if (t === 'bool') cfg[k] = el.checked;
+      else if (t === 'pair') cfg[k] = el.__get ? el.__get() : [];
+      else if (t === 'lines') {
+        const v = el.value.split('\n').map(x => x.trim()).filter(Boolean);
+        if (v.length) cfg[k] = v;
+      } else if (t === 'int') {
+        if (el.value !== '') cfg[k] = parseInt(el.value, 10);
+      } else if (t === 'num') {
+        // 🔴 수수료율은 소수다 — 쿠팡 11.55%. parseInt 로 읽으면 11 로 잘려서
+        //   판매가가 실제보다 싸게 나간다(금전 손실). 여기만 소수를 허용한다.
+        if (el.value !== '') { const n = parseFloat(el.value); if (!isNaN(n)) cfg[k] = n; }
+      } else {
+        if (el.value !== '') cfg[k] = el.value;
+      }
+    });
+    // pair 가 빈 배열이면 「정하지 않음」으로 본다 — 빈 표를 정함으로 세지 않는다
+    Object.keys(cfg).forEach(k => { if (Array.isArray(cfg[k]) && !cfg[k].length) delete cfg[k]; });
+    if (Object.keys(cfg).length) out[it.dataset.item] = cfg;
+  });
+  return out;
+}
+
+const msg = document.getElementById('msg');
+/** 저장 한 번. 「저장하고 넣기」도 이 함수를 부른다 — 저장 코드를 두 벌 두면 갈린다.
+ *  성공하면 true. 화면을 다시 그릴지는 부르는 쪽이 정한다. */
+async function saveAll(reloadOnDone) {
+  msg.className = 'msg'; msg.textContent = '저장 중…';
+  const r = await fetch('/api/policies/' + PID + '/values', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({market: MARKET, values: collect()})});
+  const j = await r.json();
+  if (!j.ok) { msg.className = 'msg err'; msg.textContent = j.error; return false; }
+  msg.className = 'msg ok'; msg.textContent = '저장했어요 (' + j.changed + '항목)';
+  if (reloadOnDone) setTimeout(() => location.reload(), 600);
+  return true;
+}
+
+/* ── 쿠팡 쿠폰 확인창 (사장님 확정 B5 + 전체 선택/해제) ────────────────────
+   🔴 저장 **뒤에** 묻는다 — 저장이 안 됐는데 「9개를 다시 겁니다」라고 하면 거짓말이다.
+   🔴 몇 개가 바뀌고 몇 개는 안 건드리는지를 **먼저 보여 주고** 누르게 한다.
+     정책 하나가 상품 수십 개를 덮어서, 말없이 돌면 쿠폰이 수십 개 새로 만들어지고
+     옛 것이 한꺼번에 내려간다. */
+async function couponConfirm(){
+  if (MARKET !== 'coupang') return;
+  let plan;
+  try {
+    plan = await (await fetch('/api/policies/' + PID + '/coupon-plan')).json();
+  } catch (e) { return; }
+  if (!plan.ok || (!plan.will.length && !plan.skip.length)) return;
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const won = (n) => (n == null ? '아직 없음' : Number(n).toLocaleString('ko-KR'));
+  const box = document.createElement('div');
+  box.className = 'cpd-wrap';
+  box.innerHTML =
+    '<div class="cpd">' +
+      '<h3>쿠폰 값을 ' + won(plan.next_value) + '원으로 바꿉니다</h3>' +
+      '<div class="cpd-s">다시 걸 상품을 고르세요. ' +
+        '<button type="button" class="cpd-all">전체 선택 / 해제</button></div>' +
+      '<table><tr><th style="width:28px"></th><th>상품</th><th>지금</th><th>바뀔 값</th></tr>' +
+      plan.will.map((r) =>
+        '<tr><td><input type="checkbox" class="cpd-p" value="' + r.channel_id + '" checked></td>' +
+        '<td>' + esc(r.name) + '</td><td>' + won(r.now) + '</td>' +
+        '<td class="cpd-next">−' + won(r.next) + '</td></tr>').join('') +
+      plan.skip.map((r) =>
+        '<tr class="cpd-off"><td></td><td>' + esc(r.name) + '</td>' +
+        '<td>' + won(r.now) + '</td><td>그대로 <span class="cpd-why">' +
+        esc(r.reason) + '</span></td></tr>').join('') +
+      '</table>' +
+      '<div class="cpd-w">⏰ 새 쿠폰은 <b>다음날 0시</b>부터 적용됩니다. ' +
+        '옛 쿠폰은 그때 내려갑니다.</div>' +
+      '<div class="cpd-b"><button type="button" class="cpd-no">값만 저장</button>' +
+        '<button type="button" class="cpd-go">고른 것 다시 걸기</button></div>' +
+    '</div>';
+  document.body.appendChild(box);
+
+  const boxes = () => [...box.querySelectorAll('.cpd-p')];
+  box.querySelector('.cpd-all').addEventListener('click', () => {
+    /* 다시 누르면 전체 해제 — 사장님 요청 */
+    const allOn = boxes().every((x) => x.checked);
+    boxes().forEach((x) => { x.checked = !allOn; });
+  });
+  const close = () => box.remove();
+  box.querySelector('.cpd-no').addEventListener('click', close);
+  box.querySelector('.cpd-go').addEventListener('click', async () => {
+    const ids = boxes().filter((x) => x.checked).map((x) => Number(x.value));
+    const r = await fetch('/api/policies/' + PID + '/coupon-plan', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({channel_ids: ids})});
+    const j = await r.json();
+    alert(j.message || (j.ok ? '대기열에 넣었습니다.' : '걸지 못했어요.'));
+    close();
+  });
+}
+
+document.getElementById('save').addEventListener('click', async () => {
+  if (await saveAll(false)) { await couponConfirm(); }
+});
+
+/* 상품에 붙이기 */
+const picked = new Set();
+const blist = document.getElementById('blist');
+async function load(){
+  const q = document.getElementById('bq').value;
+  blist.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--sub,#8B95A1);padding:24px 0">불러오는 중…</td></tr>';
+  const j = await (await fetch('/api/policies/bundles?q=' + encodeURIComponent(q))).json();
+  if (!j.rows.length){
+    blist.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--sub,#8B95A1);padding:24px 0">찾는 상품이 없어요</td></tr>';
+    return;
+  }
+  blist.innerHTML = j.rows.map(r =>
+    '<tr><td><input type="checkbox" data-c="' + r.model_code + '"' + (picked.has(r.model_code) ? ' checked' : '') + '></td>'
+    + '<td>' + r.model_code + '</td>'
+    + '<td>' + (r.no ? '<span class="code">' + r.no + '</span>' : '<span style="color:var(--sub,#8B95A1)">—</span>') + '</td>'
+    + '<td>' + (r.brand || '') + '</td>'
+    + '<td>' + (r.policy ? r.policy : '<span style="color:var(--sub,#8B95A1)">없음</span>') + '</td></tr>').join('');
+  blist.querySelectorAll('input[data-c]').forEach(c => c.addEventListener('change', () => {
+    c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd();
+  }));
+  upd();
+}
+function upd(){
+  document.getElementById('bn').textContent = picked.size;
+  document.getElementById('apply').disabled = picked.size === 0;
+}
+document.getElementById('bload').addEventListener('click', load);
+document.getElementById('ball').addEventListener('change', e => {
+  blist.querySelectorAll('input[data-c]').forEach(c => {
+    c.checked = e.target.checked;
+    e.target.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c);
+  });
+  upd();
+});
+document.getElementById('apply').addEventListener('click', async () => {
+  const am = document.getElementById('amsg');
+  am.className = 'msg'; am.textContent = '붙이는 중…';
+  const r = await fetch('/api/policies/' + PID + '/apply', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({model_codes: [...picked]})});
+  const j = await r.json();
+  if (j.ok){ am.className = 'msg ok'; am.textContent = j.applied + '개 상품에 붙였어요';
+             picked.clear(); load(); }
+  else { am.className = 'msg err'; am.textContent = j.error; }
+});
+
+/* ── 즉시할인 미리보기가 쓸 기준 판매가 불러오기 ───────────────────────────
+   [2026-08-19] 「이 정책으로 계산하면」 카드는 사장님 확정으로 삭제했다. 다만
+   이 함수 자체는 남긴다 — 아래 즉시할인 미리보기(discPaint)가 여기서 구한
+   discBase 없이는 「깎으면 얼마」를 보여줄 수 없다(카드가 없어졌다고 다리까지
+   끊으면 즉시할인 미리보기가 조용히 멈춘다). 화면에 보여주던 표는 없앴고,
+   계산 결과만 즉시할인 쪽으로 넘기는 자리로 줄였다.
+   🔴 모르는 값은 「확인 불가」로 두고 0 으로 채우지 않는다. */
+const won = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
+
+async function pvLoad(model){
+  const q = new URLSearchParams({m: MARKET});
+  if (model) q.set('model', model);
+  let j;
+  try { j = await (await fetch('/api/policies/' + PID + '/preview?' + q)).json(); }
+  catch(e){ discBase = null; discWhyNot = '판매가를 불러오지 못했어요.'; discPaint(); return; }
+
+  if (!j.ok){
+    /* 🔴 여기서 멈출 때도 즉시할인 미리보기에 **왜 못 보여주는지**를 넘긴다.
+       안 넘기면 이유 없이 「미리 보여드릴 수 없습니다」만 남는다(사실과 다른 안내). */
+    discBase = null; discWhyNot = j.error || j.reason || ''; discPaint();
+    return;
+  }
+
+  const rows = j.rows || [];
+  if (!rows.length){
+    discBase = null; discWhyNot = '이 상품에 옵션이 없어요.'; discPaint();
+    return;
+  }
+  /* [2026-08-06] 즉시할인 미리보기가 쓸 「기준 판매가」 —
+     🔴 여기서 값을 새로 계산하지 않는다. 계산은 서버(preview)가 한 것 하나뿐이고,
+       화면은 그 결과를 그대로 쓴다. 두 벌로 계산하면 반드시 갈린다. */
+  const base = rows.map(r => r.policy_price).filter(v => typeof v === 'number');
+  discBase = base.length ? Math.min.apply(null, base) : null;
+  discWhyNot = discBase == null ? (j.reason || '') : '';
+  discPaint();
+}
+
+/* ── 즉시할인 미리보기 (확정 B1 — 입력칸 옆에서 바로) ────────────────────
+   값이 없거나 기준 판매가를 모르면 **아무것도 단정하지 않는다**(빈 화살표 금지). */
+let discBase = null;
+let discWhyNot = '';     /* 못 보여주는 진짜 이유 — 있으면 그대로 적는다 */
+function discPaint(){
+  const prev = document.getElementById('pf-disc-prev');
+  const none = document.getElementById('pf-disc-none');
+  const inp  = document.getElementById('pf-disc-val');
+  if (!prev || !inp) return;
+  const unitEl = document.querySelector('[data-k="discount_unit"]');
+  const unit = unitEl ? unitEl.value : 'WON';
+  const val = parseInt(inp.value, 10);
+  if (!val || val <= 0 || discBase == null){
+    prev.hidden = true;
+    none.hidden = false;
+    none.textContent = (!val || val <= 0)
+      ? '깎을 값을 적으면 여기서 미리 보여드립니다'
+      : (discWhyNot
+          ? ('미리 보여드릴 수 없습니다 — ' + discWhyNot)
+          : '판매가를 불러오는 중입니다…');
+    return;
+  }
+  const after = (unit === 'PERCENT')
+    ? Math.round(discBase * (100 - val) / 100)
+    : Math.max(discBase - val, 0);
+  prev.querySelector('.b').textContent = won(discBase);
+  prev.querySelector('.a').textContent = won(after);
+  prev.hidden = false;
+  none.hidden = true;
+}
+['pf-disc-val'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', discPaint);
+});
+{
+  const u = document.querySelector('[data-k="discount_unit"]');
+  if (u) u.addEventListener('change', discPaint);
+}
+pvLoad('');   /* 페이지를 열자마자 조용히 한 번 구해 즉시할인 미리보기 기준값을 채운다 */
+
+/* ══ 「마켓 공통」 넣기 · 불러오기 ══════════════════════════════════════
+   공통은 따라다니지 않는다 — 넣는(또는 불러오는) 순간 값이 복사되고 끝난다. */
+const IS_COMMON = {{ is_common | tojson }};
+
+function pickedMarkets() {
+  return [].filter.call(document.querySelectorAll('.mkPick'), i => i.checked)
+           .map(i => i.value);
+}
+
+if (IS_COMMON) {
+  const all = document.getElementById('mkAll');
+  const cnt = document.getElementById('mkN');
+  const recount = () => { cnt.textContent = pickedMarkets().length; };
+  document.querySelectorAll('.mkPick').forEach(c => c.addEventListener('change', recount));
+  all.addEventListener('change', () => {
+    document.querySelectorAll('.mkPick').forEach(c => { c.checked = all.checked; });
+    recount();
+  });
+
+  document.getElementById('savePush').addEventListener('click', async () => {
+    const picked = pickedMarkets();
+    if (!picked.length) {
+      msg.className = 'msg err'; msg.textContent = '넣을 마켓을 고르세요.'; return;
+    }
+    /* 「직접」인 마켓은 고쳐 둔 값이 사라진다 — 조용히 지우지 않고 한 번 되묻는다. */
+    const own = [].filter.call(document.querySelectorAll('.mkPick'),
+                               i => i.checked && i.dataset.state === 'own')
+                  .map(i => i.dataset.label);
+    if (own.length && !window.confirm(
+        '「' + own.join(', ') + '」 은(는) 그 마켓에서 직접 고친 값이 있습니다.\n'
+        + '넣으면 그 값이 사라집니다. 계속할까요?')) return;
+    if (!await saveAll(false)) return;
+    const j = await (await fetch('/api/policies/' + PID + '/push', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({markets: picked})})).json();
+    msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
+    msg.textContent = j.ok ? j.message : j.error;
+    if (j.ok) setTimeout(() => location.reload(), 700);
+  });
+} else {
+  document.getElementById('pullAll').addEventListener('click', async () => {
+    if (!window.confirm('「마켓 공통」에 채워 둔 항목을 이 마켓에 덮어씁니다.\n'
+                        + '여기서 고친 값이 있으면 사라집니다.\n'
+                        + '(공통에 없는 항목은 그대로 둡니다)\n\n계속할까요?')) return;
+    const j = await (await fetch('/api/policies/' + PID + '/pull', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({market: MARKET})})).json();
+    msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
+    msg.textContent = j.ok ? j.message : j.error;
+    if (j.ok) setTimeout(() => location.reload(), 700);
+  });
+  document.querySelectorAll('.pull-one').forEach(b => {
+    b.addEventListener('click', async () => {
+      const j = await (await fetch('/api/policies/' + PID + '/pull', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({market: MARKET, item_keys: [b.dataset.item]})})).json();
+      msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
+      msg.textContent = j.ok ? j.message : j.error;
+      if (j.ok) setTimeout(() => location.reload(), 700);
+    });
+  });
+}
+
+/* 판매가 — 「정하는 법」을 바꾸면 쓰는 칸만 또렷해진다(저장 전에도 눈에 보이게).
+   화면과 서버가 같은 판정을 해야 한다 — 서버는 price_cfg.effective_value 가 같은 일을 한다. */
+document.querySelectorAll('select[data-k$="_mode"]').forEach(function (sel) {
+  var side = sel.dataset.k.replace('_mode', '');
+  var map = {margin_rate: 'rate', margin_amount: 'amount', fixed_price: 'fixed'};
+  sel.addEventListener('change', function () {
+    Object.keys(map).forEach(function (mode) {
+      var input = document.querySelector('[data-k="' + side + '_' + map[mode] + '"]');
+      if (!input) return;
+      var fld = input.closest('.fld');
+      fld.classList.toggle('pf-dim', sel.value !== mode);
+      var old = fld.querySelector('.pf-live');
+      if (old) old.remove();
+      if (sel.value === mode) {
+        var b = document.createElement('span');
+        b.className = 'pf-live'; b.textContent = '쓰는 값';
+        fld.querySelector('label').appendChild(b);
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

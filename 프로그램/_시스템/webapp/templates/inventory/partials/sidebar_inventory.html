@@ -3,15 +3,7 @@
   <div class="brand">모음전 자동화</div>
   <div class="brand-sub">v2 · 재고관리 모드</div>
 
-  {# M3 — 사이드바 brand 아래 큰 카드 2개 모드 스위처 #}
-  <div class="sb-modeswitch">
-    <a href="/" class="sb-mode">
-      <span class="sb-mode-nm">모음전</span>
-    </a>
-    <a href="/inventory/" class="sb-mode on">
-      <span class="sb-mode-nm">재고관리</span>
-    </a>
-  </div>
+  {% include 'partials/_modeswitch.html' %}
 
   <a href="/inventory/" class="nav-item {% if active == 'items' %}active{% endif %}"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 제품목록</a>
 
@@ -91,8 +83,8 @@
       <a href="/inventory/data/attributes" class="nav-sub {% if active == 'data-attrs' %}active{% endif %}">속성</a>
       <a href="/inventory/data/partners" class="nav-sub {% if active == 'data-partners' %}active{% endif %}">거래처</a>
       <a href="/inventory/data/price-templates" class="nav-sub {% if active == 'data-pt' %}active{% endif %}">가격 템플릿</a>
-      <a href="/mapping/" class="nav-sub {% if active == 'mapping' %}active{% endif %}" title="모음전 상품 ↔ 재고관리 SKU"><i class="ph-light ph-link" aria-hidden="true"></i> 맵핑</a>
-      <a href="/mapping/match/playground" class="nav-sub" style="padding-left:48px;font-size:12px;color:#7A8290" title="자동 매칭 흐름 데모"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 자동 매칭 데모</a>
+      {# [2026-07-30] 「맵핑」·「자동 매칭 데모」 제거 — 별칭 사전은 이 화면 밖에서 아무도 읽지 않아
+         화면만 없앤다(매칭 함수 mapping.matcher.normalize 는 그대로 살아 있음). #}
       <a href="/inventory/data/boxhero-import" class="nav-sub {% if active == 'data-import' %}active{% endif %}">엑셀 업로드</a>
     </div>
   </div>
@@ -112,26 +104,26 @@
 
   <style>
     /* 사이드바 — 그룹 헤더·sub 폰트 크기 정렬 (.nav-item 과 동일 비율) */
-    .nav-group { margin: 2px 0; }
+    .nav-group { margin: 0px 0; }
     .nav-group-header {
       display:flex; width:100%; align-items:center; justify-content:space-between;
-      padding: 12px 14px; background: transparent; border: none; cursor: pointer;
-      color: var(--n700, #4E5968); font-size: 15.5px; font-weight: 500;
-      font-family: inherit; border-radius: 10px; gap: 12px;
+      padding: 12px 12px; background: transparent; border: none; cursor: pointer;
+      color: var(--n700, var(--글자-기본,#4E5968)); font-size: 14px; font-weight: 500;
+      font-family: inherit; border-radius: 8px; gap: 12px;
     }
     .nav-group-header > span:first-child { flex: 1; text-align: left; }
-    .nav-group-header:hover { background: var(--n100, #F2F4F6); color: #000; }
+    .nav-group-header:hover { background: var(--n100, var(--n100,#F2F4F6)); color: #000; }
     .nav-chevron { transition: transform 0.2s; font-size: 14px; flex-shrink: 0; }
     .nav-group[data-open="0"] .nav-chevron { transform: rotate(-90deg); }
-    .nav-group-body { padding: 2px 0 4px; }
+    .nav-group-body { padding: 0px 0 4px; }
     .nav-sub {
-      display: block; padding: 9px 14px 9px 38px;
-      color: var(--n600, #6B7684); text-decoration: none;
+      display: block; padding: 8px 12px 8px 32px;
+      color: var(--n600, var(--글자-보조,#6B7684)); text-decoration: none;
       font-size: 14px; font-weight: 500; border-radius: 8px;
-      margin: 1px 0;
+      margin: 0px 0;
     }
-    .nav-sub:hover { background: var(--n100, #F2F4F6); color: #000; }
-    .nav-sub.active { color: #4F67FF; background: rgba(79,103,255,0.1); font-weight: 700; }
+    .nav-sub:hover { background: var(--n100, var(--n100,#F2F4F6)); color: #000; }
+    .nav-sub.active { color: var(--글자-파랑, var(--primary,#4F67FF)); background: rgba(79,103,255,0.1); font-weight: 700; }
   </style>
   <script>
     function toggleGroup(btn) {

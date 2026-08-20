@@ -15,7 +15,7 @@
       <input class="field-input" type="password" value="{% if has_slack %}••••••••••••{% endif %}" placeholder="환경변수 SLACK_WEBHOOK" readonly />
       <div class="field-hint">{% if has_slack %}<i class="ph-light ph-check-circle" aria-hidden="true"></i> 설정됨{% else %}<i class="ph-light ph-warning" aria-hidden="true"></i> 미설정{% endif %}</div>
     </div>
-    <h3 style="margin:18px 0 10px">알림 종류 → 채널</h3>
+    <h3 style="margin:16px 0 8px">알림 종류 → 채널</h3>
     <table class="opt-table">
       <thead><tr><th>알림 종류</th><th class="center">Telegram</th><th class="center">Slack</th><th class="center">Kakao</th></tr></thead>
       <tbody>
@@ -29,7 +29,28 @@
         {% endfor %}
       </tbody>
     </table>
-    <div class="field-hint" style="margin-top:14px"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 라우팅 변경은 T13 이후 영구 저장됩니다. 현재는 보기 전용.</div>
+    <div class="field-hint" style="margin-top:12px"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 라우팅 변경은 T13 이후 영구 저장됩니다. 현재는 보기 전용.</div>
   </div>
 </section>
+
+<style>
+/* [3단계 배치1 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  #screen-alerts .card { padding: 14px; }
+  /* 입력칸: 화면 폭에 맞추고 손끝 목표 44px 확보. 16px = iOS 포커스 확대 방지. */
+  #screen-alerts .field-input {
+    width: 100%; box-sizing: border-box; min-height: 44px; font-size: 16px;
+  }
+  #screen-alerts .field-hint { font-size: 14px; }
+  /* 표는 4열(종류+채널 3칸)이라 375px 에 들어간다 — 표 유지, 넘칠 때만 안쪽 스크롤. */
+  #screen-alerts .opt-table { display: block; overflow-x: auto; width: 100%; }
+  #screen-alerts .opt-table th,
+  #screen-alerts .opt-table td { padding: 10px 6px; font-size: 14px; }
+  /* 체크박스가 곧 손끝 목표다(label 연결이 없어 칸을 늘려도 안 눌린다) — 44px. */
+  #screen-alerts .opt-table input[type="checkbox"] {
+    width: 44px; height: 44px; margin: 0;
+  }
+}
+</style>
 {% endblock %}

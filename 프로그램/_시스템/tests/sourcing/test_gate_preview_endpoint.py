@@ -96,7 +96,8 @@ def test_final_price_with_amounts(client, monkeypatch):
     }
     r = _post(client, monkeypatch, benefits=benefits, excludes=excludes, body=body)
     data = r.get_json()
-    assert data["final_price"] == 109710
+    # 126,900 - 5,000(쿠폰) = 121,900 → -12,190(10%적립) = 109,710 → 백원 버림 → 109,700
+    assert data["final_price"] == 109700
 
 
 def test_invalid_lines_rejected(client, monkeypatch):

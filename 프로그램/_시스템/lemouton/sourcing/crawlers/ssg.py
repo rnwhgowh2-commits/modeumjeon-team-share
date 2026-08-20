@@ -64,6 +64,7 @@ SSG MONEY 패턴 (3 URL 실측 결과, 2026-05-15):
 from __future__ import annotations
 
 import html as html_lib
+import json
 import logging
 import re
 from typing import Optional
@@ -72,7 +73,10 @@ from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -175,8 +179,18 @@ FIELD_OPTN_TYPE1_RE = _build_field_re("uitemOptnTypeNm1")
 FIELD_OPTN_TYPE2_RE = _build_field_re("uitemOptnTypeNm2")
 FIELD_USABL_INV_RE = _build_field_re("usablInvQty")
 FIELD_BEST_AMT_RE = _build_field_re("bestAmt")
+
+# 재고 불명(확인 불가) 센티넬 — 크롤은 됐으나 재고 신호(usablInvQty)를 못 읽음
+#   (필드명·포맷 변경 등 파싱 실패). 0(품절 둔갑)도 999(재고있음 둔갑)도 금지 →
+#   화면 '⚠️확인필요'+수량0(판매 제외)로 표면화. webapp _resolve_stock 의 -1 과 동일.
+#   🔒 재고 3대 원칙: 폴백 금지·못하면 '확인 불가'.
+_STOCK_UNKNOWN = -1
 # sellprc 는 parseInt('NNNNN', 10) 형식
 FIELD_SELLPRC_RE = re.compile(r"sellprc\s*:\s*parseInt\(\s*'([^']*)'")
+
+# 옵션 값이 '사이즈'인지 판별 (220mm / 250 등). 단일 옵션축(단일색 상품)이 사이즈일 때
+#   그 값을 size_text 로 보내기 위함. 색상명(블랙 등)·자유텍스트는 매칭 안 됨.
+_SIZE_VALUE_RE = re.compile(r"^\s*\d{2,3}\s*(mm|cm)?\s*$", re.I)
 
 # resultItemObj.itemNm / brandNm / brandId — 페이지 헤더 메타.
 RESULT_ITEM_NM_RE = re.compile(r"itemNm\s*:\s*'((?:\\'|[^'])*)'")
@@ -202,14 +216,92 @@ def _resolve_deal_representative_url(product_url: str, html: str) -> Optional[st
     m = DEAL_ITEMVIEW_LINK_RE.search(html)
     if not m:
         return None
-    rep_id = m.group(1)
+    return _item_view_url(product_url, m.group(1))
+
+
+def _item_view_url(product_url: str, item_id: str) -> str:
+    """dealItemView/itemView URL 의 itemId 를 바꿔 단일 itemView URL 생성(쿼리 보존)."""
     parts = urlsplit(product_url)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    query["itemId"] = rep_id
+    query["itemId"] = item_id
     new_path = parts.path.replace("dealItemView.ssg", "itemView.ssg")
     if "itemView.ssg" not in new_path:
         new_path = "/item/itemView.ssg"
     return urlunsplit(parts._replace(path=new_path, query=urlencode(query)))
+
+
+def _model_core(name: str) -> str:
+    """모델 핵심명 — 브랜드/프로모/공통 수식어 제거(메이트·업·메이트 메리제인 등만 남김)."""
+    s = re.sub(r"\[[^\]]*\]", " ", name or "")
+    for w in ("르무통", "발 편한", "발편한", "메리노울", "운동화", "컬러", ",", "·"):
+        s = s.replace(w, " ")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def resolve_deal_models(product_url: str, html: str, fetch_html=None, parse_html=None) -> list[dict]:
+    """[2026-06-19 모델매핑] 딜(dealItemView) 묶음 → 묶인 '모델' 전체 목록.
+
+    Returns: [{item_id, name, url}] — fetch_html·parse_html 주면 각 itemView 의 정확한
+      product_name 으로 name 을 채운다(모달 표시·모델명 매칭용). 없으면 itemId.
+    """
+    ids: list[str] = []
+    for m in DEAL_ITEMVIEW_LINK_RE.finditer(html):
+        if m.group(1) not in ids:
+            ids.append(m.group(1))
+    urls = {iid: _item_view_url(product_url, iid) for iid in ids}
+    names: dict[str, Optional[str]] = {}
+    # [2026-06-21] 각 itemView 상품명 fetch 를 '병렬'로 (기존 순차 9건 ~9초 → ~1-2초).
+    #   드롭다운이 너무 느려 '안 되는 것처럼' 보이던 문제 해결. fetch_html·parse_html 은
+    #   호출마다 독립(스레드 안전)이라 ThreadPool 로 동시 실행한다.
+    if fetch_html and parse_html and ids:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _name(iid):
+            try:
+                res = parse_html(fetch_html(urls[iid]), urls[iid])
+                return iid, (getattr(res, "product_name_raw", None)
+                             or getattr(res, "product_name", None))
+            except Exception:
+                return iid, None
+        try:
+            with ThreadPoolExecutor(max_workers=min(9, len(ids))) as ex:
+                for iid, name in ex.map(_name, ids):
+                    names[iid] = name
+        except Exception:
+            names = {}
+    out = [{"item_id": iid, "name": (names.get(iid) or iid), "url": urls[iid]}
+           for iid in ids]
+    return out
+
+
+def match_deal_model(models: list[dict], target_name: str):
+    """묶인 모델들 중 우리 모음전 모델명(target)에 맞는 1개 선정.
+
+    Returns: (matched_dict | None, ambiguous: bool)
+      - 핵심명 토큰셋 동일 = 확정. 첫 토큰만 같고 여러 개 = ambiguous(사용자 확인).
+      - '메이트' vs '메이트 메리제인' 처럼 헷갈리면 ambiguous=True 로 표시.
+    """
+    t = _model_core(target_name).split()
+    if not t:
+        return None, False
+    t0, tset = t[0], set(t)
+    scored = []
+    for m in models:
+        toks = _model_core(m.get("name", "")).split()
+        score = 0
+        if set(toks) == tset:
+            score += 5                       # 정확히 같은 모델
+        if toks and toks[0] == t0:
+            score += 2                       # 첫 토큰(핵심) 일치
+        if t0 in "".join(toks):
+            score += 1
+        scored.append((score, m))
+    scored.sort(key=lambda x: -x[0])
+    best = scored[0]
+    if best[0] <= 0:
+        return None, False
+    ambiguous = len(scored) > 1 and scored[1][0] == best[0]
+    return best[1], ambiguous
 
 # 카드혜택가 — DOM 셀렉터로 추출.
 #   <span class="mndtl_price"><em class="ssg_price">98,767</em> ...</span>
@@ -298,6 +390,180 @@ _RE_BENEFIT_KRW_ACCUM = re.compile(r"([0-9][0-9,]{2,})\s*원\s*적립")
 _RE_SSG_MONEY_CHARGE_PCT = re.compile(
     r"충전\s*결제\s*시\s*(\d+(?:\.\d+)?)\s*%\s*적립"
 )
+
+
+def _parse_category_path(soup: BeautifulSoup) -> str:
+    """[2026-07-23 M3] SSG '카테고리 네비게이션' 빵부스러기 → '대>중>소'.
+
+    라이브 캡처본(`tests/sourcing/fixtures/ssg_sample.html`) 실측 구조:
+
+        <div id="location" class="cate_location notranslate react-area">
+          <div class="lo_depth_01"><a href="/" class="lo_menu clickable">SSG.COM</a>…</div>
+          <div class="lo_depth_01">
+            <a href="/disp/category.ssg?ctgId=…" class="lo_menu lo_arr clickable">대분류</a>
+            <div class="lo_depth_02"><ul><li><a …>형제 카테고리</a></li>…</ul></div>  ← 드롭다운
+          </div>
+          … (단계마다 lo_depth_01 반복)
+
+    ★ 함정 2가지
+      ① `lo_depth_02` 드롭다운에는 **형제 카테고리 수십 개**가 들어있다. 그냥
+         `a` 를 다 긁으면 경로가 아니라 목록이 된다 → 직계 자식 `> a.lo_menu` 만 읽는다.
+      ② 첫 단계는 사이트 루트(`href="/"`, 'SSG.COM') 로 카테고리가 아니다 →
+         '홈' 더미와 같은 이유로 제외한다(`base.build_category_path` 주석 참조).
+
+    못 뽑으면 빈 문자열 — 예외를 던지지 않는다(카테고리 실패가 가격·재고 크롤을 죽이면 안 됨).
+    """
+    box = soup.select_one("div.cate_location")
+    if not box:
+        return ""
+    parts: list[str] = []
+    for depth in box.select("div.lo_depth_01"):
+        a = depth.find("a", recursive=False)          # 드롭다운(lo_depth_02) 진입 금지
+        if a is None:
+            continue
+        if (a.get("href") or "").strip() in ("/", ""):  # 사이트 루트(SSG.COM) 제외
+            continue
+        parts.append(a.get_text(strip=True))
+    return build_category_path(parts)
+
+
+def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] SSG 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실측 구조(라이브 캡처본 `ssg_product.html`, 상품 1000809938058):
+
+      1순위 JSON-LD  ``{"@type":"Product","image":[ ...8장... ]}``
+                     ``sitem.ssgcdn.com/58/80/93/item/1000809938058_i{1..8}_1200.jpg``
+      2순위 meta     ``og:image`` = 같은 파일의 **250px** 판(`_i1_250.jpg`)
+
+    ★ 함정 — SSG JSON-LD 는 **스킴도 `//` 도 없이 호스트로 시작**한다
+      (`sitem.ssgcdn.com/…`). 그대로 urljoin 하면 `https://www.ssg.com/sitem.ssgcdn.com/…`
+      라는 없는 주소가 된다 → `base._looks_like_bare_host` 가 https 를 붙인다.
+
+    ⚠️ `_250` → `_1200` 치환은 하지 않는다(추측 금지). JSON-LD 가 이미 1200 을 주고,
+       폴백이 도는 건 JSON-LD 가 깨진 비정상 페이지뿐이다.
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 받지 않는다.
+    """
+    for sc in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = sc.string or sc.get_text() or ""
+        if '"Product"' not in raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            continue
+        blocks = data if isinstance(data, list) else [data]
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("@type") != "Product":
+                continue
+            img = block.get("image")
+            cands = img if isinstance(img, list) else ([img] if img else [])
+            urls = build_image_urls(cands, product_url)
+            if urls:
+                return urls
+
+    og = soup.select_one('meta[property="og:image"]')
+    return build_image_urls([og.get("content")] if og else [], product_url)
+
+
+def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
+    """[2026-07-23 M4-4] SSG 상품상세 — **이 페이지 HTML 로는 못 가져온다**(빈 문자열).
+
+    실측(2026-07-23): 상세는 페이지 안이 아니라 **다른 출처의 iframe** 안에 있다.
+
+        div#item_detail .cdtl_capture_img
+          └ <iframe id="_ifr_html" src="https://itemdesc.ssg.com/item/
+                iframePItemDtlDesc.ssg?itemId={itemId}&dispSiteNo={n}&ts=…">
+
+    iframe 문서는 `www.ssg.com` 이 아니라 `itemdesc.ssg.com` 이라 ①페이지 HTML 에
+    내용이 없고 ②렌더 DOM 의 `outerHTML` 에도 안 담기며(교차출처) ③확장 same-origin
+    경로로도 못 읽는다. **별도 GET 이 있어야만** 얻어진다.
+
+    → 그래서 이 **순수 파서는 계속 빈 문자열**을 준다. 값을 채우는 건 네트워크를
+      쓸 수 있는 크롤 경로다: `extract_detail_iframe_url` 로 주소를 읽고
+      `fetch_detail_html` 이 한 번 더 GET 한다(아래 두 함수).
+      `SsgCrawler.fetch` 가 그 배선이고, 확장 navGrab 경로는 서버 parse 엔드포인트가
+      같은 함수를 부른다(확장 재배포 불필요).
+
+    실패하면 빈 문자열 = '상세 확인불가'. 상품명·가격으로 지어내지 않는다.
+    """
+    return ""
+
+
+# ── [2026-07-23 M4-4] 상세 iframe 한 번 더 받기 ────────────────────────────────
+#   iframe 주소는 **페이지 HTML 에서 읽는다**(itemId·dispSiteNo·ts 를 조립하지 않는다).
+#   ts 는 상세 갱신시각이라 우리가 만들 수 있는 값이 아니고, 틀리면 남의 상세가 온다.
+_SSG_DETAIL_IFRAME_RE = re.compile(
+    r"""["'](https?://itemdesc\.ssg\.com/item/iframePItemDtlDesc\.ssg\?[^"']+)["']""",
+    re.I,
+)
+
+
+def extract_detail_iframe_url(html: str) -> str:
+    """페이지 HTML → 상세 iframe 주소. 없으면 빈 문자열(조립하지 않는다).
+
+    실측 마크업(2026-07-23)::
+
+        <iframe id="_ifr_html" title="상세내용"
+          src="https://itemdesc.ssg.com/item/iframePItemDtlDesc.ssg?itemId=1000809938058
+               &dispSiteNo=6005&ts=20260327092202/m2x/mixed/main/image/optimize">
+    """
+    m = _SSG_DETAIL_IFRAME_RE.search(html or "")
+    return _unescape(m.group(1)) if m else ""
+
+
+def parse_detail_iframe_html(iframe_html: str, iframe_url: str) -> str:
+    """상세 iframe 문서 → 정리된 상세 HTML. 순수 변환(네트워크 없음 — 테스트 대상).
+
+    실측 구조(2026-07-23, itemId=1000809938058)::
+
+        <div id="descContents">
+          <button class="btn_a11y …">이미지 OCR … 듣기</button>   ← SSG 접근성 버튼
+          <div style="…"> 판매자 상세 이미지 5장 </div>
+          <input id="EcUniqueCode" type="hidden" value="…">        ← SSG 내부 코드
+        </div>
+
+    `#descContents` 로 좁힌다 — 그 밖은 SSG 자체 스크립트(이미지 로딩 실패를 SSG 서버로
+    보고하는 `imgErrObserver.ssg` XHR 포함)라 마켓 상세에 실을 게 아니다.
+    버튼·hidden input 은 공통 관문이 태그째 지운다.
+    """
+    from bs4 import BeautifulSoup
+
+    if not iframe_html or not iframe_html.strip():
+        return ""
+    try:
+        node = BeautifulSoup(iframe_html, "lxml").select_one("#descContents")
+    except Exception:
+        return ""
+    if node is None:
+        return ""
+    return sanitize_detail_html(node, iframe_url)
+
+
+def fetch_detail_html(product_url: str, html: str, timeout: int = DEFAULT_TIMEOUT) -> str:
+    """SSG 상세 iframe 을 한 번 더 받아 정리본을 돌려준다. 실패하면 **빈 문자열**.
+
+    ★ 순수 파서가 아니라 **크롤 경로**용이다 — 이미 SSG 에 접속한 그 흐름에서
+      같은 세션·같은 헤더로 문서 하나를 더 받을 뿐이다(추가 로그인·인증 없음).
+    ★ 실패해도 예외를 올리지 않는다. 상세 하나 때문에 가격·재고 수집이 죽으면 안 되고,
+      저장은 무스톰프라 기존값도 안 지운다.
+    """
+    iframe_url = extract_detail_iframe_url(html)
+    if not iframe_url:
+        logger.warning("[m4img] SSG 상세 iframe 주소를 못 찾았다 — 상세 확인불가. url=%s",
+                       product_url)
+        return ""
+    try:
+        sess = _get_ssg_session(timeout)
+        resp = sess.get(iframe_url, timeout=timeout,
+                        headers=dict(_SSG_HEADERS, Referer=product_url))
+        resp.raise_for_status()
+        return parse_detail_iframe_html(resp.text, iframe_url)
+    except Exception as e:
+        logger.warning("[m4img] SSG 상세 iframe GET 실패 — 상세 확인불가. url=%s err=%s",
+                       iframe_url, str(e)[:120])
+        return ""
 
 
 def _parse_ssg_money(soup: BeautifulSoup, html: str) -> dict:
@@ -521,6 +787,121 @@ def _parse_product_coupon(soup: BeautifulSoup) -> dict:
     return out
 
 
+# ─────────────────────────────────────────────────────────────
+# 「쿠폰보기」 다운로드 쿠폰 레이어 — 2026-07-23 실측 구현
+# ─────────────────────────────────────────────────────────────
+# 왜 필요했나: 네이버 경유(ckwhere=ssg_naver)로 들어가면 채널 전용 제휴쿠폰이
+#   **이 레이어에만** 뜬다. 위 `_parse_product_coupon` 은 dt 가 "상품쿠폰"인
+#   dl.cdtl_cpn_wrap 만 보고 정규식도 리터럴 「N% 상품쿠폰」을 요구해서
+#   「[제휴할인] 백화점 8% 쿠폰」을 한 건도 못 잡았다(정답지 D6).
+#
+# 실측 DOM (fixtures/ssg_download_coupon_layer.html — 사장님 제공 실제 PDP):
+#   <button class="... store_layer_btn_view_coupon_detail"
+#           data-layer-target="#store_modal_view_coupon_detail">쿠폰보기</button>
+#   <div id="store_modal_view_coupon_detail"> … <div class="dialog_scrollable">
+#     <div class="dialog_group">
+#       <p class="dialog_tit">다운로드 쿠폰</p>
+#       <div class="dialog_coupon"><div class="dialog_coupon_detail">
+#         <span class="dialog_coupon_detail_tit">[제휴할인] 백화점 8% 쿠폰</span>
+#         <span class="dialog_coupon_detail_price"><em>5,731</em><span>원</span></span>
+#         <span class="dialog_coupon_detail_desc">7/31(금)까지 다운 가능</span>
+#
+# 검산(두 장 모두 일치) — 즉시할인가(최적가) 71,638 × 8% = 5,731 / × 5% = 3,581
+#   → 쿠폰 기준금액 = **표면노출가**. 그래서 값은 정액(amount)이 아니라 **요율(rate)**로
+#     싣는다. 표면가가 바뀌어도 엔진이 다시 곱해 맞는 금액이 나온다.
+#
+# ⚠️ 안 읽는 것: 「적용 중인 쿠폰」 그룹 — 이미 표시가에 반영된 쿠폰이라 또 깎으면
+#   이중차감(매입가 과소 = 마진 착시)이다. 그룹 제목이 「다운로드」인 것만 읽는다.
+_RE_CPN_ANY_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
+# 멤버십·전용 쿠폰 — 지도 §11 SSG STEP2 「쓱클럽·전용카드 = 제외」 확정
+_CPN_EXCLUDE = ("쓱클럽", "쓱7클럽", "유니버스", "멤버십")
+
+
+def _parse_download_coupons(soup: BeautifulSoup) -> list[dict]:
+    """「쿠폰보기」 레이어의 **다운로드 쿠폰** 목록.
+
+    Returns:
+        [{label, rate, amount, is_affiliate}] — 못 찾으면 빈 리스트(추측값 금지).
+        rate  : 라벨의 N% (0.08). 라벨에 %가 없으면 0.0
+        amount: 레이어가 보여 주는 실할인액(원). 없으면 0
+        is_affiliate: 라벨에 「제휴」 포함 = 경유(N쇼핑) 쿠폰
+    """
+    out: list[dict] = []
+    layer = soup.select_one("#store_modal_view_coupon_detail")
+    if layer is None:
+        return out
+    for grp in layer.select("div.dialog_group"):
+        tit = grp.select_one("p.dialog_tit")
+        # 「다운로드 쿠폰」 그룹만 — 「적용 중인 쿠폰」은 선반영이라 재차감 금지
+        if not tit or "다운로드" not in tit.get_text(strip=True):
+            continue
+        for cpn in grp.select("div.dialog_coupon"):
+            name_el = cpn.select_one(".dialog_coupon_detail_tit")
+            if name_el is None:
+                continue
+            label = re.sub(r"\s+", " ", name_el.get_text(" ", strip=True)).strip()
+            if not label or any(x in label for x in _CPN_EXCLUDE):
+                continue
+            amt_el = cpn.select_one(".dialog_coupon_detail_price em")
+            amount = _to_int(amt_el.get_text(strip=True)) if amt_el else 0
+            m = _RE_CPN_ANY_PCT.search(label)
+            rate = float(m.group(1)) / 100 if m else 0.0
+            if rate <= 0 and amount <= 0:
+                continue    # 값이 없는 안내성 카드 — 버린다
+            out.append({
+                "label": label,
+                "rate": rate,
+                "amount": amount or 0,
+                "is_affiliate": "제휴" in label,
+            })
+    return out
+
+
+def pick_download_coupon(coupons: list[dict]) -> Optional[dict]:
+    """다운로드 쿠폰 여러 장 중 **1장**만 고른다 (할인 큰 쪽).
+
+    ⚠️ 왜 1장인가 — 여러 장이 동시에 먹는지는 **주문서에서만** 확정된다
+    (롯데아이몰 P31 교훈: PDP 만 보고 쿠폰 「칸」을 추론했다가 오판했다).
+    1장만 깎으면 설령 틀려도 매입가 과대 = 안전 방향이다.
+    제휴(경유) 쿠폰이 있으면 그쪽을 우선한다 — 엔진이 경유 축으로 택1 처리해야
+    OK캐시백과의 중복 차감이 막힌다(사장님 확정 규칙).
+    """
+    if not coupons:
+        return None
+    pool = [c for c in coupons if c.get("is_affiliate")] or list(coupons)
+    return max(pool, key=lambda c: (c.get("amount") or 0, c.get("rate") or 0.0))
+
+
+def coupon_fields_from_layer(soup: BeautifulSoup) -> dict:
+    """레이어 쿠폰 1장 → 옵션에 실을 `product_coupon_*` 키.
+
+    엔진 계약: 라벨에 「제휴」가 있으면 ``api_benefits`` 가 자동으로
+    ``channel='naver_via'`` + ``enabled=True`` 를 줘서 경유 축에 넣고
+    OK캐시백과 택1시킨다(중복 차감 금지). 그 입력이 여기서 만드는 키다.
+    """
+    picked = pick_download_coupon(_parse_download_coupons(soup))
+    if not picked:
+        return {}
+    out: dict = {"product_coupon_label": picked["label"]}
+    # 요율 우선 — 기준금액(표면가)이 바뀌어도 맞는 금액이 되도록
+    if picked.get("rate"):
+        out["product_coupon_rate"] = picked["rate"]
+    elif picked.get("amount"):
+        out["product_coupon_amount"] = picked["amount"]
+    return out
+
+
+def merge_coupon_fields(existing: dict, layer: dict) -> dict:
+    """종전 상품쿠폰(dl.cdtl_cpn_wrap) 우선 — 레이어 값은 **빈 자리만** 채운다.
+
+    무회귀 규율: 지금까지 잡히던 일반 상품쿠폰의 동작을 바꾸지 않는다.
+    (같은 슬롯을 두 값이 다투면 조용히 금액이 달라진다 = 침묵 실패)
+    """
+    if existing.get("product_coupon_rate") or existing.get("product_coupon_amount"):
+        return existing
+    return layer or existing
+
+
 def _parse_card_benefit(soup: BeautifulSoup) -> tuple[Optional[int], str]:
     """카드혜택가 + 조건 텍스트 추출.
 
@@ -605,7 +986,11 @@ def _parse_uitem_options(
 
         sellprc = _to_int(sellprc_m.group(1)) if sellprc_m else 0
         best_amt = _to_int(bestamt_m.group(1)) if bestamt_m else 0
-        stock = _to_int(inv_m.group(1)) if inv_m else 0
+        # [2026-07-02 A1 → 2026-07-08 재정의] usablInvQty 필드가 present 이면 그 값
+        #   ('0'=진짜 품절, 'N'=실수량). ABSENT(정규식 미스=필드명/포맷 변경 등 파싱 실패)
+        #   이면 0(품절 둔갑)도 999(재고있음 둔갑=오버셀)도 금지 → _STOCK_UNKNOWN(-1)=확인불가.
+        #   🔒 재고 3대 원칙: 폴백 금지·못하면 '확인 불가'(수량0 취급·판매 제외·재크롤).
+        stock = _to_int(inv_m.group(1)) if inv_m else _STOCK_UNKNOWN
 
         # sale_price 단일 진실 원천: bestAmt 우선, 없으면 sellprc
         sale_price = best_amt if best_amt > 0 else sellprc
@@ -615,8 +1000,22 @@ def _parse_uitem_options(
 
         # type1/type2 가 '색상'/'사이즈' 인 일반 케이스만 의미 부여.
         # 그 외는 type1 텍스트 자체를 color_text 칸에 넣음 (UI 가 그냥 보여줌).
-        color_text = optn1 if (type1 == "색상" or not type1) else f"{type1}:{optn1}"
-        size_text = optn2 if (type2 == "사이즈" or not type2) else (f"{type2}:{optn2}" if optn2 else "")
+        #
+        # [2026-06-19 fix] 단일색 상품(블랙·다크네이비 등)은 옵션축이 '사이즈' 하나뿐이라
+        #   type1='사이즈', optn1='220mm', optn2='' 로 온다. 기존 로직은 type1!='색상' 이라
+        #   color_text=f"사이즈:220mm", size_text="" 로 만들어 → 저장단(_ingest)이 size_text 에
+        #   숫자가 없어 '사이즈 미상'으로 전 옵션을 조용히 skip → 사이즈별 재고가 통째로 사라지고
+        #   상품레벨 재고(합계)로 둔갑(전 사이즈 동일 수치)하던 버그. 단일축이 사이즈면 그 값을
+        #   size_text 로 보내고 color 는 비운다(상품=단일색 → 매칭은 사이즈만으로 안전).
+        if (not optn2) and (type1 == "사이즈" or _SIZE_VALUE_RE.match(optn1 or "")):
+            color_text = ""
+            size_text = optn1
+        elif type1 == "색상" or not type1:
+            color_text = optn1
+            size_text = optn2 if (type2 == "사이즈" or not type2) else (f"{type2}:{optn2}" if optn2 else "")
+        else:
+            color_text = f"{type1}:{optn1}"
+            size_text = optn2 if (type2 == "사이즈" or not type2) else (f"{type2}:{optn2}" if optn2 else "")
 
         option_id = f"{block_item_id or item_id_from_url}|{uitem_id}"
 
@@ -672,23 +1071,24 @@ class SsgCrawler(AbstractCrawler):
             return resp.text
         raise last_exc or RuntimeError("[SSG] fetch 실패")
 
-    def fetch(self, product_url: str) -> CrawlResult:
-        html = self._fetch_html(product_url)
+    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+        """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
 
-        # [2026-06-05] 딜 페이지(dealItemView) 대응 — uitemObj 인라인 JS 가 없으므로
-        #   딜에 묶인 대표 itemView(첫 상품)로 재크롤. (예: SSG_모음전 → 르무통 메이트)
-        if "uitemObjArr.push" not in html:
-            rep_url = _resolve_deal_representative_url(product_url, html)
-            if rep_url:
-                logger.info("[SSG] 딜 페이지 감지 → 대표 itemView 재크롤: %s", rep_url)
-                html = self._fetch_html(rep_url)
-                product_url = rep_url
-
+        fetch 의 세션 워밍업·딜 페이지 재크롤은 fetch 단계에서 처리.
+        parse_html 은 받은 html 을 그대로 파싱한다.
+        """
         soup = BeautifulSoup(html, "lxml")
 
         item_id = _extract_item_id(product_url, html)
         product_name = _extract_product_name(html, soup)
         brand = _extract_brand(html, soup)
+
+        # [2026-07-23 M3] 카테고리 경로(빵부스러기) — 못 뽑으면 ''
+        category_path = _parse_category_path(soup)
+        # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지).
+        #   상세는 교차출처 iframe 이라 이 HTML 로는 못 얻는다(사유는 _parse_detail_html).
+        image_urls = _parse_image_urls(soup, product_url)
+        detail_html = _parse_detail_html(soup, product_url)
 
         # 카드혜택가 (전 옵션 공통)
         card_price, card_condition = _parse_card_benefit(soup)
@@ -697,7 +1097,12 @@ class SsgCrawler(AbstractCrawler):
         ssg_money = _parse_ssg_money(soup, html)
 
         # 상품쿠폰 (전 옵션 공통 — X% / 최소 구매금액)
-        product_coupon = _parse_product_coupon(soup)
+        #   [2026-07-23] 종전 경로(dl.cdtl_cpn_wrap)가 비면 「쿠폰보기」 다운로드 쿠폰
+        #   레이어에서 채운다 — 네이버 경유 제휴쿠폰은 그 레이어에만 있다(정답지 D6 해소).
+        #   기존이 있으면 덮지 않는다(무회귀). 라벨의 「제휴」를 보고 엔진이 경유 축
+        #   (channel='naver_via')으로 넣어 OK캐시백과 택1시킨다.
+        product_coupon = merge_coupon_fields(
+            _parse_product_coupon(soup), coupon_fields_from_layer(soup))
 
         # 옵션 파싱
         options = _parse_uitem_options(html, item_id)
@@ -763,4 +1168,29 @@ class SsgCrawler(AbstractCrawler):
             options=options,
             brand=brand,
             discount_info=discount_info,
+            category_path=category_path,
+            image_urls=image_urls,
+            detail_html=detail_html,
         )
+
+    def fetch(self, product_url: str) -> CrawlResult:
+        html = self._fetch_html(product_url)
+
+        # [2026-06-20 money-safe] 딜 페이지(dealItemView)는 자동 '대표상품' 크롤 금지.
+        #   사유: 딜 페이지 itemView 링크에 SSG 광고 캐러셀(data-advert) 상품이 섞여 있어
+        #   '첫 itemView'가 무관한 광고상품(예: 여성 와이드 바지)일 수 있음 → 엉뚱한 가격/재고
+        #   크롤(금전 위험). 딜은 반드시 모델 선택(resolve_deal_models)으로 단일 itemView URL을
+        #   지정해 크롤한다. 대표상품 자동선택(_resolve_deal_representative_url)은 폐기.
+        if "uitemObjArr.push" not in html:
+            logger.warning("[SSG] 딜 페이지(dealItemView) — 자동 대표상품 크롤 금지. "
+                           "모델 선택으로 단일 itemView URL 지정 필요: %s", product_url)
+            # 옵션 없는 빈 결과 반환(파서가 딜 HTML 에서 옵션을 못 찾음 = 정직한 '데이터 없음').
+            return self.parse_html(html, product_url)
+
+        res = self.parse_html(html, product_url)
+        # [2026-07-23 M4-4] 상세는 교차출처 iframe 안이라 위 HTML 로는 못 얻는다.
+        #   크롤 경로(=이미 SSG 에 접속한 이 흐름)에서 문서 하나를 더 받아 채운다.
+        #   실패해도 빈 문자열 — 수집 전체를 죽이지 않는다.
+        if not res.detail_html:
+            res.detail_html = fetch_detail_html(product_url, html, self.timeout)
+        return res

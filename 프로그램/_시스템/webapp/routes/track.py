@@ -123,5 +123,16 @@ def index():
         days=days,
         charts=charts,
         source_colors=SOURCE_COLORS,
-        source_labels=SOURCE_LABELS,
+        source_labels=_track_source_labels(),
     )
+
+
+def _track_source_labels() -> dict:
+    """[2026-06-30 단일명부] 명부(get_labels) 라벨 + 하드코딩 폴백 병합."""
+    out = dict(SOURCE_LABELS)
+    try:
+        from lemouton.sourcing.source_registry import get_labels
+        out.update(get_labels())
+    except Exception:
+        pass
+    return out

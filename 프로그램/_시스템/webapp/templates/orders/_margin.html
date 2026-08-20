@@ -1,0 +1,39 @@
+{# 마진 탭 = 원본 마진계산기 풀페이지(무수정 이식)를 same-origin iframe 으로 임베드 (C3).
+   구 재구현본(margin_app.js·margin_render.js·margin.css·_margin.html 본문)은 폐기 —
+   원본을 그대로 담는다. 바레 라우트 /orders/margin-embed 가 X-Frame-Options: SAMEORIGIN 로 서빙.
+
+   [2026-08-12] 역할 나눔 안내 배너 추가 (설계서 §9 「마진 계산기 탭 정리」).
+   🔴 탭을 없애지 않는다 — 이 화면에만 있는 집계(일별·월별·브랜드별·금액대별·상품별·
+     마켓별·소싱처별)가 주문 내역으로 옮겨진 적이 없다. 없애면 그 기능이 통째로 사라진다.
+     대신 **어디서 무엇을 하는지**를 위에 밝히고, 매입 엑셀은 어느 쪽에 올려도
+     같은 저장소(`order_line_purchases`)에 들어가게 배선했다(api_margin._share_to_purchase_store).
+#}
+<style>
+  .mgmv{border:1px solid var(--line,#E5E8EB);border-radius:12px;background:var(--surface,#fff);
+        padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .mgmv .mv-t{font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);line-height:1.6;}
+  .mgmv .mv-t b{font-weight:600;color:var(--ink,#191F28);}
+  .mgmv .mv-go{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;}
+  .mgmv .mv-go a{display:inline-flex;align-items:center;font-size:12px;font-weight:600;
+        padding:6px 12px;border-radius:980px;border:1px solid var(--line,#E5E8EB);
+        color:var(--글자-파랑,#3182F6);background:var(--surface,#fff);text-decoration:none;white-space:nowrap;}
+  .mgmv .mv-go a:hover{background:var(--n100,#F8FAFB);}
+</style>
+<div class="mgmv">
+  <div class="mv-t">
+    <b>실매입가 입력·이상마진·블랙스팟은 「주문 내역」으로 옮겼습니다.</b><br>
+    이 화면은 이제 <b>기간 집계·분석 전용</b>이에요(일별·월별·브랜드별·금액대별·상품별·마켓별·소싱처별).
+    매입 엑셀은 <b>어느 쪽에 올려도 같은 곳에 저장</b>됩니다.
+  </div>
+  <div class="mv-go">
+    <a href="/orders/?tab=list&amp;mg=nopp">매입가 미입력 채우기 →</a>
+    <a href="/orders/?tab=list&amp;mg=abnormal">이상마진 →</a>
+    <a href="/orders/?tab=list&amp;mg=blackspot">블랙스팟 →</a>
+  </div>
+</div>
+<iframe
+  id="margin-embed-frame"
+  src="{{ url_for('orders.margin_embed') }}"
+  title="마진계산기"
+  style="display:block;width:100%;height:calc(100vh - 270px);min-height:680px;border:0;border-radius:12px;background:var(--surface,#ffffff);"
+  loading="lazy"></iframe>

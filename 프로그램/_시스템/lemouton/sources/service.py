@@ -19,8 +19,9 @@ _log = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 
 from .models import (
-    SourceProduct, SourceOption, ModelSourceLink, OptionSourceLink,
+    SourceProduct, SourceOption, ModelSourceLink, OptionSourceLink, CrawlDelta,
 )
+from .change_detection import detect_changes
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -28,6 +29,30 @@ from .models import (
 # ─────────────────────────────────────────────────────────────────────────────
 import re as _re
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SourceOption color/size 정규화 — 표기 차이 중복행 방지
+# ─────────────────────────────────────────────────────────────────────────────
+import re as _re_norm
+
+
+def _norm_size(s) -> str:
+    """size_text 정규화: 숫자+mm 통일, 대소문자·공백 제거.
+
+    '220MM' → '220mm', '220' → '220mm', ' 235 mm ' → '235mm'
+    빈 문자열·None → ''
+    """
+    s = str(s or '').strip()
+    if not s:
+        return ''
+    d = ''.join(c for c in s if c.isdigit())
+    return (d + 'mm') if d else s.lower()
+
+
+def _norm_color(s) -> str:
+    """color_text 정규화: 앞뒤 공백 제거. None → ''"""
+    return str(s or '').strip()
 
 # 제거 대상 트래킹 파라미터 (네이버 / 일반 광고·검색 트래킹).
 _TRACKING_PARAM_PATTERNS = [
@@ -41,12 +66,19 @@ _TRACKING_PARAM_PATTERNS = [
 ]
 
 
+from functools import lru_cache as _lru_cache
+
+
+@_lru_cache(maxsize=8192)
 def normalize_url(url: str) -> str:
     """트래킹 파라미터를 제거한 정규화 URL 반환. 비교·매칭 용도.
 
     예:
       ``brand.naver.com/lemouton/products/9496367527?nl-ts-pid=xxx&NaPm=yyy``
       → ``brand.naver.com/lemouton/products/9496367527``
+
+    [perf 2026-06-12] 순수 함수(url→정규화url) 이며 매트릭스/breakdown 빌드 중 동일 URL 에
+      수백~수천 번 호출되므로 lru_cache 로 메모이즈. 입력 URL 집합은 유한(상품 URL)이라 안전.
     """
     if not url:
         return url
@@ -81,10 +113,33 @@ def upsert_source_product(
     """site + url 조합으로 SourceProduct 가져오거나 생성.
 
     같은 URL을 N 번 호출해도 1 행만 만들어짐 (uq_source_product_site_url).
+
+    [INV-2 2026-06-13] url 을 normalize_url 로 정규화 후 조회·저장한다. utag/NaPm
+    같은 트래킹 파라미터만 다른 같은 상품이 2행으로 분열(매트릭스 stale 픽 위험)
+    되던 것을 차단. ckwhere 등 가격에 영향 주는 파라미터는 normalize 가 보존하므로
+    별도 상품으로 유지된다(쿠폰가/비쿠폰가 혼선 방지).
     """
+    url = normalize_url(url)
     existing = (session.query(SourceProduct)
                 .filter_by(site=site, url=url, deleted_at=None)
                 .first())
+    if existing is None:
+        # [2026-06-19 fix] 레거시 행: 2026-06-13 정규화 도입 전 생성된 SourceProduct 는
+        #   저장 url 이 raw(utag 등 포함)라 위 정확매칭(저장url==정규화input)이 빗나간다 →
+        #   같은 상품인데 새 행을 만들어 중복 누적(SSF 다크네이비 3행). 매트릭스 sp_by_norm
+        #   과 동일하게 normalize_url 양쪽 비교로 재탐색해 중복 생성을 막는다(정규화된 행 우선).
+        #   url self-heal 은 하지 않는다(기존 중복 정규화행과 uq_source_product_site_url 충돌
+        #   회피) — 정규화·병합은 dedupe 마이그레이션에서 일괄 처리.
+        cands = [c for c in (session.query(SourceProduct)
+                             .filter_by(site=site, deleted_at=None).all())
+                 if normalize_url(c.url or '') == url]
+        if cands:
+            cands.sort(key=lambda c: (
+                (c.url or '') == url,                       # 이미 정규화된 행 우선
+                getattr(c, 'last_status', None) == 'ok',    # 성공 데이터 보유 우선
+                str(getattr(c, 'last_fetched_at', '') or '')),  # 최신 우선
+                reverse=True)
+            existing = cands[0]
     if existing is not None:
         # 메타 정보 보강 (옵션)
         if external_product_id and not existing.external_product_id:
@@ -114,12 +169,23 @@ def upsert_source_option(
     dynamic_benefits_json: str | None = None,
 ) -> SourceOption:
     """SourceProduct + (color, size) 조합으로 SourceOption upsert."""
+    # [2026-06-24 fix] 대소문자·공백·단위 표기 차이로 유니크 제약을 우회하는 중복행 방지.
+    #   '220MM' vs '220mm', ' 235 mm ' vs '235mm' 등을 하나로 수렴.
+    color_text = _norm_color(color_text) or None
+    size_text = _norm_size(size_text) or None
+    # [2026-06-19 fix] deleted_at 필터 제거 — 유니크 제약
+    #   uq_source_option_product_color_size 는 (source_product_id, color_text, size_text)
+    #   만 보고 deleted_at 을 무시한다. prune 으로 soft-delete 된 (색,사이즈) 행이 남아 있는데
+    #   deleted_at=None 으로만 조회하면 '없음'으로 보여 새 INSERT → 중복키 충돌(UniqueViolation)
+    #   → 크롤 저장 전체가 IntegrityError 로 실패하던 '조용한 실패'(예: SSF 오렌지). 매치되면
+    #   soft-delete 여부와 무관히 같은 행을 되살려(revive) 갱신한다.
     existing = (session.query(SourceOption)
                 .filter_by(source_product_id=source_product_id,
-                           color_text=color_text, size_text=size_text,
-                           deleted_at=None)
+                           color_text=color_text, size_text=size_text)
                 .first())
     if existing is not None:
+        if getattr(existing, 'deleted_at', None) is not None:
+            existing.deleted_at = None   # soft-delete 행 되살림
         if external_option_id and not existing.external_option_id:
             existing.external_option_id = external_option_id
         if current_price is not None:
@@ -370,6 +436,13 @@ def crawl_bundle_registered_urls(
 
     out = {'total': 0, 'ok': 0, 'error': 0, 'no_crawler': 0, 'per_source': {}}
     _emit(0, None)  # 시작 — 위젯 즉시 표시 (소싱처별 0/N)
+    # [2026-06-13] 크롤 시작 하드 리셋 — 옛 가격/재고/혜택 비우고 옵션 pessimistic block.
+    #   크롤/마무리 실패 시 차단 유지(fail-safe) → 옛값으로 잘못 판매되는 사고 방지.
+    try:
+        from webapp.routes.api_pricing import _reset_bundle_crawl_state
+        _reset_bundle_crawl_state(session, model_code)
+    except Exception:
+        pass
     done = 0
     for bsu in valid:
         out['total'] += 1
@@ -393,7 +466,395 @@ def crawl_bundle_registered_urls(
         done += 1
         _emit(done, bsu.source_key)  # URL 1개 완료 — 실시간 진행 갱신
     session.commit()
+    # [2026-06-13] 크롤 종료 마무리 — 유효 소싱가 없는 옵션 crawl_blocked 확정(성공=해제).
+    try:
+        from webapp.routes.api_pricing import _finalize_bundle_crawl_block
+        _finalize_bundle_crawl_block(session, model_code)
+    except Exception:
+        pass
+    # [2026-08-01] 전수 품절 알림 — 이 모음전이 통째로 품절됐으면 알린다(설계서 규칙 9).
+    #   🔴 그 상품 **하나만** 본다 — 크롤은 자주 돌고 전체 스캔은 무겁다.
+    #   🔴 같은 상품을 매번 다시 알리지 않는다(soldout_alerted_at).
+    #   ⚠️ 실패해도 크롤을 깨뜨리지 않는다 — 크롤이 멈추면 가격·재고가 낡는다.
+    try:
+        from lemouton.matrix.soldout_alert import notify_one
+        notify_one(session, model_code)
+        session.commit()
+    except Exception:
+        session.rollback()
     return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 단품 색상 스코프 — 무신사 단품 SP 형제색 병합 폴루션 차단
+# ─────────────────────────────────────────────────────────────────────────────
+
+import re as _re_color
+
+
+def _cnorm_color(x) -> str:
+    """색상 비교용 정규화 — 공백·괄호·구분자 제거 + 소문자.
+
+    api_pricing._stk_cnorm 과 동일 로직; 외부 import 부담 없이 service 내 자체 정의.
+    """
+    return _re_color.sub(r'[\s()（）\[\]·,/\-_:：]', '', str(x or '')).lower()
+
+
+def _resolve_reg_color(session: Session, source_product: SourceProduct) -> str | None:
+    """단품 SourceProduct 의 등록 색상명 반환.
+
+    우선순위:
+      1. OptionSourceUrlLink → Option.color_code (연결옵션 — 권위 있는 원천)
+         단일 색상이면 그대로 반환. 0개 또는 2+개(혼재) 면 단계 2로.
+      2. BundleSourceUrl.label 파싱 (기존 경로 — 폴백)
+         label 형식: '{source_key}_{색상}' (예: 'musinsa_오렌지') 또는 색상만('오렌지').
+         라벨이 없거나 파싱 결과가 비어있으면 None 반환.
+
+    반환:
+      str  — 등록 색상(예: '오렌지')
+      None — 색상을 자신있게 판별할 수 없는 경우 (보수적: 필터 안 함)
+
+    범위: 무신사 단품만. 타 소싱처(롯데온/SSF/SSG/르무통)는 색스코프 미적용(보수적)
+      — 동일 URL이 다른 소싱처에 단품 등록돼도 무신사 외엔 None 반환해 데이터 보존.
+    """
+    # 무신사 단품에만 색스코프 적용 — 타소싱처 부분손실 방지
+    if (getattr(source_product, 'site', None) or '') != 'musinsa':
+        return None
+    try:
+        from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink, Option as SOption
+    except ImportError:
+        return None
+
+    try:
+        sp_url_norm = normalize_url(source_product.url or '')
+        # 같은 URL 을 사용하는 BundleSourceUrl 전부 탐색 (normalize_url 양쪽 비교)
+        bsu_rows = (session.query(BundleSourceUrl)
+                    .filter(BundleSourceUrl.url.isnot(None))
+                    .all())
+        # url_type='단품' 인 것만 (label 존재 여부 무관)
+        matching = [b for b in bsu_rows
+                    if normalize_url(b.url or '') == sp_url_norm
+                    and (b.url_type or '단품') == '단품']
+        if not matching:
+            return None
+        # 첫 번째 매칭 BundleSourceUrl 사용
+        bsu = matching[0]
+    except Exception:
+        return None  # 보수적: 예외 시 필터 안 함
+
+    # ── 경로 1: 연결옵션(OptionSourceUrlLink → Option.color_code) ──────────────
+    # 라벨 없어도 연결옵션에서 색 판별 가능 — 권위 있는 단일 진실 원천
+    try:
+        links = (session.query(OptionSourceUrlLink)
+                 .filter(OptionSourceUrlLink.bundle_source_url_id == bsu.id)
+                 .all())
+        if links:
+            linked_skus = [lnk.option_canonical_sku for lnk in links]
+            opt_rows = (session.query(SOption)
+                        .filter(SOption.canonical_sku.in_(linked_skus))
+                        .all())
+            colors = {(o.color_code or '').strip() for o in opt_rows
+                      if (o.color_code or '').strip()}
+            if len(colors) == 1:
+                # 단일 색상 — 권위 있음
+                return colors.pop()
+            # 0개(매핑된 옵션에 color_code 없음) 또는 2+개(혼재) → 폴백
+    except Exception:
+        pass  # 연결옵션 조회 실패 → 라벨 경로로 폴백
+
+    # ── 경로 2: label 파싱 (기존 경로 — 폴백) ──────────────────────────────────
+    try:
+        label = (bsu.label or '').strip()
+        if not label:
+            return None
+        # 'musinsa_오렌지' → '오렌지'; '오렌지' → '오렌지'
+        if '_' in label:
+            color = label.split('_', 1)[1].strip()
+        else:
+            color = label
+        return color if color else None
+    except Exception:
+        return None  # 보수적: 예외 시 필터 안 함
+
+
+def _scope_options_to_color(options: list[dict], reg_color: str | None) -> list[dict]:
+    """단품 SP 색상 필터 — 등록색 일치(또는 빈 색) 옵션만 반환하고 color_text 를 정규화.
+
+    Args:
+      options:   크롤러가 반환한 옵션 dict 리스트 (원본 수정 안 함)
+      reg_color: _resolve_reg_color 가 반환한 등록 색상; None/'' 이면 no-op
+
+    Returns:
+      필터·정규화된 새 리스트. 원본 리스트·dict 는 변형하지 않음.
+
+    정책:
+      - reg_color 가 없으면 → 전부 반환(모음전·매핑없음 경로와 동일)
+      - 통과 조건: _cnorm_color(color_text) == _cnorm_color(reg_color)
+                   OR color_text 가 빈 값
+      - 통과된 옵션의 color_text 를 reg_color 로 정규화(표기 통일)
+      - 탈락 옵션은 조용히 제거 (no log — prune 이 soft-delete 함)
+    """
+    if not reg_color:
+        return list(options)
+    rc_norm = _cnorm_color(reg_color)
+    result = []
+    for o in options:
+        ct = o.get('color_text') or ''
+        oc_norm = _cnorm_color(ct)
+        # 빈 색(단일색 URL 에서 색 미포함) 또는 등록색과 일치
+        if not oc_norm or oc_norm == rc_norm or rc_norm in oc_norm or oc_norm in rc_norm:
+            new_o = dict(o)
+            new_o['color_text'] = reg_color  # 등록색으로 정규화
+            result.append(new_o)
+    return result
+
+
+# ── 동적 혜택 키 화이트리스트 (단일 진실 원천) ──────────────────────────────
+#   서버사이드 _ingest(save_crawl_result)·확장 경로(persist_crawled_options) 공용.
+#   compute_breakdown 이 dynamic_benefits_json 에서 이 키들을 lookup 해 매입가 산식에 반영.
+#   OPTION = 옵션 레벨(auto_card_discount·lotteon_coupons 포함) / PRODUCT = 상품 레벨.
+OPTION_DYNAMIC_KEYS = (
+    'point_rate', 'point_amount',           # SSF 멤버십포인트 (변동)
+    'gift_point_amount',                    # SSF 기프트포인트 (변동)
+    'auto_card_discount',                   # 르무통/롯데/SSF 사이트 자동 카드
+    'ssg_money_rate', 'ssg_money_amount',   # SSG MONEY
+    'ssg_money_already_applied', 'ssg_money_text',
+    'card_benefit_price', 'card_benefit_condition',  # SSG 카드혜택가
+    'product_coupon_rate', 'product_coupon_amount',  # SSG 상품쿠폰
+    'product_coupon_min_order', 'product_coupon_max_discount',
+    'product_coupon_label',
+    'product_coupon_list',                  # 무신사 상품쿠폰 전량(키워드 필터용 원본 리스트)
+    'point_rewards',                        # 롯데홈쇼핑 L.POINT
+    'hmall_point_amount',                   # 현대H몰 H.Point 적립(정액)
+    'hmall_card_label', 'hmall_card_discount',  # 현대H몰 카드 즉시할인(조건부)
+    # [2026-07-23 · 2차 T1] 현대H몰 카드 즉시할인 **목록** — item-prmo-lst API 수집.
+    #   [{label, rate(퍼센트), amount(원), min_order, promo, valid_until}] · 일자별 로테이션이라
+    #   크롤 당일 값을 쓴다(사장님 확정 2026-07-23). hmall_pay_promos = 결제수단 프로모션(정보용).
+    'hmall_card_discounts', 'hmall_pay_promos',
+    # [2026-07-23 · 2차 T5/T6] N쇼핑 경유(naver_via) — 4몰 공통 계약.
+    #   rate(0.08=8%) 또는 amount(원) 중 하나 + preapplied(표시가 반영 여부) + label(근거 문구).
+    #   ★preapplied=True 면 엔진이 **주입하지 않는다**(재차감=이중차감 방지) —
+    #   Hmall 「네이버가격비교」·롯데온 「제휴할인」이 그 경우(실측 스펙 §11-4).
+    'naver_via_rate', 'naver_via_amount', 'naver_via_preapplied', 'naver_via_label',
+    # 롯데아이몰 카드 청구할인(조건부) — 2026-07-18 표면가에서 분리 보관
+    'lotteimall_card_label', 'lotteimall_card_discount',
+    # [2026-07-23] 아이몰 PDP 다운로드 쿠폰 — 표시가 미반영이지만 표면가에 이미
+    #   들어간 쿠폰할인과 「할인쿠폰 칸」 택1이라, 선반영액도 같이 받아야 비교가 된다.
+    'lotteimall_download_coupons', 'lotteimall_preapplied_coupon',
+    'lotteon_coupons',                      # 롯데온 쿠폰 리스트
+    'review_point_max',                     # 스스 르무통 리뷰 적립
+    'lotte_member_discount_rate', 'lotte_member_discount_label',  # 롯데온 회원할인
+    'store_jjim_coupon_amount', 'store_jjim_coupon_label',
+    'member_price', 'is_member_price', 'login_marker_present',    # 무신사 회원가
+    # ★ 2026-07-23 롯데온 카드혜택 3종 — 확장 T6(v0.7.55, 0384fe55)이 item 레벨로 전송.
+    #   lotteon_card_discounts = **리스트**(dict {label, amount, rate}) — rate 는 퍼센트 단위
+    #   (7 = 7%). T8 계산식에서 반드시 /100 해서 쓸 것. 상품 레벨 혜택이므로
+    #   PRODUCT_DYNAMIC_KEYS 제외 튜플에 넣지 않는다(상품·옵션 양쪽 허용).
+    'lotteon_max_price',                    # 롯데온 최대혜택가(표면)
+    'lotteon_card_discounts',               # 롯데온 카드 즉시할인 리스트
+    'lotteon_store_discount',               # 롯데온 스토어(판매자) 할인 금액
+)
+# 상품 레벨은 옵션 전용(auto_card_discount·lotteon_coupons) 두 키만 제외.
+PRODUCT_DYNAMIC_KEYS = tuple(
+    k for k in OPTION_DYNAMIC_KEYS if k not in ('auto_card_discount', 'lotteon_coupons')
+)
+
+
+def _record_crawl_delta(session, source_product, old_snapshot, scoped):
+    """직전 크롤(old_snapshot) 대비 이번 저장될 값 비교 → CrawlDelta 1행 + no_change_streak 갱신.
+
+    ★ 핵심: 비교 대상은 '들어온 raw 값'이 아니라 '실제로 DB에 저장되는 값'이어야 한다.
+      upsert_source_option 은 price·stock 둘 다 들어온 값이 None 이면 그 필드를
+      **덮어쓰지 않고 기존값을 보존**한다(§upsert_source_option:191-194). 따라서 크롤이
+      stock=None(확인 불가)을 반환해도 DB 는 안 바뀌므로 '변동'이 아니다 — new_snapshot 에서
+      None 필드를 old 값으로 대체해 저장 상태를 그대로 반영한다(streak 오리셋 방지).
+      단, 기존 키가 없는 신규 옵션은 old 값이 없으니 None 그대로 → 신규 등장은
+      기존 로직대로 변동으로 잡힌다(정상).
+    """
+    old_map = {(o['color_text'], o['size_text']): o for o in old_snapshot}
+    new_snapshot = []
+    for o in scoped:
+        _c = _norm_color(o.get('color_text'))
+        _s = _norm_size(o.get('size_text'))
+        _prev = old_map.get((_c, _s))
+        _price = o.get('price')
+        _stock = o.get('stock')
+        # None 가드 있는 필드(price·stock): 들어온 값 None → 저장은 기존값 보존 → old 값으로 비교.
+        if _price is None and _prev is not None:
+            _price = _prev.get('price')
+        if _stock is None and _prev is not None:
+            _stock = _prev.get('stock')
+        new_snapshot.append({'color_text': _c, 'size_text': _s,
+                             'price': _price, 'stock': _stock})
+    _chg = detect_changes(old_snapshot, new_snapshot)
+    session.add(CrawlDelta(
+        source_product_id=source_product.id,
+        stock_changed=_chg['stock_changed'],
+        price_changed=_chg['price_changed'],
+        detail=(_chg['detail'][:1000] if _chg['detail'] else None),
+    ))
+    if _chg['stock_changed'] or _chg['price_changed']:
+        source_product.no_change_streak = 0
+    else:
+        source_product.no_change_streak = (source_product.no_change_streak or 0) + 1
+    # ── [2026-07-31] 가격·재고 이력 (노션 ④ 그래프) ──────────────────────────
+    #   CrawlDelta 는 변동 「여부」만 남긴다 — 숫자가 없어 그래프를 못 그린다.
+    #   여기서 **저장되는 값 그대로**(new_snapshot) 숫자를 남긴다.
+    #   바뀌면 항상 · 안 바뀌면 하루 2회까지(사장님 확정).
+    #   이력 실패가 크롤 저장을 막을 이유는 없으므로 삼키되 조용히 넘기지 않는다.
+    try:
+        from lemouton.sources import price_history as _ph
+        _ph.record(session, source_product=source_product, snapshot=new_snapshot,
+                   changed=bool(_chg['stock_changed'] or _chg['price_changed']))
+    except Exception:   # noqa: BLE001
+        logging.getLogger(__name__).exception(
+            '[가격이력] 남기지 못했습니다 source_product_id=%s', source_product.id)
+    # ── [M5] 변동 통계 적립 — 계수를 정할 근거 ────────────────────────────────
+    #   ★기준선은 소싱처다. 방금 만든 이 CrawlDelta 를 그대로 세기 때문에
+    #     실전송 잠금(MOUM_LIVE_UPLOAD OFF)과 무관하게 숫자가 나온다.
+    #     여기서 diff 를 다시 계산하지 않는다 — 위 _chg 를 그대로 넘긴다.
+    #   통계 실패가 크롤 저장을 막을 이유는 없으므로 삼키되, 조용히 넘기지 않고 남긴다.
+    try:
+        from lemouton.sources.crawl_change_stats import record_crawl_observation
+        record_crawl_observation(session, source_product=source_product,
+                                 detail=_chg['detail'])
+    except Exception:   # noqa: BLE001
+        _log.warning("[sources] 변동 통계 적립 실패 sp=%s (크롤 저장은 정상)",
+                     getattr(source_product, 'id', None), exc_info=True)
+
+
+def changed_product_ids_since(session, *, only_latest: bool = True) -> set[int]:
+    """변동(재고 또는 가격)이 있는 source_product_id 집합.
+
+    only_latest=True 면 각 URL의 '가장 최근 CrawlDelta' 만 보고 판단
+    (업로드 게이트용 — 지금 보낼지 말지). False 면 하나라도 변동이면 포함.
+    """
+    rows = (session.query(CrawlDelta)
+            .order_by(CrawlDelta.source_product_id, CrawlDelta.id.desc())
+            .all())
+    result: set[int] = set()
+    seen: set[int] = set()
+    for r in rows:
+        if only_latest:
+            if r.source_product_id in seen:
+                continue
+            seen.add(r.source_product_id)
+        if r.stock_changed or r.price_changed:
+            result.add(r.source_product_id)
+    return result
+
+
+def persist_crawled_options(session: Session, *, source_product, options) -> dict:
+    """크롤 옵션(색·사이즈·재고·가격) → SourceOption upsert(생성+갱신) + 단품 색스코프 + stale prune.
+
+    ★ parse(navGrab)·crawl-result(확장추출) 양쪽이 공유하는 **단일 옵션 영속 루틴**.
+      매트릭스가 읽는 바로 그 SourceOption 을 만든다(_match_option_so 와 같은 행).
+      옵션행이 없으면 매트릭스가 상품 last_stock(전 사이즈 합계)을 균일 폴백 → 품절 둔갑.
+      서버사이드 _ingest 와 동일 규칙으로 통일.
+
+    옵션 dict 키는 두 표기를 모두 허용:
+      - parse 파서 출력: color_text / size_text / option_id / price·sale_price / stock
+      - 확장 추출(무신사 등): color / size / stock / price (size 는 'mm' 제거됨)
+
+    무결성: 폴백·추정 금지 — 파서가 준 값(품절 0 포함)만 영속. stock=None 이면
+      upsert 가 current_stock 을 건드리지 않음(하드리셋 NULL 보존).
+    커밋은 호출자 책임(트랜잭션 일관성).
+
+    Returns: {'upserted': N, 'pruned': M}
+    """
+    if not isinstance(options, list) or not options:
+        return {'upserted': 0, 'pruned': 0}
+    # 키 정규화 — color_text|color, size_text|size, price|sale_price
+    norm = []
+    for o in options:
+        if not isinstance(o, dict):
+            continue
+        # 동적 혜택 키(ssg_money_rate 등) 추출 — 서버사이드 _ingest 와 동일 화이트리스트.
+        #   확장이 옵션 dict 에 실어 보내면 여기서 SourceOption.dynamic_benefits_json 으로 영속.
+        _dyn = {k: o[k] for k in OPTION_DYNAMIC_KEYS if k in o}
+        norm.append({
+            'color_text': o.get('color_text') or o.get('color'),
+            'size_text': o.get('size_text') or o.get('size'),
+            'option_id': o.get('option_id') or o.get('external_option_id'),
+            'price': o.get('sale_price') or o.get('price'),
+            'stock': o.get('stock'),
+            '_dynamic': _dyn or None,
+        })
+    scoped = _scope_options_to_color(norm, _resolve_reg_color(session, source_product))
+    if not scoped:
+        return {'upserted': 0, 'pruned': 0}
+    # ★ 2026-07-04 변동 감지 — upsert 전 기존 옵션값 스냅샷(직전 크롤 결과).
+    #   detect_changes 가 이 old_snapshot vs 새 옵션(new_snapshot) 을 비교해
+    #   CrawlDelta 1행 기록 + no_change_streak(무변동 연속) 갱신.
+    #   키((color,size))는 저장 시 정규화(_norm_*)와 동일하게 맞춰 표기차 오탐 방지.
+    #   ⚠️ 즉시(eager) 스칼라 복사로 리스트를 만든다 — 아래 upsert 루프가 같은
+    #   identity-map SourceOption 행을 in-place mutate 하므로, 제너레이터·lazy
+    #   참조로 바꾸면 비교 시점엔 이미 새 값으로 오염돼 old 스냅샷이 무의미해진다.
+    old_snapshot = [
+        {'color_text': _norm_color(so.color_text), 'size_text': _norm_size(so.size_text),
+         'price': so.current_price, 'stock': so.current_stock}
+        for so in (session.query(SourceOption)
+                   .filter_by(source_product_id=source_product.id, deleted_at=None).all())
+    ]
+    upserted = 0
+    failed = 0
+    err_sample = None
+    for o in scoped:
+        # [2026-06-29] 옵션별 savepoint 격리 — 한 옵션이 throw(데이터 이상·제약 등)해도
+        #   savepoint 만 롤백하고 나머지를 살린다. 기존엔 한 옵션 예외가 세션을 abort 시켜
+        #   persist 전체가 죽고(호출부 except:pass 가 삼킴) 확장이 보낸 152개가 통째 유실됐다
+        #   (현대H몰 색상모음전 사이즈별 미저장). begin_nested = SAVEPOINT(이전 upsert 보존).
+        try:
+            _dj = None
+            if o.get('_dynamic'):
+                import json as _json
+                _dj = _json.dumps(o['_dynamic'], ensure_ascii=False)
+            with session.begin_nested():
+                upsert_source_option(
+                    session, source_product_id=source_product.id,
+                    color_text=o.get('color_text'), size_text=o.get('size_text'),
+                    external_option_id=o.get('option_id'),
+                    current_price=o.get('price'), current_stock=o.get('stock'),
+                    dynamic_benefits_json=_dj)
+            upserted += 1
+        except Exception as _e:
+            failed += 1
+            if err_sample is None:
+                err_sample = (str(_e)[:90] + ' | opt=' +
+                              repr({'c': o.get('color_text'), 's': o.get('size_text')})[:60])
+    # stale prune — 이번 크롤에 없는 (색,사이즈) 조합 soft-delete (옛 가격·재고 잔존 차단).
+    new_keys = {(_norm_color(o.get('color_text')), _norm_size(o.get('size_text')))
+                for o in scoped}
+    pruned = 0
+    for so in (session.query(SourceOption)
+               .filter_by(source_product_id=source_product.id, deleted_at=None).all()):
+        if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
+            so.deleted_at = _utcnow()
+            pruned += 1
+    # ★ 2026-07-04 변동 기록 — old_snapshot vs 저장될 값 비교 후 CrawlDelta 1행 + streak 갱신.
+    _record_crawl_delta(session, source_product, old_snapshot, scoped)
+    return {'upserted': upserted, 'pruned': pruned, 'failed': failed, 'err': err_sample}
+
+
+# 상품명으로 잘못 저장되는 내비/섹션 텍스트. 빈값 포함 = '채워야 할 상태'.
+_NAME_JUNK = {"", "메인메뉴", "메뉴"}
+
+
+def apply_name_heal(source_product, new_name) -> bool:
+    """상품명 치유 — 현재가 비었거나 내비 쓰레기(「메인메뉴」)면 새 이름으로 갱신.
+
+    [2026-07-11] 옛 파서(og:title 도입 전)가 PC 첫 h2 '메인메뉴'(내비)를 상품명으로
+      저장했고, fill-if-blank 가드 때문에 파서를 고쳐도 stale '메인메뉴'가 영원히 남았다.
+      확장 저장 경로(api_sources_parse)·서버 저장 경로(save_crawl_result) 둘 다 이 함수를
+      부른다. 정상 저장된 좋은 이름은 덮지 않는다(파서 폴백이 더 나쁜 값을 줄 때 보호).
+    반환 True = 갱신함.
+    """
+    _new = (new_name or "").strip()
+    _cur = (getattr(source_product, "product_name", None) or "").strip()
+    if _new and _new not in _NAME_JUNK and _cur in _NAME_JUNK:
+        source_product.product_name = _new
+        return True
+    return False
 
 
 def save_crawl_result(
@@ -403,9 +864,8 @@ def save_crawl_result(
     crawl_result: Any,  # CrawlResult
 ) -> dict:
     """CrawlResult → SourceProduct 메타 갱신 + 옵션 row 들 upsert."""
-    # 모음전 단위 메타
-    if crawl_result.product_name_raw and not source_product.product_name:
-        source_product.product_name = crawl_result.product_name_raw
+    # 모음전 단위 메타 — 상품명 치유([2026-07-11]). 아래 apply_name_heal 참조.
+    apply_name_heal(source_product, crawl_result.product_name_raw)
 
     source_product.last_fetched_at = _utcnow()
     source_product.last_status = 'ok'
@@ -426,28 +886,7 @@ def save_crawl_result(
     # ★ 2026-05-15 — 옵션 dict 의 동적 혜택 키를 SourceProduct.dynamic_benefits_json 에 저장.
     #   compute_breakdown 이 lookup 해서 매트릭스 매입가 산식에 추가 차감으로 자동 반영.
     #   상품 단위로 동일 값 가정 → 첫 옵션의 동적 키들만 추출.
-    PRODUCT_DYNAMIC_KEYS = (
-        'point_rate', 'point_amount',                 # SSF 멤버십포인트
-        'gift_point_amount',                          # SSF 기프트포인트 (변동)
-        'ssg_money_rate', 'ssg_money_amount',         # SSG MONEY
-        'ssg_money_already_applied', 'ssg_money_text',
-        'card_benefit_price', 'card_benefit_condition',  # SSG 카드혜택가
-        # SSG 상품쿠폰 (2026-05-15 — X% 또는 정액 + 최소 구매금액 조건)
-        'product_coupon_rate', 'product_coupon_amount',
-        'product_coupon_min_order', 'product_coupon_max_discount',
-        'product_coupon_label',
-        'point_rewards',                              # 롯데홈쇼핑 L.POINT
-        'review_point_max',                           # 스스 르무통 리뷰 적립
-        # ★ 2026-05-15 — 롯데온 (lotteon.com) 사용자 스크린샷 명세 동적 혜택
-        'lotte_member_discount_rate',                 # 롯데오너스 X% 회원할인 (자동 활성)
-        'lotte_member_discount_label',
-        'store_jjim_coupon_amount',                   # 스토어찜 쿠폰 정액 (비활성 기본)
-        'store_jjim_coupon_label',
-        # ★ Phase 8.8.3 (2026-05-17) — 무신사 회원가 추출 (사고 방지 핵심)
-        'member_price',                               # 무신사 "나의 할인가" 회원가
-        'is_member_price',                            # 회원가 추출 성공 여부 (False = 비회원가 사고)
-        'login_marker_present',                       # 로그인 페이지 마커 노출 여부 (Gate 1)
-    )
+    # PRODUCT_DYNAMIC_KEYS 는 모듈 상수(단일 진실 원천) 사용 — persist_crawled_options 와 공유.
     _dyn = {}
     for _o in (crawl_result.options or []):
         for _k in PRODUCT_DYNAMIC_KEYS:
@@ -475,6 +914,21 @@ def save_crawl_result(
                 _dyn['grade_discount_amount'] = int(_bd.get('grade_discount') or 0)
                 _dyn['coupon_amount'] = int(_bd.get('coupon') or 0)
                 _dyn['review_amount'] = 500 if _bd.get('review_reward_active') else 0
+                # ★ 무신사 상품쿠폰 전량(product_coupon_list) — 개별 키워드 필터링용 원본 보존.
+                #   coupon_amount(합계)는 기존 경로 그대로 유지, 리스트는 별도 키에 추가 저장.
+                _pcl = _o.get('product_coupon_list')
+                if isinstance(_pcl, list) and _pcl:
+                    _dyn['product_coupon_list'] = _pcl
+                else:
+                    # [2026-07-20] 명시적으로 지운다 — api_pricing.py:1758~1762 의 같은
+                    #   블록과 규칙을 맞춘다. 이 함수의 _dyn 은 매 호출 새로 만들어(849행
+                    #   `_dyn = {}`) 그대로 dynamic_benefits_json 전체를 덮어쓰므로(883행),
+                    #   지금 이 시점엔 else 유무가 결과에 차이를 안 만든다(빈 리스트면 애초에
+                    #   키가 안 생겨 pop 과 동일한 최종 JSON). 하지만 두 저장 경로가 같은
+                    #   블록을 '다르게' 쓰면 다음에 한쪽만 옛값-머지 방식으로 리팩터될 때
+                    #   조용히 갈라진다 — 그게 실제로 무신사 옛 쿠폰(12,980원)이 사라진
+                    #   페이지에서도 계속 차감되던 사고의 형태였다. 두 경로를 항상 동일하게.
+                    _dyn.pop('product_coupon_list', None)
         if _dyn:
             break  # 첫 non-empty 옵션만 (상품 단위 가정)
     source_product.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False) if _dyn else None
@@ -516,28 +970,17 @@ def save_crawl_result(
     #   auto_card_discount / ssg_money_* / card_benefit_* / lotteon_coupons 등)
     #   을 SourceOption.dynamic_benefits_json 에 저장. compute_breakdown 이 lookup.
     import json as _json
-    DYNAMIC_KEYS = (
-        'point_rate', 'point_amount',           # SSF 멤버십포인트 (변동)
-        'gift_point_amount',                    # SSF 기프트포인트 (변동)
-        'auto_card_discount',                   # 르무통/롯데/SSF 사이트 자동 카드
-        'ssg_money_rate', 'ssg_money_amount',   # SSG MONEY
-        'ssg_money_already_applied', 'ssg_money_text',
-        'card_benefit_price', 'card_benefit_condition',  # SSG 카드혜택가
-        # SSG 상품쿠폰 (2026-05-15 — X% 또는 정액 + 최소 구매금액 조건)
-        'product_coupon_rate', 'product_coupon_amount',
-        'product_coupon_min_order', 'product_coupon_max_discount',
-        'product_coupon_label',
-        'point_rewards',                        # 롯데홈쇼핑 L.POINT
-        'lotteon_coupons',                      # 롯데온 쿠폰 리스트
-        'review_point_max',                     # 스스 르무통 리뷰 적립
-        # ★ 2026-05-15 — 롯데온 (lotteon.com) 사용자 스크린샷 명세 동적 혜택
-        'lotte_member_discount_rate', 'lotte_member_discount_label',
-        'store_jjim_coupon_amount', 'store_jjim_coupon_label',
-        # ★ Phase 8.8.3 (2026-05-17) — 무신사 회원가 / 로그인 마커 (옵션 단위)
-        'member_price', 'is_member_price', 'login_marker_present',
-    )
+    DYNAMIC_KEYS = OPTION_DYNAMIC_KEYS  # 모듈 상수(단일 진실 원천) — persist_crawled_options 와 공유.
+    # ★ [2026-06-24] 단품 색상 스코프 — 무신사 단품 SP 형제색 병합 폴루션 차단.
+    #   _discover_color_variants 가 모든 색 변형(오렌지+블랙+아이보리...)을 합쳐 반환하면
+    #   필터 없이 upsert 할 때 오렌지 SP 에 블랙·아이보리 행이 섞인다(pollution).
+    #   BundleSourceUrl.url_type='단품' 인 경우에만 등록색 외 옵션을 차단한다.
+    #   모음전(색상모음전/모델모음전) SP 와 BundleSourceUrl 미등록 SP 는 동작 변경 없음.
+    _reg_color = _resolve_reg_color(session, source_product)
+    _scoped_options = _scope_options_to_color(crawl_result.options or [], _reg_color)
+
     counts = {'options_inserted': 0, 'options_updated': 0}
-    for opt_data in crawl_result.options:
+    for opt_data in _scoped_options:
         existed = (session.query(SourceOption)
                    .filter_by(source_product_id=source_product.id,
                               color_text=opt_data.get('color_text'),
@@ -561,6 +1004,25 @@ def save_crawl_result(
             counts['options_inserted'] += 1
         else:
             counts['options_updated'] += 1
+
+    # ★ [동시·무결성 1단계] 재크롤 리셋 — 이번 크롤에 없는 옛 옵션 조합은 soft-delete.
+    #   기존엔 upsert 만 해서, 한 번 긁힌 (색·사이즈) 조합이 다음 크롤에서 사라져도
+    #   옛 가격·재고가 그대로 남아 그 값으로 판매되는 오발주(치명적 손실)가 가능했다.
+    #   성공 크롤(옵션 ≥1)에서만 prune — 빈 결과(크롤 실패 추정)면 옛 데이터 보존.
+    #   prune 기준도 scoped_options — 단품 SP 에서 형제색 기존 행을 soft-delete.
+    #   (crawl_guide 체크리스트 integrity_recrawl_reset 의 코드 구현.)
+    counts['options_pruned'] = 0
+    if _scoped_options:
+        new_keys = {(_norm_color(o.get('color_text')), _norm_size(o.get('size_text')))
+                    for o in _scoped_options}
+        stale_opts = (session.query(SourceOption)
+                      .filter_by(source_product_id=source_product.id,
+                                 deleted_at=None)
+                      .all())
+        for so in stale_opts:
+            if (_norm_color(so.color_text), _norm_size(so.size_text)) not in new_keys:
+                so.deleted_at = _utcnow()
+                counts['options_pruned'] += 1
     return counts
 
 
@@ -732,6 +1194,34 @@ def get_share_count_by_url(session: Session, site: str, url: str) -> int:
     return (session.query(ModelSourceLink)
             .filter_by(source_product_id=sp.id)
             .count())
+
+
+def get_share_counts_batch(session: Session, site_url_pairs) -> dict:
+    """[(site, url), ...] → {(site, url): share_count}. get_share_count_by_url 의 배치판.
+
+    [perf 2026-06-12] bundle_edit 페이지가 소싱처마다 get_share_count_by_url(2쿼리)을
+      호출하던 N+1(5소싱처=10쿼리)을 2쿼리로 축소. 값은 동일(같은 필터·count).
+    """
+    from sqlalchemy import tuple_, func
+    pairs = [(s, u) for s, u in site_url_pairs if s and u]
+    if not pairs:
+        return {}
+    out = {p: 0 for p in pairs}
+    try:
+        sps = (session.query(SourceProduct.id, SourceProduct.site, SourceProduct.url)
+               .filter(SourceProduct.deleted_at.is_(None),
+                       tuple_(SourceProduct.site, SourceProduct.url).in_(pairs)).all())
+        id_to_key = {sp_id: (site, url) for sp_id, site, url in sps}
+        if id_to_key:
+            counts = dict(session.query(ModelSourceLink.source_product_id, func.count())
+                          .filter(ModelSourceLink.source_product_id.in_(list(id_to_key)))
+                          .group_by(ModelSourceLink.source_product_id).all())
+            for sp_id, key in id_to_key.items():
+                out[key] = counts.get(sp_id, 0)
+    except Exception:
+        # 실패 시 전부 0 (배지 표시 전용 — 페이지 렌더는 절대 막지 않음)
+        pass
+    return out
 
 
 def kpi_summary(session: Session) -> dict:

@@ -1,0 +1,273 @@
+# -*- coding: utf-8 -*-
+"""11번가 셀러 Open API 주문조회 — 발주확인 내역(기간별 결제완료 목록조회).
+
+근거(공개문서 openapi.11st.co.kr 개발가이드 > 주문 > 결제완료, 2026-07-07 실측):
+  GET https://api.11st.co.kr/rest/ordservices/complete/{startTime}/{endTime}
+  · startTime/endTime = "YYYYMMDDhhmm" (분 단위). 조회기간 최대 7일, 최대 3,000건.
+  · 인증 = openapikey 헤더(Eleven11Client). 응답 = XML(euc-kr).
+  · 응답 root <ns2:orders> 하위 <ns2:order> 반복(주문 상품라인 1개 = 1 요소).
+    주요 필드: ordNo(주문번호)·ordDt(주문일시)·prdNm(상품명)·prdNo(상품번호)·
+    slctPrdOptNm(선택옵션)·ordQty(수량)·selPrc(판매단가)·dlvCst/bmDlvCst(배송비/묶음배송비)·
+    bndlDlvSeq·bndlDlvYN(묶음배송)·rcvrNm(수령자)·rcvrPrtblNo/rcvrTlphn(수령자 연락처)·
+    rcvrBaseAddr+rcvrDtlsAddr(주소)·rcvrMailNo(우편)·ordNm/memID(구매자)·
+    ordPrtblTel/ordTlphnNo(구매자 연락처)·ordDlvReqCont(배송요청).
+
+이 엔드포인트는 '결제완료(발주확인 대상)' 목록이라 상태는 결제완료(=발송대기)로 본다.
+"""
+from __future__ import annotations
+
+import datetime as _dt
+import re as _re
+import xml.etree.ElementTree as _ET
+
+_PATH = "/rest/ordservices/complete/{s}/{e}"             # 결제완료(발송대기)
+_PATH_PACKAGING = "/rest/ordservices/packaging/{s}/{e}"  # 배송준비중 전체(발주확인 완료), 기간조회
+_PATH_DELIVERED = "/rest/ordservices/dlvcompleted/{s}/{e}"  # 배송완료
+_PATH_COMPLETED = "/rest/ordservices/completed/{s}/{e}"   # 판매완료(구매확정)
+_PATH_SHIPPING = "/rest/ordservices/shipping/{s}/{e}"    # 배송중(송장·주문번호만)
+# 클레임 목록조회(공개문서 실측 2026-07-09) — 취소/반품/교환. 최대 30일이나 7일 윈도우로 분할.
+_PATH_CANCEL = "/rest/claimservice/cancelorders/{s}/{e}"     # 취소요청 목록
+_PATH_CANCELED = "/rest/claimservice/canceledorders/{s}/{e}"  # 취소완료 목록
+_PATH_RETURN = "/rest/claimservice/returnorders/{s}/{e}"     # 반품요청 목록
+_PATH_EXCHANGE = "/rest/claimservice/exchangeorders/{s}/{e}"  # 교환요청 목록
+_MAX_WINDOW_DAYS = 7        # 문서: 조회기간 최대 7일
+
+
+def _fmt(d: _dt.datetime) -> str:
+    return d.strftime("%Y%m%d%H%M")
+
+
+def _windows(since: _dt.datetime, until: _dt.datetime):
+    cur = since
+    step = _dt.timedelta(days=_MAX_WINDOW_DAYS)
+    while cur < until:
+        nxt = min(cur + step, until)
+        yield cur, nxt
+        cur = nxt
+
+
+def _localname(tag: str) -> str:
+    """'{ns}order' → 'order' (네임스페이스 제거)."""
+    return tag.rsplit("}", 1)[-1]
+
+
+def _parse(xml_text: str):
+    """euc-kr 선언 포함 XML 문자열 파싱(선언 제거 후 str 파싱)."""
+    if not xml_text:
+        return None
+    cleaned = _re.sub(r"<\?xml[^>]*\?>", "", xml_text, count=1).lstrip()
+    if not cleaned:
+        return None
+    return _ET.fromstring(cleaned)
+
+
+def _iter_path(path_tmpl: str, since: _dt.datetime, until: _dt.datetime, *, client):
+    """경로 템플릿 하나로 7일 윈도우 분할 조회 + <order> 파싱 + (ordNo,ordPrdSeq) 중복제거.
+
+    client.request(XML 텍스트) → 파싱. HTTP 오류는 client 가 예외로 표면화(추측·폴백 금지).
+    """
+    seen = set()
+    for w_from, w_to in _windows(since, until):
+        path = path_tmpl.format(s=_fmt(w_from), e=_fmt(w_to))
+        xml_text = client.request("GET", path)
+        root = _parse(xml_text)
+        if root is None:
+            continue
+        for el in root.iter():
+            if _localname(el.tag) != "order":
+                continue
+            od = {}
+            for child in el:
+                od[_localname(child.tag)] = (child.text or "").strip()
+            key = (od.get("ordNo"), od.get("ordPrdSeq"), od.get("prdNo"))
+            if key in seen:
+                continue
+            seen.add(key)
+            yield od
+
+
+_PATH_ONE = "/rest/ordservices/complete/{ordno}"              # 주문번호 단건(eleven11.110)
+_PATH_ONE_STATUS = "/rest/claimservice/orderlistalladdr/{ordno}"  # 배송정보+주문상태(115)
+
+
+def _order_dicts(root):
+    for el in (root.iter() if root is not None else ()):
+        if _localname(el.tag) != "order":
+            continue
+        od = {}
+        for child in el:
+            od[_localname(child.tag)] = (child.text or "").strip()
+        yield od
+
+
+def fetch_order(ord_no, *, client) -> list:
+    """주문번호 단건 조회(eleven11.110) — 상태별 창 조회가 못 잡는 주문의 정밀 복구용.
+
+    응답 필드는 complete 목록과 동일(ordDt·selPrc·stlPlnAmt 포함). 다품 주문이면
+    상품라인 수만큼 온다. 키가 다른 계정이면 order 요소가 없어 빈 리스트.
+    """
+    path = _PATH_ONE.format(ordno=str(ord_no).strip())
+    return list(_order_dicts(_parse(client.request("GET", path))))
+
+
+# 11번가 주문상태코드(ordPrdStat) → 한글. 출처 = 판매처 지도 eleven11.114 응답 필드 정의
+#  (marketplace_api_map.json). 이 표가 **유일한 원천** — 복사본을 만들지 말 것.
+#
+# ★ 901 은 문서상 '수취확인' 이지만 **'수취완료' 로 통일**한다(사장님 확정 2026-07-23).
+#   다른 마켓은 모두 '수취완료' 로 오고, 마진 정산 판정표(margin/config.SETTLEMENT_O_EXACT)
+#   에도 '수취완료' 만 있다. 문서 용어를 그대로 쓰면 411건이 정산 판정에서 조용히 빠진다.
+ORD_PRD_STAT_KO = {
+    "101": "주문완료", "102": "입금대기", "103": "예약대기",
+    "200": "배송지입력대기", "201": "예약결제완료", "202": "결제완료",
+    "301": "발주확인", "401": "발송완료", "501": "배송완료",
+    "601": "클레임진행중", "701": "취소처리중", "801": "재승인대기중",
+    "901": "수취완료",          # 문서 표기는 '수취확인' — 위 ★ 참조
+    "A01": "반품완료", "B01": "주문취소", "C01": "수취확인후주문취소",
+}
+
+
+def status_ko(raw) -> str:
+    """11번가 주문상태 원값 → 한글. 한글이면 그대로, 코드면 표로 변환.
+
+    표에 없는 코드는 **그대로 돌려준다**(지어내지 않는다). 다만 화면에 숫자가 뜨면
+    사장님이 못 읽으므로, 호출부가 로그로 남겨 표를 채울 수 있게 한다.
+    """
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    return ORD_PRD_STAT_KO.get(s.upper(), s)
+
+
+def fetch_order_status(ord_no, *, client) -> str:
+    """주문번호별 배송정보(115)에서 주문상태를 **한글로** 얻는다.
+
+    🔴 2026-07-23 실측 사고 — 예전엔 "'stat' 이 들어간 키를 아무거나" 집어 그대로
+      돌려줬다. 그 응답에서 먼저 걸리는 건 한글 이름(`ordPrdStatNm`)이 아니라
+      **코드(`ordPrdStat`)** 라, 주문상태에 '901'·'501' 같은 숫자가 그대로 실려
+      저장분 411건이 숫자 상태로 남았다(마진계산기 화면에 숫자로 노출).
+      키 이름을 모른다고 아무 키나 집으면, 틀린 값을 '정상'처럼 저장하게 된다.
+
+    이제: 한글 이름 필드 우선 → 없으면 코드를 표로 변환 → 그래도 없으면 ""
+    (지어내지 않는다 — 존재 복구가 우선, 상태는 후속 조회가 갱신).
+    """
+    try:
+        root = _parse(client.request(
+            "GET", _PATH_ONE_STATUS.format(ordno=str(ord_no).strip())))
+    except Exception:                                # noqa: BLE001 — 부가 정보
+        return ""
+    for od in _order_dicts(root):
+        # ① 마켓이 한글 이름을 주면 그게 가장 정확하다.
+        name = str(od.get("ordPrdStatNm") or "").strip()
+        if name:
+            return name
+        # ② 코드 → 표. 키 이름을 명시적으로 지정한다(아무 'stat' 키나 집지 않는다).
+        code = str(od.get("ordPrdStat") or "").strip()
+        if code:
+            return status_ko(code)
+    return ""
+
+
+def iter_orders(since: _dt.datetime, until: _dt.datetime, *, client):
+    """결제완료(발주확인·발송대기) 주문 상품라인. GET /rest/ordservices/complete."""
+    return _iter_path(_PATH, since, until, client=client)
+
+
+def iter_delivered(since: _dt.datetime, until: _dt.datetime, *, client):
+    """배송완료 주문 상품라인. GET /rest/ordservices/dlvcompleted.
+
+    전체 필드(수령자·주소·단가 selPrc·옵션·송장 invcNo·dlvEndDt 배송완료일). 정산예정금액(stlPlnAmt)은
+    없음(정산 전 단계) → 공란.
+    """
+    return _iter_path(_PATH_DELIVERED, since, until, client=client)
+
+
+def iter_completed(since: _dt.datetime, until: _dt.datetime, *, client):
+    """판매완료(구매확정) 주문 상품라인. GET /rest/ordservices/completed.
+
+    구매확정 목록 — 수령자·주소·단가(selPrc)는 미제공(배송 완료·정산 단계라 미포함).
+    ordNo·ordDt·prdNm·slctPrdOptNm·ordQty·dlvCst·ordAmt·ordPayAmt·pocnfrmDt(구매확정일) 등.
+    """
+    return _iter_path(_PATH_COMPLETED, since, until, client=client)
+
+
+def iter_preparing(since: _dt.datetime, until: _dt.datetime, *, client):
+    """배송준비중(발주확인 완료·발송 전) 전체 목록. GET /rest/ordservices/packaging.
+
+    ★ todaydelivery/delaydelivery(오늘발송·기한경과)는 '발송해야 할' 것만 줘서 발송예정일이 미래인
+    배송준비중(예약·주문제작)이 빠졌음. packaging 은 발주확인 완료 주문 '전체'를 기간조회로 준다
+    (필드=결제완료와 동일). 서버 프로브로 today/delay 가 0 반환·개별조회는 301 배송준비중 확인 후 교체.
+    """
+    return _iter_path(_PATH_PACKAGING, since, until, client=client)
+
+
+def iter_cancel(since: _dt.datetime, until: _dt.datetime, *, client):
+    """취소요청 목록. GET /rest/claimservice/cancelorders. 필드: ordNo·ordPrdSeq·prdNo·
+    slctPrdOptNm·ordCnQty(취소수량)·ordCnRsnCd/ordCnDtlsRsn(사유)·ordCnStatCd·createDt."""
+    return _iter_path(_PATH_CANCEL, since, until, client=client)
+
+
+def iter_canceled(since: _dt.datetime, until: _dt.datetime, *, client):
+    """취소완료 목록. GET /rest/claimservice/canceledorders. 취소요청과 동일 필드(취소완료건)."""
+    return _iter_path(_PATH_CANCELED, since, until, client=client)
+
+
+def iter_return(since: _dt.datetime, until: _dt.datetime, *, client):
+    """반품요청 목록. GET /rest/claimservice/returnorders. 필드: ordNo·ordPrdSeq·prdNo·
+    optName·clmReqQty·clmReqRsn/clmReqCont(사유)·clmStat·ordNm·reqDt 등."""
+    return _iter_path(_PATH_RETURN, since, until, client=client)
+
+
+def iter_exchange(since: _dt.datetime, until: _dt.datetime, *, client):
+    """교환요청 목록. GET /rest/claimservice/exchangeorders. 반품과 유사 클레임 필드."""
+    return _iter_path(_PATH_EXCHANGE, since, until, client=client)
+
+
+def iter_shipping(since: _dt.datetime, until: _dt.datetime, *, client):
+    """배송중. GET /rest/ordservices/shipping/{s}/{e} (7일 윈도우).
+
+    ⚠️ 이 엔드포인트는 ordNo·ordPrdSeq·invcNo(송장)·dlvEtprsCd(택배사)·sndEndDt(발송일)만 반환 —
+    상품명·수령자·주소·단가 없음(문서 실측). 주문일(ordDt)도 없어 order_export 에서 ordNo 앞 8자리로 보정.
+    """
+    return _iter_path(_PATH_SHIPPING, since, until, client=client)
+
+
+# ── 발송택배사 코드(dlvEtprsCd) → 택배사명 ──────────────────────────────
+#  출처 = 데이터 코드 지도(marketplace_api_map.json · eleven11.112 발송처리 API 의
+#  dlvEtprsCd enum). 11번가 **공식** 코드표라 추측이 아니다.
+#  ★쓰는 곳: 배송중 조회(iter_shipping)가 dlvEtprsCd 를 주는데 이름은 안 준다 →
+#    화면 「[판매처] 택배사」 칸을 이 표로 채운다. 표에 없는 코드는 빈 값(날조 금지).
+#  ⚠️ 이 코드는 11번가 전용이다 — 같은 로젠택배라도 쿠팡 KGB·네이버 LOGEN 으로 값이 다르다.
+COURIER_NAMES = {
+    "00002": "로젠택배", "00007": "우체국택배", "00011": "한진택배",
+    "00012": "롯데택배", "00034": "CJ대한통운", "00040": "롯데글로벌 로지스",
+    "00060": "CVSnet편의점택배", "00061": "CU편의점택배", "00063": "SLX택배",
+    "00068": "HI택배", "00025": "WIZWA", "00037": "건영택배", "00027": "천일택배",
+    "00090": "IK 물류", "00112": "롯데칠성", "00114": "GTS로지스",
+    "00116": "(주)팀프레시", "00123": "ARGO", "00126": "HY(한국야쿠르트)",
+    "00111": "SB GLS", "00113": "LTL", "00096": "LOTOS CORPORATION",
+    "00023": "ACI", "00099": "기타",
+    # 해외 특송 — 국내 배송건엔 잘 안 쓰이지만 오면 그대로 보여 준다.
+    "00039": "DHL (해외)", "00044": "APEX(ECMS Express) (해외)",
+    "00045": "CJ대한통운 국제특송 (해외)", "00046": "DHL Global Mail (해외)",
+    "00047": "Fedex (해외)", "00048": "GSI익스프레스 (해외)",
+    "00049": "GSM NtoN (국제특송)", "00050": "i-Parcel (해외)",
+    "00051": "TNT Express (해외)", "00053": "UPS (해외)", "00054": "USPS (해외)",
+    "00056": "GPS LOGIX (해외)", "00058": "EMS (해외)", "00072": "KGL 네트웍스 (국제특송)",
+    "00080": "ACE Express (해외)", "00092": "YJS글로벌(영국)",
+    "00095": "YJS글로벌(월드)", "00098": "Euro Parcel (해외)",
+    "00041": "범한판토스 (국제특송)",
+}
+
+
+def courier_name(code) -> str:
+    """dlvEtprsCd → 택배사명. 모르는 코드는 빈 문자열(이름을 지어내지 않는다).
+
+    코드가 4자리로 와도(선행 0 유실) 5자리로 맞춰 찾는다 — XML/JSON 파서가 숫자로
+    바꾸면 '00002' 가 '2' 가 되는 실사고를 막는다.
+    """
+    s = str(code or "").strip()
+    if not s:
+        return ""
+    if s.isdigit():
+        s = s.zfill(5)
+    return COURIER_NAMES.get(s, "")

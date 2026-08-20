@@ -173,6 +173,14 @@ class UploadAccount(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     note = Column(Text)
 
+    # ── 라이브 검증(실주문 조회 왕복 확인) ──
+    # 판매처관리에서 「🧪 라이브 검증」으로 실제 주문을 불러오고, 사장님이 마켓 화면과
+    # 대조해 「맞음」을 누른 시각. 이 값이 있어야 그 계정이 '검증됨'이다.
+    # 마켓 공개 여부는 order_export.supported_markets() 가 이 컬럼으로 판단한다
+    # (그 마켓 활성 계정이 1개 이상 + 전부 검증됨 → 공개). 미검증 마켓 숫자는 화면에 안 나온다.
+    live_verified_at = Column(DateTime)
+    live_verified_count = Column(Integer)      # 검증 당시 조회된 주문 건수(0 도 유효한 기록)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
@@ -279,3 +287,187 @@ class BundleOption(Base):
         UniqueConstraint("bundle_product_id", "canonical_sku",
                          name="uq_bundle_options_product_sku"),
     )
+
+
+# ════════════════════════════════════════════════════════════
+#  INVOICE LEDGER — 송장 원장 (마켓이 나중에 번호를 빼먹어도 잃지 않게)
+# ════════════════════════════════════════════════════════════
+
+class InvoiceLedger(Base):
+    """한 번 본 송장번호를 영구 보관.
+
+    배경: 11번가는 주문이 '구매확정'으로 넘어가면 어떤 목록 API로도 송장번호(invcNo)를
+    돌려주지 않는다(배송중·배송완료 목록엔 있으나 상태 전이 후 빠짐, 2026-07-10 실측).
+    → 배송중·배송완료 때 본 송장번호를 여기 저장해두면, 구매확정으로 넘어가 API가
+    번호를 빼먹어도 우리 저장분에서 채워 '확인 불가'를 면한다. 모든 마켓 공통 안전장치.
+    """
+    __tablename__ = "invoice_ledger"
+
+    market = Column(String(32), primary_key=True)        # 판매처(쿠팡·11번가 등) — 화면 표기 그대로
+    order_no = Column(String(128), primary_key=True)     # 오픈마켓주문번호
+    invoice_no = Column(String(64), nullable=False)      # 송장번호(운송장번호)
+    courier = Column(String(64))                         # 택배사(있으면)
+    captured_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                         onupdate=lambda: datetime.now(timezone.utc))
+
+
+# ════════════════════════════════════════════════════════════
+#  AUTO-CONFIRM SETTING — 「결제완료 → 배송준비중」 자동전환 ON/OFF (마켓·계정별)
+# ════════════════════════════════════════════════════════════
+
+class AutoConfirmSetting(Base):
+    """마켓·계정 단위 자동전환 스위치(팀 공유 · 단일 진실 원천 = 계정 leaf).
+
+    · 한 행 = (판매처, 쇼핑몰별칭) 계정 하나의 켜짐/꺼짐.
+    · '전체'·'마켓별' 스위치는 저장하지 않고 leaf 들의 all-on/some/none 으로 파생한다
+      (중복·모순 방지 — 마켓 스위치와 계정 스위치가 서로 다른 값을 갖는 사고를 원천 차단).
+    · 기본값 = 꺼짐(행 없음). 실제 마켓 상태 변경은 별도 LIVE 스위치가 또 잠근다.
+    · last_run_at/last_run_count = 마지막으로 이 계정에서 몇 건을 넘겼는지(화면 이력).
+    """
+    __tablename__ = "auto_confirm_settings"
+
+    market = Column(String(32), primary_key=True)          # 판매처 슬러그(coupang·lotteon…)
+    account_alias = Column(String(128), primary_key=True)  # 쇼핑몰별칭(계정 표시명). 마켓단일계정도 별칭.
+    enabled = Column(Boolean, default=False, nullable=False)
+    last_run_at = Column(DateTime)                         # 마지막 전환 실행 시각(KST 저장 안 함 — UTC)
+    last_run_count = Column(Integer, default=0, nullable=False)  # 그때 넘긴 건수
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AutoConfirmConfig(Base):
+    """자동 실행(스케줄러) 전역 설정 — 단일 row(id=1). '켜두면 알아서' 마스터.
+
+    · enabled = 자동 실행 ON/OFF. ★ON 이면 스케줄러가 실전환을 무인 실행한다(사용자가
+      화면 스위치로 켬 = 실전환 arming). 되읽기 검증·계정별 대상·안전한 앞단계(발주확인)가 안전망.
+    · interval_minutes = 몇 분마다(사용자 직접 입력, 1~180).
+    · last_run_at = 스케줄러가 마지막으로 한 바퀴 돈 시각(다음 실행 계산 기준).
+    """
+    __tablename__ = "auto_confirm_config"
+
+    id = Column(Integer, primary_key=True, default=1)
+    enabled = Column(Boolean, default=False, nullable=False)
+    interval_minutes = Column(Integer, default=5, nullable=False)
+    last_run_at = Column(DateTime)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AutoConfirmLog(Base):
+    """전환 이력 — 언제·어느 마켓·계정에서 몇 건을 배송준비중으로 넘겼나(화면 타임라인용)."""
+    __tablename__ = "auto_confirm_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ran_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    market = Column(String(32), nullable=False)
+    account_alias = Column(String(128), nullable=False)
+    count = Column(Integer, default=0, nullable=False)
+    result = Column(String(16), nullable=False)   # sent|partial|failed|unsupported
+    # 실행 주체 — manual(버튼)|auto(스케줄러). 코드가 쓰고 읽는데 컬럼이 빠져 있어
+    # 자동전환 설정 화면이 통째로 500 나던 원인(2026-07-22 라이브 발견).
+    source = Column(String(16), default="manual", nullable=False)
+
+
+class LotteonCrawlRun(Base):
+    """롯데온 정산 크롤 — **계정별 마지막 회차 결과**. 계정당 1행(최신만 남김).
+
+    🔴🔴 왜 별도 표가 필요한가 (2026-08-03) — 여태 「자동이 돌고 있나」를 lotteon_settlements
+      의 updated_at 으로 **짐작**했다. 그건 「정산 값이 마지막으로 바뀐 시각」이지
+      「조회에 성공한 시각」이 아니라서, 두 가지가 뒤집힌다:
+        · 로그인은 됐는데 그 계정에 바뀐 정산이 없으면 → 멀쩡한데 「낡음」으로 보임
+          (라이브 실측: 화면은 「7계정 성공」인데 두 계정 시각이 7~10시간 낡아 있었다)
+        · 한 계정이 막혔어도 다른 계정에서 값 하나만 바뀌면 → 전체 시각이 갱신돼 **경보가 안 뜬다**
+      짐작을 없애려면 회차 자체를 기록해야 한다. 그게 이 표다.
+
+    ★키 = env_prefix(계정 식별자). tr_no 가 아니다 — **로그인 실패하면 tr_no 를 모른다**.
+      정작 기록이 가장 필요한 경우가 실패인데 그때 키가 없으면 아무 소용이 없다.
+    ★계정당 1행만 — 화면이 묻는 건 「지금 이 계정이 되고 있나」 하나다. 이력을 쌓으면
+      표만 커지고 답은 같다(필요해지면 그때 이력표를 따로 만든다).
+    """
+    __tablename__ = "lotteon_crawl_runs"
+    env_prefix = Column(String(40), primary_key=True)     # 계정 식별자(LOTTEON_XXX)
+    tr_no = Column(String(20))                            # 판매자ID — 로그인 성공해야 알 수 있다
+    display_name = Column(String(80))                     # 화면 표시용 계정 이름
+    result = Column(String(12), nullable=False)           # ok | verify | fail
+    detail = Column(String(300))                          # 실패 사유(있는 그대로)
+    rows = Column(Integer, default=0)                     # 그 회차에 가져온 정산 라인 수
+    deep = Column(Boolean, default=False)                 # 깊은 회차(180일)였나
+    # 🔴 auto(확장 자동 회차) / manual(화면에서 손으로 돌림) — **섞으면 안 된다**.
+    #   배너는 「자동이 살아 있나」를 묻는데, 수동까지 같이 세면 손으로 한 번 돌린 것만으로
+    #   배너가 조용해져 자동이 죽어 있어도 모른다. 화면엔 둘 다 보여주고 배너는 auto 만 본다.
+    via = Column(String(8), default="auto", nullable=False)
+    ran_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                    onupdate=lambda: datetime.now(timezone.utc))
+
+
+class LotteonSettlement(Base):
+    """롯데온 판매자센터 정산예정금액조회(크롤) 결과 — 주문 라인별 정산예정금액·판매경로.
+    소스=soapi selectBgtSettleManagementList (pymtTgtAmt·slChNo). 로컬 크롬 크롤러가 수집→서버 push.
+    미정산 주문에도 pymtTgtAmt 정확 → 마진계산기가 이 값을 정산예정금액으로 직접 사용(오차0).
+    """
+    __tablename__ = "lotteon_settlements"
+    od_no = Column(String(30), primary_key=True)          # 오픈마켓주문번호
+    od_seq = Column(String(10), primary_key=True, default="1")  # 주문순번(단품 라인)
+    pymt_tgt_amt = Column(Integer, nullable=False)        # 지급대상금액(정산예정금액) 라인값
+    sl_chnl = Column(String(20))                          # 판매경로 "제휴"/"롯데ON"
+    tr_no = Column(String(20))                            # 계정(거래처번호)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+    source = Column(String(12), default="manual", nullable=False)   # manual|auto
+
+
+class LotteonSettlePaid(Base):
+    """롯데온 지급내역(중개거래정산관리 크롤) — 「언제 실제로 입금됐나」.
+
+    🔴 왜 이 표가 있나(2026-08-07 실브라우저 실측) — 롯데온은 정산 OpenAPI 8종·정산예정금액조회·
+       정산요약·셀러머니를 다 뒤져도 **실지급일이 없다**(pymtTgtAmt 는 지급'대상'=예정액).
+       그래서 롯데온만 「받았을 것(확인 불가) 2,604만 + 입금일 지남 1,337만」이 판정 불가였다.
+       셀러오피스 「중개거래정산관리 > 지급내역」의 `seCmptDt`(정산완료일)가 유일한 답이다.
+       소스: GET soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail
+
+    ★ 롯데온은 **일정산** — 주문 단위가 아니라 **구매확정일(seStdDt) 단위**로 묶여 며칠 뒤 지급된다
+      (예 07-10 확정분 → 07-13 지급). 그래서 키가 (판매자ID, 정산기준일)이고, 주문에 붙일 때는
+      그 주문의 구매확정일로 이 표를 찾아 `se_cmpt_dt` 를 「받은 날」로 쓴다(쿠팡 회차와 같은 방식).
+    ★ Wing·롯데온 셀러오피스 세션 쿠키가 필요해 **서버에서 못 부른다** — 로컬 크롤 → push.
+    """
+    __tablename__ = "lotteon_settle_paid"
+    tr_no = Column(String(20), primary_key=True)          # 판매자ID(LO~)
+    se_std_dt = Column(String(10), primary_key=True)      # 정산기준일=구매확정일 YYYY-MM-DD
+    se_cmpt_dt = Column(String(10))                       # ★정산완료일 = 실제 입금된 날
+    fnl_pymt_bgt_amt = Column(Integer, default=0)         # ★최종정산지급액(그날 실지급)
+    pymt_tgt_amt = Column(Integer, default=0)             # 지급대상금액(차감 전)
+    se_typ = Column(String(20))                           # 정산유형(일정산 등)
+    account = Column(String(40))                          # 계정 별칭
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+    source = Column(String(12), default="manual", nullable=False)
+
+
+class RocketGrowthSettlement(Base):
+    """쿠팡 로켓그로스 정산 회차(Wing 화면 API 크롤) — 회차별 지급액·빠른정산 선인출.
+
+    🔴 왜 크롤인가(2026-08-07 라이브 실측) — 로켓그로스 정산액을 주는 **OpenAPI 가 없다**.
+       매출내역(revenue-history)에 로켓그로스 주문은 0건, 정산 회차(settlement-histories)도
+       마켓플레이스 몫만 담는다. Wing 화면 API 가 유일한 창구인데 로그인 세션 쿠키가 필요해
+       서버에서 못 부른다 → 로컬 크롤 → 서버 push(롯데온 lotteon_settlements 와 동형).
+       소스: GET wing.coupang.com/tenants/rfm/v2/settlements/status/api
+
+    ★ 회차 신원 = (group_key, ratio). groupKey 는 기간 기반이라 같은 기간의 30%·70% 회차가
+      **같은 키를 공유한다** — ratio 를 빼면 서로 덮어써 한쪽이 사라진다.
+    ★ fast_withdrawn(totalArFactoringDeductionAmount) = 빠른정산 계좌인출액 = **이미 받은 돈**.
+      마켓플레이스는 전용 필드가 없어 공제금액에서 역산했는데 여긴 필드가 있어 정확하다.
+    """
+    __tablename__ = "rg_settlements"
+    group_key = Column(String(64), primary_key=True)      # vendorId-시작일-종료일
+    ratio = Column(Integer, primary_key=True, default=0)  # 지급비율 30 / 70
+    account = Column(String(40))                          # 계정 별칭(세소(쿠팡) 등)
+    settlement_date = Column(String(10))                  # 정산일 YYYY-MM-DD
+    period_start = Column(String(10))                     # 매출인식 시작
+    period_end = Column(String(10))                       # 매출인식 종료
+    sales_amount = Column(Integer, default=0)             # 판매액
+    payable_amount = Column(Integer, default=0)           # ★지급액(H) — 「받을 돈」 기준
+    fast_withdrawn = Column(Integer, default=0)           # ★빠른정산 계좌인출액(이미 받음)
+    final_amount = Column(Integer, default=0)             # 최종지급액(통장 입금)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+    source = Column(String(12), default="manual", nullable=False)   # manual|auto

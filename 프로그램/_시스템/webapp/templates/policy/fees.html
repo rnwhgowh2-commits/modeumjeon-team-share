@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}마켓별 수수료 기준 — 정책 생성{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-fee-defaults">
+  <style>
+    .fd-back{font-size:12px;color:var(--글자-기본,#4E5968);text-decoration:none}
+    .fd-h{font-size:24px;font-weight:700;margin:8px 0 4px}
+    .fd-sub{font-size:13px;color:var(--글자-보조,#6B7684);margin-bottom:16px;line-height:1.57}
+    .fd-warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);
+             border-radius:8px;padding:12px 16px;font-size:12.5px;line-height:1.8;
+             color: var(--글자-주황, var(--amber,#92400E));margin-bottom:16px}
+    .fd-tbl{width:100%;border-collapse:collapse;font-size:13px;
+            background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:12px;overflow:hidden}
+    .fd-tbl th{background:var(--n100,#F2F4F6);font-size:12px;font-weight:600;
+               color:var(--글자-기본,#4E5968);padding:8px 12px;text-align:left;white-space:nowrap}
+    .fd-tbl td{padding:8px 12px;border-top:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .fd-tbl td.mk{font-weight:600;color:var(--ink,#191F28);white-space:nowrap}
+    .fd-tbl input[type=number],.fd-tbl input[type=text]{
+      border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:6px 10px;
+      font-size:13px;font-family:inherit;background:var(--surface,#fff);color:var(--ink,#191F28)}
+    .fd-tbl input[type=number]{width:92px;text-align:right}
+    .fd-tbl input[type=text]{width:150px}
+    .fd-note{font-size:12px;color:var(--sub,#8B95A1)}
+    .fd-bar{display:flex;align-items:center;gap:12px;margin-top:16px}
+    .fd-btn{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;
+            padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;
+            font-family:inherit;cursor:pointer}
+    .fd-btn:disabled{background:var(--line,#C6CBD3);cursor:default}
+    .fd-msg{font-size:12.5px;min-height:18px}
+    .fd-msg.err{color: var(--글자-빨강, var(--red,#E5484D))}
+    .fd-msg.ok{color: var(--글자-초록, var(--green,#15803D))}
+  </style>
+
+  <a class="fd-back" href="/policies">← 정책 생성</a>
+  <h1 class="fd-h">마켓별 수수료 기준</h1>
+  <div class="fd-sub">
+    정책을 새로 만들 때 <b>수수료율 칸에 채워 넣을 값</b>입니다.
+    마켓이 요율을 바꾸면 여기서 고치시면 됩니다.
+  </div>
+
+  <div class="fd-warn">
+    <b>여기를 고쳐도 이미 만든 정책의 값은 안 바뀝니다.</b>
+    정책에 적어 둔 숫자가 언제나 이깁니다 — 그래야 사장님이 화면에서 본 값이 그대로 쓰입니다.<br>
+    이미 만든 정책은 그 정책 화면에서 고쳐 주세요.
+  </div>
+
+  <table class="fd-tbl">
+    <thead><tr>
+      <th style="width:120px">마켓</th>
+      <th style="width:120px">기본 요율</th>
+      <th style="width:170px">조건 이름</th>
+      <th style="width:130px">그 조건일 때</th>
+      <th>비고</th>
+    </tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr data-market="{{ r.market }}">
+        <td class="mk">{{ r.label }}</td>
+        <td><input type="number" step="0.01" min="0.01" max="99.99"
+                   data-f="base" value="{{ r.base_pct }}"> %</td>
+        <td><input type="text" data-f="label" value="{{ r.alt_label }}"
+                   placeholder="없으면 비워두세요"></td>
+        <td><input type="number" step="0.01" min="0.01" max="99.99"
+                   data-f="alt" value="{{ r.alt_pct if r.alt_pct is not none else '' }}"
+                   placeholder="—"> %</td>
+        <td class="fd-note">{{ r.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="fd-sub" style="margin-top:12px">
+    <b>조건 이름</b>을 적으면 그 마켓 정책 화면에 체크박스가 생깁니다.
+    체크하면 수수료율 칸이 「그 조건일 때」 값으로 바뀝니다.
+    예 — 11번가 「1년 이내 계정」 체크 → 8%.
+  </div>
+
+  <div class="fd-bar">
+    <button class="fd-btn" id="fd-save" type="button">저장</button>
+    <span class="fd-msg" id="fd-msg"></span>
+  </div>
+</section>
+
+<script>
+(function () {
+  const btn = document.getElementById('fd-save');
+  const msg = document.getElementById('fd-msg');
+  const num = (v) => (v === '' ? null : Number(v));
+
+  btn.addEventListener('click', async () => {
+    const rows = [...document.querySelectorAll('.fd-tbl tbody tr')].map((tr) => ({
+      market: tr.dataset.market,
+      base_pct: num(tr.querySelector('[data-f="base"]').value),
+      alt_label: tr.querySelector('[data-f="label"]').value.trim(),
+      alt_pct: num(tr.querySelector('[data-f="alt"]').value),
+    }));
+    btn.disabled = true;
+    msg.className = 'fd-msg';
+    msg.textContent = '저장하는 중…';
+    try {
+      const r = await fetch('/api/policies/fee-defaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows }),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || '저장하지 못했어요');
+      msg.className = 'fd-msg ok';
+      msg.textContent = '저장했어요 — 앞으로 만드는 정책에 이 값이 채워집니다.';
+    } catch (e) {
+      msg.className = 'fd-msg err';
+      msg.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -27,12 +27,12 @@ from .models import (
 # Fernet 키 관리
 # ─────────────────────────────────────────────────────────────────────────────
 
-_ENCRYPT_KEY_ENV = 'LEMOUTON_SECRET_KEY'
+_ENCRYPT_KEY_ENV = 'MOUM_SECRET_KEY'
 _KEY_FILE = Path('.lemouton_secret.key')
 
 
 def _load_or_create_key() -> bytes:
-    """LEMOUTON_SECRET_KEY 환경변수 우선, 없으면 .lemouton_secret.key 파일.
+    """MOUM_SECRET_KEY 환경변수 우선, 없으면 .lemouton_secret.key 파일.
 
     파일도 없으면 새로 생성 (운영 시 백업 필수 — 분실하면 자격증명 복호화 불가).
     """

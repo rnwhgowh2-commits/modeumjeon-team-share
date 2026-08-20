@@ -1,0 +1,155 @@
+{# 상단 탭(애플식) — 새 디자인 모드에서만 쓴다. 「현재」 모드는 예전 사이드바 그대로.
+   메뉴 원천 = sidebar_layout (webapp/nav_top.py 가 옮겨 담는다). 여기서 메뉴를 새로 적지 않는다.
+   애플 실측(apple.com/kr 2026-07-31): 막대 48px · 하위는 띠 없이 펼침 · 열마다 회색 작은 제목 · 그림자 없음 #}
+<link rel="stylesheet" href="{{ url_for('static', filename='topnav.css') }}?v={{ STATIC_VER }}">
+
+<header class="tn" id="tn-root">
+  {# 로고 = 홈. 애플도 로고를 누르면 홈으로 간다 → 탭 한 칸을 아낀다 #}
+  <a class="tn-lg" href="{{ topnav.home.url if topnav.home else '/' }}" title="홈">
+    <span class="tn-lg-i"><i class="ph-light ph-package" aria-hidden="true"></i></span>
+    <b>모음전 자동화</b>
+    <span class="tn-lg-home">⌂ {{ topnav.home.name if topnav.home else '홈' }}</span>
+  </a>
+
+  <nav class="tn-tabs">
+    {% for t in topnav.tabs %}
+    {# 지금 보고 있는 화면이 이 탭 안에 있으면 강조 — 사이드바와 같은 active_key 로 판정 #}
+    <div class="tn-tab{% if (active|default('')) and (active in t['active_keys']) %} on{% endif %}" data-tab="{{ t.id }}" tabindex="0">
+      <span class="tn-tab-n">{{ t.name }}</span>
+      {% set _b = sidebar_badge_values.get('unmapped') if t.id == 's_collect' else None %}
+      {% if _b and _b > 0 %}<span class="tn-bd">{{ _b }}</span>{% endif %}
+
+      {# 펼침 메뉴 — 열마다 제목(애플 「빠른 링크」 방식) #}
+      <div class="tn-mega">
+        {% for c in t.columns %}
+        <div class="tn-col{% if c.fav %} fav{% endif %}">
+          {% if c.title %}<div class="tn-col-t">{{ c.title }}</div>{% else %}<div class="tn-col-t">&nbsp;</div>{% endif %}
+          {% for it in c['items'] %}
+          {% set _iv = sidebar_badge_values.get(it.badge_key) if it.badge_key else None %}
+          {# [2026-08-06 사장님 확정] 메뉴 항목 앞 아이콘(이모지·선아이콘) 제거 — 글자만 남긴다.
+             페이지 제목에서 이모티콘을 뺀 것과 같은 결. 원천(_STAGE_SPEC 의 emoji)은 그대로 두어
+             옛 사이드바·모바일 메뉴·아이콘 고르기 기능이 다치지 않게 한다(여기서 안 그릴 뿐). #}
+          <a class="tn-ml{% if (active|default('')) == it.active_key %} on{% endif %}" href="{{ it.url }}">
+            <span class="tn-ml-n">{{ it.name }}</span>
+            {% if _iv and _iv > 0 %}<span class="tn-bd sm">{{ _iv }}</span>{% endif %}
+          </a>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </nav>
+
+  <div class="tn-right{% if active_app == 'inventory' %} tn-right-bell{% endif %}">
+    {% for it in topnav.loose %}
+    <a class="tn-loose" href="{{ it.url }}">{{ it.name }}</a>
+    {% endfor %}
+
+    {# [2026-07-31] 디자인 전환 버튼은 여기서 걷어냈다 — 화면 오른쪽 위 붙박이
+       드롭버튼 한 곳으로 합쳤다. [2026-08-02] 그 단추도 삭제됨(화이트 하나만).
+       안전망(「기존 타입」으로 즉시 되돌리기)은 그 부품이 그대로 이어받았고,
+       그 부품은 토큰을 안 써서 이 막대가 통째로 깨져도 살아 있다. #}
+
+    <span class="tn-user"><i class="ph-light ph-user" aria-hidden="true"></i> {{ current_user.username if current_user is defined and current_user.is_authenticated else '' }}</span>
+  </div>
+</header>
+
+<script>
+/* 펼침 메뉴는 CSS :hover 로 열린다(스크립트가 죽어도 메뉴는 동작한다).
+   키보드로도 열리도록 포커스만 거든다. */
+(function () {
+  var root = document.getElementById('tn-root');
+  if (!root) return;
+  root.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var t = document.activeElement;
+    if (t && t.blur) t.blur();
+  });
+
+  /* 펼침 판이 화면 밖으로 나가는 것만 막는다.
+     판은 CSS 로 자기 탭 왼쪽 끝에 붙는데, 오른쪽 끝 탭이면 그 자리에서 판 폭만큼
+     더 가면 화면을 넘어 잘린다. 넘친 만큼만 왼쪽으로 되당긴다(--tn-shift).
+     지금 메뉴로는 「기타」 탭에서도 안 넘치지만, 항목이 늘면 그때 조용히 잘린다.
+     스크립트가 죽어도 판은 뜬다 — 되당김만 안 될 뿐이다.
+
+     ★ 재는 시점 = 마우스를 올리는 그 순간. 화면이 뜰 때 미리 재면 안 된다.
+       실측 사고: 바로 위 <link> 의 topnav.css 가 아직 안 붙은 상태에서 쟀더니
+       탭이 기준이 아닌 채로 측정돼 8개 탭 전부 엉뚱한 되당김(-308~+308)이 박혔고,
+       펼침이 모두 같은 자리(945)에 겹쳐 열렸다. 올릴 때 재면 자리는 이미 확정이다.
+       창 크기·글꼴 때문에 다시 잴 필요도 없어진다(올릴 때마다 새로 잰다). */
+  var 여백 = 16;
+  function 되당김_재기(tab) {
+    var 판 = tab.querySelector('.tn-mega');
+    if (!판) return;
+    tab.style.setProperty('--tn-shift', '0px');
+    var 막대 = root.getBoundingClientRect();
+    var 탭 = tab.getBoundingClientRect();
+    /* 판에서 가져오는 건 「폭」뿐이고, 놓일 「자리」는 탭에서 계산한다.
+       ★ 판의 위치를 재서 쓰면 안 된다 — 실측 사고: 재려고 판을 잠깐 펼치면 화면
+         밖으로 나간 만큼 가로 스크롤막대가 생겼다 사라지고, 그 사이 가운데 정렬된
+         탭이 막대 두께의 절반(7.5px)만큼 움직여 되당김이 그만큼 모자랐다.
+         폭은 그 영향을 안 받는다. 붙는 거리(-17)는 CSS 가 정한 값을 그대로 읽는다. */
+    var 붙임 = -parseFloat(getComputedStyle(판).left) || 0;
+    var 원래 = 판.style.display;
+    판.style.display = 'flex';
+    var 판폭 = 판.offsetWidth;
+    판.style.display = 원래;
+    if (!판폭) return;
+
+    var 왼 = (탭.left - 막대.left) - 붙임;
+    var 오른쪽넘침 = Math.max(0, (왼 + 판폭) - (막대.width - 여백));
+    /* 되당기다 이번엔 왼쪽으로 넘칠 수 있다(판이 화면보다 넓을 때) — 그만큼 되돌린다. */
+    var 왼쪽넘침 = Math.max(0, 여백 - (왼 - 오른쪽넘침));
+    tab.style.setProperty('--tn-shift', (오른쪽넘침 - 왼쪽넘침) + 'px');
+  }
+  Array.prototype.forEach.call(root.querySelectorAll('.tn-tab'), function (tab) {
+    var 재기 = function () { 되당김_재기(tab); };
+    tab.addEventListener('mouseenter', 재기);
+    tab.addEventListener('focusin', 재기);
+
+    /* 🔴 「눌러 본」 탭이 포커스를 쥐면 판이 계속 붙잡혀 있다(:focus-within).
+       마우스를 딴 데로 내려도 판이 본문을 덮고, 옆 탭으로 가면 두 판이 겹친다.
+       마우스로 여는 길에는 포커스를 주지 않는다 — mousedown 의 기본 동작만 막으면
+       Tab 키로 오는 포커스는 그대로 살아 키보드 사용은 안 다친다.
+       (겹쳐 보이는 것 자체는 CSS 가 따로 막는다. 여기는 「닫히지 않는 것」을 막는 쪽.) */
+    tab.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  });
+
+  /* 그래도 포커스가 남는 길이 있다(키보드로 열어 두고 마우스를 잡는 등).
+     막대 밖으로 마우스가 나가면 놓아 준다 — 판은 탭의 자식이라, 판 안에 마우스가
+     있는 동안에는 이 이벤트가 안 뜬다(자식으로 들어가는 건 mouseleave 가 아니다). */
+  root.addEventListener('mouseleave', function () {
+    var t = document.activeElement;
+    if (t && t.closest && t.closest('#tn-root') && t.blur) t.blur();
+  });
+
+  /* 📱 [2026-08-05 실측 상호작용 감사] 폰(375px)에서는 :hover 가 없어 탭을 눌러도
+     판이 안 열렸고, 위 mousedown preventDefault 가 :focus-within 경로까지 막고
+     있었다(그 동작은 PC 「닫히지 않는 판」 방지용 — 건드리지 않는다).
+     폰 분기(matchMedia)에서만 click 으로 .tn-open 을 토글한다 — 안 맞으면 한 줄도
+     안 타니 PC 마우스 동작(mouseenter 되당김·mousedown preventDefault)은 그대로다.
+     판은 폰 @media 에서 position:fixed(화면 폭 고정)라 되당김_재기는 필요 없다. */
+  var 폰 = window.matchMedia('(max-width: 768px)');
+  function 전부_닫기() {
+    Array.prototype.forEach.call(root.querySelectorAll('.tn-tab.tn-open'), function (t) {
+      t.classList.remove('tn-open');
+    });
+  }
+  root.addEventListener('click', function (e) {
+    if (!폰.matches || !e.target || !e.target.closest) return;
+    if (e.target.closest('a')) return;              /* 하위 링크 <a> 는 그대로 이동한다 */
+    var tab = e.target.closest('.tn-tab');
+    if (!tab) return;
+    if (e.target.closest('.tn-mega')) return;       /* 판 안(링크 밖) 탭 = 닫지 않는다 */
+    var 열려있었다 = tab.classList.contains('tn-open');
+    전부_닫기();                                     /* 판은 한 번에 하나만 */
+    if (!열려있었다) tab.classList.add('tn-open');   /* 열린 채 다시 탭하면 닫힘 */
+  });
+  document.addEventListener('click', function (e) {
+    if (!폰.matches) return;
+    if (e.target && e.target.closest && e.target.closest('#tn-root')) return;
+    전부_닫기();                                     /* 바깥 탭 = 닫기 */
+  });
+})();
+</script>

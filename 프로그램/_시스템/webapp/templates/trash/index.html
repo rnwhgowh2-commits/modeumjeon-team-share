@@ -2,10 +2,10 @@
 {% block title %}<i class="ph-light ph-trash" aria-hidden="true"></i> 휴지통 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-trash">
-  <h1><i class="ph-light ph-trash" aria-hidden="true"></i> 휴지통</h1>
+  <h1>휴지통</h1>
   <p class="greeting">soft-delete 된 항목 — 30일 후 자동 hard-delete (예정).</p>
 
-  <div style="margin-bottom:14px">
+  <div style="margin-bottom:12px">
     <a href="/audit" class="btn"><i class="ph-light ph-scroll" aria-hidden="true"></i> 전체 변경 이력 보기 →</a>
   </div>
 
@@ -14,7 +14,7 @@
     휴지통이 비어있어요.
   </div>
   {% else %}
-  <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+  <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:8px">
     <table class="opt-table">
       <thead>
         <tr>
@@ -45,6 +45,34 @@
   {% endif %}
 </section>
 
+<style>
+/* [3단계 배치1 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지).
+   표는 6열이라 가로 스크롤(감싼 상자의 기존 overflow-x:auto) + 첫 열 붙박이. */
+@media (max-width: 768px) {
+  #screen-trash .btn {
+    display: inline-flex; align-items: center; min-height: 44px; font-size: 14px;
+  }
+  #screen-trash .opt-table th,
+  #screen-trash .opt-table td {
+    padding: 10px 8px; font-size: 14px; white-space: nowrap;
+  }
+  /* 첫 열(분류) 붙박이 — 옆으로 밀어도 어느 줄인지 보인다.
+     배경이 없으면 뒤 칸 글자가 비쳐 보인다 — 표 머리는 원래색(--n100)을 지킨다.
+     ⚠️ 어두운 모드를 다시 켜면 --bg 밑칠 패턴(topnav.css:101)이 필요하다 —
+     어두운 --surface 는 4% 반투명이라 밀린 칸 글자가 비쳐 보인다. */
+  #screen-trash .opt-table td:first-child,
+  #screen-trash .opt-table th:first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);
+  }
+  #screen-trash .opt-table th:first-child { background: var(--n100, #f2f4f6); }
+  /* 복구 버튼 = 손끝 목표 44px */
+  #screen-trash button[data-action="restore-trash"] {
+    min-height: 44px; padding: 8px 14px; font-size: 14px;
+  }
+}
+</style>
+
 <script>
 document.querySelectorAll('[data-action="restore-trash"]').forEach(btn => {
   btn.addEventListener('click', async () => {
@@ -53,7 +81,7 @@ document.querySelectorAll('[data-action="restore-trash"]').forEach(btn => {
     const r = await fetch(`/trash/${id}/restore`, {method: 'POST'});
     const j = await r.json();
     if (j.ok) {
-      btn.textContent = ' 복구됨';
+      btn.textContent = '복구됨';
       btn.disabled = true;
       setTimeout(() => location.reload(), 800);
     } else alert('복구 실패: ' + (j.error || ''));

@@ -1,0 +1,309 @@
+{# ② 데이터가공 — 가공정책 (시안 13 Ⅲ-E안: URL 이 주인공 + 검색·필터 + 추가버튼)
+   ★ E안을 고른 이유 = 정책이 안 붙은 URL 이 눈에 띈다. 정책 중심 화면에선 이 누락이 안 보인다. #}
+<style>
+  .pp-bar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .pp-bar input[type=search]{flex:1;min-width:200px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+    padding:8px 12px;font-family:inherit;font-size:12px}
+  .pp-seg{display:inline-flex;background:var(--n100,#F2F4F6);border-radius:8px;padding:4px;gap:0px}
+  .pp-seg button{height:30px;padding:0 12px;border:0;background:none;border-radius:8px;
+    font-family:inherit;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
+  .pp-seg button.on{background:var(--surface,#ffffff);color:var(--ink,#191F28);}
+  .pp-add{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:8px 16px;
+    font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .pp-tbl{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+  .pp-tbl table{width:100%;border-collapse:collapse}
+  .pp-tbl th{background:var(--n100,#FBFCFD);font-size:12px;font-weight:600;color:var(--sub,#8B95A1);
+    padding:12px 12px;border-bottom:1px solid var(--line,#E5E8EB);text-align:left;white-space:nowrap}
+  .pp-tbl td{padding:12px 12px;border-bottom:1px solid var(--n100,#F2F4F6);font-size:12px;vertical-align:middle}
+  .pp-tbl tr:last-child td{border-bottom:0}
+  .pp-tbl tr.warn td{background:var(--n100,#FFF9F9)}
+  .pp-nm{font-weight:700}
+  .pp-url{font-size:12px;color:var(--sub,#8B95A1);font-family:ui-monospace,monospace;margin-top:0px;
+    overflow:hidden;text-overflow:ellipsis;max-width:280px;white-space:nowrap}
+  .chip{display:inline-block;font-size:12px;font-weight:600;padding:4px 8px;border-radius:8px;
+    background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);margin:0px 4px 0px 0}
+  .chip.mkt{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+  .chip.none{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+  .pp-link{color:#1B64DA;text-decoration:none;font-weight:700}
+  .pp-link:hover{text-decoration:underline}
+  .pp-warn{background:var(--연한-빨강,#FEECEC);border:1px solid var(--연한-빨강,#FBD5D5);border-radius:8px;padding:12px 12px;
+    font-size:12px;color: var(--글자-빨강, var(--red,#8A2020));line-height:1.8;margin-bottom:12px}
+  .pp-warn b{color: var(--글자-빨강, var(--red,#6B1010))}
+  .pp-note{font-size:12px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
+    padding:8px 12px;margin-top:12px;line-height:1.75}
+  .pp-empty{padding:32px;text-align:center;color:var(--sub,#8B95A1);font-size:12px}
+  /* ── 정책 고르기 (그 자리에서 붙이고 뗀다) ── */
+  .pp-sel{max-width:168px;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:4px 8px;
+    font-family:inherit;font-size:12px;color:var(--ink,#191F28);background:var(--surface,#ffffff)}
+  .pp-sel:focus{outline:none;border-color:#1B64DA}
+  tr.warn .pp-sel{border-color:var(--연한-빨강,#F0A9A9)}
+  .pp-det{font-size:12px;margin-left:4px;white-space:nowrap}
+  .pp-msg{font-size:12px;font-weight:600;margin-top:4px;line-height:1.5;
+    white-space:normal;word-break:keep-all}
+  .pp-msg.ok{color: var(--글자-초록, var(--green,#15803D))}
+  .pp-msg.no{color:#B91C1C}
+  .pp-msg.wait{color:var(--sub,#8B95A1)}
+  .pp-flash{background:var(--line2,#F2F8F4);border:1px solid var(--line,#CDE7D6);border-radius:8px;
+    padding:8px 12px;font-size:12px;color: var(--글자-초록, var(--green,#15803D));line-height:1.8;margin-bottom:12px}
+  .pp-flash.no{background:var(--연한-빨강,#FEECEC);border-color:var(--연한-빨강,#FBD5D5);color:#B91C1C}</style>
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 입력칸 16px = iOS 포커스 확대 방지 · 손끝 44px */
+  .pp-bar input[type="search"] { font-size: 16px; min-height: 44px; }
+  .pp-seg button { height: 44px; }
+  .pp-add { min-height: 44px; }
+  .pp-sel { font-size: 16px; min-height: 44px; max-width: none; }
+  /* 표(4열 · URL 이 길다) — 가로 스크롤 + 첫 열(구성) 붙박이 */
+  .pp-tbl { overflow-x: auto; }
+  .pp-tbl table { min-width: 760px; }
+  .pp-tbl td { font-size: 14px; }
+  .pp-tbl th:first-child, .pp-tbl td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  .pp-warn, .pp-note, .pp-flash { font-size: 14px; }
+}
+</style>
+
+<div id="pp-root"><p style="color:var(--sub,#8B95A1);font-size:12px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('pp-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let q = '', only = '', data = null;
+  // 저장 결과를 **그 줄 옆에** 둔다 — 멀리 뜨면 안 보인다. {구성키: {text, cls}}
+  const msgs = {};
+  const keyOf = (r) => (r.source_key || '') + ' > ' + (r.brand || '');
+
+  function load() {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (only) p.set('only', only);
+    fetch('/bulk/api/process/policies?' + p.toString())
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || j.error) {
+          root.innerHTML = '<div class="pp-warn"><b>불러오지 못했습니다</b><br>'
+            + esc(j.detail || j.error) + '</div>';
+          return;
+        }
+        data = j; render();
+      })
+      .catch((e) => {
+        root.innerHTML = '<div class="pp-warn"><b>불러오지 못했습니다</b><br>'
+          + esc(e.message) + '</div>';
+      });
+  }
+
+  /** 「가공정책」 칸 = 고르는 자리. 고르면 바로 저장되고 그 줄이 다시 그려진다. */
+  function policyPicker(r) {
+    const key = keyOf(r);
+    const m = msgs[key];
+    const opts = (data.policies || []).map((p) =>
+      `<option value="${p.id}" ${p.id === r.policy_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    return `<select class="pp-sel" autocomplete="off"
+          data-src="${esc(r.source_key)}" data-brand="${esc(r.brand)}"
+          data-url="${esc(r.url || '')}">
+        <option value="" ${r.policy_id == null ? 'selected' : ''}>— 정책 없음 —</option>
+        ${opts}
+      </select>${r.policy_id == null ? ''
+        : `<a class="pp-link pp-det" href="/bulk/process/policy/${r.policy_id}">상세</a>`}
+      <div class="pp-msg ${m ? esc(m.cls) : ''}" data-msg="${esc(key)}">${m ? esc(m.text) : ''}</div>`;
+  }
+
+  function row(r) {
+    const none = r.policy_id == null;
+    return `<tr class="${none ? 'warn' : ''}">
+      <td><div class="pp-nm">${esc(r.source_key)} &gt; ${esc(r.brand)}</div>
+        ${r.url ? `<div class="pp-url">${esc(r.url)}</div>` : ''}</td>
+      <td>${policyPicker(r)}</td>
+      <td>${none
+        ? '<span style="color:#B91C1C;font-size:12px">올라가지 않습니다</span>'
+        : (r.markets.length
+            ? r.markets.map((m) => `<span class="chip mkt">${esc(m.label || m.market)}${
+                m.account_key ? ' · ' + esc(m.account_key) : ''}</span>`).join('')
+            : '<span style="color:#B91C1C;font-size:12px">마켓 없음</span>')}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1)">
+        ${none ? '—' : r.rule_count + '/13'}</td>
+    </tr>`;
+  }
+
+  function render() {
+    const c = data.counts || {};
+    const rows = data.rows || [];
+    // URL 이 안 붙은 정책은 이 목록(URL 중심)에 아예 안 나타난다 — 따로 알려준다.
+    const empty = (data.policies || []).filter((p) => p.source_count === 0);
+    // 줄이 사라진 뒤에 온 결과(뗐거나 옮겨서 목록에서 빠진 경우)는 위에 모아 보여준다 —
+    // 그냥 두면 「저장됐다」는 말이 어디에도 안 남는다(조용한 저장 금지).
+    const shown = new Set(rows.map(keyOf));
+    const orphan = Object.keys(msgs).filter((k) => !shown.has(k));
+    root.innerHTML = `
+      ${orphan.map((k) => `<div class="pp-flash ${msgs[k].cls === 'no' ? 'no' : ''}">
+        <b>${esc(k)}</b> — ${esc(msgs[k].text)}</div>`).join('')}
+      ${c.unassigned > 0 ? `<div class="pp-warn">
+        <b>정책이 없는 URL 이 ${c.unassigned}개 있습니다</b> — 크롤은 되는데
+        <b>어디에도 안 올라갑니다.</b> 아래 빨간 줄의
+        <b>「가공정책」 칸에서 정책을 고르면</b> 바로 붙습니다.</div>` : ''}
+      ${empty.length ? `<div class="pp-warn" style="background:var(--연한-주황,#FEF6E7);border-color:var(--연한-주황,#F5D9A0);color:var(--amber,#8A5A00)">
+        <b>소싱처가 안 붙은 정책이 ${empty.length}개 있습니다</b> — 아무 일도 하지 않습니다.
+        <b>아래 표에서 그 구성의 줄을 찾아 「가공정책」 칸에서 이 정책을 고르세요.</b>
+        (규칙만 고치려면: ${empty.map((p) => `<a class="pp-link" style="color:var(--amber,#8A5A00)"
+          href="/bulk/process/policy/${p.id}">${esc(p.name)} 규칙 편집</a>`).join(' · ')})</div>` : ''}
+      <div class="pp-bar">
+        <input type="search" id="pp-q" placeholder="소싱처·브랜드·정책 이름으로 찾기"
+               value="${esc(q)}" autocomplete="off">
+        <div class="pp-seg">
+          <button data-only="" class="${only === '' ? 'on' : ''}">전체 ${c.total || 0}</button>
+          <button data-only="unassigned" class="${only === 'unassigned' ? 'on' : ''}">정책 없음 ${c.unassigned || 0}</button>
+        </div>
+        <button class="pp-add" id="pp-add">+ 정책 추가</button>
+      </div>
+      <div class="pp-tbl">
+        <table>
+          <thead><tr>
+            <th>소싱처 URL 구성</th><th style="width:190px">가공정책</th>
+            <th style="width:280px">내보내는 마켓</th><th style="width:90px;text-align:right">규칙</th>
+          </tr></thead>
+          <tbody>${rows.length ? rows.map(row).join('')
+            : '<tr><td colspan="4" class="pp-empty">해당하는 URL 이 없습니다.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="pp-note"><b>왜 URL 이 주인공인가</b> — 정책을 먼저 보면
+        「크롤은 되는데 어디에도 안 올라가는 URL」이 눈에 안 띕니다. 한 구성은
+        <b>한 정책에만</b> 붙을 수 있습니다 — 두 정책을 따르면 가공 결과가 실행 순서에 따라 달라집니다.</div>`;
+
+    const qi = document.getElementById('pp-q');
+    let t = null;
+    qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { q = qi.value.trim(); load(); }, 250); };
+    root.querySelectorAll('.pp-seg button').forEach((b) => {
+      b.onclick = () => { only = b.dataset.only; load(); };
+    });
+    root.querySelectorAll('.pp-sel').forEach((sel) => { sel.onchange = () => pick(sel); });
+    document.getElementById('pp-add').onclick = addPolicy;
+  }
+
+  // ── 정책에 붙이기 · 떼기 ─────────────────────────────────────
+
+  /** 결과를 그 줄 옆에 쓴다. 다시 그리기 전에도 바로 보이게 DOM 을 직접 고친다. */
+  function setMsg(key, text, cls) {
+    msgs[key] = { text: text, cls: cls || '' };
+    root.querySelectorAll('[data-msg]').forEach((el) => {
+      if (el.dataset.msg !== key) return;
+      el.textContent = text;
+      el.className = 'pp-msg ' + (cls || '');
+    });
+  }
+
+  const policyName = (pid) => {
+    const p = (data.policies || []).find((x) => String(x.id) === String(pid));
+    return p ? p.name : '';
+  };
+
+  function post(url, method, body) {
+    return fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json().then((j) => ({ status: r.status, j })));
+  }
+
+  /** 정책 하나를 골랐을 때 — 「정책 없음」이면 떼고, 아니면 붙인다. */
+  function pick(sel) {
+    const sk = sel.dataset.src, br = sel.dataset.brand;
+    const key = sk + ' > ' + br;
+    if (!sel.value) { detach(sk, br, key); return; }
+    setMsg(key, '저장 중…', 'wait');
+    attach(sel.value, { source_key: sk, brand: br, url: sel.dataset.url || '' }, key, false);
+  }
+
+  /** 🔴 떼기도 **한 번 되묻는다** — 한 번의 오조작으로 저장된 주소까지 사라진다.
+   *
+   *  무엇을 잃는지(붙어 있던 정책·저장된 주소)는 **서버에 먼저 물어본다**.
+   *  화면이 짐작해서 말하면 실제로 지워지는 것과 어긋날 수 있다.
+   */
+  function detach(sk, br, key) {
+    setMsg(key, '확인 중…', 'wait');
+    const qs = 'source_key=' + encodeURIComponent(sk) + '&brand=' + encodeURIComponent(br);
+    fetch('/bulk/api/process/sources?' + qs)
+      .then((r) => r.json())
+      .then((info) => {
+        if (!info.ok) {
+          setMsg(key, info.error || '떼지 못했습니다.', 'no');
+          load();
+          return;
+        }
+        const ok = window.confirm(
+          '「' + key + '」 을(를) 정책 「' + info.policy_name + '」 에서 뗄까요?\n\n'
+          + '이 구성은 어디에도 안 올라가게 됩니다.'
+          + (info.url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + info.url : ''));
+        if (!ok) {
+          setMsg(key, '떼지 않았습니다 — 그대로 「' + info.policy_name + '」 에 있습니다.', 'no');
+          load();                       // 고른 값을 원래대로 되돌린다
+          return;
+        }
+        setMsg(key, '떼는 중…', 'wait');
+        post('/bulk/api/process/sources', 'DELETE', { source_key: sk, brand: br })
+          .then(({ j }) => {
+            setMsg(key, j.ok ? (j.message || '뗐습니다.') : (j.error || '떼지 못했습니다.'),
+                   j.ok ? 'ok' : 'no');
+            load();                     // 서버가 말한 대로 다시 그린다
+          })
+          .catch((e) => setMsg(key, e.message, 'no'));
+      })
+      .catch((e) => setMsg(key, e.message, 'no'));
+  }
+
+  /** 🔴 한 구성은 한 정책에만 — 다른 정책에 있으면 **먼저 묻고** 옮긴다. */
+  function attach(pid, body, key, confirmMove) {
+    const payload = Object.assign({}, body);
+    if (confirmMove) payload.confirm_move = true;
+    post('/bulk/api/process/policies/' + pid + '/sources', 'POST', payload)
+      .then(({ status, j }) => {
+        if (status === 409 && j.need_confirm) {
+          const cur = (j.current_policy && j.current_policy.name) || '다른 정책';
+          const ok = window.confirm(
+            '「' + key + '」 은(는) 지금 정책 「' + cur + '」 에 붙어 있습니다.\n'
+            + '「' + policyName(pid) + '」 로 옮길까요?\n\n'
+            + '한 구성은 한 정책에만 붙습니다 — 옮기면 「' + cur + '」 에서 떨어집니다.');
+          if (!ok) {
+            setMsg(key, '옮기지 않았습니다 — 그대로 「' + cur + '」 에 있습니다.', 'no');
+            load();                     // 고른 값을 원래대로 되돌린다
+            return;
+          }
+          attach(pid, body, key, true);
+          return;
+        }
+        if (!j.ok) {
+          setMsg(key, j.error || '저장하지 못했습니다.', 'no');
+          load();
+          return;
+        }
+        setMsg(key, j.message || '저장했습니다.', 'ok');
+        load();
+      })
+      .catch((e) => setMsg(key, e.message, 'no'));
+  }
+
+  function addPolicy() {
+    const name = window.prompt('새 가공정책 이름을 적어주세요.\n(예: 나이키 스니커즈 기본)');
+    if (!name || !name.trim()) return;
+    fetch('/bulk/api/process/policies', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok) { window.alert(j.error || '만들지 못했습니다.'); return; }
+        window.location.href = '/bulk/process/policy/' + j.id;
+      })
+      .catch((e) => window.alert(e.message));
+  }
+
+  load();
+})();
+</script>

@@ -79,3 +79,107 @@ def test_list_sets_and_delete_cascades(db):
 
 def test_get_set_detail_missing_returns_empty(db):
     assert svc.get_set_detail(db, 9999) == {}
+
+
+def test_list_linked_sets_only_channeled(db):
+    """채널(판매처 연동)이 있는 구성만 대시보드 목록에 뜬다."""
+    from lemouton.sets import channel_service as ch
+    from lemouton.sets.models import SetChannelOption
+    a = svc.create_set(db, model_code="AF", name="에어포스 단품")
+    pa = svc.add_product(db, set_id=a.id, model_code="AF", quantity=1)
+    svc.set_options(db, set_product_id=pa.id,
+                    canonical_skus=["AF-블랙-260", "AF-블랙-270"])
+    c = ch.add_channel(db, set_id=a.id, market="smartstore")
+    db.add(SetChannelOption(channel_id=c.id, canonical_sku="AF-블랙-260",
+                            market_option_id="opt1", status="matched"))
+    db.add(SetChannelOption(channel_id=c.id, canonical_sku="AF-블랙-270",
+                            market_option_id=None, status="unmatched"))
+    # 채널 없는 구성 → 목록 제외
+    b = svc.create_set(db, model_code="AF", name="채널없는 구성")
+    svc.add_product(db, set_id=b.id, model_code="AF", quantity=1)
+    db.commit()
+
+    rows = svc.list_linked_sets(db)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["name"] == "에어포스 단품"
+    assert r["products"][0]["model_name"] == "에어포스"   # model_name_raw 폴백
+    assert r["products"][0]["option_count"] == 2
+    assert r["channels"][0]["market"] == "smartstore"
+    assert r["channels"][0]["matched"] == 1
+    assert r["channels"][0]["total"] == 2
+    assert r["last_sent_at"] is None     # 전송기능(2단계) 전엔 항상 None
+
+
+def test_list_linked_sets_search(db):
+    """검색어로 구성명/상품명/마켓 상품번호를 필터한다."""
+    from lemouton.sets import channel_service as ch
+    a = svc.create_set(db, model_code="AF", name="에어포스 단품")
+    svc.add_product(db, set_id=a.id, model_code="AF", quantity=1)
+    c = ch.add_channel(db, set_id=a.id, market="coupang")
+    ch.set_channel_product(db, channel_id=c.id, market_product_id="16176862782")
+    db.commit()
+
+    assert len(svc.list_linked_sets(db, q="에어")) == 1        # 상품명 매칭
+    assert len(svc.list_linked_sets(db, q="1617686")) == 1     # 상품번호 매칭
+    assert len(svc.list_linked_sets(db, q="없는단어")) == 0
+
+
+def test_list_linked_sets_has_brand_and_alerts(db):
+    """F10 필터·배지용: 각 상품에 brand, 각 구성에 alerts(list)."""
+    from lemouton.sets import channel_service as ch
+    from lemouton.sets.models import SetChannelOption
+    a = svc.create_set(db, model_code="AF", name="에어포스 단품")
+    pa = svc.add_product(db, set_id=a.id, model_code="AF", quantity=1)
+    svc.set_options(db, set_product_id=pa.id, canonical_skus=["AF-블랙-260"])
+    c = ch.add_channel(db, set_id=a.id, market="smartstore")
+    db.add(SetChannelOption(channel_id=c.id, canonical_sku="AF-블랙-260",
+                            market_option_id="opt1", status="matched"))
+    db.commit()
+    r = svc.list_linked_sets(db)[0]
+    assert "brand" in r["products"][0]
+    assert isinstance(r["alerts"], list)
+
+
+def test_save_set_automation(db):
+    from lemouton.sets import set_service as svc
+    a = svc.create_set(db, model_code="AF", name="예외구성"); db.commit()
+    # 기본 on(전체 따름)
+    assert a.auto_mode == "on"
+    # 모드 저장·검증
+    r = svc.save_set_automation(db, a.id, {"auto_mode": "manual"}); db.commit()
+    assert r["auto_mode"] == "manual"
+    assert db.get(type(a), a.id).auto_mode == "manual"
+    # 수동설정 주기(시:분) 저장 + 분 0~59 클램프
+    r = svc.save_set_automation(db, a.id, {
+        "manual_crawl_hours": 2, "manual_crawl_minutes": 90,
+        "manual_upload_hours": 6, "manual_upload_minutes": 15,
+    }); db.commit()
+    assert r["manual_crawl_hours"] == 2 and r["manual_crawl_minutes"] == 59  # 90→59
+    assert r["manual_upload_hours"] == 6 and r["manual_upload_minutes"] == 15
+    # 음수 방지
+    svc.save_set_automation(db, a.id, {"manual_crawl_hours": -3}); db.commit()
+    assert db.get(type(a), a.id).manual_crawl_hours == 0
+    # 이상 모드 무시(화이트리스트)
+    svc.save_set_automation(db, a.id, {"auto_mode": "bogus"}); db.commit()
+    assert db.get(type(a), a.id).auto_mode == "manual"
+    # 없는 구성
+    assert svc.save_set_automation(db, 99999, {"auto_mode": "on"}) is None
+
+
+def test_signals_price_zero_is_severe():
+    from lemouton.sets.set_service import _signals
+    s = _signals([{"type": "price_zero"}], has_send=False)
+    assert s["price"] == "sev"
+
+
+def test_signals_stock_unknown_is_warn():
+    from lemouton.sets.set_service import _signals
+    s = _signals([{"type": "stock_unknown"}], has_send=False)
+    assert s["stock"] == "warn"
+
+
+def test_signals_soldout_still_severe_over_unknown():
+    from lemouton.sets.set_service import _signals
+    s = _signals([{"type": "market_soldout"}, {"type": "stock_unknown"}], has_send=False)
+    assert s["stock"] == "sev"

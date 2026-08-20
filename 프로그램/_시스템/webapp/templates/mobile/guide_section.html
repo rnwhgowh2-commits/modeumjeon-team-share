@@ -1,0 +1,62 @@
+{% extends "mobile/_base.html" %}
+{% block title %}크롤 가이드{% endblock %}
+{% block header_title %}{{ sec.num }}. {{ sec.title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── 읽기 규칙 — 본문 ≥14px · 코드/표는 자기 그릇 안에서 가로 스크롤 ── */
+  .mg-doc{font-size:15px;line-height:1.68;word-break:break-word;
+    color:var(--n900,var(--ink,#191F28))}
+  .mg-doc p{margin:0 0 10px}
+  /* [2026-08-05 실측 §5] 인라인 code 10px — 상대크기(.92em)는 유지하되 폰 하한을
+     11.5px 로 못 박는다(max). 표 안 code 도 이 선택자를 그대로 탄다. */
+  .mg-doc code{font-family:var(--mono,ui-monospace,Consolas,monospace);font-size:max(.92em,11.5px);
+    background:var(--n100,#F2F4F6);border-radius:4px;padding:1px 4px;word-break:break-all}
+  .mg-code{white-space:pre;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    background:var(--바탕-진하게,var(--ink,#0E1525));color:var(--글자-희미,#cdd6e2);
+    border-radius:8px;padding:12px;font-size:14px;line-height:1.5;
+    font-family:var(--mono,ui-monospace,Consolas,monospace);margin:0 0 10px}
+  .mg-code code{background:transparent;padding:0;color:inherit}
+  .mg-tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 10px;
+    border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:8px}
+  .mg-tbl{border-collapse:collapse;font-size:14px;min-width:100%}
+  .mg-tbl th,.mg-tbl td{border:1px solid var(--n200,var(--line,#E5E8EB));
+    padding:6px 8px;text-align:left;vertical-align:top;min-width:72px}
+  .mg-tbl th{background:var(--n100,#F2F4F6);font-weight:700;white-space:nowrap}
+  .mg-q{border-left:3px solid var(--n300,var(--faint,#D1D6DB));margin:0 0 10px;
+    padding:8px 12px;background:var(--n100,#F2F4F6);border-radius:0 8px 8px 0;
+    color:var(--n700,var(--글자-기본,#4E5968))}
+  .mg-h{margin:18px 0 8px;font-size:16px}
+  h4.mg-h,h5.mg-h,h6.mg-h{font-size:15px}
+  .mg-ul{margin:0 0 10px;padding-left:20px}
+  .mg-ul li{margin-bottom:4px}
+  .mg-doc hr{border:0;border-top:1px solid var(--n200,var(--line,#E5E8EB));margin:14px 0}
+  /* 이전/다음/목차 줄 — 터치 목표 44px */
+  .card{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));
+    border-radius:10px;padding:2px 12px;margin-top:14px}
+  .mg-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    min-height:44px;box-sizing:border-box;padding:8px 2px;text-decoration:none;
+    color:inherit;font-size:14px;font-weight:600;
+    border-bottom:1px solid var(--n100,#F2F4F6)}
+  .mg-nav:last-child{border-bottom:0}
+  .mg-nav .dir{color:var(--n500,var(--sub,#8B95A1));font-weight:500;flex-shrink:0}
+  .mg-nav .tt{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+{% endblock %}
+
+{% block content %}
+<article class="mg-doc">{{ body_html|safe }}</article>
+
+<div class="card">
+  {% if prev_s %}
+  <a class="mg-nav" href="/mobile/guide/s/{{ prev_s.key }}">
+    <span class="dir">‹ 이전</span><span class="tt">{{ prev_s.title }}</span></a>
+  {% endif %}
+  <a class="mg-nav" href="/mobile/guide">
+    <span class="tt">목차로</span><span class="dir">≡</span></a>
+  {% if next_s %}
+  <a class="mg-nav" href="/mobile/guide/s/{{ next_s.key }}">
+    <span class="tt">{{ next_s.title }}</span><span class="dir">다음 ›</span></a>
+  {% endif %}
+</div>
+{% endblock %}

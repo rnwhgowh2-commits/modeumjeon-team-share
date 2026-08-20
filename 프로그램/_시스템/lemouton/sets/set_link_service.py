@@ -30,10 +30,38 @@ def _gather_set_options(session: Session, set_id: int) -> list[dict]:
     if not skus:
         return []
     opts = session.query(Option).filter(Option.canonical_sku.in_(skus)).all()
+    # 🔴 [2026-08-13] `model`(모델명)을 같이 싣는다 — 3갈래로 올린 상품은
+    #   마켓 칸이 (모델명, 색상, 사이즈)라 이 값이 없으면 대조가 안 맞아
+    #   전부 unmatched 가 되고 가격·재고가 에러 없이 안 나간다.
+    #   값은 저장하지 않고 그때그때 만든다(`matrix/option_name.model_name_of`) —
+    #   모델 축이 없는 상품이면 매트릭스 이름이 곧 모델명이라 비지 않는다.
+    #   🔴 [2026-08-13] 묶음에 따로 적어 둔 모델명(`Model.bundle_model_name`)도
+    #     같이 넘긴다. 전송(`policy/to_payload`)과 **같은 값**이 나와야 대조가 맞는다 —
+    #     한쪽만 고치면 마켓엔 「메이트」로 올라갔는데 대조는 「르무통 메이트 24FW」로
+    #     찾아 전부 unmatched 가 되고, 가격·재고가 에러 없이 안 나간다.
+    from lemouton.matrix.option_name import model_name_of
+    from lemouton.sourcing.models import BundleOptionStep, Model
+    codes = sorted({o.model_code for o in opts if o.model_code})
+    nm_by_code, ax_by_code, bm_by_code = {}, {}, {}
+    if codes:
+        for m in session.query(Model).filter(Model.model_code.in_(codes)).all():
+            nm_by_code[m.model_code] = (m.model_name_display or m.model_name_raw
+                                        or m.model_code)
+            bm_by_code[m.model_code] = m.bundle_model_name
+        for code, axis_name in (session.query(BundleOptionStep.model_code,
+                                              BundleOptionStep.axis_name)
+                                .filter(BundleOptionStep.model_code.in_(codes))
+                                .order_by(BundleOptionStep.model_code,
+                                          BundleOptionStep.step_no).all()):
+            ax_by_code.setdefault(code, []).append(axis_name)
     return [
         {"canonical_sku": o.canonical_sku, "color_code": o.color_code,
          "color_display": o.color_display, "size_code": o.size_code,
-         "size_display": o.size_display}
+         "size_display": o.size_display,
+         "model": model_name_of(
+             nm_by_code.get(o.model_code, ''), o,
+             ax_by_code.get(o.model_code) or [],
+             bundle_model_name=bm_by_code.get(o.model_code))}
         for o in opts
     ]
 
@@ -42,8 +70,29 @@ def _resolve_env_prefix(session: Session, market: str, account_key: str):
     """채널의 (market, account_key) → UploadAccount.env_prefix. 없으면 None(전역 기본)."""
     try:
         from lemouton.sourcing.models_v2 import UploadAccount
-        a = (session.query(UploadAccount)
-             .filter_by(market=market, account_key=account_key).first())
+        q = session.query(UploadAccount).filter_by(market=market)
+        # 1) 정확 매칭(account_key → display_name).
+        a = q.filter_by(account_key=account_key).first()
+        if a is None and account_key:
+            a = q.filter_by(display_name=account_key).first()
+        # 2) 마켓명 접미사·괄호·공백을 제거한 '기본 이름'으로 유일 매칭(오계정 방지 위해
+        #    정확히 1개일 때만). 예: SetChannel "브랜드마켓" ↔ 계정 "브랜드마켓쿠팡"/
+        #    "브랜드마켓(쿠팡)"(COUPANG_5). 부분일치가 아니라 정규화 후 '동일'만 허용.
+        if a is None and account_key:
+            _ko = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온",
+                   "eleven11": "11번가", "auction": "옥션", "gmarket": "G마켓"}.get(market, "")
+
+            def _norm(s):
+                s = str(s or "")
+                for t in (f"({_ko})", _ko, "(", ")", " "):
+                    if t:
+                        s = s.replace(t, "")
+                return s
+
+            target = _norm(account_key)
+            hits = [c for c in q.all()
+                    if target and target in (_norm(c.account_key), _norm(c.display_name))]
+            a = hits[0] if len(hits) == 1 else None   # 모호(0·복수)면 안전하게 미해석
         return a.env_prefix if a else None
     except Exception:  # noqa: BLE001 — 계정 미존재/모델 미로드 시 전역 폴백
         return None

@@ -65,3 +65,30 @@ def update_quantity(
         return False
 
     return resp.get("code") == "SUCCESS"
+
+
+def get_quantity(
+    vendor_item_id: int,
+    client: Optional[CoupangClient] = None,
+) -> Optional[int]:
+    """옵션(vendorItemId) 현재 재고를 조회한다.
+
+    GET /vendor-items/{vendorItemId}/inventories → {data:{amountInStock:N}}.
+    실패/미상은 None 반환(0 하드코딩 금지 — 품절 둔갑 방지).
+    """
+    if not vendor_item_id or int(vendor_item_id) <= 0:
+        raise ValueError("vendor_item_id 는 양의 정수여야 합니다")
+    path = COUPANG["paths"]["get_inventory"].format(vendorItemId=vendor_item_id)
+    client = client or CoupangClient()
+    try:
+        resp = client.request(method="GET", path=path)
+    except CoupangAPIError as e:
+        logger.warning("재고 조회 실패 vendor_item_id=%s status=%s msg=%s",
+                       vendor_item_id, e.status_code, e.message)
+        return None
+    data = resp.get("data") or {}
+    amt = data.get("amountInStock")
+    try:
+        return int(amt) if amt is not None else None
+    except (TypeError, ValueError):
+        return None

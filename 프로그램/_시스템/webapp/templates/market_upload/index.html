@@ -5,7 +5,7 @@
    브랜드 앱 로고는 시스템 4색과 별개 — 원래 브랜드 컬러 그대로. #}
 <section class="screen active">
   <div class="page-header">
-    <h1><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 마켓 업로드 설정</h1>
+    <h1>마켓 업로드 설정</h1>
     <p class="subtitle">레츠 브라운 코트 시리즈 — {{ done_count }}개 마켓 설정 완료 / 전체 {{ total_count }}개. 좌측에서 마켓을 선택해 카테고리·마진율·옵션 매핑을 설정하세요.</p>
   </div>
 
@@ -72,7 +72,7 @@
             <label class="field-label">옵션 매핑 (사이즈)</label>
             <input class="field-input" value="{{ active_market.option_map }}">
             {% if active_market.status == 'in_progress' %}
-            <div class="field-hint" style="color:var(--warn-strong, #b45309);font-weight:600"><i class="ph-light ph-warning" aria-hidden="true"></i> 옵션 매핑 미완 — 검토 필요</div>
+            <div class="field-hint" style="color:var(--warn-strong, var(--amber,#b45309));font-weight:600"><i class="ph-light ph-warning" aria-hidden="true"></i> 옵션 매핑 미완 — 검토 필요</div>
             {% else %}
             <div class="field-hint">사이즈 코드 표준화</div>
             {% endif %}

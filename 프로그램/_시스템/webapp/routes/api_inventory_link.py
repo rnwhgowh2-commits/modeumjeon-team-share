@@ -137,7 +137,7 @@ def stock_adjust(sku):
             tx_type='adjust',
             location_id=loc.id if loc else None,
             option_canonical_sku=sku,
-            qty=diff,  # 조정량 (음수 가능)
+            qty=diff,  # 조정량 (음수 가능) — 원장은 차이값으로 통일(2026-08-13)
             memo=full_memo,
             source='local',
             status='completed',

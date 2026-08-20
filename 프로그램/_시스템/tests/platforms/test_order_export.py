@@ -1,0 +1,1256 @@
+# -*- coding: utf-8 -*-
+"""주문 엑셀 재사용 모듈 — Mock 단위테스트(스마트스토어 매핑·정산조인·xlsx·미지원마켓)."""
+import datetime as dt
+import urllib.parse as _urlparse
+
+import pytest
+
+from lemouton.markets import order_export as oe
+
+KST = dt.timezone(dt.timedelta(hours=9))
+
+# 쿠팡 정산 가짜응답이 지켜야 할 '인식일'. 아래 테스트들의 조회 시작이 모두 7/5 라 그 다음날.
+_CP_RECOGNIZED_ON = "2026-07-06"
+
+
+def _cp_window_hit(query: str) -> bool:
+    """revenue-history 질의의 인식일 창에 `_CP_RECOGNIZED_ON` 이 드는가.
+
+    🔴 [2026-08-01] order_export 는 정산 인식일이 주문일보다 늦는 걸 감안해 조회 끝을
+      **'지금'까지 넓히고** 25일 창으로 쪼개 여러 번 부른다(`_cp_windows`). 그래서 날짜를
+      무시하고 매번 같은 정산을 돌려주는 가짜응답은 **창 수만큼 합산**돼 정산액이 배로 뛴다.
+      달력이 지나가는 것만으로 저절로 깨진다 —
+        · 조회 시작 7/5 기준, 2026-07-25 에는 20일=창 1개 → 통과
+        · 2026-08-01 에는 27일=창 2개 → 정확히 2배 (99,999 가 199,998 로)
+        · 2026-08-25 에는 51일=창 3개 → 3배
+      프로그램 결함이 아니라 **가짜응답의 결함**이다(창은 rec_to=창끝−1일 이라 서로 안
+      겹치므로 실제 API 는 한 번만 준다). 실제 API 처럼 창을 지키게 한다.
+    """
+    q = dict(_urlparse.parse_qsl(query))
+    return q.get("recognitionDateFrom", "") <= _CP_RECOGNIZED_ON <= q.get("recognitionDateTo", "")
+
+
+_CP_NO_SETTLE = {"data": [], "hasNext": False}   # 인식일이 안 든 창의 응답
+
+
+class FakeSSClient:
+    """SmartStoreClient 대역 — 엔드포인트별 응답 라우팅."""
+    def request(self, method, path, query="", body=None):
+        if "last-changed-statuses" in path:
+            return {"data": {"lastChangeStatuses": [{"productOrderId": "P1"}]}}
+        if path.endswith("/product-orders/query"):
+            return {"data": [{
+                "order": {"orderDate": "2026-07-05T09:00:00", "ordererName": "구매자A", "ordererTel": "01000000000"},
+                "productOrder": {"productOrderId": "P1", "productName": "코트", "productOption": "블랙/95",
+                                 "quantity": 1, "unitPrice": 189000,
+                                 "shippingAddress": {"name": "수령자A", "tel1": "01011112222",
+                                                     "zipCode": "13105", "baseAddress": "서울 어딘가", "detailedAddress": "101동"}},
+            }]}
+        if "pay-settle/settle/case" in path:
+            return {"elements": [{"productOrderId": "P1", "settleExpectAmount": 169155}],
+                    "pagination": {"totalPages": 1}}
+        return {"data": {}}
+
+
+def test_smartstore_rows_map_and_join(monkeypatch):
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClient())
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["상품명"] == "코트" and r["옵션"] == "블랙/95"
+    assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
+    assert r["단가"] == 189000
+    assert r["정산예정금액"] == 169155        # 정산 조인됨
+    assert r["판매처"] == "스마트스토어"       # 판매처 열(B)
+
+
+class FakeSSClaimClient:
+    """반품 클레임 상품주문 대역 — productOrderStatus=RETURNED(반품완료) + 구매자 상세."""
+    def request(self, method, path, query="", body=None):
+        if "last-changed-statuses" in path:
+            return {"data": {"lastChangeStatuses": [{"productOrderId": "R1"}]}}
+        if path.endswith("/product-orders/query"):
+            return {"data": [{
+                "order": {"orderDate": "2026-07-05T09:00:00", "ordererName": "김구매", "ordererTel": "01099998888"},
+                "productOrder": {"productOrderId": "R1", "productName": "반품상품", "productOption": "블랙/250",
+                                 "quantity": 1, "unitPrice": 50000, "productOrderStatus": "RETURNED",
+                                 "claim": {"claimRequestDate": "2026-07-06T10:00:00"},
+                                 "shippingAddress": {"name": "김수령", "tel1": "01011112222",
+                                                     "zipCode": "13105", "baseAddress": "서울 강남", "detailedAddress": "1동"}},
+            }]}
+        return {"data": {}}
+
+
+def test_smartstore_claim_rows_tagged_change_with_buyer():
+    """#2: 스스 클레임 행은 _kind=change 로 태그돼 CS(status_change_rows)에 잡히고,
+    구매자·수령자·전화·주소·상품명이 CS 카드용으로 그대로 채워진다(#4)."""
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 7, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClaimClient(),
+                                    include_settlement=False)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["주문상태"] == "반품완료"
+    assert r.get("_kind") == "change"                 # CS 에 잡히도록 태그(없으면 0건)
+    assert str(r.get("_change_date", "")).startswith("2026-07-06")
+    assert r["상품명"] == "반품상품"
+    assert r["구매자"] == "김구매" and r["수령자"] == "김수령"
+    assert r["수령자전화번호"] == "01011112222"
+    assert "서울 강남" in r["주소"]
+
+
+def test_smartstore_normal_order_not_tagged_change():
+    """일반 주문(결제완료·배송중 등)은 change 태그가 붙지 않아야 한다(신규주문 유지)."""
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClient())
+    assert rows[0].get("_kind") != "change"
+
+
+def test_enrich_change_from_active_fills_buyer_and_name():
+    """#3: 클레임(change) 빈칸을 같은 주문번호의 활성(order) 주문에서 채운다(추가 조회 없음)."""
+    rows = [
+        {"_kind": "order", "판매처": "쿠팡", "오픈마켓주문번호": "O1", "상품명": "코트",
+         "구매자": "김구매", "수령자": "김수령", "수령자전화번호": "01012345678",
+         "주소": "서울 강남", "우편번호": "06000"},
+        {"_kind": "change", "판매처": "쿠팡", "오픈마켓주문번호": "O1", "상품명": "코트",
+         "구매자": "김구매", "수령자": "", "수령자전화번호": "", "주소": ""},   # 쿠팡 클레임=이름만
+    ]
+    oe._enrich_change_from_active(rows)
+    ch = rows[1]
+    assert ch["수령자전화번호"] == "01012345678"   # 활성서 채움
+    assert ch["주소"] == "서울 강남"
+    assert ch["수령자"] == "김수령"
+
+
+def test_enrich_skips_when_no_active_match():
+    """활성에 같은 주문번호가 없으면(발주 전 취소 등) 못 채우고 그대로 둔다(폴백 금지)."""
+    rows = [{"_kind": "change", "판매처": "11번가", "오픈마켓주문번호": "X9",
+             "상품명": "", "구매자": "", "수령자전화번호": "", "주소": ""}]
+    oe._enrich_change_from_active(rows)
+    assert rows[0]["상품명"] == "" and rows[0]["주소"] == ""
+
+
+def test_enrich_productname_only_when_unambiguous():
+    """상품명은 그 주문의 활성 상품명이 한 종류일 때만 채운다(다품목 주문 오채움 금지)."""
+    # 단일 상품명 → 채움
+    rows1 = [
+        {"_kind": "order", "판매처": "11번가", "오픈마켓주문번호": "A", "상품명": "티셔츠"},
+        {"_kind": "change", "판매처": "11번가", "오픈마켓주문번호": "A", "상품명": ""},
+    ]
+    oe._enrich_change_from_active(rows1)
+    assert rows1[1]["상품명"] == "티셔츠"
+    # 두 상품명 → 모호 → 안 채움
+    rows2 = [
+        {"_kind": "order", "판매처": "11번가", "오픈마켓주문번호": "B", "상품명": "티셔츠"},
+        {"_kind": "order", "판매처": "11번가", "오픈마켓주문번호": "B", "상품명": "바지"},
+        {"_kind": "change", "판매처": "11번가", "오픈마켓주문번호": "B", "상품명": ""},
+    ]
+    oe._enrich_change_from_active(rows2)
+    assert rows2[2]["상품명"] == ""
+
+
+def test_ss_estimate_settle_formula():
+    # 매출 × 0.94 (수수료 6%). 실결제금액 우선, 없으면 단가×수량, 둘 다 없으면 빈칸(폴백 0 금지).
+    assert oe._ss_estimate_settle(90000, 100000, 1) == round(90000 * 0.94)   # 실결제 우선
+    assert oe._ss_estimate_settle("", 50000, 2) == round(100000 * 0.94)      # 단가×수량 폴백
+    assert oe._ss_estimate_settle("", "", 1) == ""                           # 근거 없음 → 빈칸
+
+
+class FakeSSClientNoSettle:
+    """정산 전(최근) 주문 대역 — settle/case 는 빈 응답(오늘 주문=정산 미확정)."""
+    def request(self, method, path, query="", body=None):
+        if "last-changed-statuses" in path:
+            return {"data": {"lastChangeStatuses": [{"productOrderId": "P9"}]}}
+        if path.endswith("/product-orders/query"):
+            return {"data": [{
+                "order": {"orderDate": "2026-07-05T09:00:00", "ordererName": "구매자", "ordererTel": "010"},
+                "productOrder": {"productOrderId": "P9", "productName": "코트", "productOption": "블랙/95",
+                                 "quantity": 1, "unitPrice": 100000, "totalPaymentAmount": 90000,
+                                 "shippingAddress": {"name": "수령", "tel1": "010", "zipCode": "1",
+                                                     "baseAddress": "서울", "detailedAddress": "1"}},
+            }]}
+        if "pay-settle/settle/case" in path:
+            return {"elements": [], "pagination": {"totalPages": 1}}   # 정산 없음
+        return {"data": {}}
+
+
+def test_smartstore_estimates_settle_when_unsettled():
+    # 정산 전 최근 주문 → 실결제금액 × 0.94 추정 + _settle_source='estimated'(실값과 구분).
+    #  빈칸으로 두면 순마진=0-매입=손실로 둔갑(사용자 지적).
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClientNoSettle())
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["_settle_source"] == "estimated"
+    assert r["정산예정금액"] == round(90000 * 0.94)     # 실결제 90000 × 0.94 = 84600
+
+
+def test_smartstore_real_settle_wins_over_estimate():
+    # 실정산 있으면 추정 대신 확정액 사용(_settle_source='real').
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    r = oe.smartstore_order_rows(since, until, client=FakeSSClient())[0]
+    assert r["_settle_source"] == "real" and r["정산예정금액"] == 169155
+
+
+def test_order_rows_rejects_unsupported():
+    for mk in ("gmarket", "auction", "wemakeprice"):
+        with pytest.raises(ValueError):
+            oe.order_rows(mk, days=7)          # UI 미노출 마켓 — 추측 데이터 안 만듦
+
+
+def test_order_rows_uses_explicit_range(monkeypatch):
+    # since/until 명시 시 days 대신 그 기간을 그대로 빌더에 전달(빠른 기간 버튼·직접 날짜)
+    cap = {}
+    def fake_builder(since, until, client=None, include_settlement=True):
+        cap["since"], cap["until"] = since, until
+        return []
+    monkeypatch.setitem(oe._BUILDERS, "smartstore", fake_builder)
+    # [2026-08-01] `_account_client(market, prefix)` 로 인자가 늘었는데 대역은 1개짜리로
+    #   남아 있었다. 계정이 등록된 환경에서만 호출돼 TypeError 가 나서, 주변 상태에 따라
+    #   붙었다 떨어졌다 했다(전체 실행 통과 · 이 파일만 실행 실패).
+    monkeypatch.setattr(oe, "_account_client", lambda m, prefix=None: object())
+    s = dt.datetime(2026, 6, 1, tzinfo=KST)
+    u = dt.datetime(2026, 6, 10, 23, 59, 59, tzinfo=KST)
+    oe.order_rows("smartstore", days=7, since=s, until=u)
+    assert cap["since"] == s and cap["until"] == u   # days=7 무시, 명시 기간 사용
+
+
+def test_combined_range_in_cache_key(monkeypatch):
+    # 기간이 다르면 캐시 키가 달라 각각 조회(같은 마켓이라도 섞이지 않음)
+    oe.clear_cache()
+    calls = []
+    def fake(mk, days=7, now=None, since=None, until=None, **k):
+        calls.append((since, until))
+        return []
+    monkeypatch.setattr(oe, "order_rows", fake)
+    s1 = dt.datetime(2026, 6, 1, tzinfo=KST); u1 = dt.datetime(2026, 6, 2, tzinfo=KST)
+    s2 = dt.datetime(2026, 6, 3, tzinfo=KST); u2 = dt.datetime(2026, 6, 4, tzinfo=KST)
+    oe.combined_order_rows(["coupang"], use_cache=True, since=s1, until=u1)
+    oe.combined_order_rows(["coupang"], use_cache=True, since=s1, until=u1)  # 캐시 히트
+    oe.combined_order_rows(["coupang"], use_cache=True, since=s2, until=u2)  # 다른 기간→조회
+    assert calls == [(s1, u1), (s2, u2)]
+    oe.clear_cache()
+
+
+def test_rows_to_xlsx_default_columns():
+    xlsx = oe.rows_to_xlsx([{"판매처": "쿠팡", "상품명": "코트"}])
+    assert xlsx[:2] == b"PK"                    # xlsx = zip
+    import io, openpyxl
+    ws = openpyxl.load_workbook(io.BytesIO(xlsx)).active
+    assert [(c.value or "") for c in ws[1]] == oe.DEFAULT_COLUMNS
+    assert ws[1][1].value == "판매처" and ws[1][2].value == "주문상태"   # B열·C열
+    assert ws[2][1].value == "쿠팡"             # 판매처 값
+
+
+def test_rows_to_xlsx_custom_columns_order():
+    cols = ["판매처", "주문상태", "상품명"]        # 사용자 지정 부분집합·순서
+    xlsx = oe.rows_to_xlsx([{"판매처": "쿠팡", "주문상태": "결제완료", "상품명": "코트", "단가": 9}], columns=cols)
+    import io, openpyxl
+    ws = openpyxl.load_workbook(io.BytesIO(xlsx)).active
+    assert [c.value for c in ws[1]] == cols     # 지정 열만·순서대로
+    assert [c.value for c in ws[2]] == ["쿠팡", "결제완료", "코트"]
+
+
+def test_resolve_columns_filters_unknown():
+    assert oe.resolve_columns(["상품명", "없는열", "판매처"]) == ["상품명", "판매처"]
+    assert oe.resolve_columns([]) == oe.DEFAULT_COLUMNS
+    assert oe.resolve_columns(None) == oe.DEFAULT_COLUMNS
+
+
+def test_supported_markets():
+    # 11번가는 서버 실호출 검증 완료(2026-07-08) → 정적 SUPPORTED 포함.
+    # 옥션·G마켓은 판매처관리 「🧪 라이브 검증」을 통과한 뒤에만 supported_markets() 에 붙는다.
+    assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang", "eleven11"}
+    # 검증 기록이 없으면(테스트 DB) 실효 게이트도 4개 그대로여야 한다.
+    assert oe.supported_markets() == oe.SUPPORTED
+
+
+def test_cp_estimate_settle_formula():
+    """정산 = 기준 − 반올림(기준 × 11.55%). **쿠팡과 같은 순서·같은 반올림.**
+
+    🔴 [2026-08-13 정정] 옛 시험은 `round(103000 * 0.8845)` 로 **구현식을 그대로
+      베껴 적어** 있었다. 그러면 식이 틀려도 시험은 늘 통과한다(자기 자신과 비교).
+      실제로 그 식은 쿠팡보다 **1원 크게** 잡고 있었다 —
+      파이썬 `round()` 는 은행가 반올림이라 `.5` 를 짝수 쪽으로 보내는데,
+      쿠팡 정산 엑셀 실측 결과 `.5` 로 떨어지는 **28행 전부 쿠팡이 올림**이었다.
+      그래서 여기선 **숫자를 손으로 적는다** — 구현이 바뀌면 여기서 걸리게.
+
+    🔴 [2026-08-13 재정정] 사장님이 준 쿠팡 시험 결과대로 **상품과 배송료를 따로** 센다.
+      수수료 = 반올림( 버림(기준 × 요율(VAT별도)) × 1.1 ) · 상품 10.5% / 배송료 3.0%
+      옛 식은 배송비까지 한데 묶어 상품 요율로 물렸다.
+
+        상품 100,000 : 버림(10,500) × 1.1 = 11,550.0 → 11,550 → 88,450
+        배송  3,000 : 버림(   90) × 1.1 =     99.0 →     99 →  2,901
+        합계 91,351
+        상품 200,000 : 버림(21,000) × 1.1 = 23,100.0 → 23,100 → 176,900
+    """
+    assert oe._cp_estimate_settle(100000, 1, 3000) == 88450 + 2901
+    assert oe._cp_estimate_settle(100000, 2, 0) == 176900
+    assert oe._cp_estimate_settle("", 1, 3000) == ""      # 단가 없으면 추정 안 함(폴백 금지)
+    assert oe._cp_estimate_settle(None, 1, 0) == ""
+
+
+def test_coupang_actual_wins_over_estimate():
+    # 실 정산액이 있으면 추정 대신 확정액 사용
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 5, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 3000},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
+            if "revenue-history" in path:
+                if not _cp_window_hit(query):
+                    return _CP_NO_SETTLE
+                return {"data": [{"orderId": 5, "items": [{"vendorItemId": 9, "settlementAmount": 99999}]}], "hasNext": False}
+            return {"data": [], "nextToken": ""}
+    r = oe.coupang_order_rows(dt.datetime(2026,7,5,tzinfo=oe.KST), dt.datetime(2026,7,8,tzinfo=oe.KST), client=C())[0]
+    assert r["정산예정금액"] == 99999            # 확정액 우선(추정 아님)
+
+
+def test_coupang_settlement_join(monkeypatch):
+    # 발주서 조회 → revenue-history 를 (주문번호,옵션ID)로 조인해 정산예정금액 채움
+    class C:
+        _cfg = {"vendor_id": "A00012345"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path:
+                if "nextToken" in query:
+                    return {"data": [], "nextToken": ""}
+                return {"data": [{"shipmentBoxId": 1, "orderId": 777, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 189000}}]}],
+                        "nextToken": ""}
+            if "revenue-history" in path:
+                if not _cp_window_hit(query):
+                    return _CP_NO_SETTLE
+                return {"data": [{"orderId": 777, "items": [
+                        {"vendorItemId": 9, "settlementAmount": 165155}]}], "hasNext": False}
+            return {"data": []}
+    since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
+    until = dt.datetime(2026, 7, 8, tzinfo=oe.KST)
+    rows = oe.coupang_order_rows(since, until, client=C())
+    assert len(rows) == 1
+    assert rows[0]["정산예정금액"] == 165155      # revenue-history 조인됨
+    assert "_oid" not in rows[0] and "_vid" not in rows[0]   # 임시키 정리됨
+
+
+def test_coupang_settlement_join_vendorItemId_type_mismatch(monkeypatch):
+    """ordersheets(vendorItemId=문자열)↔revenue-history(vendorItemId=정수) 타입 불일치라도
+    조인돼야 한다. 수정 전엔 (oid,vid) 튜플키 전량 미스로 estimated 폴백하던 버그 회귀 방지."""
+    class C:
+        _cfg = {"vendor_id": "A00012345"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path:
+                if "nextToken" in query:
+                    return {"data": [], "nextToken": ""}
+                return {"data": [{"shipmentBoxId": 1, "orderId": 777, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {},
+                        "orderItems": [{"vendorItemId": "82914", "sellerProductName": "코트",  # 문자열
+                                        "shippingCount": 1, "salesPrice": {"units": 189000}}]}],
+                        "nextToken": ""}
+            if "revenue-history" in path:
+                if not _cp_window_hit(query):
+                    return _CP_NO_SETTLE
+                return {"data": [{"orderId": 777, "items": [
+                        {"vendorItemId": 82914, "settlementAmount": 165155}]}], "hasNext": False}  # 정수
+            return {"data": []}
+    since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
+    until = dt.datetime(2026, 7, 8, tzinfo=oe.KST)
+    rows = oe.coupang_order_rows(since, until, client=C())
+    assert len(rows) == 1
+    assert rows[0]["정산예정금액"] == 165155
+    assert rows[0]["_settle_source"] == "real"   # estimated 아님
+
+
+
+def test_coupang_claims_merge():
+    """returnRequests(취소/반품)+exchangeRequests(교환) 병합 (MCP 실측 스펙)."""
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 100, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "orderItems": [{"vendorItemId": 9,
+                        "sellerProductName": "활성", "shippingCount": 1,
+                        "salesPrice": {"units": 10000}}]}], "nextToken": ""}
+            if "returnRequests" in path:
+                return {"data": [{"receiptId": 501, "orderId": 200, "receiptType": "CANCEL",
+                        "reasonCodeText": "변심", "requesterName": "홍길동",
+                        "requesterPhoneNumber": "010-1111-2222",
+                        "requesterAddress": "서울 송파구 송파대로 570",
+                        "requesterAddressDetail": "3층", "requesterZipCode": "05510",
+                        "createdAt": "2026-07-06T10:00:00",
+                        "returnItems": [{"sellerProductName": "취소상품", "vendorItemName": "옵A",
+                                         "cancelCount": 1}]}]}
+            if "exchangeRequests" in path:
+                return {"data": [{"exchangeId": 601, "orderId": 300, "reasonCodeText": "불량",
+                        "createdAt": "2026-07-06T11:00:00",
+                        "exchangeItemDtoV1s": [{"orderItemName": "교환상품", "quantity": 2,
+                                                "orderItemUnitPrice": 7000}]}]}
+            if "revenue-history" in path:
+                return {"data": [], "hasNext": False}
+            return {"data": [], "nextToken": ""}
+    rows = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                                 dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())
+    st = {r["주문상태"] for r in rows}
+    # 주문상태 통일(2026-07-10): 접수 단계는 '취소요청·교환요청'(완료와 구분). 옛 '취소·교환' 아님.
+    assert {"취소요청", "교환요청"} <= st
+    # 행 중복 없음 — 주문1 + 취소1 + 교환1. 중복 시 주문 건수·정산 합계가 부풀려짐(CLAUDE.md).
+    assert len(rows) == 3
+    cx = [r for r in rows if r["주문상태"] == "취소요청"][0]
+    assert cx["오픈마켓주문번호"] == "200" and cx["상품명"] == "취소상품" and cx["수량"] == 1
+    # #3: 반품/취소 목록조회가 주는 구매자 연락처·주소를 캡처(추가 API 0)
+    assert cx["수령자전화번호"] == "010-1111-2222"
+    assert cx["주소"] == "서울 송파구 송파대로 570 3층" and cx["우편번호"] == "05510"
+    ex = [r for r in rows if r["주문상태"] == "교환요청"][0]
+    assert ex["오픈마켓주문번호"] == "300" and ex["수량"] == 2
+
+
+def test_columns_bc_are_market_and_status():
+    assert oe.ALL_COLUMNS[0] == "주문일"
+    assert oe.ALL_COLUMNS[1] == "판매처"      # 요청: B열 판매처
+    assert oe.ALL_COLUMNS[2] == "주문상태"    # 요청: C열 주문상태
+
+
+def test_amount_columns_order():
+    i = oe.ALL_COLUMNS.index("단가")
+    assert oe.ALL_COLUMNS[i + 1] == "배송비"       # 단가 다음 = 배송비
+    assert oe.ALL_COLUMNS[i + 2] == "상품금액"     # 단가×수량
+    assert oe.ALL_COLUMNS[i + 3] == "주문금액"     # 상품금액+배송비
+    assert oe.ALL_COLUMNS[i + 4] == "정산예정금액"
+
+
+def test_column_meta_marks_calc_vs_api():
+    m = oe.columns_meta()
+    assert m["상품금액"]["kind"] == "calc" and "단가" in m["상품금액"]["desc"]
+    assert m["주문금액"]["kind"] == "calc"
+    assert m["정산예정금액"]["kind"] == "calc"
+    assert m["단가"]["kind"] == "api"                    # 마켓 원본
+    assert oe.column_meta("없는열")["kind"] == "api"      # 미등록=원본 기본
+    assert set(m) == set(oe.ALL_COLUMNS)                 # 전 열 메타 보유
+
+
+def test_finalize_amounts_and_shipping_dedup():
+    rows = [
+        {"_shipkey": ("cp", "O1"), "단가": 10000, "수량": 2, "배송비": 3000},
+        {"_shipkey": ("cp", "O1"), "단가": 5000, "수량": 1, "배송비": 3000},    # 같은 배송건 → 배송비 0
+        {"_shipkey": ("cp", "O2"), "단가": 7000, "수량": 1, "배송비": "0.00"},
+    ]
+    out = oe._finalize_rows(rows)
+    assert out[0]["상품금액"] == 20000 and out[0]["배송비"] == 3000 and out[0]["주문금액"] == 23000
+    assert out[1]["상품금액"] == 5000 and out[1]["배송비"] == 0 and out[1]["주문금액"] == 5000
+    assert out[2]["상품금액"] == 7000 and out[2]["배송비"] == 0 and out[2]["주문금액"] == 7000
+    assert "_shipkey" not in out[0]                # 임시키 정리
+
+
+def test_coupang_settle_includes_delivery():
+    # M열 = 상품 settlementAmount 만 — 배송비 정산은 M에 안 섞는다(2026-07-23 샵마인
+    # 45건 전수: 샵 M=상품분, N=M+고객배송비 전액. M에 배송비 97%를 더하면 N 이중가산 +4,014).
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 5, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 3000},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
+            if "revenue-history" in path:
+                if not _cp_window_hit(query):
+                    return _CP_NO_SETTLE
+                return {"data": [{"orderId": 5, "deliveryFee": {"settlementAmount": 2900},
+                        "items": [{"vendorItemId": 9, "settlementAmount": 88450}]}], "hasNext": False}
+            return {"data": [], "nextToken": ""}
+    r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
+    assert r["배송비"] == 3000
+    assert r["정산예정금액"] == 88450              # 상품정산만(배송비는 N열=M+고객배송비)
+
+
+def test_coupang_shipping_only_settlement_is_real():
+    """배송비정산만 있는 주문 — 샵마인 M열 규약(상품분만) 전환 후 M은 공란이 정답.
+    (배송비 정산을 M에 넣으면 N열=M+고객배송비가 이중 가산 — 2026-07-23 규약 전환.
+    샵마인도 이런 행의 M은 공란/알수없음.)"""
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                # 상품 라인이지만 salesPrice 없음 → 단가 "" → 상품추정 불가
+                return {"data": [{"shipmentBoxId": 1, "orderId": 24100197897393, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 4000},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "반품상품",
+                                        "shippingCount": 0}]}], "nextToken": ""}
+            if "revenue-history" in path:
+                # 상품 item 정산 없음, 배송비 정산만 9670
+                return {"data": [{"orderId": 24100197897393, "deliveryFee": {"settlementAmount": 9670},
+                        "items": []}], "hasNext": False}
+            return {"data": [], "nextToken": ""}
+    # 단일 정산 윈도우(≤30일) — fake 가 매 호출 같은 데이터라 다중 윈도우면 배송비 중복합산(테스트 artifact)
+    r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
+    assert r["정산예정금액"] == ""               # 상품정산 없음 → M 공란(샵마인 규약)
+    assert r["_settle_source"] == "none"
+
+
+def test_coupang_settle_map_refund_subtracts_product():
+    """REFUND 주문의 상품 settlementAmount 는 양수로 오지만(부호 없음) 순정산에서 차감돼야 한다.
+    라이브 raw 실증(2026-07-16): SALE +88450 / REFUND +88450 → 순정산 0. 안 빼면 반품 상품이
+    판매처럼 더해져 정산액 2배 과다계상(금전손실). 배송비 settlementAmount 는 REFUND에서 이미
+    음수(-2900)로 부호가 실려오므로 그대로 합산."""
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "revenue-history" in path and "token=&" in query:   # 첫 페이지만
+                return {"data": [
+                    {"orderId": 7, "saleType": "SALE",
+                     "deliveryFee": {"settlementAmount": 2900},
+                     "items": [{"vendorItemId": 9, "settlementAmount": 88450}]},
+                    {"orderId": 7, "saleType": "REFUND",
+                     "deliveryFee": {"settlementAmount": -2900},
+                     "items": [{"vendorItemId": 9, "settlementAmount": 88450}]},
+                ], "hasNext": False}
+            return {"data": [], "hasNext": False}
+    item_map, deliv_map, _dates = oe._coupang_settle_map(
+        dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+        dt.datetime(2026, 7, 8, tzinfo=oe.KST), C())
+    assert item_map[("7", "9")] == 0       # +88450(SALE) − 88450(REFUND) = 0 (버그면 176900)
+    assert deliv_map["7"] == 0             # +2900 + (−2900) = 0 (배송비는 이미 부호 실림)
+
+
+def test_coupang_estimate_shipping_fee_3pct():
+    # 미정산 추정 M열 = 상품 11.55%(0.8845)만. 배송비는 N열(_finalize=M+고객배송비 전액)
+    # — 샵마인 45건 전수 실측(2026-07-23) N=M+ship, 배송비 3% 차감은 M·N 어디에도 없음.
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 5, "status": "ACCEPT",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 3000},
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
+            return {"data": [], "nextToken": "", "hasNext": False}   # 미정산(revenue 빈값)
+    r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
+    assert r["배송비"] == 3000
+    assert r["정산예정금액"] == round(100000 * 0.8845)   # 상품 추정만(배송비는 N열에서)
+
+
+def test_smartstore_settle_maps_splits_delivery():
+    from shared.platforms.smartstore import settlements as ss
+    class C:
+        def request(self, method, path, query="", body=None):
+            return {"elements": [
+                {"productOrderType": "PROD_ORDER", "productOrderId": "P1", "orderId": "O1", "settleExpectAmount": 10000},
+                {"productOrderType": "DELIVERY", "productOrderId": "SHIP1", "orderId": "O1", "settleExpectAmount": 2500},
+            ], "pagination": {"totalPages": 1}}
+    prod, deliv = ss.settle_expect_maps(search_date="2026-07-01", client=C())
+    assert prod == {"P1": 10000}                  # 상품 정산 = 상품주문번호별
+    assert deliv == {"O1": 2500}                  # 배송비 정산 = 주문번호별
+
+
+def test_combined_rows_sorted_desc(monkeypatch):
+    # 두 마켓 행을 합쳐 주문일 내림차순 정렬
+    monkeypatch.setattr(oe, "order_rows", lambda mk, days=7, **k: {
+        "coupang": [{"주문일": "2026-07-01", "판매처": "쿠팡"}],
+        "lotteon": [{"주문일": "2026-07-05", "판매처": "롯데온"}],
+    }[mk])
+    out = oe.combined_order_rows(["coupang", "lotteon"], days=7)
+    assert [r["주문일"] for r in out] == ["2026-07-05", "2026-07-01"]   # 최신 먼저
+
+
+def test_combined_filters_by_order_date(monkeypatch):
+    # 기간(since/until) 명시 시 주문일이 범위 밖인 행은 제외(기간=주문일 통일).
+    monkeypatch.setattr(oe, "order_rows", lambda mk, **k: [
+        {"주문일": "2026-07-03 10:00:00", "판매처": "11번가"},   # 범위 안
+        {"주문일": "2026-06-28 20:22:54", "판매처": "11번가"},   # 범위 밖(구매확정만 오늘)
+        {"주문일": "값없음", "판매처": "11번가"},                 # 파싱 실패 → 남김
+    ])
+    since = dt.datetime(2026, 7, 1, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, 59, tzinfo=KST)
+    out = oe.combined_order_rows(["eleven11"], since=since, until=until)
+    days = [r["주문일"] for r in out]
+    assert "2026-07-03 10:00:00" in days          # 주문일 범위 안 → 포함
+    assert "2026-06-28 20:22:54" not in days       # 주문일 범위 밖 → 제외
+    assert "값없음" in days                          # 파싱 실패 → 데이터 손실 방지 위해 남김
+
+
+def test_combined_parallel_error_propagates(monkeypatch):
+    # 한 마켓이 실패하면 전체 실패로 전파(부분 성공 숨김 금지) — warnings 채널 없음(엑셀)
+    def _fake(mk, days=7, **k):
+        if mk == "coupang":
+            raise RuntimeError("쿠팡 인증 실패")
+        return [{"주문일": "2026-07-05", "판매처": "롯데온"}]
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    with pytest.raises(RuntimeError):
+        oe.combined_order_rows(["coupang", "lotteon"], days=7)
+
+
+def test_smartstore_never_queries_future_dates(monkeypatch):
+    """기간추론(+3일 마진)이 period_to 를 미래로 만들면(예: 오늘 07-13, until 07-15),
+    naver last-changed API 가 HTTP 400 [104139] '조회 가능한 날짜 범위를 초과'로 거절 →
+    스마트스토어 매출 통째 누락 → 마진 마이너스(라이브 실측 id2). until 을 now 로 캡한다."""
+    import shared.platforms.smartstore.orders as _sso
+    cap = {}
+    def fake_iter(since, until, client=None, **k):
+        cap["since"], cap["until"] = since, until
+        return []                                   # 상세·정산 경로 안 타게 빈 목록
+    monkeypatch.setattr(_sso, "iter_changed_product_order_ids", fake_iter)
+    now = dt.datetime.now(oe.KST)
+    future_until = now + dt.timedelta(days=2)        # 미래 period_to (기간추론 마진)
+    since = now - dt.timedelta(days=11)
+    oe.smartstore_order_rows(since, future_until, client=object(),
+                             include_settlement=False)
+    # 조회 끝(lastChangedTo)이 미래로 나가면 안 됨 — now 이하로 캡
+    assert cap["until"] <= now + dt.timedelta(seconds=2)
+
+
+def test_smartstore_fetch_window_extends_to_now_when_until_past(monkeypatch):
+    """until 이 과거(마진 기간추론=max(주문일)+3일 < 오늘)이고 스팬>10일이어도, 상태변경
+    (구매확정·반품 등)이 until 이후로 드리프트한 주문을 잡으려면 조회 끝을 now 까지 확장해야 한다.
+    구 +3일/10일 버퍼는 until 로 되돌려 그 주문을 통째 누락(정산 매칭 불가)시켰다 → 회귀 방지."""
+    import shared.platforms.smartstore.orders as _sso
+    cap = {}
+    def fake_iter(since, until, client=None, **k):
+        cap["since"], cap["until"] = since, until
+        return []
+    monkeypatch.setattr(_sso, "iter_changed_product_order_ids", fake_iter)
+    now = dt.datetime.now(oe.KST)
+    past_until = now - dt.timedelta(days=5)          # 과거 period_to
+    since = now - dt.timedelta(days=20)              # 스팬 20일(>10 → 구 버퍼는 fetch_until=until)
+    oe.smartstore_order_rows(since, past_until, client=object(),
+                             include_settlement=False)
+    # 조회 끝이 until(과거)이 아니라 now 까지 확장돼야 함
+    assert cap["until"] >= now - dt.timedelta(seconds=2)
+    assert cap["until"] > past_until
+
+
+def test_order_rows_coerces_naive_dates_to_aware(monkeypatch):
+    """라이브 마진 경로는 naive since/until(_parse_dt)을 넘긴다. 빌더(smartstore 등)가
+    now=datetime.now(KST)(aware)와 비교하므로 naive 면 'offset-naive vs offset-aware' TypeError 로
+    그 마켓 조회가 통째 실패한다 → 스마트스토어 제외 → 매출 누락·마진 마이너스(라이브 실측).
+    order_rows 가 KST-aware 로 강제해 어느 호출부가 넘겨도 안전하게 한다."""
+    cap = {}
+    def fake_builder(since, until, client=None, include_settlement=True):
+        cap["since"], cap["until"] = since, until
+        return []
+    monkeypatch.setitem(oe._BUILDERS, "smartstore", fake_builder)
+    oe.order_rows("smartstore", client=object(),
+                  since=dt.datetime(2026, 7, 2), until=dt.datetime(2026, 7, 15))
+    assert cap["since"].tzinfo is not None and cap["until"].tzinfo is not None  # aware 로 강제
+    # 이미 aware 면 시각 이동 없이 그대로
+    cap.clear()
+    aware_s = dt.datetime(2026, 7, 2, tzinfo=oe.KST)
+    aware_u = dt.datetime(2026, 7, 15, tzinfo=oe.KST)
+    oe.order_rows("smartstore", client=object(), since=aware_s, until=aware_u)
+    assert cap["since"] == aware_s and cap["until"] == aware_u
+
+
+def test_eleven11_claim_row_no_synthetic_date(monkeypatch):
+    """11번가 클레임(취소완료) 행 주문일은 공란 — ordNo 앞 8자리는 실주문일이 아니다
+    (라이브: 20260703…인데 실주문일 07-06 → 07-03 오추정돼 기간필터 탈락). 공란=필터 보존."""
+    import shared.platforms.eleven11.orders as e11
+    _empty = lambda *a, **k: iter([])
+    for nm in ("iter_orders", "iter_delivered", "iter_completed", "iter_preparing",
+               "iter_shipping", "iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(e11, nm, _empty)
+    monkeypatch.setattr(e11, "iter_canceled", lambda s, u, **k: iter([
+        {"ordNo": "20260703081308490", "ordPrdSeq": "1", "slctPrdOptNm": "블랙"}]))
+    rows = oe.eleven11_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                                  dt.datetime(2026, 7, 12, tzinfo=oe.KST), client=object())
+    claim = [r for r in rows if r.get("오픈마켓주문번호") == "20260703081308490"]
+    assert claim and claim[0]["주문일"] == ""   # 07-03 프리픽스 아님
+
+
+def test_eleven11_fetch_window_never_future(monkeypatch):
+    """11번가 상태별 조회 끝을 +14일 잡되 now 로 상한. 미래일을 넣으면 API 가 그 창을 400 거부 →
+    _collect try/except 로 그 상태(취소완료 등)가 통째 빠진다(라이브: 07-06 취소완료 1건 누락)."""
+    import shared.platforms.eleven11.orders as e11
+    cap = {}
+
+    def _mk(name):
+        def _f(since, until, *, client=None):
+            cap[name] = until
+            return iter([])
+        return _f
+    for nm in ("iter_orders", "iter_delivered", "iter_completed", "iter_preparing",
+               "iter_shipping", "iter_cancel", "iter_canceled", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(e11, nm, _mk(nm))
+    now = dt.datetime.now(oe.KST)
+    # until 이 미래(+많이)여도 조회창은 now 를 넘지 않아야 함
+    oe.eleven11_order_rows(now - dt.timedelta(days=5), now + dt.timedelta(days=30), client=object())
+    for nm in ("iter_orders", "iter_canceled"):
+        assert cap[nm] <= now + dt.timedelta(seconds=5), f"{nm} 조회창이 미래로 나감"
+
+
+def test_coupang_claims_iso_formats_differ_by_endpoint():
+    """서버 프로브 실측: returnRequests 는 'yyyy-MM-ddTHH:mm'(초 금지),
+    exchangeRequests 는 'yyyy-MM-ddTHH:mm:ss'(초 필수). 틀리면 HTTP 400 전체 실패."""
+    import shared.platforms.coupang.claims as _cc
+    t = dt.datetime(2026, 7, 3, 9, 5, 30)
+    assert _cc._iso_min(t) == "2026-07-03T09:05"      # returnRequests: 초 없음
+    assert _cc._iso(t) == "2026-07-03T09:05:30"       # exchangeRequests: 초 있음
+
+
+def test_coupang_claim_window_extends_to_now(monkeypatch):
+    """쿠팡 취소/반품/교환은 '클레임 생성일' 기준 조회 → 기간 안 주문이 나중에 취소되면
+    [since,until] 밖이라 통째 누락(라이브: 62건). 조회 끝을 now 로 넓혀야 잡힌다."""
+    import shared.platforms.coupang.orders as _co
+    import shared.platforms.coupang.claims as _cc
+    monkeypatch.setattr(_co, "fetch_orders", lambda *a, **k: {"data": [], "nextToken": ""})
+    monkeypatch.setattr(oe, "_coupang_settle_map", lambda *a, **k: ({}, {}, {}))
+    cap = {}
+    monkeypatch.setattr(_cc, "iter_returns",
+                        lambda s, u, client=None: cap.__setitem__("ret", u) or iter([]))
+    monkeypatch.setattr(_cc, "iter_exchanges",
+                        lambda s, u, client=None: cap.__setitem__("exc", u) or iter([]))
+    now = dt.datetime.now(oe.KST)
+    oe.coupang_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                          dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert cap["ret"] >= now - dt.timedelta(seconds=5)   # 과거 until 이 아니라 now 로 확장
+    assert cap["exc"] >= now - dt.timedelta(seconds=5)
+
+
+def test_coupang_settle_window_extends_to_now(monkeypatch):
+    """쿠팡 revenue-history 는 'recognitionDate(정산 인식일)' 기준 → 인식은 주문보다 늦게
+    (구매확정 후) 일어난다. 주문 기간(until)까지만 조회하면 그 뒤 인식된 정산을 놓쳐
+    정산완료 주문도 estimated 로 남는다(260704 재분석 실측: 쿠팡 92건). 조회 끝을 now 로
+    넓혀야 잡힌다 — 롯데온 commission·클레임 조회와 동일 패턴."""
+    import shared.platforms.coupang.orders as _co
+    import shared.platforms.coupang.claims as _cc
+    monkeypatch.setattr(_co, "fetch_orders", lambda *a, **k: {"data": [], "nextToken": ""})
+    monkeypatch.setattr(_cc, "iter_returns", lambda *a, **k: iter([]))
+    monkeypatch.setattr(_cc, "iter_exchanges", lambda *a, **k: iter([]))
+    cap = {}
+    monkeypatch.setattr(oe, "_coupang_settle_map",
+                        lambda s, u, c: cap.__setitem__("until", u) or ({}, {}, {}))
+    now = dt.datetime.now(oe.KST)
+    oe.coupang_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                          dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert cap["until"] >= now - dt.timedelta(seconds=5)   # 과거 until 이 아니라 now 로 확장
+
+
+def test_lotteon_delivery_window_extends_to_now(monkeypatch):
+    """롯데온 출고지시(209)는 '배송지시생성일시' 기준 → 기간 안 주문이 나중에 배송지시되면
+    [since,until] 밖이라 누락(라이브: 07-12 신규주문 6건). 조회 끝을 now 로 넓혀야 잡힌다."""
+    import shared.platforms.lotteon.orders as _lo
+    import shared.platforms.lotteon.claims as _lc
+    monkeypatch.setattr(_lc, "commission_map", lambda *a, **k: {})
+    for nm in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(_lc, nm, lambda *a, **k: iter([]))
+    cap = {}
+    monkeypatch.setattr(_lo, "iter_delivery_orders",
+                        lambda s, u, **k: cap.__setitem__("until", u) or iter([]))
+    now = dt.datetime.now(oe.KST)
+    oe.lotteon_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                          dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert cap["until"] >= now - dt.timedelta(seconds=5)   # 과거 until 이 아니라 now 로 확장
+
+
+def test_lotteon_claim_window_extends_to_now(monkeypatch):
+    """롯데온 클레임도 접수일 기준 → 기간 밖 취소 누락(라이브: 4건). 조회 끝을 now 로 넓힌다."""
+    import shared.platforms.lotteon.orders as _lo
+    import shared.platforms.lotteon.claims as _lc
+    monkeypatch.setattr(_lo, "iter_delivery_orders", lambda *a, **k: iter([]))
+    monkeypatch.setattr(_lc, "commission_map", lambda *a, **k: {})
+    cap = {}
+    for nm in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(_lc, nm,
+                            (lambda name: (lambda s, u, client=None:
+                                           cap.__setitem__(name, u) or iter([])))(nm))
+    now = dt.datetime.now(oe.KST)
+    oe.lotteon_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                          dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert cap["iter_cancel"] >= now - dt.timedelta(seconds=5)
+    assert cap["iter_return"] >= now - dt.timedelta(seconds=5)
+
+
+def test_combined_partial_failure_warns_and_proceeds_with_warnings(monkeypatch):
+    # ★ warnings 채널이 있으면(화면·마진 분석) 한 마켓이 통째로 실패해도 502 로 죽지 않고
+    #   그 마켓을 '제외'로 표면화(warnings)한 뒤 나머지 마켓 결과를 반환한다.
+    def _fake(mk, days=7, **k):
+        if mk == "coupang":
+            raise RuntimeError("쿠팡 인증 실패")
+        return [{"주문일": "2026-07-05", "판매처": "롯데온"}]
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    warns: list = []
+    out = oe.combined_order_rows(["coupang", "lotteon"], days=7, warnings=warns)
+    assert [r["판매처"] for r in out] == ["롯데온"]      # 성공 마켓 결과는 유지
+    assert any("쿠팡" in w for w in warns)               # 실패 마켓은 제외 배너로 표면화
+    assert any("제외" in w for w in warns)
+
+
+def test_combined_all_markets_fail_raises_even_with_warnings(monkeypatch):
+    # 전부 실패면 보여줄 게 없으므로 warnings 유무와 무관하게 전파(거짓 빈결과 금지).
+    def _fake(mk, days=7, **k):
+        raise RuntimeError(f"{mk} 실패")
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    with pytest.raises(RuntimeError):
+        oe.combined_order_rows(["coupang", "lotteon"], days=7, warnings=[])
+
+
+def test_order_rows_no_credentials_warns_and_excludes(monkeypatch):
+    # ★ 계정이 하나도 연동 안 된 마켓 — warnings 있으면 'API 연동 없음'으로 표면화 + 빈 결과
+    #   (raise 하지 않음 → 다른 마켓 분석은 계속). warnings 없으면(엑셀) 전파.
+    monkeypatch.setattr(oe, "_active_accounts", lambda m: [])
+    monkeypatch.setattr(oe, "_account_client", lambda m, prefix=None: None)
+    warns: list = []
+    out = oe.order_rows("coupang", days=7, warnings=warns)
+    assert out == []
+    assert any("연동" in w for w in warns)
+    # warnings 없이(엑셀 다운로드) 호출하면 조용한 빈 파일 대신 전파
+    with pytest.raises(Exception):
+        oe.order_rows("coupang", days=7)
+
+
+def test_combined_cache_reuses_fetch(monkeypatch):
+    # use_cache=True: 같은 (마켓,기간) 두 번째 호출은 실조회 없이 캐시 재사용(다운로드 즉시)
+    oe.clear_cache()
+    calls = {"n": 0}
+    def _fake(mk, days=7, **k):
+        calls["n"] += 1
+        return [{"주문일": "2026-07-05", "판매처": "쿠팡"}]
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    a = oe.combined_order_rows(["coupang"], days=7, use_cache=True)
+    b = oe.combined_order_rows(["coupang"], days=7, use_cache=True)
+    assert calls["n"] == 1          # 두 번째는 캐시 히트 → order_rows 재호출 없음
+    assert a is b                   # 같은 결과 객체 재사용
+    oe.clear_cache()
+
+
+def test_combined_no_cache_by_default(monkeypatch):
+    # 기본(use_cache=False): 매번 실조회(직접 호출·테스트 결정성 유지)
+    oe.clear_cache()
+    calls = {"n": 0}
+    def _fake(mk, days=7, **k):
+        calls["n"] += 1
+        return []
+    monkeypatch.setattr(oe, "order_rows", _fake)
+    oe.combined_order_rows(["coupang"], days=7)
+    oe.combined_order_rows(["coupang"], days=7)
+    assert calls["n"] == 2          # 캐시 미사용 → 매번 조회
+
+
+def test_status_ko_mapping():
+    assert oe._status_ko("coupang", "INSTRUCT") == "상품준비중"
+    assert oe._status_ko("smartstore", "DELIVERED") == "배송완료"
+    assert oe._status_ko("lotteon", "11") == "출고지시"
+    assert oe._status_ko("coupang", "UNKNOWN_X") == "UNKNOWN_X"   # 미매핑=원값(추측금지)
+    assert oe._status_ko("coupang", None) == ""
+
+
+class FakeCoupangClient:
+    def __init__(self):
+        self.calls = 0
+        self._cfg = {"vendor_id": "A00012345"}   # 계정 클라이언트가 주입하는 vendor_id
+        self.paths = []
+
+    def request(self, method, path, query=""):
+        self.calls += 1
+        self.paths.append(path)
+        # 첫 status 첫 페이지에만 1건, 나머지는 빈 목록(nextToken 없음)
+        if self.calls == 1:
+            return {"code": 200, "data": [{
+                "shipmentBoxId": 1, "orderedAt": "2026-07-05T09:00:00+09:00",
+                "parcelPrintMessage": "문앞",
+                "orderer": {"name": "구매자A", "ordererNumber": "01000000000"},
+                "receiver": {"name": "수령자A", "receiverNumber": "01011112222",
+                             "addr1": "서울", "addr2": "101동", "postCode": "04315"},
+                "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                "sellerProductItemName": "블랙/95", "shippingCount": 1,
+                                "salesPrice": {"units": 189000, "nanos": 0}}]}],
+                "nextToken": ""}
+        return {"code": 200, "data": [], "nextToken": ""}
+
+
+def test_coupang_rows_flatten_and_map(monkeypatch):
+    # 전역 COUPANG_VENDOR_ID 없어도 계정 클라이언트 _cfg.vendor_id 로 동작해야 함(버그수정)
+    monkeypatch.delenv("COUPANG_VENDOR_ID", raising=False)
+    since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
+    until = dt.datetime(2026, 7, 6, tzinfo=oe.KST)
+    fc = FakeCoupangClient()
+    rows = oe.coupang_order_rows(since, until, client=fc)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["상품명"] == "코트" and r["옵션"] == "블랙/95" and r["수량"] == 1
+    assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
+    assert r["단가"] == 189000                 # 금액 객체 units 추출
+    # 실 정산 없음 → 추정 = round(189000 × 0.8845) = 167170 (배송비 0)
+    assert r["정산예정금액"] == round(189000 * oe.CP_FEE_FACTOR)
+    assert r["쇼핑몰"] == "쿠팡"
+    assert "/vendors/A00012345/ordersheets" in fc.paths[0]   # 클라 config vendor_id 사용
+    assert "/api/v5/" in fc.paths[0]           # v5 정정 반영
+
+
+class FakeLotteonClient:
+    def request(self, method, path, body=None):
+        # 실제 209 처럼: 배송지시일시(20260705120000)를 포함하는 하루창에서만 1회 반환.
+        #  (창을 now 로 넓혀 여러 날 순회해도 주문은 자기 날짜 창에서만 나옴 = 중복 없음)
+        if "SellerDeliveryOrdersSearch" in path:
+            b = body or {}
+            s, e = str(b.get("srchStrtDt", "")), str(b.get("srchEndDt", ""))
+            if not (s <= "20260705120000" <= e):
+                return {"returnCode": "0000", "data": {"deliveryOrderList": []}}
+            return {"returnCode": "0000", "data": {"deliveryOrderList": [{
+                "odCmptDttm": "20260705120000", "spdNm": "코트", "sitmNm": "블랙/95",
+                "odQty": 1, "slPrc": 189000, "actualAmt": 170000,
+                "dvpCustNm": "수령자A", "dvpMphnNo": "01011112222", "odrNm": "구매자A",
+                "dvpZipNo": "04315", "dvpStnmZipAddr": "서울 어딘가", "dvpStnmDtlAddr": "101동",
+                "dvMsg": "문앞", "mphnNo": "01000000000"}]}}
+        return {"returnCode": "0000", "data": {}}
+
+
+def test_lotteon_rows_map_from_delivery_orders():
+    since = dt.datetime(2026, 7, 5, tzinfo=oe.KST)
+    until = dt.datetime(2026, 7, 6, tzinfo=oe.KST)
+    rows = oe.lotteon_order_rows(since, until, client=FakeLotteonClient())
+    assert len(rows) == 1
+    r = rows[0]
+    # 빌더는 원본(odCmptDttm) 방출 → _finalize/order_rows 에서 'YYYY-MM-DD HH:MM:SS' 통일.
+    assert r["주문일"] == "20260705120000" and r["상품명"] == "코트" and r["옵션"] == "블랙/95"
+    assert r["수령자"] == "수령자A" and r["구매자"] == "구매자A"
+    assert r["단가"] == 189000 and r["정산예정금액"] == 170000
+    assert r["판매처"] == "롯데온"
+
+
+def test_lotteon_unescapes_html_entities():
+    class C:
+        def request(self, method, path, body=None):
+            return {"data": {"deliveryOrderList": [{
+                "odCmptDttm": "20260705", "spdNm": "&lt;매장정품&gt; 코트",
+                "sitmNm": "R&amp;B / 100", "odQty": 1}]}}
+    r = oe.lotteon_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 6, tzinfo=oe.KST), client=C())[0]
+    assert r["상품명"] == "<매장정품> 코트"        # &lt; &gt; 해제
+    assert r["옵션"] == "R&B / 100"                # &amp; 해제
+
+
+def test_norm_order_dt_formats():
+    # 마켓별 주문일 형식 → 'YYYY-MM-DD HH:MM:SS' 통일(시간 표시·정렬용)
+    assert oe._norm_order_dt("2026-07-08 20:22:54") == "2026-07-08 20:22:54"   # 11번가
+    assert oe._norm_order_dt("2026-07-05T09:00:00+09:00") == "2026-07-05 09:00:00"  # ISO(쿠팡·스스·ESM)
+    assert oe._norm_order_dt("20260705093012") == "2026-07-05 09:30:12"         # 롯데온 14자리
+    assert oe._norm_order_dt("20260705") == "2026-07-05"                        # 날짜만
+    assert oe._norm_order_dt("2026-07-05") == "2026-07-05"                      # 시간 없으면 날짜만
+    assert oe._norm_order_dt("") == ""
+
+
+def test_finalize_normalizes_order_datetime():
+    rows = oe._finalize_rows([{"주문일": "20260708202254", "단가": 1000, "수량": 1}])
+    assert rows[0]["주문일"] == "2026-07-08 20:22:54"       # 시간 포함 통일
+
+
+def test_lotteon_ready_in_builders_and_supported():
+    assert "lotteon" in oe._BUILDERS and "lotteon" in oe.SUPPORTED   # 코드+UI 노출
+    assert oe._ENV_PREFIX["lotteon"] == "LOTTEON_MAIN"               # 실키 로드용 prefix
+
+
+def test_lotteon_claim_forward_compat_uses_odaccpdttm_if_present(monkeypatch):
+    """forward-compat 계약: API가 훗날 odAccpDttm을 주면 주문일로 자동 승격(clmReqDttm 폴백 아님).
+    (현행 실API는 미제공 → test_lotteon_claim_real_api_blank_orderdate 참조.)"""
+    since = dt.datetime(2026, 7, 15, tzinfo=KST)
+    until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    claim_item = {"odNo": "LO1", "spdNm": "코트", "sitmNm": "블랙/95", "cnclQty": 1,
+                  "odAccpDttm": "20260715090000", "clmReqDttm": "20260715120000",
+                  "odPrgsStepCd": "21", "itmSlPrc": 189000}
+    monkeypatch.setattr("shared.platforms.lotteon.orders.iter_delivery_orders",
+                        lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.orders.iter_progress_states",
+                        lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_cancel",
+                        lambda *a, **k: iter([claim_item]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_return", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_exchange", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.commission_map", lambda *a, **k: {})
+    rows = oe.lotteon_order_rows(since, until, client=object(), include_settlement=False)
+    claim = [r for r in rows if r["오픈마켓주문번호"] == "LO1"][0]
+    assert claim["_kind"] == "change"
+    assert claim["_change_date"] == "20260715120000"     # clmReqDttm
+    assert claim["주문일"] == "20260715090000"            # odAccpDttm (clmReqDttm 폴백 아님)
+
+
+def test_lotteon_claim_real_api_blank_orderdate(monkeypatch):
+    """실제 롯데온 클레임 API는 odAccpDttm 미제공 → 주문일 공란, _change_date=clmReqDttm, _kind='change'.
+    (공란이므로 new_order_rows가 주문일 탭에서 제외 → 기능 #2에서 변경일로만 노출.)"""
+    since = dt.datetime(2026, 7, 15, tzinfo=KST)
+    until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    claim_item = {"odNo": "LO2", "spdNm": "코트", "sitmNm": "블랙/95", "cnclQty": 1,
+                  "clmReqDttm": "20260715120000", "odPrgsStepCd": "21", "itmSlPrc": 189000}
+    monkeypatch.setattr("shared.platforms.lotteon.orders.iter_delivery_orders", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.orders.iter_progress_states", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_cancel", lambda *a, **k: iter([claim_item]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_return", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.iter_exchange", lambda *a, **k: iter([]))
+    monkeypatch.setattr("shared.platforms.lotteon.claims.commission_map", lambda *a, **k: {})
+    rows = oe.lotteon_order_rows(since, until, client=object(), include_settlement=False)
+    claim = [r for r in rows if r["오픈마켓주문번호"] == "LO2"][0]
+    assert claim["_kind"] == "change"
+    assert claim["_change_date"] == "20260715120000"
+    assert claim["주문일"] == ""     # odAccpDttm 미제공 → 공란(폴백 없음)
+
+
+def test_coupang_claim_tagged_and_orderdate_blank(monkeypatch):
+    """쿠팡 클레임 행: _kind='change', _change_date=createdAt, 주문일=''(실주문일 미제공)."""
+    since = dt.datetime(2026, 7, 15, tzinfo=KST)
+    until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    ret = {"orderId": "CP1", "receiptType": "CANCEL", "receiptStatus": "RETURNS_UNCHECKED",
+           "reasonCodeText": "변심", "requesterName": "구매자", "createdAt": "2026-07-15T12:00:00",
+           "returnItems": [{"sellerProductName": "코트", "vendorItemName": "블랙/95", "cancelCount": 1}]}
+    monkeypatch.setattr("shared.platforms.coupang.orders.fetch_orders",
+                        lambda *a, **k: {"data": []})
+    monkeypatch.setattr("shared.platforms.coupang.claims.iter_returns",
+                        lambda *a, **k: iter([ret]))
+    monkeypatch.setattr("shared.platforms.coupang.claims.iter_exchanges", lambda *a, **k: iter([]))
+    rows = oe.coupang_order_rows(since, until, client=object(), include_settlement=False)
+    claim = [r for r in rows if r["오픈마켓주문번호"] == "CP1"][0]
+    assert claim["_kind"] == "change"
+    assert claim["주문일"] == ""                          # 실주문일 미제공 → 공란
+    assert claim["_change_date"] == "2026-07-15T12:00:00"  # createdAt
+
+
+def test_eleven11_claim_tagged(monkeypatch):
+    """11번가 클레임 행: _kind='change', 주문일 공란 유지, _change_date best-effort(clmDt)."""
+    since = dt.datetime(2026, 7, 15, tzinfo=KST)
+    until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
+    cancel = {"ordNo": "E1", "slctPrdOptNm": "블랙/95", "ordCnQty": 1,
+              "ordPrdStat": "701", "clmDt": "20260715120000"}
+    mod = "shared.platforms.eleven11.orders."
+    for name in ("iter_orders", "iter_delivered", "iter_completed", "iter_preparing",
+                 "iter_shipping", "iter_canceled", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(mod + name, lambda *a, **k: iter([]))
+    monkeypatch.setattr(mod + "iter_cancel", lambda *a, **k: iter([cancel]))
+    rows = oe.eleven11_order_rows(since, until, client=object())
+    claim = [r for r in rows if r["오픈마켓주문번호"] == "E1"][0]
+    assert claim["_kind"] == "change"
+    assert claim["주문일"] == ""
+    assert claim["_change_date"] == "20260715120000"
+
+
+class FakeSSClientWithDeliverySettle:
+    """배송비 정산이 따로 잡히는 스스 주문 — M열에 그게 섞이면 N열이 이중 가산된다."""
+    def request(self, method, path, query="", body=None):
+        if "last-changed-statuses" in path:
+            return {"data": {"lastChangeStatuses": [{"productOrderId": "P1"}]}}
+        if path.endswith("/product-orders/query"):
+            return {"data": [{
+                "order": {"orderId": "O1", "orderDate": "2026-07-05T09:00:00",
+                          "ordererName": "구매자A", "ordererTel": "01000000000"},
+                "productOrder": {"productOrderId": "P1", "productName": "코트",
+                                 "quantity": 1, "unitPrice": 62160,
+                                 "totalPaymentAmount": 62160,
+                                 "deliveryFeeAmount": 3000,
+                                 "shippingAddress": {"name": "수령자A", "tel1": "01011112222"}},
+            }]}
+        if "pay-settle/settle/case" in path:
+            # 상품 58,430 · 배송비 2,910(3,000 의 97%) 이 **따로** 온다
+            return {"elements": [
+                        {"productOrderId": "P1", "settleExpectAmount": 58430},
+                        {"orderId": "O1", "productOrderType": "DELIVERY",
+                         "settleExpectAmount": 2910},
+                    ],
+                    "pagination": {"totalPages": 1}}
+        return {"data": {}}
+
+
+def test_스스_M열은_상품정산만_배송비정산을_안_섞는다():
+    """🔴 쿠팡에서 이미 겪고 고친 사고가 스스에 그대로 남아 있었다(2026-08-07 라이브 실측).
+
+    규약: M열(`정산예정금액`) = **상품분만**, N열(`정산예정금(배송비포함)`) = M + 고객배송비.
+    M 에 배송비 정산(97%)을 더하면 `_finalize_rows` 가 거기에 고객배송비를 **또** 더해
+    N 이 배송비만큼 부풀어 오른다.
+      라이브 실측 1건: 상품 58,430 + 배송비정산 2,910 = M 61,340 → N 64,340
+                      (바른 값 61,430 — **2,910원 과다**)
+    같은 원인으로 수수료율도 1.32% 로 찍혔다(바른 값 6.00%).
+    """
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClientWithDeliverySettle())
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["정산예정금액"] == 58430, (
+        "M열에 배송비 정산분이 섞였다(61,340 이면 그것) — 쿠팡과 같은 규약이어야 한다: %s"
+        % r["정산예정금액"])
+    oe._finalize_rows([r])
+    assert r["정산예정금(배송비포함)"] == 58430 + (r["배송비"] or 0), (
+        "N열이 배송비 이중 가산됐다: %s (배송비 %s)" % (r["정산예정금(배송비포함)"], r["배송비"]))
+
+
+def test_스스_추정은_같은_조회의_실정산에서_실효율을_배운다():
+    """🔴 고정 6% 는 등급이 바뀌면 통째로 틀어진다 — 실제로 바뀌었다.
+
+    라이브 실측(2026-08-07, 저장분 2,050건 역산):
+      · 2025-12~2026-02  6.63%/4.63%  = Npay **일반 3.630%** + 판매수수료 3% / 마케팅 1%
+      · 2026-03~         6.00%/4.00%  = Npay **중소3 3.003%** + 판매수수료 3% / 마케팅 1%
+      2026-02 경 국세청 매출 등급이 「일반 → 중소3」으로 재산정되며 요율이 통째로 바뀌었다.
+      또 유입경로(네이버쇼핑 검색 vs 마케팅 링크)에 따라 판매수수료가 3% / 1% 로 갈려,
+      최근 실값의 **15%가 4%대**다. 고정 6% 는 그만큼 정산을 적게 잡는다.
+
+    그래서 추정은 **같은 조회에 들어온 실정산에서 실효율을 역산**해 쓴다(자기교정).
+    이 시험은 실값이 8% 인 세상을 만들어, 추정 행이 6% 가 아니라 8% 로 따라오는지 본다.
+    """
+    class C:
+        def request(self, method, path, query="", body=None):
+            if "last-changed-statuses" in path:
+                return {"data": {"lastChangeStatuses": [
+                    {"productOrderId": "P%d" % i} for i in range(1, 8)]}}
+            if path.endswith("/product-orders/query"):
+                out = []
+                for i in range(1, 8):
+                    out.append({
+                        "order": {"orderId": "O%d" % i, "orderDate": "2026-07-05T09:00:00"},
+                        "productOrder": {"productOrderId": "P%d" % i, "productName": "코트",
+                                         "quantity": 1, "unitPrice": 100000,
+                                         "totalPaymentAmount": 100000,
+                                         "shippingAddress": {}},
+                    })
+                return {"data": out}
+            if "pay-settle/settle/case" in path:
+                # P1~P6 만 실정산 — 전부 92,000 (= 8% 수수료). P7 은 미정산.
+                return {"elements": [{"productOrderId": "P%d" % i,
+                                      "settleExpectAmount": 92000} for i in range(1, 7)],
+                        "pagination": {"totalPages": 1}}
+            return {"data": {}}
+
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = {r["오픈마켓주문번호"]: r for r in oe.smartstore_order_rows(since, until, client=C())}
+    assert rows["P1"]["정산예정금액"] == 92000 and rows["P1"]["_settle_source"] == "real"
+    p7 = rows["P7"]
+    assert p7["_settle_source"] == "estimated"
+    assert p7["정산예정금액"] == 92000, (
+        "추정이 실값에서 안 배웠다 — 94,000 이면 고정 6%% 그대로다: %s" % p7["정산예정금액"])
+
+
+def test_스스_배울_표본이_적으면_기존_기본율을_쓴다():
+    """표본 1~2건으로 배우면 이상한 한 건이 전체 추정을 틀어놓는다."""
+    class C:
+        def request(self, method, path, query="", body=None):
+            if "last-changed-statuses" in path:
+                return {"data": {"lastChangeStatuses": [{"productOrderId": "P1"},
+                                                        {"productOrderId": "P2"}]}}
+            if path.endswith("/product-orders/query"):
+                return {"data": [{
+                    "order": {"orderId": "O%s" % i, "orderDate": "2026-07-05T09:00:00"},
+                    "productOrder": {"productOrderId": "P%s" % i, "productName": "코트",
+                                     "quantity": 1, "unitPrice": 100000,
+                                     "totalPaymentAmount": 100000, "shippingAddress": {}},
+                } for i in (1, 2)]}
+            if "pay-settle/settle/case" in path:
+                return {"elements": [{"productOrderId": "P1", "settleExpectAmount": 50000}],
+                        "pagination": {"totalPages": 1}}
+            return {"data": {}}
+
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = {r["오픈마켓주문번호"]: r for r in oe.smartstore_order_rows(since, until, client=C())}
+    assert rows["P2"]["정산예정금액"] == 94000, (
+        "표본 1건(50%%)을 배워 추정이 무너졌다: %s" % rows["P2"]["정산예정금액"])
+
+
+def test_주문금액은_옵션추가금까지_더한다():
+    """🔴 라이브 실측(2026-08-12) — 옵션가를 빼먹어 할인이 **음수**로 나오던 자리.
+
+    스스 실결제에는 옵션가가 들어 있는데 우리 「정가」는 단가×수량만 봤다.
+    실측 1건: 단가 273,000 · 옵션추가금 65,000 · 실결제 298,300
+      옛 정가 273,000 → 할인 −25,300 (음수!)
+      바른 정가 338,000 → 할인 **39,700** = 네이버가 준 productDiscountAmount 와 정확히 일치
+    7일 스스 81행 중 31행에 옵션가가 있었고 16행이 음수였다. 할인 합계가 78만 → 337만.
+
+    `주문금액` 열 = 단가×수량 + **옵션추가금** + 배송비 (= 총주문금액 + 배송비).
+    """
+    r = {"단가": 273000, "수량": 1, "옵션추가금": 65000, "배송비": 3000,
+         "실결제금액": 298300}
+    oe._finalize_rows([r])
+    assert r["상품금액"] == 273000
+    assert r["총주문금액"] == 338000
+    assert r["주문금액"] == 341000, (
+        "옵션추가금이 빠졌다(276,000 이면 그것) — 할인이 음수로 나온다: %s" % r["주문금액"])
+    # 세 숫자가 이어진다: 주문금액 − 할인 = 매출
+    할인 = r["총주문금액"] - r["실결제금액"]
+    매출 = r["실결제금액"] + r["배송비"]
+    assert r["주문금액"] - 할인 == 매출 == 301300
+
+
+def test_ESM_실결제는_판매자할인만_뺀다():
+    """🔴 옥션·G마켓도 「매출 = 실제로 번 돈」 규칙을 따른다(쿠팡 PR#884 와 같은 규칙).
+
+    라이브 실증(2026-08-12) — 두 마켓 다 주문 API 가 갈래를 준다:
+      · 옥션 2567864872  SellerDiscountPrice 0 · DirectDiscountPrice 8,980
+      · G마켓 18/22행    셀러 합 0 · 마켓 합 47,640
+    앞서 「구조적 불가」로 보고했던 것은 `OrderAmount`·`AcntMoney` 만 보고 내린 오판이었다.
+
+    · **판매자할인**은 우리 주머니에서 나가므로 실결제에서 뺀다.
+    · **사이트(마켓) 할인**은 마켓이 부담하므로 **안 뺀다** — 빼면 매출이 실제보다 작아진다.
+    """
+    r = {"판매처": "옥션", "주문상태": "배송완료", "단가": 112200, "수량": 1,
+         "옵션추가금": 0, "배송비": 0, "실결제금액": 112200,
+         "_dc_seller": "0.0000", "_dc_market": "8980.0000"}
+    oe._finalize_rows([r])
+    assert r["실결제금액"] == 112200, "우리 부담 0 인데 매출이 줄었다(마켓 부담을 뺐다): %s" % r["실결제금액"]
+
+    r2 = {"판매처": "G마켓", "주문상태": "배송준비중", "단가": 40800, "수량": 1,
+          "옵션추가금": 0, "배송비": 0, "실결제금액": 40800,
+          "_dc_seller": "3000.0000", "_dc_market": "3910.0000"}
+    oe._finalize_rows([r2])
+    assert r2["실결제금액"] == 37800, (
+        "판매자할인 3,000 을 안 뺐다(원금 강제가 남아 있다): %s" % r2["실결제금액"])
+
+    # 취소·클레임은 여전히 원금 강제(샵마인 규약) — 갈래가 있어도 안 뺀다
+    r3 = {"판매처": "옥션", "주문상태": "취소완료", "단가": 50000, "수량": 1,
+          "옵션추가금": 0, "배송비": 0, "실결제금액": 50000, "_dc_seller": "5000.0000"}
+    oe._finalize_rows([r3])
+    assert r3["실결제금액"] == 50000, "취소 행까지 할인을 뺐다: %s" % r3["실결제금액"]
+
+
+def test_매출기준액은_마켓부담_할인을_빼지_않는다():
+    """매출 = 정가 + 배송비 − **판매자부담** 할인 (사장님 확정 2026-08-13).
+
+    🔴 `실결제금액`은 마켓마다 뜻이 다르다 — 스스·롯데온·11번가는 **마켓이 부담한 할인까지**
+      빠진 값이다. 그걸 매출로 쓰면 우리 매출이 실제보다 작아지고, 분모가 작아져 마진율이
+      실제보다 높게 보인다. 라이브 30일 실측(2026-08-13): 롯데온 3,205,562원 과소.
+
+    아래 롯데온 행은 **라이브 실측값**이다 — 37,900 − 셀러 1,436 − 롯데 5,744 = 30,720
+    으로 산수가 정확히 맞아떨어진 줄이다.
+    """
+    lo = {"판매처": "롯데온", "주문상태": "상품준비", "단가": 37900, "수량": 1,
+          "옵션추가금": 0, "배송비": 0, "실결제금액": 30720,
+          "_dc_seller": "1436", "_dc_market": "5744"}
+    oe._finalize_rows([lo])
+    assert lo["_매출기준액"] == 36464, (
+        "롯데 부담 5,744 까지 매출에서 뺐다(= 매출 과소): %s" % lo["_매출기준액"])
+    assert lo["_매출기준출처"] == "gross_minus_seller_dc"
+    # 실결제금액은 손대지 않는다 — 샵마인 K열 대조·마켓수수료 파생이 그것을 쓴다.
+    assert lo["실결제금액"] == 30720, "실결제금액에 매출 정의를 덮어썼다: %s" % lo["실결제금액"]
+
+    # 옵션추가금도 정가에 든다(2026-08-12 사고 — 빼먹으면 할인이 음수로 나온다)
+    ss = {"판매처": "스마트스토어", "주문상태": "배송중", "단가": 50000, "수량": 2,
+          "옵션추가금": 3000, "배송비": 2500, "실결제금액": 96000, "_dc_seller": "5000"}
+    oe._finalize_rows([ss])
+    assert ss["_매출기준액"] == 100500, (
+        "정가(단가×수량+옵션추가금)+배송비−판매자할인 이 아니다: %s" % ss["_매출기준액"])
+
+
+def test_판매자할인_모르면_0으로_치지_않는다():
+    """「0원」과 「모름」은 다르다 — 모르면 옛 기준으로 두고 출처를 남긴다.
+
+    🔴 11번가는 배송중·배송완료·구매확정 **목록조회가 `sellerDscPrc` 를 아예 안 준다**
+      (라이브 실측 2026-08-13: 150/157행). 파서는 자식 태그를 그대로 담으므로 우리가
+      버리는 게 아니다. 여기서 0 으로 치면 그 차액을 전부 「마켓 부담」이라 단정하는 셈이라
+      반대 방향으로 틀린다.  회수 경로는 단건조회 eleven11.110 — 별건.
+    """
+    e11 = {"판매처": "11번가", "주문상태": "배송중", "단가": 63100, "수량": 1,
+           "옵션추가금": 0, "배송비": 3000, "실결제금액": 59950}   # _dc_seller 없음
+    oe._finalize_rows([e11])
+    assert e11["_매출기준출처"] == "paid_seller_dc_unknown", (
+        "판매자할인을 모르는데 아는 것처럼 셌다: %s" % e11["_매출기준출처"])
+    assert e11["_매출기준액"] == 62950, "폴백(실결제+배송비)이 아니다: %s" % e11["_매출기준액"]
+
+    # 취소완료 = 거래 무산 → 매출 0 (배송비가 매출로 새면 안 된다)
+    cx = {"판매처": "쿠팡", "주문상태": "취소완료", "단가": 40000, "수량": 1,
+          "옵션추가금": 0, "배송비": 3000, "실결제금액": 40000, "_dc_seller": "0"}
+    oe._finalize_rows([cx])
+    assert cx["_매출기준액"] == 0, "취소 행이 매출로 잡혔다: %s" % cx["_매출기준액"]

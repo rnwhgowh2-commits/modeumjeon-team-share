@@ -50,7 +50,10 @@ from urllib.parse import urlparse, urlunparse
 
 from curl_cffi import requests as cffi_requests
 
-from .base import AbstractCrawler, CrawlResult
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
+)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -121,6 +124,105 @@ def _extract_preloaded_state(html: str) -> Optional[dict]:
         return json.loads(fixed)
     except (json.JSONDecodeError, ValueError):
         return None
+
+
+def _parse_category_path(simple_a: dict) -> str:
+    """[2026-07-23 M3] 스마트스토어 카테고리 경로 → '대>중>소'.
+
+    실 페이지 확인(brand.naver.com/lemouton/products/9496367527, 2026-07-23):
+    화면 DOM 엔 빵부스러기 마크업이 없고, inline ``__PRELOADED_STATE__`` 안
+    ``simpleProductForDetailPage.A.category`` 에 셀러가 고른 네이버 카테고리가 있다::
+
+        {"wholeCategoryId": "50000001>50000173>50001463>50003839",
+         "wholeCategoryName": "패션잡화>여성신발>스니커즈/운동화>워킹화",
+         "categoryId": "50003839", "categoryName": "워킹화"}
+
+    ``wholeCategoryName`` 이 이미 '>' 로 이어진 완성 경로라 조각으로 쪼개
+    공통 조립기에 넘긴다(공백 정리·빈 조각 제거 일원화). 없으면 leaf 만이라도
+    쓰지 않는다 — 깊이가 다른 반쪽 경로는 맵핑 키를 오염시킨다(빈 문자열=확인불가).
+    """
+    cat = simple_a.get("category")
+    if not isinstance(cat, dict):
+        return ""
+    whole = cat.get("wholeCategoryName") or ""
+    return build_category_path(str(whole).split(">"))
+
+
+def _parse_image_urls(simple_a: dict, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] 스마트스토어 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실측 원천(brand.naver.com/lemouton/products/9496367527, 2026-07-23) —
+    ``window.__PRELOADED_STATE__`` 의 ``simpleProductForDetailPage.A`` 안::
+
+        representativeImageUrl : 대표 1장 (화면 큰 이미지와 같은 파일)
+        optionalImageUrls[]    : 추가 4장 (썸네일 줄과 1:1)
+
+    모두 ``https://shop-phinf.pstatic.net/...`` 절대 URL 로 **이미 완성**되어 온다
+    (다른 소싱처처럼 상대경로 절대화·스킴 보정이 필요 없다).
+
+    ★ 르무통(Cafe24) I6 같은 「대표 렌디션 중복」이 없는지 확인함 — 5장의 업로드 ID·
+      파일명이 전부 다르고 HEAD content-length 도 237,542 / 658,623 / 768,133 /
+      687,416 / 482,191 로 서로 다르다(2026-07-23 실측). 즉 대표는 추가목록에 다시
+      들어 있지 않다. 그래도 방어적으로 ``build_image_urls`` 의 순서유지 dedup 을 탄다.
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 내려받지 않는다.
+    """
+    rep = simple_a.get("representativeImageUrl")
+    extra = simple_a.get("optionalImageUrls")
+    cands: list = []
+    if rep:
+        cands.append(rep)
+    if isinstance(extra, list):
+        cands.extend(extra)
+    return build_image_urls(cands, product_url)
+
+
+# 상세 본문(스마트에디터 ONE) 컨테이너. SE 표준 클래스라 스토어 스킨이 바뀌어도 그대로다.
+#   ⚠️ 스마트스토어의 **레이아웃 클래스는 배포마다 바뀌는 해시**(`boBK8xvewr`·`tnjZqbG4MS`)라
+#      절대 기대면 안 된다. `se-main-container` 는 에디터가 찍는 고정 이름이다.
+_SS_DETAIL_SELECTOR = "div.se-main-container"
+# 같은 페이지의 **공지사항 프레임**. 셀러가 스토어 공지(타 상품 홍보 배너·이벤트 링크)를
+#   넣는 자리라 상품 상세가 아니다 — 실측(2026-07-23)으로 이 안에도 에디터 마크업이 있다
+#   (`editor_wrap previous_version`). 지금 상품은 구버전 에디터라 `se-main-container` 가
+#   안 생겼지만, 공지를 SE ONE 으로 쓴 스토어에서는 생긴다 → **먼저 배제**한다.
+_SS_DETAIL_EXCLUDE = "goodsinfo_frame_basic_wrap"
+
+
+def _parse_detail_html(html: str, product_url: str) -> str:
+    """[2026-07-23 M4-4] 스마트스토어 상품상세 HTML. 못 찾으면 빈 문자열.
+
+    ★ **렌더된 DOM 에서만 잡힌다.** 비로그인 GET(raw HTML)의
+      ``__PRELOADED_STATE__`` 에는 ``detailContents: {"editorType": "SEONE"}`` 만 있고
+      본문(``detailContentText``)이 없다. 본문을 주는 API
+      (``/n/v2/channels/{channelUid}/products/{id}``)는 비브라우저에서 **429 WAF**
+      (모듈 상단 R&D 4번과 같은 벽) → 서버가 대신 불러올 수 없다.
+      다행히 라이브 수집 경로가 **확장 navGrab(실브라우저 렌더 DOM)** 이라
+      (`background.js` FAST_FETCH_SOURCES 에 ss_lemouton 이 없다 = 창 렌더 경로),
+      그 DOM 에는 ``div.se-main-container`` 가 그대로 들어 있다.
+      실측(2026-07-23, 실 Chrome 렌더·스크롤 없이 3초 대기): 상세 이미지 16장,
+      전부 ``src`` 는 1×1 base64 placeholder + 실주소는 ``data-src``
+      (``sanitize_detail_html`` 이 이미 처리한다).
+
+    ★ 오염 차단 — ``se-main-container`` 를 그냥 다 긁으면 스토어 **공지사항**(타 상품
+      홍보 배너·링크)까지 딸려올 수 있어 ``goodsinfo_frame_basic_wrap`` 안의 것은 뺀다.
+
+    못 찾으면 빈 문자열 = '상세 확인불가'. 상품명·가격으로 지어내지 않는다.
+    """
+    from bs4 import BeautifulSoup
+
+    if not html or _SS_DETAIL_SELECTOR.split(".")[-1] not in html:
+        return ""              # 렌더 DOM 이 아님(raw GET) — 값싼 조기 종료
+    try:
+        soup = BeautifulSoup(html, "lxml")
+    except Exception:
+        return ""
+    for node in soup.select(_SS_DETAIL_SELECTOR):
+        if node.find_parent(class_=_SS_DETAIL_EXCLUDE) is not None:
+            continue           # 공지사항 프레임 = 상품 상세 아님
+        got = sanitize_detail_html(node, product_url)
+        if got:
+            return got
+    return ""
 
 
 def _is_soldout(simple_a: dict) -> bool:
@@ -224,11 +326,19 @@ class SsLemoutonCrawler(AbstractCrawler):
         resp.raise_for_status()
         return resp.text
 
-    def fetch(self, product_url: str) -> CrawlResult:
-        normalized_url = _normalize_url(product_url)
-        product_id = _extract_product_id(normalized_url)
+    def parse_html(self, html: str, product_url: str,
+                   sku_stock: Optional[dict] = None) -> CrawlResult:
+        """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
 
-        html = self._fetch_html(normalized_url)
+        window.__PRELOADED_STATE__ JSON 파싱 포함.
+        fetch 의 URL 정규화는 fetch 단계에서 처리하며, parse_html 은 받은 html 만 파싱한다.
+
+        sku_stock(선택): {"색상||사이즈": 수량} 맵 — 확장이 로그인 브라우저에서 n/v2
+          옵션조합 API 로 수집한 per-SKU 재고. 주어지면 옵션별 stock 을 이 값으로 교정한다
+          (inline state 엔 SKU별 재고가 없어 999 둔갑하던 문제 해소). 키 미스 시 기존 로직.
+        """
+        product_id = _extract_product_id(product_url)
+
         state = _extract_preloaded_state(html)
         if state is None:
             # 파싱 실패 — 빈 결과 반환 (호출자가 fail-fast 결정)
@@ -350,13 +460,26 @@ class SsLemoutonCrawler(AbstractCrawler):
         options: list[dict] = []
         for color in colors:
             for size in sizes:
-                if soldout:
+                # ① per-SKU 재고(확장 n/v2 수집)가 있으면 최우선 — 색상||사이즈 키 매칭.
+                sku_qty = None
+                if sku_stock:
+                    sku_qty = sku_stock.get(f"{color}||{size}")
+                    if sku_qty is None:  # 공백/표기 차이 방어: 양쪽 strip 비교
+                        ck, sk_ = color.strip(), size.strip()
+                        for k, v in sku_stock.items():
+                            kc, _, ks = k.partition("||")
+                            if kc.strip() == ck and ks.strip() == sk_:
+                                sku_qty = v
+                                break
+                if isinstance(sku_qty, (int, float)):
+                    stock_int = max(int(sku_qty), 0)
+                elif soldout:
                     stock_int = 0
                 elif is_single_row:
                     # 단품: 상품 전체 stockQuantity 노출 (상한 없음)
                     stock_int = max(int(total_stock), 0)
                 else:
-                    # 옵션 다중: SKU 단위 정보가 없으므로 '재고있음' 센티넬 매핑.
+                    # 옵션 다중 + per-SKU 미수집: '재고있음' 센티넬(수량 미상).
                     # 999 = 재고있음(수량 미상) — 타 소싱처와 통일 (기존 1 → 오해 소지로 변경).
                     stock_int = 999
                 options.append({
@@ -380,4 +503,16 @@ class SsLemoutonCrawler(AbstractCrawler):
             product_name_raw=product_name,
             options=options,
             discount_info=discount_info_text,
+            # [2026-07-23 M3] 소싱처 카테고리 경로 — 못 뽑으면 빈 문자열(추측 금지)
+            category_path=_parse_category_path(simple),
+            # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지).
+            #   상세는 **렌더 DOM(확장 navGrab)** 일 때만 잡힌다(사유는 _parse_detail_html).
+            image_urls=_parse_image_urls(simple, product_url),
+            detail_html=_parse_detail_html(html, product_url),
         )
+
+    def fetch(self, product_url: str) -> CrawlResult:
+        normalized_url = _normalize_url(product_url)
+
+        html = self._fetch_html(normalized_url)
+        return self.parse_html(html, product_url)

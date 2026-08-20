@@ -1,0 +1,753 @@
+{# ① 데이터수집 — 구성별 변동 주기·계수 제안 (시안 12 ①-C안: 좌우 2단)
+   ★ 읽기 전용. 계수를 자동으로 바꾸지 않는다 (사장님 결정 5-B: 확인 후 적용). #}
+<style>
+  .col-wrap{display:grid;grid-template-columns:270px 1fr;gap:16px;align-items:start}
+  .col-list{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+  .col-list .hd{padding:12px 12px;font-size:12px;font-weight:700;color:var(--sub,#8B95A1);
+    background:var(--n100,#FBFCFD);border-bottom:1px solid var(--line,#E5E8EB)}
+  .col-item{display:block;width:100%;text-align:left;padding:12px 12px;border:0;background:none;
+    border-bottom:1px solid var(--n100,#F2F4F6);cursor:pointer;font-family:inherit}
+  .col-item:last-child{border-bottom:0}
+  .col-item.on{background:var(--연한-파랑,#E8F2FF)}
+  .col-item .nm{font-size:12px;font-weight:700;color:var(--ink,#191F28)}
+  .col-item .sub{font-size:12px;color:var(--sub,#8B95A1);margin-top:0px;font-variant-numeric:tabular-nums}
+  .gbadge{display:inline-block;font-size:12px;font-weight:700;padding:0px 8px;border-radius:0px;margin-top:4px}
+  .col-detail{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+  .kpi .b{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px}
+  .kpi .l{font-size:12px;color:var(--sub,#8B95A1)}
+  .kpi .v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:0px}
+  .kpi .d{font-size:12px;color:var(--sub,#8B95A1);margin-top:0px}
+  .why{background:var(--bg,#F9FAFB);border-radius:8px;padding:12px 12px;font-size:12px;color:var(--글자-기본,#4E5968);line-height:1.8}
+  .why b{color:var(--ink,#191F28)}
+  .warnbox{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));line-height:1.8;margin-bottom:12px}
+  .warnbox b{color: var(--글자-주황, var(--amber,#6B4400))}
+  .propose{margin-top:12px;border-top:1px solid var(--n100,#F2F4F6);padding-top:12px}
+  .arrow{color: var(--글자-희미, var(--faint,#B0B8C1));margin:0 8px}
+  .muted{color:var(--sub,#8B95A1)}
+  .axis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+  .axis .a{border:1px solid var(--n100,#F2F4F6);border-radius:8px;padding:8px 12px}
+  .axis .an{font-size:12px;color:var(--sub,#8B95A1)}
+  .axis .av{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:0px}
+</style>
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 좌(목록 270px)+우(상세) 두 판 — 세로 한 줄로 */
+  .col-wrap { grid-template-columns: 1fr; }
+  .kpi { grid-template-columns: repeat(2, 1fr); }
+  .col-item { min-height: 44px; }
+  .col-item .nm { font-size: 14px; }
+  .col-item .sub { font-size: 12px; }
+  .why, .warnbox, .muted { font-size: 14px; }
+  .applybtn { min-height: 44px; }
+}
+</style>
+
+{# ── 검색필터 (새로 데려오기) — 시안 A안 「위아래로 나눠 보기」 ─────────────
+   ★ 아래 「있는 것 다시 보기」 구역은 손대지 않는다. 위에 얹기만 한다.
+   정렬: 찾음·새 것 = 우측 + 자릿수 세로정렬 / 상태 = 가운데 / 이름·주소 = 좌측
+        (시안과 같은 grid 구조 — 시안=코드) #}
+<style>
+  /* [2026-08-06 검색필터] 새 부품 전용 — 위 두 블록(기존)은 건드리지 않는다. */
+  .sf-head{margin:0 0 12px}
+  .sf-h1{font-size:15px;font-weight:700;color:var(--ink,#191F28)}
+  .sf-h2{font-size:12px;color:var(--sub,#8B95A1);margin-top:2px}
+  .sf-box{background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
+    border-radius:8px;overflow:hidden}
+  .sf-boxhd{padding:12px 14px;font-size:12px;font-weight:700;color:var(--sub,#8B95A1);
+    background:var(--n100,#FBFCFD);border-bottom:1px solid var(--line,#E5E8EB);
+    display:flex;align-items:center;justify-content:space-between}
+  /* 시안과 같은 격자 — 숫자칸을 고정폭으로 두어야 자릿수가 세로로 맞는다.
+     셀 통째 정렬로 때우면 행마다 어긋난다. */
+  .sf-row{display:grid;
+    grid-template-columns:minmax(0,1fr) 84px 68px 68px 68px 84px 170px 320px;
+    gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6)}
+  .sf-row:last-child{border-bottom:0}
+  .sf-nm{font-size:13px;font-weight:700;color:var(--ink,#191F28)}
+  .sf-url{font-size:12px;color:var(--sub,#8B95A1);margin-top:2px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .sf-cond{font-size:12px;color:var(--글자-희미,#B0B8C1);margin-top:2px}
+  .sf-st{text-align:center}
+  .sf-chip{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+  .sf-chip.ok{background:#EAF3DE;color:#27500A}
+  .sf-chip.run{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+  .sf-chip.idle{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+  /* 못 봄 = 실패 / 더 있음 = 다 못 봤지만 실패는 아님 — 색으로도 갈라 둔다 */
+  .sf-n.link{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  /* 찾은 주소 보기 창 */
+  .mi-back{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9000;
+    display:flex;align-items:center;justify-content:center;padding:24px}
+  .mi-box{background:var(--bg,#fff);border-radius:14px;width:min(860px,100%);
+    max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+  .mi-hd{display:flex;justify-content:space-between;align-items:center;
+    padding:14px 16px;font-weight:700;border-bottom:1px solid var(--n100,#F2F4F6)}
+  .mi-x{border:0;background:var(--n100,#F2F4F6);border-radius:8px;padding:6px 12px;cursor:pointer}
+  .mi-cut{padding:8px 16px;font-size:12px;color:var(--sub,#8B95A1)}
+  .mi-body{overflow:auto;padding:8px 16px 16px}
+  .mi-t{width:100%;border-collapse:collapse;font-size:12px}
+  .mi-t td{padding:6px 8px;border-bottom:1px solid var(--n100,#F2F4F6);
+    word-break:break-all}
+  .mi-t td.st{white-space:nowrap;width:72px;color:var(--sub,#8B95A1)}
+  .mi-t td.st.c{color:#1B64DA}
+  .mi-t td.st.d{color:#27500A;font-weight:700}
+  .sf-chip.err{background:#FDECEC;color:#C0392B;cursor:help}
+  .sf-chip.warn{background:#FFF4E0;color:#9A5B00;cursor:help}
+  .sf-num{text-align:right}
+  .sf-n{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink,#191F28)}
+  .sf-n.new{color:#1B64DA}
+  .sf-n.made{color:#27500A}
+  .sf-act{display:flex;gap:6px;justify-content:flex-end}
+  .sf-l{font-size:12px;color:var(--sub,#8B95A1);margin-top:1px}
+  .sf-when{font-size:12px;color:var(--sub,#8B95A1);text-align:center;font-variant-numeric:tabular-nums}
+  .sf-act{text-align:right}
+  .sf-btn{background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);border-radius:6px;
+    padding:7px 12px;font-family:inherit;font-size:12px;font-weight:700;
+    color:var(--글자-기본,#4E5968);cursor:pointer}
+  .sf-btn.pri{background:#1B64DA;border-color:#1B64DA;color:#fff}
+  .sf-btn[disabled]{opacity:.5;cursor:default}
+  .sf-form{padding:14px;background:var(--n100,#FBFCFD);border-bottom:1px solid var(--line,#E5E8EB)}
+  .sf-form-t{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin-bottom:6px}
+  .sf-in{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:6px;padding:8px 10px;
+    font-family:inherit;font-size:12px;color:var(--ink,#191F28);background:var(--surface,#fff)}
+  .sf-in.sm{margin-top:3px}
+  .sf-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px}
+  .sf-grid label{font-size:12px;color:var(--sub,#8B95A1);display:block}
+  .sf-form-b{margin-top:10px;display:flex;align-items:center;gap:10px}
+  .sf-hint{font-size:12px;color:var(--sub,#8B95A1)}
+  .sf-pick-pol{font-family:inherit;font-size:12px;color:var(--글자-기본,#4E5968);
+    border:1px solid var(--line,#E5E8EB);border-radius:4px;padding:1px 4px;
+    background:var(--surface,#fff);max-width:170px}
+  .sf-empty{padding:24px 14px;text-align:center;font-size:12px;color:var(--sub,#8B95A1);line-height:1.9}
+  /* [#1060] 상품군(검색필터) 단위 카테고리 자동 맵핑 현황 — 엔진 자체는
+     대량등록 설정 탭(소싱처 단위)에 이미 있다. 여기는 상품군 단위로 보여줄 뿐이다. */
+  .sf-cm{display:flex;flex-direction:column;gap:3px}
+  .sf-cm-bar{height:5px;border-radius:999px;background:var(--n100,#F2F4F6);overflow:hidden}
+  .sf-cm-bar i{display:block;height:100%;background:#27500A}
+  .sf-cm-txt{font-size:11px;color:var(--sub,#8B95A1);white-space:nowrap}
+  .sf-cm-empty{font-size:12px;color:var(--sub,#8B95A1)}
+  .sf-cm-btn{margin-top:2px;background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
+    border-radius:6px;padding:3px 8px;font-family:inherit;font-size:11px;font-weight:700;
+    color:var(--글자-기본,#4E5968);cursor:pointer;align-self:flex-start}
+  .sf-cm-btn[disabled]{opacity:.5;cursor:default}
+</style>
+<style>
+/* 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다(이 파일의 기존 규칙과 같은 방식). */
+@media (max-width: 768px) {
+  .sf-row{grid-template-columns:1fr 1fr;gap:8px}
+  .sf-main{grid-column:1 / -1}
+  .sf-cm{grid-column:1 / -1}
+  .sf-act{grid-column:1 / -1;text-align:left}
+  .sf-btn{min-height:44px}
+  .sf-grid{grid-template-columns:repeat(2,1fr)}
+  .sf-nm{font-size:14px}
+  .sf-url,.sf-cond,.sf-l,.sf-when,.sf-hint{font-size:12px}
+}
+</style>
+
+<div class="sf-head">
+  <div class="sf-h1">새로 데려오기</div>
+  <div class="sf-h2">검색 결과 주소 한 줄로 상품을 캐 옵니다 —
+    페이지를 여는 일은 이 PC 의 크롬이 합니다</div>
+</div>
+<div id="sfilter-root">
+  <p class="muted" style="font-size:12px">불러오는 중…</p>
+</div>
+<script>
+(function () {
+  // ── 검색필터 — 「새로 데려오기」 ────────────────────────────────────────
+  //   🔴 서버는 훑지 않는다. 「지금 수집」은 도장만 찍고, 페이지를 여는 일은
+  //     이 PC 의 크롬 확장이 한다(크롤=로컬 원칙). 그래서 누른 뒤 바로 끝나지 않는다
+  //     — 「수집 중」을 보여 주고 값이 바뀔 때까지 지켜본다.
+  const root = document.getElementById('sfilter-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let rows = [], formOpen = false, timer = null, policies = [];
+
+  // 「3분 전」 — 언제 마지막으로 훑었는지가 목록에서 바로 읽혀야 한다.
+  function ago(iso) {
+    if (!iso) return '아직 없음';
+    const t = Date.parse(iso.endsWith('Z') ? iso : iso + 'Z');
+    if (!t) return '—';
+    const m = Math.floor((Date.now() - t) / 60000);
+    if (m < 1) return '방금';
+    if (m < 60) return m + '분 전';
+    if (m < 60 * 24) return Math.floor(m / 60) + '시간 전';
+    return Math.floor(m / 1440) + '일 전';
+  }
+
+  function cond(f) {
+    const p = [];
+    if (f.page_from || f.page_to) {
+      const a = f.page_from || 1, b = f.page_to || a;
+      p.push(a === b ? a + '쪽' : a + '~' + b + '쪽');
+    } else { p.push('첫 쪽만'); }
+    p.push(f.max_items ? ('최대 ' + f.max_items + '개') : '상한 없음');
+    return p.join(' · ');
+  }
+
+  // [#1060] 카테고리 자동 맵핑 — 집계 단위는 상품 개수가 아니라 소싱처
+  //   카테고리 경로 개수다(같은 경로를 쓰는 상품 여럿은 「경로 1개」).
+  //   엔진은 이미 있다 — 여기서는 상품군 단위로 현황만 보여주고, 「지금 다시
+  //   맞추기」는 그 소싱처 전체를 다시 살펴보는 기존 기능을 그대로 부른다.
+  function catmapCell(f) {
+    const cm = f.catmap || { total: 0, confirmed: 0, suggested_only: 0, none: 0 };
+    if (!cm.total) {
+      return `<div class="sf-cm"><span class="sf-cm-empty">카테고리 아직 모름</span></div>`;
+    }
+    const pct = Math.round(cm.confirmed / cm.total * 100);
+    return `
+      <div class="sf-cm">
+        <div class="sf-cm-bar"><i style="width:${pct}%"></i></div>
+        <div class="sf-cm-txt">확정 ${cm.confirmed} · 제안 ${cm.suggested_only} · 없음 ${cm.none}</div>
+        <button class="sf-cm-btn" data-catmap="${f.id}" data-src="${esc(f.source_key)}">지금 다시 맞추기</button>
+      </div>`;
+  }
+
+  function row(f) {
+    const running = !!f.run_requested_at;
+    // 🔴 「못 봤다(실패)」와 「더 있는데 멈췄다」는 **0건과 다른 사실**이다.
+    //   여태 확장이 실패 사유를 보내도 서버가 버려서 화면엔 그냥 「끝남」이었다.
+    //   끝났다고만 적으면 사장님이 없는 상품을 없다고 믿는다.
+    const chip = running
+      ? '<span class="sf-chip run">수집 중</span>'
+      : (f.last_error
+          ? `<span class="sf-chip err" title="${esc(f.last_error)}">못 봄</span>`
+          : (f.last_capped
+              ? '<span class="sf-chip warn" title="소싱처에 「다음 페이지」가 남아 있습니다 — 지금은 첫 장만 가져옵니다">더 있음</span>'
+              : (f.last_run_at ? '<span class="sf-chip ok">끝남</span>'
+                               : '<span class="sf-chip idle">대기</span>')));
+    // 🔴 아직 한 번도 안 훑었으면 0 이 아니라 「—」.
+    //   0 은 「훑었는데 하나도 없었다」는 뜻이고, 「—」는 「아직 안 훑었다」는 뜻이다.
+    //   둘을 같은 0 으로 보여주면 검색어가 잘못된 것을 영영 못 알아챈다.
+    const ran = !!f.last_run_at;
+    // 🔴 찾아 둔 주소가 **있으면 그 수를 그대로** 말한다.
+    //   예전엔 「훑은 적 있어야 숫자를 보여준다」로 짰는데, 그러면 주소가 실제로
+    //   2건 있는데도 화면이 「—」(=없음)라고 말한다. 화면이 저장된 사실과 어긋나면
+    //   그게 곧 거짓말이다. 「—」는 **정말로 하나도 없고 훑은 적도 없을 때**만.
+    const found = f.found_total ? f.found_total : (ran ? 0 : '—');
+    const neu = (ran && f.last_new_count != null) ? f.last_new_count : '—';
+    // 「상품」 = 이 필터에서 나와 실제 초안이 된 수. 아직 아무것도 안 만들었으면 「—」.
+    const made = (f.drafted_total ? f.drafted_total : (ran ? 0 : '—'));
+    // 찾은 주소가 있어야 만들 수 있다 — 없는데 눌리면 「눌러도 아무 일 없는 단추」다.
+    const canBuild = !running && !!f.found_total;
+    return `
+      <div class="sf-row">
+        <div class="sf-main">
+          <div class="sf-nm">${esc(f.name)}</div>
+          <div class="sf-url" title="${esc(f.listing_url)}">${esc(f.listing_url)}</div>
+          <div class="sf-cond">${esc(cond(f))} · 가격 정책
+            <select class="sf-pick-pol" data-pol="${f.id}">
+              <option value="">안 붙임</option>
+              ${policies.map((p) => `<option value="${p.id}"${
+                String(p.id) === String(f.apply_policy_id || '') ? ' selected' : ''
+              }>${esc(p.name)}</option>`).join('')}
+            </select></div>
+        </div>
+        <div class="sf-st">${chip}</div>
+        <div class="sf-num"><div class="sf-n${f.found_total ? ' link' : ''}"
+          ${f.found_total ? `data-items="${f.id}" title="무엇을 찾았는지 봅니다"` : ''}
+          >${found}</div><div class="sf-l">찾음</div></div>
+        <div class="sf-num"><div class="sf-n new">${neu}</div><div class="sf-l">새 것</div></div>
+        <div class="sf-num"><div class="sf-n made">${made}</div><div class="sf-l">상품</div></div>
+        <div class="sf-when">${esc(ago(f.last_run_at))}${
+          f.next_page_from ? `<div style="font-size:12px;opacity:.85" title="한 번에 걸을 수 있는 쪽 수가 정해져 있어(소싱처 보호) 나눠 걷습니다. 더 있으면 스스로 이어서 걷고, 새로 걷을 것이 없으면 멈춥니다.">이어서 ${f.next_page_from}쪽부터${f.run_requested_at ? ' · 자동' : ''}</div>` : ''
+        }${
+          f.last_ext_version ? (
+            /* 🔴 견주는 일은 **서버가** 한다(ext_version_outdated). 여기서 글자로
+               견줬더니 확장이 더 새 판(0.8.03)일 때도 「새 판 0.8.02 있음」이라
+               떠서, 누를 것이 없는데 ↻ 를 누르라고 했다(2026-08-13 라이브). */
+            f.ext_version_outdated
+              ? `<div style="font-size:12px;color:var(--warn,#b26a00)" title="chrome://extensions 에서 ↻ 를 누르면 새 판으로 바뀝니다.">확장 ${esc(f.last_ext_version)} · 새 판 ${esc(f.ext_version_expected)} 있음</div>`
+              : `<div style="font-size:12px;opacity:.7">확장 ${esc(f.last_ext_version)}</div>`
+          ) : ''
+        }</div>
+        ${catmapCell(f)}
+        <div class="sf-act">
+          <button class="sf-btn" data-run="${f.id}" ${running ? 'disabled' : ''}>
+            ${running ? '훑는 중' : '지금 수집'}</button>
+          <button class="sf-btn" data-build="${f.id}" ${canBuild ? '' : 'disabled'}
+            title="찾은 주소를 크롤 대기에 넣고, 크롤이 끝난 것은 상품으로 만듭니다">
+            상품 만들기</button>
+          <button class="sf-btn" data-card="${f.id}"
+            title="이 필터가 수집 → 상품 → 등록 → 매출까지 얼마나 왔는지 봅니다">성적표</button>
+          <button class="sf-btn del" data-del="${f.id}" title="이 필터만 지웁니다 — 이미 만든 상품은 그대로 남습니다">지우기</button>
+        </div>
+      </div>`;
+  }
+
+  const FORM = `
+    <div class="sf-form">
+      <div class="sf-form-t">검색 결과 주소를 붙여넣으세요
+        (예: 무신사에서 「나이키」를 검색한 뒤 주소창의 주소)</div>
+      <input class="sf-in" id="sf-url" placeholder="https://www.musinsa.com/search/goods?keyword=나이키">
+      <div class="sf-grid">
+        <label>몇 개까지<input class="sf-in sm" id="sf-max" placeholder="비우면 상한 없음"></label>
+        {# 소싱처에 따라 주소로 넘기거나(무신사·SSF·르무통) 「다음」 단추를 눌러
+           넘긴다(롯데온·롯데아이몰). 사장님은 몇 쪽인지만 적으면 된다 —
+           같은 뜻인데 칸이 둘이면 어느 쪽을 채워야 할지 모른다. #}
+        <label title="비우면 첫 쪽만 봅니다">몇 쪽부터<input class="sf-in sm" id="sf-pf" placeholder="1"></label>
+        <label title="최대 60쪽. 무신사 한 쪽 60개 · 롯데온 47개 · 롯데아이몰 60개">몇 쪽까지<input class="sf-in sm" id="sf-pt" placeholder="1"></label>
+        <!-- 한 줄짜리 칸이라 줄바꿈을 못 넣는다 — 쉼표로 여러 개를 적는다. -->
+        <label>뺄 옵션(쉼표)<input class="sf-in sm" id="sf-ex" placeholder="예: 샘플, 중고"></label>
+        <label>이름(비우면 자동)<input class="sf-in sm" id="sf-nm" placeholder="무신사_나이키_001"></label>
+        <label>소싱처<input class="sf-in sm" id="sf-src" value="musinsa"></label>
+        <label>가격 정책<select class="sf-in sm" id="sf-pol"></select></label>
+      </div>
+      <div class="sf-form-b">
+        <button class="sf-btn pri" id="sf-save">만들기</button>
+        <button class="sf-btn" id="sf-cancel">그만두기</button>
+        <span class="sf-hint" id="sf-msg">만든 뒤 「지금 수집」을 눌러야 훑기 시작합니다</span>
+        {# 소싱처마다 「여러 쪽을 걷을 수 있나」가 다르다 — 실측(2026-08-08).
+           안 되는 곳에 쪽수를 적으면 같은 1쪽을 반복하므로 미리 알린다. #}
+        <span class="sf-hint" style="display:block;margin-top:6px;line-height:1.7">
+          여러 쪽 걷기 —
+          무신사 <b>됨</b>(쪽당 60) · 롯데온 <b>됨</b>(60) · 롯데아이몰 <b>됨</b>(60)
+          · 현대H몰 <b>됨</b>(36) · 르무통 <b>됨</b>(25)
+          · SSF는 <b>카테고리 목록만</b>(검색 주소는 첫 쪽 60개)
+          · SSG는 <b>아직 확인 전</b>(규칙만 넣어 둠 — 처음 수집한 뒤 숫자를 맞춰 봐 주세요)
+        </span>
+      </div>
+    </div>`;
+
+  function render() {
+    const list = rows.length
+      ? rows.map(row).join('')
+      : `<div class="sf-empty">아직 검색필터가 없습니다.<br>
+           「+ 검색필터 만들기」를 눌러 검색 결과 주소를 넣어 주세요.</div>`;
+    root.innerHTML = `
+      <div class="sf-box">
+        <div class="sf-boxhd">
+          <span>검색필터 ${rows.length}개</span>
+          <button class="sf-btn pri" id="sf-new">+ 검색필터 만들기</button>
+        </div>
+        ${formOpen ? FORM : ''}
+        ${list}
+      </div>`;
+
+    const sel = document.getElementById('sf-pol');
+    if (sel) {
+      // 🔴 「안 붙임」을 첫 줄에 둔다 — 정책 없이도 상품은 만들 수 있고,
+      //   그때 판매가가 0 으로 남는다는 걸 라벨로 말해 준다.
+      sel.innerHTML = '<option value="">안 붙임 (판매가는 나중에)</option>'
+        + policies.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    }
+    const nb = document.getElementById('sf-new');
+    if (nb) nb.onclick = () => { formOpen = !formOpen; render(); };
+    const cb = document.getElementById('sf-cancel');
+    if (cb) cb.onclick = () => { formOpen = false; render(); };
+    const sb = document.getElementById('sf-save');
+    if (sb) sb.onclick = save;
+    root.querySelectorAll('[data-run]').forEach((b) => {
+      b.onclick = () => runNow(b.dataset.run, b);
+    });
+    root.querySelectorAll('[data-build]').forEach((b) => {
+      b.onclick = () => buildNow(b.dataset.build, b);
+    });
+    root.querySelectorAll('[data-pol]').forEach((sel) => {
+      sel.onchange = () => {
+        const id = sel.dataset.pol;
+        sel.disabled = true;
+        fetch('/bulk/api/search-filters/' + id, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apply_policy_id: Number(sel.value || 0) || null }),
+        }).then(() => load()).catch(() => load());
+      };
+    });
+    root.querySelectorAll('[data-card]').forEach((b) => {
+      b.onclick = () => showCard(b.dataset.card, b);
+    });
+    root.querySelectorAll('[data-items]').forEach((b) => {
+      b.onclick = () => showItems(b.dataset.items);
+    });
+    root.querySelectorAll('[data-del]').forEach((b) => {
+      b.onclick = () => delNow(b.dataset.del, b);
+    });
+    root.querySelectorAll('[data-catmap]').forEach((b) => {
+      b.onclick = () => runCatmap(b.dataset.src, b);
+    });
+    watch();
+  }
+
+  function num(id) {
+    const v = (document.getElementById(id).value || '').trim();
+    return v ? Number(v) : null;
+  }
+
+  function save() {
+    const msg = document.getElementById('sf-msg');
+    const body = {
+      source_key: (document.getElementById('sf-src').value || '').trim(),
+      listing_url: (document.getElementById('sf-url').value || '').trim(),
+      name: (document.getElementById('sf-nm').value || '').trim(),
+      max_items: num('sf-max'), page_from: num('sf-pf'), page_to: num('sf-pt'),
+      option_exclude_words: (document.getElementById('sf-ex').value || '').trim(),
+      apply_policy_id: Number(document.getElementById('sf-pol').value || 0) || null,
+    };
+    if (!body.listing_url) { msg.textContent = '검색 결과 주소를 넣어 주세요.'; return; }
+    msg.textContent = '만드는 중…';
+    fetch('/bulk/api/search-filters', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        // 🔴 실패 사유를 그대로 보여준다 — 「규칙을 모르는 소싱처」가 여기서 걸린다.
+        if (!ok || !j.ok) { msg.textContent = j.message || '만들지 못했습니다.'; return; }
+        formOpen = false; load();
+      }).catch((e) => { msg.textContent = e.message; });
+  }
+
+  function runNow(id, btn) {
+    btn.disabled = true; btn.textContent = '부탁하는 중…';
+    fetch('/bulk/api/search-filters/' + id + '/run', { method: 'POST' })
+      .then((r) => r.json()).then(() => load())
+      .catch(() => load());
+  }
+
+  // [#1060] 이 소싱처 전체의 카테고리 자동 제안을 다시 만든다(기존 M2 기능
+  //   그대로 — 소싱처 단위다. 이 상품군만 골라 돌리는 수단은 아직 없다).
+  function runCatmap(src, btn) {
+    btn.disabled = true; btn.textContent = '맞추는 중…';
+    fetch('/bulk/api/catmap/suggest/' + encodeURIComponent(src), { method: 'POST' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) { window.alert(j.error || '카테고리를 못 맞췄습니다.'); return; }
+        window.alert('「' + src + '」 소싱처 전체를 다시 살펴봤어요 — 새로 제안된 것 '
+          + (j.suggested || 0) + '건');
+        load();
+      })
+      .catch((e) => window.alert(e.message))
+      .then(() => { btn.disabled = false; btn.textContent = '지금 다시 맞추기'; });
+  }
+
+  // 찾은 주소 보기 — 「찾음 31」만 보고는 **무엇을** 찾았는지 알 수 없다.
+  //   검색어가 엉뚱해 잡화가 딸려 와도 상품을 만들어 보기 전엔 모른다.
+  function showItems(id) {
+    fetch('/bulk/api/search-filters/' + id + '/items?limit=200')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) { window.alert(j.message || '못 불러왔습니다.'); return; }
+        const rows = (j.items || []).map((x) => {
+          // 주소만 보여주면 「왜 상품이 안 생기지」를 여전히 못 푼다.
+          const st = x.drafted ? '상품됨' : (x.crawled ? '크롤됨' : '크롤 전');
+          return `<tr><td class="st ${x.drafted ? 'd' : (x.crawled ? 'c' : '')}">${st}</td>`
+               + `<td><a href="${esc(x.product_url)}" target="_blank" rel="noopener">`
+               + `${esc(x.product_url)}</a></td></tr>`;
+        }).join('');
+        // 🔴 자른 것을 숨기지 않는다.
+        const cut = j.total > j.items.length
+          ? `<div class="mi-cut">전체 ${j.total}건 중 앞 ${j.items.length}건만 보입니다.</div>` : '';
+        const box = document.createElement('div');
+        box.className = 'mi-back';
+        box.innerHTML = `<div class="mi-box"><div class="mi-hd">찾은 주소 ${j.total}건`
+          + `<button class="mi-x">닫기</button></div>${cut}`
+          + `<div class="mi-body"><table class="mi-t">${rows}</table></div></div>`;
+        box.onclick = (e) => { if (e.target === box || e.target.className === 'mi-x') box.remove(); };
+        document.body.appendChild(box);
+      })
+      .catch((e) => window.alert(e.message));
+  }
+
+  // 성적표 — 「수집 → 상품 → 등록 → 매출」. 이 필터가 돈이 됐는지를 묻는 화면이다.
+  //   ★ 목록에는 안 싣는다 — 필터마다 주문라인을 훑어야 해서 목록이 느려진다.
+  //     보고 싶을 때만 부른다.
+  function showCard(id, btn) {
+    btn.disabled = true;
+    fetch('/bulk/api/search-filters/' + id + '/scorecard')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) { window.alert(j.message || '성적표를 못 만들었습니다.'); return; }
+        const say = [
+          '찾은 주소 ' + j.found + '개',
+          '→ 상품으로 만든 것 ' + j.drafted + '개',
+          '→ 마켓에 올라간 것 ' + j.registered + '개',
+          '',
+          '최근 ' + j.window_days + '일 주문 ' + j.order_lines + '건',
+          '매출(정산예정금) ' + (j.sales || 0).toLocaleString() + '원',
+        ];
+        // 🔴 「안 팔렸다」와 「팔렸는데 금액을 모른다」를 뭉개지 않는다.
+        if (j.sales_unknown_lines) {
+          say.push('※ 그중 ' + j.sales_unknown_lines
+                   + '건은 금액을 못 읽어 매출에 안 넣었습니다(0원으로 세지 않음)');
+        }
+        if (!j.registered) {
+          say.push('', '아직 마켓에 올라간 것이 없어 매출이 0 입니다 — 안 팔린 게 아닙니다.');
+        }
+        window.alert(say.join('\n'));
+      })
+      .catch((e) => window.alert(e.message))
+      .then(() => { btn.disabled = false; });
+  }
+
+  function delNow(id, btn) {
+    const f = rows.find((x) => String(x.id) === String(id)) || {};
+    // 🔴 무엇이 남고 무엇이 사라지는지 먼저 말한다 — 더망고는 필터를 지우면 그 상품이
+    //   전부 사라진다. 우리는 안 그렇지만, 그 사실을 사람이 알아야 안심하고 누른다.
+    const made = f.drafted_total || 0;
+    if (!window.confirm(
+      `「${f.name}」 필터를 지웁니다.\n\n`
+      + (made ? `· 이미 만든 상품 ${made}개는 그대로 남습니다\n` : '')
+      + '· 찾아 둔 주소 기록도 그대로 남습니다\n'
+      + '· 이 필터로 더는 수집하지 않습니다\n\n지울까요?')) return;
+    btn.disabled = true;
+    fetch('/bulk/api/search-filters/' + id, { method: 'DELETE' })
+      .then(() => load()).catch(() => load());
+  }
+
+  function buildNow(id, btn) {
+    btn.disabled = true; btn.textContent = '만드는 중…';
+    fetch('/bulk/api/search-filters/' + id + '/build', { method: 'POST' })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || !j.ok) { window.alert(j.message || '만들지 못했습니다.'); load(); return; }
+        // 🔴 무슨 일이 일어났는지 그대로 말한다. 「완료」 한 마디로 끝내면
+        //   크롤을 기다리는 중인지 다 끝난 건지 사람이 알 수 없다.
+        const say = [];
+        if (j.queued) say.push('크롤 대기에 ' + j.queued + '개를 넣었습니다');
+        if (j.drafted) say.push('상품 ' + j.drafted + '개를 만들었습니다');
+        if (j.priced) say.push('그중 판매가까지 정한 것 ' + j.priced + '개');
+        if (j.unpriced) {
+          // 🔴 「판매가를 못 정했다」를 조용히 넘기면 마켓에 못 올라가는 이유를 모른다.
+          say.push('판매가를 못 정한 것 ' + j.unpriced + '개 — 그대로는 마켓에 못 올라갑니다');
+        }
+        // 🔴 조용히 빼면 「왜 옵션이 줄었지」를 사장님이 영영 못 푼다.
+        if (j.excluded_options) {
+          say.push('「뺄 옵션」에 걸려 안 담은 옵션 ' + j.excluded_options + '개');
+        }
+        if (j.waiting) say.push('아직 크롤 전인 것 ' + j.waiting + '개');
+        if (j.done) say.push('이미 만들어져 있던 것 ' + j.done + '개');
+        if ((j.failed || []).length) say.push('실패 ' + j.failed.length + '개');
+        if (!say.length) say.push(j.message || '더 할 일이 없습니다');
+        let msg = say.join('\n');
+        if (j.queued || j.waiting) {
+          // 🔴 크롤이 꺼져 있으면 「기다리면 된다」고 말하면 안 된다 — 영영 안 늘어난다.
+          //   대기에 넣은 것과 그게 처리되는 것은 다른 사실이다.
+          msg += (j.crawl_enabled === false)
+            ? '\n\n지금 크롤 자동 실행이 꺼져 있습니다.'
+              + '\n켜기 전에는 기다려도 상품이 늘어나지 않습니다.'
+              + '\n「자동화」 화면에서 크롤을 켜 주세요.'
+            : '\n\n크롤은 이 PC 의 크롬이 차례로 돕니다.'
+              + '\n조금 뒤 「상품 만들기」를 한 번 더 누르면 그만큼 상품이 늘어납니다.';
+        }
+        if ((j.unpriced_reasons || []).length) {
+          msg += '\n\n판매가를 못 정한 이유:\n'
+               + j.unpriced_reasons.map((x) => '· ' + x).join('\n');
+        }
+        if ((j.failed || []).length) {
+          msg += '\n\n실패한 것:\n'
+               + j.failed.slice(0, 5).map((x) => '· ' + x.error).join('\n');
+        }
+        window.alert(msg);
+        load();
+      })
+      .catch((e) => { window.alert(e.message); load(); });
+  }
+
+  // 수집 중인 필터가 하나라도 있으면 값이 바뀔 때까지 지켜본다.
+  //   ★ 없으면 멈춘다 — 가만히 있는 화면이 서버를 계속 두들기지 않게.
+  function watch() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (rows.some((f) => f.run_requested_at)) timer = setTimeout(load, 5000);
+  }
+
+  function load() {
+    fetch('/bulk/api/price-policies')
+      .then((r) => r.json()).then((j) => { policies = (j && j.policies) || []; })
+      .catch(() => { policies = []; })   // 못 불러와도 목록은 보여야 한다
+      .then(loadFilters);
+  }
+
+  function loadFilters() {
+    fetch('/bulk/api/search-filters')
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || !j.ok) {
+          root.innerHTML = '<div class="warnbox"><b>불러오지 못했습니다</b><br>'
+            + esc(j.message || '알 수 없는 오류') + '</div>';
+          return;
+        }
+        rows = j.filters || []; render();
+      })
+      .catch((e) => {
+        root.innerHTML = '<div class="warnbox"><b>불러오지 못했습니다</b><br>'
+          + esc(e.message) + '</div>';
+      });
+  }
+
+  load();
+})();
+</script>
+
+<div class="sf-head" style="margin-top:20px">
+  <div class="sf-h1">있는 것 다시 보기</div>
+  <div class="sf-h2">이미 가진 상품을 얼마나 자주 다시 볼지</div>
+</div>
+<div id="collect-root">
+  <p class="muted" style="font-size:12px">불러오는 중…</p>
+</div>
+
+<script>
+(function () {
+  const GC = ['#EF4444', '#F59E0B', '#3182F6', '#8B95A1', '#B0B8C1', '#C6CDD6'];
+  const root = document.getElementById('collect-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const n1 = (v) => (v == null ? '—' : Number(v).toFixed(1));
+  // 하루보다 짧은 주기를 '0.0일'로 찍으면 '안 바뀐다'로 읽힌다 — 그때는 횟수로 말한다.
+  const period = (d) => {
+    if (d == null) return '변동 없음';
+    if (d >= 1) return Number(d).toFixed(1) + '일';
+    return '하루 ' + (1 / d).toFixed(1) + '회';
+  };
+  let data = null, sel = 0;
+
+  function badge(row) {
+    if (row.grade == null) return '<span class="gbadge" style="background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)">등급 미상</span>';
+    const c = GC[row.grade];
+    return `<span class="gbadge" style="background:${c}22;color:${c}">${esc(row.grade_name)}</span>`;
+  }
+
+  // 권장이 지금보다 훨씬 적으면 그냥 넘기면 안 된다 — 놓치는 변동이 생긴다.
+  function cutWarn(row) {
+    const now = row.crawls_per_day, want = row.proposed_per_day;
+    if (!now || !want || want >= now) return '';
+    const changesPerDay = (row.intensity_pct || 0) / 100;
+    if (changesPerDay <= want) return '';
+    return `<div style="margin-top:8px;background:var(--연한-빨강,#FEECEC);border-radius:8px;padding:8px 12px;
+      font-size:12px;color: var(--글자-빨강, var(--red,#8A2020));line-height:1.7">
+      <b>줄이면 놓칩니다</b> — 이 구성은 하루 ${changesPerDay.toFixed(1)}회 바뀌는데
+      권장은 ${esc(row.proposed_text)} 입니다. 상한(하루 2회)이 변동 속도보다 낮습니다.</div>`;
+  }
+
+  function detail(row) {
+    if (!row) return '<p class="muted">구성을 고르세요.</p>';
+    if (row.grade == null) {
+      return `<div class="warnbox"><b>등급을 매길 수 없습니다</b><br>${esc(row.note || '')}</div>`;
+    }
+    const axes = row.axes || {};
+    return `
+      <div class="kpi">
+        <div class="b"><div class="l">강도</div>
+          <div class="v" style="color:${GC[row.grade]}">${n1(row.intensity_pct)}%</div>
+          <div class="d">하루 1회 = 100%</div></div>
+        <div class="b"><div class="l">평균 주기</div>
+          <div class="v">${period(row.average_period_days)}</div>
+          <div class="d">1회 바뀌는 데</div></div>
+        <div class="b"><div class="l">지금 크롤</div>
+          <div class="v">${n1(row.crawls_per_day)}<span style="font-size:12px;font-weight:400;color:var(--sub,#8B95A1)"> 회/일</span></div>
+          <div class="d">계수 ${esc(row.current_weight)}</div></div>
+        <div class="b"><div class="l">권장 크롤</div>
+          <div class="v" style="color:#1B64DA">${esc(row.proposed_text || '—')}</div>
+          <div class="d">${row.capped ? '상한에 조정됨' : (row.floored ? '하한 적용' : '그대로')}</div></div>
+      </div>
+      <div class="why"><b>근거</b> — ${esc(row.note || '')}</div>
+      <div class="axis">
+        <div class="a"><div class="an">가격 변동</div>
+          <div class="av" style="color:#1B64DA">${n1((axes.price || {}).intensity_pct)}%</div></div>
+        <div class="a"><div class="an">재고 변동</div>
+          <div class="av" style="color: var(--글자-주황, var(--amber,#B45309)">${n1((axes.stock || {}).intensity_pct)}%</div></div>
+      </div>
+      <div class="propose">
+        <span class="muted" style="font-size:12px">크롤 횟수</span>
+        <b style="font-variant-numeric:tabular-nums">${n1(row.crawls_per_day)}회/일</b>
+        <span class="arrow">→</span>
+        <b style="color:#1B64DA">${esc(row.proposed_text || '—')}</b>
+        ${cutWarn(row)}
+        <div style="margin-top:8px">
+          <button class="applybtn" data-src="${esc(row.source_key)}"
+            data-brand="${esc(row.brand)}" data-w="${Math.round(row.proposed_per_day || 1)}"
+            style="background:var(--surface,#ffffff));border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 16px;
+            font-family:inherit;font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);cursor:pointer">
+            이 계수로 적용</button>
+          <span class="muted" id="apply-msg" style="font-size:12px;margin-left:8px"></span>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:4px">
+          ※ 자동으로 바뀌지 않습니다 — 누르면 무엇이 바뀌는지 먼저 보여드립니다.</div>
+      </div>`;
+  }
+
+  function render() {
+    if (!data) return;
+    const rows = data.rows || [];
+    if (!rows.length) {
+      root.innerHTML = '<div class="warnbox"><b>아직 통계가 없습니다</b><br>'
+        + '크롤이 몇 바퀴 돌아야 구성별 변동 주기를 말할 수 있습니다.</div>';
+      return;
+    }
+    const list = rows.map((r, i) => `
+      <button class="col-item ${i === sel ? 'on' : ''}" data-i="${i}">
+        <div class="nm">${esc(r.source_label || r.source_key)} &gt; ${esc(r.brand)}</div>
+        <div class="sub">관측 ${r.observed} · 변동 ${r.changed}</div>
+        ${badge(r)}
+      </button>`).join('');
+
+    root.innerHTML = `
+      <div class="warnbox">
+        <b>이 숫자는 「구성 평균」입니다</b> — 상품 하나하나가 아니라 그 구성의 평균 상품이
+        얼마나 자주 바뀌는지입니다. ${esc(data.note || '')}
+        <br>모드 — ${data.mode === 'clock'
+          ? '벽시계 (기준주기 ' + Math.round((data.base_interval_seconds || 0) / 60) + '분)'
+          : '연속 (1바퀴 평균 ' + (data.avg_lap_minutes == null ? '측정 전'
+              : data.avg_lap_minutes + '분'
+                + (data.avg_lap_source === 'recent' ? ' · 최근 랩 기준' : '')) + ')'}
+        ${(data.counts && data.counts.graded === 0 && data.counts.total > 0)
+          ? '<br><b>지금은 등급을 매길 수 없습니다</b> — 구성마다 사유가 오른쪽에 나옵니다.' : ''}
+      </div>
+      <div class="col-wrap">
+        <div class="col-list">
+          <div class="hd">구성 ${rows.length}개 · 소싱처 &gt; 브랜드</div>
+          ${list}
+        </div>
+        <div class="col-detail">${detail(rows[sel])}</div>
+      </div>`;
+
+    root.querySelectorAll('.col-item').forEach((b) => {
+      b.onclick = () => { sel = Number(b.dataset.i); render(); };
+    });
+    const ab = root.querySelector('.applybtn');
+    if (ab) ab.onclick = () => applyWeight(ab);
+  }
+
+  // 2단계 — 먼저 「무엇이 바뀌나」를 보여주고, 사람이 다시 눌러야 저장한다.
+  function applyWeight(btn) {
+    const msg = document.getElementById('apply-msg');
+    const body = { source_key: btn.dataset.src, brand: btn.dataset.brand,
+                   weight: Number(btn.dataset.w) };
+    const post = (dry) => fetch('/bulk/api/collect/apply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, dry_run: dry }),
+    }).then((r) => r.json().then((j) => ({ ok: r.ok, j })));
+
+    msg.textContent = '확인 중…';
+    post(true).then(({ ok, j }) => {
+      if (!ok || !j.ok) { msg.textContent = j.error || '확인하지 못했습니다.'; return; }
+      const lines = [`${j.label} 에 계수 ${j.weight} 를 겁니다.`];
+      if (j.warning) lines.push('', '⚠️ ' + j.warning.replace(/\*\*/g, ''));
+      lines.push('', '적용할까요?');
+      if (!window.confirm(lines.join('\n'))) { msg.textContent = '취소했습니다.'; return; }
+      msg.textContent = '적용 중…';
+      post(false).then(({ ok: ok2, j: j2 }) => {
+        msg.textContent = (ok2 && j2.ok)
+          ? `적용했습니다 — ${j2.label} 계수 ${j2.saved_weight}`
+          : (j2.error || '적용하지 못했습니다.');
+      });
+    }).catch((e) => { msg.textContent = e.message; });
+  }
+
+  fetch('/bulk/api/collect/grades')
+    .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+    .then(({ ok, j }) => {
+      if (!ok || j.error) {
+        root.innerHTML = '<div class="warnbox"><b>불러오지 못했습니다</b><br>'
+          + esc(j.detail || j.error || '알 수 없는 오류') + '</div>';
+        return;
+      }
+      data = j; render();
+    })
+    .catch((e) => {
+      root.innerHTML = '<div class="warnbox"><b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';
+    });
+})();
+</script>

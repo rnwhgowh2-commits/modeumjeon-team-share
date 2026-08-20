@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" class="{{ design_body_class|default('') }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -14,6 +14,16 @@
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+  {# 하단 탭(Task 6) — 탭바 모양 + body.m-body 바닥 여백. PC 화면과 공유(Task 7). #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile_shell.css') }}">
+  {# [2026-07-31] 휴대폰 화면도 디자인 타입을 따르게 한다.
+     여기는 base.html·auth 와 또 다른 세 번째 뼈대라 토큰 CSS 가 안 실렸다
+     → 검정 타입인데 이 화면들만 통째로 흰 판이었다
+     (감사 실측: 흰 판 200곳·대비 미달 600곳, /mobile/inventory 한 화면에서만).
+     넷 다 선택자가 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='scope_fix.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}">
 
   <style>
     :root {
@@ -24,8 +34,8 @@
     html, body {
       margin: 0; padding: 0;
       font-family: var(--font, 'Pretendard', -apple-system, sans-serif);
-      background: var(--bg, #F9FAFB);
-      color: var(--n900, #191F28);
+      background: var(--bg, var(--bg,#F9FAFB));
+      color: var(--n900, var(--ink,#191F28));
       overscroll-behavior-y: contain;  /* 풀투리프레시 방지 */
     }
     body {
@@ -40,29 +50,30 @@
       position: sticky; top: var(--safe-top);
       z-index: 10;
       background: var(--surface, #fff);
-      border-bottom: 1px solid var(--n200, #E5E8EB);
-      padding: 14px 16px;
+      border-bottom: 1px solid var(--n200, var(--line,#E5E8EB));
+      padding: 12px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
     .m-header h1 {
       margin: 0;
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
     }
     .m-back {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 36px; height: 36px;
-      margin-left: -8px;
+      /* [2026-08-05 실측] 32~36px — 손끝 목표 44px 미달 → 44 로. 글자 크기는 그대로. */
+      width: 44px; height: 44px;
+      margin-left: -12px;
       border-radius: 50%;
-      color: var(--n700, #4E5968);
+      color: var(--n700, var(--글자-기본,#4E5968));
       text-decoration: none;
       font-size: 24px;
     }
-    .m-back:active { background: var(--n100, #F2F4F6); }
+    .m-back:active { background: var(--n100, var(--n100,#F2F4F6)); }
 
     /* ─── 컨텐츠 ─── */
     .m-content {
@@ -74,16 +85,16 @@
     /* ─── 카드 ─── */
     .m-card {
       background: var(--surface, #fff);
-      border: 1px solid var(--n200, #E5E8EB);
+      border: 1px solid var(--n200, var(--line,#E5E8EB));
       border-radius: 12px;
       padding: 16px;
       margin-bottom: 12px;
     }
     .m-card-title {
-      font-size: 13px;
-      color: var(--n600, #6B7684);
+      font-size: 12px;
+      color: var(--n600, var(--글자-보조,#6B7684));
       font-weight: 500;
-      margin: 0 0 6px;
+      margin: 0 0 4px;
     }
     .m-card-value {
       font-size: 24px;
@@ -109,10 +120,10 @@
       padding: 24px 12px;
       min-height: 110px;
       background: var(--surface, #fff);
-      border: 1px solid var(--n200, #E5E8EB);
-      border-radius: 14px;
-      color: var(--n800, #333D4B);
-      font-size: 15px;
+      border: 1px solid var(--n200, var(--line,#E5E8EB));
+      border-radius: 12px;
+      color: var(--n800, var(--ink,#333D4B));
+      font-size: 14px;
       font-weight: 600;
       text-decoration: none;
       cursor: pointer;
@@ -120,25 +131,37 @@
     }
     .m-action-btn:active {
       transform: scale(0.97);
-      background: var(--n100, #F2F4F6);
+      background: var(--n100, var(--n100,#F2F4F6));
     }
     .m-action-btn .icon {
-      font-size: 36px;
+      font-size: 32px;
       line-height: 1;
     }
     .m-action-btn.primary {
-      background: var(--primary, #3182F6);
+      background: var(--바탕-파랑, var(--primary, var(--primary,#3182F6)));
       color: white;
-      border-color: var(--primary, #3182F6);
+      border-color: var(--primary, var(--primary,#3182F6));
     }
     .m-action-btn.primary:active {
       background: var(--primary-strong, #1B64DA);
     }
+    /* [2026-08-04] 잠긴 큰 버튼은 **잠겨 보여야** 한다.
+       .m-action-btn.primary 가 background·color:white 를 명시해 브라우저 기본
+       회색 처리를 덮는다 → disabled 를 걸어도 선명한 파란 버튼 그대로 떴다.
+       (폰 크롤 리모컨: PC 가 꺼졌는데 「지금 한 바퀴」가 멀쩡해 보이고 눌러도 무반응.
+        '눌러도 아무 일 없는 버튼'이 이 화면이 가장 피하려던 결과다.)
+       체크박스는 브라우저가 알아서 흐리게 하니 여기선 버튼만 본다. */
+    .m-action-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+    .m-action-btn:disabled:active { transform: none; }
+
     .m-action-btn.danger {
-      color: var(--danger, #F04452);
+      color: var(--글자-빨강, var(--danger, var(--red,#F04452)));
     }
     .m-action-btn.success {
-      color: var(--color-ok, #16a34a);
+      color: var(--글자-초록, var(--color-ok, var(--green,#16a34a)));
     }
 
     /* ─── 기본 버튼 ─── */
@@ -146,39 +169,39 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 14px 20px;
+      padding: 12px 16px;
       border: none;
-      border-radius: 10px;
-      font-size: 16px;
+      border-radius: 8px;
+      font-size: 17px;
       font-weight: 600;
       cursor: pointer;
       width: 100%;
       box-sizing: border-box;
     }
-    .m-btn.primary { background: var(--primary, #3182F6); color: white; }
+    .m-btn.primary { background: var(--바탕-파랑, var(--primary, var(--primary,#3182F6))); color: white; }
     .m-btn.primary:active { background: var(--primary-strong, #1B64DA); }
     .m-btn.secondary {
-      background: var(--n100, #F2F4F6);
-      color: var(--n800, #333D4B);
+      background: var(--n100, var(--n100,#F2F4F6));
+      color: var(--n800, var(--ink,#333D4B));
     }
 
     /* ─── 입력 ─── */
     .m-field { margin-bottom: 16px; }
     .m-field label {
       display: block;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      color: var(--n700, #4E5968);
-      margin-bottom: 6px;
+      color: var(--n700, var(--글자-기본,#4E5968));
+      margin-bottom: 4px;
     }
     .m-field input,
     .m-field select,
     .m-field textarea {
       width: 100%;
-      padding: 14px;
-      font-size: 16px;
-      border: 1px solid var(--n300, #D1D6DB);
-      border-radius: 10px;
+      padding: 12px;
+      font-size: 17px;
+      border: 1px solid var(--n300, var(--faint,#D1D6DB));
+      border-radius: 8px;
       background: var(--surface, #fff);
       box-sizing: border-box;
       font-family: inherit;
@@ -186,18 +209,21 @@
     .m-field input:focus,
     .m-field select:focus {
       outline: none;
-      border-color: var(--primary, #3182F6);
-      box-shadow: 0 0 0 3px var(--primary-tint, #E8F2FF);
+      border-color: var(--primary, var(--primary,#3182F6));
+      
     }
 
     /* ─── 토스트 ─── */
+    /* [Task 6] 바닥에 뜨는 것들은 하단 탭(--ms-tabbar-h, mobile_shell.css) 위로
+       올린다 — 안 올리면 탭바(z-index 가 더 큼)가 토스트·설치 배너를 가린다.
+       예비값 0px: mobile_shell.css 가 어떤 이유로 안 실려도 예전 자리 그대로다. */
     .m-toast {
       position: fixed;
-      bottom: calc(20px + var(--safe-bottom));
+      bottom: calc(20px + var(--ms-tabbar-h, 0px) + var(--safe-bottom));
       left: 16px; right: 16px;
       max-width: 480px;
       margin: 0 auto;
-      padding: 14px 18px;
+      padding: 12px 16px;
       border-radius: 12px;
       color: white;
       font-weight: 600;
@@ -205,25 +231,25 @@
       transform: translateY(120%);
       transition: transform 0.3s;
       z-index: 100;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      
     }
     .m-toast.show { transform: translateY(0); }
-    .m-toast.success { background: var(--color-ok, #16a34a); }
-    .m-toast.error { background: var(--danger, #F04452); }
-    .m-toast.info { background: var(--n800, #333D4B); }
+    .m-toast.success { background: var(--color-ok, var(--green,#16a34a)); }
+    .m-toast.error { background: var(--danger, var(--red,#F04452)); }
+    .m-toast.info { background: var(--n800, var(--ink,#333D4B)); }
 
     /* ─── 로딩 ─── */
     .m-loading {
       display: flex; align-items: center; justify-content: center;
-      padding: 40px 0;
-      color: var(--n500, #8B95A1);
+      padding: 32px 0;
+      color: var(--n500, var(--sub,#8B95A1));
       font-size: 14px;
     }
     .m-spinner {
       display: inline-block;
       width: 16px; height: 16px;
-      border: 2px solid var(--n300, #D1D6DB);
-      border-top-color: var(--primary, #3182F6);
+      border: 2px solid var(--n300, var(--faint,#D1D6DB));
+      border-top-color: var(--primary, var(--primary,#3182F6));
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin-right: 8px;
@@ -233,42 +259,42 @@
     /* ─── 빈 상태 ─── */
     .m-empty {
       text-align: center;
-      padding: 60px 24px;
-      color: var(--n500, #8B95A1);
+      padding: 48px 24px;
+      color: var(--n500, var(--sub,#8B95A1));
     }
     .m-empty .icon { font-size: 48px; margin-bottom: 12px; }
 
     /* ─── 설치 프롬프트 ─── */
     .m-install-banner {
       position: fixed;
-      bottom: calc(16px + var(--safe-bottom));
+      bottom: calc(16px + var(--ms-tabbar-h, 0px) + var(--safe-bottom));
       left: 16px; right: 16px;
       max-width: 480px;
       margin: 0 auto;
-      background: var(--n900, #191F28);
+      background: var(--n900, var(--ink,#191F28));
       color: white;
-      padding: 14px 16px;
+      padding: 12px 16px;
       border-radius: 12px;
       display: none;
       align-items: center;
       gap: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      
       z-index: 50;
     }
     .m-install-banner.show { display: flex; }
     .m-install-banner .text {
       flex: 1;
-      font-size: 13px;
+      font-size: 12px;
       line-height: 1.4;
     }
     .m-install-banner button {
-      background: var(--primary, #3182F6);
+      background: var(--바탕-파랑, var(--primary, var(--primary,#3182F6)));
       color: white;
       border: none;
-      padding: 8px 14px;
+      padding: 8px 12px;
       border-radius: 8px;
       font-weight: 600;
-      font-size: 13px;
+      font-size: 12px;
       cursor: pointer;
     }
     .m-install-banner .close {
@@ -279,8 +305,16 @@
   </style>
 
   {% block extra_head %}{% endblock %}
+{# [2026-08-03] 표 정렬 — 머리글·내용 둘 다 가운데 (사장님 확정 「1-C」).
+   base.html 을 안 물려받는 독립 화면이라 여기에도 따로 싣는다. #}
+{# [2026-08-03] 글꼴 한 벌 — 화면마다 굴림체·맑은 고딕으로 갈리던 것을 Pretendard 로.
+   라이브 실측 131개 화면 중 40곳이 규칙 밖 글꼴이었다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='font_unify.css') }}?v={{ STATIC_VER|default('') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER|default('') }}">
+<script src="{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER|default('') }}" defer></script>
 </head>
-<body>
+{# m-body — mobile_shell.css 의 바닥 여백이 이 클래스로만 걸린다(PC 화면 누출 방지). #}
+<body class="m-body {{ design_body_class|default('') }}">
   {% block header %}
   <header class="m-header">
     <div style="display:flex;align-items:center;gap:4px">
@@ -291,7 +325,8 @@
         <a href="javascript:history.back()" class="m-back" title="뒤로">‹</a>
       {% endif %}
       {# 홈 — /mobile #}
-      <a href="/mobile" class="m-back" title="홈" style="font-size:18px;width:32px;height:32px"><i class="ph-light ph-house" aria-hidden="true"></i></a>
+      {# 크기 인라인 덮기 금지 — 32px 로 덮으면 .m-back 의 44px 손끝 목표가 헛돈다 #}
+      <a href="/mobile" class="m-back" title="홈" style="font-size:17px"><i class="ph-light ph-house" aria-hidden="true"></i></a>
     </div>
     <h1>{% block header_title %}{{ self.title() }}{% endblock %}</h1>
     <span style="width: 80px;"></span>
@@ -301,6 +336,8 @@
   <main class="m-content">
     {% block content %}{% endblock %}
   </main>
+
+  {% include 'mobile/_tabbar.html' %}
 
   <!-- 토스트 -->
   <div id="toast" class="m-toast"></div>

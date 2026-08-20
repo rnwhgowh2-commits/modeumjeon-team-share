@@ -15,8 +15,16 @@ benefit_items:
     auto: false
     crawled: true
     extraction: "dataBenefit.cardDiscountList[] (inline JSON)"
-    behavior: "auto_card_discount.included_in_sale_price=True → 이미 max_price 에 반영됨"
-    note: "★ included_in_sale_price=True 라서 별도 차감 안 함 (이중차감 방지)"
+    behavior: "★ 2026-07-18 — included_in_sale_price=False. 표면가(카드 미적용)에 미반영"
+    separated_keys: "lotteimall_card_discount(원) · lotteimall_card_label (H몰 패턴)"
+    note: |
+      ★ 2026-07-18 M1-6 배선 완료 — api_benefits.compute_breakdown 이 이 키를 읽어
+      '{label} 청구할인' 정액 항목으로 **한 번만** 차감한다(단일 소비 지점).
+      enabled=True (기본 차감). H몰 hmall_card_discount(기본 False)와 다른 이유:
+      M1-5 이전 롯데아이몰 매입가는 카드할인이 이미 반영된 최대할인가에서 출발했다 →
+      False 로 두면 M1-5+M1-6 합산이 옛 매입가보다 8,180원 비싸지는 조용한 회귀.
+      한계: '카드 미반영' 토글(CardDiscountUserPref)로는 못 끈다 — 그 테이블
+      source_id 가 Integer 인데 롯데아이몰 source_id 는 'key:lotteimall' 문자열.
   - name: 구매 적립혜택
     category: "%적립금"
     value: 변동                                          # default_point + club_point 2-tier
@@ -36,12 +44,14 @@ excluded:
 # 베이스 가격 선택 룰 (★ 핵심)
 # ────────────────────────────────────────
 base_price_rule:
-  formula: "base_for_policy = max_price if max_price > 0 else sale_price"
+  formula: "_resolve_surface_price(soup, html, auto_card_discount)"
   why: |
-    max_price = 사이트 '롯데홈쇼핑 최대할인가' (카드 청구할인 이미 반영된 가격).
-    이걸 베이스로 잡으면 auto_card_discount.included_in_sale_price=True 라서
-    별도 차감 안 함 (이중차감 방지).
-    max_price 가 0 일 때만 sale_price fallback.
+    ★ 2026-07-18 사용자 확정 — 표면노출가 = **카드 미적용 할인가**.
+    구 정책(최대할인가=카드 포함)은 현대H몰 표면가(bbprc=카드 미포함)와 의미가 달라
+    같은 "표면노출가" 슬롯에 다른 뜻의 값이 들어갔다 → 매트릭스 비교 불성립.
+      · 카드 있음 → benefitPrc + cardDiscountList[0].discountAmount
+      · 카드 없음 → benefitPrc → .price>span.num → .final span.num
+      · 복원 불가 → RuntimeError (폴백 금지)
 
 # ────────────────────────────────────────
 # 계산 순서
@@ -55,10 +65,12 @@ formula_order:
 # 산식 예시
 # ────────────────────────────────────────
 formula_example:
-  scenario: "max_price 120,320원, default_point 126원, club_point 633원"
-  general_member: "120,320 - 126 = 120,194 (일반 적립만)"
-  club_member: "120,320 - 633 = 119,687 (L.CLUB 적립)"
-  note: "사용자 정책 기본은 일반 회원 적립. L.CLUB 적립 사용 여부는 별도 결정"
+  scenario: "★ 2026-07-18 실측 — 정가 149,000 / 표면가 116,900 / 삼성카드 7% 8,180 / 최대할인가 108,720"
+  surface: "116,900 = 108,720(benefitPrc) + 8,180(카드 청구할인액)"
+  card_off: "116,900 (카드 미보유 — 표면가 그대로)"
+  card_on: "116,900 - 8,180 = 108,720 (사이트 '최대할인가'와 일치) ★ M1-6 배선 완료"
+  headline: "최종매입가 표기는 108,700 — 프로젝트 공통 백원 단위 버림(_FINAL_FLOOR_UNIT)"
+  note: "적립(L.POINT)은 별도 차감 항목. 카드 미반영 토글은 미지원(위 note 참조)"
 
 # ────────────────────────────────────────
 # 무신사·기타 사이트와 차이

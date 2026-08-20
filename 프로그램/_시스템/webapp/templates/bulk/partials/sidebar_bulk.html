@@ -1,0 +1,30 @@
+{# 대량등록 사이드바 — Phase 1A 는 수기 등록 1탭. 탭이 늘면 여기 추가. #}
+<aside class="sidebar">
+  <div class="brand">모음전 자동화</div>
+  <div class="brand-sub">v3 · 대량등록 모드</div>
+
+  {% include 'partials/_modeswitch.html' %}
+
+  <nav class="nav">
+    {% for t in subtabs %}
+    <a class="nav-item {% if tab == t.key %}active{% endif %}" href="/bulk/?tab={{ t.key }}">{{ t.label }}</a>
+    {% endfor %}
+  </nav>
+</aside>
+
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) — 왼쪽 240px 사이드바를 위쪽 가로 스크롤
+   탭 줄로 접는다(배치3 upload 의 .up-shell 과 같은 결정). PC 는 @media 밖 규칙 0.
+   🔴 index.html 의 .app 세로 전환과 한 몸이다 — 한쪽만 있으면 사이드바가 화면을 다 먹는다. */
+@media (max-width: 768px) {
+  .sidebar { position: static; width: auto; height: auto; padding: 8px 10px;
+    border-right: 0; border-bottom: 1px solid var(--line, #E5E8EB); overflow-y: visible; }
+  .sidebar .brand { font-size: 14px; }
+  .sidebar .brand-sub { display: none; }
+  .sidebar .nav { display: flex; overflow-x: auto; gap: 4px;
+    /* [배치4b] 오른쪽 끝 흐림 — 탭이 더 있음을 알리는 CSS 힌트(스크롤 유도, JS 0줄) */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .sidebar .nav-item { white-space: nowrap; min-height: 44px; flex: none; font-size: 14px; }
+}
+</style>

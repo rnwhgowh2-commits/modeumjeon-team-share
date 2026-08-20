@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}{{ box.name }} — 옵션 만들기{% endblock %}
+{% block content %}
+<div class="page">
+  <a class="btn btn-ghost" href="/optgen?tab=direct">← 옵션 생성으로</a>
+
+  <div class="page-header" style="margin-top:var(--sp-3)">
+    <h1 class="page-header__title">{{ box.name }}</h1>
+    <p class="page-sub">
+      <span class="ob-no">{{ box.no or box.code }}</span>
+      {% if box.is_box %}<span class="ob-tag">아직 판매 안 함</span>
+      {% else %}<span class="ob-tag sell">판매 중</span>{% endif %}
+      브랜드 {{ box.brand or '—' }} · 옵션 {{ box.options }}개
+    </p>
+  </div>
+
+  {# [2026-08-19 사장님 확정] 초기 재고 입력표·소싱처 연동 확인 배너는
+     「옵션 조합 생성 및 수정」 창의 「📦 재고 입력」 드로어로 옮겼다(option_url_modal.js).
+     🔴 여기서 다시 그리지 않는다 — 두 벌이 되면 반드시 갈린다. 이 화면은 그 창을
+     자동으로 여는 통로일 뿐이고, 창을 닫으면(저장·취소 모두) 목록으로 이동한다
+     (여기 남아 있을 일이 정상적으로는 없다). #}
+  <div class="ob-card">
+    <div class="ob-steps">
+      <span class="ob-step on"><b>1</b> 축 짜기</span>
+      <span class="ob-line"></span>
+      <span class="ob-step"><b>2</b> 소싱처 주소</span>
+    </div>
+    <p class="ob-desc">
+      아래 버튼을 누르면 <b>「옵션 조합 생성 및 수정 + 소싱처 URL 매핑」</b> 창이 열립니다.
+      왼쪽에서 색상·사이즈를 짜고, 오른쪽 위 서랍 단추로 재고 입력·템플릿 참고·SKU 번호도
+      같은 창 안에서 처리할 수 있습니다.
+    </p>
+    <button class="btn btn-primary" type="button" id="ob-open">옵션 조합 생성 및 수정</button>
+    <a class="btn" href="/matrix">만든 옵션 보기 →</a>
+  </div>
+</div>
+
+<style>
+  .ob-no{font-family:ui-monospace,monospace;background:var(--color-bg-muted);
+    border-radius:6px;padding:2px 8px;margin-right:6px}
+  .ob-tag{background:var(--color-bg-muted);color:var(--color-text-tertiary);
+    border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;margin-right:6px}
+  .ob-tag.sell{background:var(--연한-초록,#DCFCE7);color:var(--green,#15803D)}
+  .ob-card{background:var(--surface,#fff);border:1px solid var(--color-border);
+    border-radius:12px;padding:var(--sp-5);max-width:860px}
+  .ob-steps{display:flex;align-items:center;gap:0;margin-bottom:var(--sp-4)}
+  .ob-step{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;
+    border-radius:9px;font-size:14px;font-weight:600;color:var(--color-text-tertiary)}
+  .ob-step b{display:inline-flex;width:22px;height:22px;border-radius:50%;
+    background:var(--color-bg-muted);align-items:center;justify-content:center;font-size:12px}
+  .ob-step.on{color:var(--color-primary);background:var(--color-primary-light)}
+  .ob-step.on b{background:var(--color-primary);color:#fff}
+  .ob-line{width:32px;height:2px;background:var(--color-border);margin:0 4px}
+  .ob-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.57;
+    margin:0 0 var(--sp-4)}
+</style>
+
+<script>
+(function () {
+  var code = {{ box.code | tojson }};
+  function open() {
+    if (typeof window.openOptionUrlModal === 'function') {
+      window.openOptionUrlModal(code);
+      return true;
+    }
+    return false;
+  }
+  var btn = document.getElementById('ob-open');
+  if (btn) btn.addEventListener('click', open);
+  // 들어오자마자 한 번 열어준다.
+  //   ⚠️ 페이지가 다 준비된 뒤에 연다 — 그 전에 열면 간헐적으로 창이 사라진다
+  //      (라이브에서 실제로 겪었다). 버튼은 언제든 다시 열 수 있으니 안전망이 있다.
+  //   ⚠️ 조용히 포기하지 않는다 — 안 열리면 버튼을 눌러야 함을 알려준다.
+  function autoOpen() {
+    var tries = 0;
+    (function tick() {
+      if (open()) return;
+      if (++tries > 20) {
+        if (btn) btn.textContent = '옵션 조합 생성 및 수정 (눌러주세요)';
+        return;
+      }
+      setTimeout(tick, 100);
+    })();
+  }
+  if (document.readyState === 'complete') setTimeout(autoOpen, 60);
+  else window.addEventListener('load', function () { setTimeout(autoOpen, 60); });
+})();
+</script>
+{% endblock %}

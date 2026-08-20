@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>모음전 상품관리 — 섞기 시안 (①10장 · ⑥5장)</title>
+<style>
+:root{
+  --color-primary:#3182F6; --color-primary-dark:#1B64DA; --color-primary-light:#E8F2FF;
+  --color-navy:#17181C; --color-navy-soft:#20222A;
+  --color-text-primary:#191F28; --color-text-secondary:#4E5968; --color-text-tertiary:#8B95A1;
+  --color-text-on-navy:#B0B8C1;
+  --color-bg-page:#F9FAFB; --color-bg-card:#FFFFFF; --color-bg-muted:#F2F4F6;
+  --color-border:#E5E8EB; --color-border-soft:#F2F4F6;
+  --color-success:#22C55E; --color-warning:#F59E0B; --color-danger:#EF4444; --color-info:#3182F6;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-7:32px; --sp-8:40px;
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:9999px;
+  --sh-sm:0 2px 4px rgba(0,0,0,.04); --sh-md:0 4px 12px rgba(0,0,0,.06); --sh-lg:0 12px 24px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-bg-page);color:var(--color-text-primary);
+  font-family:Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:14px;line-height:1.5}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.wrap{max-width:1780px;margin:0 auto;padding:var(--sp-7) var(--sp-7) 130px}
+h1{font-size:26px;font-weight:700;margin:0 0 var(--sp-2)}
+.lead{color:var(--color-text-secondary);margin:0 0 var(--sp-5);max-width:960px}
+.done{background:#fff;border:1px solid var(--color-border);border-radius:var(--r-md);
+  padding:var(--sp-4) var(--sp-5);margin-bottom:var(--sp-6)}
+.done table{width:100%;border-collapse:collapse}
+.done td,.done th{padding:6px 10px;font-size:12.5px;text-align:left;border-bottom:1px solid var(--color-border-soft)}
+.done th{font-size:11.5px;color:var(--color-text-tertiary);font-weight:600}
+.done tr:last-child td{border-bottom:0}
+.ok{color:var(--color-success);font-weight:700}
+.item{margin-bottom:var(--sp-8);padding-top:var(--sp-4);border-top:3px solid var(--color-border)}
+.ihead{display:flex;align-items:flex-start;gap:var(--sp-5);margin-bottom:var(--sp-4)}
+.ino{width:46px;height:46px;flex:none;border-radius:var(--r-sm);background:var(--color-navy);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+.item.sel .ino{background:var(--color-primary)}
+.ihead .tt{font-size:20px;font-weight:700;margin:0 0 2px}
+.ihead .q{font-size:13.5px;color:var(--color-text-secondary)}
+.ihead .cnt{margin-left:auto;flex:none;text-align:right}
+.ihead .cnt b{font-size:13px}.ihead .cnt div{font-size:11.5px;color:var(--color-text-tertiary)}
+.why{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);margin-bottom:var(--sp-5);max-width:1300px}
+.why div{background:#fff;border:1px solid var(--color-border);border-radius:var(--r-sm);
+  padding:var(--sp-3) var(--sp-4);font-size:12.5px;color:var(--color-text-secondary)}
+.why b{color:var(--color-text-primary);display:block;margin-bottom:2px;font-size:12px}
+.gal{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--sp-4)}
+.card{background:#fff;border:1px solid var(--color-border);border-radius:var(--r-md);overflow:hidden;
+  box-shadow:var(--sh-sm);transition:box-shadow .12s,transform .12s,border-color .12s}
+.card:hover{box-shadow:var(--sh-md);transform:translateY(-2px);border-color:#9DC2FF}
+.card.on{border-color:var(--color-primary);box-shadow:0 0 0 2px var(--color-primary-light),var(--sh-md)}
+.thumb{width:100%;height:186px;overflow:hidden;background:var(--color-bg-muted);
+  border-bottom:1px solid var(--color-border);cursor:zoom-in}
+.thumb > .mock-app{transform:scale(.1667);transform-origin:top left;width:1920px;height:1080px}
+.cap{padding:var(--sp-3)}
+.cap .no{font-size:10.5px;font-weight:700;color:var(--color-text-tertiary)}
+.cap .nm{font-size:13px;font-weight:700;margin:1px 0 3px}
+.cap .ds{font-size:11.5px;color:var(--color-text-secondary);line-height:1.45;min-height:52px}
+.crow{display:flex;gap:6px;margin-top:var(--sp-2)}
+.pickbtn{flex:1;border:1px solid var(--color-border);background:#fff;border-radius:6px;padding:6px 0;
+  font-family:inherit;font-size:11.5px;font-weight:700;color:var(--color-text-secondary);cursor:pointer}
+.pickbtn:hover{border-color:var(--color-primary);color:var(--color-primary-dark)}
+.card.on .pickbtn{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.zoombtn{border:1px solid var(--color-border);background:#fff;border-radius:6px;padding:6px 10px;
+  font-family:inherit;font-size:11.5px;font-weight:700;color:var(--color-text-secondary);cursor:pointer}
+.tag{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:var(--r-full);
+  background:var(--color-primary-light);color:var(--color-primary-dark)}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:2px solid var(--color-primary);
+  box-shadow:0 -8px 20px rgba(0,0,0,.08);padding:var(--sp-4) var(--sp-7);z-index:20}
+.bar .row{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+.bar .chip{font-size:12px;font-weight:600;padding:5px 11px;border-radius:var(--r-full);
+  background:var(--color-bg-muted);color:var(--color-text-tertiary)}
+.bar .chip.on{background:var(--color-primary-light);color:var(--color-primary-dark)}
+.bar code{background:var(--color-bg-muted);padding:6px 12px;border-radius:var(--r-sm);
+  font-family:ui-monospace,monospace;font-size:13px;font-weight:700}
+.btn{border:1px solid var(--color-border);background:#fff;border-radius:var(--r-sm);padding:8px 15px;
+  font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;color:var(--color-text-secondary)}
+.btn--primary{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:60;overflow:auto}
+.ov.on{display:block}
+.ovbar{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--color-border);
+  padding:var(--sp-3) var(--sp-5);display:flex;align-items:center;gap:var(--sp-4);z-index:2}
+.ovbar .t{font-weight:700}.ovbar .d{color:var(--color-text-secondary);font-size:13px;flex:1}
+.ovbody{padding:var(--sp-5);display:flex;justify-content:center}
+.ovbody .mock-win{width:1920px;flex:none}
+.mock-win{background:#fff;border:1px solid #d1d6db;border-radius:10px;overflow:hidden;box-shadow:var(--sh-lg)}
+.mock-bar{background:var(--color-bg-muted);padding:10px 16px;font-size:12px;color:#6b7684;
+  border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:var(--sp-2)}
+.mock-bar .url{background:#fff;padding:4px 12px;border-radius:5px;font-family:ui-monospace,monospace;font-size:11.5px;flex:1}
+.mock-app{display:grid;grid-template-columns:200px 1fr;height:1080px;background:var(--color-bg-page)}
+.mock-sb{background:var(--color-navy);color:#fff;padding:14px 12px;font-size:12px;line-height:1.8}
+.mock-content{padding:var(--sp-6) 28px;overflow:hidden}
+.sb-brand{font-weight:700;font-size:13px;color:#fff;margin-bottom:2px}
+.sb-sub{font-size:10px;color:#6B7280;margin-bottom:var(--sp-4)}
+.sb-modes{display:flex;gap:4px;margin-bottom:var(--sp-4)}
+.sb-mode{flex:1;text-align:center;background:var(--color-navy-soft);border-radius:6px;padding:6px 2px;
+  font-size:10px;color:var(--color-text-on-navy)}
+.sb-mode.on{background:var(--color-primary);color:#fff;font-weight:700}
+.sb-grp{font-size:10px;color:#5B6270;margin:var(--sp-3) 0 2px;font-weight:600}
+.sb-it{padding:5px 8px;border-radius:6px;color:var(--color-text-on-navy);font-size:11.5px;display:flex;align-items:center;gap:6px}
+.sb-it.on{background:var(--color-primary);color:#fff;font-weight:700}
+.sb-it .bd{margin-left:auto;background:#374151;border-radius:var(--r-full);padding:0 6px;font-size:10px}
+.ph{display:flex;align-items:flex-end;gap:var(--sp-4);margin-bottom:var(--sp-5)}
+.ph h2{font-size:24px;font-weight:700;margin:0}
+.ph .sub{color:var(--color-text-tertiary);font-size:13px;padding-bottom:3px}
+.ph .sp{margin-left:auto;display:flex;gap:var(--sp-2);align-items:center}
+.tabs{display:flex;gap:var(--sp-1);border-bottom:1px solid var(--color-border);margin-bottom:var(--sp-5)}
+.tabs div{padding:10px 18px;font-size:14px;font-weight:600;color:var(--color-text-tertiary);
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs div.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+table.tb{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--color-border);border-radius:var(--r-md)}
+table.tb th{background:#FBFCFD;font-size:11.5px;font-weight:600;color:var(--color-text-tertiary);
+  padding:9px 12px;border-bottom:1px solid var(--color-border);text-align:left;white-space:nowrap}
+table.tb th.n{text-align:right}table.tb th.c{text-align:center}
+table.tb td{padding:9px 12px;border-bottom:1px solid var(--color-border-soft);font-size:12.5px}
+table.tb td.n{text-align:right;font-variant-numeric:tabular-nums}
+table.tb td.c{text-align:center}
+.bg{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:var(--r-full);
+  background:var(--color-bg-muted);color:var(--color-text-secondary)}
+.bg.ok{background:#EAFBF0;color:#15803D}.bg.wn{background:#FEF6E7;color:#8A5A00}
+.bg.dg{background:#FEECEC;color:#B91C1C}.bg.pm{background:var(--color-primary-light);color:var(--color-primary-dark)}
+.srch{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-4)}
+.srch .ip{flex:1;border:1px solid var(--color-border);border-radius:var(--r-sm);padding:10px 14px;
+  color:var(--color-text-tertiary);background:#fff;font-size:13px}
+.panel{background:#fff;border:1px solid var(--color-border);border-radius:var(--r-md);padding:var(--sp-5)}
+.ttl{font-size:16px;font-weight:700;margin:0 0 var(--sp-3)}
+.sub2{font-size:12px;color:var(--color-text-tertiary)}
+.stale{font-size:12px;color:var(--color-text-tertiary);display:flex;align-items:center;gap:5px}
+.dot{width:6px;height:6px;border-radius:var(--r-full);background:var(--color-success);display:inline-block}
+.lrow{display:grid;grid-template-columns:1fr 96px 150px 70px;gap:var(--sp-3);align-items:center;
+  padding:11px 14px;border-bottom:1px solid var(--color-border-soft);font-size:12.5px}
+.lrow .pn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .mk{display:flex;gap:3px}
+.fld{margin-bottom:var(--sp-3)}
+.fld .lb{font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:3px}
+.fld .iv{border:1px solid var(--color-border);border-radius:var(--r-sm);padding:8px 11px;background:#fff;font-size:13px}
+.cmp{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:var(--sp-2);font-size:12.5px}
+.cmp .a{text-align:right;font-variant-numeric:tabular-nums;color:var(--color-text-tertiary)}
+.cmp .ar{text-align:center;color:var(--color-text-tertiary)}
+.cmp .b{text-align:left;font-variant-numeric:tabular-nums;font-weight:700;color:var(--color-primary-dark)}
+.diff{background:#FEF6E7}
+.same{color:var(--color-text-tertiary)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>섞기 시안 — ① 10장 · ⑥ 5장</h1>
+  <p class="lead">고르신 것 중 <b>섞어달라고 하신 2가지</b>만 다시 그렸습니다.
+    나머지 5가지는 이미 확정됐으니 고르실 필요 없습니다.</p>
+
+  <div class="done">
+    <table><thead><tr><th style="width:44px"></th><th style="width:300px">항목</th>
+      <th style="width:250px">고르신 것</th><th>어떤 화면인지</th></tr></thead><tbody>
+      <tr><td>①</td><td>화면 3개를 오가는 방식</td><td><b>1번 + 7번 섞기</b></td>
+        <td style="color:var(--color-primary-dark);font-weight:600">↓ 아래에서 10장 중 하나 골라주세요</td></tr>
+      <tr><td>②</td><td>마켓·계정·상태 숫자</td><td class="ok">✓ 18번 확정</td>
+        <td>「모음전 / 대량등록」 탭 2개로 갈라 보기</td></tr>
+      <tr><td>③</td><td>판매중·품절·중지·대기 표시</td><td class="ok">✓ 3번 확정</td>
+        <td>숫자를 그대로 크게 두고 앞에 색 점</td></tr>
+      <tr><td>④</td><td>28만 개에서 찾아 담기</td><td class="ok">✓ 2번 확정</td>
+        <td>치는 대로 결과가 바뀌고 담은 것은 옆에 쌓임</td></tr>
+      <tr><td>⑤</td><td>흩어진 상품 묶기</td><td class="ok">✓ 4번 확정</td>
+        <td>대표 상품을 정하고 나머지를 붙이기</td></tr>
+      <tr><td>⑥</td><td>마켓별 정보 나란히 보기</td><td><b>1번 + 5번 섞기</b></td>
+        <td style="color:var(--color-primary-dark);font-weight:600">↓ 아래에서 5장 중 하나 골라주세요</td></tr>
+      <tr><td>⑦</td><td>고친 뒤 「마켓에 반영」</td><td class="ok">✓ 5번 확정</td>
+        <td>고치기 → 확인 → 보내기 3단계</td></tr>
+    </tbody></table>
+  </div>
+
+  <div id="items"></div>
+</div>
+
+<div class="bar" id="bar"></div>
+
+<div class="ov" id="ov">
+  <div class="ovbar"><span class="t" id="ovT"></span><span class="d" id="ovD"></span>
+    <button class="btn" id="prev">← 이전</button><button class="btn" id="next">다음 →</button>
+    <button class="btn btn--primary" id="close">닫기 (Esc)</button></div>
+  <div class="ovbody"><div class="mock-win">
+    <div class="mock-bar"><span>●</span><span>●</span><span>●</span><span class="url">mou-m.com/products</span></div>
+    <div id="ovMock"></div></div></div>
+</div>
+
+<script>
+/* ══ 공통 ══ */
+const SB = () => `<div class="mock-sb">
+  <div class="sb-brand">모음전 자동화</div><div class="sb-sub">v3 · 멀티 브랜드 · 멀티 마켓</div>
+  <div class="sb-modes"><div class="sb-mode on">모음전</div><div class="sb-mode">재고</div><div class="sb-mode">대량</div></div>
+  <div class="sb-grp">모음전 구성</div><div class="sb-it">📋 모음전 구성</div><div class="sb-it">🔗 기존 마켓 연동</div>
+  <div class="sb-grp">매핑 현황</div><div class="sb-it">🏠 소싱처 운영센터</div><div class="sb-it">🔍 미맵핑 큐<span class="bd">12</span></div>
+  <div class="sb-grp">판매</div><div class="sb-it on">📦 상품관리</div>
+  <div class="sb-it">🧾 주문 내역</div><div class="sb-it">📊 마진 계산기</div><div class="sb-it">🧩 템플릿</div></div>`;
+const STALE = `<span class="stale"><span class="dot"></span>마지막 확인: 오늘 새벽 3시</span>`;
+const PH = (t,s) => `<div class="ph"><h2>${t}</h2><span class="sub">${s}</span><span class="sp">${STALE}</span></div>`;
+const TABS = (on) => `<div class="tabs">${['현황 보기','상품 담기','상품 상세','신규 등록','타마켓 판매']
+  .map((n,i)=>`<div class="${i===on?'on':''}">${n}</div>`).join('')}</div>`;
+const APP = (inner) => `<div class="mock-app">${SB()}<div class="mock-content">${inner}</div></div>`;
+const SEARCH = () => `<div class="srch"><div class="ip">상품명 · 브랜드 · 상품번호로 찾기</div>
+  <button class="btn">필터</button><button class="btn btn--primary">모음전으로 담기</button></div>`;
+
+const P = [
+ ['아디다스골프 HS9658 A672S 썬 햇 모자','아디다스','31,900',['롯데온','11번가','쿠팡']],
+ ['디아도라 스트라이프 미드 삭스 BROWN','디아도라','18,900',['롯데온','옥션','G마켓']],
+ ['필라 페이토 샌들 1SM02602H063','휠라','39,000',['옥션','G마켓']],
+ ['와키윌리 우먼스 세미와이드 스웻팬츠','와키윌리','48,000',['롯데온','스마트스토어','쿠팡']],
+ ['조던 스포츠 터널 팬츠 FB4660-085','나이키','69,000',['쿠팡','11번가']],
+ ['뉴발란스 992 그레이 M992GR','뉴발란스','289,000',['롯데온','옥션']],
+ ['노스페이스 눕시 다운 자켓 블랙','노스페이스','329,000',['롯데온','11번가','G마켓']],
+];
+const ROW = (p,i,dim) => `<div class="lrow" style="${dim?'opacity:.4':''}">
+  <span class="pn">${p[0]}<div class="sub2">${p[1]}</div></span>
+  <span class="num">${p[2]}원</span>
+  <span class="mk">${p[3].map(m=>`<span class="bg">${m}</span>`).join('')}</span>
+  <span class="sub2" style="text-align:right">${i===0?'▲ 접기':'▼ 펼치기'}</span></div>`;
+const ROWS = (from,to,dim) => P.slice(from,to).map((p,i)=>ROW(p,-1,dim)).join('');
+
+/* 펼친 칸 안 내용 — 좌우 2단 */
+const OPEN2 = (tabs=1) => `
+  ${tabs?`<div class="tabs" style="margin-bottom:14px">${['롯데온','11번가','쿠팡'].map((n,i)=>
+    `<div class="${i?'':'on'}">${n}</div>`).join('')}</div>`:''}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+   <div>
+    <div class="fld"><div class="lb">마켓 상품명</div><div class="iv">&lt;매장정품&gt; 아디다스골프 썬 햇 모자 479803</div></div>
+    <div class="fld"><div class="lb">판매가</div><div class="iv">31,900원</div></div>
+    <div class="fld"><div class="lb">배송 · 원산지</div><div class="iv">무료배송 · 베트남</div></div></div>
+   <div>
+    <div class="lb" style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:6px">옵션 연동 (2개)</div>
+    <table class="tb"><thead><tr><th>옵션</th><th class="n">판매가</th><th class="n">재고</th><th class="c">연동</th></tr></thead>
+    <tbody><tr><td>BROWN / FREE</td><td class="n">31,900</td><td class="n">12</td><td class="c"><span class="bg ok">연결됨</span></td></tr>
+    <tr><td>BLACK / FREE</td><td class="n">31,900</td><td class="n">0</td><td class="c"><span class="bg wn">품절</span></td></tr></tbody></table>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn">저장</button>
+      <button class="btn btn--primary">마켓에 반영</button></div></div></div>`;
+const OPENHEAD = () => `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+  <span style="font-size:17px;font-weight:700">아디다스골프 HS9658 A672S 썬 햇 모자</span>
+  <span class="bg pm">3개 마켓</span>
+  <span class="sub2" style="margin-left:auto">모음전 구성 보기 ↗ · 마켓 상품 페이지 ↗</span></div>`;
+const HEAD = (t) => `${PH('상품관리',t||'모음전 상품 1,204개')}${TABS(2)}`;
+
+/* ══ ① 섞기 10장 ══ */
+const I1 = [
+['펼친 칸을 카드로 띄우기','펼친 칸만 하얗게 떠올라 그림자가 집니다. 목록 위에 얹힌 느낌이라 어디를 보는지 분명합니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2)}
+  <div style="background:#fff;border-radius:12px;box-shadow:0 12px 24px rgba(0,0,0,.12);
+    border:1px solid var(--color-border);margin:10px 14px;padding:20px 22px">${OPENHEAD()}${OPEN2()}</div>
+  ${ROWS(3,7)}</div>`,'추천'],
+['왼쪽에 굵은 파란 띠','펼친 칸 왼쪽에 굵은 파란 띠가 서고 배경이 살짝 파래집니다. 목록 흐름은 그대로 둡니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2)}
+  <div style="border-left:5px solid var(--color-primary);background:var(--color-primary-light);
+    padding:20px 22px">${OPENHEAD()}${OPEN2()}</div>${ROWS(3,7)}</div>`],
+['펼치면 나머지가 흐려짐','펼친 칸만 또렷하고 위아래 다른 상품은 흐려집니다. 눈이 한 곳에 모입니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2,1)}
+  <div style="background:#fff;border:2px solid var(--color-primary);border-radius:12px;
+    margin:8px 14px;padding:20px 22px">${OPENHEAD()}${OPEN2()}</div>${ROWS(3,7,1)}</div>`],
+['누른 줄이 위에 붙어 있음','펼치면 그 줄이 위쪽에 딱 붙어 따라다닙니다. 아래로 내려도 무슨 상품인지 안 잊습니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2)}
+  <div style="background:var(--color-navy);color:#fff;padding:13px 16px;display:flex;align-items:center;gap:10px">
+    <span style="font-weight:700">아디다스골프 HS9658 A672S 썬 햇 모자</span>
+    <span class="bg pm">3개 마켓</span><span style="margin-left:auto;font-size:12px;color:#B0B8C1">▲ 접기</span></div>
+  <div style="padding:20px 22px;background:#fff">${OPEN2()}</div>${ROWS(3,7)}</div>`],
+['요약만 펼치고 「자세히」','우선 판매가·마켓·옵션 수만 짧게 펼칩니다. 더 볼 게 있으면 「자세히」로 넓게 엽니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2)}
+  <div style="background:var(--color-primary-light);border-left:5px solid var(--color-primary);padding:16px 22px">
+   <div style="display:flex;align-items:center;gap:26px">
+    <div><div class="sub2">판매가</div><div class="num" style="font-size:19px;font-weight:700;text-align:left">31,900원</div></div>
+    <div><div class="sub2">올라간 마켓</div><div style="margin-top:3px">
+      <span class="bg pm">롯데온</span><span class="bg pm">11번가</span><span class="bg pm">쿠팡</span></div></div>
+    <div><div class="sub2">옵션</div><div style="font-size:13px;font-weight:600;margin-top:3px">2개 · 1개 품절</div></div>
+    <div><div class="sub2">상태</div><div style="margin-top:3px"><span class="bg ok">판매중</span></div></div>
+    <div style="margin-left:auto;display:flex;gap:8px"><button class="btn">자세히 보기</button>
+      <button class="btn btn--primary">마켓에 반영</button></div></div></div>${ROWS(3,7)}</div>`],
+['펼친 칸 안에서 마켓 갈아타기','펼친 칸 안에 마켓 탭이 또 생깁니다. 한 상품의 마켓별 내용을 그 자리에서 오갑니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2)}
+  <div style="background:#FBFCFD;border-top:2px solid var(--color-primary);
+    border-bottom:2px solid var(--color-primary);padding:20px 22px">${OPENHEAD()}${OPEN2(1)}</div>${ROWS(3,7)}</div>`],
+['펼친 칸 높이를 묶기','펼친 칸 높이가 정해져 있고 그 안에서만 스크롤됩니다. 아래 상품이 멀리 밀려나지 않습니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2)}
+  <div style="background:#fff;border:2px solid var(--color-primary);border-radius:12px;margin:8px 14px;
+    padding:18px 20px;height:360px;overflow:hidden;position:relative">${OPENHEAD()}${OPEN2()}
+    <div style="position:absolute;right:8px;top:60px;bottom:20px;width:5px;background:var(--color-border);
+      border-radius:99px"><div style="width:5px;height:120px;background:var(--color-text-tertiary);
+      border-radius:99px"></div></div></div>${ROWS(3,7)}</div>`],
+['들여쓰기로 한 단계 안','펼친 칸이 한 칸 들어가 앉습니다. 목록에 딸린 내용이라는 게 모양으로 드러납니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2)}
+  <div style="margin-left:40px;border-left:2px solid var(--color-border);padding:18px 22px;background:#FBFCFD">
+    ${OPENHEAD()}${OPEN2()}</div>${ROWS(3,7)}</div>`],
+['펼친 칸 위에 큰 제목 띠','펼친 칸 맨 위에 상품명·마켓 배지가 큰 띠로 얹힙니다. 제목이 가장 큽니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">${ROWS(0,2)}
+  <div style="background:#fff;border:1px solid var(--color-border);border-radius:12px;margin:10px 14px;overflow:hidden;
+    box-shadow:var(--sh-md)">
+   <div style="background:var(--color-primary-light);padding:16px 22px;border-bottom:1px solid #9DC2FF">
+     <div style="font-size:20px;font-weight:700">아디다스골프 HS9658 A672S 썬 햇 모자</div>
+     <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
+       <span class="bg pm">롯데온</span><span class="bg pm">11번가</span><span class="bg pm">쿠팡</span>
+       <span class="sub2" style="margin-left:auto">모음전 상품 #1042 · 모음전 구성 보기 ↗ · 마켓 상품 페이지 ↗</span></div></div>
+   <div style="padding:20px 22px">${OPEN2()}</div></div>${ROWS(3,7)}</div>`],
+['펼치면 나머지가 접혀 얇아짐','펼친 칸이 커지는 만큼 다른 줄은 한 줄로 얇아집니다. 화면 안에 다 들어옵니다.',
+ ()=>`${HEAD()}<div class="panel" style="padding:0">
+  ${P.slice(0,2).map(p=>`<div style="padding:6px 14px;border-bottom:1px solid var(--color-border-soft);
+    font-size:12px;color:var(--color-text-tertiary);display:flex;gap:12px">
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p[0]}</span>
+    <span class="num">${p[2]}원</span></div>`).join('')}
+  <div style="background:#fff;border:2px solid var(--color-primary);border-radius:12px;margin:8px 14px;
+    padding:20px 22px">${OPENHEAD()}${OPEN2()}</div>
+  ${P.slice(3,7).map(p=>`<div style="padding:6px 14px;border-bottom:1px solid var(--color-border-soft);
+    font-size:12px;color:var(--color-text-tertiary);display:flex;gap:12px">
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p[0]}</span>
+    <span class="num">${p[2]}원</span></div>`).join('')}</div>`],
+];
+
+/* ══ ⑥ 섞기 5장 ══ */
+const MKD = [
+ ['롯데온','#E8F2FF','#1B64DA','&lt;매장정품&gt; 아디다스골프 썬 햇 모자 479803','31,900','무료배송','2개','판매중','LO2727575855'],
+ ['11번가','#FFF1E8','#C2410C','아디다스골프 HS9658 A672S 썬햇','32,900','무료배송','2개','판매중','4821003942'],
+ ['쿠팡','#FEECEC','#B91C1C','아디다스 골프 썬햇 모자 A672S','31,900','무료배송','1개','판매중지','SP-9920481'],
+];
+const DIFF = [0,1,1,0,1,1]; /* 상품명·판매가·옵션·상태가 서로 다름 */
+const T6 = () => `${PH('상품 상세','아디다스골프 HS9658 A672S 썬 햇 모자 · 3개 마켓')}`;
+
+const I6 = [
+['카드 나란히 + 다른 값만 색칠','마켓 카드를 나란히 놓되, 마켓마다 값이 다른 칸에만 노란 배경이 깔립니다. 다른 곳이 바로 튑니다.',
+ ()=>`${T6()}<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+  ${MKD.map(m=>`<div class="panel" style="padding:0;overflow:hidden;border-top:4px solid ${m[2]}">
+    <div style="background:${m[1]};padding:13px 18px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:15px;font-weight:700;color:${m[2]}">${m[0]}</span>
+      <span class="sub2" style="margin-left:auto">${m[8]}</span></div>
+    <div style="padding:16px 18px">
+     ${[['마켓 상품명',m[3],1],['판매가',m[4]+'원',1],['배송',m[5],0],['옵션',m[6],1],['상태',m[7],1],
+        ['원산지','베트남',0]].map(f=>`
+       <div style="padding:9px 0;border-bottom:1px solid var(--color-border-soft)">
+        <div class="sub2">${f[0]}</div>
+        <div style="font-size:13px;font-weight:${f[2]?700:400};margin-top:2px;padding:${f[2]?'3px 7px':'3px 0'};
+          border-radius:5px;${f[2]?'background:#FEF6E7':'color:var(--color-text-tertiary)'}">${f[1]}</div></div>`).join('')}
+     <button class="btn" style="width:100%;margin-top:12px">이 마켓만 고치기</button></div></div>`).join('')}</div>
+  <div class="sub2" style="margin-top:12px">노란 칸 = 마켓마다 값이 다릅니다 · 회색 = 세 곳 모두 같습니다</div>`,'추천'],
+
+['기준 마켓 하나를 크게','왼쪽 첫 마켓을 크게 세우고 나머지를 작게 옆에 붙입니다. 무엇이 기준인지 크기로 드러납니다.',
+ ()=>`${T6()}<div style="display:grid;grid-template-columns:1.7fr 1fr 1fr;gap:18px">
+  ${MKD.map((m,i)=>`<div class="panel" style="padding:0;overflow:hidden;border-top:4px solid ${m[2]};
+    ${i===0?'box-shadow:0 12px 24px rgba(0,0,0,.10)':''}">
+    <div style="background:${m[1]};padding:${i===0?'18px 22px':'13px 16px'};display:flex;align-items:center;gap:8px">
+      <span style="font-size:${i===0?19:14}px;font-weight:700;color:${m[2]}">${m[0]}</span>
+      ${i===0?'<span class="bg pm">기준</span>':''}
+      <span class="sub2" style="margin-left:auto">${m[8]}</span></div>
+    <div style="padding:${i===0?'20px 22px':'14px 16px'}">
+     <div class="sub2">마켓 상품명</div>
+     <div style="font-size:${i===0?15:12}px;font-weight:600;margin:2px 0 12px">${m[3]}</div>
+     <div class="sub2">판매가</div>
+     <div class="num" style="font-size:${i===0?30:19}px;font-weight:700;text-align:left;
+       color:${i===1?'var(--color-warning)':'var(--color-text-primary)'}">${m[4]}원</div>
+     ${i?`<div class="cmp" style="margin-top:8px"><span class="a">기준 31,900</span><span class="ar">→</span>
+       <span class="b">${m[4]}</span></div>`:''}
+     <div style="margin-top:14px"><span class="bg ${m[7]==='판매중'?'ok':'wn'}">${m[7]}</span>
+       <span class="bg">옵션 ${m[6]}</span></div>
+     ${i===0?`<div style="margin-top:16px"><div class="sub2">배송 · 원산지</div>
+       <div style="font-size:13px">무료배송 · 베트남</div></div>`:''}
+     <button class="btn" style="width:100%;margin-top:14px">이 마켓만 고치기</button></div></div>`).join('')}</div>`],
+
+['가로 눈금선으로 줄 맞추기','카드를 나란히 놓되 항목 줄이 좌우로 딱 맞습니다. 같은 항목끼리 눈이 가로로 움직입니다.',
+ ()=>`${T6()}<div class="panel" style="padding:0;overflow:hidden">
+  <div style="display:grid;grid-template-columns:130px repeat(3,1fr)">
+   <div style="background:#FBFCFD;border-bottom:1px solid var(--color-border);padding:14px 16px"></div>
+   ${MKD.map(m=>`<div style="background:${m[1]};border-bottom:1px solid var(--color-border);
+     border-left:1px solid var(--color-border);padding:14px 18px">
+     <div style="font-size:15px;font-weight:700;color:${m[2]}">${m[0]}</div>
+     <div class="sub2">${m[8]}</div></div>`).join('')}
+   ${[['마켓 상품명',3,1],['판매가',4,1],['배송',5,0],['옵션',6,1],['상태',7,1]].map(f=>`
+     <div style="background:#FBFCFD;padding:14px 16px;border-bottom:1px solid var(--color-border-soft);
+       font-size:12px;font-weight:600;color:var(--color-text-secondary)">${f[0]}</div>
+     ${MKD.map(m=>`<div style="padding:14px 18px;border-bottom:1px solid var(--color-border-soft);
+       border-left:1px solid var(--color-border);font-size:13px;
+       ${f[2]?'background:#FEF6E7;font-weight:600':'color:var(--color-text-tertiary)'}">
+       ${f[1]===4?m[4]+'원':m[f[1]]}</div>`).join('')}`).join('')}
+   <div style="padding:14px 16px"></div>
+   ${MKD.map(()=>`<div style="padding:14px 18px;border-left:1px solid var(--color-border)">
+     <button class="btn" style="width:100%">이 마켓만 고치기</button></div>`).join('')}
+  </div></div>
+  <div class="sub2" style="margin-top:12px">노란 줄 = 마켓마다 값이 다릅니다</div>`],
+
+['다른 곳에 「다름」 딱지','같은 값은 회색으로 눕히고, 다른 값에만 빨간 「다름」 딱지가 붙습니다.',
+ ()=>`${T6()}<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+  ${MKD.map((m,i)=>`<div class="panel" style="padding:0;overflow:hidden;border-top:4px solid ${m[2]}">
+    <div style="background:${m[1]};padding:13px 18px"><span style="font-size:15px;font-weight:700;color:${m[2]}">${m[0]}</span>
+      <span class="sub2" style="float:right">${m[8]}</span></div>
+    <div style="padding:16px 18px">
+     ${[['마켓 상품명',m[3],1],['판매가',m[4]+'원',i===1],['배송',m[5],0],['옵션',m[6],i===2],
+        ['상태',m[7],i===2],['원산지','베트남',0]].map(f=>`
+       <div style="display:flex;align-items:flex-start;gap:8px;padding:9px 0;
+         border-bottom:1px solid var(--color-border-soft)">
+        <div style="flex:1"><div class="sub2">${f[0]}</div>
+         <div style="font-size:13px;margin-top:2px;${f[2]?'font-weight:700':'color:var(--color-text-tertiary)'}">${f[1]}</div></div>
+        ${f[2]?'<span class="bg dg" style="margin-top:14px">다름</span>':''}</div>`).join('')}
+     <button class="btn" style="width:100%;margin-top:12px">이 마켓만 고치기</button></div></div>`).join('')}</div>`],
+
+['위에 「다른 곳 N군데」 요약 띠','카드 위에 다른 곳이 몇 군데인지 먼저 알려주고, 누르면 그 항목만 카드에서 살아납니다.',
+ ()=>`${T6()}
+  <div class="panel" style="margin-bottom:16px;border-left:4px solid var(--color-warning);padding:16px 20px">
+   <div style="display:flex;align-items:center;gap:14px">
+    <span style="font-size:16px;font-weight:700">마켓끼리 다른 곳이 4군데 있습니다</span>
+    <div style="display:flex;gap:8px;flex:1">
+     <span class="bg wn">마켓 상품명</span><span class="bg wn">판매가</span>
+     <span class="bg wn">옵션</span><span class="bg wn">상태</span></div>
+    <span class="sub2">딱지를 누르면 그 항목만 크게 보입니다</span></div></div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+  ${MKD.map((m,i)=>`<div class="panel" style="padding:0;overflow:hidden;border-top:4px solid ${m[2]}">
+    <div style="background:${m[1]};padding:13px 18px"><span style="font-size:15px;font-weight:700;color:${m[2]}">${m[0]}</span>
+      <span class="sub2" style="float:right">${m[8]}</span></div>
+    <div style="padding:16px 18px">
+     <div style="background:#FEF6E7;border-radius:8px;padding:12px 14px;margin-bottom:12px">
+      <div class="sub2">판매가 — 지금 보고 있는 항목</div>
+      <div class="num" style="font-size:26px;font-weight:700;text-align:left;
+        color:${i===1?'var(--color-warning)':'var(--color-text-primary)'}">${m[4]}원</div>
+      ${i===1?'<div class="sub2" style="color:#8A5A00">다른 두 곳보다 1,000원 비쌉니다</div>':''}</div>
+     ${[['마켓 상품명',m[3]],['배송',m[5]],['옵션',m[6]],['상태',m[7]],['원산지','베트남']].map(f=>`
+       <div style="padding:7px 0;border-bottom:1px solid var(--color-border-soft);display:flex;gap:10px;font-size:12.5px">
+        <span class="sub2" style="width:80px;flex:none">${f[0]}</span>
+        <span style="color:var(--color-text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f[1]}</span></div>`).join('')}
+     <button class="btn" style="width:100%;margin-top:12px">이 마켓만 고치기</button></div></div>`).join('')}</div>`],
+];
+
+/* ══ 항목 ══ */
+const ITEMS = [
+ {k:'①', t:'가로 탭 + 그 자리에서 펼치기 — 어떻게 섞을까', q:'탭은 그대로. 상세를 「어디까지·어떤 모양으로」 그 자리에서 펼칠지가 갈립니다',
+  why:['펼친 상태에서도 위아래 다른 상품이 보여야 합니다 — 안 그러면 전체 화면으로 넘어가는 것과 같아집니다.',
+       '고르신 목적이 「위계」라, 펼친 칸이 목록보다 도드라져 보이게 하는 방법으로 10가지를 만들었습니다.'], v:I1},
+ {k:'⑥', t:'마켓 카드 나란히 + 구분감 — 어떻게 섞을까', q:'비교는 5번처럼 나란히, 구분은 1번처럼 또렷하게',
+  why:['나란히 놓으면 비교는 쉽고 구분이 흐려집니다. 그 구분을 색·크기·눈금선으로 되살리는 것이 이 5가지입니다.',
+       '마켓끼리 값이 다른 곳이 카드 위에서 바로 튀어야 합니다 — 그게 있으면 나란히 놓아도 구분이 섭니다.'], v:I6},
+];
+
+const pick = {};
+const itemsEl = document.getElementById('items');
+const flat = [];
+ITEMS.forEach((it,ii)=>{
+  const sec=document.createElement('div'); sec.className='item'; sec.id='it'+ii;
+  sec.innerHTML=`<div class="ihead"><div class="ino">${it.k}</div>
+    <div><div class="tt">${it.t}</div><div class="q">${it.q}</div></div>
+    <div class="cnt"><b>시안 ${it.v.length}장</b><div>이 중 하나만 고르세요</div></div></div>
+   <div class="why">${it.why.map(w=>`<div><b>왜 정해야 하나</b>${w}</div>`).join('')}</div><div class="gal"></div>`;
+  const gal=sec.querySelector('.gal');
+  it.v.forEach((v,vi)=>{
+    const gi=flat.length; flat.push({ii,vi,name:v[0],desc:v[1],build:v[2]});
+    const c=document.createElement('div'); c.className='card'; c.id=`c${ii}_${vi}`;
+    c.innerHTML=`<div class="thumb" data-g="${gi}">${APP(v[2]())}</div>
+      <div class="cap"><div class="no">${it.k} — ${vi+1}번</div><div class="nm">${v[0]}</div>
+      <div class="ds">${v[1]}</div>
+      ${v[3]==='추천'?'<div style="margin-bottom:6px"><span class="tag">추천</span></div>':''}
+      <div class="crow"><button class="pickbtn" data-i="${ii}" data-v="${vi}">이걸로</button>
+      <button class="zoombtn" data-g="${gi}">크게</button></div></div>`;
+    gal.appendChild(c);
+  });
+  itemsEl.appendChild(sec);
+});
+
+function drawBar(){
+  const a = ITEMS.map((it,ii)=>`${it.k}-(${pick[ii]!=null?pick[ii]+1:'?'})`).join(' ');
+  const done = Object.keys(pick).length;
+  document.getElementById('bar').innerHTML=`<div class="row">
+    ${ITEMS.map((it,ii)=>`<span class="chip ${pick[ii]!=null?'on':''}">${it.k} ${pick[ii]!=null?
+      pick[ii]+1+'번 「'+it.v[pick[ii]][0]+'」':'아직'}</span>`).join('')}
+    <span class="chip on">② 18번 · ③ 3번 · ④ 2번 · ⑤ 4번 · ⑦ 5번 확정</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:12px">
+      <span class="sub2">${done}/2 고르셨습니다 →</span><code>${a}</code>
+      <button class="btn ${done===2?'btn--primary':''}" id="copy">복사</button></span></div>`;
+  document.getElementById('copy').onclick=()=>{
+    navigator.clipboard && navigator.clipboard.writeText(a);
+    const b=document.getElementById('copy'); b.textContent='복사됨 ✓';
+    setTimeout(()=>{const x=document.getElementById('copy'); if(x)x.textContent='복사';},1400);
+  };
+}
+drawBar();
+
+document.addEventListener('click',e=>{
+  const p=e.target.closest('.pickbtn');
+  if(p){const ii=+p.dataset.i,vi=+p.dataset.v;
+    if(pick[ii]===vi) delete pick[ii]; else pick[ii]=vi;
+    ITEMS[ii].v.forEach((_,x)=>document.getElementById(`c${ii}_${x}`).classList.toggle('on',pick[ii]===x));
+    document.getElementById('it'+ii).classList.toggle('sel',pick[ii]!=null);
+    drawBar(); return;}
+  const z=e.target.closest('[data-g]'); if(z) openZoom(+z.dataset.g);
+});
+let cur=0; const ov=document.getElementById('ov');
+function openZoom(g){cur=g;const f=flat[g],it=ITEMS[f.ii];
+  document.getElementById('ovT').textContent=`${it.k} ${f.vi+1}번. ${f.name}`;
+  document.getElementById('ovD').textContent=f.desc;
+  document.getElementById('ovMock').innerHTML=APP(f.build());
+  ov.classList.add('on'); ov.scrollTop=0;}
+document.getElementById('close').onclick=()=>ov.classList.remove('on');
+document.getElementById('prev').onclick=()=>openZoom((cur-1+flat.length)%flat.length);
+document.getElementById('next').onclick=()=>openZoom((cur+1)%flat.length);
+ov.addEventListener('click',e=>{if(e.target===ov) ov.classList.remove('on');});
+document.addEventListener('keydown',e=>{if(!ov.classList.contains('on'))return;
+  if(e.key==='Escape') ov.classList.remove('on');
+  else if(e.key==='ArrowRight') openZoom((cur+1)%flat.length);
+  else if(e.key==='ArrowLeft') openZoom((cur-1+flat.length)%flat.length);});
+</script>
+</body>
+</html>

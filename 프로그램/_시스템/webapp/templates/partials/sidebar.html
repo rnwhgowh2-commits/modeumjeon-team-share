@@ -9,16 +9,7 @@
   <div class="brand">모음전 자동화</div>
   <div class="brand-sub">v3 · 멀티 브랜드 · 멀티 마켓</div>
 
-  <div class="sb-modeswitch">
-    <a href="/" class="sb-mode {% if active_app != 'inventory' %}on{% endif %}">
-      <span class="sb-mode-ic" data-icon-edit="mode|bundles" data-icon-current="{{ sidebar_mode_icons.bundles.emoji }}" data-icon-label="모음전 모드"{% if sidebar_mode_icons.bundles.color %} style="color:{{ sidebar_mode_icons.bundles.color }}"{% endif %}>{% if sidebar_mode_icons.bundles.is_icon %}<i class="ph-light ph-{{ sidebar_mode_icons.bundles.emoji }}" aria-hidden="true"></i>{% else %}{{ sidebar_mode_icons.bundles.emoji }}{% endif %}</span>
-      <span class="sb-mode-nm">모음전</span>
-    </a>
-    <a href="/inventory/" class="sb-mode {% if active_app == 'inventory' %}on{% endif %}">
-      <span class="sb-mode-ic" data-icon-edit="mode|inventory" data-icon-current="{{ sidebar_mode_icons.inventory.emoji }}" data-icon-label="재고관리 모드"{% if sidebar_mode_icons.inventory.color %} style="color:{{ sidebar_mode_icons.inventory.color }}"{% endif %}>{% if sidebar_mode_icons.inventory.is_icon %}<i class="ph-light ph-{{ sidebar_mode_icons.inventory.emoji }}" aria-hidden="true"></i>{% else %}{{ sidebar_mode_icons.inventory.emoji }}{% endif %}</span>
-      <span class="sb-mode-nm">재고관리</span>
-    </a>
-  </div>
+  {% include 'partials/_modeswitch.html' %}
 
   {# 독립 항목 (홈) #}
   <div class="sb3-stand" data-drop-zone="standalone">
@@ -80,36 +71,41 @@
         </div>
       {% endfor %}
     </div>
-    <div class="add-item" data-add-to="{{ st.id }}">＋ 항목 추가</div>
+    <div class="add-item" data-add-to="{{ st.id }}">+ 항목 추가</div>
   </div>
   {% endfor %}
 
-  <div class="add-stage" id="sb3-add-stage">＋ 새 카테고리</div>
+  <div class="add-stage" id="sb3-add-stage">+ 새 카테고리</div>
 
   {# 편집 모드 토글 (호버 발견성 보완 — 도움말) #}
   <button type="button" class="sb3-edit-toggle" id="sb3-edit-toggle" title="편집 가이드 보기"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 사이드바 편집 가이드</button>
 
+  {# [2026-07-31] 디자인 전환 버튼은 여기서 걷어냈다.
+     화면 오른쪽 위 붙박이 드롭버튼 한 곳으로 합쳤다 — [2026-08-02] 그 단추도 삭제됨(화이트 하나만) —
+     사이드바·상단탭·내 계정에 같은 것을 세 벌 적어 두면 다음에 반드시 갈라진다.
+     안전망(「기존 타입」으로 즉시 되돌리기) 역할도 그 부품이 그대로 이어받았다. #}
+
   {# [2026-06-03] AWS 서버 요금·상태 위젯 (사이드바 하단). Lightsail 정액제라 키 없이 표시 + /health 실시간 상태. #}
   <div class="sb-cost" title="AWS Lightsail 서울 · 2GB · 정액제(월 ~$12). 현재 무료 기간.">
-    <div class="sb-cost-h"><span><i class="ph-light ph-coins" aria-hidden="true"></i> AWS 서버</span><span class="sb-cost-st" id="sb-cost-st"><i class="ph-light ph-circle" aria-hidden="true"></i> 정상</span></div>
+    <div class="sb-cost-h"><span><i class="ph-light ph-coins" aria-hidden="true"></i> AWS 서버</span><span class="sb-cost-st" id="sb-cost-st">정상</span></div>
     <div class="sb-cost-amt">~$12<span>/월</span> · <b>현재 무료</b></div>
     <div class="sb-cost-sub">Lightsail 2GB · 서울 · 정액제</div>
     <a href="https://console.aws.amazon.com/billing/home" target="_blank" rel="noopener" class="sb-cost-link" title="AWS 요금 콘솔 열기 (실제 청구액 확인)"><i class="ph-light ph-credit-card" aria-hidden="true"></i> AWS 요금 확인 ↗</a>
   </div>
   <style>
-    .sb-cost{ margin:8px 12px 14px; padding:9px 11px; border:1px solid #d1fae5; background:#f0fdf4; border-radius:10px; }
-    .sb-cost-h{ display:flex; align-items:center; justify-content:space-between; font-size:11.5px; font-weight:800; color:#166534; }
-    .sb-cost-st{ font-size:11px; font-weight:700; white-space:nowrap; }
-    .sb-cost-amt{ font-size:14.5px; font-weight:800; color:#14532d; margin:4px 0 1px; }
-    .sb-cost-amt span{ font-size:11px; color:#4d7c5a; font-weight:700; }
-    .sb-cost-amt b{ color:#15803d; }
-    .sb-cost-sub{ font-size:10px; color:#16a34a; }
-    .sb-cost-link{ display:block; margin-top:7px; text-align:center; font-size:11px; font-weight:800; color:#fff; background:#16a34a; border-radius:7px; padding:6px 0; text-decoration:none; }
-    .sb-cost-link:hover{ background:#15803d; }
+    .sb-cost{ margin:8px 12px 12px; padding:8px 12px; border:1px solid var(--연한-초록,#d1fae5); background:var(--연한-초록,#f0fdf4); border-radius:8px; }
+    .sb-cost-h{ display:flex; align-items:center; justify-content:space-between; font-size:12px; font-weight:800; color: var(--글자-초록, var(--green,#166534)); }
+    .sb-cost-st{ font-size:12px; font-weight:700; white-space:nowrap; }
+    .sb-cost-amt{ font-size:14px; font-weight:800; color: var(--글자-초록, var(--green,#14532d)); margin:4px 0 0px; }
+    .sb-cost-amt span{ font-size:12px; color:var(--글자-기본,#4d7c5a); font-weight:700; }
+    .sb-cost-amt b{ color: var(--글자-초록, var(--green,#15803d)); }
+    .sb-cost-sub{ font-size:12px; color: var(--글자-초록, var(--green,#16a34a)); }
+    .sb-cost-link{ display:block; margin-top:8px; text-align:center; font-size:12px; font-weight:800; color:#fff; background: var(--바탕-초록, var(--green,#16a34a)); border-radius:8px; padding:4px 0; text-decoration:none; }
+    .sb-cost-link:hover{ background:var(--green,#15803d); }
   </style>
   <script>
     (function(){
-      function chk(){ fetch('/health',{cache:'no-store'}).then(function(r){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent = r.ok ? ' 정상' : ' 점검'; }).catch(function(){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent=' 응답없음'; }); }
+      function chk(){ fetch('/health',{cache:'no-store'}).then(function(r){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent = r.ok ? '정상' : '점검 필요'; }).catch(function(){ var el=document.getElementById('sb-cost-st'); if(el) el.textContent='응답없음'; }); }
       setInterval(chk, 60000);
     })();
   </script>
@@ -118,14 +114,14 @@
 {# 드롭다운 (호버 ⋮ 클릭) #}
 <div class="sb3-dropdown" id="sb3-dropdown">
   <div id="sb3-dd-main">
-    <button data-act="emoji"><span class="di"><i class="ph-light ph-smiley" aria-hidden="true"></i></span> 이모지 변경…</button>
+    <button data-act="emoji"><span class="di"><i class="ph-light ph-smiley-sticker" aria-hidden="true"></i></span> 아이콘 변경…</button>
     <button data-act="rename"><span class="di"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></span> 이름 변경<span class="dk">F2</span></button>
     <button data-act="color" data-stage-only="1"><span class="di"><i class="ph-light ph-palette" aria-hidden="true"></i></span> 색상 변경…</button>
     <div class="ddiv"></div>
     <button data-act="up"><span class="di">↑</span> 위로 이동</button>
     <button data-act="down"><span class="di">↓</span> 아래로 이동</button>
     <div class="ddiv"></div>
-    <button data-act="dup"><span class="di"><i class="ph-light ph-clipboard" aria-hidden="true"></i></span> 복제<span class="dk">⌘D</span></button>
+    <button data-act="dup"><span class="di"><i class="ph-light ph-copy" aria-hidden="true"></i></span> 복제<span class="dk">⌘D</span></button>
     <div class="ddiv"></div>
     <button class="danger" data-act="delete"><span class="di"><i class="ph-light ph-trash" aria-hidden="true"></i></span> 삭제<span class="dk">Del</span></button>
   </div>
@@ -138,11 +134,11 @@
 
 {# 우클릭 컨텍스트 #}
 <div class="sb3-ctxmenu" id="sb3-ctxmenu">
-  <button data-act="emoji"><span class="di"><i class="ph-light ph-smiley" aria-hidden="true"></i></span> 이모지<span class="dk">E</span></button>
+  <button data-act="emoji"><span class="di"><i class="ph-light ph-smiley-sticker" aria-hidden="true"></i></span> 아이콘<span class="dk">E</span></button>
   <button data-act="rename"><span class="di"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></span> 이름<span class="dk">F2</span></button>
   <button data-act="color" data-stage-only="1"><span class="di"><i class="ph-light ph-palette" aria-hidden="true"></i></span> 색상<span class="dk">C</span></button>
   <div class="cdiv"></div>
-  <button data-act="dup"><span class="di"><i class="ph-light ph-clipboard" aria-hidden="true"></i></span> 복제<span class="dk">⌘D</span></button>
+  <button data-act="dup"><span class="di"><i class="ph-light ph-copy" aria-hidden="true"></i></span> 복제<span class="dk">⌘D</span></button>
   <div class="cdiv"></div>
   <button class="danger" data-act="delete"><span class="di"><i class="ph-light ph-trash" aria-hidden="true"></i></span> 삭제<span class="dk">Del</span></button>
 </div>
@@ -153,17 +149,14 @@
     <div class="em-head">
       <h4>아이콘 선택</h4>
       <span class="esub" id="sb3-em-subtitle">항목의 아이콘을 변경합니다</span>
-      <button class="ec" id="sb3-em-close">Esc <i class="ph-light ph-x" aria-hidden="true"></i></button>
+      <button class="ec" id="sb3-em-close">Esc ✕</button>
     </div>
-    <div class="em-tabs" id="sb3-em-tabs">
-      <button class="on" data-tab="icon"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 라인 아이콘</button>
-    </div>
+    {# [2026-08-19] 「이모지」 탭 삭제 — 선 아이콘 하나로 간다.
+       화면에서 그림문자를 다 지워도 여기서 고를 수 있으면 다시 들어온다.
+       탭이 하나뿐이라 탭 줄 자체를 없앤다(고를 게 없는 탭은 죽은 단추다).
+       색상/흑백 토글도 이모지 전용이었다 — 선 아이콘은 아래 색상 줄에서 색을 고른다. #}
     <div class="em-search">
       <input id="sb3-em-search" placeholder="검색 — 한글/영문/키워드 (예: 집·house·홈·home)">
-      <div class="em-style-toggle" id="sb3-em-style-wrap" style="display:none">
-        <button class="on" data-style="color"><i class="ph-light ph-palette" aria-hidden="true"></i> 색상</button>
-        <button data-style="bw"><i class="ph-light ph-circle" aria-hidden="true"></i> 흑백</button>
-      </div>
     </div>
     <div class="em-color-row" id="sb3-em-color-row">
       <span>색상</span>
@@ -188,8 +181,9 @@
   <span class="ti"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></span>
   <span id="sb3-toast-msg">변경됨</span>
   <button class="tb" id="sb3-toast-undo">되돌리기 (⌘Z)</button>
-  <span class="tx" id="sb3-toast-close"><i class="ph-light ph-x" aria-hidden="true"></i></span>
+  <span class="tx" id="sb3-toast-close">✕</span>
 </div>
 
+{# [2026-08-19] 그림문자 목록(sidebar_emoji_data.js) 삭제 — 선 아이콘 하나로 간다 #}
 <script src="{{ url_for('static', filename='sidebar_icon_data.js') }}"></script>
 <script src="{{ url_for('static', filename='sidebar_edit.js') }}"></script>

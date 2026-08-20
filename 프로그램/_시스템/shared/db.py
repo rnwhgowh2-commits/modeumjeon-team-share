@@ -2,10 +2,14 @@
 SQLAlchemy 부트스트랩.
 후속 모듈은 `Base`를 import해서 모델을 정의하면 자동으로 테이블 생성 대상에 포함된다.
 """
+import logging
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config import Config
+
+_log = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -53,11 +57,151 @@ engine = create_engine(Config.DB_URL, **_engine_kwargs)
 # (DetachedInstanceError + InFailedSqlTransaction 회피)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True, expire_on_commit=False)
 
+# [2026-08-01] 옵션을 저장할 때 주인(원본 매트릭스)을 저절로 채운다.
+#   🔴 옵션을 만드는 곳이 11곳이라 한 곳씩 고치면 다음에 또 빠진다 —
+#      모든 세션이 지나는 이 길목에서 한 번만 건다. 정본 = lemouton/matrix/owner_hook.py
+def _install_owner_hook() -> None:
+    try:
+        from lemouton.matrix.owner_hook import install
+        install()
+    except Exception:            # 모델이 아직 안 실린 이른 시점 — 아래에서 다시 건다
+        pass
+
+
+_install_owner_hook()
+
+
+def _drop_stale_process_rules() -> None:
+    """[2026-07-19 대량등록 ②가공] process_rules 에 market 축을 넣기 위한 일회성 처리.
+
+    UNIQUE 가 (policy_id, item_key) → (policy_id, market, item_key) 로 바뀌어야 하는데,
+    이 파일의 마이그레이션 경로는 **ADD COLUMN / CREATE INDEX 뿐**이고 ADD CONSTRAINT 가
+    없다. 컬럼만 더하면 옛 UNIQUE 가 마켓별 행을 막는다.
+
+    ★ **비어 있을 때만** 통째로 지운다 — 바로 뒤 create_all 이 새 스키마로 다시 만든다.
+      같은 날 만든 신규 표라 라이브도 0행인 것을 확인하고 하는 처리다
+      (2026-07-19 확인: 라이브 정책 0 · 규칙 0).
+      행이 하나라도 있으면 **아무것도 하지 않는다** — 데이터를 지우느니 옛 스키마로 둔다.
+    """
+    from sqlalchemy import inspect, text
+    try:
+        insp = inspect(engine)
+        if 'process_rules' not in set(insp.get_table_names()):
+            return
+        if 'market' in {c['name'] for c in insp.get_columns('process_rules')}:
+            return                      # 이미 새 스키마
+        with engine.begin() as c:
+            n = c.execute(text("SELECT COUNT(*) FROM process_rules")).scalar() or 0
+            if n:
+                print(f"[migration] process_rules {n}행이 있어 market 축 이관을 건너뜁니다 "
+                      f"— 수동 확인 필요")
+                return
+            c.execute(text("DROP TABLE process_rules"))
+            print("[migration] process_rules 재생성 (market 축 추가, 0행이라 안전)")
+    except Exception as e:      # noqa: BLE001
+        print(f"[migration] process_rules 점검 건너뜀: {e}")
+
+
+def _repoint_account_upload_policies(eng=None) -> bool:
+    """[2026-07-20] 업로드 속도 정책의 주인을 market_accounts → upload_accounts 로.
+
+    ■ 왜
+      판매처 관리 화면은 ``upload_accounts`` 에만 쓰는데 속도 정책은
+      ``market_accounts`` 를 봤다. 후자는 일회성 마이그레이션 스크립트만 채워서
+      **계정을 30개 등록해도 속도 정책은 0개**였다 (라이브 확인).
+
+    ■ 왜 통째로 지우나
+      ``account_id`` 가 market_accounts.id 를 가리키는 FK 라 그대로 두면
+      PostgreSQL 이 새 계정 저장을 거부한다. 이 파일의 마이그레이션 경로에는
+      ADD/DROP CONSTRAINT 가 없다.
+      게다가 **남은 옛 행이 더 위험하다** — market_accounts.id 3번의 속도가
+      upload_accounts.id 3번(전혀 다른 계정)에 조용히 붙는다.
+
+      ★ 지워도 되는 이유: 이 표를 고치는 화면(`/api/upload/account-speed`)이
+        market_accounts 를 읽었고 그게 0개라 **아무것도 보여주지 못했다**.
+        즉 사장님이 손으로 정한 값이 애초에 있을 수 없다. 남은 건 자동 시드된
+        기본값(6초에 1개)뿐이고, 지우면 다음 조회 때 같은 값으로 다시 시드된다.
+
+    Returns:
+        실제로 갈아엎었으면 True (멱등 — 두 번째부터는 False).
+    """
+    from sqlalchemy import inspect, text
+    eng = eng if eng is not None else engine
+    try:
+        insp = inspect(eng)
+        if 'account_upload_policies' not in set(insp.get_table_names()):
+            return False
+        fks = insp.get_foreign_keys('account_upload_policies')
+        if not any(fk.get('referred_table') == 'market_accounts' for fk in fks):
+            return False                # 이미 새 스키마
+        with eng.begin() as c:
+            n = c.execute(text("SELECT COUNT(*) FROM account_upload_policies")).scalar() or 0
+            c.execute(text("DROP TABLE account_upload_policies"))
+        print(f"[migration] account_upload_policies 재생성 "
+              f"(주인 market_accounts → upload_accounts, 옛 기본값 {n}행 폐기)")
+        return True
+    except Exception as e:      # noqa: BLE001
+        print(f"[migration] account_upload_policies 점검 건너뜀: {e}")
+        return False
+
 
 def init_db() -> None:
     """후속 모듈이 등록한 모든 모델 테이블을 생성한다 (멱등)."""
+    _drop_stale_process_rules()     # ★ create_all 보다 먼저 — 지운 뒤 새로 만들어야 한다
+    _repoint_account_upload_policies()      # ★ 같은 이유로 create_all 앞
+    from shared import display_no as _display_no   # noqa: F401 — 순번 테이블 등록(create_all 대상)
+    from lemouton.matrix import models as _matrix_models   # noqa: F401 — 매트릭스 원본/파생
+    from lemouton.policy import models as _policy_models   # noqa: F401 — 마켓별 정책
+    from lemouton.send import models as _send_models       # noqa: F401 — 마켓 전송 작업·결과
     Base.metadata.create_all(engine)
+    from lemouton.sets.schema_patch import ensure_market_columns
+    ensure_market_columns(engine)
     _apply_lightweight_migrations()
+    # [2026-06-30 단일명부] 빌트인 6개 seed + 기존 가이드 이관 (멱등, 컬럼 보강 이후)
+    try:
+        from lemouton.sourcing.source_registry import seed_builtins
+        seed_builtins()
+        from lemouton.sourcing.roster import migrate_guides_from_registry
+        migrate_guides_from_registry()
+    except Exception:
+        pass
+    # [2026-07-18 대량등록 Phase 1B M1-2] 결제카드 마스터 시드 (멱등, key 단위
+    # insert-if-missing → 사용자가 화면에서 고친 적립율을 재부팅이 원복하지 않는다).
+    try:
+        from lemouton.margin.purchase_card_store import seed_purchase_cards
+        _s = SessionLocal()
+        try:
+            seed_purchase_cards(_s)
+        finally:
+            _s.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
+    # [2026-07-19 대량등록 Phase 1B M1-5] 소싱처별 OK캐시백 적립율 시드 (멱등,
+    # (source_id, benefit_name) insert-if-missing + 캐시백 행 존재 시 통째 skip
+    # → 라이브의 기존 캐시백 행과 이중 차감 충돌을 원천 차단).
+    # 카드 청구할인 시드는 확인된 값이 없어 오늘은 no-op 이다.
+    # [2026-07-19] 마켓 API 한도 시드 — 공식문서에서 확인된 3건만(쿠팡·옥션·G마켓).
+    #   멱등 insert-if-missing → 사장님이 화면에서 고친 값을 재부팅이 되돌리지 않는다.
+    try:
+        from lemouton.uploader.market_rate_seed import seed_market_rates
+        _s3 = SessionLocal()
+        try:
+            if seed_market_rates(_s3):
+                _s3.commit()
+        finally:
+            _s3.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
+
+    try:
+        from lemouton.sourcing.source_benefit_seed import seed_source_benefits
+        _s2 = SessionLocal()
+        try:
+            seed_source_benefits(_s2)
+        finally:
+            _s2.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
 
 
 def _apply_lightweight_migrations() -> None:
@@ -75,8 +219,133 @@ def _apply_lightweight_migrations() -> None:
         ('ix_po_status', 'purchase_orders', 'status'),
         ('ix_so_status', 'sales_orders', 'status'),
         ('ix_ro_status', 'return_orders', 'status'),
+        # [2026-08-07] 주문 줄을 **날짜만으로** 훑는 자리가 여럿인데(판매 이력·상품관리
+        #   목록) 기존 인덱스는 `(market, order_date)` 복합이라 앞칸(market) 조건이
+        #   없으면 못 쓴다 → 표 전체를 훑는다. 날짜 단독 인덱스를 하나 더 둔다.
+        ('ix_mol_date', 'market_order_lines', 'order_date'),
     ]
     migrations = [
+        # [2026-08-06] 포장 스캔 출고가 어느 주문 줄이었나 — 같은 줄 두 번 찍어도
+        #   재고가 두 번 안 깎이게 하는 열쇠(메모 문자열로 박으면 나중에 못 조회한다).
+        ("inventory_txs", "order_line_uid", "VARCHAR(200)"),
+        # [2026-08-04] 전송 작업 살아있음 신호 — 워커 2개라 「이 프로세스에 스레드가
+        #   없다」로는 죽었는지 모른다. 스레드가 주기적으로 시각을 찍고, 고아 판정은
+        #   신선도로 한다(살아있는 작업을 닫아버린 라이브 사고 job 2 재발 방지).
+        ("send_jobs", "heartbeat_at", "TIMESTAMP"),
+        # [2026-08-04] 지금 뭘 하는 중인가 — 큰 상품은 조립만 100초+(라이브 524 실측).
+        ("send_jobs", "stage", "VARCHAR(200)"),
+        # [2026-08-02] A/S 안내 기본값 — 마켓 등록 필수값. 회사에 하나뿐이라 전역 설정.
+        #   🔴 기본값을 주지 않는다 — 가짜 번호가 실제 판매 상품에 게시되면 안 된다.
+        ("global_settings", "after_service_phone", "VARCHAR(64)"),
+        ("global_settings", "after_service_guide", "TEXT"),
+        # [2026-08-04] 롯데온 정산 회차가 **자동**인지 **손으로 돌린 것**인지.
+        #  🔴 섞으면 안 되는 이유: 배너("정산 수집이 N시간째 멈춤")는 「자동이 살아 있나」를
+        #    묻는다. 수동 실행까지 같이 세면 손으로 한 번 돌린 것만으로 배너가 조용해져
+        #    **자동이 죽어 있어도 모른다**. 화면엔 둘 다 보여주되 배너는 auto 만 본다.
+        #  기존 행은 전부 자동 회차가 남긴 것이라 기본값 'auto' 가 맞다.
+        # [2026-08-04] 고객 표면노출가 — 스스 목록 API 의 discountedPrice(버리던 값) 저장
+        ("market_products", "exposed_price", "INTEGER"),
+        ("market_products", "delivery_fee", "INTEGER"),
+        # [2026-08-07] 마켓에 실제로 등록된 카테고리 — 목록 API 가 이미 주는데 버리던 값.
+        #  롯데온만 응답에 없어 영원히 NULL 이다(지도 lotteon.product.list idTraps 실측).
+        ("market_products", "category_code", "VARCHAR(64)"),
+        ("market_products", "category_name", "VARCHAR(200)"),
+        ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
+        # [2026-08-13] 이 묶음의 **모델명** — 마켓에 나가는 값. 사장님 확인:
+        #   「매트릭스명은 사용자가 지정하기 나름. 대부분 브랜드+모델명+(추가)」.
+        #   🔴 NULL = 「따로 안 정함」 이다. 기본값을 주면 안 된다 —
+        #      기존 172개가 NULL 이어야 오늘과 똑같이(매트릭스 이름 폴백) 돈다.
+        ("models", "bundle_model_name", "VARCHAR(255)"),
+        # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
+        ("models", "soldout_alerted_at", "TIMESTAMP"),
+        # [2026-08-01] 옵션번호 — 매트릭스번호+순번 (표시용, 열쇠 아님)
+        ("options", "display_no", "VARCHAR(32)"),
+        # [2026-08-01] 옵션함 — 아직 안 파는 묶음(설계서 규칙 3). 기존 행은 전부 판매용.
+        ("models", "is_option_box", "BOOLEAN DEFAULT 0 NOT NULL"),
+        # [2026-08-01] 옵션의 새 주인 — 원본 매트릭스(설계서 §9). 처음엔 전부 비어 있다.
+        ("options", "matrix_option_id", "INTEGER"),
+        # [2026-07-31] 정책 값이 「마켓 공통」에서 온 것인지 표시 (NULL = 직접 저장)
+        ("market_policy_values", "from_common_at", "TIMESTAMP"),
+        # [2026-07-31] 정책 브랜드 분류 (NULL = 브랜드 없음)
+        ("market_policies", "brand", "VARCHAR(128)"),
+        # [2026-08-19] 정책명 자동 조합([대량]/[모음전] + 브랜드 + 카테고리 + 소싱처)용.
+        ("market_policies", "category", "VARCHAR(120)"),
+        ("market_policies", "sourcing", "VARCHAR(120)"),
+        # [2026-07-31] 내보낼 마켓 (NULL = 전부 켜짐 · '[]' = 전부 꺼짐)
+        ("market_policies", "enabled_markets", "TEXT"),
+        # [2026-08-02] 「한 상품에 여러 정책」 — 이 값이 어느 **구성(벌)** 으로 나갔나.
+        #   🔴 없으면 한 상품의 구성이 둘일 때 기준선이 서로 덮어써
+        #     「바뀐 것만 보낸다」가 흔들린다(같은 값을 계속 다시 보냄).
+        #   NULL = 구성 축이 생기기 전에 남은 줄(옛 기록).
+        ("price_snapshots", "set_id", "INTEGER"),
+        # [2026-07-31] 디자인 모드 — 사람마다 따로. current=안전망(예전 디자인)
+        ("users", "design_mode", "VARCHAR(16) DEFAULT 'current' NOT NULL"),
+        # [2026-07-20] 스스·쿠팡 외 마켓 수수료율 (미설정=NULL — 임의 기본값 금지)
+        # [2026-07-20] 스스·쿠팡 외 4개 마켓 가격 정책 (수수료 + 3가지 책정 × 소싱/사입)
+        ("price_templates", "lotteon_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        ("price_templates", "lotteon_unify_rule", "VARCHAR(16) DEFAULT 'max'"),
+        ("price_templates", "eleven11_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        ("price_templates", "eleven11_unify_rule", "VARCHAR(16) DEFAULT 'max'"),
+        ("price_templates", "auction_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        ("price_templates", "auction_unify_rule", "VARCHAR(16) DEFAULT 'max'"),
+        ("price_templates", "gmarket_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        ("price_templates", "gmarket_unify_rule", "VARCHAR(16) DEFAULT 'max'"),
+        # 롯데온
+        ("price_templates", "lotteon_fee_rate", "FLOAT DEFAULT 0.13"),
+        ("price_templates", "lotteon_normal_price", "INTEGER DEFAULT 149000"),
+        ("price_templates", "lotteon_boxhero_sale_price", "INTEGER DEFAULT 0"),
+        ("price_templates", "lotteon_external_sale_price", "INTEGER DEFAULT 0"),
+        ("price_templates", "lotteon_mode_sourcing", "VARCHAR(8) DEFAULT 'rate'"),
+        ("price_templates", "lotteon_rate_sourcing", "FLOAT DEFAULT 0.1242"),
+        ("price_templates", "lotteon_amount_sourcing", "INTEGER DEFAULT 0"),
+        ("price_templates", "lotteon_mode_purchase", "VARCHAR(8) DEFAULT 'rate'"),
+        ("price_templates", "lotteon_rate_purchase", "FLOAT DEFAULT 0.1242"),
+        ("price_templates", "lotteon_amount_purchase", "INTEGER DEFAULT 0"),
+        ("price_templates", "lotteon_delivery_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "lotteon_return_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "lotteon_exchange_fee", "INTEGER DEFAULT 0"),
+        # 11번가
+        ("price_templates", "eleven11_fee_rate", "FLOAT DEFAULT 0.13"),
+        ("price_templates", "eleven11_normal_price", "INTEGER DEFAULT 149000"),
+        ("price_templates", "eleven11_boxhero_sale_price", "INTEGER DEFAULT 0"),
+        ("price_templates", "eleven11_external_sale_price", "INTEGER DEFAULT 0"),
+        ("price_templates", "eleven11_mode_sourcing", "VARCHAR(8) DEFAULT 'rate'"),
+        ("price_templates", "eleven11_rate_sourcing", "FLOAT DEFAULT 0.1242"),
+        ("price_templates", "eleven11_amount_sourcing", "INTEGER DEFAULT 0"),
+        ("price_templates", "eleven11_mode_purchase", "VARCHAR(8) DEFAULT 'rate'"),
+        ("price_templates", "eleven11_rate_purchase", "FLOAT DEFAULT 0.1242"),
+        ("price_templates", "eleven11_amount_purchase", "INTEGER DEFAULT 0"),
+        ("price_templates", "eleven11_delivery_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "eleven11_return_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "eleven11_exchange_fee", "INTEGER DEFAULT 0"),
+        # 옥션
+        ("price_templates", "auction_fee_rate", "FLOAT DEFAULT 0.13"),
+        ("price_templates", "auction_normal_price", "INTEGER DEFAULT 149000"),
+        ("price_templates", "auction_boxhero_sale_price", "INTEGER DEFAULT 0"),
+        ("price_templates", "auction_external_sale_price", "INTEGER DEFAULT 0"),
+        ("price_templates", "auction_mode_sourcing", "VARCHAR(8) DEFAULT 'rate'"),
+        ("price_templates", "auction_rate_sourcing", "FLOAT DEFAULT 0.1242"),
+        ("price_templates", "auction_amount_sourcing", "INTEGER DEFAULT 0"),
+        ("price_templates", "auction_mode_purchase", "VARCHAR(8) DEFAULT 'rate'"),
+        ("price_templates", "auction_rate_purchase", "FLOAT DEFAULT 0.1242"),
+        ("price_templates", "auction_amount_purchase", "INTEGER DEFAULT 0"),
+        ("price_templates", "auction_delivery_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "auction_return_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "auction_exchange_fee", "INTEGER DEFAULT 0"),
+        # G마켓
+        ("price_templates", "gmarket_fee_rate", "FLOAT DEFAULT 0.13"),
+        ("price_templates", "gmarket_normal_price", "INTEGER DEFAULT 149000"),
+        ("price_templates", "gmarket_boxhero_sale_price", "INTEGER DEFAULT 0"),
+        ("price_templates", "gmarket_external_sale_price", "INTEGER DEFAULT 0"),
+        ("price_templates", "gmarket_mode_sourcing", "VARCHAR(8) DEFAULT 'rate'"),
+        ("price_templates", "gmarket_rate_sourcing", "FLOAT DEFAULT 0.1242"),
+        ("price_templates", "gmarket_amount_sourcing", "INTEGER DEFAULT 0"),
+        ("price_templates", "gmarket_mode_purchase", "VARCHAR(8) DEFAULT 'rate'"),
+        ("price_templates", "gmarket_rate_purchase", "FLOAT DEFAULT 0.1242"),
+        ("price_templates", "gmarket_amount_purchase", "INTEGER DEFAULT 0"),
+        ("price_templates", "gmarket_delivery_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "gmarket_return_fee", "INTEGER DEFAULT 0"),
+        ("price_templates", "gmarket_exchange_fee", "INTEGER DEFAULT 0"),
         ("models", "last_crawled_at", "DATETIME"),
         ("models", "last_uploaded_at", "DATETIME"),
         # v6 Phase 3.5 (2026-05-07): 모음전별 자동화 ON/OFF 토글
@@ -110,6 +379,16 @@ def _apply_lightweight_migrations() -> None:
         ("options", "barcode", "VARCHAR(64)"),
         # 2026-05-19: 품번 (우리 양식 5번째 컬럼) — Model 마스터에 저장
         ("models", "article_no", "VARCHAR(64)"),
+        # [2026-08-14] SKU 하나하나의 품번·GTIN — 「옵션 조합 생성 및 수정」 창에서 받는다.
+        #   🔴 바로 위 `models.article_no`(모델 하나에 하나)와 **다른 칸**이다.
+        #      브랜드가 사이즈마다 다른 품번을 매기므로 모델 칸으로는 못 담는다.
+        #      까닭과 관계는 `lemouton/sourcing/models.py` 의 `Option.article_no` 주석에
+        #      한 번만 적어 뒀다(같은 설명을 두 곳에 두면 언젠가 갈린다).
+        #   🔴 기본값을 주지 않는다 — **NULL = 「아직 안 적음」**. 빈 문자열이 들어가면
+        #      「안 적음」과 「적었다 지움」이 화면에서 같아지고, 진척(「품번 12/15」)을
+        #      세는 곳이 안 채운 것을 채운 걸로 센다.
+        ("options", "article_no", "VARCHAR(64)"),
+        ("options", "gtin", "VARCHAR(14)"),
         # 2026-05-21: 가격 템플릿 마켓별 반품비·교환비 (모달 가로탭 재구성)
         ("price_templates", "ss_return_fee", "INTEGER DEFAULT 0"),
         ("price_templates", "ss_exchange_fee", "INTEGER DEFAULT 0"),
@@ -154,8 +433,15 @@ def _apply_lightweight_migrations() -> None:
         ("bundle_source_urls", "label", "VARCHAR(120)"),
         # 2026-06-21: URL 타입 — 단품/색상모음전/모델모음전
         ("bundle_source_urls", "url_type", "VARCHAR(16) DEFAULT '단품' NOT NULL"),
+        # 2026-08-02: 「이 소싱처엔 이 값이 없다」 — 사전이 틀리게 붙였을 때 거부하는 수단
+        ("source_axis_aliases", "is_absent", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-05-25: 판매가 정책 (색상 통일 / 옵션별 cheapest) — A2+D3 시안 적용
         ("price_templates", "pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        # 2026-07-15: 마켓별 색상 통일 (스스/쿠팡 각각) + 통일 규칙(max/src_cheapest)
+        ("price_templates", "ss_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        ("price_templates", "ss_unify_rule", "VARCHAR(16) DEFAULT 'max'"),
+        ("price_templates", "coupang_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
+        ("price_templates", "coupang_unify_rule", "VARCHAR(16) DEFAULT 'max'"),
         # 2026-05-25: 매입가 산정 우선순위 (V5 시안 — 사입 카드 0원 차단)
         ("price_templates", "price_source_priority", "VARCHAR(16) DEFAULT 'template'"),
         # 2026-05-25: 옵션별 지정가 (C1 시안 — 3번째 가격 카드)
@@ -177,12 +463,18 @@ def _apply_lightweight_migrations() -> None:
         ("brand_color_overrides", "letter", "VARCHAR(16)"),
         # [2026-05-27 D1] 사용자가 매트릭스에서 OFF 한 옵션 (URL 매핑 있어 데이터 보존). True=활성, False=비활성.
         ("options", "is_active", "BOOLEAN DEFAULT 1 NOT NULL"),
+        # [2026-06-13 / 복원 2026-06-28] 크롤 차단 게이트 — 유효 소싱가 없는 옵션 판매차단.
+        #   2026-06-22 stale 머지(94466889)에서 컬럼 유실 → 복원. (S14 가짜 '재고있음'·게이트 inert 원인)
+        ("options", "crawl_blocked", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-06-05: 혜택 표시 카테고리 (정액/정률/결제/캐시백/기타) — 새 혜택 추가 모달에서 사용자 지정
         ("source_benefit_templates", "category", "VARCHAR(16)"),
         ("option_benefit_overrides", "category", "VARCHAR(16)"),
         # 2026-06-06: 소싱처 크롤링 가이드 JSON (crawl_guide) + 크롤 작업 검증 URL
         ("source_registry", "crawl_guide", "TEXT"),
         ("crawl_jobs", "verify_url", "VARCHAR(512)"),
+        # 2026-06-30: 소싱처 단일 명부 통합 — SourcingSource 가 전 소싱처(빌트인+커스텀) 명부
+        ("sourcing_sources", "is_builtin", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("sourcing_sources", "crawl_guide", "TEXT"),
         # 2026-06-08: 혜택 태그 (최종 매입가 계산 엔진)
         ("source_benefit_templates", "apply_mode", "VARCHAR(16)"),
         ("source_benefit_templates", "pay_method", "VARCHAR(16)"),
@@ -190,6 +482,202 @@ def _apply_lightweight_migrations() -> None:
         ("option_benefit_overrides", "apply_mode", "VARCHAR(16)"),
         ("option_benefit_overrides", "pay_method", "VARCHAR(16)"),
         ("option_benefit_overrides", "channel", "VARCHAR(16)"),
+        # 2026-07-19: 캐시백 기준금액 계수 (대량등록 Phase 1B).
+        #   캐시백 사이트는 결제 전액이 아니라 **부가세 뺀 공급가**에 적립한다
+        #   → 0.9 = 공급가 기준 / 1.0 = 전액 기준(SSG·신세계쇼핑·CJ).
+        #   DEFAULT 1.0 이라 기존 행은 계수 없음(동작 불변) — 캐시백 행에만 0.9 를 세팅한다.
+        ("source_benefit_templates", "base_ratio", "FLOAT DEFAULT 1.0"),
+        ("option_benefit_overrides", "base_ratio", "FLOAT DEFAULT 1.0"),
+        # 2026-07-01: 자동화 설정 (크롤 자동 주기 + 판매처 자동 전송)
+        ("global_settings", "crawl_auto_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
+        ("global_settings", "crawl_interval_minutes", "INTEGER DEFAULT 0 NOT NULL"),
+        ("global_settings", "autosend_mode", "VARCHAR(8) DEFAULT 'preview' NOT NULL"),
+        ("global_settings", "autosend_on_purchase", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("global_settings", "autosend_on_stock", "BOOLEAN DEFAULT 1 NOT NULL"),
+        ("global_settings", "autosend_stock_threshold", "INTEGER DEFAULT 4 NOT NULL"),
+        ("global_settings", "autosend_on_price", "BOOLEAN DEFAULT 1 NOT NULL"),
+        # 2026-07-01: 구성별 자동 전송 예외 (follow|on|off) — (구) 하위호환
+        ("product_sets", "auto_stock_mode", "VARCHAR(8) DEFAULT 'follow' NOT NULL"),
+        ("product_sets", "auto_price_mode", "VARCHAR(8) DEFAULT 'follow' NOT NULL"),
+        # 2026-07-01: 구성별 자동 모드(on|off|manual) + 수동설정 주기(시:분)
+        ("product_sets", "auto_mode", "VARCHAR(8) DEFAULT 'on' NOT NULL"),
+        ("product_sets", "manual_crawl_hours", "INTEGER DEFAULT 1 NOT NULL"),
+        ("product_sets", "manual_crawl_minutes", "INTEGER DEFAULT 0 NOT NULL"),
+        ("product_sets", "manual_upload_hours", "INTEGER DEFAULT 3 NOT NULL"),
+        ("product_sets", "manual_upload_minutes", "INTEGER DEFAULT 0 NOT NULL"),
+        # 2026-08-06: 검색필터 — 이 상품이 어느 수집 행위에서 왔나(수기 초안은 NULL).
+        #   search_filters 표 자체는 신규라 create_all 이 만든다. 여기는 기존 표의 새 칸만.
+        ("product_drafts", "search_filter_id", "INTEGER"),
+        # 2026-08-08: 훑기 결과를 화면이 말할 수 있게 — 「못 봤다」와 「더 있는데 멈췄다」.
+        #   여태 확장이 보낸 실패 사유를 서버가 버려서 0건과 구분이 안 됐다.
+        ("search_filters", "last_error", "TEXT"),
+        ("search_filters", "last_capped", "BOOLEAN DEFAULT 0 NOT NULL"),
+        # 2026-08-08: 훑은 확장의 판 번호 — 「화면만 새로고침」 상태를 알아보려고.
+        ("search_filters", "last_ext_version", "VARCHAR(20)"),
+        # 2026-08-13: 이어서 걷기 — 다음 회차가 시작할 쪽.
+        #   한 회차 60쪽 상한은 소싱처 보호선이라 못 없앤다. 그런데 현대H몰
+        #   「나이키 신발」은 456쪽 16,413개다 — 60쪽이면 13% 밖에 못 걷고,
+        #   못 걷은 만큼 팔 상품이 줄어든다. 상한은 지키되 회차를 거듭해 끝까지 간다.
+        ("search_filters", "next_page_from", "INTEGER"),
+        # 2026-08-13: 못 걸은 쪽 — 크롬이 바쁠 때 탭이 죽어 통째로 빠지던 것.
+        #   어느 쪽이었는지 기억해야 다시 걸 수 있다(H몰 463쪽 중 16%가 그렇게 비었다).
+        ("search_filters", "missed_urls", "TEXT"),
+        # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
+        ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
+        ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
+        ("source_products", "crawl_lap_count", "INTEGER DEFAULT 0 NOT NULL"),
+        # 2026-07-19: 크롤 주기 등급 — 뜸하게 긁는 쪽 손잡이.
+        #   계수(Integer)로는 「3일에 1회」를 못 담는다: int(1/3)==0 이고 계수 0 은
+        #   '크롤 제외'라 상품이 영영 안 긁힌다. 그래서 방향을 갈라 별도 배수를 둔다.
+        #   ★DEFAULT 1.0 = 예전과 완전히 같은 동작 (기존 행은 아무것도 안 바뀐다).
+        ("source_products", "crawl_slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
+        # 2026-08-13: 「주문 이행 가능 판단」이 찍는 **확인 요청** 표식(노션 ⑤).
+        #   NULL = 요청 없음(예전과 완전히 같은 동작). 크롤이 끝나면 저절로 풀린다.
+        ("source_products", "recheck_requested_at", "DATETIME"),
+        ("crawl_weight_rules", "slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
+        # 2026-07-19: 업로드 속도 「X초에 Y개」 (사장님 확정).
+        #   옛 seconds_per_item(1개당 N초)은 한 계정이 초당 1개가 최대라
+        #   「1초에 10개」도 「10초에 30개」(순간 몰림)도 못 담았다.
+        #   ★ 옛 칸은 지우지 않는다 — NULL 이면 옛 칸에서 「N초에 1개」로 읽는다.
+        ("account_upload_policies", "window_seconds", "INTEGER"),
+        ("account_upload_policies", "max_count", "INTEGER"),
+        # 2026-07-05: 옵션별 브랜드 (한 모음전에 여러 브랜드 섞임) — NULL=미지정(Model.brand 상속)
+        ("options", "brand", "VARCHAR(100)"),
+        # 2026-07-05: 롯데온 자동전송 formatter 용 — 마스터의 롯데온 상품/옵션 ID.
+        #             NULL=미매핑 → build_lotteon_payload 가 None → 자동전송 0(안전).
+        ("models", "lotteon_product_id", "VARCHAR(64)"),
+        ("options", "lotteon_option_id", "VARCHAR(128)"),
+        # 2026-07-09: 옥션·G마켓(ESM 2.0) 자동전송 formatter 용 — 마스터 goodsNo·옵션 manageCode.
+        #             NULL=미매핑 → build_{auction,gmarket}_payload 가 None → 자동전송 0(안전).
+        ("models", "auction_product_id", "VARCHAR(64)"),
+        ("models", "gmarket_product_id", "VARCHAR(64)"),
+        ("options", "auction_option_id", "VARCHAR(128)"),
+        ("options", "gmarket_option_id", "VARCHAR(128)"),
+        # 2026-07-05: (폐기) market_upload_policies — P4 마켓 per_minute 정책 제거,
+        #             계정 단위(account_upload_policies)로 흡수. 기존 DB의 잔여 테이블은
+        #             참조 안 함(무해). 업로드 속도 정본 = 계정.
+        # 2026-07-04: account_upload_policies 신규 테이블 → create_all 생성
+        # 2026-07-05: crawl_weight_rules 신규 테이블 → create_all 생성
+        # 2026-07-10: invoice_ledger 신규 테이블(송장 원장) → create_all 생성(FK 없음)
+        # 2026-07-12: 배송검사 v2 — 마켓 API 조회 캐시(mango_orders)
+        ("mango_orders", "market_api_status", "VARCHAR(32)"),
+        ("mango_orders", "market_api_status_raw", "VARCHAR(64)"),
+        ("mango_orders", "market_api_invoice", "VARCHAR(64)"),
+        ("mango_orders", "market_shipped_at", "VARCHAR(32)"),
+        ("mango_orders", "market_checked_at", "DATETIME"),
+        ("mango_orders", "market_check_error", "VARCHAR(200)"),
+        # 2026-07-16: CS 대응완료 수기 삭제 플래그 (claim_handling 은 #2 로 이미 배포됨 → ALTER 보강)
+        ("claim_handling", "dismissed_at", "DATETIME"),
+        # 2026-07-18: 대량등록 Phase 1A — product_draft_markets.account_key.
+        #   Task 8 이 마켓당 다계정 대비로 account_key 를 모델에 추가했는데(마켓 상품번호가
+        #   계정마다 다름), create_all 은 기존 테이블에 컬럼을 안 붙인다. Task 2~8 개발 중
+        #   먼저 생성된 DB(로컬 SQLite 등)는 이 컬럼이 없어 /bulk 등록·목록이 500 이 난다.
+        #   fresh DB·미배포 Supabase 는 create_all 이 이미 포함하므로 여기선 no-op(멱등).
+        ("product_draft_markets", "account_key", "VARCHAR(64) DEFAULT 'default' NOT NULL"),
+        # 2026-07-19: 대량등록 Phase 1B M3-1 — 역마진 가드 최소 마진금액(원).
+        #   global_settings 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
+        #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로. 기본 0 = 오늘과 동일 동작.
+        # 2026-07-19: price_snapshots 는 신규 테이블 → create_all 이 생성(인덱스 포함).
+        ("global_settings", "min_margin_amount", "INTEGER DEFAULT 0 NOT NULL"),
+        # 2026-07-19: 대량등록 Phase 1B M2 — 수기 화면 「6 매입가·마진」 6칸 저장.
+        #   product_drafts 는 Phase 1A 로 이미 라이브에 존재하는 테이블이라
+        #   create_all 이 컬럼을 붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.
+        #   ★ DEFAULT 를 일부러 안 건다. NULL(입력 안 받음) / ''(소싱처 기본값) /
+        #     'none'(없음 명시) 셋을 구분해야 하는데, DEFAULT 를 걸면 기존 행이
+        #     '사용자가 고른 값'으로 둔갑한다(폴백 금지).
+        #   폭은 값이 흘러오는 원본 컬럼에 맞춘다 — card_key=PurchaseCard.key(64),
+        #   cashback_name=SourceBenefitTemplate.benefit_name(120). 좁히면 개발기
+        #   (SQLite, 길이 무시)에서는 통과하고 라이브(PostgreSQL)에서만 깨진다.
+        ("product_drafts", "pricing_source_id", "INTEGER"),
+        ("product_drafts", "surface_price", "INTEGER"),
+        ("product_drafts", "pricing_inflow", "VARCHAR(16)"),
+        ("product_drafts", "pricing_card_key", "VARCHAR(64)"),
+        ("product_drafts", "pricing_naver_pay", "VARCHAR(16)"),
+        ("product_drafts", "pricing_cashback_name", "VARCHAR(120)"),
+        # 2026-08-13: 등록 상수 — 정책에서 정한 값이 담길 자리.
+        #   전에는 담을 칸이 없어 마켓 등록 코드에 「과세」·「새상품」이 박힌 채 나갔다.
+        #   🔴 DEFAULT 를 거는 건 tax_type 하나뿐이다 — 사장님 확정이 「기본은 과세」라
+        #     기존 행도 과세가 맞다. 나머지는 NULL(=안 정함)과 ''(=없음 명시)를
+        #     구분해야 하므로 DEFAULT 를 안 건다(폴백 금지).
+        #   폭은 마켓 문서 상한에 맞춘다 — 스스 modelName <= 50자, 쿠팡 barcode 는
+        #     표준상품코드(GTIN-14 까지)라 64 로 여유를 둔다. 좁히면 개발기(SQLite,
+        #     길이 무시)는 통과하고 라이브(PostgreSQL)에서만 깨진다.
+        ("product_drafts", "tax_type", "VARCHAR(8) DEFAULT '과세'"),
+        ("product_drafts", "manufacturer", "VARCHAR(120)"),
+        ("product_drafts", "model_no", "VARCHAR(80)"),
+        ("product_drafts", "barcode", "VARCHAR(64)"),
+        ("product_drafts", "search_tags", "TEXT"),
+        # 2026-08-13: 자동 가격 조정 최저가(쿠팡 전용). NULL = 안 씀 — DEFAULT 금지.
+        ("product_drafts", "auto_pricing_min", "INTEGER"),
+        # 2026-07-20: 판매처 계정 라이브 검증(실주문 조회 왕복 확인) 기록.
+        #   upload_accounts 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
+        #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.
+        #   ★ DEFAULT 를 일부러 안 건다. NULL = '아직 검증 안 함' 이어야 하는데
+        #     DEFAULT 를 걸면 기존 계정 전부가 '검증됨'으로 둔갑해 미검증 마켓이
+        #     그대로 공개된다(틀린 주문 숫자가 주문내역·마진계산기로 유입).
+        ("upload_accounts", "live_verified_at", "DATETIME"),
+        ("upload_accounts", "live_verified_count", "INTEGER"),
+        # 2026-07-30: 주문상태가 **바뀐 것을 우리가 처음 본** 시각(+ 직전 상태).
+        #   market_order_lines 는 이미 라이브에 있어 create_all 이 컬럼을 못 붙인다
+        #   → 여기 ADD COLUMN 이 유일한 경로.
+        #   ★ DEFAULT 를 일부러 안 건다. NULL = '기록 시작 전' 이어야 하는데 DEFAULT 를
+        #     걸면 기존 주문 전부가 '방금 상태가 바뀐 것'으로 둔갑한다(거짓 시각).
+        ("market_order_lines", "status_at", "DATETIME"),
+        ("market_order_lines", "status_prev", "VARCHAR(32)"),
+        # 2026-07-22: 자동전환 이력의 실행 주체(manual|auto). 코드는 source 를 쓰는데
+        # 컬럼이 없어 설정 화면이 500 — 기존 행은 manual 로 채움(전부 버튼 실행이던 시기).
+        ("auto_confirm_log", "source", "VARCHAR(16) DEFAULT 'manual' NOT NULL"),
+        # 2026-07-20: 백필을 웹 워커 → 스케줄러로 옮기며 추가된 컬럼.
+        #   order_ingest_runs 는 같은 날 먼저 배포돼 이미 라이브에 있던 테이블이라
+        #   create_all 이 컬럼을 붙이지 못했다(status 조회가 500 으로 죽었다).
+        #   requested = 백필 요청됨(스케줄러가 가져갈 신호) / cursor = 이어할 지점.
+        ("order_ingest_runs", "requested", "VARCHAR(8)"),
+        ("order_ingest_runs", "cursor", "VARCHAR(8)"),
+        # 2026-07-21: 마켓 한도의 적용 범위. 'shared'(계정 전체로 묶임) / 'account'(계정당 천장).
+        #   실측으로 쿠팡·스마트스토어가 계정별임을 확인 → 계정 수만큼 총량이 늘게 하는 칸.
+        #   기본 'shared' = 보수적(기존 동작 보존). 확인된 마켓만 seed 가 'account' 로 올린다.
+        ("market_upload_policies", "limit_scope", "VARCHAR(16) DEFAULT 'shared'"),
+        # 2026-07-23: M2 카테고리 맵핑 — 드래프트의 소싱처 카테고리 경로.
+        #   product_drafts 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
+        #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로. 수기 드래프트는 NULL(소싱처 없음).
+        ("product_drafts", "source_site", "VARCHAR(40)"),
+        ("product_drafts", "source_category_path", "VARCHAR(500)"),
+        # 2026-07-23: 크롤 → 초안 자동 생성(POST /bulk/api/drafts/from-url)의 동일성 키.
+        #   같은 소싱처 URL 로 초안이 여러 벌 생기는 걸 막는다. 정규화형(normalize_url)만
+        #   저장한다 — lemouton/registration/draft_from_crawl.py 주석이 정본.
+        #   ★ UNIQUE 를 걸지 않는다: 지운 초안(deleted_at)이 같은 URL 로 남아 있어도
+        #     새 초안을 만들 수 있어야 한다(삭제를 무시하고 되살리지 않는다는 판단).
+        ("product_drafts", "source_url", "TEXT"),
+        # 2026-07-23: 카테고리 전수수집 진행률 — category_harvest_runs 는 이미 라이브에
+        # 존재하는 테이블이라 create_all 이 컬럼을 붙이지 못한다. progress_at 이 오래
+        # 안 움직이면(예: 20분 전) 죽은 실행으로 의심할 근거가 된다.
+        # 2026-07-23 3차리뷰: 죽은 등록 실행을 회수할 때 「그 마켓을 어느 계정으로
+        #   부르던 중이었나」. 장부 키가 (드래프트×마켓×계정) 이라, 계정을 모르면
+        #   '확인 필요'를 엉뚱한 계정 행에 남겨 정작 그 계정 재등록이 안 잠긴다.
+        ("draft_register_runs", "current_account_key", "VARCHAR(64)"),
+        ("category_harvest_runs", "progress_count", "INTEGER"),
+        ("category_harvest_runs", "progress_at", "DATETIME"),
+        # 2026-07-23 사고 #5: 콜 예산 소진으로 "미완" 종료한 실행을 완료로 칠하지 않기 위한 플래그.
+        # NULL/False = 완주(옛 행 포함). lemouton/registration/models.py 의 주석이 정본.
+        ("category_harvest_runs", "incomplete", "BOOLEAN"),
+        # 2026-07-23: 이어받기 자식누락 차단 — market_categories 는 이미 라이브에 존재하는
+        # 테이블이라 create_all 이 컬럼을 붙이지 못한다. NULL=모름(옛 데이터) → harvest_coupang
+        # known=... 이어받기가 재fetch 로 안전하게 처리한다(lemouton/registration/models.py 주석 참조).
+        ("market_categories", "child_count", "INTEGER"),
+        # [2026-07-23 M3] 소싱처 상품의 카테고리 경로(빵부스러기) — 크롤이 채운다.
+        ("source_products", "category_path", "VARCHAR(500)"),
+        # [2026-07-23 M4-4] 소싱처 상품 이미지 URL 목록(JSON 배열)·상세페이지 HTML.
+        #   6마켓 전부 이미지 필수 / 4마켓(옥션·G마켓·11번가·롯데온) 상세 HTML 필수.
+        #   lemouton/sources/models.py 의 주석이 정본(지재권 주의 포함).
+        ("source_products", "images_json", "TEXT"),
+        ("source_products", "detail_html", "TEXT"),
+        # [2026-07-30] 표시번호 — 사람이 보고 검색하는 번호. 규칙은 shared/display_no.py.
+        #   models·source_products·source_options 는 이미 라이브에 있는 테이블이라
+        #   create_all 이 컬럼을 못 붙인다. 여기 ADD COLUMN 이 유일한 경로.
+        #   🔴 열쇠(model_code·canonical_sku·external_*_id)는 건드리지 않는다 — 표시용 별도 칸.
+        ("models", "display_no", "VARCHAR(24)"),
+        ("source_products", "display_no", "VARCHAR(24)"),
+        ("source_options", "display_no", "VARCHAR(24)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
@@ -219,6 +707,66 @@ def _apply_lightweight_migrations() -> None:
                 conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column})"))
             except Exception:
                 pass
+
+        # [2026-07-23 리뷰 I4] 크롤→초안: 같은 (소싱처, URL) 로 살아 있는 초안은 1벌뿐.
+        #   조회→삽입 사이에 잠금이 없어(gunicorn 워커 3개) 동시 요청이 초안을 2벌
+        #   만들 수 있었고, 그 뒤 갱신은 최신 1벌에만 반영돼 나머지는 유령이 됐다.
+        #   · 부분 인덱스(WHERE deleted_at IS NULL) — 지운 초안은 제약 밖(재생성 허용)
+        #   · source_url 이 NULL 인 수기 초안은 NULL 이 서로 달라 제약을 받지 않는다
+        #   · SQLite 3.8+ / PostgreSQL 둘 다 같은 문법. 이미 중복이 있는 DB 면 생성이
+        #     실패하는데, 그때는 라우트의 「2벌 이상 경고」가 대신 표면화한다.
+        try:
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_product_drafts_source_url_live "
+                "ON product_drafts(source_url, source_site) WHERE deleted_at IS NULL"))
+        except Exception:
+            pass
+
+        # [2026-08-04] 마켓 상품 이름 찾기 색인 — 세글자(trigram) GIN.
+        #   왜 필요한가: 찾기가 `ILIKE '%낱말%'` 다. 앞이 열린 조건이라 **보통 색인은
+        #   못 탄다** — 매번 표 전체를 훑는다. 지금은 1만 건이라 티가 안 나지만
+        #   실측 결과 마켓엔 약 28만 건이 있다(롯데온만 136,510). 자동완성을 붙이면
+        #   글자 칠 때마다 28만 건을 훑게 된다.
+        #   pg_trgm 은 `%낱말%` 도 색인으로 좁혀준다. PostgreSQL 전용 —
+        #   SQLite(로컬·테스트)는 그냥 건너뛴다(데이터가 작아 문제 없다).
+        #   🔴 조용히 넘어가지 않는다: 실패하면 로그에 남겨야 「빠른 줄 알았는데
+        #      아니었다」가 안 생긴다. 확인 창구는 catalog/search.py:index_status().
+        if conn.dialect.name == "postgresql":
+            try:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+            except Exception as e:      # noqa: BLE001
+                _log.warning('[색인] pg_trgm 확장을 못 켰습니다 — 찾기가 느릴 수 있습니다: %s', e)
+            for idx, col in (('ix_mp_name_trgm', 'name'), ('ix_mp_brand_trgm', 'brand')):
+                try:
+                    conn.execute(text(
+                        f"CREATE INDEX IF NOT EXISTS {idx} ON market_products "
+                        f"USING gin ({col} gin_trgm_ops)"))
+                except Exception as e:  # noqa: BLE001
+                    _log.warning('[색인] %s 생성 실패 — 찾기가 느릴 수 있습니다: %s', idx, e)
+
+        # ESM 주문조회 5초/1회 스로틀을 gunicorn 워커 3개가 공유하기 위한 테이블.
+        #   '다음 허용 시각(epoch)'을 계정 키별로 한 행에 둔다. 인메모리 dict 는
+        #   프로세스 간 공유가 안 돼 3000('불러오지 못했어요')의 원인이었다(2026-07-22).
+        #   shared/platforms/esm/client.py 가 자기충족 생성도 하지만 부팅 때 미리 만든다.
+        try:
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS esm_order_throttle ("
+                "throttle_key TEXT PRIMARY KEY, "
+                "next_slot_epoch DOUBLE PRECISION NOT NULL DEFAULT 0)"))
+        except Exception:
+            pass
+
+        # 주문조회 결과의 워커 간 공유 캐시(L2). L1(프로세스 메모리)은 워커마다 따로라
+        #   같은 주문을 최대 3번 재조회했다. 화면 경로 결과를 90초 TTL 로 DB 에 공유한다.
+        #   lemouton/markets/order_export.py 가 자기충족 생성도 하지만 부팅 때 미리 만든다.
+        try:
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS order_rows_cache ("
+                "cache_key TEXT PRIMARY KEY, "
+                "cached_at_epoch DOUBLE PRECISION NOT NULL, "
+                "payload TEXT NOT NULL)"))
+        except Exception:
+            pass
 
         # [Phase 3] 옵션 다중 URL — 옛 (canonical_sku, source_id) UniqueConstraint 제거.
         #   한 소싱처에 URL 여러 개 허용. PostgreSQL 만 (SQLite fresh DB 는 모델에 제약 없음).

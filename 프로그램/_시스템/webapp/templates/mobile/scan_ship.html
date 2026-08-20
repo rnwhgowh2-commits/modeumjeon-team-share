@@ -1,0 +1,385 @@
+{% extends "mobile/_base.html" %}
+{% block title %}<i class="ph-light ph-package" aria-hidden="true"></i> 포장 스캔 출고{% endblock %}
+{% set back_url = '/mobile' %}
+
+{% block extra_head %}
+<style>
+  html, body { overflow: hidden !important; height: 100dvh; height: 100vh; }
+  .m-content { padding: 0 !important; max-width: none !important; }
+
+  /* 높이는 fitShell() 이 상단 머리·하단 탭을 실제로 재서 넣는다.
+     「100dvh - 70px」는 탭만 빼고 머리 높이를 빼먹어 맨 아래가 탭 뒤로 밀린다. */
+  .ss-shell { display: flex; flex-direction: column; height: calc(100dvh - 56px - 68px); }
+  /* 카메라 칸 — 36%(≈220px)로는 초점이 맞았는지 눈으로 알 수 없어 자꾸 다시 대게 된다.
+     일괄 입·출고와 같은 55%(≈340px)로. 주문 목록은 어차피 스크롤된다. */
+  .ss-cam { position: relative; background: black; overflow: hidden; height: 55%; min-height: 340px; flex-shrink: 0; }
+  #scan-video { width: 100%; height: 100%; object-fit: cover; }
+  .ss-cam.hit {  }
+
+  /* 「찾았다」 순간 표시 — 카메라를 보고 있는 눈에 바로 걸리게 */
+  .ss-flash { position: absolute; inset: 0; pointer-events: none; background: white; opacity: 0; }
+  .ss-flash.go { animation: ss-flash-anim 320ms ease-out; }
+  @keyframes ss-flash-anim { 0% { opacity: .85; } 100% { opacity: 0; } }
+  .ss-caught { position: absolute; inset: 0; pointer-events: none;
+    display: flex; align-items: center; justify-content: center; opacity: 0; }
+  .ss-caught.go { animation: ss-caught-anim 900ms ease-out; }
+  .ss-caught .badge { background: rgba(34,197,94,.95); color: white; border-radius: 99px;
+    padding: 10px 20px; font-size: 17px; font-weight: 800;
+    display: flex; align-items: center; gap: 8px; max-width: 88%; }
+  .ss-caught .badge .nm { font-size: 14px; font-weight: 700; opacity: .95;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @keyframes ss-caught-anim {
+    0% { opacity: 0; transform: scale(.82); } 18% { opacity: 1; transform: scale(1.04); }
+    32% { transform: scale(1); } 78% { opacity: 1; } 100% { opacity: 0; } }
+  .ss-ov { position: absolute; inset: 0; pointer-events: none; }
+  .ss-line { position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--primary,#3182F6) 30%, var(--primary,#3182F6) 70%, transparent);
+    animation: ss-scan 1.8s ease-in-out infinite; }
+  @keyframes ss-scan { 0%,100% {top: 8%;} 50% {top: 92%;} }
+  .ss-hint { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.72); color: white; padding: 4px 12px; border-radius: 99px;
+    font-size: 14px; font-weight: 600; max-width: 90%; text-align: center; }
+  .ss-stats { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 4px;
+    font-size: 12px; color: white; pointer-events: none; }
+  .ss-stats span { background: rgba(0,0,0,0.55); padding: 0 8px; border-radius: 99px; }
+  .ss-ctrl { position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex; gap: 4px;
+    align-items: center; pointer-events: auto; }
+  .ss-ctrl button { width: 38px; height: 38px; background: rgba(0,0,0,0.6); color: white; border: 0;
+    border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .ss-ctrl button.on { background: var(--amber,#FFD700); color: #000; }
+  .ss-stats .nat { background: rgba(29,78,216,.85); }
+  /* 줌 — 일괄·단독과 같은 슬라이더 (지원 기기에서만 표시) */
+  .ss-ctrl .zoom { flex: 1; display: flex; align-items: center; gap: 8px;
+    background: rgba(0,0,0,.6); color: white; border-radius: 99px;
+    padding: 0 12px; height: 38px; font-size: 14px; }
+  .ss-ctrl .zoom input { flex: 1; height: 4px; accent-color: var(--primary,#3182F6); }
+
+  /* 카메라 실패 사유 — 토스트와 달리 사라지지 않는다 */
+  #scan-error-area:empty { display: none; }
+  .ss-error { background: var(--연한-빨강,#FEF2F2); color: var(--글자-빨강, var(--red,#DC2626));
+    border-bottom: 1px solid var(--line,#E5E8EB);
+    padding: 8px 12px; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .ss-error span { font-weight: 500; color: var(--글자-기본,#4E5968); font-size: 12px; }
+
+  /* 직접 입력 — 카메라가 안 될 때도 포장을 멈추지 않게 */
+  .ss-manual { display: flex; gap: 4px; align-items: center; padding: 8px 12px;
+    background: var(--surface,#FFFFFF); border-top: 1px solid var(--line,#E5E8EB); flex-shrink: 0; }
+  .ss-manual input { flex: 1; padding: 8px 12px; border: 1px solid var(--faint,#CBCCD3);
+    border-radius: 8px; font-size: 16px; min-height: 44px; box-sizing: border-box; }
+  .ss-manual button { padding: 8px 16px; white-space: nowrap; min-height: 44px; }
+
+  .ss-bar { padding: 8px 12px; background: var(--surface,#FFFFFF);
+    border-bottom: 1px solid var(--line,#E5E8EB); border-top: 3px solid var(--primary,#3182F6);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .ss-bar .lbl { flex: 1; font-size: 12px; font-weight: 800; color: var(--ink,#191F28); }
+  .ss-bar select { padding: 4px 8px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px;
+    font-size: 16px; min-height: 44px; }
+
+  .ss-list { flex: 1; overflow-y: auto; padding: 8px; background: var(--bg,#F9FAFB);
+    -webkit-overflow-scrolling: touch; }
+  .ss-card { background: var(--surface,#FFFFFF); border: 1px solid var(--line,#E5E8EB);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
+  .ss-card.done { opacity: .55; }
+  .ss-card .top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .ss-card .mk { font-size: 12px; font-weight: 800; color: var(--글자-보조,#6B7684); }
+  .ss-card .on { font-size: 12px; color: var(--글자-희미,#9CA3AF); font-family: 'SF Mono', monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .ss-card .ti { font-size: 14px; font-weight: 700; color: var(--ink,#191F28);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ss-card .op { font-size: 12px; color: var(--글자-보조,#6B7684); margin-top: 1px; }
+  .ss-card .row2 { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .ss-tag { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 99px; }
+  /* [2026-08-07 실측] `--바탕-파랑` 과 `--글자-파랑` 이 둘 다 #0066CC 라
+     「사입 — 재고 깎임」이 파란 판에 파란 글자로 **아예 안 보였다**(초록 「이미 찍음」도 같음).
+     이 표는 재고가 깎이는지 아닌지를 알려주는 자리라 안 보이면 안 된다.
+     배경은 연한 색(10% 투명)으로, 글자는 진한 의미색으로 갈라 둔다. */
+  .ss-tag.stock { background: var(--연한-파랑, rgba(0,113,227,.10)); color: var(--글자-파랑,#0066CC); }
+  .ss-tag.drop  { background: var(--바탕-흐리게,#F2F4F6); color: var(--글자-보조,#6B7684); }
+  .ss-tag.done  { background: var(--연한-초록, rgba(52,199,89,.10)); color: var(--글자-초록,#1D7A3D); }
+  .ss-btn { margin-left: auto; padding: 10px 14px; border: 0; border-radius: 8px;
+    background: var(--primary,#3182F6); color: white; font-weight: 800; font-size: 14px;
+    cursor: pointer; font-family: inherit; min-height: 44px; }
+  .ss-btn:disabled { background: var(--바탕-흐리게, var(--faint,#CBCCD3)); cursor: not-allowed; }
+  /* 서버가 준 경고를 담는 자리다 — 안 보이면 장부가 실물과 어긋난 채 굳는다.
+     `--바탕-주황`·`--글자-주황` 이 둘 다 #9A5B00 이라 예전엔 글자가 배경에 묻혔다(실측). */
+  .ss-warn { margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+    background: var(--연한-주황, rgba(255,149,0,.10)); color: var(--글자-주황,#9A5B00);
+    font-size: 12px; font-weight: 600; }
+  .ss-empty { text-align: center; padding: 32px 16px; color: var(--sub,#8B95A1); font-size: 12px; }
+  .ss-empty .ic { font-size: 32px; margin-bottom: 8px; opacity: .5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ss-shell">
+  <div class="ss-cam">
+    <video id="scan-video" autoplay playsinline muted onclick="tapFocus(event)"></video>
+    <div class="ss-flash" id="cam-flash"></div>
+    <div class="ss-caught" id="cam-caught">
+      <div class="badge"><span>✓ 찾음</span><span class="nm" id="caught-name"></span></div>
+    </div>
+    <div class="ss-ov">
+      <div class="ss-line"></div>
+      <div class="ss-hint" id="scan-hint"><i class="ph-light ph-camera" aria-hidden="true"></i> 포장할 상품의 바코드를 비춰주세요</div>
+      <div class="ss-stats">
+        <span id="stat-engine">…</span><span id="stat-res">…</span><span id="stat-tries">0회</span>
+      </div>
+      {# 컨트롤 — 일괄·단독과 동일 (플래시·줌·카메라 전환) #}
+      <div class="ss-ctrl">
+        <button id="btn-torch" title="플래시" onclick="toggleTorch()"><i class="ph-light ph-flashlight" aria-hidden="true"></i></button>
+        <div class="zoom" id="zoom-wrap" style="display:none">
+          <span><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
+          <input type="range" id="zoom-range" min="1" max="3" step="0.1" value="1">
+          <span id="zoom-val">1x</span>
+        </div>
+        <button id="btn-cam" title="카메라 전환" style="display:none" onclick="switchCam()"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i></button>
+      </div>
+    </div>
+  </div>
+
+  {# 카메라 실패 사유 — 화면에 남는다 #}
+  <div id="scan-error-area"></div>
+
+  <div class="ss-bar">
+    <span class="lbl"><i class="ph-light ph-package" aria-hidden="true"></i> 포장 스캔 출고</span>
+    <select id="location-sel"><option value="">위치 선택…</option></select>
+  </div>
+
+  <div class="ss-list" id="order-list">
+    <div class="ss-empty" id="empty">
+      <div class="ic"><i class="ph-light ph-package" aria-hidden="true"></i></div>
+      <div>바코드를 찍으면 그 상품의 최근 주문이 여기 뜹니다.</div>
+      <div style="margin-top:4px">「사입」으로 표시된 주문만 재고가 깎입니다.</div>
+    </div>
+  </div>
+
+  {# 직접 입력 — 카메라가 안 되는 상황에서도 주문을 찾을 수 있게 #}
+  <div class="ss-manual">
+    <input type="text" id="manual-sku" placeholder="SKU·바코드 직접 입력" autocomplete="off">
+    <button class="m-btn primary" id="manual-search">찾기</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script src="{{ url_for('static', filename='vendor/zxing-browser-0.1.5.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zxing-library-0.21.0.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zbar-wasm-inlined-0.10.1.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan_engine.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan_camera.js') }}"></script>
+<script>
+  /* 포장 스캔 출고 — 규칙 정본은 서버(lemouton/inventory/order_outbound.py).
+     화면은 서버가 돌려준 결과를 **그대로** 보여 준다(여기서 판정하지 않는다). */
+  var cam=null, engine=null, busy=false;
+  var lastCode=null, lastAt=0;
+  var locationsReady=null;
+  var scanTries=0, lastSeenTries=-99;
+  /* 같은 물건을 계속 들고 있는 동안 2초마다 주문을 다시 부르면 화면이 계속 새로 그려진다.
+     「시간이 지났고 + 스캔이 실제로 2번 헛돌았을 때」만 다시 찾는다 —
+     기기가 느려져 인식 간격이 벌어진 것을 「뗐다 다시 댐」으로 오해하지 않기 위해서다
+     (일괄 입·출고에서 같은 원인으로 수량이 저 혼자 오르던 것을 이 규칙으로 잡았다). */
+  var MISS_TRIES_FOR_NEW=2;
+
+  /* 찾은 순간을 카메라 화면 위에서 알린다 — 주문 목록은 아래에 있어 눈이 안 간다 */
+  function flashFound(name){
+    var flash=document.getElementById('cam-flash'), caught=document.getElementById('cam-caught');
+    var box=document.querySelector('.ss-cam'), nm=document.getElementById('caught-name');
+    if(nm)nm.textContent=name||'';
+    [[flash,320],[caught,900]].forEach(function(p){
+      var el=p[0]; if(!el)return;
+      el.classList.remove('go');
+      void el.offsetWidth;               // 연속 스캔에서 애니메이션 재시작
+      el.classList.add('go');
+      setTimeout(function(){ el.classList.remove('go'); }, p[1]);
+    });
+    if(box){ box.classList.add('hit'); setTimeout(function(){ box.classList.remove('hit'); },420); }
+    if(navigator.vibrate)navigator.vibrate([40,40,60]);
+  }
+
+  /* 직접 입력 — 카메라가 안 될 때의 안전줄 */
+  function manualFind(){
+    var el=document.getElementById('manual-sku'), v=(el.value||'').trim();
+    if(!v){ showToast('SKU·바코드를 입력해주세요','error'); return; }
+    lastCode=null;                       // 직접 입력은 연타 무시에서 제외
+    onScan(v);
+    el.value='';
+  }
+
+  function esc(s){return String(s==null?'':s).replace(/[<>&"]/g,function(c){
+    return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c];});}
+
+  async function loadLocations(){
+    try{
+      var j=await (await fetch('/mobile/api/locations')).json();
+      if(!j.ok||!j.locations)return;
+      var sel=document.getElementById('location-sel');
+      sel.innerHTML='<option value="">위치 선택…</option>';
+      j.locations.forEach(function(l){
+        var o=document.createElement('option');
+        o.value=l.id; o.textContent=l.name; if(l.is_default)o.selected=true;
+        sel.appendChild(o);
+      });
+    }catch(e){}
+  }
+
+  function renderOrders(sku, orders){
+    var wrap=document.getElementById('order-list');
+    if(!orders||!orders.length){
+      wrap.innerHTML='<div class="ss-empty"><div class="ic"></div>'
+        +'<div><b>'+esc(sku)+'</b> 로 최근 30일 주문을 못 찾았습니다.</div>'
+        +'<div style="margin-top:4px">주문이 아직 안 들어왔거나, 이 상품이 주문과 연결되지 않았습니다.</div></div>';
+      return;
+    }
+    wrap.innerHTML=orders.map(function(o){
+      var isStock=(o.supply_mode==='stock');
+      var tag=o.shipped?'<span class="ss-tag done">이미 찍음</span>'
+        :(isStock?'<span class="ss-tag stock">사입 — 재고 깎임</span>'
+                 :'<span class="ss-tag drop">무재고 — 안 깎음</span>');
+      return '<div class="ss-card'+(o.shipped?' done':'')+'" data-uid="'+esc(o.line_uid)+'">'
+        +'<div class="top"><span class="mk">'+esc(o.market)+'</span>'
+        +'<span class="on">'+esc(o.order_no)+'</span></div>'
+        +'<div class="ti">'+esc(o.product||'(상품명 없음)')+'</div>'
+        +'<div class="op">'+esc(o.option||'')+(o.qty?(' · '+esc(o.qty)+'개'):'')
+        +(o.status?(' · '+esc(o.status)):'')+'</div>'
+        +'<div class="row2">'+tag
+        +'<button class="ss-btn" data-uid="'+esc(o.line_uid)+'" data-sku="'+esc(sku)+'" '
+        +'data-qty="'+esc(o.qty||1)+'"'+(o.shipped?' disabled':'')+'>'
+        +(o.shipped?'처리됨':'출고 확정')+'</button></div>'
+        +'<div class="ss-msg"></div></div>';
+    }).join('');
+    [].slice.call(wrap.querySelectorAll('.ss-btn')).forEach(function(b){
+      b.addEventListener('click',function(){ confirmShip(b); });
+    });
+  }
+
+  async function confirmShip(btn){
+    // 위치 목록을 아직 못 받았을 수 있다(카메라를 먼저 켰으므로) — 여기서 기다린다
+    if(locationsReady){ try{ await locationsReady; }catch(e){} }
+    var loc=parseInt(document.getElementById('location-sel').value||0);
+    if(!loc){ showToast('위치를 먼저 고르세요','error'); return; }
+    var card=btn.closest('.ss-card'), msg=card.querySelector('.ss-msg');
+    btn.disabled=true; btn.textContent='처리 중…';
+    try{
+      var r=await fetch('/mobile/api/scan-ship',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({line_uid:btn.dataset.uid, sku:btn.dataset.sku,
+                             location_id:loc, qty:parseInt(btn.dataset.qty||1)})});
+      var j=await r.json();
+      if(!j.ok){ btn.disabled=false; btn.textContent='출고 확정';
+        msg.innerHTML='<div class="ss-warn">'+esc(j.error||'처리하지 못했어요')+'</div>'; return; }
+      card.classList.add('done');
+      btn.textContent='처리됨';
+      var say=(j.result==='deducted')?('재고 '+j.deducted_qty+'개 깎았습니다 (남은 재고 '+j.stock_after+'개)')
+             :(j.result==='already')?'이미 처리된 주문입니다 (재고 그대로)'
+             :'무재고 주문이라 재고는 깎지 않았습니다';
+      // 🔴 서버가 준 경고는 반드시 띄운다 — 조용히 넘기면 장부가 실물과 어긋난 채 굳는다
+      // 배경은 연한 초록, 글자는 진한 초록 — 둘 다 같은 색 토큰을 쓰면 글자가 사라진다(실측)
+      msg.innerHTML='<div class="ss-warn" style="background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#1D7A3D)">'
+        +esc(say)+'</div>'+(j.warning?('<div class="ss-warn">'+esc(j.warning)+'</div>'):'');
+      if(navigator.vibrate)navigator.vibrate(60);
+    }catch(e){
+      btn.disabled=false; btn.textContent='출고 확정';
+      msg.innerHTML='<div class="ss-warn">네트워크 오류로 처리하지 못했어요</div>';
+    }
+  }
+
+  async function onScan(code){
+    if(busy)return;
+    var now=Date.now();
+    var 시간충분=(now-lastAt)>=2000;
+    var 헛돈횟수=scanTries-lastSeenTries;
+    var 계속같은물건=(code===lastCode)&&!(시간충분&&헛돈횟수>=MISS_TRIES_FOR_NEW);
+    lastAt=now; lastSeenTries=scanTries;
+    if(계속같은물건)return;
+    lastCode=code; busy=true;
+    var hint=document.getElementById('scan-hint');
+    hint.textContent='주문 찾는 중…';
+    try{
+      var j=await (await fetch('/mobile/api/scan-orders',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})})).json();
+      if(!j.ok){ hint.textContent='❌ '+(j.error||'매칭 안 됨'); busy=false; return; }
+      hint.textContent='✅ '+j.sku+' — 주문 '+(j.orders||[]).length+'건';
+      renderOrders(j.sku, j.orders||[]);
+      flashFound(j.sku + ' · 주문 ' + (j.orders||[]).length + '건');
+    }catch(e){ hint.textContent='네트워크 오류'; }
+    // 왕복이 끝난 시점부터 다시 잰다 — 조회하는 동안은 스캔이 멈춰 있어 그 시간은 「안 보인 것」이 아니다
+    lastAt=Date.now(); lastSeenTries=scanTries;
+    busy=false;
+  }
+
+  /* 카메라는 공용 모듈(scan_camera.js) — 단독·일괄 스캔과 같은 사다리를 탄다.
+     화면마다 카메라를 따로 들고 있다가 한쪽만 뒤처지는 일을 막으려고 합쳤다. */
+  async function startCamera(){
+    cam=await ScanCamera.open({
+      video: document.getElementById('scan-video'),
+      onHint: function(m){ document.getElementById('scan-hint').textContent=m; },
+      isActive: function(){ return !busy; },
+      els: {
+        torch:     document.getElementById('btn-torch'),
+        camSwitch: document.getElementById('btn-cam'),
+        zoomWrap:  document.getElementById('zoom-wrap'),
+        zoomRange: document.getElementById('zoom-range'),
+        zoomVal:   document.getElementById('zoom-val'),
+        res:       document.getElementById('stat-res'),
+      },
+    });
+  }
+
+  window.toggleTorch=function(){ if(cam)cam.toggleTorch(); };
+  window.tapFocus  =function(){ if(cam)cam.tapFocus(); };
+  window.switchCam =function(){ if(cam)cam.switchCam(); };
+
+  /* 화면 높이 맞추기 — 맨 아래 직접 입력 칸이 하단 탭 뒤로 숨지 않게 */
+  function fitShell(){
+    var shell=document.querySelector('.ss-shell');
+    if(!shell)return;
+    var hdr=document.querySelector('.m-header'), tab=document.querySelector('.ms-tabbar');
+    var h=window.innerHeight - (hdr?hdr.getBoundingClientRect().height:0)
+                             - (tab?tab.getBoundingClientRect().height:0);
+    shell.style.height=Math.max(360,h)+'px';
+  }
+  fitShell();
+  window.addEventListener('resize',fitShell);
+  window.addEventListener('orientationchange',function(){ setTimeout(fitShell,250); });
+
+  document.getElementById('manual-search').addEventListener('click',manualFind);
+  document.getElementById('manual-sku').addEventListener('keypress',function(e){
+    if(e.key==='Enter')manualFind();
+  });
+
+  (async function(){
+    /* ★ 카메라가 먼저다. 위치 목록을 「받아온 뒤에」 카메라를 켜면
+       그 네트워크 왕복만큼 화면을 대도 아무 일이 안 일어난다
+       (일괄 입·출고에서 첫 인식 1.04초 → 0.33초로 갈린 지점). */
+    locationsReady=loadLocations();
+    try{
+      await startCamera();
+      engine=await ScanEngine.start({
+        video: document.getElementById('scan-video'),
+        isActive: function(){ return !busy; },
+        onStats: function(s){
+          scanTries=s.tries;
+          var el=document.getElementById('stat-engine');
+          if(el){ el.textContent=s.engine; if(s.engine.indexOf('Native')===0)el.classList.add('nat'); }
+          var t=document.getElementById('stat-tries');
+          if(t)t.textContent=s.tries+'회';
+        },
+        onCode: function(t){ onScan(t); return false; },
+      });
+    }catch(e){
+      // 토스트는 사라진다 — 왜 안 되는지는 화면에 남아 있어야 한다
+      var msg=ScanCamera.friendlyError(e);
+      console.error('[scan-ship]',e);
+      document.getElementById('scan-error-area').innerHTML=
+        '<div class="ss-error">'+esc(msg)+'<br><span>아래 칸에 SKU·바코드를 직접 입력해 주문을 찾을 수 있어요.</span></div>';
+      document.getElementById('scan-hint').textContent='카메라 실패';
+      showToast(msg,'error');
+    }
+  })();
+
+  window.addEventListener('beforeunload',function(){
+    if(engine)engine.stop();
+    if(cam)cam.stop();
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,90 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>디자인 규칙 동작 확인</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="../프로그램/_시스템/webapp/static/tokens.css?v=3">
+<style>body{margin:0;padding:var(--sp-6);background:#F5F5F7}</style>
+</head><body class="ds">
+
+<div class="ds-화면제목" id="g5">디자인 규칙 동작 확인</div>
+<div class="ds-본문">근거 = apple.com/kr 3개 페이지 실측 (2026-07-31)</div>
+
+<!-- ── 글자 7등급 ─────────────────────────────────────────────── -->
+<div class="ds-카드" id="카드" style="margin-top:var(--sp-5)">
+  <div class="ds-섹션제목" id="g4">글자 — 중요도 7등급</div>
+  <div class="ds-요약숫자" id="g6">164,900</div>
+  <div class="ds-카드제목" id="g3">쿠팡 · 브랜드마켓</div>
+  <div class="ds-본문" id="g2">설명문입니다. 14px 은 여러 줄을 읽는 곳이라 줄간격이 넉넉합니다.</div>
+  <div id="g1" style="font-size:var(--fs-표)">표 안 글씨 — 가장 많이 쓰입니다</div>
+  <div id="g0" style="font-size:var(--fs-배지)">배지 · 단위 · 법적 고지 (읽는 글의 하한 11px)</div>
+</div>
+
+<!-- ── 강조 — 크기·배경 안 건드림 ──────────────────────────────── -->
+<div class="ds-카드" style="margin-top:var(--sp-4)">
+  <div class="ds-카드제목">강조 — 크기를 키우지도, 배경을 칠하지도 않습니다</div>
+  <div class="ds-본문" style="margin-top:var(--sp-2)">
+    이번 달 마진은 <span class="수치강조" id="강조">164,900원</span>이고,
+    <span class="진하게" id="진하게">손해로 뒤집힌 주문</span>이 1건 있습니다.
+    <span class="흐리게" id="흐리게">마지막 조회 14:31</span>
+    <a class="링크" id="링크" href="#">자세히 보기</a>
+  </div>
+</div>
+
+<!-- ── 버튼·선택카드 ──────────────────────────────────────────── -->
+<div class="ds-카드" style="margin-top:var(--sp-4)">
+  <div class="ds-카드제목">버튼 · 선택 카드</div>
+  <div style="margin-top:var(--sp-4);display:flex;gap:var(--sp-2);align-items:center">
+    <button class="ds-주버튼" id="주버튼">송장 전송</button>
+    <button class="ds-알약" id="알약" style="background:var(--surface)">전체 8</button>
+    <span class="ds-배지" id="배지" style="color:var(--상태-준비)">배송준비중</span>
+    <span class="ds-배지" style="color:var(--상태-완료)">구매확정</span>
+    <span class="ds-배지" style="color:var(--상태-클레임완료)">취소완료</span>
+  </div>
+  <div style="margin-top:var(--sp-4);display:flex;gap:var(--sp-2)">
+    <div class="ds-선택카드" id="선택안됨" style="flex:1">
+      <div class="강조">쿠팡</div><div class="흐리게">주문 2건</div></div>
+    <div class="ds-선택카드 선택됨" id="선택됨" style="flex:1">
+      <div class="강조">스마트스토어</div><div class="흐리게">주문 2건</div></div>
+  </div>
+</div>
+
+<!-- ── 표·정렬 ────────────────────────────────────────────────── -->
+<div class="ds-카드" style="margin-top:var(--sp-4)">
+  <div class="ds-카드제목">정렬 — 기본은 왼쪽, 가운데는 예외</div>
+  <table style="margin-top:var(--sp-4);width:100%">
+    <thead><tr>
+      <th class="txt">상품명</th><th class="txt">주문번호</th>
+      <th class="num">단가</th><th class="num">매입가 (올릴 때 / 지금)</th>
+      <th class="ctr">상태</th></tr></thead>
+    <tbody>
+      <tr><td class="txt">나이키 에어 줌 페가수스 41</td>
+        <td class="번호">24073012345678</td>
+        <td class="num">139,000<span class="단위">원</span></td>
+        <td class="num"><span class="ds-비교"><span class="전">98,000</span>
+          <span class="화살표">→</span><span class="후" style="color:var(--변동-감소)">104,500</span></span></td>
+        <td class="ctr"><span class="ds-배지" style="color:var(--상태-준비)">배송준비중</span></td></tr>
+      <tr><td class="txt">뉴발란스 993 메이드 인 USA</td>
+        <td class="번호">LOT2607290088</td>
+        <td class="num">1,329,000<span class="단위">원</span></td>
+        <td class="num"><span class="ds-비교"><span class="전">241,000</span>
+          <span class="화살표">→</span><span class="후" style="color:var(--변동-손해)">268,000</span></span></td>
+        <td class="ctr"><span class="ds-배지" style="color:var(--상태-클레임완료)">취소완료</span></td></tr>
+    </tbody>
+  </table>
+  <div class="빈화면" id="빈">조건에 맞는 주문이 없어요.</div>
+</div>
+
+<!-- ── 어두운 화면 3층 ────────────────────────────────────────── -->
+<div class="ds ds-dark" id="어두운" style="margin-top:var(--sp-4);padding:var(--sp-5);
+     border-radius:var(--r-카드)">
+  <div class="ds-화면제목">주문내역</div>
+  <div class="ds-본문">어두운 화면 — 층은 그림자가 아니라 배경 밝기로 만듭니다</div>
+  <div class="ds-카드" id="다크카드" style="margin-top:var(--sp-4)">
+    <div class="ds-카드제목">이번 달 마진</div>
+    <div class="ds-요약숫자">164,900</div>
+    <div id="다크3층" style="margin-top:var(--sp-4);background:var(--surface2);
+      border-radius:var(--r-작은것);padding:var(--sp-3);font-size:var(--fs-표)">
+      3층 — 그 위에 한 겹 더 얹은 것</div>
+    <a class="링크" id="다크링크" href="#" style="font-size:var(--fs-표)">자세히 보기</a>
+  </div>
+</div>
+</body></html>

@@ -39,13 +39,17 @@ Python 환경 한계 보강 (V7 의도 보존, 셀렉터 변경 없음):
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Optional
 
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
+)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -60,7 +64,22 @@ PRODUCT_ID_PATTERN_STRICT = re.compile(r"/([A-Z0-9]+)/good")
 PRODUCT_ID_PATTERN_LOOSE = re.compile(r"/([^/]+)/good")
 
 # V7: ``liText.match(/품절임박\s*\((\d+)\)/)``
-NEAR_SOLDOUT_PATTERN = re.compile(r"품절임박\s*\((\d+)\)")
+# [2026-06-15 fix] BeautifulSoup get_text(" ") 가 <span>품절임박</span>(<em>1</em>) 를
+#   "품절임박 ( 1 )" 로 풀어 괄호 안에 공백이 낀다. 기존 정규식은 "품절임박(1)"만 매칭 →
+#   한정재고 N 을 전부 놓치고 None→999(충분) 둔갑. 괄호 안 \s* 2개 추가로 공백 허용.
+NEAR_SOLDOUT_PATTERN = re.compile(r"품절임박\s*\(\s*(\d+)\s*\)")
+
+# [2026-06-14] SSF 가 옵션 리스트를 <script> 안 JS 문자열로 임베드하도록 DOM 을 바꿈.
+#   속성이 camelCase(optCd/statCd) 이고, 드롭다운을 열어야 실제 DOM 이 렌더(lazy)된다.
+#   → BeautifulSoup ``a[optcd]`` 셀렉터는 0개(curl raw=JS문자열·navGrab=lazy미렌더).
+#   raw HTML 의 JS 문자열을 정규식으로 직접 파싱한다(양쪽 HTML 에 항상 존재).
+#   옵션블록 예: optCd="220" statCd="SALE_PROGRS"><em>220[220] / <span>품절임박</span>(<em>3</em>)
+_SSF_JS_OPT_PATTERN = re.compile(
+    r'optCd="(\d+)"[^>]*statCd="([^"]+)"(.*?)(?=optCd=|</ul>|</script>|$)',
+    re.DOTALL,
+)
+# 품절임박 뒤 첫 숫자(태그 무관): "품절임박</span>(<em>3</em>)" · "품절임박(3)" 모두 매칭
+_SSF_NEAR_QTY_PATTERN = re.compile(r"품절임박\D{0,15}?(\d+)")
 
 # 2026-05-14 — 기프트포인트 (멤버십 한정, 활성 시만 노출 / 변동값)
 #   HTML 예시: ``<dt>기프트포인트</dt><dd>멤버십 고객 한정 최대 5,600원 할인(10%)``
@@ -268,8 +287,48 @@ def _parse_gift_point(html: str) -> Optional[int]:
         return None
 
 
-def _parse_sizes(soup: BeautifulSoup) -> list[dict]:
-    """V7: ``#optionDiv1 li a[optcd]`` → {name, soldOut, stock}.
+def _parse_sizes(soup: BeautifulSoup, html: str = "") -> list[dict]:
+    """SSF 사이즈별 (name, soldOut, stock) 추출 — DOM(렌더 navGrab) 우선, 정규식(curl raw) 폴백.
+
+    재고 의미: statCd=SLDOUT → 품절(soldOut) / 품절임박(N) → N(한정 잔여) /
+              표시 없음 → 충분(stock=None → 호출부서 999).
+
+    [2026-06-14] 경로별 옵션 임베드 방식이 달라 두 파서를 둔다:
+      - 확장 navGrab(실제 크롤): 옵션이 실제 DOM(#optionDiv1 li a[optcd], li 텍스트에
+        품절임박(N)) 으로 렌더됨 → DOM 파서 사용. (렌더본은 JS 문자열 optCd 가 소진됨)
+      - curl_cffi raw(서버 직접): 옵션이 <script> JS 문자열(optCd camelCase)로만 존재해
+        a[optcd] 셀렉터가 0개 → 정규식 파싱(폴백). 중복 사이즈는 첫 출현만.
+      (둘 다 못 잡으면 전 사이즈 999 둔갑 = 한정수량·품절 누락 → 오발주 손실)
+    """
+    # ① 확장 navGrab(렌더 HTML, 실제 크롤 경로): #optionDiv1 li a[optcd] 가 실제 DOM 으로
+    #    채워지고 li 텍스트에 '품절임박(N)' 이 들어있다 → DOM 파서가 정확.
+    #    (렌더본에선 JS 문자열 optCd 가 소진돼 2개만 남으므로 정규식 먼저면 오답)
+    dom = _parse_sizes_dom(soup)
+    if dom:
+        return dom
+    # ② curl_cffi raw HTML(서버 직접 fetch): 옵션이 <script> JS 문자열(optCd camelCase)로만
+    #    존재해 a[optcd] DOM 셀렉터가 0개 → 정규식으로 JS 문자열 직접 파싱(폴백).
+    if html:
+        out: list[dict] = []
+        seen: set[str] = set()
+        for m in _SSF_JS_OPT_PATTERN.finditer(html):
+            size, statcd, tail = m.group(1), m.group(2), m.group(3) or ""
+            if size in seen:
+                continue
+            seen.add(size)
+            qty = _SSF_NEAR_QTY_PATTERN.search(tail)
+            out.append({
+                "name": f"{size}mm",
+                "soldOut": statcd == STATCD_SOLDOUT,
+                "stock": int(qty.group(1)) if qty else None,
+            })
+        if out:
+            return out
+    return dom
+
+
+def _parse_sizes_dom(soup: BeautifulSoup) -> list[dict]:
+    """폴백(구 DOM 구조): ``#optionDiv1 li a[optcd]`` → {name, soldOut, stock}.
 
     V7 원본:
         const sizeEls = [...document.querySelectorAll('#optionDiv1 li a[optcd]')];
@@ -310,6 +369,114 @@ def _parse_sizes(soup: BeautifulSoup) -> list[dict]:
             continue
         out.append({"name": name, "soldOut": sold_out, "stock": stock})
     return out
+
+
+def _parse_category_path(soup: BeautifulSoup) -> str:
+    """[2026-07-23 M3] SSF 빵부스러기 → '대>중>소'.
+
+    실화면 확인(www.ssfshop.com 상품 페이지, 2026-07-23) — 같은 값이 두 군데에 있다:
+
+      1순위 JSON-LD  <script type="application/ld+json">
+                     {"@type":"BreadcrumbList","itemListElement":[
+                        {"position":1,"name":"홈"}, {"position":2,"name":"백＆슈즈"},
+                        {"position":3,"name":"여성 슈즈"}, {"position":4,"name":"운동화/스니커즈"}]}
+      2순위 DOM      div.breadcrumb > ol > li > a  (Home / 백＆슈즈 / 여성 슈즈 / 운동화/스니커즈)
+
+    JSON-LD 를 1순위로 쓰는 이유: 순서(position)가 명시돼 있고 마크업 리뉴얼에
+    덜 흔들린다. 파싱 불가·부재면 DOM 으로 내려가고, 둘 다 없으면 빈 문자열.
+    """
+    for sc in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = sc.string or sc.get_text() or ""
+        if "BreadcrumbList" not in raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            continue
+        blocks = data if isinstance(data, list) else [data]
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("@type") != "BreadcrumbList":
+                continue
+            items = [it for it in (block.get("itemListElement") or [])
+                     if isinstance(it, dict)]
+            items.sort(key=lambda it: it.get("position") or 0)
+            path = build_category_path([it.get("name") for it in items])
+            if path:
+                return path
+
+    box = soup.select_one("div.breadcrumb, .breadcrumb")
+    if box:
+        return build_category_path([a.get_text(strip=True) for a in box.select("li a")])
+    return ""
+
+
+def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] SSF 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실화면 확인(ssfshop.com GRG426021974780, 2026-07-23 브라우저 DOM):
+
+      1순위 JSON-LD  ``{"@type":"Product","image":[ ...4장... ]}``
+                     `https://img.ssfshop.com/cmd/LB_750x1000/src/https://img.ssfshop.com/
+                      goods/ACSH/26/02/19/GRG426021974780_{0..3}_THNAIL_ORGINL_….jpg`
+                     = 큰 이미지 뷰어(`.godsImg-area .preview-img img`)와 **같은 값**.
+      2순위 DOM      ``#godImgThumb .thumb-item img`` (썸네일 `RB_100x133`)
+
+    ⚠️ ``meta[og:image]`` 는 쓰지 않는다 — 실측값이 `"https://img.ssfshop.com"`
+       (경로 없는 호스트만)이라 **깨진 값**이다. 이걸 대표로 썼으면 전 상품이
+       같은 잘못된 URL 로 등록됐을 것이다.
+    ⚠️ 썸네일(2순위)은 `RB_100x133` = 100px 짜리라 마켓 대표이미지로 쓰기엔 작다.
+       그래도 `LB_750x1000` 으로 **치환하지 않는다**(추측 금지) — JSON-LD 가 이미
+       큰 이미지를 주므로 폴백이 발동하는 건 JSON-LD 가 깨진 비정상 페이지뿐이고,
+       그땐 작더라도 '실제로 확인된 URL' 이 옳다.
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 받지 않는다.
+    """
+    for sc in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = sc.string or sc.get_text() or ""
+        if '"Product"' not in raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            continue
+        blocks = data if isinstance(data, list) else [data]
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("@type") != "Product":
+                continue
+            img = block.get("image")
+            cands = img if isinstance(img, list) else ([img] if img else [])
+            urls = build_image_urls(cands, product_url)
+            if urls:
+                return urls
+
+    return build_image_urls(
+        [i.get("src") or "" for i in soup.select("#godImgThumb .thumb-item img")],
+        product_url)
+
+
+def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
+    """[2026-07-23 M4-4] SSF 상품 상세 이미지 영역 HTML.
+
+    ⚠️ **raw HTML(서버 GET)에는 이 영역이 아예 없다**(2026-07-23 실측). SSF 는
+       상품정보 탭(`#godsDetailInfoTab`)을 AJAX 로 채운다 — 서버 응답의 그 div 는 빈
+       껍데기다. 따라서 값이 잡히는 건 **확장 navGrab(창에서 렌더 후 outerHTML)** 경로뿐이고,
+       창없이(raw fetch) 경로에서는 빈 문자열 = '상세 확인불가'가 정상이다.
+       (지어내지 않는다. 상세가 꼭 필요한 4마켓 등록은 이 값이 있어야 통과한다.)
+
+    렌더 DOM 구조(라이브 확인):
+        #godsDetailInfoTab
+          └ #godsTabView.gods-tab-view
+              ├ div.gods-detail-img    ← 상품 상세 이미지 18장 (여기만 쓴다)
+              └ div.gods-detail-desc   ← SSF 상품번호 + Notice (제외)
+          └ #recommend-Div             ← '함께 많이 본 상품' 추천 캐러셀 (제외)
+
+    ⚠️ `#godsDetailInfoTab` 을 통째로 쓰면 추천 상품 36장 + SSF 내부 상품번호가
+       마켓 상세로 그대로 나간다 → `#godsTabView .gods-detail-img` 로 좁힌다.
+    """
+    box = soup.select_one("#godsTabView div.gods-detail-img")
+    if box is None:
+        return ""
+    return sanitize_detail_html(box, product_url)
 
 
 class SsfCrawler(AbstractCrawler):
@@ -369,9 +536,13 @@ class SsfCrawler(AbstractCrawler):
         # 단일 페이지 fallback
         return self._fetch_one_page(product_url)
 
-    def _fetch_one_page(self, product_url: str) -> CrawlResult:
+    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+        """받은 HTML 을 파싱해 CrawlResult 반환 (네트워크 없음 — A안 확장 진입점).
+
+        _fetch_one_page 의 순수 파싱 부분을 분리한 메서드.
+        fetch / _fetch_one_page 의 동작은 100% 불변.
+        """
         product_id = _extract_product_id(product_url)
-        html = self._fetch_html(product_url)
         soup = BeautifulSoup(html, "lxml")
 
         # V7 ssfParseProduct 흐름 1:1
@@ -379,6 +550,10 @@ class SsfCrawler(AbstractCrawler):
         sale_price, _origin_price, _discount_rate = _parse_prices(soup)
         brand = _parse_brand(soup)
         discount_info = _parse_discount_info(soup)
+        category_path = _parse_category_path(soup)   # [2026-07-23 M3] 못 뽑으면 ''
+        # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지)
+        image_urls = _parse_image_urls(soup, product_url)
+        detail_html = _parse_detail_html(soup, product_url)
         # 기프트포인트 (활성 시만 노출 / 변동값) — V7 에는 없는 항목
         gift_point_amount = _parse_gift_point(html)
         # 포인트 적립 (멤버십포인트, 상품별 변동값) — DB 0.5% 고정 폐기 (2026-05-15)
@@ -390,7 +565,18 @@ class SsfCrawler(AbstractCrawler):
             raise RuntimeError(f"[SSF] sale_price 추출 실패 ({sale_price}) — Fail-safe")
 
         # V7: 컬러는 항상 단일 (현재 페이지 컬러)
-        sizes = _parse_sizes(soup)
+        sizes = _parse_sizes(soup, html)
+        # [2026-06-14] 확장 navGrab(콜드 창) 렌더본은 SSF 옵션리스트(#optionDiv1)가 lazy
+        #   렌더 전이라 비고, 렌더본은 JS문자열 optCd 도 소진돼 정규식도 0 → 사이즈 전무.
+        #   SSF 는 공개 사이트라 curl_cffi raw(JS문자열로 옵션 항상 존재)로 폴백 재수집한다.
+        #   (둔갑 방지: 사이즈 못 잡으면 품절/품절임박 누락 = 오발주. _fetch_one_page 의 curl
+        #    경로는 이미 정규식으로 잡으므로 이 폴백은 navGrab 경로에서만 발동.)
+        if not sizes:
+            try:
+                _raw = self._fetch_html(product_url)
+                sizes = _parse_sizes(BeautifulSoup(_raw, "lxml"), _raw)
+            except Exception:
+                pass
 
         options: list[dict] = []
 
@@ -458,4 +644,12 @@ class SsfCrawler(AbstractCrawler):
             options=options,
             brand=brand,
             discount_info=discount_info,
+            category_path=category_path,
+            image_urls=image_urls,
+            detail_html=detail_html,
         )
+
+    def _fetch_one_page(self, product_url: str) -> CrawlResult:
+        html = self._fetch_html(product_url)
+        return self.parse_html(html, product_url)
+

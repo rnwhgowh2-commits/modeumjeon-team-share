@@ -1,0 +1,968 @@
+{% extends 'base.html' %}
+{% block title %}정책 매칭 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-policy-apply">
+  <style>
+    .ap-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:10px;flex-wrap:wrap}  /* [2026-08-06 확정 5안] 제목↔부제 10 */
+    .ap-head h1{font-size:40px;font-weight:600;margin:0}  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+    .ap-desc{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5;margin-bottom:28px}  /* [2026-08-06 확정 5안] 부제 17·600·검정 */
+    .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);
+          border-radius:8px;padding:12px 16px;font-size:12px;
+          color: var(--글자-주황, var(--amber,#92400E));line-height:1.7;margin-bottom:16px}
+    .msg{font-size:12px;min-height:18px}
+    .msg.err{color: var(--글자-빨강, var(--red,#E5484D))}
+    .msg.ok{color: var(--글자-초록, var(--green,#15803D))}
+    .btn2{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;
+          padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;
+          font-family:inherit;cursor:pointer}
+    .btn2.ghost{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);
+                border:1px solid var(--line,#E5E8EB)}
+    .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
+
+    /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 매칭」 순서다. */
+    .ap-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+
+    /* ── [2026-08-12 · 사장님 확정 D3] 「① 상품 다음 ② 정책」 순서 느낌 ──────────
+       노션: 「1번/2번 앞에 적혀 있지만 사용자 입장에서 둘이 병렬 같아서 직렬(순서)
+       느낌이 나도록 할 것」.
+       🔴 번호를 크게 쓰는 것만으로는 안 된다 — 그건 **읽어야** 아는 순서다.
+         상품을 고르기 전에는 오른쪽 판을 재워 두면 읽지 않아도 차례가 느껴진다. */
+    .stepno{display:inline-flex;align-items:center;justify-content:center;
+            width:22px;height:22px;border-radius:50%;flex:none;margin-right:7px;
+            background:var(--바탕-파랑, var(--primary,#3182F6));color:#fff;
+            font-size:12px;font-weight:800}
+    .stepno.wait{background:var(--line,#C6CBD3)}
+    .ap-col .h .t{display:flex;align-items:center}
+    .ap-col.asleep{opacity:.55}
+    /* 🔴 정책 목록만 못 누르게 한다. 판 전체를 막으면 「정책 만들러 가기」까지 막혀,
+       정책이 하나도 없는 사장님이 만들러 갈 길이 사라진다(빈 화면 안내문이
+       바로 그 단추를 가리킨다 — 막으면 안내가 거짓말이 된다). */
+    .ap-col.asleep .ap-list{filter:grayscale(1);pointer-events:none}
+    .ap-col{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+            border-radius:12px;overflow:hidden;min-width:0}
+    .ap-col .h{padding:12px 16px;border-bottom:1px solid var(--line,#E5E8EB);
+               background:var(--n100,#F7FAFF)}
+    .ap-col .h .t{font-size:14px;font-weight:700}
+    .ap-col .h .d{font-size:12px;color:var(--sub,#8B95A1);margin-top:2px}
+    .ap-bar{padding:12px 16px;display:flex;gap:8px;flex-wrap:wrap;
+            border-bottom:1px solid var(--n100,#F2F4F6)}
+    .ap-bar input[type=search]{flex:1;min-width:160px;border:1px solid var(--line,#E5E8EB);
+      border-radius:8px;padding:8px 12px;font-family:inherit;font-size:12px}
+    .chips{padding:0 16px 12px;display:flex;gap:6px;flex-wrap:wrap}
+    .chip2{border:1.5px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);
+           border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;
+           color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit}
+    .chip2.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .chip2 .n{font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1);margin-left:4px}
+    .chip2.on .n{color:#3F72B8}
+    .ap-list{max-height:520px;overflow:auto}
+    .ap-list table{width:100%;border-collapse:collapse;font-size:12px}
+    .ap-list th{position:sticky;top:0;z-index:1;background:var(--n100,#F2F4F6);
+                font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);
+                padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB);
+                text-align:left;white-space:nowrap}
+    .ap-list td{padding:8px 12px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .ap-list tr:last-child td{border-bottom:0}
+    .ap-list .num{text-align:right;font-variant-numeric:tabular-nums}
+    .ap-list .mid{text-align:center}
+    .ap-empty{padding:32px 16px;text-align:center;color:var(--sub,#8B95A1);font-size:12px}
+    input[type=checkbox],input[type=radio]{width:16px;height:16px;
+      accent-color:var(--primary,#3182F6);cursor:pointer}
+    /* [2026-08-02] 10.5px 였다 — 규칙 하한(11px)보다 작아 눈에 안 잡힌다(40곳).
+     애플 실측 하한이 11px 이라 그 선까지 올린다(모양은 그대로). */
+    .tag{font-size:12px;font-weight:700;padding:0 8px;border-radius:999px;white-space:nowrap}
+    .tag.def{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    .tag.br{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
+    .tag.no{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
+    .tag.cur{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .tag.none2{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+
+    /* ── [이슈 #1058] 상품 고르기 8칸 확장 ─────────────────────────────── */
+    .ap-list td.wrap{white-space:normal}
+    .mtx-name{font-weight:700}
+    .mtx-no{color:var(--sub,#8B95A1);font-size:12px}
+    .mtx-axis{color:var(--글자-보조,#6B7684);font-size:12px;margin-top:2px}
+    .mtx-empty{color:var(--글자-주황,#B45309);font-size:12px}
+    .mtx-empty a{color:var(--primary,#3182F6);text-decoration:none;font-weight:700;margin-left:4px}
+    .prod-brand{color:var(--글자-보조,#6B7684);font-weight:400}
+    .prod-models{color:var(--sub,#8B95A1);font-size:12px;margin-top:2px}
+    .prod-code{color:var(--sub,#8B95A1);font-size:12px;margin-top:2px}
+
+    /* 소싱처·판매처 배지 — ② 축약 텍스트칩(2026-08-19 사장님 확정, 텍스트만·아이콘 없음) */
+    .site-grp{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:3px}
+    .site-grp:last-child{margin-bottom:0}
+    .site-chip{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;flex:none}
+    .site-chip.on{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .site-chip.off{background:var(--surface,#ffffff);color:var(--글자-희미,#C2C8CF);
+                   border:1px solid var(--n100,#EDEFF2)}
+
+    /* 정책 다중 배지 — ① 가로 나열(2026-08-19 사장님 확정) */
+    .pol-badges{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+
+    /* 수집 칸 — 시각 + 호버 트리거 */
+    .collect-cell{position:relative}
+    .collect-time{font-size:12px;color:var(--글자-기본,#4E5968);font-variant-numeric:tabular-nums;
+                  cursor:default;border-bottom:1px dashed var(--line,#D1D6DB);display:inline-block}
+    .collect-none{font-size:12px;color:var(--sub,#8B95A1)}
+
+    /* 호버카드 — ② 위아래 스택(2026-08-19 사장님 확정) */
+    .hv-card{position:fixed;z-index:99999;background:var(--surface,#ffffff);
+             border:1px solid var(--line,#E5E8EB);border-radius:10px;
+             box-shadow:0 8px 24px rgba(0,0,0,.14);padding:14px;width:340px;font-size:12px}
+    .hv-title{font-size:11px;font-weight:700;color:var(--sub,#8B95A1);margin-bottom:6px}
+    .hv-sec + .hv-sec{margin-top:12px;padding-top:12px;border-top:1px solid var(--n100,#F2F4F6)}
+    .hv-row{display:flex;justify-content:space-between;padding:3px 0;color:var(--글자-기본,#4E5968)}
+    .hv-row .t{color:var(--sub,#8B95A1);font-variant-numeric:tabular-nums}
+    .hv-empty{color:var(--sub,#8B95A1);padding:6px 0}
+    .hv-table{width:100%;border-collapse:collapse;font-size:11.5px}
+    .hv-table th{background:var(--n100,#F7FAFF);padding:4px 6px;text-align:right;font-weight:700;
+                 color:var(--글자-보조,#6B7684)}
+    .hv-table th:first-child{text-align:left}
+    .hv-table td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--n100,#F5F6F8);
+                 font-variant-numeric:tabular-nums}
+    .hv-table td:first-child{text-align:left;font-variant-numeric:initial}
+
+    /* 필터 — ① 토글칩 통일형(브랜드 칩과 같은 chip2, 2026-08-19 사장님 확정) */
+    .ap-status{padding:0 16px 10px;display:flex;gap:6px;flex-wrap:wrap}
+
+    /* ── [#1059] 정책 고르기 — 카드형(A3 좌측 아이콘 강조 + B2 상태 아이콘 + D3 잠금) ── */
+    .polcards{display:flex;flex-direction:column;gap:10px;padding:12px 16px}
+    .polcard{display:flex;gap:12px;padding:13px 14px;border:1.5px solid var(--line,#E5E8EB);
+         border-radius:12px;cursor:pointer;position:relative;background:var(--surface,#ffffff)}
+    .polcard:hover{border-color:var(--primary,#3182F6)}
+    .polcard:has(input:checked){border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF)}
+    .polcard input[type=radio]{position:absolute;top:13px;right:13px;margin:0}
+    .pc-ava{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;
+         justify-content:center;font-size:14px;font-weight:800;color:#fff}
+    .pc-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-right:26px}
+    .pc-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .pc-nm{font-size:13.5px;font-weight:800;color:var(--ink,#191F28)}
+    .pc-lock{font-size:11px;font-weight:800;color:var(--글자-주황,#92400E);
+         background:var(--연한-주황,#FFFBEB);border-radius:6px;padding:1px 7px;white-space:nowrap}
+    .pc-mk{display:flex;flex-wrap:wrap;gap:4px}
+    /* [#1072] 내보낼 마켓 — 활성화 초록/비활성화 회색, 전 마켓을 다 보여준다
+       (켠 것만 보이면 「몇 개 중 몇 개가 켜졌는지」를 알 수 없다). */
+    .mkbadge{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
+    .mkbadge.on{background:#E7F7EE;color:#15803D}
+    .mkbadge.off{background:#F2F4F6;color:#8B95A1}
+    .pc-st{display:flex;flex-wrap:wrap;gap:5px}
+    .pc-stchip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;
+         border-radius:999px;padding:1px 8px 1px 6px;white-space:nowrap}
+    .pc-stchip .pc-sticon{width:14px;height:14px;border-radius:50%;display:inline-flex;
+         align-items:center;justify-content:center;font-size:9px;color:#fff;flex:none}
+    .pc-stchip.sale{background:rgba(52,199,89,.10);color:#1D7A3D}
+    .pc-stchip.sale .pc-sticon{background:#15803D}
+    .pc-stchip.mid{background:rgba(0,113,227,.10);color:#0066CC}
+    .pc-stchip.mid .pc-sticon{background:#0066CC}
+    .pc-stchip.wait{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+    .pc-stchip.wait .pc-sticon{background:#9CA3AF}
+    .pc-foot{display:flex;align-items:center;gap:10px;margin-top:2px}
+    .pc-applied{font-size:12px;color:var(--글자-파랑,#1B64DA);font-weight:700;cursor:default}
+    .pc-edit{font-size:12px;color:var(--sub,#8B95A1);text-decoration:none;margin-left:auto}
+    .pc-edit:hover{color:var(--primary,#3182F6)}
+    .polcard.locked{opacity:.7;cursor:default}
+    .polcard.locked:hover{border-color:var(--line,#E5E8EB)}
+    .polcard.locked .pc-gocreate{margin-left:auto;text-decoration:none}
+
+    /* 적용 상품 호버 카드 — hover-info-card 표준(body+fixed·닫기250ms·열기140ms·
+       카드진입시취소·오른쪽정렬+위로뒤집기). 정본 = policy/index.html 의 hvArm/hvShow. */
+    .pop{display:none;position:fixed;z-index:99999;background:var(--surface,#ffffff);
+         border:1px solid #d1d6db;border-radius:14px;padding:12px 14px;width:260px;
+         max-height:60vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.18);
+         cursor:default;font-size:12px}
+    .pop.on{display:block}
+    .pop .pop-h{font-size:12.5px;font-weight:800;margin-bottom:8px}
+    .pop .pop-cnt{font-weight:600;color:var(--sub,#8B95A1);font-size:11px}
+    .pop .pop-row{padding:4px 0;border-bottom:1px solid var(--n100,#F2F4F6)}
+    .pop .pop-row:last-of-type{border-bottom:0}
+    .pop .pop-row a{color:var(--ink,#191F28);text-decoration:none;font-weight:600}
+    .pop .pop-row a:hover{color:var(--primary,#3182F6)}
+    .pop .pop-more{margin-top:6px;font-size:11px;color:var(--sub,#8B95A1)}
+
+    /* 붙이는 줄 — 화면 아래 고정. 고른 걸 잊지 않게 계속 보인다. */
+    .ap-go{position:sticky;bottom:0;z-index:5;margin-top:16px;
+           background:var(--surface,#ffffff);border-top:1px solid var(--line,#E5E8EB);
+           padding:12px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .ap-go .n{flex:1;font-size:12px;color:var(--글자-보조,#6B7684)}
+    .ap-go .n b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+
+    /* ── [2026-08-02] 「한 상품에 여러 정책」 ──────────────────────────
+       🔴 구성이 하나인 상품(라이브 90개 중 89개)은 **아무것도 안 달라진다**.
+         아래 것들은 구성이 2개 이상인 그 상품 줄에만 붙는다. */
+    .tag.setn{background:var(--연한-보라,#EDE9FE);color:var(--글자-진하게,#5B21B6);
+              margin-left:6px}
+    .comp{display:inline-block;background:var(--n100,#F2F4F6);
+          color:var(--글자-보조,#4E5968);border-radius:5px;padding:1px 8px;
+          font-size:12px;font-weight:700}
+    /* 🔴 회색(--surface2)으로 칠했더니 보통 줄과 **거의 같은 색**이었다
+         (라이브 실측 1.089 — 사장님이 「구분되는 색이 너무 안 보임」).
+       회색 대신 **「구성 N개」 딱지와 같은 보라 계열**로 칠하고 위아래를 선으로 닫는다.
+       색이 딱지와 같아야 「저 딱지 때문에 이 덩어리구나」가 바로 읽힌다. */
+    /* ★ 색 이름을 안 쓰고 **반투명 보라**를 직접 쓴다 — 반투명은 밑색 위에 얹히므로
+         밝은 화면·검정 화면 어디서든 안전하다(불투명 밝은 색을 박는 것과 다르다).
+         색 이름(--연한-보라)은 밝은 화면에서 .10 이라 너무 옅었다(색 거리 24). */
+    .ap-list tr.hasset td,
+    .ap-list tr.sub td{background:rgba(175,82,222,.16)}
+    .ap-list tr.hasset td{border-top:1.5px solid rgba(175,82,222,.55)}
+    .ap-list tr.subend td{border-bottom:1.5px solid rgba(175,82,222,.55)}
+    .ap-list td.ind2{padding-left:32px;color:var(--글자-기본,#4E5968);font-size:12px}
+    /* 줄 끝 「⋯」 — 평소엔 아주 흐리다가 마우스를 올려야 진해진다 */
+    .endcell{position:relative}
+    .endcell .dots{float:right;color:var(--글자-희미,#6E6E73);font-weight:700;cursor:pointer;
+                   padding:0 4px;user-select:none}
+    .ap-list tr:hover .dots{color:var(--글자-기본,#4E5968)}
+    .endcell .dots.on{color:var(--primary,#3182F6)}
+    .menurow td{background:var(--surface,#ffffff)!important;padding:0 12px 8px 48px!important}
+    .menu{display:inline-block;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+          background:var(--surface,#ffffff);
+          overflow:hidden;min-width:250px}
+    .mi{padding:9px 14px;font-size:12px;color:var(--글자-기본,#4E5968);
+        border-bottom:1px solid var(--n100,#F2F4F6);cursor:pointer}
+    .mi:last-child{border-bottom:0}
+    .mi:hover{background:var(--연한-파랑,#E8F2FF);color:var(--글자-파랑,#1B64DA);
+        font-weight:700}
+
+    /* 구성 만드는 창 */
+    .ovl{position:fixed;inset:0;background:rgba(25,31,40,.35);display:flex;
+         align-items:center;justify-content:center;z-index:60}
+    .modal{background:var(--surface,#ffffff);border-radius:14px;width:560px;
+           max-width:92vw;padding:20px 22px;}
+    .m-h{font-size:16px;font-weight:700;margin-bottom:6px}
+    .m-d{font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:16px}
+    .m-f{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12.5px;
+         flex-wrap:wrap}
+    .m-l{min-width:80px;color:var(--글자-보조,#6B7684)}
+    .m-f select,.m-f input[type=text]{flex:1;min-width:180px;
+      border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:7px 10px;
+      font-family:inherit;font-size:12.5px}
+    .m-r{display:flex;align-items:center;gap:5px;cursor:pointer}
+    .m-w{background:var(--연한-보라,#F6F5FE);border-radius:8px;padding:9px 12px;
+         font-size:12px;color:var(--글자-기본,#534AB7);line-height:1.7;margin:14px 0}
+    .m-btns{display:flex;justify-content:flex-end;gap:8px}
+  </style>
+
+  <div class="ap-head">
+    <h1>정책 매칭</h1>
+  </div>
+  <div class="ap-desc">왼쪽에서 상품을 고르고, 오른쪽에서 정책을 골라 한 번에 붙입니다.</div>
+  <div class="msg" id="msg"></div>
+
+  <div class="warn">
+    <b>한 구성에 정책 하나입니다.</b> 거의 모든 상품은 구성이 하나라 지금과 똑같습니다.
+    이미 정책이 붙어 있는 것을 고르면 <b>그 정책이 갈아 끼워집니다</b> — 한 번 되묻습니다.
+    줄 끝 <b>···</b> 에서 <b>정책을 하나 더</b> 붙이면 그 상품만 구성이 늘어
+    마켓에 한 번 더 올라갑니다. 재고는 <b>구성끼리 연동</b>됩니다.
+  </div>
+
+  <div class="ap-two">
+    {# ── 왼쪽 : 상품 고르기 ── #}
+    <div class="ap-col">
+      <div class="h"><div class="t"><span class="stepno">①</span>상품 고르기</div>
+        <div class="d">이름·번호·브랜드로 찾거나, 브랜드 단추로 걸러냅니다</div></div>
+      <div class="ap-bar">
+        {# [2026-08-12 노션 상품 c-1] 옵션 화면에서 `?model=…` 으로 들어오면 그 상품이
+           목록 300줄 상한 밖일 수 있다 — 검색칸을 미리 채워 반드시 보이게 한다. #}
+        <input type="search" id="mq" placeholder="상품 이름·번호·브랜드로 찾기" autocomplete="off"
+               value="{{ pick_q|default('', true) }}">
+        <button class="btn2 ghost" id="mall" type="button">보이는 것 전부</button>
+      </div>
+      <div class="ap-status" id="mstatus">
+        <button class="chip2 on" data-applied="">전체</button>
+        <button class="chip2" data-applied="yes">매칭됨</button>
+        <button class="chip2" data-applied="no">매칭 안 됨</button>
+      </div>
+      <div class="chips" id="mbrands"></div>
+      <div class="ap-list">
+        <table>
+          <thead><tr>
+            <th style="width:34px"></th><th style="width:30px">NO</th><th>상품</th>
+            <th>옵션매트릭스</th><th>소싱처</th><th>정책</th><th>판매처</th>
+            <th>소싱처 수집</th><th>판매처 수집</th>
+          </tr></thead>
+          <tbody id="mlist">
+            <tr><td colspan="9" class="ap-empty">불러오는 중…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ── 오른쪽 : 정책 고르기 ── #}
+    {# 상품을 고르기 전에는 재워 둔다(asleep) — 아래 upd() 가 깨운다. #}
+    <div class="ap-col asleep" id="polcol">
+      <div class="h"><div class="t"><span class="stepno wait" id="stepno2">②</span>정책 고르기</div>
+        <div class="d" id="poldesc">왼쪽에서 상품을 먼저 고르면 여기가 깨어납니다</div></div>
+      <div class="ap-bar">
+        <input type="search" id="pq" placeholder="정책 이름으로 찾기" autocomplete="off">
+        <a class="btn2 ghost" href="/policies" style="text-decoration:none">정책 만들러 가기</a>
+      </div>
+      <div class="chips" id="pbrands">
+        <button class="chip2 on" data-brand="">전체<span class="n">{{ policies|length }}</span></button>
+        {% for b, n in pbrands %}
+        <button class="chip2" data-brand="{{ b or '__none__' }}"
+                {% if not b %}style="color:var(--amber,#B45309)"{% endif %}>{{ b or '브랜드 없음' }}
+          <span class="n">{{ n }}</span></button>
+        {% endfor %}
+      </div>
+      <div class="ap-list">
+        <div class="polcards" id="plist">
+          {% for p in policies %}
+          {% set initial = (p.brand or p.name or '?')[0] %}
+          <label class="polcard {{ 'locked' if not p.usable else '' }}"
+                 data-brand="{{ p.brand }}" data-name="{{ p.name|lower }}">
+            <input type="radio" name="pol" value="{{ p.id }}" data-nm="{{ p.name }}"
+                   {% if not p.usable %}disabled{% endif %}>
+            <span class="pc-ava" style="background:{{ ['#7C6FF0','#0EA5A4','#DB2777','#6366F1','#B45309','#475569'][(p.brand or p.name)|length % 6] }}">{{ initial }}</span>
+            <span class="pc-body">
+              <span class="pc-top">
+                <span class="pc-nm">{{ p.name }}</span>
+                {% if p.is_default %}<span class="tag def">기본</span>{% endif %}
+                {% if p.brand %}<span class="tag br">{{ p.brand }}</span>{% endif %}
+                {% if not p.usable %}<span class="pc-lock"><i class="ph-light ph-lock" aria-hidden="true"></i> 미완성</span>{% endif %}
+              </span>
+              <span class="pc-mk">
+                {% for m in market_keys %}<span class="mkbadge {{ 'on' if m in p.enabled else 'off' }}">{{ market_label[m] }}</span>{% endfor %}
+              </span>
+              {% if p.enabled %}
+              <span class="pc-st">
+                {% for m in p.enabled %}
+                <span class="pc-stchip {{ p.status[m] }}">
+                  <i class="pc-sticon">{% if p.status[m] == 'sale' %}✓{% elif p.status[m] == 'mid' %}◐{% else %}○{% endif %}</i>{{ market_label[m] }}
+                </span>
+                {% endfor %}
+              </span>
+              {% endif %}
+              <span class="pc-foot">
+                {% if p.usable %}
+                <span class="pc-applied hv" data-hvkey="ap{{ p.id }}">적용 상품 {{ p.applied_info.total }}개</span>
+                <template class="pc-pophtml" data-hvkey="ap{{ p.id }}">
+                  <div class="pop-h">적용 상품 <span class="pop-cnt">{{ p.applied_info.total }}개{% if p.applied_info.total > p.applied_info.sample|length %} 중 대표 {{ p.applied_info.sample|length }}개{% endif %}</span></div>
+                  {% for it in p.applied_info.sample %}
+                  <div class="pop-row"><a href="/policies/product/{{ it.model_code|urlencode }}">{{ it.no or it.model_code }} {{ it.name }}</a></div>
+                  {% else %}
+                  <div class="pop-row">적용 상품이 없어요</div>
+                  {% endfor %}
+                  {% if p.applied_info.total > p.applied_info.sample|length %}
+                  <div class="pop-more">이 외 {{ p.applied_info.total - p.applied_info.sample|length }}개 더 있어요</div>
+                  {% endif %}
+                </template>
+                <a href="/bundles?policy={{ p.id }}&pname={{ p.name|urlencode }}" class="pc-edit">상품관리에서 보기 →</a>
+                {% else %}
+                <a href="/policies/{{ p.id }}" class="btn2 ghost pc-gocreate">정책 생성으로 →</a>
+                {% endif %}
+              </span>
+            </span>
+          </label>
+          {% else %}
+          <div class="ap-empty">아직 정책이 없어요.
+            오른쪽 위 「정책 만들러 가기」에서 먼저 만들어 주세요.</div>
+          {% endfor %}
+        </div>
+        <div class="ap-empty" id="pnoneshown" style="display:none">찾는 정책이 없어요.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-go">
+    <span class="n">고른 상품 <b id="mn">0</b>개 · 정책 <b id="pn">안 고름</b></span>
+    <span class="msg" id="gmsg"></span>
+    <button class="btn2" id="go" type="button" disabled>붙이기</button>
+  </div>
+</section>
+
+<style>
+/* [3단계 배치3 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 좌우 두 판(상품·정책) — 세로 한 줄로. 목록 높이는 화면 절반쯤으로 */
+  .ap-two { grid-template-columns: 1fr; }
+  .ap-list { max-height: 55vh; }
+  /* 찾기칸 — 16px = iOS 포커스 확대 방지 */
+  .ap-bar input[type="search"] { font-size: 16px; min-height: 44px; }
+  .btn2 { min-height: 44px; }
+  .chip2 { min-height: 44px; }
+  .ap-head h1 { font-size: 22px; }
+  /* 본문 글자 하한 14px (PC 는 12px) */
+  .ap-desc, .warn, .msg, .ap-go .n { font-size: 14px; }
+  .ap-list table { font-size: 14px; }
+  .polcard { font-size: 14px; }
+  .pc-nm { font-size: 14px; }
+  /* 체크칸 — 16px 은 손끝에 너무 작다.
+     [배치4a 검토] 화면 뿌리(#screen-policy-apply)로 못 박는다 — 맨몸 선택자면
+     나중에 껍데기(mobile_shell)가 체크박스를 갖게 될 때 22px 을 물려받는다. */
+  #screen-policy-apply input[type="checkbox"],
+  #screen-policy-apply input[type="radio"] { width: 22px; height: 22px; }
+  .endcell .dots { padding: 8px 10px; }
+  /* 구성 만드는 창 — 폰 폭에 맞춘다 */
+  .modal { max-width: calc(100vw - 24px); padding: 16px; }
+  .m-f select, .m-f input[type="text"] { font-size: 16px; min-height: 44px; }
+  .m-d, .m-w, .mi { font-size: 14px; }
+  .mi { min-height: 44px; display: flex; align-items: center; }
+}
+</style>
+<script>
+const msg = document.getElementById('msg');
+const gmsg = document.getElementById('gmsg');
+// [2026-08-12 노션 상품 c-1] 옵션 화면에서 「정책 붙이러 가기」로 들어온 상품 —
+//   목록이 뜨기 전에 미리 골라 둔다. 화면을 다시 그려도 유지된다.
+const picked = new Set({{ (pick or [])|tojson }});   // 고른 상품
+const pickedSets = new Set();      // 고른 구성 — 구성이 2개 이상인 상품에서만 쓴다
+let curBrand = '';                 // 상품 쪽 브랜드 거르기
+let curApplied = '';               // [이슈 #1058] 정책 매칭 상태 거르기 — '' | 'yes' | 'no'
+let rows = [];
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ── [이슈 #1058] 소싱처·판매처 배지 — 축약 텍스트칩(② 2026-08-19 확정) ──────
+   전체 자리를 항상 다 그린다(연동 안 된 곳도 흐리게) — 사장님 확정.
+   짧은표시명: [서버가 주는 연동 라벨들] — 서버 라벨과 정확히 일치해야 켜진다. */
+const SOURCING_ROWS = [
+  ['롯데온', '롯데백화점', '롯데홈쇼핑', 'SSG', 'H몰', '더현대', 'GS샵'],
+  ['무신사', 'ABC마트', '29CM', 'Grandstage', 'SSF'],
+];
+const SRC_MATCH = {
+  '롯데온': ['롯데온'], '롯데백화점': [], '롯데홈쇼핑': ['롯데아이몰'],
+  'SSG': ['SSG'], 'H몰': ['H몰'], '더현대': [], 'GS샵': [],
+  '무신사': ['무신사'], 'ABC마트': [], '29CM': [], 'Grandstage': [], 'SSF': ['SSF샵'],
+};
+const SELLING_ROWS = [
+  ['쿠팡', '스스', '롯데온', '11번가', '옥션', 'G마켓'],
+  ['SSG', 'GS샵', '롯데홈쇼핑', 'H몰', 'CJ', 'SK'],
+];
+const SELL_MATCH = {
+  '쿠팡': ['쿠팡'], '스스': ['스마트스토어'], '롯데온': ['롯데온'], '11번가': ['11번가'],
+  '옥션': ['옥션'], 'G마켓': ['G마켓'],
+  'SSG': [], 'GS샵': [], '롯데홈쇼핑': [], 'H몰': [], 'CJ': [], 'SK': [],
+};
+
+function siteBadges(rowsDef, matchTable, connected) {
+  const got = new Set(connected || []);
+  return rowsDef.map((row) => '<div class="site-grp">' + row.map((name) => {
+    const on = (matchTable[name] || []).some((label) => got.has(label));
+    return '<span class="site-chip ' + (on ? 'on' : 'off') + '">' + esc(name) + '</span>';
+  }).join('') + '</div>').join('');
+}
+
+/* ── 옵션매트릭스 칸 — /optgen/box/<model_code> 는 상품관리·옵션매트릭스
+   화면이 이미 쓰는 「이 상품 옵션함으로」 진입로다(matrix/index.html · bundles/edit.html
+   과 같은 링크 그대로 재사용 — 있으면 편집, 없으면 만들기로 자연히 이어진다). */
+function matrixCell(mtx, code) {
+  const href = '/optgen/box/' + encodeURIComponent(code);
+  if (!mtx) {
+    return '<div class="mtx-empty">매트릭스 없음 <a href="' + href + '">만들기</a></div>';
+  }
+  return '<a href="' + href + '" style="color:inherit;text-decoration:none">'
+       + '<div class="mtx-name">' + esc(mtx.name) + '</div>'
+       + '<div class="mtx-no">' + esc(mtx.no || '') + '</div></a>'
+       + '<div class="mtx-axis">색상×사이즈 · SKU ' + mtx.sku_count + '개</div>';
+}
+
+/* ── 정책 다중 배지 — 가로 나열(① 2026-08-19 확정, 이름만) ─────────────── */
+function policyBadges(bundles, singlePolicy) {
+  const list = (bundles && bundles.length)
+    ? bundles.map((b) => b.policy).filter(Boolean)
+    : (singlePolicy ? [singlePolicy] : []);
+  if (!list.length) return '<span class="tag none2">미적용</span>';
+  return '<div class="pol-badges">'
+       + list.map((nm) => '<span class="tag cur">' + esc(nm) + '</span>').join('') + '</div>';
+}
+
+/* ── 소싱처·판매처 수집 칸 — 시각 + 호버 트리거 ──────────────────────── */
+function collectCell(iso, kind, code) {
+  if (!iso) return '<span class="collect-none">수집 기록 없음</span>';
+  const cls = kind === 'src' ? 'collect-src' : 'collect-sell';
+  return '<span class="collect-time ' + cls + '" data-code="' + esc(code) + '">'
+       + esc(iso.slice(0, 16).replace('T', ' ')) + '</span>';
+}
+
+/* ── 상품 목록 ────────────────────────────────────────────── */
+
+function drawBrands(brands, total) {
+  const box = document.getElementById('mbrands');
+  box.innerHTML = '<button class="chip2 ' + (curBrand ? '' : 'on') + '" data-b="">전체'
+    + '<span class="n">' + total + '</span></button>'
+    + brands.map((b) => '<button class="chip2 ' + (curBrand === (b.name || '__none__') ? 'on' : '')
+        + '" data-b="' + esc(b.name || '__none__') + '"'
+        + (b.name ? '' : ' style="color:var(--amber,#B45309)"') + '>'
+        + esc(b.name || '브랜드 없음') + '<span class="n">' + b.count + '</span></button>').join('');
+  box.querySelectorAll('.chip2').forEach((c) => {
+    c.onclick = () => { curBrand = c.dataset.b; load(); };
+  });
+}
+
+/* 줄 끝 「⋯」 — 평소엔 아주 흐리다. 눌러야 메뉴가 뜬다. */
+function dots(code) {
+  return '<span class="dots" data-menu="' + esc(code) + '">···</span>';
+}
+
+/* [이슈 #1058 · 2026-08-19 확정] 구성이 몇 개든 **항상 한 줄**로 그린다.
+   구성이 여럿일 때 「어느 구성에 새 정책을 갈아끼울지」는 줄 끝 ⋯ 메뉴에서 고른다
+   (표에 구성별 줄을 따로 안 둔다 — 예전엔 부모+자식 줄로 펼쳤었다). */
+function drawRows() {
+  const tb = document.getElementById('mlist');
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="9" class="ap-empty">찾는 상품이 없습니다.</td></tr>';
+    upd();
+    return;
+  }
+  const html = [];
+  rows.forEach((r, i) => {
+    const bl = r.bundles || [];
+    const models = (r.models_display || []).length ? r.models_display : null;
+    let modelLine = '';
+    if (models) {
+      const shown = models.slice(0, 8);
+      modelLine = '<div class="prod-models">' + esc(shown.join(' · '))
+        + (models.length > 8 ? ' …' : '') + '</div>';
+    }
+    const nameCell = '<td class="wrap"><b>' + esc(r.name || r.no || r.model_code) + '</b>'
+      + (r.brand ? ' <span class="prod-brand">· ' + esc(r.brand) + '</span>' : '')
+      + modelLine
+      + '<div class="prod-code">' + esc(r.no || r.model_code) + '</div></td>';
+    /* 체크박스 — 구성이 2개 이상이면 「어느 구성?」이 애매해져 줄 자체를 못 고른다.
+       그 경우엔 ⋯ 메뉴로만 고른다(비워 둔 칸이 그 안내다). */
+    const checkCell = bl.length >= 2 ? '<td></td>'
+      : '<td><input type="checkbox" data-c="' + esc(r.model_code) + '"'
+        + (picked.has(r.model_code) ? ' checked' : '') + '></td>';
+    html.push('<tr data-code="' + esc(r.model_code) + '">'
+      + checkCell
+      + '<td class="num">' + (i + 1) + '</td>'
+      + nameCell
+      + '<td class="wrap">' + matrixCell(r.matrix, r.model_code) + '</td>'
+      + '<td>' + siteBadges(SOURCING_ROWS, SRC_MATCH, (r.sourcing || {}).connected) + '</td>'
+      + '<td class="endcell wrap">' + policyBadges(bl, r.policy) + dots(r.model_code) + '</td>'
+      + '<td>' + siteBadges(SELLING_ROWS, SELL_MATCH, (r.selling || {}).connected) + '</td>'
+      + '<td class="collect-cell">' + collectCell((r.sourcing || {}).collected_at, 'src', r.model_code) + '</td>'
+      + '<td class="collect-cell">' + collectCell((r.selling || {}).collected_at, 'sell', r.model_code) + '</td>'
+      + '</tr>');
+  });
+  tb.innerHTML = html.join('');
+
+  tb.querySelectorAll('input[data-c]').forEach((c) => {
+    c.onchange = () => { c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd(); };
+  });
+  tb.querySelectorAll('.dots').forEach((d) => { d.onclick = () => openMenu(d); });
+  upd();
+}
+
+/* ── 줄 끝 메뉴 (D2 + 이슈 #1058 다중구성 확장) ─────────────────────────── */
+
+function closeMenu() {
+  const old = document.querySelector('#mlist tr.menurow');
+  if (old) old.remove();
+  document.querySelectorAll('#mlist .dots.on').forEach((x) => x.classList.remove('on'));
+}
+
+function openMenu(dot) {
+  const already = dot.classList.contains('on');
+  closeMenu();
+  if (already) return;
+  dot.classList.add('on');
+  const code = dot.dataset.menu;
+  const r = rows.find((x) => x.model_code === code);
+  const bl = (r && r.bundles) || [];
+  const tr = dot.closest('tr');
+  const row = document.createElement('tr');
+  row.className = 'menurow';
+  /* [2026-08-19 사장님 확정] 구성이 2개 이상이면 「OO구성에 갈아끼우기」를 구성마다 하나씩 —
+     표에서 사라진 구성별 체크박스를 여기서 대신한다(고르면 오른쪽 정책판이 그 구성용으로 켜진다). */
+  const items = bl.length >= 2
+    ? bl.map((b) => '<div class="mi" data-act="pick-set" data-set="' + b.set_id + '">'
+        + esc(b.name || '이름 없는 구성') + '에 갈아끼우기</div>').join('')
+    : '';
+  row.innerHTML = '<td colspan="9"><div class="menu">' + items
+    + '<div class="mi" data-act="add">+ 정책 하나 더 붙이기 (구성 늘리기)</div>'
+    + '<div class="mi" data-act="close">닫기</div></div></td>';
+  tr.after(row);
+  row.querySelectorAll('[data-act="pick-set"]').forEach((mi) => {
+    mi.onclick = () => {
+      const id = Number(mi.dataset.set);
+      pickedSets.has(id) ? pickedSets.delete(id) : pickedSets.add(id);
+      closeMenu(); upd();
+    };
+  });
+  row.querySelector('[data-act="add"]').onclick = () => { closeMenu(); openAdd(code); };
+  row.querySelector('[data-act="close"]').onclick = closeMenu;
+}
+
+function load() {
+  const q = document.getElementById('mq').value.trim();
+  const p = new URLSearchParams();
+  if (q) p.set('q', q);
+  if (curBrand) p.set('brand', curBrand);
+  if (curApplied) p.set('applied', curApplied);
+  document.getElementById('mlist').innerHTML =
+    '<tr><td colspan="9" class="ap-empty">불러오는 중…</td></tr>';
+  fetch('/api/policies/bundles?' + p.toString())
+    .then((r) => r.json())
+    .then((j) => {
+      if (!j.ok) { msg.className = 'msg err'; msg.textContent = j.error || '불러오지 못했습니다.'; return; }
+      rows = j.rows || [];
+      drawBrands(j.brands || [], j.total || 0);
+      drawRows();
+    })
+    .catch((e) => { msg.className = 'msg err'; msg.textContent = e.message; });
+}
+
+let t = null;
+document.getElementById('mq').oninput = () => { clearTimeout(t); t = setTimeout(load, 250); };
+
+/* [이슈 #1058] 정책 매칭 상태 필터 — 브랜드 칩과 같은 chip2 스타일(토글칩 통일형,
+   2026-08-19 확정) 로 이미 있는 필터와 헷갈리지 않게 통일한다. */
+document.querySelectorAll('#mstatus .chip2').forEach((c) => {
+  c.onclick = () => {
+    document.querySelectorAll('#mstatus .chip2').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+    curApplied = c.dataset.applied || '';
+    load();
+  };
+});
+
+document.getElementById('mall').onclick = () => {
+  /* 구성이 여럿인 상품은 **구성을 전부** 고른다 — 상품코드로 고르면 구성에 안 붙는다 */
+  rows.forEach((r) => {
+    const bl = r.bundles || [];
+    if (bl.length >= 2) bl.forEach((b) => pickedSets.add(b.set_id));
+    else picked.add(r.model_code);
+  });
+  drawRows();
+};
+
+/* ── 정책 목록 (서버가 이미 그려 뒀다 — 여기선 걸러내기만) ── */
+
+function filterPolicies() {
+  const kw = document.getElementById('pq').value.trim().toLowerCase();
+  const on = document.querySelector('#pbrands .chip2.on');
+  const wb = on ? (on.dataset.brand || '') : '';
+  const cards = document.querySelectorAll('#plist .polcard[data-name]');
+  let shown = 0;
+  cards.forEach((card) => {
+    const b = card.dataset.brand || '';
+    let show = true;
+    if (wb === '__none__') show = !b;
+    else if (wb) show = (b === wb);
+    if (show && kw) show = card.dataset.name.indexOf(kw) >= 0;
+    card.style.display = show ? '' : 'none';
+    if (show) shown++;
+    /* 숨긴 카드가 골라져 있으면 푼다 — 안 보이는 게 붙으면 사고다 */
+    if (!show) { const r = card.querySelector('input[type=radio]'); if (r) r.checked = false; }
+  });
+  document.getElementById('pnoneshown').style.display = (cards.length && !shown) ? '' : 'none';
+  upd();
+}
+document.getElementById('pq').oninput = filterPolicies;
+document.querySelectorAll('#pbrands .chip2').forEach((c) => {
+  c.onclick = () => {
+    document.querySelectorAll('#pbrands .chip2').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+    filterPolicies();
+  };
+});
+document.querySelectorAll('#plist input[type=radio]').forEach((r) => {
+  r.onchange = upd;
+});
+
+/* ── [#1059] 적용 상품 호버 카드 — hover-info-card 표준(정본: policy/index.html 의
+   hvArm/hvShow/hvDisarm/hvScheduleHide) 그대로. 내용은 서버가 미리 그려 둔
+   <template class="pc-pophtml"> 를 그대로 옮겨 붙인다(스크립트로 새로 만들지 않는다). */
+const OPEN_DELAY = 140, CLOSE_DELAY = 250, GAP = 7, EDGE = 8;
+const pop = document.body.appendChild(Object.assign(
+  document.createElement('div'), { className: 'pop' }));
+let openTimer = null, hideTimer = null, curKey = null;
+pop.addEventListener('mouseenter', () => { clearTimeout(hideTimer); hideTimer = null; });
+pop.addEventListener('mouseleave', hvScheduleHide);
+function hvScheduleHide() {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => { pop.classList.remove('on'); curKey = null; }, CLOSE_DELAY);
+}
+function hvShow(anchor, key) {
+  clearTimeout(hideTimer); hideTimer = null;
+  curKey = key;
+  const tpl = document.querySelector('template.pc-pophtml[data-hvkey="' + key + '"]');
+  if (!tpl) return;
+  pop.innerHTML = '';
+  pop.appendChild(tpl.content.cloneNode(true));
+  pop.classList.add('on');
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let left = r.right - w;
+  left = Math.max(EDGE, Math.min(left, innerWidth - w - EDGE));
+  let top = r.bottom + GAP;
+  if (top + h > innerHeight - EDGE) top = r.top - h - GAP;
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(EDGE, top) + 'px';
+}
+document.querySelectorAll('.pc-applied.hv').forEach((a) => {
+  a.addEventListener('mouseenter', () => {
+    if (curKey === a.dataset.hvkey) { clearTimeout(hideTimer); hideTimer = null; return; }
+    clearTimeout(openTimer);
+    openTimer = setTimeout(() => hvShow(a, a.dataset.hvkey), OPEN_DELAY);
+  });
+  a.addEventListener('mouseleave', () => { clearTimeout(openTimer); hvScheduleHide(); });
+});
+addEventListener('scroll', () => { pop.classList.remove('on'); curKey = null; }, { passive: true });
+
+/* ── 붙이기 ──────────────────────────────────────────────── */
+
+function chosenPolicy() {
+  return document.querySelector('#plist input[type=radio]:checked');
+}
+
+/* [2026-08-12 확정 D3] 상품을 하나라도 고르면 오른쪽 판이 깨어난다.
+   🔴 깨우고 재우는 자리는 여기 하나뿐이어야 한다 — 고르기·검색·다시 그리기가
+     모두 upd() 를 거치므로, 다른 데 흩어 놓으면 한쪽만 안 깨는 상태가 생긴다. */
+const POL_DESC_AWAKE = '하나만 고를 수 있습니다 — 한 구성에 정책 하나이기 때문입니다';
+const POL_DESC_ASLEEP = '왼쪽에서 상품을 먼저 고르면 여기가 깨어납니다';
+
+function upd() {
+  const pol = chosenPolicy();
+  const n = picked.size + pickedSets.size;
+  document.getElementById('mn').textContent = n;
+  document.getElementById('pn').textContent = pol ? pol.dataset.nm : '안 고름';
+  document.getElementById('go').disabled = !(n && pol);
+
+  const awake = n > 0;
+  document.getElementById('polcol').classList.toggle('asleep', !awake);
+  document.getElementById('stepno2').classList.toggle('wait', !awake);
+  document.getElementById('poldesc').textContent = awake ? POL_DESC_AWAKE : POL_DESC_ASLEEP;
+}
+
+/* ── 구성 만들기 창 ──────────────────────────────────────── */
+
+function openAdd(code) {
+  const r = rows.find((x) => x.model_code === code);
+  const bl = (r && r.bundles) || [];
+  /* 정책 고르는 칸은 오른쪽 목록에서 그대로 가져온다 — 원천이 하나여야 어긋나지 않는다 */
+  const opts = [...document.querySelectorAll('#plist input[type=radio]:not(:disabled)')]
+    .map((x) => '<option value="' + x.value + '">' + esc(x.dataset.nm) + '</option>').join('');
+  if (!opts) { alert('먼저 정책을 만들어 주세요.'); return; }
+
+  const copyRow = bl.length
+    ? '<div class="m-f"><span class="m-l">담을 옵션</span>'
+      + '<label class="m-r"><input type="radio" name="cp" value="copy" checked> '
+      + '지금 구성과 <b>똑같이</b></label>'
+      + '<label class="m-r"><input type="radio" name="cp" value="empty"> 나중에 고르기</label></div>'
+    : '<div class="m-f"><span class="m-l">담을 옵션</span>'
+      + '<span style="color:var(--sub,#8B95A1);font-size:12px">'
+      + '이 상품은 아직 구성이 없어 <b>빈 구성</b>으로 만들어집니다 — 담을 옵션은 나중에 골라 주세요.</span></div>';
+
+  const box = document.createElement('div');
+  box.className = 'ovl';
+  box.innerHTML = '<div class="modal">'
+    + '<div class="m-h">「' + esc(r ? (r.no || code) : code) + '」 에 정책 하나 더 붙이기</div>'
+    + '<div class="m-d">이 상품이 <b>마켓에 한 번 더</b> 올라갑니다. '
+    + '새 구성은 아래 정책으로 가공됩니다.</div>'
+    + '<div class="m-f"><span class="m-l">붙일 정책</span>'
+    + '<select id="ad-pol">' + opts + '</select></div>'
+    + copyRow
+    + '<div class="m-f"><span class="m-l">이 구성 이름</span>'
+    + '<input type="text" id="ad-nm" placeholder="안 적으면 정책 이름으로 부릅니다"></div>'
+    + '<div class="m-w">재고는 <b>구성끼리 연동</b>됩니다 — 하나 팔리면 다른 구성도 같이 줄어듭니다.</div>'
+    + '<div class="msg" id="ad-msg"></div>'
+    + '<div class="m-btns"><button class="btn2 ghost" id="ad-no" type="button">그만두기</button>'
+    + '<button class="btn2" id="ad-go" type="button">구성 만들기</button></div></div>';
+  document.body.appendChild(box);
+
+  const close = () => box.remove();
+  box.querySelector('#ad-no').onclick = close;
+  box.onclick = (e) => { if (e.target === box) close(); };
+
+  box.querySelector('#ad-go').onclick = async () => {
+    const cp = box.querySelector('input[name=cp]:checked');
+    const m = box.querySelector('#ad-msg');
+    m.className = 'msg'; m.textContent = '만드는 중…';
+    try {
+      const res = await fetch('/api/bundles/' + encodeURIComponent(code) + '/add-bundle', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          policy_id: Number(box.querySelector('#ad-pol').value),
+          copy_from: (cp && cp.value === 'copy' && bl.length) ? bl[0].set_id : null,
+          name: box.querySelector('#ad-nm').value.trim()})});
+      const j = await res.json();
+      if (!j.ok) { m.className = 'msg err'; m.textContent = j.error; return; }
+      close();
+      msg.className = 'msg ok'; msg.textContent = j.message;
+      load();
+    } catch (e) { m.className = 'msg err'; m.textContent = e.message; }
+  };
+}
+
+document.getElementById('go').addEventListener('click', async () => {
+  const pol = chosenPolicy();
+  if (!pol || !(picked.size || pickedSets.size)) return;
+  /* 이미 정책이 붙어 있는 것은 갈아 끼워진다 — 조용히 바꾸지 않고 되묻는다 */
+  let replacing = rows.filter((r) => picked.has(r.model_code) && r.policy
+                                     && r.policy !== pol.dataset.nm).length;
+  rows.forEach((r) => (r.bundles || []).forEach((b) => {
+    if (pickedSets.has(b.set_id) && b.policy && b.policy !== pol.dataset.nm) replacing += 1;
+  }));
+  if (replacing && !window.confirm(
+      replacing + '곳에 이미 다른 정책이 붙어 있습니다.\n'
+      + '「' + pol.dataset.nm + '」 로 갈아 끼웁니다. 계속할까요?')) return;
+
+  gmsg.className = 'msg'; gmsg.textContent = '붙이는 중…';
+  try {
+    let n = 0;
+    /* 상품 단위(구성이 하나뿐인 것)와 구성 단위를 각자 보낸다 — 원천이 다르다 */
+    if (picked.size) {
+      const j = await (await fetch('/api/policies/' + pol.value + '/apply', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({model_codes: [...picked]})})).json();
+      if (!j.ok) { gmsg.className = 'msg err'; gmsg.textContent = j.error; return; }
+      n += j.applied;
+    }
+    if (pickedSets.size) {
+      const j = await (await fetch('/api/policies/' + pol.value + '/apply-sets', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({set_ids: [...pickedSets]})})).json();
+      if (!j.ok) { gmsg.className = 'msg err'; gmsg.textContent = j.error; return; }
+      n += j.applied;
+    }
+    gmsg.className = 'msg ok';
+    gmsg.textContent = n + '곳에 붙였습니다.';
+    picked.clear(); pickedSets.clear();
+    setTimeout(() => location.reload(), 800);
+  } catch (e) { gmsg.className = 'msg err'; gmsg.textContent = e.message; }
+});
+
+/* ── [이슈 #1058] 소싱처·판매처 수집 호버카드 — 위아래 스택(② 2026-08-19 확정) ──
+   정본은 bundles/_matrix_v3.html 의 _pmFloat/_pmShowFloat/_pmScheduleHide 다.
+   그 파일은 이 화면에 안 실리므로 optgen/index.html 과 같은 규칙으로 옮겨 적는다
+   (모양·시간을 바꾸지 않는다). 지키는 여섯 가지:
+     ① 카드는 body 에 붙이고 창 기준(fixed) — 표 상자에 안 갇힌다
+     ② 앵커에서 나가면 250ms 뒤 닫는다 — 카드로 가는 손이 끊기지 않게
+     ③ 카드 안으로 들어오면 닫기를 취소, 나가면 다시 예약
+     ④ 오른쪽 끝 정렬 + 화면 아래를 넘으면 위로 뒤집기
+     ⑤ 구르면 닫는다(캡처) — fixed 좌표는 페이지를 안 따라간다
+     ⑥ 여는 데 140ms 지연 — 촘촘한 표 줄에서 지나가는 줄이 카드를 가로채지 않게 */
+(function () {
+  function fmtDate(iso) { return iso ? iso.slice(0, 16).replace('T', ' ') : '—'; }
+  function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
+
+  function srcCardHtml(d) {
+    if (!d) return '<div class="hv-empty">불러오는 중…</div>';
+    if (d.error) return '<div class="hv-empty">' + esc(d.error) + '</div>';
+    const hist = d.history || [], opts = d.options || [];
+    let h = '<div class="hv-sec"><div class="hv-title">과거 수집 이력 (최근순)</div>';
+    h += hist.length ? hist.map((r) => '<div class="hv-row"><span>'
+        + esc(r.note || (r.status === 'done' ? '정상' : r.status || '')) + '</span>'
+        + '<span class="t">' + fmtDate(r.at) + '</span></div>').join('')
+      : '<div class="hv-empty">아직 수집 기록이 없어요.</div>';
+    h += '</div><div class="hv-sec"><div class="hv-title">옵션별 가격 &amp; 재고</div>';
+    /* [사장님 2026-08-19] 표 순서 — 옵션 → 재고 → 가격 */
+    h += opts.length ? '<table class="hv-table"><thead><tr><th>옵션</th><th>재고</th><th>가격</th></tr></thead><tbody>'
+        + opts.map((o) => '<tr><td>' + esc([o.color, o.size].filter(Boolean).join(' ') || o.sku)
+            + '</td><td>' + num(o.stock) + '</td><td>' + num(o.price) + '</td></tr>').join('')
+        + '</tbody></table>'
+      : '<div class="hv-empty">옵션이 없어요.</div>';
+    return h + '</div>';
+  }
+
+  function sellCardHtml(d) {
+    if (!d) return '<div class="hv-empty">불러오는 중…</div>';
+    if (d.error) return '<div class="hv-empty">' + esc(d.error) + '</div>';
+    const hist = d.history || [];
+    const mkts = (d.markets || []).filter((m) => m.price != null);
+    let h = '<div class="hv-sec"><div class="hv-title">최근 동기화 (최근순)</div>';
+    h += hist.length ? hist.map((r) => '<div class="hv-row"><span>' + esc(r.label || r.market)
+        + '</span><span class="t">' + fmtDate(r.at) + '</span></div>').join('')
+      : '<div class="hv-empty">아직 동기화 기록이 없어요.</div>';
+    h += '</div><div class="hv-sec"><div class="hv-title">마켓별 판매가 &amp; 예상 마진</div>';
+    h += mkts.length ? '<table class="hv-table"><thead><tr><th>마켓</th><th>판매가</th><th>마진</th></tr></thead><tbody>'
+        + mkts.map((m) => '<tr><td>' + esc(m.label) + '</td><td>' + num(m.price) + '</td><td>'
+            + (m.margin_rate == null ? '—' : m.margin_rate + '%') + '</td></tr>').join('')
+        + '</tbody></table>'
+      : '<div class="hv-empty">아직 판매가를 낼 수 없어요.</div>';
+    return h + '</div>';
+  }
+
+  let _pmFloatEl = null, _pmHideTimer = null;
+  function _pmFloat() {
+    if (_pmFloatEl) return _pmFloatEl;
+    const el = document.createElement('div');
+    el.className = 'hv-card';
+    el.addEventListener('mouseenter', () => {
+      if (_pmHideTimer) { clearTimeout(_pmHideTimer); _pmHideTimer = null; }
+    });
+    el.addEventListener('mouseleave', _pmScheduleHide);
+    document.body.appendChild(el);
+    _pmFloatEl = el;
+    return el;
+  }
+  function _pmShowFloat(anchor, html) {
+    if (_pmHideTimer) { clearTimeout(_pmHideTimer); _pmHideTimer = null; }
+    const el = _pmFloat();
+    el.innerHTML = html;
+    el.classList.add('on');
+    const r = anchor.getBoundingClientRect();
+    const cw = el.offsetWidth, ch = el.offsetHeight;
+    let left = r.right - cw;
+    if (left + cw > window.innerWidth - 8) left = window.innerWidth - 8 - cw;
+    if (left < 8) left = 8;
+    let top = r.bottom + 7;
+    if (top + ch > window.innerHeight - 8) top = r.top - ch - 7;
+    if (top < 8) top = 8;
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+  }
+  function _pmScheduleHide() {
+    if (_pmHideTimer) clearTimeout(_pmHideTimer);
+    _pmHideTimer = setTimeout(() => { if (_pmFloatEl) _pmFloatEl.classList.remove('on'); }, 250);
+  }
+
+  let 열기 = null, 대기 = null, 지금앵커 = null;
+  const 열기지연 = 140;
+  const 곳간 = {}, 받는중 = {};
+
+  function 받아오기(kind, code, 그리기) {
+    const key = kind + ':' + code;
+    if (곳간[key]) { 그리기(); return; }
+    if (받는중[key]) return;
+    받는중[key] = true;
+    const url = '/api/policies/product/' + encodeURIComponent(code)
+      + (kind === 'src' ? '/sourcing-detail' : '/selling-detail');
+    fetch(url).then((r) => r.json())
+      .then((j) => { 곳간[key] = (j && j.ok) ? j : {error: '값을 불러오지 못했어요.'}; 그리기(); })
+      .catch((e) => { 곳간[key] = {error: '값을 불러오지 못했어요 — ' + (e && e.message || e)}; 그리기(); })
+      .finally(() => { 받는중[key] = false; });
+  }
+  function 예약취소() { if (열기) { clearTimeout(열기); 열기 = null; } 대기 = null; }
+  function 열자(a) {
+    지금앵커 = a;
+    const kind = a.classList.contains('collect-src') ? 'src' : 'sell';
+    const code = a.dataset.code;
+    const key = kind + ':' + code;
+    const render = kind === 'src' ? srcCardHtml : sellCardHtml;
+    _pmShowFloat(a, render(곳간[key]));
+    받아오기(kind, code, () => {
+      if (지금앵커 === a && _pmFloatEl && _pmFloatEl.classList.contains('on')) {
+        _pmShowFloat(a, render(곳간[key]));
+      }
+    });
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    const a = e.target.closest && e.target.closest('.collect-time');
+    if (!a || a === 대기) return;
+    예약취소();
+    const kind = a.classList.contains('collect-src') ? 'src' : 'sell';
+    받아오기(kind, a.dataset.code, () => {});
+    대기 = a;
+    열기 = setTimeout(() => { 대기 = null; 열기 = null; 열자(a); }, 열기지연);
+  });
+  document.addEventListener('mouseout', (e) => {
+    const a = e.target.closest && e.target.closest('.collect-time');
+    if (!a) return;
+    if (a === 대기) 예약취소();
+    _pmScheduleHide();
+  });
+  window.addEventListener('scroll', () => {
+    예약취소(); 지금앵커 = null;
+    if (_pmFloatEl) _pmFloatEl.classList.remove('on');
+  }, true);
+})();
+
+load();
+</script>
+{% endblock %}

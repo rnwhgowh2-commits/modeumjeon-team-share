@@ -4,81 +4,81 @@
 {# 박스히어로 1:1 — 카드 list 제거, 각 거래서 헤더 + 즉시 펼쳐진 제품 내역. #}
 <style>
   .h-shell { padding:24px 32px; max-width:1100px; margin:0 auto; }
-  .h-head { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
-  .h-head h1 { font-size:22px; font-weight:700; margin:0; color:#191F28; }
-  .h-filterbar { display:flex; gap:8px; align-items:center; background:#fff; border:1px solid #E5E8EB; border-radius:8px; padding:10px 12px; margin-bottom:14px; flex-wrap:wrap; }
+  .h-head { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .h-head h1 { font-size:24px; font-weight:700; margin:0; color:var(--ink,#191F28); }
+  .h-filterbar { display:flex; gap:8px; align-items:center; background:var(--surface,#ffffff); border:1px solid var(--line,#E5E8EB); border-radius:8px; padding:8px 12px; margin-bottom:12px; flex-wrap:wrap; }
 
   /* 거래서 (그룹) */
-  .tx-group { background:#fff; border:1px solid #E5E8EB; border-radius:10px; margin-bottom:12px; overflow:hidden; }
-  .tx-group .tx-head { display:flex; align-items:center; gap:12px; padding:12px 16px; background:#F9FAFB; border-bottom:1px solid #E5E8EB; }
-  .tx-group.in    .tx-head { border-left:4px solid #3182F6; }
-  .tx-group.out   .tx-head { border-left:4px solid #DC2626; }
+  .tx-group { background:var(--surface,#ffffff); border:1px solid var(--line,#E5E8EB); border-radius:8px; margin-bottom:12px; overflow:hidden; }
+  .tx-group .tx-head { display:flex; align-items:center; gap:12px; padding:12px 16px; background:var(--bg,#F9FAFB); border-bottom:1px solid var(--line,#E5E8EB); }
+  .tx-group.in    .tx-head { border-left:4px solid var(--primary,#3182F6); }
+  .tx-group.out   .tx-head { border-left:4px solid var(--red,#DC2626); }
   .tx-group.adjust .tx-head { border-left:4px solid #F59E0B; }
   .tx-group.move   .tx-head { border-left:4px solid #A855F7; }
 
   .tx-head .tx-ic { width:30px; height:30px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
-  .tx-group.in    .tx-head .tx-ic { background:#DBEAFE; color:#1D4ED8; }
-  .tx-group.out   .tx-head .tx-ic { background:#FEE2E2; color:#DC2626; }
-  .tx-group.adjust .tx-head .tx-ic { background:#FEF3C7; color:#92400E; }
-  .tx-group.move   .tx-head .tx-ic { background:#F3E8FF; color:#6B21A8; }
-  .tx-head .title { font-size:14px; font-weight:700; color:#191F28; }
-  .tx-head .sub { font-size:12px; color:#6B7684; margin-top:1px; }
-  .tx-head .qty-total { font-size:15px; font-weight:800; font-family:"SF Mono",ui-monospace,monospace; margin-left:auto; padding-right:14px; }
-  .tx-head .qty-total.pos { color:#15803D; }
-  .tx-head .qty-total.neg { color:#DC2626; }
-  .tx-head .qty-total.adj { color:#92400E; }
+  .tx-group.in    .tx-head .tx-ic { background:var(--연한-파랑,#DBEAFE); color: var(--글자-파랑, var(--primary,#1D4ED8)); }
+  .tx-group.out   .tx-head .tx-ic { background:var(--연한-빨강,#FEE2E2); color: var(--글자-빨강, var(--red,#DC2626)); }
+  .tx-group.adjust .tx-head .tx-ic { background:#FEF3C7; color: var(--글자-주황, var(--amber,#92400E)); }
+  .tx-group.move   .tx-head .tx-ic { background:var(--연한-보라,#F3E8FF); color:#6B21A8; }
+  .tx-head .title { font-size:14px; font-weight:700; color:var(--ink,#191F28); }
+  .tx-head .sub { font-size:12px; color:var(--글자-보조,#6B7684); margin-top:0px; }
+  .tx-head .qty-total { font-size:14px; font-weight:800; font-family:"SF Mono",ui-monospace,monospace; margin-left:auto; padding-right:12px; }
+  .tx-head .qty-total.pos { color: var(--글자-초록, var(--green,#15803D)); }
+  .tx-head .qty-total.neg { color: var(--글자-빨강, var(--red,#DC2626)); }
+  .tx-head .qty-total.adj { color: var(--글자-주황, var(--amber,#92400E)); }
   .tx-head .qty-total.mv  { color:#6B21A8; }
   .tx-head .more-menu { position:relative; }
-  .tx-head .more-btn { padding:5px 11px; background:#fff; border:1px solid #E5E8EB; color:#4E5968; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
-  .tx-head .more-dropdown { position:absolute; right:0; top:36px; background:#fff; border:1px solid #E5E8EB; border-radius:8px; padding:6px; min-width:170px; box-shadow:0 4px 14px rgba(0,0,0,.08); z-index:50; display:none; }
+  .tx-head .more-btn { padding:4px 12px; background:var(--surface,#ffffff); border:1px solid var(--line,#E5E8EB); color:var(--글자-기본,#4E5968); border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
+  .tx-head .more-dropdown { position:absolute; right:0; top:36px; background:var(--surface,#ffffff); border:1px solid var(--line,#E5E8EB); border-radius:8px; padding:4px; min-width:170px;  z-index:50; display:none; }
   .tx-head .more-dropdown.open { display:block; }
-  .tx-head .more-dropdown a { display:block; padding:8px 12px; font-size:14px; color:#191F28; text-decoration:none; border-radius:5px; cursor:pointer; }
-  .tx-head .more-dropdown a:hover { background:#F2F4F6; }
-  .tx-head .more-dropdown hr { border:0; border-top:1px solid #F2F4F6; margin:4px 0; }
+  .tx-head .more-dropdown a { display:block; padding:8px 12px; font-size:14px; color:var(--ink,#191F28); text-decoration:none; border-radius:8px; cursor:pointer; }
+  .tx-head .more-dropdown a:hover { background:var(--n100,#F2F4F6); }
+  .tx-head .more-dropdown hr { border:0; border-top:1px solid var(--n100,#F2F4F6); margin:4px 0; }
 
-  .tx-meta { display:flex; gap:18px; padding:8px 16px 10px; font-size:12px; color:#6B7684; border-bottom:1px solid #F2F4F6; flex-wrap:wrap; }
-  .tx-meta b { color:#191F28; font-weight:600; }
-  .loc-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:11px; font-size:12px; font-weight:600; }
-  .loc-from { background:#FEF2F2; color:#991B1B; }
-  .loc-to   { background:#EFF6FF; color:#1D4ED8; }
+  .tx-meta { display:flex; gap:16px; padding:8px 16px 8px; font-size:12px; color:var(--글자-보조,#6B7684); border-bottom:1px solid var(--n100,#F2F4F6); flex-wrap:wrap; }
+  .tx-meta b { color:var(--ink,#191F28); font-weight:600; }
+  .loc-chip { display:inline-flex; align-items:center; gap:4px; padding:0px 8px; border-radius:12px; font-size:12px; font-weight:600; }
+  .loc-from { background:var(--연한-빨강,#FEF2F2); color: var(--글자-빨강, var(--red,#991B1B)); }
+  .loc-to   { background:var(--연한-파랑,#EFF6FF); color: var(--글자-파랑, var(--primary,#1D4ED8)); }
 
   /* 제품 list (그룹 안 펼쳐짐) */
   .tx-items { padding:4px 0; }
-  .item-row { display:flex; align-items:center; gap:10px; padding:8px 16px; border-bottom:1px solid #F2F4F6; }
+  .item-row { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid var(--n100,#F2F4F6); }
   .item-row:last-child { border-bottom:0; }
-  .item-row:hover { background:#F9FAFB; }
-  .item-row .img-ph { width:32px; height:32px; border-radius:6px; background:#F2F4F6; display:inline-flex; align-items:center; justify-content:center; color:#9CA3AF; font-size:14px; flex-shrink:0; }
+  .item-row:hover { background:var(--bg,#F9FAFB); }
+  .item-row .img-ph { width:32px; height:32px; border-radius:8px; background:var(--n100,#F2F4F6); display:inline-flex; align-items:center; justify-content:center; color: var(--글자-희미, var(--faint,#9CA3AF)); font-size:14px; flex-shrink:0; }
   .item-row .nm { flex:1; min-width:0; }
-  .item-row .nm .sku { font-size:12px; color:#191F28; font-family:"SF Mono",ui-monospace,monospace; word-break:break-all; }
+  .item-row .nm .sku { font-size:12px; color:var(--ink,#191F28); font-family:"SF Mono",ui-monospace,monospace; word-break:break-all; }
   .item-row .qty { font-size:14px; font-weight:700; font-family:"SF Mono",ui-monospace,monospace; min-width:44px; text-align:right; }
-  .item-row .qty.pos { color:#15803D; }
-  .item-row .qty.neg { color:#DC2626; }
+  .item-row .qty.pos { color: var(--글자-초록, var(--green,#15803D)); }
+  .item-row .qty.neg { color: var(--글자-빨강, var(--red,#DC2626)); }
   .item-row .row-acts { display:flex; gap:4px; }
-  .item-row .row-acts a, .item-row .row-acts button { padding:4px 9px; border:1px solid #E5E8EB; background:#fff; color:#4E5968; border-radius:5px; font-size:12px; cursor:pointer; text-decoration:none; font-family:inherit; }
-  .item-row .row-acts a:hover { border-color:#3182F6; color:#3182F6; }
-  .item-row .row-acts button.del:hover { border-color:#DC2626; color:#DC2626; background:#FEF2F2; }
+  .item-row .row-acts a, .item-row .row-acts button { padding:4px 8px; border:1px solid var(--line,#E5E8EB); background:var(--surface,#ffffff); color:var(--글자-기본,#4E5968); border-radius:8px; font-size:12px; cursor:pointer; text-decoration:none; font-family:inherit; }
+  .item-row .row-acts a:hover { border-color:var(--primary,#3182F6); color: var(--글자-파랑, var(--primary,#3182F6)); }
+  .item-row .row-acts button.del:hover { border-color:var(--red,#DC2626); color: var(--글자-빨강, var(--red,#DC2626)); background:var(--연한-빨강,#FEF2F2); }
 </style>
 
 <div class="h-shell">
   <div class="h-head">
     <h1>히스토리</h1>
-    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:#fff;border:1px solid #E5E8EB;color:#191F28;padding:7px 14px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600"><i class="ph-light ph-folder" aria-hidden="true"></i> 엑셀 내보내기</a>
+    <a href="{{ url_for('inventory.history_export') }}" style="margin-left:auto;background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:14px;text-decoration:none;font-weight:600"><i class="ph-light ph-folder" aria-hidden="true"></i> 엑셀 내보내기</a>
   </div>
 
   <form method="get" class="h-filterbar">
-    <select name="period" onchange="document.getElementById('customDateBox').style.display = this.value=='custom' ? 'inline-flex' : 'none'" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;background:#fff;color:#191F28">
+    <select name="period" onchange="document.getElementById('customDateBox').style.display = this.value=='custom' ? 'inline-flex' : 'none'" style="padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;background:var(--surface,#ffffff);color:var(--ink,#191F28)">
       <option value="">📅 전체 기간 ▾</option>
       <option value="today" {% if period=='today' %}selected{% endif %}>오늘</option>
       <option value="week" {% if period=='week' %}selected{% endif %}>최근 7일</option>
       <option value="month" {% if period=='month' %}selected{% endif %}>최근 30일</option>
       <option value="custom" {% if period=='custom' %}selected{% endif %}>📅 직접 입력</option>
     </select>
-    <span id="customDateBox" style="display:{% if period=='custom' %}inline-flex{% else %}none{% endif %};gap:6px;align-items:center">
-      <input type="date" name="date_from" value="{{ date_from }}" style="padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
-      <span style="color:#8B95A1;font-size:12px">~</span>
-      <input type="date" name="date_to" value="{{ date_to }}" style="padding:6px 8px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
+    <span id="customDateBox" style="display:{% if period=='custom' %}inline-flex{% else %}none{% endif %};gap:4px;align-items:center">
+      <input type="date" name="date_from" value="{{ date_from }}" style="padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:12px">
+      <span style="color:var(--sub,#8B95A1);font-size:12px">~</span>
+      <input type="date" name="date_to" value="{{ date_to }}" style="padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:12px">
     </span>
-    <select name="type" style="padding:7px 10px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;background:#fff;color:#191F28">
+    <select name="type" style="padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;background:var(--surface,#ffffff);color:var(--ink,#191F28)">
       <option value="">📦 전체 종류</option>
       <option value="in" {% if tx_type=='in' %}selected{% endif %}>📥 입고</option>
       <option value="out" {% if tx_type=='out' %}selected{% endif %}>📤 출고</option>
@@ -86,9 +86,9 @@
       <option value="move" {% if tx_type=='move' %}selected{% endif %}>→ 이동</option>
     </select>
     {% with search_placeholder='옵션·거래처·메모 검색' %}{% include 'partials/search_chips.html' %}{% endwith %}
-    <button type="submit" style="background:#3182F6;color:#fff;padding:7px 14px;border:none;border-radius:5px;font-size:14px;cursor:pointer;font-weight:700">검색</button>
-    {% if period or tx_type or q %}<a href="{{ url_for('inventory.history') }}" style="font-size:12px;color:#8B95A1;text-decoration:none;padding:7px">초기화</a>{% endif %}
-    <span style="margin-left:auto;font-size:12px;color:#8B95A1">{{ '{:,}'.format(total) }}건 · 거래일순 ▾</span>
+    <button type="submit" style="background:var(--primary,#3182F6);color:#fff;padding:8px 12px;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700">검색</button>
+    {% if period or tx_type or q %}<a href="{{ url_for('inventory.history') }}" style="font-size:12px;color:var(--sub,#8B95A1);text-decoration:none;padding:8px">초기화</a>{% endif %}
+    <span style="margin-left:auto;font-size:12px;color:var(--sub,#8B95A1)">{{ '{:,}'.format(total) }}건 · 거래일순 ▾</span>
   </form>
 
   {% if grouped %}
@@ -154,13 +154,13 @@
       </div>
     {% endfor %}
   {% else %}
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:48px;text-align:center;color:#8B95A1">거래 내역 없음</div>
+    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:48px;text-align:center;color:var(--sub,#8B95A1)">거래 내역 없음</div>
   {% endif %}
 
-  <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px;align-items:center">
-    <span style="font-size:12px;color:#8B95A1">페이지 {{ page }}</span>
-    {% if page > 1 %}<a href="?page={{ page-1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if period %}&period={{ period }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#191F28;font-size:12px;text-decoration:none;border-radius:5px">이전</a>{% endif %}
-    {% if items|length == 50 %}<a href="?page={{ page+1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if period %}&period={{ period }}{% endif %}" style="padding:6px 12px;border:1px solid #CBCCD3;background:#fff;color:#191F28;font-size:12px;text-decoration:none;border-radius:5px">다음</a>{% endif %}
+  <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px;align-items:center">
+    <span style="font-size:12px;color:var(--sub,#8B95A1)">페이지 {{ page }}</span>
+    {% if page > 1 %}<a href="?page={{ page-1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if period %}&period={{ period }}{% endif %}" style="padding:4px 12px;border:1px solid var(--faint,#CBCCD3);background:var(--surface,#ffffff);color:var(--ink,#191F28);font-size:12px;text-decoration:none;border-radius:8px">이전</a>{% endif %}
+    {% if items|length == 50 %}<a href="?page={{ page+1 }}{% if tx_type %}&type={{ tx_type }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if period %}&period={{ period }}{% endif %}" style="padding:4px 12px;border:1px solid var(--faint,#CBCCD3);background:var(--surface,#ffffff);color:var(--ink,#191F28);font-size:12px;text-decoration:none;border-radius:8px">다음</a>{% endif %}
   </div>
 </div>
 

@@ -1,5 +1,9 @@
 import pytest
-from lemouton.sourcing.crawl_guide import empty_skeleton, validate_guide, merge_verification
+from lemouton.sourcing.crawl_guide import (
+    empty_skeleton, validate_guide, merge_verification,
+    default_checklist, _CHECKLIST_TEMPLATE,
+    auto_checklist_updates, apply_checklist_updates,
+)
 
 def test_empty_skeleton_shape():
     sk = empty_skeleton()
@@ -104,3 +108,205 @@ def test_merge_verification_last_new_check():
 def test_merge_verification_rejects_bad_kind():
     with pytest.raises(ValueError):
         merge_verification(empty_skeleton(), "WRONG", {})
+
+
+# ─────────────────────────────────────────────────────────────
+# 재고 반영 규칙 (option_stock.stock_rules) + 검증 체크리스트 (2026-06-13)
+# ─────────────────────────────────────────────────────────────
+def test_empty_skeleton_has_stock_rules():
+    """option_stock 만 재고 규칙을 가진다 (기본 in_stock)."""
+    sk = empty_skeleton()
+    sr = sk["fields"]["option_stock"]["stock_rules"]
+    assert sr == {"soldout_markers": [], "qty_patterns": [], "no_marker_means": "in_stock"}
+    # 다른 필드엔 stock_rules 없음
+    assert "stock_rules" not in sk["fields"]["price"]
+
+
+def test_stock_rules_preserved():
+    """소싱처별 품절 마커·한정수량 표기·표식없음 처리가 보존된다."""
+    data = empty_skeleton()
+    data["fields"]["option_stock"]["stock_rules"] = {
+        "soldout_markers": ["품절", "재입고 알림"],
+        "qty_patterns": ["잔여 N개", "N개 남음", "마지막 N개", "품절임박 (N)"],
+        "no_marker_means": "in_stock",
+    }
+    out = validate_guide(data)["fields"]["option_stock"]["stock_rules"]
+    assert out["soldout_markers"] == ["품절", "재입고 알림"]
+    assert "N개 남음" in out["qty_patterns"]
+    assert out["no_marker_means"] == "in_stock"
+
+
+def test_stock_rules_bad_no_marker_falls_back():
+    """잘못된 no_marker_means → 안전 기본(in_stock)."""
+    data = empty_skeleton()
+    data["fields"]["option_stock"]["stock_rules"] = {"no_marker_means": "WRONG"}
+    out = validate_guide(data)["fields"]["option_stock"]["stock_rules"]
+    assert out["no_marker_means"] == "in_stock"
+
+
+def test_stock_rules_accepts_unknown_marker_policy():
+    data = empty_skeleton()
+    data["fields"]["option_stock"]["stock_rules"] = {"no_marker_means": "unknown"}
+    out = validate_guide(data)["fields"]["option_stock"]["stock_rules"]
+    assert out["no_marker_means"] == "unknown"
+
+
+def test_checklist_default_covers_template():
+    """기본 체크리스트 = 템플릿 전체 (전부 pending)."""
+    cl = default_checklist()
+    assert len(cl) == len(_CHECKLIST_TEMPLATE)
+    keys = {c["key"] for c in cl}
+    # 재고 3단계가 반드시 포함
+    assert {"stock_soldout", "stock_qty", "stock_none"} <= keys
+    # 동시·무결성 3항목(손실 방지 핵심: 동시정확·실패처리·재크롤 리셋)도 포함
+    assert {"integrity_batch_accuracy", "integrity_fail_loud", "integrity_recrawl_reset"} <= keys
+    # 4단계(phase) 모두 존재
+    assert {c["phase"] for c in cl} == {"integrity", "collect", "process", "transmit"}
+    assert all(c["status"] == "pending" for c in cl)
+
+
+def test_checklist_status_preserved_and_normalized():
+    """카드별 status/note 보존, label/phase 는 템플릿이 진실원천(덮어씀)."""
+    sk = empty_skeleton()
+    sk["verification"]["checklist"] = [
+        {"key": "stock_qty", "status": "pass", "note": "잔여/남음/마지막 매칭 확인",
+         "label": "사용자가 바꾼 라벨(무시됨)", "phase": "transmit"},
+        {"key": "UNKNOWN_KEY", "status": "pass"},  # 폐기되어야 함
+    ]
+    out = validate_guide(sk)["verification"]["checklist"]
+    keys = {c["key"] for c in out}
+    assert "UNKNOWN_KEY" not in keys                       # 모르는 key 폐기
+    sq = next(c for c in out if c["key"] == "stock_qty")
+    assert sq["status"] == "pass"                          # status 보존
+    assert sq["note"] == "잔여/남음/마지막 매칭 확인"        # note 보존
+    assert sq["phase"] == "collect"                        # 템플릿이 진실원천(덮어씀)
+    assert sq["label"] != "사용자가 바꾼 라벨(무시됨)"
+
+
+def test_legacy_card_gets_full_checklist():
+    """checklist 키 없는 기존 카드 → 전체 pending 으로 자동 보강(하위호환)."""
+    legacy = {"version": 3, "sample_urls": [],
+              "fields": {}, "pricing": {"benefit_collection": "per_product", "benefits": []},
+              "verification": {"lead_cache": None}}
+    out = validate_guide(legacy)["verification"]["checklist"]
+    assert len(out) == len(_CHECKLIST_TEMPLATE)
+    assert all(c["status"] == "pending" for c in out)
+
+
+# ─────────────────────────────────────────────────────────────
+# [동시·무결성 8단계] 정답 자동 대조 (auto_checklist_updates / apply)
+# ─────────────────────────────────────────────────────────────
+def test_auto_checklist_basic_pass():
+    r = {"surface_price": 42000, "final_price": 39900, "option_stock": "그레이/250 재고○"}
+    u = auto_checklist_updates(r)
+    assert u["collect_price"] == "pass"
+    assert u["process_sequential_deduct"] == "pass"
+    assert u["collect_option_match"] == "pass"
+    assert "transmit_price_match" not in u   # 정답 없으면 미판정
+
+
+def test_auto_checklist_price_match_vs_truth():
+    r = {"surface_price": 42000, "final_price": 39900}
+    assert auto_checklist_updates(r, {"final_price": 39900})["transmit_price_match"] == "pass"
+    assert auto_checklist_updates(r, {"final_price": 35000})["transmit_price_match"] == "fail"
+
+
+def test_auto_checklist_ignores_bad_input():
+    assert auto_checklist_updates({"surface_price": 0}) == {}     # 표면가 0 → 판정 없음
+    assert auto_checklist_updates(None) == {}
+    # 최종가 > 표면가(비정상) → 순차차감 pass 안 함
+    assert "process_sequential_deduct" not in auto_checklist_updates(
+        {"surface_price": 100, "final_price": 200})
+
+
+def test_apply_checklist_updates_safe():
+    g = empty_skeleton()
+    g2 = apply_checklist_updates(g, {"collect_price": "pass", "UNKNOWN": "pass", "stock_qty": "BAD"})
+    by = {c["key"]: c["status"] for c in g2["verification"]["checklist"]}
+    assert by["collect_price"] == "pass"
+    assert by["stock_qty"] == "pending"     # 잘못된 status 무시
+    assert "UNKNOWN" not in by              # 모르는 key 무시
+
+
+# ─────────────────────────────────────────────────────────────
+# Task 1a-2: 혜택 value_source(fixed/crawl) + 혜택별 excludes/exclude_match
+# ─────────────────────────────────────────────────────────────
+def test_benefit_value_source_and_excludes():
+    from lemouton.sourcing import crawl_guide as cg
+    g = cg.validate_guide({"version": 3, "pricing": {"benefits": [
+        {"name": "등급적립", "apply": "accrue", "status": "conditional", "value_source": "crawl",
+         "excludes": ["불가", " "], "exclude_match": "all", "triggers": ["적립"], "match": "any"},
+        {"name": "현대카드", "apply": "deduct", "status": "conditional", "value_source": "fixed", "value": 2.73},
+        {"name": "레거시", "apply": "deduct", "status": "always"},   # value_source 키 없음 → fixed 기본
+    ]}})
+    b = {x["name"]: x for x in g["pricing"]["benefits"]}
+    # 크롤값+조건부 보존
+    assert b["등급적립"]["value_source"] == "crawl"
+    assert b["등급적립"]["excludes"] == ["불가"] and b["등급적립"]["exclude_match"] == "all"
+    assert b["등급적립"]["status"] == "conditional"
+    # 고정값 → status 강제 always (조건부 불가)
+    assert b["현대카드"]["value_source"] == "fixed" and b["현대카드"]["status"] == "always"
+    # 레거시(키 없음) → fixed + 빈 excludes + exclude_match any
+    assert b["레거시"]["value_source"] == "fixed"
+    assert b["레거시"]["excludes"] == [] and b["레거시"]["exclude_match"] == "any"
+
+
+# ─────────────────────────────────────────────────────────────
+# stage_progress — CLAUDE 단계 진행상태(카드 표시·옵션1)
+# ─────────────────────────────────────────────────────────────
+def test_stage_progress_default_none():
+    from lemouton.sourcing import crawl_guide as cg
+    assert cg.empty_skeleton()["stage_progress"] is None
+    assert cg.validate_guide({"version": 3})["stage_progress"] is None
+
+
+def test_stage_progress_clean_and_accumulate():
+    from lemouton.sourcing import crawl_guide as cg
+    # S3 도달 → S1·S2 자동 done, 현재 S3
+    g = cg.advance_stage(cg.empty_skeleton(), "new", "S3", note="가격 작업중", updated_at="t")
+    sp = g["stage_progress"]
+    assert sp["kind"] == "new" and sp["stage"] == "S3"
+    assert sp["done"] == ["S1", "S2"] and sp["label"] == "가격·혜택"
+    assert sp["note"] == "가격 작업중" and sp["updated_at"] == "t"
+
+
+def test_stage_progress_complete():
+    from lemouton.sourcing import crawl_guide as cg
+    g = cg.advance_stage(cg.empty_skeleton(), "new", None, complete=True)
+    sp = g["stage_progress"]
+    assert sp["stage"] is None and sp["done"] == ["S1", "S2", "S3", "S4", "S5", "S6"]
+
+
+def test_stage_progress_rejects_unknown_keys():
+    from lemouton.sourcing import crawl_guide as cg
+    g = cg.validate_guide({"version": 3, "stage_progress":
+                           {"kind": "new", "stage": "ZZ", "done": ["S1", "BAD"]}})
+    # ZZ 폐기→stage None, BAD 폐기, S1만 done → 진행 있음이라 dict 유지
+    assert g["stage_progress"]["stage"] is None
+    assert g["stage_progress"]["done"] == ["S1"]
+
+
+def test_stage_progress_update_kind():
+    from lemouton.sourcing import crawl_guide as cg
+    g = cg.advance_stage(cg.empty_skeleton(), "update", "U2")
+    sp = g["stage_progress"]
+    assert sp["kind"] == "update" and sp["done"] == ["U1"] and sp["label"] == "진단"
+
+
+# ─────────────────────────────────────────────────────────────
+# 도메인 존재검사 (source_registry) — 중복 소싱처 차단의 기반
+# ─────────────────────────────────────────────────────────────
+def test_domain_of_strips_www_port_path():
+    from lemouton.sourcing import source_registry as sr
+    assert sr.domain_of("https://www.hmall.com/md/pda/itemPtc?slitmCd=1") == "hmall.com"
+    assert sr.domain_of("http://smartstore.naver.com/x/y") == "smartstore.naver.com"
+    assert sr.domain_of("hmall.com/a") == "hmall.com"
+    assert sr.domain_of("") == ""
+
+
+def test_catalog_by_domain_matches_builtin_and_subdomain():
+    from lemouton.sourcing import source_registry as sr
+    assert sr.catalog_by_domain("https://www.hmall.com/x")["key"] == "hmall"
+    assert sr.catalog_by_domain("https://m.hmall.com/x")["key"] == "hmall"   # 서브도메인
+    assert sr.catalog_by_domain("https://www.musinsa.com/products/1")["key"] == "musinsa"
+    assert sr.catalog_by_domain("https://example.com/x") is None

@@ -1,0 +1,58 @@
+{
+ "guide_sample_urls": [
+  "https://www.musinsa.com/products/4046672",
+  "https://www.musinsa.com/products/4128817",
+  "https://www.musinsa.com/products/4941819",
+  "https://www.musinsa.com/products/6538205"
+ ],
+ "all_musinsa_source_products": [
+  {
+   "id": 64,
+   "url": "https://www.musinsa.com/products/6020529"
+  },
+  {
+   "id": 60,
+   "url": "https://www.musinsa.com/products/3347848"
+  },
+  {
+   "id": 62,
+   "url": "https://www.musinsa.com/products/4658725"
+  },
+  {
+   "id": 59,
+   "url": "https://www.musinsa.com/products/4046672"
+  },
+  {
+   "id": 63,
+   "url": "https://www.musinsa.com/products/3347849"
+  },
+  {
+   "id": 9,
+   "url": "https://www.musinsa.com/products/3625540"
+  },
+  {
+   "id": 65,
+   "url": "https://www.musinsa.com/products/4800825"
+  },
+  {
+   "id": 68,
+   "url": "https://www.musinsa.com/products/3347853"
+  },
+  {
+   "id": 67,
+   "url": "https://www.musinsa.com/products/6274114"
+  },
+  {
+   "id": 66,
+   "url": "https://www.musinsa.com/products/3347851"
+  },
+  {
+   "id": 4,
+   "url": "https://www.musinsa.com/products/3728480"
+  },
+  {
+   "id": 61,
+   "url": "https://www.musinsa.com/products/3347850"
+  }
+ ]
+}

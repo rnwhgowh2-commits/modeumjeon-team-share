@@ -13,7 +13,7 @@
 @keyframes icp-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 
 .icp-modal {
-  background: #fff; border: 1.5px solid #D1D6DB; border-radius: 12px;
+  background: var(--surface,#ffffff); border: 1.5px solid var(--faint,#D1D6DB); border-radius: 12px;
   width: 720px; max-width: 92vw;
   box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
   overflow: hidden;
@@ -23,66 +23,66 @@
 /* HEAD */
 .icp-head {
   display: flex; align-items: center; gap: 10px;
-  padding: 14px 18px; border-bottom: 1px solid #F2F4F6;
+  padding: 14px 18px; border-bottom: 1px solid var(--n100,#F2F4F6);
 }
-.icp-head h3 { margin: 0; font-size: 15px; font-weight: 800; color: #191F28; }
-.icp-head .icp-sub { font-size: 14px; color: #8B95A1; }
+.icp-head h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--ink,#191F28); }
+.icp-head .icp-sub { font-size: 14px; color: var(--글자-희미, var(--sub,#8B95A1)); }
 .icp-head .icp-esc {
   margin-left: auto;
-  background: #F2F4F6; color: #6B7684;
+  background: var(--n100,#F2F4F6); color: var(--글자-보조,#6B7684);
   padding: 4px 10px; border-radius: 5px;
   font-size: 14px; font-weight: 700;
   cursor: pointer; border: none; font-family: inherit;
 }
-.icp-head .icp-esc:hover { background: #E5E8EB; color: #4E5968; }
+.icp-head .icp-esc:hover { background: var(--line,#E5E8EB); color: var(--글자-기본,#4E5968); }
 
 /* SEARCH */
 .icp-search {
   padding: 12px 16px;
   display: flex; gap: 8px;
-  border-bottom: 1px solid #F2F4F6;
+  border-bottom: 1px solid var(--n100,#F2F4F6);
   align-items: center;
 }
 .icp-search input {
   flex: 1; padding: 8px 14px;
-  border: 1.5px solid #E5E8EB; border-radius: 8px;
+  border: 1.5px solid var(--line,#E5E8EB); border-radius: 8px;
   font-size: 13px; font-family: inherit;
-  background: #F9FAFB; color: #191F28;
+  background: var(--bg,#F9FAFB); color: var(--ink,#191F28);
 }
-.icp-search input:focus { outline: none; border-color: #3182F6; background: #fff; }
+.icp-search input:focus { outline: none; border-color: var(--primary,#3182F6); background: var(--surface,#ffffff); }
 .icp-search .icp-mode {
-  display: inline-flex; background: #F2F4F6; border-radius: 8px; padding: 2px;
+  display: inline-flex; background: var(--n100,#F2F4F6); border-radius: 8px; padding: 2px;
 }
 .icp-search .icp-mode button {
   background: transparent; border: none; padding: 6px 11px;
   border-radius: 6px; font-size: 14px; font-weight: 800;
-  cursor: pointer; font-family: inherit; color: #6B7684;
+  cursor: pointer; font-family: inherit; color: var(--글자-보조,#6B7684);
   display: inline-flex; align-items: center; gap: 4px;
 }
-.icp-search .icp-mode button.on { background: #fff; color: #191F28; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
+.icp-search .icp-mode button.on { background: var(--surface,#ffffff); color: var(--ink,#191F28); box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
 
 /* CATEGORIES */
 .icp-cats {
   display: flex; gap: 4px; padding: 8px 16px;
-  border-bottom: 1px solid #F2F4F6; overflow-x: auto;
+  border-bottom: 1px solid var(--n100,#F2F4F6); overflow-x: auto;
   scrollbar-width: thin;
 }
 .icp-cats button {
   flex: 0 0 auto;
   background: transparent; border: none;
   padding: 5px 10px; border-radius: 5px;
-  font-size: 14px; font-weight: 700; color: #6B7684;
+  font-size: 14px; font-weight: 700; color: var(--글자-보조,#6B7684);
   cursor: pointer; font-family: inherit; white-space: nowrap;
 }
-.icp-cats button:hover { background: #F2F4F6; }
-.icp-cats button.on { background: #E8F2FE; color: #1B64DA; }
+.icp-cats button:hover { background: var(--n100,#F2F4F6); }
+.icp-cats button.on { background: var(--연한-파랑,#E8F2FE); color: #1B64DA; }
 .icp-cats .icp-cnt {
-  background: #E5E8EB; color: #6B7684;
+  background: var(--line,#E5E8EB); color: var(--글자-보조,#6B7684);
   padding: 1px 5px; border-radius: 8px;
   font-size: 12px; margin-left: 3px;
   font-family: ui-monospace, monospace;
 }
-.icp-cats button.on .icp-cnt { background: #3182F6; color: #fff; }
+.icp-cats button.on .icp-cnt { background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff; }
 
 /* GRID */
 .icp-grid {
@@ -97,18 +97,18 @@
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1.5px solid transparent;
   border-radius: 6px; cursor: pointer;
-  font-size: 20px; color: #4E5968;
+  font-size: 20px; color: var(--글자-기본,#4E5968);
   transition: background .1s, border-color .1s, transform .08s;
   position: relative;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }
-.icp-cell:hover { background: #F2F4F6; border-color: #D1D6DB; }
-.icp-cell.selected { background: #E8F2FE; border-color: #3182F6; }
-.icp-cell:focus { outline: none; background: #E8F2FE; border-color: #3182F6; }
+.icp-cell:hover { background: var(--n100,#F2F4F6); border-color: var(--faint,#D1D6DB); }
+.icp-cell.selected { background: var(--연한-파랑,#E8F2FE); border-color: var(--primary,#3182F6); }
+.icp-cell:focus { outline: none; background: var(--연한-파랑,#E8F2FE); border-color: var(--primary,#3182F6); }
 
 /* 색상 모드 — 동일 아이콘이 자동 다채로움 */
 .icp-cell.cmode { font-family: inherit; }
-.icp-cell.cmode.c1 { color: #3182F6; }
+.icp-cell.cmode.c1 { color: var(--글자-파랑, var(--primary,#3182F6)); }
 .icp-cell.cmode.c2 { color: #03C75A; }
 .icp-cell.cmode.c3 { color: #F59E0B; }
 .icp-cell.cmode.c4 { color: #EF4444; }
@@ -121,13 +121,13 @@
 .icp-empty {
   grid-column: 1 / -1;
   padding: 30px; text-align: center;
-  color: #8B95A1; font-size: 14px;
+  color: var(--글자-희미, var(--sub,#8B95A1)); font-size: 14px;
 }
 
 /* COLOR PALETTE (선택 시 노출) — v34 부터 inline 식 (바탕/글자 분리) 사용 */
 .icp-palette {
-  padding: 14px 18px; background: #F9FAFB;
-  border-top: 1px solid #F2F4F6; border-bottom: 1px solid #F2F4F6;
+  padding: 14px 18px; background: var(--bg,#F9FAFB);
+  border-top: 1px solid var(--n100,#F2F4F6); border-bottom: 1px solid var(--n100,#F2F4F6);
   display: flex; align-items: center; gap: 12px;
 }
 .icp-palette.icp-cp-v34 {
@@ -138,15 +138,15 @@
   display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
 }
 .icp-palette.icp-cp-v34 .icp-cp-inline-hint {
-  font-size: 12px; color: #8B95A1; font-weight: 500;
+  font-size: 12px; color: var(--글자-희미, var(--sub,#8B95A1)); font-weight: 500;
 }
 .icp-palette.icp-cp-v34 .icp-cp-section {
-  margin-bottom: 10px; padding: 8px 10px; background: #fff;
-  border: 1px solid #F2F4F6; border-radius: 8px;
+  margin-bottom: 10px; padding: 8px 10px; background: var(--surface,#ffffff);
+  border: 1px solid var(--n100,#F2F4F6); border-radius: 8px;
 }
 .icp-palette.icp-cp-v34 .icp-cp-section:last-child { margin-bottom: 0; }
 .icp-palette.icp-cp-v34 .icp-cp-row-label {
-  font-size: 12px; font-weight: 700; color: #4E5968; margin-bottom: 5px;
+  font-size: 12px; font-weight: 700; color: var(--글자-기본,#4E5968); margin-bottom: 5px;
 }
 .icp-palette.icp-cp-v34 .icp-cp-grid {
   display: grid; grid-template-columns: repeat(18, 1fr); gap: 4px; margin-bottom: 6px;
@@ -155,31 +155,31 @@
   width: 100%; aspect-ratio: 1; min-height: 20px; border-radius: 50%;
   cursor: pointer; padding: 0; border: none;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: #B0B8C1;
+  font-size: 11px; font-weight: 800; color: var(--글자-희미, var(--faint,#B0B8C1));
   transition: transform .1s;
 }
 .icp-palette.icp-cp-v34 .icp-cp-cell:hover { transform: scale(1.18); }
-.icp-palette.icp-cp-v34 .icp-cp-cell.on { outline: 2px solid #191F28; outline-offset: 2px; }
+.icp-palette.icp-cp-v34 .icp-cp-cell.on { outline: 2px solid var(--ink,#191F28); outline-offset: 2px; }
 .icp-palette.icp-cp-v34 .icp-cp-input-row {
   display: flex; align-items: center; gap: 6px;
 }
 .icp-palette.icp-cp-v34 .icp-cp-native {
-  width: 34px; height: 26px; padding: 0; border: 1px solid #D1D6DB;
-  border-radius: 5px; cursor: pointer; background: #fff;
+  width: 34px; height: 26px; padding: 0; border: 1px solid var(--faint,#D1D6DB);
+  border-radius: 5px; cursor: pointer; background: var(--surface,#ffffff);
 }
 .icp-palette.icp-cp-v34 .icp-cp-native::-webkit-color-swatch-wrapper { padding: 2px; }
 .icp-palette.icp-cp-v34 .icp-cp-native::-webkit-color-swatch { border: none; border-radius: 3px; }
 .icp-palette.icp-cp-v34 .icp-cp-hex {
   flex: 1; padding: 5px 8px; font-size: 12px;
-  border: 1.5px solid #E5E8EB; border-radius: 5px;
-  font-family: 'SF Mono', 'Menlo', monospace; color: #191F28;
-  text-transform: uppercase; background: #fff;
+  border: 1.5px solid var(--line,#E5E8EB); border-radius: 5px;
+  font-family: 'SF Mono', 'Menlo', monospace; color: var(--ink,#191F28);
+  text-transform: uppercase; background: var(--surface,#ffffff);
 }
-.icp-palette.icp-cp-v34 .icp-cp-hex:focus { outline: none; border-color: #3182F6; }
+.icp-palette.icp-cp-v34 .icp-cp-hex:focus { outline: none; border-color: var(--primary,#3182F6); }
 .icp-palette.icp-cp-v34 .icp-cp-swatch {
   width: 22px; height: 22px; border-radius: 5px;
-  border: 1px solid #D1D6DB; display: inline-block;
-  background: #fff;
+  border: 1px solid var(--faint,#D1D6DB); display: inline-block;
+  background: var(--surface,#ffffff);
 }
 .icp-palette.icp-cp-v34 .icp-cp-preview-chip {
   display: inline-flex; align-items: center;
@@ -188,13 +188,13 @@
   box-shadow: 0 2px 4px rgba(0,0,0,0.08);
 }
 .icp-palette .icp-preview {
-  background: #fff; border: 1.5px solid #E5E8EB; border-radius: 8px;
+  background: var(--surface,#ffffff); border: 1.5px solid var(--line,#E5E8EB); border-radius: 8px;
   padding: 6px;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 26px; width: 44px; height: 44px;
 }
-.icp-palette .icp-lab { font-size: 14px; font-weight: 800; color: #4E5968; }
-.icp-palette .icp-lab small { display: block; font-size: 12px; color: #8B95A1; font-weight: 500; margin-top: 2px; }
+.icp-palette .icp-lab { font-size: 14px; font-weight: 800; color: var(--글자-기본,#4E5968); }
+.icp-palette .icp-lab small { display: block; font-size: 12px; color: var(--글자-희미, var(--sub,#8B95A1)); font-weight: 500; margin-top: 2px; }
 .icp-palette .icp-colors {
   display: flex; gap: 5px; margin-left: auto;
 }
@@ -205,17 +205,17 @@
   padding: 0;
 }
 .icp-palette .icp-colors button:hover { transform: scale(1.15); }
-.icp-palette .icp-colors button.on { border-color: #191F28; }
+.icp-palette .icp-colors button.on { border-color: var(--ink,#191F28); }
 
 /* FOOTER */
 .icp-foot {
   padding: 12px 18px;
   display: flex; align-items: center; gap: 10px;
-  border-top: 1px solid #F2F4F6;
-  font-size: 14px; color: #8B95A1;
+  border-top: 1px solid var(--n100,#F2F4F6);
+  font-size: 14px; color: var(--글자-희미, var(--sub,#8B95A1));
 }
 .icp-foot .icp-hint kbd {
-  background: #F2F4F6; border: 1px solid #D1D6DB;
+  background: var(--n100,#F2F4F6); border: 1px solid var(--faint,#D1D6DB);
   padding: 1px 5px; border-radius: 3px;
   font-size: 12px; font-family: ui-monospace, monospace;
   margin: 0 2px;
@@ -225,9 +225,9 @@
   padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 800;
   border: 1.5px solid; cursor: pointer; font-family: inherit;
 }
-.icp-foot .icp-acts .icp-clear { background: #fff; color: #6B7684; border-color: #D1D6DB; }
-.icp-foot .icp-acts .icp-clear:hover { background: #F2F4F6; }
-.icp-foot .icp-acts .icp-pick { background: #3182F6; color: #fff; border-color: #3182F6; }
+.icp-foot .icp-acts .icp-clear { background: var(--surface,#ffffff); color: var(--글자-보조,#6B7684); border-color: var(--faint,#D1D6DB); }
+.icp-foot .icp-acts .icp-clear:hover { background: var(--n100,#F2F4F6); }
+.icp-foot .icp-acts .icp-pick { background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff; border-color: var(--primary,#3182F6); }
 .icp-foot .icp-acts .icp-pick:hover { background: #1B64DA; }
 .icp-foot .icp-acts .icp-pick:disabled { opacity: .55; cursor: not-allowed; }
 
@@ -237,7 +237,7 @@
   cursor: default;
 }
 [data-icon-edit]:hover {
-  outline: 2px dashed #3182F6;
+  outline: 2px dashed var(--primary,#3182F6);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -246,7 +246,7 @@
   position: absolute;
   top: -10px; right: -10px;
   width: 22px; height: 22px;
-  background: #3182F6; color: #fff;
+  background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff;
   border: 2px solid #fff;
   border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
@@ -295,8 +295,8 @@
 .icp-color-btn:hover { background: #5B21B6; transform: scale(1.15); }
 
 .icp-color-pop {
-  background: #fff;
-  border: 1.5px solid #D1D6DB;
+  background: var(--surface,#ffffff);
+  border: 1.5px solid var(--faint,#D1D6DB);
   border-radius: 10px;
   padding: 12px;
   box-shadow: 0 8px 22px rgba(0,0,0,0.16);
@@ -305,7 +305,7 @@
   min-width: 200px;
 }
 .icp-color-pop .icp-cp-title {
-  font-size: 14px; font-weight: 800; color: #4E5968;
+  font-size: 14px; font-weight: 800; color: var(--글자-기본,#4E5968);
   margin-bottom: 8px; padding-left: 2px;
 }
 .icp-color-pop .icp-cp-grid {
@@ -322,7 +322,7 @@
   transition: transform .1s;
 }
 .icp-color-pop .icp-cp-cell:hover { transform: scale(1.15); }
-.icp-color-pop .icp-cp-cell.on { outline: 2px solid #191F28; outline-offset: 2px; }
+.icp-color-pop .icp-cp-cell.on { outline: 2px solid var(--ink,#191F28); outline-offset: 2px; }
 
 /* ═══════════════════════════════════════════════════════════════
    v34 — 색상 picker 확장 (바탕/글자 분리 + 프리셋 + native + HEX)
@@ -330,17 +330,17 @@
 .icp-color-pop.icp-cp-v34 { min-width: 420px; max-width: 440px; padding: 14px 16px; }
 .icp-color-pop.icp-cp-v34 .icp-cp-head { margin-bottom: 10px; }
 .icp-color-pop.icp-cp-v34 .icp-cp-head .icp-cp-title {
-  display: block; font-size: 14px; font-weight: 800; color: #191F28; margin-bottom: 2px;
+  display: block; font-size: 14px; font-weight: 800; color: var(--ink,#191F28); margin-bottom: 2px;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-head .icp-cp-sub {
-  display: block; font-size: 12px; color: #8B95A1; font-weight: 500; line-height: 1.4;
+  display: block; font-size: 12px; color: var(--글자-희미, var(--sub,#8B95A1)); font-weight: 500; line-height: 1.4;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-section {
-  margin-bottom: 12px; padding: 10px; background: #F9FAFB;
-  border: 1px solid #F2F4F6; border-radius: 8px;
+  margin-bottom: 12px; padding: 10px; background: var(--bg,#F9FAFB);
+  border: 1px solid var(--n100,#F2F4F6); border-radius: 8px;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-row-label {
-  font-size: 12px; font-weight: 700; color: #4E5968; margin-bottom: 6px;
+  font-size: 12px; font-weight: 700; color: var(--글자-기본,#4E5968); margin-bottom: 6px;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-grid {
   display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; margin-bottom: 8px;
@@ -349,37 +349,37 @@
   width: 100%; aspect-ratio: 1; min-height: 24px; border-radius: 50%;
   cursor: pointer; padding: 0; border: none;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 800; color: #B0B8C1;
+  font-size: 12px; font-weight: 800; color: var(--글자-희미, var(--faint,#B0B8C1));
   transition: transform .1s;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-cell:hover { transform: scale(1.18); }
-.icp-color-pop.icp-cp-v34 .icp-cp-cell.on { outline: 2px solid #191F28; outline-offset: 2px; }
+.icp-color-pop.icp-cp-v34 .icp-cp-cell.on { outline: 2px solid var(--ink,#191F28); outline-offset: 2px; }
 
 .icp-color-pop.icp-cp-v34 .icp-cp-input-row {
   display: flex; align-items: center; gap: 8px;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-native {
-  width: 38px; height: 30px; padding: 0; border: 1px solid #D1D6DB;
-  border-radius: 6px; cursor: pointer; background: #fff;
+  width: 38px; height: 30px; padding: 0; border: 1px solid var(--faint,#D1D6DB);
+  border-radius: 6px; cursor: pointer; background: var(--surface,#ffffff);
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-native::-webkit-color-swatch-wrapper { padding: 2px; }
 .icp-color-pop.icp-cp-v34 .icp-cp-native::-webkit-color-swatch { border: none; border-radius: 4px; }
 .icp-color-pop.icp-cp-v34 .icp-cp-hex {
   flex: 1; padding: 6px 10px; font-size: 13px;
-  border: 1.5px solid #E5E8EB; border-radius: 6px;
-  font-family: 'SF Mono', 'Menlo', monospace; color: #191F28;
-  text-transform: uppercase; background: #fff;
+  border: 1.5px solid var(--line,#E5E8EB); border-radius: 6px;
+  font-family: 'SF Mono', 'Menlo', monospace; color: var(--ink,#191F28);
+  text-transform: uppercase; background: var(--surface,#ffffff);
 }
-.icp-color-pop.icp-cp-v34 .icp-cp-hex:focus { outline: none; border-color: #3182F6; }
+.icp-color-pop.icp-cp-v34 .icp-cp-hex:focus { outline: none; border-color: var(--primary,#3182F6); }
 .icp-color-pop.icp-cp-v34 .icp-cp-swatch {
   width: 26px; height: 26px; border-radius: 6px;
-  border: 1px solid #D1D6DB; display: inline-block;
-  background: #fff;
+  border: 1px solid var(--faint,#D1D6DB); display: inline-block;
+  background: var(--surface,#ffffff);
 }
 
 .icp-color-pop.icp-cp-v34 .icp-cp-preview {
   display: flex; align-items: center; justify-content: space-between;
-  padding-top: 10px; border-top: 1px solid #F2F4F6; margin-top: 4px;
+  padding-top: 10px; border-top: 1px solid var(--n100,#F2F4F6); margin-top: 4px;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-preview-chip {
   display: inline-flex; align-items: center;
@@ -401,11 +401,11 @@
   border-radius: 6px; cursor: pointer; border: none; font-family: inherit;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-reset {
-  background: #F2F4F6; color: #6B7684;
+  background: var(--n100,#F2F4F6); color: var(--글자-보조,#6B7684);
 }
-.icp-color-pop.icp-cp-v34 .icp-cp-reset:hover { background: #E5E8EB; color: #4E5968; }
+.icp-color-pop.icp-cp-v34 .icp-cp-reset:hover { background: var(--line,#E5E8EB); color: var(--글자-기본,#4E5968); }
 .icp-color-pop.icp-cp-v34 .icp-cp-apply {
-  background: #3182F6; color: #fff;
+  background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff;
 }
 .icp-color-pop.icp-cp-v34 .icp-cp-apply:hover { background: #1B64DA; }
 
@@ -420,7 +420,7 @@
   width: 100%; height: 130px; position: relative;
   border-radius: 6px;
   cursor: crosshair;
-  box-shadow: inset 0 0 0 1px #D1D6DB;
+  box-shadow: inset 0 0 0 1px var(--faint,#D1D6DB);
 }
 .icp-photo-sv-cursor {
   position: absolute; width: 12px; height: 12px;
@@ -435,12 +435,12 @@
   background: linear-gradient(to right,
     hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%),
     hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%));
-  box-shadow: inset 0 0 0 1px #D1D6DB;
+  box-shadow: inset 0 0 0 1px var(--faint,#D1D6DB);
 }
 .icp-photo-hue-cursor {
   position: absolute; top: -3px;
   width: 5px; height: 20px;
-  background: #fff; border: 1.5px solid #191F28; border-radius: 2px;
+  background: var(--surface,#ffffff); border: 1.5px solid var(--ink,#191F28); border-radius: 2px;
   transform: translateX(-50%);
   pointer-events: none;
 }

@@ -12,7 +12,7 @@
 
 기존 api_benefits.py 와 분리 (충돌 0, 단일 책임). url prefix 도 다름.
 
- 기존 코드 안 건드림 — 단일 추가만.
+[확인] 기존 코드 안 건드림 — 단일 추가만.
 """
 from __future__ import annotations
 
@@ -210,7 +210,7 @@ def add_benefit():
         applied_skus = []
 
         if scope == 'source':
-            # * 1건만 INSERT (전 source 적용)
+            # ★ 1건만 INSERT (전 source 적용)
             tpl = SourceBenefitTemplate(
                 source_id=source_id,
                 benefit_name=name,
@@ -268,7 +268,7 @@ def add_benefit():
             base = [o['sku'] for o in _options_by_bundle_code(session, bundle_code, active_only=True)]
             if not base:
                 return _err('bundle_all_src 대상 옵션 0건 (bundle_code 확인)')
-            # * 성능: 행마다 flush 금지 — 벌크 insert 1회 (sku×source 대량 대응)
+            # ★ 성능: 행마다 flush 금지 — 벌크 insert 1회 (sku×source 대량 대응)
             new_rows = [
                 OptionBenefitOverride(
                     canonical_sku=sku, source_id=sid, template_id=None,
@@ -298,7 +298,7 @@ def add_benefit():
         if not target_skus:
             return _err(f'적용 대상 옵션 0건 (scope={scope})')
 
-        # ── 일괄 INSERT (* 성능: 행마다 flush 금지 → 벌크 1회) ──
+        # ── 일괄 INSERT (★ 성능: 행마다 flush 금지 → 벌크 1회) ──
         new_rows = [
             OptionBenefitOverride(
                 canonical_sku=sku,

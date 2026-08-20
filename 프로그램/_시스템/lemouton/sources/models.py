@@ -7,7 +7,7 @@
 """
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, ForeignKey,
+    Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Float,
     UniqueConstraint, Index,
 )
 
@@ -28,6 +28,11 @@ class SourceProduct(Base):
     external_product_id = Column(String(128))
     product_name = Column(String(255))
 
+    # [2026-07-30] 소싱처 **상품** 관리번호 — 사람이 보고 검색하는 번호. 'MU20260730-100001'
+    #   🔴 external_product_id(소싱처가 준 번호)를 덮지 않는다. 크롤이 그 번호로 재고·가격을
+    #     짚기 때문. 이건 옆에 붙이는 표시용 칸이다. 규칙은 shared/display_no.py 하나뿐.
+    display_no = Column(String(24), index=True)
+
     last_fetched_at = Column(DateTime)
     last_status = Column(String(16))
     last_error_msg = Column(Text)
@@ -44,6 +49,42 @@ class SourceProduct(Base):
     #   card_benefit_price / lotteon_coupons / money_active 등 사이트 특화 동적 키들.
     # compute_breakdown 이 lookup 해서 매트릭스 매입가 산식에 추가 차감으로 자동 반영.
     dynamic_benefits_json = Column(Text)
+
+    # 2026-07-04: 자동화 연속 배수 큐
+    crawl_weight = Column(Integer, default=1, nullable=False)      # 계수 1~5
+    # 2026-07-19: 뜸하게 긁는 쪽 손잡이. 유효간격 = 기준주기 ÷ 계수 × 느리게배수.
+    #   ★계수는 Integer 라 「3일에 1회」(=1/3)를 못 담는다 — int() 가 0 으로 만들고
+    #     계수 0 은 '크롤 제외'라 상품이 영영 안 긁힌다. 그래서 방향을 갈랐다.
+    #     계수 = 자주(1~5) · 느리게배수 = 뜸하게(1.0 이상). 1.0 = 예전과 동일.
+    crawl_slowdown = Column(Float, default=1.0, nullable=False)
+    no_change_streak = Column(Integer, default=0, nullable=False)  # 무변동 연속 횟수
+    # [2026-08-13 노션 ⑤] 「주문 이행 가능 판단」이 **지금 다시 확인해 달라**고 찍는 표식.
+    #   사장님 확정: *"변경값 없는건 저장된 크롤값 그대로 + 변경값있는건 새로 긁고 판정.
+    #   해당 주문건에 소싱처 url 있는것만 긁으면 돼"* — 여기서 「변경값」은
+    #   **그 상품의 가격·재고가 바뀐 것**을 말한다(사장님 확인 2026-08-13).
+    #   그 신호는 이미 있다: 크롤이 `CrawlDelta` 로 변동 여부를 남기고
+    #   `no_change_streak` 를 0 으로 되돌린다(= 마지막 크롤에서 값이 바뀌었다).
+    #   🔴 `crawl_weight` 를 재활용하지 않는다 — 그건 **빈도 가중치**라 손대면 크롤
+    #     주기가 통째로 흔들린다. 우선순위만 얹는 별도 칸을 둔다.
+    #   🔴 이 표식은 **크롤이 끝나면 저절로 풀린다**(last_fetched_at 이 이 시각을 넘김).
+    #     따로 지우는 코드가 없어야 「지웠는데 안 지워졌다」가 안 생긴다.
+    recheck_requested_at = Column(DateTime)
+    # 2026-07-06: 가중 라운드로빈 랩 — 이번 랩에 이 URL을 몇 번 크롤했나(계수만큼 채우면 소진).
+    crawl_lap_count = Column(Integer, default=0, nullable=False)
+
+    # [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기). '신발>스니커즈>여성운동화'.
+    #   크롤 CrawlResult.category_path 가 채운다. 빈 값이면 기존값 보존(무스톰프).
+    category_path = Column(String(500))
+
+    # [2026-07-23 M4-4] 소싱처 상품 이미지·상세페이지
+    #   images_json  : JSON 배열 ["https://...", ...] — 대표(첫 원소) + 추가 이미지 **URL만**.
+    #                  ★ 이미지는 브랜드 저작물이다. 여기 저장하는 건 URL 수집까지고,
+    #                    마켓 업로드는 브랜드별 지재권 제외 정책 통과 후 별도 단계에서 한다.
+    #   detail_html  : 소싱처 상세설명 영역 HTML(스크립트·추적 태그 제거본).
+    #   둘 다 크롤 CrawlResult 가 채운다. 빈 값이면 기존값 보존(무스톰프) —
+    #   한 번 실패한 크롤이 이미 확보한 이미지를 지워 등록을 막는 사고를 낸다.
+    images_json = Column(Text)
+    detail_html = Column(Text)
 
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
@@ -65,6 +106,11 @@ class SourceOption(Base):
     color_text = Column(String(64))
     size_text = Column(String(32))
     external_option_id = Column(String(128))
+
+    # [2026-07-30] 소싱처 **옵션** 관리번호 — 'MU20260730-000001' (앞자리 0 = 옵션)
+    #   external_option_id 는 그대로 둔다(크롤의 열쇠). 화면에서는 이 번호를 보여주고,
+    #   마우스를 올리면 소싱처가 준 원래 번호와 바로가기가 뜬다.
+    display_no = Column(String(24), index=True)
 
     current_price = Column(Integer)
     current_stock = Column(Integer)
@@ -151,4 +197,173 @@ class OptionSourceLink(Base):
         UniqueConstraint('canonical_sku', 'source_option_id', name='uq_option_source_link'),
         Index('ix_option_source_links_sku', 'canonical_sku'),
         Index('ix_option_source_links_source', 'source_option_id'),
+    )
+
+
+class CrawlDelta(Base):
+    """URL(소싱처 상품) 1건을 크롤할 때마다 직전 대비 변동 여부 1행 기록.
+
+    판매처 쪽 ChannelChangeEvent(전송 시점)과 다른 층 — 이건 크롤 시점.
+    """
+    __tablename__ = "crawl_deltas"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_product_id = Column(Integer, ForeignKey("source_products.id"),
+                               nullable=False, index=True)
+    crawled_at = Column(DateTime, default=_utcnow, nullable=False)
+    stock_changed = Column(Boolean, default=False, nullable=False)
+    price_changed = Column(Boolean, default=False, nullable=False)
+    detail = Column(Text)  # 무엇이 얼마→얼마로 (사람이 읽는 요약)
+
+
+class CrawlLapRun(Base):
+    """가중 랩 1바퀴 완료 = 1행. 자정(KST) 이후 개수 = '오늘 몇 바퀴',
+    연속 완료 간격 = '1바퀴 걸린 시간'(평균·막대). 완료 시 start_new_lap 이 append."""
+    __tablename__ = "crawl_lap_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    completed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class CrawlChangeStat(Base):
+    """[Phase 1B M5] 랩 × 소싱처 × 브랜드 변동 집계 — '계수를 정하는 근거'.
+
+    사람이 감으로 정하던 계수(1~5)에 숫자를 대주는 표다.
+
+    ■ ★기준선은 '소싱처' 다 (마켓이 아니다) — 2026-07-19 교정
+      물음이 다르면 기준선도 달라야 한다.
+        · "얼마나 자주 크롤할까" = **소싱처가 얼마나 자주 바뀌나** → :class:`CrawlDelta`
+        · "마켓에 올릴까"        = 마켓이 든 값과 다른가        → GateDecision
+      크롤 빈도는 마켓과 무관하다. 처음엔 ``decide_upload`` 의 판정을 그대로 셌는데,
+      그 기준선은 ``last_confirmed_snapshot``(마켓이 실제 받은 값)이라 실전송이 잠기면
+      (``MOUM_LIVE_UPLOAD`` OFF) ``uploaded_at`` 이 영원히 안 채워져 **모든 판정이
+      first_upload 로 떨어지고 통계가 통째로 비었다**. CrawlDelta 로 바꾸면 잠금 여부와
+      무관하게 오늘부터 숫자가 나온다.
+
+    ■ 지표별 출처가 섞이지 않게 (같은 표에 두되 칸을 갈라 놓는다)
+      · ``observed`` ``changed`` ``price_changed`` ``stock_changed`` ``soldout``
+        ``first_seen`` → **CrawlDelta** (소싱처 기준선)
+      · ``p2_skipped`` → **GateDecision** (업로드 판정 — 본질적으로 마켓 쪽 물음)
+
+    ■ 왜 랩 단위 집계인가 (관측 1건 = 1행 이 아니라)
+      한 랩에 URL×SKU 조합이 수천 건이고 하루 100 바퀴가 넘는다. 관측마다 1행이면
+      무료 티어 500MB 를 며칠에 태운다. 그래서 (랩, 소싱처, 브랜드) 하나에 1행을 두고
+      카운터만 올린다. 그래도 (소싱처×브랜드)/랩 로 늘기 때문에 오래된 랩은
+      :func:`~lemouton.sources.crawl_change_stats.prune_old_stats` 가 정리한다.
+
+    ■ 분모(observed)에서 빠지는 것 — 무결성
+      · **크롤 실패**: 실패하면 CrawlDelta 자체가 안 생긴다(저장 성공한 크롤만 1행).
+        구조적으로 '변동 없음'에 섞일 수 없다 — 실패를 안정으로 오독하면 계수가
+        잘못 내려가 정작 자주 바뀌는 곳을 덜 보게 된다.
+      · ``first_seen``: 처음 수집(이전 값이 없어 '바뀌었나'를 물을 수조차 없는 것).
+        버리지 않고 따로 센다 — 안 세면 '조용한 실패'와 구분되지 않는다.
+
+    lap_run_id = 0 은 **아직 안 끝난(진행 중) 랩**이다. NULL 을 쓰지 않는 이유:
+    PostgreSQL 은 UNIQUE 에서 NULL 을 서로 다른 값으로 보기 때문에 같은
+    (소싱처, 브랜드) 열린 행이 여러 개 생겨 카운터가 쪼개진다.
+    """
+    __tablename__ = "crawl_change_stats"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # 0 = 진행 중인 랩. 랩 완료 시 start_new_lap 이 그 CrawlLapRun.id 로 도장을 찍는다.
+    #   (FK 를 걸지 않는 이유: 0 은 실재하지 않는 id 이고, 이 프로젝트엔 나중에
+    #    제약을 추가할 마이그레이션 경로가 없다.)
+    lap_run_id = Column(Integer, default=0, nullable=False, index=True)
+    # SourceProduct.site(32) 보다 넉넉하게, CrawlConcurrencyRule.source_key 와 같은 폭.
+    source_key = Column(String(64), nullable=False)
+    # Model.brand(100) · Option.brand(100) 와 같은 폭. 미지정은 센티넬 문자열로 채운다
+    #   (NULL 이면 위 UNIQUE 가 PostgreSQL 에서 또 쪼개진다).
+    brand = Column(String(100), nullable=False)
+
+    # ── ① 소싱처 기준 (출처 = CrawlDelta) ────────────────────────────────
+    #   단위는 '크롤 1회(=CrawlDelta 1행)'다. 옵션 수만큼 부풀리지 않는다.
+    observed = Column(Integer, default=0, nullable=False)      # 직전 값과 견줄 수 있었던 크롤
+    changed = Column(Integer, default=0, nullable=False)       # 그중 가격 또는 재고가 바뀐 크롤
+    # 내역(가격·재고는 한 크롤에서 동시에 바뀔 수 있어 합이 changed 를 넘을 수 있다)
+    price_changed = Column(Integer, default=0, nullable=False)
+    stock_changed = Column(Integer, default=0, nullable=False)
+    soldout = Column(Integer, default=0, nullable=False)       # 품절 전환이 있었던 크롤
+    # 처음 수집(이전 값 없음)이 섞인 크롤 수. 변동이 아니라 분모에도 안 들어간다.
+    first_seen = Column(Integer, default=0, nullable=False)
+
+    # ── ② 마켓 기준 (출처 = GateDecision) ────────────────────────────────
+    #   ★위 칸들과 기준선이 다르다. 화면도 칸을 갈라 표시한다(같은 기준인 척 금지).
+    #   재고가 바뀌었는데 P2 로 스킵된 건수 — 스킵이 묻히지 않게 보고서에 그대로 띄운다.
+    p2_skipped = Column(Integer, default=0, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("lap_run_id", "source_key", "brand",
+                         name="uq_crawl_change_stat_lap_source_brand"),
+        Index("ix_crawl_change_stats_source_brand", "source_key", "brand"),
+    )
+
+
+class CrawlWeightRule(Base):
+    """계수 규칙 — 소싱처/브랜드/모음전/URL 범위별. 없으면 상속·기본 ×1."""
+    __tablename__ = "crawl_weight_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scope_type = Column(String(8), nullable=False)   # source|brand|model|url
+    scope_key = Column(String(512), nullable=False)  # site / brand / model_code / 정규화 url
+    weight = Column(Integer, nullable=False)          # 1~5
+    # 2026-07-19: 뜸하게 긁는 쪽 (SourceProduct.crawl_slowdown 과 같은 뜻). 1.0 = 기본.
+    slowdown = Column(Float, default=1.0, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("scope_type", "scope_key", name="uq_crawl_weight_rule"),
+    )
+
+
+class CrawlConcurrencyRule(Base):
+    """소싱처별 '동시 상한' — 한 소싱처를 한 번에 몇 갈래로 나눠 긁을지(1~10).
+
+    별도 테이블(create_all 로 신규 생성 — 기존 DB 컬럼 마이그레이션 불필요).
+    행 없으면 소싱처 성격 기본값(창없이 8 / 창 필요 3)을 쓴다.
+    """
+    __tablename__ = "crawl_concurrency_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_key = Column(String(64), nullable=False, unique=True)   # hmall/musinsa/lotteon…
+    limit_val = Column(Integer, nullable=False)                    # 1~10
+
+
+class SourcePriceHistory(Base):
+    """소싱처 가격·재고 **이력** — 노션 ④「가격변동은 그래프(X축 시간, Y축 가격,
+    여러 소싱처면 소싱처별)」의 데이터 원천.
+
+    ■ 왜 새 표가 필요한가
+      · `SourceOption.current_price` 는 **현재값만** — 크롤할 때마다 덮어쓴다.
+      · `CrawlDelta` 는 변동 **여부(예/아니오)**와 사람이 읽는 문장뿐 — 숫자가 없다.
+      · `PriceSnapshot` 은 **마켓에 올린 시점**만 남는다(실전송 OFF 면 0건).
+      셋 다 「2주 전 얼마였나」에 답할 수 없어서, 숫자를 시각과 함께 남기는 자리를 둔다.
+
+    ■ 얼마나 자주 남기나 (사장님 확정 2026-07-31)
+      · 가격·재고가 **바뀌면 항상** 남긴다.
+      · 안 바뀌면 **하루 2회까지만** 남긴다 — 안 바뀐 값을 계속 쌓으면 표만 커지고
+        그래프는 같은 선이 된다. (크롤 상한이 하루 2회인 것과 같은 결.)
+
+    ■ 🔴 표면가를 남긴다(혜택 차감 **전**)
+      최종매입가는 혜택 템플릿이 바뀌면 과거 시점 값도 달라져, 「그때 얼마였나」의
+      답으로 쓸 수 없다. 화면이 「표면가 기준」이라고 밝힌다
+      (memory: project_crawl_log_vs_final_price — 이 둘을 섞어 반복 사고가 났다).
+
+    별도 테이블 — create_all 로 신규 생성(기존 컬럼 마이그레이션 불필요).
+    """
+    __tablename__ = "source_price_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_product_id = Column(Integer, ForeignKey("source_products.id"),
+                               nullable=False, index=True)
+    site = Column(String(32), nullable=False, default="")   # 그래프 범례(소싱처별 선)
+    color_text = Column(String(64), default="")
+    size_text = Column(String(32), default="")
+    captured_at = Column(DateTime, default=_utcnow, nullable=False, index=True)
+    # 한 번의 크롤 = 한 captured_at. 옵션마다 1행이라, 「몇 번 남겼나」는
+    # distinct captured_at 으로 센다(아래 price_history.record).
+    surface_price = Column(Integer)      # 표면노출가. None = 못 읽음(0 으로 채우지 않는다)
+    stock = Column(Integer)              # None = 확인 불가 · 0 = 품절 (다른 뜻이다)
+    changed = Column(Boolean, default=False, nullable=False)  # 변동으로 남긴 행인가
+
+    __table_args__ = (
+        Index("ix_sph_product_time", "source_product_id", "captured_at"),
     )

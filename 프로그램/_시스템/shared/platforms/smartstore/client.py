@@ -27,6 +27,20 @@ from shared.platforms.smartstore.token_store import TokenStore
 logger = logging.getLogger(__name__)
 
 
+def _per_account_path(base_path: str, client_id: str) -> str:
+    """토큰 캐시·락 파일을 계정(client_id)별로 분리한 경로.
+
+    전역 경로 하나를 여러 계정이 공유하면 먼저 토큰을 받은 스토어의 자격으로 다른 스토어를
+    조회하게 된다(다른 가게 주문 통째 누락). client_id 는 파일명에 그대로 쓰지 않고
+    해시 앞 12자만 붙인다(키 노출 방지).
+    """
+    import hashlib
+    from pathlib import Path
+    p = Path(base_path)
+    tag = hashlib.sha256((client_id or "").encode("utf-8")).hexdigest()[:12]
+    return str(p.with_name(f"{p.stem}.{tag}{p.suffix}"))
+
+
 # ──────────────────────────────────────────────────────────────
 # 예외
 # ──────────────────────────────────────────────────────────────
@@ -40,9 +54,12 @@ class SmartStoreAPIError(Exception):
 
 
 class SmartStoreRateLimitError(Exception):
-    def __init__(self, retry_after_sec: int):
-        super().__init__(f"429 rate limited, retry_after={retry_after_sec}")
+    def __init__(self, retry_after_sec: int, is_quota: bool = False):
+        kind = "quota limited" if is_quota else "rate limited"
+        super().__init__(f"429 {kind}, retry_after={retry_after_sec}")
         self.retry_after_sec = retry_after_sec
+        # 초당 rate limit(True=일일 판매자 할당량 quota). quota 는 짧은 재시도로 안 풀린다.
+        self.is_quota = is_quota
 
 
 # ──────────────────────────────────────────────────────────────
@@ -126,8 +143,8 @@ class SmartStoreClient:
             client_id=self._cfg["client_id"],
             client_secret=self._cfg["client_secret"],
             endpoint_url=self._cfg["base_url"] + paths.get("token", "/external/v1/oauth2/token"),
-            cache_path=self._cfg["token_cache_path"],
-            lock_path=self._cfg["token_lock_path"],
+            cache_path=_per_account_path(self._cfg["token_cache_path"], self._cfg["client_id"]),
+            lock_path=_per_account_path(self._cfg["token_lock_path"], self._cfg["client_id"]),
             refresh_margin_sec=self._cfg.get("token_refresh_margin_sec", 600),
             lock_acquire_timeout_sec=self._cfg.get("token_lock_acquire_timeout_sec", 10),
         )
@@ -228,7 +245,7 @@ class SmartStoreClient:
                     if self._consecutive_429 >= threshold:
                         self._notify_rate_limit_saturation(self._consecutive_429)
                     retry_sec = self._parse_retry_after(resp)
-                raise SmartStoreRateLimitError(retry_after_sec=retry_sec)
+                raise SmartStoreRateLimitError(retry_after_sec=retry_sec, is_quota=is_quota)
 
             if status == 401 and code == "GW.AUTHN" and not retried_auth_once:
                 logger.info("[smartstore] 401 GW.AUTHN — 토큰 무효화 후 재시도")
@@ -254,6 +271,44 @@ class SmartStoreClient:
         assert last_error is not None
         self._notify_upload_failure(method, path, last_error)
         raise last_error
+
+    def request_multipart(self, method: str, path: str, files: list) -> dict:
+        """multipart/form-data 요청 (이미지 업로드 전용).
+
+        request() 는 Content-Type: application/json 고정이라 파일을 못 보낸다.
+        여기서는 Content-Type 을 직접 넣지 않는다 — requests 가 boundary 를 만든다.
+        재시도는 하지 않는다(이미지 중복 업로드 방지).
+
+        Args:
+            files: [(field_name, (filename, bytes, mimetype)), ...]
+
+        Raises:
+            SmartStoreRateLimitError: 429
+            SmartStoreAPIError: 그 외 4xx/5xx · 네트워크 예외
+        """
+        self._limiter.acquire()
+        url = self._build_url(path, "")
+        try:
+            token = self._token.get_valid_token()
+        except Exception as e:
+            self._notify_token_failure(str(e))
+            raise
+
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        timeout = float(self._cfg.get("request_timeout_sec", 30))
+        try:
+            resp = requests.request(method=method.upper(), url=url, headers=headers,
+                                    files=files, timeout=timeout)
+        except requests.RequestException as e:
+            err = SmartStoreAPIError(-1, "NETWORK", str(e))
+            err.__cause__ = e
+            raise err
+
+        if resp.status_code == 429:
+            raise SmartStoreRateLimitError(retry_after_sec=int(resp.headers.get("Retry-After", 1)))
+        if resp.status_code >= 400:
+            raise SmartStoreAPIError(resp.status_code, "HTTP", resp.text[:500])
+        return resp.json()
 
     # ── helpers ─────────────────────────────────────────
     def _build_url(self, path: str, query: str) -> str:

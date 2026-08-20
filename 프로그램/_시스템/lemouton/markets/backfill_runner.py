@@ -1,0 +1,340 @@
+"""백필 실행기 — 요청은 웹이 남기고, 실행은 스케줄러 프로세스가 한다.
+
+## 왜 이렇게 나눴나
+
+백필을 gunicorn **워커 안**에서 돌렸다가 라이브를 두 번 망가뜨렸다(2026-07-20):
+  · 워커가 긴 작업에 점유돼 다른 요청이 줄서다 **앱이 502**
+  · 워커는 `--timeout 60` · `--max-requests 1000` 으로 재활용되는데, 그때 작업
+    스레드가 통째로 죽는다 → 백필이 75/796 창에서 조용히 멈췄다
+
+그래서 웹은 **요청 플래그만** 남기고(`order_ingest_runs.requested`), 실제 실행은
+gunicorn `--preload` 마스터에서 도는 스케줄러 스레드가 가져간다. 마스터는 요청을
+처리하지 않으므로 요청 타임아웃·워커 재활용에 죽지 않는다.
+
+## 중단돼도 이어서 한다
+
+한 창을 끝낼 때마다 진행 위치(`cursor`)를 DB 에 적는다. 프로세스가 죽어도 다음 틱이
+그 지점부터 잇는다. 백필은 업서트라 겹쳐 돌아도 데이터가 망가지지 않는다.
+
+## 매달림 방지
+
+창 하나에 시간 상한을 둔다. 마켓 호출이 타임아웃 없이 매달리면 백필 전체가 멈추므로,
+상한을 넘기면 그 창을 실패로 적고 다음으로 간다(그 창은 나중에 다시 시도하면 된다).
+"""
+from __future__ import annotations
+
+import datetime as _dt
+import logging
+import time as _time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as _Timeout
+from datetime import datetime, timezone
+
+from lemouton.markets.order_ingest import (KST, backfill_chunk_days,
+                                          ingest_window, windows)
+
+logger = logging.getLogger(__name__)
+
+ROW_ID = "current"
+WINDOW_TIMEOUT_SEC = 90         # 창 하나가 90초를 넘으면 포기하고 다음으로
+#  마켓별 예외 — 롯데온 백필은 29일 창을 페이징으로 여러 번 돌아 오래 걸린다.
+#  (짧게 잡으면 매번 타임아웃 → 롯데온 과거가 통째로 안 쌓인다)
+#  쿠팡 30일 창은 실측 75초 — 90초는 빠듯해 실제로 건너뛰어져 구간에 구멍이 났다
+#  (2026-05-21~06-20). 건너뛴 창은 '조용한 구멍'이라 넉넉히 준다.
+WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300, "coupang": 300, "eleven11": 180}
+                                #  (실측: 스스 1~8초 · 롯데온 3초 · 11번가 16초 · 쿠팡 75초)
+#  창 사이 간격 — 두 가지 목적:
+#   ① 429 폭주 방지(스스·11번가는 연달아 때리면 클라이언트가 호출 간격을 늘린다)
+#   ② 🔴 **CPU 양보**. 이 서버는 shared-cpu-1x(1코어)다. 백필이 쉬지 않고 돌면
+#      gunicorn 워커·마스터가 코어를 못 얻어 워커가 죽고 앱이 502 가 된다
+#      (2026-07-20 세 번 겪음). 백필은 급하지 않으니 매 창마다 확실히 쉰다.
+#  ★ 옥션·G마켓 5.5초: ESM 주문조회 5초/1회(계정 단위). 클라이언트 전역 스로틀은
+#    프로세스 안에서만 공유돼, step 호출이 매번 다른 gunicorn 워커에 떨어지면
+#    창 사이 간격이 0 이 된다(2026-07-22: 스로틀 배포 후에도 3000 잔존).
+#    러너가 창 시작 전에 쉬면 어느 워커가 잡아도 간격이 보장된다.
+PACE_SEC = {"smartstore": 1.5, "eleven11": 1.5,   # 마켓 자체 429 방지용(서버와 무관)
+            "auction": 5.5, "gmarket": 5.5}
+_DEFAULT_PACE = 0.5
+TICK_BUDGET_SEC = 300           # 한 틱에 최대 5분 — 다음 틱이 이어받는다
+                                #  (서버 업그레이드로 코어 여유 생김 → 길게 붙잡아도 됨)
+MAX_TIMEOUTS = 5                # 연속 타임아웃이 이만큼이면 중단(마켓이 죽은 것)
+
+
+_pool_reset_done = False
+
+
+def _reset_pool_once() -> None:
+    """이 프로세스에서 처음 쓸 때 DB 커넥션 풀을 새로 만든다.
+
+    🔴 gunicorn `--preload` 는 `create_app()`(=`init_db()`)을 **마스터에서** 먼저 돌린
+    뒤 워커를 fork 한다. 그때 열려 있던 TCP 커넥션이 마스터와 워커에 **동시에 상속**돼
+    같은 소켓을 두 프로세스가 나눠 쓰게 된다 → 응답이 섞이거나 그냥 매달린다.
+    실제로 같은 창이 워커(웹 라우트)에서는 1~8초인데 마스터(스케줄러)에서는 90초
+    타임아웃에 걸렸다(2026-07-20).
+    `dispose()` 로 상속된 커넥션을 버리면 이 프로세스가 자기 커넥션을 새로 연다.
+    """
+    global _pool_reset_done
+    if _pool_reset_done:
+        return
+    _pool_reset_done = True
+    try:
+        from shared.db import engine
+        engine.dispose()
+        logger.info("backfill: DB 커넥션 풀 재생성(fork 상속분 폐기)")
+    except Exception:                                # noqa: BLE001
+        logger.exception("커넥션 풀 재생성 실패 — 계속 진행")
+
+
+def _session():
+    from shared.db import SessionLocal
+    return SessionLocal()
+
+
+def _get(s):
+    from lemouton.markets.models_orders import OrderIngestRun
+    row = s.get(OrderIngestRun, ROW_ID)
+    if row is None:
+        row = OrderIngestRun(id=ROW_ID, running="0", requested="0")
+        s.add(row)
+        s.commit()
+    return row
+
+
+def request_backfill(markets: list[str], days: int) -> dict:
+    """웹이 부른다 — 요청만 남기고 즉시 돌아온다(긴 작업을 워커에서 하지 않는다)."""
+    from lemouton.markets.order_ingest import estimate
+
+    est = estimate(markets, days)
+    try:
+        est["total_windows"] = len(_plan(markets, days))   # 계정 수 반영(실제 계획 길이)
+    except Exception:                                      # noqa: BLE001
+        pass
+    s = _session()
+    try:
+        row = _get(s)
+        row.requested = "1"
+        row.markets = ",".join(markets)
+        row.days = str(days)
+        row.done, row.total = "0", str(est["total_windows"])
+        row.cursor = ""
+        row.error, row.result = "", []
+        row.started_at, row.finished_at = datetime.now(timezone.utc), None
+        s.commit()
+    finally:
+        s.close()
+    return est
+
+
+def _accounts_for_plan(market: str) -> list:
+    """계획에 넣을 (prefix, 별칭) 목록. 조회 불가·0개면 대표계정 폴백 [(None, None)].
+
+    ★ 예전엔 백필 fetcher 가 대표계정만 조회해 나머지 계정의 과거 주문이 통째
+    빠졌다(2026-07-22 샵마인 대사: 누락 605건 최대 원인 — G마켓 위시 44%·롯데온 64%).
+    """
+    try:
+        from lemouton.markets.order_export import _active_accounts
+        return _active_accounts(market) or [(None, None)]
+    except Exception:                                # noqa: BLE001
+        return [(None, None)]
+
+
+def _plan(markets: list[str], days: int) -> list[tuple]:
+    """돌아야 할 (마켓, 계정prefix, 별칭, 시작, 끝) 전체 목록.
+
+    마켓 순차 → 계정 순차 → 창 최신→과거. 창 하나는 여전히 계정 1개만 조회하므로
+    창당 소요시간·타임아웃 상한은 그대로다(창 수만 계정 수만큼 늘어난다).
+    """
+    until = _dt.datetime.now(KST)
+    since = until - _dt.timedelta(days=days)
+    plan = []
+    for m in markets:
+        for prefix, alias in _accounts_for_plan(m):
+            for start, end in windows(since, until, backfill_chunk_days(m)):
+                plan.append((m, prefix, alias, start, end))
+    return plan
+
+
+def _run_window(market, start, end, timeout: float = None, prefix=None, alias=None) -> dict:
+    """창 하나를 시간 상한 안에서 실행. 넘기면 _Timeout 을 올린다.
+
+    🔴 `with ThreadPoolExecutor(...)` 를 쓰면 안 된다. with 를 빠져나갈 때
+    `shutdown(wait=True)` 가 불려 **매달린 작업이 끝날 때까지 블록**된다 —
+    타임아웃을 걸어놓고도 무한정 기다리게 된다(2026-07-20 라이브: 백필이
+    15/796 에서 running=True 인 채로 멈췄다. 개별 창은 1~8초인데도).
+    → 컨텍스트 매니저 없이 만들고, 타임아웃이면 기다리지 않고 버린다.
+
+    ⚠️ 버려진 스레드는 죽일 수 없다(파이썬 한계). 그래서 연속 타임아웃이 이어지면
+    아예 중단한다 — 버려진 스레드가 쌓이면 그게 또 자원을 먹는다.
+    """
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        fut = ex.submit(ingest_window, market, start, end,
+                        include_settlement=False, backfill=True,
+                        prefix=prefix, alias=alias)
+        try:
+            lim = timeout if timeout is not None else WINDOW_TIMEOUT_BY_MARKET.get(
+                market, WINDOW_TIMEOUT_SEC)
+            return fut.result(timeout=lim)
+        except _Timeout:
+            ex.shutdown(wait=False)      # 기다리지 않고 버린다
+            raise
+    finally:
+        # 정상 종료면 이미 끝났으므로 대기 없이 정리(타임아웃 경로는 위에서 처리).
+        ex.shutdown(wait=False)
+
+
+def run_if_requested(budget: float = None, in_worker: bool = False,
+                     window_timeout: float = None) -> dict | None:
+    """요청이 있으면 예산만큼 돌고 진행을 저장한다. Returns status dict(워커 호출용) or None.
+
+    두 경로에서 부른다:
+      · 스케줄러(마스터, in_worker=False) — 기본. 단 gunicorn --preload fork 환경에서
+        마스터의 Supabase 연결이 굳는 일이 있다(2026-07-20: 몇 창 돌고 hang).
+      · **워커 엔드포인트(in_worker=True)** — /api/orders-ingest/step 이 짧은 budget 으로
+        부른다. 워커의 DB 연결은 안정적이라 이 경로가 신뢰할 수 있다. 여기서 반복 호출해
+        끝까지 민다.
+
+    🔴 킬스위치 MOUM_BACKFILL_OFF=1 이면 요청이 DB 에 남아도 실행 안 함.
+    """
+    import os
+    if (os.getenv("MOUM_BACKFILL_OFF") or "").strip() in ("1", "true", "TRUE"):
+        return None
+    tick_budget = budget if budget is not None else TICK_BUDGET_SEC
+    if not in_worker:
+        _reset_pool_once()      # 마스터 경로만 fork 상속 연결을 버린다(워커는 정상)
+    s = _session()
+    try:
+        row = _get(s)
+        if row.requested != "1":
+            return status() if in_worker else None
+        markets = [m for m in (row.markets or "").split(",") if m]
+        days = int(row.days or 365)
+        cursor = int(row.cursor or 0)
+        row.running = "1"
+        s.commit()
+    finally:
+        s.close()
+
+    plan = _plan(markets, days)
+    # 🔴 cursor 가 계획 길이를 넘으면 stale 이다 — 취소→재요청이 이전 틱과 겹쳐
+    #    (race) 옛 cursor 가 새 요청의 cursor=0 초기화를 덮어쓴 경우다(2026-07-20 실측:
+    #    3개 마켓 93창인데 cursor=217 이 남아 range(217,93)=빈 루프 → 아무것도 안 함).
+    #    계획이 바뀐 것이므로 처음부터 다시(업서트라 재실행 안전). 옛 에러도 비운다.
+    if cursor >= len(plan):
+        logger.warning("order_backfill: cursor=%d 가 계획(%d창)을 벗어남 — 0 부터 재시작",
+                       cursor, len(plan))
+        cursor = 0
+        _save(done=0, cursor=0, market="", errors=[], stop_reason="")
+    started = _dt.datetime.now(_dt.timezone.utc)
+    errors: list[str] = []
+    consecutive_timeouts = 0
+    done = cursor
+    stop_reason = ""
+    slowest = (0.0, "")
+    skipped_markets: set = set()
+
+    for idx in range(cursor, len(plan)):
+        if (_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() > tick_budget:
+            stop_reason = "예산 소진 — 다음 틱이 이어받음"
+            break
+        market, prefix, alias, start, end = plan[idx]
+        if market in skipped_markets:      # 이 마켓은 포기 — 다음 마켓 구간으로 흘려보낸다
+            done = idx + 1
+            continue
+        # 429 는 한 번 걸리면 클라이언트가 호출 간격을 늘려(halve) 뒤로 갈수록 느려진다.
+        #  창 사이에 조금 쉬어 폭주를 예방한다(연속 조회가 아니라 백필이라 여유 있다).
+        pace = PACE_SEC.get(market, _DEFAULT_PACE)
+        if pace:
+            _time.sleep(pace)      # 첫 창에도 쉰다 — 틱 시작 직후가 가장 부하가 몰린다
+        w0 = _dt.datetime.now(_dt.timezone.utc)
+        try:
+            _run_window(market, start, end, timeout=window_timeout,
+                        prefix=prefix, alias=alias)
+            consecutive_timeouts = 0
+            secs = (_dt.datetime.now(_dt.timezone.utc) - w0).total_seconds()
+            if secs > slowest[0]:
+                slowest = (secs, f"{market} {start:%Y-%m-%d}")
+        except _Timeout:
+            consecutive_timeouts += 1
+            lim = WINDOW_TIMEOUT_BY_MARKET.get(market, WINDOW_TIMEOUT_SEC)
+            msg = (f"[{market}] {start:%Y-%m-%d}~{end:%Y-%m-%d} "
+                   f"{lim}초 초과 — 건너뜀")
+            logger.warning(msg)
+            errors.append(msg)
+            if consecutive_timeouts >= MAX_TIMEOUTS:
+                # 전체를 멈추면 뒤 마켓 차례가 영영 안 온다(2026-07-20: 쿠팡이 막혀
+                # 스마트스토어가 통째로 안 쌓였다). 그 마켓만 건너뛰고 다음 마켓으로.
+                skipped_markets.add(market)
+                consecutive_timeouts = 0
+                errors.append(f"[{market}] 연속 타임아웃 {MAX_TIMEOUTS}회 — 이 마켓 남은 구간 건너뜀")
+                logger.warning("order_backfill: %s 연속 타임아웃 — 마켓 건너뜀", market)
+        except Exception as e:                       # noqa: BLE001
+            consecutive_timeouts = 0
+            msg = (f"[{market}] {start:%Y-%m-%d}~{end:%Y-%m-%d} 실패: "
+                   f"{type(e).__name__}: {e}")
+            logger.warning(msg)
+            errors.append(msg)
+        done = idx + 1
+        if done % 5 == 0:
+            _save(done=done, cursor=done, market=market, errors=errors)
+
+    finished = done >= len(plan)
+    _save(done=done, cursor=done, market=plan[min(done, len(plan) - 1)][0] if plan else "",
+          errors=errors, finished=finished, stop_reason=stop_reason)
+    logger.info("order_backfill: %d/%d 창 (%s) 최장 %.1fs %s",
+                done, len(plan), stop_reason or "계속", slowest[0], slowest[1])
+    if in_worker:
+        return status()
+
+
+def _save(*, done: int, cursor: int, market: str, errors: list,
+          finished: bool = False, stop_reason: str = "") -> None:
+    s = _session()
+    try:
+        row = _get(s)
+        row.done, row.cursor, row.market = str(done), str(cursor), market
+        # stop_reason 없이 errors=[] 로 호출되면(cursor 리셋) 옛 에러를 비운다.
+        if not errors and not stop_reason:
+            row.result = []
+        else:
+            prev = row.result if isinstance(row.result, list) else []
+            # 에러는 최근 30건만(진단엔 충분하고 행이 비대해지지 않는다)
+            row.result = (prev + errors)[-30:] if errors else prev
+        if stop_reason:
+            row.error = stop_reason[:500]
+        if finished:
+            row.requested, row.running = "0", "0"
+            row.finished_at = datetime.now(timezone.utc)
+        else:
+            row.running = "0"        # 틱이 끝나면 running 은 내린다(다음 틱이 이어받음)
+        s.commit()
+    except Exception:                                # noqa: BLE001
+        logger.exception("backfill 진행 저장 실패")
+    finally:
+        s.close()
+
+
+def status() -> dict:
+    s = _session()
+    try:
+        row = _get(s)
+        return {"requested": row.requested == "1", "running": row.running == "1",
+                "markets": row.markets or "", "days": row.days or "",
+                "done": int(row.done or 0), "total": int(row.total or 0),
+                "cursor": int(row.cursor or 0), "market": row.market or "",
+                "error": row.error or "", "recent_errors": row.result or [],
+                "started_at": row.started_at.isoformat() if row.started_at else None,
+                "finished_at": row.finished_at.isoformat() if row.finished_at else None}
+    finally:
+        s.close()
+
+
+def cancel() -> None:
+    s = _session()
+    try:
+        row = _get(s)
+        row.requested, row.running = "0", "0"
+        row.error = "사용자가 중단함"
+        row.finished_at = datetime.now(timezone.utc)
+        s.commit()
+    finally:
+        s.close()

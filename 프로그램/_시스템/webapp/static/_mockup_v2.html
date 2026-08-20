@@ -45,11 +45,11 @@
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 8px; color: var(--t2); font-size: 14px; font-weight: 500; margin-bottom: 1px; cursor: pointer; user-select: none; }
   .nav-item.sub { padding-left: 26px; font-size: 13.5px; }
   .nav-item:hover { background: var(--bg); }
-  .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+  .nav-item.active { background: var(--primary-soft); color: var(--글자-파랑, var(--primary)); font-weight: 700; }
   .nav-icon { width: 16px; opacity: 0.65; }
   .nav-item.active .nav-icon { opacity: 1; }
   .nav-count { margin-left: auto; font-size: 14px; font-weight: 600; color: var(--t4); }
-  .nav-item.active .nav-count { color: var(--primary); }
+  .nav-item.active .nav-count { color: var(--글자-파랑, var(--primary)); }
   .nav-count.urgent { color: var(--urgent); }
 
   /* ──────────── 메인 ──────────── */
@@ -61,7 +61,7 @@
   .section-meta { font-size: 14px; color: var(--t4); font-weight: 500; margin-left: 8px; }
 
   .breadcrumb { font-size: 13px; color: var(--t3); margin-bottom: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
-  .breadcrumb:hover { color: var(--primary); }
+  .breadcrumb:hover { color: var(--글자-파랑, var(--primary)); }
 
   /* ──────────── 카드 (흰색 + 얇은 보더, 배경색 미사용) ──────────── */
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin-bottom: 10px; }
@@ -82,7 +82,7 @@
   tr.expand-detail td { background: var(--bg); padding: 0; border-top: none; }
   .expand-content { padding: 14px 22px 18px; }
   .expand-icon { display: inline-block; transition: transform 0.15s; color: var(--t4); width: 14px; }
-  .expandable.open .expand-icon { transform: rotate(90deg); color: var(--primary); }
+  .expandable.open .expand-icon { transform: rotate(90deg); color: var(--글자-파랑, var(--primary)); }
 
   .num { font-variant-numeric: tabular-nums; font-weight: 700; }
   .urgent-row { background: var(--urgent-soft); }
@@ -98,7 +98,7 @@
 
   /* ──────────── 작은 태그 (3종 한정) ──────────── */
   .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 14px; font-weight: 600; color: var(--t3); background: var(--bg); border: 1px solid var(--border); }
-  .tag-active { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+  .tag-active { color: var(--글자-파랑, var(--primary)); border-color: var(--primary); background: var(--primary-soft); }
   .tag-urgent { color: var(--urgent); border-color: var(--urgent); background: var(--urgent-soft); }
 
   /* ──────────── 칩 (필터, 단일 active 패턴) ──────────── */
@@ -111,12 +111,12 @@
   /* ──────────── 버튼 (3 종) ──────────── */
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; font-size: 13.5px; font-weight: 600; border: 1px solid var(--border); cursor: pointer; background: var(--surface); color: var(--t1); font-family: inherit; transition: border-color 0.15s; }
   .btn:hover { border-color: var(--border-strong); }
-  .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+  .btn-primary { background: var(--바탕-파랑, var(--primary)); color: white; border-color: var(--primary); }
   .btn-primary:hover { background: #1B6DDD; border-color: #1B6DDD; }
   .btn-ghost { background: transparent; border-color: transparent; color: var(--t2); }
   .btn-ghost:hover { background: var(--bg); }
   .btn-sm { padding: 5px 10px; font-size: 14px; }
-  .btn-link { background: transparent; border: none; color: var(--primary); padding: 5px 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+  .btn-link { background: transparent; border: none; color: var(--글자-파랑, var(--primary)); padding: 5px 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
 
   /* ──────────── 입력 ──────────── */
   .field { margin-bottom: 14px; }
@@ -137,7 +137,7 @@
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
   .tab { padding: 10px 16px; font-size: 13.5px; font-weight: 600; color: var(--t3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; user-select: none; }
   .tab:hover { color: var(--t1); }
-  .tab.active { color: var(--primary); border-color: var(--primary); }
+  .tab.active { color: var(--글자-파랑, var(--primary)); border-color: var(--primary); }
   .tab-meta { color: var(--t4); font-weight: 500; margin-left: 4px; font-size: 14px; }
 
   /* ──────────── KPI (배경색 X, 숫자 굵기로만 강조) ──────────── */
@@ -165,7 +165,7 @@
   .bundle-info-grid { display: grid; grid-template-columns: 110px 1fr; gap: 6px 14px; font-size: 13px; margin: 6px 0 0; }
   .bundle-info-grid dt { color: var(--t4); font-weight: 500; }
   .bundle-info-grid dd { margin: 0; color: var(--t1); }
-  .bundle-info-grid a { color: var(--primary); word-break: break-all; }
+  .bundle-info-grid a { color: var(--글자-파랑, var(--primary)); word-break: break-all; }
 
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -185,15 +185,15 @@
   .toggle-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
   .toggle { width: 34px; height: 20px; background: var(--t5); border-radius: 999px; position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
   .toggle.on { background: var(--primary); }
-  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: 0.15s; }
+  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: var(--surface,#FFFFFF); border-radius: 50%; transition: 0.15s; }
   .toggle.on::after { left: 16px; }
 
   /* ──────────── 위저드 ──────────── */
   .wizard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px 32px; }
   .wizard-steps { display: flex; gap: 8px; margin-bottom: 24px; }
   .wizard-step { flex: 1; padding: 12px 14px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); }
-  .wizard-step.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
-  .wizard-step.done { background: var(--surface); border-color: var(--primary); color: var(--primary); }
+  .wizard-step.active { background: var(--primary-soft); border-color: var(--primary); color: var(--글자-파랑, var(--primary)); }
+  .wizard-step.done { background: var(--surface); border-color: var(--primary); color: var(--글자-파랑, var(--primary)); }
   .wizard-step-num { font-weight: 700; font-size: 14px; letter-spacing: 0.04em; }
   .wizard-step-title { font-size: 13.5px; font-weight: 600; margin-top: 2px; }
   .wizard-pane { display: none; }
@@ -245,9 +245,9 @@
   /* 이벤트 타임라인 */
   .timeline { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
   .timeline-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; padding: 4px 0; font-size: 13px; font-weight: 600; color: var(--t2); }
-  .timeline-toggle:hover { color: var(--primary); }
+  .timeline-toggle:hover { color: var(--글자-파랑, var(--primary)); }
   .timeline-toggle .arrow { display: inline-block; transition: transform 0.15s; color: var(--t4); }
-  .timeline-toggle.open .arrow { transform: rotate(90deg); color: var(--primary); }
+  .timeline-toggle.open .arrow { transform: rotate(90deg); color: var(--글자-파랑, var(--primary)); }
   .timeline-body { display: none; margin-top: 8px; }
   .timeline-toggle.open + .timeline-body { display: block; }
 
@@ -297,8 +297,8 @@
   /* 정렬 표시 */
   th.sortable { position: relative; padding-right: 22px; }
   th.sortable::after { content: '⇅'; position: absolute; right: 6px; opacity: 0.3; font-size: 14px; }
-  th.sortable.asc::after { content: '↑'; opacity: 1; color: var(--primary); }
-  th.sortable.desc::after { content: '↓'; opacity: 1; color: var(--primary); }
+  th.sortable.asc::after { content: '↑'; opacity: 1; color: var(--글자-파랑, var(--primary)); }
+  th.sortable.desc::after { content: '↓'; opacity: 1; color: var(--글자-파랑, var(--primary)); }
 
   /* 다중 선택 */
   .checkbox-cell { width: 24px; }
@@ -332,7 +332,7 @@
     .sidebar, .page-actions, .filterbar, .btn, .toggle, .toast, .modal-bg { display: none !important; }
     .main { padding: 0; max-width: 100%; }
     .page { break-inside: avoid; }
-    body { background: white; color: black; }
+    body { background: var(--surface,#FFFFFF); color: black; }
     .card, .history-card { border: 1px solid #999; box-shadow: none; }
   }
 
@@ -365,7 +365,7 @@
 
 <div class="app">
   <!-- ──────── 사이드바 ──────── -->
-  <button class="hamburger mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="사이드바 열기"></button>
+  <button class="hamburger mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="사이드바 열기">☰</button>
   <aside class="sidebar">
     <div class="brand">르무통</div>
     <div class="brand-sub">재고 · 가격 · 등록 자동화</div>
@@ -490,7 +490,7 @@
                 </div>
                 <div style="font-size: 14px; color:var(--t3);">
                   계정 <code>르무통_본계_smartstore</code> · 마켓 ID <code>7654321</code> ·
-                  <a href="https://smartstore.naver.com/lemouton/products/7654321" target="_blank" style="color:var(--primary);">스마트스토어 보기 ↗</a>
+                  <a href="https://smartstore.naver.com/lemouton/products/7654321" target="_blank" style="color: var(--글자-파랑, var(--primary));">스마트스토어 보기 ↗</a>
                 </div>
               </div>
               <div class="bundle-card market-cp">
@@ -502,7 +502,7 @@
                 </div>
                 <div style="font-size: 14px; color:var(--t3);">
                   계정 <code>르무통_본계_coupang</code> · 마켓 ID <code>1122334</code> ·
-                  <a href="https://www.coupang.com/vp/products/1122334" target="_blank" style="color:var(--primary);">쿠팡 보기 ↗</a>
+                  <a href="https://www.coupang.com/vp/products/1122334" target="_blank" style="color: var(--글자-파랑, var(--primary));">쿠팡 보기 ↗</a>
                 </div>
               </div>
             </div></td>
@@ -540,7 +540,7 @@
             <td><span class="tag tag-urgent">미사용</span></td>
             <td><button class="btn-link" onclick="event.stopPropagation(); openSourcingDetail('스위트')">상세 →</button></td>
           </tr>
-          <tr class="expand-detail"><td colspan="9"><div class="expand-content empty-state"><div class="empty-icon"></div>사용 중인 모음전이 없습니다 · <button class="btn btn-sm">+ 모음전 등록</button></div></td></tr>
+          <tr class="expand-detail"><td colspan="9"><div class="expand-content empty-state"><div class="empty-icon">📭</div>사용 중인 모음전이 없습니다 · <button class="btn btn-sm">+ 모음전 등록</button></div></td></tr>
         </tbody>
       </table>
 
@@ -1262,7 +1262,7 @@
           </div>
 
           <div style="padding:10px 12px; background:var(--bg); border-radius:6px; font-size: 14px; color:var(--t2); margin-top:6px;">
-            <i class="ph-light ph-lightbulb" aria-hidden="true"></i> <strong>인사이트:</strong> 무신사 회원가 활성 시간대(06:00~09:00 / 18:00~22:00, 일 7시간)에 르무통보다 ₩2,400 저렴.
+            💡 <strong>인사이트:</strong> 무신사 회원가 활성 시간대(06:00~09:00 / 18:00~22:00, 일 7시간)에 르무통보다 ₩2,400 저렴.
             자동 폴백 시 월 추정 절감액 <strong>₩72,000</strong> (옵션당).
           </div>
 
@@ -1532,7 +1532,7 @@
           </div>
 
           <div style="margin-top:14px; padding:10px 12px; background: var(--urgent-soft); border-radius: 6px; font-size:13px; color:var(--urgent);">
-            <i class="ph-light ph-warning" aria-hidden="true"></i> 르무통 공홈 품절 진행 중 (2시간 32분) — 무신사 ₩119,900 자동 폴백, 마진율 12.8%로 하락
+            ⚠ 르무통 공홈 품절 진행 중 (2시간 32분) — 무신사 ₩119,900 자동 폴백, 마진율 12.8%로 하락
           </div>
         </div>
 
@@ -2075,7 +2075,7 @@
         f.style.borderColor = 'var(--urgent)';
         if (errEl && errEl.classList.contains('field-hint')) {
           errEl.style.color = 'var(--urgent)';
-          errEl.textContent = ' 필수 입력 항목입니다';
+          errEl.textContent = '필수 입력 항목입니다';
         }
         ok = false;
       } else {

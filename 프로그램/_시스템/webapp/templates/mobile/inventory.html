@@ -2,7 +2,65 @@
 {% block title %}재고 목록{% endblock %}
 {% set back_url = '/mobile' %}
 
+{% block extra_head %}
+<style>
+  /* ── KPI 3칸 (PC 「제품」 data_items 와 같은 정의 — 시안 C1 그대로) ── */
+  .inv-kpis { display: flex; gap: 8px; margin-bottom: 10px; }
+  .inv-kpi { flex: 1; background: var(--surface, #fff); border: 1px solid var(--n200, #E5E8EB); border-radius: 10px; padding: 10px 12px; }
+  .inv-kpi .l { font-size: 12px; color: var(--n500, #8B95A1); }
+  .inv-kpi .v { font-size: 19px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .inv-kpi .v.ok { color: var(--color-ok, #16a34a); }
+
+  /* ── 카드 (기존 뼈대 유지: 사진48 + 이름 + 오른쪽 숫자) — B1 펼침 훅 ── */
+  .inv-card { cursor: pointer; -webkit-user-select: none; user-select: none; }
+  .inv-card.open { border-color: var(--primary, #3182F6); }
+
+  /* ── 상세 시트 (B1 — 카드 바로 아래 펼침, 새 화면 아님) ── */
+  .inv-sheet { background: var(--surface, #fff); border: 1px solid var(--primary, #3182F6); border-radius: 12px; padding: 14px; margin: -4px 0 8px; }
+  .inv-srow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--n100, #F2F4F6); font-size: 14px; min-height: 28px; }
+  .inv-srow:last-child { border-bottom: none; }
+  .inv-slab { color: var(--n500, #8B95A1); flex-shrink: 0; }
+  .inv-sval { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inv-stag { font-size: 12px; color: var(--n500, #8B95A1); font-weight: 400; }
+  .inv-usage { display: inline-block; background: var(--n100, #F2F4F6); color: var(--n600, #4E5968); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+  .inv-sec { font-size: 14px; font-weight: 700; margin: 12px 0 6px; }
+
+  /* ── C4 색상×사이즈 미니표 — 넘치면 표 그릇만 가로 스크롤(화면 전체는 안 밀림) ── */
+  .inv-mtx-wrap { overflow-x: auto; margin: 6px 0 2px; max-width: 100%; }
+  table.inv-mtx { border-collapse: collapse; font-size: 12.5px; background: var(--surface, #fff); min-width: 100%; }
+  .inv-mtx th, .inv-mtx td { border: 1px solid var(--n200, #E5E8EB); padding: 7px 6px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .inv-mtx th { background: var(--n100, #F2F4F6); color: var(--n600, #4E5968); font-weight: 600; }
+  .inv-mtx td.ok { color: var(--color-ok, #16a34a); font-weight: 700; }
+  .inv-mtx td.zero { color: var(--n500, #8B95A1); }      /* 0 = 회색 0 */
+  .inv-mtx td.none { color: var(--n400, #B0B8C1); }      /* 조합 없음 = — */
+
+  /* ── A4 위치 이동 폼 — 입력 16px·터치 44px ── */
+  .inv-flab { font-size: 12.5px; color: var(--n500, #8B95A1); margin-top: 10px; }
+  .inv-sheet select, .inv-sheet input {
+    width: 100%; border: 1px solid var(--n200, #E5E8EB); border-radius: 8px;
+    padding: 11px 12px; min-height: 44px; font-size: 16px;
+    background: var(--surface, #fff); color: var(--n800, #333D4B);
+    margin-top: 4px; box-sizing: border-box; font-family: inherit;
+  }
+  .inv-btn {
+    display: block; width: 100%; text-align: center; box-sizing: border-box;
+    background: var(--바탕-파랑, var(--primary, #3182F6)); color: #fff;
+    border: none; border-radius: 10px; padding: 13px; min-height: 44px;
+    font-size: 15px; font-weight: 700; margin-top: 10px; cursor: pointer;
+    text-decoration: none; font-family: inherit;
+  }
+  .inv-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .inv-btn.gray { background: var(--n100, #F2F4F6); color: var(--n600, #4E5968); font-weight: 600; }
+</style>
+{% endblock %}
+
 {% block content %}
+<div class="inv-kpis" id="inv-kpis" style="display: none;">
+  <div class="inv-kpi"><div class="l">총 SKU</div><div class="v" id="inv-kpi-total">—</div></div>
+  <div class="inv-kpi"><div class="l">재고 보유</div><div class="v ok" id="inv-kpi-instock">—</div></div>
+  <div class="inv-kpi"><div class="l">총 수량</div><div class="v" id="inv-kpi-qty">—</div></div>
+</div>
+
 <div class="m-field">
   <input type="search" id="search-input" placeholder="SKU / 색상 / 사이즈 / 바코드 검색" autocomplete="off">
 </div>
@@ -17,10 +75,19 @@
 {% block extra_script %}
 <script>
   let debounceTimer = null;
+  let expandedSku = null;   // B1 — 한 번에 하나만 펼침
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function fmt(n) { return (n == null ? '—' : Number(n).toLocaleString('ko-KR')); }
 
   async function loadInventory(query = '') {
     const list = document.getElementById('inventory-list');
     const summary = document.getElementById('inventory-summary');
+    expandedSku = null;
     list.innerHTML = '<div class="m-loading"><span class="m-spinner"></span>불러오는 중...</div>';
     summary.style.display = 'none';
 
@@ -29,6 +96,7 @@
       const r = await fetch(url);
       const d = await r.json();
       if (!d.ok) throw new Error(d.error || '재고 API 실패');
+      renderKpi(d.kpi);
       render(d.items, d.total, query);
     } catch (e) {
       console.error('[mobile-inv]', e);
@@ -36,9 +104,19 @@
         `<div class="m-empty">
           <div class="icon"></div>
           재고 불러오기 실패<br>
-          <span style="font-size: 14px; color: var(--n500);">${e.message || ''}</span>
+          <span style="font-size: 14px; color: var(--n500);">${esc(e.message || '')}</span>
         </div>`;
     }
+  }
+
+  function renderKpi(kpi) {
+    const box = document.getElementById('inv-kpis');
+    if (!kpi) { box.style.display = 'none'; return; }
+    // 서버(master_kpi = PC data_items 와 같은 정의) 값을 그대로 그린다 — 재계산 금지
+    document.getElementById('inv-kpi-total').textContent = fmt(kpi.all_options);
+    document.getElementById('inv-kpi-instock').textContent = fmt(kpi.in_stock);
+    document.getElementById('inv-kpi-qty').textContent = fmt(kpi.total_qty);
+    box.style.display = 'flex';
   }
 
   function render(items, total, query) {
@@ -48,7 +126,7 @@
     if (!items || !items.length) {
       list.innerHTML = `<div class="m-empty">
         <div class="icon"></div>
-        ${query ? `"${query}" 검색 결과 없음` : '옵션 없음'}
+        ${query ? `"${esc(query)}" 검색 결과 없음` : '옵션 없음'}
       </div>`;
       return;
     }
@@ -56,6 +134,7 @@
     summary.style.display = 'block';
     summary.textContent = `${total}개 옵션` + (query ? ` · "${query}" 결과` : '');
 
+    // 카드 뼈대는 기존 그대로(사진48 + 이름 + 오른쪽 숫자) — a→div, 펼침 훅(data-sku)만 추가
     list.innerHTML = items.map(it => {
       const sku = it.canonical_sku;
       const stock = it.stock || 0;
@@ -63,23 +142,179 @@
       const size = it.size_code || '';
       const boxhero = it.boxhero_sku || '';
       const img = it.image_url
-        ? `<img src="${it.image_url}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;">`
-        : `<div style="width: 48px; height: 48px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;"></div>`;
+        ? `<img src="${esc(it.image_url)}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;">`
+        : `<div style="width: 48px; height: 48px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0;"></div>`;
       const stockColor = stock > 0 ? 'var(--color-ok, #16a34a)' : (stock < 0 ? 'var(--danger, #F04452)' : 'var(--n500, #8B95A1)');
-      return `<a href="/mobile/sku/${encodeURIComponent(sku)}" class="m-card" style="display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit; padding: 12px 14px; margin-bottom: 8px;">
+      return `<div class="m-card inv-card" data-sku="${esc(sku)}" role="button" tabindex="0" style="display: flex; gap: 12px; align-items: center; color: inherit; padding: 12px 12px; margin-bottom: 8px;">
         ${img}
         <div style="flex: 1; min-width: 0;">
-          <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sku}</div>
-          <div style="font-size: 14px; color: var(--n600); margin-top: 2px;">
-            ${color} ${size}${boxhero ? ' · <span style="color: var(--n500); font-family: monospace;">' + boxhero + '</span>' : ''}
+          <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(sku)}</div>
+          <div style="font-size: 14px; color: var(--n600); margin-top: 0px;">
+            ${esc(color)} ${esc(size)}${boxhero ? ' · <span style="color: var(--n500); font-family: monospace;">' + esc(boxhero) + '</span>' : ''}
           </div>
         </div>
         <div style="text-align: right; flex-shrink: 0;">
-          <div style="font-size: 20px; font-weight: 700; color: ${stockColor};">${stock}</div>
+          <div class="inv-card-stock" style="font-size: 17px; font-weight: 700; color: ${stockColor};">${stock}</div>
           <div style="font-size: 12px; color: var(--n500);">재고</div>
         </div>
-      </a>`;
+      </div>`;
     }).join('');
+
+    // 펼침/접힘 — 카드 누르면 바로 아래 시트 (한 번에 하나)
+    list.querySelectorAll('.inv-card').forEach(card => {
+      card.addEventListener('click', () => toggleSheet(card));
+    });
+  }
+
+  function closeSheet() {
+    const old = document.getElementById('inv-sheet');
+    if (old) old.remove();
+    document.querySelectorAll('.inv-card.open').forEach(c => c.classList.remove('open'));
+    expandedSku = null;
+  }
+
+  async function toggleSheet(card) {
+    const sku = card.dataset.sku;
+    if (expandedSku === sku) { closeSheet(); return; }   // 다시 누르면 접힘
+    closeSheet();
+    expandedSku = sku;
+    card.classList.add('open');
+
+    const sheet = document.createElement('div');
+    sheet.className = 'inv-sheet';
+    sheet.id = 'inv-sheet';
+    sheet.innerHTML = '<div class="m-loading"><span class="m-spinner"></span>제품 정보 불러오는 중...</div>';
+    card.insertAdjacentElement('afterend', sheet);
+
+    try {
+      const [pr, sr] = await Promise.all([
+        fetch('/mobile/api/product/' + encodeURIComponent(sku)),
+        fetch('/mobile/api/stock/' + encodeURIComponent(sku)),
+      ]);
+      const pd = await pr.json();
+      const sd = await sr.json();
+      if (!sd.ok) throw new Error(sd.error || '재고 API 실패');
+      // Option 미등록 SKU(거래만 존재) → 제품 정보 없이 재고·입출고만
+      renderSheet(sheet, sku, pd.ok ? pd.product : null, sd);
+    } catch (e) {
+      console.error('[mobile-inv-sheet]', e);
+      sheet.innerHTML = `<div class="m-empty" style="padding: 24px 12px;">
+        <div class="icon"></div>제품 정보 불러오기 실패<br>
+        <span style="font-size: 14px; color: var(--n500);">${esc(e.message || '')}</span>
+      </div>`;
+    }
+  }
+
+  function renderSheet(sheet, sku, p, sd) {
+    const locRows = (sd.by_location || []).map(l =>
+      `<div class="inv-srow"><span class="inv-slab">${esc(l.location_name)}</span>
+        <span class="inv-sval" data-loc-stock="${l.location_id}">${fmt(l.stock)}</span></div>`
+    ).join('');
+
+    let infoRows = '';
+    if (p) {
+      const bm = [p.brand, p.model_name, p.article_no].filter(Boolean).map(esc).join(' · ');
+      infoRows = `
+        <div class="inv-srow"><span class="inv-slab">브랜드 · 모델 · 품번</span><span class="inv-sval">${bm || '—'}</span></div>
+        <div class="inv-srow"><span class="inv-slab">바코드</span><span class="inv-sval">${esc(p.barcode) || '—'}</span></div>
+        <div class="inv-srow"><span class="inv-slab">평균매입가</span><span class="inv-sval">${fmt(p.avg_purchase_price)}<span class="inv-stag">원</span></span></div>
+        <div class="inv-srow"><span class="inv-slab">모음전 연결</span>
+          <span class="inv-usage">${fmt(p.usage)}곳</span></div>`;
+    } else {
+      infoRows = `<div class="inv-srow"><span class="inv-slab">제품 정보</span>
+        <span class="inv-sval" style="color: var(--n500);">모음전 옵션 미등록 — 재고 거래만 존재</span></div>`;
+    }
+
+    // C4 — 색상×사이즈 미니표. 셀: 재고 수 / 0 = 회색 0 / 조합 없음 = '—' (0 과 구분)
+    let mtx = '';
+    if (p && p.matrix && p.matrix.sizes.length) {
+      const head = '<tr><th>색상＼사이즈</th>' + p.matrix.sizes.map(sz => `<th>${esc(sz)}</th>`).join('') + '</tr>';
+      const body = p.matrix.rows.map(row =>
+        '<tr><th>' + esc(row.color) + '</th>' + row.cells.map(cell =>
+          cell == null ? '<td class="none">—</td>'
+            : (cell > 0 ? `<td class="ok">${fmt(cell)}</td>` : `<td class="zero">${fmt(cell)}</td>`)
+        ).join('') + '</tr>'
+      ).join('');
+      mtx = `<div class="inv-sec">색상×사이즈 재고${p.model_name ? ' · ' + esc(p.model_name) : ''}</div>
+        <div class="inv-mtx-wrap"><table class="inv-mtx">${head}${body}</table></div>`;
+    }
+
+    // A4 — 위치 이동 (등록 SKU 만 — 미등록은 서버가 404 로 거른다)
+    let move = '';
+    if (p) {
+      const locOpts = (sd.by_location || []).map(l =>
+        `<option value="${l.location_id}">${esc(l.location_name)} (재고 ${l.stock})</option>`).join('');
+      move = `
+        <div class="inv-sec">위치 이동</div>
+        <div class="inv-flab">보내는 위치</div>
+        <select id="inv-move-from">${locOpts}</select>
+        <div class="inv-flab">받는 위치</div>
+        <select id="inv-move-to">${locOpts}</select>
+        <div class="inv-flab">수량</div>
+        <input id="inv-move-qty" type="number" min="1" inputmode="numeric" placeholder="옮길 수량">
+        <button class="inv-btn" id="inv-move-save">이동 저장</button>`;
+    }
+
+    sheet.innerHTML = `
+      ${infoRows}
+      <div class="inv-sec">위치별 재고 <span class="inv-stag">(총 ${fmt(sd.total)}개)</span></div>
+      ${locRows || '<div class="inv-srow"><span class="inv-slab">위치 정보 없음</span></div>'}
+      ${mtx}
+      ${move}
+      <a class="inv-btn gray" id="inv-io-link" href="/mobile/sku/${encodeURIComponent(sku)}">입고 · 출고</a>
+    `;
+
+    // 받는 위치 기본값 — 보내는 위치와 다른 첫 항목
+    const fromSel = sheet.querySelector('#inv-move-from');
+    const toSel = sheet.querySelector('#inv-move-to');
+    if (fromSel && toSel && toSel.options.length > 1) toSel.selectedIndex = 1;
+
+    const saveBtn = sheet.querySelector('#inv-move-save');
+    if (saveBtn) saveBtn.addEventListener('click', () => submitMove(sheet, sku));
+  }
+
+  async function submitMove(sheet, sku) {
+    const fromId = parseInt(sheet.querySelector('#inv-move-from').value);
+    const toId = parseInt(sheet.querySelector('#inv-move-to').value);
+    const qty = parseInt(sheet.querySelector('#inv-move-qty').value || '0');
+    if (!qty || qty <= 0) { showToast('수량은 양수', 'error'); return; }
+    if (fromId === toId) { showToast('같은 위치로는 이동 불가', 'error'); return; }
+
+    const btn = sheet.querySelector('#inv-move-save');
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
+    try {
+      const r = await fetch('/mobile/api/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku, from_location_id: fromId, to_location_id: toId, qty }),
+      });
+      const d = await r.json();
+      if (!d.ok) { showToast('❌ ' + d.error, 'error'); return; }
+      // 서버 응답의 갱신 재고로 화면 즉시 갱신 (재계산 금지)
+      const fromCell = sheet.querySelector(`[data-loc-stock="${d.from_location.id}"]`);
+      const toCell = sheet.querySelector(`[data-loc-stock="${d.to_location.id}"]`);
+      if (fromCell) fromCell.textContent = fmt(d.from_location.stock);
+      if (toCell) toCell.textContent = fmt(d.to_location.stock);
+      const card = document.querySelector(`.inv-card[data-sku="${CSS.escape(sku)}"] .inv-card-stock`);
+      if (card) card.textContent = d.total_stock;
+      // 셀렉트의 (재고 N) 라벨도 갱신
+      sheet.querySelectorAll('#inv-move-from, #inv-move-to').forEach(sel => {
+        Array.from(sel.options).forEach(opt => {
+          const lid = parseInt(opt.value);
+          const st = lid === d.from_location.id ? d.from_location.stock
+                   : lid === d.to_location.id ? d.to_location.stock : null;
+          if (st != null) opt.textContent = opt.textContent.replace(/\(재고 -?\d+\)/, `(재고 ${st})`);
+        });
+      });
+      sheet.querySelector('#inv-move-qty').value = '';
+      showToast(`${d.from_location.name} → ${d.to_location.name} ${d.qty}개 이동`, 'success');
+    } catch (e) {
+      showToast('이동 실패: ' + (e.message || ''), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '이동 저장';
+    }
   }
 
   // 검색 입력 — 300ms 디바운스 후 서버 호출

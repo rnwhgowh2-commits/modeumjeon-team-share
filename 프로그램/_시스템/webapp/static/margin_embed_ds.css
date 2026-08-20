@@ -1,0 +1,39 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   마진계산기(홀로 선 페이지) 디자인 타입 보정
+   ───────────────────────────────────────────────────────────────────────
+   이 화면은 base.html 을 안 쓰는 독립 페이지라 늘 원본의 흰 디자인이었다.
+   빌드가 <style> 블록의 굳은 색을 `var(--토큰,원래색)` 으로 바꿔 대부분을
+   해결하지만, **자바스크립트가 문자열로 만들어 붙이는 색**은 그 도구가
+   손대지 않는다(건드리면 코드가 깨진다). 그 나머지를 여기서 덮는다.
+
+   ★ 모든 규칙은 `.ds` 아래에만 둔다. 「기존 타입」에는 ds 가 안 붙으므로
+     이 파일 전체가 잠든다 — 한 픽셀도 안 바뀐다.
+   ★ 값은 토큰으로 쓴다. 여기서 색을 새로 정하지 않는다(tokens.css 가 원천).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 페이지 바탕 — 원본은 body{background:#F4F4F4} 로 굳어 있다.
+   <style> 블록이므로 빌드 스윕이 토큰으로 바꾸지만, 어두운 타입에서
+   확실히 바탕색을 잡도록 한 번 더 못 박는다. */
+.ds body,
+body.ds { background: var(--bg); color: var(--글자-기본); }
+
+/* 자바스크립트가 style="background:#fff" 처럼 직접 붙이는 흰 판.
+   원본 렌더 함수들이 표·카드를 문자열로 만들며 흰색을 넣는다. */
+.ds [style*="background:#fff"],
+.ds [style*="background: #fff"],
+.ds [style*="background:#FFF"],
+.ds [style*="background:white"],
+.ds [style*="background-color:#fff"],
+.ds [style*="background-color: #fff"] { background: var(--surface) !important; }
+/* 표 — 원본은 흰 바탕에 옅은 줄. 어두운 타입에서 줄이 안 보인다. */
+.ds table { background: var(--surface); }
+/* ★ 예비값 필수 — --surface2 는 어두운 타입에만 있는 이름이다. 예비값이 없으면
+   「화이트 타입」에서 표 머리 배경이 통째로 사라진다(2026-08-02 발견). */
+.ds th { background: var(--surface2, var(--surface)); color: var(--ink); }
+.ds td, .ds th { border-color: var(--line); }/* 입력칸 — 흰 상자가 그대로 남으면 어두운 화면에서 가장 눈에 띈다 */
+.ds input, .ds select, .ds textarea {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.ds input::placeholder, .ds textarea::placeholder { color: var(--글자-희미); }

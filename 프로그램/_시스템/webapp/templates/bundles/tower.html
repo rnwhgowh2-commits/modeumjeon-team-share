@@ -1,0 +1,1582 @@
+{% extends 'base.html' %}
+{% block title %}상품관리 — 모음전 자동화{% endblock %}
+{% block content %}
+{# ═══════════════════════════════════════════════════════════════════════
+   상품관리 컨트롤타워 — 확정 시안 v8(상품관리_최종시안_v8_판매이력_추가.html)
+   [2026-08-12 노션] 이름에서 「모음전」을 뗐다 — 메뉴 이름과 화면 제목을 맞춘다.
+   구조·클래스·수치는 시안 그대로, 색만 tokens.css 토큰(예비값 필수)으로 옮겼다.
+   표 정렬 = 머리글 기준 가운데(상품 칸만 왼쪽) · 굵기 400/600 · 그림자 0 · 줄간격 1.57
+   ═══════════════════════════════════════════════════════════════════════ #}
+<section class="screen active" id="screen-tower">
+<style>
+  .twr-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+  .twr-head h1{font-size:40px;font-weight:600;margin:0}
+  .twr-head .d{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5}
+  /* [2026-08-06] 서랍 폭 250px 고정을 푼다 — 「상품 생성 + 정책 적용 + 마켓 등록
+     (판매중)」이 두 줄로 접히던 것을 한 줄로. 내용에 맞춰 필요한 만큼만 넓어진다. */
+  .twr-app{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:start;font-size:14px;line-height:1.57}
+  /* ── 서랍 ── */
+  .twr-sb{position:sticky;top:16px;width:max-content;min-width:250px;max-width:440px}
+  /* ── 「어디까지 왔나」 한 판 — 막대 + 4상태 거르기 + 손 볼 것 ──
+     좌우 여백 14px = 아래 브랜드 카드(.twr-card)와 같은 값이라야 숫자가 같은 선에 선다. */
+  .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
+  .stg-head{font-weight:600}
+  .stg-head .n{font-variant-numeric:tabular-nums}
+  .stg-bar{display:flex;height:10px;border-radius:980px;overflow:hidden;margin:8px 10px 10px}
+  .stg-bar i{display:block}
+  .stg-bar i.g1{background:var(--ap-g3,#D2D2D7)}
+  .stg-bar i.g2{background:var(--ap-버튼파랑,#0071E3)}
+  .stg-bar i.g4{background:var(--글자-주황,#C93400)}
+  .stg-bar i.g3{background:var(--ap-green,#34C759)}
+  .stg-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;
+    border:1px solid transparent;cursor:pointer;
+    transition:background .24s cubic-bezier(.4,0,.6,1),color .24s}
+  .stg-row:hover{background:var(--ap-g0,#FAFAFC)}
+  .stg-row.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  .stg-row .lb{flex:1;min-width:0;white-space:nowrap;line-height:1.4}
+  .stg-row .n{flex:none;font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums;line-height:1.4}
+  .stg-row.on .n{color:inherit}
+  .stg-div{height:1px;background:var(--ap-g2,#E8E8ED);margin:8px 10px}
+  /* 단계 구분 = **글자색만**. 줄에 색 배경을 칠하면 「덕지덕지」해진다(사장님 실측). */
+  .stg-row.t1 .lb{color:var(--ap-g45,#6E6E73)}
+  .stg-row.t2 .lb{color:var(--ap-링크파랑,#0066CC)}
+  .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
+  .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
+  .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
+  .stg-row.fix .n{font-weight:600}
+  /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.
+     글자 쪽은 안 건드리므로 화면이 조용하다. */
+  .stg-row .n{background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 9px;
+    min-width:38px;text-align:center;transition:background .24s}
+  .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
+  .twr-card{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px}
+  .twr-in{width:100%;border:1px solid var(--ap-g3,#D2D2D7);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:14px;color:var(--ink,#1D1D1F);background:var(--surface,#fff);box-sizing:border-box}
+  .twr-st{font-size:12px;font-weight:600;color:var(--ap-g4,#86868B);margin:16px 0 6px}
+  .twr-sr{display:flex;justify-content:space-between;padding:7px 10px;border-radius:8px;cursor:pointer}
+  .twr-sr.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC);font-weight:600}
+  .twr-sr .n{font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums}
+  .twr-sr.on .n{color:inherit}
+  /* ── 본문 ── */
+  .twr-ct{min-width:0}
+  .twr-ch{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .twr-ch h2{font-size:24px;font-weight:600;line-height:1.29;margin:0}
+  .twr-cnt{font-size:12px;font-weight:600;color:var(--ap-g45,#6E6E73);background:var(--ap-g2,#E8E8ED);border-radius:980px;padding:3px 10px;font-variant-numeric:tabular-nums}
+  .twr-ch .sp{flex:1}
+  .twr-btn{border:0;border-radius:980px;padding:9px 18px;font-size:14px;font-weight:400;font-family:inherit;cursor:pointer;white-space:nowrap;transition:all .24s cubic-bezier(.4,0,.6,1);text-decoration:none;display:inline-block}
+  .twr-btn.pri{background:var(--ap-버튼파랑,#0071E3);color:#fff}
+  .twr-btn.pri:hover{background:var(--ap-링크파랑,#0066CC)}
+  .twr-btn.gho{background:var(--surface,#fff);color:var(--ap-링크파랑,#0066CC);border:1px solid var(--ap-g3,#D2D2D7)}
+  .twr-btn.gho:hover{border-color:var(--ap-g4,#86868B)}
+  .twr-btn.sm{padding:6px 14px;font-size:12px}
+  .twr-btn.danger{color:var(--ap-red,#FF3B30)}
+  .twr-badge{display:inline-block;border-radius:980px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+  .twr-badge.sale{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#248A3D)}
+  .twr-badge.wait{background:var(--ap-g2,#E8E8ED);color:var(--ap-g45,#6E6E73)}
+  .twr-badge.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  /* 단계 배지 — 서랍과 같은 말이라 길다. 한 줄 유지(알약).
+     회색 배지는 `--ap-g45`(#6E6E73)를 옅은 회색판(#E8E8ED) 위에 얹으면 대비 4.15 로
+     규칙(4.5) 미달이다 — 게다가 「상품 생성」이 제일 많은 상태라 제일 안 읽힌다.
+     한 단계 진한 `--ap-g5`(#424245)로 올린다(대비 7.8). */
+  .twr-badge.stgb{white-space:nowrap;max-width:none;line-height:1.35;padding:4px 11px}
+  .twr-badge.stgb.wait{color:var(--ap-g5,#424245)}
+  .twr-badge.err{background:var(--연한-빨강,rgba(255,59,48,.10));color:var(--글자-빨강,#D70015)}
+  .twr-badge.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#C93400)}
+  .twr-mks{display:inline-flex;gap:3px}
+  .twr-mk{font-size:12px;font-weight:600;border-radius:6px;padding:3px 7px;background:var(--ap-g2,#E8E8ED);color:var(--n400,#ACACB1)}
+  .twr-mk.y{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#248A3D)}
+  .twr-thumb{border-radius:10px;background:var(--ap-g1,#F5F5F7);display:flex;align-items:center;justify-content:center;color:var(--ap-g45,#6E6E73);font-weight:600}
+  .twr-p3{display:inline-grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:baseline}
+  .twr-p3 .buy{text-align:right;font-variant-numeric:tabular-nums;color:var(--ap-g45,#6E6E73)}
+  .twr-p3 .ar{color:var(--ap-g3,#D2D2D7)}
+  .twr-p3 .sell{text-align:left;font-variant-numeric:tabular-nums;font-weight:600}
+  .twr-mgn{font-size:12px;color:var(--글자-초록,#248A3D);font-variant-numeric:tabular-nums}
+  .twr-u{font-size:12px;color:var(--ap-g4,#86868B)}
+  /* ── 본 표 — 머리글 기준 가운데(상품 칸만 왼쪽) 사장님 확정 ── */
+  .twr-tb{width:100%;border-collapse:collapse;background:var(--surface,#fff);border:1px solid var(--ap-g3,#D2D2D7);border-radius:12px}
+  .twr-tb th{color:var(--ap-g45,#6E6E73);font-weight:600;padding:13px 16px;text-align:center;font-size:12px;white-space:nowrap;border-bottom:1px solid var(--ap-g3,#D2D2D7);background:var(--ap-g0,#FAFAFC)}
+  .twr-tb td{padding:13px 16px;border-top:1px solid var(--ap-g2,#E8E8ED);vertical-align:middle;text-align:center;line-height:1.57;font-variant-numeric:tabular-nums}
+  .twr-tb td.l,.twr-tb th.l{text-align:left}
+  .twr-tb tr.row{cursor:pointer;transition:background .24s}
+  .twr-tb tr.row:hover td{background:var(--ap-g0,#FAFAFC)}
+  .twr-tb tr.row.sel td{background:rgba(0,113,227,.06)}
+  /* ── 전폭 펼침 ── */
+  .twr-expand-cell{padding:0 !important;background:var(--ap-g1,#F5F5F7);text-align:left !important}
+  .twr-tabs{display:flex;align-items:center;border-bottom:1px solid var(--ap-g3,#D2D2D7);background:var(--surface,#fff);padding:0 20px;flex-wrap:wrap}
+  .twr-tab{padding:14px 15px;color:var(--ap-g45,#6E6E73);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .24s}
+  .twr-tab:hover{color:var(--ink,#1D1D1F)}
+  .twr-tab.on{color:var(--ap-링크파랑,#0066CC);font-weight:600;border-bottom-color:var(--ap-버튼파랑,#0071E3)}
+  .twr-tab .b{display:inline-block;min-width:16px;text-align:center;background:var(--연한-빨강,rgba(255,59,48,.10));color:var(--글자-빨강,#D70015);border-radius:980px;font-size:12px;padding:1px 6px;margin-left:4px}
+  .twr-body{padding:24px}
+  .twr-load{padding:40px 0;text-align:center;color:var(--ap-g4,#86868B);font-size:12px}
+  /* ── 「사올 때」 배치 (사장님 확정 S5) ─────────────────────────────────
+     위: 소싱처 수집 이력 · 가격/재고 변동 이력 을 나란히
+     아래: 옵션 매트릭스를 통째로.
+     🔴 매트릭스는 색×사이즈 표라 좁은 칸에 넣으면 눌린다 — 그래서 아래 전폭. */
+  .buy-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .buy-full{margin-top:18px}
+  .buy-h{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;
+         align-items:center;gap:8px}
+  .buy-h .buy-s{font-size:11.5px;font-weight:400;color:var(--ap-g45,#6E6E73)}
+  .buy-slot{min-height:40px}
+  /* 좁은 화면에선 나란히가 되레 답답하다 — 한 줄로 편다 */
+  @media (max-width:1100px){ .buy-two{grid-template-columns:1fr} }
+  /* ── 쿠폰 칸(C4) + 「정책/비정책」 스위치(A2) ─────────────────────────── */
+  .cpn-c{display:flex;flex-direction:column;gap:3px;align-items:center;line-height:1.5}
+  .cpn-r2{display:flex;align-items:center;gap:4px;justify-content:center;font-size:11px}
+  .cpn-q{display:inline-flex;align-items:center;border-radius:980px;padding:2px 8px;
+         font-size:11px;font-weight:700;line-height:1.55;white-space:nowrap}
+  .cpn-q.none{background:var(--ap-g1,#F5F5F7);color:var(--ap-g45,#6E6E73)}
+  .cpn-q.wait{background:#FFF8E1;color:#8A6100}
+  .cpn-q.on{background:#E9F8EE;color:#1B7F3B}
+  .cpn-q.bad{background:#FDECEC;color:#C1121F}
+  .cpn-q.own{background:#FFF3E6;color:#B25000}
+  .cpn-p{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);
+         border-radius:14px;padding:14px 16px;margin-top:14px}
+  .cpn-p-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .cpn-logo{width:20px;height:20px;border-radius:5px;background:#E94F35;color:#fff;
+            font-size:12px;font-weight:800;display:grid;place-items:center;flex:none}
+  .cpn-p-b{margin-top:10px;font-size:12.5px;display:flex;align-items:center;gap:8px;
+           flex-wrap:wrap}
+  .cpn-p-n{margin-top:8px;font-size:11.5px;color:var(--ap-g45,#6E6E73);line-height:1.7}
+  .cpn-in{width:96px;border:1.5px solid var(--ap-g3,#D2D2D7);border-radius:8px;
+          padding:5px 9px;font-size:12.5px;text-align:right;font-family:inherit;
+          font-variant-numeric:tabular-nums}
+  .cpn-in[disabled]{background:var(--ap-g1,#F5F5F7);color:var(--ap-g45,#6E6E73)}
+  /* 미끄럼 스위치 — 파랑이면 정책, 주황이면 이 상품만 */
+  .cpn-sw{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;
+          font-weight:700;cursor:pointer;margin-left:auto}
+  .cpn-sw input{display:none}
+  .cpn-sw i{width:34px;height:19px;border-radius:980px;background:#1B64DA;
+            position:relative;flex:none;transition:.15s}
+  .cpn-sw i::after{content:'';position:absolute;top:2px;left:17px;width:15px;height:15px;
+                   border-radius:50%;background:#fff;transition:.15s}
+  .cpn-sw.free i{background:#C2410C}
+  .cpn-sw.free i::after{left:2px}
+  /* 마켓별 상품명 줄 */
+  .nm-k{min-width:96px;font-weight:600;font-size:12.5px}
+  .nm-in{flex:1;min-width:220px;border:1.5px solid var(--ap-g3,#D2D2D7);
+         border-radius:8px;padding:5px 9px;font-size:12.5px;font-family:inherit}
+  .nm-in[disabled]{background:var(--ap-g1,#F5F5F7);color:var(--ap-g45,#6E6E73)}
+  .cpn-p .cpn-p-b .cpn-sw{margin-left:0}
+  /* 🔴 글자 바닥선 12px (사장님 확정 2026-08-13). 이 판엔 확대(scale)가 없어 예외가
+     아니다 — 11px 로 두면 #1022 의 감시 시험이 머지되는 순간 main 이 빨개진다. */
+  .nm-c{font-size:12px;color:var(--ap-g45,#6E6E73);font-variant-numeric:tabular-nums;
+        white-space:nowrap}
+  .nm-c.over{color:var(--글자-빨강,#D70015);font-weight:700}
+  .nm-c.unk{cursor:help;text-decoration:underline dotted}
+  /* ── 펼침 안 카드·표 ── */
+  .tcard{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:18px;padding:24px}
+  .tcard + .tcard{margin-top:12px}
+  .tcard-t{font-size:17px;font-weight:600;line-height:1.35;display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .tcard-t .sp{flex:1}
+  .tcard-t .cap{font-size:12px;color:var(--ap-g4,#86868B);font-weight:400}
+  .tnote{font-size:12px;color:var(--ap-g4,#86868B);margin-top:14px;line-height:1.57}
+  .tnote a{color:var(--ap-링크파랑,#0066CC);text-decoration:none}
+  .atb{width:100%;border-collapse:collapse}
+  .atb th{font-size:12px;color:var(--ap-g45,#6E6E73);font-weight:600;text-align:center;padding:10px 12px;border-bottom:1px solid var(--ap-g3,#D2D2D7);white-space:nowrap}
+  .atb td{padding:12px;border-bottom:1px solid var(--ap-g1,#F5F5F7);text-align:center;line-height:1.57;font-variant-numeric:tabular-nums}
+  .atb td.l,.atb th.l{text-align:left}
+  .atb tr:last-child td{border-bottom:0}
+  .tlink{font-size:12px;color:var(--ap-링크파랑,#0066CC);text-decoration:none}
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .kpi{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:18px;padding:20px 22px}
+  .kpi .k{font-size:12px;color:var(--ap-g45,#6E6E73)}
+  .kpi .v{font-size:28px;font-weight:600;line-height:1.22;font-variant-numeric:tabular-nums;margin-top:6px}
+  .kpi .v .un{font-size:14px;font-weight:400;color:var(--ap-g45,#6E6E73);margin-left:2px}
+  .kpi .d{font-size:12px;color:var(--ap-g4,#86868B);margin-top:6px}
+  .kpi.green .v{color:var(--글자-초록,#248A3D)}
+  .kpi.blue{border-color:var(--ap-버튼파랑,#0071E3)}
+  .kpi.blue .v{color:var(--ap-링크파랑,#0066CC)}
+  /* 지금 필요한 일 */
+  .todo{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:18px;margin-top:12px}
+  .todo-h{padding:20px 24px 4px;font-size:17px;font-weight:600}
+  .todo-r{display:flex;align-items:center;gap:14px;padding:14px 24px;border-top:1px solid var(--ap-g1,#F5F5F7)}
+  .todo-ic{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex:none}
+  .todo-ic.red{background:var(--연한-빨강,rgba(255,59,48,.10))}
+  .todo-ic.orange{background:var(--연한-주황,rgba(255,149,0,.10))}
+  .todo-r .t{flex:1}
+  .todo-r .t small{display:block;font-size:12px;color:var(--ap-g4,#86868B)}
+  .todo-r a{color:var(--ap-링크파랑,#0066CC);text-decoration:none;white-space:nowrap}
+  .metaline{display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:12px;padding:18px 24px;background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:18px;font-size:12px;color:var(--ap-g45,#6E6E73)}
+  .metaline b{color:var(--ink,#1D1D1F);font-weight:600}
+  /* 옵션 매트릭스 */
+  .omx{border-collapse:separate;border-spacing:5px;margin:0 auto}
+  .omx th{font-size:12px;font-weight:600;color:var(--ap-g45,#6E6E73);padding:6px 8px;text-align:center}
+  .omx td{background:var(--ap-g1,#F5F5F7);border-radius:12px;text-align:center;padding:12px 14px;min-width:108px;line-height:1.45;cursor:pointer;transition:background .24s}
+  .omx td:hover{background:var(--ap-g2,#E8E8ED)}
+  .omx td .p{font-weight:600;font-variant-numeric:tabular-nums;font-size:14px}
+  .omx td .s{font-size:12px;color:var(--ap-g45,#6E6E73);font-variant-numeric:tabular-nums;margin-top:3px}
+  .omx td .src{font-size:12px;color:var(--ap-링크파랑,#0066CC);margin-top:2px}
+  .omx td.zero{background:rgba(255,59,48,.08)}
+  .omx td.zero .p{color:var(--글자-빨강,#D70015);font-weight:400}
+  .omx td.zero .s,.omx td.zero .src{color:var(--글자-빨강,#D70015)}
+  .omx td.none{background:var(--ap-g0,#FAFAFC);color:var(--ap-g3,#D2D2D7);cursor:default}
+  .omx td.pick{background:var(--surface,#fff);outline:2px solid var(--ap-버튼파랑,#0071E3)}
+  .hcard{background:var(--surface,#fff);border:1px solid var(--ap-g3,#D2D2D7);border-radius:18px;overflow:hidden;margin-top:12px}
+  .hcard .h{padding:14px 20px;background:var(--ap-g0,#FAFAFC);border-bottom:1px solid var(--ap-g2,#E8E8ED);font-weight:600}
+  .hcard .h .code{font-family:ui-monospace,monospace;font-size:12px;background:var(--ap-g2,#E8E8ED);border-radius:6px;padding:1px 6px;font-weight:400;margin-left:6px}
+  .tgoto{width:30px;height:30px;border-radius:50%;border:1px solid var(--ap-g3,#D2D2D7);display:inline-flex;align-items:center;justify-content:center;color:var(--ap-링크파랑,#0066CC);text-decoration:none}
+  /* 소싱처 */
+  .srcrow{display:flex;align-items:center;gap:16px;padding:16px 8px;border-bottom:1px solid var(--ap-g1,#F5F5F7)}
+  .srcrow:last-child{border-bottom:0}
+  .srcini{width:42px;height:42px;border-radius:50%;background:var(--ap-g1,#F5F5F7);display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--ap-g45,#6E6E73);flex:none;position:relative}
+  .srcini .st{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;border:2px solid var(--surface,#fff)}
+  .srcini .st.ok{background:var(--ap-green,#34C759)}
+  .srcini .st.bad{background:var(--ap-red,#FF3B30)}
+  .covbar{height:4px;border-radius:980px;background:var(--ap-g2,#E8E8ED);margin-top:6px}
+  .covbar i{display:block;height:100%;border-radius:980px;background:var(--ap-버튼파랑,#0071E3)}
+  /* 세그·칩 */
+  .tseg{display:inline-flex;background:var(--ap-g2,#E8E8ED);border-radius:980px;padding:3px}
+  .tseg button{border:0;background:transparent;border-radius:980px;padding:6px 16px;font-family:inherit;font-size:12px;color:var(--ap-g45,#6E6E73);cursor:pointer;transition:all .24s}
+  .tseg button.on{background:var(--surface,#fff);color:var(--ink,#1D1D1F);font-weight:600}
+  .tchip{border:1px solid var(--ap-g3,#D2D2D7);background:var(--surface,#fff);border-radius:980px;padding:6px 14px;font-family:inherit;font-size:12px;color:var(--ap-g45,#6E6E73);cursor:pointer}
+  .tchip.on{border-color:var(--ap-버튼파랑,#0071E3);background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC);font-weight:600}
+  .tinfo{background:rgba(0,113,227,.06);border-radius:12px;padding:12px 16px;font-size:12px;color:var(--ap-g45,#6E6E73);margin-bottom:8px;line-height:1.57}
+  .tstat4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .tstat4 .bx{background:var(--ap-g1,#F5F5F7);border-radius:12px;padding:16px 20px}
+  .tstat4 .bx .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
+  .twr-empty{padding:48px 16px;text-align:center;color:var(--ap-g4,#86868B);background:var(--surface,#fff);border:1px dashed var(--ap-g3,#D2D2D7);border-radius:12px}
+  .twr-zero{margin-top:12px}
+  .twr-zero .zr-t{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F)}
+  .twr-zero .zr-why{font-size:14px;margin:8px 0 16px;line-height:1.6}
+  .twr-zero .zr-why b{color:var(--글자-주황,#9A5B00);font-weight:600}
+</style>
+{# 폰(≤768px) 대응 — 스펙 §1: @media 만 담은 별도 스타일 블록(PC 렌더 불변).
+   tests/mobile/test_stage3_ready.py 가 이 블록의 서빙·선택자 실재를 못 박는다. #}
+<style>
+@media (max-width: 768px) {
+  /* 서랍+본문 — 폰에선 위아래로 쌓고, 넓은 표는 자기 안에서만 가로 스크롤 */
+  .twr-app { grid-template-columns: 1fr; }
+  .twr-sb { position: static; }
+  .twr-ct { overflow-x: auto; }
+  .twr-tb { min-width: 900px; }
+  /* 손끝 44px · 입력칸 16px(iOS 포커스 확대 방지) */
+  .twr-btn { min-height: 44px; }
+  .twr-in { font-size: 16px; min-height: 44px; }
+  .twr-tab { min-height: 44px; display: flex; align-items: center; }
+  .twr-tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .twr-body { padding: 12px; }
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .tstat4 { grid-template-columns: 1fr 1fr; }
+}
+</style>
+
+<div class="twr-head">
+  <h1>상품관리</h1>
+  <span class="d">내 상품의 판매·가격·재고·마켓 상태를 한 표에서</span>
+</div>
+
+<div class="twr-app">
+  <aside class="twr-sb">
+    {# [사장님 확정 2026-08-06 · 시안 v12 5안] 현황 네모 카드 4장을 없애고,
+       「어디까지 왔나」 막대와 상태 거르기를 **한 판**으로 묶었다(위상 하나).
+       · 줄에 색 배경을 칠하지 않는다 — 단계 구분은 글자색만(「덕지덕지」 금지)
+       · 누를 수 있음은 **숫자 알약**으로 알린다(쉬는 상태에도 보이는 신호)
+       · 4상태는 겹치지 않게 나눠 세므로 합 = counts.all (막대 = 목록) #}
+    <div class="stg-block" id="twr-stats">
+      <div class="stg-head stg-row on" data-f="all">
+        <span class="lb">어디까지 왔나</span><span class="n">전체 {{ counts.all }}</span>
+      </div>
+      <div class="stg-bar">
+        {%- for st in stages %}<i class="g{{ st }}"
+          style="width:{{ (counts['s' ~ st] * 100 / counts.all)|round(1) if counts.all else 0 }}%"></i>{% endfor -%}
+      </div>
+      {% for st in stages %}
+      <div class="stg-row t{{ st }}" data-f="stage" data-stage="{{ st }}">
+        <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ counts['s' ~ st] }}</span>
+      </div>
+      {% endfor %}
+      <div class="stg-div"></div>
+      <div class="stg-row fix" data-f="fix">
+        <span class="lb">손 볼 것</span><span class="n">{{ counts.fix }}</span>
+      </div>
+    </div>
+    <div class="twr-card">
+      <input class="twr-in" id="twr-q" placeholder="상품명·번호·브랜드로 찾기">
+      <div class="twr-st">브랜드</div>
+      <div id="twr-brands">
+        <div class="twr-sr on" data-b=""><span>전체</span><span class="n">{{ counts.all }}</span></div>
+        {% for b, n in brands %}
+        <div class="twr-sr" data-b="{{ b }}"><span>{{ b }}</span><span class="n">{{ n }}</span></div>
+        {% endfor %}
+      </div>
+      {# 「상태」 목록은 위 「어디까지 왔나」 판으로 올라갔다(사장님 확정) — 여기 두면
+         같은 거르기가 두 곳에 생겨 화면이 갈린다. #}
+      <div class="twr-st">정렬</div>
+      <select class="twr-in" id="twr-sort">
+        <option value="recent">최근 만든 순</option>
+        <option value="name">이름 순</option>
+        <option value="sold">많이 팔린 순</option>
+        <option value="margin">마진율 순</option>
+      </select>
+    </div>
+  </aside>
+
+  <main class="twr-ct">
+    <div class="twr-ch">
+      <h2>모음전 상품</h2><span class="twr-cnt" id="twr-count">{{ counts.all }}</span>
+      <span class="sp"></span>
+      <a class="twr-btn pri" href="/optgen">+ 상품 만들러 가기</a>
+    </div>
+    {% if items %}
+    <table class="twr-tb" id="twr-table">
+      <tr>
+        <th class="l">상품</th><th>상태</th><th>매입 → 판매</th>
+        <th>최근 30일 판매</th><th>올라간 마켓</th><th>손 볼 것</th><th></th>
+      </tr>
+      {% for it in items %}
+      <tr class="row" data-code="{{ it.code }}" data-brand="{{ it.brand }}"
+          data-selling="{{ 1 if it.selling else 0 }}" data-stage="{{ it.stage }}"
+          data-issues="{{ it.issues }}"
+          data-sold="{{ it.sold_qty or 0 }}" data-margin="{{ it.margin_pct if it.margin_pct is not none else -999 }}"
+          data-created="{{ it.created or '' }}" data-matrix="{{ it.matrix_id or '' }}"
+          data-policy="{{ it.policy_id or '' }}"
+          data-blob="{{ (it.name ~ ' ' ~ it.brand ~ ' ' ~ it.no ~ ' ' ~ it.code)|lower }}">
+        <td class="l">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="twr-thumb" style="width:44px;height:44px;font-size:14px;flex:none">{{ (it.brand or it.name)[:1] }}</div>
+            <div>
+              <b style="font-weight:600">{{ it.name }}</b>
+              <div style="font-size:12px;color:var(--ap-g4,#86868B)">{{ it.brand or '—' }}{% if it.no %} · <span style="font-variant-numeric:tabular-nums">{{ it.no }}</span>{% endif %}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="twr-badge stgb {{ it.stage_cls }}">{{ it.stage_label }}</span></td>
+        <td>
+          {% if it.buy or it.sell %}
+          <span class="twr-p3">
+            <span class="buy">{{ '{:,}'.format(it.buy) if it.buy else '—' }}</span><span class="ar">→</span>
+            <span class="sell">{{ '{:,}'.format(it.sell) if it.sell else '—' }}</span>
+          </span>
+          {% if it.margin_pct is not none %}<div class="twr-mgn">마진 {{ it.margin_pct }}%</div>{% endif %}
+          {% else %}<span class="twr-u">확인 불가</span>{% endif %}
+        </td>
+        <td>
+          {% if it.sold_qty is not none %}{{ '{:,}'.format(it.sold_qty) }}개
+            <div class="twr-u">{{ '{:,}'.format(it.sold_revenue or 0) }}원</div>
+          {% else %}<span class="twr-u">—</span>{% endif %}
+        </td>
+        <td><span class="twr-mks">{% for mk, label, g in tower_markets %}<span class="twr-mk{% if mk in it.markets %} y{% endif %}" title="{{ label }}{% if mk in it.markets %} 등록됨{% else %} 미등록{% endif %}">{{ g }}</span>{% endfor %}</span></td>
+        <td>{% if it.issues %}<span class="twr-badge err"><i class="ph-light ph-warning" aria-hidden="true"></i> {{ it.issues }}건</span>{% else %}<span class="twr-badge sale">없음</span>{% endif %}</td>
+        <td><button class="twr-btn gho sm twr-open" type="button">자세히 보기</button></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {# 🔴 0건일 때 **왜 0인지** 말한다. 거르기가 켜져 있으면 「없다」가 아니라
+       「거르는 중이라 안 보인다」다 — 안 말하면 없는 줄 알고 다시 만든다
+       (사장님 실측: 「상품 생성」으로 거른 채 찾다가 새로 만든 상품을 못 찾으심). #}
+    <div class="twr-empty twr-zero" id="twr-zero" hidden>
+      <div class="zr-t">찾는 상품이 안 보입니다</div>
+      <div class="zr-why" id="twr-zero-why"></div>
+      <button class="twr-btn gho sm" type="button" id="twr-zero-clear">거르기 풀고 다시 찾기</button>
+    </div>
+    {% else %}
+    <div class="twr-empty">아직 등록한 모음전 상품이 없어요 — 「+ 상품 만들러 가기」에서 시작합니다.</div>
+    {% endif %}
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+var MKS = {{ tower_markets|tojson }};
+var fmt = function(n){ return (n === null || n === undefined) ? '—' : Number(n).toLocaleString('ko-KR'); };
+var esc = function(s){ return String(s === null || s === undefined ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+function shortDt(iso){
+  if(!iso) return '—';
+  if(/^\d{4}-\d{2}-\d{2}[ T]/.test(iso)){
+    var d = iso.slice(5,10).replace('-','/'); var t = iso.slice(11,16);
+    return d + ' ' + t;
+  }
+  return iso;
+}
+function dim(s){ return '<span class="twr-u">' + esc(s) + '</span>'; }
+
+/* ── 서랍 필터·정렬 (화면 안에서만 거른다 — 서버 재조회 없음) ── */
+/* [2026-08-06] 거르기 축은 하나뿐 — 「어디까지 왔나」 판. 예전엔 현황 카드(f)와
+   브랜드 밑 상태 목록(status) 둘이 같은 일을 해서 서로 어긋날 수 있었다. */
+/* [#1072] policy — 「정책 매칭」 카드에서 ?policy=<id> 로 넘어왔을 때만 켜지는
+   축. 다른 축과 달리 화면 안에 고르는 UI가 없다 — 딥링크 전용이라 칩으로만 보여준다. */
+var state = { f:'all', stage:'', brand:'', q:'', sort:'recent', policy:'', policyName:'' };
+function rows(){ return Array.prototype.slice.call(document.querySelectorAll('#twr-table tr.row')); }
+function applyFilter(){
+  var shown = 0;
+  rows().forEach(function(tr){
+    var ok = true;
+    if(state.f === 'stage' && tr.dataset.stage !== state.stage) ok = false;
+    if(state.f === 'fix' && !(parseInt(tr.dataset.issues||'0',10) > 0)) ok = false;
+    if(state.brand && tr.dataset.brand !== state.brand) ok = false;
+    if(state.policy && tr.dataset.policy !== state.policy) ok = false;
+    if(state.q && tr.dataset.blob.indexOf(state.q) < 0) ok = false;
+    tr.style.display = ok ? '' : 'none';
+    if(!ok) collapse(tr);
+    if(ok) shown++;
+  });
+  document.getElementById('twr-count').textContent = shown;
+  zeroHint(shown);
+}
+/* 🔴 0건이면 **왜 0인지** 말한다.
+   찾기만으로 0이면 진짜 없는 것이고, 거르기가 켜져 있으면 「거르는 중이라 안 보임」이다.
+   안 갈라 주면 사장님이 「없다」로 읽고 같은 상품을 또 만드신다(실제로 그럴 뻔했다). */
+function zeroHint(shown){
+  var box = document.getElementById('twr-zero');
+  if(!box) return;
+  var 거르기 = [];
+  if(state.f === 'stage'){
+    var 줄 = document.querySelector('.stg-block .stg-row[data-stage="' + state.stage + '"] .lb');
+    거르기.push('「' + (줄 ? 줄.textContent.trim() : '상태') + '」');
+  }
+  if(state.f === 'fix') 거르기.push('「손 볼 것」');
+  if(state.brand) 거르기.push('브랜드 「' + state.brand + '」');
+  if(state.policy) 거르기.push('정책 「' + (state.policyName || state.policy) + '」');
+  box.hidden = (shown > 0);
+  if(shown > 0) return;
+  var why = document.getElementById('twr-zero-why');
+  var btn = document.getElementById('twr-zero-clear');
+  if(거르기.length){
+    why.innerHTML = '지금 <b>' + 거르기.map(esc).join(' + ') + '</b> 으로 거르는 중이라 ' +
+      '안 보이는 것일 수 있어요.' +
+      (state.q ? ' 찾는 말(「' + esc(state.q) + '」)은 그대로 두고 거르기만 풉니다.' : '');
+    btn.hidden = false;
+  } else {
+    why.textContent = state.q
+      ? '「' + state.q + '」 로 찾은 상품이 없어요. 번호는 한 자리만 달라도 안 나옵니다 — 이름 일부로 찾아 보세요.'
+      : '보여줄 상품이 없어요.';
+    btn.hidden = true;
+  }
+}
+function applySort(){
+  var table = document.getElementById('twr-table');
+  if(!table) return;
+  var list = rows();
+  var key = state.sort;
+  list.sort(function(a,b){
+    if(key === 'name') return (a.dataset.blob < b.dataset.blob) ? -1 : 1;
+    if(key === 'sold') return parseInt(b.dataset.sold,10) - parseInt(a.dataset.sold,10);
+    if(key === 'margin') return parseFloat(b.dataset.margin) - parseFloat(a.dataset.margin);
+    return (b.dataset.created || '').localeCompare(a.dataset.created || '');
+  });
+  list.forEach(function(tr){ collapse(tr); table.appendChild(tr); });
+}
+document.getElementById('twr-stats').addEventListener('click', function(e){
+  var r = e.target.closest('.stg-row'); if(!r) return;
+  state.f = r.dataset.f;
+  state.stage = r.dataset.stage || '';
+  this.querySelectorAll('.stg-row').forEach(function(x){ x.classList.toggle('on', x === r); });
+  applyFilter();
+});
+document.getElementById('twr-brands').addEventListener('click', function(e){
+  var r = e.target.closest('.twr-sr'); if(!r) return;
+  state.brand = r.dataset.b;
+  this.querySelectorAll('.twr-sr').forEach(function(x){ x.classList.toggle('on', x === r); });
+  applyFilter();
+});
+var qEl = document.getElementById('twr-q');
+if(qEl) qEl.addEventListener('input', function(){ state.q = this.value.trim().toLowerCase(); applyFilter(); });
+var sortEl = document.getElementById('twr-sort');
+if(sortEl) sortEl.addEventListener('change', function(){ state.sort = this.value; applySort(); });
+/* 「거르기 풀고 다시 찾기」 — 찾는 말은 그대로 두고 거르기만 푼다.
+   찾던 말까지 지우면 사장님이 다시 쳐야 한다. */
+var zc = document.getElementById('twr-zero-clear');
+if(zc) zc.addEventListener('click', function(){
+  state.f = 'all'; state.stage = ''; state.brand = '';
+  clearPolicyFilter();
+  document.querySelectorAll('.stg-block .stg-row').forEach(function(x, i){
+    x.classList.toggle('on', i === 0);           // 맨 위 「어디까지 왔나」로 되돌린다
+  });
+  document.querySelectorAll('#twr-brands .twr-sr').forEach(function(x, i){
+    x.classList.toggle('on', i === 0);           // 브랜드 「전체」로
+  });
+  applyFilter();
+});
+
+/* [#1072] 「정책 매칭」 카드의 "상품관리에서 보기 →" 딥링크 —
+   ?policy=<id>&pname=<정책명> 으로 들어오면 그 정책이 붙은 상품만 걸러 보여준다.
+   화면 안에 고르는 UI가 없는 축이라 칩 하나로만 상태를 보여주고, 칩을 지우면 풀린다. */
+function clearPolicyFilter(){
+  state.policy = ''; state.policyName = '';
+  var chip = document.getElementById('twr-policy-chip');
+  if(chip) chip.remove();
+}
+(function initPolicyFilter(){
+  var params = new URLSearchParams(location.search);
+  var pid = params.get('policy');
+  if(!pid) return;
+  var pname = params.get('pname') || ('#' + pid);
+  state.policy = pid; state.policyName = pname;
+  var chip = document.createElement('span');
+  chip.id = 'twr-policy-chip';
+  chip.className = 'twr-btn gho sm';
+  chip.style.cursor = 'pointer';
+  chip.textContent = '정책: ' + pname + ' ✕';
+  chip.title = '눌러서 이 거르기를 풉니다';
+  chip.addEventListener('click', function(){ clearPolicyFilter(); applyFilter(); });
+  var sp = document.querySelector('.twr-ch .sp');
+  if(sp) sp.parentNode.insertBefore(chip, sp);
+  applyFilter();
+})();
+
+/* ── 줄 아래 전폭 펼침 — 탭 4개 (사장님 확정) ────────────────────────────
+   한눈에 / 사올 때 / 팔 때 / 판매·정산
+   🔴 **표·그래프는 하나도 안 뺐다.** 탭만 접었다:
+       사올 때   = 옛 「소싱처 수집 이력」 + 「가격/재고 변동 이력」 + 「옵션 매트릭스」
+       팔 때     = 옛 「마켓 등록·정책」  (renderT4 그대로)
+       판매·정산 = 옛 「판매 이력」        (renderT6 그대로)
+   🔴 그리는 함수 여섯 개는 **한 줄도 안 고쳤다** — 고치면 화면과 값이 갈린다.
+     대신 `body()` 가 그때그때 다른 칸을 돌려주게 해서(`into()`) 세 판을 제자리에 넣는다. */
+var TABS = [
+  {id:'t1', name:'한눈에'},
+  {id:'buy', name:'사올 때'},
+  {id:'t4', name:'팔 때'},
+  {id:'t6', name:'판매·정산'},
+];
+var open = null;   // {tr, exp, code, cache:{}, tab}
+
+function collapse(tr){
+  if(open && open.tr === tr){
+    if(open.exp && open.exp.parentNode) open.exp.parentNode.removeChild(open.exp);
+    tr.classList.remove('sel');
+    open = null;
+  }
+}
+function collapseAll(){ if(open) collapse(open.tr); }
+
+function expand(tr){
+  if(open && open.tr === tr){ collapse(tr); return; }
+  collapseAll();
+  var code = tr.dataset.code;
+  var exp = document.createElement('tr');
+  var td = document.createElement('td');
+  td.colSpan = 7; td.className = 'twr-expand-cell';
+  var tabsHtml = TABS.map(function(t,i){
+    return '<div class="twr-tab' + (i===0?' on':'') + '" data-t="' + t.id + '">' + t.name + '</div>';
+  }).join('');
+  // [2026-08-12 노션] 「상태에 따라 눌러서 나오는 결과 다름」 고장 수정.
+  //   전에는 matrix_id 가 있으면 조립대, 없으면 /bundles/<code>(다른 메뉴의 다른
+  //   화면)로 갈라졌다 — 단추 이름은 둘 다 「편집 (생성 탭)」인데 한쪽은 아니었다.
+  //   이제 코드 기준 한 주소로만 보낸다. 원본이 없으면 그 라우트가 만들어서 보낸다.
+  var editHref = '/optgen/product/by-code/' + encodeURIComponent(code);
+  td.innerHTML =
+    '<div class="twr-tabs">' + tabsHtml +
+      '<div style="flex:1"></div>' +
+      '<div style="display:flex;gap:8px;padding:8px 0;align-items:center">' +
+        '<a class="twr-btn pri sm" href="' + editHref + '">편집 (생성 탭)</a>' +
+        '<a class="twr-btn gho sm" href="/market-send">전송</a>' +
+        '<button class="twr-btn gho sm twr-dup" type="button">복제</button>' +
+        '<button class="twr-btn gho sm danger twr-del" type="button">삭제</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="twr-body"><div class="twr-load">불러오는 중…</div></div>';
+  exp.appendChild(td);
+  tr.parentNode.insertBefore(exp, tr.nextSibling);
+  tr.classList.add('sel');
+  open = {tr:tr, exp:exp, code:code, cache:{}, tab:'t1'};
+  td.querySelector('.twr-tabs').addEventListener('click', function(e){
+    var t = e.target.closest('.twr-tab'); if(!t) return;
+    show(t.dataset.t);
+  });
+  td.querySelector('.twr-dup').addEventListener('click', function(){
+    var nc = prompt('복제해 만들 새 상품 코드(model_code)를 넣어 주세요.', code + '_복제');
+    if(!nc) return;
+    fetch('/bundles/' + encodeURIComponent(code) + '/duplicate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({new_code: nc})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if(j.ok){ location.reload(); } else { alert(j.error || '복제하지 못했어요.'); } })
+      .catch(function(){ alert('복제 요청이 실패했어요.'); });
+  });
+  td.querySelector('.twr-del').addEventListener('click', function(){
+    if(!confirm('「' + code + '」 상품을 삭제할까요?\n옵션·소싱처 연결까지 함께 지워지고 되돌릴 수 없어요.')) return;
+    fetch('/bundles/' + encodeURIComponent(code) + '/delete', {method:'POST'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if(j.ok){ location.reload(); } else { alert(j.error || '삭제하지 못했어요.'); } })
+      .catch(function(){ alert('삭제 요청이 실패했어요.'); });
+  });
+  show('t1');
+}
+
+/* 🔴 그리는 함수(renderT1~T6)는 전부 `body()` 에 그린다 — 한 줄도 안 고치려고,
+   **`body()` 가 그때그때 다른 칸을 돌려주게** 한다. `_slot` 이 그 「지금 그릴 칸」이다.
+   「사올 때」는 한 탭에 판이 셋이라 이게 없으면 셋이 같은 칸에 겹쳐 그려진다. */
+var _slot = null;
+function body(){
+  if(_slot) return _slot;
+  return open ? open.exp.querySelector('.twr-body') : null;
+}
+/* 그 칸에 그린 뒤 **반드시 되돌린다**. finally 로 두는 이유 — 그리다 터지면
+   자리가 남아 다음 탭이 엉뚱한 칸에 그려진다(에러 하나가 화면 전체를 어긋내는 길). */
+function into(el, fn, data){
+  _slot = el;
+  try { fn(data); } finally { _slot = null; }
+}
+
+function show(tabId){
+  if(!open) return;
+  open.tab = tabId;
+  open.exp.querySelectorAll('.twr-tab').forEach(function(x){
+    x.classList.toggle('on', x.dataset.t === tabId);
+  });
+  if(tabId === 'buy'){ showBuy(); return; }
+  var render = {t1:renderT1, t2:renderT2, t3:renderT3, t4:renderT4, t5:renderT5, t6:renderT6}[tabId];
+  var cached = open.cache[tabId];
+  if(cached){ render(cached); return; }
+  body().innerHTML = '<div class="twr-load">불러오는 중…</div>';
+  var url = {
+    t1: api('summary'), t6: api('sales?days=30'), t2: api('matrix'),
+    t3: api('sources'), t4: api('markets'), t5: api('summary'),
+  }[tabId];
+  var myCode = open.code;
+  fetch(url).then(function(r){ return r.json(); }).then(function(j){
+    if(!open || open.code !== myCode || open.tab !== tabId) return;
+    if(!j.ok){ body().innerHTML = '<div class="twr-load">' + esc(j.error || '불러오지 못했어요.') + '</div>'; return; }
+    open.cache[tabId] = j;
+    if(tabId === 't5') open.cache.t1 = open.cache.t1 || j;
+    render(j);
+  }).catch(function(){
+    if(open && open.tab === tabId) body().innerHTML = '<div class="twr-load">불러오지 못했어요 — 잠시 뒤 다시 열어 주세요.</div>';
+  });
+}
+
+/* ── 「사올 때」 — 옛 판 셋을 한 탭에 (사장님 확정 배치 S5) ─────────────────
+   위: 소싱처 수집 이력 · 가격/재고 변동 이력 을 **나란히**
+   아래: 옵션 매트릭스를 **통째로** (칸이 넓어야 색×사이즈 표가 안 눌린다)
+   🔴 판을 하나라도 빼면 이 재편의 뜻이 사라진다 — 셋을 다 부른다.
+   🔴 창구가 셋이라 따로 불러오고, 하나가 실패해도 나머지는 그린다
+     (한 곳 실패로 세 판이 통째로 빈 화면이 되면 안 된다). */
+function showBuy(){
+  body().innerHTML =
+    '<div class="buy-two">' +
+      '<section><div class="buy-h">소싱처 수집 이력</div>' +
+        '<div class="buy-slot" data-buy="t3"></div></section>' +
+      '<section><div class="buy-h">가격/재고 변동 이력</div>' +
+        '<div class="buy-slot" data-buy="t5"></div></section>' +
+    '</div>' +
+    '<div class="buy-full"><div class="buy-h">옵션 매트릭스' +
+      '<span class="buy-s">옵션마다 어디서 얼마에 사는지</span></div>' +
+      '<div class="buy-slot" data-buy="t2"></div></div>';
+
+  var myCode = open.code;
+  [['t3', 'sources', renderT3],
+   ['t5', 'summary', renderT5],
+   ['t2', 'matrix',  renderT2]].forEach(function(spec){
+    var key = spec[0], path = spec[1], render = spec[2];
+    var el = body().querySelector('.buy-slot[data-buy="' + key + '"]');
+    if(!el) return;
+    var cached = open.cache[key];
+    if(cached){ into(el, render, cached); return; }
+    el.innerHTML = '<div class="twr-load">불러오는 중…</div>';
+    fetch(api(path)).then(function(r){ return r.json(); }).then(function(j){
+      /* 다른 상품으로 옮겼거나 다른 탭으로 갔으면 그리지 않는다(늦게 온 응답 방지) */
+      if(!open || open.code !== myCode || open.tab !== 'buy') return;
+      var slot = body().querySelector('.buy-slot[data-buy="' + key + '"]');
+      if(!slot) return;
+      if(!j.ok){
+        slot.innerHTML = '<div class="twr-load">' + esc(j.error || '불러오지 못했어요.') + '</div>';
+        return;
+      }
+      open.cache[key] = j;
+      if(key === 't5') open.cache.t1 = open.cache.t1 || j;   // 같은 창구를 쓴다
+      into(slot, render, j);
+    }).catch(function(){
+      var slot = open && open.tab === 'buy'
+        ? body().querySelector('.buy-slot[data-buy="' + key + '"]') : null;
+      if(slot) slot.innerHTML = '<div class="twr-load">불러오지 못했어요 — 잠시 뒤 다시 열어 주세요.</div>';
+    });
+  });
+}
+function api(path){ return '/bundles/api/tower/' + encodeURIComponent(open.code) + '/' + path; }
+
+/* ── ① 한눈에 ── */
+function renderT1(j){
+  var k = j.kpi, meta = j.meta;
+  var h = '<div class="kpis">';
+  h += '<div class="kpi blue"><div class="k">최근 30일 판매</div><div class="v">' +
+       (k.sold_qty === null ? '—' : fmt(k.sold_qty) + '<span class="un">개</span>') + '</div>' +
+       '<div class="d">매출 ' + fmt(k.sold_revenue) + '원 · <a href="#" class="tlink" data-go="t6">판매·정산 →</a></div></div>';
+  h += '<div class="kpi"><div class="k">판매가 (대표)</div><div class="v">' +
+       (k.rep_price ? fmt(k.rep_price) + '<span class="un">원</span>' : '—') + '</div>' +
+       '<div class="d">최저 매입 ' + (k.buy ? fmt(k.buy) + '원' : '확인 불가') + '</div></div>';
+  h += '<div class="kpi green"><div class="k">예상 마진 (대표)</div><div class="v">' +
+       (k.rep_margin !== null ? fmt(k.rep_margin) + '<span class="un">원</span>' : '—') + '</div>' +
+       '<div class="d">' + (k.rep_margin_rate !== null ? '마진율 ' + k.rep_margin_rate + '% · 수수료 반영 전' : '판매가·매입가를 알아야 계산됩니다') + '</div></div>';
+  h += '<div class="kpi"><div class="k">옵션</div><div class="v">' + fmt(k.opts) + '<span class="un">개</span></div>' +
+       '<div class="d">활성 ' + fmt(k.active) + ' · 품절 ' + fmt(k.soldout) + '</div></div>';
+  h += '<div class="kpi"><div class="k">재고 확인</div><div class="v">' +
+       (k.stock === null ? '—' : fmt(k.stock) + '<span class="un">개</span>') + '</div>' +
+       '<div class="d">소싱처 실측 합' + (k.purchase_stock ? ' · 사입 +' + fmt(k.purchase_stock) : '') +
+       (k.stock === null ? ' · 아는 재고가 없어요' : '') + '</div></div>';
+  h += '</div>';
+
+  h += '<div class="tcard" style="margin-top:12px"><div class="tcard-t">마켓별 판매가 · 예상 마진 ' +
+       '<span class="cap">수수료 반영 후 · 정책 기준</span><span class="sp"></span>' +
+       '<a href="#" class="tlink" data-go="t4">자세한 계산은 「팔 때」 탭 →</a></div>';
+  if(j.markets && j.markets.length){
+    h += '<table class="atb"><tr><th>마켓</th><th>최종 노출가</th><th>수수료</th><th>예상 마진</th><th>마진율</th><th>비고</th></tr>';
+    j.markets.forEach(function(m){
+      var muted = !m.price;
+      var exposed = (m.market === 'coupang' && m.exposed) ? m.exposed : m.price;
+      var note = '—';
+      if(m.market === 'coupang' && m.coupon) note = '쿠폰 −' + fmt(m.coupon) + ' 반영(마켓 실측)';
+      else if(!m.price_ready) note = '정책에 가격 비어 있음';
+      else if(m.reason) note = m.reason;
+      h += '<tr' + (muted ? ' style="color:var(--n400,#ACACB1)"' : '') + '>' +
+        '<td style="font-weight:600' + (muted ? ';color:var(--ap-g45,#6E6E73)' : '') + '">' + esc(m.label) + '</td>' +
+        '<td>' + (exposed ? fmt(exposed) : '—') + '</td>' +
+        '<td>' + (m.fee_pct !== null && m.fee_pct !== undefined ? m.fee_pct + '%' : '—') + '</td>' +
+        '<td' + (m.margin !== null && m.margin !== undefined ? ' style="color:var(--글자-초록,#248A3D);font-weight:600"' : '') + '>' +
+          (m.margin !== null && m.margin !== undefined ? fmt(m.margin) : '—') + '</td>' +
+        '<td>' + (m.margin_rate !== null && m.margin_rate !== undefined ? m.margin_rate + '%' : '—') + '</td>' +
+        '<td><span class="twr-u"' + (note !== '—' && !m.price ? ' style="color:var(--글자-주황,#C93400)"' : '') + '>' + esc(note) + '</span></td></tr>';
+    });
+    h += '</table>';
+  } else {
+    h += '<div class="twr-u">이 상품에 붙은 정책이 아직 없어요 — <a class="tlink" href="/policies">정책 생성으로 →</a></div>';
+  }
+  h += '</div>';
+
+  var todos = [];
+  var td = j.todo || {};
+  if(td.crawl_fail && td.crawl_fail.urls){
+    todos.push({ic:'red', em:'🔗',
+      t: (td.crawl_fail.labels || []).join('·') + ' 주소가 수집에 실패했어요',
+      s: '옵션 ' + fmt(td.crawl_fail.options) + '개의 가격·재고를 못 받는 중',
+      a: '/bundles/' + encodeURIComponent(open.code), an: '주소 확인하기 →'});
+  }
+  if(td.category_pending){
+    todos.push({ic:'orange', em:'🏷',
+      t: '카테고리 ' + fmt(td.category_pending) + '건이 「제안」 상태예요',
+      s: '확정해야 마켓 등록에 쓸 수 있어요', a: '/bundles/' + encodeURIComponent(open.code), an: '카테고리 확정하기 →'});
+  }
+  if(td.price_empty_markets && td.price_empty_markets.length){
+    todos.push({ic:'orange', em:'🔧',
+      t: td.price_empty_markets.join('·') + '는 정책에 가격이 비어 있어요',
+      s: '채우면 그 마켓에도 보낼 수 있어요',
+      a: j.policy ? ('/policies/' + j.policy.id) : '/policies', an: '정책 채우러 가기 →'});
+  }
+  h += '<div class="todo"><div class="todo-h">지금 필요한 일 ' +
+       (todos.length ? '<span style="color:var(--글자-빨강,#D70015)">' + todos.length + '건</span>' : '<span class="twr-u">없음</span>') + '</div>';
+  todos.forEach(function(t){
+    h += '<div class="todo-r"><div class="todo-ic ' + t.ic + '">' + t.em + '</div>' +
+      '<div class="t">' + esc(t.t) + '<small>' + esc(t.s) + '</small></div>' +
+      '<a href="' + t.a + '">' + esc(t.an) + '</a></div>';
+  });
+  h += '</div>';
+
+  h += '<div class="metaline">' +
+    '<span>상품번호 <b>' + esc(meta.no || '아직 없음') + '</b></span>' +
+    '<span>모델코드 <b>' + esc(meta.model_code) + '</b></span>' +
+    '<span>브랜드 <b>' + esc(meta.brand || '—') + '</b></span>' +
+    '<span>만든 날 <b>' + (meta.created ? meta.created.slice(0,10) : '—') + '</b></span>' +
+    '<span>마지막 수집 <b>' + shortDt(meta.last_fetch) + '</b></span>' +
+    '<span>마지막 전송 <b>' + shortDt(meta.last_send) + '</b></span></div>';
+  body().innerHTML = h;
+  body().querySelectorAll('[data-go]').forEach(function(a){
+    a.addEventListener('click', function(e){ e.preventDefault(); show(this.dataset.go); });
+  });
+}
+
+/* ── 판매 추이 SVG — 주 단위 · 마켓별 막대 (시안 v8 그대로, 그림자 0) ──
+   색 = 시안 고정: 쿠팡 파랑 · 스스 초록 · 옥션·G마켓 주황 · 롯데온·11번가 회색
+   (시안 표와 같은 묶음 — 마켓별 값은 API by_market 실측값만, 지어내지 않음) */
+var WEEK_GROUPS = [
+  {ks:['coupang'], label:'쿠팡', c:'var(--ap-버튼파랑,#0071E3)'},
+  {ks:['smartstore'], label:'스마트스토어', c:'var(--ap-green,#34C759)'},
+  {ks:['auction','gmarket'], label:'옥션·G마켓', c:'var(--ap-orange,#FF9500)'},
+  {ks:['lotteon','eleven11'], label:'롯데온·11번가', c:'var(--ap-g4,#86868B)'},
+];
+function weeklyChart(weeks){
+  if(!weeks.length) return '<div class="twr-u">이 기간에 집계된 판매가 없어요.</div>';
+  var MAXW = 13;                       // 화면에 담는 최대 주 수(90일=13주)
+  var cut = weeks.length > MAXW;
+  var ws = cut ? weeks.slice(-MAXW) : weeks;
+  var data = ws.map(function(w){
+    return {week:w.week, vals: WEEK_GROUPS.map(function(g){
+      return g.ks.reduce(function(s,m){ return s + (w.by_market[m] || 0); }, 0);
+    })};
+  });
+  var act = WEEK_GROUPS.map(function(_, gi){
+    return data.some(function(d){ return d.vals[gi] > 0; });
+  });
+  var actIdx = [];
+  act.forEach(function(a, i){ if(a) actIdx.push(i); });
+  if(!actIdx.length) return '<div class="twr-u">이 기간에 집계된 판매가 없어요.</div>';
+  var maxQ = 0;
+  data.forEach(function(d){ actIdx.forEach(function(gi){ if(d.vals[gi] > maxQ) maxQ = d.vals[gi]; }); });
+  if(maxQ < 1) maxQ = 1;
+  var L = 40, R = 880, TOP = 10, BOT = 150;
+  var slotW = (R - L - 20) / data.length;
+  var barW = Math.min(34, Math.max(6, Math.floor((slotW - 8) / actIdx.length) - 4));
+  var svg = '<svg viewBox="0 0 900 190" style="width:100%;max-width:900px;display:block">' +
+    '<line x1="' + L + '" y1="' + TOP + '" x2="' + L + '" y2="' + BOT + '" stroke="var(--ap-g2,#E8E8ED)"/>' +
+    '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" stroke="var(--ap-g2,#E8E8ED)"/>' +
+    '<text x="' + (L - 6) + '" y="' + (TOP + 20) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(maxQ) + '개</text>' +
+    '<text x="' + (L - 6) + '" y="' + Math.round((TOP + 20 + BOT) / 2) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(Math.round(maxQ / 2)) + '개</text>' +
+    '<text x="' + (L - 6) + '" y="' + (BOT - 2) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">0</text>';
+  var plotH = BOT - (TOP + 20);
+  data.forEach(function(d, wi){
+    var x0 = L + 20 + wi * slotW + (slotW - actIdx.length * (barW + 4)) / 2;
+    actIdx.forEach(function(gi, k){
+      var v = d.vals[gi];
+      if(v > 0){
+        var hgt = Math.max(4, Math.round(v / maxQ * plotH));
+        svg += '<rect x="' + Math.round(x0 + k * (barW + 4)) + '" y="' + (BOT - hgt) +
+          '" width="' + barW + '" height="' + hgt + '" rx="4" fill="' + WEEK_GROUPS[gi].c + '">' +
+          '<title>' + esc(WEEK_GROUPS[gi].label) + ' ' + fmt(v) + '개</title></rect>';
+      }
+    });
+    var wl = /^\d{4}-(\d{2})-(\d{2})/.exec(d.week);
+    var lbl = wl ? (parseInt(wl[1],10) + '/' + parseInt(wl[2],10) + ' 주') : d.week;
+    svg += '<text x="' + Math.round(L + 20 + wi * slotW + slotW / 2) + '" y="170" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="middle">' + esc(lbl) + '</text>';
+  });
+  svg += '</svg>';
+  var legend = '<div style="display:flex;gap:20px;font-size:12px;color:var(--ap-g45,#6E6E73);margin-top:8px;flex-wrap:wrap">' +
+    actIdx.map(function(gi){
+      return '<span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' +
+        WEEK_GROUPS[gi].c + ';vertical-align:middle;margin-right:4px"></span>' + esc(WEEK_GROUPS[gi].label) + '</span>';
+    }).join('') +
+    (cut ? '<span class="twr-u">최근 ' + MAXW + '주만 표시</span>' : '') + '</div>';
+  return svg + legend;
+}
+
+/* ── ⑥ 판매 이력 ── */
+/* 실현 마진 = 정산 예정 − **실매입가** (설계서 §6.2 · 3단계).
+   🔴 실매입가가 없는 줄은 0 으로 채우지 않는다 — 빼고 세고, 몇 건을 뺐는지
+     화면이 밝힌다(「27건 중 3건 기준 · 매입가 미입력 24건」).
+   🔴 소싱처 크롤값(최종매입가)·사입가로는 실현 마진을 만들지 않는다.
+     그건 「예상」이라 실적 숫자에 섞으면 안 된다(설계서 §4).
+   서버가 이미 더해 둔 값을 그리기만 한다 — 여기서 다시 계산하지 않는다. */
+function ppMissLink(j, n){
+  if(!n) return '';
+  return '<a class="tlink" href="' + j.nopp_link + '" ' +
+    'title="주문 내역이 「매입가 미입력」 탭으로 열려요 — 거기서 진짜 사온 값을 적을 수 있습니다">' +
+    '매입가 미입력 ' + fmt(n) + '건 →</a>';
+}
+function realizedCell(j, o, bold){
+  var miss = o.pp_missing || 0, basis = o.realized_basis || 0;
+  if(o.realized === null || o.realized === undefined){
+    return '<td>' + dim('—') + (miss ? '<div style="font-size:12px;margin-top:2px">' +
+      ppMissLink(j, miss) + '</div>' : '') + '</td>';
+  }
+  var col = o.realized < 0 ? 'var(--글자-빨강,#D70015)' : 'var(--글자-초록,#248A3D)';
+  return '<td style="color:' + col + (bold ? ';font-weight:600' : '') + '">' + fmt(o.realized) +
+    '<div class="twr-u" style="font-size:12px;font-weight:400">' +
+    fmt(o.count || 0) + '건 중 ' + fmt(basis) + '건 기준</div>' +
+    (miss ? '<div style="font-size:12px">' + ppMissLink(j, miss) + '</div>' : '') + '</td>';
+}
+/* [2026-08-12 노션] 「판매이력탭 : 매입가 필요」 — 실현 마진 옆에 그 근거가 된 돈.
+   🔴 o.purchase 는 **실현 마진을 낸 줄만**의 합이다(정산○ + 실매입가○).
+      「이 상품 사는 데 쓴 돈 전부」가 아니므로 건수를 같이 적어 뜻을 못 박는다.
+   🔴 기준 줄이 0 이면 서버가 0 을 주지만 화면엔 「—」로 낸다 — 0 원을 찍으면
+      「0원에 사왔다」로 읽혀 마진이 거짓이 된다(서버 철칙의 화면 쪽 짝). */
+function buyCell(j, o, bold){
+  var basis = o.realized_basis || 0, miss = o.pp_missing || 0;
+  if(!basis){
+    return '<td>' + dim('—') + (miss ? '<div style="font-size:12px;margin-top:2px">' +
+      ppMissLink(j, miss) + '</div>' : '') + '</td>';
+  }
+  return '<td' + (bold ? ' style="font-weight:600"' : '') + '>' + fmt(o.purchase || 0) +
+    '<div class="twr-u" style="font-size:12px;font-weight:400">' +
+    fmt(o.count || 0) + '건 중 ' + fmt(basis) + '건에 쓴 돈</div></td>';
+}
+function kpiRealized(j){
+  var t = j.total, miss = t.pp_missing || 0;
+  var head = '<div style="font-size:12px;margin-top:6px;padding-top:6px;' +
+    'border-top:1px solid var(--ap-g3,#D2D2D7)"><span class="twr-u">실현 마진 ' +
+    '<span title="정산 예정 − 실매입가. 실매입가를 적은 줄만 더합니다 — 없는 줄을 0 으로 채우지 않아요.">ⓘ</span>' +
+    '</span> ';
+  if(t.realized === null || t.realized === undefined){
+    return head + '<b style="font-weight:600">확인 불가</b>' +
+      '<div style="font-size:12px;margin-top:2px">' +
+      (miss ? ppMissLink(j, miss)
+            : '<span class="twr-u">실매입가를 적은 판매가 아직 없어요</span>') + '</div></div>';
+  }
+  var col = t.realized < 0 ? 'var(--글자-빨강,#D70015)' : 'var(--글자-초록,#248A3D)';
+  return head + '<b style="font-weight:600;color:' + col + '">' + fmt(t.realized) + '원</b>' +
+    '<div class="twr-u" style="font-size:12px;margin-top:2px">' + fmt(t.count || 0) + '건 중 ' +
+    fmt(t.realized_basis || 0) + '건 기준</div>' +
+    (miss ? '<div style="font-size:12px">' + ppMissLink(j, miss) + '</div>' : '') + '</div>';
+}
+function renderT6(j){
+  var h = '<div class="tcard"><div class="tcard-t">판매 이력<span class="sp"></span>' +
+    '<div class="tseg" id="t6seg">' +
+    [7,30,90,365].map(function(d){
+      var nm = d === 365 ? '1년' : d + '일';
+      return '<button data-d="' + d + '"' + (j.days === d ? ' class="on"' : '') + '>' + nm + '</button>';
+    }).join('') + '</div></div>';
+  h += '<div class="tstat4">';
+  h += '<div class="bx"><div class="twr-u">판매</div><div class="v">' + fmt(j.total.qty) +
+       '<span class="twr-u" style="font-size:14px">개 / ' + fmt(j.total.count) + '건</span></div></div>';
+  h += '<div class="bx"><div class="twr-u">매출</div><div class="v">' + fmt(j.total.revenue) +
+       '<span class="twr-u" style="font-size:14px">원</span></div></div>';
+  h += '<div class="bx" style="background:var(--연한-초록,rgba(52,199,89,.08))"><div class="twr-u">정산 예정 (배송비 포함)</div>' +
+       (j.total.settle !== null && j.total.settle !== undefined
+         ? '<div class="v" style="color:var(--글자-초록,#248A3D)">' + fmt(j.total.settle) + '<span class="twr-u" style="font-size:14px">원' +
+           (j.total.settle_missing ? ' · 미수집 ' + fmt(j.total.settle_missing) + '건 제외' : '') + '</span></div>'
+         : '<div style="font-size:14px;margin-top:6px" class="twr-u">확인 불가 (수집된 정산값 없음)</div>') +
+       kpiRealized(j) + '</div>';
+  h += '<div class="bx" style="background:rgba(255,59,48,.06)"><div class="twr-u">취소·반품</div><div class="v" style="color:var(--글자-빨강,#D70015)">' +
+       fmt(j.cancels.count) + '<span class="twr-u" style="font-size:14px">건 · −' + fmt(j.cancels.amount) + '원</span></div></div>';
+  h += '</div>';
+
+  function settleCell(v, missing, bold){
+    if(v === null || v === undefined) return '<td>' + dim('—') + '</td>';
+    return '<td' + (bold ? ' style="font-weight:600"' : '') + '>' + fmt(v) +
+      (missing ? ' <span class="twr-u" style="font-size:12px">미수집 ' + fmt(missing) + '건</span>' : '') + '</td>';
+  }
+  h += '<table class="atb"><tr><th class="l">마켓</th><th>판매 건수</th><th>수량</th><th>매출</th><th>정산 예정</th>' +
+    '<th title="실현 마진을 낸 줄에 실제로 쓴 돈이에요. 정산과 실매입가가 둘 다 있는 줄만 더합니다 — 이 상품을 사 오는 데 쓴 돈 전부가 아니에요.">' +
+      '실매입가 <span class="cap">(실현 기준)</span></th>' +
+    '<th title="정산 예정 − 실매입가. 실매입가를 적은 줄만 더합니다 — 없는 줄을 0 으로 채우지 않아요.">실현 마진</th>' +
+    '<th>최근 판매</th><th></th></tr>';
+  if(j.markets.length){
+    j.markets.forEach(function(m){
+      h += '<tr><td class="l" style="font-weight:600">' + esc(m.label) + '</td>' +
+        '<td>' + fmt(m.count) + '</td><td>' + fmt(m.qty) + '</td><td>' + fmt(m.revenue) + '</td>' +
+        settleCell(m.settle, m.settle_missing, false) +
+        buyCell(j, m, false) +
+        realizedCell(j, m, false) +
+        '<td>' + dim(shortDt(m.last)) + '</td>' +
+        '<td><a class="tlink" href="/orders/">주문 보기 →</a></td></tr>';
+    });
+    h += '<tr style="background:var(--ap-g0,#FAFAFC)"><td class="l" style="font-weight:600">합계</td>' +
+      '<td style="font-weight:600">' + fmt(j.total.count) + '</td><td style="font-weight:600">' + fmt(j.total.qty) + '</td>' +
+      '<td style="font-weight:600">' + fmt(j.total.revenue) + '</td>' +
+      settleCell(j.total.settle, j.total.settle_missing, true) +
+      buyCell(j, j.total, true) +
+      realizedCell(j, j.total, true) +
+      '<td></td><td></td></tr>';
+  } else {
+    h += '<tr><td colspan="9">' + dim('이 기간에 이 상품으로 연결된 주문이 없어요') + '</td></tr>';
+  }
+  h += '</table>';
+  h += '<div class="tnote">정산 예정 = 주문 내역에 저장된 「정산예정금(배송비포함)」 합이에요 — 여기서 다시 계산하지 않습니다 · ' +
+       '<b>실매입가</b> 칸은 실현 마진을 낸 줄에 실제로 쓴 돈만 더한 값이에요 — ' +
+       '이 상품을 사 오는 데 쓴 돈 전부가 아닙니다(매입가를 안 적은 줄은 아예 빠져 있어요) · ' +
+       '실현 마진 = 정산 예정 − <b>실매입가</b>(손으로 적었거나 더망고 매입 엑셀로 들어온 값). ' +
+       '실매입가가 없는 줄은 <b>0 으로 채우지 않고 빼고</b> 세요 — 몇 건을 뺐는지 칸마다 적어 둡니다 · ' +
+       '소싱처 크롤값(최종매입가)·사입가로는 실현 마진을 만들지 않아요(그건 예상입니다) · ' +
+       '<a href="' + j.margin_link + '">마진 계산기에서 보기 →</a></div>';
+  if(j.truncated) h += '<div class="tnote">기간 안 주문이 많아 최근 ' + fmt(20000) + '건까지만 집계했어요 — 합계가 실제보다 적을 수 있습니다.</div>';
+  h += '</div>';
+
+  /* 판매 추이 — 주 단위 · 마켓별 (시안 v8 블록, 데이터 = sales API weeks) */
+  h += '<div class="tcard"><div class="tcard-t">판매 추이 <span class="cap">주 단위 · 마켓별</span></div>';
+  h += weeklyChart(j.weeks || []);
+  h += '</div>';
+
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">';
+  h += '<div class="tcard" style="margin:0"><div class="tcard-t">많이 팔린 옵션 <span class="cap">이 기간</span></div>' +
+       '<table class="atb"><tr><th class="l">옵션</th><th>수량</th><th>매출</th>' +
+       '<th title="이 옵션에서 실현 마진을 낸 줄에 실제로 쓴 돈이에요. 마켓별 표와 같은 기준입니다.">' +
+         '실매입가 <span class="cap">(실현 기준)</span></th><th>비중</th></tr>';
+  if(j.top_options.length){
+    j.top_options.forEach(function(o, i){
+      var share = j.total.qty ? Math.round(o.qty / j.total.qty * 100) : null;
+      h += '<tr><td class="l">' + esc(o.option || o.sku) + '</td>' +
+        '<td' + (i === 0 ? ' style="font-weight:600"' : '') + '>' + fmt(o.qty) + '</td>' +
+        '<td>' + fmt(o.revenue) + '</td>' +
+        // 옵션별은 자리가 좁아 건수 대신 「—」만. 기준은 표 밑 캡션이 한 번 밝힌다.
+        '<td>' + (o.pp_basis ? fmt(o.purchase || 0) : dim('—')) + '</td>' +
+        '<td>' + (share === null ? '—' : share + '%') + '</td></tr>';
+    });
+  } else { h += '<tr><td colspan="5">' + dim('아직 없음') + '</td></tr>'; }
+  h += '</table></div>';
+  h += '<div class="tcard" style="margin:0"><div class="tcard-t">최근 주문 <span class="cap">최신 5건</span>' +
+       '<span class="sp"></span><a class="tlink" href="/orders/">주문 관리에서 전체 보기 →</a></div>' +
+       '<table class="atb"><tr><th>주문일시</th><th>마켓</th><th class="l">옵션</th><th>수량</th><th>금액</th>' +
+       '<th title="이 주문 줄에 적힌 실매입가예요. 안 적었으면 「—」입니다 — 0 원으로 채우지 않아요.">실매입가</th>' +
+       '<th>상태</th></tr>';
+  if(j.recent.length){
+    j.recent.forEach(function(r){
+      var bad = (r.status.indexOf('취소') >= 0 || r.status.indexOf('반품') >= 0);
+      h += '<tr><td>' + dim(shortDt(r.at)) + '</td><td>' + esc(r.market_label) + '</td>' +
+        '<td class="l">' + esc(r.option) + '</td><td>' + fmt(r.qty) + '</td>' +
+        '<td>' + fmt(r.amount) + '</td>' +
+        // 줄 하나짜리라 「몇 건 기준」 오해가 없다 — 값 그대로. 없으면 「—」.
+        '<td>' + (r.purchase === null || r.purchase === undefined
+                  ? dim('—') : fmt(r.purchase)) + '</td>' +
+        '<td><span class="twr-badge ' + (bad ? 'warn' : 'sale') + '">' + esc(r.status || '—') + '</span></td></tr>';
+    });
+  } else { h += '<tr><td colspan="7">' + dim('아직 없음') + '</td></tr>'; }
+  h += '</table></div></div>';
+  h += '<div class="tnote" style="padding:0 4px">원천: 주문 내역(전 마켓 수집분) · 취소·반품은 매출·실현 마진에서 뺀 값 · 정산 예정은 저장된 값을 읽기만 하고, 실현 마진은 거기서 실매입가만 뺍니다(재계산 없음 — 마진 계산기와 같은 산식)</div>';
+  body().innerHTML = h;
+  var seg = document.getElementById('t6seg');
+  if(seg) seg.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    var d = parseInt(b.dataset.d, 10);
+    body().innerHTML = '<div class="twr-load">불러오는 중…</div>';
+    fetch(api('sales?days=' + d)).then(function(r){ return r.json(); }).then(function(x){
+      if(open && open.tab === 't6' && x.ok){ open.cache.t6 = x; renderT6(x); }
+    });
+  });
+}
+
+/* ── ② 옵션 매트릭스 ── */
+function renderT2(j){
+  var byKey = {};
+  j.cells.forEach(function(c){ byKey[c.color + '|' + c.size] = c; });
+  /* [2026-08-08] 소싱처 수를 **센다** — 「9곳」으로 박으면 상품마다 달라 거짓이 된다. */
+  var 소싱처 = {};
+  j.cells.forEach(function(c){ (c.sources||[]).forEach(function(s){ if(s.label) 소싱처[s.label]=1; }); });
+  var 소싱처수 = Object.keys(소싱처).length;
+  var h = '<div class="tcard"><div class="tcard-t">옵션 매트릭스 (최저가만)' +
+    '<span class="cap">칸 = 최저 최종매입가 · 재고 · <b style="color:var(--ap-링크파랑,#0066CC)">최저 소싱처</b> — 누르면 소싱처 전체 비교</span>' +
+    '<span class="sp"></span>' +
+    '<a class="twr-btn pri sm" href="/bundles/' + encodeURIComponent(open.tr.dataset.code) + '/all">소싱처 ' +
+      (소싱처수 ? 소싱처수 + '곳 ' : '') + '전부 보기 →</a>' +
+    '<a class="twr-btn gho sm" href="/inventory/">사입 재고 (재고관리)</a>' +
+    /* [2026-08-12] 원본이 없으면 단추가 아예 사라지던 자리 — 머리줄 「편집」과 같은
+       문(코드 기준)으로 보낸다. 같은 일을 하는 단추가 서로 다른 데로 가면 안 된다. */
+    '<a class="twr-btn pri sm" href="/optgen/product/by-code/' +
+      encodeURIComponent(open.tr.dataset.code) + '">매트릭스 수정 (생성 탭)</a>' +
+    '</div>';
+  if(!j.cells.length){
+    h += '<div class="twr-u">옵션이 아직 없어요.</div></div>';
+    body().innerHTML = h; return;
+  }
+  h += '<div style="overflow-x:auto"><table class="omx"><tr><th style="text-align:left">색상＼사이즈</th>' +
+    j.sizes.map(function(z){ return '<th>' + esc(z) + '</th>'; }).join('') + '</tr>';
+  j.colors.forEach(function(c){
+    h += '<tr><th style="text-align:left">' + esc(c) + '</th>';
+    j.sizes.forEach(function(z){
+      var cell = byKey[c + '|' + z];
+      if(!cell){ h += '<td class="none">—</td>'; return; }
+      var cls = cell.soldout ? ' class="zero"' : '';
+      var stock = cell.stock === null ? '재고 확인 불가' : (cell.soldout ? '0' : '재고 ' + fmt(cell.stock));
+      var extra = cell.purchase_stock ? ' <span style="color:var(--글자-주황,#C93400)">+사입 ' + fmt(cell.purchase_stock) + '</span>' : '';
+      h += '<td' + cls + ' data-sku="' + esc(cell.sku) + '">' +
+        '<div class="p">' + (cell.soldout ? '품절' : (cell.min_final ? fmt(cell.min_final) : '확인 불가')) + '</div>' +
+        '<div class="s">' + stock + extra + '</div>' +
+        '<div class="src">' + esc(cell.src || '—') + '</div></td>';
+    });
+    h += '</tr>';
+  });
+  h += '</table></div>';
+  h += '<div class="tnote">파란 글씨 = 지금 제일 싸게 사올 수 있는 소싱처 · 소싱처 재고는 실제 페이지 수집값이라 손으로 못 고칩니다 — 사입 재고만 재고관리에서 편집</div></div>';
+  h += '<div id="t2detail"></div>';
+  body().innerHTML = h;
+  body().querySelectorAll('.omx td[data-sku]').forEach(function(td){
+    td.addEventListener('click', function(){
+      body().querySelectorAll('.omx td.pick').forEach(function(x){ x.classList.remove('pick'); });
+      this.classList.add('pick');
+      var cell = j.cells.filter(function(c){ return c.sku === td.dataset.sku; })[0];
+      if(cell) renderT2Detail(cell);
+    });
+  });
+}
+function renderT2Detail(cell){
+  var h = '<div class="hcard"><div class="h">' + esc(cell.color) + ' · ' + esc(cell.size) +
+    '<span class="code">' + esc(cell.sku) + '</span>' +
+    '<span style="font-weight:400;color:var(--ap-g45,#6E6E73);font-size:12px;margin-left:8px">소싱처 ' + cell.sources.length + '곳 비교</span></div>' +
+    '<div style="padding:8px 20px 16px"><table class="atb">' +
+    '<tr><th class="l">소싱처</th><th>표면가</th><th>혜택 반영</th>' +
+    '<th title="표면가에서 혜택을 뺀, 살 때 낼 것으로 보이는 값 — 소싱처 크롤 기준 예상이에요. ' +
+    '실제로 사고 낸 값은 주문 내역의 「실매입가」입니다.">최종매입가</th>' +
+    '<th>재고</th><th>최근 수집</th><th></th></tr>';
+  if(!cell.sources.length){
+    h += '<tr><td colspan="7">' + dim('연결된 소싱처가 없어요') + '</td></tr>';
+  }
+  var best = null;
+  cell.sources.forEach(function(x){ if(x.final !== null && (best === null || x.final < best)) best = x.final; });
+  cell.sources.forEach(function(x){
+    var isBest = (x.final !== null && x.final === best);
+    var benefit = (x.surface && x.final) ? (x.final - x.surface) : null;
+    h += '<tr' + (isBest ? ' style="background:var(--연한-초록,rgba(52,199,89,.06))"' : '') + '>' +
+      '<td class="l">' + esc(x.label) + (isBest ? ' <span class="twr-badge sale" style="margin-left:4px">최저</span>' : '') + '</td>' +
+      '<td>' + (x.surface ? fmt(x.surface) : dim('확인 불가')) + '</td>' +
+      '<td>' + (benefit !== null ? (benefit < 0 ? '<span style="color:var(--글자-빨강,#D70015)">' + fmt(benefit) + '</span>' : fmt(benefit)) : dim('계산 전')) + '</td>' +
+      '<td' + (isBest ? ' style="font-weight:600"' : '') + '>' + (x.final !== null ? fmt(x.final) : dim('확인 불가')) + '</td>' +
+      '<td>' + (x.stock === null ? dim('확인 불가') : fmt(x.stock)) + '</td>' +
+      '<td>' + (x.status === 'error' || x.status === 'timeout'
+                ? '<span class="twr-badge err">실패 ' + shortDt(x.fetched) + '</span>'
+                : dim(shortDt(x.fetched))) + '</td>' +
+      '<td>' + (x.url ? '<a class="tgoto" target="_blank" rel="noopener" href="' + esc(x.url) + '">↗</a>' : '') + '</td></tr>';
+  });
+  h += '</table></div></div>';
+  document.getElementById('t2detail').innerHTML = h;
+}
+
+/* ── ③ 소싱처 수집 이력 ── */
+function renderT3(j){
+  var h = '<div class="tcard"><div class="tcard-t">소싱처 수집 이력 ' +
+    '<span class="cap">주소 ' + j.urls.length + '개 · 실패 ' + j.fail + '</span>' +
+    '<span class="sp"></span><button class="twr-btn pri sm" id="t3crawl" type="button">이 상품 지금 수집</button></div>';
+  h += '<div class="tinfo">「지금 수집」을 누르면 이 상품이 수집 줄 맨 앞에 서고, 사장님 컴퓨터의 수집기(크롬 확장)가 다음 바퀴에 바로 가져옵니다 — 보통 몇 분 안에 반영돼요.</div>';
+  if(!j.urls.length) h += '<div class="twr-u" style="padding:8px 0">연결된 소싱처 주소가 없어요.</div>';
+  j.urls.forEach(function(u){
+    var bad = (u.status === 'error' || u.status === 'timeout');
+    var pct = j.total ? Math.round(u.matched / j.total * 100) : 0;
+    h += '<div class="srcrow"' + (bad ? ' style="background:rgba(255,59,48,.04);border-radius:12px;padding-left:12px;padding-right:12px"' : '') + '>' +
+      '<div class="srcini">' + esc(u.label.slice(0,1)) + '<span class="st ' + (bad ? 'bad' : 'ok') + '"></span></div>' +
+      '<div style="width:190px"><div style="font-weight:600">' + esc(u.label) + '</div><div class="twr-u">' + esc(u.kind) + '</div></div>' +
+      '<div style="flex:1;max-width:250px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ap-g45,#6E6E73)">' +
+        '<span>담당 옵션</span><span style="font-variant-numeric:tabular-nums"><b style="color:var(--ink,#1D1D1F);font-weight:600">' + u.matched + '</b>/' + j.total + '</span></div>' +
+        '<div class="covbar"><i style="width:' + pct + '%' + (bad ? ';background:var(--ap-red,#FF3B30)' : '') + '"></i></div></div>' +
+      '<span class="twr-u" style="width:96px;text-align:center">' + shortDt(u.fetched) + '</span>' +
+      (u.status === null ? '<span class="twr-badge wait">아직 수집 전</span>'
+        : (bad ? '<span class="twr-badge err">실패</span>' : '<span class="twr-badge sale">성공</span>')) +
+      (u.url ? '<a class="tgoto" target="_blank" rel="noopener" href="' + esc(u.url) + '">↗</a>' : '') +
+      '</div>';
+  });
+  h += '</div>';
+  h += '<div class="tcard"><div class="tcard-t">최근 수집 기록 <span class="cap">이 상품의 실행 기록 · 최근 10회</span></div>';
+  if(j.runs.length){
+    h += '<table class="atb"><tr><th>수집 시각</th><th>단계</th><th>결과</th><th>내용</th></tr>';
+    j.runs.forEach(function(r){
+      var ok = (r.status === 'success' || r.status === 'ok' || r.status === 'done');
+      h += '<tr><td>' + dim(shortDt(r.at)) + '</td><td>' + esc(r.phase || '—') + '</td>' +
+        '<td><span class="twr-badge ' + (ok ? 'sale' : 'warn') + '">' + esc(r.status || '—') + '</span></td>' +
+        '<td>' + dim(r.note || '—') + '</td></tr>';
+    });
+    h += '</table>';
+  } else {
+    h += '<div class="twr-u">아직 이 상품의 수집 실행 기록이 없어요 — 크롤이 돌면 여기 쌓입니다.</div>';
+  }
+  h += '</div>';
+  body().innerHTML = h;
+  var btn = document.getElementById('t3crawl');
+  if(btn) btn.addEventListener('click', function(){
+    btn.disabled = true; btn.textContent = '넣는 중…';
+    fetch(api('crawl-now'), {method:'POST'}).then(function(r){ return r.json(); }).then(function(x){
+      btn.textContent = x.ok ? (x.queued ? '줄 맨 앞에 세웠어요' : '이미 줄에 서 있어요') : '넣지 못했어요';
+    }).catch(function(){ btn.textContent = '넣지 못했어요'; });
+  });
+}
+
+/* 등록 카테고리 한 칸 — 값이 없을 때 **왜 없는지**를 갈라 말한다.
+   🔴 [2026-08-12 정정] 롯데온을 「끝까지 못 받는다」로 두던 옛 문구를 거둔다.
+     목록 API 에 없는 건 맞지만 **상세(product/detail)에는 scatNo·dcatLst 가 온다**
+     (등록이 그 두 필드를 복사해 라이브 성공 — 2026-07-21). 이제 판매가를 채우는 그
+     상세 훑기가 카테고리도 같이 거둔다. 다만 **훑기가 아직 안 닿았을 수 있어**
+     롯데온은 「어떻게 채워지는지」를 따로 말한다(다른 마켓과 채우는 경로가 다르다).
+   🔴 코드밖에 못 받는 마켓(쿠팡·11번가)은 코드만 보여준다 — 이름을 지어내지 않는다. */
+function regCategory(m){
+  if (!m.registered) return dim('—');
+  if (m.reg_category || m.reg_category_name) {
+    var code = m.reg_category ? esc(m.reg_category) : '';
+    var nm = m.reg_category_name ? esc(m.reg_category_name) : '';
+    if (nm && code) return nm + ' <span class="twr-u">' + code + '</span>';
+    return nm || code;
+  }
+  if (m.category_via_detail)
+    return dim('아직 안 채워짐 — 롯데온은 상품 하나하나 상세를 봐야 알 수 있어요(가격 훑기가 돌면 같이 채워집니다)');
+  return dim('확인 불가 — 「내마켓 불러오기」를 다시 하면 채워져요');
+}
+
+/* ── 쿠폰 칸 (사장님 확정 C4) ────────────────────────────────────────────
+   윗줄 = 쿠팡에 **지금 실제로 걸린** 값 / 아랫줄 = 우리가 **걸려는** 값과 상태.
+   🔴 **같으면 한 줄, 다를 때만 두 줄**. 늘 두 줄이면 표가 쓸데없이 복잡하고,
+     늘 한 줄이면 「걸려는 값은 100원인데 실제론 안 걸림」을 못 본다.
+   🔴 「대기 중」과 「걸림」은 **절대 같아 보이면 안 된다** — 넣기만 하고 안 걸린 걸
+     걸린 줄 알면 사장님이 할인이 나가는 줄 알고 판다. */
+function couponCell(m){
+  if(m.market !== 'coupang') return dim('—');          /* 쿠폰은 쿠팡만 */
+  var have = (m.coupon !== null && m.coupon !== undefined) ? m.coupon : m.coupon_have;
+  var want = m.coupon_want;
+  var st = m.coupon_state || 'none';
+  var chip = {
+    none:   '<span class="cpn-q none">아직</span>',
+    queued: '<span class="cpn-q wait">대기 중</span>',
+    applied:'<span class="cpn-q on">걸림</span>',
+    failed: '<span class="cpn-q bad">실패</span>'
+  }[st] || '';
+  var own = m.coupon_own ? '<span class="cpn-q own">이 상품만</span>' : '';
+  var top = (have !== null && have !== undefined)
+    ? '<span style="color:var(--글자-빨강,#D70015)">−' + fmt(have) + '</span>'
+    : dim('아직 없음');
+  /* 같은 값이면 아랫줄을 안 만든다 — 걸린 값이 곧 걸려는 값이니 할 말이 없다 */
+  var same = (have !== null && have !== undefined && Number(have) === Number(want));
+  if(same && st === 'applied'){
+    return '<div class="cpn-c">' + top + '<div class="cpn-r2">' + chip + own +
+      (m.coupon_from ? '<span class="twr-u">' + esc(String(m.coupon_from).slice(5,10)) +
+        ' 0시~</span>' : '') + '</div></div>';
+  }
+  var wantTxt = (want !== null && want !== undefined && want > 0)
+    ? '<span class="twr-u">' + fmt(want) + '원</span>' : '';
+  return '<div class="cpn-c">' + top + '<div class="cpn-r2">' + chip + own + wantTxt +
+    '</div></div>';
+}
+
+/* ── 쿠폰 칸 아래 판 — 「정책 / 비정책」 스위치 (사장님 확정 A2) ────────────
+   🔴 정책일 땐 입력칸을 **잠근다**. 열어 두면 고쳐도 안 먹거나, 고치는 순간
+     조용히 정책을 벗어나 다음 정책 변경이 이 상품을 건너뛰게 된다. */
+function couponPanel(m){
+  if(!m || m.market !== 'coupang') return '';
+  var own = !!m.coupon_own;
+  var val = (m.coupon_want !== null && m.coupon_want !== undefined) ? m.coupon_want : '';
+  return '<div class="cpn-p"><div class="cpn-p-h">' +
+    '<span class="cpn-logo">C</span><b>쿠팡 즉시할인쿠폰</b>' +
+    '<label class="cpn-sw' + (own ? ' free' : '') + '" title="비정책으로 두면 정책을 바꿔도 이 상품은 안 따라갑니다">' +
+      '<input type="checkbox" id="cpn-own"' + (own ? ' checked' : '') + '>' +
+      '<i></i><span>' + (own ? '비정책' : '정책') + '</span></label>' +
+    '<button class="twr-btn pri sm" id="cpn-go" type="button">쿠폰 걸기</button>' +
+    '</div>' +
+    '<div class="cpn-p-b">깎을 값 <input id="cpn-val" class="cpn-in" value="' +
+      esc(String(val)) + '"' + (own ? '' : ' disabled') + '> 원' +
+      '<span class="twr-u">' + (own
+        ? '이 상품에만 씁니다 — 정책을 바꿔도 안 따라갑니다.'
+        : '정책 값을 그대로 씁니다. 이 상품만 바꾸려면 스위치를 「비정책」으로.') +
+      '</span></div>' +
+    '<div class="cpn-p-n">⏰ 쿠팡 쿠폰은 <b>오늘 켤 수 없습니다</b> — 거는 날의 ' +
+      '<b>다음날 0시</b>부터 적용됩니다.' +
+      (m.coupon_msg ? ' <span class="twr-u">' + esc(m.coupon_msg) + '</span>' : '') +
+    '</div></div>';
+}
+
+/* ── 상품명 「정책 / 비정책」 (인수인계 C1 — 죽어 있던 칸을 살린다) ──────────
+   🔴 이 칸은 **전송 코드가 이미 읽고 있었는데 적을 화면이 없어 늘 비어 있었다.**
+     그래서 「마켓마다 다른 상품명」이 코드로는 되는데 아무도 못 쓰는 기능이었다.
+   🔴 비우면 정책이 만든 이름으로 되돌아간다 — 빈 글자를 보내면 이름이 사라진다. */
+function namePanel(list){
+  var rows = (list || []).filter(function(m){
+    return m.name_override !== undefined;      /* 칸이 있는 마켓만(쿠팡·스스) */
+  });
+  if(!rows.length) return '';
+  return '<div class="cpn-p"><div class="cpn-p-h"><b>마켓별 상품명</b>' +
+    '<span class="twr-u">비워 두면 정책이 만든 이름을 씁니다</span></div>' +
+    rows.map(function(m){
+      var own = !!m.name_own;
+      return '<div class="cpn-p-b"><span class="nm-k">' + esc(m.label) + '</span>' +
+        '<label class="cpn-sw' + (own ? ' free' : '') + '">' +
+          '<input type="checkbox" class="nm-own" data-mk="' + esc(m.market) + '"' +
+          (own ? ' checked' : '') + '><i></i><span>' +
+          (own ? '이 상품만' : '정책') + '</span></label>' +
+        '<input class="nm-in" data-mk="' + esc(m.market) + '" value="' +
+          esc(m.name_override || '') + '" placeholder="' +
+          esc(m.reg_name || '정책이 만든 이름') + '"' + (own ? '' : ' disabled') +
+          '>' + nameCounter(m, (m.name_override || '').length) + '</div>';
+    }).join('') +
+    '<div class="cpn-p-n">상세페이지·추가이미지는 <b>담을 칸이 아직 없습니다</b> — ' +
+      '지금은 어느 마켓에도 빈 값으로 나갑니다.</div></div>';
+}
+
+/* ── 글자수 카운터 (인수인계 C4) ────────────────────────────────────────
+   🔴 상한을 **모르는 마켓은 숫자를 지어내지 않는다**. 「왜 모르는지」를 그대로 적는다 —
+     지어낸 상한으로 상품명을 자르면 그게 더 큰 손해다(market_limits 의 판단 그대로).
+   🔴 넘으면 빨갛게. 마켓이 「유효하지 않습니다」만 뱉기 전에 화면이 먼저 말한다. */
+function nameCounter(m, n){
+  if(m.name_cap){
+    var over = n > m.name_cap;
+    return '<span class="nm-c' + (over ? ' over' : '') + '" data-mk="' + esc(m.market) +
+      '">' + n + ' / ' + m.name_cap + '</span>';
+  }
+  return '<span class="nm-c unk" data-mk="' + esc(m.market) + '" title="' +
+    esc(m.name_cap_reason || '') + '">' + n + '자 · 상한 확인 불가</span>';
+}
+
+/* 상품명 「정책/비정책」 배선.
+   🔴 스위치를 끄면(정책으로 되돌리면) **값을 비워 보낸다** — 화면만 잠그고 값을 두면
+     저장분엔 옛 이름이 남아 다음 전송에 그 이름이 그대로 나간다. */
+function wireName(){
+  var code = open ? open.code : '';
+  function save(mk, value){
+    fetch('/api/bundles/' + encodeURIComponent(code) + '/name-override', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({market: mk, value: value})
+    }).then(function(r){ return r.json(); }).then(function(x){
+      if(!x.ok) alert(x.message || '저장하지 못했어요.');
+      open.cache.t4 = null;
+      show('t4');
+    }).catch(function(){ alert('저장 요청이 실패했어요.'); });
+  }
+  body().querySelectorAll('.nm-own').forEach(function(sw){
+    sw.addEventListener('change', function(){
+      var mk = sw.dataset.mk;
+      var box = body().querySelector('.nm-in[data-mk="' + mk + '"]');
+      save(mk, sw.checked ? ((box && box.value) || '') : '');
+    });
+  });
+  body().querySelectorAll('.nm-in').forEach(function(box){
+    box.addEventListener('change', function(){ save(box.dataset.mk, box.value); });
+    /* 치는 대로 세어 준다 — 저장 뒤에야 알면 늦다 */
+    box.addEventListener('input', function(){
+      var c = body().querySelector('.nm-c[data-mk="' + box.dataset.mk + '"]');
+      if(!c) return;
+      var cap = c.textContent.indexOf('/') >= 0
+        ? parseInt(c.textContent.split('/')[1], 10) : null;
+      if(cap){
+        c.textContent = box.value.length + ' / ' + cap;
+        c.classList.toggle('over', box.value.length > cap);
+      } else {
+        c.textContent = box.value.length + '자 · 상한 확인 불가';
+      }
+    });
+  });
+}
+
+/* 스위치·단추를 서버에 잇는다.
+   🔴 화면만 바꾸고 서버에 안 보내면 새로 고치는 순간 되돌아간다 — 사장님은
+     「바꿨는데 안 먹는다」로 겪는다. 저장이 끝난 뒤 **다시 불러** 화면과 저장분을 맞춘다. */
+function wireCoupon(){
+  wireName();
+  var sw = body().querySelector('#cpn-own');
+  var val = body().querySelector('#cpn-val');
+  var go = body().querySelector('#cpn-go');
+  if(!sw) return;
+  var code = open ? open.code : '';
+  function save(){
+    var mode = sw.checked ? 'own' : 'policy';
+    fetch('/api/bundles/' + encodeURIComponent(code) + '/coupang-coupon/override', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({mode: mode, value: (val && val.value) || null})
+    }).then(function(r){ return r.json(); }).then(function(x){
+      if(!x.ok){ alert(x.message || '저장하지 못했어요.'); show('t4'); return; }
+      open.cache.t4 = null;
+      show('t4');
+    }).catch(function(){ alert('저장 요청이 실패했어요.'); });
+  }
+  sw.addEventListener('change', save);
+  if(val) val.addEventListener('change', function(){ if(sw.checked) save(); });
+  if(go) go.addEventListener('click', function(){
+    go.disabled = true;
+    fetch('/api/bundles/' + encodeURIComponent(code) + '/coupang-coupon', {method:'POST'})
+      .then(function(r){ return r.json(); }).then(function(x){
+        alert(x.message || (x.ok ? '대기열에 넣었습니다.' : '넣지 못했어요.'));
+        open.cache.t4 = null;
+        show('t4');
+      }).catch(function(){ go.disabled = false; alert('요청이 실패했어요.'); });
+  });
+}
+
+/* ── ④ 마켓 등록·정책 ── */
+function renderT4(j){
+  var h = '<div class="tcard"><div class="tcard-t">마켓 등록 · 정책 <span class="cap">마켓별 정책 → 판매가 계산 → 등록 정보 → 옵션별 상세</span></div>';
+  h += '<table class="atb"><tr><th class="l">마켓</th><th>적용 정책</th><th>정책 판매가</th><th>할인·쿠폰</th><th>최종 노출가</th><th>수수료</th><th>예상 마진</th><th class="l">등록 상품명</th><th class="l">등록 카테고리</th><th>최근 전송</th><th>상태</th><th></th></tr>';
+  j.markets.forEach(function(m, idx){
+    var muted = !m.policy_price && !m.registered;
+    var exposed = (m.market === 'coupang' && m.exposed) ? m.exposed : m.policy_price;
+    h += '<tr' + (muted ? ' style="color:var(--n400,#ACACB1)"' : '') + '>' +
+      '<td class="l" style="font-weight:600' + (muted ? ';color:var(--ap-g45,#6E6E73)' : '') + '">' + esc(m.label) + '</td>' +
+      '<td>' + (m.policy
+        ? (m.price_ready ? esc(m.policy.name) + ' <a class="tlink" style="font-size:12px" href="/policies/' + m.policy.id + '">편집 →</a>'
+          : '<span style="color:var(--글자-주황,#C93400)">가격 비어 있음</span> <a class="tlink" style="font-size:12px" href="/policies/' + m.policy.id + '">채우기 →</a>')
+        : '<span style="color:var(--글자-주황,#C93400)">정책 없음</span> <a class="tlink" style="font-size:12px" href="/policies">만들기 →</a>') + '</td>' +
+      '<td>' + (m.policy_price ? fmt(m.policy_price) : '—') + '</td>' +
+      '<td>' + couponCell(m) + '</td>' +
+      '<td' + (exposed ? ' style="font-weight:600"' : '') + '>' + (exposed ? fmt(exposed) : '—') + '</td>' +
+      '<td>' + dim(m.fee_pct !== null && m.fee_pct !== undefined ? m.fee_pct + '%' : '—') + '</td>' +
+      '<td>' + (m.margin !== null && m.margin !== undefined
+        ? '<span style="color:var(--글자-초록,#248A3D);font-weight:600">' + fmt(m.margin) + '</span> <span class="twr-u">(' + m.margin_rate + '%)</span>'
+        : '—') + '</td>' +
+      '<td class="l">' + (m.registered ? (m.reg_name ? esc(m.reg_name) : dim('이름 확인 불가(캐시 없음)')) : '미등록') + '</td>' +
+      '<td class="l">' + regCategory(m) + '</td>' +
+      '<td>' + dim(shortDt(m.last_send)) + '</td>' +
+      '<td>' + (m.registered
+        ? '<span class="twr-badge sale">' + esc(m.reg_status || '등록됨') + '</span>'
+        : '<span class="twr-badge wait">미등록</span>') + '</td>' +
+      '<td>' + (m.options.length ? '<button class="tchip t4opt" data-i="' + idx + '" type="button">옵션별 ▾</button>' : '') + '</td></tr>';
+    // colspan = 머리글 칸 수(12: … 등록 상품명 · 등록 카테고리 · 최근 전송 · 상태 · 단추).
+    //  열을 더하고 여기를 안 고치면 펼침 판이 표보다 좁아져 표가 어긋난다.
+    h += '<tr class="t4optrow" data-i="' + idx + '" style="display:none"><td colspan="12" style="background:var(--ap-g0,#FAFAFC);padding:14px 20px;text-align:left">' +
+      '<table class="atb" style="background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px">' +
+      '<tr><th class="l">옵션</th><th>마켓 옵션번호</th><th>전송 가격</th><th>전송 재고</th><th>마지막 성공</th><th>상태</th></tr>' +
+      m.options.map(function(o){
+        var warn = (o.last_synced_stock === 0);
+        return '<tr><td class="l">' + esc(o.option) + '</td>' +
+          '<td>' + dim(o.market_option_id || '—') + '</td>' +
+          '<td>' + (o.last_synced_price !== null ? fmt(o.last_synced_price) : '—') + '</td>' +
+          '<td>' + (o.last_synced_stock !== null ? fmt(o.last_synced_stock) : '—') + '</td>' +
+          '<td>' + dim(shortDt(o.last_success_at)) + '</td>' +
+          '<td><span class="twr-badge ' + (o.status === 'failed' ? 'err' : (warn ? 'warn' : 'sale')) + '">' +
+            esc(o.status === 'failed' ? '실패' : (warn ? '품절 전송됨' : (o.status || '—'))) + '</span></td></tr>';
+      }).join('') + '</table></td></tr>';
+  });
+  h += '</table>';
+  h += '<div class="tnote">노출가 = 정책 판매가 − 즉시할인쿠폰(쿠팡은 마켓 캐시 실측값) · 마진 = preview 계산(정책 수수료·최저 매입가 기준) · 「옵션별 ▾」 = 그 마켓에 실제 전송된 옵션 단위 값 · <a href="/market-send">미등록 마켓에 보내러 가기 →</a></div></div>';
+  /* 쿠폰 판 — 표 밑에 한 장(사장님 확정 A2) */
+  var _cp = (j.markets || []).filter(function(x){ return x.market === 'coupang'; })[0];
+  h += couponPanel(_cp);
+  h += namePanel(j.markets);
+  body().innerHTML = h;
+  wireCoupon();
+  body().querySelectorAll('.t4opt').forEach(function(b){
+    b.addEventListener('click', function(){
+      var row = body().querySelector('.t4optrow[data-i="' + this.dataset.i + '"]');
+      var on = row.style.display === 'none';
+      row.style.display = on ? '' : 'none';
+      this.classList.toggle('on', on);
+    });
+  });
+}
+
+/* ── 가격·재고 이력 SVG — 소싱처 한 곳의 기록 하나를 선 두 개로 (시안 v8)
+   가격 = 파랑 실선 · 재고 = 초록 점선 · 점 = 값이 바뀐 날(changed)
+   값은 /api/matrix/price-history 기록 그대로 — 사이를 메우거나 고르지 않는다. */
+function histChart(label, pts){
+  var xs = pts.filter(function(p){ return p.t; })
+              .sort(function(a, b){ return (a.t || '').localeCompare(b.t || ''); });
+  if(xs.length < 2) return '';
+  var L = 46, R = 880, TOP = 12, BOT = 178;
+  var ps = xs.map(function(p){ return p.price; }).filter(function(v){ return v !== null && v !== undefined; });
+  var ss = xs.map(function(p){ return p.stock; }).filter(function(v){ return v !== null && v !== undefined; });
+  var pMin = ps.length ? Math.min.apply(null, ps) : null;
+  var pMax = ps.length ? Math.max.apply(null, ps) : null;
+  var sMax = ss.length ? Math.max.apply(null, ss) : null;
+  var span = (pMax !== null && pMax !== pMin) ? (pMax - pMin) : 1;
+  var flat = (pMax === pMin);          /* 한 번도 안 바뀐 값은 가운데 가로선으로 */
+  function px(i){ return Math.round(L + (R - L) * (xs.length === 1 ? 0.5 : i / (xs.length - 1))); }
+  function pyPrice(v){
+    if(flat) return Math.round((TOP + BOT) / 2);
+    return Math.round(BOT - (v - pMin) / span * (BOT - TOP));
+  }
+  function pyStock(v){ return Math.round(BOT - (sMax ? (v / sMax) : 0) * (BOT - TOP)); }
+  var svg = '<svg viewBox="0 0 900 214" style="width:100%;max-width:900px;display:block" role="img">' +
+    '<line x1="' + L + '" y1="' + TOP + '" x2="' + L + '" y2="' + BOT + '" stroke="var(--ap-g2,#E8E8ED)"/>' +
+    '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" stroke="var(--ap-g2,#E8E8ED)"/>';
+  if(pMin !== null && flat){
+    svg += '<text x="' + (L - 6) + '" y="' + Math.round((TOP + BOT) / 2 + 4) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(pMin) + '</text>';
+  } else if(pMin !== null){
+    svg += '<text x="' + (L - 6) + '" y="' + (TOP + 10) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(pMax) + '</text>' +
+      '<text x="' + (L - 6) + '" y="' + (BOT + 2) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(pMin) + '</text>';
+  }
+  /* 재고 점선(초록) — 가격보다 뒤에 깔린다 */
+  if(ss.length > 1){
+    var sp = [];
+    xs.forEach(function(p, i){
+      if(p.stock === null || p.stock === undefined) return;
+      sp.push(px(i) + ',' + pyStock(p.stock));
+    });
+    svg += '<polyline points="' + sp.join(' ') + '" fill="none" stroke="var(--ap-green,#34C759)" stroke-width="2" stroke-dasharray="4 3" opacity=".8"/>';
+  }
+  /* 가격 실선(파랑) + 바뀐 날 점 */
+  if(ps.length > 1){
+    var pp = [];
+    xs.forEach(function(p, i){
+      if(p.price === null || p.price === undefined) return;
+      pp.push(px(i) + ',' + pyPrice(p.price));
+    });
+    svg += '<polyline points="' + pp.join(' ') + '" fill="none" stroke="var(--ap-버튼파랑,#0071E3)" stroke-width="2"/>';
+    xs.forEach(function(p, i){
+      if(!p.changed || p.price === null || p.price === undefined) return;
+      svg += '<circle cx="' + px(i) + '" cy="' + pyPrice(p.price) + '" r="4" fill="var(--ap-버튼파랑,#0071E3)">' +
+        '<title>' + esc(shortDt(p.t)) + ' · ' + fmt(p.price) + '원' +
+        (p.stock === null || p.stock === undefined ? '' : ' · 재고 ' + fmt(p.stock)) + '</title></circle>';
+    });
+  }
+  /* X축 — 첫 기록·마지막 기록만(사이를 지어내지 않는다) */
+  svg += '<text x="' + L + '" y="200" font-size="10" fill="var(--ap-g4,#86868B)">' + esc(shortDt(xs[0].t)) + '</text>' +
+    '<text x="' + R + '" y="200" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + esc(shortDt(xs[xs.length - 1].t)) + '</text>' +
+    '</svg>';
+  return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">' + esc(label) +
+    '<span class="twr-u" style="font-weight:400;margin-left:6px">기록 ' + fmt(xs.length) + '건</span></div>' + svg +
+    '<div style="display:flex;gap:20px;font-size:12px;color:var(--ap-g45,#6E6E73);margin-top:6px;flex-wrap:wrap">' +
+    '<span><span style="display:inline-block;width:14px;height:2px;background:var(--ap-버튼파랑,#0071E3);vertical-align:middle;margin-right:4px"></span>표면가 (원)</span>' +
+    '<span><span style="display:inline-block;width:14px;height:2px;background:var(--ap-green,#34C759);vertical-align:middle;margin-right:4px"></span>재고 (개 · 점선)' +
+    (ss.length > 1 ? '' : ' — 기록 없음') + '</span>' +
+    '<span class="twr-u">점 = 값이 바뀐 날</span></div></div>';
+}
+
+/* ── ⑤ 가격/재고 변동 이력 — 기존 /api/matrix/price-history 재사용 ── */
+function renderT5(sum){
+  var opts = sum.options || [];
+  var h = '<div class="tcard"><div class="tcard-t">가격/재고 변동 이력' +
+    '<span class="cap">소싱처 실측값(표면가) 기준 — 기존 가격 이력 기록을 그대로 봅니다</span>' +
+    '<span class="sp"></span><div class="tseg" id="t5seg">' +
+    '<button class="on" data-m="g" type="button">그래프</button>' +
+    '<button data-m="l" type="button">날짜별 목록</button></div></div>';
+  if(!opts.length){
+    h += '<div class="twr-u">옵션이 없어요.</div></div>';
+    body().innerHTML = h; return;
+  }
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px" id="t5chips">' +
+    opts.slice(0, 8).map(function(o, i){
+      return '<button class="tchip' + (i === 0 ? ' on' : '') + '" data-sku="' + esc(o.sku) + '" type="button">' +
+        esc((o.color || '') + ' ' + (o.size || '')) + '</button>';
+    }).join('') +
+    (opts.length > 8 ? '<span class="twr-u" style="align-self:center">… 옵션 ' + (opts.length - 8) + '개 더</span>' : '') +
+    '<span style="flex:1"></span>' +
+    '<button class="tchip" data-days="30" type="button">최근 30일</button>' +
+    '<button class="tchip on" data-days="90" type="button">최근 90일</button></div>';
+  h += '<div id="t5body"><div class="twr-load">불러오는 중…</div></div>';
+  h += '<div class="tnote">기록 기준: 소싱처 실측값(수집할 때마다, 값이 바뀌면 그때마다) · 표면가 기준 — 혜택을 빼기 전 금액입니다 · 그래프와 목록은 같은 기록을 두 방식으로 봅니다</div></div>';
+  body().innerHTML = h;
+  var cur = {sku: opts[0].sku, days: 90, mode: 'g', data: null};
+  function draw(){
+    var el = document.getElementById('t5body');
+    if(!el) return;
+    var x = cur.data;
+    if(!x){ return; }
+    if(!x.ok){ el.innerHTML = '<div class="twr-load">' + esc(x.error || '불러오지 못했어요.') + '</div>'; return; }
+    if(!x.total){ el.innerHTML = '<div class="twr-u">' + esc(x.note) + '</div>'; return; }
+    if(cur.mode === 'g'){
+      /* 그래프 — 소싱처마다 한 판(같은 색 선이 겹쳐 헷갈리지 않게) */
+      var gh = Object.keys(x.points).map(function(label){
+        return histChart(label, x.points[label]);
+      }).filter(Boolean).join('');
+      el.innerHTML = gh || '<div class="twr-u">기록이 2건 이상 쌓인 소싱처가 아직 없어요 — 「날짜별 목록」으로 보시면 지금까지 모인 기록이 그대로 보입니다.</div>';
+      return;
+    }
+    var rows = [];
+    Object.keys(x.points).forEach(function(label){
+      x.points[label].forEach(function(p){
+        rows.push({label: label, t: p.t, price: p.price, stock: p.stock, changed: p.changed});
+      });
+    });
+    rows.sort(function(a, b){ return (b.t || '').localeCompare(a.t || ''); });
+    var hh = '<table class="atb"><tr><th>기록 시각</th><th>소싱처</th><th>표면가</th><th>재고</th><th>변동</th></tr>';
+    rows.slice(0, 40).forEach(function(r){
+      hh += '<tr><td>' + dim(shortDt(r.t)) + '</td><td>' + esc(r.label) + '</td>' +
+        '<td' + (r.changed ? ' style="font-weight:600"' : '') + '>' + (r.price !== null ? fmt(r.price) : '—') + '</td>' +
+        '<td>' + (r.stock === null ? dim('확인 불가') : fmt(r.stock)) + '</td>' +
+        '<td>' + (r.changed ? '<span class="twr-badge warn">바뀜</span>' : dim('그대로')) + '</td></tr>';
+    });
+    hh += '</table>';
+    if(rows.length > 40) hh += '<div class="tnote">최근 40건만 표시 — 전체 ' + fmt(rows.length) + '건</div>';
+    el.innerHTML = hh;
+  }
+  function load(){
+    document.getElementById('t5body').innerHTML = '<div class="twr-load">불러오는 중…</div>';
+    cur.data = null;
+    fetch('/api/matrix/price-history?sku=' + encodeURIComponent(cur.sku) + '&days=' + cur.days)
+      .then(function(r){ return r.json(); }).then(function(x){
+        cur.data = x;
+        draw();
+      }).catch(function(){
+        var el = document.getElementById('t5body');
+        if(el) el.innerHTML = '<div class="twr-load">불러오지 못했어요.</div>';
+      });
+  }
+  document.getElementById('t5seg').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    cur.mode = b.dataset.m;
+    draw();                       /* 같은 기록을 두 방식으로 — 다시 부르지 않는다 */
+  });
+  document.getElementById('t5chips').addEventListener('click', function(e){
+    var b = e.target.closest('.tchip'); if(!b) return;
+    if(b.dataset.sku){
+      this.querySelectorAll('.tchip[data-sku]').forEach(function(x){ x.classList.toggle('on', x === b); });
+      cur.sku = b.dataset.sku;
+    } else if(b.dataset.days){
+      this.querySelectorAll('.tchip[data-days]').forEach(function(x){ x.classList.toggle('on', x === b); });
+      cur.days = parseInt(b.dataset.days, 10);
+    }
+    load();
+  });
+  load();
+}
+
+/* 줄 클릭 = 펼침 (버튼·링크 클릭은 그대로 통과) */
+document.addEventListener('click', function(e){
+  var tr = e.target.closest('#twr-table tr.row');
+  if(!tr) return;
+  if(e.target.closest('a')) return;
+  var btn = e.target.closest('button');
+  if(btn && !btn.classList.contains('twr-open')) return;
+  expand(tr);
+});
+/* 키보드 1~6 = 탭 이동 (시안 그대로 — 입력칸에서는 무시) */
+document.addEventListener('keydown', function(e){
+  if(!open) return;
+  if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  var order = ['t1','t6','t2','t3','t4','t5'];
+  if(/^[1-6]$/.test(e.key)) show(order[parseInt(e.key,10) - 1]);
+});
+})();
+</script>
+</section>
+{% endblock %}

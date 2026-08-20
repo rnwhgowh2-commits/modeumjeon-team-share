@@ -1,0 +1,176 @@
+{% extends "mobile/_base.html" %}
+{% block title %}정산 요약{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── E-1 시안(fE1) 부품 — 클래스 이름·구조는 시안 그대로(시안=코드) ── */
+  .chips{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto}
+  /* [2026-08-05 실측] 칩 높이 33px — 손끝 목표 44px 미달 → min-height 로 채운다 */
+  .chip{padding:8px 14px;border-radius:15px;background:var(--surface,#fff);
+    border:1px solid var(--n200,var(--line,#E5E8EB));font-size:13px;font-weight:600;
+    white-space:nowrap;font-family:inherit;color:var(--n800,var(--ink,#333D4B));cursor:pointer;
+    min-height:44px;display:inline-flex;align-items:center}
+  .chip.on{background:var(--n900,var(--ink,#191F28));color:#fff;
+    border-color:var(--n900,var(--ink,#191F28))}
+  .kgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px}
+  .kgrid>div{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));
+    border-radius:9px;padding:10px 11px}
+  .kgrid .l{font-size:12px;color:var(--n500,var(--sub,#8B95A1))}
+  /* [2026-08-05 실측] <small> 브라우저 기본 0.833em → .l 안에서 9.17px 깨알글자.
+     .bar 안 <small>(미확인 ?금액)도 12×0.833=10px — 같은 부류라 같이 못 박는다. */
+  .kgrid .l small, .bar small{font-size:12px}
+  .kgrid .v{font-size:17px;font-weight:800;margin-top:3px}
+  .kgrid .v small{font-size:12px;color:var(--n500,var(--sub,#8B95A1));font-weight:600}
+  .bar{display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:8px}
+  .bar>span:first-child{width:56px;flex-shrink:0;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  .btrk{flex:1;background:var(--n200,var(--line,#E5E8EB));height:9px;border-radius:5px;
+    overflow:hidden}
+  .bfill{height:9px;border-radius:5px;background:var(--brand,#3182F6)}
+  .num{font-variant-numeric:tabular-nums;font-weight:800;text-align:right}
+  .bar .num{min-width:78px;font-size:12px}
+  /* 정직성 표기 — 기간·눈금 설명·부분 데이터 알림 */
+  .st-note{font-size:12px;color:var(--n500,var(--sub,#8B95A1));margin:2px 0 8px}
+  .st-warn{font-size:12px;color:var(--글자-주황,#92400E);background:var(--연한-노랑,#FEF3C7);
+    border-radius:8px;padding:8px 10px;margin-bottom:8px}
+  .st-sec{font-size:12px;font-weight:700;color:var(--n800,var(--ink,#333D4B));
+    margin:12px 0 8px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chips" id="st-chips">
+  <button type="button" class="chip on" data-period="this_week">이번 주</button>
+  <button type="button" class="chip" data-period="last_week">지난 주</button>
+  <button type="button" class="chip" data-period="this_month">이번 달</button>
+</div>
+<div class="st-note" id="st-label"></div>
+
+<div class="kgrid" id="st-kpis">
+  <div><div class="l">정산 예정 <small>· 추정</small></div>
+    <div class="v num" id="st-kpi-pending">-</div></div>
+  <div><div class="l">정산 확정 <small>· 마켓 실정산</small></div>
+    <div class="v num" id="st-kpi-confirmed">-</div></div>
+</div>
+<div id="st-notes"></div>
+
+<div class="st-sec" id="st-bars-head" style="display:none">마켓별 합계
+  <span class="st-note" style="margin:0">— 막대 길이는 가장 큰 마켓 대비 비율</span></div>
+<div id="st-bars"></div>
+
+<div id="st-status" class="m-loading" style="display:none"></div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  'use strict';
+  // ── askServer — crawl.html 관례 사본. 인증 실패는 JSON 이 아니라 HTML 로 온다
+  //   (세션 만료=로그인 200 HTML). 상태코드 → content-type 순서로 거른 뒤에만 파싱.
+  async function askServer(url, opts) {
+    var r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+    if (!r.ok) { throw new Error('http-' + r.status); }
+    var ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) { throw new Error('not-json'); }
+    return r.json();
+  }
+  function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+  function won(n){return Number(n).toLocaleString('ko-KR');}
+
+  var $label = document.getElementById('st-label');
+  var $pending = document.getElementById('st-kpi-pending');
+  var $confirmed = document.getElementById('st-kpi-confirmed');
+  var $notes = document.getElementById('st-notes');
+  var $barsHead = document.getElementById('st-bars-head');
+  var $bars = document.getElementById('st-bars');
+  var $status = document.getElementById('st-status');
+
+  // KPI — 값을 모르면 '-'(0 둔갑 금지). 서버 sum(원)을 그대로 그린다.
+  function kpiHTML(v){ return v == null ? '-' : won(v) + '<small> 원</small>'; }
+
+  // ── 불러오기 — 칩 누를 때 1회(폴링 없음). loadSeq 로 늦게 온 옛 답을 버린다.
+  var loadSeq = 0, curPeriod = 'this_week';
+  function load(){
+    var seq = ++loadSeq;
+    $status.style.display = '';
+    $status.innerHTML = '<span class="m-spinner"></span>불러오는 중…';
+    askServer('/mobile/settle/api/summary?period=' + encodeURIComponent(curPeriod))
+      .then(function(j){
+        if (seq !== loadSeq) return;
+        $status.style.display = 'none';
+        if (!j.ok) { fail(j.error); return; }
+        // 기간 표기 — 서버 포맷 문자열 그대로(폰에서 날짜 파싱·재계산 금지).
+        $label.textContent = j.label || '';
+        if (j.store_empty) {
+          // 저장분이 아예 없다 — 0 이 아니라 '-' + 이유(정직성: 없는 걸 0 인 척 금지).
+          $pending.textContent = '-';
+          $confirmed.textContent = '-';
+          $notes.innerHTML = '<div class="st-warn">저장된 주문이 없어요 — PC 주문 내역에서 '
+            + '「주문 적재」 백필을 한 번 돌리면 여기에 요약이 떠요</div>';
+          $barsHead.style.display = 'none';
+          $bars.innerHTML = '';
+          return;
+        }
+        $pending.innerHTML = kpiHTML(j.kpi && j.kpi.pending ? j.kpi.pending.sum : null);
+        $confirmed.innerHTML = kpiHTML(j.kpi && j.kpi.confirmed ? j.kpi.confirmed.sum : null);
+        $notes.innerHTML = notesHTML(j);
+        renderBars(j.markets || []);
+      })
+      .catch(function(){ if (seq === loadSeq) fail(null); });
+  }
+  function fail(msg){
+    // 실패 = '-' + 이유. 옛 숫자를 남겨 두면 다른 기간의 값으로 오해된다.
+    $pending.textContent = '-';
+    $confirmed.textContent = '-';
+    $notes.innerHTML = '';
+    $barsHead.style.display = 'none';
+    $bars.innerHTML = '';
+    $status.style.display = '';
+    $status.textContent = msg || '불러오지 못했어요 — 잠시 뒤 다시 눌러 주세요';
+  }
+
+  // ── 정직성 알림 — 미확인(금액 모름)·취소·저장분 없는 마켓을 숨기지 않는다.
+  function notesHTML(j){
+    var parts = [];
+    if (j.unknown_rows) {
+      parts.push('미확인 ' + won(j.unknown_rows) + '건 — 정산 정보가 아직 없어 합계에서 뺐어요');
+    }
+    if (j.cancel_rows) { parts.push('취소 ' + won(j.cancel_rows) + '건(정산 0)'); }
+    var h = parts.length ? '<div class="st-note">' + esc(parts.join(' · ')) + '</div>' : '';
+    if (j.missing && j.missing.length) {
+      h += '<div class="st-warn">저장된 주문이 없는 마켓: ' + esc(j.missing.join(', '))
+        + ' — 이 합계엔 안 들어 있어요</div>';
+    }
+    return h;
+  }
+
+  // ── 마켓별 막대(fE1 구조: 이름 · 트랙+채움 · 오른쪽 tabular 금액).
+  //   눈금 = 상대(가장 큰 마켓 = 100%) — 화면 캡션이 그 사실을 밝히고,
+  //   막대마다 실제 금액이 붙는다(폭 하드코딩 금지 — 최대값으로 계산).
+  function renderBars(markets){
+    var rows = markets.filter(function(m){ return m.total > 0 || m.unknown_rows > 0; });
+    if (!rows.length) { $barsHead.style.display = 'none'; $bars.innerHTML = ''; return; }
+    var max = Math.max.apply(null, rows.map(function(m){ return m.total; }));
+    $barsHead.style.display = '';
+    $bars.innerHTML = rows.map(function(m){
+      var pct = max > 0 ? Math.round(m.total / max * 100) : 0;
+      var unk = m.unknown_rows ? ' <small>?' + won(m.unknown_rows) + '</small>' : '';
+      return '<div class="bar"><span>' + esc(m.label) + '</span>'
+        + '<div class="btrk"><div class="bfill" style="width:' + pct + '%"></div></div>'
+        + '<span class="num">' + won(m.total) + unk + '</span></div>';
+    }).join('');
+  }
+
+  // ── 기간 칩 — 서버 PERIODS 와 같은 값(시험이 대조). 누르면 그 기간만 다시 읽는다.
+  document.getElementById('st-chips').addEventListener('click', function(e){
+    var b = e.target.closest('.chip');
+    if (!b) return;
+    curPeriod = b.getAttribute('data-period') || 'this_week';
+    var chips = document.querySelectorAll('#st-chips .chip');
+    for (var i = 0; i < chips.length; i++) { chips[i].classList.remove('on'); }
+    b.classList.add('on');
+    load();
+  });
+
+  load();
+</script>
+{% endblock %}

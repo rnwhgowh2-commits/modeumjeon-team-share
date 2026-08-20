@@ -3,24 +3,56 @@
 {% block content %}
 <section class="screen active" id="screen-option-detail">
   <a class="btn btn-ghost" href="/bundles/{{ bundle.model_code }}">← {{ bundle.model_code }} 편집</a>
-  <h1 style="margin-top:6px">{{ option.color_code }} · {{ option.size_code }}</h1>
+  <h1 style="margin-top:4px">{{ option.color_code }} · {{ option.size_code }}</h1>
   <p class="greeting" class="mono">{{ option.canonical_sku }}</p>
 
   {# 1. 사이트별 소싱 옵션 ID #}
   <div class="bundle-section">
     <div class="bundle-section-head">
       <span class="bundle-section-num done">1</span>
-      <h2><i class="ph-light ph-map-pin" aria-hidden="true"></i> 사이트별 옵션 ID</h2>
+      <h2><i class="ph-light ph-map-pin" aria-hidden="true"></i> 소싱처별 옵션 ID</h2>
     </div>
-    {# v34.9 — 라벨 옆에 brand-app-logo 박스 (brand 색 동기화 받음) #}
+    {# [2026-07-30] 소싱처별 **관리번호**(우리 번호)를 앞에 세우고, 소싱처가 준 번호는
+       그 아래 작게. 관리번호에 마우스를 올리면 원래 번호가 그대로 뜬다.
+       ※ 바로가기는 정보창 안이 아니라 밖의 버튼이다 — 정보창 안에 누를 것을 넣으면
+         hover-info-card 규칙(닫기 지연·포털)이 필요해진다. 여기선 그럴 이유가 없다. #}
     {% set _site_glyphs = {'lemouton':'르','musinsa':'M','ssf':'SS','lotteon':'롯','ss_lemouton':'N'} %}
     {% set _site_brand_keys = {'lemouton':'lemouton','musinsa':'musinsa','ssf':'ssf','lotteon':'lotteon','ss_lemouton':'smartstore'} %}
-    {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF'),('lotteon','롯데몰'),('ss_lemouton','스마트스토어 르무통')] %}
+    <style>
+      .srcno{display:flex;align-items:center;gap:4px;margin:0px 0 4px}
+      .srcno .no{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;
+                 background:var(--n100,#F2F4F6);color:var(--ink,#191F28);padding:4px 8px;border-radius:8px;letter-spacing:.2px}
+      .srcno .no.none{background:transparent;color:var(--sub,#8B95A1);font-weight:400}
+      .srcno button,.srcno a{border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;
+                 width:26px;height:24px;display:inline-flex;align-items:center;justify-content:center;
+                 font-size:12px;color: var(--글자-파랑, var(--primary,#3182F6));cursor:pointer;text-decoration:none}
+      .srcno button:hover,.srcno a:hover{background:var(--연한-파랑,#EFF6FF);border-color:var(--연한-파랑,#BFDBFE)}
+      .srcno .ext{font-size:12px;color:var(--sub,#8B95A1);margin-left:4px}
+      .srcno .ext b{font-family:ui-monospace,monospace;color:var(--글자-기본,#4E5968);font-weight:500}
+    </style>
+    {# [2026-07-30] 'lotteon' 라벨을 「롯데몰」 → 「롯데온」 으로 정정.
+       소싱처 명부(source_registry)의 정식 이름은 롯데온이고, 관리번호 접두도 LO(롯데온)다.
+       화면에만 옛 이름이 남아 있어 「롯데몰인데 왜 LO?」로 읽혔다.
+       ※ 롯데아이몰(lotteimall·접두 LI)은 이와 별개의 소싱처다. #}
+    {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF샵'),('lotteon','롯데온'),('ss_lemouton','스마트스토어 르무통')] %}
+    {% set sn = src_nos.get(site) if src_nos else None %}
     <div class="field">
-      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+      <label class="field-label" style="display:flex;align-items:center;gap:8px;">
         <span class="brand-app-logo sm {{ _site_brand_keys[site] }}" aria-hidden="true">{{ _site_glyphs[site] }}</span>
         <span>{{ label }}</span>
       </label>
+      <div class="srcno">
+        {% if sn and sn.no %}
+          <span class="no" title="소싱처가 준 번호: {{ sn.ext or '없음' }}">{{ sn.no }}</span>
+          <button type="button" title="번호 복사"
+                  onclick="navigator.clipboard.writeText('{{ sn.no }}')">⧉</button>
+          {% if sn.url %}<a href="{{ sn.url }}" target="_blank" rel="noopener noreferrer"
+                            title="{{ label }} 상품 페이지 열기">↗</a>{% endif %}
+          {% if sn.ext %}<span class="ext">소싱처가 준 번호 <b>{{ sn.ext }}</b></span>{% endif %}
+        {% else %}
+          <span class="no none">관리번호 없음 — 아직 이 소싱처에 연결되지 않았어요</span>
+        {% endif %}
+      </div>
       <input class="field-input mono" name="option_id_{{ site }}"
              value="{{ option['option_id_' ~ site] or '' }}" placeholder="(자동 매칭 또는 수동)" />
     </div>
@@ -47,7 +79,7 @@
       <h2>마켓 옵션 ID</h2>
     </div>
     <div class="field">
-      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+      <label class="field-label" style="display:flex;align-items:center;gap:8px;">
         <span class="brand-app-logo sm smartstore" aria-hidden="true">N</span>
         <span>스마트스토어 옵션 ID (default)</span>
       </label>
@@ -55,7 +87,7 @@
              value="{{ option.naver_option_id or '' }}" placeholder="(자동 등록 후 채워짐)" />
     </div>
     <div class="field">
-      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+      <label class="field-label" style="display:flex;align-items:center;gap:8px;">
         <span class="brand-app-logo sm coupang" aria-hidden="true">C</span>
         <span>쿠팡 vendorItemId (default)</span>
       </label>
@@ -71,11 +103,11 @@
       <h2>v2 계정별 옵션 ID + 노출 토글</h2>
     </div>
     {% if not account_rows %}
-    <div class="card" style="padding:14px;text-align:center;color:var(--n500)">
+    <div class="card" style="padding:12px;text-align:center;color:var(--n500)">
       등록된 마켓 계정이 없어요. <a href="/accounts/upload">+ 계정 추가</a>
     </div>
     {% else %}
-    <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+    <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:8px">
       <table class="opt-table">
         <thead>
           <tr><th>마켓</th><th>계정</th><th>옵션 ID</th><th class="center">노출</th></tr>
@@ -86,7 +118,7 @@
             <td>{{ ar.market }}</td>
             <td>{{ ar.account_name }}</td>
             <td><input class="field-input mono v2-ext-id" data-account="{{ ar.account_id }}"
-                       value="{{ ar.external_option_id }}" placeholder="옵션 ID" style="padding:6px;font-size: 14px" /></td>
+                       value="{{ ar.external_option_id }}" placeholder="옵션 ID" style="padding:4px;font-size: 14px" /></td>
             <td class="center">
               <label class="switch"><input type="checkbox" class="v2-visible"
                      data-account="{{ ar.account_id }}"
@@ -101,7 +133,7 @@
   </div>
 
   {# 저장 #}
-  <div style="position:sticky;bottom:0;background:var(--bg);padding:14px 0">
+  <div style="position:sticky;bottom:0;background:var(--bg);padding:12px 0">
     <button class="btn btn-large btn-primary" id="save-option-detail"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 저장</button>
     <a class="btn btn-large" href="/bundles/{{ bundle.model_code }}">취소</a>
   </div>

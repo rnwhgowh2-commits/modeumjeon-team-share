@@ -76,6 +76,13 @@ class TokenStore:
             return None
         try:
             data = json.loads(self._cache_path.read_text(encoding="utf-8"))
+            # ★ 다른 계정(client_id)의 토큰은 절대 쓰지 않는다.
+            #   캐시를 공유하면 먼저 토큰을 받은 스토어의 자격으로 다른 스토어를 조회하게 되어
+            #   '다른 가게 주문이 통째로 누락'된다(발송 누락 = 금전 손실).
+            #   client_id 가 없는 옛 캐시도 신뢰하지 않는다(재발급 유도).
+            if data.get("client_id") != self._cid:
+                logger.warning("[smartstore] 다른 계정의 토큰 캐시 — 무시하고 재발급")
+                return None
             return TokenInfo(
                 access_token=data["access_token"],
                 issued_at=int(data["issued_at"]),
@@ -117,6 +124,7 @@ class TokenStore:
     def _write_cache(self, info: TokenInfo) -> None:
         tmp = self._cache_path.with_suffix(".json.tmp")
         tmp.write_text(json.dumps({
+            "client_id":    self._cid,      # 이 토큰의 주인(다른 계정이 주워 쓰지 못하게)
             "access_token": info.access_token,
             "issued_at":    info.issued_at,
             "expires_at":   info.expires_at,

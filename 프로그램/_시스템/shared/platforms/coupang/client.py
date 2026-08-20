@@ -212,6 +212,7 @@ class CoupangClient:
 
 def _safe_json(resp) -> dict:
     try:
-        return resp.json()
+        data = resp.json()
+        return data if isinstance(data, dict) else {}   # 본문이 JSON 문자열/리스트면 dict 아님 → payload.get 크래시 방지
     except (ValueError, AttributeError):
         return {}

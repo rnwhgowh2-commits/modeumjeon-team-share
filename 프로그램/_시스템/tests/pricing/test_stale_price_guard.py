@@ -75,12 +75,15 @@ def test_upload_ignores_error_source_cost():
     tpl = _tpl()
     STALE = 122850
     # 크롤 실패 + 옛 가격 → 원가로 쓰면 안 됨 → 무소스(템플릿 95000) 와 동일해야 함
+    # [2026-07-19] 원가 = 최종매입가(final_purchase_price, 매트릭스가 compute_breakdown 으로 주입).
     err = _resolve_option_upload(
-        _opt(), None, tpl, [{'source_id': 'lemouton', 'crawled_price': STALE, 'last_status': 'error'}], 0)
+        _opt(), None, tpl, [{'source_id': 'lemouton', 'crawled_price': STALE,
+                             'final_purchase_price': STALE, 'last_status': 'error'}], 0)
     none = _resolve_option_upload(_opt(), None, tpl, [], 0)
     assert err['src']['ss'] == none['src']['ss']
 
     # 같은 가격이라도 status=ok 면 원가로 쓰여 결과가 달라져야 함 (게이트가 status 로 구분함을 증명)
     ok = _resolve_option_upload(
-        _opt(), None, tpl, [{'source_id': 'lemouton', 'crawled_price': STALE, 'last_status': 'ok'}], 0)
+        _opt(), None, tpl, [{'source_id': 'lemouton', 'crawled_price': STALE,
+                             'final_purchase_price': STALE, 'last_status': 'ok'}], 0)
     assert ok['src']['ss'] != none['src']['ss']

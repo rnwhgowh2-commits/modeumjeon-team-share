@@ -1,0 +1,466 @@
+"""판매처 카테고리 전수 수집 — 마켓별 파서(순수함수) + 저장/diff 엔진.
+
+원칙 (스펙 2026-07-22 §A·§5):
+- 파서는 순수함수(응답 텍스트/JSON → 행 리스트). 네트워크는 fetch 콜러블 주입 — 테스트는 fixture.
+- 실패는 HarvestError 로 표면화한다. 조용히 빈 리스트를 돌려주지 않는다(조용한 실패 금지).
+- 행 스키마: {code, name, parent_code, depth, is_leaf, full_path, raw}  (전부 str/int/bool, raw=원문 조각)
+"""
+from __future__ import annotations
+
+import re
+
+
+class HarvestError(Exception):
+    """카테고리 수집 실패 — 사유를 그대로 담는다."""
+
+
+# [2026-07-23 실측 사고 대응 #3] 청크 200 → 50. 실측 3회: ①13시간 running 후 유실
+# ②1,534건에서 정지(22분간 진행 정지 = 스레드 사망) ③124건에서 정지 — 200 문턱을 한 번도
+# 못 넘겨 첫 청크조차 저장되지 못했다(저장 0건). 워커가 gunicorn 리사이클·메모리 캡(2GB·
+# 900m·earlyoom)으로 죽는 환경에서는 "200건 모을 때까지 버티기"조차 보장 못 한다 — 문턱을
+# 낮춰 죽기 전에 최소 한 번은 저장되게 한다. harvest_coupang·harvest_esm_site 공용.
+CHUNK_SIZE = 50
+
+
+def build_paths(rows):
+    """parent_code 사슬로 full_path('A>B>C')를 조립해 각 행에 넣는다. 고아 부모는 HarvestError."""
+    by_code = {r['code']: r for r in rows}
+    def _path(r, guard=0):
+        if guard > 10:
+            raise HarvestError(f"카테고리 경로 순환 의심: {r['code']}")
+        p = r.get('parent_code')
+        if not p:
+            return r['name']
+        if p not in by_code:
+            raise HarvestError(f"카테고리 고아 부모: code={r['code']} parent_code={p}")
+        return _path(by_code[p], guard + 1) + '>' + r['name']
+    for r in rows:
+        r['full_path'] = _path(r)
+    return rows
+
+
+# ── 11번가 ──────────────────────────────────────────────
+_CAT_BLOCK = re.compile(r'<(?:\w+:)?category>(.*?)</(?:\w+:)?category>', re.S)
+
+
+def _tag(block, t):
+    m = re.search(r'<(?:\w+:)?%s>(.*?)</(?:\w+:)?%s>' % (t, t), block, re.S)
+    return m.group(1).strip() if m else ''
+
+
+def parse_eleven11(xml_text):
+    """11번가 전체 카테고리 XML → 행 리스트. leafYn=='Y' 를 리프로 본다(기존 검색 코드와 동일 기준)."""
+    rows = []
+    for block in _CAT_BLOCK.findall(xml_text or ''):
+        code, name = _tag(block, 'dispNo'), _tag(block, 'dispNm')
+        if not code or not name:
+            raise HarvestError('11번가 카테고리 블록에 dispNo/dispNm 누락: ' + block[:120])
+        parent = _tag(block, 'parentDispNo')
+        rows.append({
+            'code': code, 'name': name,
+            'parent_code': (parent if parent not in ('', '0') else None),
+            'depth': int(_tag(block, 'depth') or 0),
+            'is_leaf': _tag(block, 'leafYn') == 'Y',
+            'raw': block,
+        })
+    if not rows:
+        raise HarvestError('11번가 카테고리 응답에서 category 블록을 하나도 못 찾음')
+    return build_paths(rows)
+
+
+# ── 스마트스토어 ─────────────────────────────────────────
+def parse_smartstore(payload):
+    """GET /v1/categories 평면 리스트 → 행. wholeCategoryName 이 경로 그 자체(재조립 불필요)."""
+    import json as _json
+    if not payload:
+        raise HarvestError('스마트스토어 카테고리 응답이 비었음')
+    rows = []
+    for c in payload:
+        code = str(c.get('id') or '')
+        name = str(c.get('name') or '')
+        path = str(c.get('wholeCategoryName') or '')
+        if not code or not name or not path:
+            raise HarvestError('스마트스토어 카테고리에 id/name/wholeCategoryName 누락: %r' % (c,))
+        parts = path.split('>')
+        rows.append({
+            'code': code, 'name': name, 'parent_code': None,
+            'depth': len(parts), 'is_leaf': bool(c.get('last')),
+            'full_path': path, 'raw': _json.dumps(c, ensure_ascii=False),
+        })
+    return rows
+
+
+# ── 쿠팡 ────────────────────────────────────────────────
+def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None,
+                    max_calls=None, progress_state=None):
+    """code='0' 루트부터 BFS. fetch(code:str)->data 노드 dict. child 는 1depth 하위만이라 노드마다 호출.
+
+    리프 판정 = 그 노드를 fetch 했을 때 child 가 빔. DISABLED 는 행 제외 + 하위 미탐색.
+    호출량이 크므로(노드 수 = 콜 수) sleep 콜러블로 마켓 예의를 지킨다(운영은 0.2s, 테스트는 no-op).
+    on_progress(count) — 선택. 노드를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출한다
+    (쿠팡은 수 시간 걸릴 수 있어 "돌고 있는지" 를 보여주는 용도). None 이면 아무 일 없음.
+
+    on_chunk(new_rows) — 선택 [2026-07-23 실측 사고 대응]. 쿠팡은 전량 완주까지 수 시간
+    걸리는데(1,534건에서 22분간 진행 정지 = 백그라운드 데몬 스레드 사망 실측), 종전엔 전량을
+    메모리에 쌓았다가 맨 마지막에만 저장해 중간에 죽으면 전부 유실됐다. **이번 실행에서 실제로
+    fetch 해서 새로 알아낸 행**이 CHUNK_SIZE(50)개 모일 때마다 그 50개만 넘겨 호출한다 — 저장은
+    콜백(호출부) 책임. None 이면 아무 일 없음(기존 호출부는 영향 없음).
+
+      [2026-07-23 사고 #5 — 청크 페이로드 정정] 예전엔 "그 시점까지의 rows 전체"를 매번
+      넘겼다. 이어받기가 붙은 뒤로는 rows 앞부분이 known 재구성 행(이미 DB 에 그대로 있는
+      행)으로 수천 건 채워지는데, 그걸 50건마다 통째로 다시 저장하느라 한 실행이 같은 행을
+      수십 번 다시 쓰고(O(n²)) 정작 새 fetch 에 쓸 시간을 다 잡아먹었다. ①델타(직전 청크 이후
+      새로 생긴 행)만 넘기고 ②known 재구성 행은 아예 청크에 싣지 않는다(내용이 DB 와 같아
+      다시 쓸 이유가 없다 — 완주 시 최종 저장에는 그대로 포함되므로 removed 판정에는 영향 없음).
+
+    max_calls — 선택 [2026-07-23 사고 #5 대응, "한 번에 조금씩 확실히 전진"]. fetch 호출 수가
+    이 값에 도달하면 **큐가 남아 있어도 정상 반환**한다(예외 아님). 서버가 백그라운드 스레드를
+    2~3분밖에 못 살리는 게 실측이라(200~400콜 만에 사망), 죽어서 끝나는 대신 스스로 끝내
+    부분저장·마무리를 보장하기 위한 예산이다. None(기본값)이면 무제한 — 기존 동작 그대로.
+
+    progress_state — 선택. 반환값 계약(행 리스트)을 깨지 않고 "미완" 을 알리는 통지 수단.
+    넘긴 dict 에 아래 키를 채워 넣는다(완주·미완 양쪽 다 항상 채운다):
+      - 'calls'      : 이번 실행이 실제로 쓴 fetch 호출 수
+      - 'incomplete' : True = max_calls 예산이 떨어져 아직 안 훑은 노드가 남은 채 끝났다
+      - 'pending'    : 그 시점에 큐에 남아 있던 노드 수(참고용)
+    ★ incomplete=True 면 호출부는 반드시 `save_snapshot(..., partial=True)` 로 저장해야 한다.
+      아직 안 훑은 카테고리를 "사라짐(removed_at)" 으로 마킹하는 대참사를 막는 유일한 장치다.
+
+    큐 우선순위 [2026-07-23 사고 #5 — 프런티어 우선]. 종전엔 단일 FIFO 라, 이어받기 실행이
+    「이미 확보한 가지의 재fetch」로 예산을 다 쓰고 미탐색 가지에는 도달도 못 한 채 죽었다
+    (저장 4,200건에서 정체). 이제 큐를 3단으로 나눠 낮은 단부터 꺼낸다:
+      0단 skip     — known 으로 확정돼 fetch 가 필요 없는 노드. 콜을 한 개도 안 쓰므로 먼저
+                     다 훑어 트리를 공짜로 펼친다(그래야 아래 프런티어가 드러난다).
+      1단 new      — known 에 아예 없는 진짜 미탐색 노드. 예산은 여기에 먼저 쓴다.
+      2단 refetch  — known 에 있지만 child_count 불일치/NULL 이라 다시 확인해야 하는 노드.
+                     이미 DB 에 무언가 확보돼 있는 가지라 가장 나중.
+    BFS 방문 순서만 바뀌고 최종 방문 집합은 동일하다(완주 결과 동일 — 테스트로 고정).
+
+    known — 선택 [2026-07-23 이어받기, 3회 완주 실패 대응]. 재시작마다 처음부터 BFS 하면
+    죽은 지점까지 다시 걷느라 진도가 안 나간다 — 이미 DB 에 있는 가지는 API 호출 없이
+    지나가게 한다. 형태: {code: {'is_leaf': bool, 'name': str, 'raw': str,
+    'child_count': int|None, 'children': [child_code, ...]}} (라우트가 market_categories
+    에서 조립 — child_count 는 그 노드를 마지막으로 fetch 했을 때 마켓이 알려준 자식 수).
+
+      - code 가 known 에 있고 is_leaf=True(직전 수집에서 자식 없음이 확정된 리프) →
+        fetch 생략, 그대로 리프 행으로 재구성(하위 큐잉 없음). 100% 안전 — 이 노드는
+        예전에 실제로 fetch 되어 child=[] 를 직접 확인했던 결과다.
+      - code 가 known 에 있고 is_leaf=False 인데 **child_count 가 NULL 이 아니고
+        len(children) == child_count**(직전 수집이 이 노드의 자식을 전부 저장 완료) →
+        fetch 생략, known 의 children 코드를 그대로 큐에 넣어 이어간다.
+      - [2026-07-23 자식누락 차단 수정] 예전엔 "children 이 하나라도 있으면 skip" 이었는데,
+        그러면 실제 자식이 A,B,C 인데 A 만 저장된 채 죽었을 때도 children=['A'] 가
+        "비어있지 않음"으로 통과해 B,C 를 영원히 놓쳤다(조용한 누락 — 사용자는 완료됐다고
+        믿는다). child_count 와 정확히 일치할 때만 "완전히 확보했다"고 믿는다 — 하나라도
+        안 맞으면(개수 부족·NULL) 안전 우선으로 재fetch.
+      - code 가 known 에 있는데 위 두 조건 어느 것도 못 맞추면(child_count 가 NULL —
+        옛 데이터로 모르거나, 자식이 일부만/전혀 저장 안 됨) 안전하게 추측하지 않고
+        평소처럼 fetch 한다(과소수집 방지 — children 목록을 신뢰 못 할 땐 다시 확인).
+      - known 에 없는 code(진짜 미탐색 프런티어) → 평소처럼 fetch.
+      - 루트('0')는 절대 known 조회 대상이 아니다(행 자체가 없는 코드라 캐시 불가) —
+        항상 1회 fetch(비용 무시할 수준).
+      - known=None(기본값)이면 이 로직 전체가 비활성 — 기존 동작과 100% 동일(전체 재탐색).
+    """
+    import json as _json
+    known = known or {}
+    rows, seen = [], set()
+    parents = {}    # code -> parent_code
+    names = {}      # code -> full_path 조립용
+    pending = []    # 아직 청크로 안 넘긴, 이번 실행이 새로 fetch 한 행(위 on_chunk 주석 참조)
+    calls = 0
+    incomplete = False
+
+    # 3단 큐 — 0단 skip(콜 0) → 1단 new(미탐색) → 2단 refetch(재확인). 위 docstring 참조.
+    q_skip, q_new, q_refetch = [], [], []
+
+    def _tier(code):
+        """이 코드를 처리하려면 fetch 가 필요한가 — 'skip' | 'new' | 'refetch'."""
+        if code == '0':
+            return 'new'   # 루트는 행 자체가 없어 캐시 불가 — 항상 1회 fetch(비용 무시할 수준)
+        info = known.get(code)
+        if info is None:
+            return 'new'
+        kids = info.get('children') or []
+        if info.get('is_leaf') or (info.get('child_count') is not None
+                                   and len(kids) == info.get('child_count')):
+            return 'skip'
+        return 'refetch'
+
+    def _push(code):
+        t = _tier(code)
+        (q_skip if t == 'skip' else q_new if t == 'new' else q_refetch).append(code)
+
+    def _pop():
+        if q_skip:
+            return q_skip.pop(0), 'skip'
+        if q_new:
+            return q_new.pop(0), 'new'
+        return q_refetch.pop(0), 'refetch'
+
+    _push('0')
+    while q_skip or q_new or q_refetch:
+        code, tier = _pop()
+        if code in seen:
+            continue
+        skip_fetch = (tier == 'skip')
+        if not skip_fetch and max_calls is not None and calls >= max_calls:
+            # 예산 소진 — 이 노드부터는 다음 실행이 이어받는다. 죽는 대신 스스로 끝낸다.
+            # (0단 skip 을 먼저 비우는 순서라 이 시점에 q_skip 은 항상 비어 있다.)
+            incomplete = True
+            (q_new if tier == 'new' else q_refetch).insert(0, code)   # pending 집계에 되돌림
+            break
+        seen.add(code)
+
+        info = known.get(code) if code != '0' else None
+        _known_children = (info.get('children') or []) if info else []
+
+        if skip_fetch:
+            # known 재구성 — child 목록 형태를 실제 API 응답 모양과 맞춰 이후 로직을 그대로 재사용.
+            data = {
+                'name': info.get('name'),
+                'child': [{'displayItemCategoryCode': c, 'status': 'ACTIVE'}
+                          for c in _known_children],
+            }
+        else:
+            data = fetch(code)
+            calls += 1
+            if not isinstance(data, dict):
+                raise HarvestError(f'쿠팡 카테고리 {code} 응답이 dict 아님: {data!r}')
+
+        children = data.get('child') or []
+        active_children = [c for c in children if str(c.get('status') or '') != 'DISABLED']
+        if code != '0':
+            path = (names.get(parents.get(code), '') + '>' if parents.get(code) in names else '')
+            full = path + str(data.get('name') or '')
+            names[code] = full
+            raw = (info.get('raw') if skip_fetch else
+                   _json.dumps({k: data[k] for k in data if k != 'child'}, ensure_ascii=False))
+            rows.append({
+                'code': code, 'name': str(data.get('name') or ''),
+                'parent_code': parents.get(code),
+                'depth': full.count('>') + 1,
+                'is_leaf': len(children) == 0,
+                'full_path': full,
+                'raw': raw or '{}',
+                # 이 노드 자신의 자식 수(리프는 0) — 다음 이어받기가 "완전히 확보했는지"
+                # 판정하는 근거(위 known 설명 참조).
+                'child_count': len(active_children),
+            })
+            if not skip_fetch:
+                # known 재구성 행은 청크에 안 싣는다 — DB 에 이미 같은 내용이 있어 다시 쓸
+                # 이유가 없다(위 on_chunk 주석 §청크 페이로드 정정). 새로 fetch 한 행만 쌓는다.
+                pending.append(rows[-1])
+                if on_chunk is not None and len(pending) >= CHUNK_SIZE:
+                    on_chunk(pending)
+                    pending = []
+        for ch_node in children:
+            c_code = str(ch_node.get('displayItemCategoryCode') or '')
+            if not c_code:
+                raise HarvestError(f'쿠팡 카테고리 {code} 의 child 에 코드 누락: {ch_node!r}')
+            # READY(준비중)는 ACTIVE 와 동일 취급 — 실데이터 의미는 Task 12 라이브 실측에서 확정
+            if str(ch_node.get('status') or '') == 'DISABLED':
+                continue
+            parents[c_code] = code if code != '0' else None
+            _push(c_code)
+        if not skip_fetch:
+            sleep(0.2)
+        if on_progress is not None:
+            on_progress(len(rows))
+    # 남은 자투리(50 미만)는 일부러 흘리지 않는다 — 반환 직후 호출부가 rows 전체를 저장하므로
+    # 중복 저장만 늘 뿐이다(청크는 "죽기 전에 최소한 남기기" 용도).
+    if progress_state is not None:
+        progress_state['calls'] = calls
+        progress_state['incomplete'] = incomplete
+        progress_state['pending'] = len(q_skip) + len(q_new) + len(q_refetch)
+    return rows
+
+
+# ── ESM (옥션·G마켓 공용 — 사이트별 client 로 각각 호출) ──
+def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
+    """fetch(code|None)->응답 dict. None=대분류 전체(/site-cats), code=하위(/site-cats/{code}).
+
+    subCats 는 1depth 하위만 → isLeaf=False 인 노드만 재귀(리프는 재호출 안 함).
+    실패 응답({resultCode!=0})은 HarvestError 로 표면화.
+    seen 가드: 이미 방문(행 추가)한 catCode 는 다시 큐잉·행추가 하지 않는다(순환·중복 응답 방어).
+    on_progress(count) — 선택. 노드를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출한다.
+    on_chunk(new_rows) — 선택. harvest_coupang 과 동일 기준 — 새로 알아낸 행이 CHUNK_SIZE(50)개
+    모일 때마다 **그 델타만** 넘겨 호출한다(체크포인트 저장용). 누적 rows 를 통째로 넘기던
+    예전 방식은 한 실행이 같은 행을 수십 번 다시 쓰게 만들어(O(n²)) 오히려 완주를 방해했다.
+    뒤늦게 child_count 가 채워진 행은(이미 앞 청크로 나갔을 수 있으므로) 갱신본을 다음 델타에
+    다시 실어 보낸다 — 같은 배치 안 중복은 코드 기준으로 제거한다(save_snapshot 이 중복을 거부).
+    """
+    import json as _json
+    rows = []
+    seen = set()
+    rows_by_code = {}   # code -> row (자기 자식 수를 나중에 채워 넣기 위한 역참조)
+    queue = [(None, None, '')]          # (code, parent_code, parent_path)
+    pending, pending_codes = [], set()
+
+    def _pend(r):
+        if r['code'] in pending_codes:
+            return
+        pending.append(r)
+        pending_codes.add(r['code'])
+
+    while queue:
+        code, parent, ppath = queue.pop(0)
+        data = fetch(code)
+        if not isinstance(data, dict):
+            raise HarvestError(f'ESM site-cats {code} 응답이 dict 아님: {data!r}')
+        if data.get('resultCode') not in (None, 0):
+            raise HarvestError(f"ESM site-cats {code} 실패: {data.get('resultCode')} {data.get('message')}")
+        own_subcats = data.get('subCats') or []
+        if code is not None and code in rows_by_code:
+            # 이 code 는 이전 반복에서 (부모 응답의) 자식으로 행이 이미 만들어졌었다 —
+            # 지금 이 code 를 직접 fetch 해서 얻은 subCats 수가 곧 그 행의 child_count.
+            rows_by_code[code]['child_count'] = len(own_subcats)
+            _pend(rows_by_code[code])   # 앞 청크로 이미 나갔을 수 있다 — 갱신본을 다시 실어 보낸다
+        for sub in own_subcats:
+            c_code, c_name = str(sub.get('catCode') or ''), str(sub.get('catName') or '')
+            if not c_code or not c_name:
+                raise HarvestError(f'ESM subCats 에 코드/이름 누락: {sub!r}')
+            if c_code in seen:
+                continue
+            seen.add(c_code)
+            full = (ppath + '>' if ppath else '') + c_name
+            is_leaf = bool(sub.get('isLeaf'))
+            row = {
+                'code': c_code, 'name': c_name, 'parent_code': (code if code else None),
+                'depth': full.count('>') + 1, 'is_leaf': is_leaf, 'full_path': full,
+                'raw': _json.dumps(sub, ensure_ascii=False),
+                # 리프는 자식이 0 임이 이 시점에 이미 확정. 비-리프는 이 code 를 나중에
+                # 직접 fetch 할 때(위 rows_by_code 갱신)까지 몇 개인지 모른다(None=아직 모름).
+                'child_count': (0 if is_leaf else None),
+            }
+            rows.append(row)
+            rows_by_code[c_code] = row
+            _pend(row)
+            if on_chunk is not None and len(pending) >= CHUNK_SIZE:
+                on_chunk(pending)
+                pending, pending_codes = [], set()
+            if not is_leaf:
+                queue.append((c_code, code, full))
+        sleep(0.3)
+        if on_progress is not None:
+            on_progress(len(rows))
+    if not rows:
+        raise HarvestError('ESM site-cats 수집 결과 0건 — 응답 구조 확인 필요')
+    return rows
+
+
+# ── 롯데온 (표준카테고리 — cheetah host) ─────────────────
+def harvest_lotteon(fetch, sleep, *, on_progress=None):
+    """fetch(skip:int, limit:int)->data 배열. 빈 배열이면 종료. 리프=자식 없는 노드(응답에 리프 플래그 없음).
+
+    sleep 콜러블로 페이지마다 마켓 예의를 지킨다(운영은 0.2s, 테스트는 no-op) — harvest_coupang/harvest_esm_site 와 동일 기준.
+    on_progress(count) — 선택. 페이지를 하나 처리할 때마다 그 시점까지 쌓인 원행 수로 호출한다.
+    """
+    import json as _json
+    raw_rows, skip, LIMIT = [], 0, 100
+    while True:
+        batch = fetch(skip, LIMIT)
+        if not isinstance(batch, list):
+            raise HarvestError(f'롯데온 표준카테고리 skip={skip} 응답이 배열 아님: {type(batch)}')
+        if not batch:
+            break
+        raw_rows.extend(batch)
+        sleep(0.2)
+        if on_progress is not None:
+            on_progress(len(raw_rows))
+        if len(batch) < LIMIT:
+            break
+        skip += LIMIT
+    if not raw_rows:
+        raise HarvestError('롯데온 표준카테고리 수집 결과 0건')
+    rows = []
+    for c in raw_rows:
+        code, name = str(c.get('std_cat_id') or ''), str(c.get('std_cat_nm') or '')
+        if not code or not name:
+            raise HarvestError(f'롯데온 표준카테고리에 std_cat_id/std_cat_nm 누락: {c!r}')
+        parent = c.get('upr_std_cat_id')
+        # parse_eleven11 과 같은 기준 — 센티넬 None/''/0/'0' 은 parent 없음(루트)으로 취급
+        parent_code = str(parent) if parent not in (None, '', 0, '0') else None
+        rows.append({
+            'code': code, 'name': name,
+            'parent_code': parent_code,
+            'depth': int(c.get('depth_no') or 0), 'is_leaf': False,
+            'raw': _json.dumps(c, ensure_ascii=False),
+        })
+    has_child = {r['parent_code'] for r in rows if r['parent_code']}
+    for r in rows:
+        r['is_leaf'] = r['code'] not in has_child
+    return build_paths(rows)
+
+
+# ── 저장·diff ────────────────────────────────────────────
+def save_snapshot(session, market, rows, now, *, partial=False):
+    """수집 rows 를 market_categories 에 반영. 반환 {'added','updated','removed','total'}.
+
+    빈 rows 거부 — 수집 실패가 '전부 삭제' 로 둔갑하는 조용한 실패 방지.
+    사라진 코드는 삭제하지 않고 removed_at 마킹(M2 CategoryMap 재확정 강등의 근거) —
+    같은 세션 안에서 그 코드를 가리키던 category_map 의 confirmed 행도 re_confirm 으로
+    강등한다(ix_category_map_market_code 활용). 자동 확정 금지 원칙의 반대편: 사라진
+    카테고리를 confirmed 로 방치하면 다음 등록이 존재하지 않는 코드로 조용히 나간다.
+
+    partial=True [2026-07-23 체크포인트 저장 — 실측 사고 대응]: 쿠팡·ESM 처럼 노드당 1콜
+    BFS 라 수 시간 걸리는 수집이 CHUNK_SIZE(50)건 단위로 콜백 저장할 때 쓰는 모드. 이 시점의 rows 는
+    "지금까지 수집한 일부"일 뿐 "지금 존재하는 카테고리 전체"가 아니므로 ①빈 rows 도
+    거부하지 않는다(진행 중엔 0건도 정상 — 아직 아무 청크도 안 찼을 수 있다) ②rows 에
+    없는 기존 코드를 removed_at 마킹하지 않는다(부분 수집일 뿐인데 "없어졌다"고 판단할
+    근거가 없다 — 조용한 오삭제 방지) ③그에 딸린 re_confirm 강등도 건너뛴다. added/updated
+    는 이 청크에 담긴 코드에 대해서만 정상 계산된다. 전량 기준 removed 마킹·강등은 항상
+    partial=False(기본값)인 최종 저장에서만 수행한다.
+    """
+    from lemouton.registration.models import MarketCategory, CategoryMapRow
+    if not rows and not partial:
+        raise HarvestError(f'{market}: 수집 결과 0건 — 스냅샷 저장 거부(전부삭제 오기록 방지)')
+    existing = {r.code: r for r in session.query(MarketCategory).filter_by(market=market).all()}
+    added = updated = removed = 0
+    seen = set()
+    for row in rows:
+        code = row['code']
+        if code in seen:
+            # 배치 안 중복 code — 나중 것이 session.add() 로 또 들어가면 커밋 시점에야
+            # UniqueConstraint IntegrityError 로 터진다(리뷰 지적). 여기서 먼저 표면화한다.
+            raise HarvestError(f'{market}: 수집 결과에 중복 코드 {code}')
+        seen.add(code)
+        # depth=0 은 뜻이 있는 값(쿠팡 루트 등)일 수 있다 — `or 1` 은 0 을 조용히 1 로
+        # 치환해버려 depth0 이 사라진다(리뷰 지적). 키가 없거나 None 일 때만 1 로 기본.
+        depth = row['depth'] if row.get('depth') is not None else 1
+        cur = existing.get(code)
+        if cur is None:
+            session.add(MarketCategory(
+                market=market, code=code, name=row['name'],
+                full_path=row['full_path'], parent_code=row.get('parent_code'),
+                depth=depth, is_leaf=bool(row.get('is_leaf')),
+                raw_json=row.get('raw'), harvested_at=now,
+                child_count=row.get('child_count')))
+            added += 1
+        else:
+            changed = (cur.name != row['name'] or cur.full_path != row['full_path']
+                       or cur.is_leaf != bool(row.get('is_leaf')) or cur.removed_at is not None
+                       or cur.child_count != row.get('child_count'))
+            cur.name, cur.full_path = row['name'], row['full_path']
+            cur.parent_code = row.get('parent_code')
+            cur.depth = depth
+            cur.is_leaf = bool(row.get('is_leaf'))
+            cur.raw_json = row.get('raw')
+            cur.harvested_at = now
+            cur.removed_at = None
+            cur.child_count = row.get('child_count')
+            if changed:
+                updated += 1
+    if not partial:
+        for code, cur in existing.items():
+            if code not in seen and cur.removed_at is None:
+                cur.removed_at = now
+                removed += 1
+                # 이 코드를 confirmed 로 가리키던 맵핑은 이제 존재하지 않는 카테고리를
+                # 가리킨다 — re_confirm 으로 강등해 사장님이 다시 골라야 함을 드러낸다.
+                (session.query(CategoryMapRow)
+                 .filter(CategoryMapRow.market == market,
+                         CategoryMapRow.market_cat_code == code,
+                         CategoryMapRow.status == 'confirmed')
+                 .update({'status': 're_confirm', 'updated_at': now}, synchronize_session=False))
+    session.commit()
+    return {'added': added, 'updated': updated, 'removed': removed, 'total': len(seen)}

@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}실마켓 상품 현황{% endblock %}
+{% block content %}
+{# [2026-08-12 노션] 제목이 「상품관리」였다 — 그런데 그건 이제 **옆 탭**(/bundles)의
+   이름이다. 같은 이름이 두 곳에 있으면 어느 화면인지 알 수 없다. 메뉴와 같은 말로 맞춘다. #}
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-header__title">실마켓 상품 현황</h1>
+    <p class="page-sub">
+      {{ catalog_subtabs | selectattr('key', 'equalto', catalog_tab)
+         | map(attribute='desc') | first }}</p>
+  </div>
+
+  {# 상단 가로탭 — 확정 시안 ① #}
+  <div class="cat-tabs">
+    {% for t in catalog_subtabs %}
+      <a class="cat-tab {% if t.key == catalog_tab %}on{% endif %}"
+         href="/catalog/?tab={{ t.key }}">{{ t.label }}</a>
+    {% endfor %}
+  </div>
+
+  {% if catalog_tab == 'dashboard' %}
+    {% include 'catalog/partials/_dashboard.html' %}
+  {% elif catalog_tab == 'pick' %}
+    {% include 'catalog/partials/_pick.html' %}
+  {% elif catalog_tab == 'detail' %}
+    {% include 'catalog/partials/_detail.html' %}
+  {% endif %}
+</div>
+
+<style>
+  .cat-tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-border);
+    margin-bottom:var(--sp-5)}
+  .cat-tab{padding:8px 16px;font-size:14px;font-weight:600;
+    color:var(--color-text-tertiary);border-bottom:2px solid transparent;
+    margin-bottom:0px;text-decoration:none}
+  .cat-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+</style>
+
+<style>
+/* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1). 탭별 규칙은 각 partial 에. */
+@media (max-width: 768px) {
+  .page-header__title { font-size: 20px; }
+  .page-sub { font-size: 14px; }
+  /* 가로탭 3개: 줄바꿈 대신 안쪽 가로 스크롤 — 두 줄로 접히면 눌린 탭이 안 보인다. */
+  .cat-tabs { overflow-x: auto; }
+  .cat-tabs::-webkit-scrollbar { display: none; }
+  .cat-tab {
+    display: inline-flex; align-items: center; min-height: 44px;
+    padding: 8px 12px; white-space: nowrap;
+  }
+}
+</style>
+{% endblock %}

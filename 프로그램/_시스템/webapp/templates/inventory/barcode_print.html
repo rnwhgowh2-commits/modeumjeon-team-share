@@ -5,21 +5,21 @@
 <style>
 @page { size:{{ template.paper_w }}mm {{ template.paper_h }}mm; margin:0; }
 html, body { margin:0; padding:0; }
-body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background:#F1F1F4; }
-.toolbar { position:fixed; top:8px; right:8px; display:flex; gap:6px; z-index:100; }
-.btn { padding:8px 16px; background:#4F67FF; color:#fff; border:none; border-radius:5px; font-weight:600; cursor:pointer; font-size:14px; }
-.btn.sec { background:#fff; color:#292A2F; border:1px solid #CBCCD3; }
+body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background:var(--line2,#F1F1F4); }
+.toolbar { position:fixed; top:8px; right:8px; display:flex; gap:4px; z-index:100; }
+.btn { padding:8px 16px; background: var(--바탕-파랑, var(--primary,#4F67FF)); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px; }
+.btn.sec { background:var(--surface,#ffffff); color:var(--ink,#292A2F); border:1px solid var(--faint,#CBCCD3); }
 .page {
   width: {{ template.paper_w }}mm; height: {{ template.paper_h }}mm;
-  position: relative; background:#fff;
+  position: relative; background:var(--surface,#ffffff);
   page-break-after: always;
   break-inside: avoid;
 }
 /* 마지막 페이지 뒤 빈 페이지 생성 방지 */
 .page:last-of-type { page-break-after: auto; break-after: auto; }
-@media screen { .page { margin:6mm auto; box-shadow:0 2px 8px rgba(0,0,0,0.06); } }
+@media screen { .page { margin:6mm auto;  } }
 @media print {
-  html, body { background:#fff !important; }
+  html, body { background:var(--surface,#ffffff) !important; }
   .toolbar { display:none !important; visibility:hidden; height:0; overflow:hidden; }
   .page { margin:0 !important; box-shadow:none !important; }
 }
@@ -27,14 +27,14 @@ body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background
   position: absolute;
   width: {{ template.label_w }}mm;
   height: {{ template.label_h }}mm;
-  border: {% if cutline %}0.3mm dashed #999{% else %}none{% endif %};
+  border: {% if cutline %}0.3mm dashed var(--faint,#999999){% else %}none{% endif %};
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; box-sizing: border-box; overflow: hidden;
-  background:#fff;
+  background:var(--surface,#ffffff);
 }
 .label > .ds-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-.is-bundle { background: linear-gradient(135deg, #EEF1FE 0%, #fff 50%); }
-.bundle-tag { font-size:5pt; background:#4F67FF; color:#fff; padding:1px 4px; border-radius:2px; font-weight:700; margin-bottom:0.5mm; }
+.is-bundle { background: linear-gradient(135deg, var(--연한-파랑,#EEF1FE) 0%, var(--surface,#ffffff) 50%); }
+.bundle-tag { font-size:5pt; background: var(--바탕-파랑, var(--primary,#4F67FF)); color:#fff; padding:0px 4px; border-radius:0px; font-weight:700; margin-bottom:0.5mm; }
 /* 바코드 인식률 향상 — 엣지 또렷·색 강제 인쇄 */
 svg.ds-bc { shape-rendering: crispEdges; }
 @media print {
@@ -73,7 +73,7 @@ svg.ds-bc { shape-rendering: crispEdges; }
     {% endfor %}
   </div>
 {% else %}
-  <p style="text-align:center;padding:30px;color:#8F91A0">선택된 항목 없음 — <a href="javascript:history.back()" style="color:#4F67FF">돌아가기</a></p>
+  <p style="text-align:center;padding:32px;color:var(--sub,#8F91A0)">선택된 항목 없음 — <a href="javascript:history.back()" style="color:var(--primary,#4F67FF)">돌아가기</a></p>
 {% endfor %}
 
 <script>
@@ -134,9 +134,9 @@ document.querySelectorAll('.label').forEach(el => {
 
   let inner = '';
   // white-space:nowrap = 모든 텍스트 자식 줄바꿈 금지 (overflow:hidden 으로 cell 가장자리 클립)
-  const wrap = `style="width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:#fff;color:#000;overflow:hidden;white-space:nowrap"`;
+  const wrap = `style="width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:${sPad};text-align:center;background:var(--surface,#ffffff);color:#000;overflow:hidden;white-space:nowrap"`;
   const svg = `<div style="width:${sBcw}mm;height:${sBch}mm;margin-top:${gAB};margin-bottom:${gBC};flex-shrink:0;overflow:hidden;"><svg class="ds-bc" data-code="${code}" width="${sBcw}mm" height="${sBch}mm" preserveAspectRatio="none" style="display:block;"></svg></div>`;
-  const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt"> 자동</span>' : '');
+  const codeStr = code + (isAuto ? ' <span style="color:#F59E0B;font-size:'+(parseFloat(sCode)*0.8)+'pt">자동</span>' : '');
   const bundleTag = isBundle ? `<div class="bundle-tag">묶음</div>` : '';
 
   // 모델명 line (variant 3: 검은 배경 chip)
@@ -146,7 +146,7 @@ document.querySelectorAll('.label').forEach(el => {
   // 사이즈 line (variant 5: 큰 글씨 강조)
   const sizeLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:#000;line-height:1.0;margin-top:${gNA}">${size}</div>`;
   // 색상 line (size 와 같은 폰트 크기, 회색 톤)
-  const colorLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1.0">${color}</div>`;
+  const colorLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:var(--글자-기본,#555555);line-height:1.0">${color}</div>`;
   // 바코드 번호 line
   const codeLine = `<div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>`;
 
@@ -189,7 +189,7 @@ document.querySelectorAll('svg.ds-bc').forEach(svg => {
     svg.setAttribute('height', hMm);
     svg.setAttribute('preserveAspectRatio', 'none');
   } catch (e) {
-    svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444"> ' + c.substring(0,30) + '</div>';
+    svg.outerHTML = '<div style="font-size:5.5pt;color:#EF4444">' + c.substring(0,30) + '</div>';
   }
 });
 </script>

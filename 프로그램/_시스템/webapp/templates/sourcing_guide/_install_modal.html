@@ -1,0 +1,101 @@
+{# 크롤러 설치 — 화면 가운데 미니멀 팝업 모달 (시안 2: 2그룹). overview.html 등에서 include 로 사용.
+   트리거 = id="instOpenBtn" 버튼 클릭 또는 URL ?install=1. 포함하는 라우트는 ext_available 을 넘겨야 함. #}
+<style>
+  .instm-dim{position:fixed;inset:0;background:rgba(15,20,28,.5);z-index:9200;}
+  .instm-dim[hidden]{display:none;}
+  .instm{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:760px;max-width:94vw;max-height:90vh;background:var(--surface,#ffffff);border-radius:18px;z-index:9300;display:flex;flex-direction:column;overflow:hidden;font-family:'Pretendard','Malgun Gothic',sans-serif;color:var(--ink,#191F28);}
+  .instm[hidden]{display:none;}
+  .instm-h{display:flex;align-items:flex-start;gap:12px;padding:24px 32px 16px;flex:0 0 auto;}
+  .instm-h .ic{font-size:32px;} .instm-h h3{margin:0;font-size:24px;font-weight:800;} .instm-h .s{font-size:14px;color:var(--sub,#8B95A1);margin-top:4px;line-height:1.5;}
+  .instm-x{margin-left:auto;border:none;background:var(--n100,#F2F4F6);border-radius:12px;width:44px;height:44px;font-size:17px;color:var(--sub,#888888);cursor:pointer;flex:0 0 auto;}
+  .instm-b{padding:4px 32px 32px;overflow:auto;flex:1 1 auto;min-height:0;}
+  .instm-note{font-size:17px;color:var(--글자-기본,#4E5968);background:var(--n100,#F6F8FA);border-radius:12px;padding:16px 16px;margin-bottom:24px;line-height:1.59;} .instm-note b{color:#1B64DA;}
+  .instm-grp{border:1px solid var(--line,#E5E8EB);border-radius:12px;overflow:hidden;margin-bottom:12px;}
+  .instm-grp:last-of-type{margin-bottom:0;}
+  .instm-gh{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--n100,#F6F8FA);font-size:17px;font-weight:800;}
+  .instm-gh .gi{width:27px;height:27px;border-radius:8px;background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;font-size:14px;text-align:center;line-height:27px;}
+  .instm-gh .who{margin-left:auto;font-size:14px;font-weight:700;padding:4px 12px;border-radius:18px;background:var(--연한-파랑,#E8F3FF);color:#1B64DA;}
+  .instm-gb{padding:4px 16px 12px;}
+  .instm-row{display:flex;gap:16px;align-items:flex-start;padding:12px 0;border-bottom:1px dashed var(--line,#E5E8EB);}
+  .instm-row:last-child{border-bottom:none;}
+  .instm-num{width:33px;height:33px;line-height:29px;border-radius:50%;background:var(--surface,#ffffff);border:2px solid var(--ink,#191F28);color:var(--ink,#191F28);font-size:14px;text-align:center;font-weight:700;flex:0 0 auto;}
+  .instm-rt{font-size:17px;font-weight:700;} .instm-rd{font-size:17px;color:var(--글자-기본,#4E5968);margin-top:4px;line-height:1.59;}
+  .instm-rd code{background:var(--line2,#EEF1F4);border-radius:8px;padding:0px 8px;font-family:ui-monospace,monospace;font-size:14px;color:#C2410C;}
+  .instm-dl{display:inline-flex;align-items:center;gap:8px;background:#1B64DA;color:#fff;font-size:17px;font-weight:800;border:none;border-radius:12px;padding:12px 24px;cursor:pointer;text-decoration:none;margin-top:12px;}
+  .instm-dl:hover{background:var(--primary,#1657BC);} .instm-dl .sz{font-size:14px;opacity:.85;}
+  .instm-dloff{margin-top:12px;font-size:14px;color: var(--글자-빨강, var(--red,#E03131));background:var(--연한-빨강,#FFF0F0);border:1px solid var(--연한-빨강,#FFC9C9);border-radius:8px;padding:8px 12px;}
+  .instm-help{margin-top:24px;border-top:1px solid var(--line2,#F1F3F5);padding-top:16px;}
+  .instm-help summary{font-size:14px;color:var(--sub,#8B95A1);cursor:pointer;list-style:none;font-weight:700;}
+  .instm-help summary::-webkit-details-marker{display:none;}
+  .instm-help[open] summary{color:var(--글자-기본,#4E5968);}
+  .instm-help .qa{font-size:14px;color:var(--글자-기본,#4E5968);line-height:1.57;margin-top:12px;} .instm-help .qa b{color:var(--ink,#191F28);} .instm-help .qa code{background:var(--line2,#EEF1F4);border-radius:8px;padding:0px 8px;font-family:ui-monospace,monospace;font-size:14px;color:#C2410C;}
+  @media(max-width:760px){ .instm{width:94vw;} }
+</style>
+
+<div id="instDim" class="instm-dim" hidden></div>
+<div id="instModal" class="instm" hidden>
+  <div class="instm-h"><span class="ic"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i></span>
+    <div><h3>크롤러 설치</h3><div class="s">본인 PC 크롬에 한 번만 설치하면 무신사·롯데온까지 긁어 모음전에 자동 저장됩니다.</div></div>
+    <button type="button" class="instm-x" id="instClose">✕</button></div>
+  <div class="instm-b">
+    <div class="instm-note"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 무신사·롯데온은 <b>로그인·SPA</b>라 서버가 직접 못 긁어, <b>내 로그인 크롬</b> 확장이 대신 긁습니다. 크롤 결과는 모두 www.mou-m.com에 저장돼 팀 전체가 함께 봅니다.</div>
+
+    <div class="instm-grp">
+      <div class="instm-gh"><span class="gi">1</span>설치 <span class="who">한 번만</span></div>
+      <div class="instm-gb">
+        <div class="instm-row"><span class="instm-num">1</span><div>
+          <div class="instm-rt"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 확장 파일 다운로드</div>
+          <div class="instm-rd">「모음전 크롤러」 압축파일(zip)을 받습니다.</div>
+          {% if ext_available %}
+          <a class="instm-dl" href="/sourcing-guide/install/download"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 모음전 크롤러 다운로드 <span class="sz">(.zip{% if ext_version %} · 항상 최신 v{{ ext_version }}{% endif %})</span></a>
+          {% else %}
+          <div class="instm-dloff"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>
+          {% endif %}
+        </div></div>
+        <div class="instm-row"><span class="instm-num">2</span><div>
+          <div class="instm-rt"><i class="ph-light ph-folders" aria-hidden="true"></i>️ 압축 풀기</div>
+          <div class="instm-rd">받은 zip 우클릭 → "압축 풀기" → <code>moum-crawler</code> 폴더가 생깁니다.</div></div></div>
+        <div class="instm-row"><span class="instm-num">3</span><div>
+          <div class="instm-rt"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i> 크롬 확장 페이지 열기</div>
+          <div class="instm-rd">주소창에 <code>chrome://extensions</code> 입력 → 오른쪽 위 「개발자 모드」 켜기.</div></div></div>
+        <div class="instm-row"><span class="instm-num">4</span><div>
+          <div class="instm-rt"><i class="ph-light ph-folder-open" aria-hidden="true"></i> 확장 불러오기</div>
+          <div class="instm-rd">「압축해제된 확장 프로그램을 로드합니다」 → 방금 푼 <code>moum-crawler</code> 폴더 선택. 목록에 "모음전 크롤러"가 뜨면 완료.</div></div></div>
+      </div>
+    </div>
+
+    <div class="instm-grp">
+      <div class="instm-gh"><span class="gi">2</span>로그인 &amp; 크롤 <span class="who">매번</span></div>
+      <div class="instm-gb">
+        <div class="instm-row"><span class="instm-num">5</span><div>
+          <div class="instm-rt"><i class="ph-light ph-key" aria-hidden="true"></i> 무신사·롯데온 로그인</div>
+          <div class="instm-rd">같은 크롬에서 로그인해 둡니다. (회원가를 읽으려면 필수 — 로그아웃 상태면 비회원가로 긁힙니다.)</div></div></div>
+        <div class="instm-row"><span class="instm-num">6</span><div>
+          <div class="instm-rt"><i class="ph-light ph-rocket" aria-hidden="true"></i> 크롤 실행</div>
+          <div class="instm-rd"><code>www.mou-m.com</code> 접속(IP 주소 <i class="ph-light ph-x-circle" aria-hidden="true"></i>) → 상품에서 「전체 크롤」. 이제 무신사·롯데온 카드도 0% → 채워집니다.</div></div></div>
+      </div>
+    </div>
+
+    <details class="instm-help">
+      <summary><i class="ph-light ph-lifebuoy" aria-hidden="true"></i> 안 될 때 (펼치기 ▾)</summary>
+      <div class="qa"><b>Q. 설치했는데 계속 "확장 필요"가 떠요.</b><br>주소가 <b>www.mou-m.com</b>인지 확인하세요. IP 주소(54.x)에서는 작동하지 않습니다.</div>
+      <div class="qa" style="margin-top:8px;"><b>Q. 무신사 가격이 비싸게 나와요.</b><br>무신사에 로그인됐는지 확인하세요. 로그아웃 상태면 비회원가로 읽힙니다.</div>
+      <div class="qa" style="margin-top:8px;"><b>Q. 잘 깔렸는지 확인하고 싶어요.</b><br>www.mou-m.com 새로고침 → <b>F12</b> → Console에 <code>document.documentElement.getAttribute('data-moum-ext')</code> 입력 → 버전 번호가 나오면 성공.</div>
+    </details>
+  </div>
+</div>
+
+<script>
+(function(){
+  var modal=document.getElementById('instModal'), dim=document.getElementById('instDim');
+  if(!modal) return;
+  var trg=document.getElementById('instOpenBtn');
+  function open(){ modal.hidden=false; dim.hidden=false; }
+  function close(){ modal.hidden=true; dim.hidden=true; }
+  if(trg) trg.addEventListener('click', function(e){ e.stopPropagation(); open(); });
+  dim.addEventListener('click', close);
+  document.getElementById('instClose').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !modal.hidden) close(); });
+  try{ if(new URLSearchParams(location.search).has('install')) open(); }catch(e){}
+})();
+</script>

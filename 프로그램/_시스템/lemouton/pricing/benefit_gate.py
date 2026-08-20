@@ -72,6 +72,26 @@ def line_excluded(line: str, exclude_rules: list[dict]) -> Optional[dict]:
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# 혜택별 제외 (per-benefit excludes / exclude_match)
+# ────────────────────────────────────────────────────────────────────────────
+
+def line_excluded_by_benefit(line: str, excludes: list[str], exclude_match: str) -> bool:
+    """한 라인이 혜택 자체의 excludes 키워드 목록에 걸리는가.
+
+    - excludes 가 비면: 제외 안 함 → False.
+    - exclude_match == 'all': 모든 키워드가 라인에 있어야 제외.
+    - 그 외('any' 또는 기타): 키워드 중 1개 이상이 라인에 있으면 제외.
+    """
+    line = line or ""
+    kws = [k for k in (excludes or []) if k]
+    if not kws:
+        return False
+    if exclude_match == "all":
+        return all(k in line for k in kws)
+    return any(k in line for k in kws)
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # 게이트 — 혜택별 적용 판정
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -86,6 +106,8 @@ def gate_benefit(benefit: dict, benefit_lines: list[str],
     name = benefit.get("name", "")
     triggers = benefit.get("triggers") or []
     match = benefit.get("match") or "any"
+    b_excludes = benefit.get("excludes") or []
+    b_exmatch = benefit.get("exclude_match") or "any"
 
     matched, excluded = [], []
     for line in (benefit_lines or []):
@@ -94,6 +116,8 @@ def gate_benefit(benefit: dict, benefit_lines: list[str],
         hit = line_excluded(line, exclude_rules)
         if hit is not None:
             excluded.append({"line": line, "rule_word": hit.get("word")})
+        elif line_excluded_by_benefit(line, b_excludes, b_exmatch):
+            excluded.append({"line": line, "rule_word": f"[benefit] {b_excludes}"})
         else:
             matched.append(line)
 
@@ -118,3 +142,85 @@ def gate_benefits(benefits: list[dict], benefit_lines: list[str],
                   exclude_keywords: list[dict]) -> list[dict]:
     """가이드 혜택 목록 전체를 크롤 라인들에 게이트. 혜택별 판정 리스트 반환."""
     return [gate_benefit(b, benefit_lines, exclude_keywords) for b in (benefits or [])]
+
+
+def gated_off_names(
+    guide_benefits: list[dict],
+    benefit_lines: list[str],
+    exclude_keywords: list[dict],
+) -> set[str]:
+    """status=='conditional' 가이드 혜택 중 키워드 매칭에 실패한 항목 이름 집합 반환.
+
+    ★ SAFETY INVARIANT: status != 'conditional' 인 혜택(always / optional / planned)은
+    절대 반환 집합에 포함되지 않는다 — 먼저 conditional 만 걸러낸 후 게이트를 돈다.
+
+    Args:
+        guide_benefits:  SourceRegistry.crawl_guide['pricing']['benefits'] 목록
+        benefit_lines:   크롤된 혜택 텍스트 라인 리스트 (dynamic_benefits['_benefit_lines'])
+        exclude_keywords: crawl_guide['exclude_keywords'] 공통 제외 규칙
+
+    Returns:
+        set[str] — 비활성화해야 할 혜택 이름 집합.
+                   benefit_lines 가 비거나 conditional 혜택이 없으면 빈 집합(no-op).
+    """
+    if not guide_benefits or not benefit_lines:
+        return set()
+
+    # ① conditional 만 필터 — 이 검사가 invariant #1 보장
+    conditionals = [b for b in guide_benefits if (b.get('status') or '') == 'conditional']
+    if not conditionals:
+        return set()
+
+    # ② 게이트 수행
+    results = gate_benefits(conditionals, benefit_lines, exclude_keywords or [])
+
+    # ③ 미적용(applied=False)된 항목 이름만 반환 → compute_breakdown 에서 enabled=False
+    return {r['name'] for r in results if not r.get('applied')}
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# 상품쿠폰 선택 — 크롤된 쿠폰 목록 중 키워드 살아남은 최고 금액 1개
+# ────────────────────────────────────────────────────────────────────────────
+
+def pick_best_coupon(coupons, benefit, exclude_rules=None):
+    """상품쿠폰 목록에서 포함/제외 키워드에 살아남은 '최고 금액' 쿠폰 1개.
+
+    coupons: [{'name': str, 'amount': int|float}, ...]  (크롤 원본 전량 = 이미 전부 '상품쿠폰')
+    benefit: 가이드의 상품쿠폰 혜택 dict (excludes / exclude_match 사용).
+      ★ 적용 키워드(triggers)는 '혜택 라인 식별용'(가격라인 "상품 쿠폰 X원" 찾기)이지
+        쿠폰 이름 필터가 아니므로 쿠폰 선택에는 적용하지 않는다. (기본 트리거 '상품 쿠폰'이
+        실제 쿠폰명 "…정기 쿠폰 블랙다이아몬드 등급"과 안 맞아 전 쿠폰을 오탈락시키던 버그
+        수정 2026-07-05 — 쿠폰 필터는 '제외 키워드'만으로.)
+    exclude_rules: 소싱처 공통 제외 규칙(crawl_guide['exclude_keywords']), 선택.
+    반환: {'name','amount','candidates':[...],'excluded':[{'name','amount','reason'}]}
+          또는 후보 없음 시 None.
+    """
+    b_excludes = benefit.get('excludes') or []
+    b_exmatch = benefit.get('exclude_match') or 'any'
+    exclude_rules = exclude_rules or []
+
+    survivors, excluded = [], []
+    for c in (coupons or []):
+        name = (c.get('name') or '')
+        amount = float(c.get('amount') or 0)
+        if amount <= 0:
+            continue
+        hit = line_excluded(name, exclude_rules)
+        if hit is not None:
+            excluded.append({'name': name, 'amount': amount,
+                             'reason': f"공통제외 '{hit.get('word')}'"})
+            continue
+        if line_excluded_by_benefit(name, b_excludes, b_exmatch):
+            excluded.append({'name': name, 'amount': amount, 'reason': '제외 키워드'})
+            continue
+        survivors.append({'name': name, 'amount': amount})
+
+    if not survivors:
+        # 후보 없음: 쿠폰은 있었으나 전부 제외됐으면 제외 내역을 남겨 영수증 투명성 확보
+        #   (name=None·amount=0 → 상품쿠폰 0원 + "제외됨" 표시). 애초에 빈 목록이면 None.
+        if excluded:
+            return {'name': None, 'amount': 0, 'candidates': [], 'excluded': excluded}
+        return None
+    best = max(survivors, key=lambda x: x['amount'])
+    return {'name': best['name'], 'amount': best['amount'],
+            'candidates': survivors, 'excluded': excluded}

@@ -1,0 +1,82 @@
+{% extends "mobile/_base.html" %}
+{% block title %}전체{% endblock %}
+
+{#
+  이 화면은 메뉴 이름을 **하나도 직접 적지 않는다**.
+  PC 상단 메뉴가 읽는 것(api_sidebar.get_layout_for_template)을 그대로 편다.
+  따로 적어 두면 새 화면을 만들 때 한쪽에만 넣고 다른 쪽엔 빼먹는다 —
+  이 프로젝트엔 그 사고로 두 달간 주소를 직접 쳐야 했던 기록이 있다.
+#}
+{% block content %}
+<div id="mobile-menu">
+  {% if phone_native %}
+  <div style="margin-bottom:14px">
+    <div class="mm-stage"><i class="ph-light ph-device-mobile" aria-hidden="true"></i> 폰 전용 화면</div>
+    <div class="m-card" style="padding:4px 0">
+      {# 이 구역은 정의상 전부 폰 전용이다(배지 주소가 이 목록에서 나온다).
+         그래서 배지를 따져 묻지 않고 고정한다 — 조건을 두면 'PC 화면' 갈래가
+         도달할 수 없는 채로 남아, 다음 사람이 "여기도 PC 화면이 뜨나?"로 오해한다. #}
+      {% for it in phone_native %}
+      <a href="{{ it.url }}" class="mm-row">
+        <span class="mm-emoji">{{ it.emoji }}</span>
+        <span class="mm-name">{{ it.name }}</span>
+        <span class="mm-badge native">폰 전용</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if layout.standalone %}
+  <div class="m-card" style="padding:4px 0;margin-bottom:12px">
+    {% for it in layout.standalone %}
+    <a href="{{ it.url }}" class="mm-row">
+      <span class="mm-emoji">{{ it.emoji }}</span>
+      <span class="mm-name">{{ it.name }}</span>
+      {% if is_phone_native(it.url) %}<span class="mm-badge native">폰 전용</span>
+      {% else %}<span class="mm-badge">PC 화면</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% for st in layout.stages %}
+  <div style="margin-bottom:14px">
+    <div class="mm-stage">{{ st.emoji }} {{ st.name }}</div>
+    <div class="m-card" style="padding:4px 0">
+      {% for it in st['items'] %}
+      <a href="{{ it.url }}" class="mm-row">
+        <span class="mm-emoji">{{ it.emoji }}</span>
+        <span class="mm-name">{{ it.name }}</span>
+        {% if is_phone_native(it.url) %}<span class="mm-badge native">폰 전용</span>
+        {% else %}<span class="mm-badge">PC 화면</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="m-card" style="padding:4px 0;margin-top:20px">
+    <a href="/mobile/install" class="mm-row"><span class="mm-emoji"><i class="ph-light ph-device-mobile" aria-hidden="true"></i></span><span class="mm-name">앱 설치 방법</span></a>
+    <a href="/auth/me" class="mm-row"><span class="mm-emoji"><i class="ph-light ph-user" aria-hidden="true"></i></span><span class="mm-name">내 계정</span></a>
+    <a href="/auth/logout" class="mm-row"><span class="mm-emoji"><i class="ph-light ph-door" aria-hidden="true"></i></span><span class="mm-name mm-danger">로그아웃</span></a>
+  </div>
+</div>
+
+<style>
+  .mm-stage { font-size:12px; font-weight:700; color:var(--n500,#8B95A1); padding:0 6px 6px; }
+  .mm-row { display:flex; align-items:center; gap:10px; padding:13px 14px;
+            text-decoration:none; color:var(--n900,#191F28); min-height:48px;
+            border-bottom:1px solid var(--n100,#F2F4F6); }
+  .mm-row:last-child { border-bottom:0; }
+  .mm-row:active { background:var(--n100,#F2F4F6); }
+  .mm-emoji { width:22px; text-align:center; font-size:16px; }
+  .mm-name { flex:1; font-size:15px; font-weight:600; }
+  .mm-danger { color:#DC2626; }
+  /* 배지 두 종류는 **눈으로 구별돼야** 한다. 글자만 다르고 색이 같으면
+     '폰 전용'을 표시한 뜻이 화면에 안 나타난다(둘 다 회색 꼬리표로 보인다). */
+  .mm-badge { font-size:12px; font-weight:700; padding:2px 6px; border-radius:4px;  /* [2026-08-05] 10→11px 하한 */
+              background:var(--n100,#F2F4F6); color:var(--n500,#8B95A1); white-space:nowrap; }
+  .mm-badge.native { background:#DBEAFE; color:#1D4ED8; }
+</style>
+{% endblock %}

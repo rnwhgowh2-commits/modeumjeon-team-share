@@ -62,9 +62,15 @@ def build_smartstore_payload(
             if external_stock_by_sku:
                 stock += external_stock_by_sku.get(sku, 0)
 
+        # 옵션명 — 빈 축은 빼고 잇는다.
+        #   🔴 [2026-08-06] 예전엔 무조건 "색 / 사이즈" 로 붙여, **축이 하나뿐인
+        #     모음전**(1×1 단품 등, size_code='')에서 "블랙 / " 처럼 꼬리가 남았다.
+        #     쿠팡·롯데온·ESM 은 `f"{color} {size}".strip()` 이라 원래 안 남는다.
+        _parts = [str(d.get('color_display') or d.get('color_code') or '').strip(),
+                  str(d.get('size_display') or d.get('size_code') or '').strip()]
         options.append({
             "option_id": option_id,
-            "option_name": f"{d.get('color_display', d.get('color_code', ''))} / {d.get('size_display', d.get('size_code', ''))}",
+            "option_name": " / ".join(p for p in _parts if p),
             "add_price": add_price,
             "stock": stock,
         })

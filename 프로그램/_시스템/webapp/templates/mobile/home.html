@@ -1,14 +1,26 @@
-{% extends "mobile/_base.html" %}
+﻿{% extends "mobile/_base.html" %}
 {% block title %}모음전 재고{% endblock %}
 {% block header %}
 <header class="m-header">
   <span style="width: 36px;"></span>
   <h1><i class="ph-light ph-package" aria-hidden="true"></i> 모음전</h1>
-  <a href="/auth/me" class="m-back" style="font-size: 18px;"><i class="ph-light ph-user" aria-hidden="true"></i></a>
+  <a href="/auth/me" class="m-back" style="font-size: 17px;"><i class="ph-light ph-user" aria-hidden="true"></i></a>
 </header>
 {% endblock %}
 
 {% block content %}
+{% if is_admin %}
+{# 크롤 상태 한 줄(Task 7B) — admin 전용. member 는 /mobile/crawl/* 이 403(blueprint
+   게이트)이라 이 줄을 그리면 매번 「불러오지 못했습니다」만 뜬다 → 서버에서 아예
+   안 그린다(빈 자리도 안 남는다). is_admin 은 라우트(mobile.home)가 계산해 준다. #}
+<a id="mh-crawl" href="/mobile/crawl/" class="m-card"
+   style="display:flex;align-items:center;gap:8px;padding:12px 14px;margin-bottom:12px;text-decoration:none;color:inherit">
+  <span id="mh-crawl-dot" style="width:8px;height:8px;border-radius:50%;background:var(--n400,#D1D5DB);flex:none"></span>
+  <span id="mh-crawl-text" style="flex:1;font-size:14px;font-weight:600">크롤 상태 확인 중...</span>
+  <span style="font-size:12px;color:var(--n500)">›</span>
+</a>
+{% endif %}
+
 <div class="m-btn-grid">
   <a href="/mobile/scan" class="m-action-btn primary">
     <span class="icon"><i class="ph-light ph-camera" aria-hidden="true"></i></span>
@@ -31,6 +43,14 @@
   </a>
 </div>
 
+{# 포장 스캔 — 주문을 보고 나가는 출고. 「사입」으로 표시한 주문만 재고가 깎인다. #}
+<div class="m-btn-grid" style="margin-top: 12px;">
+  <a href="/mobile/scan-ship" class="m-action-btn">
+    <span class="icon"><i class="ph-light ph-package" aria-hidden="true"></i></span>
+    포장 스캔 출고 (주문 확인 후 차감)
+  </a>
+</div>
+
 <div class="m-btn-grid col3" style="margin-top: 12px;">
   <a href="/mobile/scan?action=in" class="m-action-btn success" style="min-height:80px;font-size: 14px">
     <span class="icon" style="font-size:24px"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span>
@@ -46,8 +66,26 @@
   </a>
 </div>
 
+{# [배치5 · 3-C 확정] 홈에는 주문 요약 숫자를 **두지 않는다** — 신규·매출·품절위험
+   3칸은 /mobile/orders 위에만 있다(같은 숫자 두 곳 금지). 홈은 바로가기 한 줄만. #}
+<a href="/mobile/orders" class="m-card"
+   style="display:flex;align-items:center;gap:8px;padding:12px 14px;margin-top:12px;margin-bottom:0;text-decoration:none;color:inherit">
+  <span style="font-size:18px;flex:none"><i class="ph-light ph-receipt" aria-hidden="true"></i></span>
+  <span style="flex:1;font-size:14px;font-weight:600">주문 보러 가기</span>
+  <span style="font-size:12px;color:var(--n500)">›</span>
+</a>
+
+{# 최근 본 화면(Task 7B) — 폰(localStorage)에만 저장된 목록(mobile_shell.js 의
+   rememberPage 가 기록). 비면 제목까지 통째로 숨긴다 — 빈 칸을 안 남긴다. #}
+<div id="mh-recent-wrap" style="margin-top: 24px; display: none;">
+  <h2 style="font-size: 14px; font-weight: 600; color: var(--n700); margin: 0 0 12px; padding: 0 4px;">
+    최근 본 화면
+  </h2>
+  <div id="mh-recent-pages" class="m-card" style="padding: 0; overflow: hidden;"></div>
+</div>
+
 <div style="margin-top: 24px;">
-  <h2 style="font-size: 15px; font-weight: 600; color: var(--n700); margin: 0 0 12px; padding: 0 4px;">
+  <h2 style="font-size: 14px; font-weight: 600; color: var(--n700); margin: 0 0 12px; padding: 0 4px;">
     최근 활동
   </h2>
   <div id="recent-list">
@@ -56,17 +94,42 @@
 </div>
 
 <div style="margin-top: 32px; text-align: center;">
-  <a href="/" style="color: var(--n500); font-size: 13px; text-decoration: none;">데스크탑 버전 →</a>
+  {# [2026-08-05 실측] 손끝 목표 14px — 인라인 <a> 는 세로 패딩이 높이를 안 키운다
+     → inline-block + 패딩 16px(글자 12px 과 합쳐 ≥44px). #}
+  <a href="/" style="color: var(--n500); font-size: 12px; text-decoration: none; display: inline-block; padding: 16px 14px;">데스크탑 버전 →</a>
 </div>
 {% endblock %}
 
 {% block extra_script %}
 <script>
+  // 인증 실패는 JSON 이 아니라 HTML 로 온다(403 · 세션 만료 시 로그인 200 HTML) —
+  // 바로 파싱하면 터진다. crawl.html askServer 의 사본(축약): 홈은 갈래(login/
+  // forbidden)를 안내문으로 나눠 쓰지 않아 kind 구분 없이 실패 하나로 던진다.
+  // 홈의 JSON 풀기는 이 함수 한 곳뿐이다 — loadRecent·loadCrawlLine 둘 다 이 길만 쓴다.
+  async function askServer(url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) {
+      const e = new Error('http-' + r.status);
+      throw e;
+    }
+    const ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) {
+      const e = new Error('not-json');
+      throw e;
+    }
+    return r.json();
+  }
+
   async function loadRecent() {
+    const list = document.getElementById('recent-list');
+    let d;
     try {
-      const r = await fetch('/mobile/api/recent');
-      const d = await r.json();
-      const list = document.getElementById('recent-list');
+      d = await askServer('/mobile/api/recent');
+    } catch (e) {
+      list.innerHTML = '<div class="m-empty">불러오기 실패</div>';
+      return;
+    }
+    try {
       if (!d.ok || !d.items.length) {
         list.innerHTML = '<div class="m-empty"><div class="icon"></div>최근 활동이 없어요</div>';
         return;
@@ -77,18 +140,18 @@
         const date = new Date(it.at);
         const timeStr = date.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
         const qty = it.qty > 0 ? '+' + it.qty : it.qty;
-        return `<div class="m-card" style="padding: 12px 14px; margin-bottom: 8px;">
+        return `<div class="m-card" style="padding: 12px 12px; margin-bottom: 8px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1; min-width: 0;">
               <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${it.sku}</div>
-              <div style="font-size: 14px; color: var(--n600); margin-top: 2px;">
-                <span style="color: ${typeColors[it.tx_type] || '#6B7684'}; font-weight: 600;">${typeLabels[it.tx_type] || it.tx_type}</span>
+              <div style="font-size: 14px; color: var(--n600); margin-top: 0px;">
+                <span style="color: ${typeColors[it.tx_type] || 'var(--글자-보조,#6B7684)'}; font-weight: 600;">${typeLabels[it.tx_type] || it.tx_type}</span>
                 · ${it.location} · ${it.actor}
               </div>
             </div>
             <div style="text-align: right; margin-left: 12px;">
-              <div style="font-size: 18px; font-weight: 700; color: ${typeColors[it.tx_type] || '#191F28'};">${qty}</div>
-              <div style="font-size: 14px; color: var(--n500); margin-top: 2px;">${timeStr}</div>
+              <div style="font-size: 17px; font-weight: 700; color: ${typeColors[it.tx_type] || 'var(--ink,#191F28)'};">${qty}</div>
+              <div style="font-size: 14px; color: var(--n500); margin-top: 0px;">${timeStr}</div>
             </div>
           </div>
         </div>`;
@@ -97,8 +160,92 @@
       document.getElementById('recent-list').innerHTML = '<div class="m-empty">불러오기 실패</div>';
     }
   }
-  loadRecent();
-  // 30초마다 자동 새로고침
-  setInterval(loadRecent, 30000);
+  // 폴링 — crawl.html 과 같은 관례로 통일: '끝난 뒤에 다시 예약' + 보일 때만 +
+  // 복귀 시 즉시 1회. 상시 반복 예약은 화면이 안 보여도(홈 화면으로 나감·잠금)
+  // 계속 돌아 서버·DB 를 친다 — crawl.html 이 일부러 버린 방식이라 홈도 안 쓴다.
+  // 최근 활동(loadRecent)도 같은 30초 주기였어서 **같이** 이 관례로 옮긴다(관례 통일
+  // — 한 화면 안에 두 방식이 섞이면 다음 사람이 어느 쪽이 맞는지 헷갈린다).
+  // 크롤 줄(admin 전용 블록)은 아래에서 pollFns 에 합류한다.
+  var pollFns = [loadRecent];
+  var lastLoadAt = 0;
+  async function refreshAll() {
+    // '나간 시각' — 복귀 연타 상한이 본다(끝난 시각으로 재면 느린 망에서 상한이 풀린다).
+    lastLoadAt = Date.now();
+    for (var i = 0; i < pollFns.length; i++) await pollFns[i]();
+  }
+  function schedule() { setTimeout(tick, 30000); }
+  async function tick() {
+    if (document.visibilityState === 'visible') await refreshAll();
+    schedule();
+  }
+  // 복귀 시 즉시 1회 — 다만 visibilitychange 는 앱 전환·알림창·잠금해제마다 떠서,
+  // 주기와 무관하게 연타가 난다 → crawl.html 과 같은 3초 합류 상한을 둔다.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastLoadAt < 3000) return;
+    refreshAll();
+  });
+  refreshAll();
+  schedule();
+
+  // 최근 본 화면(Task 7B) — 폰에만 저장(키 'ms-recent', 기록은 mobile_shell.js 의
+  // rememberPage). 서버에는 아무것도 묻지 않는다.
+  // ★ innerHTML 이음 금지 — 제목은 PC 화면의 h1 텍스트라 <·& 가 섞일 수 있다.
+  //   폰 저장값도 검증 없이 믿지 않는다: 상대주소(/로 시작)만 링크로 만든다.
+  (function renderRecentPages() {
+    var wrap = document.getElementById('mh-recent-wrap');
+    var box = document.getElementById('mh-recent-pages');
+    var items = [];
+    try { items = JSON.parse(localStorage.getItem('ms-recent') || '[]'); } catch (e) {}
+    if (!Array.isArray(items) || !items.length) return;   // 비면 wrap 이 숨은 채 그대로
+    items.slice(0, 5).forEach(function (it) {
+      if (!it || typeof it.url !== 'string' || it.url.charAt(0) !== '/') return;
+      var a = document.createElement('a');
+      a.href = it.url;
+      a.textContent = (typeof it.title === 'string' && it.title) ? it.title : it.url;
+      a.style.cssText = 'display:flex;align-items:center;padding:11px 14px;'
+        + 'text-decoration:none;color:inherit;font-size:14px;'
+        + 'border-bottom:1px solid var(--n100,#F2F4F6)';
+      box.appendChild(a);
+    });
+    if (box.children.length) wrap.style.display = '';
+  })();
 </script>
+{% if is_admin %}
+<script>
+  // 크롤 상태 한 줄(Task 7B) — 자세한 건 크롤 탭에서 본다. admin 전용: 위 서버측
+  // 가드와 한 몸이라 member 홈에는 이 스크립트째 안 실린다(남기면 30초마다 403 을 받는다).
+  //   · ISO 시각 문자열은 안 쓴다 — 시간대가 없어 폰에서 9시간 어긋난다.
+  //     이 줄은 시각 자체를 안 그리니 seconds_ago 계열도 안 읽는다.
+  //   · 바퀴 수(laps_today)도 여기선 안 그린다 — stats_ok=false → '-' 처리는 크롤 탭
+  //     (crawl.html render())의 일이다.
+  async function loadCrawlLine() {
+    var dot = document.getElementById('mh-crawl-dot');
+    var text = document.getElementById('mh-crawl-text');
+    let cs;
+    try {
+      cs = await askServer('/mobile/crawl/api/status');
+    } catch (e) {
+      dot.style.background = 'var(--n400,#9CA3AF)';
+      text.textContent = '크롤 상태를 불러오지 못했습니다';
+      return;
+    }
+    try {
+      var on = cs.pc && cs.pc.online;
+      dot.style.background = on ? 'var(--글자-초록,#22C55E)' : 'var(--n400,#9CA3AF)';
+      text.textContent = on
+        ? (cs.auto_enabled ? 'PC 연결됨 · 대기 ' + cs.waiting + '건' : 'PC 연결됨 · 멈춰 있음')
+        : 'PC 꺼져 있음';
+    } catch (e) {
+      // 응답 모양이 달라졌을 때 — 한 줄짜리 요약이라 자세한 구분은 크롤 탭에 맡긴다
+      // (눌러 들어가면 정확한 안내가 뜬다).
+      text.textContent = '크롤 상태를 불러오지 못했습니다';
+    }
+  }
+  // 공용 주기(위 블록의 pollFns)에 합류 — 30초마다·보일 때만·복귀 시 즉시.
+  // 여기 안 넣으면 첫 화면만 그리고 영영 안 새로고침된다(조용한 실패).
+  pollFns.push(loadCrawlLine);
+  loadCrawlLine();   // 첫 화면은 다음 주기까지 30초를 비워 두지 않는다
+</script>
+{% endif %}
 {% endblock %}

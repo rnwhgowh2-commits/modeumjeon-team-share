@@ -1,0 +1,201 @@
+{# 수기 등록 — Phase 1A. 기능 우선, 디자인은 완성 즈음 별도 시안 라운드(설계서 §8).
+   ⚠️ 모든 입력칸에 고유 name(bd_*) + autocomplete="off" — 크롬 자동완성이 값을
+   덮어써 다른 계정 정보가 저장된 사고가 있었다. #}
+<form id="bulk-manual-form" autocomplete="off" onsubmit="return false">
+  {# ── 0 소싱처 URL 로 초안 만들기 (크롤 → 등록 다리) ─────────────────────
+     이미 크롤된 상품이면 상품명·옵션·재고·이미지·상세를 그대로 옮긴 초안이 생긴다.
+     ★ 여기서 크롤은 돌지 않는다 — 크롤은 이 PC(크롬 확장) 몫이다(정합성 원칙 3).
+     ★ 판매가는 만들어지지 않는다 — 크롤이 아는 건 매입가뿐이다. #}
+  <div class="card">
+    <h2 class="card-title">0 소싱처 URL 로 초안 만들기</h2>
+    <p class="hint">이미 <b>크롤된</b> 소싱처 상품 URL 을 붙여넣으면 상품명·옵션·재고·
+      이미지·상세를 그대로 채운 초안을 만듭니다. 크롤이 아직 안 돈 URL 이면 만들지 않고
+      그렇게 말합니다 — 이 화면은 소싱처에 접속하지 않습니다.<br>
+      <b>판매가·고시정보·A/S 는 여전히 사람이 채웁니다</b> (크롤은 매입가만 압니다).</p>
+    <label>소싱처 상품 URL (줄바꿈으로 여러 개, 최대 50)
+      <textarea name="bd_src_urls" rows="3" autocomplete="off"
+        placeholder="https://www.musinsa.com/products/1234"></textarea></label>
+    <button type="button" class="btn btn-primary" id="bd-fromurl">초안 만들기</button>
+    <span id="bd-fromurl-msg" class="hint"></span>
+    <div id="bd-fromurl-out"></div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">1 상품 정보</h2>
+    <label>상품명
+      <input type="text" name="bd_name" autocomplete="off" required></label>
+    <label>브랜드
+      <input type="text" name="bd_brand" autocomplete="off"></label>
+    <label>판매가 (원)
+      <input type="number" name="bd_sale_price" autocomplete="off" min="1" required></label>
+    <label>정가 (비우면 마켓 기본)
+      <input type="number" name="bd_normal_price" autocomplete="off" min="0"></label>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">2 상품고시정보</h2>
+    <label>상품 종류
+      <select name="bd_notice_type" autocomplete="off">
+        <option value="WEAR">의류</option>
+        <option value="SHOES">신발</option>
+        <option value="BAG">가방</option>
+        <option value="FASHION_ITEMS">패션잡화</option>
+      </select></label>
+    <label>주 소재
+      <input type="text" name="bd_notice_material" autocomplete="off"></label>
+    <label>색상
+      <input type="text" name="bd_notice_color" autocomplete="off"></label>
+    <label>크기 (신발=발길이)
+      <input type="text" name="bd_notice_size" autocomplete="off"></label>
+    <label>종류 (가방·잡화만)
+      <input type="text" name="bd_notice_type_detail" autocomplete="off"></label>
+    <label>제조자
+      <input type="text" name="bd_notice_manufacturer" autocomplete="off"></label>
+    <label>취급 주의사항
+      <input type="text" name="bd_notice_caution" autocomplete="off" required></label>
+    {# 품질보증 기준 = 판매자별 약속이라 기본값을 넣어주지 않는다(폴백 금지).
+       사용자 확정 2026-07-17: 매번 입력. 「설정」 탭 기본값은 1B 이후 재논의. #}
+    <label>품질보증 기준 (예: 구매일로부터 1년)
+      <input type="text" name="bd_notice_warranty" autocomplete="off" required></label>
+    <label>A/S 책임자·전화
+      <input type="text" name="bd_notice_as" autocomplete="off" required></label>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">3 옵션 (색상 × 사이즈)</h2>
+    <p class="hint">재고 0 이거나 비우면 그 옵션은 등록에서 빠집니다.</p>
+    <table id="bd-opt-table">
+      <tr><th>색상</th><th>사이즈</th><th>재고</th><th>추가금</th><th>품번</th><th></th></tr>
+    </table>
+    <button type="button" class="btn" id="bd-opt-add">+ 옵션 추가</button>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">4 이미지·상세</h2>
+    <label>이미지 URL (줄바꿈으로 여러 장)
+      <textarea name="bd_images" rows="3" autocomplete="off"></textarea></label>
+    <label>상세 HTML
+      <textarea name="bd_detail_html" rows="6" autocomplete="off"></textarea></label>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">5 배송 · A/S</h2>
+    <label>배송비 (0 = 무료배송·판매자 부담)
+      <input type="number" name="bd_delivery_fee" value="3000" autocomplete="off" min="0" required></label>
+    <label>반품 배송비
+      <input type="number" name="bd_return_fee" value="5000" autocomplete="off" min="0" required></label>
+    {# A/S 는 폴백 금지 — 비우면 컴파일러가 막는다(가짜 번호 게시 방지) #}
+    <label>A/S 전화번호
+      <input type="text" name="bd_as_phone" autocomplete="off" required></label>
+    <label>A/S 안내
+      <input type="text" name="bd_as_guide" autocomplete="off" required></label>
+  </div>
+
+  {# ── 6 매입가·마진 (Phase 1B M2) ─────────────────────────────────────────
+     유입경로·결제카드·네이버페이·캐시백은 크롤로 못 가져오는 값이라 여기서 직접 고른다.
+     비우면 소싱처 기본값(「가격계산로직」 템플릿), 고르면 그 값으로 덮어쓴다.
+     ⚠️ 금액 계산은 전부 서버(POST /bulk/api/margin-preview → compute_final_price)가 한다.
+        JS 에서 곱셈·버림을 다시 구현하면 파이썬과 어긋나 화면가≠업로드가가 된다. #}
+  <div class="card">
+    <h2 class="card-title">6 매입가 · 마진</h2>
+    <p class="hint">소싱처와 표면가를 넣으면 최종매입가·마진이 바로 계산됩니다.
+      아래 4칸은 비우면 소싱처 기본값을 씁니다.</p>
+    <label>소싱처
+      <select name="bd_pr_source_id" autocomplete="off">
+        <option value="">— 선택 —</option>
+      </select></label>
+    <label>표면가 (소싱처 노출가, 원)
+      <input type="number" name="bd_pr_surface_price" autocomplete="off" min="0"></label>
+    <label>유입경로
+      <select name="bd_pr_inflow" autocomplete="off">
+        <option value="">소싱처 기본값</option>
+        <option value="naver_via">N쇼핑 경유</option>
+        <option value="cashback">OK캐시백 경유</option>
+        <option value="none">없음 (직접 방문)</option>
+      </select></label>
+    <label>결제카드
+      <select name="bd_pr_card_key" autocomplete="off">
+        <option value="">소싱처 기본값</option>
+        <option value="none">카드 없음</option>
+      </select></label>
+    <label>네이버페이
+      <select name="bd_pr_naver_pay" autocomplete="off">
+        <option value="">소싱처 기본값</option>
+        <option value="on">O (적립 받음)</option>
+        <option value="off">X (안 받음)</option>
+      </select></label>
+    <label>캐시백사이트
+      <select name="bd_pr_cashback_name" autocomplete="off">
+        <option value="">소싱처 기본값</option>
+        <option value="none">없음</option>
+      </select></label>
+
+    <div class="bmg-out" id="bmg-out">
+      <div class="bmg-ln"><span class="bmg-lbl">최종매입가</span>
+        <span class="bmg-num" id="bmg-final">—</span></div>
+      <div class="bmg-ln"><span class="bmg-lbl">마진 (판매가 − 최종매입가)</span>
+        <span class="bmg-num" id="bmg-margin">—</span></div>
+      <div class="bmg-warn" id="bmg-warn" hidden></div>
+      <button type="button" class="btn btn-sm" id="bmg-toggle" hidden>계산 내역 보기</button>
+      <div class="fxpop-v2" id="bmg-receipt" hidden></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <button type="button" class="btn btn-primary" id="bd-save">저장</button>
+    {# 목록에서 「열기」로 불러온 상태 표시 + 새 상품으로 되돌리기.
+       이게 없으면 수정 중인지 새로 만드는 중인지 모른 채 저장하게 된다. #}
+    <button type="button" class="btn btn-sm" id="bd-new" hidden>새 상품으로</button>
+    <span id="bd-editing" class="hint" hidden></span>
+    <span id="bd-msg" class="hint"></span>
+  </div>
+</form>
+
+{# bmg- 접두 = 이 화면 전용 스코프. 짧은 클래스명을 새로 만들면 다른 화면이 깨진
+   전례가 있어 접두사로 격리한다. 영수증은 새 스타일을 만들지 않고 매트릭스 fx
+   영수증과 **같은 전역 클래스**(.fxpop-v2 .cf-receipt)를 그대로 쓴다. #}
+<style>
+  #bmg-out { margin-top: 12px; border-top: 1px dashed var(--line,#D7DDE3); padding-top: 12px; }
+  #bmg-out .bmg-ln { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  #bmg-out .bmg-lbl { font-size: 12px; color: var(--글자-기본,#4E5968); font-weight: 600; }
+  #bmg-out .bmg-num {
+    margin-left: auto; text-align: right; font-size: 17px; font-weight: 800;
+    color: var(--ink,#191F28); font-variant-numeric: tabular-nums; letter-spacing: 0;
+  }
+  #bmg-out .bmg-num.bmg-neg { color: var(--글자-빨강, var(--red,#F04452)); }   /* 역마진 = 빨강 (조용히 지나가면 안 된다) */
+  #bmg-out .bmg-num.bmg-fail { color: var(--글자-빨강, var(--red,#F04452)); font-size: 14px; font-weight: 700; }
+  #bmg-out .bmg-warn {
+    margin: 8px 0 0; padding: 8px 12px; border-radius: 8px;
+    background: var(--연한-주황,#FFF8E1); color: var(--글자-주황, var(--amber,#8A6100)); font-size: 12px; line-height: 1.55;
+  }
+  #bmg-receipt { margin-top: 8px; }
+</style>
+
+<div class="card">
+  <h2 class="card-title">저장된 상품</h2>
+  <table id="bd-list"><tr><th>상품명</th><th>판매가</th><th>상태</th><th>마켓</th><th></th></tr></table>
+</div>
+
+<script src="{{ url_for('static', filename='bulk_manual.js') }}"></script>
+
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 입력칸 16px = iOS 포커스 확대 방지 · 손끝 44px */
+  #bulk-manual-form input, #bulk-manual-form select, #bulk-manual-form textarea { font-size: 16px; }
+  #bulk-manual-form input, #bulk-manual-form select { min-height: 44px; }
+  .btn { min-height: 44px; }
+  .card-title { font-size: 17px; }
+  .hint { font-size: 14px; }
+  /* 옵션 표(6열)·저장된 상품 표(5열) — 가로 스크롤 + 첫 열 붙박이.
+     행(td)은 bulk_manual.js 가 조립하므로 tr > :first-child 로 잡는다 */
+  #bd-opt-table, #bd-list { display: block; overflow-x: auto; font-size: 14px; }
+  #bd-opt-table tr > :first-child, #bd-list tr > :first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다.
+       어두운 타입에서도 같은 이름(--surface)이 어두운 값으로 바뀌므로 안전하다 */
+    background: var(--surface, #fff);
+  }
+}
+</style>

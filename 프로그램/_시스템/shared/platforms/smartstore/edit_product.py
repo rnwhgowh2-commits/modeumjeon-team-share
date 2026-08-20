@@ -52,9 +52,21 @@ def edit_options(
     sale_price: Optional[int] = None,
     option_updates: dict[int, dict] = None,
     immediate_discount: Optional[dict] = None,
+    base_stock_quantity: Optional[int] = None,
+    name: Optional[str] = None,
+    detail_html: Optional[str] = None,
+    image_urls=None,
     client: Optional[SmartStoreClient] = None,
 ) -> EditResult:
-    """원상품의 salePrice + optionCombinations[*] + 즉시할인 변경.
+    """원상품의 salePrice + optionCombinations[*] + 즉시할인 + 상품명·상세·이미지 변경.
+
+    ★ **None 인 인자는 손대지 않는다** — GET 으로 받은 현재값이 그대로 PUT 으로
+      되돌아간다. 새 인자를 안 주면 이 함수의 기존 동작은 1비트도 달라지지 않는다.
+
+    [2026-08-06] 상품명·상세·이미지 추가. 새 엔드포인트가 아니라 **이미 쓰던 그 PUT**이다
+      — Naver 커머스 수정은 originProduct 전체를 다시 보내는 형식이라, 이 세 필드는
+      전부터 본문에 실려 나가고 있었다(안 바꾸고 되돌려 보냈을 뿐).
+      근거: 데이터 코드 지도 `smartstore.update-origin-product-product` (st=ok).
 
     Args:
         origin_product_no: 원상품번호
@@ -63,6 +75,11 @@ def edit_options(
         immediate_discount: 즉시할인 설정 (None 이면 현재값 유지). 형식:
             {'value': int, 'unitType': 'WON'|'PERCENT'}  → 절대 갱신
             {'value': 0}                                  → 즉시할인 제거
+        name: 새 상품명 (None=유지). 빈 문자열은 거부 — 이름 없는 상품은 팔 수 없다.
+        detail_html: 새 상세 HTML (None=유지)
+        image_urls: 새 이미지 URL 목록 [대표, 추가…] (None=유지).
+            빈 목록은 거부 — 이미지 없는 상품은 어느 마켓에도 못 올린다.
+            ⚠️ 네이버 CDN URL(shop-phinf.pstatic.net)만 받는다 — 외부 URL 은 400.
         client: SmartStoreClient
 
     Returns:
@@ -70,6 +87,20 @@ def edit_options(
     """
     if origin_product_no is None or int(origin_product_no) <= 0:
         raise ValueError(f"origin_product_no 양의 정수 필요 (입력: {origin_product_no})")
+    # 빈 상품명·빈 이미지는 「지우기」와 구별이 안 된다 — 송신 전 abort(price_guard 와 같은 이유).
+    if name is not None and not str(name).strip():
+        raise ValueError("상품명을 빈 값으로 보낼 수 없습니다 — 이름 없는 상품은 팔 수 없습니다.")
+    if image_urls is not None:
+        image_urls = [str(u).strip() for u in image_urls if str(u or '').strip()]
+        if not image_urls:
+            raise ValueError("이미지를 빈 목록으로 보낼 수 없습니다 — "
+                             "이미지 없이는 어느 마켓에도 올릴 수 없습니다.")
+    # [안전 게이트 2026-06-13] 0/음수/비정상 판매가 라이브 PUT 차단(송신 전 abort).
+    #   sale_price=None 은 '현재값 유지'라 허용. shared/platforms/price_guard.
+    if sale_price is not None:
+        from shared.platforms.price_guard import assert_live_sale_price
+        assert_live_sale_price(
+            sale_price, context=f"smartstore edit_options origin={origin_product_no}")
     option_updates = option_updates or {}
 
     client = client or SmartStoreClient()
@@ -104,6 +135,23 @@ def edit_options(
             idp["discountMethod"] = {"value": val, "unitType": unit}
             cb["immediateDiscountPolicy"] = idp
         origin["customerBenefit"] = cb
+
+    # 2.6) 옵션 없는 단일상품의 재고 (originProduct.stockQuantity)
+    if base_stock_quantity is not None:
+        origin["stockQuantity"] = int(base_stock_quantity)
+
+    # 2.7) 상품명·상세·이미지 변경 (None 이면 GET 으로 받은 현재값 그대로)
+    if name is not None:
+        origin["name"] = str(name)
+    if detail_html is not None:
+        origin["detailContent"] = str(detail_html)
+    if image_urls is not None:
+        imgs = {"representativeImage": {"url": image_urls[0]}}
+        if len(image_urls) > 1:
+            imgs["optionalImages"] = [{"url": u} for u in image_urls[1:]]
+        # 추가 이미지가 없으면 optionalImages 키 자체를 남기지 않는다
+        # (빈 배열을 보내면 네이버가 400 을 준다).
+        origin["images"] = imgs
 
     # 3) optionCombinations 변경
     options_changed = 0

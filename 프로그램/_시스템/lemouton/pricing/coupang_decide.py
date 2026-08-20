@@ -42,7 +42,8 @@ def decide_coupang(
     external_alerts = []
     usable_external_prices = []
     for src in option_data.get("sources", []):
-        if src.get("stock", 0) <= 0:
+        # stock None = 확인 불가 → 「있다」고 단정하지 않는다(원칙 ①) → 후보 제외
+        if (src.get("stock") or 0) <= 0:
             continue
         gr = check_external_price(
             external_price=src["price"],

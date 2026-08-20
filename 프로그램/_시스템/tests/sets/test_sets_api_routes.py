@@ -14,6 +14,16 @@ def test_blueprint_registers_expected_routes():
     rules = _rules()
     expected = {
         "/api/sets/flow",
+        "/api/sets/dashboard",
+        "/api/sets/linked",
+        "/api/sets/<int:set_id>/detail-matrix",
+        "/api/sets/channel/<int:channel_id>/preview",
+        "/api/sets/channel/<int:channel_id>/send",
+        "/api/sets/<int:set_id>/recrawl-sources",
+        "/api/sets/<int:set_id>/snapshot-sources",
+        "/api/sets/<int:set_id>/automation",
+        "/api/sets/<int:set_id>/history",
+        "/api/sets/<int:set_id>/alerts",
         "/api/sets/bundle/<code>/options",
         "/api/sets/upload-accounts",
         "/api/sets/search-bundles",

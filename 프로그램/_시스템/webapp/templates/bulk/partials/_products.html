@@ -1,0 +1,179 @@
+{# ④ 상품관리 — 목록 + 상품별 업데이트 ON/OFF (더망고 대비 우위 항목) #}
+<style>
+  .pr-bar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .pr-bar input[type=search]{flex:1;min-width:200px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+    padding:8px 12px;font-family:inherit;font-size:12px}
+  .pr-seg{display:inline-flex;background:var(--n100,#F2F4F6);border-radius:8px;padding:4px;gap:0px}
+  .pr-seg button{height:30px;padding:0 12px;border:0;background:none;border-radius:8px;
+    font-family:inherit;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
+  .pr-seg button.on{background:var(--surface,#ffffff);color:var(--ink,#191F28);}
+  .pr-tbl{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+  .pr-tbl table{width:100%;border-collapse:collapse}
+  .pr-tbl th{background:var(--n100,#FBFCFD);font-size:12px;font-weight:600;color:var(--sub,#8B95A1);
+    padding:12px 12px;border-bottom:1px solid var(--line,#E5E8EB);text-align:left;white-space:nowrap}
+  .pr-tbl td{padding:12px 12px;border-bottom:1px solid var(--n100,#F2F4F6);font-size:12px;vertical-align:middle}
+  .pr-tbl tr:last-child td{border-bottom:0}
+  .pr-tbl tr.off td{background:var(--n100,#FBFBFC)}
+  .pr-nm{font-weight:700}
+  .pr-sub{font-size:12px;color:var(--sub,#8B95A1);margin-top:0px}
+  .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .tg{display:inline-flex;gap:4px}
+  .tg button{border:1px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:8px;padding:4px 8px;
+    font-family:inherit;font-size:12px;font-weight:700;color: var(--글자-희미, var(--faint,#B0B8C1));cursor:pointer}
+  .tg button.on{background:var(--연한-파랑,#E8F2FF);border-color:var(--연한-파랑,#9DC2FF);color:#1B64DA}
+  .chip{display:inline-block;font-size:12px;font-weight:700;padding:0px 8px;border-radius:0px;
+    background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1);margin:0px 4px 0px 0}
+  .chip.ok{background:var(--연한-초록,#EAFBF0);color: var(--글자-초록, var(--green,#15803D))}
+  .chip.no{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+  .pr-note{font-size:12px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
+    padding:12px 12px;margin-top:12px;line-height:1.8}
+  .pr-note b{color:var(--글자-기본,#4E5968)}
+  .pr-empty{padding:32px;text-align:center;color:var(--sub,#8B95A1);font-size:12px}
+  .pr-warn{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));line-height:1.8;margin-bottom:12px}
+  .pr-warn b{color: var(--글자-주황, var(--amber,#6B4400));}
+</style>
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 입력칸 16px = iOS 포커스 확대 방지 · 손끝 44px */
+  .pr-bar input[type="search"] { font-size: 16px; min-height: 44px; }
+  .pr-seg button { height: 44px; }
+  .tg button { min-height: 44px; }
+  /* 표(5열) — 가로 스크롤 + 첫 열(상품) 붙박이 */
+  .pr-tbl { overflow-x: auto; }
+  .pr-tbl table { min-width: 720px; }
+  .pr-tbl td { font-size: 14px; }
+  .pr-tbl th:first-child, .pr-tbl td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  .pr-warn, .pr-note { font-size: 14px; }
+}
+</style>
+
+<div id="pr-root"><p style="color:var(--sub,#8B95A1);font-size:12px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('pr-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const won = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR') + '원');
+  let q = '', only = '', data = null;
+
+  const FIELDS = [['update_product', '상품'], ['update_price', '가격'], ['update_stock', '재고']];
+
+  function load() {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (only) p.set('only', only);
+    fetch('/bulk/api/products?' + p.toString())
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || j.error) {
+          root.innerHTML = '<div class="pr-warn"><b>불러오지 못했습니다</b><br>'
+            + esc(j.detail || j.error) + '</div>';
+          return;
+        }
+        data = j; render();
+      })
+      .catch((e) => {
+        root.innerHTML = '<div class="pr-warn"><b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';
+      });
+  }
+
+  /* 장부 status → 칩 툴팁(한글). [5차 S6] uncertain 만 한글이고 나머지는 영문이 그대로
+     떴다 — 같은 표 안에서 어떤 칸은 말이 되고 어떤 칸은 안 되는 상태였다. */
+  const LEDGER_TITLE = {
+    pending: '대기 — 아직 등록을 시도하지 않았습니다',
+    ok: '등록됨 — 마켓에 상품이 있습니다',
+    failed: '실패 — 마켓에 상품이 만들어지지 않았습니다',
+    blocked: '막힘 — 브랜드·지재권 제한 또는 실등록 게이트로 보내지 않았습니다',
+    uncertain: '확인 필요 — 마켓에 상품이 생겼을 수 있습니다. 확인 전까지 다시 올리지 않습니다',
+  };
+
+  function row(r) {
+    const allOn = r.update_product && r.update_price && r.update_stock;
+    return `<tr class="${allOn ? '' : 'off'}">
+      <td><div class="pr-nm">${esc(r.name)}</div>
+        <div class="pr-sub">${esc(r.brand || '브랜드 없음')} · #${r.id}</div></td>
+      <td class="num">${won(r.surface_price)}<div class="pr-sub">표면가</div></td>
+      <td class="num">${won(r.sale_price)}<div class="pr-sub">판매가</div></td>
+      <td><div class="tg">${FIELDS.map(([f, label]) =>
+        `<button data-id="${r.id}" data-f="${f}" class="${r[f] ? 'on' : ''}"
+          title="${r[f] ? '켜짐 — 원문이 바뀌면 따라갑니다' : '꺼짐 — 원문이 바뀌어도 그대로 둡니다'}"
+          >${label}</button>`).join('')}</div></td>
+      <td>${r.markets.length
+        ? r.markets.map((m) => `<span class="chip ${m.status === 'failed' ? 'no'
+            : (m.status === 'uncertain' ? '' : (m.market_product_id ? 'ok' : ''))}"
+            title="${LEDGER_TITLE[m.status] || esc(m.status)}">${esc(m.market)}${
+            m.status === 'uncertain' ? ' ⚠' : ''}</span>`).join('')
+        : '<span class="chip">아직 없음</span>'}</td>
+    </tr>`;
+  }
+
+  function render() {
+    const c = data.counts || {};
+    const rows = data.rows || [];
+    root.innerHTML = `
+      ${c.off > 0 ? `<div class="pr-warn"><b>업데이트를 꺼둔 상품이 ${c.off}개 있습니다</b> —
+        원문 사이트에서 가격·재고가 바뀌어도 <b>그대로 둡니다.</b> 의도한 것인지 확인해주세요.</div>` : ''}
+      <div class="pr-bar">
+        <input type="search" id="pr-q" placeholder="상품명·브랜드로 찾기" value="${esc(q)}" autocomplete="off">
+        <div class="pr-seg">
+          <button data-only="" class="${only === '' ? 'on' : ''}">전체 ${c.total || 0}</button>
+          <button data-only="off" class="${only === 'off' ? 'on' : ''}">일부 꺼짐 ${c.off || 0}</button>
+          <button data-only="failed" class="${only === 'failed' ? 'on' : ''}">등록 실패 ${c.failed || 0}</button>
+          <!-- 항상 그린다 — 조건부로 그리면 이 필터를 켠 순간 버튼이 사라져
+               (필터가 걸려 c.uncertain 이 0 이 되는 순간) 되돌아갈 길이 없다. -->
+          <button data-only="uncertain" class="${only === 'uncertain' ? 'on' : ''}"
+            title="마켓에 상품이 생겼는지 모르는 건 — 확인 전까지 다시 올리지 않습니다"
+            >확인 필요 ${c.uncertain || 0}</button>
+        </div>
+      </div>
+      <div class="pr-tbl"><table>
+        <thead><tr>
+          <th>상품</th><th style="width:120px;text-align:right">표면가</th>
+          <th style="width:120px;text-align:right">판매가</th>
+          <th style="width:170px">업데이트</th><th style="width:200px">마켓</th>
+        </tr></thead>
+        <tbody>${rows.length ? rows.map(row).join('')
+          : '<tr><td colspan="5" class="pr-empty">해당하는 상품이 없습니다.</td></tr>'}</tbody>
+      </table></div>
+      <div class="pr-note">
+        <b>업데이트 버튼</b> — 켜면 원문 사이트가 바뀔 때 따라가고, 끄면 그대로 둡니다.
+        상품·가격·재고를 <b>따로</b> 끌 수 있습니다.<br>
+        ${esc(data.note || '')}
+      </div>`;
+
+    const qi = document.getElementById('pr-q');
+    let t = null;
+    qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { q = qi.value.trim(); load(); }, 250); };
+    root.querySelectorAll('.pr-seg button').forEach((b) => {
+      b.onclick = () => { only = b.dataset.only; load(); };
+    });
+    root.querySelectorAll('.tg button').forEach((b) => { b.onclick = () => toggle(b); });
+  }
+
+  function toggle(btn) {
+    const next = !btn.classList.contains('on');
+    btn.disabled = true;
+    fetch(`/bulk/api/products/${btn.dataset.id}/toggle`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field: btn.dataset.f, value: next }),
+    })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        btn.disabled = false;
+        if (!ok || !j.ok) { window.alert(j.error || '바꾸지 못했습니다.'); return; }
+        load();   // 경고 배너·개수까지 다시 맞춘다
+      })
+      .catch((e) => { btn.disabled = false; window.alert(e.message); });
+  }
+
+  load();
+})();
+</script>

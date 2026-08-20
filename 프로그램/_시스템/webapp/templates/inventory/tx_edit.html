@@ -3,29 +3,29 @@
 {% block content %}
 <style>
   .e-shell { padding:24px 32px; max-width:900px; margin:0 auto; }
-  .e-head { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:14px; margin-bottom:22px; border-bottom:1px solid #E5E8EB; }
-  .e-head h1 { font-size:22px; font-weight:700; margin:0; color:#191F28; }
-  .e-head h1.in { color:#1D4ED8; }
-  .e-head h1.out { color:#DC2626; }
-  .e-head h1.adjust { color:#92400E; }
+  .e-head { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px; margin-bottom:24px; border-bottom:1px solid var(--line,#E5E8EB); }
+  .e-head h1 { font-size:24px; font-weight:700; margin:0; color:var(--ink,#191F28); }
+  .e-head h1.in { color: var(--글자-파랑, var(--primary,#1D4ED8)); }
+  .e-head h1.out { color: var(--글자-빨강, var(--red,#DC2626)); }
+  .e-head h1.adjust { color: var(--글자-주황, var(--amber,#92400E)); }
   .e-head h1.move { color:#6B21A8; }
-  .e-card { background:#fff; border:1px solid #E5E8EB; border-radius:10px; padding:22px 26px; margin-bottom:14px; }
-  .e-row { display:flex; gap:14px; margin-bottom:14px; }
+  .e-card { background:var(--surface,#ffffff); border:1px solid var(--line,#E5E8EB); border-radius:8px; padding:24px 24px; margin-bottom:12px; }
+  .e-row { display:flex; gap:12px; margin-bottom:12px; }
   .e-row .e-col { flex:1; }
-  .e-lbl { display:block; font-size:12px; font-weight:700; color:#4E5968; margin-bottom:5px; text-transform:uppercase; letter-spacing:.04em; }
-  .e-lbl .req { color:#DC2626; }
-  .e-inp { width:100%; padding:9px 12px; border:1px solid #CBCCD3; border-radius:6px; font-size:14px; box-sizing:border-box; font-family:inherit; }
+  .e-lbl { display:block; font-size:12px; font-weight:700; color:var(--글자-기본,#4E5968); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em; }
+  .e-lbl .req { color: var(--글자-빨강, var(--red,#DC2626)); }
+  .e-inp { width:100%; padding:8px 12px; border:1px solid var(--faint,#CBCCD3); border-radius:8px; font-size:14px; box-sizing:border-box; font-family:inherit; }
   .e-mono { font-family:"SF Mono",ui-monospace,monospace; font-size:12px; }
-  .e-help { font-size:12px; color:#8B95A1; margin-top:4px; }
-  .e-warn { background:#FEF3C7; border:1px solid #F59E0B; border-radius:8px; padding:11px 14px; font-size:14px; color:#92400E; margin-bottom:14px; }
+  .e-help { font-size:12px; color:var(--sub,#8B95A1); margin-top:4px; }
+  .e-warn { background:#FEF3C7; border:1px solid #F59E0B; border-radius:8px; padding:12px 12px; font-size:14px; color: var(--글자-주황, var(--amber,#92400E)); margin-bottom:12px; }
   .e-warn label { display:flex; align-items:center; gap:8px; cursor:pointer; }
-  .e-actions { display:flex; gap:8px; padding-top:18px; border-top:1px solid #F2F4F6; margin-top:18px; }
-  .btn { padding:10px 18px; border:0; border-radius:7px; font-weight:700; font-size:13.5px; cursor:pointer; font-family:inherit; }
-  .btn-primary { background:#3182F6; color:#fff; }
-  .btn-primary:disabled { background:#9CA3AF; cursor:not-allowed; }
-  .btn-ghost { background:#fff; border:1px solid #E5E8EB; color:#4E5968; text-decoration:none; display:inline-flex; align-items:center; }
-  .btn-danger { background:#DC2626; color:#fff; margin-left:auto; }
-  .e-alert.err { background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; padding:11px 14px; border-radius:8px; margin-bottom:14px; font-size:14px; }
+  .e-actions { display:flex; gap:8px; padding-top:16px; border-top:1px solid var(--n100,#F2F4F6); margin-top:16px; }
+  .btn { padding:8px 16px; border:0; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer; font-family:inherit; }
+  .btn-primary { background: var(--바탕-파랑, var(--primary,#3182F6)); color:#fff; }
+  .btn-primary:disabled { background: var(--바탕-흐리게, var(--faint,#9CA3AF)); cursor:not-allowed; }
+  .btn-ghost { background:var(--surface,#ffffff); border:1px solid var(--line,#E5E8EB); color:var(--글자-기본,#4E5968); text-decoration:none; display:inline-flex; align-items:center; }
+  .btn-danger { background: var(--바탕-빨강, var(--red,#DC2626)); color:#fff; margin-left:auto; }
+  .e-alert.err { background:var(--연한-빨강,#FEE2E2); border:1px solid var(--연한-빨강,#FCA5A5); color: var(--글자-빨강, var(--red,#991B1B)); padding:12px 12px; border-radius:8px; margin-bottom:12px; font-size:14px; }
 </style>
 
 <div class="e-shell">
@@ -58,13 +58,13 @@
     <div class="e-row">
       <div class="e-col" style="flex:2">
         <label class="e-lbl">제품 SKU</label>
-        <input class="e-inp e-mono" value="{{ tx.option_canonical_sku }}" readonly style="background:#F9FAFB">
+        <input class="e-inp e-mono" value="{{ tx.option_canonical_sku }}" readonly style="background:var(--bg,#F9FAFB)">
         <div class="e-help">SKU 변경은 별도 — 삭제 후 재등록 권장</div>
       </div>
       <div class="e-col">
         <label class="e-lbl">수량 <span class="req">*</span></label>
-        <input name="qty" type="number" class="e-inp e-mono" value="{{ tx.qty }}" min="0" required>
-        <div class="e-help">{% if tx.tx_type=='adjust' %}절대값 — 해당 위치 재고를 이 수량으로 맞춤{% else %}변동 수량{% endif %}</div>
+        <input name="qty" type="number" class="e-inp e-mono" value="{{ tx.qty }}" required>
+        <div class="e-help">{% if tx.tx_type=='adjust' %}증감분 — 이 조정으로 <b>얼마나 늘고 줄었나</b>(음수 가능). 「재고를 N개로」가 아닙니다{% else %}변동 수량{% endif %}</div>
       </div>
     </div>
 
@@ -75,7 +75,7 @@
       </div>
       <div class="e-col">
         <label class="e-lbl">거래일</label>
-        <input class="e-inp e-mono" value="{{ tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '' }}" readonly style="background:#F9FAFB">
+        <input class="e-inp e-mono" value="{{ tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '' }}" readonly style="background:var(--bg,#F9FAFB)">
         <div class="e-help">변경 불가 (감사 추적용)</div>
       </div>
     </div>

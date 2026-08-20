@@ -1,0 +1,555 @@
+# -*- coding: utf-8 -*-
+"""옥션·G마켓·11번가·롯데온 실등록 — 선행자원 수확 + payload 조립 + 호출 (라이브 계층).
+
+compile_more.py 가 검증한 spec 을 받아, 2026-07-21 실등록 검증에서 쓴 방식 그대로
+선행자원을 라이브 조회로 수확해 shared 빌더로 조립·전송한다. 반드시 LIVE 게이트
+뒤에서만 호출(서비스가 보장). 실패는 예외로 표면화(거짓 성공 금지 — 상품ID 수령만 성공).
+
+선행자원 수확 방식(실증 근거):
+  auction/gmarket → 판매중 기존 상품 1건 상세에서 출하지·발송정책·반품주소·택배사·고시 재사용
+  eleven11        → outboundarea/inboundarea 로 출고지·반품지 addrSeq 조회.
+                    고시는 type 891011 + 같은 항목코드 9번(코드표 첨부 미확보 시 우회 — 실증)
+  lotteon         → 본보기 상품(spec.template_spd_no) detail 을 그대로 복사(build_register_payload)
+"""
+from __future__ import annotations
+
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
+
+class PrereqError(RuntimeError):
+    """선행자원 수확 실패 — 마켓 전송 전 단계(**상품 미생성이 확실**).
+
+    ★ [2026-07-23 리뷰 I-B] 이 예외는 「보내기 전에 확정된 실패」만 쓴다. 계정 없음·
+      본보기 없음·출고지 미등록처럼 **요청이 나가지도 않은** 경우다. 상위(service)는
+      이것을 error_code='PREREQ' + status='failed' 로 적는다 — 「올라갔는지 모릅니다」로
+      말하면 안 된다(확인할 것도 없는데 확인하라고 하면, 진짜 유령 경고가 묻힌다).
+    """
+
+
+class PartialRegisterError(PrereqError):
+    """**상품은 이미 만들어졌는데** 뒤 단계가 실패했다 — 상품번호를 알고 있다.
+
+    실측 경로: ESM(옥션·G마켓) 등록 성공(goodsNo 수령) → 옵션 부착 PUT 실패 →
+    판매중지로 회수 시도 → 이 예외. 회수에 성공했든 실패했든 **상품은 존재한다.**
+
+    ★ [2026-07-23 리뷰 C-2] 이 사실을 장부에 안 남기면(status='failed'·상품번호 None)
+      다음 「점검」에서 그 마켓이 다시 ready 로 나오고, 한 번 더 누르면 같은 상품이
+      두 개가 된다. 유령이 가장 잘 생기는 경로가 하필 가드가 못 보는 경로였다.
+      그래서 product_id 를 예외에 실어 올려 장부에 반드시 남긴다.
+    """
+
+    def __init__(self, message, *, product_id):
+        super().__init__(message)
+        self.product_id = str(product_id or '') or None
+
+
+def _env_prefix(market: str, account_key: str = ''):
+    """market 활성 UploadAccount env_prefix.
+
+    account_key 지정(≠''·≠'default') 시 그 계정을 찾는다 — **없으면 예외**
+    (기본 계정 폴백 금지: 기록은 acctB 인데 전송은 기본 계정으로 나가는 거짓 장부 방지.
+    선례: 롯데온 trNo 8888 사고 — 계정 식별자는 계정 것만).
+    미지정이면 첫 활성 계정(없으면 None=전역 기본).
+    """
+    from shared.db import SessionLocal
+    from lemouton.sourcing.models_v2 import UploadAccount
+    s = SessionLocal()
+    try:
+        q = s.query(UploadAccount).filter_by(market=market, is_active=True)
+        if account_key and account_key != 'default':
+            acct = q.filter_by(account_key=account_key).first()
+            if acct is None:
+                have = [a.account_key for a in q.order_by(UploadAccount.id).all()]
+                raise PrereqError(
+                    f'{market} 계정 {account_key!r} 을 찾을 수 없습니다(활성 계정: {have}) — '
+                    '기본 계정으로 대신 보내지 않습니다(기록·전송 계정 불일치 방지).')
+            return acct.env_prefix
+        acct = q.order_by(UploadAccount.id).first()
+        return acct.env_prefix if acct else None
+    finally:
+        s.close()
+
+
+# ── ESM(옥션·G마켓) ─────────────────────────────────────────────
+
+def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
+    from lemouton.uploader import market_fetch as MF
+    from shared.platforms.esm.products import (
+        search_goods, get_goods_detail, extract_register_prereq,
+        build_esm_register_payload, register_goods)
+
+    client = MF._esm_client(market, _env_prefix(market, account_key))
+    if client is None:
+        raise PrereqError(f'{market} 계정이 없습니다 — 판매처 계정을 먼저 등록해 주세요.')
+
+    # 판매중(11) 기존 상품에서 선행자원 수확 — ★ ESM 은 마스터 카탈로그가 공용이라
+    #   siteId 검색에도 반대 사이트 전용 상품이 섞인다(예: 옥션 전용은 gmkt 발송정책 0).
+    #   선행자원이 다 찰 때까지 후보를 순회한다(최대 15건 상세조회 — 라이브 실측 함정).
+    _NEED = ('place_no', 'dispatch_policy_no', 'return_addr_no',
+             'delivery_company_no', 'official_notice_no')
+    # ★★ [2026-07-24 5차리뷰 I3] 이 구간은 **등록 호출 전**이다(선행자원 수확 — 검색 1회 +
+    #   상세조회 최대 15회). 여기서 네트워크·마켓 오류가 나면 **상품은 확실히 안 만들어졌다**.
+    #   그런데 예전에는 PrereqError 로 감싸지 않아 service 가 CALL(불확실)로 분류했고,
+    #   화면엔 「올라갔는지 모릅니다」가 떴다 — 옥션·G마켓은 이름 조회 API 도 없어서
+    #   사장님이 셀러센터를 뒤지고 → 없고 → 다시 올리기(중복)로 간다.
+    #   확인할 것도 없는 「확인 필요」가 상시로 뜨면 **진짜 유령 경고가 그 속에 묻힌다.**
+    try:
+        found = search_goods(client=client, market=market, sell_status='11', page_size=30)
+    except Exception as e:  # noqa: BLE001 — 보내기 전 확정 실패(상품 미생성이 확실하다)
+        raise PrereqError(
+            f'{market} 기존 상품 검색에 실패해 선행자원을 못 얻었습니다(등록 호출 전이라 '
+            f'상품은 만들어지지 않았습니다): {e}') from e
+    items = [it for it in (found.get('items') or []) if isinstance(it, dict)]
+    if not items:
+        raise PrereqError(
+            f'{market} 판매중 기존 상품이 없어 선행자원(출하지·발송정책·고시)을 못 얻습니다.')
+    prereq = None
+    tried = []
+    opt_sample_goods = None   # 옵션 봉투 본보기 후보(옵션형 상품) — 순회 중 같이 수확
+    for it in items[:15]:
+        goods_no = it.get('goodsNo')
+        if not goods_no:
+            continue
+        try:
+            detail = get_goods_detail(goods_no, client=client)
+        except Exception as e:  # noqa: BLE001 — 여전히 등록 호출 전이다(상품 미생성 확실)
+            raise PrereqError(
+                f'{market} 본보기 상품({goods_no}) 상세조회에 실패해 선행자원을 못 얻었습니다'
+                f'(등록 호출 전이라 상품은 만들어지지 않았습니다): {e}') from e
+        # 옵션형(조합/선택) 상품이면 봉투 본보기 후보로 기억 — 별도 순회를 없애
+        #   G마켓 60초(gunicorn) 타임아웃(502 실측)을 막는다.
+        if opt_sample_goods is None:
+            _ai = detail.get('itemAddtionalInfo') or detail.get('itemAdditionalInfo') or {}
+            _rt = (_ai.get('recommendedOpts') or {}).get('type')
+            if _rt in (1, 2, '1', '2'):
+                opt_sample_goods = goods_no
+        cand = extract_register_prereq(detail, market)
+        missing = [k for k in _NEED if not cand.get(k)]
+        if not missing:
+            prereq = cand
+            break
+        tried.append(f'{goods_no}(빈값 {missing})')
+    if prereq is None:
+        raise PrereqError(
+            f'{market} 선행자원을 채울 본보기 상품을 못 찾았습니다 — 훑은 후보: '
+            f'{"; ".join(tried[:5])} — 셀러센터에서 그 사이트 발송정책·반품지 설정을 확인해 주세요.')
+
+    payload = build_esm_register_payload(
+        market=market, goods_name=spec['goods_name'],
+        cat_code=spec['cat_code'], site_cat_code=spec['site_cat_code'],
+        site_type=1 if market == 'auction' else 2,
+        price=spec['price'], stock=spec['stock'],
+        place_no=int(prereq['place_no']),
+        dispatch_policy_no=int(prereq['dispatch_policy_no']),
+        return_addr_no=str(prereq['return_addr_no']),
+        delivery_company_no=int(prereq['delivery_company_no']),
+        official_notice_no=int(prereq['official_notice_no']),
+        official_notice_details=prereq['official_notice_details'],
+        image_url=spec['image_url'], detail_html=spec['detail_html'],
+        options=None,
+        # 🔴 [2026-08-13] 조립기에는 칸이 있었는데 **여기서 안 넘겨** 늘 기본값이 나갔다
+        #   (isVatFree=False·isAdultProduct=False). 「다리를 세어라」 — 엔진만 고치고
+        #   호출부를 안 고치면 라이브는 한 글자도 안 바뀐다.
+        is_vat_free=spec['is_vat_free'], model_no=spec['model_no'],
+        bar_code=spec['bar_code'], is_adult_product=spec['is_adult_product'])
+    result = register_goods(payload, client=client)   # 실패는 raise(goodsNo 없으면 실패)
+    goods_no_new = str(result['goodsNo'])
+
+    # [2026-07-21 옵션 지원] 옵션 있으면 등록 직후 recommended-options PUT 로 부착.
+    #   봉투 구조는 계정의 기존 조합형 옵션상품 GET 봉투를 실측 본보기로 미러링
+    #   (과거이력: PUT 은 GET 봉투 echo-back 필수·details 만 보내면 400).
+    #   부착 실패 = 옵션 없는 단일상품이 판매중으로 남는 것 → 즉시 판매중지로 회수 후
+    #   에러 표면화(상품번호를 메시지에 남겨 셀러센터 확인 가능하게 — 미아 방지).
+    if spec.get('options'):
+        try:
+            _attach_esm_options(market, client, goods_no_new, items, spec['options'],
+                                sample_goods=opt_sample_goods)
+        except Exception as e:  # noqa: BLE001
+            from shared.platforms.esm.inventory import set_sold_out
+            try:
+                set_sold_out(goods_no_new, market, client=client)
+                rollback = '상품은 판매중지로 내려두었습니다'
+            except Exception:  # noqa: BLE001 — 등록 직후 2~3분 수정금지 창이면 실패 가능
+                rollback = ('⚠️판매중지 실패 — 셀러센터에서 직접 내려주세요'
+                            '(등록 직후 2~3분은 수정 불가)')
+            # ★ PartialRegisterError — 상품번호를 **아는** 실패다. 이 번호가 장부까지
+            #   가야 다음 클릭이 같은 상품을 또 만들지 않는다(리뷰 C-2).
+            raise PartialRegisterError(
+                _esm_option_fail_message(
+                    market=market, goods_no=goods_no_new,
+                    cat_code=spec['cat_code'], site_cat_code=spec['site_cat_code'],
+                    err=e, rollback=rollback),
+                product_id=goods_no_new) from e
+
+    # ★ 등록(+옵션부착) 끝난 뒤 판매중지 — 스마트스토어(service.py:_send_live)와 같은
+    #   안전장치. ESM 은 등록 즉시 판매중(11)으로 뜬다(스마트스토어는 mark_suspension
+    #   이 이미 이 역할을 한다 — ESM 만 빠져 있었다). 실패해도 상품ID 는 잃지 않는다
+    #   (best-effort — 옵션부착 실패 시의 위 롤백 경로와는 별개: 저건 실패 회수,
+    #   이건 성공 직후 정상 경로의 안전장치다).
+    from shared.platforms.esm.inventory import set_sold_out
+    try:
+        suspended = set_sold_out(goods_no_new, market, client=client)
+        if not suspended:
+            # 등록 자체는 성공했다 — 판매중으로 남았다는 사실을 숨기지 않는다.
+            #   (service.py:_send_live 스마트스토어 분기와 같은 흔적 — result 가 곧
+            #   register_live() 의 'raw' 로 리턴돼 row.raw_json 에 그대로 저장된다.
+            #   여기서 안 남기면 로그만 찍고 DB 어디에도 안 남는다.)
+            logger.warning('%s 판매중지 전환 실패 goodsNo=%s — 상품이 판매중 상태로 남았습니다.',
+                            market, goods_no_new)
+            result['_suspend_failed'] = True
+    except Exception:  # noqa: BLE001 — best-effort. 등록 자체는 이미 성공했다(상품ID 확보).
+        logger.exception('%s 판매중지 전환 예외 goodsNo=%s', market, goods_no_new)
+        result['_suspend_failed'] = True
+    return {'product_id': goods_no_new, 'raw': result}
+
+
+def _esm_option_fail_message(*, market, goods_no, cat_code, site_cat_code,
+                             err, rollback) -> str:
+    """옵션 부착 실패 문구 — **어느 카테고리에서 났는지**까지 남긴다.
+
+    ━━ 왜 카테고리를 싣나 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    옥션·G마켓에는 옵션을 못 받는 카테고리가 있다. 그런데 **어느 카테고리가 그런지
+    알 방법이 우리에게 없다** — ESM 카테고리 API 응답 칸은 `catCode`·`catName`·
+    `isLeaf` 셋뿐이다(`category_harvest.py:279 harvest_esm_site`). 그러니 목록을
+    지어내 미리 막을 수는 없다(실측값만 적용, 모르면 미적용).
+
+    대신 실패가 났을 때 **그 카테고리를 실측으로 남긴다.** 이 문구가 없으면 같은
+    카테고리에서 같은 실패가 조용히 반복된다 — 대량등록이면 수십·수백 번이고,
+    그때마다 「옵션 없는 단일상품이 판매중」인 창이 잠깐씩 열린다.
+    쌓인 이 기록이 나중에 만들 「옵션 등록 불가 카테고리」 목록의 씨앗이다.
+    """
+    return (f'{market} 상품({goods_no})은 등록됐지만 옵션 부착에 실패했습니다: '
+            f'{err} / {rollback} — 카테고리 {cat_code}/{site_cat_code} 에서 났습니다. '
+            f'이 카테고리는 옵션 등록을 안 받는 카테고리일 수 있습니다 '
+            f'(같은 카테고리에서 반복되면 옵션 없이 올리거나 카테고리를 바꿔 주세요).')
+
+
+def _kor_text(v):
+    """ESM 다국어 텍스트 블록({koreanText,...}) — 실측 스키마 그대로."""
+    return {"koreanText": v, "englishText": None, "chineseText": None,
+            "japaneseText": None, "exposeLanguage": 0}
+
+
+def _synth_esm_envelope() -> dict:
+    """조합형(색상×사이즈) 옵션 봉투를 실측 스키마로 합성 — 본보기 상품이 없을 때.
+
+    구조 근거 = 옥션 실물 GET recommended-options(2026-07-21 실측):
+    축 코드 0(직접입력)·details 템플릿 1개(값은 _attach 가 교체).
+    """
+    detail_tpl = {
+        "recommendedOptValue1": _kor_text(""), "recommendedOptValue2": _kor_text(""),
+        "recommendedOptValue3": _kor_text(None),
+        "recommendedOptValueNo1": 0, "recommendedOptValueNo2": 0,
+        "recommendedOptValueNo3": 0,
+        "qty": {"gmkt": 0, "iac": 0}, "addAmnt": 0,
+        "addAmntSite": {"gmkt": 0, "iac": 0},
+        "isSoldOut": False, "isSoldOutSite": {"gmkt": False, "iac": False},
+        "isDisplay": True, "isDisplaySite": {"gmkt": True, "iac": True},
+        "imageUrl": None, "manageCode": None, "skuInfo": None,
+    }
+    return {
+        "type": 2, "isStockManage": True, "inputType": 0,
+        "combination": {
+            "recommendedOptNo1": 0, "recommendedOptNo2": 0, "recommendedOptNo3": 0,
+            "recommendedOptName1": _kor_text("색상"),
+            "recommendedOptName2": _kor_text("사이즈"),
+            "recommendedOptName3": _kor_text(None),
+            "imageLevel": 0, "imageInfo": None,
+            "details": [detail_tpl],
+        },
+        "independent": None, "independents": None, "text": None, "calculation": None,
+    }
+
+
+def _attach_esm_options(market: str, client, goods_no: str, search_items: list,
+                        options: list, sample_goods=None) -> None:
+    """신규 상품에 조합형(색상×사이즈) 옵션 부착 — PUT recommended-options.
+
+    봉투 본보기 = 같은 계정의 기존 조합형 옵션상품(GET recommended-options 실응답).
+    details 원소도 본보기 구조를 복제해 값(옵션값·재고·추가금)만 교체한다(추측 금지).
+    """
+    from shared.platforms.esm.products import site_field, _ci_get
+
+    # 1) 조합형 봉투 본보기 — 선행자원 순회에서 수확한 옵션형 상품(sample_goods) 우선.
+    #   없으면 검색 결과 앞쪽만 짧게 순회(타임아웃 방지 — G마켓 502 실측).
+    envelope = None
+    candidates = ([sample_goods] if sample_goods else []) +         [it.get('goodsNo') for it in search_items[:6]]
+    for gno in candidates:
+        if not gno or str(gno) == str(goods_no):
+            continue
+        try:
+            env = client.request(
+                method='GET', path=f'/item/v1/goods/{gno}/recommended-options')
+        except Exception:  # noqa: BLE001 — 본보기 후보 실패는 다음 후보로
+            continue
+        body = env.get('data') if isinstance(env.get('data'), dict) else env
+        if isinstance(body, dict) and _ci_get(body, 'type') in (1, 2, '1', '2'):
+            envelope = body
+            break
+    if envelope is None:
+        # 본보기가 없으면 실측 스키마로 봉투를 직접 합성한다.
+        #   근거: 옥션 성공 봉투 실측(2026-07-21) — 축 코드 recommendedOptNo1/2 = 0
+        #   (**직접입력**·옵션코드 조회 API 실측에도 '직접입력'=0 존재), 축 이름 자유.
+        envelope = _synth_esm_envelope()
+
+    # 2) 본보기 details[0] 구조 복제 → 우리 옵션으로 교체
+    grp_key = 'combination' if _ci_get(envelope, 'combination') else 'independent'
+    grp = _ci_get(envelope, grp_key) or {}
+    tpl_details = _ci_get(grp, 'details') or []
+    if not tpl_details:
+        raise PrereqError(f'{market} 봉투 본보기에 details 가 없습니다(구조 미확보).')
+    d_tpl = tpl_details[0]
+    skey = site_field(market)   # iac|gmkt
+    new_details = []
+    for o in options:
+        d = {k: v for k, v in d_tpl.items()
+             if k not in ('optSeq', 'manageCode')}   # 식별자는 마켓이 새로 발급
+        # 옵션값 — 실측 봉투(2026-07-21 옥션 5806568636): recommendedOptValue1/2 가
+        #   {koreanText:..} dict. 1축=색상, 2축=사이즈로 교체. 3축 이상은 본보기 유지(null).
+        for axis, val in (('recommendedOptValue1', o['color']),
+                          ('recommendedOptValue2', o['size'])):
+            cur = d.get(axis)
+            if isinstance(cur, dict):
+                d[axis] = dict(cur)
+                d[axis]['koreanText'] = val
+        # 재고·추가금·노출·품절 — 사이트별 키 실측(qty·addAmntSite·isDisplaySite·isSoldOutSite)
+        for site_dict_key, site_val in (('qty', int(o['stock'])),
+                                        ('addAmntSite', int(o.get('extra_price') or 0)),
+                                        ('isDisplaySite', True),
+                                        ('isSoldOutSite', False)):
+            cur = d.get(site_dict_key) if isinstance(d.get(site_dict_key), dict) else {}
+            cur = dict(cur)
+            cur[skey] = site_val
+            d[site_dict_key] = cur
+        d['addAmnt'] = int(o.get('extra_price') or 0)
+        d['isSoldOut'] = False
+        d['isDisplay'] = True
+        if o.get('sku'):
+            d['manageCode'] = o['sku']
+        new_details.append(d)
+
+    put_body = {k: v for k, v in envelope.items()}
+    put_body[grp_key] = dict(grp)
+    put_body[grp_key]['details'] = new_details
+    try:
+        resp = client.request(
+            method='PUT', path=f'/item/v1/goods/{goods_no}/recommended-options',
+            body=put_body)
+    except Exception as e:  # noqa: BLE001 — 4xx 본문에 거부 사유가 있다(캡처 필수·실측 교훈)
+        body_txt = ''
+        try:
+            body_txt = (getattr(getattr(e, 'response', None), 'text', '') or '')[:400]
+        except Exception:  # noqa: BLE001
+            pass
+        raise PrereqError(f'옵션 PUT 실패: {e} / 마켓 응답: {body_txt}') from e
+    rc = _ci_get(resp or {}, 'resultCode')
+    if rc is not None and str(rc) not in ('0', '0000', 'SUCCESS', 'OK'):
+        raise PrereqError(
+            f'옵션 PUT 거부 resultCode={rc} {str(_ci_get(resp, "message"))[:200]}')
+
+
+# ── 11번가 ─────────────────────────────────────────────────────
+
+def _addr_seq(xml_text: str) -> str | None:
+    m = re.search(r'<addrSeq>\s*(\d+)\s*</addrSeq>', xml_text or '')
+    return m.group(1) if m else None
+
+
+def _register_eleven11(spec: dict, account_key: str = '') -> dict:
+    from lemouton.uploader import market_fetch as MF
+    from shared.platforms.eleven11.products import build_register_xml, register_product
+
+    client = MF._eleven11_client(_env_prefix('eleven11', account_key))
+    if client is None:
+        from shared.platforms.eleven11.client import Eleven11Client
+        client = Eleven11Client()
+
+    # [5차리뷰 I3] 주소 조회도 **등록 호출 전**이다 — 실패는 확정 실패(상품 미생성).
+    try:
+        out_seq = _addr_seq(client.request('GET', '/rest/areaservice/outboundarea'))
+        in_seq = _addr_seq(client.request('GET', '/rest/areaservice/inboundarea'))
+    except Exception as e:  # noqa: BLE001
+        raise PrereqError(
+            f'11번가 출고지/반품지 조회에 실패했습니다(등록 호출 전이라 상품은 '
+            f'만들어지지 않았습니다): {e}') from e
+    if not out_seq or not in_seq:
+        raise PrereqError(
+            f'11번가 출고지/반품지 주소를 못 얻었습니다(출고지={out_seq}, 반품지={in_seq}) — '
+            '셀러오피스에서 주소 등록을 확인해 주세요.')
+
+    fields = dict(spec)
+    fields['addr_seq_out'] = out_seq
+    fields['addr_seq_in'] = in_seq
+    # 고시 — 코드표 첨부가 비공개(오픈API센터 로그인 뒤)라, 실증된 우회를 기본값으로:
+    #   type 891011 은 항목 9개 필수인데 같은 유효코드 23759468 을 9번 중복해도 통과(2026-07-21).
+    fields.setdefault('notification', {
+        'type': '891011',
+        'items': [{'code': '23759468', 'name': '상품상세설명 참조'}] * 9})
+    fields.setdefault('extra', {})
+    fields['extra'].setdefault('selTermUseYn', 'N')                 # 영구판매
+    fields['extra'].setdefault('rtngExchDetail', '상품 수령 후 7일 이내 교환/반품 가능. 비용 본인부담.')
+    xml_body = build_register_xml(fields)
+    result = register_product(xml_body, client=client)   # productNo 없으면 raise
+    product_no = str(result['productNo'])
+    # ★ 등록 직후 전시중지 — 11번가는 등록 즉시 전시(판매)로 뜬다(ESM·스마트스토어와
+    #   같은 이유). 실패해도 product_id 는 잃지 않는다(best-effort). 실패 흔적은
+    #   result 안에 남겨 row.raw_json 으로 DB에 보이게 한다(로그만 남기면 조용한
+    #   실패가 된다 — 과거에 여러 번 겪은 「돈 잃는」 버그 유형).
+    # [재조회 검증] 11번가는 stop_display 응답(HTTP 200/resultCode)만으로 성공을
+    #   못 믿는 마켓이다(register_product 의 「거짓 성공 금지」 주석과 같은 특성).
+    #   webapp/routes/live_send_test.py:api_suspend_eleven11 이 이미 쓰는 방식대로
+    #   get_product_detail 로 sel_stat_cd == '105'(전시중지) 인지 재조회 확인한다.
+    from shared.platforms.eleven11.products import stop_display, get_product_detail
+    try:
+        stop_resp = stop_display(product_no, client=client)
+        if not stop_resp:
+            logger.warning('11번가 전시중지 응답 없음 prdNo=%s', product_no)
+            result['_suspend_failed'] = True
+        else:
+            try:
+                detail = get_product_detail(product_no, client=client)
+            except Exception:  # noqa: BLE001
+                logger.exception('11번가 전시중지 재조회 예외 prdNo=%s', product_no)
+                result['_suspend_failed'] = True
+            else:
+                sel_stat_cd = str((detail or {}).get('sel_stat_cd') or '')
+                if sel_stat_cd != '105':
+                    logger.warning(
+                        '11번가 전시중지 재조회 검증 실패(응답은 성공이었으나 여전히 '
+                        '전시중지 아님) prdNo=%s sel_stat_cd=%s',
+                        product_no, sel_stat_cd)
+                    result['_suspend_failed'] = True
+    except Exception:  # noqa: BLE001
+        logger.exception('11번가 전시중지 예외 prdNo=%s', product_no)
+        result['_suspend_failed'] = True
+    return {'product_id': product_no, 'raw': result}
+
+
+# ── 롯데온 ─────────────────────────────────────────────────────
+
+#: 롯데온 본보기에서 **그대로 복사되는** 국내/해외 구분값 중 우리가 쓸 수 있는 유일한 값.
+#: 실측 근거 — scripts/_lotteon_pbf_dump/lemouton_base.json:191 `"dmstOvsDvDvsCd": "DMST"`
+#: (`dmstOvsDvDvsCdNm` = "국내배송"). 우리는 국내 소싱·국내 배송이다.
+_LOTTEON_DOMESTIC = 'DMST'
+
+#: 판매자상품 판매상태 「판매중」. 실측 근거 — 같은 덤프 :37 `"spdSlStatCd": "SALE"`
+#: (`spdSlStatCdNm` = "판매중"). products.set_sale_status 의 코드계 [SALE/SOUT/END] 와 같다.
+_LOTTEON_ON_SALE = 'SALE'
+
+
+def _assert_lotteon_template_safe(template: dict, spd_no: str) -> None:
+    """본보기 상품이 「국내·판매중」인지 확인. 아니면 PrereqError 로 **등록 전에** 멈춘다.
+
+    ━━ 왜 이 검사가 필요한가 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    롯데온 등록은 카테고리를 우리가 고르지 않는다. 본보기 상품 detail 을 통째로 복사하고,
+    복사 명부(`products.py:197 _REGISTER_TEMPLATE_FIELDS`)에 **`dmstOvsDvDvsCd`
+    (국내해외구분코드)** 가 들어 있다.
+      → 본보기가 해외직구 상품이면 등록되는 상품이 **전부 해외직구로** 나간다.
+      → 🔴 마켓에서 이 값을 못 바꾼다. **삭제 후 재등록만이 복구다.**
+        대량등록이면 수천 건이 한 번에 잘못 나간다 — 우리 유일한 「되돌릴 수 없는」 경로.
+
+    판정은 **화이트리스트**다. 해외 코드값을 실측하지 못했으므로 「DMST 가 아니면 전부
+    막는다」로 둔다. 프로젝트 원칙 「실측값만 적용, 모르면 미적용」의 등록판 —
+    모르는 값을 통과시키는 쪽이 아니라 막는 쪽으로 기운다(막히면 사람이 알아채지만,
+    잘못 나가면 되돌릴 수 없다).
+    """
+    scope = str(template.get('dmstOvsDvDvsCd') or '').strip().upper()
+    if scope != _LOTTEON_DOMESTIC:
+        shown = (str(template.get('dmstOvsDvDvsCdNm') or '').strip()
+                 or scope or '(값 없음)')
+        raise PrereqError(
+            f'롯데온 본보기 상품({spd_no})이 국내배송 상품이 아닙니다 — 배송구분 「{shown}」. '
+            f'이 값은 본보기에서 그대로 복사되므로, 이대로 올리면 등록되는 상품이 전부 '
+            f'해외직구로 나가고 마켓에서 바꿀 수 없습니다(삭제 후 재등록만 가능). '
+            f'국내배송 판매중 상품번호로 바꿔 주세요.')
+
+    sale = str(template.get('spdSlStatCd') or '').strip().upper()
+    if sale != _LOTTEON_ON_SALE:
+        shown = (str(template.get('spdSlStatCdNm') or '').strip()
+                 or sale or '(값 없음)')
+        raise PrereqError(
+            f'롯데온 본보기 상품({spd_no})이 판매중이 아닙니다 — 판매상태 「{shown}」. '
+            f'판매가 끝난 상품은 롯데온이 정리해 없앨 수 있고, 그러면 이 본보기를 쓰는 '
+            f'등록이 통째로 조용히 실패합니다. 판매중 상품번호로 바꿔 주세요.')
+
+
+def _register_lotteon(spec: dict, account_key: str = '') -> dict:
+    from lemouton.uploader import market_fetch as MF
+    from shared.platforms.lotteon.products import (
+        get_product_detail, build_register_payload, register_product)
+
+    client = MF._lotteon_client(_env_prefix('lotteon', account_key))
+    if client is None:
+        from shared.platforms.lotteon.client import LotteonClient
+        client = LotteonClient()
+
+    try:
+        template = get_product_detail(spec['template_spd_no'], client=client)
+    except Exception as e:  # noqa: BLE001
+        raise PrereqError(
+            f'롯데온 본보기 상품({spec["template_spd_no"]}) 조회 실패 — 같은 계정의 '
+            f'판매중 상품번호인지 확인해 주세요: {e}') from e
+    _assert_lotteon_template_safe(template, spec['template_spd_no'])
+    inner = build_register_payload(
+        template=template, spd_nm=spec['spd_nm'],
+        price=spec['price'], stock=spec['stock'],
+        options=spec.get('options') or None)
+    # 이미지·상세는 본보기 것 대신 드래프트 것으로 교체(구조는 본보기 유지)
+    itm = inner['itmLst'][0]
+    for img in (itm.get('itmImgLst') or []):
+        if isinstance(img, dict) and img.get('origImgFileNm'):
+            img['origImgFileNm'] = spec['image_url']
+    result = register_product(inner, client=client)   # spdNo 없으면 raise
+    spd_no = str(result['spdNo'])
+    # ★ 등록 직후 판매종료 — 롯데온은 등록 즉시 판매중(SALE)으로 뜬다. SOUT(품절)
+    #   대신 END(판매종료)를 쓰는 이유: SOUT 은 재고 수치에 연동돼, 이후 재고 동기화가
+    #   재고를 채우면 자동으로 판매중으로 되돌아갈 위험이 있다. END 는 재고와 무관하게
+    #   고정된다. 실패해도 product_id 는 잃지 않는다(best-effort). 실패 흔적은 result
+    #   안에 남겨 row.raw_json 으로 DB에 보이게 한다(로그만 남기면 조용한 실패가 된다
+    #   — 과거에 여러 번 겪은 「돈 잃는」 버그 유형).
+    # [재조회 검증] set_sale_status 는 status/change 응답의 **최상위 returnCode 만**
+    #   보고 boolean 을 만든다(products.py:344) — register_product 의 「함정2」(최상위
+    #   0000 이어도 data[] 항목별 resultCode 는 실패일 수 있음, 같은 spdLst 래퍼 구조)와
+    #   같은 위험을 안고 있고, set_sale_status 자체 docstring 도 "반환 True 여도
+    #   호출부가 get_product_detail 로 slStatCd 재조회 검증 권장"이라 명시한다. 그래서
+    #   True 를 받아도 get_product_detail 로 spdSlStatCd == 'END' 인지 재조회 확인한다.
+    from shared.platforms.lotteon.products import set_sale_status
+    try:
+        ok = set_sale_status(spd_no, 'END', client=client)
+        if not ok:
+            logger.warning('lotteon 판매종료 전환 실패 spdNo=%s', spd_no)
+            result['_suspend_failed'] = True
+        else:
+            try:
+                detail = get_product_detail(spd_no, client=client)
+            except Exception:  # noqa: BLE001
+                logger.exception('lotteon 판매종료 재조회 예외 spdNo=%s', spd_no)
+                result['_suspend_failed'] = True
+            else:
+                spd_sl_stat_cd = str((detail or {}).get('spdSlStatCd') or '')
+                if spd_sl_stat_cd != 'END':
+                    logger.warning(
+                        'lotteon 판매종료 재조회 검증 실패(응답은 성공이었으나 여전히 '
+                        '판매종료 아님) spdNo=%s spdSlStatCd=%s', spd_no, spd_sl_stat_cd)
+                    result['_suspend_failed'] = True
+    except Exception:  # noqa: BLE001
+        logger.exception('lotteon 판매종료 예외 spdNo=%s', spd_no)
+        result['_suspend_failed'] = True
+    return {'product_id': spd_no, 'raw': result}
+
+
+def register_live(market: str, spec: dict, account_key: str = '') -> dict:
+    """마켓별 실등록 디스패치 → {'product_id', 'raw'}. 실패는 예외.
+
+    account_key: UploadAccount.account_key. ''/'default'=첫 활성 계정.
+    """
+    if market in ('auction', 'gmarket'):
+        return _register_esm(market, spec, account_key)
+    if market == 'eleven11':
+        return _register_eleven11(spec, account_key)
+    if market == 'lotteon':
+        return _register_lotteon(spec, account_key)
+    raise ValueError(f'send_more 가 모르는 마켓: {market!r}')

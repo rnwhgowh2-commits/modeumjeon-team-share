@@ -13,32 +13,24 @@
       <div class="x-sub">오늘의 모음전 운영 현황</div>
     </div>
     <div class="x-acts">
-      <a href="/bundles/new" class="x-btn x-btn-pri">＋ 신규 모음전</a>
+      <a href="/bundles/new" class="x-btn x-btn-pri">+ 신규 모음전</a>
     </div>
   </div>
 
-  {# 4 KPI 타일 — v5 .grid-4 #}
-  <div class="x-grid-4">
+  {# KPI 타일 — [2026-07-30] 「미맵핑 큐」·「업로드 실패」 타일 제거(사장님 확정).
+     두 화면은 없어지고, 그 내용은 「자동화」의 수집·전송 이력 보고서로 들어간다.
+     「가격 변동」은 가던 곳(가격·재고 추적)이 없어져 링크를 떼고 숫자만 남긴다. #}
+  <div class="x-grid-4" style="grid-template-columns:repeat(2,1fr)">
     <a href="/bundles" class="x-kpi">
       <div class="x-kpi-lbl">모음전</div>
       <div class="x-kpi-val">{{ kpis.bundles|default(0) }}<span class="x-kpi-suf">개</span></div>
       <div class="x-kpi-sub">관리 중</div>
     </a>
-    <a href="/queue" class="x-kpi{% if kpis.unmapped %} warn{% endif %}">
-      <div class="x-kpi-lbl">미맵핑 큐</div>
-      <div class="x-kpi-val">{{ kpis.unmapped|default(0) }}<span class="x-kpi-suf">건</span></div>
-      <div class="x-kpi-sub">{% if kpis.unmapped %}매칭 처리 필요{% else %}모두 매칭 완료{% endif %}</div>
-    </a>
-    <a href="/track" class="x-kpi">
+    <div class="x-kpi" style="cursor:default">
       <div class="x-kpi-lbl">가격 변동</div>
       <div class="x-kpi-val">{{ kpis.price_changes|default(0) }}<span class="x-kpi-suf">건</span></div>
       <div class="x-kpi-sub">최근 24시간</div>
-    </a>
-    <a href="/dlq" class="x-kpi{% if kpis.upload_failed %} danger{% endif %}">
-      <div class="x-kpi-lbl">업로드 실패</div>
-      <div class="x-kpi-val">{{ kpis.upload_failed|default(0) }}<span class="x-kpi-suf">건</span></div>
-      <div class="x-kpi-sub">{% if kpis.upload_failed %}DLQ 재시도 필요{% else %}모두 정상{% endif %}</div>
-    </a>
+    </div>
   </div>
 
   {# 본문 — 최근 모음전(좌, 넓게) + 다음 자동 실행(우) — v5 .grid-2 2fr 1fr #}
@@ -66,7 +58,7 @@
         {% else %}
         <div class="x-empty">
           <p>등록된 모음전이 없어요.</p>
-          <a class="x-btn x-btn-pri" href="/bundles/new">＋ 신규 모음전 등록</a>
+          <a class="x-btn x-btn-pri" href="/bundles/new">+ 신규 모음전 등록</a>
         </div>
         {% endif %}
       </div>
@@ -137,87 +129,91 @@
 /* ─── v5 (시안 2 · 에어리) 홈 디자인 — 단일 진실 원천: home.html 인라인 ─── */
 
 /* 헤더 */
-.x-scr-head { display:flex; align-items:flex-end; gap:18px; margin:8px 0 22px; flex-wrap:wrap; }
+.x-scr-head { display:flex; align-items:flex-end; gap:16px; margin:8px 0 24px; flex-wrap:wrap; }
 .x-h1-col { flex:1; display:flex; flex-direction:column; gap:4px; }
-.x-h1 { margin:0; font-size:30px; font-weight:800; letter-spacing:-.02em; color:#191f28; }
-.x-sub { font-size:14px; color:#6b7684; }
+.x-h1 { margin:0; font-size:32px; font-weight:800; letter-spacing:0; color:var(--ink,#191f28); }
+.x-sub { font-size:14px; color:var(--글자-보조,#6b7684); }
 .x-acts { display:flex; gap:8px; }
-.x-btn { display:inline-flex; align-items:center; gap:6px; padding:11px 18px; border-radius:10px;
-  font-size:14px; font-weight:700; text-decoration:none; border:1px solid #e5e8eb;
-  background:#fff; color:#333d4b; cursor:pointer; transition:.15s; }
-.x-btn:hover { border-color:#aeb4bd; }
-.x-btn-pri { background:#3182f6; border-color:#3182f6; color:#fff; }
-.x-btn-pri:hover { background:#1f5fe0; border-color:#1f5fe0; color:#fff; }
+.x-btn { display:inline-flex; align-items:center; gap:4px; padding:12px 16px; border-radius:8px;
+  font-size:14px; font-weight:700; text-decoration:none; border:1px solid var(--line,#e5e8eb);
+  background:var(--surface,#ffffff); color:var(--ink,#333d4b); cursor:pointer; transition:.15s; }
+.x-btn:hover { border-color:var(--faint,#aeb4bd); }
+/* [2026-08-07 실측] 파란 판 위 글자가 검정으로 나와 대비 3.02·1.00 이었다(거의 안 보임).
+   범인은 이 규칙이 아니라 전역 `.ds a{color:inherit}` — 선택자 힘이 `.x-btn-pri`(0,1,0)보다
+   세서(0,1,1) 흰 글자를 덮고 어두운 본문색을 물려받게 만든다. 링크로 만든 색 버튼은
+   전부 같은 위험을 진다. 전역 규칙을 건드리면 전 화면에 번지므로 여기서 힘을 올린다. */
+.ds a.x-btn-pri, .x-btn-pri { background: var(--바탕-파랑, var(--primary,#3182f6)); border-color:var(--primary,#3182f6); color:#fff; }
+.ds a.x-btn-pri:hover, .x-btn-pri:hover { background: var(--바탕-파랑, var(--primary,#1f5fe0)); border-color:var(--primary,#1f5fe0); color:#fff; }
 
 /* 4 KPI 그리드 */
-.x-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
-.x-kpi { background:#fff; border:1px solid #e5e8eb; border-radius:18px; padding:24px;
-  text-decoration:none; color:inherit; box-shadow:0 4px 14px rgba(15,23,42,.04);
+.x-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+.x-kpi { background:var(--surface,#ffffff); border:1px solid var(--line,#e5e8eb); border-radius:18px; padding:24px;
+  text-decoration:none; color:inherit; 
   transition:.15s; display:block; }
-.x-kpi:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(15,23,42,.08); }
-.x-kpi-lbl { font-size:13px; font-weight:600; color:#6b7684; }
-.x-kpi-val { font-size:34px; font-weight:800; letter-spacing:-.02em; margin-top:8px; color:#191f28; font-variant-numeric:tabular-nums; }
-.x-kpi-suf { font-size:16px; color:#9aa0aa; font-weight:600; margin-left:3px; }
-.x-kpi-sub { font-size:12px; margin-top:4px; color:#6b7684; }
-.x-kpi.warn .x-kpi-val { color:#c2691a; }
-.x-kpi.danger .x-kpi-val { color:#dc2626; }
+.x-kpi:hover { transform:translateY(-2px);  }
+.x-kpi-lbl { font-size:12px; font-weight:600; color:var(--글자-보조,#6b7684); }
+.x-kpi-val { font-size:32px; font-weight:800; letter-spacing:0; margin-top:8px; color:var(--ink,#191f28); font-variant-numeric:tabular-nums; }
+.x-kpi-suf { font-size:17px; color: var(--글자-희미, var(--faint,#9aa0aa)); font-weight:600; margin-left:4px; }
+.x-kpi-sub { font-size:12px; margin-top:4px; color:var(--글자-보조,#6b7684); }
+.x-kpi.warn .x-kpi-val { color: var(--글자-주황, var(--amber,#c2691a)); }
+.x-kpi.danger .x-kpi-val { color: var(--글자-빨강, var(--red,#dc2626)); }
 
 /* 2-col 그리드 (최근 모음전 + 다음 자동 실행) */
-.x-grid-2 { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:18px; }
+.x-grid-2 { display:grid; grid-template-columns:2fr 1fr; gap:12px; margin-bottom:16px; }
 
 /* 카드 */
-.x-card { background:#fff; border:1px solid #e5e8eb; border-radius:18px;
-  box-shadow:0 4px 14px rgba(15,23,42,.04); overflow:hidden; }
-.x-card-h { display:flex; align-items:center; gap:10px; padding:16px 22px;
-  background:#fafbfc; border-bottom:1px solid #e5e8eb; }
-.x-card-t { font-size:15px; font-weight:700; color:#191f28; }
-.x-card-s { font-size:12.5px; color:#6b7684; }
-.x-card-link { margin-left:auto; font-size:13px; color:#3182f6; font-weight:700; text-decoration:none; }
+.x-card { background:var(--surface,#ffffff); border:1px solid var(--line,#e5e8eb); border-radius:18px;
+   overflow:hidden; }
+.x-card-h { display:flex; align-items:center; gap:8px; padding:16px 24px;
+  background:var(--n100,#fafbfc); border-bottom:1px solid var(--line,#e5e8eb); }
+.x-card-t { font-size:14px; font-weight:700; color:var(--ink,#191f28); }
+.x-card-s { font-size:12px; color:var(--글자-보조,#6b7684); }
+.x-card-link { margin-left:auto; font-size:12px; color: var(--글자-파랑, var(--primary,#3182f6)); font-weight:700; text-decoration:none; }
 .x-card-link:hover { text-decoration:underline; }
 .x-card-body { padding:8px 16px 12px; }
 .x-card-auto { margin-bottom:24px; }
 
 /* 최근 모음전 행 */
-.x-row { display:flex; align-items:center; gap:12px; padding:11px 6px;
-  border-bottom:1px solid #f0f1f3; text-decoration:none; color:inherit; border-radius:8px; }
+.x-row { display:flex; align-items:center; gap:12px; padding:12px 4px;
+  border-bottom:1px solid var(--line2,#f0f1f3); text-decoration:none; color:inherit; border-radius:8px; }
 .x-row:last-child { border-bottom:none; }
-.x-row:hover { background:#fafbfc; }
-.x-row-ic { font-size:20px; width:30px; text-align:center; flex:none; }
-.x-row-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.x-row-nm { font-weight:600; font-size:14px; color:#191f28; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.x-row-sub { font-size:11.5px; color:#9aa0aa; font-family:ui-monospace,monospace; }
-.x-row-time { font-size:12px; color:#9aa0aa; font-family:ui-monospace,monospace; flex:none; width:84px; text-align:right; }
-.x-row-arrow { color:#c4cad2; flex:none; }
+.x-row:hover { background:var(--n100,#fafbfc); }
+.x-row-ic { font-size:17px; width:30px; text-align:center; flex:none; }
+.x-row-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:0px; }
+.x-row-nm { font-weight:600; font-size:14px; color:var(--ink,#191f28); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.x-row-sub { font-size:12px; color: var(--글자-희미, var(--faint,#9aa0aa)); font-family:ui-monospace,monospace; }
+.x-row-time { font-size:12px; color: var(--글자-희미, var(--faint,#9aa0aa)); font-family:ui-monospace,monospace; flex:none; width:84px; text-align:right; }
+.x-row-arrow { color: var(--글자-희미, var(--line,#c4cad2)); flex:none; }
 
 /* 스케줄 행 */
-.x-sch-row { display:flex; align-items:center; gap:12px; padding:11px 6px; border-bottom:1px solid #f0f1f3; }
+.x-sch-row { display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line2,#f0f1f3); }
 .x-sch-row:last-child { border-bottom:none; }
-.x-sch-time { font-family:ui-monospace,monospace; font-weight:700; font-size:13px; color:#191f28; width:52px; flex:none; }
-.x-sch-body { flex:1; display:flex; flex-direction:column; gap:2px; }
-.x-sch-nm { font-weight:600; font-size:13px; color:#191f28; }
-.x-sch-sub { font-size:11.5px; color:#9aa0aa; }
+.x-sch-time { font-family:ui-monospace,monospace; font-weight:700; font-size:12px; color:var(--ink,#191f28); width:52px; flex:none; }
+.x-sch-body { flex:1; display:flex; flex-direction:column; gap:0px; }
+.x-sch-nm { font-weight:600; font-size:12px; color:var(--ink,#191f28); }
+.x-sch-sub { font-size:12px; color: var(--글자-희미, var(--faint,#9aa0aa)); }
 
 /* 토글 행 */
 .x-tog-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:0; }
-.x-tog-row { display:flex; align-items:center; gap:10px; padding:11px 12px; border-bottom:1px solid #f0f1f3; }
+.x-tog-row { display:flex; align-items:center; gap:8px; padding:12px 12px; border-bottom:1px solid var(--line2,#f0f1f3); }
 .x-tog-row:last-child, .x-tog-row:nth-last-child(2) { border-bottom:none; }
-.x-tog-nm { flex:1; font-size:13px; font-weight:600; color:#191f28; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.x-tog-nm:hover { color:#3182f6; }
+.x-tog-nm { flex:1; font-size:12px; font-weight:600; color:var(--ink,#191f28); text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.x-tog-nm:hover { color: var(--글자-파랑, var(--primary,#3182f6)); }
 .x-switch { position:relative; display:inline-block; width:38px; height:22px; flex:none; }
 .x-switch input { opacity:0; width:0; height:0; }
-.x-switch-s { position:absolute; cursor:pointer; inset:0; background:#cdd1d8; border-radius:22px; transition:.2s; }
-.x-switch-s::before { position:absolute; content:''; width:16px; height:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
-.x-switch input:checked + .x-switch-s { background:#3182f6; }
+.x-switch-s { position:absolute; cursor:pointer; inset:0; background:var(--line,#cdd1d8); border-radius:18px; transition:.2s; }
+.x-switch-s::before { position:absolute; content:''; width:16px; height:16px; left:3px; bottom:3px; background:var(--surface,#ffffff); border-radius:50%; transition:.2s; }
+.x-switch input:checked + .x-switch-s { background:var(--primary,#3182f6); }
 .x-switch input:checked + .x-switch-s::before { transform:translateX(16px); }
 
 /* 알약 */
-.x-pill { font-size:11px; font-weight:700; padding:3px 9px; border-radius:6px; flex:none; }
-.x-pill-ok { background:#eafaf1; color:#1f9d57; }
-.x-pill-mute { background:#f0f1f3; color:#8b95a1; }
+.x-pill { font-size:12px; font-weight:700; padding:4px 8px; border-radius:8px; flex:none; }
+.x-pill-ok { background:var(--연한-초록,#eafaf1); color: var(--글자-초록, var(--green,#1f9d57)); }
+.x-pill-mute { background:var(--line2,#f0f1f3); color:var(--sub,#8b95a1); }
 
 /* 빈 상태 */
-.x-empty { padding:32px 24px; text-align:center; color:#9aa0aa; }
-.x-empty p { margin:0 0 12px; font-size:13px; }
+.x-empty { padding:32px 24px; text-align:center; color: var(--글자-희미, var(--faint,#9aa0aa)); }
+.x-empty p { margin:0 0 12px; font-size:12px; }
 
 @media (max-width: 1200px) { .x-grid-4 { grid-template-columns:repeat(2,1fr); } }
 @media (max-width: 900px) { .x-grid-2 { grid-template-columns:1fr; } .x-tog-grid { grid-template-columns:1fr; } }

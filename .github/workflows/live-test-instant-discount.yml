@@ -1,0 +1,88 @@
+# ════════════════════════════════════════════════════════════
+# 즉시할인 실전송 검증(수동 · 쓰기) — 시험 상품 1개에 걸었다가 **원래대로 되돌린다**
+# ════════════════════════════════════════════════════════════
+# ⚠️ 이 워크플로는 **마켓에 실제로 씁니다**(스마트스토어 상품 수정 PUT).
+#    읽기 전용 프로브(product-catalog-probe.yml)와 **섞지 않습니다** — 그 워크플로는
+#    「읽기 전용」이 계약이고, 쓰기를 끼워 넣으면 다음 사람이 안심하고 돌리다 사고 납니다.
+#
+# 안전장치 3겹
+#   ① 대상은 입력으로 **직접 적어야** 한다(기본값 없음 — 실수로 눌러도 안 돈다)
+#   ② 스크립트가 원래 값을 먼저 읽어 두고, 끝나면 **그대로 되돌린다**
+#   ③ 되돌리기 실패 시 크게 외치고 exit 1 (조용히 끝나지 않는다)
+#
+# 실행: GitHub → Actions → "즉시할인 실전송 검증(수동)" → Run workflow
+# ════════════════════════════════════════════════════════════
+name: 즉시할인 실전송 검증(수동)
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel_no:
+        description: '스마트스토어 채널상품번호 (판매중지 시험 상품만 · 기본값 없음)'
+        required: true
+      i_understand:
+        description: '마켓에 실제로 씁니다. 진행하려면 YES 라고 적으세요'
+        required: true
+        default: 'NO'
+      target:
+        description: '무엇을 검증할지 — smartstore(즉시 적용) / coupang(다음날 0시)'
+        required: false
+        default: 'smartstore'
+      account:
+        description: 'coupang 일 때 계정 (기본 세소쿠팡)'
+        required: false
+        default: '세소쿠팡'
+      coupang_mode:
+        description: 'coupang 일 때만 — create / verify / expire / diag(읽기전용 진단)'
+        required: false
+        default: 'create'
+
+jobs:
+  live-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 확인 문구 검사
+        env:
+          RAW_OK: ${{ inputs.i_understand }}
+        run: |
+          if [ "$RAW_OK" != "YES" ]; then
+            echo "확인 문구가 YES 가 아니라 멈춥니다 (입력: $RAW_OK)"; exit 1
+          fi
+
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/ls_key
+          chmod 600 ~/.ssh/ls_key
+
+      - name: 실전송 검증 (컨테이너 안에서)
+        env:
+          RAW_CH: ${{ inputs.channel_no }}
+          RAW_TARGET: ${{ inputs.target }}
+          RAW_CPMODE: ${{ inputs.coupang_mode }}
+          RAW_ACCT: ${{ inputs.account }}
+        run: |
+          set -o pipefail
+          # 입력은 전부 허용목록으로 검사한 뒤에만 명령줄에 쓴다.
+          case "$RAW_TARGET" in
+            ''|smartstore) SCRIPT='프로그램/_시스템/scripts/live_test_instant_discount.py' ;;
+            coupang)       SCRIPT='프로그램/_시스템/scripts/live_test_coupang_coupon.py' ;;
+            *) echo "모르는 대상: $RAW_TARGET"; exit 1 ;;
+          esac
+          case "$RAW_CPMODE" in
+            ''|create|verify|expire|diag) CPMODE="${RAW_CPMODE:-create}" ;;
+            *) echo "모르는 모드: $RAW_CPMODE"; exit 1 ;;
+          esac
+          case "$RAW_CH" in
+            ''|*[!0-9]*) echo "상품번호는 숫자만: $RAW_CH"; exit 1 ;;
+          esac
+          cat "$SCRIPT" \
+            | ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new \
+              -o ConnectTimeout=20 ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" \
+              "C=\$(sudo docker ps --format '{{.Names}}' | grep -i modeum | head -1); \
+               if [ -z \"\$C\" ]; then echo '모음전 컨테이너를 못 찾았습니다'; exit 1; fi; \
+               echo \"컨테이너: \$C\"; \
+               sudo docker exec -i -w /app -e TEST_CHANNEL_NO='$RAW_CH'                  -e TEST_PRODUCT='$RAW_CH' -e MODE='$CPMODE' -e TEST_ACCOUNT=\"$RAW_ACCT\" \"\$C\" python -"

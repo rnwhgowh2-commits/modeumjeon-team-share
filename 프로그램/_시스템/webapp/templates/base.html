@@ -1,11 +1,31 @@
 <!DOCTYPE html>
-<html lang="ko">
+{# [2026-08-01] 디자인 타입을 <html> 에도 붙인다.
+   화면들이 `:root{ --color-text-primary: var(--ink,#191F28) }` 처럼 자기 색 이름을
+   **:root(=html)에서** 만든다. 그런데 .ds 가 html 에 없으면 그 자리에서
+   var(--ink) 가 밝은 예비값으로 **굳어 버린다** — 이후 어느 후손이 써도 밝은 값이다.
+   실측: 판매처 로그인 화면 이름표가 어두운 판 위 #4E5968(2.37) · 단추 글자 1.01.
+   「기존 타입」은 이 값이 빈 문자열이라 한 글자도 안 붙는다. #}
+<html lang="ko" data-design="light" class="{{ design_body_class|default('ds ds-light') }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# [Task 7] 폰 앱 껍데기 CSS — 설치된 앱+좁은 화면에서만 mobile_shell.js 가 켠다(그 전엔 죽은 규칙).
+   🔴 ms_tab_rows 는 ENVIRONMENT=team-share-dev 에서만 정의된다(app.py 의 mobile_shell 등록 게이트)
+   — is defined 가드 없이 쓰면 게이트 꺼진 배포에서 이 템플릿을 물려받는 157개 화면 전부가 500 난다. #}
+{% if ms_tab_rows is defined %}<link rel="stylesheet" href="{{ url_for('static', filename='mobile_shell.css') }}">{% endif %}
 <title>{% block title %}모음전 자동화{% endblock %}</title>
+{# [2026-08-06 PERF] 바깥 글꼴·아이콘 서버와 미리 손잡아 둔다.
+   이 두 줄이 없으면 브라우저는 아래 <link> 를 만나고 나서야 주소찾기(DNS)→연결→암호화(TLS)
+   3단계를 시작한다. 그 사이 화면은 아무것도 못 그린다(둘 다 렌더 차단 CSS).
+   미리 손잡아 두면 그 준비가 HTML 읽는 동안 병렬로 끝난다. #}
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+{# 🔴 [2026-08-03] Inter 글꼴 내려받기를 뺐다.
+   쓰기로 정한 적이 없는 글꼴인데 stripe.css 가 --font 맨 앞에 두는 바람에
+   화면 글자가 Inter 로 그려지고 있었다(한글은 글자가 없어 Pretendard 로 떨어짐
+   → 한 화면 안에서 한글과 숫자·영문의 획 굵기가 갈렸다).
+   글꼴은 Pretendard 한 벌 — 규칙서 tokens.css --글꼴. #}
 {# 사이드바 v3 — Phosphor light 라인 아이콘 (1,248개, 사용자 선택 시 색상 자유 변경) #}
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}?v={{ STATIC_VER }}">
@@ -31,52 +51,112 @@
 {% endif %}
 {# 시안 2 (에어리) 디자인 베이스 — Phase 1: 홈 + 모음전 옵션탭. 다른 페이지 영향 최소화. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='airy.css') }}">
+{# 팝업창 크기 드래그 조절 — 전역(모든 모달·팝오버 공통) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='modal_resize.css') }}?v=20260723_mrz2">
+{# 디자인 규칙(크기·여백·색) 단일 진실 원천 — 정본 docs/디자인-규칙.md
+   ★ 반드시 맨 마지막. 앞 CSS 들이 같은 변수를 서로 덮고 있어 뒤에 와야 이긴다.
+   ★ 지금은 크기·여백 변수만 :root 에 얹는다(쓰는 곳이 아직 없어 화면은 안 바뀐다).
+     색은 class="ds" 를 붙인 화면에만 적용된다 → 화면 하나씩 옮긴다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}?v={{ STATIC_VER }}">
+{# 어두운 모드에서 「화면이 자기 안에서 다시 정의한 공용 색 이름」을 되돌린다.
+   주문 화면 등이 `.o7 { --ink:#191F28 }` 처럼 밝은 색을 못 박아 두어, 검정 배경에
+   검정 글자가 되던 문제(라이브 실측 507곳·최악 대비 1.11). 규칙이 전부
+   `.ds.ds-dark …` 로만 걸려 있어 「현재」·「밝은 카드」 모드에는 아무 영향이 없다.
+   만드는 곳 = scripts/gen_scope_fix.py (손으로 고치지 말 것) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='scope_fix.css') }}?v={{ STATIC_VER }}">
+{# 어두운 모드 배지 짝 맞추기 — 바탕·글자 중 한쪽만 테마를 따라가 어긋난 곳.
+   이것도 전부 `.ds.ds-dark …` 로만 걸려 「현재」·「밝은 카드」에는 영향이 없다. #}
+{# 흰 글자를 얹은 색 판 — **모든 새 타입 공통**(밝은 타입에서도 안 읽힌다).
+   새면 검사가 막는다). 손으로 쓰는 파일 — 기존 타입에는 .ds 가 없어 통째로 잠든다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='badge_bg_fix.css') }}?v={{ STATIC_VER }}">
+{# [2026-07-31] 요소에 직접 박힌 색 덮개.
+   화면 곳곳에 요소마다 직접 박힌 색이 1,600곳 넘게 있어,
+   글자만 밝아지고 배경은 흰색으로 남아 「흰 글자에 흰 배경」이 되고 있었다.
+   ★ 맨 나중에 실어야 이긴다. 이것도 전부 `.ds …` 로만 걸려 「기존 타입」엔 영향 0.
+   만드는 곳 = scripts/gen_inline_color_fix.py (손으로 고치지 말 것) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}?v={{ STATIC_VER }}">
+{# [2026-08-03] 글꼴 한 벌 — 화면마다 굴림체·맑은 고딕으로 갈리던 것을 Pretendard 로.
+   라이브 실측 131개 화면 중 40곳이 규칙 밖 글꼴이었다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='font_unify.css') }}?v={{ STATIC_VER|default('') }}">
+{# [2026-08-03] 표 정렬 — 머리글과 내용을 둘 다 가운데로 (사장님 확정 「1-C」).
+   머리글 칸에 아무 표시가 없어 값(오른쪽)과 최대 287px 벌어져 있던 것을 고친다.
+   긴 글이 든 칸은 왼쪽으로 남긴다 — 어느 칸이 긴 글인지는 table_align.js 가 잰다.
+   ★ 맨 나중에 실어야 이긴다. 자바스크립트가 막히면 아예 안 걸려 지금 화면 그대로. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER }}">
+<script src="{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER }}" defer></script>
 <script>
   // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
+  // [2026-07-31] 고르는 버튼을 없앴으므로 토스 하나로 고정한다.
+  //   예전에 stripe 를 골라 둔 브라우저는 localStorage 에 그 값이 남아 있는데,
+  //   버튼이 사라진 뒤에도 그대로 두면 되돌릴 방법이 없어 갇힌다 → 여기서 지운다.
   (function(){
-    var t = localStorage.getItem('theme') || 'toss';
-    document.documentElement.setAttribute('data-theme', t);
+    try { if (localStorage.getItem('theme') !== 'toss') localStorage.setItem('theme', 'toss'); } catch (e) {}
+    document.documentElement.setAttribute('data-theme', 'toss');
   })();
 </script>
 <style id="url-go-common">
   /* [2026-05-27] 공통 URL 바로가기 ↗ 버튼 — 프로그램 전체에서 같은 디자인
      적용: P2 sources/detail, P3 매핑 매트릭스, P4 소싱처 추가, P5 실행 로그 + 옵션 매핑 모달 */
-  .url-go { background:transparent; border:1px solid #d1d6db; border-radius:4px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#4e5968; font-size:13px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; vertical-align:middle; }
-  .url-go:hover { background:#3B82F6; color:#fff; border-color:#3B82F6; }
+  .url-go { background:transparent; border:1px solid var(--faint,#d1d6db); border-radius:0px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--글자-기본,#4e5968); font-size:12px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; vertical-align:middle; }
+  .url-go:hover { background: var(--바탕-파랑, var(--primary,#3B82F6)); color:#fff; border-color:var(--primary,#3B82F6); }
   .url-go:active { transform:scale(.95); }
   /* 어두운 배경(실행 로그 등) — 다크 modifier */
-  .url-go.dark { background:#374151; border-color:#4b5563; color:#fff; }
-  .url-go.dark:hover { background:#3B82F6; border-color:#3B82F6; }
+  .url-go.dark { background: var(--바탕-진하게, var(--ink,#374151)); border-color:var(--글자-기본,#4b5563); color:#fff; }
+  .url-go.dark:hover { background:var(--primary,#3B82F6); border-color:var(--primary,#3B82F6); }
 </style>
 {% block head %}{% endblock %}
 </head>
-<body>
-<div class="app">
-  {# * STEP 7 Task 0.3 — 사이드바 swap (ADR-004): inventory 진입 시 박스히어로식 #}
+{# [2026-08-01] 디자인 타입을 <body> 에도 붙인다.
+   `.app` 바깥에 있는 것들(알림 벨 패널 등)은 여기 안 붙이면 타입이 아예 안 걸려
+   검정 화면인데 그 판만 흰색으로 남는다(감사 실측: 알림 판 안 글자 48곳).
+   바탕색도 함께 잡힌다 — 예전엔 .app 밖 바탕이 밝은 회색으로 비쳤다.
+   「기존 타입」은 이 값이 빈 문자열이라 한 글자도 안 붙는다. #}
+<body class="{{ design_body_class|default('') }}">
+{# [배치 재설계] 새 디자인 모드에서는 왼쪽 사이드바 대신 애플식 상단 탭을 쓴다.
+   「현재」 모드는 한 줄도 바뀌지 않는다 — 새 디자인이 깨졌을 때 돌아올 자리이기 때문이다.
+   메뉴 원천은 양쪽 모두 sidebar_layout 하나다(webapp/nav_top.py 가 옮겨 담는다). #}
+{# [2026-08-02] 옛 「기존 타입」 조건 삭제 — 타입이 화이트 하나뿐이라 늘 켠다 #}
+{% set _topnav_on = topnav is defined and topnav and topnav.get('tabs') %}
+<div class="app {{ design_body_class|default('') }}{% if _topnav_on %} tn-on{% endif %}">
+  {% if _topnav_on %}
+    {% include 'partials/topnav.html' %}
+    <div class="tn-body">
+  {% endif %}
   {% if active_app == 'inventory' %}
+    {# ★ STEP 7 Task 0.3 — 사이드바 swap (ADR-004): inventory 진입 시 박스히어로식
+       ★ 상단 탭을 써도 이 사이드바는 남긴다 — 여기에만 있는 링크가 20개가 넘는다
+         (/inventory/adjust·count·barcode…). 지우면 그 화면들로 갈 길이 사라진다. #}
     {% include 'inventory/partials/sidebar_inventory.html' %}
-  {% else %}
+  {% elif active_app == 'bulk' %}
+    {# 마찬가지 — bulk 하위 탭은 여기에만 있다 #}
+    {% include 'bulk/partials/sidebar_bulk.html' %}
+  {% elif not _topnav_on %}
     {% include 'partials/sidebar.html' %}
   {% endif %}
   <main class="main">
-    {# 상단 nav 제거 — 모음전/재고관리 모드 스위처는 사이드바 brand 아래 큰 카드 2개 (M3) #}
+    {# 상단 nav 제거 — 모드 스위처는 사이드바 brand 아래 큰 카드 (M3, partials/_modeswitch.html) #}
     {% block content %}{% endblock %}
   </main>
+  {% if _topnav_on %}</div>{% endif %}
 </div>
+
+{# 디자인 타입 드롭버튼 — 화면 오른쪽 위 붙박이. 4타입 어디서든 같은 자리.
+   사이드바·상단탭·내 계정에 흩어져 있던 세 벌을 이 하나로 합쳤다. #}
+{# [2026-08-02 사장님 확정] 디자인 고르는 단추 제거 — 화이트 타입 하나만 쓴다 #}
 
 {# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}
 {% if active_app == 'inventory' %}
 <div id="bell-wrap" style="position:fixed;top:16px;right:130px;z-index:500">
-  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,#E5E8EB);border-radius:999px;cursor:pointer;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:var(--surface,#ffffff);border:1.5px solid var(--n200,var(--line,#E5E8EB));border-radius:999px;cursor:pointer;font-size:17px;">
     <i class="ph-light ph-bell" aria-hidden="true"></i>
-    <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:#C53030;color:#fff;border-radius:999px;font-size: 12px;font-weight:700;line-height:16px;text-align:center">0</span>
+    <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:var(--red,#C53030);color:#fff;border-radius:999px;font-size: 12px;font-weight:700;line-height:16px;text-align:center">0</span>
   </button>
-  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,#E5E8EB);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);overflow:hidden">
-    <div style="padding:12px 14px;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;gap:8px">
-      <strong style="font-size:13px;color:#191F28">알림</strong>
-      <a href="/inventory/notifications" style="margin-left:auto;font-size: 14px;color:#3182F6;text-decoration:none">전체 보기 →</a>
+  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:var(--surface,#ffffff);border:1.5px solid var(--n200,var(--line,#E5E8EB));border-radius:8px;overflow:hidden">
+    <div style="padding:12px 12px;border-bottom:1px solid var(--n100,#F2F4F6);display:flex;align-items:center;gap:8px">
+      <strong style="font-size:12px;color:var(--ink,#191F28)">알림</strong>
+      <a href="/inventory/notifications" style="margin-left:auto;font-size: 14px;color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none">전체 보기 →</a>
     </div>
-    <div id="bell-list" style="max-height:360px;overflow-y:auto"><div style="padding:30px;text-align:center;color:#9CA3AF;font-size: 14px">로딩...</div></div>
+    <div id="bell-list" style="max-height:360px;overflow-y:auto"><div style="padding:32px;text-align:center;color: var(--글자-희미, var(--faint,#9CA3AF));font-size: 14px">로딩...</div></div>
   </div>
 </div>
 <script>
@@ -93,13 +173,13 @@
   }
   function loadRecent(){
     fetch('/inventory/api/notifications/recent').then(r=>r.json()).then(d=>{
-      if(!d.items || !d.items.length){ list.innerHTML='<div style="padding:36px;text-align:center;color:#9CA3AF;font-size: 14px">새 알림이 없습니다</div>'; return; }
+      if(!d.items || !d.items.length){ list.innerHTML='<div style="padding:32px;text-align:center;color: var(--글자-희미, var(--faint,#9CA3AF));font-size: 14px">새 알림이 없습니다</div>'; return; }
       list.innerHTML = d.items.map(n => {
         const icon = n.severity==='error'?'🛑':(n.severity==='warning'?'⚠️':(n.severity==='success'?'✅':'ℹ'));
         const bg = n.is_read?'#fff':'#F0F9FF';
-        return `<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid #F2F4F6;background:${bg}"><span style="font-size:15px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size: 14px;font-weight:600;color:#191F28;margin-bottom:2px">${n.title}</div>${n.body?`<div style="font-size: 14px;color:#4E5968;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${n.body}</div>`:''}<div style="font-size: 12px;color:#9CA3AF;margin-top:3px">${n.created_at}</div></div></div>`;
+        return `<div style="display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--n100,#F2F4F6);background:${bg}"><span style="font-size:14px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size: 14px;font-weight:600;color:var(--ink,#191F28);margin-bottom:0px">${n.title}</div>${n.body?`<div style="font-size: 14px;color:var(--글자-기본,#4E5968);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${n.body}</div>`:''}<div style="font-size: 12px;color: var(--글자-희미, var(--faint,#9CA3AF));margin-top:4px">${n.created_at}</div></div></div>`;
       }).join('');
-    }).catch(()=>{ list.innerHTML='<div style="padding:30px;text-align:center;color:#EF4444;font-size: 14px">로딩 실패</div>'; });
+    }).catch(()=>{ list.innerHTML='<div style="padding:32px;text-align:center;color:#EF4444;font-size: 14px">로딩 실패</div>'; });
   }
   btn.addEventListener('click', e => { e.stopPropagation(); const open = panel.style.display==='block'; panel.style.display = open?'none':'block'; if(!open) loadRecent(); });
   document.addEventListener('click', e => { if(!btn.contains(e.target) && !panel.contains(e.target)) panel.style.display='none'; });
@@ -109,391 +189,22 @@
 </script>
 {% endif %}
 
-{# 테마 토글 (우상단 floating) #}
-<div id="theme-toggle-wrap" style="position:fixed;top:16px;right:20px;z-index:500">
-  <button id="theme-toggle-btn" type="button" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#fff;border:1.5px solid var(--n200);border-radius:999px;cursor:pointer;font-family:inherit;font-size: 14px;font-weight:700;color:var(--n800);box-shadow:0 2px 8px rgba(0,0,0,0.06)">
-    <span id="theme-toggle-emoji"><i class="ph-light ph-palette" aria-hidden="true"></i></span>
-    <span id="theme-toggle-name">토스</span>
-    <span style="color:var(--n400);font-size: 12px">▾</span>
-  </button>
-  <div id="theme-toggle-menu" style="display:none;position:absolute;top:38px;right:0;background:#fff;border:1.5px solid var(--n200);border-radius:10px;padding:6px;min-width:200px;box-shadow:0 8px 20px rgba(0,0,0,0.12)">
-    <button class="theme-opt" data-theme="toss" type="button" style="width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;display:flex;align-items:center;gap:8px">
-      <span style="font-size:16px"><i class="ph-light ph-palette" aria-hidden="true"></i></span>
-      <div style="flex:1"><div style="color:var(--n900)">토스 (현재)</div><div style="font-size: 12px;color:var(--n500);font-weight:500;margin-top:1px">파랑 + 미니멀 + 카드</div></div>
-      <span class="theme-check" data-for="toss" style="color:var(--primary);display:none"><i class="ph-light ph-check" aria-hidden="true"></i></span>
-    </button>
-    {# Stripe 테마 옵션은 Toss-Plus 단일 결정으로 숨김 (v6 — 2026-05-07).
-       완전 제거 전 1주 보관. localStorage 'theme'=stripe 인 사용자 보호. #}
-    <button class="theme-opt" data-theme="stripe" type="button" style="display:none;width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;align-items:center;gap:8px;margin-top:2px">
-      <span style="font-size:16px"><i class="ph-light ph-heart" aria-hidden="true"></i></span>
-      <div style="flex:1"><div style="color:#0A2540">Stripe Modern</div><div style="font-size: 12px;color:#425466;font-weight:500;margin-top:1px">보라 + 그라데이션 + Inter</div></div>
-      <span class="theme-check" data-for="stripe" style="color:#635BFF;display:none"><i class="ph-light ph-check" aria-hidden="true"></i></span>
-    </button>
-  </div>
-</div>
-<script>
-  (function(){
-    const btn = document.getElementById('theme-toggle-btn');
-    const menu = document.getElementById('theme-toggle-menu');
-    const emoji = document.getElementById('theme-toggle-emoji');
-    const nameEl = document.getElementById('theme-toggle-name');
-    const themes = {
-      // 2026-08-19 디자인 통일 — 그림문자 대신 선 아이콘 이름
-      'toss': {icon:'palette', name:'토스'},
-      'stripe': {icon:'paint-brush', name:'Stripe'},
-    };
-    function updateUI(t) {
-      const meta = themes[t] || themes.toss;
-      emoji.innerHTML = '<i class="ph-light ph-' + meta.icon + '" aria-hidden="true"></i>';
-      nameEl.textContent = meta.name;
-      document.querySelectorAll('.theme-check').forEach(c => {
-        c.style.display = c.dataset.for === t ? 'inline' : 'none';
-      });
-    }
-    function setTheme(t) {
-      document.documentElement.setAttribute('data-theme', t);
-      localStorage.setItem('theme', t);
-      updateUI(t);
-    }
-    btn.addEventListener('click', e => { e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? 'block' : 'none'; });
-    document.addEventListener('click', () => { menu.style.display = 'none'; });
-    document.querySelectorAll('.theme-opt').forEach(el => {
-      el.addEventListener('click', e => { e.stopPropagation(); setTheme(el.dataset.theme); menu.style.display = 'none'; });
-      el.addEventListener('mouseenter', () => el.style.background = 'var(--n100)');
-      el.addEventListener('mouseleave', () => el.style.background = 'transparent');
-    });
-    updateUI(localStorage.getItem('theme') || 'toss');
-  })();
-</script>
+{# [2026-07-31] 테마 토글(🎨 토스) 삭제 — 고를 게 하나뿐인 죽은 버튼이었다.
+   Stripe 옵션은 2026-05-07 에 이미 숨겨져 목록에 「토스」만 남아 있었다.
+   테마 값 자체는 <head> 초기화 스크립트가 계속 넣는다(화면 색은 그대로). #}
 
-<script src="{{ url_for('static', filename='toss.js') }}?v=20260606_extcrawl"></script><!-- [주의] toss.js 수정 시 이 버전 문자열 반드시 갱신 (정적 캐시 max-age=1일 우회) -->
-<script src="{{ url_for('static', filename='ext_bridge.js') }}?v=20260606_extbridge"></script><!-- 모음전 크롤러 확장 브리지 — window.MoumExt (설치감지·크롤요청) -->
+<script>/* [2026-06-30 단일명부] 소싱처 라벨 단일원천(get_labels) — JS 표면이 명부 이름을 씀 */
+window.MOUM_SOURCE_LABELS = {{ (source_labels or {})|tojson }};</script>
+<script src="{{ url_for('static', filename='toss.js') }}?v=20260819_oum_saved_flash"></script><!-- ⚠️ toss.js 수정 시 이 버전 문자열 반드시 갱신 (정적 캐시 max-age=1일 우회) | v 갱신: 옵션 조합 창 저장→목록이동 뒤 flash 전역 처리 -->
+
+<script src="{{ url_for('static', filename='ext_bridge.js') }}?v=20260716_send"></script><!-- 모음전 크롤러 확장 브리지 — window.MoumExt | v 갱신: getCrawlState.progress(확장 실시간 집계 캐시) 링 실시간 -->
+<script src="{{ url_for('static', filename='crawl_log.js') }}?v=20260706_overall2"></script><!-- 실시간 크롤 대시보드 (… + 도킹/폭드래그 시안B + 폭=드래그전용 · Ctrl+휠=위젯 줌1.0~2.0× · 그냥 휠=내부 세로 스크롤) -->
+<script src="{{ url_for('static', filename='matrix_hscroll.js') }}?v=20260622_hscroll4"></script><!-- 매트릭스 가로 스크롤 떠있는 바 — 긴 테이블에서도 닿는 위치에 가로 스크롤(위젯에 가린 소싱처 컬럼 보기) -->
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
-<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260606_v34_matrixdrag"></script><!-- 2026-06-06 v34 — 옵션 축 정렬(오름/내림)+매트릭스 헤더 드래그+칩 드래그 수동순서, 저장 시 sort_order 기록. [주의] option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
+<script src="{{ url_for('static', filename='modal_resize.js') }}?v=20260723_mrz2"></script><!-- 팝업창 크기 드래그 조절 — 오른쪽·왼쪽·아래·모서리 손잡이, 크기 기억, 우하단 더블클릭=초기화 -->
+<script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260819_unbuilt_ctx"></script><!-- 2026-08-19 v61 — SKU 번호 격자(㉰) 추가: 품번·바코드·GTIN 을 줄=SKU·칸=번호로 입력, 자체 바코드 생성(빈 칸만), 저장. 🔴 이전 버전의 CSS 주석 속 백틱이 template literal 을 조기 종료시켜 전체 모달이 깨져 있던 것도 같이 고쳤다. + [2026-08-19] 매트릭스 셀 우클릭 → 미구성 SKU 등록(W12) — 기존 adopt-sku API 연결, 성공 시 그 자리만 즉시 반영(재조회 없음). 현재 3,300줄대. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
+<script src="{{ url_for('static', filename='nav_prefetch.js') }}" defer></script><!-- [2026-08-06 PERF] 탭·메뉴에 마우스 올리면 다음 화면을 미리 받아 둔다 → 누르자마자 뜬다 -->
 
-{# ────────── v27 시안 ③ — 전역 진행 widget (크롤·업로드, 페이지 이동 유지) ────────── #}
-<div id="g-progress-widget" style="display:none">
-  <div id="gpw-collapsed" title="진행 중 — 클릭해 펼치기">
-    <span id="gpw-pct">0%</span>
-  </div>
-  <div id="gpw-expanded" hidden>
-    <div class="gpw-head">
-      <span class="gpw-dot"></span>
-      <span class="gpw-title" id="gpw-title">진행 중</span>
-      <button type="button" class="gpw-collapse" title="접기">▾</button>
-    </div>
-    <div id="gpw-tasks"></div>
-  </div>
-</div>
-<style>
-  #g-progress-widget {
-    position: fixed; top: 62px; right: 20px; z-index: 600;
-    font-family: var(--font, "Pretendard", sans-serif);
-  }
-  @keyframes gpw-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-  @keyframes gpw-fadein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-  #gpw-collapsed {
-    background: #03C75A; color: #fff; width: 52px; height: 52px;
-    border-radius: 50%; box-shadow: 0 6px 18px rgba(3,199,90,.36);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; position: relative; font-weight: 800;
-    font-family: ui-monospace, monospace; font-size: 14px;
-    animation: gpw-fadein .25s ease;
-  }
-  #gpw-collapsed::before {
-    content: ''; position: absolute; inset: -4px; border-radius: 50%;
-    border: 2px solid #03C75A; opacity: .35; animation: gpw-pulse 1.4s ease infinite;
-  }
-  #gpw-expanded {
-    background: #fff; border: 1.5px solid #03C75A; border-radius: 12px;
-    padding: 14px 16px; width: 340px;
-    box-shadow: 0 12px 32px rgba(0,0,0,.14);
-    animation: gpw-fadein .2s ease;
-  }
-  #gpw-expanded .gpw-head {
-    display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800;
-    color: #191F28; margin-bottom: 10px;
-  }
-  #gpw-expanded .gpw-dot {
-    width: 8px; height: 8px; border-radius: 50%; background: #03C75A;
-    animation: gpw-pulse 1.2s ease infinite;
-  }
-  #gpw-expanded .gpw-collapse {
-    margin-left: auto; background: none; border: none; cursor: pointer;
-    color: #8B95A1; font-size: 14px;
-  }
-  #gpw-tasks .gpw-task {
-    background: #F9FAFB; border-radius: 8px; padding: 9px 11px;
-    margin-bottom: 7px; border-left: 4px solid;
-  }
-  #gpw-tasks .gpw-task:last-child { margin-bottom: 0; }
-  #gpw-tasks .gpw-task.crawl { border-color: #03C75A; }
-  #gpw-tasks .gpw-task.upload { border-color: #3182F6; }
-  #gpw-tasks .gpw-task .gpw-trow1 {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 14px; font-weight: 800; color: #191F28;
-  }
-  #gpw-tasks .gpw-task .gpw-trow1 .gpw-pct-text {
-    margin-left: auto; font-family: ui-monospace, monospace; font-weight: 800; font-size: 13px;
-  }
-  #gpw-tasks .gpw-task.crawl .gpw-pct-text { color: #0E7C3A; }
-  #gpw-tasks .gpw-task.upload .gpw-pct-text { color: #1B64DA; }
-  #gpw-tasks .gpw-task .gpw-bar {
-    height: 5px; background: #E5E8EB; border-radius: 3px; overflow: hidden; margin: 6px 0 5px;
-  }
-  #gpw-tasks .gpw-task .gpw-bar .fill {
-    height: 100%; transition: width .3s; border-radius: 3px;
-  }
-  #gpw-tasks .gpw-task.crawl .gpw-bar .fill { background: #03C75A; }
-  #gpw-tasks .gpw-task.upload .gpw-bar .fill { background: #3182F6; }
-  #gpw-tasks .gpw-task .gpw-now {
-    font-size: 14px; color: #6B7684; font-family: ui-monospace, monospace;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  #gpw-tasks .gpw-task .gpw-cnt {
-    font-family: ui-monospace, monospace; font-size: 14px; color: #4E5968; margin-top: 2px;
-  }
-  /* 소싱처별 진행 줄 — 스크롤 내려도 위젯은 fixed 라 항상 보임. 행 많으면 내부 스크롤. */
-  #gpw-tasks .gpw-bd {
-    margin-top: 8px; padding-top: 8px; border-top: 1px dashed #E5E8EB;
-    max-height: 168px; overflow-y: auto;
-  }
-  #gpw-tasks .gpw-bd-row { margin-bottom: 7px; }
-  #gpw-tasks .gpw-bd-row:last-child { margin-bottom: 0; }
-  #gpw-tasks .gpw-bd-top {
-    display: flex; align-items: center; gap: 5px; font-size: 12px; margin-bottom: 3px;
-  }
-  #gpw-tasks .gpw-bd-nm { font-weight: 700; color: #333D4B; }
-  #gpw-tasks .gpw-bd-st {
-    font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 10px;
-  }
-  #gpw-tasks .gpw-bd-st.done { background: #E7F8EE; color: #0E7C3A; }
-  #gpw-tasks .gpw-bd-st.run  { background: #E5F0FF; color: #1B64DA; }
-  #gpw-tasks .gpw-bd-st.wait { background: #F2F4F6; color: #8B95A1; }
-  #gpw-tasks .gpw-bd-st.fail { background: #FFE9EC; color: #F04452; }
-  #gpw-tasks .gpw-bd-cnt {
-    margin-left: auto; font-family: ui-monospace, monospace; font-weight: 800;
-    font-size: 11.5px; color: #4E5968;
-  }
-  #gpw-tasks .gpw-bd-bar {
-    height: 4px; background: #EAEDF0; border-radius: 3px; overflow: hidden;
-  }
-  #gpw-tasks .gpw-bd-bar > i { display: block; height: 100%; border-radius: 3px; background: #03C75A; transition: width .3s; }
-  #gpw-tasks .gpw-bd-bar.done > i { background: #0E7C3A; }
-  #gpw-tasks .gpw-bd-bar.run  > i { background: #3182F6; }
-  #gpw-tasks .gpw-bd-bar.wait > i { background: #CBD2D9; }
-  #gpw-tasks .gpw-bd-bar.fail > i { background: #F04452; }
-  /* [2026-06-03] 유휴 상태 — 항상 보이되 조용히 (회색 정적 점, 펄스 없음) */
-  #g-progress-widget.idle #gpw-collapsed { background: #B0B8C1; box-shadow: 0 4px 12px rgba(0,0,0,.12); }
-  #g-progress-widget.idle #gpw-collapsed::before { display: none; }
-  #g-progress-widget.idle #gpw-expanded { border-color: #D1D6DB; }
-  #g-progress-widget.idle .gpw-dot { background: #B0B8C1; animation: none; }
-  #gpw-tasks .gpw-idle { font-size: 12.5px; color: #8B95A1; line-height: 1.65; padding: 4px 2px; }
-  /* [2026-06-03 V5] 활성 행 하이라이트 — 항상 소싱처별 표시, 실행중 행 펄스 + 점멸 태그 */
-  @keyframes gpw-rowpulse { 0%,100% { background:#F2F8FF; } 50% { background:#E3F0FF; } }
-  #gpw-tasks .gpw-sub2 { display:flex; justify-content:space-between; font-size:11.5px; color:#8B95A1; margin:2px 2px 7px; }
-  #gpw-tasks .gpw-sub2 .cnt { font-family:ui-monospace,monospace; font-weight:800; color:#4E5968; }
-  #gpw-tasks .gpw-v5row { padding:7px 9px; border-radius:8px; margin-bottom:3px; }
-  #gpw-tasks .gpw-v5row.run { animation: gpw-rowpulse 1.6s ease infinite; }
-  #gpw-tasks .gpw-v5row.done { background:#F4FBF7; }
-  #gpw-tasks .gpw-v5top { display:flex; align-items:center; gap:7px; font-size:12.5px; margin-bottom:4px; }
-  #gpw-tasks .gpw-v5nm { font-weight:700; color:#333D4B; }
-  #gpw-tasks .gpw-v5cnt { margin-left:auto; font-family:ui-monospace,monospace; font-weight:800; font-size:11.5px; color:#4E5968; }
-  #gpw-tasks .gpw-v5tag { font-size:10px; font-weight:800; padding:1px 7px; border-radius:10px; display:inline-flex; align-items:center; gap:4px; }
-  #gpw-tasks .gpw-v5tag.run { background:#E5F0FF; color:#1B64DA; }
-  #gpw-tasks .gpw-v5tag.done { background:#E7F8EE; color:#0E7C3A; }
-  #gpw-tasks .gpw-v5tag.wait { background:#F2F4F6; color:#8B95A1; }
-  #gpw-tasks .gpw-v5tag.fail { background:#FFE9EC; color:#F04452; }
-  #gpw-tasks .gpw-v5tag.run .b { width:6px; height:6px; border-radius:50%; background:#3182F6; animation: gpw-pulse .9s ease infinite; }
-  #gpw-tasks .gpw-v5bar { height:5px; background:#E9ECEF; border-radius:3px; overflow:hidden; }
-  #gpw-tasks .gpw-v5bar > i { display:block; height:100%; border-radius:3px; background:#0E7C3A; transition:width .3s; }
-  #gpw-tasks .gpw-v5bar.wait > i { background:#CBD2D9; }
-  #gpw-tasks .gpw-v5bar.run > i { background:#3182F6; }
-  #gpw-tasks .gpw-uprow { font-size:12px; color:#1B64DA; font-weight:700; margin-top:7px; }
-  #gpw-tasks .gpw-now.idle { color:#B0B8C1; }
-  #gpw-tasks .gpw-now.done { color:#0E7C3A; font-weight:700; }
-  /* [2026-06-03] 자동 스케줄러 크롤 — 별도 푸터 (수동 크롤 패널과 분리) */
-  #gpw-tasks .gpw-autorow { display:flex; align-items:center; gap:6px; margin-top:8px; padding-top:8px;
-    border-top:1px dashed #E5E8EB; font-size:11px; color:#8B95A1; }
-  #gpw-tasks .gpw-autorow .b { width:6px; height:6px; border-radius:50%; background:#8B95A1; animation: gpw-pulse 1.3s ease infinite; }
-</style>
-<script>
-(function() {
-  const widget = document.getElementById('g-progress-widget');
-  const collapsed = document.getElementById('gpw-collapsed');
-  const expanded = document.getElementById('gpw-expanded');
-  const pctEl = document.getElementById('gpw-pct');
-  const titleEl = document.getElementById('gpw-title');
-  const tasksEl = document.getElementById('gpw-tasks');
-  // 사용자가 명시적으로 접었는지 (true = collapsed 유지)
-  let userCollapsed = localStorage.getItem('gpw-collapsed') === '1';
-
-  function setVisible(state) {
-    if (!state) { widget.style.display = 'none'; return; }
-    widget.style.display = 'block';
-    // 펼침/접힘
-    if (userCollapsed) {
-      collapsed.style.display = 'flex';
-      expanded.hidden = true;
-    } else {
-      collapsed.style.display = 'none';
-      expanded.hidden = false;
-    }
-  }
-  // [2026-06-03 V5] 유휴에도 항상 보일 기본 소싱처 6개 (대기중 표시용)
-  const GPW_DEFAULT_SRC = [
-    {key:'lemouton',    label:'르무통 공홈'},
-    {key:'ss_lemouton', label:'스마트스토어'},
-    {key:'musinsa',     label:'무신사'},
-    {key:'ssf',         label:'SSF'},
-    {key:'lotteon',     label:'롯데온'},
-    {key:'ssg',         label:'SSG'},
-  ];
-  const GPW_ST_LBL = {done:'완료', run:'실행중', wait:'대기중', fail:'실패'};
-
-  // 상대시간 (finished_at = epoch seconds)
-  function gpwRelTime(sec) {
-    if (!sec) return '';
-    const diff = (Date.now() / 1000) - sec;
-    if (diff < 60) return '방금';
-    if (diff < 3600) return Math.floor(diff / 60) + '분 전';
-    if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
-    return Math.floor(diff / 86400) + '일 전';
-  }
-
-  function gpwSrcRow(s) {
-    const sp = s.total > 0 ? Math.min(100, Math.round((s.done / s.total) * 100)) : 0;
-    const st = s.status || 'wait';
-    const nm = (s.label || s.key || '').replace(/</g, '&lt;');
-    const cnt = (s.total != null && s.total !== '') ? `${s.done || 0}/${s.total}` : '';
-    const tag = st === 'run'
-      ? '<span class="gpw-v5tag run"><span class="b"></span>실행중</span>'
-      : `<span class="gpw-v5tag ${st}">${GPW_ST_LBL[st] || '대기중'}</span>`;
-    return `<div class="gpw-v5row ${st}">
-      <div class="gpw-v5top"><span class="gpw-v5nm">${nm}</span>${tag}<span class="gpw-v5cnt">${cnt}</span></div>
-      <div class="gpw-v5bar ${st}"><i style="width:${sp}%"></i></div>
-    </div>`;
-  }
-
-  // [2026-06-03 V5] 항상 소싱처별 작업창 표시 — 유휴=전부 대기중, 실행중=점멸·행 펄스.
-  //   숨김/표시는 사용자 최소화·펼치기 토글로만 제어 (깜빡임 없음).
-  function render(state) {
-    const tasks = state.tasks || {};
-    const crawl = tasks.crawl;
-    const upload = tasks.upload;
-    const auto = tasks.auto;
-    const crawlActive = !!(crawl && !crawl.finished_at);
-    const uploadActive = !!(upload && !upload.finished_at);
-    const autoActive = !!(auto && !auto.finished_at);
-
-    // [2026-06-03] 패널 데이터 선택:
-    //   1) 활성 크롤(수동 우선, 없으면 자동) → 실시간 진행
-    //   2) 없으면 '마지막 크롤 결과'(last 스냅샷) → 직전 결과 유지
-    //   3) 그것도 없으면 기본 6개
-    // [2026-06-03] * 자동(백그라운드) 크롤은 패널을 라이브로 그리지 않는다.
-    //   이유: 자동 크롤은 매 사이클 시작 시 '전부 대기중'으로 리셋돼 첫번째 이미지(빈 대기중)가 떴음.
-    //   패널은 (1) 수동 크롤 라이브  (2) 없으면 '마지막 크롤 결과'(채워진 완료 뷰)를 항상 유지.
-    //   자동 크롤은 제목 '진행 중' + 하단 라이브 텍스트로만 표시.
-    const activeCrawl = crawlActive ? crawl : null;
-    const last = state.last;
-    const lastAge = (last && last.finished_at) ? (Date.now() / 1000 - last.finished_at) : Infinity;
-    const lastRecent = lastAge < 90;   // 90초 이내 = 연속 크롤 진행 중으로 간주 (스케줄러 gap 흡수)
-    let rows, mode, finishedAt = null;
-    if (activeCrawl && Array.isArray(activeCrawl.breakdown) && activeCrawl.breakdown.length) {
-      rows = activeCrawl.breakdown; mode = 'active';
-    } else if (last && Array.isArray(last.breakdown) && last.breakdown.length) {
-      rows = last.breakdown; mode = 'last'; finishedAt = last.finished_at;
-    } else {
-      rows = GPW_DEFAULT_SRC.map(d => ({key:d.key, label:d.label, total:null, done:0, status:'wait'}));
-      mode = 'idle';
-    }
-
-    // '진행 중처럼' 보이는 상태 — 활성이거나, 최근(90s) 크롤(연속 사이클 gap 흡수)
-    const looksRunning = crawlActive || autoActive || (mode === 'last' && lastRecent);
-    widget.classList.toggle('idle', !looksRunning);
-
-    // 헤더 — 전체 %
-    const pctSrc = activeCrawl || (mode === 'last' ? last : null);
-    let pctTxt = '–';
-    if (pctSrc && pctSrc.total > 0) pctTxt = Math.min(100, Math.round(pctSrc.done / pctSrc.total * 100)) + '%';
-    pctEl.textContent = pctTxt;
-    // [2026-06-03] '대기 중' 제목 제거 — 항상 '크롤 진행 중' 또는 '크롤 완료'만 표시 (사용자 요청).
-    const allDone = rows.length > 0 && rows.every(r => r.status === 'done');
-    titleEl.textContent = looksRunning ? '크롤 진행 중' : (allDone ? '크롤 완료' : '크롤 진행 중');
-
-    const doneCnt = rows.filter(r => r.status === 'done').length;
-    const headLbl = mode === 'last' ? '마지막 크롤' : '소싱처별 진행';
-    let html = `<div class="gpw-sub2"><span>${headLbl}</span><span class="cnt">${doneCnt}/${rows.length} 완료</span></div>`;
-    html += '<div class="gpw-v5list">' + rows.map(gpwSrcRow).join('') + '</div>';
-
-    // 업로드 작업(진행 중일 때만 간단 표시)
-    if (uploadActive) {
-      const up = upload.total > 0 ? Math.min(100, Math.round(upload.done / upload.total * 100)) : 0;
-      html += `<div class="gpw-uprow"> 업로드 ${up}% (${upload.done}/${upload.total})</div>`;
-    }
-
-    // 하단 라이브 텍스트: 수동 크롤 > 자동 크롤 current (패널은 마지막 결과여도 활동은 표시)
-    const liveCur = (crawlActive && crawl.current) ? crawl.current
-                  : (autoActive && auto.current ? auto.current : '');
-    if (liveCur) html += `<div class="gpw-now">▸ ${liveCur.replace(/</g, '&lt;')}</div>`;
-    else if (mode === 'last' && finishedAt) html += `<div class="gpw-now done"> 마지막 갱신 ${gpwRelTime(finishedAt)}</div>`;
-
-    // 수동·자동 크롤이 동시에 돌면, 자동은 작은 안내만 (패널은 수동 우선 표시)
-    if (crawlActive && autoActive) html += `<div class="gpw-autorow"><span class="b"></span>자동 크롤도 백그라운드 진행 중</div>`;
-
-    tasksEl.innerHTML = html;
-    setVisible(true);
-  }
-  let _pollInflight = false;
-  let _pollTimer = null;
-  let _idleStreak = 0;  // 연속 idle 응답 횟수 — 백오프용
-  async function poll() {
-    if (_pollInflight) return;
-    _pollInflight = true;
-    try {
-      const r = await fetch('/api/progress', {cache: 'no-store'});
-      const j = await r.json();
-      if (j.ok) {
-        render(j);
-        // 활성 작업 유무로 다음 폴링 간격 결정
-        const hasActive = j.tasks && Object.values(j.tasks).some(
-          t => t && !t.finished_at
-        );
-        _idleStreak = hasActive ? 0 : _idleStreak + 1;
-      }
-    } catch(_) {} finally {
-      _pollInflight = false;
-      schedule();
-    }
-  }
-  function schedule(){
-    if (_pollTimer) { clearTimeout(_pollTimer); _pollTimer = null; }
-    // 활성: 1s · idle 3회 미만: 2s · 그 이후: 8s · 페이지 hidden: 멈춤
-    let delay = 1000;
-    if (document.hidden) return;  // 탭 가려진 동안은 polling 중지 (visibility 핸들러가 재개)
-    if (_idleStreak >= 3) delay = 8000;
-    else if (_idleStreak >= 1) delay = 2000;
-    _pollTimer = setTimeout(poll, delay);
-  }
-  collapsed.addEventListener('click', () => {
-    userCollapsed = false; localStorage.removeItem('gpw-collapsed');
-    collapsed.style.display = 'none'; expanded.hidden = false;
-  });
-  expanded.querySelector('.gpw-collapse').addEventListener('click', () => {
-    userCollapsed = true; localStorage.setItem('gpw-collapsed', '1');
-    collapsed.style.display = 'flex'; expanded.hidden = true;
-  });
-  // 탭 visible 시 idle 카운터 reset + 즉시 1회 (이후는 schedule 이 백오프 결정)
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) { _idleStreak = 0; poll(); }
-  });
-  window.addEventListener('focus', () => { _idleStreak = 0; poll(); });
-  // 다른 탭에서 진행 상태 변경 broadcast — 이 탭도 즉시 갱신
-  window.addEventListener('storage', e => { if (e.key === 'gpw-broadcast') { _idleStreak = 0; poll(); } });
-  // 초기 1회 — 이후는 schedule() 가 백오프해서 setTimeout 재예약
-  poll();
-})();
-</script>
 
 {% block scripts %}{% endblock %}
 
@@ -596,5 +307,18 @@
   window.dsNativeAlert = nativeAlert;  // 정말 멈춰야 할 때 쓰라고 남겨 둠
 })();
 </script>
+
+{# [Task 7] 폰 앱 껍데기 — 탭 원천은 서버 ms_shell_data(PHONE_NATIVE_ROWS) 하나뿐이다.
+   JS 에 탭 주소를 적지 않고 이 JSON 블록으로 넘긴다(admin 여부까지 서버가 반영,
+   「같은 사실 두 곳에 적기」 금지 — 시험 test_PC_탭_JSON은_서버_단일원천과_같다).
+   [3단계] tabs 옆에 ready(폰 대응 완료 PC 주소, MOBILE_READY_URLS)도 같이 실린다 —
+   그 주소에서는 JS 가 노란 안내 띠를 생략한다. 가드 이유는 <head> 쪽 주석에 한 번만 적었다. #}
+{# 가드 변수 = 실제로 부르는 변수(ms_shell_data) — 배치1 검토 잔여 정리.
+   둘 다 같은 context processor 한 덩어리에서 오지만, 검사 대상과 사용 대상이
+   다르면 나중에 한쪽만 걷어냈을 때 가드가 조용히 헛돈다. #}
+{% if ms_shell_data is defined %}
+<script type="application/json" id="ms-tabs-data">{{ ms_shell_data()|tojson }}</script>
+<script defer src="{{ url_for('static', filename='mobile_shell.js') }}"></script>
+{% endif %}
 </body>
 </html>

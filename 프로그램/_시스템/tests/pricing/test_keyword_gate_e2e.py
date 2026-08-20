@@ -54,7 +54,8 @@ def _manual_price(gated):
     bal = float(BASE_PRICE)
     for nm, bt, v in sorted(applied, key=lambda x: 0 if x[1] == "amount" else 1):
         bal = max(bal - (v if bt == "amount" else int(bal * v)), 0)
-    return int(bal)
+    # [2026-07-02] 엔진과 동일하게 최종 백원 단위 버림
+    return (int(bal) // 100) * 100
 
 
 def _report(title, gated, price):
@@ -108,3 +109,27 @@ def test_keyword_change_changes_price():
     print(f"\n   A={pa:,}원  vs  B={pb:,}원   diff={pb-pa:+,}원")
     assert pa != pb
     assert pb > pa     # 구매적립 10% 빠지면 매입가 상승
+
+
+# ── 혜택별 per-benefit exclude 테스트 (Task 1b-1) ────────────────────────────
+
+def test_line_excluded_by_benefit():
+    from lemouton.pricing.benefit_gate import line_excluded_by_benefit as f
+    assert f("후기 적립 불가", ["불가"], "any") is True
+    assert f("후기 적립", ["불가"], "any") is False
+    assert f("A B", ["A", "B"], "all") is True
+    assert f("A only", ["A", "B"], "all") is False
+    assert f("anything", [], "any") is False        # 빈 excludes → 제외 안 함
+    assert f("anything", ["x"], "weird") is False   # 'all' 아니면 any
+
+
+def test_gate_benefit_per_benefit_exclude():
+    from lemouton.pricing.benefit_gate import gate_benefit
+    b = {"name": "후기적립", "triggers": ["후기"], "match": "any",
+         "excludes": ["불가"], "exclude_match": "any"}
+    # "후기" 매칭되지만 "불가"로 혜택별 제외 → applied False
+    r = gate_benefit(b, ["후기 적립 불가"], [])
+    assert r["applied"] is False
+    # 제외 키워드 없는 라인 → applied True
+    r2 = gate_benefit(b, ["후기 적립"], [])
+    assert r2["applied"] is True

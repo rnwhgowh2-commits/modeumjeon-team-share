@@ -1,0 +1,199 @@
+{# 현황 보기 — 확정 시안 ②(모음전/대량등록 탭) + ③(숫자 + 색 점) #}
+<style>
+  .cd-seg{display:inline-flex;background:var(--color-bg-muted);border-radius:8px;
+    padding:4px;gap:0px;margin-bottom:var(--sp-4)}
+  .cd-seg button{height:32px;padding:0 16px;border:0;background:none;border-radius:8px;
+    font-family:inherit;font-size:12px;font-weight:600;
+    color:var(--color-text-secondary);cursor:pointer}
+  .cd-seg button.on{background:var(--surface,#ffffff);color:var(--color-text-primary);
+    }
+  .cd-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--sp-4);
+    margin-bottom:var(--sp-5)}
+  .cd-kpi{background:var(--surface,#ffffff);border:1px solid var(--color-border);border-radius:12px;
+    padding:var(--sp-4) var(--sp-5)}
+  .cd-kpi .l{font-size:12px;color:var(--color-text-tertiary);font-weight:500}
+  .cd-kpi .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;
+    margin-top:0px}
+  .cd-kpi .v small{font-size:12px;font-weight:600;
+    color:var(--color-text-tertiary);margin-left:4px}
+  .cd-wrap{background:var(--surface,#ffffff);border:1px solid var(--color-border);border-radius:12px;
+    overflow:hidden}
+  .cd-wrap table{width:100%;border-collapse:collapse}
+  .cd-wrap th{background:var(--n100,#FBFCFD);font-size:12px;font-weight:600;
+    color:var(--color-text-tertiary);padding:8px 12px;
+    border-bottom:1px solid var(--color-border);text-align:left;white-space:nowrap}
+  .cd-wrap th.n{text-align:right}
+  .cd-wrap th.c{text-align:center}
+  .cd-wrap td{padding:12px 12px;border-bottom:1px solid var(--color-border-soft);
+    font-size:12px}
+  .cd-wrap td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .cd-wrap td.c{text-align:center}
+  .cd-wrap tr:last-child td{border-bottom:0}
+  /* ③ 숫자 + 색 점 */
+  .cd-dot{display:inline-block;width:6px;height:6px;border-radius:999px;
+    margin-right:4px;vertical-align:middle}
+  .cd-dot.sale{background:var(--color-success)}
+  .cd-dot.soldout{background:var(--color-warning)}
+  .cd-dot.stopped{background:var(--line,#C9CDD2)}
+  .cd-dot.waiting{background:var(--color-info)}
+  .cd-dot.unknown{background:var(--color-danger)}
+  .cd-v.soldout{color:var(--color-warning);font-weight:700}
+  .cd-v.unknown{color:var(--color-danger);font-weight:700}
+  .cd-v.stopped{color:var(--color-text-tertiary)}
+  .cd-mk{display:inline-block;font-size:12px;font-weight:600;padding:0px 8px;
+    border-radius:999px;background:var(--color-primary-light);
+    color:var(--color-primary-dark)}
+  .cd-when{font-size:12px;color:var(--color-text-tertiary)}
+  .cd-btn{border:1px solid var(--color-border);background:var(--surface,#ffffff);border-radius:8px;
+    padding:4px 12px;font-family:inherit;font-size:12px;font-weight:600;
+    color:var(--color-text-secondary);cursor:pointer}
+  .cd-warn{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;
+    padding:12px 12px;font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));margin-bottom:var(--sp-4)}
+</style>
+
+<style>
+/* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* KPI 5칸 한 줄 → 2칸 두 줄 — 5칸을 375px 에 눕히면 숫자가 짓눌린다. */
+  .cd-kpis { grid-template-columns: repeat(2, 1fr); }
+  .cd-kpi .l { font-size: 14px; }
+  /* 표는 10열 — 카드 접힘 불가, 가로 스크롤 + 첫 열(마켓) 붙박이. */
+  .cd-wrap { overflow-x: auto; }
+  .cd-wrap table { min-width: 720px; }
+  .cd-wrap th, .cd-wrap td { font-size: 14px; }
+  /* 첫 열 붙박이 배경 — 없으면 밀린 칸 글자가 비쳐 보인다.
+     ⚠️ 어두운 모드를 다시 켜면 --bg 밑칠 패턴(topnav.css:101)이 필요하다 —
+     어두운 --surface 는 4% 반투명이라 밑이 비친다. */
+  .cd-wrap td:first-child, .cd-wrap th:first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);
+  }
+  .cd-wrap th:first-child { background: var(--n100, #FBFCFD); }
+  /* 손끝 목표 44px — 범위 전환·「지금 동기화」. */
+  .cd-seg button { min-height: 44px; font-size: 14px; }
+  .cd-btn { min-height: 44px; font-size: 14px; }
+  .cd-when { font-size: 14px; }
+}
+</style>
+
+<div id="cd-root"><p class="cd-when">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('cd-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const N = (n) => Number(n || 0).toLocaleString('ko-KR');
+  const MK = {smartstore:'스마트스토어', coupang:'쿠팡', lotteon:'롯데온',
+              eleven11:'11번가', auction:'옥션', gmarket:'G마켓'};
+  const ST = [['sale','판매중'],['soldout','품절'],['stopped','판매중지'],
+              ['waiting','승인대기']];
+  let scope = 'bundle';   // ② 모음전(기본) / 대량등록
+
+  function when(iso) {
+    if (!iso) return '아직 확인 전';
+    const d = new Date(iso), now = new Date();
+    const min = Math.round((now - d) / 60000);
+    if (min < 60) return min + '분 전';
+    if (min < 60 * 24) return Math.round(min / 60) + '시간 전';
+    return Math.round(min / 60 / 24) + '일 전';
+  }
+
+  function render(j) {
+    const s = j.summary || {};
+    const rows = (j.markets || []).flatMap((m) =>
+      m.accounts.map((a, i) => `<tr>
+        <td>${i === 0 ? `<span class="cd-mk">${esc(MK[m.market] || m.market)}</span>` : ''}</td>
+        <td>${esc(a.account_key)}</td>
+        <td class="n"><b>${N(a.total)}</b></td>
+        ${ST.map(([k]) => `<td class="n"><span class="cd-v ${k}">${N(a[k])}</span></td>`).join('')}
+        ${a.unknown > 0
+          ? `<td class="n"><span class="cd-v unknown">${N(a.unknown)}</span></td>`
+          : '<td class="n cd-when">—</td>'}
+        <td class="c cd-when">${scope === 'bulk' ? '우리 기록' : when(a.measured_at)}</td>
+        <td class="c">${scope === 'bulk' ? ''
+          : `<button class="cd-btn" data-m="${esc(m.market)}"
+              data-a="${esc(a.account_key)}">지금 동기화</button>`}</td>
+      </tr>`).join('')).join('');
+
+    root.innerHTML = `
+      ${j.unknown_total > 0 ? `<div class="cd-warn">
+        <b>처음 보는 상태가 ${N(j.unknown_total)}개 있습니다</b> —
+        마켓이 새 상태를 쓰기 시작했을 수 있습니다. 그대로 두면 판매중인지 아닌지
+        알 수 없으니 확인이 필요합니다.</div>` : ''}
+      <div class="cd-seg">
+        <button data-scope="bundle" class="${scope === 'bundle' ? 'on' : ''}">모음전</button>
+        <button data-scope="bulk" class="${scope === 'bulk' ? 'on' : ''}">대량등록</button>
+        <span class="cd-when" style="align-self:center;margin-left:8px">${
+          scope === 'bulk'
+            ? '대량등록으로 올린 상품만 — 우리 기록 기준'
+            : '마켓에 올라간 상품 전체 — 마켓에서 가져온 값'}</span>
+      </div>
+      <div class="cd-kpis">
+        <div class="cd-kpi"><div class="l">전체 등록</div>
+          <div class="v">${N(s.total)}<small>개</small></div></div>
+        ${ST.map(([k, label]) => `<div class="cd-kpi"><div class="l">${label}</div>
+          <div class="v"><span class="cd-dot ${k}"></span>${N(s[k])}<small>개</small></div></div>`).join('')}
+      </div>
+      <div class="cd-wrap"><table>
+        <thead><tr><th style="width:120px">마켓</th><th style="width:150px">계정</th>
+          <th class="n" style="width:90px">전체</th>
+          ${ST.map(([k, label]) =>
+            `<th class="n" style="width:90px"><span class="cd-dot ${k}"></span>${label}</th>`).join('')}
+          <th class="n" style="width:90px"><span class="cd-dot unknown"></span>모름</th>
+          <th class="c" style="width:110px">마지막 확인</th>
+          <th class="c" style="width:110px"></th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="10" class="c cd-when"
+          style="padding:32px">${scope === 'bulk'
+            ? '대량등록으로 올린 상품이 아직 없습니다.'
+            : '아직 가져온 상품이 없습니다.<br>계정별 「지금 동기화」를 눌러주세요.'}</td></tr>`}</tbody>
+      </table></div>`;
+
+    root.querySelectorAll('.cd-seg button').forEach((b) => {
+      b.onclick = () => { scope = b.dataset.scope; load(); };
+    });
+    root.querySelectorAll('.cd-btn').forEach((b) => { b.onclick = () => sync(b); });
+  }
+
+  function load() {
+    // ★ scope 를 실제로 넘긴다 — 안 넘기면 탭이 눌리기만 하고 내용이 안 바뀐다(거짓 기능).
+    fetch('/catalog/api/dashboard?scope=' + encodeURIComponent(scope))
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || j.error) {
+          root.innerHTML = `<div class="cd-warn"><b>불러오지 못했습니다</b><br>${
+            esc(j.detail || j.error)}</div>`;
+          return;
+        }
+        render(j);
+      })
+      .catch((e) => {
+        root.innerHTML = `<div class="cd-warn"><b>불러오지 못했습니다</b><br>${
+          esc(e.message)}</div>`;
+      });
+  }
+
+  function sync(btn) {
+    const old = btn.textContent;
+    btn.disabled = true; btn.textContent = '가져오는 중…';
+    fetch('/catalog/api/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ market: btn.dataset.m, account_key: btn.dataset.a }),
+    })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        btn.disabled = false; btn.textContent = old;
+        if (!ok || !j.ok) {
+          window.alert((j.error || (j.result && j.result.error)) || '가져오지 못했습니다.');
+        }
+        load();
+      })
+      .catch((e) => {
+        btn.disabled = false; btn.textContent = old;
+        window.alert(e.message);
+      });
+  }
+
+  load();
+})();
+</script>

@@ -3,11 +3,11 @@
 {% block content %}
 <section class="screen active" id="screen-audit">
   <a class="btn btn-ghost" href="/trash">← 휴지통</a>
-  <h1 style="margin-top:6px"><i class="ph-light ph-scroll" aria-hidden="true"></i> 변경 이력</h1>
+  <h1 style="margin-top:4px">변경 이력</h1>
   <p class="greeting">
     {% if filter_table or filter_id %}
     필터: <span class="mono">{{ filter_table or '전체' }}</span> · <span class="mono">{{ filter_id or '전체' }}</span>
-    <a href="/audit" style="margin-left:10px">필터 해제</a>
+    <a href="/audit" style="margin-left:8px">필터 해제</a>
     {% else %}
     전체 시스템 최근 활동 (최대 200개)
     {% endif %}
@@ -18,7 +18,7 @@
     이력이 없어요.
   </div>
   {% else %}
-  <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+  <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:8px">
     <table class="opt-table">
       <thead>
         <tr>
@@ -35,7 +35,7 @@
           <td>
             {% if it.action == 'create' %}<span class="badge badge-ok">+ 생성</span>
             {% elif it.action == 'update' %}<span class="badge badge-info"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 수정</span>
-            {% elif it.action == 'delete' %}<span class="badge" style="background:#fee;color:#a00"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</span>
+            {% elif it.action == 'delete' %}<span class="badge" style="background:var(--연한-빨강,#ffeeee);color:var(--red,#aa0000)"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</span>
             {% elif it.action == 'restore' %}<span class="badge badge-ok">↩ 복구</span>
             {% else %}<span class="badge">{{ it.action }}</span>{% endif %}
           </td>
@@ -57,4 +57,32 @@
   </div>
   {% endif %}
 </section>
+
+<style>
+/* [3단계 배치1 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지).
+   표는 7열이라 가로 스크롤(감싼 상자의 기존 overflow-x:auto) + 첫 열 붙박이. */
+@media (max-width: 768px) {
+  #screen-audit .btn {
+    display: inline-flex; align-items: center; min-height: 44px; font-size: 14px;
+  }
+  #screen-audit .opt-table th,
+  #screen-audit .opt-table td {
+    padding: 10px 8px; font-size: 14px; white-space: nowrap;
+  }
+  /* 첫 열(시각) 붙박이 — 옆으로 밀어도 언제 일인지 보인다.
+     ⚠️ 어두운 모드를 다시 켜면 --bg 밑칠 패턴(topnav.css:101)이 필요하다 —
+     어두운 --surface 는 4% 반투명이라 밀린 칸 글자가 비쳐 보인다. */
+  #screen-audit .opt-table td:first-child,
+  #screen-audit .opt-table th:first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);
+  }
+  #screen-audit .opt-table th:first-child { background: var(--n100, #f2f4f6); }
+  /* diff 펼침 = 손끝 목표. 긴 JSON 은 줄바꿈으로 눕힌다(칸이 화면 몇 배로 안 늘게). */
+  #screen-audit details summary { min-height: 44px; display: flex; align-items: center; }
+  #screen-audit .opt-table td:last-child { white-space: normal; min-width: 200px; }
+  #screen-audit details code { white-space: pre-wrap; word-break: break-all; }
+  #screen-audit details > div { max-width: 78vw; }
+}
+</style>
 {% endblock %}

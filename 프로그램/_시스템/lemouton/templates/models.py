@@ -20,6 +20,11 @@ class PriceTemplate(Base):
     ss_normal_price = Column(Integer, default=149000)
     ss_boxhero_sale_price = Column(Integer, default=115900)   # 사입 지정가
     ss_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
+    # [2026-08-02] 사장님 확정 마켓별 요율 — 스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함)
+    #   · 11번가 8(계정별 상이·1년 뒤 11) · 옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함).
+    #   🔴 숫자의 주인은 `lemouton/pricing/fee_defaults.py`(화면에서 고침) 다. 여긴 **새로 만드는**
+    #     가격 정책의 초기값일 뿐. 이미 있는 행은 `/api/admin/fee/audit` 로 재보고
+    #     `/api/admin/fee/apply` 로 맞춘다(되돌리기 있음).
     ss_fee_rate = Column(Float, default=0.06)
     # [DEPRECATED 2026-05-25] 단일 모드 — 소싱/사입 분리로 대체. 백워드 호환용 유지.
     ss_margin_mode = Column(String(16), default="rate")
@@ -42,6 +47,77 @@ class PriceTemplate(Base):
     coupang_boxhero_sale_price = Column(Integer, default=128900)   # 사입 지정가
     coupang_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
     coupang_fee_rate = Column(Float, default=0.1155)
+    # [2026-07-20] 스스·쿠팡 외 마켓 수수료 — 값은 사장님이 화면에서 넣는다.
+    #   ★ 기본값 None(미설정). 0 이나 6% 같은 임의값을 깔지 않는다 —
+    #     모르는 수수료를 아는 척하면 마진이 틀리고, 그게 곧 금전 손실이다.
+    #     미설정인 마켓은 자동 가격 계산에서 계속 제외된다(reconcile.PRICED_MARKETS).
+    # [2026-07-20] 스스·쿠팡 외 4개 마켓도 같은 3가지 책정 방식(마진율·마진금액·지정가)을
+    #   소싱/사입 각각 설정할 수 있게 — 컬럼 이름 규칙이 같아야 resolve_market_policy 가
+    #   f'{prefix}_...' 로 그대로 읽는다(마켓별 분기 코드 불필요).
+    # ── 롯데온 ──
+    #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
+    #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
+    lotteon_fee_rate = Column(Float, default=0.18)
+    lotteon_normal_price = Column(Integer, default=149000)
+    lotteon_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
+    lotteon_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
+    lotteon_mode_sourcing = Column(String(8), default='rate')
+    lotteon_rate_sourcing = Column(Float, default=0.1242)
+    lotteon_amount_sourcing = Column(Integer, default=0)
+    lotteon_mode_purchase = Column(String(8), default='rate')
+    lotteon_rate_purchase = Column(Float, default=0.1242)
+    lotteon_amount_purchase = Column(Integer, default=0)
+    lotteon_delivery_fee = Column(Integer, default=0)
+    lotteon_return_fee = Column(Integer, default=0)
+    lotteon_exchange_fee = Column(Integer, default=0)
+    # ── 11번가 ──
+    #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
+    #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
+    eleven11_fee_rate = Column(Float, default=0.11)
+    eleven11_normal_price = Column(Integer, default=149000)
+    eleven11_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
+    eleven11_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
+    eleven11_mode_sourcing = Column(String(8), default='rate')
+    eleven11_rate_sourcing = Column(Float, default=0.1242)
+    eleven11_amount_sourcing = Column(Integer, default=0)
+    eleven11_mode_purchase = Column(String(8), default='rate')
+    eleven11_rate_purchase = Column(Float, default=0.1242)
+    eleven11_amount_purchase = Column(Integer, default=0)
+    eleven11_delivery_fee = Column(Integer, default=0)
+    eleven11_return_fee = Column(Integer, default=0)
+    eleven11_exchange_fee = Column(Integer, default=0)
+    # ── 옥션 ──
+    #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
+    #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
+    auction_fee_rate = Column(Float, default=0.15)
+    auction_normal_price = Column(Integer, default=149000)
+    auction_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
+    auction_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
+    auction_mode_sourcing = Column(String(8), default='rate')
+    auction_rate_sourcing = Column(Float, default=0.1242)
+    auction_amount_sourcing = Column(Integer, default=0)
+    auction_mode_purchase = Column(String(8), default='rate')
+    auction_rate_purchase = Column(Float, default=0.1242)
+    auction_amount_purchase = Column(Integer, default=0)
+    auction_delivery_fee = Column(Integer, default=0)
+    auction_return_fee = Column(Integer, default=0)
+    auction_exchange_fee = Column(Integer, default=0)
+    # ── G마켓 ──
+    #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
+    #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
+    gmarket_fee_rate = Column(Float, default=0.15)
+    gmarket_normal_price = Column(Integer, default=149000)
+    gmarket_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
+    gmarket_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
+    gmarket_mode_sourcing = Column(String(8), default='rate')
+    gmarket_rate_sourcing = Column(Float, default=0.1242)
+    gmarket_amount_sourcing = Column(Integer, default=0)
+    gmarket_mode_purchase = Column(String(8), default='rate')
+    gmarket_rate_purchase = Column(Float, default=0.1242)
+    gmarket_amount_purchase = Column(Integer, default=0)
+    gmarket_delivery_fee = Column(Integer, default=0)
+    gmarket_return_fee = Column(Integer, default=0)
+    gmarket_exchange_fee = Column(Integer, default=0)
     # [DEPRECATED 2026-05-25]
     coupang_margin_mode = Column(String(16), default="rate")
     coupang_margin_rate = Column(Float, default=0.1242)
@@ -69,6 +145,23 @@ class PriceTemplate(Base):
     # 'cheapest' (기본) — 각 옵션마다 소싱처 MIN 가격 + 마진 → 마진 최대 (SmartStore SEO 불리)
     # 'color'    — 같은 색상은 동일 판매가 (소싱처 MAX 기준) → 역마진 방지 + SEO 유리
     pricing_policy = Column(String(16), default='cheapest', nullable=False)
+
+    # [2026-07-15] 마켓별 색상 통일 — 스스/쿠팡 각각. 'color'=켜짐 / 'cheapest'=꺼짐(기본).
+    #   레거시 pricing_policy(전역)는 백워드 호환용으로만 남김. 실제 적용은 아래 마켓별 값 우선.
+    #   unify_rule: 'max'(가장 비싼 사이즈 기준·손해 방지) | 'src_cheapest'(최저가·마진 최대)
+    ss_pricing_policy = Column(String(16), default='cheapest', nullable=False)
+    ss_unify_rule = Column(String(16), default='max', nullable=False)
+    coupang_pricing_policy = Column(String(16), default='cheapest', nullable=False)
+    coupang_unify_rule = Column(String(16), default='max', nullable=False)
+    # [2026-07-20] 색상 통일도 마켓별 — 4개 마켓 추가(키 규칙 동일 → UI 가 f'{prefix}_...' 로 읽음)
+    lotteon_pricing_policy = Column(String(16), default='cheapest', nullable=False)
+    lotteon_unify_rule = Column(String(16), default='max', nullable=False)
+    eleven11_pricing_policy = Column(String(16), default='cheapest', nullable=False)
+    eleven11_unify_rule = Column(String(16), default='max', nullable=False)
+    auction_pricing_policy = Column(String(16), default='cheapest', nullable=False)
+    auction_unify_rule = Column(String(16), default='max', nullable=False)
+    gmarket_pricing_policy = Column(String(16), default='cheapest', nullable=False)
+    gmarket_unify_rule = Column(String(16), default='max', nullable=False)
 
     # [2026-05-25] 매입가 산정 우선순위 (사입 카드 0원 차단 — V5 시안)
     # 'template' (기본) — 템플릿 boxhero_purchase_price 우선 → 0이면 옵션 평균매입가 폴백

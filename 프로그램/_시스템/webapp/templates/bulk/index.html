@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}대량등록{% endblock %}
+{% block content %}
+<div class="page">
+  <h1 class="page-title">대량등록</h1>
+  <p class="page-sub">{{ subtabs | selectattr('key', 'equalto', tab) | map(attribute='desc') | first }}</p>
+  {% if tab == 'collect' %}
+    {% include 'bulk/partials/_collect.html' %}
+  {% elif tab == 'process' %}
+    {% include 'bulk/partials/_process.html' %}
+  {% elif tab == 'send' %}
+    {% include 'bulk/partials/_send.html' %}
+  {% elif tab == 'products' %}
+    {% include 'bulk/partials/_products.html' %}
+  {% elif tab in ('orders', 'cs', 'stats') %}
+    {% include 'bulk/partials/_shared_screen.html' %}
+  {% elif tab == 'settings' %}
+    {% include 'bulk/partials/_settings.html' %}
+  {% elif tab == 'manual' %}
+    {% include 'bulk/partials/_manual.html' %}
+  {% endif %}
+</div>
+
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지).
+   사이드바 자체의 접힘은 sidebar_bulk.html 의 블록이 맡는다(그 파일의 선택자라서). */
+@media (max-width: 768px) {
+  /* 좌(사이드바 240px)+우(본문) 가로 배치 — 세로로 (배치3 upload 와 같은 결정) */
+  .app { flex-direction: column; }
+  .main { padding: 16px 10px; }
+  .page { padding: 0 2px; }
+  h1.page-title { font-size: 22px; }
+  p.page-sub { font-size: 14px; }
+}
+</style>
+{% endblock %}

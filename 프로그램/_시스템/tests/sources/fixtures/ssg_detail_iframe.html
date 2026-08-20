@@ -1,0 +1,72 @@
+<!-- // through m2 pagedesk // --><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" lang="ko" xml:lang="ko"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>상품상세</title>
+    <link rel="stylesheet" type="text/css" href="//sui.ssgcdn.com/ui/ssg/css/detail_ifr.css?v=20260722">
+    <link rel="shortcut icon" type="image/x-icon" href="//sui.ssgcdn.com/ui/ssg/img/common/img/ssg.ico">
+</head>
+<body>
+
+<div id="descContents">
+    <button class="btn_a11y FullText" data-ocr-url="https://www.ssg.com/pitem/itemDtlDescImgOcrVoiceSupportFullText.ssg" onclick="itemDtlDescImgOcrVoiceSupportFullText();">
+      이미지 OCR 대체 텍스트 음성지원 전체 듣기
+    </button>
+
+    <button class="btn_a11y SummaryText" data-ocr-url="https://www.ssg.com/pitem/itemDtlDescImgOcrVoiceSupportSummaryText.ssg" onclick="itemDtlDescImgOcrVoiceSupportSummaryText();">
+      이미지 OCR 대체 텍스트 음성지원 요약본 듣기
+    </button>
+    <p id="ocrA11yStatus" class="blind" aria-live="polite"></p>
+    <p id="ocrA11yText" class="cdtl_tmpl_detail_ocr blind" tabindex="-1"></p>
+    
+ <div style="margin: 0px auto; width: 700px; text-align: left;">
+  <a href="https://department.ssg.com/plan/planShop.ssg?dispCmptId=6000177840" target="_blank"><img src="https://nike2094.godohosting.com/products/info/ssg_banner.jpg"></a>
+  <img src="https://nike2094.godohosting.com/products/info/new_size/PARTNER_01.JPG">
+  <img src="https://nike2094.godohosting.com/products/deal/notice/notice_ssg.jpg">0
+  <img alt="" src="https://nike2094.godohosting.com/products/info/new_size/size_shoes_man.jpg">
+  <a href="https://nike2094.godohosting.com/products/info/ssg_guide_03.png" target="_blank"><img src="https://nike2094.godohosting.com/products/info/ssg_guide_banner.png"></a>
+ </div> 
+ <br> 
+ <br> 
+ <br> 
+ <br> 
+ <input id="EcUniqueCode" type="hidden" value="3371171"></div>
+
+<script type="text/javascript" src="//sui.ssgcdn.com/ui/ssg/js/lib/jquery-1.9.1.min.js"></script>
+<script type="text/javascript" src="//sui.ssgcdn.com/ui/ssg/js/ui/ssg.view.product.itemDescOcrA11y.js?v=20260722"></script>
+<script type="text/javascript">
+
+    $(window).load(function() {
+        $('body').css('overflow','hidden');
+        // 현재 스크롤 높이를 보낸다.
+        // ssg.view.detail_v3.js에서 postMessage로 보낸 데이터를 리스너하고 있다가, 높이값을 새로 조정한다.
+        var scrHeight = Math.max( document.body.scrollHeight, $('html').height() );
+        var height = $(document).height();
+        window.parent.postMessage({ height: scrHeight }, '*');
+        
+        if( 'N' != 'Y' ) {
+            var reqFlag = 'Y';
+            
+            // 이미지 정상 로딩 여부 체크
+            $('#descContents').find('img').each(function(){
+                $(this).error(function(){
+                    if(reqFlag == 'Y'){
+                        var msg = "itemDtlDescHtml ImgErr";
+                        var imgUrl = $(this).attr('src');
+                        var itemUrl = $(location).attr('href');
+                        
+                        var xhr = new XMLHttpRequest();
+                        xhr.open('GET', '/ajax/imgErrObserver.ssg?itemId=' + encodeURIComponent('1000809938058') + '&msg=' + encodeURIComponent(msg) + '&itemUrl=' + encodeURIComponent(itemUrl) + '&imgUrl=' + encodeURIComponent(imgUrl));
+                        xhr.send();
+                        
+                        reqFlag = 'N' // 에러 로그는 한번만 남기기 위해 플래그값 변경.
+                        
+                        return false;
+                    }
+                });
+            });
+        }
+    });
+</script>
+
+
+</body></html>

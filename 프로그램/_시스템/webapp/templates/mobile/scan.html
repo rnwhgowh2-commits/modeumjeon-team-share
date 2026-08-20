@@ -12,12 +12,12 @@
   .scan-container {
     position: relative;
     background: black;
-    border-radius: 14px;
+    border-radius: 12px;
     overflow: hidden;
     /* * 화면 가득 (헤더·하단 카드 제외) — 스크롤 X */
     height: calc(100dvh - 200px);
     min-height: 400px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
   #scan-video {
     width: 100%;
@@ -35,9 +35,9 @@
     position: absolute;
     left: 0; right: 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, #3182F6 30%, #3182F6 70%, transparent);
+    background: linear-gradient(90deg, transparent, var(--primary,#3182F6) 30%, var(--primary,#3182F6) 70%, transparent);
     animation: scan-anim 1.8s ease-in-out infinite;
-    box-shadow: 0 0 8px rgba(49,130,246,0.6);
+    
   }
   @keyframes scan-anim {
     0%, 100% { top: 5%; }
@@ -50,9 +50,9 @@
     transform: translateX(-50%);
     background: rgba(0,0,0,0.72);
     color: white;
-    padding: 7px 16px;
+    padding: 8px 16px;
     border-radius: 99px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
   }
   .scan-hint.success {
@@ -60,7 +60,7 @@
   }
   .scan-error {
     background: rgba(240, 68, 82, 0.15);
-    color: var(--danger, #F04452);
+    color: var(--글자-빨강, var(--danger, var(--red,#F04452)));
     padding: 16px;
     border-radius: 12px;
     margin-bottom: 12px;
@@ -83,27 +83,27 @@
     color: white;
     border: 0;
     border-radius: 50%;
-    font-size: 18px;
+    font-size: 17px;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
   }
-  .scan-ctrl button.on { background: #FFD700; color: #000; }
+  .scan-ctrl button.on { background: var(--amber,#FFD700); color: #000; }
   .scan-ctrl .zoom {
     flex: 1;
     background: rgba(0,0,0,0.6);
     backdrop-filter: blur(8px);
     color: white;
-    padding: 8px 14px;
-    border-radius: 22px;
+    padding: 8px 12px;
+    border-radius: 18px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     font-size: 14px;
   }
   .scan-ctrl .zoom input {
     flex: 1;
     height: 4px;
-    accent-color: #3182F6;
+    accent-color: var(--primary,#3182F6);
   }
   /* 인식 통계 — 매우 작게 (카메라 위 chip) */
   .scan-stats {
@@ -120,7 +120,7 @@
   }
   .scan-stats span {
     background: rgba(0,0,0,0.55);
-    padding: 2px 8px;
+    padding: 0px 8px;
     border-radius: 99px;
     backdrop-filter: blur(4px);
   }
@@ -155,347 +155,65 @@
   </div>
 </div>
 
-{# 직접 입력 — 작게 한 줄 #}
-<div style="display:flex;gap:6px;align-items:center">
+{# 직접 입력 — 한 줄. [2026-08-05 실측] h=32 → 손끝 44px + 16px(iOS 확대 방지) #}
+<div style="display:flex;gap:4px;align-items:center">
   <input type="text" id="manual-sku" placeholder="SKU·바코드 직접 입력" autocomplete="off"
-         style="flex:1;padding:9px 12px;border:1px solid #CBCCD3;border-radius:6px;font-size:13px">
-  <button class="m-btn primary" id="manual-search" style="padding:9px 16px;white-space:nowrap">검색</button>
+         style="flex:1;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:16px;min-height:44px;box-sizing:border-box">
+  <button class="m-btn primary" id="manual-search" style="padding:8px 16px;white-space:nowrap;min-height:44px">검색</button>
 </div>
 {% endblock %}
 
 {% block extra_script %}
-<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
-<script src="https://unpkg.com/@zxing/library@0.21.0/umd/index.min.js"></script>
-<!-- ZBar WASM — 가장 강력한 웹 1D/2D 바코드 디코더 -->
-<script type="module">
-  try {
-    const m = await import('https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/+esm');
-    window.ZBarWasm = m;
-    console.log('[scan] ZBar WASM loaded');
-  } catch(e) { console.warn('[scan] ZBar WASM fail', e); }
-</script>
+{# 로컬 번들 — CDN 장애·지연이 곧 「스캔 먹통」이 되는 구조 제거 (2026-08-05) #}
+<script src="{{ url_for('static', filename='vendor/zxing-browser-0.1.5.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zxing-library-0.21.0.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zbar-wasm-inlined-0.10.1.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan_engine.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan_camera.js') }}"></script>
 <script>
   const preselectedAction = new URLSearchParams(location.search).get('action');
-  let stream = null;
-  let track = null;
-  let codeReader = null;
-  let detector = null;       // Native BarcodeDetector (가능 시)
-  let detectLoop = null;
-  let triesCount = 0;
-  let camIdx = 0;
-  let cameras = [];
+  let cam = null;            // ScanCamera 인스턴스 (카메라 사다리·줌·플래시·재초점)
+  let engine = null;         // ScanEngine 인스턴스 (Native+ZBar+ZXing 3중 디코더)
   let frozen = false;        // 인식 후 다시 시도 방지
 
-  // ───────────── 카메라 초기화 ─────────────
-  async function listCameras(){
-    const devs = await navigator.mediaDevices.enumerateDevices();
-    cameras = devs.filter(d => d.kind === 'videoinput');
-    // 후면 우선 정렬
-    cameras.sort((a, b) => {
-      const ar = /back|rear|environment/i.test(a.label || '') ? -1 : 1;
-      const br = /back|rear|environment/i.test(b.label || '') ? -1 : 1;
-      return ar - br;
+  // 카메라 조작은 전부 공용 모듈 scan_camera.js — 일괄 입·출고 화면과 같은 코드를 쓴다
+  // (2026-08-06: 두 화면이 각자 카메라를 들고 있다가 일괄 쪽만 뒤처져 먹통이 됐었다)
+  async function startCamera(){
+    cam = await ScanCamera.open({
+      video: document.getElementById('scan-video'),
+      onHint: (m) => { document.getElementById('scan-hint').textContent = m; },
+      isActive: () => !frozen,
+      els: {
+        torch:     document.getElementById('btn-torch'),
+        camSwitch: document.getElementById('btn-cam'),
+        zoomWrap:  document.getElementById('zoom-wrap'),
+        zoomRange: document.getElementById('zoom-range'),
+        zoomVal:   document.getElementById('zoom-val'),
+        res:       document.getElementById('stat-res'),
+      },
     });
   }
 
-  async function startCamera(camId){
-    // * 4K 시도 → 미지원 시 1080p 폴백. 후면 + 연속 초점 + macro (가까운 거리)
-    const tryConstraints = [
-      { video: {
-          deviceId: camId ? { exact: camId } : undefined,
-          facingMode: camId ? undefined : { ideal: 'environment' },
-          width: { ideal: 3840 }, height: { ideal: 2160 },  // 4K
-          advanced: [{ focusMode: 'continuous' }, { focusDistance: 0.15 }],
-        }, audio: false },
-      { video: {
-          deviceId: camId ? { exact: camId } : undefined,
-          facingMode: camId ? undefined : { ideal: 'environment' },
-          width: { ideal: 1920 }, height: { ideal: 1080 },  // 1080p
-          advanced: [{ focusMode: 'continuous' }],
-        }, audio: false },
-    ];
-    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-    let lastErr;
-    for (const c of tryConstraints) {
-      try { stream = await navigator.mediaDevices.getUserMedia(c); break; }
-      catch(e) { lastErr = e; continue; }
-    }
-    if (!stream) throw lastErr || new Error('카메라 시작 실패');
-    track = stream.getVideoTracks()[0];
-    const video = document.getElementById('scan-video');
-    video.srcObject = stream;
-    await video.play();
-
-    // 해상도 표시
-    const settings = track.getSettings();
-    document.getElementById('stat-res').textContent =
-      `${settings.width || '?'}×${settings.height || '?'}`;
-
-    // ── torch / zoom capability 검사 ──
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    document.getElementById('btn-torch').style.display = caps.torch ? '' : 'none';
-    if (caps.zoom) {
-      document.getElementById('zoom-wrap').style.display = '';
-      const zr = document.getElementById('zoom-range');
-      zr.min = caps.zoom.min; zr.max = caps.zoom.max; zr.step = caps.zoom.step || 0.1;
-      zr.value = settings.zoom || caps.zoom.min;
-      zr.oninput = async () => {
-        try { await track.applyConstraints({ advanced: [{ zoom: parseFloat(zr.value) }] }); }
-        catch (e) { console.warn('zoom fail', e); }
-        document.getElementById('zoom-val').textContent = parseFloat(zr.value).toFixed(1) + 'x';
-      };
-    } else {
-      document.getElementById('zoom-wrap').style.display = 'none';
-    }
-  }
-
-  // ───────────── 디코더 — Native 우선 / ZXing 폴백 ─────────────
+  // ───────────── 디코더 — 공용 엔진 (Native+ZBar+ZXing, 아이폰 포함 동일 사다리) ─────────────
   async function startDecoder(){
     const hint = document.getElementById('scan-hint');
-    // * 1) Native BarcodeDetector (Android Chrome 88+, Edge — 매우 빠름)
-    if ('BarcodeDetector' in window) {
-      try {
-        const supported = await BarcodeDetector.getSupportedFormats();
-        // EAN-13 등 우선 + 가능한 모든 포맷
-        const formats = supported.filter(f =>
-          ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code', 'data_matrix'].includes(f)
-        );
-        detector = new BarcodeDetector({ formats: formats.length ? formats : undefined });
-        document.getElementById('stat-engine').textContent = 'Native+ZBar';
-        document.getElementById('stat-engine').classList.add('nat');
-        nativeLoop();
-        hint.textContent = ' 바코드를 프레임 안에';
-        return;
-      } catch(e) { console.warn('Native fail, fallback ZXing', e); }
-    }
-    // * 2) ZXing 폴백 — TRY_HARDER + EAN_13 우선
-    if (typeof ZXing === 'undefined' && typeof ZXingBrowser === 'undefined') {
-      throw new Error('바코드 라이브러리 로드 실패');
-    }
-    const Z = window.ZXing || window.ZXingBrowser;
-    const hints = new Map();
-    if (Z.DecodeHintType) {
-      hints.set(Z.DecodeHintType.TRY_HARDER, true);
-      // 흑백 반전·옅은 광 등 더 적극적으로 시도
-      if (Z.DecodeHintType.ALSO_INVERTED) hints.set(Z.DecodeHintType.ALSO_INVERTED, true);
-      // EAN-13 우선 + 흔한 포맷
-      if (Z.BarcodeFormat) {
-        hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [
-          Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8,
-          Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39,
-          Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E,
-          Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.DATA_MATRIX,
-          Z.BarcodeFormat.ITF, Z.BarcodeFormat.CODABAR,
-        ]);
-      }
-    }
-    codeReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
-    document.getElementById('stat-engine').textContent = '엔진: ZXing+TRY_HARDER';
     const video = document.getElementById('scan-video');
-    codeReader.decodeFromVideoElement(video, (result, error) => {
-      triesCount++;
-      document.getElementById('stat-tries').textContent = triesCount + '회';
-      if (result && !frozen) {
-        handleResult(result.getText());
-      }
+    engine = await ScanEngine.start({
+      video,
+      isActive: () => !frozen,
+      onStats: ({engine: label, tries}) => {
+        const el = document.getElementById('stat-engine');
+        el.textContent = label;
+        if (label.startsWith('Native')) el.classList.add('nat');
+        document.getElementById('stat-tries').textContent = tries + '회';
+      },
+      onCode: (text) => { handleResult(text); return false; },  // 계속 돌며 frozen 게이트로 제어
     });
-    hint.textContent = ' 바코드를 프레임 안에';
+    hint.textContent = '바코드를 프레임 안에';
   }
 
-  // ───── 이미지 전처리: Histogram Equalization (Y 채널 평활화 — 흐릿·저조도) ─────
-  function histogramEqualize(imgData){
-    const data = imgData.data;
-    const n = data.length / 4;
-    const hist = new Uint32Array(256);
-    for (let i = 0; i < data.length; i += 4) {
-      const y = (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]) | 0;
-      hist[y]++;
-    }
-    const cdf = new Uint32Array(256);
-    cdf[0] = hist[0];
-    for (let i = 1; i < 256; i++) cdf[i] = cdf[i-1] + hist[i];
-    const cdfMin = cdf.find(v => v > 0) || 0;
-    const lut = new Uint8Array(256);
-    for (let i = 0; i < 256; i++) {
-      lut[i] = Math.round(((cdf[i] - cdfMin) / (n - cdfMin)) * 255);
-    }
-    for (let i = 0; i < data.length; i += 4) {
-      const y = (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]) | 0;
-      const v = lut[y];
-      data[i] = data[i+1] = data[i+2] = v;
-    }
-    return imgData;
-  }
-
-  // ───── 이미지 전처리: Unsharp Mask (흐릿한 바코드 선명화) ─────
-  function unsharpMask(imgData){
-    const w = imgData.width, h = imgData.height;
-    const src = imgData.data;
-    const out = new Uint8ClampedArray(src);
-    // 간단 3x3 sharpen kernel
-    const k = [0, -1, 0, -1, 5, -1, 0, -1, 0];
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const i = (y * w + x) * 4;
-        let sum = 0;
-        for (let ky = -1; ky <= 1; ky++) {
-          for (let kx = -1; kx <= 1; kx++) {
-            const ii = ((y + ky) * w + (x + kx)) * 4;
-            sum += src[ii] * k[(ky + 1) * 3 + (kx + 1)];
-          }
-        }
-        const v = Math.max(0, Math.min(255, sum));
-        out[i] = out[i+1] = out[i+2] = v;
-        out[i+3] = 255;
-      }
-    }
-    return new ImageData(out, w, h);
-  }
-
-  // ───── 회전된 ImageData 생성 (90/180/270 도) ─────
-  function rotateImageData(imgData, deg){
-    const w = imgData.width, h = imgData.height;
-    if (deg === 0) return imgData;
-    const tmp = document.createElement('canvas');
-    const tctx = tmp.getContext('2d');
-    if (deg === 90 || deg === 270) { tmp.width = h; tmp.height = w; }
-    else { tmp.width = w; tmp.height = h; }
-    tctx.save();
-    tctx.translate(tmp.width / 2, tmp.height / 2);
-    tctx.rotate(deg * Math.PI / 180);
-    const c2 = document.createElement('canvas');
-    c2.width = w; c2.height = h;
-    c2.getContext('2d').putImageData(imgData, 0, 0);
-    tctx.drawImage(c2, -w / 2, -h / 2);
-    tctx.restore();
-    return tctx.getImageData(0, 0, tmp.width, tmp.height);
-  }
-
-  // ZBar WASM 디코드 헬퍼 (실패 시 null)
-  async function tryZBar(imgData){
-    if (!window.ZBarWasm || !window.ZBarWasm.scanImageData) return null;
-    try {
-      const results = await window.ZBarWasm.scanImageData(imgData);
-      if (results && results.length) {
-        const r = results[0];
-        return r.decode ? r.decode() : (r.data || null);
-      }
-    } catch(e) {}
-    return null;
-  }
-
-  // ZBar imgData → canvas 변환 후 Native detect
-  async function tryNativeCanvas(imgData){
-    if (!detector) return null;
-    const c = document.createElement('canvas');
-    c.width = imgData.width; c.height = imgData.height;
-    c.getContext('2d').putImageData(imgData, 0, 0);
-    try {
-      const codes = await detector.detect(c);
-      if (codes.length) return codes[0].rawValue;
-    } catch(e) {}
-    return null;
-  }
-
-  // ───── iOS 자동 재초점 트리거 — 정적 화면에서 자동 초점 안 함 문제 해결 ─────
-  // iOS Safari 는 focusMode:continuous 설정해도 장면 변화 없으면 재초점 X
-  // → 매 1.5초 미세 줌 변경 으로 "장면 변화" 시그널 발생 → 카메라 자동 재초점
-  let refocusInterval = null;
-  let refocusPhase = 0;
-  function startAutoRefocus(){
-    if (refocusInterval || !track) return;
-    refocusInterval = setInterval(async () => {
-      if (frozen || !track) return;
-      try {
-        const caps = track.getCapabilities ? track.getCapabilities() : {};
-        // 1) 줌 미세 흔들기 (지원 시) — iOS 의 큰 변화 시그널
-        if (caps.zoom) {
-          const cur = track.getSettings().zoom || caps.zoom.min;
-          const min = caps.zoom.min;
-          const max = caps.zoom.max;
-          // 0.02 만큼 살짝 흔들고 원위치
-          const delta = (max - min) * 0.02;
-          const nudged = Math.max(min, Math.min(max, cur + (refocusPhase % 2 === 0 ? delta : -delta)));
-          await track.applyConstraints({ advanced: [{ zoom: nudged }] });
-          await new Promise(r => setTimeout(r, 50));
-          await track.applyConstraints({ advanced: [{ zoom: cur }] });
-        }
-        // 2) focusMode 재트리거 — manual 짧게 → continuous (재초점 강제)
-        if (caps.focusMode && caps.focusMode.includes('manual')) {
-          const dists = [0.1, 0.15, 0.2, 0.3];
-          const d = dists[refocusPhase % dists.length];
-          await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: d }] });
-          await new Promise(r => setTimeout(r, 80));
-          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-        } else if (caps.focusMode && caps.focusMode.includes('continuous')) {
-          // continuous 만 지원 시 — 한번 끄고 다시 켜기
-          await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] }).catch(()=>{});
-          await new Promise(r => setTimeout(r, 80));
-          await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-        }
-        refocusPhase++;
-      } catch(e) { /* iOS 일부 거부 — 무시 */ }
-    }, 1500);  // 1.5초 마다
-  }
-  function stopAutoRefocus(){
-    if (refocusInterval) { clearInterval(refocusInterval); refocusInterval = null; }
-  }
-
-  // ───────────── 메인 디코드 루프 (최대 강화) ─────────────
-  async function nativeLoop(){
-    const video = document.getElementById('scan-video');
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    let frameNum = 0;
-    while (!frozen) {
-      if (video.readyState >= 2 && video.videoWidth) {
-        triesCount++;
-        document.getElementById('stat-tries').textContent = triesCount + '회';
-        if (canvas.width !== video.videoWidth) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-        }
-        try {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-          // ── A. 빠른 시도: 원본 frame (Native + ZBar) ──
-          if (detector) {
-            const r1 = await tryNativeCanvas(ctx.getImageData(0, 0, canvas.width, canvas.height));
-            if (r1) { handleResult(r1); return; }
-          }
-          const raw = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const r2 = await tryZBar(raw);
-          if (r2) { handleResult(r2); return; }
-
-          // ── B. 추가 시도 — 매 3 frame 마다 비싼 전처리 ──
-          if (frameNum % 3 === 0) {
-            // 1) Histogram Equalization
-            const eq = histogramEqualize(new ImageData(new Uint8ClampedArray(raw.data), raw.width, raw.height));
-            const r3 = await tryZBar(eq);
-            if (r3) { handleResult(r3); return; }
-            const r4 = detector ? await tryNativeCanvas(eq) : null;
-            if (r4) { handleResult(r4); return; }
-
-            // 2) Unsharp Mask (CPU 비쌈 — 매 6 frame)
-            if (frameNum % 6 === 0) {
-              const sharp = unsharpMask(eq);
-              const r5 = await tryZBar(sharp);
-              if (r5) { handleResult(r5); return; }
-            }
-
-            // 3) 90도 회전 (가로 바코드를 세로로 들었을 때)
-            if (frameNum % 6 === 3) {
-              const rot = rotateImageData(eq, 90);
-              const r6 = await tryZBar(rot);
-              if (r6) { handleResult(r6); return; }
-            }
-          }
-          frameNum++;
-        } catch(e) { /* 무시 */ }
-      }
-      await new Promise(r => setTimeout(r, 60));  // 60ms (초당 ~16회)
-    }
-  }
+  // 전처리(평활화·샤픈·회전)·3중 디코더 시도는 scan_engine.js,
+  // 카메라 사다리·iOS 자동 재초점은 scan_camera.js 로 이관 (2026-08-05 / 2026-08-06)
 
   // ───────────── 결과 처리 ─────────────
   function handleResult(code){
@@ -572,45 +290,13 @@
     }, 1800);
   }
 
-  // ───────────── 컨트롤 ─────────────
-  // Tap to Focus — 화면 탭으로 그 지점 초점 (지원 기기만)
-  async function tapFocus(e){
-    if (!track) return;
-    const caps = track.getCapabilities();
-    if (!caps.focusMode || !caps.focusMode.includes('manual')) {
-      // 매크로 모드 또는 한 번 재초점 시도
-      try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch(e2){}
-      const hint = document.getElementById('scan-hint');
-      hint.textContent = ' 재초점';
-      setTimeout(() => { hint.textContent = ' 바코드를 비춰주세요'; }, 700);
-      return;
-    }
-    try {
-      await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: 0.15 }] });
-      const hint = document.getElementById('scan-hint');
-      hint.textContent = ' 매크로 초점';
-      setTimeout(() => { hint.textContent = ' 바코드를 비춰주세요'; }, 1500);
-    } catch(e2) { console.warn('focus fail', e2); }
-  }
-
-  async function toggleTorch(){
-    if (!track) return;
-    const caps = track.getCapabilities();
-    if (!caps.torch) { showToast('플래시 지원 안 됨', 'info'); return; }
-    const btn = document.getElementById('btn-torch');
-    const on = btn.classList.toggle('on');
-    try { await track.applyConstraints({ advanced: [{ torch: on }] }); }
-    catch(e) { console.warn('torch fail', e); btn.classList.remove('on'); }
-  }
-
+  // ───────────── 컨트롤 — 전부 공용 모듈로 위임 ─────────────
+  function tapFocus(){ if (cam) cam.tapFocus(); }
+  function toggleTorch(){ if (cam) cam.toggleTorch(); }
   async function switchCam(){
-    if (cameras.length < 2) { showToast('카메라 1개만 사용 가능', 'info'); return; }
-    camIdx = (camIdx + 1) % cameras.length;
+    if (!cam) return;
     frozen = true;
-    try {
-      await startCamera(cameras[camIdx].deviceId);
-      frozen = false;
-    } catch(e) { showToast('카메라 전환 실패', 'error'); }
+    try { await cam.switchCam(); } finally { frozen = false; }
   }
 
   // ───────────── 시작 ─────────────
@@ -618,18 +304,12 @@
     const errorArea = document.getElementById('scan-error-area');
     const hint = document.getElementById('scan-hint');
     try {
-      await listCameras();
-      if (!cameras.length) throw new Error('카메라 없음');
-      await startCamera(cameras[0].deviceId);
+      await startCamera();
       await startDecoder();
-      startAutoRefocus();  // * iOS 자동 재초점 트리거
     } catch (e) {
       console.error('[scan]', e);
-      let msg = e.message || String(e);
-      if (msg.includes('Permission') || msg.includes('NotAllowed')) msg = '카메라 권한이 거부됨. 설정에서 허용해주세요.';
-      else if (msg.includes('NotFound') || msg.includes('카메라 없음')) msg = '카메라 없음 — SKU 직접 입력해주세요.';
-      errorArea.innerHTML = `<div class="scan-error"> ${msg}</div>`;
-      hint.textContent = ' 카메라 실패';
+      errorArea.innerHTML = `<div class="scan-error">${ScanCamera.friendlyError(e)}</div>`;
+      hint.textContent = '카메라 실패';
     }
   }
 
@@ -644,9 +324,8 @@
 
   window.addEventListener('beforeunload', () => {
     frozen = true;
-    stopAutoRefocus();
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    if (codeReader) codeReader.reset?.();
+    if (cam) cam.stop();
+    if (engine) engine.stop();
   });
 
   start();

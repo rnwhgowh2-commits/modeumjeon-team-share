@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-07T01:02:40",
+  "updated_at": "2026-08-19T20:49:49",
   "standalone": [
     {
       "id": "i_home",
@@ -9,230 +9,264 @@
       "url": "/",
       "active_key": "home",
       "badge_key": null
+    },
+    {
+      "emoji": "📚",
+      "name": "대량등록",
+      "url": "/bulk/",
+      "active_key": "bulk",
+      "badge_key": null,
+      "id": "i_bulk"
     }
   ],
   "stages": [
     {
-      "id": "s_bundles",
-      "emoji": "",
-      "name": "모음전 상품관리",
+      "id": "s_collect",
+      "emoji": "📥",
+      "name": "옵션생성 & 상품생성",
       "color": "#3182F6",
       "collapsed": false,
       "items": [
         {
-          "id": "i_new",
-          "emoji": "",
-          "name": "신규 모음전 등록",
-          "url": "/bundles/new",
-          "active_key": "bundles_new",
+          "emoji": "✏️",
+          "name": "모음전 옵션 생성 (직접)",
+          "url": "/optgen?tab=direct",
+          "active_key": "optgen_direct",
           "badge_key": null,
-          "icon": "plus-circle"
+          "id": "i_optgen_direct"
         },
         {
-          "id": "i_bundles",
-          "emoji": "",
-          "name": "모음전 상품관리",
+          "emoji": "🏪",
+          "name": "모음전 옵션 생성 (내마켓 불러오기)",
+          "url": "/optgen?tab=market",
+          "active_key": "optgen_market",
+          "badge_key": null,
+          "id": "i_optgen_market"
+        },
+        {
+          "emoji": "📦",
+          "name": "모음전 상품 생성",
+          "url": "/optgen?tab=product",
+          "active_key": "optgen_product",
+          "badge_key": null,
+          "id": "i_optgen_product"
+        }
+      ]
+    },
+    {
+      "id": "s_process",
+      "emoji": "🔧",
+      "name": "상품 정책화",
+      "color": "#F59E0B",
+      "collapsed": false,
+      "items": []
+    },
+    {
+      "id": "s_auto",
+      "emoji": "📤",
+      "name": "상품수집&전송",
+      "color": "#8B5CF6",
+      "collapsed": false,
+      "items": [
+        {
+          "emoji": "📤",
+          "name": "마켓 전송",
+          "url": "/market-send",
+          "active_key": "market_send",
+          "badge_key": null,
+          "id": "i_market_send"
+        },
+        {
+          "emoji": "⚙️",
+          "name": "자동화",
+          "url": "/automation",
+          "active_key": "automation",
+          "badge_key": null,
+          "id": "i_automation"
+        }
+      ]
+    },
+    {
+      "id": "s_catalog",
+      "emoji": "📦",
+      "name": "상품 관리",
+      "color": "#06B6D4",
+      "collapsed": false,
+      "items": [
+        {
+          "emoji": "🧱",
+          "name": "옵션관리",
+          "url": "/matrix",
+          "active_key": "matrix",
+          "badge_key": null,
+          "id": "i_matrix"
+        },
+        {
+          "emoji": "📋",
+          "name": "상품관리",
           "url": "/bundles",
           "active_key": "bundles",
           "badge_key": null,
-          "icon": "list-checks"
+          "id": "i_bundles"
         },
         {
-          "id": "i_migrate",
-          "emoji": "",
-          "name": "기존 마켓 연동",
-          "url": "/bundles/migrate",
-          "active_key": "bundles_migrate",
+          "emoji": "📦",
+          "name": "실마켓 상품 현황",
+          "url": "/catalog/",
+          "active_key": "catalog",
           "badge_key": null,
-          "icon": "link"
+          "id": "i_catalog"
         }
-      ],
-      "icon": "package"
+      ]
     },
     {
-      "id": "s_mapping",
-      "emoji": "",
-      "name": "매핑 현황",
-      "color": "#FF9500",
-      "collapsed": false,
-      "items": [
-        {
-          "id": "i_sources",
-          "emoji": "",
-          "name": "소싱처 운영센터",
-          "url": "/sources",
-          "active_key": "sources",
-          "badge_key": null,
-          "icon": "buildings"
-        },
-        {
-          "id": "i_queue",
-          "emoji": "",
-          "name": "미맵핑 큐",
-          "url": "/queue",
-          "active_key": "queue",
-          "badge_key": "unmapped",
-          "icon": "magnifying-glass"
-        },
-        {
-          "id": "i_mapping",
-          "emoji": "",
-          "name": "맵핑",
-          "url": "/mapping/",
-          "active_key": "mapping",
-          "badge_key": null,
-          "icon": "link"
-        }
-      ],
-      "icon": "graph"
-    },
-    {
-      "id": "s_crawl",
-      "emoji": "",
-      "name": "크롤링&업로드",
-      "color": "#03C75A",
-      "collapsed": false,
-      "items": [
-        {
-          "id": "i_crawl_guide",
-          "emoji": "",
-          "name": "크롤링 가이드",
-          "url": "/sourcing-guide/",
-          "active_key": "sourcing_guide",
-          "badge_key": null,
-          "icon": "notebook"
-        },
-        {
-          "id": "i_crawl_install",
-          "emoji": "",
-          "name": "크롤러 설치",
-          "url": "/sourcing-guide/install",
-          "active_key": "sourcing_guide",
-          "badge_key": null,
-          "icon": "puzzle-piece"
-        },
-        {
-          "id": "i_src_dict",
-          "emoji": "",
-          "name": "소싱처 사전",
-          "url": "/source-registry",
-          "active_key": "source_registry",
-          "badge_key": null,
-          "icon": "book-open"
-        },
-        {
-          "id": "i_dlq",
-          "emoji": "",
-          "name": "업로드 실패함",
-          "url": "/dlq",
-          "active_key": "dlq",
-          "badge_key": "failed",
-          "icon": "warning-circle"
-        },
-        {
-          "id": "i_mk_acct",
-          "emoji": "",
-          "name": "판매처 계정",
-          "url": "/accounts/upload",
-          "active_key": "accounts_upload",
-          "badge_key": null,
-          "icon": "storefront"
-        }
-      ],
-      "icon": "shopping-cart-simple"
-    },
-    {
-      "id": "s_buy",
-      "emoji": "",
-      "name": "구매",
-      "color": "#EF4444",
-      "collapsed": false,
-      "items": [
-        {
-          "id": "i_track",
-          "emoji": "",
-          "name": "가격·재고 추적",
-          "url": "/track",
-          "active_key": "track",
-          "badge_key": null,
-          "icon": "trend-up"
-        }
-      ],
-      "icon": "bag"
-    },
-    {
-      "id": "s_sell",
-      "emoji": "",
-      "name": "판매",
+      "id": "s_order",
+      "emoji": "🧾",
+      "name": "주문 관리",
       "color": "#A855F7",
       "collapsed": false,
       "items": [
         {
-          "id": "i_templates",
-          "emoji": "",
-          "name": "템플릿",
-          "url": "/templates",
-          "active_key": "templates",
-          "badge_key": null,
-          "icon": "file-text"
-        },
-        {
-          "id": "i_orders",
-          "emoji": "",
+          "emoji": "📋",
           "name": "주문 내역",
           "url": "/orders/?tab=list",
           "active_key": "orders_list",
           "badge_key": null,
-          "icon": "package"
+          "id": "i_orders"
         },
         {
-          "id": "i_sales",
-          "emoji": "",
-          "name": "매출 관리",
-          "url": "/orders/?tab=sales",
-          "active_key": "orders_sales",
+          "emoji": "📦",
+          "name": "송장 작업",
+          "url": "/orders/?tab=ship",
+          "active_key": "orders_ship",
           "badge_key": null,
-          "icon": "money"
+          "id": "i_ship"
         },
         {
-          "id": "i_margin",
-          "emoji": "",
+          "emoji": "💬",
+          "name": "CS",
+          "url": "/orders/?tab=cs",
+          "active_key": "orders_cs",
+          "badge_key": null,
+          "id": "i_cs"
+        },
+        {
+          "emoji": "💰",
+          "name": "정산예정금액",
+          "url": "/orders/?tab=settle_plan",
+          "active_key": "orders_settle_plan",
+          "badge_key": null,
+          "id": "i_settle_plan"
+        }
+      ]
+    },
+    {
+      "id": "s_stats",
+      "emoji": "📊",
+      "name": "통계·분석",
+      "color": "#EC4899",
+      "collapsed": false,
+      "items": [
+        {
+          "emoji": "📊",
           "name": "마진 계산기",
           "url": "/orders/?tab=margin",
           "active_key": "orders_margin",
           "badge_key": null,
-          "icon": "chart-bar"
+          "id": "i_margin"
         }
-      ],
-      "icon": "coins"
+      ]
+    },
+    {
+      "id": "s_inventory",
+      "emoji": "🏷",
+      "name": "재고관리",
+      "color": "#10B981",
+      "collapsed": false,
+      "items": [
+        {
+          "emoji": "🏷",
+          "name": "재고관리",
+          "url": "/inventory/",
+          "active_key": "inventory",
+          "badge_key": null,
+          "id": "i_inventory"
+        }
+      ]
     },
     {
       "id": "s_etc",
-      "emoji": "",
+      "emoji": "⚙️",
       "name": "기타",
       "color": "#6B7280",
       "collapsed": false,
       "items": [
         {
-          "id": "i_trash",
-          "emoji": "",
+          "emoji": "🔗",
+          "name": "옵션 맵핑 템플릿",
+          "url": "/templates",
+          "active_key": "templates",
+          "badge_key": null,
+          "id": "i_templates"
+        },
+        {
+          "emoji": "🗒",
+          "name": "소싱처 관리",
+          "url": "/sourcing-guide/",
+          "active_key": "sourcing_guide",
+          "badge_key": null,
+          "id": "i_crawl_guide"
+        },
+        {
+          "emoji": "🏪",
+          "name": "판매처 관리",
+          "url": "/accounts/upload",
+          "active_key": "accounts_upload",
+          "badge_key": null,
+          "id": "i_mk_acct"
+        },
+        {
+          "emoji": "🚀",
+          "name": "실전송 테스트",
+          "url": "/live-send-test",
+          "active_key": "live_send_test",
+          "badge_key": null,
+          "id": "i_live_send_test"
+        },
+        {
+          "emoji": "🗑",
           "name": "휴지통·변경 이력",
           "url": "/trash",
           "active_key": "trash",
           "badge_key": null,
-          "icon": "trash"
+          "id": "i_trash"
         },
         {
-          "id": "i_alerts",
-          "emoji": "",
+          "emoji": "🔔",
           "name": "알림 채널 설정",
           "url": "/alerts",
           "active_key": "alerts",
           "badge_key": null,
-          "icon": "bell"
+          "id": "i_alerts"
+        },
+        {
+          "emoji": "📖",
+          "name": "데이터 가이드",
+          "url": "/data-guide",
+          "active_key": "data_guide",
+          "badge_key": null,
+          "id": "i_data_guide"
+        },
+        {
+          "emoji": "📅",
+          "name": "노션 일일보고",
+          "url": "/reports/notion-todo",
+          "active_key": "notion_report",
+          "badge_key": null,
+          "id": "i_notion_report"
         }
-      ],
-      "icon": "gear"
+      ]
     }
-  ]
+  ],
+  "schema": 9
 }

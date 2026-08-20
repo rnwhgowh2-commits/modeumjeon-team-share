@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import re
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -61,6 +62,29 @@ def logout():
 @login_required
 def me():
     return render_template("auth/me.html", user=current_user)
+
+
+# ─── 디자인 모드 저장 ───
+# 열린 리다이렉트 방지 — 화이트리스트만 통과(블랙리스트는 새 우회가 계속 나온다).
+#   ★ urlsplit() 은 못 잡는 우회가 있다: 브라우저(WHATWG URL 표준)는 '/\' 를 '//' 와
+#     동일하게 취급해 다른 사이트로 튄다(예: '/\evil.com/x' → 실브라우저는
+#     https://evil.com/x 로 이동) — 하지만 Python urlsplit 은 '\' 를 netloc 구분자로
+#     보지 않아 scheme/netloc 이 비어 있다고 판정, 안전하다고 오판했었다(코드리뷰 지적).
+#     그래서 URL 파서를 믿지 않고 우리가 실제로 쓰는 경로 문자만 허용하는 정규식으로
+#     바꿨다 — '/' 로 정확히 한 번 시작 + [문자·숫자·_-./] 경로 + 선택적 ?쿼리 뿐.
+_SAFE_NEXT_RE = re.compile(r'\A/[A-Za-z0-9_\-./]*(?:\?[A-Za-z0-9_\-./=&%]*)?\Z')
+
+
+def _안전한_next(raw: str | None) -> str:
+    """열린 리다이렉트 방지 — 같은 사이트의 상대 경로만 허용, 아니면 내 계정으로."""
+    if raw and '\\' not in raw and not raw.startswith('//') and not any(ord(c) < 0x20 for c in raw):
+        if _SAFE_NEXT_RE.fullmatch(raw):
+            return raw
+    return url_for("auth.me")
+
+
+# [2026-08-02 사장님 확정] 디자인 타입 저장 기능 삭제 — 화이트 하나만 쓴다.
+#   users.design_mode 칸은 DB 에 남지만 아무도 읽지 않는다(값이 무엇이든 화이트).
 
 
 # ─── 비밀번호 변경 ───

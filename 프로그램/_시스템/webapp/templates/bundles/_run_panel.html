@@ -5,14 +5,14 @@
     <div class="runlog-head">
       <span class="pulse" id="runlog-pulse-crawl" title="실시간 폴링 중"></span>
       <h2>크롤링 로그</h2>
-      <span class="badge" id="runlog-running-count-crawl" style="background:#dbeafe;color:#1d4ed8">0 실행중</span>
+      <span class="badge" id="runlog-running-count-crawl" style="background:var(--연한-파랑,#dbeafe);color: var(--글자-파랑, var(--primary,#1d4ed8)">0 실행중</span>
       <span style="flex:1"></span>
       <button type="button" class="runlog-refresh"
-              style="border:1px solid var(--n200,#e5e8eb);background:#fff;color:#475569;padding:4px 10px;border-radius:6px;font-size: 14px;cursor:pointer">
+              style="border:1px solid var(--n200,var(--line,#e5e8eb)));background:var(--surface,#ffffff);color:var(--글자-기본,#475569);padding:4px 8px;border-radius:8px;font-size: 14px;cursor:pointer">
         새로고침
       </button>
     </div>
-    <p style="font-size: 14px;color:var(--n600,#4b5563);margin:0 0 10px">
+    <p style="font-size: 14px;color:var(--n600,var(--글자-기본,#4b5563));margin:0 0 8px">
       한 모음전 = 1행. 동시에 여러 모음전을 크롤하면 여기에 행이 동시에 쌓여요.
     </p>
     <div class="runlog-list" id="runlog-list-crawl">
@@ -25,16 +25,16 @@
   {# === 우측: 업로드 로그 === #}
   <div class="runlog-panel upload">
     <div class="runlog-head">
-      <span class="pulse" id="runlog-pulse-upload" title="실시간 폴링 중" style="background:#22c55e"></span>
+      <span class="pulse" id="runlog-pulse-upload" title="실시간 폴링 중" style="background:var(--green,#22c55e)"></span>
       <h2><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 업로드 로그</h2>
-      <span class="badge" id="runlog-running-count-upload" style="background:#dcfce7;color:#15803d">0 실행중</span>
+      <span class="badge" id="runlog-running-count-upload" style="background:var(--연한-초록,#dcfce7);color: var(--글자-초록, var(--green,#15803d))">0 실행중</span>
       <span style="flex:1"></span>
       <button type="button" class="runlog-refresh"
-              style="border:1px solid var(--n200,#e5e8eb);background:#fff;color:#475569;padding:4px 10px;border-radius:6px;font-size: 14px;cursor:pointer">
+              style="border:1px solid var(--n200,var(--line,#e5e8eb)));background:var(--surface,#ffffff);color:var(--글자-기본,#475569);padding:4px 8px;border-radius:8px;font-size: 14px;cursor:pointer">
         새로고침
       </button>
     </div>
-    <p style="font-size: 14px;color:var(--n600,#4b5563);margin:0 0 10px">
+    <p style="font-size: 14px;color:var(--n600,var(--글자-기본,#4b5563));margin:0 0 8px">
       한 모음전 = 1행. 동시에 여러 모음전을 업로드하면 여기에 행이 동시에 쌓여요.
     </p>
     <div class="runlog-list" id="runlog-list-upload">

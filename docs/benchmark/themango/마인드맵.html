@@ -1,0 +1,327 @@
+<title>더망고솔루션 전수 마인드맵 · 채택 판정</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif;background:#f6f6f4;color:#1b1f23;font-size:14px;line-height:1.6}
+.wrap{max-width:1860px;margin:0 auto;padding:28px 32px 80px}
+h1{font-size:26px;font-weight:600;margin:0 0 6px}
+.sub{color:#5f5e5a;font-size:14px;margin:0 0 20px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px;position:sticky;top:0;background:#f6f6f4;padding:12px 0;z-index:5;border-bottom:1px solid #e2e0da}
+button{font:inherit;border:1px solid #c9c7c0;background:#fff;border-radius:8px;padding:7px 14px;cursor:pointer}
+button:hover{background:#efeee9}
+button.on{background:#1b1f23;color:#fff;border-color:#1b1f23}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 20px;font-size:13px;color:#444}
+.k{display:inline-flex;align-items:center;gap:5px}
+.dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+.g{background:#639922}.y{background:#ef9f27}.w{background:#b4b2a9}.r{background:#e24b4a}.b{background:#378add}
+details{margin:0}
+summary{cursor:pointer;list-style:none;padding:7px 10px;border-radius:7px}
+summary::-webkit-details-marker{display:none}
+summary:hover{background:#ececE6}
+.l1>summary{font-size:17px;font-weight:600;background:#fff;border:1px solid #ddd;margin-top:10px}
+.l2>summary{font-size:15px;font-weight:500}
+.l3>summary,.l4>summary{font-size:13.5px}
+.kid{margin-left:20px;border-left:2px solid #e2e0da;padding-left:12px}
+.leaf{padding:5px 10px;font-size:13.5px;color:#3d3d3a}
+.tag{display:inline-block;font-size:11px;font-weight:600;border-radius:5px;padding:1px 7px;margin-right:6px;vertical-align:1px}
+.tg{background:#eaf3de;color:#3b6d11}.ty{background:#faeeda;color:#854f0b}.tw{background:#f1efe8;color:#5f5e5a}
+.tr{background:#fcebeb;color:#a32d2d}.tb{background:#e6f1fb;color:#185fa5}
+.note{color:#6b6a66;font-size:12.5px}
+.url{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#888;margin-left:6px}
+.hot{background:#fff8e6;border-left:3px solid #ef9f27;padding-left:9px}
+.num{font-weight:600;color:#185fa5}
+</style>
+<div class="wrap">
+<h1>더망고솔루션 전수 마인드맵</h1>
+<p class="sub">상위탭 12 · 하위화면 31 · 실측 2026-08-06 · 판정은 채택 게이트 5문 통과분만 🟢</p>
+
+<div class="bar">
+<button onclick="op(1)">1단계만</button>
+<button onclick="op(2)">2단계</button>
+<button onclick="op(3)">3단계</button>
+<button onclick="op(9)" class="on">전부 펴기</button>
+<button onclick="op(0)">전부 접기</button>
+</div>
+
+<div class="legend">
+<span class="k"><i class="dot g"></i>🟢 채택 18</span>
+<span class="k"><i class="dot y"></i>🟡 형태 바꿔 8</span>
+<span class="k"><i class="dot w"></i>⚪ 보류 17</span>
+<span class="k"><i class="dot r"></i>🔴 안 함 10</span>
+<span class="k"><i class="dot b"></i>🔵 우리 우위 12</span>
+</div>
+
+<details class="l1" open><summary>① 상품데이터수집 <span class="url">shop/getGoods*.php</span></summary><div class="kid">
+
+  <details class="l2" open><summary>대량수집 (리스팅페이지 URL) 🆕 <span class="url">getGoodsNew.php?tab_type=</span></summary><div class="kid">
+    <div class="leaf hot"><span class="tag tg">🟢</span><b>리스팅 URL 1줄 → 다건 수집</b> · 우리에게 통째로 없음. <b>대량등록의 입구</b></div>
+    <details class="l3"><summary>좌측 — 대량수집 사이트 <span class="num">4곳</span></summary><div class="kid">
+      <div class="leaf">eBay.com(API·미국) · LOTTEON · MUSINSA · SSG <span class="note">★즐겨찾기 · 사이트검색</span></div>
+      <div class="leaf note">eBay만 API형(셀러명으로 최대 1만개) · 나머지는 리스팅 URL형</div>
+    </div></details>
+    <details class="l3" open><summary>우측 — 수집 폼</summary><div class="kid">
+      <div class="leaf">검색페이지/카테고리 URL 입력 → <b>[URL 상품검색하기]</b></div>
+      <details class="l4"><summary>🔴 무신사 전용 경고 3건</summary><div class="kid">
+        <div class="leaf">① 페이지 점프 불가 → <b>전체 저장 시 상품개수 입력 필수</b></div>
+        <div class="leaf">② 검색결과 일부 이미지 미표시(수집엔 영향 없음)</div>
+        <div class="leaf hot">③ <b>이미지 다운로드·외부링크 차단</b> → 「이미지우회 부가서비스」 필요 · 우리도 <b>재호스팅 필수</b></div>
+      </div></details>
+    </div></details>
+    <details class="l3" open><summary>상품저장설정 <span class="num">10항목</span></summary><div class="kid">
+      <div class="leaf"><span class="tag tg">🟢</span><b>검색필터명</b> — 미입력 시 <code>[musinsa_000]</code> 자동</div>
+      <div class="leaf"><span class="tag tg">🟢</span><b>금지어 적용</b> — 마켓별 템플릿 7종(스스60·롯데온61·옥션62·전체63·G마켓84·11번가85·쿠팡86)</div>
+      <div class="leaf"><span class="tag tg">🟢</span><b>저장상품수</b> — 상위 N개만 · <span class="note">"이미 등록·금지어 제외되어 N보다 적을 수 있음"</span></div>
+      <div class="leaf"><span class="tag tg">🟢</span><b>저장페이지 범위</b> — N~M 페이지</div>
+      <div class="leaf"><span class="tag tg">🟢</span><b>적용정책</b> — 수집하면서 즉시 적용 (정책 138개+)</div>
+      <div class="leaf"><span class="tag ty">🟡</span><b>적용카테고리</b> — 더망고 카테고리 선택 → 마켓 자동 매핑</div>
+      <div class="leaf"><span class="tag tw">⚪</span>마켓검색태그 · <span class="tag tw">⚪</span>번역 후 저장(번역기4·언어8→3·항목4)</div>
+      <div class="leaf"><span class="tag ty">🟡</span><b>랜덤키워드</b> — 템플릿「마침표」·개수1~10·위치(앞/뒤) <span class="note">사장님 사용 중 · 어뷰징 여지</span></div>
+      <div class="leaf"><span class="tag tr">🔴</span><b>옵션저장안함</b> — 옵션 버리고 단품화 · <b>오버셀 위험</b></div>
+    </div></details>
+    <details class="l3"><summary>검색결과 액션 <span class="num">4</span></summary><div class="kid">
+      <div class="leaf">전체선택 · 선택상품저장 · <b>검색된 상품 모두저장</b><span class="note">(이걸로 저장한 필터만 신규상품수집 가능)</span> · 대기목록저장</div>
+    </div></details>
+  </div></details>
+
+  <details class="l2"><summary>개별수집 (상품상세 URL) <span class="url">getGoods2.php</span></summary><div class="kid">
+    <div class="leaf"><b>지원 소싱처 <span class="num">756곳</span></b> (한국·미국·일본·중국·독일·프랑스…) / 신규 2</div>
+    <div class="leaf hot"><span class="tag tg">🟢</span><b>[재분석중] 표시</b> — 파서 깨진 곳 <span class="num">25곳+</span>을 화면에 명시. <b>조용히 빈 값 주지 않는다</b> = 우리 「확인불가」 원칙</div>
+    <div class="leaf"><span class="tag tb">🔵</span>756곳이 강점이 아니다 — 25곳이 깨져 있다. <b>11곳으로 좁혀 정확하게</b>가 우리 방침</div>
+    <div class="leaf"><span class="tag tg">🟢</span>수집 경로가 달라도 <b>저장 조건 폼은 하나</b></div>
+    <div class="leaf note">「대량수집 사이트로 세팅」 승격 요청 버튼 (Pro 전용)</div>
+  </div></details>
+
+  <details class="l2"><summary>대량수집 작업관리 <span class="url">getGoodsScheduler.php</span></summary><div class="kid">
+    <div class="leaf"><span class="tag tw">⚪</span><b>G1 탈락 — 사장님 사용 0건</b></div>
+    <div class="leaf note">G3: 진짜 스케줄러가 아니다. 결국 사람이 눌러야 하고 브라우저를 켜둬야 함 = 「예약」이 아니라 「즐겨찾기」</div>
+    <div class="leaf"><span class="tag tb">🔵</span>우리 <code>crawl_schedule</code> 가중 랩 + <code>CrawlJob</code> 큐 + <code>CrawlWorker</code> 가 이미 진짜 스케줄러</div>
+  </div></details>
+  <details class="l2"><summary>내스토어 상품수집 <span class="url">getGoods.php?type=2</span></summary><div class="kid">
+    <div class="leaf note">이미 마켓에 올린 내 상품 되가져오기 = <b>더망고식 이관 해법</b></div>
+    <div class="leaf"><span class="tag tw">⚪</span>사장님 확정 — <b>범위 밖, 다른 세션</b></div>
+  </div></details>
+</div></details>
+
+<details class="l1" open><summary>② 상품관리 <span class="url">admin_goods.php 외 7</span></summary><div class="kid">
+  <div class="leaf hot"><b>저장 <span class="num">168,291</span> / 한도 200,000</b> · 로딩 15초+ · 기본 10개씩 카드형</div>
+
+  <details class="l2" open><summary>상품 카드 1건 <span class="num">L5</span></summary><div class="kid">
+    <div class="leaf"><span class="tag tg">🟢</span><b>정책 출처 표시</b> — <code>[기본설정] 카테고리 정책 적용중</code> · 4단 중 어느 층에서 왔나</div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>원재고 병기</b> — <code>현재재고 [10] (원재고: 950개)</code> · 사람이 고친 값 ↔ 크롤 원본</div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>계산식/원가 표시</b> — <code>원가 ₩22,900 (상품가 ₩19,900 + 현지배송비 ₩3,000)</code></div>
+    <div class="leaf note">🎯 사장님은 해외용 「현지배송비」 칸을 <b>국내 배송비 얹기</b>로 전용 중 → 「원가에 정액 얹기」 칸은 남긴다</div>
+    <details class="l3"><summary>각종링크&amp;기능 <span class="num">21개</span></summary><div class="kid">
+      <div class="leaf"><span class="tag tg">🟢</span>가격재고이력 · 관련CS내역 · <b>전송마켓품절처리</b>(삭제 말고 품절만)</div>
+      <div class="leaf"><span class="tag tw">⚪</span>GTIN수정 · 필수구매옵션등록 · 상품영상 · 마켓접속분석 · 주문내역검색 …</div>
+    </div></details>
+    <details class="l3"><summary>ON/OFF 설정 3종</summary><div class="kid">
+      <div class="leaf"><span class="tag tg">🟢</span>상품업데이트 / 상품가격업데이트 / 상품재고업데이트</div>
+      <div class="leaf hot"><span class="tag tb">🔵</span>우리도 <code>ProductDraft.update_product/price/stock</code> <b>이미 있음</b> — 다만 <b>읽는 곳이 없다</b>. 신규 기능이 아니라 <b>미완성 배선의 완성</b></div>
+      <div class="leaf note">🔴 화면 경고: 「가격/재고 업데이트 OFF 시 원문에 새 옵션이 추가돼도 반영 안 됨」</div>
+    </div></details>
+    <div class="leaf"><span class="tag tw">⚪</span>데이터센터 업데이트 · <span class="tag ty">🟡</span>지식재산권 상품수집 설정 <span class="note">(우리는 브랜드 단위 <code>excluded_brands</code>·<code>BrandRestriction</code> 보유)</span></div>
+  </div></details>
+
+  <details class="l2"><summary>목록 도구</summary><div class="kid">
+    <div class="leaf"><span class="tag tg">🟢</span><b>가격/재고변동일자 검색</b> · <b>엑셀 상품등록</b> · <b>검색결과 마켓등록개수확인</b></div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>연속 품절 N일 일괄삭제</b> · <span class="tag tb">🔵</span>휴지통 2단계(우리 <code>/trash</code> 대응)</div>
+    <div class="leaf"><span class="tag ty">🟡</span>상품보기 필터 <span class="num">30개+</span> → 「마켓에 못 올라가는 이유별」 몇 묶음으로</div>
+  </div></details>
+
+  <details class="l2"><summary>엑셀 상품등록 <span class="url">admin_goods_reg_excel2.php</span></summary><div class="kid">
+    <div class="leaf note">흐름: 템플릿 다운로드 → 작성 → 업로드 → 이미지 첨부 → <b>검토 테이블에서 오류 수정</b> → 일괄 등록</div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>검토 테이블 강제</b> — 수천 건이 검토 없이 들어가면 되돌릴 수 없다</div>
+    <details class="l3"><summary>컬럼 A~R <span class="num">18개</span></summary><div class="kid">
+      <div class="leaf"><b>필수 7</b> — 상품명 · 카테고리 · 브랜드 · 대표이미지 · 통화 · 가격 · 재고</div>
+      <div class="leaf">선택 — 원문URL · 모델명 · 검색필터명 · 추가이미지 · 상세HTML(자동 <code>width:800px</code>)</div>
+      <div class="leaf hot"><span class="tag tg">🟢</span><b>R 판매자상품관리코드 = upsert 키</b> — 「유니크. 같은 코드면 업데이트」 · <b>이관의 짝 열쇠 후보</b></div>
+      <div class="leaf"><span class="tag tg">🟢</span>J 검색필터명 폴백이 정직 — 실패/빈값이면 <b>「수동등록상품」</b> 바구니로</div>
+      <div class="leaf"><span class="tag tr">🔴</span><b>옵션 M~Q 줄바꿈 순서 정렬</b> — 한 줄 밀리면 가격·재고가 통째로 어긋남 → 우리는 <b>1옵션=1행</b></div>
+    </div></details>
+  </div></details>
+
+  <details class="l2"><summary>보조화면 6</summary><div class="kid">
+    <div class="leaf"><span class="tag tg">🟢</span><b>전송마켓 상품삭제</b> 안의 <b>[G마켓 옵션등록제한 카테고리 상품조회]</b> → 우리 preflight 검사로</div>
+    <div class="leaf"><span class="tag tr">🔴</span>단, 이 화면은 <b>버튼 하나로 166,006개 마켓 삭제</b> 가능 — 전량 대상 버튼은 안 만든다</div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>옵션개수 많은순 정렬</b> — 옵션 상한 걸릴 상품 찾기</div>
+    <div class="leaf"><span class="tag tw">⚪</span>브랜드매칭(0건) · 옵션자동넘버링(해외 문제) · 단일상품저장(0건) · 상품/이미지 번역(국내는 한글)</div>
+  </div></details>
+</div></details>
+
+<details class="l1" open><summary>③ 정책생성&amp;관리 <span class="url">admin_config_management.php 외 5</span></summary><div class="kid">
+  <div class="leaf hot">🔴 <b>정책 수정 = 그 정책이 걸린 모든 상품에 소급</b> · 정책 <span class="num">138개+</span> (오늘도 늘고 있음)</div>
+
+  <details class="l2" open><summary>가격계산 정책 <span class="num">9항목</span></summary><div class="kid">
+    <div class="leaf hot"><span class="tag tb">🔵🔵</span><b>원가 = 소싱처 표면가</b> · 우리 <b>최종매입가 엔진</b>(카드·캐시백·경유 순차차감)은 <b>대응물 자체가 없음</b></div>
+    <div class="leaf"><span class="tag ty">🟡</span><b>상품가격별 범위 마진</b> — 실측: 5만↓ <b>7%</b> / 5~10만 <b>5%</b> / 10만↑ <b>4%</b></div>
+    <div class="leaf"><span class="tag tg">🟢</span>최소마진금액 · 별도 추가요금(원가에 정액 얹기 — 국내 배송비로 전용 중)</div>
+    <div class="leaf"><span class="tag tr">🔴</span>국제운송료 · 관부가세 · 개별소비세 · 환율 · 현지배송비 <span class="note">(해외 전용)</span></div>
+    <div class="leaf"><span class="tag tr">🔴</span><b>커스텀 수식</b> — 입력하면 위 설정을 <b>전부 무시</b>(최소마진·역마진 가드까지 꺼짐)</div>
+    <div class="leaf note">계산식 공개: 상품금액 = 원가 + 마진금액 + 국제운송료 + 별도추가 + 관세 + 부가세</div>
+  </div></details>
+
+  <details class="l2" open><summary>마켓정책 — 가로탭 6마켓 × 21항목</summary><div class="kid">
+    <div class="leaf hot"><span class="tag tg">🟢</span><b>배송비정책 6종 + 총액 고정 분배</b><br><span class="note">총액 199,000 → 무료면 상품가 199,000 / 유료3만이면 상품가 169,000+배송비 3만 = <b>노출가만 낮아진다</b></span></div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>마켓별 상세템플릿 오버라이드</b> · <b>검색태그 ≤10</b> · <b>출고지/반품지 마켓에서 가져오기</b></div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>KC인증 + 법적 경고</b>(3년 이하 징역·3천만원 이하 벌금) <span class="note">— 다만 우리는 <b>인증번호까지 수집</b>해 🔵 우위</span></div>
+    <div class="leaf"><span class="tag ty">🟡</span>카테고리 매핑 사용 — 매핑 없으면 전송 제외. <b>우리는 preflight 집계까지</b></div>
+    <div class="leaf note">전송대상 ID · 배송형태 · 과세구분 · 수수료율(얹기) · 묶음배송 · 배송타입 · 택배사 200종 · 반품배송비 · A/S · 원산지 · 청소년불가 · 노출채널(다나와·에누리)</div>
+  </div></details>
+
+  <details class="l2" open><summary>상품/옵션명 정책 — 🔴 <b>이 영역은 더망고가 우리보다 정교</b></summary><div class="kid">
+    <div class="leaf"><span class="tag ty">🟡</span><b>치환 방식</b> 순차/동시 — <b>동시=longest-match</b>(RED·PREDATER 겹치면 긴 쪽만) → 우리는 <b>동시 고정</b>, 고르게 안 함</div>
+    <div class="leaf"><span class="tag ty">🟡</span>규칙별 ☐대소문자 ☐<b>온전한 단어</b> ☐<b>정규식</b> → <b>정규식은 안 넣는다</b>(비개발자 위험)</div>
+    <div class="leaf"><span class="tag ty">🟡</span><b>엑셀 업·다운로드 + 오류체크</b> → 오류체크를 <b>필수 단계</b>로</div>
+    <div class="leaf"><span class="tag tg">🟢</span>조합 블록 6종 + 자유 텍스트 · <b>브랜드 중복 위치 제어</b>(「나이키 나이키 에어맥스」 방지) · <b>중복단어 제거</b></div>
+    <div class="leaf"><span class="tag tg">🟢</span>옵션명 <b>완전/부분 일치 선택</b> — 화면 경고: 「M→미디엄을 부분일치로 하면 M 들어간 모든 옵션이 치환」 <span class="note">= 우리 'Men'⊂'Mentoring' 사고와 같은 함정</span></div>
+    <div class="leaf hot"><b>가공 순서 확정</b> — 원문 → 번역 → 치환 → 조합 → 중복단어제거 → 필터링 → 랜덤키워드</div>
+  </div></details>
+
+  <details class="l2"><summary>상세페이지 템플릿 <span class="note">(브랜드별 7개+ 실사용)</span></summary><div class="kid">
+    <div class="leaf hot"><span class="tag tg">🟢</span><b>조건부·반복 블록</b> — <code>[GOODS_DESC]</code> <code>[GOODS_SPEC]</code> <code>[IMAGE_SET]</code> <code>[IMAGE_SIZE]</code> · <b>값 없으면 블록째 사라진다</b></div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>[기본템플릿 복원하기]</b> — HTML 편집을 여는 <b>조건</b></div>
+    <div class="leaf"><span class="tag tg">🟢</span>상품설명 4택(모두/이미지만/텍스트만/삭제) — 소싱처 상세엔 남의 로고·가격이 박힌 이미지 천지</div>
+    <div class="leaf"><span class="tag tw">⚪</span>옵션 표기(한줄 개수·정렬·폰트 18/24/30/40·색상5) · 구분선 꾸미기 <span class="note">— 디자인 토큰으로 해결</span></div>
+    <div class="leaf"><span class="tag tb">🔵</span>더망고는 <b>브랜드마다 템플릿 복제</b>(7개가 증거) · 우리는 <b>템플릿1 + 브랜드별 이미지 슬롯</b>. <code>hide_source_logo</code>도 저쪽엔 없음</div>
+  </div></details>
+  <details class="l2"><summary>워터마크 · 마켓고시정보 템플릿</summary><div class="kid">
+    <div class="leaf"><span class="tag tw">⚪</span><b>G1 탈락 — 둘 다 정책 0개, 사장님 미사용</b></div>
+    <div class="leaf"><span class="tag tb">🔵</span>고시정보는 우리가 앞섬 — 4종 기본값 + 크롤값 우선 + 누락 알림 이미 배선</div>
+  </div></details>
+</div></details>
+
+<details class="l1" open><summary>④ 정책적용 — <b>더망고의 심장</b> <span class="url">admin_group.php · admin_category.php</span></summary><div class="kid">
+  <div class="leaf hot"><b>정책 우선순위 4단</b> — ① 상품별 개별 → ② 검색필터 → ③ 카테고리(하위 자동상속) → ④ 환경설정 기본정책</div>
+
+  <details class="l2" open><summary>검색필터(상품수집조건) 관리</summary><div class="kid">
+    <div class="leaf hot"><span class="tag tg">🟢</span><b>검색필터 = 수집 행위의 영구 객체.</b> 정책·재수집·통계가 전부 이 위에 선다</div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>그룹핑</b> — 여러 소싱처 필터를 <code>715|726</code> 파이프로 병합해 정책 1회 적용</div>
+    <details class="l3" open><summary>필터별 성적 (실측)</summary><div class="kid">
+      <div class="leaf">언더아머(무신사) 저장 <span class="num">1,106</span> / 휴지통 43 · SSG 3,120 / 704</div>
+      <div class="leaf">타미진스(무신사) 1,736 / 0 · 피엘라벤 571 / 0</div>
+      <div class="leaf hot"><span class="tag tg">🟢</span><b>누적매출</b> — 무_잔스포츠 257,900원/6건 · 마스마룰즈 213,200/4 · 룰루레몬 548,560<br><span class="note">필터 12개 중 <b>3개만 돈이 된다</b>. 긁는다고 팔리지 않는다</span></div>
+    </div></details>
+    <details class="l3"><summary>필터 세부설정 팝업 <span class="url">admin_category_set.php?tm=F&amp;ps_ftid=</span></summary><div class="kid">
+      <div class="leaf hot">🎯 <b>「설정하지 않은 값은 정책에 있는 값이 이용됩니다」</b> = 베이스+오버라이드 상속 <b>8항목</b></div>
+      <div class="leaf">적용정책 · 국제운송료 · 마진율 · 상세템플릿 · 상품옵션명 · 번역 · 워터마크 · 금지어</div>
+      <div class="leaf"><span class="tag ty">🟡</span>마켓 검색태그(통합/마켓별, <b>앞에서부터 잘림</b>)</div>
+      <div class="leaf"><span class="tag ty">🟡</span>6마켓 카테고리 매핑 + <b>[AI 자동 매핑] 5개 추천</b> + 🔴<b>[카테고리 미매핑]</b> 배지</div>
+      <div class="leaf note">11번가 = 해외/국내 카테고리 다름 · 롯데ON = 해외직구/일반 다름 → <b>우리 확인과제</b></div>
+    </div></details>
+    <div class="leaf"><span class="tag tr">🔴</span>필터 삭제 = <b>그 상품 전부 삭제</b> — 분류를 지웠다고 물건을 버리지 않는다</div>
+  </div></details>
+
+  <details class="l2"><summary>카테고리 관리 (트리형 / 단계형)</summary><div class="kid">
+    <div class="leaf">「적용된 정책은 <b>하위 카테고리에 자동 적용</b>」 · 총 <span class="num">3,067</span>개 카테고리에 설정 적용</div>
+    <div class="leaf"><span class="tag ty">🟡</span><b>소싱처 → THE MANGO 카테고리 → 6마켓</b> 3단 · 우리는 2단(11×6=66 → 11+6=17)</div>
+    <div class="leaf"><span class="tag tg">🟢</span>목록에 <b>「매핑된 마켓」 배지</b></div>
+    <div class="leaf"><span class="tag tw">⚪</span>단계형(4단 드릴다운) — 트리형과 같은 일. 화면 둘 만들 이유 없음</div>
+    <div class="leaf"><span class="tag tr">🔴</span>카테고리 삭제 = 소속 상품 전부 삭제</div>
+  </div></details>
+</div></details>
+
+<details class="l1" open><summary>⑤ 신규상품수집 <span class="url">shop/getGoodsCategory.php</span></summary><div class="kid">
+  <div class="leaf hot"><span class="tag tg">🟢</span><b>검색필터를 재실행해 「새로 생긴 상품만」 저장</b> — 우리에게 통째로 없는 축</div>
+  <div class="leaf note">🔴 제약: <b>「검색된 상품 모두저장」으로 만든 필터만</b> 가능 (일부 선택은 재현 불가)</div>
+  <div class="leaf"><span class="tag tb">🔵</span>더망고는 <b>사람이 눌러야</b> 돈다(1~2주에 한 번) · 우리는 <code>CrawlWeightRule</code>에 「검색필터」 scope만 얹으면 <b>랩이 자동으로</b></div>
+  <details class="l2"><summary>실측 검색 URL 패턴 <span class="note">(어댑터 설계 직결)</span></summary><div class="kid">
+    <div class="leaf">무신사 <code>/search/goods?keyword=나이키&amp;keywordType=keyword&amp;gf=A&amp;brand=nike…</code></div>
+    <div class="leaf">SSG <code>/search.ssg?query=나이키&amp;shpp=department&amp;repBrandId=2000004827|2000…</code></div>
+    <div class="leaf">SSG셀러 <code>/sellerhome/149766/search/seller.ssg?query=헤지스</code></div>
+    <div class="leaf">스스 <code>brand.naver.com/topten/category/&lt;ID&gt;?cp=1</code></div>
+    <div class="leaf hot">🎯 사장님은 검색어가 아니라 <b><code>brand=</code>·<code>repBrandId=</code>로 정확히 조준</b> 중</div>
+  </div></details>
+</div></details>
+
+<details class="l1" open><summary>⑥ 상품업데이트&amp;마켓전송 <span class="url">admin_goods_update.php</span></summary><div class="kid">
+  <div class="leaf">소싱처 체크 <span class="num">11곳</span> + 내스토어 2 → 업데이트 항목 5 → 마켓 6 → 실행. 총 165,911개</div>
+  <div class="leaf hot">🔴 <b>화면이 자백한 함정</b>: 「가격·재고만 업데이트하면 <b>새 옵션이 수집되지 않고</b>, 수집된 옵션이 없으면 <b>품절 처리</b>」 + 「항목별 속도는 100% 동일」<br><span class="note">→ 우리 부분 갱신 경로에 같은 함정 있는지 <b>확인 과제</b></span></div>
+  <div class="leaf hot"><span class="tag tb">🔵🔵</span>「마켓 전송 시 <b>가격·재고 등 일부만 전송할 수 없습니다</b>」 = 전량 재전송뿐 · 우리는 <b>옵션 단위 부분 전송</b>(<code>update_price_and_stock</code>)</div>
+  <div class="leaf"><span class="tag tr">🔴</span>소싱처 미선택 = <b>전량 전송</b> 기본값 — 우리 「빈 값은 0도 전체도 아니다」 원칙 위반</div>
+  <div class="leaf"><span class="tag tg">🟢</span>목록에 <b>[옵션개수:N]</b> · <b>상품업데이트일 / 마켓전송일 병기</b> · <b>마켓별 업데이트 날짜순 정렬 12종</b></div>
+  <details class="l2" open><summary>전송작업관리 <span class="url">admin_goods_update_task.php</span></summary><div class="kid">
+    <div class="leaf hot"><span class="tag tg">🟢</span><b>최근 작업 50건 자동 기록 + [불러오기]</b> — 사장님 실제 루틴이 그대로 남아 있음</div>
+    <div class="leaf">반복 패턴: <code>전송마켓 &lt;1개&gt; + 마켓 &lt;그마켓&gt; 미등록상품 + 검색필터명 &lt;1개&gt;</code><br><span class="note">3분 사이 6건 연속 — <b>운영의 실제 단위는 「전량」이 아니라 「필터 × 마켓 × 등록여부」</b></span></div>
+    <div class="leaf"><span class="tag tw">⚪</span>즐겨찾기(☆)+작업명 — <b>0개.</b> 최근작업은 저절로 쌓이고 즐겨찾기는 등록해야 함 → <b>손이 한 번 더 가는 기능은 안 쓰인다</b></div>
+  </div></details>
+  <details class="l2"><summary>전송로그 <span class="url">admin_logview2.php</span></summary><div class="kid">
+    <div class="leaf"><span class="tag ty">🟡</span>상품번호/<b>마켓상품번호</b>로 수집로그+전송로그를 한 화면 · 성공(S)/실패(F) · 🔴<b>7일 보관</b></div>
+    <div class="leaf"><span class="tag tb">🔵</span>우리는 <b>「왜 안 보냈는지」</b>(P2 스킵·역마진·일일상한)까지 <code>reason_code</code>로 남긴다</div>
+  </div></details>
+</div></details>
+
+<details class="l1" open><summary>⑦ 주문관리 <span class="url">admin_getorder.php</span></summary><div class="kid">
+  <div class="leaf hot"><span class="tag tg">🟢🟢</span><b>[가격변동] + 전후 가격 병기</b> — <code>KRW 89,910 → 83,070</code><br><span class="note">사장님 요구사항의 실물. <b>우리는 최종매입가 기준 + 역마진 경고까지</b></span></div>
+  <div class="leaf"><span class="tag tg">🟢</span>결제금액 밑 <b>정산예정금액 (계산됨)</b> 병기 — 마켓 제공값 vs 추정값 구분</div>
+  <div class="leaf"><span class="tag tb">🔵</span>[전체마켓 가져오기](계정 33개) · 송장번호 업로드/마켓전송 · 정산예정금액 수집 <span class="note">— 우리 주문·송장·정산 탭이 이미 대등 이상</span></div>
+  <div class="leaf"><span class="tag ty">🟡</span>주문 행 버튼 14개 → 실제 쓰는 것만(가격재고이력·관련CS내역)</div>
+  <div class="leaf"><span class="tag tr">🔴</span>배대지 신청서·배송비수집·통관부호·국제운송료·트래킹번호 <span class="note">(해외)</span></div>
+</div></details>
+
+<details class="l1" open><summary>⑧ CS관리 <span class="url">admin_getcs.php</span> <span class="note">배지 99+</span></summary><div class="kid">
+  <div class="leaf hot"><span class="tag tg">🟢</span><b>「긴급알림」 = 마켓 운영 공지·패널티 경고</b><br><span class="note">11번가 실물: 「미발송률 30% 이상 → 익일 9시부터 상품 노출 제한. 발송지연 안내 등록 시 유예」 — <b>돈이 걸린 알림</b></span></div>
+  <div class="leaf"><span class="tag tw">⚪</span>CS 답변 기능 — <b>99+ 전부 미답변.</b> 사장님은 마켓 관리자에서 처리</div>
+  <div class="leaf"><span class="tag ty">🟡</span>답변템플릿 관리</div>
+</div></details>
+
+<details class="l1" open><summary>⑨ 통계 <span class="url">admin_log_*.php</span></summary><div class="kid">
+  <details class="l2" open><summary>마켓 방문자수 접속통계 — 총 <span class="num">306,737</span>회</summary><div class="kid">
+    <div class="leaf hot"><b>소싱처별</b> MUSINSA <span class="num">184,831</span>(60.3%) · SSG 33,107 · <b>GSShop 28,732(9.4%)</b> · lotteimall 22,163 · SSFShop 18,908 · GrandStage 7,111 · ABCmart 5,546 · LOTTEON 5,278 · theHyundai 1,061</div>
+    <div class="leaf hot"><b>마켓별</b> <b>롯데ON 231,918(75.6%!)</b> · 11번가 28,124 · G마켓 23,468 · 스스 12,971 · 옥션 10,256 <span class="note">(쿠팡 미제공)</span></div>
+    <div class="leaf">기기별 모바일 56.9% &gt; PC 43.1% · 시간대 피크 22시(6.0%) / 저점 5시(1.7%)</div>
+    <div class="leaf"><span class="tag tg">🟢</span>신규 소싱처 판단 근거 · 롯데ON 우선순위 근거 · <b>크롤·전송을 새벽 3~6시로</b></div>
+  </div></details>
+  <details class="l2"><summary>상품별 매출통계 / 상품별 접속통계</summary><div class="kid">
+    <div class="leaf"><span class="tag tg">🟢</span>검색필터 select 에 <b>매출액·건수</b>가 붙어 있다 = 「필터가 곧 매출 단위」</div>
+    <div class="leaf hot">🔴 조회수 상위 10개 중 <b>5개가 [삭제된 상품]</b>(747·668·606·540·460회) — 많이 보는 상품은 다시 확보할 가치</div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>「검색필터 성적표」 한 화면</b> — 수집량 → 생존 → 조회수 → 매출</div>
+  </div></details>
+  <div class="leaf"><span class="tag tw">⚪</span>더망고 API 접속통계 — <b>미구독·유료(Call 차감)</b></div>
+</div></details>
+
+<details class="l1" open><summary>⑩ 환경설정 <span class="url">admin_config.php</span> <span class="note">좌측 앵커 18</span></summary><div class="kid">
+  <details class="l2" open><summary>🔥 마켓 아이디 그룹핑 <span class="note">(매뉴얼에 없던 화면)</span></summary><div class="kid">
+    <div class="leaf hot"><span class="tag tg">🟢</span><b>정책명 138개의 수수께끼가 여기서 풀렸다</b></div>
+    <div class="leaf">그룹 5 = <b>스토어 브랜드</b>: 사무실 까대기 · 브랜드위시 · 브랜드박스 · 브랜드타임 · 브랜드바이</div>
+    <div class="leaf">각 그룹이 6마켓 계정 한 벌 + 그룹별 배송대행지 · <code>rnwhgowh1</code>=박스 / <code>2</code>=위시 / <code>3</code>=타임 / <code>4</code>=바이</div>
+    <div class="leaf">⇒ <code>무_아르마니(타임+박스)</code> = 브랜드타임+브랜드박스에 올리는 정책</div>
+    <div class="leaf hot">마켓 계정 <b>40개 중 33개 사용 중</b> — 그룹 없이 다루면 정책이 33배</div>
+  </div></details>
+  <details class="l2" open><summary>상품수집관련 설정</summary><div class="kid">
+    <div class="leaf hot"><span class="tag tg">🟢</span><b>재고 수량 일괄 = 10개</b> (실재고 950·1,524·2,130인데 마켓엔 10) — 오버셀 방지 + 재고 비노출<br><span class="note">⚠️ 상한 캡이지 하한 아님. <b>0은 0으로</b>(P0 게이트 보존)</span></div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>상품가격 10원 단위 절삭</b> · 금지어 · 가격제한 · <b>금지어/가격제한 처리(품절 or 삭제, 소급 적용)</b></div>
+    <div class="leaf"><span class="tag tg">🟢</span>검색필터 고정 · 카테고리 고정 · 품절상품 수집여부 · 브랜드명 기본값</div>
+    <div class="leaf hot">🔴 <b>업데이트 반복설정</b> — 「브라우저를 닫으면 반복 안 됨」 <span class="tag tb">🔵</span>우리는 서버·워커</div>
+  </div></details>
+  <details class="l2"><summary>상품관리관련 · 마켓 관리정보 설정</summary><div class="kid">
+    <div class="leaf hot"><span class="tag ty">🟡</span><b>전송 옵션개수 = 10개</b> · 「옵션명 오름차순 앞 N개」<br><span class="note">🔴 실제 옵션 71개 상품이 있다 → <b>61개가 잘린다.</b> 우리는 <b>자를 순서 선택 + 잘린 것 표면화</b></span></div>
+    <div class="leaf"><span class="tag tg">🟢</span><b>정산예정금액 계산식 + (계산됨) 꼬리표</b> — 마켓 수집값이 있으면 수식 미적용</div>
+    <div class="leaf"><span class="tag ty">🟡</span>동일 상품명 마켓등록 제한 → 우리는 <code>(소싱처URL, 마켓, 계정)</code>으로</div>
+    <div class="leaf"><span class="tag tg">🟢</span>옥션·G마켓 <b>옵션등록 불가 카테고리</b> 대응 (단일상품등록설정)</div>
+    <div class="leaf"><span class="tag ty">🟡</span>금지어가 <b>4군데</b>에 있고 전부 동시 적용 → 한 곳에 모으고 <b>걸린 규칙을 남긴다</b></div>
+    <div class="leaf hot">🔴 <b>「필터링 단어와 금지어가 같으면 필터링이 먼저 돌아 금지어가 무력화」</b></div>
+    <div class="leaf"><span class="tag tg">🟢</span>자주 쓰는 택배사만 노출(200종 중 6개 선택)</div>
+  </div></details>
+  <details class="l2"><summary>AI 관련 설정 · 마켓분산등록</summary><div class="kid">
+    <div class="leaf hot"><span class="tag tw">⚪</span><b>AI 크레딧 5,000 그대로</b> = 신규 기본제공분. <b>한 번도 안 쓰심.</b> API Key 둘 다 비어 있음</div>
+    <div class="leaf">🔴 AI 카테고리 자동매핑은 <b>「그룹 안 상품 1개만 보고 전체 매핑」</b> — 필터 하나에 3,000개가 들었는데 1개로 판단<br><span class="note">⇒ 사장님의 <b>「자동확정 금지, 제안까지만」</b> 방침이 옳다는 증명</span></div>
+    <div class="leaf"><span class="tag tw">⚪</span>마켓분산등록 — 미설정. 마켓 등록 한도가 병목일 때만 의미</div>
+  </div></details>
+  <div class="leaf"><span class="tag tw">⚪</span>부관리자 메뉴별 권한 · 확장프로그램 자동세팅 · SMS · 카카오 알림톡 · <span class="tag tr">🔴</span>배송대행지 관리(해외)</div>
+</div></details>
+
+<details class="l1"><summary>⑪ Qmenu <span class="note">계정·서비스·외부 마켓 바로가기 15</span></summary><div class="kid">
+  <div class="leaf note">로그아웃 · 비밀번호 · 서비스이용 문의 · FAQ · 공지 · 운영메뉴얼 · 기간연장 · 추가/업그레이드 · 자동결제 · 신청내역</div>
+  <div class="leaf note">외부: ESM · 11번가 · 스마트스토어 · 쿠팡 · 롯데ON 관리자</div>
+</div></details>
+
+</div>
+<script>
+function op(n){
+ document.querySelectorAll('.bar button').forEach(function(b){b.classList.remove('on')});
+ if(event&&event.target)event.target.classList.add('on');
+ document.querySelectorAll('details').forEach(function(d){
+   var lv=d.className.match(/l(\d)/); lv=lv?+lv[1]:9;
+   d.open = (n===9) ? true : (n===0 ? false : lv<=n);
+ });
+}
+</script>

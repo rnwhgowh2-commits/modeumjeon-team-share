@@ -7,7 +7,7 @@
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
     <div style="font-size:14px;color:#8F91A0">바코드 인쇄</div>
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품</h1>
-    <span title="좌측에서 디자인+제품 선택 → 우측 라이브 미리보기 → 인쇄" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span title="좌측에서 디자인+제품 선택 → 우측 라이브 미리보기 → 인쇄" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color: var(--글자-희미, #8F91A0);font-size:12px;font-weight:700;cursor:help">i</span>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:18px">
@@ -35,7 +35,7 @@
         <button type="button" onclick="document.getElementById('designSettings').style.display=document.getElementById('designSettings').style.display==='none'?'block':'none'" style="margin-top:8px;background:none;border:none;font-size:12px;color:#4F67FF;font-weight:600;cursor:pointer;padding:0"><i class="ph-light ph-gear" aria-hidden="true"></i> 폰트·여백 설정 ▾</button>
         <div id="designSettings" style="display:none;margin-top:10px;padding:12px;background:#F1F1F4;border-radius:6px">
           {# 폰트 크기 + 굵기 (3 행) #}
-          <div style="font-size:10.5px;color:#8F91A0;font-weight:600;margin-bottom:5px">폰트</div>
+          <div style="font-size:12px;color: var(--글자-희미, #8F91A0);font-weight:600;margin-bottom:5px">폰트</div>
           <div style="display:grid;grid-template-columns:60px 1fr 60px;gap:6px;font-size:12px;margin-bottom:8px;align-items:center">
             <span>모델명</span>
             <input type="number" id="cs_name" step="0.5" min="5" max="20" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px">
@@ -53,18 +53,18 @@
             <label>외곽 여백 (mm)<input type="number" id="cs_pad" step="0.1" min="0" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
           </div>
           {# 요소 간 여백 (3 단계) #}
-          <div style="font-size:10.5px;color:#8F91A0;font-weight:600;margin:8px 0 5px">요소 간 여백 (mm)</div>
+          <div style="font-size:12px;color: var(--글자-희미, #8F91A0);font-weight:600;margin:8px 0 5px">요소 간 여백 (mm)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:12px">
-            <label style="font-size:10.5px">모델명↔속성<input type="number" id="cs_gap_na" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
-            <label style="font-size:10.5px">속성↔바코드<input type="number" id="cs_gap_ab" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
-            <label style="font-size:10.5px">바코드↔코드<input type="number" id="cs_gap_bc" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size:12px">모델명↔속성<input type="number" id="cs_gap_na" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size:12px">속성↔바코드<input type="number" id="cs_gap_ab" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
+            <label style="font-size:12px">바코드↔코드<input type="number" id="cs_gap_bc" step="0.1" min="-5" max="5" style="width:100%;padding:6px;border:1px solid #CBCCD3;border-radius:4px;margin-top:2px"></label>
           </div>
           <div style="display:flex;gap:6px;margin-top:10px">
             <button type="button" onclick="resetDesignSettings()" style="flex:1;padding:7px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:12px;cursor:pointer">기본값 복원</button>
-            <span style="flex:2;align-self:center;font-size:10.5px;color:#8F91A0"><i class="ph-light ph-star" aria-hidden="true"></i> localStorage 자동 저장</span>
+            <span style="flex:2;align-self:center;font-size:12px;color:#8F91A0"><i class="ph-light ph-star" aria-hidden="true"></i> localStorage 자동 저장</span>
           </div>
         </div>
-        <div style="text-align:center;font-size:12px;color:#8F91A0;margin-top:8px">기본_바코드(신발)<br><strong style="color:#292A2F">{{ template.name }}</strong></div>
+        <div style="text-align:center;font-size:12px;color: var(--글자-희미, #8F91A0);margin-top:8px">기본_바코드(신발)<br><strong style="color:#292A2F">{{ template.name }}</strong></div>
 
         {# 라벨 용지 선택 panel (legacy inline, 모달이 메인) #}
         <div id="templatePanel" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #E5E8EB">
@@ -98,7 +98,7 @@
                     <span style="font-size:12px;color:#8F91A0">개</span>
                   </div>
                 </div>
-                <span style="font-size:18px;color:#8F91A0;padding-bottom:6px">×</span>
+                <span style="font-size:18px;color: var(--글자-희미, #8F91A0);padding-bottom:6px">×</span>
                 <div style="flex:1">
                   <label style="display:block;font-size:12px;color:#292A2F;margin-bottom:3px">세로</label>
                   <div style="display:flex;align-items:center;gap:4px">
@@ -111,7 +111,7 @@
               <div id="customPreviewInfo" style="margin-top:10px;font-size:12px;color:#1E40AF;line-height:1.7"></div>
             </div>
 
-            <div style="margin-top:10px;font-size:12px;color:#8F91A0;line-height:1.7"><i class="ph-light ph-star" aria-hidden="true"></i> {{ template.cols }}×{{ template.rows }} = {{ template.per_page }}칸 / 라벨 {{ template.label_w }}×{{ template.label_h }}mm / 용지 {{ template.paper_w }}×{{ template.paper_h }}mm<br><i class="ph-light ph-star" aria-hidden="true"></i> 순서: 좌상단(1) → 우→ 다음 행(2)</div>
+            <div style="margin-top:10px;font-size:12px;color: var(--글자-희미, #8F91A0);line-height:1.7"><i class="ph-light ph-star" aria-hidden="true"></i> {{ template.cols }}×{{ template.rows }} = {{ template.per_page }}칸 / 라벨 {{ template.label_w }}×{{ template.label_h }}mm / 용지 {{ template.paper_w }}×{{ template.paper_h }}mm<br><i class="ph-light ph-star" aria-hidden="true"></i> 순서: 좌상단(1) → 우→ 다음 행(2)</div>
           </form>
         </div>
       </div>
@@ -139,7 +139,7 @@
                   <input id="prodSearch" type="text" placeholder="제품 검색 — SKU·이름·바코드" oninput="filterProducts()" style="width:100%;padding:9px 12px;border:1px dashed #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F;background:#FAFBFC">
                 </td>
               </tr>
-              <tr id="emptyHint"><td colspan="3" style="padding:24px;text-align:center;color:#8F91A0;font-size:14px">검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)</td></tr>
+              <tr id="emptyHint"><td colspan="3" style="padding:24px;text-align:center;color: var(--글자-희미, #8F91A0);font-size:14px">검색어 입력 시 제품이 노출됩니다 (또는 선택한 제품만 표시)</td></tr>
               {% for o in options %}
                 {% set _pname = (display_pname.get(o.canonical_sku) if display_pname is defined else None) or (o | display_pname_single) %}
                 {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or (o | cleaned_color_single) %}
@@ -153,7 +153,7 @@
                       {% else %}<div style="width:32px;height:32px;border-radius:4px;background:#F1F1F4;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8F91A0"><i class="ph-light ph-sneaker" aria-hidden="true"></i></div>{% endif %}
                       <div>
                         <div style="font-size:12px;font-weight:600;color:#292A2F">{{ _pname }}</div>
-                        <div style="font-size:10.5px;color:#8F91A0">{{ o.canonical_sku }} · {{ _size }} · {{ _color }}</div>
+                        <div style="font-size:12px;color:#8F91A0">{{ o.canonical_sku }} · {{ _size }} · {{ _color }}</div>
                       </div>
                     </div>
                   </td>
@@ -189,7 +189,7 @@
             {# JS 가 채움 #}
           </div>
         </div>
-        <div style="margin-top:10px;font-size:12px;color:#8F91A0;line-height:1.7"><i class="ph-light ph-star" aria-hidden="true"></i> 좌측에서 라벨 디자인 + 제품 선택 → 우측 라이브 미리보기 → 인쇄.</div>
+        <div style="margin-top:10px;font-size:12px;color: var(--글자-희미, #8F91A0);line-height:1.7"><i class="ph-light ph-star" aria-hidden="true"></i> 좌측에서 라벨 디자인 + 제품 선택 → 우측 라이브 미리보기 → 인쇄.</div>
       </div>
     </div>
   </div>
@@ -201,12 +201,12 @@
     {# 헤더 #}
     <div style="padding:18px 24px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center">
       <h3 style="font-size:16px;font-weight:700;margin:0;color:#292A2F">용지 설정</h3>
-      <button type="button" onclick="closePaperModal()" style="margin-left:auto;background:none;border:none;color:#8F91A0;font-size:22px;cursor:pointer">×</button>
+      <button type="button" onclick="closePaperModal()" style="margin-left:auto;background:none;border:none;color: var(--글자-희미, #8F91A0);font-size:22px;cursor:pointer">×</button>
     </div>
 
     {# 유형 선택 (라벨 용지 / 감열 라벨 / 사용자 지정) #}
     <div style="padding:16px 24px;border-bottom:1px solid #F1F1F4">
-      <div style="font-size:12px;color:#8F91A0;margin-bottom:6px">유형 선택</div>
+      <div style="font-size:12px;color: var(--글자-희미, #8F91A0);margin-bottom:6px">유형 선택</div>
       <div style="display:flex;gap:8px">
         <button type="button" data-tab="preset" onclick="switchPaperTab('preset')" class="paper-tab" style="flex:1;padding:10px 14px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer">라벨 용지</button>
         <button type="button" data-tab="thermal" onclick="switchPaperTab('thermal')" class="paper-tab" style="flex:1;padding:10px 14px;border:1px solid #CBCCD3;background:#fff;color:#292A2F;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer">감열 라벨</button>
@@ -221,7 +221,7 @@
 
         {# 탭 1: 라벨 용지 (제조사 프리셋 + 상세 dimension) #}
         <div id="paperTab-preset" class="paper-tab-body">
-          <div style="margin-bottom:14px;font-size:12px;color:#8F91A0;line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
+          <div style="margin-bottom:14px;font-size:12px;color: var(--글자-희미, #8F91A0);line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
             <strong style="color:#292A2F">제조사 프리셋</strong> — Formtec / 3M / 기타. 선택 시 모든 dimension 자동 설정.
           </div>
           <select id="presetSelect" onchange="onPresetChange()" style="width:100%;padding:10px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F;background:#fff;margin-bottom:14px">
@@ -243,7 +243,7 @@
 
         {# 탭 2: 감열 라벨 (너비/높이만) #}
         <div id="paperTab-thermal" class="paper-tab-body" style="display:none">
-          <div style="margin-bottom:14px;font-size:12px;color:#8F91A0;line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
+          <div style="margin-bottom:14px;font-size:12px;color: var(--글자-희미, #8F91A0);line-height:1.6;background:#F1F1F4;padding:10px 12px;border-radius:5px">
             <strong style="color:#292A2F">감열 라벨</strong> — 1장 1라벨. 너비·높이만 입력. (예: 60×35mm, 50×30mm)
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
@@ -270,7 +270,7 @@
                 <span style="font-size:12px;color:#8F91A0">개</span>
               </div>
             </div>
-            <span style="font-size:18px;color:#8F91A0;padding-bottom:8px">×</span>
+            <span style="font-size:18px;color: var(--글자-희미, #8F91A0);padding-bottom:8px">×</span>
             <div style="flex:1">
               <label style="display:block;font-size:12px;color:#292A2F;margin-bottom:3px">세로</label>
               <div style="display:flex;align-items:center;gap:4px">
@@ -479,7 +479,7 @@ function _renderBarcodeIn(wrap, bcWidth, bcMargin) {
 function renderDesignCard(item) {
   const wrap = document.getElementById('designPreview');
   if (!item) {
-    wrap.innerHTML = '<div style="font-size:14px;color:#8F91A0;padding:32px">제품을 선택해주세요</div>';
+    wrap.innerHTML = '<div style="font-size:14px;color: var(--글자-희미, #8F91A0);padding:32px">제품을 선택해주세요</div>';
     return;
   }
   const labelPreview = document.getElementById('labelPreview');

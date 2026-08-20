@@ -1,0 +1,1762 @@
+{% extends "mobile/_base.html" %}
+{% block title %}주문 내역{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ═══ 배치5 — 사장님 확정 시안 v1 (1-C·2-A·3-C) 의 구조·정렬 기법 그대로.
+     시안=코드: 3-C KPI 3칸 격자 / 2-A 알약 칩+개수 / 1-C 줄(왼쪽 min-width:0 +
+     오른쪽 금액열 flex-shrink:0 + tabular-nums). 클래스만 mo- 접두어로 바꿨다. ═══ */
+
+  /* ── 3-C 요약 3칸 ── */
+  .mo-kpi{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px}
+  .mo-kpi>div{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:10px;padding:9px 10px}
+  .mo-kpi .l{font-size:12px;color:var(--n500,var(--sub,#8B95A1))}
+  .mo-kpi .v{font-size:16px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+  .mo-kpi .v small{font-size:12px;color:var(--n500,var(--sub,#8B95A1));font-weight:500}  /* [2026-08-05] 10→11px 깨알글자 하한 */
+  /* 매출 카드 근거 잔글씨(A안·폰은 2줄) — 11px 하한 유지, 폭 375 에서 안 넘치게 낱말 유지 */
+  .mo-kpi .cap{font-size:12px;color:var(--n500,var(--sub,#8B95A1));line-height:1.35;margin-top:3px;word-break:keep-all}
+  .mo-kpi .warn{color:var(--글자-빨강,var(--danger,#DC2626))}
+
+  /* ── 2-A 알약 칩 ── */
+  .mo-chiprow{display:flex;gap:6px;padding:4px 2px 10px;overflow-x:auto}
+  /* [2026-08-05 실측] 칩 높이 31px — 손끝 목표 44px 미달. min-height 로 채우고
+     글자는 inline-flex 세로 가운데(패딩은 그대로 둬 시각 밀도 유지). */
+  .mo-chip{padding:7px 12px;border-radius:16px;background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));font-size:12.5px;font-weight:600;white-space:nowrap;font-family:inherit;color:inherit;cursor:pointer;min-height:44px;display:inline-flex;align-items:center}
+  .mo-chip.on{background:var(--n900,var(--ink,#191F28));color:var(--surface,#fff);border-color:var(--n900,var(--ink,#191F28))}
+  .mo-chip .n{color:var(--primary,#3182F6);font-weight:800;margin-left:3px}
+  .mo-chip.on .n{color:#8AB8FF}
+
+  /* ── 1-C 줄 — 왼쪽(배지+상품명 말줄임)과 오른쪽 금액열 ── */
+  .mo-list{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:11px;overflow:hidden}
+  .mo-rrow{border-bottom:1px solid var(--n100,#F2F4F6);padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}
+  .mo-rrow:last-child{border-bottom:0}
+  .mo-rr-l{min-width:0}
+  .mo-rr-p{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mo-rr-meta{font-size:12px;color:var(--n500,var(--sub,#8B95A1));margin-top:2px}
+  .mo-rr-r{text-align:right;flex-shrink:0}
+  .mo-num{font-variant-numeric:tabular-nums;font-weight:800;font-size:14px}
+  .mo-num small{font-size:12px;font-weight:500;color:var(--n500,var(--sub,#8B95A1));margin-left:1px}
+  .mo-mg{font-size:12px;font-weight:700;color:var(--글자-초록,var(--color-ok,#059669))}
+  .mo-mg.neg{color:var(--글자-빨강,var(--danger,#DC2626))}
+  .mo-mg.dim{color:var(--n400,#B0B8C1);font-weight:500}
+
+  /* ── 「주문 관리」 상태 — PC 주문 표 첫 열과 **같은 저장소·같은 항목**을 폰에서도.
+       색 7가지는 PC(.ost-c-*)와 같은 토큰을 쓴다(같은 항목이 화면마다 다른 색이면 안 된다).
+       항목 만들기·고치기·지우기는 **PC 에서만** — 폰은 고르기 전용(작은 화면에서
+       실수로 항목을 지우면 팀 전체 데이터가 바뀐다). */
+  .mo-ost{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--n200,#E5E8EB);
+    border-radius:980px;padding:1px 8px 1px 6px;font-size:12px;font-weight:600;
+    background:var(--surface,#fff);color:var(--n600,#4E5968);margin-right:5px;
+    max-width:118px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;vertical-align:middle}
+  .mo-ost.fb{border-style:dashed;color:var(--n500,#8B95A1);font-weight:500}
+  .mo-ost.saving{opacity:.55}
+  .mo-ost.bad{border-color:var(--글자-빨강,#DC2626)}
+  .mo-ost .d{width:7px;height:7px;border-radius:50%;flex:none}
+  .mo-od-gray{background:#86868B}   .mo-od-blue{background:#0071E3}
+  .mo-od-teal{background:#5AC8FA}   .mo-od-green{background:#34C759}
+  .mo-od-orange{background:#FF9500} .mo-od-red{background:#FF3B30}
+  .mo-od-purple{background:#AF52DE}
+  /* 고르기 시트 — 폰이라 화면 아래에서 올라온다(탭 하나로 고르고 바로 닫힘) */
+  .mo-osheet{display:none;position:fixed;inset:0;z-index:99998;background:rgba(20,25,35,.45)}
+  .mo-osheet.on{display:block}
+  .mo-osheet .sh{position:absolute;left:0;right:0;bottom:0;background:var(--surface,#fff);
+    border-radius:16px 16px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom));
+    max-height:72vh;overflow:auto}
+  .mo-osheet .sh h4{margin:0 0 4px;font-size:14px;font-weight:700}
+  .mo-osheet .sh .sub{font-size:12px;color:var(--n500,#8B95A1);margin-bottom:10px;line-height:1.5}
+  .mo-osheet .sh button.opt{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+    border:1px solid var(--n200,#E5E8EB);background:var(--surface,#fff);border-radius:10px;
+    padding:11px 12px;margin-bottom:7px;font-size:13px;font-weight:600;font-family:inherit;
+    color:var(--ink,#191F28);cursor:pointer}
+  .mo-osheet .sh button.opt.on{border-color:#0071E3}
+  .mo-osheet .sh button.opt .d{width:9px;height:9px;border-radius:50%;flex:none}
+  .mo-osheet .sh button.opt.clear{color:var(--n500,#8B95A1);font-weight:500}
+  .mo-osheet .sh .none{font-size:12.5px;color:var(--n500,#8B95A1);line-height:1.6;padding:6px 0 10px}
+
+  .mo-badge{font-size:12px;font-weight:700;padding:2px 7px;border-radius:5px;margin-right:5px}
+  .b-new{background:#DBEAFE;color:#1D4ED8}
+  .b-ship{background:#FEF3C7;color:#92400E}
+  .b-done{background:#DCFCE7;color:#15803D}
+  .b-cs{background:#FEE2E2;color:#B91C1C}
+
+  /* 줄을 눌러 펼치는 상세 — 시안 .exp 그대로(점선 상자) */
+  .mo-exp{background:var(--n100,#F8FAFC);border-top:1px dashed var(--n300,#CBD5E1);padding:9px 12px;font-size:12px;color:var(--n700,#475569);line-height:1.8;display:none}
+  .mo-exp.on{display:block}
+
+  .mo-warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:9px 13px;font-size:12px;color:#92400E;margin-bottom:9px;display:none}
+  .mo-warn.show{display:block}
+  .mo-pane{display:none}
+  .mo-pane.on{display:block}
+
+  /* ═══ 배치5-2차 — 시안 A-1+A-4·B-2·C-4 구조 그대로(클래스만 mo- 접두어) ═══ */
+
+  /* ── A-1 줄 안 편집칸 — 시안의 파란 카드(border #93C5FD / bg #EFF6FF) 그대로 ── */
+  .mo-ship-ed{border:1px solid #93C5FD;background:#EFF6FF;border-radius:9px;padding:10px 12px;margin:0;display:none}
+  .mo-ship-ed.on{display:block}
+  .mo-ship-ed .t{font-size:12px;color:#1D4ED8;font-weight:700}
+  .mo-ship-ed .fr{display:flex;gap:6px;margin-top:7px}
+  .mo-inp{padding:10px;border:1px solid var(--n300,#CBD5E1);border-radius:8px;font-size:14px;font-family:inherit;background:var(--surface,#fff);color:inherit;min-width:0}
+  .mo-inp.cou{flex:1}
+  .mo-inp.inv{flex:1.4}
+  .mo-savebtn{display:block;width:100%;margin:8px 0 0;padding:11px;border:0;border-radius:9px;background:var(--primary,#3182F6);color:#fff;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer}
+  .mo-savebtn[disabled]{opacity:.5;cursor:default}          /* 전송 중 — 눌린 척 금지 */
+  .mo-ship-ed .hint{font-size:12px;color:var(--n500,#8B95A1);margin-top:6px}
+  .mo-ed-msg{font-size:12px;margin-top:6px;display:none}
+  .mo-ed-msg.show{display:block}
+  .mo-ed-msg.bad{color:var(--글자-빨강,var(--danger,#DC2626));font-weight:700}
+  .mo-ed-msg.warn2{color:#92400E;font-weight:700}
+  .b-sent{background:#DCFCE7;color:#15803D}                 /* 전송됨 배지 */
+  .b-fail{background:#FEE2E2;color:#B91C1C}
+  .mo-pclink{font-size:12px;color:var(--n500,#8B95A1);text-align:center;padding:2px 0}
+  /* [2026-08-05 실측] 판 바닥 PC 링크 터치 14px — 링크 자체가 44px 손끝 목표를 갖는다
+     (시각은 그대로: 글자 크기는 안 바꾸고 안 보이는 세로 여백으로만 키운다).
+     마진 판 「PC 마진 계산기」 링크도 같은 부류라 한 규칙으로 묶는다. */
+  .mo-pclink a,.mo-mg-month a{color:var(--primary,#3182F6);display:inline-flex;align-items:center;min-height:44px;padding:0 8px}
+
+  /* ── B-2 유형 칩 · C-4 기간 칩 — 상단 알약과 같은 .mo-chip 재사용 ── */
+  .mo-subchips{padding-top:0}
+  /* [6차] 기간 칩이 7개가 되어 폭 375 에서 마지막 「기간 직접」이 통째로 화면 밖으로
+     나갔다(실측 389px vs 보이는 343px). 옆으로 밀면 나오지만, **처음에 안 보이는 칩은
+     없는 것과 같다**. 기간 줄만 좌우 여백을 좁혀 7개가 다 보이게 한다 —
+     마켓·계정 칩 줄은 원래 밀어서 보는 게 맞아(6마켓·8계정) 그대로 둔다.
+     세로 여백·손끝 목표(44px)는 안 건드린다(가로만 좁힘). */
+  #mo-pd-chips{gap:5px}
+  #mo-pd-chips .mo-chip{padding-left:8px;padding-right:8px}
+  .mo-cs-sub{font-size:12px;color:var(--n700,#475569);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ── C-4 — 격자는 .mo-kpi 재사용. 부분값 설명줄 ── */
+  .mo-mg-note{font-size:12px;color:var(--n500,#8B95A1);padding:2px 2px 0;display:none}
+  .mo-mg-note.show{display:block}
+  .mo-mg-month{display:none}
+  .mo-mg-month.on{display:block}
+
+  /* ═══ 배치5-3차 — 목록 기간 칩(마진 판 C-4 기간 칩과 같은 .mo-chip 문법) ═══ */
+  .mo-pd-custom{display:none;padding:0 2px 10px}
+  .mo-pd-custom.on{display:block}
+  .mo-pd-custom .fr{display:flex;gap:6px}
+  /* 날짜 칸 — iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다(F 계열 실측 규칙과 동일).
+     min-height 44px 손끝 목표 + box-sizing 으로 패딩 포함 높이를 못 박는다. */
+  .mo-inp.mo-date{flex:1;font-size:16px;min-height:44px;box-sizing:border-box}
+
+  /* ═══ 배치5-4차 — 마켓·계정 구분(사장님 확정 A3+B1+C1+D1) ═══
+     A3 = 칩 두 줄로 거르기(PC 주문내역과 같은 조작) / B1 = 마켓 줄을 눌러 그 자리에서
+     계정 펼치기 / C1 = 이름 왼쪽·숫자 오른쪽 세로(자릿수 세로 정렬) / D1 = 실패는 위 띠.
+     🔴 칩과 요약 줄은 **한 상태(sel)** 에서 그린다 — 두 표현이 갈라질 수 없다. */
+
+  /* ── 정산예정금 칸 — 위 숫자칸 3칸을 그대로 두고(품절 위험 보존) 아래 한 줄을 넓게 얹는다.
+     두 줄 쌓기는 이 화면 마진 판이 이미 쓰는 문법(.mo-kpi 두 번). ── */
+  .mo-kpi.wide>div{grid-column:1/-1}
+  .mo-kpi.wide .v{font-size:19px}
+  /* [2026-08-06] 마켓 할인 + 정산예정금 두 칸 — 폭 375 에서 한 칸당 ≈173px.
+     세 칸(≈113px)으로 쪼개면 「−1,234,567 원」이 19px 로 안 들어간다. */
+  .mo-kpi.two{grid-template-columns:1fr 1fr}
+  .mo-kpi.two .v{font-size:19px}
+  /* [2026-08-08] 매출 밑 「마켓 할인 N만 반영됨」 — 눌러서 판매처별 내역을 본다. */
+  .mo-kpi .cap b.hi{color:var(--글자-파랑,#1B64DA);font-weight:800;cursor:pointer}
+  .mo-kpi .cap b.hi .q{display:inline-flex;align-items:center;justify-content:center;
+    width:13px;height:13px;border-radius:50%;background:var(--글자-파랑,#1B64DA);color:#fff;
+    font-size:12px;margin-left:4px;vertical-align:1px}
+  /* 🔴 body + fixed — 카드 overflow 에 안 잘리게(hover-info-card 규칙 1) */
+  .dcpop{display:none;position:fixed;z-index:99999;background:var(--surface,#fff);
+    border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:14px;max-height:70vh;
+    overflow-y:auto;padding:13px 15px;
+    left:10px;right:10px;color:var(--ink,#191F28)}
+  .dcpop.on{display:block}
+  .dcpop .ptit{font-size:13px;font-weight:700;margin-bottom:9px}
+  .dcpop .ptit b{color:var(--글자-파랑,#1B64DA)}
+  .dcpop .ptit .sub{color:var(--n500,#8B95A1);font-weight:600;font-size:12px}
+  .dcpop .grp{margin-bottom:11px}
+  .dcpop .grp .ghd{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:12.5px;font-weight:700;padding-bottom:4px;
+    border-bottom:1px solid var(--n200,var(--line,#E5E8EB))}
+  .dcpop .grp .ghd .num{font-variant-numeric:tabular-nums}
+  .dcpop .grp .ghd i{font-style:normal;color:var(--n500,#8B95A1);font-weight:600;
+    font-size:12px;margin-left:7px}
+  .dcpop .grp .ghd.unk{color:var(--n500,#8B95A1)}
+  .dcpop .bear{font-size:12px;color:var(--n500,#8B95A1);margin-top:4px;line-height:1.5}
+  .dcpop .bear b{color:var(--글자-파랑,#1B64DA)}
+  .dcpop .bear .unk{color:var(--글자-주황,#B26A00)}
+  .dcpop .bear .kind{display:block;color:var(--n500,#8B95A1)}
+  .dcpop .grp .unote{font-size:12px;color:var(--n500,#8B95A1);margin-top:5px;line-height:1.5}
+  .dcpop .glist{list-style:none;margin:5px 0 0;padding:0}
+  .dcpop .glist li{display:flex;justify-content:space-between;gap:10px;font-size:12px;
+    color:var(--n700,#4E5968);padding:2px 0}
+  .dcpop .glist .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dcpop .glist .num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dcpop .pfoot{margin-top:10px;padding-top:9px;
+    border-top:1px solid var(--n200,var(--line,#E5E8EB));
+    font-size:12px;color:var(--n500,#8B95A1);line-height:1.6}
+
+  /* ── C1 요약 줄 — 왼쪽(이름·부연) / 오른쪽(숫자 3줄). 한 격자라 전 행이 열 폭을 공유한다. ── */
+  .mv-list{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));
+           border-radius:11px;overflow:hidden;margin-bottom:10px}
+  .mv-row{border-bottom:1px solid var(--n100,#F2F4F6);padding:10px 12px;cursor:pointer;
+          background:transparent;border-left:0;border-right:0;border-top:0;width:100%;
+          font-family:inherit;color:inherit;text-align:left;display:block;min-height:44px}
+  .mv-row:last-child{border-bottom:0}
+  .mv-row.sel{background:#EFF6FF}
+  .mv-c1{display:grid;grid-template-columns:1fr max-content;gap:10px;align-items:center}
+  .mv-nm{font-size:13.5px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mv-sub{font-size:12px;color:var(--n500,var(--sub,#8B95A1));margin-top:2px}
+  /* 라벨↔값 한 묶음(먼 우측 push 금지). 값은 자릿수 세로 정렬 — 마켓끼리 견주는 게 목적. */
+  .mv-nums{display:grid;grid-template-columns:max-content max-content;gap:1px 6px;justify-items:end}
+  .mv-k{font-size:12px;color:var(--n500,var(--sub,#8B95A1));justify-self:start;align-self:center}
+  .mv-v{font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;white-space:nowrap}
+  .mv-v.settle{color:var(--primary,#3182F6)}
+  .mv-v small{font-size:12px;font-weight:500;color:var(--n500,var(--sub,#8B95A1));margin-left:2px}
+  /* 계정 줄 = 들여쓰기 + 왼쪽 강조선(구분 패턴 2개 조합: Indent + Border-left accent) */
+  .mv-acc{display:none;background:var(--n100,#F8FAFC);border-top:1px dashed var(--n300,#CBD5E1)}
+  .mv-acc.on{display:block}
+  .mv-acc .mv-row{padding-left:22px;border-left:3px solid var(--primary,#3182F6)}
+  .mv-caret{font-size:12px;color:var(--n500,var(--sub,#8B95A1));margin-left:4px}
+  .mv-row.bad .mv-nm{color:var(--글자-빨강,var(--danger,#DC2626))}
+
+  /* ── D1 실패 띠 — 못 불러온 것(붉음)과 중복 접힘(회색 안내)을 절대 섞지 않는다 ── */
+  .mv-fail{background:#FEF2F2;border:1px solid #FECACA;border-radius:9px;padding:9px 11px;
+           margin-bottom:9px;display:none}
+  .mv-fail.show{display:block}
+  .mv-fail .wt{font-size:12px;font-weight:700;color:#B91C1C;margin-bottom:6px}
+  .mv-fail .it{display:flex;justify-content:space-between;align-items:center;gap:8px;
+               padding:5px 0;border-top:1px solid #FEE2E2}
+  .mv-fail .tx{font-size:12px;color:#7F1D1D;min-width:0;line-height:1.45}
+  .mv-fail .hint{font-size:12px;color:#9A3412;margin-top:6px}
+  .mv-retry{border:1px solid var(--primary,#3182F6);background:var(--surface,#fff);
+            color:var(--primary,#3182F6);border-radius:8px;font-size:12px;font-weight:700;
+            font-family:inherit;padding:0 10px;min-height:44px;cursor:pointer;white-space:nowrap}
+  .mv-retry[disabled]{opacity:.5;cursor:default}
+  .mv-allbtn{display:block;width:100%;margin-top:8px;min-height:44px;border:0;border-radius:8px;
+             background:var(--primary,#3182F6);color:#fff;font-size:12.5px;font-weight:700;
+             font-family:inherit;cursor:pointer}
+  .mv-allbtn[disabled]{opacity:.5;cursor:default}
+  .mv-dup{background:var(--n100,#F8FAFC);border:1px solid var(--n200,var(--line,#E5E8EB));
+          border-radius:9px;padding:8px 11px;margin-bottom:9px;font-size:12px;
+          color:var(--n600,var(--글자-보조,#6B7684));display:none}
+  .mv-dup.show{display:block}
+  .mv-note{font-size:12px;color:var(--n500,var(--sub,#8B95A1));line-height:1.5;padding:2px 2px 8px}
+
+  /* ── [5차] 계정 칩은 **고른 마켓마다 한 줄**(PC 와 같은 묶음) — 상자는 세로로 쌓고
+     줄 하나하나가 옆으로 밀리는 칩 줄이다. 줄마다 어느 마켓 계정인지 이름표를 단다
+     (같은 계정명이 마켓마다 있어, 이름표가 없으면 어느 마켓 것인지 알 수 없다). */
+  #mo-acc-chips{display:block;overflow:visible;padding:0}
+  .mv-accgrp{display:flex;gap:6px;align-items:center;overflow-x:auto;padding:0 2px 8px}
+  .mv-acclbl{font-size:12px;font-weight:700;color:var(--n500,var(--sub,#8B95A1));
+             white-space:nowrap;flex-shrink:0}
+</style>
+{% endblock %}
+
+{% block content %}
+{# ── 3-C: 요약 숫자는 이 화면 위 한 곳에만(홈에는 바로가기뿐 — 같은 숫자 두 곳 금지).
+   🔴 초기값은 전부 '-' — 서버 답을 받기 전에 그럴듯한 숫자를 그려 두지 않는다. #}
+<div class="mo-kpi" id="mo-kpi">
+  <div><div class="l">신규 주문</div><div class="v" id="mo-kpi-new">-</div></div>
+  {# 매출 라벨은 기간 칩을 따라간다(사장님 확정 2026-08-06) — 기본 칩=7일이라 초기 라벨도 7일. #}
+  {# 잔글씨(A안) — 「이 숫자가 무엇을 빼고 무엇을 더한 값인가」. 문구 원천은
+     order_claim_scope.js 의 CAPS.salesPhone 이고, 어긋나면 시험이 잡는다. #}
+  <div><div class="l" id="mo-kpi-sales-l">7일 매출</div><div class="v" id="mo-kpi-sales">-</div>
+    <div class="cap" id="mo-kpi-sales-c">취소·반품 제외<br>교환 정산 포함</div></div>
+  <div><div class="l">품절 위험</div><div class="v warn" id="mo-kpi-risk">-</div></div>
+</div>
+
+{# [4차] 정산예정금 — 위 3칸을 그대로 두고(품절 위험 보존) 아랫줄에 얹는다.
+   🔴 「입금일 기준 아님」을 라벨에 못 박는다: 주문일 기준 합을 입금-달로 읽으면
+   거짓 화면이 된다(2026-08-06 정산예정금액 탭에서 실제로 라이브에 5.5억 거짓이 나갔던 부류).
+   금액을 모르는 행은 0 으로 더하지 않고 **건수로만** 센다(정직성 규약 — mobile_settle 과 같은 결).
+
+   [2026-08-08] 마켓 할인 칸을 **뺐다**(사장님 확정 A안 — PC 5칸과 같은 모양).
+   🔴 옆 칸에 「−207만」으로 세웠더니 **또 빼는 돈**으로 읽혔다. 매출은 이미 할인이
+   빠진 값이라, 매출 잔글씨에 「마켓 할인 N만 반영됨」으로 적는다.
+   판매처별 내역은 그 글씨를 눌러(폰은 탭) 뜨는 창에서 본다. #}
+<div class="mo-kpi wide">
+  <div><div class="l" id="mo-kpi-settle-l">정산예정금</div>
+    <div class="v" id="mo-kpi-settle">-</div>
+    <div class="cap" id="mo-kpi-settle-c">이 기간 주문분 · 입금일 기준 아님</div></div>
+</div>
+
+{# ── 2-A: 알약 칩 4개 — 개수는 배선(JS chipCounts)이 채운다. 하드코딩 금지. #}
+<div class="mo-chiprow" id="mo-chips">
+  <button class="mo-chip on" data-pane="list">목록<span class="n" id="mo-cnt-list">-</span></button>
+  <button class="mo-chip" data-pane="ship">송장<span class="n" id="mo-cnt-ship">-</span></button>
+  <button class="mo-chip" data-pane="cs">CS<span class="n" id="mo-cnt-cs">-</span></button>
+  <button class="mo-chip" data-pane="margin">마진</button>
+</div>
+
+<div class="mo-warn" id="mo-warn"></div>
+
+{# ── [4차] D1 못 불러온 계정 띠 ──────────────────────────────────────────
+   🔴 「못 불러옴」(붉음)과 「중복이라 한 번만 조회」(회색 안내)를 절대 한 목록에 섞지 않는다 —
+      섞으면 멀쩡한 계정이 고장난 것처럼 보인다(PC renderWarn 이 두 덩이를 나눠 그리는 것과 같은 규칙).
+   「다시 시도」는 그 마켓만 서버 90초 캐시를 무시(fresh=1)하고 강제 재조회 — PC retryMk 와 같은 길. #}
+<div class="mv-fail" id="mo-fail"></div>
+<div class="mv-dup" id="mo-dup"></div>
+
+{# ── 목록(1차에서 실데이터로 여는 유일한 판) ── #}
+<div class="mo-pane on" id="mo-pane-list">
+  {# [3차] 기간 칩 — 마진 판(C-4) 기간 칩과 같은 문법(.mo-chip). 기본 = 7일(기존 동작 불변).
+     매출 KPI 는 이 칩을 따라간다(사장님 확정) — 신규·품절위험은 「지금 상태」 의미라 기간과 무관. #}
+  {# [6차] 사장님 요청(2026-08-06) — 오늘·어제·3일·7일·14일·1달·직접.
+     🔴 「어제」만 시작=끝=어제인 **하루 창**이다(오늘을 안 포함). 나머지는 오늘까지. #}
+  <div class="mo-chiprow mo-subchips" id="mo-pd-chips">
+    <button class="mo-chip" data-pd="today">오늘</button>
+    <button class="mo-chip" data-pd="yday">어제</button>
+    <button class="mo-chip" data-pd="3">3일</button>
+    <button class="mo-chip on" data-pd="7">7일</button>
+    <button class="mo-chip" data-pd="14">14일</button>
+    <button class="mo-chip" data-pd="30">1달</button>
+    <button class="mo-chip" data-pd="custom">기간 직접</button>
+  </div>
+  {# 「기간 직접」에서만 펼쳐지는 시작·끝 날짜 두 칸 — 시작>끝이면 조회 안 하고 안내만. #}
+  <div class="mo-pd-custom" id="mo-pd-custom">
+    <div class="fr">
+      <input type="date" class="mo-inp mo-date" id="mo-pd-from" aria-label="시작일">
+      <input type="date" class="mo-inp mo-date" id="mo-pd-to" aria-label="끝일">
+    </div>
+    <div class="mo-ed-msg" id="mo-pd-msg"></div>
+  </div>
+
+  {# ── [4차] A3 마켓 칩 줄 + 계정 칩 줄 (PC 주문내역과 같은 조작) ──
+     칩은 **거르기 상태**, 아래 요약 줄은 **견주기**. 둘 다 같은 sel 한 곳에서 그려
+     서로 어긋날 수 없다. 개수는 JS 가 채운다 — 하드코딩 금지. #}
+  <div class="mo-chiprow mo-subchips" id="mo-mk-chips"></div>
+  <div class="mo-chiprow mo-subchips" id="mo-acc-chips"></div>
+
+  {# ── [4차] B1+C1 마켓·계정 요약 — 마켓 줄을 누르면 그 자리에서 계정이 펴지고,
+     계정 줄을 누르면 그 계정으로 걸린다. 숫자는 이미 불러온 행에서만 나온다
+     (판매처·쇼핑몰별칭·정산예정금액이 행에 이미 실려 온다 — 새 집계·새 조회 금지). #}
+  <div class="mv-list" id="mo-mv-list"></div>
+  <div class="mv-note" id="mo-mv-note"></div>
+
+  <div class="mo-list" id="mo-list">
+    <div class="m-loading"><span class="m-spinner"></span>주문 불러오는 중...</div>
+  </div>
+</div>
+
+{# ── 송장 판(A-1+A-4 합침, 사장님 확정) — 위 = 현황 3칸, 아래 = 발송대기 목록,
+   줄을 누르면 그 자리에서 택배사+송장번호 입력(시안 A-1 파란 카드).
+   🔴 초기값 전부 '-'. 셋째 칸은 시안의 「미매칭」이 아니라 「송장 없음」 —
+   미매칭은 택배사 엑셀 대조(PC 전용 흐름)의 개념이라 폰(엑셀 없음)엔 원천이 없다.
+   대신 실원천이 있는 「배송중·완료인데 송장번호 미기록」을 센다(송장 스윕과 같은 갭). #}
+<div class="mo-pane" id="mo-pane-ship">
+  <div class="mo-kpi" id="mo-ship-kpi">
+    <div><div class="l">발송대기</div><div class="v warn" id="mo-ship-wait">-</div></div>
+    <div><div class="l">오늘 발송</div><div class="v" id="mo-ship-sent">-</div></div>
+    {# 설명(title)에 기간을 **적어 두지 않는다** — 모수는 목록 기간 칩이 정한 rows 라
+       「7일분」이라 박아 두면 30일·직접 기간에서 거짓 설명이 된다. pdSyncTexts()가 채운다. #}
+    <div><div class="l" id="mo-ship-noinv-l">송장 없음</div><div class="v" id="mo-ship-noinv">-</div></div>
+  </div>
+  {# 오늘 발송의 한계 설명 — 폰엔 hover 가 없어 tooltip 대신 인라인 줄로 말한다. #}
+  <div class="mo-mg-note" id="mo-ship-note"></div>
+  <div class="mo-list" id="mo-ship-list">
+    <div class="m-loading"><span class="m-spinner"></span>주문 불러오는 중...</div>
+  </div>
+  <div class="mo-pclink">택배사 엑셀 일괄 입력은 <a href="/orders/?tab=ship">PC 「송장 작업」에서 →</a></div>
+</div>
+
+{# ── CS 판(B-2) — 유형 칩(전체·취소·반품·교환·문의)으로 거르는 목록.
+   원천 = cs/claims.json + cs/inquiries.json (PC CS 탭과 같은 엔드포인트·같은 7일 창).
+   위 알약의 CS 개수도 이 목록 길이 하나에서 나온다(같은 숫자 두 정의 금지). #}
+<div class="mo-pane" id="mo-pane-cs">
+  <div class="mo-chiprow mo-subchips" id="mo-cs-chips">
+    <button class="mo-chip on" data-cs="all">전체<span class="n" id="mo-cs-n-all">-</span></button>
+    <button class="mo-chip" data-cs="취소">취소<span class="n" id="mo-cs-n-cancel">-</span></button>
+    <button class="mo-chip" data-cs="반품">반품<span class="n" id="mo-cs-n-return">-</span></button>
+    <button class="mo-chip" data-cs="교환">교환<span class="n" id="mo-cs-n-exchange">-</span></button>
+    <button class="mo-chip" data-cs="문의">문의<span class="n" id="mo-cs-n-inq">-</span></button>
+  </div>
+  <div class="mo-warn" id="mo-cs-warn"></div>
+  <div class="mo-list" id="mo-cs-list">
+    <div class="m-loading"><span class="m-spinner"></span>CS 불러오는 중...</div>
+  </div>
+  <div class="mo-pclink">확인 처리·메모·답변은 <a href="/orders/?tab=cs">PC 「CS」에서 →</a></div>
+</div>
+
+{# ── 마진 판(C-4) — 기간 칩 + 숫자 6칸. 숫자는 목록이 이미 불러온 rows 와
+   price-diff(서버 단일 원천)에서만 — 새 집계 발명 금지.
+   「이번 달」은 마켓 실조회가 월 단위로 수 분이라 아직 정직하게 못 담았다(칩을 누르면
+   이유를 말한다 — 죽은 버튼 금지·지어낸 합계 금지). 근거는 스펙 §6. #}
+<div class="mo-pane" id="mo-pane-margin">
+  <div class="mo-chiprow mo-subchips" id="mo-mg-chips">
+    <button class="mo-chip on" data-mg="today">오늘</button>
+    {# week 의 모수 = 「불러온 rows」 = 목록 기간 칩이 정한 창이다 — 라벨을 「7일」로 박아
+       두면 30일을 보는데 「7일」이라 말한다. 초기값만 기본 칩(7일)과 같게 두고, 이후는
+       pdSyncTexts()가 pdShort()로 다시 쓴다(매출 KPI 라벨과 같은 처방). #}
+    <button class="mo-chip" data-mg="week" id="mo-mg-week">7일</button>
+    <button class="mo-chip" data-mg="month">이번 달</button>
+  </div>
+  <div id="mo-mg-grids">
+    <div class="mo-kpi">
+      <div><div class="l">매출</div><div class="v" id="mo-mg-sales">-</div></div>
+      <div><div class="l">마진</div><div class="v" id="mo-mg-margin">-</div></div>
+      <div><div class="l">마진율</div><div class="v" id="mo-mg-rate">-</div></div>
+    </div>
+    <div class="mo-kpi">
+      <div><div class="l">주문</div><div class="v" id="mo-mg-orders">-</div></div>
+      <div><div class="l">취소</div><div class="v" id="mo-mg-cancel">-</div></div>
+      <div><div class="l">적자</div><div class="v warn" id="mo-mg-loss">-</div></div>
+    </div>
+    <div class="mo-mg-note" id="mo-mg-note"></div>
+  </div>
+  <div class="mo-mg-month" id="mo-mg-month">
+    <div class="m-empty"><div class="icon"><i class="ph-light ph-calculator" aria-hidden="true"></i></div>이번 달은 아직 못 담았어요<br>
+      <span style="font-size:12px;color:var(--n500,#8B95A1)">마켓 실조회가 한 달치엔 너무 무거워요(6마켓 7일에도 ~60초).<br>
+      숫자를 지어내는 대신 PC 에서 보시게 안내드려요.</span><br>
+      <a href="/orders/?tab=margin" style="font-size:13px">PC 「마진 계산기」에서 →</a></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+{# 매출의 「무엇을 빼고 무엇을 남기나」는 PC 주문내역(orders/index.html)과 **같은 파일**이 정한다.
+   폰만 취소는 빼고 반품은 안 빼던 것이 여기서 끝난다(같은 이름의 숫자 두 정의 금지). #}
+<script src="{{ url_for('static', filename='order_claim_scope.js') }}"></script>
+<script>
+  'use strict';
+  // 마켓 목록은 서버가 준다(supported_markets) — JS 에 적으면 새 마켓이 조용히 빠진다.
+  var MARKETS = {{ markets|tojson }};
+  // [2차] 송장 전송 지원 마켓 — 서버 원천(invoice_send.SUPPORTED_SEND) 주입. 사본 금지.
+  var SENDABLE = {};
+  ({{ sendable|tojson }}).forEach(function(k){SENDABLE[k]=1;});
+  // [2차] 「이미 발송 흐름에 든」 상태 — 서버 원천(order_export._SHIPPED_STATES) 주입.
+  //   「송장 없음」 칸의 판정 기준(정규식을 새로 지으면 flow_daily 와 갈라진다).
+  var SHIPPED = {};
+  ({{ shipped_states|tojson }}).forEach(function(s){SHIPPED[s]=1;});
+  // 라벨→슬러그 — invoice/send 가 받는 market 키. MARKETS(서버)에서 만든다(PC MKSLUG 하드코딩과 달리 drift 없음).
+  var MKSLUG = {};
+  MARKETS.forEach(function(m){MKSLUG[m.label]=m.key;});
+  // 택배사 목록 — PC(orders/index.html) COURIERS 의 사본. 동일성은 시험이 못 박는다(WAIT 와 같은 처방).
+  var COURIERS=['로젠택배','CJ대한통운','롯데택배','한진택배','우체국택배'];
+
+  // ── askServer — crawl.html 관례 사본. 인증 실패는 JSON 이 아니라 HTML 로 온다
+  //   (세션 만료=로그인 200 HTML). 상태코드 → content-type 순서로 거른 뒤에만 파싱.
+  async function askServer(url, opts) {
+    var r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+    if (!r.ok) { throw new Error('http-' + r.status); }
+    var ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) { throw new Error('not-json'); }
+    return r.json();
+  }
+
+  // ── 숫자·상태 규칙 — PC 주문 화면(orders/index.html)의 정의를 그대로 옮겼다.
+  //   ★소수점·음수를 살려 판다 — 숫자 아닌 문자를 통째로 지우면 "99600.0000" 이
+  //    ×10,000 으로 둔갑한다(2026-07-23 G마켓 단가 실측 사고 — index.html num 과
+  //    동일. 폴백만 다르다: PC 는 0, 여기는 null — 모르면 '-' 로 그리기 위해).
+  function num(v){v=(''+v).replace(/[^0-9.\-]/g,'');var n=parseFloat(v);return isFinite(n)?Math.round(n):null;}
+  // 발송대기 판정 — index.html:947 var WAIT 와 같은 정의(칩 「송장」 개수의 뜻).
+  var WAIT=/결제완료|준비중|출고지시|신규|결제대기/;
+  // 신규 판정 — index.html UNIFY_RULES 의 '결제완료' 계열과 같은 정의.
+  var NEW_RE=/^결제완료|^신규/;
+  // CS 배지 판정 — 목록 줄에 「CS」 색 배지를 칠하는 용도로만 쓴다.
+  //  🔴 개수 세기엔 쓰지 않는다(2차) — CS 수의 단일 정의는 csItems()(claims+문의 목록).
+  var CS_RE=/취소요청|반품요청|교환요청/;
+
+  function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+  function won(n){return Number(n).toLocaleString('ko-KR');}
+  function setCnt(id,v){document.getElementById(id).textContent=(v==null?'-':String(v));}
+  function setKpi(id,html){document.getElementById(id).innerHTML=html;}
+
+  // ── 날짜 — 서버 '주문일'은 KST 문자열('YYYY-MM-DD HH:MM:SS')이라 **잘라서만** 쓴다.
+  //   그 문자열을 Date 생성자로 파싱하는 것 금지: 시간대가 없어 폰에서 9시간 어긋난다(실사고).
+  //   '오늘'의 날짜만은 폰 시계로 만들되 시간대를 Asia/Seoul 로 못 박는다(해외 로밍
+  //   중에도 '오늘 매출'의 오늘 = 한국 날짜).
+  var _kstFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' });
+  function kstDay(msAgo){ return _kstFmt.format(new Date(Date.now() - (msAgo||0))); }
+  function fmtDt(r){ return (r['주문일']||'').slice(5,16); }   // 'MM-DD HH:MM'
+
+  // ── 상태 → 배지 — index.html UNIFY_RULES 의 축약(색 4계열, 시안 1-C 그대로).
+  function badgeOf(st){
+    st=String(st||'');
+    if(CS_RE.test(st)) return {t:'CS', c:'b-cs'};
+    if(/취소완료|반품완료|교환완료|철회/.test(st)) return {t:'취소', c:'b-cs'};
+    if(NEW_RE.test(st)) return {t:'신규', c:'b-new'};
+    if(/준비중|상품준비|출고지시|발송대기|배송지시|결제대기/.test(st)) return {t:'대기', c:'b-ship'};
+    if(/배송중|발송완료|업체직접/.test(st)) return {t:'배송', c:'b-done'};
+    if(/배송완료|구매확정|수취완료|구매결정/.test(st)) return {t:'완료', c:'b-done'};
+    return {t:st.slice(0,4)||'-', c:'b-new'};
+  }
+
+  // ── 상태 ──
+  var rows=[], parts={}, warns={}, loadSeq=0, loadDone=0, lastLoadAt=0;
+  var pdxMap={}, ffOk=false, pdxOk=false;
+  // [2차] 송장 판 — 오늘 발송(flow-daily 원천)·줄 편집·전송 결과
+  var shipSent=null, shipSentUnknown=0, shipSentLoaded=false;
+  var shipOpen=null;            // {key, courier, inv} — 열린 편집칸(다시 그려도 유지)
+  var sendBusy=false;
+  var invRes={};                // key → {success, dry_run, error, market_invoice_no}
+  // [2차] CS 판 — 알약을 처음 열 때 1회 조회(마켓 문의 API 를 화면 열 때마다 치지 않는다)
+  var cs={req:false, claims:null, inqs:null, cFail:false, iFail:false, warns:[]};
+  var csFilter='all';
+  // [2차] 마진 판 — 기간 칩
+  var mgPeriod='today';
+  // [3차] 목록 기간 칩 — 기본 7일(기존 동작 불변). custom 은 두 날짜가 유효할 때만 조회.
+  var pdSel='7', pdFrom='', pdTo='';
+  // [4차] 마켓·계정 — 칩(거르기)과 요약 줄(견주기)이 **이 한 상태**에서 나온다.
+  //   [5차] PC 주문내역과 같은 **다중 선택**(사장님 지적 2026-08-06 — 폰만 한 개씩이었다).
+  //     selMk  = 고른 마켓 **라벨**(행의 '판매처' 값) 집합. **빈 집합 = 전체**(PC toggleMarket 과 같은 규약).
+  //     selAcc = 마켓라벨 → 고른 계정('쇼핑몰별칭') 집합. 없거나 그 마켓 전부면 = 그 마켓 전체.
+  //   🔴 「전무 또는 전부 = 필터 없음」은 PC 규약 그대로다(index.html toggleMarket·toggleAccount).
+  //      한쪽만 다르게 두면 같은 조작에 두 화면이 다른 답을 낸다.
+  var selMk=new Set(), selAcc={};
+  var mvOpen={};            // 요약에서 펼쳐 둔 마켓(라벨→1). 다시 그려도 유지.
+  var ffMarks={};           // fulfillment 행별 판정 — 총계만 쓰고 버리던 것을 보관해
+                            //  마켓·계정을 걸러도 「품절 위험」이 재조회 없이 따라간다.
+  var retryBusy={};         // 마켓키→1 : 「다시 시도」 연타 방지
+
+  // ── 지금 보이는 행 — 목록·매출·마진·송장이 **모두 이 한 함수**를 통한다.
+  //   (판마다 따로 거르면 같은 화면에서 범위가 갈라진다)
+  function visRows(){ return rowsExcept(''); }
+
+  // ── 한 축만 빼고 거른 결과 — PC filteredExcept 와 같은 규약.
+  //   칩의 **건수**는 그 칩 자신의 조건을 뺀 기준으로 센다. 안 그러면 쿠팡을 고른 순간
+  //   다른 마켓 칩이 전부 0 이 되어 갈아탈 수가 없다(PC index.html:1125·1142 와 같은 이유).
+  //   axis='mk' → 마켓 조건 제외 / 'acc' → 계정 조건 제외 / '' → 전부 적용(= visRows).
+  function rowsExcept(axis){
+    var mkOn=selMk.size>0, accOn=Object.keys(selAcc).length>0;
+    if(!mkOn&&!accOn)return rows;
+    return rows.filter(function(r){
+      var mk=String(r['판매처']||'');
+      if(axis!=='mk'&&mkOn&&!selMk.has(mk))return false;
+      if(axis!=='acc'){
+        var s=selAcc[mk];
+        if(s&&s.size&&!s.has(String(r['쇼핑몰별칭']||'')))return false;
+      }
+      return true;
+    });
+  }
+
+  // ── 다중 선택 규칙 — PC(index.html toggleMarket·toggleAccount)를 그대로 옮긴다 ──
+  function allMarketLabels(){
+    var s={}; rows.forEach(function(r){ if(r['판매처'])s[r['판매처']]=1; }); return Object.keys(s);
+  }
+  function allAccounts(mk){
+    var s={}; rows.forEach(function(r){
+      if(String(r['판매처']||'')!==mk)return;
+      if(r['쇼핑몰별칭'])s[r['쇼핑몰별칭']]=1; }); return Object.keys(s);
+  }
+  // 계정명은 화면에서만 마켓 표기 중복 제거 — 「브랜드마켓(쿠팡)」 → 「브랜드마켓」.
+  //   PC acctName 과 같은 규칙(원본은 title 로 남긴다). 폰은 폭이 좁아 이게 특히 크다.
+  function acctName(v){
+    return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|스스|롯데온|11번가|옥션|G마켓|지마켓)\)\s*$/,'').trim();
+  }
+  // 마켓: 다시 누르면 빼기. 전무·전부면 필터 해제(= 전체).
+  function toggleMarket(m){
+    if(selMk.has(m))selMk.delete(m); else selMk.add(m);
+    if(selMk.size===0||selMk.size===allMarketLabels().length)selMk.clear();
+    // 안 고른 마켓의 계정 필터는 화면에 안 보이는 채로 남아 「왜 빠졌지?」가 된다 — 같이 정리.
+    if(selMk.size)Object.keys(selAcc).forEach(function(k){ if(!selMk.has(k))delete selAcc[k]; });
+    render();
+  }
+  function acctAllOn(m){ var s=selAcc[m]; return !s||!s.size; }
+  function selectedAcctsIn(m){ var s=selAcc[m]; return s?Array.from(s):[]; }
+  // 계정: 「전체」 상태에서 첫 클릭 = 그 계정만 / 이후 = 토글. 전무·전부면 그 마켓 필터 해제.
+  //   (PC toggleAccount 의 세 갈래 그대로 — 한쪽만 다르면 같은 조작에 다른 답이 나온다)
+  function toggleAccount(m,a){
+    var A=allAccounts(m), s=selAcc[m];
+    var pick=(!s||!s.size)?new Set(A):new Set(s);
+    if(pick.size===A.length){ pick=new Set([a]); }
+    else if(pick.has(a)){ pick.delete(a); } else { pick.add(a); }
+    if(pick.size===0||pick.size===A.length)delete selAcc[m]; else selAcc[m]=pick;
+    render();
+  }
+  function selectAllAccounts(m){ delete selAcc[m]; render(); }
+  // ── 「믿을 수 있는 0」인가 ─────────────────────────────────────────────
+  //   🔴 2026-08-06 실측: 자격증명이 없으면 서버는 **ok=true + 0건 + 경고**로 답한다
+  //   (실패가 아니라 「그 계정을 빼고 조회함」이라서). 그래서 화면이 그 0 을 진짜 0 으로
+  //   읽어 전 마켓이 못 불러온 상태인데도 매출·정산예정금이 「0 원」으로 떴다.
+  //   0 원은 「안 팔렸다」는 단정이다 — 모르면 '-' 여야 한다(돈 무결성 1원칙).
+  //   판정: 행을 실제로 받았으면 믿는다 / 0건인데 실패 경고까지 있으면 모르는 것이다.
+  function mkFailed(key){
+    return (warns[key]||[]).some(function(w){return warnMkKey(w)&&!isDupKind(w);});
+  }
+  function mkTrusted(m){
+    if(parts[m.key]==null)return false;              // 응답 자체를 못 받음
+    if((parts[m.key]||[]).length)return true;        // 실제 행을 받았다 — 믿는다
+    return !mkFailed(m.key);                         // 0건인데 실패도 없으면 진짜 0
+  }
+  function anyTrusted(){return MARKETS.some(mkTrusted);}
+  // 🔴 [5차 실측] 「믿을 수 있나」는 **지금 보고 있는 범위** 기준이어야 한다.
+  //   다중 선택이 생기면서 드러난 함정: 스마트스토어만 골랐는데 그게 실패하면,
+  //   쿠팡이 성공했다는 이유로 anyTrusted()가 참이라 화면이 「스마트스토어 주문이
+  //   없어요 · 매출 0원」이라 말했다. 못 불러온 것을 「없다」고 단정한 것이다.
+  //   마켓을 안 골랐으면(=전체) 전체 기준이 곧 보는 범위다.
+  function scopeTrusted(){
+    if(!selMk.size)return anyTrusted();          // 아무것도 안 골랐으면 전체가 곧 보는 범위
+    return MARKETS.some(function(m){return selMk.has(m.label)&&mkTrusted(m);});
+  }
+
+  // 지금 걸린 범위를 사람 말로 — 빈 목록·라벨이 「전체」인 척하지 않게.
+  //   [5차] 여러 개를 골랐으면 두 개까지 적고 나머지는 「외 N곳」 — 375px 에서 라벨이
+  //   줄바꿈되면 위 숫자칸이 밀린다. 계정을 골랐으면 계정을, 아니면 마켓을 말한다(더 좁은 쪽).
+  function selLabel(){
+    var accs=[];
+    Object.keys(selAcc).forEach(function(m){
+      (selAcc[m]||new Set()).forEach(function(a){ accs.push(acctName(a)); });
+    });
+    var head=accs.length?accs:Array.from(selMk);
+    if(!head.length)return '';
+    return head.length<=2?head.join('·'):head[0]+' 외 '+(head.length-1)+'곳';
+  }
+
+  // 행 식별자 — 서버 price_diff.row_key 와 같은 규칙(판매처|주문번호|상품명|옵션).
+  function pdxKey(r){return [String(r['판매처']||''),String(r['오픈마켓주문번호']||''),
+                            String(r['상품명']||''),String(r['옵션']||'')].join('|');}
+
+  // ── [3차] 기간 칩 → from/to — 서버 /orders/preview.json 은 이미 from/to 를 받는다.
+  //   90일 초과면 서버가 저장분(store)+warnings 로 답하고, 그 warnings 는 기존 띠가 그린다.
+  //   날짜 문자열('YYYY-MM-DD')은 글자 순서=시간 순서라 그대로 비교한다(파싱 없음).
+  //   [6차] 기간을 **한 표**에서 정의한다 — 창·긴 이름·짧은 이름이 세 함수에 흩어져
+  //   있으면 칩을 하나 더할 때마다 세 곳을 고쳐야 하고, 한 곳을 빠뜨리면 「14일을 보는데
+  //   7일이라 말하는」 거짓 화면이 된다(실제로 그 부류 사고가 이 화면에 있었다).
+  //   🔴 「어제」만 오늘을 **안 포함**하는 하루 창이다(days 가 아니라 시작·끝이 어제).
+  var PD_DEFS={
+    today:{days:0,  label:'오늘',      short:'오늘'},
+    yday: {yday:true, label:'어제',    short:'어제'},
+    '3':  {days:2,  label:'최근 3일',  short:'3일'},
+    '7':  {days:6,  label:'최근 7일',  short:'7일'},
+    '14': {days:13, label:'최근 14일', short:'14일'},
+    '30': {days:29, label:'최근 1달',  short:'1달'}
+  };
+  function pdRange(){
+    if(pdSel==='custom')return {from:pdFrom, to:pdTo};
+    var d=PD_DEFS[pdSel]||PD_DEFS['7'];
+    if(d.yday){var y=kstDay(86400000); return {from:y, to:y};}   // 어제 하루만
+    return {from:kstDay(d.days*86400000), to:kstDay(0)};
+  }
+  function pdLabel(){
+    // [6차] 날짜를 아직 안 고른 「기간 직접」은 「 ~ 」라는 빈 문구가 그대로 새 나갔다
+    //   (송장 판 설명이 「불러온 기간:  ~ 」로 보였다). 고르기 전엔 그 사실을 말한다.
+    if(pdSel==='custom')return (pdFrom&&pdTo)?(pdFrom+' ~ '+pdTo):'날짜 고르기 전';
+    return (PD_DEFS[pdSel]||PD_DEFS['7']).label;
+  }
+  // KPI 라벨용 짧은 꼴 — 직접 기간은 날짜 두 개가 11.5px 칸에 안 들어가 「기간」으로 줄인다.
+  function pdShort(){
+    if(pdSel==='custom')return '기간';
+    return (PD_DEFS[pdSel]||PD_DEFS['7']).short;
+  }
+  // ── 기간을 말하는 **정적 문구**는 렌더 시점에 칩을 따라 다시 쓴다.
+  //   HTML 에 「7일」이 박혀 있으면 30일·직접 기간에서 거짓 화면이 된다(빈 목록 안내가
+  //   pdLabel() 을 쓰는 것과 같은 처방). 지금 대상 두 곳:
+  //     ① 송장 판 「송장 없음」 설명(title) — 모수 = 불러온 rows
+  //     ② 마진 판 week 칩 라벨 — 모수 = 불러온 rows(mgSubset)
+  function pdSyncTexts(){
+    var el=document.getElementById('mo-ship-noinv-l');
+    if(el)el.title='배송중·완료인데 송장번호가 기록 안 된 주문(불러온 기간: '+pdLabel()+')';
+    var mw=document.getElementById('mo-mg-week');
+    if(mw)mw.textContent=pdShort();
+  }
+  // custom 인데 날짜가 무효(빈 칸·시작>끝)면 조회 자격이 없다 — 빈 from/to 로
+  // 서버 기본 창이 몰래 조회돼 「직접 기간」인 척 그려지는 것을 막는다.
+  function pdValid(){
+    if(pdSel!=='custom')return true;
+    return !!(pdFrom&&pdTo&&pdFrom<=pdTo);
+  }
+
+  function loadAll(){
+    if(!pdValid())return;
+    var seq=++loadSeq;
+    lastLoadAt=Date.now();
+    parts={};warns={};loadDone=0;pdxMap={};ffOk=false;pdxOk=false;
+    shipSent=null;shipSentUnknown=0;shipSentLoaded=false;invRes={};
+    cs={req:false, claims:null, inqs:null, cFail:false, iFail:false, warns:[]};
+    // 오늘 발송 — flow-daily(적재분·마켓 호출 0) 원천. rows 와 무관하니 병렬로 부른다.
+    //   실패·미도착이면 '-' 그대로(0 으로 지어내지 않는다).
+    askServer('/orders/flow-daily.json?days=1')
+      .then(function(j){ if(seq!==loadSeq)return;
+        if(j.ok&&j.rows&&j.rows.length){
+          var t=null, today=kstDay(0);
+          j.rows.forEach(function(x){ if(x.date===today)t=x; });
+          shipSent=(t&&t.sent!=null)?t.sent:null;
+          shipSentUnknown=j.unknown||0;
+        }
+        shipSentLoaded=true; renderShip(); })
+      .catch(function(){ if(seq!==loadSeq)return;
+        shipSentLoaded=true; shipSent=null; renderShip(); });
+    // CS 판을 이미 보고 있으면(복귀 재조회) 바로 다시 불러온다.
+    if(document.getElementById('mo-pane-cs').classList.contains('on')){ csLoad(seq); }
+    var pr=pdRange(), from=pr.from, to=pr.to;    // 기간 칩이 정한 창(기본 7일)
+    MARKETS.forEach(function(m){
+      askServer('/orders/preview.json?market='+encodeURIComponent(m.key)
+                +'&from='+from+'&to='+to)
+        .then(function(j){
+          if(seq!==loadSeq)return;
+          if(j.ok){parts[m.key]=j.rows||[];warns[m.key]=(j.warnings||[]).slice();}
+          else{warns[m.key]=['['+m.label+'] 주문 조회 실패: '+(j.error||'')];}
+          done(seq);
+        })
+        .catch(function(){
+          if(seq!==loadSeq)return;
+          warns[m.key]=['['+m.label+'] 불러오지 못했어요'];
+          done(seq);
+        });
+    });
+    if(!MARKETS.length){render();}
+  }
+  function done(seq){
+    loadDone++;
+    rebuild();
+    if(loadDone>=MARKETS.length){loadExtras(seq);}
+  }
+  function rebuild(){
+    rows=[];
+    MARKETS.forEach(function(m){ if(parts[m.key]) rows=rows.concat(parts[m.key]); });
+    // KST 문자열은 글자 순서=시간 순서라 그대로 비교한다(파싱 없음).
+    rows.sort(function(a,b){return String(b['주문일']||'').localeCompare(String(a['주문일']||''));});
+    render();
+  }
+
+  // ── 가격 전후·주문 3분류 — PC 와 같은 규약: 표를 그린 뒤 rows 를 그대로 보내
+  //   서버 한 곳이 계산한다(마진·재고 판정 산식을 폰에 복사하지 않는다).
+  function loadExtras(seq){
+    if(!rows.length){
+      // [검토 C1] rows 가 빈 이유는 둘 — ①조회 성공·주문 0건 ②전 마켓 실패.
+      //  ②를 0건이라 그리면 「모르면 확인 불가」 위반(신규·매출 '-' 와도 갈라진다).
+      renderRisk();     // 전 마켓 실패면 '-', 조회 성공·0건이면 '0 건'을 renderRisk 가 가른다
+      return;
+    }
+    askServer('/orders/price-diff.json',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+      .then(function(j){ if(seq!==loadSeq)return;
+        pdxOk=!!(j&&j.ok&&j.diffs); pdxMap=pdxOk?j.diffs:{}; render(); })
+      .catch(function(){ if(seq===loadSeq){pdxOk=false;pdxMap={};render();} });
+    askServer('/orders/fulfillment.json',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+      .then(function(j){ if(seq!==loadSeq)return;
+        // 🔴 [4차] marks(행별 판정)를 보관한다 — 예전엔 summary 만 읽고 버려서,
+        //   마켓·계정을 고르면 「품절 위험」만 전체 기준으로 남는 어긋난 화면이 됐을 것이다.
+        //   행키는 price_diff.row_key = 여기 pdxKey 와 같은 규칙이라 그대로 붙는다.
+        if(j&&j.ok&&j.marks){ffOk=true;ffMarks=j.marks;}
+        else{ffOk=false;ffMarks={};}
+        renderRisk();
+      })
+      .catch(function(){ if(seq===loadSeq){ffOk=false;ffMarks={};renderRisk();} });
+    loadLineStatus(seq);
+  }
+
+  /* ══ 「주문 관리」 상태 — PC 주문 표 첫 열과 **같은 저장소**를 폰에서도 ══════════
+     🔴 새 엔드포인트를 만들지 않는다. PC 가 쓰는 `/orders/api/line-status/{resolve,}`
+       를 그대로 부른다 — 항목·저장 규칙을 폰에 복사하면 반드시 갈라진다.
+     🔴 열쇠는 `_line_uid` — 주문번호로 묶으면 다품목 주문의 형제 줄까지 같이 바뀐다.
+     🔴 기본 항목은 **표시만**(is_fallback) — 폰에서도 점선으로 그려 「아직 안 봄」을 구분한다.
+     · 항목 만들기·고치기·지우기는 PC 에서만(작은 화면에서 실수로 지우면 팀 전체가 바뀐다). */
+  var ostMap={}, ostOpts=[], ostSeq=0, ostState={};   // ostState: uid → 'saving'|'err'
+  // 🔴 「못 불러왔다」와 「아무도 안 골랐다」는 **다른 사실**이다 — 알약이 갈라 말한다.
+  //   (2026-08-12 라이브에서 실제로 겪음: 배포 중 조회가 500 을 맞자 전 줄이 빈 「상태」로
+  //    보여 사장님 상태가 지워진 줄 알았다. 목록의 빈 화면이 「못 불러옴/진짜 0건」을
+  //    갈라 말하는 것과 같은 규율을 알약에도 건다.)
+  var ostOk=true;
+  function ostUid(r){return String(r['_line_uid']||'');}
+  function loadLineStatus(seq){
+    var mine=++ostSeq;
+    if(!rows.length){ostMap={};ostOk=true;return;}
+    askServer('/orders/api/line-status/resolve',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+      .then(function(j){
+        if(mine!==ostSeq||seq!==loadSeq)return;
+        // 🔴 실패하면 **비운다** — 옛 상태를 최신인 척 그리면 사장님이 이미 처리한 줄로 믿는다.
+        ostOk=!!(j&&j.ok);
+        ostMap=(j&&j.ok&&j.statuses)?j.statuses:{};
+        ostOpts=(j&&j.ok&&j.options)?j.options:[];
+        render();
+      })
+      .catch(function(){ if(mine===ostSeq){ostOk=false;ostMap={};ostOpts=[];render();} });
+  }
+  function ostCell(r){
+    var uid=ostUid(r); if(!uid)return '';
+    var st=ostState[uid], d=ostMap[uid]||null;
+    var cls='mo-ost'+((d&&d.is_fallback)||(!d&&!ostOk)?' fb':'')
+           +(st==='saving'?' saving':'')+(st==='err'?' bad':'');
+    var dot=d?('<span class="d mo-od-'+esc(d.color||'gray')+'"></span>'):'';
+    var txt=d?(esc(d.name)+(d.is_fallback?' 기본':'')):(ostOk?'상태':'확인 불가');
+    if(st==='err')txt='실패';
+    var tip=(!d&&!ostOk)?' title="상태를 불러오지 못했어요 — 지워진 게 아닙니다."':'';
+    return '<span class="'+cls+'" data-ost="'+esc(uid)+'"'+tip+'>'+dot+txt+'</span>';
+  }
+  var _ostSheet=null, _ostUid='';
+  function ostSheetClose(){ if(_ostSheet){_ostSheet.classList.remove('on');} }
+  function ostSheetOpen(uid){
+    _ostUid=uid;
+    if(!_ostSheet){
+      _ostSheet=document.body.appendChild(Object.assign(document.createElement('div'),
+        {className:'mo-osheet'}));
+      _ostSheet.addEventListener('click',function(e){
+        if(e.target===_ostSheet){ostSheetClose();return;}
+        var b=e.target.closest&&e.target.closest('button.opt');
+        if(!b)return;
+        var v=b.getAttribute('data-oid');
+        ostSheetClose();
+        ostSave(_ostUid, v==='__none'?null:Number(v));
+      });
+    }
+    var cur=(ostMap[uid]&&!ostMap[uid].is_fallback)?ostMap[uid].option_id:null;
+    var body;
+    if(!ostOpts.length&&!ostOk){
+      // 🔴 못 불러온 것을 「항목이 없어요」라고 말하면 거짓이다 — 만들라고 시키게 된다.
+      body='<div class="none">상태 목록을 불러오지 못했어요.<br>'
+          +'잠시 뒤 새로고침해 주세요 — 만들어 둔 항목이 사라진 게 아닙니다.</div>';
+    }else if(!ostOpts.length){
+      // 🔴 항목이 하나도 없으면 「고르라」고 할 수 없다 — 어디서 만드는지 말한다.
+      body='<div class="none">아직 만든 상태 항목이 없어요.<br>'
+          +'PC 「주문 내역」 첫 열의 <b>항목 관리</b>에서 먼저 만들어 주세요.</div>';
+    }else{
+      body=ostOpts.map(function(o){
+        return '<button type="button" class="opt'+(cur===o.id?' on':'')+'" data-oid="'+o.id+'">'
+             +'<span class="d mo-od-'+esc(o.color||'gray')+'"></span>'+esc(o.name)
+             +(o.is_default?' <span style="font-size:12px;color:#8B95A1;font-weight:500">기본</span>':'')
+             +'</button>';}).join('')
+          +'<button type="button" class="opt clear" data-oid="__none">지정 안 함(비우기)</button>';
+    }
+    _ostSheet.innerHTML='<div class="sh"><h4>주문 관리 상태</h4>'
+      +'<div class="sub">고르면 바로 저장돼요. 항목을 만들거나 고치는 건 PC 에서 합니다.</div>'
+      +body+'</div>';
+    _ostSheet.classList.add('on');
+  }
+  function ostSave(uid,optionId){
+    ostState[uid]='saving'; render();
+    askServer('/orders/api/line-status',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({line_uid:uid,option_id:optionId})})
+      .then(function(j){
+        if(!j||!j.ok){ostState[uid]='err';render();return;}
+        if(j.status)ostMap[uid]=j.status; else delete ostMap[uid];
+        delete ostState[uid]; render();
+      })
+      .catch(function(){ ostState[uid]='err'; render(); });
+  }
+  // 품절 위험 = 지금 보이는 행 중 「재고없음(S)」 판정. 판정을 못 받았으면 '-'(0 으로 지어내기 금지).
+  function riskN(sub){
+    if(!ffOk)return null;
+    var n=0;
+    sub.forEach(function(r){ var m=ffMarks[pdxKey(r)]; if(m&&m.reason==='S')n++; });
+    return n;
+  }
+  function renderRisk(){
+    if(loadDone<1)return;
+    var okAny=scopeTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
+    if(!okAny){setKpi('mo-kpi-risk','-');return;}
+    var sub=visRows();
+    // 주문 0건이면 「주문 중 재고없음」도 0 이 사실이다(판정 실패와 다르다).
+    if(!sub.length){setKpi('mo-kpi-risk','0<small> 건</small>');return;}
+    var n=riskN(sub);
+    setKpi('mo-kpi-risk', n==null?'-':String(n)+'<small> 건</small>');
+  }
+
+  // ── 마진율 — 숫자를 새로 만들지 않는다: 분자=price-diff 의 「지금 사면 마진」(서버
+  //   단일 원천), 분모=실결제+배송비(사장님 확정 매출 기준, 2026-07-25 PR#482·486).
+  //   마진을 모르면(margin==null) '-' 다 — 0% 로 지어내지 않는다.
+  function mgCell(r){
+    var d=pdxMap[pdxKey(r)];
+    if(!d||d.margin==null){return '<div class="mo-mg dim">-</div>';}
+    var base=(num(r['실결제금액'])||0)+(num(r['배송비'])||0);
+    if(base<=0){return '<div class="mo-mg dim">-</div>';}
+    var pct=d.margin/base*100;
+    var cls='mo-mg'+(d.margin<0?' neg':'');
+    return '<div class="'+cls+'" title="지금 사면 마진 '+won(d.margin)+'원">'
+           +(pct<0?'−':'')+Math.abs(pct).toFixed(1)+'%</div>';
+  }
+
+  // ═══════════════ [4차] 마켓·계정 (A3 칩 + B1 펼침 + C1 숫자 + D1 실패) ═══════════════
+
+  var MK_LABEL={}, MK_KEY={};
+  MARKETS.forEach(function(m){MK_LABEL[m.key]=m.label; MK_KEY[m.label]=m.key;});
+
+  // ── 경고 원문 해석 — PC(orders/index.html warnWho·warnKind·warnMk)와 같은 규칙.
+  //   서버 원문은 「[coupang·계정명] 사유」 꼴이고, 폰이 스스로 만든 실패 문구는
+  //   「[쿠팡] …」(라벨) 꼴이라 **키·라벨 둘 다** 받아 준다(한쪽만 보면 재시도 단추가 사라진다).
+  function warnMkKey(w){
+    var m=String(w).match(/^\[([^\]·]+)/); var t=m&&m[1].trim();
+    if(!t)return '';
+    if(MK_LABEL[t])return t;                 // 이미 마켓 키
+    if(MK_KEY[t])return MK_KEY[t];           // 라벨 → 키
+    return '';
+  }
+  function warnWho(w){
+    var m=String(w).match(/^\[([^\]]+)\]/); if(!m)return '';
+    var p=m[1].split('·'), k=warnMkKey(w), mk=k?MK_LABEL[k]:p[0];
+    return p[1]?mk+' · '+p[1]:mk;
+  }
+  function warnKind(w){
+    w=String(w);
+    // 원인이 다른 둘을 가른다: 같은 키를 넣음(dupkey) vs 주문이 동일(dup) — 둘 다 실패가 아니다.
+    if(/키\(셀러 식별자\)가 같아/.test(w))return 'dupkey';
+    if(/주문이 완전히 같아|중복 등록/.test(w))return 'dup';
+    if(/API 키가 없어/.test(w))return 'nokey';
+    if(/ip address|not allowed for this request|출발지 ?IP|IP ?미등록/i.test(w))return 'ip';
+    if(/401|unauthorized/i.test(w))return 'auth';
+    if(/HTTP 5\d\d/.test(w))return 'server';
+    return 'etc';
+  }
+  function isDupKind(w){var k=warnKind(w);return k==='dup'||k==='dupkey';}
+  function warnText(w){
+    var who=warnWho(w);
+    switch(warnKind(w)){
+      case 'nokey':  return who+' — 열쇠(API 키)가 없어 조회에서 빠졌어요.';
+      case 'ip':     return who+' — 판매자센터에 우리 서버 주소가 등록되지 않았어요.';
+      case 'auth':   return who+' — 열쇠가 맞지 않아요(인증 실패).';
+      case 'server': return who+' — 마켓 서버가 오류를 돌려줬어요(잠시 뒤 다시 시도).';
+      default:       return who+' — 주문을 불러오지 못했어요.';
+    }
+  }
+  // 지금 뜬 경고를 세 갈래로 — 실패 / 중복 안내 / 그 밖(마켓을 못 짚는 일반 알림).
+  function warnSplit(){
+    var fails=[], dups=[], other=[];
+    MARKETS.forEach(function(m){
+      (warns[m.key]||[]).forEach(function(w){
+        if(!warnMkKey(w)){other.push(w);return;}
+        (isDupKind(w)?dups:fails).push(w);
+      });
+    });
+    return {fails:fails, dups:dups, other:other};
+  }
+
+  // ── D1 실패 띠 — 못 불러온 계정을 한 줄씩 + 「다시 시도」. 중복 접힘은 회색으로 따로.
+  function renderFail(){
+    var sp=warnSplit();
+    var fb=document.getElementById('mo-fail');
+    if(!sp.fails.length){fb.className='mv-fail';fb.innerHTML='';}
+    else{
+      var h='<div class="wt">계정 '+sp.fails.length+'곳을 못 불러왔어요 — 아래 숫자에서 빠져 있어요</div>';
+      sp.fails.forEach(function(w){
+        var k=warnMkKey(w), busy=!!retryBusy[k];
+        h+='<div class="it"><div class="tx">'+esc(warnText(w))+'</div>'
+          +'<button type="button" class="mv-retry" data-remk="'+esc(k)+'"'+(busy?' disabled':'')+'>'
+          +(busy?'불러오는 중':'다시 시도')+'</button></div>';
+      });
+      h+='<div class="hint">「판매처 관리」에서 그 계정의 열쇠와 서버 주소 등록을 확인해 주세요.</div>';
+      var anyBusy=sp.fails.some(function(w){return retryBusy[warnMkKey(w)];});
+      h+='<button type="button" class="mv-allbtn" id="mo-retry-all"'+(anyBusy?' disabled':'')+'>'
+        +(anyBusy?'불러오는 중...':'못 불러온 곳 모두 다시 시도')+'</button>';
+      fb.className='mv-fail show'; fb.innerHTML=h;
+    }
+    var db=document.getElementById('mo-dup');
+    if(!sp.dups.length){db.className='mv-dup';db.innerHTML='';}
+    else{
+      db.className='mv-dup show';
+      db.innerHTML='ℹ중복 등록된 계정은 한 번만 조회했어요(주문이 두 배로 잡히는 걸 막습니다)<br>'
+        +sp.dups.map(function(w){return esc(warnWho(w));}).join(' · ');
+    }
+  }
+
+  // ── 마켓·계정 집계 — **이미 불러온 행**에서만. 매출·정산예정금의 산식은
+  //   위 KPI 와 같은 함수(salesOf·settleOf)를 쓴다 — 같은 이름의 수가 두 정의면 반드시 갈라진다.
+  function mvStats(){
+    var per={}, order=[];
+    MARKETS.forEach(function(m){
+      // loaded = 「믿을 수 있는 값인가」 — 응답만 온 빈 결과를 0 으로 그리지 않는다.
+      per[m.label]={label:m.label, key:m.key, rs:[], accs:{}, accOrder:[],
+                    loaded:mkTrusted(m)};
+      order.push(m.label);
+    });
+    rows.forEach(function(r){
+      var lb=String(r['판매처']||'')||'(마켓 미상)';
+      var m=per[lb];
+      if(!m){m=per[lb]={label:lb, key:MK_KEY[lb]||'', rs:[], accs:{}, accOrder:[], loaded:true};
+             order.push(lb);}
+      m.rs.push(r);
+      var an=String(r['쇼핑몰별칭']||'')||'(계정 미상)';
+      if(!m.accs[an]){m.accs[an]=[]; m.accOrder.push(an);}
+      m.accs[an].push(r);
+    });
+    return order.map(function(lb){
+      var m=per[lb], st=settleOf(m.rs);
+      return {label:lb, key:m.key, loaded:m.loaded, n:m.rs.length,
+              sales:salesOf(m.rs), settle:st.sum, unk:st.unknown, known:st.known,
+              accs:m.accOrder.map(function(an){
+                var ars=m.accs[an], ast=settleOf(ars);
+                // loaded:true — 계정 줄은 그 마켓을 믿을 수 있을 때만 그려진다.
+                return {label:an, n:ars.length, sales:salesOf(ars), loaded:true,
+                        settle:ast.sum, unk:ast.unknown, known:ast.known};
+              }).sort(function(a,b){return b.sales-a.sales;})};
+    }).sort(function(a,b){return b.sales-a.sales;});   // 큰 순 — mobile_settle 과 같은 정렬
+  }
+
+  // C1 숫자 세 줄 — 라벨과 값을 한 묶음으로, 값은 자릿수가 세로로 맞게.
+  function mvNums(s){
+    if(!s.loaded){
+      return '<div class="mv-nums">'
+        +'<span class="mv-k">주문</span><span class="mv-v">-</span>'
+        +'<span class="mv-k">매출</span><span class="mv-v">-</span>'
+        +'<span class="mv-k">정산예정</span><span class="mv-v">-</span></div>';
+    }
+    // 정산예정금을 아는 행이 0 이면 '-' — 위 숫자칸과 같은 규칙(0 원 단정 금지).
+    var settle=(!s.known&&s.unk)?'-':won(s.settle)+'<small>원</small>';
+    return '<div class="mv-nums">'
+      +'<span class="mv-k">주문</span><span class="mv-v">'+won(s.n)+'<small>건</small></span>'
+      +'<span class="mv-k">매출</span><span class="mv-v">'+won(s.sales)+'<small>원</small></span>'
+      +'<span class="mv-k">정산예정</span><span class="mv-v settle">'+settle+'</span>'
+      +'</div>';
+  }
+
+  function renderSummary(){
+    var box=document.getElementById('mo-mv-list'), note=document.getElementById('mo-mv-note');
+    if(loadDone<1){box.innerHTML='';note.textContent='';return;}
+    var st=mvStats(), h='';
+    st.forEach(function(m){
+      // [5차] 다중 선택 — 이 마켓이 「골라진」 상태인가(집합에 있나). 계정은 마켓별 집합으로 본다.
+      //   🔴 selectedAcctsIn 은 마켓 **라벨**을 받는다 — 여기 m 은 집계 객체다.
+      //      객체를 넘기면 selAcc["[object Object]"] 를 뒤져 항상 빈 배열이 나오고,
+      //      목록·매출은 맞게 걸리는데 **요약 줄만 강조가 안 되는** 어긋난 화면이 된다(실측으로 잡음).
+      var mkOn=selMk.has(m.label), picked=selectedAcctsIn(m.label), open=!!mvOpen[m.label];
+      var sub;
+      if(!m.loaded){sub='못 불러왔어요 — 위 「다시 시도」를 눌러 주세요';}
+      else{sub='계정 '+m.accs.length+'곳'
+             +(m.unk?' · 정산예정금 모름 '+m.unk+'건':'')
+             +(m.accs.length?' · 눌러서 계정 보기':'');}
+      h+='<button type="button" class="mv-row'+(mkOn?' sel':'')+(m.loaded?'':' bad')+'" '
+        +'data-mk="'+esc(m.label)+'">'
+        +'<div class="mv-c1"><div><div class="mv-nm">'+esc(m.label)
+        +(m.loaded&&m.accs.length?'<span class="mv-caret">'+(open?'▴':'▾')+'</span>':'')+'</div>'
+        +'<div class="mv-sub">'+esc(sub)+'</div></div>'+mvNums(m)+'</div></button>';
+      if(m.loaded&&m.accs.length){
+        var inner='';
+        m.accs.forEach(function(a){
+          inner+='<button type="button" class="mv-row'+(picked.indexOf(a.label)>=0?' sel':'')+'" '
+            +'title="'+esc(a.label)+'" '
+            +'data-mk="'+esc(m.label)+'" data-acc="'+esc(a.label)+'">'
+            +'<div class="mv-c1"><div><div class="mv-nm">'+esc(acctName(a.label))+'</div>'
+            +'<div class="mv-sub">'+(a.unk?'정산예정금 모름 '+a.unk+'건':'눌러서 이 계정 주문 보기')+'</div></div>'
+            +mvNums(a)+'</div></button>';
+        });
+        h+='<div class="mv-acc'+(open?' on':'')+'">'+inner+'</div>';
+      }
+    });
+    box.innerHTML=h;
+    // 여러 개를 고를 수 있게 됐으니 안내도 그렇게 말한다 — 「하나만 고를 수 있다」고 읽히면 안 된다.
+    note.textContent=(selMk.size||Object.keys(selAcc).length)
+      ? '지금 「'+selLabel()+'」만 보고 있어요 — 더 누르면 같이 보고, 다시 누르면 빼요. 「전체」로 되돌립니다.'
+      : '마켓을 누르면 계정이 펴져요. 여러 개를 눌러 같이 볼 수 있어요.';
+  }
+
+  // ── A3 칩 두 줄 — 칩과 위 요약 줄은 같은 상태(selMk·selAcc)에서 그려 서로 어긋날 수 없다.
+  //   [5차] 다중 선택. 건수는 **그 축만 뺀 기준**(rowsExcept) — 쿠팡을 고른 순간 다른 마켓
+  //   칩이 전부 0 이 되면 갈아탈 수가 없다(PC 와 같은 처방).
+  function renderMkChips(){
+    var box=document.getElementById('mo-mk-chips');
+    if(loadDone<1){box.innerHTML='';return;}
+    var base=rowsExcept('mk'), cnt={};
+    base.forEach(function(r){ var m=String(r['판매처']||''); if(m)cnt[m]=(cnt[m]||0)+1; });
+    var h='<button type="button" class="mo-chip'+(selMk.size?'':' on')+'" data-cmk="">전체'
+      +'<span class="n">'+(anyTrusted()?won(base.length):'-')+'</span></button>';
+    mvStats().forEach(function(m){
+      if(!m.loaded)return;                       // 못 불러온 마켓은 요약 줄·실패 띠가 말한다
+      h+='<button type="button" class="mo-chip'+(selMk.has(m.label)?' on':'')+'" '
+        +'data-cmk="'+esc(m.label)+'">'+esc(m.label)
+        +'<span class="n">'+won(cnt[m.label]||0)+'</span></button>';
+    });
+    box.innerHTML=h;
+  }
+
+  // 계정 칩 — **고른 마켓마다 한 줄씩**(PC renderAcctChips 와 같은 묶음).
+  //   계정이 1곳뿐인 마켓은 줄을 안 만든다(고를 게 없는데 자리만 차지 — PC 도 2곳 이상만).
+  //   마켓을 아무것도 안 고르면 계정 줄 자체가 없다: 전 마켓 계정을 한 줄에 늘어놓으면
+  //   폰에서 옆으로 한참 밀어야 하고 같은 계정명이 마켓마다 있어 헷갈린다.
+  function renderAccChips(){
+    var box=document.getElementById('mo-acc-chips');
+    if(loadDone<1||!selMk.size){box.innerHTML='';return;}
+    var base=rowsExcept('acc');
+    var mks=Array.from(selMk).filter(function(m){return allAccounts(m).length>=2;});
+    if(!mks.length){box.innerHTML='';return;}
+    box.innerHTML=mks.map(function(m){
+      var A=allAccounts(m), cnt={}, allOn=acctAllOn(m), picked=selectedAcctsIn(m);
+      base.forEach(function(r){
+        if(String(r['판매처']||'')!==m)return;
+        var a=String(r['쇼핑몰별칭']||''); if(a)cnt[a]=(cnt[a]||0)+1; });
+      var h='<span class="mv-acclbl">'+esc(m)+' 계정</span>'
+        +'<button type="button" class="mo-chip'+(allOn?' on':'')+'" '
+        +'data-cmk2="'+esc(m)+'" data-cacc="">전체<span class="n">'+A.length+'</span></button>';
+      var seen=false;
+      A.forEach(function(a){
+        if(picked.indexOf(a)>=0)seen=true;
+        var on=!allOn&&picked.indexOf(a)>=0;
+        h+='<button type="button" class="mo-chip'+(on?' on':'')+'" title="'+esc(a)+'" '
+          +'data-cmk2="'+esc(m)+'" data-cacc="'+esc(a)+'">'+esc(acctName(a))
+          +'<span class="n">'+won(cnt[a]||0)+'</span></button>';
+      });
+      // 기간을 바꿔 고른 계정의 주문이 0건이 되면 그 칩이 사라져, 목록이 왜 비었는지 알 수 없다.
+      //   골라 둔 계정은 0건이어도 칩을 남긴다 — 「이 계정은 이 기간에 주문이 없다」가 사실이다.
+      if(!allOn&&!seen){
+        picked.forEach(function(a){
+          h+='<button type="button" class="mo-chip on" title="'+esc(a)+'" '
+            +'data-cmk2="'+esc(m)+'" data-cacc="'+esc(a)+'">'+esc(acctName(a))
+            +'<span class="n">0</span></button>';
+        });
+      }
+      return '<div class="mv-accgrp">'+h+'</div>';
+    }).join('');
+  }
+
+  // ── 「다시 시도」 — 그 마켓만 서버 90초 캐시를 무시(fresh=1)하고 강제 재조회.
+  //   PC retryMk 와 같은 길이다(새 경로 발명 금지). 성공하면 서버가 다시 캐시하므로
+  //   이후 일반 조회도 재시도 결과를 받는다.
+  function retryMarket(k){
+    if(!k||retryBusy[k])return;
+    retryBusy[k]=1;
+    var mySeq=loadSeq, pr=pdRange();
+    renderFail();                                  // 단추를 즉시 「불러오는 중」으로(눌린 척 금지)
+    askServer('/orders/preview.json?market='+encodeURIComponent(k)+'&fresh=1'
+              +'&from='+pr.from+'&to='+pr.to)
+      .then(function(j){
+        retryBusy[k]=0;
+        if(mySeq!==loadSeq)return;                 // 그새 새 조회가 시작됐으면 옛 답은 버린다
+        if(j.ok){parts[k]=j.rows||[];warns[k]=(j.warnings||[]).slice();}
+        else{warns[k]=['['+(MK_LABEL[k]||k)+'] 주문 조회 실패: '+(j.error||'')];}
+        rebuild();
+        // 새로 들어온 행의 마진·재고 판정도 다시 받는다 — 안 그러면 그 마켓만 마진이 '-' 로 남는다.
+        if(loadDone>=MARKETS.length)loadExtras(mySeq);
+      })
+      .catch(function(){
+        retryBusy[k]=0;
+        if(mySeq!==loadSeq)return;
+        warns[k]=['['+(MK_LABEL[k]||k)+'] 불러오지 못했어요'];
+        render();
+      });
+  }
+
+  // 칩·요약 줄 클릭 — 판이 다시 그려져도 살아 있게 위임(delegation)으로 건다.
+  //   [5차] 고르는 규칙은 toggleMarket·toggleAccount 한 곳에만 있다(PC 와 같은 규약).
+  //   칩이든 요약 줄이든 **같은 함수**를 부르므로 두 곳이 다르게 동작할 수 없다.
+  document.getElementById('mo-mk-chips').addEventListener('click',function(e){
+    var b=e.target.closest('[data-cmk]'); if(!b)return;
+    var v=b.getAttribute('data-cmk');
+    if(!v){ selMk.clear(); selAcc={}; render(); return; }   // 「전체」 = 마켓·계정 필터 모두 해제
+    toggleMarket(v);
+  });
+  document.getElementById('mo-acc-chips').addEventListener('click',function(e){
+    var b=e.target.closest('[data-cacc]'); if(!b)return;
+    var m=b.getAttribute('data-cmk2'), a=b.getAttribute('data-cacc');
+    if(!a){ selectAllAccounts(m); return; }                 // 그 마켓 「전체」
+    toggleAccount(m,a);
+  });
+  document.getElementById('mo-mv-list').addEventListener('click',function(e){
+    var b=e.target.closest('.mv-row'); if(!b)return;
+    // 못 불러온 마켓 줄은 고를 게 없다 — 누르면 빈 목록만 나와 「주문 0건」으로 오해된다.
+    if(b.classList.contains('bad'))return;
+    var mk=b.getAttribute('data-mk'), acc=b.getAttribute('data-acc');
+    if(acc!=null){
+      // 계정 줄을 눌렀는데 그 마켓이 아직 안 골라져 있으면 같이 골라 준다 —
+      // 안 그러면 계정만 걸리고 위 계정 칩 줄이 안 나타나 되돌릴 손잡이가 없다.
+      if(!selMk.has(mk))toggleMarket(mk);
+      toggleAccount(mk,acc);
+      return;
+    }
+    // 마켓 줄 = 펼치기 + 그 마켓 고르기를 한 번에(폰에서 두 번 누르게 하지 않는다).
+    mvOpen[mk]=!mvOpen[mk];
+    toggleMarket(mk);
+  });
+  document.getElementById('mo-fail').addEventListener('click',function(e){
+    var all=e.target.closest('#mo-retry-all');
+    if(all){warnSplit().fails.forEach(function(w){retryMarket(warnMkKey(w));});return;}
+    var b=e.target.closest('[data-remk]'); if(!b)return;
+    retryMarket(b.getAttribute('data-remk'));
+  });
+
+  function render(){
+    pdSyncTexts();
+    chipCounts();
+    renderKpis();
+    renderWarns();
+    renderFail();
+    renderMkChips();
+    renderAccChips();
+    renderSummary();
+    renderRisk();
+    renderList();
+    renderShip();
+    renderCs();
+    renderMargin();
+  }
+
+  // ── 발송대기 — 「송장」 칩 개수와 송장 판 KPI 「발송대기」가 **이 한 함수**에서 나온다
+  //   (같은 화면에 같은 이름의 수가 두 정의면 반드시 갈라진다).
+  //   [4차] 모수는 visRows() — 마켓·계정을 고르면 송장 판도 같은 범위를 본다.
+  function shipRowsOf(){return visRows().filter(function(r){return WAIT.test(r['주문상태']||'');});}
+  // 취소 판정 — 마진 판 「취소」 **칸의 숫자**만 이 정의를 쓴다(칸 이름이 '취소'라
+  //   반품까지 세면 이름과 다른 수가 된다). 매출·마진의 모수는 아래 제외 규칙이 정한다.
+  var CANCEL_RE=/취소완료|취소요청/;
+  // 매출·마진에서 빼는 것 = 취소·반품 클레임(교환은 정산이 이뤄지므로 포함).
+  //   정의는 order_claim_scope.js 한 곳 — PC 주문내역 「매출」 카드와 **같은 함수**다.
+  var SCOPE=window.MOUM_ORDER_SCOPE;
+  // 매출 = 실결제+배송비 합(취소·반품 제외) — 3-C 「기간 매출」과 C-4 「매출」의 **공용 산식**.
+  function salesOf(sub){ return SCOPE.salesOf(sub); }
+  function todayRows(){var t=kstDay(0);return visRows().filter(function(r){return (r['주문일']||'').slice(0,10)===t;});}
+  // 정산예정금 합 — 🔴 [6차] **PC 와 같은 함수**(SCOPE.settleSummary)로 갈아탄다.
+  //   사장님 지적(2026-08-06): 「PC와 모바일에서 정산예정금 차이가 있어」.
+  //   원인: 나는 `정산예정금액`(=상품분, 배송비 뺀 값)을 직접 더했고, PC 는 공용 파일의
+  //   `정산예정금(배송비포함)`(=정산예정금액+고객배송비)을 쓴다. 그래서 폰이 **배송비
+  //   정산분만큼 늘 적게** 나왔다. order_claim_scope.js 머리말이 「왜 정산예정금액이
+  //   아니라 정산예정금(배송비포함)인가」를 이미 못 박아 뒀는데, 매출만 공용 함수를 쓰고
+  //   정산예정금은 새로 만든 것이 잘못이다(그 파일이 막으려던 실수 그 자체).
+  //   blank(=모르는 건수)도 그 함수가 이미 돌려준다 — 여기서 다시 세지 않는다.
+  //   known 은 「금액을 아는 행 수」다 — 아는 행이 0 인데 「0 원」이라 그리면
+  //   「받을 게 없다」는 단정이 된다(2026-08-06 실측에서 계정 하나를 골랐을 때 실제로 그랬다).
+  function settleOf(sub){
+    var s=SCOPE.settleSummary(sub);
+    return {sum:s.sum, unknown:s.blank, known:s.counted};
+  }
+
+  // ── 칩 개수 — 화면에 보이는 데이터에서만 계산한다(하드코딩 금지, 시험이 배선을 못 박음).
+  //   🔴 CS 칩은 rows 의 상태 정규식이 아니라 **CS 판과 같은 목록**(claims+문의)의 길이다 —
+  //   1차의 rows 기반 수는 문의를 못 세서 판(전체 N)과 다른 답을 냈다(같은 숫자 두 정의 금지).
+  //   그 목록을 아직 안 불렀으면 '-'(모르면 확인 불가 — 0 도, 어림수도 금지).
+  function chipCounts(){
+    if(loadDone<1){return;}                       // 첫 응답 전엔 '-' 그대로
+    // 못 불러왔으면 개수도 '-' — 「목록 0」은 「주문이 0건」이라는 단정이다.
+    var trusted=scopeTrusted();
+    var shipN=shipRowsOf().length;
+    setCnt('mo-cnt-list', trusted?visRows().length:null);   // [4차] 고른 마켓·계정 기준
+    setCnt('mo-cnt-ship', trusted?shipN:null);
+    setCnt('mo-cnt-cs', csTotal());
+  }
+
+  // ══ 매출 밑 「마켓 할인 N만 반영됨」 — 눌러서 판매처별 내역 보기 ═══════════
+  //  🔴 폰엔 마우스가 없다. hover-info-card 규칙 1·5(body+fixed·화면 안으로·위로 뒤집기)는
+  //    그대로 쓰되, 여는 방식만 **탭**이고 닫기는 **바깥 탭**이다(250ms 지연은 의미 없음).
+  //  🔴 판매처별 숫자는 PC 와 **같은 공용 함수**(discountByMarket)가 센다.
+  var _dcData=null;
+  var _dcPop=document.body.appendChild(Object.assign(document.createElement('div'),{className:'dcpop'}));
+  function _dcHide(){_dcPop.classList.remove('on');}
+  function _dcWon(n){return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+  function _dcEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function _dcHtml(d){
+    if(!d)return '';
+    var h='<div class="ptit">마켓 할인 <b>'+_dcWon(d.total)+'원</b>'
+         +' <span class="sub">— 많이 깎인 주문順</span></div>';
+    (d.markets||[]).forEach(function(m){
+      h+='<div class="grp"><div class="ghd"><span>'+_dcEsc(m.market)+'</span>'
+        +'<span class="num">'+_dcWon(m.sum)+'<i>'+m.count+'건</i></span></div>';
+      h+='<div class="bear">'+(m.sellerRate==null
+           ? '<span class="unk">'+_dcEsc(SCOPE.burdenLine(m))+'</span>'
+           : _dcEsc(SCOPE.burdenLine(m)))
+        +((m.kindList&&m.kindList.length)
+           ? ' <span class="kind">'+m.kindList.map(function(k){
+               return _dcEsc(k.name)+' '+_dcWon(k.amount);}).join(' · ')+'</span>' : '')
+        +'</div><ul class="glist">';
+      (m.top||[]).forEach(function(t){
+        h+='<li><span class="nm">'+_dcEsc(t.name)+'</span>'
+          +'<span class="num">'+_dcWon(t.amount)+'</span></li>';});
+      h+='</ul></div>';});
+    if(d.esmUnknown){
+      h+='<div class="grp"><div class="ghd unk"><span>옥션 · G마켓</span>'
+        +'<span class="num">확인 불가<i>'+d.esmUnknown+'건</i></span></div>'
+        +'<div class="unote">마켓이 할인을 우리 몫과 마켓 몫으로 갈라 주지 않아요</div></div>';}
+    if(d.blank)h+='<div class="pfoot">실결제 모르는 '+d.blank+'건은 뺐어요</div>';
+    return h;}
+  function _dcShow(a){
+    _dcPop.innerHTML=_dcHtml(_dcData);
+    _dcPop.classList.add('on');                       // 크기를 재려면 먼저 보여야 한다
+    var r=a.getBoundingClientRect(),h=_dcPop.offsetHeight,top=r.bottom+7;
+    if(top+h>innerHeight-8)top=Math.max(8,r.top-h-7); // 아래가 모자라면 위로 뒤집기
+    _dcPop.style.top=top+'px';}
+  document.addEventListener('click',function(e){
+    var a=e.target.closest&&e.target.closest('[data-pop="disc"]');
+    if(a){e.stopPropagation();_dcShow(a);return;}
+    if(!_dcPop.contains(e.target))_dcHide();});
+  addEventListener('scroll',_dcHide,{passive:true});
+
+  function renderKpis(){
+    if(loadDone<1){return;}
+    var okAny=scopeTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
+    if(!okAny){
+      // 전 마켓 실패 — 0 으로 지어내지 않는다.
+      setKpi('mo-kpi-new', '-');
+      setKpi('mo-kpi-sales', '-');
+      setKpi('mo-kpi-settle', '-');
+      return;
+    }
+    var sub=visRows();                            // [4차] 고른 마켓·계정 기준
+    var newN=sub.filter(function(r){return NEW_RE.test(r['주문상태']||'');}).length;
+    setKpi('mo-kpi-new', String(newN)+'<small> 건</small>');
+    // 매출 — 기간 칩을 따라간다(사장님 확정 2026-08-06: 「기간을 고르면 그 기간 주문일의 매출」).
+    //   rows 는 서버가 실주문일(from/to)로 이미 거른 그 기간 전체라 그대로 합한다.
+    //   산식은 C-4 「매출」과 같은 salesOf(취소 제외·실결제+배송비) — 두 곳이 다른 답 금지.
+    //   라벨도 같이 바꾼다: 「7일 매출」이라 써 놓고 30일 합을 보여 주면 거짓 화면.
+    document.getElementById('mo-kpi-sales-l').textContent=pdShort()+' 매출';
+    setKpi('mo-kpi-sales', won(salesOf(sub))+'<small> 원</small>');
+    // [2026-08-08] 마켓 할인 — 칸을 빼고 **매출 잔글씨**에 「N만 반영됨」으로(A안).
+    //   문구·판정 모두 PC 와 **같은 함수**(SCOPE.discountHint·discountByMarket) —
+    //   한쪽만 고치면 두 화면이 다른 말을 한다.
+    var dc=SCOPE.discountSummary(sub);
+    _dcData=SCOPE.discountByMarket(sub);
+    document.getElementById('mo-kpi-sales-c').innerHTML=
+      SCOPE.CAPS.salesPhone.concat([SCOPE.discountHint(dc)]).filter(Boolean).join('<br>');
+    // [4차] 정산예정금 — 같은 모수(취소·반품 제외). 라벨·잔글씨도 지금 범위를 그대로 말한다.
+    var st=settleOf(sub);
+    // 아는 행이 하나도 없으면 '-' — 0 원은 「받을 게 없다」는 단정이다.
+    setKpi('mo-kpi-settle',
+      (!st.known&&st.unknown)?'-':won(st.sum)+'<small> 원</small>');
+    document.getElementById('mo-kpi-settle-l').textContent=
+      '정산예정금'+(selLabel()?' · '+selLabel():'');
+    document.getElementById('mo-kpi-settle-c').textContent=
+      '이 기간 주문분 · 입금일 기준 아님'
+      +(st.unknown?' · '+st.unknown+'건은 정산예정금 모름(합계에서 뺐어요)':'');
+  }
+
+  function renderWarns(){
+    var box=document.getElementById('mo-warn');
+    var all=[];
+    // [검토 I1] 다 오기 전엔 KPI·매출이 **부분값**이다(ESM 늦으면 ~60초) —
+    //  진행(N/전체)을 맨 앞에 밝힌다. 다 오면 이 줄은 사라진다.
+    if(MARKETS.length&&loadDone<MARKETS.length){
+      all.push('불러오는 중 '+loadDone+'/'+MARKETS.length+' — 위 숫자는 아직 부분값이에요');
+    }
+    // [4차] 계정별 실패·중복은 아래 전용 띠(renderFail)가 자세히 그린다 — 여기 또 쓰면
+    //   같은 사실이 한 화면에 두 번 나온다. 여기엔 마켓을 못 짚는 일반 알림만 남긴다
+    //   (예: 롯데온 정산 크롤 멈춤, 90일 초과 저장분 안내).
+    var sp=warnSplit();
+    sp.other.forEach(function(w){all.push(w);});
+    if(sp.fails.length){
+      all.push('계정 '+sp.fails.length+'곳이 빠져 있어 위 숫자는 불러온 곳만의 값이에요');
+    }
+    if(!all.length){box.className='mo-warn';box.textContent='';return;}
+    box.className='mo-warn show';
+    box.textContent=all.join(' · ');
+  }
+
+  function renderList(){
+    var box=document.getElementById('mo-list');
+    if(loadDone<1){return;}                       // 스피너 유지
+    var vis=visRows();                            // [4차] 고른 마켓·계정 기준
+    if(!vis.length){
+      // 못 불러온 것과 진짜 0건은 다른 사실이다 — 「주문이 없어요」로 뭉치면 거짓 화면.
+      if(!scopeTrusted()){
+        box.innerHTML='<div class="m-empty"><div class="icon"></div>주문을 불러오지 못했어요<br>'
+          +'<span style="font-size:12px;color:var(--n500,#8B95A1)">위 「다시 시도」를 눌러 주세요</span></div>';
+        return;
+      }
+      // 빈 안내도 고른 기간·범위를 그대로 말한다 — 30일을 보는데 「최근 7일」이라 말하면 거짓 화면.
+      box.innerHTML='<div class="m-empty"><div class="icon"></div>'
+        +esc(pdLabel())+(selLabel()?' · '+esc(selLabel()):'')+' 주문이 없어요</div>';
+      return;
+    }
+    var open={};                                   // 다시 그려도 펼친 줄 유지
+    box.querySelectorAll('.mo-exp.on').forEach(function(el){open[el.dataset.k]=1;});
+    var h='';
+    vis.forEach(function(r,i){
+      var b=badgeOf(r['주문상태']);
+      var amt=num(r['실결제금액']); if(amt==null)amt=num(r['주문금액']);
+      var qty=num(r['수량']);
+      var meta=[esc(r['판매처']||'-'), esc(r['옵션']||'')].filter(Boolean).join(' · ')
+              +(qty&&qty>1?' ×'+qty:'')+' · '+esc(fmtDt(r));
+      h+='<div class="mo-rrow" data-i="'+i+'">'
+        +'<div class="mo-rr-l">'
+        +'<div class="mo-rr-p"><span class="mo-badge '+b.c+'">'+esc(b.t)+'</span>'+esc(r['상품명']||'(상품명 없음)')+'</div>'
+        +'<div class="mo-rr-meta">'+ostCell(r)+meta+'</div></div>'
+        +'<div class="mo-rr-r"><div class="mo-num">'+(amt==null?'-':won(amt))+'</div>'
+        +mgCell(r)+'</div></div>';
+      var d=pdxMap[pdxKey(r)];
+      var lines=[
+        '주문번호 '+esc(r['오픈마켓주문번호']||'-')+' · '+esc(r['쇼핑몰별칭']||''),
+        '상태 '+esc(r['주문상태']||'-')+' · 수령인 '+esc(r['수령자']||'-'),
+        // [6차] 줄 상세의 정산예정도 **위 숫자칸과 같은 열**을 쓴다(SCOPE.SETTLE_FIELD).
+        //   여기만 상품분(`정산예정금액`)을 그리면 「줄을 다 더해도 합계가 안 맞는」 화면이 된다.
+        '단가 '+(num(r['단가'])==null?'-':won(num(r['단가']))+'원')
+          +' · 정산예정 '+(num(r[SCOPE.SETTLE_FIELD])==null?'-'
+                          :won(num(r[SCOPE.SETTLE_FIELD]))+'원'),
+        '송장 '+esc(r['송장입력']||'없음'),
+        // 원가·마진 — price-diff 답이 있을 때만(없으면 줄 자체를 안 그린다. 추정 금지).
+        (d&&d.current_purchase!=null?'지금 매입가 '+won(d.current_purchase)+'원'
+          +(d.margin!=null?' · 지금 사면 마진 '+won(d.margin)+'원':''):'')
+      ].filter(Boolean);
+      h+='<div class="mo-exp'+(open[pdxKey(r)]?' on':'')+'" data-k="'+esc(pdxKey(r))+'">'
+        +lines.join('<br>')+'</div>';
+    });
+    box.innerHTML=h;
+    box.querySelectorAll('.mo-rrow').forEach(function(el){
+      el.addEventListener('click',function(e){
+        // 상태 알약을 눌렀으면 줄을 펼치지 않는다 — 고르기 시트만 연다.
+        var pill=e.target.closest&&e.target.closest('[data-ost]');
+        if(pill){e.stopPropagation();ostSheetOpen(pill.getAttribute('data-ost'));return;}
+        var exp=el.nextElementSibling;
+        if(exp&&exp.classList.contains('mo-exp'))exp.classList.toggle('on');
+      });
+    });
+  }
+
+  // ═══════════════ 송장 판(A-1+A-4) ═══════════════
+
+  function invKeyOf(r){return String(r['판매처']||'')+'|'+String(r['오픈마켓주문번호']||'');}
+  // 이미 송장이 있는가 — PC(orders/index.html hasInvoice)와 같은 정의. 센티넬은 값이 아니다.
+  function hasInvoice(r){
+    var s=String(r['송장입력']||'').trim();
+    return !!s && s!=='송장미입력' && s!=='확인 불가';
+  }
+  // 「송장 없음」 = 이미 발송 흐름에 들었는데(_SHIPPED_STATES) 송장번호 미기록 —
+  //   송장 스윕이 채우는 그 갭을 화면에서 세는 것. 모수 = 불러온 rows(기간 칩이 정한 창).
+  function noInvN(){
+    return visRows().filter(function(r){
+      return SHIPPED[String(r['주문상태']||'').trim()] && !hasInvoice(r);
+    }).length;
+  }
+
+  function setShipNote(t){
+    var el=document.getElementById('mo-ship-note');
+    el.textContent=t; el.className='mo-mg-note'+(t?' show':'');
+  }
+
+  function renderShip(){
+    // KPI — 발송대기·송장없음은 rows 원천(전 마켓 실패면 '-'), 오늘 발송은 flow-daily 원천.
+    if(loadDone>=1){
+      var okAny=scopeTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
+      var sr=shipRowsOf();
+      setKpi('mo-ship-wait', okAny?String(sr.length):'-');
+      setKpi('mo-ship-noinv', okAny?String(noInvN()):'-');
+    }
+    // 한계는 tooltip 이 아니라 인라인 줄로 말한다 — 폰엔 hover 가 없다.
+    //  🔴 unknown 은 「발송일 정보가 없는 건」이라 오늘 것인지도 알 수 없다 — 「오늘」 단정 금지.
+    if(!shipSentLoaded||shipSent==null){ setKpi('mo-ship-sent','-'); setShipNote(''); }
+    else{
+      setKpi('mo-ship-sent', String(shipSent)+'<small> 건</small>');
+      setShipNote('「오늘 발송」은 저장해 둔 주문(적재분) 기준이에요 — 방금 보낸 송장은 다음 조회에 반영돼요'
+        +(shipSentUnknown>0?' · 발송일 정보가 없는 '+shipSentUnknown+'건(쿠팡·옥션·G마켓)은 못 셉니다':''));
+    }
+    renderShipList();
+  }
+
+  function renderShipList(){
+    var box=document.getElementById('mo-ship-list');
+    if(loadDone<1){return;}                       // 스피너 유지
+    // 다시 그리기 전에 열린 편집칸의 입력값을 살린다(마켓 응답이 늦게 와도 입력이 안 날아가게).
+    if(shipOpen){
+      var iv=box.querySelector('.mo-ed-inv'), cv=box.querySelector('.mo-ed-cou');
+      if(iv)shipOpen.inv=iv.value;
+      if(cv)shipOpen.courier=cv.value;
+    }
+    var sr=shipRowsOf();
+    if(!sr.length){
+      var okAny=scopeTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
+      box.innerHTML='<div class="m-empty"><div class="icon"></div>'
+        +(okAny?'발송대기 주문이 없어요':'주문을 불러오지 못했어요')+'</div>';
+      return;
+    }
+    var h='';
+    sr.forEach(function(r,i){
+      var k=invKeyOf(r), res=invRes[k], slug=MKSLUG[r['판매처']]||'';
+      var badge;
+      if(res&&res.success&&!res.dry_run){badge='<span class="mo-badge b-sent">전송됨</span>';}
+      else if(res&&res.error){badge='<span class="mo-badge b-fail">실패</span>';}
+      else if(hasInvoice(r)){badge='<span class="mo-badge b-done">송장 있음</span>';}
+      else{badge='<span class="mo-badge b-new">송장 입력</span>';}
+      var meta=[esc(r['판매처']||'-'), esc(r['옵션']||'')].filter(Boolean).join(' · ')+' · '+esc(fmtDt(r));
+      h+='<div class="mo-rrow mo-ship-row" data-k="'+esc(k)+'">'
+        +'<div class="mo-rr-l"><div class="mo-rr-p">'+esc(r['상품명']||'(상품명 없음)')+'</div>'
+        +'<div class="mo-rr-meta">'+meta+'</div></div>'
+        +'<div class="mo-rr-r">'+badge+'</div></div>';
+      var open=shipOpen&&shipOpen.key===k;
+      h+='<div class="mo-ship-ed'+(open?' on':'')+'" data-k="'+esc(k)+'">';
+      if(open){
+        if(!SENDABLE[slug]){
+          h+='<div class="t">이 마켓은 아직 송장 전송을 지원하지 않아요</div>';
+        }else if(hasInvoice(r)&&!(res&&res.success)){
+          // PC 와 같은 규칙 — 이미 송장이 있는 주문은 덮어쓰지 않는다.
+          h+='<div class="t">이 주문엔 이미 송장('+esc(String(r['송장입력']).trim())+')이 들어가 있어요 — 덮어쓰지 않아요</div>';
+        }else if(res&&res.success&&!res.dry_run){
+          h+='<div class="t">전송됨 — 마켓 등록 번호 '+esc(res.market_invoice_no||'(확인 대기)')+'</div>'
+            +(res.mismatch?'<div class="mo-ed-msg bad show">마켓에 등록된 번호가 입력값과 달라요 — PC 에서 확인하세요</div>':'');
+        }else{
+          h+='<div class="t">'+esc(r['상품명']||'')+' — 송장 입력</div>'
+            +'<div class="fr"><select class="mo-inp cou mo-ed-cou">'
+            +COURIERS.map(function(c){return '<option'+(shipOpen.courier===c?' selected':'')+'>'+esc(c)+'</option>';}).join('')
+            +'</select>'
+            +'<input class="mo-inp inv mo-ed-inv" inputmode="numeric" placeholder="송장번호" value="'+esc(shipOpen.inv||'')+'"></div>'
+            +'<button type="button" class="mo-savebtn mo-ed-save"'+(sendBusy?' disabled':'')+'>'
+            +(sendBusy?'전송 중...':'저장(마켓으로 전송)')+'</button>'
+            +'<div class="hint">되돌리기 어렵습니다 — 고객 배송조회에 바로 반영돼요.</div>'
+            +'<div class="mo-ed-msg'+(shipOpen.msg?' show '+(shipOpen.msgCls||'bad'):'')+'">'+(shipOpen.msg||'')+'</div>';
+        }
+      }
+      h+='</div>';
+    });
+    box.innerHTML=h;
+    box.querySelectorAll('.mo-ship-row').forEach(function(el){
+      el.addEventListener('click',function(){
+        var k=el.dataset.k;
+        shipOpen=(shipOpen&&shipOpen.key===k)?null:{key:k, courier:COURIERS[0], inv:'', msg:''};
+        renderShipList();
+      });
+    });
+    var save=box.querySelector('.mo-ed-save');
+    if(save)save.addEventListener('click',shipSend);
+  }
+
+  function shipSend(){
+    if(sendBusy||!shipOpen)return;
+    var r=shipRowsOf().filter(function(x){return invKeyOf(x)===shipOpen.key;})[0];
+    if(!r)return;
+    var box=document.getElementById('mo-ship-list');
+    var inv=(box.querySelector('.mo-ed-inv')||{}).value||'';
+    var cou=(box.querySelector('.mo-ed-cou')||{}).value||COURIERS[0];
+    inv=inv.trim(); shipOpen.inv=inv; shipOpen.courier=cou;
+    if(!inv){shipOpen.msg='송장번호를 입력하세요'; shipOpen.msgCls='bad'; renderShipList(); return;}
+    // PC 전송 확인창과 같은 마지막 방어선(서버 전역 스위치가 그 다음).
+    if(!confirm('송장 1건을 실제 마켓으로 전송합니다.\n\n'
+              +'· '+String(r['상품명']||'')+'\n'
+              +'· '+String(r['판매처']||'')+' · '+cou+' '+inv+'\n'
+              +'· 되돌리기 어렵습니다(고객 배송조회에 바로 반영).\n\n진행할까요?'))return;
+    sendBusy=true; shipOpen.msg=''; renderShipList();
+    // 🔴 기존 PC 엔드포인트 그대로 — 새 쓰기 경로 발명 금지(스펙 §6). payload 도 PC invSend 와 동일.
+    askServer('/orders/invoice/send',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({live:true, rows:[{market:MKSLUG[r['판매처']]||'', order_no:r['오픈마켓주문번호'],
+          courier:cou, invoice_no:inv, alias:r['쇼핑몰별칭']||'', send_ids:r['_send_ids']||null,
+          status:r['주문상태']||''}]})})
+      .then(function(j){
+        sendBusy=false;
+        if(!j.ok){shipOpen.msg='전송 실패: '+esc(j.error||''); shipOpen.msgCls='bad'; renderShipList(); return;}
+        var res=(j.results||[])[0]||{};
+        if(!j.live){
+          // 서버 실전송 스위치 OFF — 보낸 척 금지: 저장 안 됐음을 그대로 말한다.
+          shipOpen.msg='실전송 스위치가 꺼져 있어 미리보기로 처리했어요 — 마켓에는 저장되지 않았습니다';
+          shipOpen.msgCls='warn2'; renderShipList(); return;
+        }
+        if(res.success){
+          var got=res.market_invoice_no;
+          invRes[shipOpen.key]={success:true, dry_run:false,
+            market_invoice_no:got, mismatch:!!(got&&got!==inv)};
+          // 마켓이 실제 등록한 번호(입력값 아님)를 행에 반영 — 「송장 없음」·재전송 차단이 바로 맞아진다.
+          r['송장입력']=got||inv;
+          render();
+        }else{
+          invRes[shipOpen.key]={error:res.error||'실패'};
+          shipOpen.msg='전송 실패: '+esc(res.error||''); shipOpen.msgCls='bad'; renderShipList();
+        }
+      })
+      .catch(function(){
+        sendBusy=false;
+        shipOpen.msg='전송 실패(네트워크)'; shipOpen.msgCls='bad'; renderShipList();
+      });
+  }
+
+  // ═══════════════ CS 판(B-2) ═══════════════
+
+  function csLoad(seq){
+    cs={req:true, claims:null, inqs:null, cFail:false, iFail:false, warns:[]};
+    var mkq=MARKETS.map(function(m){return m.key;}).join(',');
+    // 기간은 안 넘긴다 — PC CS 탭과 같은 서버 기본(최근 7일 창)을 그대로 쓴다.
+    askServer('/orders/cs/claims.json?markets='+encodeURIComponent(mkq))
+      .then(function(j){ if(seq!==loadSeq)return;
+        if(j.ok){
+          var g=j.groups||{};
+          cs.claims=[].concat(g['신규요청']||[], g['대응중']||[], g['대응완료']||[]);
+          (j.warnings||[]).forEach(function(w){cs.warns.push(w);});
+        }else{cs.cFail=true; cs.warns.push('클레임 조회 실패: '+(j.error||''));}
+        render(); })
+      .catch(function(){ if(seq!==loadSeq)return;
+        cs.cFail=true; cs.warns.push('클레임을 불러오지 못했어요'); render(); });
+    askServer('/orders/cs/inquiries.json?markets='+encodeURIComponent(mkq))
+      .then(function(j){ if(seq!==loadSeq)return;
+        if(j.ok){
+          var g=j.groups||{};
+          cs.inqs=[].concat(g['미답변']||[], g['답변완료']||[]);
+          (j.warnings||[]).forEach(function(w){cs.warns.push(w);});
+        }else{cs.iFail=true; cs.warns.push('문의 조회 실패: '+(j.error||''));}
+        render(); })
+      .catch(function(){ if(seq!==loadSeq)return;
+        cs.iFail=true; cs.warns.push('문의를 불러오지 못했어요'); render(); });
+  }
+
+  function csDateOf(s){
+    var m=String(s||'').match(/(\d{4})[-./]?(\d{2})[-./]?(\d{2})/);
+    return m?(m[1]+'-'+m[2]+'-'+m[3]):'';
+  }
+  // CS 목록 — 클레임+문의를 하나로. **이 배열의 길이가 CS 의 유일한 수**다
+  //   (위 알약 개수 = 전체 칩 = 목록 길이 — 세 곳이 같은 원천이라 갈라질 수 없다).
+  function csItems(){
+    var out=[];
+    (cs.claims||[]).forEach(function(c){
+      out.push({kind:c['유형']||'기타',
+        title:(c['상품명']||('주문 '+(c['오픈마켓주문번호']||'-'))),
+        sub:c['사유']||'',
+        mk:c['판매처']||'-', st:c['단계']||'', d:csDateOf(c['변경일'])});
+    });
+    (cs.inqs||[]).forEach(function(q){
+      out.push({kind:'문의',
+        title:(q['문의내용']||'(내용 없음)'),
+        sub:'',
+        mk:q['마켓']||'-', st:q['상태']||'', d:csDateOf(q['일시'])});
+    });
+    // 날짜 문자열 내림차순(모르는 날짜는 뒤로) — 파싱 없음.
+    out.sort(function(a,b){return String(b.d).localeCompare(String(a.d));});
+    // [4차] 마켓을 고르면 CS 도 같은 마켓만 — 한 화면에서 판마다 범위가 다르면 안 된다.
+    //   🔴 계정까지는 못 좁힌다: 클레임·문의 원천에 계정(쇼핑몰별칭)이 없다.
+    //      없는 걸 있는 척 좁히지 않고, 아래 renderCs 가 그 사실을 화면에 밝힌다.
+    if(selMk.size)out=out.filter(function(it){return selMk.has(it.mk);});
+    return out;
+  }
+  // CS 총계 — 한쪽이라도 실패·미로드면 null('-') : 부분합을 전체인 척 말하지 않는다.
+  function csTotal(){
+    if(cs.cFail||cs.iFail||cs.claims===null||cs.inqs===null)return null;
+    return csItems().length;
+  }
+
+  function csStBadge(st){
+    if(st==='신규요청'||st==='미답변')return {c:'b-cs'};
+    if(st==='대응중')return {c:'b-ship'};
+    return {c:'b-done'};
+  }
+
+  function renderCs(){
+    var total=csTotal(), items=csItems();
+    // 유형 칩 개수 — 실패한 원천의 유형은 '-'(클레임 실패=취소·반품·교환 불명, 문의 실패=문의 불명).
+    var cnt={'취소':0,'반품':0,'교환':0,'문의':0};
+    items.forEach(function(it){ if(cnt[it.kind]!=null)cnt[it.kind]++; });
+    var cOk=!cs.cFail&&cs.claims!==null, iOk=!cs.iFail&&cs.inqs!==null;
+    setCnt('mo-cs-n-all', total);
+    setCnt('mo-cs-n-cancel', cOk?cnt['취소']:null);
+    setCnt('mo-cs-n-return', cOk?cnt['반품']:null);
+    setCnt('mo-cs-n-exchange', cOk?cnt['교환']:null);
+    setCnt('mo-cs-n-inq', iOk?cnt['문의']:null);
+    // 경고 띠
+    var wb=document.getElementById('mo-cs-warn');
+    var cw=cs.warns.slice();
+    // 계정을 골랐는데 CS 는 마켓까지만 좁혀진다 — 그 사실을 숨기지 않는다(조용한 실패 금지).
+    if(Object.keys(selAcc).length)
+      cw.push('CS 는 「'+Array.from(selMk).join('·')+'」 전체예요 — 클레임·문의에는 계정 정보가 없어요');
+    if(cw.length){wb.className='mo-warn show';wb.textContent=cw.join(' · ');}
+    else{wb.className='mo-warn';wb.textContent='';}
+    // 목록
+    var box=document.getElementById('mo-cs-list');
+    if(!cs.req){return;}                          // 아직 안 열어봄 — 스피너 그대로
+    var loading=(cs.claims===null&&!cs.cFail)||(cs.inqs===null&&!cs.iFail);
+    if(loading&&!items.length){return;}           // 스피너 유지
+    var vis=items.filter(function(it){return csFilter==='all'||it.kind===csFilter;});
+    if(!vis.length){
+      box.innerHTML='<div class="m-empty"><div class="icon"></div>'
+        +(csFilter==='all'?'최근 7일 CS 가 없어요':'해당 유형이 없어요')+'</div>';
+      return;
+    }
+    var h='';
+    vis.forEach(function(it){
+      var b=csStBadge(it.st);
+      h+='<div class="mo-rrow">'
+        +'<div class="mo-rr-l"><div class="mo-rr-p">'
+        +'<span class="mo-badge '+(it.kind==='문의'?'b-new':'b-cs')+'">'+esc(it.kind)+'</span>'
+        +esc(it.title)+'</div>'
+        +'<div class="mo-rr-meta">'+esc(it.mk)+(it.st?' · '+esc(it.st):'')+(it.d?' · '+esc(it.d.slice(5)):'')+'</div>'
+        +(it.sub?'<div class="mo-cs-sub">'+esc(it.sub)+'</div>':'')
+        +'</div>'
+        +'<div class="mo-rr-r"><span class="mo-badge '+b.c+'">'+esc(it.st||'-')+'</span></div></div>';
+    });
+    box.innerHTML=h;
+  }
+
+  document.querySelectorAll('#mo-cs-chips .mo-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      csFilter=ch.dataset.cs;
+      document.querySelectorAll('#mo-cs-chips .mo-chip').forEach(function(x){x.classList.toggle('on',x===ch);});
+      renderCs();
+    });
+  });
+
+  // ═══════════════ 마진 판(C-4) ═══════════════
+
+  function mgSubset(){
+    if(mgPeriod==='today')return todayRows();
+    // week = 불러온 행 전체(목록과 같은 모수 = 기간 칩 + [4차] 마켓·계정 칩이 정한 범위).
+    //   칩 라벨은 pdSyncTexts()가 pdShort()로 따라 쓴다 — 「7일」 하드코딩 금지.
+    return visRows().slice();
+  }
+
+  function renderMargin(){
+    var month=(mgPeriod==='month');
+    // 「이번 달」 — 실조회가 월 단위론 못 감당(스펙 §6) → 숫자 대신 이유+PC 링크(지어내기 금지).
+    document.getElementById('mo-mg-grids').style.display=month?'none':'';
+    document.getElementById('mo-mg-month').className='mo-mg-month'+(month?' on':'');
+    if(month)return;
+    var note='';
+    function put(id,v){setKpi(id,v==null?'-':v);}
+    if(loadDone<1){return;}                       // 첫 응답 전엔 '-' 그대로
+    var okAny=scopeTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
+    if(!okAny){
+      ['mo-mg-sales','mo-mg-margin','mo-mg-rate','mo-mg-orders','mo-mg-cancel','mo-mg-loss']
+        .forEach(function(id){put(id,null);});
+      document.getElementById('mo-mg-note').className='mo-mg-note';
+      return;
+    }
+    var sub=mgSubset();
+    var cancelN=sub.filter(function(r){return CANCEL_RE.test(r['주문상태']||'');}).length;
+    // 마진의 모수 = 매출과 **같은 모수**(취소·반품 제외·교환 포함). 여기만 취소만 빼면
+    //   같은 격자 안에서 매출은 반품을 빼고 마진율은 안 빼는 어긋난 화면이 된다.
+    var act=sub.filter(function(r){return !SCOPE.rowExcluded(r);});
+    put('mo-mg-orders', String(sub.length)+'<small> 건</small>');
+    put('mo-mg-cancel', String(cancelN)+'<small> 건</small>');
+    put('mo-mg-sales', won(salesOf(sub))+'<small> 원</small>');
+    // 마진 — 분자·분모 모두 price-diff(서버 단일 원천)를 아는 행만으로 계산.
+    //   모르는 행을 0 으로 섞으면 합계가 거짓이 된다(모르면 '-' 원칙).
+    var ksum=0, kbase=0, kn=0, lossN=0;
+    act.forEach(function(r){
+      var d=pdxMap[pdxKey(r)];
+      if(!d||d.margin==null)return;
+      kn++; ksum+=d.margin;
+      kbase+=(num(r['실결제금액'])||0)+(num(r['배송비'])||0);
+      if(d.margin<0)lossN++;
+    });
+    if(!pdxOk||!kn){
+      put('mo-mg-margin',null); put('mo-mg-rate',null); put('mo-mg-loss',null);
+      note=pdxOk?'원가를 아는 주문이 없어 마진·적자는 - 예요':'마진 계산을 불러오지 못해 - 예요';
+    }else{
+      put('mo-mg-margin',(ksum<0?'−':'')+won(Math.abs(ksum))+'<small> 원</small>');
+      put('mo-mg-rate',kbase>0?((ksum<0?'−':'')+Math.abs(ksum/kbase*100).toFixed(1)+'<small> %</small>'):null);
+      put('mo-mg-loss',String(lossN)+'<small> 건</small>');
+      if(kn<act.length)note='마진·마진율·적자는 원가를 아는 '+kn+'/'+act.length+'건 기준이에요';
+    }
+    var nb=document.getElementById('mo-mg-note');
+    nb.textContent=note; nb.className='mo-mg-note'+(note?' show':'');
+  }
+
+  document.querySelectorAll('#mo-mg-chips .mo-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      mgPeriod=ch.dataset.mg;
+      document.querySelectorAll('#mo-mg-chips .mo-chip').forEach(function(x){x.classList.toggle('on',x===ch);});
+      renderMargin();
+    });
+  });
+
+  // ── [3차] 목록 기간 칩 — from/to 만 바꿔 loadAll 재호출. 늦게 온 옛 기간 응답은
+  //   기존 loadSeq 세대번호 규약이 버린다(새 규약 발명 금지). 매출 KPI 는 이 칩을
+  //   따라간다(renderKpis 가 rows 합산+라벨 갱신) — 신규·품절위험만 「지금 상태」 의미로 불변.
+  function pdApply(){
+    var f=document.getElementById('mo-pd-from').value, t=document.getElementById('mo-pd-to').value;
+    pdFrom=f; pdTo=t;
+    pdSyncTexts();                               // 조회를 못 해도 설명은 고른 기간을 말한다
+    var msg=document.getElementById('mo-pd-msg');
+    if(!f||!t){msg.className='mo-ed-msg';msg.textContent='';return;}   // 두 칸 다 찰 때까지 대기
+    if(f>t){
+      // 시작>끝 — 조회하지 않고 안내만(옛 목록 덮어쓰기도, 지어낸 결과도 없다).
+      msg.textContent='시작일이 끝일보다 늦어요 — 조회하지 않았어요';
+      msg.className='mo-ed-msg bad show'; return;
+    }
+    msg.className='mo-ed-msg'; msg.textContent='';
+    loadAll();
+  }
+  document.querySelectorAll('#mo-pd-chips .mo-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      pdSel=ch.dataset.pd;
+      document.querySelectorAll('#mo-pd-chips .mo-chip').forEach(function(x){x.classList.toggle('on',x===ch);});
+      document.getElementById('mo-pd-custom').className='mo-pd-custom'+(pdSel==='custom'?' on':'');
+      pdSyncTexts();                              // 설명·라벨도 새 기간을 곧바로 말한다
+      if(pdSel==='custom'){pdApply();return;}      // 두 날짜가 유효할 때만 조회
+      loadAll();
+    });
+  });
+  document.getElementById('mo-pd-from').addEventListener('change',pdApply);
+  document.getElementById('mo-pd-to').addEventListener('change',pdApply);
+
+  // ── 칩 전환(2-A) — 판만 바꾼다. CS 판은 처음 열 때 1회 조회(마켓 문의 API 보호).
+  document.querySelectorAll('#mo-chips .mo-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      document.querySelectorAll('#mo-chips .mo-chip').forEach(function(x){x.classList.toggle('on',x===ch);});
+      document.querySelectorAll('.mo-pane').forEach(function(p){p.classList.toggle('on',p.id==='mo-pane-'+ch.dataset.pane);});
+      if(ch.dataset.pane==='cs'&&!cs.req){csLoad(loadSeq);}
+    });
+  });
+
+  // ── 새로고침 정책 — **주기 폴링 없음**(홈·크롤과 다른 결이 맞다): preview.json 은
+  //   마켓 실조회라(옥션·G마켓 5초/1콜 ≈ 60초) 30초 주기로 돌리면 마켓 API 를 친다.
+  //   열 때 1회 + 화면 복귀 시 1회만, 서버 캐시 TTL(90초)보다 잦지 않게.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastLoadAt < 90000) return;
+    loadAll();
+  });
+  pdSyncTexts();   // 첫 그림 전에도 설명·라벨이 기본 기간을 말하게
+  loadAll();
+</script>
+{% endblock %}

@@ -18,11 +18,16 @@
         <h1 class="bh-title">{{ bundle.model_code }}</h1>
         <div class="bh-meta">
           <span class="chip-v3 chip-brand">{{ bundle.brand or '—' }}</span>
+          {# [2026-07-30] 모상품번호 — 사람이 보고 검색하는 번호(shared/display_no.py) #}
+          {% if bundle.display_no %}
+          <span class="chip-v3" style="font-family:ui-monospace,monospace;letter-spacing:.2px"
+                title="모상품번호 — 이 번호로 찾을 수 있어요">{{ bundle.display_no }}</span>
+          {% endif %}
           <span>{{ bundle.category or '신발' }} · {{ options|length }} 옵션</span>
           <span id="bh-src-summary" style="color:var(--n500)"><i class="ph-light ph-shopping-cart" aria-hidden="true"></i> — · —</span>
         </div>
         {% if _is_cluster %}
-        <div class="bh-model-chips" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <div class="bh-model-chips" style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
           <button type="button" class="bh-model-chip on" data-model="all">전체 {{ _models|length }}모델</button>
           {% for mc in _models %}
           <button type="button" class="bh-model-chip" data-model="{{ mc.model_code }}">{{ mc.model_code }}</button>
@@ -30,7 +35,7 @@
         </div>
         {% endif %}
       </div>
-      <div class="bh-chart-mini" id="bh-chart-mini" data-code="{{ bundle.model_code }}">
+      <div class="bh-chart-mini" id="bh-chart-mini" data-piece="home" data-code="{{ bundle.model_code }}">
         <div class="bcm-h">
           <span class="bcm-title"><i class="ph-light ph-trend-up" aria-hidden="true"></i> 가격 추이</span>
           <span class="bcm-mode" id="bcm-mode-label">—</span>
@@ -54,27 +59,29 @@
         </div>
         {# 소싱처 범례 + 현재가 + 재고 #}
         <div class="bcm-legend" id="bcm-legend"></div>
-        <div id="bcm-empty" style="display:none;font-size:11px;color:var(--n400);text-align:center;padding:8px 0">데이터 없음 — 크롤 후 확인 가능</div>
+        <div id="bcm-empty" style="display:none;font-size:12px;color: var(--글자-희미, var(--n400));text-align:center;padding:8px 0">데이터 없음 — 크롤 후 확인 가능</div>
       </div>
-      <div class="bh-actions" style="flex-direction:column;align-items:stretch;gap:6px;min-width:260px">
-        <div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
+      <div class="bh-actions" style="flex-direction:column;align-items:stretch;gap:4px;min-width:260px">
+        <div style="display:flex;gap:4px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
           <span id="autosave-indicator" class="autosave-indicator" data-state="idle" title="변경 시 자동 저장됩니다"></span>
-          {# A1 (2026-05-29) — 헤더 [[상자] 재고 매핑] 버튼 제거.
-  재고관리 매핑은 옵션 조합 생성·수정 모달 내 [ 재고관리 매핑] 탭에서 통합 처리. #}
-          <button class="btn btn-sm" data-action="duplicate-bundle"><i class="ph-light ph-file" aria-hidden="true"></i> 복제</button>
-          <button class="btn btn-sm" style="color:var(--danger)" data-action="delete-bundle"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
+          {# A1 (2026-05-29) — 헤더 [📦 재고 매핑] 버튼 제거.
+             [2026-08-12 정정] 그때 옮겨 간 [📋 재고관리 매핑] 탭도 2026-08-02 에 없앴다
+             (옵션 1개 = 재고 SKU 1개 확정). 지금은 맵핑 자체가 필요 없고, 재고는
+             옵션 SKU 가 그대로 들고 있다. 이 주석을 보고 그 탭을 찾지 말 것. #}
+          <button class="btn btn-sm" data-piece="home" data-action="duplicate-bundle"><i class="ph-light ph-file" aria-hidden="true"></i> 복제</button>
+          <button class="btn btn-sm" data-piece="home" style="color:var(--danger)" data-action="delete-bundle"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
         </div>
         <style>
           .autosave-indicator {
-            font-size: 13px; font-weight: 600;
-            padding: 4px 9px; border-radius: 6px;
+            font-size: 12px; font-weight: 600;
+            padding: 4px 8px; border-radius: 8px;
             white-space: nowrap; user-select: none;
             transition: opacity .25s, background .15s, color .15s;
           }
           .autosave-indicator[data-state="idle"]   { opacity: 0; }
-          .autosave-indicator[data-state="saving"] { color:#6B7684; background:#F2F4F6; opacity: 1; }
-          .autosave-indicator[data-state="saved"]  { color:#15803d; background:#DCFCE7; opacity: 1; }
-          .autosave-indicator[data-state="error"]  { color:#DC2626; background:#FEE2E2; opacity: 1; cursor: pointer; }
+          .autosave-indicator[data-state="saving"] { color:var(--글자-보조,#6B7684); background:var(--n100,#F2F4F6); opacity: 1; }
+          .autosave-indicator[data-state="saved"]  { color: var(--글자-초록, var(--green,#15803d)); background:var(--연한-초록,#DCFCE7); opacity: 1; }
+          .autosave-indicator[data-state="error"]  { color: var(--글자-빨강, var(--red,#DC2626)); background:var(--연한-빨강,#FEE2E2); opacity: 1; cursor: pointer; }
         </style>
       </div>
     </div>
@@ -131,32 +138,37 @@
   </div>
   <style>
     .b-stat-acc { cursor: pointer; transition: .15s; }
-    .b-stat-acc:hover { background: #F9FAFB; border-color: var(--primary, #3182F6); box-shadow: 0 2px 8px rgba(49,130,246,.1); }
-    .b-stat-acc[open] { background: #fff; border-color: var(--primary, #3182F6); box-shadow: 0 4px 14px rgba(49,130,246,.15); }
+    .b-stat-acc:hover { background: var(--bg,#F9FAFB); border-color: var(--primary, var(--primary,#3182F6));  }
+    .b-stat-acc[open] { background: var(--surface,#ffffff); border-color: var(--primary, var(--primary,#3182F6));  }
     .b-stat-acc summary { list-style: none; padding: 0; cursor: pointer; }
     .b-stat-acc summary::-webkit-details-marker { display: none; }
     .b-stat-acc summary::marker { display: none; content: ''; }
-    .b-stat-toggle { float: right; color: #6B7684; font-size: 13px; font-weight: 700; transition: transform .15s; padding: 2px 8px; background: var(--n100, #f2f4f6); border-radius: 5px; }
-    .b-stat-acc[open] .b-stat-toggle { transform: rotate(180deg); background: var(--primary, #3182F6); color: #fff; }
-    .b-stat-acc:hover .b-stat-toggle { background: var(--primary-tint, #E8F2FF); color: var(--primary, #3182F6); }
-    .b-stat-detail { background: var(--n50, #F9FAFB); border-radius: 10px; padding: 14px 16px; }
-    .b-stat-detail { margin-top: 14px; }
-    .b-stat-detail-h { font-size: 13px; font-weight: 700; color: #4E5968; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .b-stat-toggle { float: right; color: var(--글자-보조,#6B7684); font-size: 12px; font-weight: 700; transition: transform .15s; padding: 0px 8px; background: var(--n100, var(--n100,#f2f4f6)); border-radius: 8px; }
+    .b-stat-acc[open] .b-stat-toggle { transform: rotate(180deg); background: var(--바탕-파랑, var(--primary, var(--primary,#3182F6))); color: #fff; }
+    .b-stat-acc:hover .b-stat-toggle { background: var(--primary-tint, var(--연한-파랑,#E8F2FF)); color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); }
+    .b-stat-detail { background: var(--n50, var(--bg,#F9FAFB)); border-radius: 8px; padding: 12px 16px; }
+    .b-stat-detail { margin-top: 12px; }
+    /* 🔴 [2026-08-02] 접힌 카드인데 안쪽이 안 숨겨져 **카드 밖으로 삐져나와** 아래
+       메뉴 글자와 겹쳤다(라이브 실측: 기존 타입 119px·검정A 108px 삐져나옴).
+       브라우저가 접힌 카드의 안쪽을 숨겨 주는데, 여기서는 그게 안 걸렸다.
+       타입과 무관한 배치 결함이라 **모든 타입 공통**으로 못 박는다. */
+    details.b-stat-acc:not([open]) > .b-stat-detail { display: none; }
+    .b-stat-detail-h { font-size: 12px; font-weight: 700; color: var(--글자-기본,#4E5968); margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
     .b-stat-detail-h::before { content: '📜'; font-size: 14px; }
-    .b-hist-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #f2f4f6; font-size: 14px; }
+    .b-hist-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--n100,#f2f4f6); font-size: 14px; }
     .b-hist-row:last-of-type { border-bottom: none; }
-    .b-hist-pill { padding: 2px 8px; border-radius: 5px; font-weight: 700; font-size: 12px; }
-    .b-hist-pill.crawl { background: #dbeafe; color: #1d4ed8; }
-    .b-hist-pill.upload { background: #dcfce7; color: #15803d; }
-    .b-hist-msg { color: #4E5968; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .b-hist-pill { padding: 0px 8px; border-radius: 8px; font-weight: 700; font-size: 12px; }
+    .b-hist-pill.crawl { background: var(--연한-파랑,#dbeafe); color: var(--글자-파랑, var(--primary,#1d4ed8)); }
+    .b-hist-pill.upload { background: var(--연한-초록,#dcfce7); color: var(--글자-초록, var(--green,#15803d)); }
+    .b-hist-msg { color: var(--글자-기본,#4E5968); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .b-hist-status { font-weight: 700; font-size: 14px; }
-    .b-hist-status.ok { color: #15803d; } .b-hist-status.fail { color: #dc2626; }
-    .b-hist-time { color: #9CA3AF; font-size: 14px; font-family: ui-monospace, monospace; }
-    .b-hist-empty { padding: 16px 0; color: #9CA3AF; font-size: 14px; text-align: center; }
-    .b-hist-all { display: block; margin-top: 10px; font-size: 14px; color: #3182F6; font-weight: 700; text-decoration: none; text-align: right; }
+    .b-hist-status.ok { color: var(--글자-초록, var(--green,#15803d)); } .b-hist-status.fail { color: var(--글자-빨강, var(--red,#dc2626)); }
+    .b-hist-time { color: var(--글자-희미, var(--faint,#9CA3AF)); font-size: 14px; font-family: ui-monospace, monospace; }
+    .b-hist-empty { padding: 16px 0; color: var(--글자-희미, var(--faint,#9CA3AF)); font-size: 14px; text-align: center; }
+    .b-hist-all { display: block; margin-top: 8px; font-size: 14px; color: var(--글자-파랑, var(--primary,#3182F6)); font-weight: 700; text-decoration: none; text-align: right; }
     .b-hist-all:hover { text-decoration: underline; }
     /* status 카드 ↔ 가로탭 사이 굵은 점선 divider */
-    .bh-section-divider { margin: 40px 0 36px; border: 0; border-top: 4px dashed #B0B8C1; }
+    .bh-section-divider { margin: 32px 0 32px; border: 0; border-top: 4px dashed var(--faint,#B0B8C1); }
   </style>
 
   <hr class="bh-section-divider">
@@ -165,34 +177,116 @@
     <div class="bundle-content">
 
       {# [2026-05-24] Step indicator 3탭 (기본·옵션·마켓) — 템플릿 탭 제거, 옵션 탭에 가격 템플릿 통합 #}
+      {# [2026-08-02 §4] 조각으로 열렸을 땐 3단계 탭을 감춘다 — 그 조각 하나만 보여야 한다. #}
+      {% if not piece %}
       <div class="bundle-tabs bundle-steps" id="bundle-tabs">
         <button class="bundle-tab bundle-step on" data-tab="basic" data-step="1" type="button">
-          <span class="step-num">1</span><span class="step-name">기본</span>
+          <span class="step-num">1</span><span class="step-name">상품 정보</span>
         </button>
         <span class="step-line"></span>
         <button class="bundle-tab bundle-step" data-tab="opt" data-step="2" type="button">
-          <span class="step-num">2</span><span class="step-name">옵션</span>
+          <span class="step-num">2</span><span class="step-name">옵션 정보</span>
         </button>
         <span class="step-line"></span>
         <button class="bundle-tab bundle-step" data-tab="mkt" data-step="3" type="button">
-          <span class="step-num">3</span><span class="step-name">마켓</span>
+          <span class="step-num">3</span><span class="step-name">정책 정보</span>
         </button>
       </div>
 
       {# B6 — 활성 단계 안내 banner (탭 ↔ 콘텐츠 사이 명확 구분) #}
       <div class="step-banner" id="step-banner">
         <span class="step-banner-pill" id="step-banner-pill">1단계</span>
-        <span class="step-banner-text" id="step-banner-text">기본 정보 — 모음전 코드·카테고리·노출명 입력</span>
+        <span class="step-banner-text" id="step-banner-text">상품 정보 — 모음전 코드·카테고리·노출명 입력</span>
       </div>
+      {% endif %}
+
+      {# [2026-08-02 §4] 조각 머리띠 — 지금 보는 조각이 어느 메뉴 소속인지 밝힌다. #}
+      {% if piece and piece != 'home' %}
+      <div class="piece-banner">
+        <span class="piece-banner-pill">
+          {%- if piece == 'price' %}<i class="ph-light ph-wrench" aria-hidden="true"></i> 상품 정책화{% elif piece == 'crawl' %}<i class="ph-light ph-gear" aria-hidden="true"></i>️ 자동화{% else %}<i class="ph-light ph-wall" aria-hidden="true"></i> 옵션관리{% endif -%}
+        </span>
+        <span class="piece-banner-text">
+          {{ bundle.model_code }} —
+          {%- if piece == 'price' %} 가격 템플릿 · 사올 때 · 팔 때 · 마켓 등록
+          {%- elif piece == 'crawl' %} 전체 크롤 · 소싱처별 진행 · 최저가 · 실행 이력
+          {%- else %} 옵션 트리 · 옵션별 실제 매입가 · 브랜드 지정{% endif %}
+        </span>
+        <a class="piece-banner-back" href="/bundles/{{ bundle.model_code|urlencode }}">← 이 모음전 전체 보기</a>
+      </div>
+      {% endif %}
+
+      {# [2026-08-02 §4] 조각 입구 4장 — 한 화면에 섞여 있던 일을 제 메뉴로 보낸다. #}
+      {% if piece == 'home' %}
+      {% set _c = bundle.model_code|urlencode %}
+      <div class="piece-doors">
+        <a class="piece-door" href="/optgen/box/{{ _c }}">
+          <span class="pd-ic"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span>
+          <span class="pd-body">
+            <b class="pd-t">옵션 만들기 · 고치기</b>
+            <span class="pd-s">색상·사이즈 짜기 · 소싱처 주소 잇기</span>
+          </span>
+          <span class="pd-go">→</span>
+        </a>
+        <a class="piece-door" href="/policies/product/{{ _c }}">
+          <span class="pd-ic"><i class="ph-light ph-wrench" aria-hidden="true"></i></span>
+          <span class="pd-body">
+            <b class="pd-t">가격 매기기 · 마켓에 올리기</b>
+            <span class="pd-s">가격 템플릿 · 사올 때 · 팔 때 · 마켓 등록</span>
+          </span>
+          <span class="pd-go">→</span>
+        </a>
+        <a class="piece-door" href="/automation/product/{{ _c }}">
+          <span class="pd-ic"><i class="ph-light ph-gear" aria-hidden="true"></i>️</span>
+          <span class="pd-body">
+            <b class="pd-t">크롤 돌리기 · 진행 보기</b>
+            <span class="pd-s">전체 크롤 · 소싱처별 진행 · 최저가 · 실행 이력</span>
+          </span>
+          <span class="pd-go">→</span>
+        </a>
+        <a class="piece-door" href="/matrix/product/{{ _c }}">
+          <span class="pd-ic"><i class="ph-light ph-package" aria-hidden="true"></i></span>
+          <span class="pd-body">
+            <b class="pd-t">옵션 하나하나 보기</b>
+            <span class="pd-s">옵션 트리 · 옵션별 실제 매입가 · 브랜드 지정</span>
+          </span>
+          <span class="pd-go">→</span>
+        </a>
+      </div>
+      <div class="piece-doors-note">
+        네 가지 일이 한 화면에 섞여 있던 것을 메뉴별로 나눴습니다.
+        예전처럼 <a href="/bundles/{{ _c }}/all">한 장에 전부 보기</a> 도 그대로 됩니다.
+      </div>
+      <style>
+        .piece-doors { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+          gap:10px; margin-bottom:10px; }
+        {# 🔴 [2026-08-02] 색 이름을 지어 쓰면 어두운 타입에서 통째로 흰 판이 된다.
+           `--면`·`--선`·`--글자`·`--면-보조` 는 **어디에도 정의된 적 없는 이름**이라,
+           브라우저가 예비값(흰 바탕·검정 글자)을 그대로 썼다 — 검정 화면 한가운데
+           흰 카드 4장이 떠 있었다(라이브 실측: 흰 판 4곳 + 설명 글자 대비 2.87).
+           실재하는 이름은 tokens.css 가 원천이다: --surface · --line · --ink · --surface2. #}
+        .piece-door { display:flex; align-items:center; gap:13px; text-decoration:none;
+          padding:16px 18px; border-radius:12px; background:var(--surface,#fff);
+          border:1px solid var(--line,#e5e8eb); transition:border-color .15s, background .15s; }
+        .piece-door:hover { border-color:var(--글자-파랑,#3182f6); background:var(--surface2,#f9fafb); }
+        .piece-door .pd-ic { font-size:22px; line-height:1; flex-shrink:0; }
+        .piece-door .pd-body { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
+        .piece-door .pd-t { font-size:15px; font-weight:600; color:var(--ink,#191f28); }
+        .piece-door .pd-s { font-size:13px; color:var(--글자-보조,#6b7684); line-height:1.5; }
+        .piece-door .pd-go { margin-left:auto; font-size:16px; color:var(--글자-희미,#b0b8c1); flex-shrink:0; }
+        .piece-doors-note { font-size:13px; color:var(--글자-보조,#6b7684); margin-bottom:16px; }
+        .piece-doors-note a { color:var(--글자-파랑,#3182f6); }
+      </style>
+      {% endif %}
 
       {# Section 1: 기본 정보 #}
-      <div class="bundle-section" id="sec-basic" data-tab="basic">
+      <div class="bundle-section" id="sec-basic" data-tab="basic" data-piece="home">
         <div class="bundle-section-head">
           <span class="bundle-section-num done">1</span>
           <h2>ⓘ 기본 정보</h2>
         </div>
         <div class="field">
-          <label class="field-label">모음전 코드 <span style="color:var(--n400);font-weight:400;font-size: 14px">(변경 시 옵션·이력·매핑 모두 cascade)</span></label>
+          <label class="field-label">모음전 코드 <span style="color: var(--글자-희미, var(--n400));font-weight:400;font-size: 14px">(변경 시 옵션·이력·매핑 모두 cascade)</span></label>
           <div style="display:flex;gap:8px">
             <input id="bundle-code-input" class="field-input" value="{{ bundle.model_code }}" data-original="{{ bundle.model_code }}" />
             <button type="button" class="btn" data-action="rename-bundle">코드 변경</button>
@@ -213,22 +307,27 @@
       {# [2026-05-24] sec-tpl 적용 템플릿 섹션 삭제됨 — 옵션 탭에 통합 #}
 
       {# Section 4: 색상·사이즈 조합 #}
-      <div class="bundle-section" id="sec-combo" data-tab="opt">
+      <div class="bundle-section" id="sec-combo" data-tab="opt" data-piece="home">
         {# [재설계 — 시안 C2] 생성 버튼 우상단 단일화 · 소프트 칩 · 가운데 정렬 #}
-        <div class="bundle-section-head" style="display:flex;align-items:center;gap:9px">
+        <div class="bundle-section-head" style="display:flex;align-items:center;gap:8px">
           <h2>색상·사이즈 조합</h2>
-          <button class="btn btn-primary btn-sm" data-action="step-design" type="button"
-                  style="margin-left:auto; text-align:center;">＋ 옵션 조합 생성 및 수정</button>
+          {# [2026-08-02 설계서 규칙 12 — 같은 기능의 입구는 하나]
+             옵션을 짜는 곳은 📥 옵션생성 & 상품생성 한 곳뿐이다. 여기서 모달을 또 띄우면
+             같은 일을 하는 문이 둘이 되어, 한쪽에서 고친 것이 다른 쪽에 안 보이는 착각을 만든다.
+             toss.js 의 `step-design` 처리기는 지우지 않는다 — 지금 부르는 화면은 없지만,
+             option_url_modal.js 가 그 이름으로 붙어 있어 함께 손대면 위험하다. #}
+          <a class="btn btn-primary btn-sm" href="/optgen/box/{{ bundle.model_code|urlencode }}"
+             style="margin-left:auto; text-align:center; font-size:17px; text-decoration:none;">옵션 조합 생성 및 수정 →</a>
         </div>
         {% for c in combos %}
         <div class="combo-card" data-id="{{ c.id }}">
           <div class="combo-head">
             <div class="combo-title">{{ c.name or ('조합 ' ~ loop.index) }}</div>
             <button class="btn btn-sm" data-action="edit-combo" data-id="{{ c.id }}"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 편집</button>
-            <button class="btn btn-sm" style="color:var(--danger)" data-action="del-combo" data-id="{{ c.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
+            <button class="btn btn-sm" style="color: var(--글자-빨강, var(--danger))" data-action="del-combo" data-id="{{ c.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
           </div>
           <div class="combo-axlbl">색상</div>
-          <div class="chip-row" style="margin-bottom:13px">
+          <div class="chip-row" style="margin-bottom:12px">
             {% for code in c.color_codes_json|from_json %}<span class="chip">{{ code }}</span>{% endfor %}
           </div>
           <div class="combo-axlbl">사이즈</div>
@@ -237,20 +336,20 @@
           </div>
         </div>
         {% else %}
-        <div class="combo-empty">아직 옵션 조합이 없습니다 — 우측 상단 <b>＋ 옵션 조합 생성</b> 으로 만드세요.</div>
+        <div class="combo-empty">아직 옵션 조합이 없습니다 — 우측 상단 <b>옵션 조합 생성 및 수정 →</b> 에서 만드세요.</div>
         {% endfor %}
         <style>
-          #sec-combo .combo-card { border:1px solid var(--n200,#e5e8eb); border-radius:11px;
-            padding:15px 17px; margin-bottom:10px; }
-          #sec-combo .combo-head { display:flex; align-items:center; gap:8px; margin-bottom:13px; }
+          #sec-combo .combo-card { border:1px solid var(--n200,var(--line,#e5e8eb)); border-radius:12px;
+            padding:16px 16px; margin-bottom:8px; }
+          #sec-combo .combo-head { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
           #sec-combo .combo-title { font-weight:800; font-size:14px; flex:1; }
-          #sec-combo .combo-axlbl { font-size:12px; font-weight:800; color:var(--n500,#8b95a1); margin-bottom:7px; }
-          #sec-combo .chip-row { display:flex; flex-wrap:wrap; gap:7px; }
+          #sec-combo .combo-axlbl { font-size:12px; font-weight:800; color:var(--n500,var(--sub,#8b95a1)); margin-bottom:8px; }
+          #sec-combo .chip-row { display:flex; flex-wrap:wrap; gap:8px; }
           #sec-combo .chip { display:inline-flex; align-items:center; justify-content:center;
-            background:var(--primary-tint,#eef4ff); color:var(--primary,#3182f6);
-            border-radius:8px; padding:7px 14px; font-size:13px; font-weight:700; line-height:1; }
-          #sec-combo .combo-empty { padding:22px; text-align:center; color:var(--n400,#b0b8c1);
-            border:1.5px dashed var(--n200,#e5e8eb); border-radius:11px; font-size:13px; }
+            background:var(--primary-tint,var(--연한-파랑,#eef4ff)); color: var(--글자-파랑, var(--primary,var(--primary,#3182f6)));
+            border-radius:8px; padding:8px 12px; font-size:12px; font-weight:700; line-height:1; }
+          #sec-combo .combo-empty { padding:24px; text-align:center; color: var(--글자-희미, var(--n400,var(--faint,#b0b8c1)));
+            border:1.5px dashed var(--n200,var(--line,#e5e8eb)); border-radius:12px; font-size:12px; }
         </style>
       </div>
 
@@ -258,9 +357,21 @@
       {% include 'bundles/_matrix_v3.html' %}
 
       {# Section 6: 마켓 등록·업로드 — V4 Status dashboard + B1 표 + 기존 모드탭/입력경로 보존 #}
-      <div class="bundle-section" id="sec-market" data-tab="mkt">
+      <div class="bundle-section" id="sec-market" data-tab="mkt" data-piece="price">
+        {# [2026-08-01] 노션 F1·H1 — 「정책 정보」 탭.
+           정책을 고르면 그 정책이 6마켓에서 얼마에 팔리고 얼마 남는지 한 표로 본다.
+           🔴 계산은 lemouton/policy/preview.result_by_market 이 한다 —
+             여기서 산식을 다시 쓰면 화면과 업로드가 갈린다. #}
         <div class="bundle-section-head">
-          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">4</span>
+          <span class="bundle-section-num">3</span>
+          <h2>정책 정보</h2>
+        </div>
+        <div id="pol-box" style="margin-bottom:20px">
+          <div style="font-size:13px;color:var(--sub,#8B95A1)">불러오는 중…</div>
+        </div>
+
+        <div class="bundle-section-head" style="margin-top:24px">
+          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">+</span>
           <h2>마켓 등록·업로드</h2>
         </div>
 
@@ -334,7 +445,7 @@
                 <div class="mk4-mpane" data-imp="ss-excel">
                   <div class="dropzone-v3" id="ss-dropzone">
                     <div class="dz-icon"><i class="ph-light ph-folder" aria-hidden="true"></i></div><strong>엑셀 파일을 여기에 드롭</strong>
-                    <div style="margin-top:6px;font-size:12px;color:var(--n500)">또는 <button class="btn btn-sm" type="button" onclick="document.getElementById('ss-file-input').click()">파일 선택</button></div>
+                    <div style="margin-top:4px;font-size:12px;color:var(--n500)">또는 <button class="btn btn-sm" type="button" onclick="document.getElementById('ss-file-input').click()">파일 선택</button></div>
                     <input type="file" id="ss-file-input" accept=".xlsx,.xls" style="display:none">
                   </div>
                 </div>
@@ -389,7 +500,7 @@
                 <div class="mk4-mpane" data-imp="cp-excel">
                   <div class="dropzone-v3" id="cp-dropzone">
                     <div class="dz-icon"><i class="ph-light ph-folder" aria-hidden="true"></i></div><strong>엑셀 파일을 여기에 드롭</strong>
-                    <div style="margin-top:6px;font-size:12px;color:var(--n500)">또는 <button class="btn btn-sm" type="button" onclick="document.getElementById('cp-file-input').click()">파일 선택</button></div>
+                    <div style="margin-top:4px;font-size:12px;color:var(--n500)">또는 <button class="btn btn-sm" type="button" onclick="document.getElementById('cp-file-input').click()">파일 선택</button></div>
                     <input type="file" id="cp-file-input" accept=".xlsx,.xls" style="display:none">
                   </div>
                 </div>
@@ -418,54 +529,54 @@
         </div>
 
         <style>
-          .mk4-upload { margin-top:18px; padding-top:18px; border-top:1px dashed var(--n200); }
-          .mk4-upload-btn { width:100%; font-size:15px; padding:14px; }
-          .mk4-upload-note { margin-top:9px; font-size:12.5px; color:var(--n500); line-height:1.6; text-align:center; }
-          .mk4 { display:flex; gap:14px; align-items:flex-start; }
+          .mk4-upload { margin-top:16px; padding-top:16px; border-top:1px dashed var(--n200); }
+          .mk4-upload-btn { width:100%; font-size:14px; padding:12px; }
+          .mk4-upload-note { margin-top:8px; font-size:12px; color:var(--n500); line-height:1.6; text-align:center; }
+          .mk4 { display:flex; gap:12px; align-items:flex-start; }
           .mk4-left { width:230px; flex:none; display:flex; flex-direction:column; gap:8px; }
-          .mk4-mcard { display:flex; align-items:center; gap:12px; padding:13px; border:1px solid var(--n200); border-radius:12px; cursor:pointer; background:#fff; transition:border-color .12s, box-shadow .12s; }
+          .mk4-mcard { display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--n200); border-radius:12px; cursor:pointer; background:var(--surface,#ffffff); transition:border-color .12s, box-shadow .12s; }
           .mk4-mcard:hover { border-color:var(--n300); }
-          .mk4-mcard.on { border-color:var(--primary); box-shadow:0 0 0 2px var(--primary-tint, #eef4ff); }
+          .mk4-mcard.on { border-color:var(--primary);  }
           .mk4-ring { width:52px; height:52px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
-            background:conic-gradient(var(--primary) calc(var(--pct,0) * 3.6deg), #e9ecef 0); }
-          .mk4-ring > i { width:39px; height:39px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; font-style:normal; font-size:12px; font-weight:800; }
+            background:conic-gradient(var(--primary) calc(var(--pct,0) * 3.6deg), var(--line2,#e9ecef) 0); }
+          .mk4-ring > i { width:39px; height:39px; border-radius:50%; background:var(--surface,#ffffff); display:flex; align-items:center; justify-content:center; font-style:normal; font-size:12px; font-weight:800; }
           .mk4-minfo { min-width:0; }
-          .mk4-mname { display:flex; align-items:center; gap:7px; font-weight:800; font-size:13.5px; }
-          .mk4-mmeta { font-size:11.5px; color:var(--n500); margin-top:2px; }
+          .mk4-mname { display:flex; align-items:center; gap:8px; font-weight:800; font-size:14px; }
+          .mk4-mmeta { font-size:12px; color:var(--n500); margin-top:0px; }
           .mk4-mmeta b { color:var(--n800); }
           .mk4-id { font-family:'JetBrains Mono','D2Coding',monospace; }
-          .mk4-unreg { color:var(--n400); }
-          .mk4-logo { width:22px; height:22px; border-radius:6px; flex:none; color:#fff; font-weight:800; font-size:10.5px;
+          .mk4-unreg { color: var(--글자-희미, var(--n400)); }
+          .mk4-logo { width:22px; height:22px; border-radius:8px; flex:none; color:#fff; font-weight:800; font-size:12px;
             display:inline-flex; align-items:center; justify-content:center; }
-          .mk4-logo.lg { width:30px; height:30px; border-radius:8px; font-size:13px; }
-          .mk4-logo.ss { background:#03c75a; } .mk4-logo.cp { background:#ff5a3c; }
-          .mk4-right { flex:1; min-width:0; border:1px solid var(--n200); border-radius:12px; padding:18px 20px; }
-          .mk4-phead { display:flex; align-items:center; gap:9px; padding-bottom:14px; border-bottom:1px solid var(--n100); }
-          .mk4-phead b { font-size:15px; }
+          .mk4-logo.lg { width:30px; height:30px; border-radius:8px; font-size:12px; }
+          .mk4-logo.ss { background:#03c75a; } .mk4-logo.cp { background:var(--red,#ff5a3c); }
+          .mk4-right { flex:1; min-width:0; border:1px solid var(--n200); border-radius:12px; padding:16px 16px; }
+          .mk4-phead { display:flex; align-items:center; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--n100); }
+          .mk4-phead b { font-size:14px; }
           .mk4-spacer { flex:1; }
           .mk4-active-lbl { font-size:12px; font-weight:700; color:var(--n500); }
           .mk4-steps { display:flex; align-items:center; margin:16px 0 4px; }
-          .mk4-step { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; color:var(--n400); }
+          .mk4-step { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color: var(--글자-희미, var(--n400)); }
           .mk4-step.on { color:var(--n700); }
-          .mk4-step > i { width:22px; height:22px; border-radius:50%; font-style:normal; font-size:11px; font-weight:800;
-            display:flex; align-items:center; justify-content:center; background:#eef0f2; color:var(--n500); }
-          .mk4-step.on > i { background:var(--primary); color:#fff; }
+          .mk4-step > i { width:22px; height:22px; border-radius:50%; font-style:normal; font-size:12px; font-weight:800;
+            display:flex; align-items:center; justify-content:center; background:var(--line2,#eef0f2); color:var(--n500); }
+          .mk4-step.on > i { background: var(--바탕-파랑, var(--primary)); color:#fff; }
           .mk4-step-line { flex:1; height:1.5px; background:var(--n100); margin:0 12px; }
           .mk4-field { margin-top:16px; }
-          .mk4-lbl { font-size:12px; font-weight:800; color:var(--n600); margin-bottom:7px; display:flex; align-items:center; gap:6px; }
-          .mk4-help { width:16px; height:16px; border-radius:50%; background:#eef0f2; color:var(--n500); font-size:10px; font-weight:800;
+          .mk4-lbl { font-size:12px; font-weight:800; color:var(--n600); margin-bottom:8px; display:flex; align-items:center; gap:4px; }
+          .mk4-help { width:16px; height:16px; border-radius:50%; background:var(--line2,#eef0f2); color:var(--n500); font-size:12px; font-weight:800;
             display:inline-flex; align-items:center; justify-content:center; cursor:help; }
-          .mk4-links { margin-top:8px; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
-          .mk4-sub { font-size:11.5px; color:var(--n500); }
-          .mk4-newline { margin-top:8px; font-size:12.5px; color:var(--n500); display:flex; align-items:center; gap:8px; }
-          .mk4-mth-row { display:flex; gap:7px; }
-          .mk4-mth { font:inherit; font-size:12.5px; font-weight:700; color:var(--n600); cursor:pointer;
-            border:1px solid var(--n300); border-radius:9px; padding:8px 14px; background:#fff; }
-          .mk4-mth.on { border-color:var(--primary); color:var(--primary); background:var(--primary-tint, #eef4ff); }
-          .mk4-mpane { display:none; margin-top:10px; }
+          .mk4-links { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+          .mk4-sub { font-size:12px; color:var(--n500); }
+          .mk4-newline { margin-top:8px; font-size:12px; color:var(--n500); display:flex; align-items:center; gap:8px; }
+          .mk4-mth-row { display:flex; gap:8px; }
+          .mk4-mth { font:inherit; font-size:12px; font-weight:700; color:var(--n600); cursor:pointer;
+            border:1px solid var(--n300); border-radius:8px; padding:8px 12px; background:var(--surface,#ffffff); }
+          .mk4-mth.on { border-color:var(--primary); color: var(--글자-파랑, var(--primary)); background:var(--primary-tint, var(--연한-파랑,#eef4ff)); }
+          .mk4-mpane { display:none; margin-top:8px; }
           .mk4-mpane.on { display:block; }
-          .mk4-hint { font-size:12px; color:var(--n500); background:var(--n100); border-radius:8px; padding:10px 12px; line-height:1.55; }
-          .mk4-run { margin-top:18px; }
+          .mk4-hint { font-size:12px; color:var(--n500); background:var(--n100); border-radius:8px; padding:8px 12px; line-height:1.55; }
+          .mk4-run { margin-top:16px; }
           .mk4-run .btn { width:100%; }
         </style>
 
@@ -507,7 +618,7 @@
       </div>
 
       {# Section 7: 실행 이력 — E1 status 카드(헤더)에 통합되어 가로탭에서 제거 (2026-05-09) #}
-      <div class="bundle-section" id="sec-runs" data-tab="run" style="display:none">
+      <div class="bundle-section" id="sec-runs" data-tab="run" data-piece="crawl" style="display:none">
         <div class="bundle-section-head">
           <span class="bundle-section-num {% if run_history %}done{% endif %}">7</span>
           <h2>실행 이력</h2>
@@ -597,7 +708,7 @@
             </tbody>
           </table>
           {% else %}
-          <div style="text-align:center;padding:24px;color:var(--n500);font-size:13px">아직 실행 이력이 없어요. 위에서 ▶ 지금 전체 실행 / 크롤링 / 업로드를 눌러 첫 실행을 시작하세요.</div>
+          <div style="text-align:center;padding:24px;color:var(--n500);font-size:12px">아직 실행 이력이 없어요. 위에서 ▶ 지금 전체 실행 / 크롤링 / 업로드를 눌러 첫 실행을 시작하세요.</div>
           {% endif %}
         </div>
       </div>
@@ -609,74 +720,74 @@
   /* F2 — Step indicator (번호 + 체크 + 연결선) */
   .bundle-tabs.bundle-steps {
     display: flex; align-items: center; gap: 0;
-    background: var(--surface, #fff); border: 1px solid var(--n200, #e5e8eb);
-    border-radius: 12px 12px 0 0; padding: 18px 24px;
-    margin-bottom: -1px; position: sticky; top: 0; z-index: 5;
+    background: var(--surface, #fff); border: 1px solid var(--n200, var(--line,#e5e8eb));
+    border-radius: 12px 12px 0 0; padding: 16px 24px;
+    margin-bottom: 0px; position: sticky; top: 0; z-index: 5;
     overflow-x: auto;
   }
   .bundle-step {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 8px;
     background: none; border: none; cursor: pointer;
     font-family: inherit; padding: 4px 8px; flex-shrink: 0;
     transition: .15s;
   }
   .bundle-step .step-num {
     width: 32px; height: 32px; border-radius: 50%;
-    background: var(--n200, #e5e8eb); color: var(--n600, #6b7684);
+    background: var(--n200, var(--line,#e5e8eb)); color: var(--n600, var(--글자-보조,#6b7684));
     font-size: 14px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
     transition: .15s; flex-shrink: 0;
   }
   .bundle-step .step-name {
-    font-size: 16px; font-weight: 600; color: var(--n600, #6b7684);
+    font-size: 17px; font-weight: 600; color: var(--n600, var(--글자-보조,#6b7684));
     white-space: nowrap;
   }
-  .bundle-step:hover .step-num { background: var(--n300, #d1d6db); color: var(--n800, #333d4b); }
-  .bundle-step:hover .step-name { color: var(--n900, #191F28); }
-  .bundle-step.done .step-num { background: #10b981; color: #fff; font-size: 0; }
-  .bundle-step.done .step-num::before { content: '✓'; font-size: 16px; }
-  .bundle-step.done .step-name { color: var(--n900, #191F28); }
+  .bundle-step:hover .step-num { background: var(--n300, var(--faint,#d1d6db)); color: var(--n800, var(--ink,#333d4b)); }
+  .bundle-step:hover .step-name { color: var(--n900, var(--ink,#191F28)); }
+  .bundle-step.done .step-num { background: var(--바탕-초록, var(--green,#10b981)); color: #fff; font-size: 0; }
+  .bundle-step.done .step-num::before { content: '✓'; font-size: 17px; }
+  .bundle-step.done .step-name { color: var(--n900, var(--ink,#191F28)); }
   .bundle-step.on .step-num {
-    background: var(--primary, #3182F6); color: #fff;
-    box-shadow: 0 0 0 4px rgba(49, 130, 246, .2);
+    background: var(--바탕-파랑, var(--primary, var(--primary,#3182F6))); color: #fff;
+    
   }
-  .bundle-step.on .step-name { color: var(--primary, #3182F6); font-weight: 700; }
+  .bundle-step.on .step-name { color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); font-weight: 700; }
   .step-line {
     flex: 1 1 30px; height: 2px; min-width: 20px;
-    background: var(--n200, #e5e8eb); margin: 0 6px;
+    background: var(--n200, var(--line,#e5e8eb)); margin: 0 4px;
   }
-  .step-line.done { background: #10b981; }
+  .step-line.done { background: var(--green,#10b981); }
   /* B6 — 탭 아래 활성 단계 안내 banner */
   .step-banner {
     display: flex; align-items: center; gap: 12px;
-    padding: 14px 24px; margin-bottom: 18px;
-    background: linear-gradient(to right, var(--primary-tint, #E8F2FF), #fff);
-    border: 1px solid #bfdbfe; border-radius: 0 0 12px 12px;
+    padding: 12px 24px; margin-bottom: 16px;
+    background: linear-gradient(to right, var(--primary-tint, var(--연한-파랑,#E8F2FF)), var(--surface,#ffffff));
+    border: 1px solid var(--연한-파랑,#bfdbfe); border-radius: 0 0 12px 12px;
     border-top: none;
   }
   .step-banner-pill {
-    background: var(--primary, #3182F6); color: #fff;
-    padding: 5px 14px; border-radius: 7px;
-    font-size: 13.5px; font-weight: 800; letter-spacing: .02em;
+    background: var(--바탕-파랑, var(--primary, var(--primary,#3182F6))); color: #fff;
+    padding: 4px 12px; border-radius: 8px;
+    font-size: 14px; font-weight: 800; letter-spacing: .02em;
     flex-shrink: 0;
   }
   .step-banner-text {
-    font-size: 15px; font-weight: 700; color: #1e40af;
-    letter-spacing: -.01em;
+    font-size: 14px; font-weight: 700; color: var(--글자-파랑, var(--primary,#1e40af));
+    letter-spacing: 0;
   }
 
   /* 호환용 — 기존 .bundle-tab 스타일 유지 (다른 곳에서 쓰일 수 있음) */
   .bundle-tab:not(.bundle-step) {
-    padding: 14px 20px; font-size: var(--fs-h3, 19px); font-weight: 600;
-    color: var(--n600, #6b7684); background: none; border: none;
+    padding: 12px 16px; font-size: var(--fs-h3, 19px); font-weight: 600;
+    color: var(--n600, var(--글자-보조,#6b7684)); background: none; border: none;
     border-bottom: 3px solid transparent; cursor: pointer;
     font-family: inherit; white-space: nowrap; line-height: 1.2;
     transition: color .15s, border-color .15s;
   }
-  .bundle-tab:not(.bundle-step):hover { color: var(--n900, #191F28); }
+  .bundle-tab:not(.bundle-step):hover { color: var(--n900, var(--ink,#191F28)); }
   .bundle-tab:not(.bundle-step).on {
-    color: var(--primary, #3182F6);
-    border-bottom-color: var(--primary, #3182F6);
+    color: var(--글자-파랑, var(--primary, var(--primary,#3182F6)));
+    border-bottom-color: var(--primary, var(--primary,#3182F6));
     font-weight: 700;
   }
   /* 탭 본문 — 첫 .bundle-section 이 탭 바로 밑에 붙도록 상단 둥글기 제거 */
@@ -690,13 +801,39 @@
   /* hidden 시 sec-matrix 등 모두 숨김 */
   .bundle-content > .bundle-section[data-tab].tab-hidden { display: none !important; }
 
+  /* === [2026-08-02 설계서 §4] 조각 분리 ===
+     한 화면에 섞여 있던 가격·크롤·옵션을 메뉴별로 나눠 연다.
+     🔴 !important 필수 — 이 안의 JS 가 sm-side-h 등에 인라인 display 를 직접 찍는다.
+        !important 가 없으면 감춰둔 조각이 크롤 끝나고 되살아난다. */
+  .piece-off { display: none !important; }
+  /* 조각 모드에선 옵션 매트릭스 카드의 테두리·여백을 없애고 자식만 남긴다.
+     display:contents 라 자식 배치는 그대로 — 안의 모달(position:fixed)도 계속 뜬다. */
+  .piece-frame-flat { display: contents !important; }
+
+  .piece-banner {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 12px 16px; margin-bottom: 14px; border-radius: 11px;
+    background: var(--surface2, #f9fafb); border: 1px solid var(--line, #e5e8eb);
+  }
+  .piece-banner-pill {
+    background: var(--surface, #fff); border: 1px solid var(--line, #e5e8eb);
+    border-radius: 8px; padding: 5px 11px;
+    font-size: 14px; font-weight: 600; color: var(--ink, #191f28); white-space: nowrap;
+  }
+  .piece-banner-text { font-size: 14px; color: var(--글자-보조, #6b7684); }
+  .piece-banner-back {
+    margin-left: auto; font-size: 14px; font-weight: 600;
+    color: var(--글자-파랑, #3182f6); text-decoration: none; white-space: nowrap;
+  }
+  .piece-banner-back:hover { text-decoration: underline; }
+
   /* === [2026-06-11] 모음전 상세 전용: 꽉 채움 + 위상 구분(강도3 · 구분선만) ===
      이 스타일은 edit.html 에서만 로드 → 모음전 상세 페이지에만 적용 (전역 toss.css 미수정). */
   .main { max-width: none !important;
-    padding-left: clamp(16px, 2vw, 44px) !important;
-    padding-right: clamp(16px, 2vw, 44px) !important; }
+    padding-left: clamp(16px, 2vw, 48px) !important;
+    padding-right: clamp(16px, 2vw, 48px) !important; }
   /* 위상 구분선 (강도3) — 현황 ↔ 데이터 작업대 경계 (라벨 없이 선만) */
-  .tier-divider { border-top: 2px solid var(--n200, #e5e8eb); margin: 26px 0 18px; }
+  .tier-divider { border-top: 2px solid var(--n200, var(--line,#e5e8eb)); margin: 24px 0 16px; }
 </style>
 
   <script>
@@ -753,8 +890,37 @@
     setInterval(tick, 30000);
   })();
 
+  // ══════════════════════════════════════════════════════════════
+  //  [2026-08-02 설계서 §4] 조각 분리 — 이 화면을 메뉴 넷이 나눠 쓴다
+  //
+  //  BUNDLE_PIECE = 'home' | 'price' | 'crawl' | 'opt' | null(=나누기 전 전체)
+  //  규칙: data-piece 가 **없는** 것은 어느 조각에서나 보인다(공통 style·script·모달).
+  //        data-piece 가 있으면 지금 조각에 포함될 때만 보인다.
+  //  🔴 화면을 자르는 게 아니라 **고르는** 것이다. _matrix_v3.html 의 6,000줄 script
+  //     한 덩어리가 트리·격자·크롤 카드를 한꺼번에 그리므로, 잘라 옮기면 죽는다.
+  // ══════════════════════════════════════════════════════════════
+  const BUNDLE_PIECE = {{ (piece or None)|tojson|safe }};
+  (function applyPiece(){
+    if (!BUNDLE_PIECE) return;   // 조각 없이 열면 오늘까지의 화면 그대로
+    document.querySelectorAll('[data-piece]').forEach(el => {
+      const owns = (el.getAttribute('data-piece') || '').split(/\s+/);
+      el.classList.toggle('piece-off', !owns.includes(BUNDLE_PIECE));
+    });
+    // 옵션 매트릭스 카드 = 세 조각이 나눠 쓰는 그릇 → 테두리만 없앤다
+    document.querySelectorAll('[data-piece-frame]').forEach(el => {
+      el.classList.add('piece-frame-flat');
+    });
+    // 실행 이력은 탭이 사라지며 인라인 display:none 으로 **못 여는 상태**였다.
+    //   ⚙️ 자동화 조각이 그 자리를 되찾는다.
+    if (BUNDLE_PIECE === 'crawl') {
+      const runs = document.getElementById('sec-runs');
+      if (runs) runs.style.display = '';
+    }
+  })();
+
   // ===== T1 (E1) — 탭 전환 + URL hash 동기화 =====
   (function initBundleTabs(){
+    if (BUNDLE_PIECE) return;    // 조각 모드 = 탭 없음. showTab 이 조각을 덮어쓰면 안 된다.
     const tabs = document.querySelectorAll('.bundle-tab');
     if (!tabs.length) return;
     const sections = document.querySelectorAll('.bundle-content > .bundle-section[data-tab]');
@@ -775,9 +941,9 @@
       });
       // B6 — 활성 단계 안내 banner 갱신
       const STEP_INFO = {
-        basic: ['1단계', '기본 정보 — 모음전 코드·카테고리·노출명 입력'],
-        opt:   ['2단계', '옵션 — 옵션 조합 생성 및 수정 · 가격 설정 · 매트릭스 관리'],
-        mkt:   ['3단계', '마켓 등록·업로드 — 스마트스토어·쿠팡 매핑 + 동기화'],
+        basic: ['1단계', '상품 정보 — 모음전 코드·카테고리·노출명 입력'],
+        opt:   ['2단계', '옵션 정보 — 옵션 조합 생성 및 수정 · 가격 설정 · 매트릭스 관리'],
+        mkt:   ['3단계', '정책 정보 — 붙은 정책으로 마켓마다 얼마에 팔리는지 + 등록·업로드'],
       };
       const info = STEP_INFO[name];
       if (info) {
@@ -828,7 +994,7 @@
       let urls = 0;
       j.options.forEach(o => o.sources.forEach(s => { sources.add(s.source_id); urls++; }));
       const el = document.getElementById('bh-src-summary');
-      if (el) el.textContent = ` ${sources.size} 소싱처 · ${urls} URLs`;
+      if (el) el.textContent = `${sources.size} 소싱처 · ${urls} URLs`;
     });
 
   // [v6 Phase 5.4 — E5 URL Auto-detect]
@@ -903,7 +1069,7 @@
         const j = await res.json();
         if (res.ok && j.ok) {
           // v6 Phase 5.5: backend 가 next_url 안내 → 위저드로 navigation
-          if (confirm(` "${lastUnknownDomain}" 검출 기록됨.\n\n소싱처 위저드 (/accounts/sourcing) 로 이동해서 SourcingAccount 등록 + scraper 모듈 연결을 진행할까요?\n\n[취소] 시 현재 페이지에 머무름.`)) {
+          if (confirm(`"${lastUnknownDomain}" 검출 기록됨.\n\n소싱처 위저드 (/accounts/sourcing) 로 이동해서 SourcingAccount 등록 + scraper 모듈 연결을 진행할까요?\n\n[취소] 시 현재 페이지에 머무름.`)) {
             window.open(j.next_url || '/accounts/sourcing', '_blank');
           }
           panel.hidden = true;
@@ -916,7 +1082,7 @@
         alert('네트워크 오류: ' + e.message);
       } finally {
         addBtn.disabled = false;
-        addBtn.textContent = ' 새 소싱처로 추가';
+        addBtn.textContent = '새 소싱처로 추가';
       }
     });
     dismissBtn?.addEventListener('click', () => { panel.hidden = true; });
@@ -967,12 +1133,12 @@
         if (inp) inp.insertAdjacentElement('afterend', tag);
         else row.appendChild(tag);
       }
-      tag.textContent = ' 저장됨';
+      tag.textContent = '저장됨';
       tag.classList.remove('fade');
       clearTimeout(tag._t);
       tag._t = setTimeout(function () { tag.classList.add('fade'); }, 1600);
     }
-    // ＋ URL 추가
+    // + URL 추가
     document.addEventListener('click', async (e) => {
       const addBtn = e.target.closest('.src-tree-add-btn');
       if (addBtn) {
@@ -989,7 +1155,7 @@
           });
           const j = await r.json();
           if (!j.ok) { alert('추가 실패: ' + (j.error || '')); return; }
-          // DOM 에 새 행 삽입 (＋ 버튼 직전)
+          // DOM 에 새 행 삽입 (+ 버튼 직전)
           const tmp = document.createElement('div');
           tmp.innerHTML = buildRowHTML(srcKey, j.id, j.url);
           const newRow = tmp.firstElementChild;
@@ -1324,7 +1490,7 @@
           const h = sources[key].history.find(hh => hh.date === date);
           if (!h) return;
           if (h.stock === 0) {
-            html += `<div class="tt-row"><div class="tt-dot" style="background:#E5E7EB"></div><span style="color:#9CA3AF">${meta.label} 품절</span></div>`;
+            html += `<div class="tt-row"><div class="tt-dot" style="background:var(--line2,#E5E7EB)"></div><span style="color:var(--faint,#9CA3AF)">${meta.label} 품절</span></div>`;
           } else if (h.price != null) {
             const stk = stockLabel(h.stock);
             html += `<div class="tt-row"><div class="tt-dot" style="background:${meta.color}"></div><span>${meta.label}</span><b>${h.price.toLocaleString()}</b><span>${stk.text}</span></div>`;
@@ -1368,6 +1534,163 @@
     if (stock <= 5)     return { cls: 'low', text: `${stock}개` };
     return                     { cls: 'ok',  text: '✓' };
   }
+})();
+</script>
+
+<style>
+  /* 정책 정보 — 정책 가로탭 + 마켓별 결과 표 (노션 F1·H1) */
+  .pol-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .pol-tab{border:1.5px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);
+           border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;
+           color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit;text-align:left}
+  .pol-tab .s{display:block;font-size:12px;font-weight:500;color:var(--sub,#8B95A1);margin-top:2px}
+  .pol-tab.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+  .pol-tab.on .s{color:#3F72B8}
+  .pol-tab.add{border-style:dashed;color:var(--sub,#8B95A1);font-weight:600;text-decoration:none}
+  .pol-rt{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);
+          border:1px solid var(--line,#E5E8EB);border-radius:12px;overflow:hidden;font-size:12px}
+  .pol-rt th{background:var(--n100,#F7FAFF);padding:8px 12px;font-size:12px;font-weight:700;
+             color:var(--글자-기본,#4E5968);border-bottom:1px solid var(--line,#E5E8EB);
+             text-align:left;white-space:nowrap}
+  .pol-rt td{padding:8px 12px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+  .pol-rt tr:last-child td{border-bottom:0}
+  .pol-rt .num{text-align:right;font-variant-numeric:tabular-nums}
+  .pol-rt th.num{text-align:right}
+  .pol-rt .mid{text-align:center}
+  .pol-rt th.mid{text-align:center}
+  .pol-rt .neg{color:#B91C1C;font-weight:700}
+  .pol-rt .pos{color: var(--글자-초록, var(--green,#15803D));font-weight:700}
+  .pol-rt .off{color: var(--글자-희미, var(--faint,#B0B8C1))}
+  .pol-note{font-size:12px;color:var(--글자-보조,#6B7684);margin-top:8px;line-height:1.7}
+  .pol-warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);
+            border-radius:8px;padding:12px 16px;font-size:12px;
+            color: var(--글자-주황, var(--amber,#92400E));line-height:1.7}
+  /* [2026-08-02] 구성이 2개 이상일 때만 나오는 것들 — 구성 1개면 안 쓰인다 */
+  .pol-warn.ok{background:var(--연한-보라,#F6F5FE);
+               border-color:var(--line,#CECBF6);
+               color:var(--글자-기본,#3C3489);margin-bottom:10px}
+  .pol-rt th .cs{font-weight:400;color:var(--sub,#8B95A1);font-size:12px;margin-top:2px}
+</style>
+<script>
+/* 정책 정보 탭 — 붙은 정책을 고르면 그 정책의 마켓별 결과를 한 표로.
+   🔴 숫자는 서버(preview.result_by_market)가 낸 것만 그린다 — 여기서 계산하지 않는다. */
+(function () {
+  const box = document.getElementById('pol-box');
+  if (!box) return;
+  const CODE = {{ (bundle.model_code or '') | tojson }};
+  let curPid = null, loaded = false;
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const won = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
+
+  function row(r) {
+    if (!r.ready) {
+      return '<tr><td>' + esc(r.label) + '</td>'
+        + '<td colspan="5" class="off">' + esc(r.reason || '아직 계산할 수 없습니다') + '</td>'
+        + '<td class="mid off">—</td></tr>';
+    }
+    const neg = (r.margin != null && r.margin < 0);
+    return '<tr><td>' + esc(r.label) + '</td>'
+      + '<td class="num">' + won(r.purchase) + '</td>'
+      + '<td class="num">' + won(r.price) + '</td>'
+      + '<td class="num ' + (neg ? 'neg' : 'pos') + '">' + won(r.margin) + '</td>'
+      + '<td class="num ' + (neg ? 'neg' : '') + '">'
+      + (r.margin_rate == null ? '—' : r.margin_rate + '%') + '</td>'
+      + '<td class="mid">' + r.priced + ' / ' + r.options + '</td>'
+      + '<td class="mid">' + (neg ? '<span class="neg">역마진</span>' : '') + '</td></tr>';
+  }
+
+  /* [2026-08-02] 구성이 2개 이상일 때만 **나란히** 놓는다(F1).
+     🔴 구성이 하나면 이 함수는 안 불린다 — 화면이 오늘과 똑같아야 하기 때문. */
+  function drawCompare(j) {
+    const bs = j.bundles || [];
+    const none = bs.filter((b) => !b.policy_id).length;
+    const head = bs.map((b) => '<th class="num">'
+      + (b.policy ? esc(b.policy) : '<span class="off">정책 없음</span>')
+      + '<div class="cs">' + esc(b.name || '') + '</div></th>').join('');
+    const body = (j.markets || []).map((m) => {
+      const cells = bs.map((b) => {
+        const c = (m.cells || []).find((x) => x.set_id === b.set_id);
+        if (!c || !c.ready || c.price == null) {
+          return '<td class="num off" title="' + esc((c && c.reason) || '') + '">—</td>';
+        }
+        return '<td class="num">' + won(c.price) + '</td>';
+      }).join('');
+      return '<tr><td>' + esc(m.label) + '</td>' + cells + '</tr>';
+    }).join('');
+
+    /* 🔴 정책이 없는 구성도 칸으로 보여 준다 — 감추면 구성이 하나뿐인 줄 안다 */
+    const notice = none
+      ? '<div class="pol-warn"><b>이 상품은 구성이 ' + bs.length + '개인데 그중 '
+        + none + '개에 정책이 없습니다.</b> 정책이 없으면 그 구성은 <b>어디에도 안 올라갑니다</b> — '
+        + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
+        + '정책 매칭</a> 에서 붙여 주세요.</div>'
+      : '<div class="pol-warn ok"><b>이 상품은 구성이 ' + bs.length + '개입니다.</b> '
+        + '구성마다 정책이 달라 마켓에 <b>각각</b> 올라갑니다. 재고는 구성끼리 연동됩니다.</div>';
+    box.innerHTML = notice
+      + '<table class="pol-rt"><thead><tr><th>마켓</th>' + head + '</tr></thead>'
+      + '<tbody>' + body + '</tbody></table>'
+      + '<div class="pol-note">칸 이름은 <b>붙은 정책</b>이고, 그 아래 회색이 구성 이름입니다 — '
+      + '구성을 가르는 것은 <b>정책</b>이라 <b>이름이 같아도</b> 값이 갈립니다. '
+      + '「—」는 그 마켓에 아직 값을 못 내는 것입니다(마우스를 올리면 이유가 나옵니다). '
+      + '구성을 더하거나 정책을 바꾸려면 '
+      + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
+      + '정책 매칭</a> 으로 가세요.</div>';
+  }
+
+  function draw(j) {
+    if (j.mode === 'compare') { drawCompare(j); return; }
+    if (!j.policies || !j.policies.length) {
+      box.innerHTML = '<div class="pol-warn"><b>이 상품에 붙은 정책이 없습니다.</b> '
+        + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
+        + '정책 매칭</a> 에서 먼저 붙여 주세요 — 정책이 없으면 어디에도 안 올라갑니다.</div>';
+      return;
+    }
+    const tabs = j.policies.map((p) =>
+      '<button type="button" class="pol-tab ' + (p.id === j.policy_id ? 'on' : '') + '" data-p="'
+      + p.id + '">' + esc(p.name)
+      + '<span class="s">' + (p.markets || []).length + '마켓에 내보냄</span></button>').join('')
+      + '<a class="pol-tab add" href="/policies/apply">+ 정책 붙이기</a>';
+
+    box.innerHTML = '<div class="pol-tabs">' + tabs + '</div>'
+      + '<table class="pol-rt"><thead><tr>'
+      + '<th>마켓</th><th class="num">최종매입가</th><th class="num">판매가</th>'
+      + '<th class="num">예상마진</th><th class="num">마진율</th>'
+      + '<th class="mid">값 나온 옵션</th><th class="mid">상태</th>'
+      + '</tr></thead><tbody>' + (j.rows || []).map(row).join('') + '</tbody></table>'
+      + '<div class="pol-note">예상마진은 <b>수수료를 뺀</b> 값입니다. 매입가가 옵션마다 다르면 '
+      + '<b>가장 싼 매입가 한 줄</b>을 기준으로 보여 드립니다 — 평균을 내면 어느 옵션에도 없는 '
+      + '숫자가 됩니다. 최종매입가는 <b>지금</b> 값이라 소싱처 가격이 오르면 마진이 뒤집힐 수 있습니다.</div>';
+
+    box.querySelectorAll('.pol-tab[data-p]').forEach((b) => {
+      b.onclick = () => { curPid = b.dataset.p; load(); };
+    });
+  }
+
+  function load() {
+    box.innerHTML = '<div style="font-size:13px;color:var(--sub,#8B95A1)">계산하는 중…</div>';
+    const q = curPid ? ('?policy=' + encodeURIComponent(curPid)) : '';
+    fetch('/api/bundles/' + encodeURIComponent(CODE) + '/policy-result' + q)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) {
+          box.innerHTML = '<div class="pol-warn">' + esc(j.error || '계산하지 못했습니다') + '</div>';
+          return;
+        }
+        curPid = j.policy_id || curPid;
+        draw(j);
+      })
+      .catch((e) => {
+        box.innerHTML = '<div class="pol-warn">' + esc(e.message) + '</div>';
+      });
+  }
+
+  /* 탭을 열 때 한 번만 계산한다 — 6마켓 × 옵션이라 미리 돌리면 화면이 느려진다 */
+  document.querySelectorAll('[data-tab="mkt"]').forEach((b) => {
+    b.addEventListener('click', () => { if (!loaded) { loaded = true; load(); } });
+  });
+  if ((location.hash || '').indexOf('tab=mkt') >= 0) { loaded = true; load(); }
 })();
 </script>
 </section>

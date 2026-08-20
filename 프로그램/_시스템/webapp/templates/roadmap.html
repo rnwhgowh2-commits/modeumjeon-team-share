@@ -2,39 +2,39 @@
 {% block title %}로드맵 — 모음전 자동화{% endblock %}
 {% block content %}
 <style>
-  #screen-roadmap .principle-card { background:#fff; border:1px solid #EEF1F4; border-radius:12px; padding:16px 20px; margin-bottom:18px; }
-  #screen-roadmap .principle-card h3 { font-size:14px; margin-bottom:7px; }
-  #screen-roadmap .principle { font-size:14px; color:#4E5968; line-height:1.65; }
-  #screen-roadmap .cat { background:#fff; border:1px solid #E5E8EB; border-radius:14px; margin-bottom:16px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.04); }
-  #screen-roadmap .cat-btn { display:flex; align-items:center; gap:11px; width:100%; padding:17px 20px; border:none; background:#fff; cursor:pointer; font-family:inherit; text-align:left; }
-  #screen-roadmap .cat-btn:hover { background:#FAFBFC; }
-  #screen-roadmap .cat-ico { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; background:#ECFDF5; flex:none; }
-  #screen-roadmap .cat-tt { font-size:17px; font-weight:800; color:#191F28; }
-  #screen-roadmap .cat-sub { font-size:12.5px; color:#8B95A1; margin-top:2px; }
+  #screen-roadmap .principle-card { background:var(--surface,#ffffff); border:1px solid var(--line2,#EEF1F4); border-radius:12px; padding:16px 16px; margin-bottom:16px; }
+  #screen-roadmap .principle-card h3 { font-size:14px; margin-bottom:8px; }
+  #screen-roadmap .principle { font-size:14px; color:var(--글자-기본,#4E5968); line-height:1.57; }
+  #screen-roadmap .cat { background:var(--surface,#ffffff); border:1px solid var(--line,#E5E8EB); border-radius:12px; margin-bottom:16px; overflow:hidden;  }
+  #screen-roadmap .cat-btn { display:flex; align-items:center; gap:12px; width:100%; padding:16px 16px; border:none; background:var(--surface,#ffffff); cursor:pointer; font-family:inherit; text-align:left; }
+  #screen-roadmap .cat-btn:hover { background:var(--n100,#FAFBFC); }
+  #screen-roadmap .cat-ico { width:38px; height:38px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:17px; background:var(--연한-초록,#ECFDF5); flex:none; }
+  #screen-roadmap .cat-tt { font-size:17px; font-weight:800; color:var(--ink,#191F28); }
+  #screen-roadmap .cat-sub { font-size:12px; color:var(--sub,#8B95A1); margin-top:0px; }
   #screen-roadmap .cat-meta { margin-left:auto; display:flex; align-items:center; gap:12px; flex:none; }
-  #screen-roadmap .cat-prog { font-size:12px; color:#6B7684; white-space:nowrap; }
-  #screen-roadmap .chev { font-size:13px; color:#8B95A1; transition:transform .18s; }
+  #screen-roadmap .cat-prog { font-size:12px; color:var(--글자-보조,#6B7684); white-space:nowrap; }
+  #screen-roadmap .chev { font-size:12px; color:var(--sub,#8B95A1); transition:transform .18s; }
   #screen-roadmap .cat.collapsed .chev { transform:rotate(-90deg); }
   #screen-roadmap .cat.collapsed .cat-body { display:none; }
-  #screen-roadmap .cat-body { padding:4px 18px 16px; }
-  #screen-roadmap .step { border-top:1px solid #F2F4F6; padding:14px 6px 14px 8px; display:flex; gap:13px; }
+  #screen-roadmap .cat-body { padding:4px 16px 16px; }
+  #screen-roadmap .step { border-top:1px solid var(--n100,#F2F4F6); padding:12px 4px 12px 8px; display:flex; gap:12px; }
   #screen-roadmap .step:first-child { border-top:none; }
-  #screen-roadmap .step-num { flex:none; width:26px; height:26px; border-radius:50%; background:#F2F4F6; color:#8B95A1; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; margin-top:1px; }
-  #screen-roadmap .step.done .step-num { background:#E7F9EE; color:#03A65A; }
-  #screen-roadmap .step-tt { font-size:14.5px; font-weight:700; color:#191F28; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  #screen-roadmap .badge { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11px; font-weight:700; }
-  #screen-roadmap .b-done { background:#E7F9EE; color:#03A65A; }
-  #screen-roadmap .b-todo { background:#F2F4F6; color:#8B95A1; }
-  #screen-roadmap .step .code { color:#A7AEB6; font-weight:500; font-size:12px; }
-  #screen-roadmap .step ul { margin:7px 0 0; padding-left:17px; color:#4E5968; font-size:13.5px; line-height:1.75; }
-  #screen-roadmap .cat-add { border:1.5px dashed #CBD2D9; background:#FAFBFC; border-radius:14px; padding:18px 20px; display:flex; align-items:center; gap:11px; color:#8B95A1; font-size:14px; font-weight:600; margin-bottom:16px; }
-  #screen-roadmap .cat-add .cat-ico { background:#F2F4F6; }
-  #screen-roadmap .notes { background:#F9FAFB; border:1px solid #EEF1F4; border-radius:12px; padding:14px 20px; }
-  #screen-roadmap .notes h3 { font-size:13px; margin-bottom:6px; color:#6B7684; }
-  #screen-roadmap .notes ul { margin:0; padding-left:17px; color:#6B7684; font-size:13px; line-height:1.75; }
+  #screen-roadmap .step-num { flex:none; width:26px; height:26px; border-radius:50%; background:var(--n100,#F2F4F6); color:var(--sub,#8B95A1); font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; margin-top:0px; }
+  #screen-roadmap .step.done .step-num { background:var(--연한-초록,#E7F9EE); color: var(--글자-초록, var(--green,#03A65A)); }
+  #screen-roadmap .step-tt { font-size:14px; font-weight:700; color:var(--ink,#191F28); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  #screen-roadmap .badge { display:inline-block; padding:0px 8px; border-radius:8px; font-size:12px; font-weight:700; }
+  #screen-roadmap .b-done { background:var(--연한-초록,#E7F9EE); color: var(--글자-초록, var(--green,#03A65A)); }
+  #screen-roadmap .b-todo { background:var(--n100,#F2F4F6); color:var(--sub,#8B95A1); }
+  #screen-roadmap .step .code { color: var(--글자-희미, var(--faint,#A7AEB6)); font-weight:500; font-size:12px; }
+  #screen-roadmap .step ul { margin:8px 0 0; padding-left:16px; color:var(--글자-기본,#4E5968); font-size:14px; line-height:1.57; }
+  #screen-roadmap .cat-add { border:1.5px dashed var(--line,#CBD2D9); background:var(--n100,#FAFBFC); border-radius:12px; padding:16px 16px; display:flex; align-items:center; gap:12px; color:var(--sub,#8B95A1); font-size:14px; font-weight:600; margin-bottom:16px; }
+  #screen-roadmap .cat-add .cat-ico { background:var(--n100,#F2F4F6); }
+  #screen-roadmap .notes { background:var(--bg,#F9FAFB); border:1px solid var(--line2,#EEF1F4); border-radius:12px; padding:12px 16px; }
+  #screen-roadmap .notes h3 { font-size:12px; margin-bottom:4px; color:var(--글자-보조,#6B7684); }
+  #screen-roadmap .notes ul { margin:0; padding-left:16px; color:var(--글자-보조,#6B7684); font-size:12px; line-height:1.75; }
 </style>
 <section class="screen active" id="screen-roadmap">
-  <h1><i class="ph-light ph-map-trifold" aria-hidden="true"></i> 로드맵</h1>
+  <h1>로드맵</h1>
   <p class="greeting">우리 모음전 자동화에 더할 기능들. 분야별 대분류로 묶어둡니다. (까먹지 않게)</p>
 
   <div class="principle-card">
@@ -71,7 +71,7 @@
 
   {% if roadmap.future_hint %}
   <div class="cat-add">
-    <div class="cat-ico">＋</div>
+    <div class="cat-ico">+</div>
     <div>{{ roadmap.future_hint }}</div>
   </div>
   {% endif %}

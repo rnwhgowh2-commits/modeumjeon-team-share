@@ -16,6 +16,8 @@ from typing import Protocol
 
 from lemouton.auth import secrets as S
 from lemouton.auth.api_coupang import CoupangApiClient
+from lemouton.auth.api_lotteon import LotteonApiClient
+from lemouton.auth.api_eleven11 import Eleven11ApiClient
 from lemouton.auth.oauth_smartstore import SmartstoreOAuthClient
 
 logger = logging.getLogger(__name__)
@@ -30,8 +32,10 @@ class _UploadAccountLike(Protocol):
     is_active: bool
 
 
-# 라우팅 union — 두 client 중 하나
-MarketClient = SmartstoreOAuthClient | CoupangApiClient
+# 라우팅 union — 지원 client 중 하나
+MarketClient = (
+    SmartstoreOAuthClient | CoupangApiClient | LotteonApiClient | Eleven11ApiClient
+)
 
 
 class AccountInactiveError(RuntimeError):
@@ -102,6 +106,12 @@ class MarketDispatcher:
         if account.market == "coupang":
             assert isinstance(creds, S.CoupangCredentials)
             return CoupangApiClient(creds)
+        if account.market == "lotteon":
+            assert isinstance(creds, S.LotteonCredentials)
+            return LotteonApiClient(creds)
+        if account.market == "eleven11":
+            assert isinstance(creds, S.Eleven11Credentials)
+            return Eleven11ApiClient(creds)
 
         # secrets.load_credentials 가 미지원 market 을 이미 막지만, 방어적으로 한 번 더
         raise S.SecretsUnknownMarketError(account.market, S.supported_markets())

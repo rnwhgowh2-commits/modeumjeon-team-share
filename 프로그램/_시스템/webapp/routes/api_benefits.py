@@ -29,6 +29,7 @@ from flask import Blueprint, jsonify, request
 from shared.db import SessionLocal
 from lemouton.sourcing.models import SourceBenefitTemplate, OptionBenefitOverride
 from lemouton.sources.models import CardDiscountUserPref
+from lemouton.sourcing import crawl_guide as _cg
 
 
 bp = Blueprint('api_benefits', __name__, url_prefix='/api/source-benefits')
@@ -59,6 +60,9 @@ def _item_dict(it, kind='tpl'):
         'benefit_name': it.benefit_name,
         'benefit_type': it.benefit_type,
         'value': float(it.value or 0),
+        # 2026-07-19: 캐시백 기준금액 계수 (0.9=공급가 / 1.0=전액). NULL 은 1.0 으로 노출 —
+        #   화면에서 '왜 1.1%인데 990원이지?' 를 설명하려면 이 값이 보여야 한다.
+        'base_ratio': float(getattr(it, 'base_ratio', None) or 1.0),
         'enabled': bool(it.enabled),
         'sort_order': it.sort_order or 0,
         **({'template_id': it.template_id, 'canonical_sku': it.canonical_sku}
@@ -356,28 +360,71 @@ def save_all_overrides(sku: str, source_id: int):
 
 
 # ─────────── 계산 엔진 (누적 차감) ───────────
-def _build_breakdown_cache(session, items: list) -> dict:
+def _build_breakdown_cache(session, items: list, sp_rows: list | None = None,
+                           batch: dict | None = None) -> dict:
     """[2026-06-05 perf] bulk_breakdowns N+1 제거 — compute_breakdown 이 item 당
     5개씩 하던 쿼리(OptionSourceUrl·SourceProduct 전체·Template·Override·CardPref)를
-    여기서 1회씩만 조회해 인덱스로 만든다. (876건×5쿼리×원격RTT ≈ 110초 → 5쿼리)."""
+    여기서 1회씩만 조회해 인덱스로 만든다. (876건×5쿼리×원격RTT ≈ 110초 → 5쿼리).
+
+    sp_rows: 호출자가 이미 로드한 SourceProduct 행(deleted_at IS NULL 전체). 주면
+      풀스캔을 건너뛴다 — 매트릭스(_option_matrix_data)는 같은 목록을 이미 갖고
+      있어서 재조회하면 원격 Supabase 왕복이 1회 늘어난다. 인덱싱 정책(중복 URL 시
+      마지막 행 승)은 여기 것을 그대로 유지하려고 raw 행만 받는다.
+
+    batch: [perf 2026-08-06] 한 요청에서 여러 모델코드를 훑을 때 쓰는 그릇.
+      URL 색인(`normalize_url` 을 행마다 돌린다)은 items 와 무관해서 매번 다시 만들
+      까닭이 없는데, 매트릭스가 모델코드마다 이 함수를 부르는 바람에 소싱상품 수 ×
+      모델 수만큼 정규화가 돌고 있었다(실측 15모델 = 34만 회, 6.5초).
+      [중요] 인덱싱 정책(마지막 행 승)은 그대로다 — 만드는 횟수만 줄인다."""
     from collections import defaultdict
     from lemouton.sources.models import SourceProduct
     from lemouton.sourcing.models_pricing import OptionSourceUrl
     from lemouton.sources.service import normalize_url as _nu
     skus = list({it.get('sku') for it in items if it.get('sku')})
-    sids = list({int(it.get('source_id')) for it in items
-                 if it.get('source_id') is not None})
+    # source_id 는 보통 정수(DB SourcingSource.id)지만, 카탈로그 소싱처(예: 롯데아이몰)는
+    #   문자열 키('key:lotteimall') — 정수 템플릿/오버라이드가 없다. int() 로 터지지 않게
+    #   정수 변환 가능한 것만 IN 조회 대상에 넣는다(문자열 키는 어차피 DB 매칭 없음).
+    sids = set()
+    for it in items:
+        sid = it.get('source_id')
+        if sid is None:
+            continue
+        try:
+            sids.add(int(sid))
+        except (TypeError, ValueError):
+            pass
+    sids = list(sids)
     link_by = {}
     if skus and sids:
         for l in (session.query(OptionSourceUrl)
                   .filter(OptionSourceUrl.canonical_sku.in_(skus),
                           OptionSourceUrl.source_id.in_(sids)).all()):
             link_by[(l.canonical_sku, l.source_id)] = l
-    sp_by_norm = {}
-    for sp in (session.query(SourceProduct)
-               .filter(SourceProduct.deleted_at.is_(None)).all()):
-        if sp.url:
-            sp_by_norm[_nu(sp.url)] = sp
+    _idx = (batch or {}).get('bd_sp_index')
+    if _idx is None:
+        sp_by_norm = {}
+        sp_by_id = {}  # [2026-06-22] source_product_id 직읽기용 (연결분열 우회)
+        if sp_rows is None:
+            # [perf 2026-08-06] 상세 HTML·이미지 목록은 여기서 안 쓴다 — 상품 하나가 수십 KB라
+            #   전수 조회 전송량을 이 두 칸이 지배한다. 안 가져오면 같은 결과가 훨씬 싸게 나온다.
+            from sqlalchemy.orm import defer
+            sp_rows = (session.query(SourceProduct)
+                       .options(defer(SourceProduct.detail_html),
+                                defer(SourceProduct.images_json))
+                       .filter(SourceProduct.deleted_at.is_(None)).all())
+        for sp in sp_rows:
+            sp_by_id[sp.id] = sp
+        # [perf 2026-08-07] URL 정규화는 매트릭스가 이미 행마다 한 번 돌렸다 —
+        #   그 결과만 나눠 쓴다. 🔴 여기서 이기는 쪽(**마지막 행**)은 그대로다.
+        _pairs = (batch or {}).get('sp_norm_pairs')
+        if _pairs is None or sp_rows is not (batch or {}).get('sp_all'):
+            _pairs = ((_nu(sp.url), sp) for sp in sp_rows if sp.url)
+        for _n, sp in _pairs:
+            sp_by_norm[_n] = sp
+        if batch is not None:
+            batch['bd_sp_index'] = (sp_by_norm, sp_by_id)
+    else:
+        sp_by_norm, sp_by_id = _idx
     tpl_by_src = defaultdict(list)
     if sids:
         for t in (session.query(SourceBenefitTemplate)
@@ -397,14 +444,107 @@ def _build_breakdown_cache(session, items: list) -> dict:
     if sids:
         prefs = (session.query(CardDiscountUserPref)
                  .filter(CardDiscountUserPref.source_id.in_(sids)).all())
-    return {'link_by': link_by, 'sp_by_norm': sp_by_norm,
-            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs}
+    # [2026-07-19] 소싱처별 크롤 가이드 — 「혜택을 크롤로 가져오는가」 판독용(N+1 방지).
+    #   혜택을 못 긁었을 때 템플릿까지 끌지 결정한다(→ 최종가 = 표면가).
+    guide_by_src = {}
+    if sids:
+        try:
+            from lemouton.sourcing.models_pricing import SourceRegistry
+            for reg in (session.query(SourceRegistry)
+                        .filter(SourceRegistry.id.in_(sids)).all()):
+                guide_by_src[reg.id] = _cg.loads(reg.crawl_guide)
+        except Exception:   # noqa: BLE001 — 가이드 조회 실패는 기존 동작 유지
+            guide_by_src = {}
+
+    # [2026-08-06 perf] 전 소싱처 보강 조회(동적혜택 — 아래 compute_breakdown 의
+    #   option_source_links 경유 raw SQL)가 **item 당 1쿼리**로 남아 있었다 —
+    #   컨트롤타워 목록(전 SKU)에서 480쿼리 실측. 여기서 같은 SQL 을 sku IN 으로
+    #   1회만 돌려 (sku, site)→[dynamic_benefits_json…] 인덱스로 만든다.
+    #   조건(so.deleted_at IS NULL·sp.deleted_at IS NULL·json NOT NULL)은
+    #   원본 raw SQL 과 동일 — 선택 로직은 compute_breakdown 쪽이 그대로 갖는다.
+    dyn_by_sku_site = defaultdict(list)
+    if skus:
+        from sqlalchemy import text as _sqltext
+        _bind = {f'k{i}': v for i, v in enumerate(skus)}
+        _in = ', '.join(f':k{i}' for i in range(len(skus)))
+        for _sku2, _site2, _dj2 in session.execute(_sqltext(
+                "SELECT l.canonical_sku, sp.site, sp.dynamic_benefits_json "
+                "FROM option_source_links l "
+                "JOIN source_options so ON l.source_option_id = so.id "
+                "JOIN source_products sp ON so.source_product_id = sp.id "
+                f"WHERE l.canonical_sku IN ({_in}) "
+                "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
+                "AND sp.dynamic_benefits_json IS NOT NULL"), _bind).fetchall():
+            dyn_by_sku_site[(_sku2, _site2)].append(_dj2)
+
+    return {'link_by': link_by, 'sp_by_norm': sp_by_norm, 'sp_by_id': sp_by_id,
+            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs,
+            'guide_by_src': guide_by_src, 'dyn_by_sku_site': dyn_by_sku_site}
+
+
+def _load_purchase_cards(session, cache=None):
+    """[2026-07-18 M1-4] 결제카드 마스터(적립율의 단일 진실 원천) 로드.
+
+    bulk_breakdowns 는 _cache 를 SKU 전체가 공유하므로 여기에 1회만 담는다
+    (N+1 방지 — _build_breakdown_cache 와 같은 목적, 다만 지연 적재).
+    테이블 미생성 등으로 실패해도 가격 계산을 죽이지 않는다 → 빈 목록 = 기존 동작.
+    """
+    if cache is not None and 'cards' in cache:
+        return cache['cards']
+    try:
+        from lemouton.margin.purchase_card_store import list_cards
+        cards = list_cards(session)
+    except Exception:
+        cards = []
+    if cache is not None:
+        cache['cards'] = cards
+    return cards
+
+
+def _norm_benefit_name(name) -> str:
+    """혜택 이름 비교용 정규화 — 공백만 무시한다.
+
+    가이드는 「상품 쿠폰」, 계산 주입은 「상품쿠폰」처럼 띄어쓰기가 다르다.
+    끄는 비교와 경고 비교가 서로 다른 기준을 쓰면 '못 끄는데 경고도 안 뜨는'
+    조합이 나온다 — 상품 페이지가 불가라고 해도 계속 차감된다(손해 매입 방향).
+    """
+    return (name or '').replace(' ', '').strip()
+
+
+def _source_guide(session, source_id, *, _cache: dict = None) -> dict | None:
+    """소싱처의 크롤 가이드(JSON) — 「수집 방식」 판독용. 못 찾으면 None.
+
+    source_id 가 'key:hmall' 처럼 문자열이면 SourceRegistry 행이 없으므로 None
+    (→ benefit_is_crawled=False → 기존 동작 유지). bulk 경로는 _cache 로 N+1 회피.
+    """
+    try:
+        sid = int(source_id)
+    except (TypeError, ValueError):
+        return None
+    if _cache is not None and 'guide_by_src' in _cache:
+        return _cache['guide_by_src'].get(sid)
+    from lemouton.sourcing.models_pricing import SourceRegistry
+    reg = session.get(SourceRegistry, sid)
+    return _cg.loads(reg.crawl_guide) if reg is not None else None
+
+
+def _sid_key(v):
+    """소싱처 id 정규화 — 정수면 정수, 카탈로그 문자열 키('key:lotteimall')는 원본 유지.
+    api_pricing._sid_key / sets_api._sid_key 와 같은 규칙(int() 크래시 방지)."""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return v
 
 
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
-                       bundle_code: str = None, _cache: dict = None):
+                       bundle_code: str = None, _cache: dict = None,
+                       source_product_id: int = None):
     """_cache: bulk 호출 시 N+1 제거용 사전 로드 인덱스(_build_breakdown_cache).
-    None 이면(단일 호출) 기존처럼 매번 쿼리."""
+    None 이면(단일 호출) 기존처럼 매번 쿼리.
+    source_product_id: 매트릭스가 아는 옵션-소싱처의 SourceProduct id. 주어지면 동적혜택을
+      그 상품에서 '직읽기'(연결분열 우회). OptionSourceUrl·option_source_links 가 비어도
+      (예: SSG 단일상품) 정확한 dynamic_benefits 를 읽는다."""
     """누적 차감 계산.
 
     1. SourceBenefitTemplate (사이트 default) 조회
@@ -419,6 +559,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     _card_enabled = True
     _card_issuer = None
     _dynamic_benefits = {}
+    # ★ 2026-07-04 — 무신사 상품쿠폰 선택 결과(영수증 투명성용). 무신사 블록 밖(함수 끝)에서
+    #   참조하므로 여기서 top-level 초기화 → NameError 방지. 무신사 외 소싱처는 항상 None 유지.
+    _coupon_pick = None
     try:
         from lemouton.sources.models import SourceProduct
         from lemouton.sourcing.models_pricing import OptionSourceUrl
@@ -468,27 +611,37 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     except Exception:
         pass
 
-    # * 2026-06-05 — 전 소싱처 보강 조회: OptionSourceUrl 미연결(모음전/단품 매칭) 옵션은
+    # ★ 2026-06-05 — 전 소싱처 보강 조회: OptionSourceUrl 미연결(모음전/단품 매칭) 옵션은
     #   option_source_links → SourceProduct.dynamic_benefits_json 에서 동적 혜택(무신사 등급적립·
     #   무신사머니, SSF 멤버십포인트·기프트포인트, SSG MONEY, 롯데오너스 등)을 읽는다.
     #   SourceProduct 레벨이라 relogin(옵션레벨)에 안 덮인다. source_id→site 매핑(source_registry 기준).
-    _SITE_BY_SRC = {1: 'lemouton', 2: 'ss_lemouton', 3: 'musinsa', 4: 'ssf', 5: 'lotteon', 6: 'ssg'}
-    try:
-        _site_for = _SITE_BY_SRC.get(int(source_id))
-    except (TypeError, ValueError):
-        _site_for = None
+    # [2026-07-20] 번호 변환은 lemouton/sourcing/source_ids.py 단일 원천을 쓴다.
+    #   종전엔 이 표가 여기에만 있어, 화면 쪽(SourcingSource.id)과 어긋난 것을
+    #   아무도 못 잡았다 — 무신사 가이드의 혜택이 롯데온 계산에 붙어 있었다(2026-07-20 실측).
+    #   'key:<source_key>' 합성 id(카탈로그 소싱처 현대H몰·롯데아이몰)도 그 모듈이 푼다.
+    from lemouton.sourcing.source_ids import site_key as _resolve_site_key
+    _site_for = _resolve_site_key(source_id)
+    # 아이몰 「플러스 할인쿠폰」 칸 점유 여부(다운로드 쿠폰 vs 경유 쿠폰 택1)
+    _plus_slot_taken = False
     if _site_for and not _dynamic_benefits:
         try:
             from sqlalchemy import text as _sqltext
             import json as _json
-            _rows2 = session.execute(_sqltext(
-                "SELECT sp.dynamic_benefits_json FROM option_source_links l "
-                "JOIN source_options so ON l.source_option_id = so.id "
-                "JOIN source_products sp ON so.source_product_id = sp.id "
-                "WHERE l.canonical_sku = :sku AND sp.site = :site "
-                "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
-                "AND sp.dynamic_benefits_json IS NOT NULL"
-            ), {'sku': sku, 'site': _site_for}).fetchall()
+            # [2026-08-06 perf] bulk 호출(_cache 有)은 사전 인덱스에서 읽는다 —
+            #   같은 SQL 을 item 당 1번씩 돌리면 목록 한 판에 수백 쿼리(실측 480).
+            #   인덱스는 _build_breakdown_cache 가 동일 조건으로 1쿼리에 채운다.
+            if _cache is not None and 'dyn_by_sku_site' in _cache:
+                _rows2 = [(v,) for v in
+                          _cache['dyn_by_sku_site'].get((sku, _site_for), [])]
+            else:
+                _rows2 = session.execute(_sqltext(
+                    "SELECT sp.dynamic_benefits_json FROM option_source_links l "
+                    "JOIN source_options so ON l.source_option_id = so.id "
+                    "JOIN source_products sp ON so.source_product_id = sp.id "
+                    "WHERE l.canonical_sku = :sku AND sp.site = :site "
+                    "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
+                    "AND sp.dynamic_benefits_json IS NOT NULL"
+                ), {'sku': sku, 'site': _site_for}).fetchall()
             _best2 = None
             for (_dj,) in _rows2:
                 try:
@@ -507,6 +660,44 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 _dynamic_benefits = _best2
         except Exception:
             pass
+
+    # [2026-07-20] 호출자가 행을 지목했으면 **그 행이 이긴다.**
+    #   종전엔 `not _dynamic_benefits` 가드 때문에, 낡은 경로가 **엉뚱한 행**을 찾아오면
+    #   매트릭스가 정답 행을 넘겨줘도 무시했다. 한 모음전에 무신사 상품이 7개인데
+    #   97개 옵션 전부를 1개 상품(4046672) 데이터로 계산했다 — 63개(65%)가 남의 상품
+    #   가격·쿠폰으로 계산돼 매입가가 실제보다 싸게 나왔다(라이브 실측 2026-07-20).
+    #   지목한 행에 혜택이 없으면 **혜택 없이** 간다(남의 혜택으로 메우지 않는다 —
+    #   더 비싼 쪽이 안전).
+    #   site 검증으로 오상품(같은 URL 다른 site) 방지 — 검증 실패 시엔 낡은 경로가 찾은
+    #   값을 그대로 둔다(잘못된 입력으로 기존에 찾은 값까지 지우진 않는다).
+    if source_product_id:
+        try:
+            from lemouton.sources.models import SourceProduct as _SP
+            import json as _json
+            _sp = (_cache.get('sp_by_id') or {}).get(int(source_product_id)) if _cache is not None else None
+            if _sp is None:
+                _sp = session.get(_SP, int(source_product_id))
+            if (_sp is not None and getattr(_sp, 'deleted_at', None) is None
+                    and (_site_for is None or getattr(_sp, 'site', None) == _site_for)):
+                _dynamic_benefits = {}
+                if _sp.dynamic_benefits_json:
+                    try:
+                        _dynamic_benefits = _json.loads(_sp.dynamic_benefits_json) or {}
+                    except (ValueError, TypeError):
+                        _dynamic_benefits = {}
+                if not _card_issuer and _sp.auto_card_discount_json:
+                    try:
+                        _card_issuer = (_json.loads(_sp.auto_card_discount_json) or {}).get('issuer')
+                        if _card_issuer:
+                            _card_enabled = resolve_card_enabled(
+                                session, canonical_sku=sku, source_id=source_id,
+                                bundle_code=bundle_code,
+                                _prefs=(_cache['prefs'] if _cache is not None else None))
+                    except (ValueError, TypeError):
+                        pass
+        except Exception:
+            pass
+
     if _cache is not None:
         tpl_items = _cache['tpl_by_src'].get(source_id, [])
     else:
@@ -514,6 +705,24 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                      .filter_by(source_id=source_id)
                      .order_by(SourceBenefitTemplate.sort_order, SourceBenefitTemplate.id)
                      .all())
+
+    # ── [2026-07-19] 혜택을 못 긁었으면 템플릿도 적용하지 않는다 → 최종가 = 표면가 ──
+    #   가이드에 혜택이 **크롤 대상**(API·HTML·DOM)으로 적혀 있는데 이번 크롤이 혜택을
+    #   하나도 못 가져왔다면, 소싱처 기본 혜택(템플릿)을 그대로 빼면 최종 매입가가
+    #   **실제보다 싸게** 나온다(원가를 싸게 알고 판매가를 낮게 잡는 금전 위험).
+    #   → 혜택을 모르면 '안 빼기'(= 더 비싼 쪽) 로 둔다. 사용자 확정 2026-07-19.
+    #   르무통 공홈처럼 혜택이 원래 템플릿인 소싱처(가이드 mechanism=none/manual)는 제외.
+    #   가이드 미작성 소싱처는 benefit_is_crawled=False → 기존 동작 그대로(급변 방지).
+    _benefits_unavailable = False
+    if tpl_items and not _dynamic_benefits:
+        try:
+            _g = _source_guide(session, source_id, _cache=_cache)
+            if _cg.benefit_is_crawled(_g):
+                tpl_items = []
+                _benefits_unavailable = True
+        except Exception:   # noqa: BLE001 — 가이드 판독 실패는 기존 동작 유지(안전)
+            pass
+
     if _cache is not None:
         ovr_items = _cache['ovr_by'].get((sku, source_id), [])
     else:
@@ -521,26 +730,122 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                      .filter_by(canonical_sku=sku, source_id=source_id)
                      .order_by(OptionBenefitOverride.sort_order, OptionBenefitOverride.id)
                      .all())
-    # * 2026-06-11 스냅샷 모델 — 이 옵션에 override(자기 복사본)가 하나라도 있으면
-    #   '스냅샷됨' = 소싱처 템플릿을 무시하고 옵션 override 만 사용(독립). 소싱처 기본값이
-    #   바뀌어도 영향 0. override 0건이면 기존처럼 소싱처 템플릿 사용(미스냅샷·하위호환,
-    #   byte-identical). 게이트는 마이그레이션(전 모음전 스냅샷)과 원자적으로 적용해야 안전.
-    #   spec: docs/superpowers/specs/2026-06-11-혜택-스냅샷-모델-design.md
+    # ★ 2026-06-11 스냅샷 모델 — 옵션 override(자기 복사본) 우선.
+    # ★ 2026-06-22 부분 스냅샷 버그 수정 — 기존엔 'override 1건이라도 있으면 템플릿 전체 무시'
+    #   였다. 그래서 매트릭스에서 혜택 1개만 수정(=override 1행 생성)하면 소싱처 템플릿의
+    #   나머지 혜택(리뷰적립·현대카드 등)이 통째로 드롭돼 라이브에서 '소싱처별 혜택 누락'이
+    #   발생했다(르무통 SKU-HU61O8ZW 실증). → '이름 기준 병합'으로 변경: override 가 같은
+    #   이름의 템플릿을 덮고, override 가 안 덮은 템플릿 혜택은 그대로 유지(혜택 묵음 손실 방지).
+    #   완전 스냅샷(전 항목 override)·미스냅샷(override 0건)은 동작 동일(byte-identical).
+    #   독립성보다 데이터 무결성(혜택 누락=금전손실) 우선 — 사용자 정책.
+    # ★ 2026-07-19 — override 가 캐시백 기준금액 계수(base_ratio)를 조용히 떨어뜨리지 않게.
+    #   override 생성 경로들(add_override / 스냅샷 저장 / 일괄 추가)은 클라이언트 payload 로
+    #   행을 만들기 때문에 base_ratio 가 NULL 로 남을 수 있다. NULL = 1.0(계수 없음)이라
+    #   캐시백이 **10% 과다 차감**되고 → 매입가 과소 → 마진 과대 → 언더프라이싱이다.
+    #   그래서 override 에 값이 없으면 **같은 이름의 템플릿 값을 물려받는다**. 생성 경로가
+    #   몇 개든 여기 한 곳만 지키면 된다(이름 기준 병합 규칙과 같은 키를 쓴다).
+    _tpl_ratio_by_name = {
+        (t.benefit_name or '').strip(): getattr(t, 'base_ratio', None)
+        for t in tpl_items
+    }
+    class _WithRatio:
+        """override 행을 **건드리지 않고** base_ratio 만 덧씌우는 프록시.
+
+        [주의] ORM 객체에 직접 대입하면 세션 flush 때 DB 에 써진다 — 이 저장소는 예전에
+          effective 항목의 ``it.enabled`` 를 직접 바꿨다가 공유 캐시로 도는 다른 SKU 의
+          차감이 통째로 누락된 전력이 있다(final_price._compute_legacy 주석). 그래서
+          읽기 전용 프록시로 감싸고, 쓰기는 전부 원본으로 넘긴다(동작 불변).
+        """
+        __slots__ = ('_it', 'base_ratio')
+
+        def __init__(self, it, ratio):
+            object.__setattr__(self, '_it', it)
+            object.__setattr__(self, 'base_ratio', ratio)
+
+        def __getattr__(self, k):
+            return getattr(object.__getattribute__(self, '_it'), k)
+
+        def __setattr__(self, k, v):
+            if k == 'base_ratio':
+                object.__setattr__(self, k, v)
+            else:
+                setattr(object.__getattribute__(self, '_it'), k, v)
+
+    # [2026-07-20] 계산 중 "이 혜택 끔"은 **지역 집합**으로만 기록한다.
+    #   종전엔 it.enabled = False 로 DB 행을 직접 껐다. 그 행은 여러 SKU 가 공유하는
+    #   캐시(_cache['tpl_by_src']·['ovr_by'])에 있어, 먼저 계산한 상품이 나중 상품의
+    #   혜택을 지웠다(순서 의존 = 단건 테스트로는 재현 안 됨). 세션 flush 시 DB 에까지
+    #   써질 수 있다. final_price._compute_legacy 가 같은 이유로 이미 지역집합을 쓴다.
+    _disabled_ids = set()
+
+    def _turn_off(_item):
+        _disabled_ids.add(id(_item))
+
+    class _Disabled:
+        """enabled 만 False 로 가리는 읽기 전용 껍데기. 쓰기는 막는다."""
+        __slots__ = ('_it',)
+
+        def __init__(self, it):
+            object.__setattr__(self, '_it', it)
+
+        def __getattr__(self, k):
+            return getattr(object.__getattribute__(self, '_it'), k)
+
+        @property
+        def enabled(self):
+            return False
+
+    def _apply_disabled(_eff):
+        """끈 항목을 원본 변형 없이 반영 — 지금까지 기록된 id 를 소비(clear)한다.
+
+        [2026-07-22 Task 5] apply_card_candidates **앞**에서도 한 번 호출해야 한다.
+        tagged 조립은 결제성 항목을 TaggedProxy 로 **복사**하는데(id 가 바뀐다),
+        복사 시점의 원본 .enabled 는 여전히 True 라(_turn_off 는 id 만 기록)
+        이름 기반으로 꺼 둔 'fallback' 행이 복사본에서 되살아난다 — 결제 경로로
+        열거되면 이중/오차감(매입가 과소) 방향. 조립 전에 _Disabled 로 감싸 두면
+        TaggedProxy 가 enabled=False 를 그대로 복사한다. 조립 뒤(키워드 게이트)
+        기록분은 마지막 호출이 처리한다.
+        """
+        if not _disabled_ids:
+            return _eff
+        out = [(k, _Disabled(it) if id(it) in _disabled_ids else it)
+               for k, it in _eff]
+        _disabled_ids.clear()
+        return out
+
     effective = []
-    if ovr_items:
-        for ovr in ovr_items:
-            effective.append(('ovr_new', ovr))
-    else:
-        for tpl in tpl_items:
+    _ovr_names = set()
+    for ovr in ovr_items:
+        _nm = (ovr.benefit_name or '').strip()
+        _inherit = _tpl_ratio_by_name.get(_nm)
+        if getattr(ovr, 'base_ratio', None) is None and _inherit is not None:
+            ovr = _WithRatio(ovr, _inherit)
+        effective.append(('ovr_new', ovr))
+        _ovr_names.add(_nm)
+    for tpl in tpl_items:
+        if (tpl.benefit_name or '').strip() not in _ovr_names:
             effective.append(('tpl', tpl))
 
-    # * 2026-05-15 — SourceProduct.dynamic_benefits_json 에서 동적 혜택 차감 항목 추가.
+    # ★ 2026-05-15 — SourceProduct.dynamic_benefits_json 에서 동적 혜택 차감 항목 추가.
     #   옵션 dict 의 사이트 특화 동적 키들 (point_rate / ssg_money_rate / card_benefit_price
     #   / money_active 등) 을 dummy item 으로 effective 에 박는다. 정액 → %적립금 → %할인
     #   카테고리 정렬 룰이 자동 적용됨.
     class _DynBenefit:
-        """compute_breakdown 의 effective 리스트에 들어가는 동적 dummy 항목."""
-        def __init__(self, *, name, btype, value, enabled=True):
+        """compute_breakdown 의 effective 리스트에 들어가는 동적 dummy 항목.
+
+        [2026-07-22 Task 3] apply_mode/base_ratio 추가 — 카탈로그 소싱처(hmall·
+        lotteimall) OK캐시백 상수 주입용. 엔진(final_price)은 두 속성을 getattr 로
+        읽으므로 기본값 None 이면 기존 항목 동작은 byte-identical 이다
+        (_is_cashback: apply_mode None → 이름 판정 폴백 / _base_ratio: None → 1.0).
+
+        [2026-07-22 Task 5] pay_method 추가 — 무신사머니 vs 현대카드 경로 열거용
+        (스펙 §3-3). pay_method 가 None 이 아니면 엔진 _is_tagged 가 True 로 뒤집혀
+        tagged 경로 열거로 들어가므로, **결제 택1 후보로 만들 항목에만** 값을 준다.
+        기본값 None 이면 기존 항목 동작 불변.
+        """
+        def __init__(self, *, name, btype, value, enabled=True,
+                     apply_mode=None, base_ratio=None, pay_method=None,
+                     channel=None):
             self.id = -1
             self.benefit_name = name
             self.benefit_type = btype
@@ -548,7 +853,14 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             self.enabled = enabled
             self.sort_order = 999  # 같은 카테고리 내 마지막
             self.template_id = None
-    # * 2026-06-06 — SSF 기프트포인트는 '항상' 노출 (정률 10%).
+            self.apply_mode = apply_mode
+            self.base_ratio = base_ratio
+            self.pay_method = pay_method
+            # [2026-07-23 · 2차 T4] channel='naver_via' → 엔진이 **경유 축**으로 열거
+            #   (final_price.py:154 _is_tagged · :320 has_naver_via · :341 차감).
+            #   None 이면 기존 항목 동작 불변(엔진이 getattr 로 읽음).
+            self.channel = channel
+    # ★ 2026-06-06 — SSF 기프트포인트는 '항상' 노출 (정률 10%).
     #   크롤에 기프트포인트(gift_point_amount)가 있으면 활성, 없으면 비활성 placeholder.
     #   (사용자 요구: "크롤링 시 있으면 10% 활성화, 없으면 비활성화")
     if _site_for == 'ssf':
@@ -636,6 +948,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         _pca = _dynamic_benefits.get('product_coupon_amount')
         _pcmin = _dynamic_benefits.get('product_coupon_min_order') or 0
         _pclabel = _dynamic_benefits.get('product_coupon_label') or ''
+        # [2026-07-23 · 2차 · 사장님 확정] "경유는 N쇼핑 or OK캐시백 中 택1, 할인 큰 쪽.
+        #   중복 안 됨." — SSG 는 `ckwhere=ssg_naver` 유입 파라미터로 크롤하므로
+        #   「[제휴할인] …」 쿠폰이 PDP 에 노출되고(ssg.py NAVER_COUPON_PARAMS),
+        #   이건 **경유(N쇼핑) 혜택**이다. 일반 상품쿠폰과 같은 축에 두면 OK캐시백과
+        #   동시 차감돼 매입가 과소가 된다 → `channel='naver_via'` 를 줘서 엔진이
+        #   경유 축으로 열거하게 한다(제약②: 경유 ⟹ 캐시백 off 자동, 경로 열거로 큰 쪽 채택).
+        #   ★enabled 도 True — "택1 중 큰 쪽 자동"이 되려면 후보로 올라와야 한다.
+        #     (경유를 안 하는 경로에서는 이 행이 차감되지 않으므로 안전하다.)
+        #   일반 상품쿠폰은 **현행 그대로** 수동 토글(다운로드 1일 조건 — 무회귀).
+        _pc_is_affiliate = '제휴' in str(_pclabel or '')
         if _pcr and isinstance(_pcr, (int, float)) and _pcr > 0:
             _rate = float(_pcr) / 100 if float(_pcr) > 1 else float(_pcr)
             _nm = f"상품쿠폰 {int(_rate*100)}% ({int(_pcmin/10000)}만원 이상)" if _pcmin else f"상품쿠폰 {int(_rate*100)}%"
@@ -644,7 +966,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             effective.append(('dyn', _DynBenefit(
                 name=_nm,
                 btype='rate', value=_rate,
-                enabled=False,  # 사용자 토글로 결정 (자동 활성 X)
+                enabled=bool(_pc_is_affiliate),   # 제휴(경유)만 자동 후보
+                channel=('naver_via' if _pc_is_affiliate else None),
             )))
         elif _pca and isinstance(_pca, (int, float)) and _pca > 0:
             _nm = f"상품쿠폰 {int(_pca):,}원 ({int(_pcmin/10000)}만원 이상)" if _pcmin else f"상품쿠폰 {int(_pca):,}원"
@@ -653,7 +976,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             effective.append(('dyn', _DynBenefit(
                 name=_nm,
                 btype='amount', value=float(_pca),
-                enabled=False,  # 사용자 토글로 결정
+                channel=('naver_via' if _pc_is_affiliate else None),   # [2026-07-23] 제휴=경유 축
+                enabled=bool(_pc_is_affiliate),  # 제휴만 자동 후보 / 일반은 사용자 토글
             )))
         # 무신사머니 활성 시 → 현대카드 fallback 비활성 (중복 차감 방지)
         # money_active=True 면 effective 내 '현대카드 (무신사머니 fallback)' 항목 비활성화
@@ -663,7 +987,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             for kind, it in effective:
                 nm = (it.benefit_name or '')
                 if 'fallback' in nm.lower() or '무신사머니 fallback' in nm:
-                    it.enabled = False
+                    _turn_off(it)
         # SSG 카드혜택가 활성 시 → 현대카드 (카드혜택가 fallback) 비활성 — 2026-05-15
         # 무신사머니 fallback 비활성 패턴과 동일. _cbp_active=True 면 effective 내
         # '카드혜택가 fallback' 이름 포함 항목 자동 비활성 (이중 차감 방지).
@@ -671,9 +995,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             for kind, it in effective:
                 nm = (it.benefit_name or '')
                 if '카드혜택가 fallback' in nm:
-                    it.enabled = False
+                    _turn_off(it)
         # ─────────────────────────────────────────────────────────────
-        # * 2026-05-15 — 롯데홈쇼핑 (lotteimall) 동적 혜택 (point_rewards)
+        # ★ 2026-05-15 — 롯데홈쇼핑 (lotteimall) 동적 혜택 (point_rewards)
         # ─────────────────────────────────────────────────────────────
         # 크롤러가 lPointObj 에서 추출한 dict:
         #   {label, default_point, club_point, review_label, review_default, review_club}
@@ -692,16 +1016,65 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 for kind, it in effective:
                     nm = (it.benefit_name or '')
                     if 'L.POINT' in nm or '구매적립' in nm or 'LPOINT' in nm.upper():
-                        it.enabled = False
+                        _turn_off(it)
                 _name = '구매적립 L.POINT (L.CLUB)' if _club_point > 0 else '구매적립 L.POINT (일반)'
-                effective.append(('dyn', _DynBenefit(
-                    name=_name,
-                    btype='amount',
-                    value=float(_lpoint_value),
-                    enabled=True,
-                )))
+                # ★ [2026-07-23 주문서 실측] 적립 기준은 **쿠폰 차감 후 금액**이다.
+                #   사이트가 노출하는 정액(599P)은 **표면가 기준**으로 계산된 값이라,
+                #   그대로 정액으로 넣으면 ①「정액 먼저」 규칙 때문에 쿠폰보다 앞에서
+                #   빠지고 ②금액도 쿠폰 반영 전으로 고정된다.
+                #   주문서 실측: 119,900 −플러스쿠폰 5,995 → 113,900 × 0.5% = **570**
+                #   (우리 화면은 599 였다 — 29원 과다 차감 = 매입가 과소).
+                #   → 정액을 **정률로 환산**해 넣으면 「정액 먼저 → 정률 나중」 순서가
+                #     자동으로 쿠폰 뒤에 계산한다. 환산이 미덥지 않으면 정액 유지(무회귀).
+                #   ⚠️ 요율은 **그대로** 쓴다(0.05% 단위 스냅 금지) — 스냅은 요율을
+                #     올려 잡을 수 있고(0.5415%→0.55%) 그러면 적립을 실제보다 크게
+                #     차감해 **매입가 과소**가 된다. 사이트 정액과 같은 비율을 유지한다.
+                _lp_rate = 0.0
+                try:
+                    _lp_base = float(sale_price or 0)
+                    if _lp_base > 0:
+                        _raw = _lpoint_value / _lp_base
+                        if 0 < _raw <= 0.05:      # 5% 초과 적립은 이상값 → 정액 유지
+                            _lp_rate = _raw
+                except (TypeError, ValueError, ZeroDivisionError):
+                    _lp_rate = 0.0
+                if _lp_rate > 0:
+                    effective.append(('dyn', _DynBenefit(
+                        name=_name, btype='rate', value=_lp_rate, enabled=True)))
+                else:
+                    effective.append(('dyn', _DynBenefit(
+                        name=_name, btype='amount', value=float(_lpoint_value),
+                        enabled=True)))
+        # ★ 2026-07-18 [Phase 1B M1-6] — 롯데아이몰 카드 청구할인 (정액, 크롤 분리보관).
+        #   M1-5 가 표면가를 '최대할인가(카드 포함)' → '표면노출가(카드 미적용)' 로 바꾸면서
+        #   카드 청구할인을 lotteimall_card_discount(원) / _label 로 분리했다
+        #   (sourcing/crawlers/lotteon.py:1491~). 여기서 다시 붙이지 않으면 M1-5 직후 상태
+        #   그대로 카드분(8,180원)이 매입가에서 통째로 사라진다.
+        #   ⚠️ 이중차감 방지 — 차감은 **여기 한 번뿐**이다:
+        #     · auto_card_discount.included_in_sale_price 는 M1-5 가 False 로 정정 →
+        #       api_pricing.py:626 의 "카드 OFF 시 가격 환원"(price/(1-rate)) 은 no-op.
+        #     · 표면가(sale_price)에 카드분이 이미 빠져 있지 않다(= benefitPrc + 카드금액).
+        #   enabled=True 인 이유 (H몰 hmall_card_discount 의 False 와 다른 근거):
+        #     · M1-5 이전 롯데아이몰 매입가는 카드할인이 **이미 반영된** 가격(최대할인가)에서
+        #       출발했다. 여기서 False 로 두면 M1-5+M1-6 합산 결과가 옛 매입가보다
+        #       8,180원 비싸진다 = 조용한 회귀. True 가 무회귀 값이다.
+        #     · H몰 카드할인은 애초에 표면가(bbprc)에 들어간 적이 없어 True 로 바꾸면
+        #       반대로 진짜 매입가 인하 회귀가 난다 → H몰은 건드리지 않는다.
+        #   ⚠️ 알려진 한계(폴백·묵음 금지 원칙상 명시): 이 항목은 '카드 미반영' 토글
+        #     (CardDiscountUserPref) 로 끌 수 없다. 그 테이블의 source_id 는 Integer 인데
+        #     (sources/models.py:136) 롯데아이몰 source_id 는 'key:lotteimall' 문자열이라
+        #     저장·조회가 성립하지 않는다. resolve_card_enabled 를 여기 물리면 항상 True 를
+        #     돌려주는 '작동하는 척하는 토글'이 되므로 물리지 않았다. 토글이 필요하면
+        #     CardDiscountUserPref.source_id 를 문자열로 넓히는 별도 작업이 선행돼야 한다.
+        _lcd = _dynamic_benefits.get('lotteimall_card_discount')
+        if _lcd and isinstance(_lcd, (int, float)) and _lcd > 0:
+            _lc_label = _dynamic_benefits.get('lotteimall_card_label') or '카드'
+            effective.append(('dyn', _DynBenefit(
+                name=f'{_lc_label} 청구할인', btype='amount', value=float(_lcd),
+                enabled=True,
+            )))
         # ─────────────────────────────────────────────────────────────
-        # * 2026-05-15 — 롯데온 (lotteon.com) 동적 혜택
+        # ★ 2026-05-15 — 롯데온 (lotteon.com) 동적 혜택
         # ─────────────────────────────────────────────────────────────
         # 사용자 스크린샷 명세 ([150만족 판매] 메이트 발 편한 메리노울 운동화 르무통):
         #   - 롯데오너스 1% 회원할인 → 사용자 회원 가입 상태라 자동 활성 (enabled=True)
@@ -724,34 +1097,376 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 name=_label, btype='amount', value=float(_sjc),
                 enabled=False,  # 사용자 토글로 결정 (받기 조건)
             )))
-    # * 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
+        # ─────────────────────────────────────────────────────────────
+        # ★ 2026-06-25 — 현대H몰 (hmall.com) 동적 혜택
+        # ─────────────────────────────────────────────────────────────
+        #   ⚠️ 혜택은 hmall 클라이언트 렌더 → 확장 navGrab(post-JS DOM)에서만 채워짐.
+        #   - H.Point 적립(정액) → accrue(상시, 적립=매입가 차감으로 반영)
+        #   - 카드 즉시할인(정액) → 조건부(특정 카드) 기본 비활성, 사용자 토글
+        _hp = _dynamic_benefits.get('hmall_point_amount')
+        if _hp and isinstance(_hp, (int, float)) and _hp > 0:
+            effective.append(('dyn', _DynBenefit(
+                name='H.Point 적립', btype='amount', value=float(_hp),
+                enabled=True,
+            )))
+        _hcd = _dynamic_benefits.get('hmall_card_discount')
+        if _hcd and isinstance(_hcd, (int, float)) and _hcd > 0:
+            _hc_label = _dynamic_benefits.get('hmall_card_label') or '카드'
+            effective.append(('dyn', _DynBenefit(
+                name=f'{_hc_label} 즉시할인', btype='amount', value=float(_hcd),
+                enabled=False,  # 조건부(특정 카드) — 사용자 토글
+            )))
+    # ★ 2026-07-22 [Task 3 · 스펙 §3-7/§3-8/§5/§6] 카탈로그 소싱처 고정 혜택 — 엔진 주입.
+    #   hmall·lotteimall 은 source_id 가 'key:...' 문자열이라 SourceBenefitTemplate
+    #   (Integer source_id, sources/models.py)에 행을 만들 수 없다 → 사장님 확정 상수를
+    #   여기서 직접 주입한다. 값 변경 = 코드 수정 (사장님 화면 편집 불가 — source_id
+    #   문자열 확장은 별도 후속 작업).
+    #   · 위 `if _dynamic_benefits:` 가드 **밖**이다 — 크롤 데이터가 없어도(빈 {})
+    #     상수 혜택은 항상 적용돼야 한다.
+    #   · OK캐시백 = apply_mode='cashback' + base_ratio 0.9(부가세 제외 공급가 기준,
+    #     사장님 확정 2026-07-19 규칙과 동일). pay_method 는 없다 → _is_tagged 는
+    #     안 뒤집혀 legacy 경로 유지, _compute_legacy 가 캐시백을 결제 택1에서
+    #     제외하므로(final_price.py:241~242) 다른 혜택과 **동시 차감**된다.
+    #   · lotteimall 에 네이버페이 없음 = 사장님 제외 확정 (스펙 §6).
+    #   · supports_benefit_templates 가드: 템플릿 지원이 생기면 이 상수 주입은 자동
+    #     중단 — DB행과 이중차감 방지. (source_ids.py 단일 원천이 판정)
+    #   ⚠ 값 변경 시 이름의 %와 value 를 **함께** 바꿀 것 — 이름은 영수증에 그대로
+    #     노출되는 근거라, 한쪽만 바꾸면 화면과 계산이 어긋난다.
+    from lemouton.sourcing.source_ids import supports_benefit_templates as _supports_tpl
+    _hm_card_mode = False   # [2차 T3] Hmall 카드 경로 페어링 플래그 — 아래 플로어 블록이 참조
+    if _site_for == 'hmall' and not _supports_tpl(_site_for):
+        effective.append(('dyn', _DynBenefit(
+            name='OK캐시백 2.7%', btype='rate', value=0.027,
+            enabled=True, apply_mode='cashback', base_ratio=0.9)))
+        effective.append(('dyn', _DynBenefit(
+            name='리뷰적립(텍스트)', btype='amount', value=100, enabled=True)))
+        effective.append(('dyn', _DynBenefit(
+            name='네이버페이 적립 1%', btype='rate', value=0.01, enabled=True)))
+        # ═══════════════════════════════════════════════════════════════════
+        # [2026-07-23 · 2차 T3 · 스펙 §3-7] Hmall 카드 즉시할인 경로.
+        #   사장님 확정(2026-07-23): "카드경로 있으면 싼걸로" + 크롤 **당일 값** 사용
+        #   (item-prmo-lst API 의 aplyStrtDtm~aplyEndDtm 이 당일 00:00~23:59 = 일자별
+        #    로테이션 실증. 확장이 기간·노출 가드를 통과한 것만 실어 보낸다).
+        #   롯데온(§3-5)과 다른 점: **가산 없음** — bbprc 는 카드 미포함(실측)이라
+        #   이미 카드-프리 베이스다. 보유 카드를 결제 경로 행으로 주입만 하면
+        #   엔진이 현대카드 2.73% 플로어와 경로 열거로 큰 쪽을 자동 채택한다.
+        #   min_order(최소 결제금액) 미달 카드는 제외 — 조건 미충족 차감 = 매입가 과소.
+        _hm_cards_raw = (_dynamic_benefits or {}).get('hmall_card_discounts')
+        if isinstance(_hm_cards_raw, list) and _hm_cards_raw:
+            from lemouton.pricing.card_candidates import (
+                match_owned_card_label as _hm_match_owned)
+            _hm_master_labels = [
+                getattr(_mc, 'label', '')
+                for _mc in _load_purchase_cards(session, _cache)
+                if getattr(_mc, 'active', True)]
+            _hm_n = 0
+            _hm_seen = set()
+            for _hc in _hm_cards_raw:
+                if not isinstance(_hc, dict):
+                    continue
+                _hl = str(_hc.get('label') or '').strip()
+                try:
+                    _hr = float(_hc.get('rate') or 0)       # 퍼센트 단위(5 = 5%)
+                    _ha = float(_hc.get('amount') or 0)     # 정액(원)
+                    _hmin = float(_hc.get('min_order') or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not _hl or (_hr <= 0 and _ha <= 0):
+                    continue
+                # 최소 결제금액 조건 — 표면가가 못 미치면 그 카드는 애초에 못 쓴다.
+                if _hmin > 0 and float(sale_price or 0) < _hmin:
+                    continue
+                if not _hm_match_owned(_hl, _hm_master_labels):
+                    continue        # 보유카드 가드 — 없는 카드로 싸 보이는 것 차단
+                _hk = (_hl, _hr, _ha)
+                if _hk in _hm_seen:
+                    continue
+                _hm_seen.add(_hk)
+                _hm_n += 1
+                _hm_card_mode = True    # 플로어 선태깅 페어링 — 한쪽만 태깅되면 이중차감
+                _hm_key = f'__hm_card{_hm_n}__'
+                if _hr > 0:
+                    effective.append(('dyn', _DynBenefit(
+                        name=f'{_hl} 즉시할인 {_hr:g}%', btype='rate',
+                        value=_hr / 100.0, enabled=True,
+                        apply_mode='payment', pay_method=_hm_key)))
+                else:
+                    effective.append(('dyn', _DynBenefit(
+                        name=f'{_hl} 즉시할인', btype='amount',
+                        value=_ha, enabled=True,
+                        apply_mode='payment', pay_method=_hm_key)))
+    elif _site_for == 'lotteimall' and not _supports_tpl(_site_for):
+        effective.append(('dyn', _DynBenefit(
+            name='OK캐시백 2.5%', btype='rate', value=0.025,
+            enabled=True, apply_mode='cashback', base_ratio=0.9)))
+        effective.append(('dyn', _DynBenefit(
+            name='리뷰적립(텍스트)', btype='amount', value=100, enabled=True)))
+        # ── [2026-07-23 주문서 실측] PDP 다운로드 쿠폰 = 「플러스 할인쿠폰」 칸 ──
+        #   ⚠️ 처음엔 「할인쿠폰 칸」으로 잘못 봤다. 사장님 주문서 실측:
+        #       149,000 −할인쿠폰 29,100(=표면가 119,900) −**플러스 할인쿠폰 6,000**
+        #       = 113,900 → 할인쿠폰과 **동시 적용**, 기준은 **표면가**(119,900×5%).
+        #   대신 택1은 여기다 — 쿠폰함 문구 "플러스/즉시적립할인은 1개만 적용" →
+        #   경유 「네이버 N%플러스할인쿠폰」과 **같은 칸**이므로 큰 쪽 하나만 쓴다.
+        #   경유 쿠폰이 이기면 다운로드 쿠폰은 0(경유 주입은 공통 블록이 담당).
+        _im_cps = _dynamic_benefits.get('lotteimall_download_coupons')
+        if isinstance(_im_cps, list) and _im_cps:
+            from lemouton.sourcing.crawlers.lotteon import (
+                resolve_download_coupon_saving as _im_saving)
+            # 같은 플러스 칸을 다투는 경유 쿠폰의 차감액(선반영형이면 경쟁 아님)
+            _im_rival = 0
+            if not bool(_dynamic_benefits.get('naver_via_preapplied')):
+                try:
+                    _nvr = float(_dynamic_benefits.get('naver_via_rate') or 0)
+                    _nva = float(_dynamic_benefits.get('naver_via_amount') or 0)
+                except (TypeError, ValueError):
+                    _nvr = _nva = 0.0
+                _im_rival = int(float(sale_price) * _nvr) if _nvr > 0 else int(_nva)
+            _im_cut = _im_saving(surface_price=sale_price, coupons=_im_cps,
+                                 rival_saving=_im_rival)
+            if _im_cut > 0:
+                # 플러스 칸을 다운로드 쿠폰이 차지 → 경유 쿠폰 주입 금지(아래 공통 블록)
+                _plus_slot_taken = True
+                _im_label = str((_im_cps[0] or {}).get('label') or '다운로드 쿠폰')
+                effective.append(('dyn', _DynBenefit(
+                    name=f'플러스 할인쿠폰 ({_im_label})', btype='amount',
+                    value=_im_cut, enabled=True)))
+    # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
     #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
     _base_override = None
     if str(source_id) == '3' and _dynamic_benefits.get('surface_price'):
-        class _Inj:
-            def __init__(self, name, value, enabled=True):
-                self.id = -1; self.benefit_name = name; self.benefit_type = 'amount'
-                self.value = value; self.enabled = enabled
-                self.sort_order = 999; self.template_id = None
+        # [2026-07-22 Task 5] 구 _Inj(지역 dummy 클래스) 제거 — _DynBenefit 재사용.
+        #   속성 집합이 동일(id/-1·btype 'amount'·sort_order 999·template_id None)하고
+        #   apply_mode/base_ratio/pay_method 는 기본 None = getattr 폴백과 byte-identical.
         _base_override = float(_dynamic_benefits.get('surface_price') or 0)
-        effective.append(('dyn', _Inj('상품쿠폰', float(_dynamic_benefits.get('coupon_amount') or 0), enabled=bool(_dynamic_benefits.get('coupon_amount')))))
-        effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
-        effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
-        effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
+        # 상품쿠폰 — product_coupon_list 있으면 쿠폰별 키워드 필터+최고 선택, 없으면 기존 단일값(하위호환)
+        _pcl = _dynamic_benefits.get('product_coupon_list')
+        _coupon_val = float(_dynamic_benefits.get('coupon_amount') or 0)
+        # _coupon_pick 은 함수 top-level 에서 이미 None 초기화됨(NameError 방지) — 여기선 값만 대입.
+        if _pcl:
+            from lemouton.pricing.benefit_gate import pick_best_coupon as _pbc
+            from lemouton.sourcing import roster as _roster0
+            # ★ 현행 가이드는 SourcingSource(roster) — 사용자가 UI 에서 편집하는 저장소.
+            #   (구 SourceRegistry 는 2026-06-30 이관 시점 stale — 편집 미반영)
+            _cg0_key = f'__cg_{_site_for}'
+            if _cache is not None and _cg0_key in _cache:
+                _g0 = _cache[_cg0_key]
+            else:
+                _g0 = _roster0.get_guide(_site_for)
+                if _cache is not None:
+                    _cache[_cg0_key] = _g0
+            _cb0 = next((b for b in ((_g0.get('pricing') or {}).get('benefits') or [])
+                         if (b.get('name') or '').replace(' ', '') == '상품쿠폰'), {})
+            if not _cb0:
+                import logging as _lg0
+                _lg0.getLogger(__name__).warning(
+                    "[coupon-gate] 무신사 product_coupon_list 있으나 '상품 쿠폰' 혜택 미발견 "
+                    "(source_id=%s, sku=%s) — 제외 키워드 미적용, 등급쿠폰이 반영될 수 있음(설정 확인)",
+                    source_id, sku)
+            _coupon_pick = _pbc(_pcl, _cb0, _g0.get('exclude_keywords') or [])
+            _coupon_val = float(_coupon_pick['amount']) if _coupon_pick else 0.0
+        effective.append(('dyn', _DynBenefit(
+            name='상품쿠폰', btype='amount', value=_coupon_val,
+            enabled=bool(_coupon_val))))
+        # ★ 등급할인(등급별 상시 할인, 예: LV.9 4%=−4,910) — 유지. '적립금 선할인'(구매적립/선할인
+        #   토글의 4,380)과는 별개 항목이다. 선할인 토글은 '구매적립'을 택1하므로 등급적립으로 반영되고,
+        #   등급할인은 표면가에 이미 미반영이라 여기서 차감하는 게 맞다(제거하면 과대 매입가). 2026-07-05
+        effective.append(('dyn', _DynBenefit(
+            name='등급할인', btype='amount',
+            value=float(_dynamic_benefits.get('grade_discount_amount') or 0),
+            enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
+        effective.append(('dyn', _DynBenefit(
+            name='등급적립', btype='amount',
+            value=float(_dynamic_benefits.get('grade_reward_amount') or 0),
+            enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
+        # ★ 2026-07-22 [Task 5, 스펙 §3-3 사용자 확정] 무신사머니 = 결제 경로 후보.
+        #   종전: 머니가 잡히면 현대카드 플로어를 하드 비활성("머니면 무조건 머니").
+        #   변경: 머니>0 이면 pay_method='mus_money'(PurchaseCard 마스터의 실제 key,
+        #   accrual_rate 0.0 = 카드적립 이중 주입 없음)로 태깅해 현대카드 플로어와
+        #   **결제 택1 경로**로 경합시키고, 엔진(_compute_tagged)이 실제 최종가가 낮은
+        #   쪽을 고른다. legacy 근사(_approx_deduct)는 표면가 기준이라 정액 차감 뒤
+        #   잔액에 걸리는 2.73% 와 교차점이 어긋날 수 있어 tagged 실측 비교가 정본.
+        #   머니 0/None 이면 태그를 붙이지 않는다 → 기존 legacy 경로 그대로
+        #   (card_candidates 의 billed_keys 탐지가 enabled 를 안 보므로, 태그를 남기면
+        #   머니 없는 상품까지 tagged 조립으로 끌려간다 — 그래서 조건부 태깅).
+        _money_amt0 = float(_dynamic_benefits.get('money_reward_amount') or 0)
+        effective.append(('dyn', _DynBenefit(
+            name='무신사머니 결제 적립', btype='amount', value=_money_amt0,
+            enabled=bool(_money_amt0),
+            apply_mode=('payment' if _money_amt0 > 0 else None),
+            pay_method=('mus_money' if _money_amt0 > 0 else None))))
 
-    # * 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
+    # ═════════════════════════════════════════════════════════════════════
+    # ★ 2026-07-23 [Task 8 · 스펙 §3-5 사장님 확정 2026-07-22] 롯데온 —
+    #   최대혜택가 베이스 교체 + 카드 경로 규칙 + 보유카드 가드.
+    #
+    # ■ 입력 (크롤 T6/T7 — b33e4be6/0384fe55/85b7164c)
+    #   lotteon_max_price      「최대 할인혜택 적용하기」 체크 후 나의 혜택가
+    #                          = 스토어 즉시할인 + **사이트가 고른 최적 카드
+    #                          즉시할인** + 장바구니쿠폰까지 포함된 총액.
+    #   lotteon_card_discounts [{label, amount(원 int), rate(퍼센트)}]
+    #                          None=수집실패 / []=카드 없음 확인.
+    #                          ⚠ rate 는 **퍼센트 단위**(7=7%) — 여기서는 안 쓴다.
+    #                          금액은 사이트가 자기 기준으로 계산한 정액(원)이라
+    #                          amount 만 쓰는 게 정확하다(/100 사고 원천 차단).
+    #
+    # ■ 산식 (정액 가산/차감 = 정확 — 즉시할인은 사이트 계산 정액이다)
+    #   카드-프리 베이스 = 최대혜택가 + 사이트 선반영 최적카드(amount 최대) 가산.
+    #   경로는 엔진 tagged 열거(_compute_tagged)가 **실제 최종가**로 비교해 택1:
+    #     · 보유 카드 c 경로     = 즉시할인(c) 차감
+    #                              (+ c 가 현대카드면 잔액에 2.73% 추가 — 스펙 표 1행)
+    #     · 현대카드 무-즉시할인 = 즉시할인 포기 + 현대 2.73% + N페이 1% (표 3행)
+    #   손계산(근사) 승자 판정을 쓰지 않는 이유: legacy _approx_deduct 는 표면가
+    #   기준 근사라 정액 차감 뒤 잔액에 걸리는 2.73% 와 교차점이 어긋날 수 있다.
+    #   무신사 머니 vs 현대(Task 5)와 같은 이유로 tagged 실측 비교가 정본이다.
+    #
+    # ■ 보유카드 가드 (미보유 = 가산 유지 = 매입가 과대 = 안전 방향)
+    #   PurchaseCard 마스터에 있는 카드만 후보. 라벨 매칭 규칙(보수적):
+    #     · 공백 제거 정규화 후 ①완전일치 ②양방향 부분일치(짧은 쪽이 3자 이상).
+    #       예: '현대카드'⊂'넥슨현대카드' 매칭 / 'KB국민카드'⊃'국민카드' 매칭 /
+    #           '카카오페이카드' ↔ '카카오뱅크(머니)' 비매칭(미보유) /
+    #           '롯데카드' ↔ '롯데프로페셔널' 비매칭(미보유 — 애매하면 안 가진 걸로).
+    #     · 3자 미만('카드' 등 일반명사) 은 매칭 금지 — 전부 오매칭이다.
+    #   오매칭(가짜 보유) = 없는 카드 할인을 반영 = 매입가 과소 — 이 저장소가
+    #   가장 경계하는 방향이라 애매하면 무조건 미보유 취급한다.
+    #   현대카드 판정 = 사이트 라벨에 '현대' 포함 (할인의 주인은 사이트 라벨이다).
+    #
+    # ■ 페어링 규율 (Task 5 _money_paired 와 동일)
+    #   이 블록이 만든 태그 행(N페이·즉시할인·병행 2.73%)과 아래 플로어 선태깅은
+    #   전부 같은 조건(_lo_max_mode)으로만 켠다 — 한쪽만 태깅되면 태그 없는 행이
+    #   전 경로에서 차감되는 이중차감(매입가 과소)이 난다.
+    # ═════════════════════════════════════════════════════════════════════
+    _lo_max_mode = False    # 플로어 선태깅 페어링 플래그 — 아래 플로어 블록이 참조
+    _lo_basis = None        # 영수증 투명성(가산 근거) — 결과 dict 에 부착
+    if _site_for == 'lotteon':
+        _lo_max_raw = (_dynamic_benefits or {}).get('lotteon_max_price')
+        if (isinstance(_lo_max_raw, (int, float))
+                and not isinstance(_lo_max_raw, bool) and _lo_max_raw > 0):
+            _lo_max_mode = True
+            import logging as _lg_lo
+            from lemouton.pricing.final_price import (
+                _is_payment as _lo_is_pay, _is_cashback as _lo_is_cb)
+            from lemouton.pricing.card_candidates import (
+                HYUNDAI_FLOOR_KEY as _HFK_LO,
+                match_owned_card_label as _lo_match_owned)
+
+            # (1) 카드 목록 정제 — amount(원) 양수만. None(수집실패)/[]/전부무효는
+            #     '카드 없음' 경로(가산 0 + 현대 2.73% + N페이)로 수렴한다.
+            #     수집실패(None)인데 최대혜택가에 카드분이 들어 있었을 가능성은
+            #     크롤 계약상 없다(비로그인 최대혜택가 = 카드 없는 값 — T6 실측).
+            _lo_cards = []
+            _lo_cards_raw = (_dynamic_benefits or {}).get('lotteon_card_discounts')
+            if isinstance(_lo_cards_raw, list):
+                for _lc in _lo_cards_raw:
+                    try:
+                        _lc_amt = float((_lc or {}).get('amount') or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    if _lc_amt > 0:
+                        _lo_cards.append({'label': str((_lc or {}).get('label') or ''),
+                                          'amount': _lc_amt})
+            _lo_site_best = (max(_lo_cards, key=lambda c: c['amount'])
+                             if _lo_cards else None)
+
+            # (2) 카드-프리 베이스 = 최대혜택가 + 사이트 선반영 최적카드 즉시할인 가산.
+            #     사이트는 amount 최대 카드를 선반영한다(크롤 T6 — favorBox 로직).
+            #     보유 카드의 즉시할인은 (4)에서 결제 경로 행으로 다시 차감되므로,
+            #     '보유 최적 = 사이트 최적' 이면 가산−차감이 상쇄돼 최대혜택가 그대로다.
+            _lo_base = float(_lo_max_raw) + (
+                _lo_site_best['amount'] if _lo_site_best else 0.0)
+            _base_override = _lo_base
+
+            # (3) 기존 **미태깅** 결제성 행 소등 — tagged 모드에서 태그 없는 행은
+            #     "모든 경로에서" 차감된다(경로 밖 상시차감). 수동 템플릿의
+            #     '네이버페이 …'(_is_payment 는 '네이버' 예외라 별도 검사)나
+            #     '○○카드 …' 행이 그대로 남으면 즉시할인 경로에 N페이/타 카드가
+            #     겹쳐 매입가 과소가 된다. 경로 규칙의 단일 원천은 이 블록이므로
+            #     기존 행은 끄고 경고를 남긴다(조용한 실패 방지).
+            #     캐시백(_is_cb)은 유입경로 축이라 **어느 분기에서도 끄지 않는다**
+            #     (스펙 §4-1 — 이름에 '네이버' 가 있어도 cashback 태그면 전 경로
+            #     차감이 맞다. 경유↔캐시백 배타는 엔진의 naver_via 제약② 담당).
+            for _lk, _lit in effective:
+                if getattr(_lit, 'pay_method', None) is not None:
+                    continue    # 이미 경로 태깅된 행은 그대로
+                if not bool(_lit.enabled):
+                    continue
+                if _lo_is_cb(_lit):
+                    continue    # 캐시백 축 — 소등 대상 아님
+                _lnm = _lit.benefit_name or ''
+                if '네이버' in _lnm or _lo_is_pay(_lnm):
+                    _turn_off(_lit)
+                    _lg_lo.getLogger(__name__).warning(
+                        '[lotteon-maxprice] 미태깅 결제성 혜택 "%s" 비활성 — '
+                        '카드 경로 규칙(스펙 §3-5)이 대신 계산 (sku=%s)', _lnm, sku)
+
+            # (4) 보유 카드 즉시할인 → 결제 경로 행 주입 (합성키 = 메모리 전용,
+            #     DB 로 안 나간다 — card_candidates.HYUNDAI_FLOOR_KEY 주석 참조).
+            #     현대카드면 같은 키로 2.73% 를 **한 경로에 동반** 주입(표 1행:
+            #     즉시할인 + 카드 자체 적립 둘 다). 타 카드는 즉시할인만(표 2행).
+            #     매칭 규칙의 정본 = card_candidates.match_owned_card_label
+            #     (보수적 — 애매하면 미보유. 핀 테스트가 규칙 표를 못 박는다).
+            _lo_master_labels = [
+                getattr(_mc, 'label', '')
+                for _mc in _load_purchase_cards(session, _cache)
+                if getattr(_mc, 'active', True)]
+
+            _lo_n = 0
+            _lo_owned_labels = []
+            for _lc in _lo_cards:
+                if not _lo_match_owned(_lc['label'], _lo_master_labels):
+                    continue
+                _lo_n += 1
+                _lo_owned_labels.append(_lc['label'])
+                _lo_key = f'__lo_card{_lo_n}__'
+                effective.append(('dyn', _DynBenefit(
+                    name=f"{_lc['label']} 즉시할인", btype='amount',
+                    value=_lc['amount'], enabled=True,
+                    apply_mode='payment', pay_method=_lo_key)))
+                # ⚠ 미래 함정: '현대' 포함 판정이라 '현대백화점카드' 같은 **다른
+                #   발급사**(현대백화점그룹) 라벨도 현대카드로 봐 2.73% 를 동반시킬
+                #   수 있다 — 지금은 마스터에 그런 카드가 없어 보유 매칭 자체가
+                #   안 되지만, 마스터에 추가하는 날엔 이 판정을 라벨 표로 바꿀 것.
+                if '현대' in (_lc['label'] or '').replace(' ', ''):
+                    effective.append(('dyn', _DynBenefit(
+                        name='현대카드 2.73% (카드결제 병행)', btype='rate',
+                        value=0.0273, enabled=True,
+                        apply_mode='payment', pay_method=_lo_key)))
+
+            # (5) 현대카드 무-즉시할인 경로의 N페이 1% — 플로어(아래 블록에서
+            #     HYUNDAI_FLOOR_KEY 로 선태깅)와 **같은 키**라 그 경로에서만
+            #     같이 차감된다. 즉시할인 경로에는 절대 안 붙는다(상호배타).
+            effective.append(('dyn', _DynBenefit(
+                name='네이버페이 적립 1% (즉시할인 미사용 시)', btype='rate',
+                value=0.01, enabled=True,
+                apply_mode='payment', pay_method=_HFK_LO)))
+
+            _lo_basis = {
+                'max_price': int(_lo_max_raw),
+                'base_no_card': int(_lo_base),
+                'site_best_label': (_lo_site_best or {}).get('label'),
+                'site_best_amount': int((_lo_site_best or {}).get('amount') or 0),
+                'owned_candidates': _lo_owned_labels,
+                'cards_fetched': (None if _lo_cards_raw is None
+                                  else len(_lo_cards_raw or [])),
+            }
+
+    # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
     #   무신사 크롤 베이스(sale_price)는 '회원가' = 무신사머니 적립이 이미 반영된 값이다.
     #   '현대카드 (무신사머니 fallback)' 은 무신사머니와 택1(상호배타) — 그 위에서 또 차감하면 이중.
     #   → money_active=False (무신사머니 명시 비활성) 일 때만 fallback 적용, 그 외(플래그 없음/True)는
     #     비활성. 안전 방향(원가 과소 → 언더프라이싱 방지). 기존 _dynamic_benefits 가드 밖이라
     #     dynamic_benefits 가 비어 있어도 항상 동작한다. 이름에 '무신사머니 fallback' 포함 항목만 대상.
+    #   [2026-07-22 Task 5 검토] 스펙 §3-3(머니 vs 현대카드 자동 택1) 이후에도 조건은
+    #   그대로 둔다: 머니 행이 존재하면(0이든 아니든 money_active≠False) 승자 판정은
+    #   엔진의 경로 열거가 하고, 수동 생성된 fallback **템플릿/override 행**은 어느
+    #   경로에서든 추가 차감이면 이중이므로 계속 꺼 두는 게 맞다. 엔진 플로어
+    #   ('현대카드 2.73% (무신사머니 미적용 시)')는 이름이 안 매칭되어 영향 없음.
     _ma_flag = _dynamic_benefits.get('money_active') if _dynamic_benefits else None
     if _ma_flag is not False:
         for _k, _it in effective:
             if '무신사머니 fallback' in (_it.benefit_name or ''):
-                _it.enabled = False
+                _turn_off(_it)
 
-    # * 2026-06-12 — 롯데온·SSG 현대카드 2.73% 결제할인 (청구할인 fallback / 직전 잔액 기준).
+    # ★ 2026-06-12 — 롯데온·SSG 현대카드 2.73% 결제할인 (청구할인 fallback / 직전 잔액 기준).
     #   사용자 명세: "롯데 청구할인 미적용 시, 결제 혜택으로 결제 금액 기준 현대카드(2.73%) 적용.
     #   SSG도 마찬가지로 청구할인 없으면 현대카드 2.73% 자동 (단 SSG는 네이버페이 적용 안됨)".
     #   - 결제 택1(legacy pick-best, _is_payment '카드'/'청구할인' 매칭): 청구할인·추가카드 할인·
@@ -761,31 +1476,266 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #     차감 = '직전 잔액 기준 2.73%' (사용자 Q3 확정).
     #   - 네이버페이는 롯데온 템플릿(이름에 '네이버' → 택1 제외)만 앞단 동시 적용. SSG는 네이버페이
     #     템플릿·주입이 없어 자동 미적용(사용자 요구 충족).
-    if _site_for in ('lotteon', 'ssg'):
-        effective.append(('dyn', _DynBenefit(
+    #   ★ 2026-07-18 [Phase 1B M1-4] — 이 현대카드 항목은 이제 **플로어**다.
+    #     아래 apply_card_candidates 가 PurchaseCard(적립율) + 소싱처별 청구할인 행
+    #     (pay_method=카드키)으로 다른 카드 후보를 만들고, 그중 최종매입가가 가장
+    #     낮아지는 카드를 엔진이 자동 선택한다. 대안이 현대카드를 못 이기면 이게 채택.
+    # ═══════════════════════════════════════════════════════════════════════
+    # [2026-07-23 · 2차 T5 · 스펙 §11-4] N쇼핑 경유(naver_via) — 4몰 공통 주입.
+    #   몰마다 '표시가 반영 여부'가 달라 **판별 게이트**가 핵심이다(실측):
+    #     · Hmall  「네이버가격비교」 8%  → 경유+로그인 시 혜택가에 **선반영**
+    #     · 롯데온 「제휴할인」 정액      → 경유 시 자동 반영(**선반영**)
+    #     · SSG    「네이버 쇼핑 쿠폰」   → 표시가 **미반영** (차감)
+    #     · 아이몰 「네이버 N%플러스쿠폰」→ 발급형·표시가 **미반영** (차감)
+    #   선반영(naver_via_preapplied=True)이면 **주입하지 않는다** — 재차감 = 이중차감 =
+    #   매입가 과소(마진 착시). 크롤이 판별해 플래그로 알려주는 게 계약이다.
+    #   엔진은 channel='naver_via' 를 이미 경유 축으로 열거하므로(제약②: 경유 ⟹ 캐시백
+    #   off 자동) 여기서는 값만 실어 주면 된다.
+    _nv = _dynamic_benefits or {}
+    # [2026-07-23] 아이몰 한정 — 경유 「네이버 N%플러스할인쿠폰」은 PDP 다운로드
+    #   쿠폰과 **같은 플러스 칸**이다(쿠폰함: 플러스/즉시적립 1개). 위 lotteimall
+    #   블록에서 다운로드 쿠폰이 이겼으면 여기서 경유 쿠폰을 주입하지 않는다.
+    if not _plus_slot_taken and not bool(_nv.get('naver_via_preapplied')):
+        _nv_label = str(_nv.get('naver_via_label') or '').strip()
+        _nv_name = f'N쇼핑 경유 {_nv_label}'.strip() if _nv_label else 'N쇼핑 경유 할인'
+        try:
+            _nv_rate = float(_nv.get('naver_via_rate') or 0)
+        except (TypeError, ValueError):
+            _nv_rate = 0.0
+        try:
+            _nv_amt = float(_nv.get('naver_via_amount') or 0)
+        except (TypeError, ValueError):
+            _nv_amt = 0.0
+        if _nv_rate > 0:
+            effective.append(('dyn', _DynBenefit(
+                name=f'{_nv_name} {_nv_rate * 100:g}%', btype='rate', value=_nv_rate,
+                enabled=True, channel='naver_via')))
+        elif _nv_amt > 0:
+            effective.append(('dyn', _DynBenefit(
+                name=_nv_name, btype='amount', value=_nv_amt,
+                enabled=True, channel='naver_via')))
+
+    _card_floor = None
+    if _site_for in ('lotteon', 'ssg', 'hmall'):
+        # ★ 2026-07-23 [Task 8] 롯데온 최대혜택가 모드면 플로어를 결제 경로
+        #   (HYUNDAI_FLOOR_KEY)로 **선태깅**한다 — 위 롯데온 블록의 N페이 행과
+        #   같은 키 = '현대카드 무-즉시할인' 경로에서만 둘이 같이 차감된다.
+        #   페어링 가드(Task 5 _money_paired 규율): 태깅 조건은 그 블록이 실제로
+        #   태그 행을 만든 조건(_lo_max_mode)과 **같은 플래그**다. 선태깅 없이
+        #   무태그 플로어가 tagged 열거에 들어가면 모든 경로에서 2.73% 가 차감돼
+        #   즉시할인+2.73% 이중차감(매입가 과소)이 된다. SSG·구데이터 롯데온
+        #   (_lo_max_mode=False)은 태그 없음 = 종전 legacy 동작 byte-identical.
+        #   [2026-07-23 · 2차 T3] Hmall 도 같은 규율 — 카드 즉시할인 행을 실제로
+        #   주입한 경우(_hm_card_mode)에만 플로어를 선태깅해 **택1**로 묶는다.
+        #   (카드 없는 상품은 태그 없음 = 종전 동작 byte-identical.)
+        _lo_floor_tag = ((_site_for == 'lotteon' and _lo_max_mode)
+                         or (_site_for == 'hmall' and _hm_card_mode))
+        if _lo_floor_tag:
+            from lemouton.pricing.card_candidates import HYUNDAI_FLOOR_KEY as _HFK_F
+        _card_floor = _DynBenefit(
             name='현대카드 2.73% (청구할인 fallback)',
             btype='rate', value=0.0273,
             enabled=True,
-        )))
+            apply_mode=('payment' if _lo_floor_tag else None),
+            pay_method=(_HFK_F if _lo_floor_tag else None),
+        )
+    # ★ 2026-07-22 [Task 5, 스펙 §3-3 사용자 확정] — 무신사 결제 택1 규칙 변경.
+    #   종전(2026-07-05): '머니가 잡히면 무조건 머니' — enabled=(_money_amt <= 0) 로
+    #   현대카드 플로어를 하드 비활성했다.
+    #   변경: 머니 금액과 현대카드 2.73% 중 **차감이 큰 쪽을 자동 선택**한다.
+    #   → 플로어는 상시 enabled=True. 머니>0 이면 위 dyn 블록이 머니 행에
+    #   pay_method='mus_money' 를 태깅했으므로, 플로어에도 여기서 결제 태그
+    #   (HYUNDAI_FLOOR_KEY)를 **선태깅**해 상호배타를 보장한다.
+    #   ⚠ 선태깅이 없으면: purchase_cards 마스터가 비어 있는 환경(list_cards 실패
+    #   → cards=[])에서 apply_card_candidates 가 legacy 분기로 플로어를 무태그
+    #   append 하는데, 머니 행의 pay_method 만으로 엔진이 tagged 로 넘어가
+    #   무태그 플로어가 **모든 경로에서** 차감된다 = 머니+현대카드 이중 차감
+    #   (매입가 과소 — 이 저장소가 가장 경계하는 방향). 선태깅이 그 구멍을 막는다.
+    #   머니 0/None 이면 태그 없이 enabled=True → 종전과 동일한 legacy 단독 차감.
+    #   이름은 그대로 둔다: 현대카드 경로가 이기면 머니는 실제로 '미적용'이므로
+    #   영수증 표기로 여전히 정확하고, 이름 매칭 _turn_off('fallback'/'무신사머니
+    #   fallback')와도 안 부딪힌다.
+    elif _site_for == 'musinsa':
+        _money_amt = float((_dynamic_benefits or {}).get('money_reward_amount') or 0)
+        # [2026-07-23 품질검토 반영] 페어링 가드 — 플로어 선태깅은 머니 행을 실제로
+        # 만든 조건(str(source_id)=='3' AND surface_price 존재, 위 dyn 블록)과 **같은
+        # 조건**일 때만 건다. surface_price 없이 money>0 인 코너에서 플로어만 태깅되면
+        # 머니 행 없는 tagged 열거(하필 안전 방향이긴 하나 비의도 경로)가 되므로,
+        # 그 코너는 태그 없이 종전 legacy(현대카드 단독 차감) 그대로 둔다.
+        _money_paired = _money_amt > 0 and bool(
+            (_dynamic_benefits or {}).get('surface_price'))
+        from lemouton.pricing.card_candidates import HYUNDAI_FLOOR_KEY as _HFK
+        _card_floor = _DynBenefit(
+            name='현대카드 2.73% (무신사머니 미적용 시)',
+            btype='rate', value=0.0273,
+            enabled=True,
+            apply_mode=('payment' if _money_paired else None),
+            pay_method=(_HFK if _money_paired else None),
+        )
+    # ★ 2026-07-23 [T11b · 스펙 §3 확정표 정합] — 잔여 소싱처 5곳에도 플로어 확장.
+    #   사장님 확정 스펙(2026-07-22 §3-1 르무통 / §3-2 스스 / §3-4 SSF / §3-7 Hmall /
+    #   §3-8 아이몰)의 fx 목록에 전부 '현대카드 2.73%' 가 있으나, 플랜 T4 가
+    #   §7-4(전 소싱처 payment 시드)를 blast-radius 최소로 축소 구현하면서 이
+    #   플로어 블록은 롯데온·SSG·무신사만 커버했다(T11 스냅샷 정직성 발견 —
+    #   docs/검증/2026-07-23-혜택엔진-가격diff.md §3-1). 미차감 = 매입가 과대
+    #   (안전 방향)였으나 스펙 위반이라 여기서 해소한다.
+    #   - 이름은 롯데온·SSG 와 **동일**하게 유지(영수증 일관성). turn-off 패턴
+    #     ('fallback'/'무신사머니 fallback'/'카드혜택가 fallback' 매칭 루프)은 전부
+    #     이 블록보다 **먼저** 실행돼 effective 기존 행만 훑으므로, 나중에 조립되는
+    #     이 플로어에는 닿지 않는다 — 롯데온·SSG 플로어가 이미 같은 구조로 안전.
+    #   - 태그 없음(enabled=True 뿐) → 데이터에 카드 청구할인 행이 없는 오늘은
+    #     legacy 결제 택1의 유일한 payment 항목으로 단독 차감. 아이몰 크롤 청구할인
+    #     ('○○카드 청구할인' 정액)·Hmall 카드 즉시할인(사용자 토글 활성 시)이 있으면
+    #     legacy 택1에서 **차감 큰 쪽이 이긴다** = '청구할인 없을 시 현대카드' 라는
+    #     fallback 의미 그대로(롯데온·SSG 종전 동작과 동일 규칙).
+    #   - N페이 1%(르무통·스스·SSF 시드, Hmall 주입)는 이름의 '네이버' 로 택1에서
+    #     제외(_is_payment)돼 플로어와 **동시 차감**, OK캐시백(Hmall·아이몰 주입)은
+    #     _is_cashback 제외로 동시 차감 — 둘 다 아래 테스트로 핀 고정
+    #     (tests/pricing/test_hyundai_floor_all_sources.py).
+    elif _site_for in ('lemouton', 'ss_lemouton', 'ssf', 'hmall', 'lotteimall'):
+        _card_floor = _DynBenefit(
+            name='현대카드 2.73% (청구할인 fallback)',
+            btype='rate', value=0.0273,
+            enabled=True,
+        )
+    # ★ 2026-07-18 [Phase 1B M1-4] 결제카드 다중 후보 주입 (최유리 카드 자동 선택).
+    #   실사례: 롯데홈쇼핑 삼성카드 7% 청구할인 = 현대카드 2.73% 의 2.5배. 기존
+    #   '현대카드 한 장 하드코딩' 구조로는 이걸 매입가에 반영할 수 없었다.
+    #   청구할인 행(pay_method=PurchaseCard.key)이 **1건도 없으면** 아무것도 바꾸지
+    #   않는다 → 데이터가 없는 오늘은 전 소싱처가 기존 legacy 경로 그대로다.
+    # [2026-07-22 Task 5] 조립 전에 지금까지의 turn-off 를 확정한다(_apply_disabled
+    #   docstring 참고 — TaggedProxy 복사가 꺼 둔 행을 되살리는 것 방지).
+    effective = _apply_disabled(effective)
+    try:
+        from lemouton.pricing.card_candidates import apply_card_candidates as _acc
+        # ⚠ _card_info['mode'] 는 조립부 관점의 라벨이다 — 무신사 머니 SKU 는 여기서
+        #   'legacy'(billed 행 없음, 카드마스터 빈 경우)로 찍혀도 선태깅된 행들 때문에
+        #   엔진은 tagged 로 돈다. 현재는 write-only 라 무해하지만, 영수증에 노출하게
+        #   되면 엔진 판정(_is_tagged)과 일치하도록 정정 필요.
+        effective, _card_info = _acc(
+            effective, _load_purchase_cards(session, _cache), floor=_card_floor)
+    except Exception as _ce:
+        import logging as _log3
+        _log3.getLogger(__name__).warning(
+            '[card-candidates] 카드 후보 조립 실패 (non-fatal, 기존 경로 유지): %s', _ce)
+        if _card_floor is not None:
+            effective.append(('dyn', _card_floor))
 
-    # * 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
+    # ★ 2026-06-23 — 무신사 조건부 혜택 키워드 게이트 (Task 1b-3).
+    #   status='conditional' 가이드 혜택만 대상. always·하드코딩 항목은 절대 불변.
+    #   benefit_lines 가 없으면 완전 no-op → 배포 안전.
+    if _site_for == 'musinsa':
+        _lines = (_dynamic_benefits or {}).get('_benefit_lines') or []
+        if _lines:
+            import logging as _logging
+            _gate_logger = _logging.getLogger(__name__)
+            try:
+                from lemouton.sourcing import roster as _roster
+                from lemouton.pricing.benefit_gate import gated_off_names as _gated_off
+
+                # ── 가이드 로드 (현행 SourcingSource=roster, 캐시 우선) ──
+                #   구 SourceRegistry 는 stale — 사용자 편집 반영 안 됨.
+                _cg_key = f'__cg_{_site_for}'
+                if _cache is not None and _cg_key in _cache:
+                    _guide_parsed = _cache[_cg_key]
+                else:
+                    _guide_parsed = _roster.get_guide(_site_for)
+                    if _cache is not None:
+                        _cache[_cg_key] = _guide_parsed
+
+                _guide_benefits = (_guide_parsed.get('pricing') or {}).get('benefits') or []
+                _excl_kws = _guide_parsed.get('exclude_keywords') or []
+
+                # ── 게이트 실행 ──
+                _off = _gated_off(_guide_benefits, _lines, _excl_kws)
+
+                # ── effective 항목 비활성화 (catalog 이름 매칭) ──
+                #   ★ 2026-07-20 Task 6 — 가이드 이름(공백 있음)과 주입 항목 이름
+                #   (공백 없음)을 같은 정규화 기준(_norm_benefit_name)으로 비교.
+                #   예전엔 끄는 쪽은 원문 그대로, 경고 쪽은 공백만 제거해서
+                #   서로 다른 기준을 썼다 — 그래서 못 끄는데 경고도 안 뜨는
+                #   조용한 오차(손해 매입 방향)가 발생했다.
+                _gated_names = {(b.get('name') or '') for b in _guide_benefits
+                                if (b.get('status') or '') == 'conditional'}
+                _off_norm = {_norm_benefit_name(n) for n in _off}
+                for _k2, _it2 in effective:
+                    if _norm_benefit_name(_it2.benefit_name) in _off_norm:
+                        _turn_off(_it2)
+                # 이름이 effective 에 없는 conditional 혜택 → 조용한 실패 방지 경고
+                _eff_names = {_norm_benefit_name(_it2.benefit_name) for _k2, _it2 in effective}
+                for _cname in _gated_names:
+                    if _norm_benefit_name(_cname) not in _eff_names:
+                        _gate_logger.warning(
+                            '[benefit-gate] conditional 혜택 "%s" 이(가) effective 목록에 없음 '
+                            '(source_id=%s, sku=%s) — 가이드·템플릿 이름 불일치 의심',
+                            _cname, source_id, sku,
+                        )
+            except Exception as _ge:
+                import logging as _log2
+                _log2.getLogger(__name__).warning(
+                    '[benefit-gate] 무신사 키워드 게이트 오류 (non-fatal, 가격 변경 없음): %s', _ge)
+
+    # 끈 항목을 원본 변형 없이 반영 — 카드 조립 뒤(키워드 게이트) 기록분 처리.
+    #   (_Disabled 클래스·조립 전 1차 호출은 위 _apply_disabled 정의부 참고)
+    effective = _apply_disabled(effective)
+
+    # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
-    return compute_final_price(
+    _result = compute_final_price(
         sale_price, effective,
         card_enabled=_card_enabled, card_issuer=_card_issuer,
         base_override=_base_override,
     )
+    # ★ 2026-07-04 — 계산식 영수증 투명성: 무신사 상품쿠폰 적용/제외 내역 노출.
+    if isinstance(_result, dict) and _coupon_pick:
+        _result['coupon_decision'] = {
+            'used': _coupon_pick.get('name'),
+            'used_amount': _coupon_pick.get('amount'),
+            'excluded': [{'name': e.get('name'), 'amount': e.get('amount'), 'reason': e.get('reason')}
+                         for e in (_coupon_pick.get('excluded') or [])],
+        }
+    # ★ 2026-07-23 [Task 8] 롯데온 최대혜택가 근거 노출 — 미보유 카드 가산(add-back)
+    #   은 화면 최대혜택가와 베이스가 달라 보이는 유일한 지점이라 근거를 영수증에 남긴다.
+    if isinstance(_result, dict) and _lo_basis:
+        _result['lotteon_basis'] = _lo_basis
+    # [2026-07-19] 혜택을 못 긁어 템플릿까지 끈 경우 — 영수증이 그 사실을 말하게 한다.
+    #   최종가 = 표면가 로 뜨는 이유가 '혜택이 0원'이 아니라 '혜택을 확인 못 함'이라는 표시.
+    if isinstance(_result, dict) and _benefits_unavailable:
+        _result['benefits_unavailable'] = True
+    return _result
 
 
-@bp.get('/breakdown/<sku>/<int:source_id>')
-def get_breakdown(sku: str, source_id: int):
+@bp.get('/breakdown/<sku>/<source_id>')
+def get_breakdown(sku: str, source_id):
+    """단건 계산. Returns: {final_price, steps, items_used, path,
+    lotteon_basis?(롯데온 최대혜택가 모드 — 가산/보유카드 근거), ...}
+
+    source_id 는 **정수도 문자 키도** 받는다. 카탈로그 소싱처(현대H몰·롯데아이몰)는
+     id 가 'key:hmall'·'key:lotteimall' 같은 문자열이라 `<int:source_id>` 로 두면
+     라우트에 아예 안 걸려 404(not_found) — 화면엔 「계산식 로드 실패」로 보인다
+     (2026-07-23 사장님 화면 실측). 일괄(/breakdowns)은 2026-07-20 에 이미
+     _sid_key 로 고쳤는데 단건만 남아 있었다 — 같은 버그의 짝은 함께 고칠 것.
+    """
     try:
         sale_price = float(request.args.get('sale_price', 0))
     except ValueError:
         return _err('sale_price 숫자 형식 오류')
+    try:
+        _spid = int(request.args.get('source_product_id')) if request.args.get('source_product_id') else None
+    except (ValueError, TypeError):
+        _spid = None
     s = SessionLocal()
     try:
-        out = compute_breakdown(s, sku=sku, source_id=source_id, sale_price=sale_price)
+        # ★일괄(/breakdowns)과 **같은 캐시 경로**로 계산한다 —
+        #  (1) 화면 셀 값과 fx 설명이 구조적으로 같아진다(두 경로가 갈리면 설명이 거짓말).
+        #  (2) 캐시는 dict 조회라 카탈로그 소싱처의 문자 키('key:hmall')가 정수 컬럼에
+        #      들어가 DB 가 거부하는 일이 없다 — 단건만 DB 를 타서 500 이 나던 원인
+        #      (2026-07-23 라이브 실측: 라우트 404 를 고치자 드러난 2단 버그).
+        _sid = _sid_key(source_id)
+        _cache = _build_breakdown_cache(
+            s, [{'sku': sku, 'source_id': _sid, 'sale_price': sale_price}])
+        out = compute_breakdown(s, sku=sku, source_id=_sid, sale_price=sale_price,
+                                source_product_id=_spid, _cache=_cache)
         return _ok(**out)
     finally:
         s.close()
@@ -795,7 +1745,8 @@ def get_breakdown(sku: str, source_id: int):
 def bulk_breakdowns():
     """일괄 계산. payload: {items: [{sku, source_id, sale_price}, ...]}.
 
-    Returns: {results: {[sku+'|'+source_id]: {final_price, steps, ...}}}
+    Returns: {results: {[sku+'|'+source_id]: {final_price, steps,
+      lotteon_basis?(롯데온 최대혜택가 모드 — 가산/보유카드 근거), ...}}}
     매트릭스 일괄 fetch 용 — 셀별 1회 호출 대신 1번에 N건.
     """
     data = request.get_json(silent=True) or {}
@@ -810,10 +1761,17 @@ def bulk_breakdowns():
             sp = float(it.get('sale_price') or 0)
             if not sku or sid is None or sp <= 0:
                 continue
-            key = f"{sku}|{sid}"
+            # [2026-06-22] 후보별 키 — 같은 (sku, source_id)에 URL 여러개(단품/모음전 등)면
+            #   sale_price 가 달라 final_price 도 다르다. 클라가 보낸 key(예: sku|sid|salePrice)로
+            #   결과를 키잉해 덮어쓰기를 막는다(없으면 구방식 sku|sid 하위호환). 완전한 '최종매입가 최저' 선택용.
+            key = it.get('key') or f"{sku}|{sid}"
             try:
-                out[key] = compute_breakdown(s, sku=sku, source_id=int(sid),
-                                             sale_price=sp, _cache=cache)
+                # [2026-07-20] int(sid) 는 카탈로그 소싱처의 문자열 키('key:lotteimall')에서
+                #   ValueError 로 죽어 영수증이 통째로 안 나왔다. 캐시가 dict lookup 이라
+                #   문자열 키도 안전하다 — api_pricing._sid_key 와 같은 규칙으로 통일.
+                out[key] = compute_breakdown(s, sku=sku, source_id=_sid_key(sid),
+                                             sale_price=sp, _cache=cache,
+                                             source_product_id=it.get('source_product_id'))
             except Exception as e:
                 out[key] = {'error': str(e)}
         return _ok(results=out)
@@ -1020,7 +1978,7 @@ def add_override_to_bundle(source_id: int):
 
 # ════════════════════════════════════════════
 #  2026-06-11 — 모음전 한정 값 수정 + 기본값 초기화
-#  매트릭스 [수정] 인라인 수정이 소싱처 공통 템플릿을 직접 바꾸던 동작을
+#   매트릭스 ✎ 인라인 수정이 소싱처 공통 템플릿을 직접 바꾸던 동작을
 #   '이 모음전 전체에만' override 로 적용하도록 분리. ↺ 초기화는 그 override 를
 #   깨끗이 삭제해 소싱처 공통값+크롤값(=원래 계산값)으로 복귀.
 # ════════════════════════════════════════════
@@ -1130,7 +2088,7 @@ def _upsert_value_for_skus(s, source_id, skus, nm, bt, val):
     tpl = (s.query(SourceBenefitTemplate)
            .filter_by(source_id=source_id, benefit_name=nm).first())
     tpl_id = tpl.id if tpl else None
-    # * 성능: 기존행을 sku별 N쿼리 대신 IN 1쿼리로, 신규는 벌크 insert.
+    # ★ 성능: 기존행을 sku별 N쿼리 대신 IN 1쿼리로, 신규는 벌크 insert.
     existing_rows = (s.query(OptionBenefitOverride)
                      .filter(OptionBenefitOverride.source_id == source_id,
                              OptionBenefitOverride.benefit_name == nm,
@@ -1280,7 +2238,7 @@ def set_value_bundle():
         target_skus = _bundle_skus(s, bundle_code)
         if not target_skus:
             return _err('대상 옵션 0건 (bundle_code 확인)')
-        # * 스냅샷 모델 — 이 (모음전, 소싱처)가 아직 스냅샷 안 됐으면(override 0건) 먼저
+        # ★ 스냅샷 모델 — 이 (모음전, 소싱처)가 아직 스냅샷 안 됐으면(override 0건) 먼저
         #   현재 기본값 전체를 복사(고정)한 뒤 이 수정을 얹는다. = '첫 수정 시 고정'.
         already = (s.query(OptionBenefitOverride)
                    .filter(OptionBenefitOverride.source_id == source_id,
@@ -1433,7 +2391,7 @@ def delete_scoped():
             base = [o['sku'] for o in _options_by_bundle_code(s, bundle_code)]
             if not base:
                 return _err('bundle_all_src 대상 옵션 0건 (bundle_code 확인)')
-            # * 성능: 행마다 delete 금지 — source 별 벌크 DELETE 1회
+            # ★ 성능: 행마다 delete 금지 — source 별 벌크 DELETE 1회
             total_del = 0
             for sid in source_ids_in:
                 total_del += (s.query(OptionBenefitOverride)

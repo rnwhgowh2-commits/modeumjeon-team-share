@@ -1,46 +1,26 @@
 {% extends 'base.html' %}
-{% block title %}템플릿 — 모음전 자동화{% endblock %}
+{% block title %}옵션 맵핑 템플릿 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-templates">
-  <h1>템플릿</h1>
-  <p class="greeting">자주 쓰는 가격·색상·사이즈를 한 곳에서 관리해요.</p>
+  <h1>옵션 맵핑 템플릿</h1>
+  <p class="greeting">자주 쓰는 색상·사이즈를 한 곳에서 관리해요.</p>
 
+  {# [2026-08-12] 노션 「b-3. 가로탭 3개 중 가격 템플릿 삭제」 —
+     💰 가격 판을 화면에서 뺐다. 저장된 가격 템플릿과 뒤에서 도는 가격 계산은
+     그대로다(사장님 확정 「화면에서만 빼기」).
+     🔴 판 번호(data-pane)는 색상 2·사이즈 3 을 **그대로 둔다** — 아래 tplTab 의
+        주소(#color·#size) 매핑과 짝이라, 번호를 1·2 로 당기면 둘 다 고쳐야 하고
+        옛 주소가 엉뚱한 판을 연다. #}
   <div class="step-tabs" id="tpl-tabs">
-    <div class="step-tab active" data-pane="1" onclick="tplTab(this,1)"><i class="ph-light ph-coins" aria-hidden="true"></i> 가격</div>
-    <div class="step-tab" data-pane="2" onclick="tplTab(this,2)"><i class="ph-light ph-palette" aria-hidden="true"></i> 색상</div>
+    <div class="step-tab active" data-pane="2" onclick="tplTab(this,2)"><i class="ph-light ph-palette" aria-hidden="true"></i> 색상</div>
     <div class="step-tab" data-pane="3" onclick="tplTab(this,3)"><i class="ph-light ph-ruler" aria-hidden="true"></i> 사이즈</div>
   </div>
 
-  {# 가격 #}
-  <div class="tp" data-pane="1">
-    {% for v in price_view %}
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:16px">{{ v.tpl.name }}</div>
-          <div style="font-size: 14px;color:var(--n500);margin-top:4px">스마트스토어 할인가 {{ '{:,}'.format(v.tpl.ss_boxhero_sale_price) }} · 쿠팡 할인가 {{ '{:,}'.format(v.tpl.coupang_boxhero_sale_price) }} · 가드레일 {{ '{:,}'.format(v.tpl.guardrail_lower) }}–{{ '{:,}'.format(v.tpl.guardrail_upper) }}</div>
-          <div style="font-size: 14px;color:var(--n600);margin-top:4px">{{ v.apply_count }}개 모음전 적용</div>
-        </div>
-        <button class="btn btn-sm" data-action="edit-price-tpl" data-id="{{ v.tpl.id }}">편집</button>
-        <button class="btn btn-sm" data-action="dup-price-tpl" data-id="{{ v.tpl.id }}"><i class="ph-light ph-file" aria-hidden="true"></i> 복제</button>
-        {% if v.apply_count == 0 %}
-        <button class="btn btn-sm" style="color:var(--danger)" data-action="del-price-tpl" data-id="{{ v.tpl.id }}">삭제</button>
-        {% endif %}
-      </div>
-    </div>
-    {% else %}
-    <div class="card" style="padding:24px;text-align:center;color:var(--n500)">
-      가격 템플릿이 아직 없어요.
-    </div>
-    {% endfor %}
-    <button class="btn btn-large" data-action="new-price-tpl">+ 새 가격 템플릿</button>
-  </div>
-
   {# 색상 (사전 + 템플릿 통합) #}
-  <div class="tp" data-pane="2" style="display:none">
-    <h2 style="margin-top:0"><i class="ph-light ph-palette" aria-hidden="true"></i> 색상 사전 <span style="font-weight:400;font-size:13px;color:var(--n500)">{{ color_dict|length }}개</span></h2>
-    <div class="qsearch" style="margin-bottom:10px"><span class="qsearch-icon"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span><input id="color-dict-search" placeholder="색상 사전 검색..." /></div>
-    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;box-shadow:var(--shadow-sm)">
+  <div class="tp" data-pane="2">
+    <h2 style="margin-top:0"><i class="ph-light ph-palette" aria-hidden="true"></i> 색상 사전 <span style="font-weight:400;font-size:12px;color:var(--n500)">{{ color_dict|length }}개</span></h2>
+    <div class="qsearch" style="margin-bottom:8px"><span class="qsearch-icon"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span><input id="color-dict-search" placeholder="색상 사전 검색..." /></div>
+    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;">
       <table class="opt-table">
         <tbody>
           {% for c in color_dict %}
@@ -61,18 +41,18 @@
     </div>
     <button class="btn" style="margin-top:8px" data-action="new-color">+ 새 색상</button>
 
-    <h2 style="margin-top:32px">색상 템플릿 <span style="font-weight:400;font-size:13px;color:var(--n500)">{{ color_view|length }}개</span></h2>
+    <h2 style="margin-top:32px">색상 템플릿 <span style="font-weight:400;font-size:12px;color:var(--n500)">{{ color_view|length }}개</span></h2>
     {% for v in color_view %}
     <div class="card">
-      <div style="font-weight:700;margin-bottom:6px">{{ v.tpl.name }}</div>
-      <div class="chip-row" style="margin-bottom:10px">
+      <div style="font-weight:700;margin-bottom:4px">{{ v.tpl.name }}</div>
+      <div class="chip-row" style="margin-bottom:8px">
         {% for code in v.tpl.color_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
       </div>
       <div style="font-size: 14px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
       <button class="btn btn-sm" data-action="edit-color-tpl" data-id="{{ v.tpl.id }}">편집</button>
       <button class="btn btn-sm" data-action="dup-color-tpl" data-id="{{ v.tpl.id }}"><i class="ph-light ph-file" aria-hidden="true"></i> 복제</button>
       {% if v.apply_count == 0 %}
-      <button class="btn btn-sm" style="color:var(--danger)" data-action="del-color-tpl" data-id="{{ v.tpl.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
+      <button class="btn btn-sm" style="color: var(--글자-빨강, var(--danger)" data-action="del-color-tpl" data-id="{{ v.tpl.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
       {% endif %}
     </div>
     {% endfor %}
@@ -82,7 +62,7 @@
   {# 사이즈 #}
   <div class="tp" data-pane="3" style="display:none">
     <h2 style="margin-top:0"><i class="ph-light ph-ruler" aria-hidden="true"></i> 사이즈 사전</h2>
-    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;box-shadow:var(--shadow-sm)">
+    <div class="card-tight" style="background:var(--surface));border-radius:12px;padding:0;overflow:hidden;">
       <table class="opt-table">
         <tbody>
           {% for r in size_rules %}
@@ -102,21 +82,46 @@
     <h2 style="margin-top:32px">사이즈 템플릿</h2>
     {% for v in size_view %}
     <div class="card">
-      <div style="font-weight:700;margin-bottom:6px">{{ v.tpl.name }}</div>
-      <div class="chip-row" style="margin-bottom:10px">
+      <div style="font-weight:700;margin-bottom:4px">{{ v.tpl.name }}</div>
+      <div class="chip-row" style="margin-bottom:8px">
         {% for code in v.tpl.size_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
       </div>
       <div style="font-size: 14px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
       <button class="btn btn-sm" data-action="edit-size-tpl" data-id="{{ v.tpl.id }}">편집</button>
       <button class="btn btn-sm" data-action="dup-size-tpl" data-id="{{ v.tpl.id }}"><i class="ph-light ph-file" aria-hidden="true"></i> 복제</button>
       {% if v.apply_count == 0 %}
-      <button class="btn btn-sm" style="color:var(--danger)" data-action="del-size-tpl" data-id="{{ v.tpl.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
+      <button class="btn btn-sm" style="color: var(--글자-빨강, var(--danger)" data-action="del-size-tpl" data-id="{{ v.tpl.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
       {% endif %}
     </div>
     {% endfor %}
     <button class="btn btn-large" data-action="new-size-tpl">+ 새 사이즈 템플릿</button>
   </div>
 </section>
+
+<style>
+/* [3단계 배치3 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 탭 2개(색상·사이즈) — 손끝 목표 44px */
+  #screen-templates .step-tab { min-height: 44px; display: inline-flex; align-items: center; }
+  #screen-templates .step-tabs { display: flex; overflow-x: auto; }
+  /* 카드 — 이름·단추가 한 줄에 못 들어가면 아래로 접는다 */
+  #screen-templates .card > div { flex-wrap: wrap; }
+  #screen-templates .btn { min-height: 44px; }
+  #screen-templates .btn-sm { min-height: 44px; padding: 8px 12px; }
+  #screen-templates .btn-large { width: 100%; box-sizing: border-box; }
+  /* 검색칸 — 16px = iOS 포커스 확대 방지 */
+  #screen-templates .qsearch input { font-size: 16px; min-height: 44px; width: 100%; box-sizing: border-box; }
+  /* 색상·사이즈 사전 표 — 가로 스크롤 + 첫 열 붙박이.
+     🔴 !important — 감싼 .card-tight 의 인라인 overflow:hidden 을 이겨야 한다. */
+  #screen-templates .card-tight { overflow-x: auto !important; }
+  #screen-templates .opt-table { min-width: 560px; }
+  /* 첫 열 붙박이 — 배경이 없으면 밀려 들어온 칸 글자가 밑에 비쳐 보인다
+     (검정 화면에서도 자기 면 색을 따라가도록 --surface). */
+  #screen-templates .opt-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface, #fff); }
+  #screen-templates .chip-row { flex-wrap: wrap; }
+}
+</style>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -129,9 +134,11 @@ function tplTab(el, idx) {
 }
 
 // hash 진입 시 해당 탭으로 이동 (예: /templates#color)
+// [2026-08-12] `price` 는 뺐다 — 가격 판이 화면에서 사라졌다.
+//   옛 주소 /templates#price 로 들어오면 아무 탭도 안 열리고 기본(색상)에 머문다.
 (function () {
   const h = window.location.hash.replace('#', '');
-  const map = { price: 1, color: 2, size: 3 };
+  const map = { color: 2, size: 3 };
   if (map[h]) {
     const tab = document.querySelector(`#tpl-tabs .step-tab[data-pane="${map[h]}"]`);
     if (tab) tplTab(tab, map[h]);

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 from flask import Blueprint, jsonify, render_template, request
 
@@ -21,6 +22,16 @@ from lemouton.sourcing.models_v2 import SourcingAccount, UploadAccount
 from shared.db import SessionLocal
 
 bp = Blueprint("accounts", __name__, url_prefix="/accounts")
+
+
+
+def _LIVE_VERIFIABLE_MARKETS() -> set:
+    """라이브 검증으로 열 수 있는 마켓. order_export 단일 원천(지연 임포트)."""
+    try:
+        from lemouton.markets import order_export as _oe
+        return set(_oe.LIVE_VERIFIABLE)
+    except Exception:  # noqa: BLE001
+        return set()
 
 
 # ─── 팀공유 모드: admin 전용 (시크릿·API키 노출 위험). 기존 모드 통과. ───
@@ -137,17 +148,17 @@ def upload_accounts_view():
         for acc in accounts:
             try:
                 creds = S.load_credentials(market=acc.market, env_prefix=acc.env_prefix)
-                cred_status = " 등록"
+                cred_status = "등록"
                 cred_state = "ok"
                 missing_count = 0
                 masked_id = _first_field_masked(creds)
             except S.SecretsMissingError as e:
-                cred_status = f" 누락 ({len(e.missing_keys)} 키)"
+                cred_status = f"누락 ({len(e.missing_keys)} 키)"
                 cred_state = "missing"
                 missing_count = len(e.missing_keys)
                 masked_id = "—"
             except S.SecretsUnknownMarketError:
-                cred_status = " 미지원 market"
+                cred_status = "미지원 market"
                 cred_state = "unknown"
                 missing_count = 0
                 masked_id = "—"
@@ -166,7 +177,7 @@ def upload_accounts_view():
                 profile_dir = profile_store.profile_dir(acc.market, acc.env_prefix)
                 if not profile_store.has_profile(acc.market, acc.env_prefix):
                     login_state = "not_logged_in"
-                    login_status = " 로그인 안됨"
+                    login_status = "로그인 안됨"
                 elif _has_persistent_auth_cookie(profile_dir, acc.market):
                     cookies_path = profile_dir / "Default" / "Network" / "Cookies"
                     if not cookies_path.exists():
@@ -176,19 +187,19 @@ def upload_accounts_view():
                     login_age = age_days
                     if age_days <= 30:
                         login_state = "logged_in"
-                        login_status = f" 영구 로그인 ({age_days:.0f}일 경과)"
+                        login_status = f"영구 로그인 ({age_days:.0f}일 경과)"
                     else:
                         login_state = "stale"
-                        login_status = f" 30일 초과 ({age_days:.0f}일 — 재로그인 권장)"
+                        login_status = f"30일 초과 ({age_days:.0f}일 — 재로그인 권장)"
                 elif _has_session_trace(profile_dir, acc.market):
                     profile_mtime = profile_dir.stat().st_mtime
                     age_days = (datetime.now().timestamp() - profile_mtime) / 86400.0
                     login_age = age_days
                     login_state = "session_only"
-                    login_status = " 세션 only (재로그인 필요할 수 있음)"
+                    login_status = "세션 only (재로그인 필요할 수 있음)"
                 else:
                     login_state = "incomplete"
-                    login_status = " 로그인 미완료"
+                    login_status = "로그인 미완료"
 
             meta = MARKET_METADATA.get(acc.market, {})
             rows.append({
@@ -209,6 +220,12 @@ def upload_accounts_view():
                 "login_status": login_status,
                 "login_age_days": round(login_age, 1) if login_age is not None else None,
                 "has_login_creds": has_login_creds,  # .env 에 LOGIN_ID/PW 등록 여부
+                # 라이브 검증 — 이 마켓이 「🧪 라이브 검증」 대상인지 + 이 계정의 검증 여부.
+                "live_verifiable": acc.market in _LIVE_VERIFIABLE_MARKETS(),
+                "live_verified": acc.live_verified_at is not None,
+                "live_verified_at": (acc.live_verified_at.strftime("%Y-%m-%d %H:%M")
+                                     if acc.live_verified_at else None),
+                "live_verified_count": acc.live_verified_count,
             })
 
         # 마켓 우선순위 정렬: 쿠팡 > 스스 > 롯데온 > 11번가 > 옥션 > G마켓 > 기타
@@ -348,9 +365,9 @@ def sourcing_accounts_view():
             if not has_session:
                 session_status = "⏸ 미로그인"
             elif is_expired:
-                session_status = " 만료 (재로그인 필요)"
+                session_status = "만료 (재로그인 필요)"
             else:
-                session_status = f" 활성 ({age_days:.0f}일 경과)"
+                session_status = f"활성 ({age_days:.0f}일 경과)"
             session_rows.append({
                 "id": acc.id,
                 "source": acc.source,
@@ -392,6 +409,12 @@ def sourcing_accounts_view():
 MARKET_KEY_SUFFIXES = {
     "smartstore": ["CLIENT_ID", "CLIENT_SECRET"],
     "coupang": ["ACCESS_KEY", "SECRET_KEY", "VENDOR_ID"],
+    "lotteon": ["API_KEY", "TR_NO"],
+    "eleven11": ["OPENAPI_KEY"],   # 11번가 = openapikey 헤더 단일 인증키 (OAuth·시크릿 없음)
+    # 옥션·G마켓 = ESM 2.0(이베이코리아) 통합. JWT(HmacSHA256): kid=마스터ID, ssi="{site}:{판매자ID}".
+    # master_id·secret_key 는 두 마켓 공통, seller_id 만 다름(옥션 site A / G마켓 site G).
+    "auction": ["MASTER_ID", "SECRET_KEY", "SELLER_ID"],
+    "gmarket": ["MASTER_ID", "SECRET_KEY", "SELLER_ID"],
 }
 
 # UI 노출용 라벨 — sensitive 여부도 표시
@@ -401,6 +424,11 @@ KEY_LABELS = {
     "ACCESS_KEY": ("Access Key", False),
     "SECRET_KEY": ("Secret Key", True),
     "VENDOR_ID": ("Vendor ID (셀러 코드)", False),
+    "API_KEY": ("API 인증키 (Bearer)", True),
+    "TR_NO": ("거래처번호 (판매자 센터)", False),
+    "OPENAPI_KEY": ("OpenAPI 인증키 (openapikey 헤더)", True),
+    "MASTER_ID": ("ESM 마스터 ID (ESM+ 통합)", False),
+    "SELLER_ID": ("판매자 ID (옥션/G마켓)", False),
 }
 
 # 마켓 메타데이터 — UI 사이드바에서 사용 (라벨·아이콘·도움말·상태)
@@ -429,41 +457,51 @@ MARKET_METADATA = {
     "lotteon": {
         "label": "롯데온",
         "icon": "🔴",
-        "api_type": "셀러센터 API",
-        "guide_url": "https://seller.lotteon.com/",
-        "guide_text": "롯데온 셀러센터 API",
+        "api_type": "OpenAPI (Bearer 인증키)",
+        "guide_url": "https://store.lotteon.com/",
+        "guide_text": ("롯데온 판매자 센터 > 판매자정보 > OpenAPI관리 에서 "
+                       "① 서버 IP 등록(54.116.196.90) ② 인증키 발급. 거래처번호(trNo)도 여기서 확인."),
         "default_prefix": "LOTTEON_MAIN",
-        "status": "coming_soon",
+        # UI 온보딩(계정·키 등록·연결 테스트) 개방. 실제 전송은 MOUM_LIVE_UPLOAD(OFF)가 별도 게이트.
+        "status": "ready",
         "sort_order": 3,
     },
     "eleven11": {
         "label": "11번가",
         "icon": "🟣",
-        "api_type": "OAuth (SK 쇼핑)",
-        "guide_url": "https://api.11st.co.kr/",
-        "guide_text": "11번가 셀러 API — 클라이언트 등록 후 Key/Secret 발급",
+        "api_type": "OpenAPI (openapikey 헤더 · XML)",
+        "guide_url": "https://openapi.11st.co.kr/openapi/OpenApiFrontMain.tmall",
+        "guide_text": ("11번가 셀러오피스 로그인 > 하단 Open API > 서비스 등록·확인 에서 "
+                       "① OPENAPI KEY 발급 ② 서버 IP 등록(54.116.196.90). 인증은 "
+                       "'openapikey: {발급키}' 헤더(단일 인증키·시크릿 없음)."),
         "default_prefix": "ELEVEN11_MAIN",
-        "status": "coming_soon",
+        # UI 온보딩(키 등록) 개방. 실제 주문조회·전송은 스펙 확보+검증 후. (order_export.SUPPORTED 미포함)
+        "status": "ready",
         "sort_order": 4,
     },
     "auction": {
         "label": "옥션",
         "icon": "🟡",
-        "api_type": "ESM 2.0 (이베이코리아)",
-        "guide_url": "https://www.esmplus.com/",
-        "guide_text": "ESM 2.0 통합 셀러 API (옥션·G마켓 통합)",
+        "api_type": "ESM 2.0 (이베이코리아 · JWT)",
+        "guide_url": "https://etapi.gmarket.com/",
+        "guide_text": ("ESM+ 로그인 > 판매자정보 > 판매도구 관리에서 사용 설정 후 ESM Trading API "
+                       "발급. 필요값 = ① ESM 마스터 ID ② 시크릿 키 ③ 옥션 판매자 ID. "
+                       "옥션·G마켓은 같은 마스터ID·시크릿을 쓰고 판매자 ID만 다름."),
         "default_prefix": "AUCTION_MAIN",
-        "status": "coming_soon",
+        # UI 온보딩 개방. 주문 API 엔드포인트 스펙은 확보 후 채움(추측 금지). (order_export.SUPPORTED 미포함)
+        "status": "ready",
         "sort_order": 5,
     },
     "gmarket": {
         "label": "G마켓",
         "icon": "🟡",
-        "api_type": "ESM 2.0 (이베이코리아)",
-        "guide_url": "https://www.esmplus.com/",
-        "guide_text": "ESM 2.0 통합 셀러 API (옥션·G마켓 통합)",
+        "api_type": "ESM 2.0 (이베이코리아 · JWT)",
+        "guide_url": "https://etapi.gmarket.com/",
+        "guide_text": ("ESM+ 로그인 > 판매자정보 > 판매도구 관리에서 사용 설정 후 ESM Trading API "
+                       "발급. 필요값 = ① ESM 마스터 ID ② 시크릿 키 ③ G마켓 판매자 ID. "
+                       "옥션과 같은 마스터ID·시크릿, 판매자 ID만 다름."),
         "default_prefix": "GMARKET_MAIN",
-        "status": "coming_soon",
+        "status": "ready",
         "sort_order": 6,
     },
     # 기타 — sort_order 99+
@@ -496,6 +534,49 @@ def market_sort_key(market: str) -> tuple:
     return (meta.get("sort_order", 999), market)
 
 
+# 마켓별 '셀러를 식별하는' 키 접미사. 이 값이 같으면 이름이 달라도 같은 판매자 계정이다.
+#  order_export._IDENTITY_KEYS 와 같은 필드를 가리킨다(지문도 같은 값이 나오도록).
+_IDENTITY_SUFFIX = {
+    "coupang": "VENDOR_ID",
+    "smartstore": "CLIENT_ID",
+    "lotteon": "TR_NO",
+    "eleven11": "OPENAPI_KEY",
+    "auction": "SELLER_ID",
+    "gmarket": "SELLER_ID",
+}
+
+
+def _find_duplicate_key_account(market: str, env_prefix: str, env_keys: dict):
+    """이번에 저장할 셀러 식별키가 같은 마켓의 '다른 활성 계정'에 이미 있으면 (계정명들, 지문).
+
+    없으면 None. 값 자체는 어디에도 노출하지 않는다(지문만).
+    """
+    sfx = _IDENTITY_SUFFIX.get(market)
+    if not sfx:
+        return None
+    # 이번에 들어온 값. 안 들어왔으면 기존값(=변경 없음)이라 중복 검사 불필요.
+    new_val = (env_keys.get(f"{env_prefix}_{sfx}") or "").strip()
+    if not new_val:
+        return None
+
+    s = SessionLocal()
+    try:
+        others = (s.query(UploadAccount)
+                  .filter(UploadAccount.market == market,
+                          UploadAccount.is_active == True,          # noqa: E712
+                          UploadAccount.env_prefix != env_prefix)
+                  .order_by(UploadAccount.id).all())
+        names = [a.display_name for a in others
+                 if (os.environ.get(f"{a.env_prefix}_{sfx}", "") or "").strip() == new_val]
+    finally:
+        s.close()
+
+    if not names:
+        return None
+    from lemouton.markets.order_export import _ident_fingerprint
+    return names, _ident_fingerprint(f"{market}:{sfx.lower()}:{new_val}")
+
+
 @bp.route("/api/secrets/<env_prefix>", methods=["POST"])
 def save_secrets(env_prefix: str):
     """UI에서 입력한 시크릿을 .env 에 저장 + 환경변수 즉시 반영.
@@ -522,6 +603,11 @@ def save_secrets(env_prefix: str):
             "ok": False,
             "error": "env_prefix 형식 오류 (영숫자 + 언더스코어만)",
         }), 400
+
+    # 멀티 워커 일관성 — 다른 워커가 저장한 기존값을 이 워커도 보게 해서
+    # '빈 칸이지만 기존값 있음' 판정이 워커 간 일관되도록(필수 필드 오거부 방지).
+    from lemouton.auth import secrets as _S
+    _S.refresh_env()
 
     # 입력 검증 — 빈 칸 + 기존값 있으면 기존 유지(확인만 하고 저장 시 안 깨짐)
     expected_suffixes = MARKET_KEY_SUFFIXES[market]
@@ -551,8 +637,25 @@ def save_secrets(env_prefix: str):
             "message": "변경 사항 없음 — 기존 키 그대로 유지됩니다.",
         })
 
-    project_root = Path(__file__).resolve().parents[2]
-    env_path = project_root / ".env"
+    # ★ 같은 셀러 키가 두 계정에 저장되는 것을 '저장 단계'에서 막는다(전 마켓 공통).
+    #   실제 사고: 11번가 두 쌍이 같은 OPENAPI_KEY 로 저장돼, 주문조회에서 한쪽 가게가 통째로
+    #   빠졌다(브라우저 자동완성이 이전 계정 키를 다시 채운 것으로 추정). 저장을 막지 않으면
+    #   같은 주문 2배 계상 또는 다른 가게 주문 누락(발송 사고)으로 이어진다.
+    conflict = _find_duplicate_key_account(market, env_prefix, env_keys)
+    if conflict:
+        names, fp = conflict
+        return jsonify({
+            "ok": False,
+            "error": f"이 키는 이미 「{'」, 「'.join(names)}」 계정에 등록돼 있어요 (키 지문 {fp}).",
+            "hint": "브라우저 자동완성이 이전 계정의 키를 다시 채웠을 수 있어요. "
+                    "칸을 비우고 이 가게의 키를 직접 붙여넣어 주세요.",
+            "conflicts": names,
+            "fingerprint": fp,
+        }), 409
+
+    # 영속 경로(호스트 볼륨 마운트) 우선 — 컨테이너 교체돼도 유지. 없으면 프로젝트 .env.
+    from lemouton.auth import secrets as _S2
+    env_path = _S2.secrets_env_path()
 
     try:
         masked = update_env_keys(env_path, env_keys)
@@ -575,7 +678,7 @@ def list_markets():
     Response: ``{
         "ok": true,
         "markets": [
-            {"key": "smartstore", "label": "스마트스토어", "icon": "",
+            {"key": "smartstore", "label": "스마트스토어", "icon": "[정상]",
              "api_type": "OAuth", "key_count": 2, "status": "ready", ...},
             ...
         ]
@@ -598,6 +701,123 @@ def list_markets():
     # 사용자 지정 우선순위: 쿠팡 > 스스 > 롯데온 > 11번가 > 옥션 > G마켓 > 기타
     markets.sort(key=lambda m: MARKET_METADATA.get(m["key"], {}).get("sort_order", 999))
     return jsonify({"ok": True, "markets": markets})
+
+
+def _next_free_env_prefix(market: str) -> str:
+    """신규 계정용 '빈' 고유 env_prefix 발급.
+
+    마켓당 여러 계정 + 계정별 API 키가 별개이므로, 신규 등록 시 기존 계정과
+    다른 저장칸을 써야 한다. 후보 = default_prefix(…_MAIN) → {ROOT}_2 → {ROOT}_3 …
+    이미 UploadAccount 가 쓰거나 .env 에 값이 남아있는 prefix 는 건너뛴다
+    (빈 폼 보장 — 기존 키가 새 폼에 새어나오지 않게).
+    """
+    meta = MARKET_METADATA.get(market, {})
+    default_prefix = meta.get("default_prefix") or f"{market.upper()}_MAIN"
+    root = default_prefix[:-5] if default_prefix.endswith("_MAIN") else default_prefix
+    suffixes = MARKET_KEY_SUFFIXES.get(market, [])
+    first_sfx = suffixes[0] if suffixes else "CLIENT_ID"
+
+    s = SessionLocal()
+    try:
+        used = {row[0] for row in s.query(UploadAccount.env_prefix).all()}
+    finally:
+        s.close()
+
+    candidates = [default_prefix] + [f"{root}_{i}" for i in range(2, 100)]
+    for cand in candidates:
+        if cand in used:
+            continue
+        if os.environ.get(f"{cand}_{first_sfx}"):
+            continue  # .env 잔존값 있으면 스킵 (빈 폼 보장)
+        return cand
+    # 폴백 — 극단적 상황 (계정 100개 초과)
+    return f"{root}_{len(used) + 1}"
+
+
+@bp.route("/api/markets/<market>/next-prefix", methods=["GET"])
+def market_next_prefix(market: str):
+    """신규 계정 등록 모달이 마켓 선택 즉시 호출 — 빈 고유 env_prefix 반환."""
+    market = market.lower()
+    if market not in MARKET_KEY_SUFFIXES:
+        return jsonify({"ok": False, "error": "market 미지원"}), 400
+    return jsonify({
+        "ok": True,
+        "market": market,
+        "env_prefix": _next_free_env_prefix(market),
+    })
+
+
+# ──────────────────────────────────────────────────────────
+#  우리 서버 IP 명부 — 마켓 "출발지 IP 등록"칸에 붙여넣을 값 (팀 공유)
+# ──────────────────────────────────────────────────────────
+
+# 첫 조회 시 목록이 비어 있으면 넣어주는 기본값(업로드 서버).
+_DEFAULT_SERVER_IPS = [("업로드 서버", "54.116.196.90")]
+_IP_RE = re.compile(r"^[0-9A-Fa-f:.]+$")
+
+
+def _seed_server_ips_if_empty(s) -> None:
+    from webapp.server_ip_model import ServerIp
+    if s.query(ServerIp).count() == 0:
+        for i, (name, ip) in enumerate(_DEFAULT_SERVER_IPS):
+            s.add(ServerIp(name=name, ip=ip, sort_order=i))
+        s.commit()
+
+
+@bp.route("/api/server-ips", methods=["GET"])
+def list_server_ips():
+    """우리 서버 IP 목록. 비어 있으면 기본(업로드 서버)을 시드 후 반환."""
+    from webapp.server_ip_model import ServerIp
+    s = SessionLocal()
+    try:
+        _seed_server_ips_if_empty(s)
+        rows = s.query(ServerIp).order_by(ServerIp.sort_order, ServerIp.id).all()
+        return jsonify({"ok": True, "items": [r.to_dict() for r in rows]})
+    finally:
+        s.close()
+
+
+@bp.route("/api/server-ips", methods=["POST"])
+def add_server_ip():
+    """서버 IP 한 건 추가. Body: {"name": "업로드 서버", "ip": "54.116.196.90"}. 이름은 선택."""
+    from sqlalchemy import func
+    from webapp.server_ip_model import ServerIp
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    ip = (body.get("ip") or "").strip()
+    if not ip:
+        return jsonify({"ok": False, "error": "IP 주소를 입력하세요"}), 400
+    if len(ip) > 64 or not _IP_RE.match(ip):
+        return jsonify({"ok": False, "error": "IP 형식이 올바르지 않아요 (숫자·점만)"}), 400
+    s = SessionLocal()
+    try:
+        max_order = s.query(func.coalesce(func.max(ServerIp.sort_order), 0)).scalar() or 0
+        row = ServerIp(name=name[:80], ip=ip, sort_order=int(max_order) + 1)
+        s.add(row)
+        s.commit()
+        s.refresh(row)
+        return jsonify({"ok": True, "item": row.to_dict()})
+    except Exception as e:
+        s.rollback()
+        return jsonify({"ok": False, "error": f"저장 실패: {type(e).__name__}: {e}"}), 500
+    finally:
+        s.close()
+
+
+@bp.route("/api/server-ips/<int:ip_id>", methods=["DELETE"])
+def delete_server_ip(ip_id: int):
+    """서버 IP 한 건 삭제."""
+    from webapp.server_ip_model import ServerIp
+    s = SessionLocal()
+    try:
+        row = s.get(ServerIp, ip_id)
+        if row is None:
+            return jsonify({"ok": False, "error": "이미 없는 항목이에요"}), 404
+        s.delete(row)
+        s.commit()
+        return jsonify({"ok": True})
+    finally:
+        s.close()
 
 
 @bp.route("/api/upload/accounts", methods=["POST"])
@@ -635,13 +855,28 @@ def create_upload_account():
 
     s = SessionLocal()
     try:
-        # 중복 검사
-        existing = s.query(UploadAccount).filter_by(account_key=account_key).first()
-        if existing:
+        # ── 중복 검사 — 계정명은 '같은 마켓 안에서만' 중복으로 본다.
+        # 사장님 기준으로 「쿠팡 브랜드위시」와 「옥션 브랜드위시」는 서로 다른 계정이다.
+        # 예전엔 account_key(전역 UNIQUE)로만 검사해서, 다른 마켓에 같은 이름이 있으면
+        # 등록 자체가 막혔다(2026-07-20 옥션 등록 중 발견).
+        same_market = (s.query(UploadAccount)
+                       .filter_by(market=market, display_name=display_name).first())
+        if same_market:
             return jsonify({
                 "ok": False,
-                "error": f"account_key '{account_key}' 이미 존재 — 다른 이름 사용",
+                "error": f"'{display_name}' 은(는) 이 마켓에 이미 등록된 계정입니다 — 다른 이름 사용",
             }), 409
+
+        # account_key 는 화면에 안 보이는 내부 슬러그인데 DB 전역 UNIQUE 라
+        # 마켓이 다른 동명 계정끼리 충돌한다 → 마켓 접미사로 고유화.
+        # (빠른 추가 경로가 쓰는 "{별칭}_{market}" 및 모델 예시 "르무통_본계_smartstore" 와 같은 규칙)
+        if s.query(UploadAccount).filter_by(account_key=account_key).first():
+            base = f"{account_key}_{market}"
+            candidate, n = base, 1
+            while s.query(UploadAccount).filter_by(account_key=candidate).first():
+                n += 1
+                candidate = f"{base}_{n}"
+            account_key = candidate
 
         existing_prefix = s.query(UploadAccount).filter_by(env_prefix=env_prefix).first()
         if existing_prefix:
@@ -667,7 +902,7 @@ def create_upload_account():
             "account_key": acc.account_key,
             "env_prefix": acc.env_prefix,
             "market": acc.market,
-            "message": f"{display_name} 계정 등록 완료. 다음 단계:  키 입력으로 API 키를 등록하세요.",
+            "message": f"{display_name} 계정 등록 완료. 다음 단계: 키 입력으로 API 키를 등록하세요.",
         })
     except Exception as e:
         s.rollback()
@@ -696,6 +931,19 @@ def update_upload_account(account_id: int):
             if not new_name:
                 return jsonify({"ok": False, "error": "display_name 비어있음"}), 400
             if new_name != acc.display_name:
+                # 마켓이 다르면 같은 이름을 허용한다(등록 경로와 같은 규칙).
+                # 단 같은 마켓 안에서 동명 계정 둘은 화면에서 구분이 불가능하고,
+                # 채널→계정 해석(set_link_service._resolve_env_prefix)이 모호해져
+                # 엉뚱한 계정으로 업로드될 수 있으므로 막는다.
+                dup = (s.query(UploadAccount)
+                       .filter(UploadAccount.market == acc.market,
+                               UploadAccount.display_name == new_name,
+                               UploadAccount.id != acc.id).first())
+                if dup:
+                    return jsonify({
+                        "ok": False,
+                        "error": f"'{new_name}' 은(는) 이 마켓에 이미 등록된 계정입니다 — 다른 이름 사용",
+                    }), 409
                 acc.display_name = new_name
                 changed.append("display_name")
         if "note" in body:
@@ -807,6 +1055,44 @@ def login_upload_account(account_id: int):
     return jsonify({"ok": True, "pid": pid, "display_name": display_name, "message": msg})
 
 
+@bp.route("/api/upload/accounts/<int:account_id>/key-fingerprint", methods=["GET"])
+def account_key_fingerprint_api(account_id: int):
+    """계정에 '실제로 저장된' 셀러 식별키의 지문(해시 앞 6자). 읽기 전용·키 값 미노출.
+
+    지문이 같은 두 계정 = 같은 키가 저장돼 있다는 뜻(입력 실수 또는 저장 오류).
+    주문조회의 중복 판정(_client_identity)과 완전히 같은 값을 쓰므로, 배너에 뜬 지문과
+    이 값을 대조하면 어느 계정끼리 겹치는지 사용자가 직접 확인할 수 있다.
+    """
+    from lemouton.markets.order_export import (
+        _account_client, _client_identity, _ident_fingerprint)
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        market, env_prefix, name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    try:
+        cli = _account_client(market, env_prefix)
+    except Exception as e:   # noqa: BLE001
+        return jsonify({"ok": False, "account": name, "error": f"{type(e).__name__}"}), 400
+    if cli is None:
+        return jsonify({"ok": False, "account": name, "market": market,
+                        "env_prefix": env_prefix, "error": "키 미등록"}), 400
+
+    ident = _client_identity(market, cli)
+    if ident is None:
+        return jsonify({"ok": True, "account": name, "market": market,
+                        "env_prefix": env_prefix, "fingerprint": None,
+                        "note": "이 마켓은 식별키 비교를 지원하지 않아요."})
+    return jsonify({"ok": True, "account": name, "market": market,
+                    "env_prefix": env_prefix,
+                    "fingerprint": _ident_fingerprint(ident)})
+
+
 @bp.route("/api/upload/accounts/<int:account_id>/test", methods=["POST"])
 def test_upload_account_api(account_id: int):
     """판매처 API 연결 테스트 — 등록된 자격증명으로 실 API 호출.
@@ -834,7 +1120,7 @@ def test_upload_account_api(account_id: int):
         return jsonify({
             "ok": False,
             "error": f"키 누락 — {', '.join(e.missing_keys)}",
-            "hint": " 키 입력 으로 먼저 등록하세요.",
+            "hint": "키 입력 으로 먼저 등록하세요.",
         }), 400
     except S.SecretsUnknownMarketError:
         return jsonify({"ok": False, "error": f"미지원 market: {market}"}), 400
@@ -844,8 +1130,96 @@ def test_upload_account_api(account_id: int):
         return _test_coupang(creds, display_name, env_prefix)
     elif market == "smartstore":
         return _test_smartstore(creds, display_name, env_prefix)
+    elif market == "lotteon":
+        return _test_lotteon(creds, display_name, env_prefix)
+    elif market == "eleven11":
+        return _test_eleven11(creds, display_name, env_prefix)
+    elif market in ("auction", "gmarket"):
+        return _test_esm(creds, display_name, env_prefix, market)
     else:
         return jsonify({"ok": False, "error": f"{market} 테스트 미구현"}), 400
+
+
+@bp.route("/api/upload/accounts/<int:account_id>/write-test", methods=["POST"])
+def write_test_upload_account_api(account_id: int):
+    """롯데온 무변화 쓰기 왕복 테스트 — 한 옵션의 **현재 재고를 그대로 재전송**.
+
+    쓰기 API(재고 변경)가 실계정에서 성공하는지 확인한다. 보내는 값 = 지금 값 →
+    실제 재고는 바뀌지 않는다(idempotent). 재고 관리(stkMgtYn=Y) 옵션이 없으면
+    아무 것도 전송하지 않고 중단(안전).
+
+    body: ``{"spd_no": "LO..."}``
+    """
+    from lemouton.auth import secrets as S
+
+    body = request.get_json(silent=True) or {}
+    spd_no = str(body.get("spd_no") or "").strip()
+    if not spd_no:
+        return jsonify({"ok": False, "error": "spd_no(판매자상품번호)가 필요해요."}), 400
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        market, env_prefix, display_name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    if market != "lotteon":
+        return jsonify({"ok": False, "error": f"{market} 무변화 테스트 미지원(현재 롯데온 전용)"}), 400
+
+    try:
+        creds = S.load_credentials(market=market, env_prefix=env_prefix)
+    except S.SecretsMissingError as e:
+        return jsonify({"ok": False, "error": f"키 누락 — {', '.join(e.missing_keys)}"}), 400
+
+    from shared.platforms import LOTTEON
+    from shared.platforms.lotteon.client import LotteonClient
+    from shared.platforms.lotteon.products import get_product_detail, extract_items
+    from shared.platforms.lotteon.inventory import update_stock
+
+    client = LotteonClient(config={**LOTTEON, "api_key": creds.api_key, "tr_no": creds.tr_no})
+
+    # 1) 현재 상세 읽기
+    try:
+        detail = get_product_detail(spd_no, client=client, tr_no=creds.tr_no)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"상세조회 실패: {e}"}), 502
+    items = extract_items(detail)
+    if not items:
+        return jsonify({"ok": False, "error": "옵션(단품)이 없어요."}), 400
+
+    # 2) 재고 관리 + 실수량 있는 옵션 1개 (무변화 안전 대상)
+    target = next((it for it in items
+                   if it.get("stock_managed") and it.get("stock") is not None), None)
+    if not target:
+        return jsonify({
+            "ok": False,
+            "error": "재고 관리(stkMgtYn=Y) 옵션이 없어 무변화 재고 테스트를 못 해요"
+                     "(모든 옵션이 재고 미관리). 다른 상품번호로 시도하거나 가격 테스트를 원하시면 알려주세요.",
+            "options_read": len(items),
+        }), 200
+
+    sitm_no = target["sitm_no"]
+    cur_stock = int(target["stock"])
+
+    # 3) 같은 값 재전송 — 실제 변화 없음
+    try:
+        ok = update_stock(spd_no, sitm_no, cur_stock, client=client, tr_no=creds.tr_no)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"재고 전송 실패: {e}"}), 502
+
+    return jsonify({
+        "ok": bool(ok),
+        "message": (f"✅ {display_name} 쓰기 왕복 성공 — 옵션 {sitm_no}의 재고 {cur_stock}개를 "
+                    f"'그대로' 재전송(값 변화 없음). 쓰기 API 정상."
+                    if ok else f"쓰기 실패 — 옵션 {sitm_no}"),
+        "sitm_no": sitm_no,
+        "stock_resent": cur_stock,
+        "options_read": len(items),
+        "note": "값을 바꾸지 않는 무변화 테스트입니다.",
+    })
 
 
 def _test_coupang(creds, display_name: str, env_prefix: str):
@@ -907,7 +1281,7 @@ def _test_coupang(creds, display_name: str, env_prefix: str):
         except Exception:
             return jsonify({
                 "ok": True,
-                "message": f" 쿠팡 API 응답 (200, JSON 파싱 실패)",
+                "message": f"쿠팡 API 응답 (200, JSON 파싱 실패)",
                 "status_code": r.status_code,
                 "elapsed_sec": elapsed,
             })
@@ -924,6 +1298,191 @@ def _test_coupang(creds, display_name: str, env_prefix: str):
     }), 502
 
 
+def _test_lotteon(creds, display_name: str, env_prefix: str):
+    """롯데온 Open API ping — identity 호출로 인증키+출발지 IP 검증 (상품 불필요).
+
+    GET /v1/openapi/common/v1/identity — 발급키가 유효하고 서버 IP 가 인증키에
+    등록돼 있으면 200 + returnCode 정상. 401=키 오류 / 403=IP 미등록.
+    """
+    import time as _time
+    import requests
+    from shared.platforms.lotteon.auth import build_headers
+
+    started = _time.time()
+    url = "https://openapi.lotteon.com/v1/openapi/common/v1/identity"
+    try:
+        r = requests.get(url, headers=build_headers(creds.api_key), timeout=15)
+    except Exception as e:
+        elapsed = round(_time.time() - started, 2)
+        return jsonify({
+            "ok": False,
+            "error": f"네트워크 오류: {type(e).__name__}: {e}",
+            "elapsed_sec": elapsed,
+        }), 500
+
+    elapsed = round(_time.time() - started, 2)
+    if r.status_code == 200:
+        try:
+            data = r.json()
+            rc = str(data.get("returnCode"))
+            if rc in ("0000", "SUCCESS"):
+                return jsonify({
+                    "ok": True,
+                    "message": f"✅ {display_name} 롯데온 API 연결 성공 (인증키·출발지 IP OK, 응답 {elapsed}s)",
+                    "status_code": 200,
+                    "elapsed_sec": elapsed,
+                    "tr_no": creds.tr_no,
+                })
+            return jsonify({
+                "ok": False,
+                "error": f"롯데온 응답 이상 — returnCode={rc}",
+                "status_code": 200,
+                "elapsed_sec": elapsed,
+                "body_snippet": (r.text or "")[:300],
+            }), 502
+        except Exception:
+            return jsonify({
+                "ok": True,
+                "message": "롯데온 API 응답 (200, JSON 파싱 실패)",
+                "status_code": 200,
+                "elapsed_sec": elapsed,
+            })
+
+    hint = {
+        401: "인증키(API 인증키) 가 틀렸거나 만료 — OpenAPI관리에서 재발급 후 다시 등록",
+        403: "출발지 IP 미등록 — OpenAPI관리 1단계에 서버 IP(54.116.196.90) 등록 필요",
+        429: "호출량 초과(분당 10,000) — 잠시 후 재시도",
+    }.get(r.status_code, "인증키·거래처번호가 정확한지 확인")
+    return jsonify({
+        "ok": False,
+        "error": f"롯데온 API 실패 — HTTP {r.status_code}",
+        "status_code": r.status_code,
+        "elapsed_sec": elapsed,
+        "body_snippet": (r.text or "")[:300],
+        "hint": hint,
+    }), 502
+
+
+def _test_esm(creds, display_name: str, env_prefix: str, market: str):
+    """옥션·G마켓(ESM 2.0) 연결 테스트 — JWT 인증으로 read-only 주문조회 1건 프로브.
+
+    RequestOrders(읽기 전용, 5초/1회 rate limit)를 최근 1일·pageSize=1 로 호출해
+    인증(JWT 서명)+조회 라운드트립을 확인한다. 실제 값 변경 없음(identity+read).
+    401=JWT/키 오류 · 403=IP 미등록/판매도구 미사용 · 429=호출초과.
+    """
+    import time as _time
+    import datetime as _dt
+    import requests
+    from shared.platforms import AUCTION, GMARKET
+    from shared.platforms.esm.auth import build_headers
+
+    cfg = AUCTION if market == "auction" else GMARKET
+    base = (cfg.get("base_url") or "https://sa2.esmplus.com").rstrip("/")
+    path = (cfg.get("paths") or {}).get("orders") or "/shipping/v1/Order/RequestOrders"
+    site_type = 1 if market == "auction" else 2
+    now = _dt.datetime.now()
+    body = {
+        "siteType": site_type,
+        "orderStatus": 1,
+        "requestDateType": 1,
+        "requestDateFrom": (now - _dt.timedelta(days=1)).strftime("%Y-%m-%d %H:%M"),
+        "requestDateTo": now.strftime("%Y-%m-%d %H:%M"),
+        "pageIndex": 1,
+        "pageSize": 1,
+    }
+    try:
+        headers = build_headers(
+            creds.master_id, creds.secret_key, cfg.get("site_id", ""), creds.seller_id,
+            issuer=cfg.get("auth_issuer", "www.esmplus.com"),
+            audience=cfg.get("auth_audience", "sa.esmplus.com"),
+            iat=int(_time.time()),
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"JWT 생성 실패 — {e}",
+                        "hint": "마스터ID·시크릿키·판매자ID 를 다시 확인하세요."}), 400
+
+    started = _time.time()
+    try:
+        r = requests.post(base + path, json=body, headers=headers, timeout=15)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"네트워크 오류: {type(e).__name__}: {e}",
+                        "elapsed_sec": round(_time.time() - started, 2)}), 500
+
+    elapsed = round(_time.time() - started, 2)
+    label = "옥션" if market == "auction" else "G마켓"
+    if r.status_code == 200:
+        try:
+            data = r.json()
+            rc = str(data.get("ResultCode"))
+            if rc in ("0", "None"):
+                return jsonify({
+                    "ok": True,
+                    "message": f"✅ {display_name} {label} ESM API 연결 성공 (JWT 인증 OK, 응답 {elapsed}s)",
+                    "status_code": 200, "elapsed_sec": elapsed, "seller_id": creds.seller_id,
+                })
+            return jsonify({"ok": False, "error": f"{label} 응답 이상 — ResultCode={rc}",
+                            "status_code": 200, "elapsed_sec": elapsed,
+                            "body_snippet": (r.text or "")[:300]}), 502
+        except Exception:
+            return jsonify({"ok": True, "message": f"✅ {label} ESM API 응답 (200, JSON 파싱 실패)",
+                            "status_code": 200, "elapsed_sec": elapsed})
+
+    hint = {
+        401: "JWT 인증 실패 — 마스터ID·시크릿키 확인(ESM+ 판매도구 관리에서 재발급)",
+        403: "권한 없음 — 판매도구 사용 '사용' 설정 / 서버 IP(54.116.196.90) 등록 확인",
+        429: "호출 횟수 초과 — 잠시 후 재시도(주문조회 5초당 1회)",
+    }.get(r.status_code, "마스터ID·시크릿키·판매자ID 가 정확한지 확인")
+    return jsonify({
+        "ok": False, "error": f"{label} ESM API 실패 — HTTP {r.status_code}",
+        "status_code": r.status_code, "elapsed_sec": elapsed,
+        "body_snippet": (r.text or "")[:300], "hint": hint,
+    }), 502
+
+
+def _test_eleven11(creds, display_name: str, env_prefix: str):
+    """11번가 셀러 OpenAPI ping — 최근 6시간 결제완료 주문 목록 조회(읽기 전용).
+
+    프로덕션 주문조회가 쓰는 경로(iter_orders)를 그대로 쓴다 — 테스트가 통과했는데 실제
+    주문조회가 실패하는 어긋남을 막기 위해. 주문 0건도 성공(인증·IP 통과가 판정 대상).
+    """
+    import time as _time
+    import datetime as _dt2
+
+    started = _time.time()
+    try:
+        from lemouton.uploader.market_fetch import _eleven11_client
+        from shared.platforms.eleven11.orders import iter_orders
+        client = _eleven11_client(env_prefix)
+        until = _dt2.datetime.now()
+        since = until - _dt2.timedelta(hours=6)
+        seen = 0
+        for _od in iter_orders(since, until, client=client):
+            seen += 1
+            if seen >= 1:
+                break                      # 1건만 확인하면 충분(전량 조회 안 함)
+    except Exception as e:                 # noqa: BLE001 — 사유를 그대로 표면화(키 미노출)
+        elapsed = round(_time.time() - started, 2)
+        msg = f"{type(e).__name__}: {e}"
+        hint = ""
+        if "403" in msg:
+            hint = "403 — 11번가 API 센터에 서버 IP(54.116.196.90) 등록이 필요합니다."
+        elif "401" in msg:
+            hint = "401 — OPENAPI KEY 를 다시 확인하세요."
+        elif "500" in msg:
+            hint = "500 — 11번가 서버 오류. 잠시 후 다시 시도하세요."
+        return jsonify({"ok": False, "error": msg[:300], "hint": hint,
+                        "elapsed_sec": elapsed}), 400
+
+    elapsed = round(_time.time() - started, 2)
+    return jsonify({
+        "ok": True,
+        "market": "eleven11",
+        "account": display_name,
+        "detail": f"최근 6시간 결제완료 주문 {seen}건 조회 성공(인증·IP 통과)",
+        "elapsed_sec": elapsed,
+    })
+
+
 def _test_smartstore(creds, display_name: str, env_prefix: str):
     """스마트스토어 OAuth 토큰 발급 시도 — Bcrypt 서명."""
     import time as _time
@@ -934,7 +1493,19 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
     started = _time.time()
     timestamp = str(int(_time.time() * 1000))
     password = f"{creds.client_id}_{timestamp}".encode("utf-8")
-    hashed = bcrypt.hashpw(password, creds.client_secret.encode("utf-8"))
+    # ★ 잘못된 salt 를 bcrypt 에 넘기면 파이썬 예외가 아니라 네이티브에서 죽어 워커가 통째로
+    #   내려간다(try/except 로 못 잡음 → 원인 없는 빈 502). bcrypt 를 부르기 '전에' 형식 검사.
+    from shared.platforms.smartstore.auth import (
+        is_valid_client_secret, normalize_client_secret)
+    if not is_valid_client_secret(creds.client_secret):
+        return jsonify({
+            "ok": False,
+            "error": "Client Secret 형식 오류 — bcrypt salt 형식이 아닙니다.",
+            "hint": "네이버 커머스 API 센터의 Client Secret 을 그대로 다시 입력하세요"
+                    " (앞뒤 공백·줄바꿈 없이, $2a$ 로 시작하는 전체 문자열 29자).",
+            "elapsed_sec": round(_time.time() - started, 2),
+        }), 400
+    hashed = bcrypt.hashpw(password, normalize_client_secret(creds.client_secret).encode("utf-8"))
     client_secret_sign = base64.standard_b64encode(hashed).decode("utf-8")
 
     try:
@@ -960,15 +1531,35 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
     elapsed = round(_time.time() - started, 2)
     if r.status_code != 200:
         body_snippet = (r.text or "")[:300]
+        # 「HTTP 400」 숫자만 보여주면 사장님이 뭘 해야 할지 알 수 없다.
+        #  네이버가 준 사유(message · invalidInputs[].message)를 그대로 꺼내 붙인다.
+        naver_msg = ""
+        try:
+            _j = r.json()
+            _parts = [str(_j.get("message") or "").strip()]
+            for _iv in (_j.get("invalidInputs") or []):
+                _m = str((_iv or {}).get("message") or "").strip()
+                if _m:
+                    _parts.append(_m)
+            naver_msg = " · ".join(dict.fromkeys(p for p in _parts if p))
+        except Exception:  # noqa: BLE001 — 사유 꺼내기 실패가 본 판정을 막으면 안 된다.
+            pass
         hint = ""
-        if r.status_code == 403:
+        if "eapp-application.status" in body_snippet:
+            # 2026-08-12 브랜드타임(스스) 실측. 휴면 해제를 「계정」만 풀고 「애플리케이션」은
+            #  아직 사용 상태가 아닐 때 여기로 온다. 키·서명·서버 IP 는 멀쩡하다.
+            hint = ("네이버 커머스 API 센터에서 이 **애플리케이션**이 사용 가능 상태가 아닙니다"
+                    "(휴면·정지·심사중 등). 키 문제가 아니라 앱 상태 문제라 키를 다시 넣어도 "
+                    "똑같습니다. 커머스API센터 → 애플리케이션 관리에서 상태를 살린 뒤 다시 눌러주세요.")
+        elif r.status_code == 403:
             hint = ("403 — 해외 IP 차단 또는 셀러센터 API 허용목록 미등록. "
                     "AWS 서버라면 네이버 커머스 API 센터에 서버 IP(54.116.196.90) 등록 필요.")
         elif r.status_code == 401:
             hint = "401 — Client ID/Secret 또는 서명 오류. 키를 다시 확인하세요."
         return jsonify({
             "ok": False,
-            "error": f"스마트스토어 OAuth 실패 — HTTP {r.status_code}",
+            "error": (f"스마트스토어 OAuth 실패 — HTTP {r.status_code}"
+                      + (f" · {naver_msg}" if naver_msg else "")),
             "status_code": r.status_code,
             "elapsed_sec": elapsed,
             "body_snippet": body_snippet,
@@ -1009,7 +1600,7 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
                     f"옵션 {len(opt.options)}개 / 총재고 {stock_total}"
                 )
     except Exception as e:  # noqa: BLE001
-        steps.append(f" 상품/재고 조회 단계 실패: {type(e).__name__}: {e}")
+        steps.append(f"상품/재고 조회 단계 실패: {type(e).__name__}: {e}")
 
     return jsonify({
         "ok": True,
@@ -1021,6 +1612,608 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
         "product_count": product_count,
         "sample": sample,
     })
+
+
+# ──────────────────────────────────────────────────────────
+#  라이브 검증 — 실주문을 대조한 뒤에만 그 마켓을 공개한다
+# ──────────────────────────────────────────────────────────
+
+_LIVE_VERIFY_DAYS = 7
+# 주문 한 행이 갖춰야 할 최소 항목. 하나라도 비면 그 마켓 숫자는 믿을 수 없다.
+_LIVE_VERIFY_REQUIRED = ("오픈마켓주문번호", "주문일", "상품명", "단가")
+
+
+def _market_label_of(market: str) -> str:
+    """마켓 한글명(없으면 원문)."""
+    return (MARKET_METADATA.get(market) or {}).get("label", market)
+
+
+def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DAYS,
+                       diag: dict = None) -> list:
+    """이 계정 하나의 실주문 조회. 공개 게이트를 거치지 않는다(게이트를 열기 위한 조회).
+
+    테스트는 이 함수를 스텁으로 갈아끼운다.
+    """
+    import datetime as _dt
+    from lemouton.markets import order_export as _oe
+
+    cli = _oe._account_client(market, env_prefix)
+    if cli is None:
+        raise RuntimeError("API 키가 등록돼 있지 않습니다 — 먼저 키로 등록하세요.")
+    until = _dt.datetime.now(_oe.KST)
+    since = until - _dt.timedelta(days=days)
+    # 정산 조인은 검증에 불필요하고 호출만 늘린다(ESM 주문조회 5초/1회 제한).
+    if market in _oe.LIVE_VERIFIABLE:
+        # 조회별 건수를 본 조회에서 함께 받는다 — 진단이 다시 부르면 호출이 2배가 되고
+        # 응답이 게이트웨이 한계를 넘어 502 가 난다(2026-07-20 라이브 실측).
+        return _oe.esm_order_rows(market, since, until, client=cli,
+                                  include_settlement=False, diag=diag)
+    return _oe._BUILDERS[market](since, until, client=cli, include_settlement=False)
+
+
+
+
+# ★ ESM 주문조회(RequestOrders)는 클레임 주문을 반환하지 않는다.
+#   공식문서 원문(etapi.gmarket.com/67): "클레임(취소, 반품, 교환, 미수령신고) 주문은
+#   조회되지 않습니다". 이 상태로 옥션·G마켓을 공개하면 취소·반품 주문이 통째로 빠진
+#   주문내역이 된다 — 다른 마켓은 취소·반품이 잡히므로 마켓 간 집계 기준까지 어긋난다.
+#   실증(2026-07-20): 브랜드타임즈(rnwhgowh3)는 마켓 화면에 환불완료 1건이 있는데
+#   우리 조회 결과는 0건이었다.
+#   → 클레임 API(취소·반품·교환·미수령) 배선이 끝나면 True 로 바꾼다.
+_ESM_CLAIM_WIRED = True   # 2026-07-20 esm/claims.py 배선 + order_export 병합 완료
+_ESM_CLAIM_MARKETS = ("auction", "gmarket")
+
+
+def _live_verify_judge(rows: list, market: str = ""):
+    """자동 판정 → (통과여부, 문제목록, 샘플 3건).
+
+    · 옥션·G마켓은 클레임 조회 미배선 동안 통과시키지 않는다(위 주석).
+    · 0건 = 대조할 데이터가 없음 → '확인 불가'. 통과시키지 않는다(있다고 단정 금지).
+    · 필수 항목 결측 → 통과 아님. 어떤 항목이 몇 건 비었는지 그대로 알린다.
+    샘플에는 개인정보(수령자·전화·주소)를 담지 않는다 — 대조에 필요한 것만.
+    """
+    issues, tech, blocked = [], [], False
+    if market in _ESM_CLAIM_MARKETS and not _ESM_CLAIM_WIRED:
+        blocked = True
+        issues.append(
+            "취소·반품·교환 주문이 조회되지 않습니다 — ESM 주문조회 API 사양입니다"
+            "(공식문서: 「클레임 주문은 조회되지 않습니다」). 지금 공개하면 옥션·G마켓만 "
+            "취소·반품이 빠진 채 집계돼 다른 마켓과 숫자 기준이 어긋납니다. "
+            "클레임 조회를 붙인 뒤 다시 검증해 주세요.")
+
+    if not rows:
+        issues.append("최근 7일 주문이 0건이라 확인 불가 — 주문이 있는 계정으로 검증하거나, "
+                      "정말 0건이 맞는지 마켓 화면에서 확인해 주세요.")
+        return False, issues, [], tech
+
+    # 클레임(취소·반품·교환)은 마켓이 상품명·금액을 안 준다. 주문번호로 상세를 다시
+    # 불러 채우지만 그것마저 실패하면 빈칸이 남는다. 이 경우를 '데이터가 깨진 주문'과
+    # 같이 취급하면 영영 통과하지 못한다 → 사유를 따로 알리되 통과는 막지 않는다.
+    # (취소된 주문은 매출이 0이므로 단가가 비어도 집계가 틀어지지 않는다)
+    no_detail = [r for r in rows if r.get("_detail_missing")]
+    if no_detail:
+        # ★ 사장님이 읽을 문장과 개발자용 기술 상세를 나눈다.
+        #   화면에 "HTTPError: 404 Client Error: for url ..." 같은 게 뜨면 읽을 수 없다.
+        nos = ", ".join(str(r.get("오픈마켓주문번호")) for r in no_detail[:5])
+        # 마켓이 사유를 밝혔으면 그 말을 그대로 쓴다(추측 대신 마켓의 답).
+        first = str(no_detail[0].get("_detail_missing") or "")
+        why_ko = ("삭제된 상품이라 마켓이 상품명을 주지 않습니다"
+                  if "삭제된 상품" in first else
+                  "그 상품을 마켓 상품 조회에서 찾을 수 없습니다")
+        issues.append(
+            f"취소된 주문 {len(no_detail)}건은 상품명이 비어 있습니다 — {why_ko}. "
+            f"마켓 주문 화면에는 주문 당시 이름이 남아 있지만, 저희가 쓸 수 있는 "
+            f"방법으로는 가져올 수 없습니다(주문번호 {nos}). "
+            f"주문 자체는 정상적으로 잡혔습니다.")
+        for r in no_detail[:3]:
+            tech.append(f"{r.get('오픈마켓주문번호')} — {str(r.get('_detail_missing'))[:200]}")
+
+    # 상품명은 상품 API 로 채웠지만 단가는 못 채운 클레임 행.
+    # 단가는 '주문 시점 결제금액'이라 상품 API 의 현재가로 대신할 수 없다(폴백 금지).
+    # 취소 주문은 매출이 0이라 단가가 비어도 집계가 틀어지지 않으므로 통과시킨다.
+    partial = [r for r in rows if r.get("_detail_partial")]
+    if partial:
+        issues.append(f"클레임 {len(partial)}건은 상품명만 채웠고 단가는 빈칸입니다 — "
+                      f"마켓이 취소 주문의 결제금액을 주지 않습니다"
+                      f"(취소분은 매출 0이라 집계에는 영향 없음).")
+
+    missing = {}
+    for r in rows:
+        if r.get("_detail_missing") or r.get("_detail_partial"):
+            continue                     # 위에서 따로 알린 건 — 중복 경고 방지
+        for k in _LIVE_VERIFY_REQUIRED:
+            if str(r.get(k, "") or "").strip() == "":
+                missing[k] = missing.get(k, 0) + 1
+    for k, n in sorted(missing.items()):
+        issues.append(f"「{k}」가 비어 있는 주문이 {n}건 있어요 — 이대로 열면 숫자가 틀어집니다.")
+
+    samples = [{
+        "주문번호": str(r.get("오픈마켓주문번호", "")),
+        "주문일": str(r.get("주문일", "")).replace("T", " ")[:16],
+        "상품명": str(r.get("상품명", ""))[:40],
+        "단가": str(r.get("단가", "")),
+        "수량": str(r.get("수량", "")),
+        "주문상태": str(r.get("주문상태", "")),
+        # 클레임 사유(취소/반품/교환) — 마켓 화면의 「취소사유·상세취소사유」와 대조용.
+        # 일반 주문에서는 배송 요청사항이 들어온다.
+        "사유/배송메시지": str(r.get("배송메시지", "")),
+    } for r in rows[:3]]
+    return (not missing and not blocked), issues, samples, tech
+
+
+@bp.route("/api/upload/accounts/<int:account_id>/verify-live", methods=["POST"])
+def verify_live_account(account_id: int):
+    """라이브 검증 실행 — 실주문을 불러와 자동판정 + 샘플 3건 반환.
+
+     여기서는 기록하지 않는다. 사장님이 샘플을 마켓 화면과 대조한 뒤
+      /verify-live/confirm 을 눌러야 저장되고 마켓이 열린다.
+    """
+    from lemouton.markets import order_export as _oe
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        market, prefix, name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    if market not in _oe.LIVE_VERIFIABLE:
+        return jsonify({
+            "ok": False,
+            "error": f"'{_market_label_of(market)}' 은(는) 라이브 검증 대상이 아닙니다.",
+            "hint": "이미 공개된 마켓이거나, 주문조회 코드가 아직 없는 마켓입니다.",
+        }), 400
+
+    diag = {}
+    # 클레임 응답에 '실제로' 어떤 필드가 오는지 키만 확인한다(값은 담지 않는다).
+    #  문서·지도의 필드 목록이 실제 응답과 다를 수 있어, 상품명이 정말 안 오는지
+    #  눈으로 확인할 유일한 방법이다.
+    # 클레임 조회가 조용히 잘리는지 확인 — 응답 wrapper 에 TotalCount 가 있고
+    # 그게 실제 받은 건수보다 크면 우리는 일부만 보고 있는 것이다(조용한 유실).
+    # 대조표용 — 우리가 잡은 전체 주문번호를 상태별로 나열(샘플 3건 한계 없이).
+    #  ESM+ 화면 건수와 1:1 대조할 때 쓴다. 읽기 전용, 개인정보 없음(번호·상태만).
+    # G마켓 취소가 우리 조회에 왜 안 잡히는지 — 실제 요청 body 와 응답을 그대로 본다.
+    #  Type(2=신청일 / 3=완료일)·기간별로 취소 건수를 비교한다.
+    # 특정 주문번호로 취소조회 — 그 취소가 어느 SiteType·Type 로 잡히는지 직접 확인.
+    if request.args.get("probe") == "cancelno" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _dn
+        from shared.platforms.esm import claims as _cn
+        clin = _oe._account_client(market, prefix)
+        um = _dn.datetime.now(_oe.KST)
+        ono = (request.args.get("no") or "").strip()
+        out = []
+        for site in (2, 3):
+            for tp in (0, 2, 3):        # 0=주문번호 기준
+                # Type 0(주문번호)은 기간을 안 봐서 25일, 2·3(날짜)은 7일 제한.
+                dd = 25 if tp == 0 else 7
+                a = (um - _dn.timedelta(days=dd)).strftime("%Y-%m-%d")
+                b = um.strftime("%Y-%m-%d")
+                body = {"SiteType": site, "Type": tp, "CancelStatus": 0,
+                        "OrderNo": int(ono) if ono else 0,
+                        "StartDate": a, "EndDate": b}
+                try:
+                    resp = clin.post(_cn.PATHS["cancels"], body) or {}
+                    data = resp.get("Data")
+                    n = len(data) if isinstance(data, list) else 0
+                    hit_row = next((x for x in (data or []) if str(x.get("OrderNo"))==ono), None) if isinstance(data, list) else None
+                    out.append({"조건": f"Site{site}·Type{tp}",
+                                "RC": resp.get("ResultCode"), "msg": (resp.get("Message") or "")[:40],
+                                "건수": n, "찾음": bool(hit_row),
+                                "CancelStatus": hit_row.get("CancelStatus") if hit_row else None,
+                                "RequestDate": (hit_row.get("RequestDate") or "")[:16] if hit_row else None,
+                                "CompleteDate": (hit_row.get("CompleteDate") or "")[:16] if hit_row else None})
+                except Exception as e:      # noqa: BLE001
+                    out.append({"조건": f"Site{site}·Type{tp}", "err": f"{type(e).__name__}: {e}"[:90]})
+        return jsonify({"ok": True, "probe": "cancelno", "주문번호": ono, "결과": out})
+
+    if request.args.get("probe") == "cancelmatch" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _dm
+        from shared.platforms.esm import claims as _cm
+        clim = _oe._account_client(market, prefix)
+        um = _dm.datetime.now(_oe.KST)
+        out = []
+        for site in (1, 2, 3):          # 어느 SiteType 값에서 나오는지 전부 시험
+            for tp_label, tp in (("신청일2", 2), ("완료일3", 3)):
+                a = (um - _dm.timedelta(days=7)).strftime("%Y-%m-%d")
+                b = um.strftime("%Y-%m-%d")
+                body = {"SiteType": site, "Type": tp, "CancelStatus": 0,
+                        "StartDate": a, "EndDate": b}
+                try:
+                    resp = clim.post(_cm.PATHS["cancels"], body) or {}
+                    data = resp.get("Data")
+                    nos = [str(x.get("OrderNo")) for x in data] if isinstance(data, list) else []
+                    out.append({"조건": f"Site{site}·{tp_label}", "SiteType": site,
+                                "ResultCode": resp.get("ResultCode"),
+                                "건수": len(nos), "주문번호": nos})
+                except Exception as e:      # noqa: BLE001
+                    out.append({"조건": f"Site{site}·{tp_label}", "err": f"{type(e).__name__}: {e}"[:90]})
+        return jsonify({"ok": True, "probe": "cancelmatch", "market": market, "결과": out})
+
+    # ESM 판매자문의 400 본문 확인 — 마켓이 적어 보낸 이유를 그대로 본다.
+    if request.args.get("probe") == "qnaraw" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _dq
+        import requests as _rq
+        from shared.platforms.esm.auth import build_headers as _bh
+        cliq = _oe._account_client(market, prefix)
+        cfgq = getattr(cliq, "_cfg", {}) or {}
+        hdr = _bh(cfgq.get("master_id", ""), cfgq.get("secret_key", ""),
+                  cfgq.get("site_id", ""), cfgq.get("seller_id", ""),
+                  issuer=cfgq.get("auth_issuer", "www.esmplus.com"),
+                  audience=cfgq.get("auth_audience", "sa.esmplus.com"))
+        base = (cfgq.get("base_url") or "").rstrip("/")
+        u = _dq.datetime.now(_oe.KST)
+        body = {"qnaType": 3 if market == "gmarket" else 1, "status": 1, "type": 1,
+                "startDate": (u - _dq.timedelta(days=6)).strftime("%Y-%m-%d"),
+                "endDate": (u + _dq.timedelta(days=1)).strftime("%Y-%m-%d")}
+        try:
+            rr = _rq.post(base + "/item/v1/communications/customer/bulletin-board",
+                          json=body, headers=hdr, timeout=20)
+            j = rr.json() if rr.text else {}
+            items = j if isinstance(j, list) else (j.get("Data") or j.get("data") or [])
+            first = items[0] if items else {}
+            # 값은 100자까지만(개인정보 최소화) — 키 구조 파악이 목적.
+            sample = {k: (str(v)[:100] if not isinstance(v, (dict, list)) else
+                          f"<{type(v).__name__}> {str(v)[:100]}") for k, v in first.items()}
+            return jsonify({"ok": True, "probe": "qnaraw", "count": len(items),
+                            "keys": sorted(first), "sample": sample})
+        except Exception as e:      # noqa: BLE001
+            return jsonify({"ok": False, "probe": f"{type(e).__name__}: {e}"[:200]})
+
+    # ESM 택배사 코드표 — 마켓 조회 API(읽기 전용)에서 그대로 받아온다.
+    #  발송처리(ShippingInfo)의 DeliveryCompanyCode 는 이 표의 코드만 유효하다.
+    if request.args.get("probe") == "couriers" and market in _oe.LIVE_VERIFIABLE:
+        clic = _oe._account_client(market, prefix)
+        try:
+            resp = clic.request(method="GET", path="/item/v1/shipping/delivery-company")
+        except Exception as e:      # noqa: BLE001
+            return jsonify({"ok": False, "probe": f"{type(e).__name__}: {e}"[:200]}), 200
+        return jsonify({"ok": True, "probe": "couriers", "raw": resp})
+
+    # 주문일 기준 전체 주문번호 — 마켓 「주문관리(주문일)」 화면과 1:1 대조용.
+    #  주문조회(orderStatus 1~5, 주문일 기준) 만 쓴다. 클레임은 신청/완료일 기준이라
+    #  주문일 화면과 안 맞으므로 제외. 즉 "그날 주문된 것 전부"를 그대로 본다.
+    if request.args.get("probe") == "byorderdate" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _dz
+        from shared.platforms.esm.orders import iter_orders as _io
+        cliz = _oe._account_client(market, prefix)
+        days = int(request.args.get("days") or 7)
+        uz = _dz.datetime.now(_oe.KST)
+        sz = uz - _dz.timedelta(days=days)
+        seen, out = set(), []
+        for od in _io(market, sz, uz, client=cliz):
+            no = str(od.get("OrderNo") or "")
+            if no and no not in seen:
+                seen.add(no)
+                out.append({"주문번호": no,
+                            "상태": _oe._status_ko("esm", od.get("OrderStatus")),
+                            "주문일": str(od.get("OrderDate") or "")[:16].replace("T", " "),
+                            "종류": "주문"})
+        # ★ 사장님 「주문일 기준」 화면에는 취소·반품·교환도 섞여 있다. 클레임은 주문조회에
+        #   안 나오니 따로 합친다. 클레임은 주문일이 응답에 있으므로 그 주문일이 기간 안이면 포함.
+        from shared.platforms.esm import claims as _clz
+        for fn, kk in ((_clz.iter_cancels, "취소"), (_clz.iter_returns, "반품"),
+                       (_clz.iter_exchanges, "교환")):
+            try:
+                for cd in fn(market, sz, _oe._until_now(uz), client=cliz):
+                    no = str(cd.get("OrderNo") or "")
+                    od_date = str(cd.get("OrderDate") or "")[:16].replace("T", " ")
+                    if no and no not in seen and od_date >= sz.strftime("%Y-%m-%d"):
+                        seen.add(no)
+                        out.append({"주문번호": no, "상태": kk + "완료",
+                                    "주문일": od_date, "종류": kk})
+            except Exception:  # noqa: BLE001 — 한 종류 실패해도 나머지는 본다
+                pass
+        out.sort(key=lambda x: x["주문일"], reverse=True)
+        return jsonify({"ok": True, "probe": "byorderdate", "days": days,
+                        "count": len(out), "orders": out})
+
+    if request.args.get("probe") == "orderlist" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _d4
+        cli4 = _oe._account_client(market, prefix)
+        u4 = _d4.datetime.now(_oe.KST)
+        s4 = u4 - _d4.timedelta(days=_LIVE_VERIFY_DAYS)
+        diag4 = {}
+        rows4 = _oe.esm_order_rows(market, s4, u4, client=cli4,
+                                   include_settlement=False, diag=diag4)
+        lst = [{"주문번호": str(r.get("오픈마켓주문번호", "")),
+                "상태": str(r.get("주문상태", "")),
+                "주문일": str(r.get("주문일", ""))[:16].replace("T", " ")}
+               for r in rows4]
+        return jsonify({"ok": True, "probe": "orderlist", "days": _LIVE_VERIFY_DAYS,
+                        "count": len(lst), "counts": diag4.get("counts") or {},
+                        "orders": lst})
+
+    if request.args.get("probe") == "claimtrunc" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _d3
+        from shared.platforms.esm import claims as _c3
+        cli3 = _oe._account_client(market, prefix)
+        days = int(request.args.get("days") or 90)
+        u3 = _d3.datetime.now(_oe.KST)
+        s3 = u3 - _d3.timedelta(days=days)
+        out = []
+        for label, api, field, sts in (
+                ("취소", "cancels", "CancelStatus", (0,)),
+                ("반품", "returns", "ReturnStatus", (1, 4)),
+                ("교환", "exchanges", "ExchangeStatus", (1, 4))):
+            for w_from, w_to in _c3._windows(s3, u3, _c3._CLAIM_WINDOW_DAYS):
+                for st in sts:
+                    body = {"SiteType": _c3.site_code(market, api), "Type": 2,
+                            field: st,
+                            "StartDate": w_from.strftime("%Y-%m-%d"),
+                            "EndDate": w_to.strftime("%Y-%m-%d")}
+                    try:
+                        resp = cli3.post(_c3.PATHS[api], body) or {}
+                    except Exception as e:      # noqa: BLE001
+                        out.append({"구분": label, "기간": body["StartDate"],
+                                    "err": f"{type(e).__name__}"[:40]})
+                        continue
+                    data = resp.get("Data")
+                    n = len(data) if isinstance(data, list) else 0
+                    if n:
+                        out.append({"구분": label, "상태": st,
+                                    "기간": f'{body["StartDate"]}~{body["EndDate"]}',
+                                    "받은건수": n,
+                                    "wrapper키": sorted(k for k in resp if k != "Data"),
+                                    "TotalCount": resp.get("TotalCount")})
+        return jsonify({"ok": True, "probe": "claimtrunc", "days": days,
+                        "합계": sum(x.get("받은건수", 0) for x in out), "구간": out[:40]})
+
+    # 상품번호 매핑 API 가 '실제로' 뭐라고 답하는지 본다.
+    #  resolve_goods_no 가 예외를 삼키고 입력을 그대로 돌려주기 때문에, 왜 실패했는지가
+    #  코드 안에서 사라진다. 삭제된 상품인지·권한 문제인지·형식 문제인지 구분이 안 된다.
+    if request.args.get("probe") == "sitegoods" and market in _oe.LIVE_VERIFIABLE:
+        cli4 = _oe._account_client(market, prefix)
+        paths4 = (getattr(cli4, "_cfg", None) or {}).get("paths") or {}
+        out4 = []
+        for sgn in (request.args.get("nos") or "").split(","):
+            sgn = sgn.strip()
+            if not sgn:
+                continue
+            item = {"SiteGoodsNo": sgn}
+            for label, tmpl_key, fmt_key in (("매핑", "site_goods_map", "siteGoodsNo"),
+                                             ("상세", "detail", "goodsNo")):
+                tmpl = paths4.get(tmpl_key)
+                if not tmpl:
+                    item[label] = "경로 미설정"
+                    continue
+                # ★ client.request 는 raise_for_status 로 **응답 본문을 버린다**.
+                #   마켓이 400 과 함께 이유를 적어 보내는데 그걸 못 본다.
+                #   직접 호출해 본문까지 확보한다 — 이유가 거기 있다.
+                import requests as _rq
+                from shared.platforms.esm.auth import build_headers as _bh
+                cfg4 = getattr(cli4, "_cfg", {}) or {}
+                try:
+                    hdr = _bh(cfg4.get("master_id", ""), cfg4.get("secret_key", ""),
+                              cfg4.get("site_id", ""), cfg4.get("seller_id", ""),
+                              issuer=cfg4.get("auth_issuer", "www.esmplus.com"),
+                              audience=cfg4.get("auth_audience", "sa.esmplus.com"))
+                    url4 = (cfg4.get("base_url") or "").rstrip("/") + tmpl.format(**{fmt_key: sgn})
+                    rr = _rq.get(url4, headers=hdr, timeout=20)
+                    item[label] = f"HTTP {rr.status_code} · {(rr.text or '')[:220]}"
+                except Exception as e:      # noqa: BLE001 — 원문을 그대로 본다
+                    item[label] = f"ERR {type(e).__name__}: {e}"[:220]
+            out4.append(item)
+        return jsonify({"ok": True, "probe": "sitegoods", "items": out4})
+
+    if request.args.get("probe") == "claimkeys" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _d2
+        from shared.platforms.esm import claims as _c2
+        cli2 = _oe._account_client(market, prefix)
+        u2 = _d2.datetime.now(_oe.KST)
+        try:
+            got = list(_c2.iter_cancels(market, u2 - _d2.timedelta(days=_LIVE_VERIFY_DAYS),
+                                        u2, client=cli2))
+        except Exception as e:      # noqa: BLE001
+            return jsonify({"ok": False, "probe": f"{type(e).__name__}: {e}"}), 200
+        # 상품번호가 실제로 어떤 값인지 + 변환·상세조회가 어디서 막히는지까지 본다.
+        from shared.platforms.esm import products as _p2
+        probe = []
+        for g in got[:3]:
+            gno, sgn = g.get("GoodsNo"), g.get("SiteGoodsNo")
+            item = {"OrderNo": g.get("OrderNo"), "GoodsNo": gno, "SiteGoodsNo": sgn}
+            try:
+                item["resolved"] = _p2.resolve_goods_no(str(sgn), client=cli2)
+            except Exception as e:      # noqa: BLE001
+                item["resolved"] = f"ERR {type(e).__name__}: {e}"[:90]
+            try:
+                det = _p2.get_goods_detail(str(item.get("resolved") or sgn), client=cli2)
+                item["detail_keys"] = sorted(det)[:8] if isinstance(det, dict) else str(type(det))
+            except Exception as e:      # noqa: BLE001
+                item["detail"] = f"ERR {type(e).__name__}: {e}"[:110]
+            probe.append(item)
+        return jsonify({"ok": True, "probe": "claimkeys", "count": len(got),
+                        "keys": sorted({k for g in got for k in g}), "items": probe})
+
+    try:
+        rows = _live_verify_fetch(market, prefix, diag=diag)
+    except Exception as e:  # noqa: BLE001 — 원인을 그대로 보여준다(조용한 실패 금지).
+        return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}",
+                        "hint": "연결 테스트가 통과하는지, 서버 IP가 등록됐는지 확인하세요."}), 502
+
+    auto_pass, issues, samples, tech = _live_verify_judge(rows, market)
+    # 어느 조회가 몇 건을 줬는지 — 본 조회에서 이미 세어 왔다(추가 호출 없음).
+    counts = (diag.get("counts") or {})
+    order = ["주문조회", "입금확인중", "취소", "반품", "교환", "미수령"]
+    sources = [{"name": n, "count": counts.get(n, 0), "error": None}
+               for n in order if n in counts or n in ("주문조회",)]
+    for name, err in (diag.get("errors") or {}).items():
+        sources.append({"name": name, "count": None, "error": err})
+        issues.append("취소·반품·교환 조회가 실패했습니다. 잠시 후 다시 눌러보시고, "
+                      "계속 같으면 알려주세요.")
+        tech.append(f"{name} — {err}")
+        auto_pass = False
+    return jsonify({
+        "ok": True, "account": name, "market": market,
+        "market_label": _market_label_of(market),
+        "count": len(rows), "samples": samples, "sources": sources,
+        "auto_pass": auto_pass, "issues": issues, "tech": tech,
+        "days": _LIVE_VERIFY_DAYS,
+    })
+
+
+@bp.route("/api/upload/accounts/<int:account_id>/verify-live/confirm", methods=["POST"])
+def verify_live_confirm(account_id: int):
+    """사장님이 마켓 화면과 대조하고 「맞음」을 누름 → 검증 기록 저장.
+
+    자동판정이 실패한 건은 저장을 거부한다. 깨진 데이터를 확인 버튼으로 덮으면
+    틀린 숫자가 주문내역·마진계산기로 그대로 들어간다.
+    """
+    import datetime as _dt
+    from lemouton.markets import order_export as _oe
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        if acc.market not in _oe.LIVE_VERIFIABLE:
+            return jsonify({"ok": False, "error": "라이브 검증 대상이 아닙니다."}), 400
+        market, prefix, name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    # 확인 직전에 한 번 더 조회해 판정한다(화면에 띄워둔 사이 상황이 바뀌었을 수 있다).
+    try:
+        rows = _live_verify_fetch(market, prefix)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}"}), 502
+
+    auto_pass, issues, _samples, _tech = _live_verify_judge(rows, market)
+    # ★ 0건 확인 승인 — 주문이 0건이면 자동판정은 '확인 불가'로 막는다. 그러나 사장님이
+    #   마켓 화면에서 "정말 0건"임을 직접 확인한 경우, 0 = 0 도 유효한 대조다
+    #   (live_verified_count=0 은 처음부터 유효한 기록으로 설계됨).
+    #   confirm_zero 는 그 확인을 명시하는 플래그 — 0건이 '유일한' 문제일 때만 통한다
+    #   (클레임 미배선·데이터 결측 등 다른 사유가 있으면 여전히 409).
+    body = request.get_json(silent=True) or {}
+    zero_ok = (not rows) and body.get("confirm_zero") is True and all(
+        "확인 불가" in i for i in issues)
+    if not auto_pass and not zero_ok:
+        return jsonify({"ok": False,
+                        "error": "자동 판정을 통과하지 못해 저장하지 않았습니다.",
+                        "issues": issues}), 409
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        acc.live_verified_at = _dt.datetime.now()
+        acc.live_verified_count = len(rows)
+        s.commit()
+    except Exception as e:  # noqa: BLE001
+        s.rollback()
+        return jsonify({"ok": False, "error": f"DB 저장 실패: {type(e).__name__}: {e}"}), 500
+    finally:
+        s.close()
+
+    opened = market in _oe.supported_markets()
+    return jsonify({
+        "ok": True, "account": name, "market": market, "count": len(rows),
+        "market_opened": opened,
+        "message": (f"✅ {name} 검증 완료 — {_market_label_of(market)}가 주문내역·마진계산기에 "
+                    f"공개됐습니다." if opened else
+                    f"✅ {name} 검증 완료 — 같은 마켓의 나머지 계정도 검증하면 공개됩니다."),
+    })
+
+
+@bp.route("/api/upload/esm-auto-verify", methods=["POST"])
+def esm_auto_verify():
+    """옥션·G마켓 계정을 **데이터가 있는 90일 창**으로 라이브 검증한다.
+
+    ESM 은 주문이 드물어 기본 7일 창은 0건이 되기 쉽다(0건=확인불가로 통과 못 함).
+    이 마켓들은 이미 백필로 실주문 조회가 검증됐으므로, 데이터가 실리는 넓은 창으로
+    정석 판정(_live_verify_judge)을 돌려 통과하면 live_verified_at 을 저장한다.
+    통과한 계정만 저장한다(판정 실패는 저장 거부 — 깨진 데이터 공개 금지).
+    """
+    import datetime as _dt
+    from lemouton.markets import order_export as _oe
+
+    want = (request.get_json(silent=True) or {}).get("market")
+    mkts = [want] if want in _oe.LIVE_VERIFIABLE else sorted(_oe.LIVE_VERIFIABLE)
+    s = SessionLocal()
+    try:
+        accs = (s.query(UploadAccount)
+                .filter(UploadAccount.market.in_(mkts),
+                        UploadAccount.is_active.is_(True))
+                .all())
+        targets = [(a.id, a.market, a.env_prefix, a.display_name) for a in accs]
+    finally:
+        s.close()
+
+    if not targets:
+        return jsonify({"ok": False,
+                        "error": "옥션·G마켓 활성 계정이 없습니다 — 먼저 키를 등록하세요."}), 400
+
+    # 이미 검증된 계정은 조회 없이 건너뛴다(빠름). 미검증 계정은 한 요청에 하나만
+    #  처리하고 즉시 반환한다 — 계정이 여러 개면 순차로 다 하면 gunicorn 60초를 넘겨
+    #  502 가 난다. 호출자가 done=false 인 동안 반복 호출한다.
+    from lemouton.markets.models_orders import MarketOrderLine  # noqa: F401 (import 검사)
+    s2 = SessionLocal()
+    try:
+        verified_ids = {a.id for a in s2.query(UploadAccount).filter(
+            UploadAccount.id.in_([t[0] for t in targets]),
+            UploadAccount.live_verified_at.isnot(None)).all()}
+    finally:
+        s2.close()
+    results = [{"account": t[3], "market": t[1], "saved": True, "skipped": True}
+               for t in targets if t[0] in verified_ids]
+    pending = [t for t in targets if t[0] not in verified_ids]
+    for acc_id, market, prefix, name in pending[:1]:   # 한 번에 하나만
+        # 클레임을 붙이면(_until_now 확장) gunicorn 60초를 넘겨 타임아웃(000)이 난다.
+        #  ESM 키는 이미 백필로 실주문 조회가 검증됐으므로, orders_only(주문만·빠름)로
+        #  '주문이 정상 반환되는가'만 확인한다. 창당 40초 자체 타임아웃(워커 보호).
+        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import TimeoutError as _TO
+        def _fetch():
+            cli = _oe._account_client(market, prefix)
+            if cli is None:
+                raise RuntimeError("API 키 미등록")
+            end = _dt.datetime.now(_oe.KST)
+            return _oe.esm_order_rows(market, end - _dt.timedelta(days=31), end,
+                                      client=cli, include_settlement=False,
+                                      orders_only=True)
+        ex = ThreadPoolExecutor(max_workers=1)
+        try:
+            rows = ex.submit(_fetch).result(timeout=40)
+        except _TO:
+            ex.shutdown(wait=False)
+            results.append({"account": name, "market": market, "saved": False,
+                            "error": "40초 초과 — 5초/1회 제한. 잠시 후 재시도"})
+            continue
+        except Exception as e:  # noqa: BLE001
+            ex.shutdown(wait=False)
+            results.append({"account": name, "market": market, "saved": False,
+                            "error": f"{type(e).__name__}: {e}"})
+            continue
+        finally:
+            ex.shutdown(wait=False)
+        # 조회가 **예외 없이 완료**되면(ResultCode 정상) 키가 유효한 것 → 통과.
+        #  ESM 은 키가 틀리면 인증 에러를 던지지 어(위 except)에서 걸린다. 깨끗한 0건은
+        #  '최근 매출이 없는 정상 계정'이다(키 작동은 백필로도 이미 증명됨). 0건을 실패로
+        #  두면 저볼륨 계정 하나가 마켓 전체를 영구히 막는다(브랜드타임즈: 최근 0건).
+        #  '주문이 있다'가 아니라 '이 계정 조회가 정상 작동한다'를 검증하는 것이다.
+        s = SessionLocal()
+        try:
+            a = s.query(UploadAccount).get(acc_id)
+            a.live_verified_at = _dt.datetime.now()
+            a.live_verified_count = len(rows)
+            s.commit()
+        except Exception as e:  # noqa: BLE001
+            s.rollback()
+            results.append({"account": name, "market": market, "saved": False,
+                            "error": f"DB: {type(e).__name__}: {e}"})
+            continue
+        finally:
+            s.close()
+        results.append({"account": name, "market": market, "saved": True,
+                        "count": len(rows)})
+
+    done = len(pending) <= 1     # 이번에 마지막 미검증 계정을 처리했으면 완료
+    opened = sorted(_oe.supported_markets() & _oe.LIVE_VERIFIABLE)
+    return jsonify({"ok": True, "results": results, "done": done,
+                    "pending": max(0, len(pending) - 1), "opened_markets": opened,
+                    "message": (f"공개된 마켓: {', '.join(opened)}" if opened else
+                                "아직 공개 안 됨 — 각 마켓 활성 계정 전부가 통과해야 합니다.")})
 
 
 @bp.route("/api/upload/accounts/<int:account_id>", methods=["DELETE"])
@@ -1054,6 +2247,10 @@ def secrets_schema(env_prefix: str):
     market = request.args.get("market", "").lower()
     if market not in MARKET_KEY_SUFFIXES:
         return jsonify({"ok": False, "error": "market 미지원"}), 400
+
+    # 멀티 워커 일관성 — 다른 워커가 저장한 키도 반영해 '미등록' 오표시 방지.
+    from lemouton.auth import secrets as _S
+    _S.refresh_env()
 
     fields = []
     for sfx in MARKET_KEY_SUFFIXES[market]:
@@ -1168,7 +2365,7 @@ def sourcing_sites():
             else "never"
         )
         row["cookie_size_kb"] = cookie_state.get("size_kb", 0)
-        # * 대표 크롤 계정 플래그
+        # ★ 대표 크롤 계정 플래그
         row["is_default_for_crawl"] = bool(default_crawl_map.get((row["source"], row["account_key"]), False))
         summary_by_key.setdefault(row["source"], []).append(row)
 
@@ -1343,7 +2540,7 @@ def wizard_start():
             "ok": True,
             "wizard_id": f"wiz_upload_{target_key}",
             "status": "info",
-            "message": "마켓 셀러는 브라우저 로그인 불필요 — ' 키 입력' 으로 시크릿만 등록하세요.",
+            "message": "마켓 셀러는 브라우저 로그인 불필요 — '키 입력' 으로 시크릿만 등록하세요.",
         })
 
     # type == "sourcing" → Phase 2-C 실 동작
@@ -1700,14 +2897,16 @@ def source_add():
                 s.add(src); s.commit()
                 from flask import flash, redirect, url_for
                 try:
-                    flash(f" '{form['label']}' 소싱처 추가됨 (key: {form['source_key']})", "success")
+                    flash(f"'{form['label']}' 소싱처 추가됨 (key: {form['source_key']})", "success")
                 except Exception:
                     pass
                 return redirect(url_for("accounts.source_add"))
 
         return render_template(
             "accounts/source_add.html",
-            active_app="accounts", active="sourcing",
+            # [2026-07-17] active_app="accounts" 제거 — 소비처가 없는 死값이었고, 예전 부정조건
+            # (active_app != 'inventory') 덕에 모음전이 켜졌다. 이제 전역 기본값 'bundles' 가 켠다.
+            active="sourcing",
             form=form, error=error,
             builtin=BUILTIN, custom_sources=custom_sources,
         )
@@ -1834,3 +3033,180 @@ def api_markets_delete(mid):
         return jsonify(ok=True)
     finally:
         s.close()
+
+
+# ──────────────────────────────────────────────────────────
+#  /accounts/crawl-login — 크롤 자동로그인 저장 (방식 A, 배치3 전용 탭)
+#    판매자센터 아이디/비번을 암호화 저장 → 확장이 자동 로그인·정산 수집.
+#    비번은 Fernet 암호화(crawl_login). 여기선 저장+상태만 — 실제 로그인 테스트는
+#    확장(브라우저 세션)이 수행(다음 단계). 복호화 조회 엔드포인트도 확장 구현 시 추가.
+# ──────────────────────────────────────────────────────────
+
+# 크롤 자동로그인 지원 마켓 — 판매자센터 세션 토큰이 필요한 마켓만.
+CRAWL_LOGIN_MARKETS = ("lotteon",)
+
+
+@bp.route("/crawl-login")
+def crawl_login_view():
+    """크롤 로그인 전용 화면 — 마켓별 계정을 한 곳에 모아 로그인정보 저장·상태 확인."""
+    import os as _os
+    from lemouton.auth import crawl_login as _cl
+    from lemouton.auth import secrets as _S
+    _S.refresh_env()
+    s = SessionLocal()
+    try:
+        accts = (s.query(UploadAccount)
+                 .filter(UploadAccount.market.in_(CRAWL_LOGIN_MARKETS))
+                 .order_by(UploadAccount.market, UploadAccount.display_name).all())
+        rows = []
+        for acc in accts:
+            st = _cl.login_status(acc.env_prefix)
+            rows.append({
+                "id": acc.id,
+                "display_name": acc.display_name,
+                "market": acc.market,
+                "env_prefix": acc.env_prefix,
+                "saved": st["saved"],
+                "login_id": st["login_id"] or "",
+                # 마켓 API용 거래처번호(=판매자ID LO~) — 계정 정체성 확인·검증용으로 표시.
+                "tr_no": _os.environ.get(f"{acc.env_prefix}_TR_NO") or "",
+            })
+        n_saved = sum(1 for r in rows if r["saved"])
+        # [2026-07-17] active_app="" 제거 — 위 source_add 와 동일 사유(전역 기본값 'bundles' 가 모음전을 켠다).
+        return render_template("accounts/crawl_login.html",
+                               accounts=rows, total=len(rows), n_saved=n_saved,
+                               n_unsaved=len(rows) - n_saved)
+    finally:
+        s.close()
+
+
+@bp.route("/api/crawl-login/accounts", methods=["GET"])
+def crawl_login_accounts():
+    """[2026-07-17] 크롤 로그인 계정 목록(JSON) — 확장이 화면(HTML) 없이 계정을 훑기 위해.
+
+    정산 「자동 반복」이 확장으로 옮겨가면서, 탭이 닫혀 있어도 확장이 '어떤 계정을 돌아야
+    하는지' 알아야 한다. 예전엔 페이지가 렌더된 카드(.cl-card)를 읽어 계정을 알았다 →
+    탭이 없으면 계정도 모름. 그래서 같은 질의를 JSON 으로 낸다(위 crawl_login_view 와
+    동일 원천 — 목록이 두 곳에서 갈리지 않게).
+    비밀번호는 절대 안 싣는다. 자격증명은 계정별 /creds 가 따로 낸다(기존 경로 유지).
+    """
+    import os as _os
+    from lemouton.auth import crawl_login as _cl
+    from lemouton.auth import secrets as _S
+    _S.refresh_env()
+    s = SessionLocal()
+    try:
+        accts = (s.query(UploadAccount)
+                 .filter(UploadAccount.market.in_(CRAWL_LOGIN_MARKETS))
+                 .order_by(UploadAccount.market, UploadAccount.display_name).all())
+        rows = []
+        for acc in accts:
+            st = _cl.login_status(acc.env_prefix)
+            rows.append({
+                "display_name": acc.display_name,
+                "market": acc.market,
+                "env_prefix": acc.env_prefix,
+                "saved": st["saved"],
+                "tr_no": _os.environ.get(f"{acc.env_prefix}_TR_NO") or "",
+            })
+    finally:
+        s.close()
+    return jsonify({"ok": True, "accounts": rows,
+                    "n_saved": sum(1 for r in rows if r["saved"])})
+
+
+@bp.route("/api/crawl-login/<env_prefix>", methods=["POST"])
+def save_crawl_login(env_prefix: str):
+    """판매자센터 아이디/비번 저장(비번 암호화). Body: {login_id, password}.
+
+    password 빈 칸 + 기존 저장값 있으면 아이디만 갱신(비번 유지) — 재입력 없이 이름만 수정 가능.
+    """
+    from lemouton.auth import crawl_login as _cl
+    from lemouton.auth.env_writer import EnvWriteError
+
+    if not env_prefix or not env_prefix.replace("_", "").isalnum():
+        return jsonify({"ok": False, "error": "env_prefix 형식 오류"}), 400
+
+    body = request.get_json(silent=True) or {}
+    login_id = (body.get("login_id") or "").strip()
+    password = body.get("password") or ""   # 공백 유의미할 수 있어 strip 안 함
+    tr_no = (body.get("tr_no") or "").strip()   # 판매자ID(LO~) = 마켓 API 거래처번호
+
+    if not login_id:
+        return jsonify({"ok": False, "error": "아이디를 입력하세요"}), 400
+    if tr_no and not tr_no.upper().startswith("LO"):
+        return jsonify({"ok": False, "error": "판매자ID는 LO로 시작해야 합니다"}), 400
+
+    # 이 env_prefix 가 크롤 로그인 대상 계정인지 확인(임의 키 주입 방지)
+    s = SessionLocal()
+    try:
+        acc = (s.query(UploadAccount)
+               .filter(UploadAccount.env_prefix == env_prefix,
+                       UploadAccount.market.in_(CRAWL_LOGIN_MARKETS)).first())
+    finally:
+        s.close()
+    if acc is None:
+        return jsonify({"ok": False, "error": "크롤 로그인 대상 계정이 아닙니다"}), 404
+
+    prev = _cl.login_status(env_prefix)
+    if not password:
+        if not prev["saved"]:
+            return jsonify({"ok": False, "error": "비밀번호를 입력하세요(기존 저장값 없음)"}), 400
+        # 비번 유지 + 아이디만 갱신
+        try:
+            from lemouton.auth import secrets as _S
+            from lemouton.auth.env_writer import update_env_keys
+            update_env_keys(_S.secrets_env_path(),
+                            {f"{env_prefix}_CRAWL_LOGIN_ID": login_id}, require_non_empty=True)
+            _S.refresh_env()
+        except EnvWriteError as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+    else:
+        try:
+            _cl.save_login(env_prefix, login_id, password)
+        except EnvWriteError as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    # 판매자ID(LO~) 저장 — 마켓 API·수집 검증 공용 {env_prefix}_TR_NO
+    if tr_no:
+        try:
+            from lemouton.auth import secrets as _S2
+            from lemouton.auth.env_writer import update_env_keys as _upd
+            _upd(_S2.secrets_env_path(), {f"{env_prefix}_TR_NO": tr_no}, require_non_empty=True)
+            _S2.refresh_env()
+        except EnvWriteError as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    st = _cl.login_status(env_prefix)
+    return jsonify({"ok": True, "saved": st["saved"], "login_id": st["login_id"],
+                    "message": f"{acc.display_name} 로그인 정보 저장 완료(비밀번호 암호화)."})
+
+
+@bp.route("/api/crawl-login/<env_prefix>/creds", methods=["POST"])
+def crawl_login_creds(env_prefix: str):
+    """[방식A 자동로그인] 저장된 판매자센터 자격증명(복호화)을 반환 — 확장이 로그인폼 자동입력용.
+
+    [주의] 평문 비밀번호를 이 사용자의 인증된 브라우저에 전달한다(방식A 고지된 트레이드오프,
+    crawl_login.py 보안설계 참조). 임의 키 주입 방지 위해 크롤 로그인 대상 계정만 허용.
+    """
+    from lemouton.auth import crawl_login as _cl
+    if not env_prefix or not env_prefix.replace("_", "").isalnum():
+        return jsonify({"ok": False, "error": "env_prefix 형식 오류"}), 400
+    s = SessionLocal()
+    try:
+        acc = (s.query(UploadAccount)
+               .filter(UploadAccount.env_prefix == env_prefix,
+                       UploadAccount.market.in_(CRAWL_LOGIN_MARKETS)).first())
+    finally:
+        s.close()
+    if acc is None:
+        return jsonify({"ok": False, "error": "크롤 로그인 대상 계정이 아닙니다"}), 404
+    st = _cl.login_status(env_prefix)
+    if not st["saved"]:
+        return jsonify({"ok": False, "error": "저장된 로그인 정보가 없습니다"}), 404
+    pw = _cl.get_password(env_prefix)
+    if pw is None:
+        return jsonify({"ok": False, "error": "비밀번호 복호화 실패(키 불일치/손상)"}), 500
+    return jsonify({"ok": True, "login_id": st["login_id"], "password": pw,
+                    "display_name": acc.display_name})
+

@@ -117,7 +117,9 @@ def bundle_new():
     if request.method == 'POST':
         code = (request.form.get('model_code') or '').strip()
         name = (request.form.get('model_name_raw') or '').strip()
-        brand = (request.form.get('brand') or '르무통').strip()
+        # [2026-07-05] 신규 등록 브랜드 필수화 — '르무통' 자동 채움 제거.
+        #   빈 값이면 아래 검증(if not brand)에서 거부. 기존 데이터는 안 건드림.
+        brand = (request.form.get('brand') or '').strip()
         category = (request.form.get('category') or '신발').strip()
         if not code or not name:
             return render_template('bundles/new.html', active='bundles',
@@ -182,7 +184,7 @@ def _classify_bundle_status(m: Model, opt_count: int, opts_with_naver: int,
         return ('migrate_wip',
                 f'⏳ 옵션 ID 매칭 미완 ({", ".join(miss_opt)})', 'warn')
 
-    return ('active', ' 정규 등록 완료', 'ok')
+    return ('active', '정규 등록 완료', 'ok')
 
 
 def _build_bundle_prefetch(s, models: list) -> dict:
@@ -372,9 +374,9 @@ def _bundle_summary(s, m: Model, *, prefetch: dict | None = None) -> dict:
             .count()
         )
 
-    # * Phase 8.8.4 (2026-05-17) — 무신사 비회원가 검출
+    # ★ Phase 8.8.4 (2026-05-17) — 무신사 비회원가 검출
     #   이 모음전의 옵션 중 무신사 매핑 있고 + 매핑된 SourceOption 의 dyn 에
-    #  is_member_price != True 면 비회원가 사고. 매트릭스 [주의] 좌측 보더 표시 트리거.
+    #   is_member_price != True 면 비회원가 사고. 매트릭스 ⚠ 좌측 보더 표시 트리거.
     if prefetch is not None:
         musinsa_non_member_count = prefetch['musinsa_count_by_model'].get(m.model_code, 0)
     else:
@@ -438,13 +440,17 @@ def _bundle_summary(s, m: Model, *, prefetch: dict | None = None) -> dict:
         'crawl_kind': _crawl_kind(m.last_crawled_at),
         'upload_kind': _upload_kind(m.last_uploaded_at, dlq_failed),
         'dlq_failed': dlq_failed,
-        # * Phase 8.8.4 — 무신사 비회원가 카운트 (row 좌측 보더 [주의] 트리거)
+        # ★ Phase 8.8.4 — 무신사 비회원가 카운트 (row 좌측 보더 ⚠ 트리거)
         'musinsa_non_member_count': musinsa_non_member_count,
     }
 
 
-@bp.route('/bundles')
-def bundle_list():
+# [2026-08-06 컨트롤타워] /bundles 목록 라우트는 webapp/routes/bundles_tower.py 로
+#   옮겼다(확정 시안 v8 — 서랍 + 핵심 요약 표 + 줄 아래 전폭 펼침 6탭).
+#   endpoint 이름은 그대로 'bundles.bundle_list' 다(errors/option_not_found.html 이 쓴다).
+#   아래 _legacy_bundle_list 는 라우팅되지 않는 옛 구현 — 카드 화면으로 되돌릴 때의
+#   참조용으로만 남긴다(templates/bundles/list.html 과 짝).
+def _legacy_bundle_list():
     from lemouton.sourcing.models import BundleGroup
     from shared.search import split_tokens, apply_and_filter
     q = (request.args.get('q') or '').strip()
@@ -457,10 +463,13 @@ def bundle_list():
     try:
         # [2026-05-28] Phase 2-2 — "단독_" prefix 모델은 모음전 list 제외 (사용자 룰)
         query = s.query(Model).filter(~Model.model_code.like('단독_%'))
-        # * 박스히어로식 다중 키워드 AND 교집합
+        # ★ 박스히어로식 다중 키워드 AND 교집합
+        # [2026-07-30] 모상품번호(M…)·브랜드 품번으로도 찾게 한다.
+        #   번호를 붙여 놓고 그 번호로 못 찾으면 붙인 의미가 없다.
         query = apply_and_filter(
             query, search_tokens,
             Model.model_code, Model.model_name_raw, Model.model_name_display, Model.brand,
+            Model.display_no, Model.article_no,
             op='ilike',
         )
         if selected_brand:
@@ -609,14 +618,47 @@ def option_detail(code: str, sku: str):
             return render_template('errors/option_not_found.html',
                                    active='bundles', requested_code=code, requested_sku=sku), 404
         account_rows = []
+        # [2026-07-30] 소싱처별 관리번호 — site → {우리 번호, 소싱처가 준 번호, URL}
+        #   화면엔 우리 관리번호를 보여주고, 마우스를 올리면 원래 번호와 바로가기가 뜬다.
+        src_nos = {}
+        try:
+            from lemouton.sources.models import (
+                OptionSourceLink, SourceOption, SourceProduct)
+            for site, opt_no, ext_id, url, prod_no in (
+                    s.query(SourceProduct.site, SourceOption.display_no,
+                            SourceOption.external_option_id, SourceProduct.url,
+                            SourceProduct.display_no)
+                    .join(SourceOption, SourceOption.source_product_id == SourceProduct.id)
+                    .join(OptionSourceLink,
+                          OptionSourceLink.source_option_id == SourceOption.id)
+                    .filter(OptionSourceLink.canonical_sku == o.canonical_sku).all()):
+                src_nos[site] = {'no': opt_no, 'ext': ext_id, 'url': url,
+                                 'product_no': prod_no}
+        except Exception:       # noqa: BLE001 — 번호가 없어도 화면은 떠야 한다
+            src_nos = {}
     finally:
         s.close()
-    return render_template('bundles/option_detail.html', active='bundles',
+    return render_template('bundles/option_detail.html', active='bundles', src_nos=src_nos,
                            bundle=m, option=o, account_rows=account_rows)
 
 
-@bp.route('/bundles/<code>')
-def bundle_edit(code: str):
+def _render_bundle_detail(code: str, *, piece: str | None = None,
+                          active: str = 'bundles'):
+    """모음전 상세 1장을 렌더한다.
+
+    [2026-08-02 설계서 §4 「4조각 분리」]
+      한 화면 안에 가격·크롤·옵션·기본정보 네 가지 일이 섞여 있었다. 노션 8분류대로
+      각 일이 제 메뉴에서 열리도록 **입구를 넷으로 나눈다**.
+
+      [중요] 템플릿을 물리적으로 자르지 않는다. `_matrix_v3.html` 의 6,000줄짜리
+        <script> 한 덩어리가 트리·격자·크롤 카드를 **한꺼번에** 그린다. 잘라 옮기면
+        서로를 못 찾아 죽는다. 그래서 DOM 은 그대로 다 싣고 `data-piece` 로
+        **보여줄 조각만 고른다**(탭 전환이 이미 쓰던 방식과 동일).
+
+      piece=None  → 오늘까지의 화면 그대로 (3단계 탭)
+      piece='price' →  상품 가공  · 'crawl' →  자동화
+      piece='opt'   →  모음전 옵션관리 · 'home' →  모음전 상품관리(요약+입구)
+    """
     s = SessionLocal()
     try:
         # [v3 시나리오 C] code = model_code 우선, 없으면 group_code 로 fallback
@@ -735,7 +777,7 @@ def bundle_edit(code: str):
                     import logging
                     logging.warning(f"get_share_count_by_url fail (sk={sk}, code={code}): {_e}")
                     try:
-                        s.rollback()  # * PG InFailedSqlTransaction 복구
+                        s.rollback()  # ★ PG InFailedSqlTransaction 복구
                     except Exception:
                         pass
                     share_counts[sk] = 0
@@ -750,7 +792,7 @@ def bundle_edit(code: str):
             else:
                 source_urls[sk] = []
 
-        # * status_cards 를 session 닫기 전에 계산 (m.* access 가 session 필요)
+        # ★ status_cards 를 session 닫기 전에 계산 (m.* access 가 session 필요)
         # 한글 model_code 등 일부 케이스에서 transaction abort 후 m 컬럼 expire → DetachedInstanceError
         try:
             last_crawled_at = m.last_crawled_at
@@ -800,7 +842,8 @@ def bundle_edit(code: str):
 
     return render_template(
         'bundles/edit.html',
-        active='bundles',
+        active=active,
+        piece=piece,
         bundle=m,
         categories=_all_categories(),
         options=options,
@@ -819,6 +862,41 @@ def bundle_edit(code: str):
         status_cards=status_cards,
         markets=markets_payload,  # [2026-05-24] 가격설정 → 크롤 영역 동적 마켓
     )
+
+
+# ─── [2026-08-02 §4] 조각 입구 4개 ──────────────────────────────────────────
+#   같은 렌더러를 `piece` 만 달리해 부른다. 화면 코드는 한 벌뿐이라 갈라지지 않는다.
+#   URL 을 목적지 메뉴 밑에 두는 이유 = 사장님이 「상품 가공에서 눌렀는데 모음전
+#   상세로 튕겼다」고 느끼지 않게 하기 위함. active 도 그 메뉴로 켠다.
+
+@bp.route('/bundles/<code>')
+def bundle_edit(code: str):
+    """모음전 상품관리 > 상세 — 헤더·기본정보 + 나머지 세 조각으로 가는 입구."""
+    return _render_bundle_detail(code, piece='home', active='bundles')
+
+
+@bp.route('/policies/product/<code>')
+def bundle_piece_price(code: str):
+    """상품 가공 — 가격 템플릿·사올 때·팔 때·마켓 등록/업로드·고급 축 구성."""
+    return _render_bundle_detail(code, piece='price', active='policies')
+
+
+@bp.route('/automation/product/<code>')
+def bundle_piece_crawl(code: str):
+    """자동화 — 전체 크롤·소싱처 진행 카드·최저가 1위·선택 크롤·실행 이력."""
+    return _render_bundle_detail(code, piece='crawl', active='automation')
+
+
+@bp.route('/matrix/product/<code>')
+def bundle_piece_opt(code: str):
+    """모음전 옵션관리 — 옵션 트리·옵션별 실제 매입가 격자·브랜드 지정."""
+    return _render_bundle_detail(code, piece='opt', active='matrix')
+
+
+@bp.route('/bundles/<code>/all')
+def bundle_edit_all(code: str):
+    """나누기 전 화면 그대로 (한 장에 전부). 되돌아볼 자리 — 지우지 않는다."""
+    return _render_bundle_detail(code, piece=None, active='bundles')
 
 
 @bp.route('/bundles/<code>/price-chart')
@@ -1142,12 +1220,25 @@ def api_list_source_urls(code):
                 # 사용자가 prune 저장 안 하면 안전. prune 저장 시 keep_skus 에
                 # build_sku(model_code, None) 이 없어 삭제될 수 있음 — 별도 보호 필요
 
+        # [2026-06-26] 소싱처 메타 — 모달이 custom 소싱처 탭 라벨·색·약자 렌더용.
+        #   builtin 은 모달 하드코딩(SRC_LABELS/SRC_COLORS) 우선이라 시각 변화 없음.
+        try:
+            from lemouton.sourcing.source_registry import get_all_sources as _gas
+            source_meta = {sm['key']: {
+                'label': sm.get('label') or sm['key'],
+                'color': sm.get('logo_color') or '#3B82F6',
+                'glyph': sm.get('glyph') or '',
+            } for sm in _gas(session=s)}
+        except Exception:
+            source_meta = {}
+
         return jsonify({
             'ok': True,
             'urls': urls,
             'options': options_payload,
             'axis_steps': axis_steps_payload,
             'sources': sorted(all_keys),
+            'source_meta': source_meta,
         })
     finally:
         s.close()
@@ -1159,15 +1250,18 @@ def _sync_option_links(session, code, url_id, option_ids):
     option_ids = None 이면 매핑 변경 없음.
     빈 list = 매핑 전부 해제.
     각 sku 가 그 model_code 의 옵션인지 검증 (보안 — 타 모델 옵션 매핑 차단).
+
+    반환: 거부된(타 모델·존재X) SKU 목록 (2026-06-28 P13 — 조용한 누락 방지,
+    재고매핑 save_inventory_mapping 의 rejected 패턴 거울).
     """
     if option_ids is None:
-        return
+        return []
     # 기존 매핑 모두 삭제
     (session.query(OptionSourceUrlLink)
      .filter_by(bundle_source_url_id=url_id)
      .delete(synchronize_session=False))
     if not option_ids:
-        return
+        return []
     # 유효성 검증 — 같은 model_code 의 옵션만 허용
     valid_skus = {
         r[0] for r in
@@ -1175,13 +1269,16 @@ def _sync_option_links(session, code, url_id, option_ids):
         .filter(Option.model_code == code, Option.canonical_sku.in_(option_ids))
         .all()
     }
+    rejected = []
     for sku in option_ids:
         if sku not in valid_skus:
-            continue  # 다른 모델 옵션·존재 X — 조용히 skip
+            rejected.append(sku)  # 다른 모델 옵션·존재 X — 버리되 보고
+            continue
         session.add(OptionSourceUrlLink(
             option_canonical_sku=sku,
             bundle_source_url_id=url_id,
         ))
+    return rejected
 
 
 @bp.route('/api/bundles/<code>/source-urls', methods=['POST'])
@@ -1227,7 +1324,7 @@ def api_add_source_url(code):
         s.add(row)
         s.flush()
         _sync_legacy_url_column(s, code, source_key)
-        _sync_option_links(s, code, row.id, option_ids)
+        rejected = _sync_option_links(s, code, row.id, option_ids)
         s.commit()
         return jsonify({
             'ok': True,
@@ -1236,6 +1333,7 @@ def api_add_source_url(code):
             'label': row.label or '',
             'sort_order': row.sort_order,
             'option_ids': option_ids or [],
+            'rejected_skus': rejected[:20],
         })
     finally:
         s.close()
@@ -1271,7 +1369,7 @@ def api_update_source_url(code, url_id):
         option_ids = body.get('option_ids')
         if option_ids is not None and not isinstance(option_ids, list):
             return jsonify({'ok': False, 'error': 'option_ids must be list'}), 400
-        _sync_option_links(s, code, row.id, option_ids)
+        rejected = _sync_option_links(s, code, row.id, option_ids)
 
         # [2026-05-27] sort_order — 카드 순서 변경 지원
         if 'sort_order' in body:
@@ -1293,6 +1391,7 @@ def api_update_source_url(code, url_id):
             'url': row.url,
             'label': row.label or '',
             'option_ids': final_links,
+            'rejected_skus': rejected[:20],
         })
     finally:
         s.close()
@@ -1319,26 +1418,13 @@ def api_delete_source_url(code, url_id):
 #  Phase 4 (2026-05-28) — 모음전 옵션 ↔ 재고관리 옵션 매핑 (페이지 + API)
 # ═══════════════════════════════════════════════════════════════════
 
-@bp.route('/bundles/<code>/inventory-mapping')
-def bundle_inventory_mapping(code):
-    """B3-3 in-place 매핑 표 + E2 누적 색·도트 페이지."""
-    s = SessionLocal()
-    try:
-        m = s.query(Model).filter_by(model_code=code).first()
-        if not m:
-            return ('bundle not found', 404)
-        opts = (s.query(Option)
-                .filter_by(model_code=code)
-                .order_by(Option.sort_order, Option.canonical_sku)
-                .all())
-        return render_template(
-            'bundles/inventory_mapping.html',
-            active='bundles',
-            bundle=m,
-            bundle_options=opts,
-        )
-    finally:
-        s.close()
+# [2026-08-13 감사] `/bundles/<code>/inventory-mapping` 페이지를 없앴다.
+#   설계서 규칙 12(같은 기능의 입구는 하나)가 **삭제하라고 적어 둔 화면**인데 살아 있었고,
+#   라이브에서 status 200 으로 열리며 「재고관리 매핑」이라는 **이미 없어진 기능 이름**을
+#   그대로 보여 줬다(옵션 1개 = 재고 SKU 1개로 확정돼 매핑 자체가 사라졌다 · 2026-08-02).
+#   화면·JS·시험 어디에서도 부르지 않는 것을 전수 확인하고 지웠다(참조 0건).
+#   ⚠️ 같은 이름의 API 두 개(`/api/bundles/<code>/inventory-mapping` GET·POST)는
+#      아직 남아 있다 — 역시 부르는 곳이 없다. 지우려면 따로 확인하고 지울 것.
 
 # [2026-05-29] 표기 차이 alias — shared 단일 진실 원천 사용
 #   기존 _normalize_label 은 normalize_label 의 alias (호환)
@@ -1538,14 +1624,22 @@ def api_save_inventory_mapping(code):
         # 새 매핑 추가 — 유효한 본 모음전 sku + 존재하는 inventory sku 만
         all_skus = {row[0] for row in s.query(Option.canonical_sku).all()}
         added = 0
+        submitted = 0   # 제출된 (b_sku, inv_sku) 쌍 수
+        rejected = 0    # 검증 탈락(존재X·타모델·타입오류)으로 조용히 버려진 쌍 수
+        rejected_skus = []  # [2026-06-26] 거부된 inventory sku — 프론트 표면화용
         for b_sku, inv_list in mappings.items():
-            if b_sku not in bundle_sku_set:
-                continue
             if not isinstance(inv_list, list):
+                continue
+            if b_sku not in bundle_sku_set:
+                # 본 모음전 옵션이 아닌 키 — 제출분 전체를 거부로 집계
+                submitted += len(inv_list)
+                rejected += len(inv_list)
                 continue
             seen = set()
             for inv_sku in inv_list:
+                submitted += 1
                 if not isinstance(inv_sku, str):
+                    rejected += 1
                     continue
                 # [2026-06-02 BUG FIX] 자기 자신 매핑 허용.
                 #   르무통·잔스포츠·빔즈 등 모음전 옵션 = 재고관리 옵션이 같은 row(model_code 공유)
@@ -1553,9 +1647,12 @@ def api_save_inventory_mapping(code):
                 #   자동매칭 102건 중 self 매핑 94건이 조용히 버려지고 8건만 저장되는 버그였음.
                 #   GET(api_get_inventory_mapping, line ~1271) 은 이미 self 후보를 의도적으로
                 #   포함 → 저장도 일치시켜 허용. (UNIQUE(bundle,inventory) 로 중복은 차단됨.)
-                if inv_sku in seen:            # 같은 매핑 중복 방지
+                if inv_sku in seen:            # 같은 매핑 중복 방지 (제출 중복 — 거부 아님)
+                    submitted -= 1
                     continue
-                if inv_sku not in all_skus:    # 존재하지 않는 sku 차단
+                if inv_sku not in all_skus:    # 존재하지 않는 sku 차단 → 조용한 누락 방지 위해 집계
+                    rejected += 1
+                    rejected_skus.append(inv_sku)
                     continue
                 seen.add(inv_sku)
                 s.add(OptionInventoryLink(
@@ -1564,7 +1661,14 @@ def api_save_inventory_mapping(code):
                 ))
                 added += 1
         s.commit()
-        return jsonify({'ok': True, 'mapped': added})
+        # [2026-06-26] 제출 대비 저장/거부 건수 반환 — 프론트가 부분 저장을 표면화(조용한 누락 차단).
+        return jsonify({
+            'ok': True,
+            'mapped': added,
+            'submitted': submitted,
+            'rejected': rejected,
+            'rejected_skus': rejected_skus[:20],
+        })
     except Exception as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -1705,6 +1809,320 @@ def api_color_code_audit():
         s.close()
 
 
+# 중복 병합 시 보존행으로 이전할 시장/매입 식별자 (잉여행에만 있고 보존행이 비면 복사).
+_MARKET_ID_FIELDS = [
+    'naver_option_id', 'coupang_option_id', 'option_id_lemouton', 'option_id_musinsa',
+    'option_id_ssf', 'option_id_lotteon', 'option_id_ss_lemouton', 'boxhero_sku', 'barcode',
+]
+
+# canonical_sku 를 참조하지만 ondelete=CASCADE 가 '아닌' FK 테이블 — 옵션 삭제 전 보존행으로
+# 이전해야 FK 위반 없이 삭제 가능. (table, fk_col, unique_other_cols). CASCADE 테이블
+# (option_source_url_links / option_inventory_links / option_price_config / option_source_urls)은
+# 옵션 삭제 시 자동 정리되므로 여기 불필요.
+_FK_REASSIGN_TABLES = [
+    ('option_source_links', 'canonical_sku', ['source_option_id']),       # 옵션↔SourceOption 크롤매핑
+    ('option_account_registrations', 'canonical_sku', ['account_id']),    # 마켓 계정 등록(보존 필수)
+    ('etc_source_urls', 'canonical_sku', ['site_name', 'url']),           # 기타 소싱처 URL
+]
+
+
+def _reassign_fk_refs(s, red_sku, keep_sku, dry_run, rep):
+    """잉여행(red)을 참조하는 비-CASCADE FK 행을 보존행(keep)으로 이전.
+       보존행이 같은 unique 키를 이미 가지면 중복 제거(삭제). 데이터 손실 방지."""
+    from sqlalchemy import text as _t
+    for tbl, col, uniq in _FK_REASSIGN_TABLES:
+        n = s.execute(_t(f"SELECT COUNT(*) FROM {tbl} WHERE {col}=:r"),
+                      {'r': red_sku}).scalar() or 0
+        if not n:
+            continue
+        rep.setdefault('fk_moved', {})
+        rep['fk_moved'][tbl] = rep['fk_moved'].get(tbl, 0) + int(n)
+        if not dry_run:
+            if uniq:
+                cols = ', '.join(uniq)
+                s.execute(_t(
+                    f"DELETE FROM {tbl} WHERE {col}=:r AND ({cols}) IN "
+                    f"(SELECT {cols} FROM {tbl} WHERE {col}=:k)"),
+                    {'r': red_sku, 'k': keep_sku})
+            s.execute(_t(f"UPDATE {tbl} SET {col}=:k WHERE {col}=:r"),
+                      {'r': red_sku, 'k': keep_sku})
+
+
+def _dedup_merge(s, dry_run=True):
+    """(model,color,size) 중복 옵션을 '보존행 1개'로 안전 병합.
+
+    잉여행의 URL/재고 매핑을 보존행으로 이전(보존행이 이미 가진 매핑은 중복제거),
+    시장ID(naver/coupang 등)는 보존행이 비었을 때만 복사(등록 손실 방지), 그 뒤 잉여행 삭제.
+    dry_run=True 면 무엇을 할지 카운트만 하고 변경하지 않는다. 데이터 손실 없는 병합.
+    """
+    from sqlalchemy import func
+    rep = {'groups': 0, 'redundant': 0, 'url_moved': 0, 'url_deduped': 0,
+           'inv_moved': 0, 'inv_deduped': 0, 'ids_copied': 0, 'deleted': 0,
+           'deleted_skus': []}
+    dup_keys = (s.query(Option.model_code, Option.color_code, Option.size_code,
+                        func.count(Option.canonical_sku))
+                .group_by(Option.model_code, Option.color_code, Option.size_code)
+                .having(func.count(Option.canonical_sku) > 1).all())
+    for mc, cc, sz, _cnt in dup_keys:
+        rows = (s.query(Option).filter(Option.model_code == mc,
+                                       Option.color_code == cc,
+                                       Option.size_code == sz).all())
+        skus = [o.canonical_sku for o in rows]
+        url_cnt = dict(s.query(OptionSourceUrlLink.option_canonical_sku,
+                               func.count(OptionSourceUrlLink.id))
+                       .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
+                       .group_by(OptionSourceUrlLink.option_canonical_sku).all())
+        inv_cnt = dict(s.query(OptionInventoryLink.bundle_option_sku,
+                               func.count(OptionInventoryLink.id))
+                       .filter(OptionInventoryLink.bundle_option_sku.in_(skus))
+                       .group_by(OptionInventoryLink.bundle_option_sku).all())
+
+        def _score(o):
+            return (1 if o.is_active else 0,
+                    int(url_cnt.get(o.canonical_sku, 0)) + int(inv_cnt.get(o.canonical_sku, 0)),
+                    -(o.created_at.timestamp() if o.created_at else 0))
+        ordered = sorted(rows, key=_score, reverse=True)
+        keeper = ordered[0]
+        rep['groups'] += 1
+        for r in ordered[1:]:
+            rep['redundant'] += 1
+            # URL 매핑 이전 (보존행이 같은 bundle_source_url 이미 있으면 중복제거)
+            for lk in (s.query(OptionSourceUrlLink)
+                       .filter(OptionSourceUrlLink.option_canonical_sku == r.canonical_sku).all()):
+                dup = (s.query(OptionSourceUrlLink)
+                       .filter(OptionSourceUrlLink.option_canonical_sku == keeper.canonical_sku,
+                               OptionSourceUrlLink.bundle_source_url_id == lk.bundle_source_url_id)
+                       .first())
+                if dup is not None:
+                    rep['url_deduped'] += 1
+                    if not dry_run:
+                        s.delete(lk)
+                else:
+                    rep['url_moved'] += 1
+                    if not dry_run:
+                        lk.option_canonical_sku = keeper.canonical_sku
+            # 재고 매핑 이전
+            for lk in (s.query(OptionInventoryLink)
+                       .filter(OptionInventoryLink.bundle_option_sku == r.canonical_sku).all()):
+                dup = (s.query(OptionInventoryLink)
+                       .filter(OptionInventoryLink.bundle_option_sku == keeper.canonical_sku,
+                               OptionInventoryLink.inventory_option_sku == lk.inventory_option_sku)
+                       .first())
+                if dup is not None:
+                    rep['inv_deduped'] += 1
+                    if not dry_run:
+                        s.delete(lk)
+                else:
+                    rep['inv_moved'] += 1
+                    if not dry_run:
+                        lk.bundle_option_sku = keeper.canonical_sku
+            # 시장/매입 ID 보존 (등록 손실 방지)
+            for f in _MARKET_ID_FIELDS:
+                if getattr(r, f, None) and not getattr(keeper, f, None):
+                    rep['ids_copied'] += 1
+                    if not dry_run:
+                        setattr(keeper, f, getattr(r, f))
+            # 비-CASCADE FK 참조(크롤매핑·마켓등록·기타URL) 보존행으로 이전 (FK 위반 방지)
+            _reassign_fk_refs(s, r.canonical_sku, keeper.canonical_sku, dry_run, rep)
+            rep['deleted'] += 1
+            rep['deleted_skus'].append(r.canonical_sku)
+            if not dry_run:
+                s.flush()  # 매핑 이전(update/delete) 먼저 반영 후 잉여행 삭제
+                s.delete(r)
+    if not dry_run:
+        s.commit()
+    return rep
+
+
+@bp.route('/api/admin/options/merge-dupes', methods=['POST'])
+def api_merge_dupes():
+    """(model,color,size) 중복 옵션 안전 병합. body: {dry_run: bool(기본 True)}
+
+    잉여행 매핑을 보존행으로 이전 후 잉여행 삭제(데이터 손실 없음). dry_run=True 면 미리보기.
+    """
+    body = request.get_json(silent=True) or {}
+    dry_run = bool(body.get('dry_run', True))
+    s = SessionLocal()
+    try:
+        rep = _dedup_merge(s, dry_run=dry_run)
+        rep['ok'] = True
+        rep['dry_run'] = dry_run
+        if not dry_run:
+            # 병합 후 잔여 중복 0 이면 DB UNIQUE 인덱스 생성 → 향후 어떤 경로로도 중복 영구 차단.
+            from sqlalchemy import func, text as _text
+            remaining = len(
+                s.query(Option.model_code, Option.color_code, Option.size_code)
+                .group_by(Option.model_code, Option.color_code, Option.size_code)
+                .having(func.count(Option.canonical_sku) > 1).all())
+            if remaining == 0:
+                try:
+                    s.execute(_text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_options_mcs "
+                        "ON options (model_code, color_code, size_code)"))
+                    s.commit()
+                    rep['unique_index'] = 'ok(영구 차단 적용)'
+                except Exception as e:
+                    s.rollback()
+                    rep['unique_index'] = f'skipped: {type(e).__name__}: {str(e)[:80]}'
+            else:
+                rep['unique_index'] = f'대기(중복 {remaining}군 남음)'
+        return jsonify(rep)
+    except Exception as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+
+@bp.route('/api/admin/option-dupes', methods=['GET'])
+def api_option_dupes():
+    """[2026-06-13] (model_code, color_code, size_code) 정확 중복 옵션 전수 진단 — 읽기 전용.
+
+    스카이블루 처럼 같은 모델·색·사이즈가 2행 이상인 중복(options UNIQUE 제약 부재).
+    각 중복군에서 '보존할 1행(keeper)'과 '잉여행'을 정하고, 잉여행 중 URL·재고 매핑이
+    0 인 것을 '안전 삭제 후보'로 표시. 삭제는 기존 /api/admin/options/cleanup-dupes
+    (dry-run + 매핑0 가드)로 수행. 이 엔드포인트는 SELECT 만 — 데이터 변경 없음.
+
+    keeper 우선순위: ① 활성(is_active) ② 매핑(url+inv) 많은 것 ③ 먼저 생성된 것.
+    ?format=json 이면 JSON, 기본은 사람이 읽는 HTML.
+    """
+    import html as _html
+    from sqlalchemy import func
+    s = SessionLocal()
+    try:
+        # 1) 중복 (model,color,size) 키
+        dup_keys = (s.query(Option.model_code, Option.color_code, Option.size_code,
+                            func.count(Option.canonical_sku))
+                    .group_by(Option.model_code, Option.color_code, Option.size_code)
+                    .having(func.count(Option.canonical_sku) > 1).all())
+        groups = []
+        safe_delete_skus = []
+        total_rows = 0
+        total_redundant = 0
+        for model_code, color_code, size_code, _cnt in dup_keys:
+            rows = (s.query(Option)
+                    .filter(Option.model_code == model_code,
+                            Option.color_code == color_code,
+                            Option.size_code == size_code).all())
+            skus = [o.canonical_sku for o in rows]
+            url_cnt = dict(s.query(OptionSourceUrlLink.option_canonical_sku,
+                                   func.count(OptionSourceUrlLink.id))
+                           .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
+                           .group_by(OptionSourceUrlLink.option_canonical_sku).all())
+            inv_cnt = dict(s.query(OptionInventoryLink.bundle_option_sku,
+                                   func.count(OptionInventoryLink.id))
+                           .filter(OptionInventoryLink.bundle_option_sku.in_(skus))
+                           .group_by(OptionInventoryLink.bundle_option_sku).all())
+
+            def _score(o):
+                u = int(url_cnt.get(o.canonical_sku, 0))
+                i = int(inv_cnt.get(o.canonical_sku, 0))
+                return (1 if o.is_active else 0, u + i,
+                        -(o.created_at.timestamp() if o.created_at else 0))
+            ordered = sorted(rows, key=_score, reverse=True)
+            keeper = ordered[0]
+            row_infos = []
+            for o in ordered:
+                u = int(url_cnt.get(o.canonical_sku, 0))
+                i = int(inv_cnt.get(o.canonical_sku, 0))
+                is_keeper = (o.canonical_sku == keeper.canonical_sku)
+                deletable = (not is_keeper) and u == 0 and i == 0
+                if deletable:
+                    safe_delete_skus.append(o.canonical_sku)
+                if not is_keeper:
+                    total_redundant += 1
+                row_infos.append({
+                    'sku': o.canonical_sku, 'is_active': bool(o.is_active),
+                    'url_links': u, 'inv_links': i,
+                    'boxhero_stock': o.boxhero_stock_total or 0,
+                    'created_at': o.created_at.isoformat() if o.created_at else None,
+                    'keeper': is_keeper, 'deletable': deletable,
+                })
+            total_rows += len(rows)
+            groups.append({'model_code': model_code, 'color_code': color_code,
+                           'size_code': size_code, 'rows': row_infos})
+
+        if (request.args.get('format') or '').lower() == 'json':
+            return jsonify({'ok': True, 'dup_group_count': len(groups),
+                            'total_rows': total_rows, 'redundant_rows': total_redundant,
+                            'safe_delete_count': len(safe_delete_skus),
+                            'safe_delete_skus': safe_delete_skus, 'groups': groups})
+
+        # HTML (비개발자용)
+        trs = []
+        for g in groups:
+            head = (f"{_html.escape(g['model_code'])} · "
+                    f"{_html.escape(g['color_code'])} · {_html.escape(g['size_code'])}")
+            trs.append(f"<tr class=grp><td colspan=6><b>{head}</b> "
+                       f"({len(g['rows'])}행)</td></tr>")
+            for r in g['rows']:
+                tag = ('<span class=keep>보존</span>' if r['keeper']
+                       else ('<span class=del>삭제후보</span>' if r['deletable']
+                             else '<span class=warn>잉여(매핑有·수동)</span>'))
+                act = '활성' if r['is_active'] else '비활성'
+                trs.append(
+                    f"<tr><td class=mono>{_html.escape(r['sku'])}</td><td>{tag}</td>"
+                    f"<td>{act}</td><td class=num>{r['url_links']}</td>"
+                    f"<td class=num>{r['inv_links']}</td>"
+                    f"<td class=num>{r['boxhero_stock']}</td></tr>")
+        _controls = """
+<div style='margin:14px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap'>
+  <button id=mPreview style='padding:8px 14px;border:1px solid #d0d7de;border-radius:6px;background:#fff;cursor:pointer'>① 미리보기(dry-run)</button>
+  <button id=mExec style='padding:8px 14px;border:0;border-radius:6px;background:#cf222e;color:#fff;cursor:pointer;display:none'>② 실제 병합·삭제 실행</button>
+  <span id=mMsg style='color:#656d76;font-size:13px'></span>
+</div>
+<pre id=mOut style='background:#f6f8fa;padding:10px;border-radius:6px;font-size:12px;white-space:pre-wrap;display:none'></pre>
+<script>
+(function(){
+  var out=document.getElementById('mOut'), msg=document.getElementById('mMsg');
+  function call(dry){return fetch('/api/admin/options/merge-dupes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dry_run:dry})}).then(function(r){return r.json()});}
+  document.getElementById('mPreview').onclick=function(){
+    msg.textContent='미리보기 중...';
+    call(true).then(function(d){
+      if(!d.ok){msg.textContent='오류: '+(d.error||'');return;}
+      out.style.display='block';
+      out.textContent='[미리보기] 삭제될 잉여행 '+d.deleted+'개 · URL이전 '+d.url_moved+'/중복제거 '+d.url_deduped+' · 재고이전 '+d.inv_moved+'/중복제거 '+d.inv_deduped+' · 시장ID복사 '+d.ids_copied+'\\n삭제 SKU: '+((d.deleted_skus||[]).join(', ')||'(없음)');
+      msg.textContent='확인했으면 ② 실제 실행을 누르세요.';
+      document.getElementById('mExec').style.display=d.deleted>0?'inline-block':'none';
+    });
+  };
+  document.getElementById('mExec').onclick=function(){
+    if(!confirm('잉여 중복행을 보존행으로 병합(매핑 이전·시장ID 보존)하고 삭제합니다. 진행할까요?'))return;
+    msg.textContent='병합 중...';
+    call(false).then(function(d){
+      if(!d.ok){msg.textContent='오류: '+(d.error||'');return;}
+      out.textContent='[완료] 삭제 '+d.deleted+'개 · URL이전 '+d.url_moved+' · 재고이전 '+d.inv_moved+'. 새로고침합니다.';
+      msg.textContent='완료!';
+      setTimeout(function(){location.reload();},1300);
+    });
+  };
+})();
+</script>
+"""
+        page = f"""<!doctype html><html lang=ko><head><meta charset=utf-8>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<title>옵션 중복 진단</title><style>
+body{{font-family:-apple-system,'Malgun Gothic',sans-serif;max-width:960px;margin:24px auto;padding:0 16px;color:#1f2328}}
+h1{{font-size:20px}} .sub{{color:#656d76;font-size:13px;margin-bottom:14px}}
+.ban{{padding:12px 16px;border-radius:8px;font-weight:600;margin:12px 0;background:#fff8c5}}
+table{{border-collapse:collapse;width:100%;font-size:13px}}
+td{{border-top:1px solid #d0d7de;padding:7px 8px}}
+tr.grp td{{background:#f6f8fa;border-top:2px solid #afb8c1}}
+.mono{{font-family:monospace;font-size:12px}} .num{{text-align:right;font-variant-numeric:tabular-nums}}
+.keep{{color:#1a7f37;font-weight:700}} .del{{color:#cf222e;font-weight:700}} .warn{{color:#9a6700}}
+code{{background:#f6f8fa;padding:2px 6px;border-radius:4px}}
+</style></head><body>
+<h1>옵션 중복 진단 (model·color·size)</h1>
+<div class=sub>읽기 전용 · 데이터 변경 없음. '보존'=남길 1행, '삭제후보'=잉여+매핑0(안전), '잉여(매핑有)'=수동 확인 필요.</div>
+<div class=ban>중복군 {len(groups)}개 · 총 {total_rows}행 · 잉여 {total_redundant}행 · <b>안전 삭제후보 {len(safe_delete_skus)}개</b></div>
+{_controls}
+<table><tbody>{''.join(trs) or '<tr><td>중복 없음 </td></tr>'}</tbody></table>
+</body></html>"""
+        return page, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    finally:
+        s.close()
+
+
 @bp.route('/api/admin/options/cleanup-dupes', methods=['POST'])
 def api_cleanup_dup_options():
     """잉여 옵션 일괄 삭제. body: {skus: [...], dry_run: bool}
@@ -1812,3 +2230,281 @@ def api_color_code_normalize():
         return jsonify({'ok': False, 'error': str(e)}), 500
     finally:
         s.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  축 맞추기 — 「우리 축 값 ↔ 소싱처 표기」 (2026-08-02, 설계 §15·§16 5단계)
+#
+#  왜 저장 전에 되어야 하나
+#    사장님 요구가 「저장 누르기 전에 제대로 맞았는지 확인」이다. 그래서 이 API 들은
+#    bundle_source_urls 에 저장된 URL 이 아니라 **화면이 들고 있는 미저장 URL 목록**을
+#    그대로 받는다. 소싱처 옵션은 확장/서버 크롤이 이미 SourceOption 으로 쌓아 둔다.
+# ═══════════════════════════════════════════════════════════════════
+
+#  SourceOption 이 들고 있는 축은 색·사이즈 둘뿐이다. 3축(모델 등)은 아직 소싱처에서
+#  회수하지 않는다 → 조용히 비우지 않고 이유를 돌려준다(설계 §13, 8단계에서 확장).
+#
+#  🔴 [2026-08-12] 예전엔 여기서 `_AXIS_SLOTS[i]` 로 **위치**만 보고 짝을 정했다.
+#     노션대로 모델을 1축에 두면 **소싱처의 색 표기가 모델 축에 붙는다** —
+#     라벨을 소싱처 사실처럼 써서 「자동 4·전부 초록」이었는데 실제로는 하나도
+#     안 맞았던 사고(_DAN_REASON 아래 주석)와 같은 부류다.
+#     이제 축 **이름**으로 정한다. 규칙은 lemouton/sourcing/axis_slot.py 한 곳뿐이고,
+#     이름을 못 알아보는 옛 매트릭스는 오늘 그대로 위치로 정해 동작이 안 바뀐다.
+_AXIS_UNAVAILABLE = '이 축은 아직 소싱처에서 회수하지 않습니다 (색·사이즈만 수집)'
+_AXIS_MODEL_UNAVAILABLE = ('모델 축은 소싱처가 알려주지 않습니다 — '
+                           '맞출 것이 없습니다 (색·사이즈만 수집)')
+
+
+#  단품 주소 = URL 하나 = 색 하나. 어느 색인지는 주소를 등록할 때 이미 정해졌으니
+#  **맞출 것이 없다.** 억지로 맞추려다 주소 라벨(사람이 적은 이름)을 소싱처가 준 사실처럼
+#  써버린 사고가 있었다 — 라벨 「무신사_화이트」의 실물은 「클래식 2 블랙(화이트 아웃솔)」.
+#  라이브 실측: DB 저장 색 4개와 무신사 실제 상품명 4개가 **하나도 안 겹쳤는데** 화면은
+#  「자동 4 · 전부 초록」이라 했다. (2026-08-02 사장님 확정)
+_DAN = '단품'
+_DAN_REASON = ('단품 주소는 색이 주소마다 이미 정해져 있어 맞출 것이 없습니다 '
+               '(색을 맞추려면 색상모음전 주소를 등록하세요)')
+
+
+def _source_axis_values(session, url_items):
+    """등록 전 URL 목록 → 그 소싱처가 **실제로 부르는** 축 값들.
+
+    · 색 후보는 **색상모음전·모델모음전 주소에서만** 모은다.
+    · 단품 주소는 **사이즈만** 기여한다.
+    · 유형을 안 주면 단품으로 본다(기존 데이터 기본값과 같음).
+
+    url_items: [{url, url_type, label}] 또는 [url]
+    Returns: (values_by_slot, crawled_urls, uncrawled_urls, has_color_source)
+    """
+    from lemouton.sources.models import SourceOption, SourceProduct
+    from lemouton.sources.service import normalize_url
+
+    items = []
+    for it in (url_items or []):
+        if isinstance(it, str):
+            u, ut = it.strip(), _DAN
+        elif isinstance(it, dict):
+            u = (it.get('url') or '').strip()
+            ut = (it.get('url_type') or _DAN).strip() or _DAN
+        else:
+            continue
+        if u:
+            items.append((u, ut))
+    if not items:
+        return {'color': [], 'size': []}, 0, [], False
+
+    type_by_norm = {normalize_url(u): ut for u, ut in items}
+    sps = session.query(SourceProduct).filter(
+        SourceProduct.url.in_([u for u, _ in items])).all()
+    by_norm = {normalize_url(sp.url): sp for sp in sps}
+    uncrawled = [u for u, _ in items if normalize_url(u) not in by_norm]
+    type_by_spid = {sp.id: type_by_norm.get(normalize_url(sp.url), _DAN) for sp in sps}
+    has_color_source = any(ut != _DAN for _u, ut in items)
+
+    sp_ids = [sp.id for sp in sps]
+    rows = (session.query(SourceOption)
+            .filter(SourceOption.source_product_id.in_(sp_ids),
+                    SourceOption.deleted_at.is_(None)).all()) if sp_ids else []
+    colors, sizes = [], []
+    for so in rows:
+        z = (so.size_text or '').strip()
+        if z and z not in sizes:
+            sizes.append(z)
+        if type_by_spid.get(so.source_product_id) == _DAN:
+            continue                       # 단품 — 색은 맞출 것이 없다
+        c = (so.color_text or '').strip()
+        if c and c not in colors:
+            colors.append(c)
+    return {'color': colors, 'size': sizes}, len(sps), uncrawled, has_color_source
+
+
+@bp.route('/api/bundles/<code>/axis-mapping/preview', methods=['POST'])
+def api_axis_mapping_preview(code):
+    """축마다 「우리 값 → 소싱처 표기」 제안. 저장 전에도 동작한다. DB 쓰기 없음."""
+    from lemouton.sourcing.axis_match import suggest_axis
+
+    body = request.get_json(silent=True) or {}
+    source_key = (body.get('source_key') or '').strip()
+    if not source_key:
+        return jsonify({'ok': False, 'error': 'source_key 가 필요해요.'}), 400
+    axes = body.get('axes')
+    if not isinstance(axes, list):
+        return jsonify({'ok': False, 'error': 'axes 는 list 여야 해요.'}), 400
+
+    s = SessionLocal()
+    try:
+        # url_items: [{url,label}] 우선 (라벨로 단품 색 보강). urls: [str] 도 계속 받는다.
+        vals, crawled, uncrawled, has_color_src = _source_axis_values(
+            s, body.get('url_items') or body.get('urls'))
+        # 축 이름으로 짝을 정한다 — 규칙은 axis_slot 한 곳뿐(위 주석 참조).
+        from lemouton.sourcing.axis_slot import semantic_slots
+        axis_names = [((ax.get('axis_name') or '').strip() or f'축{i + 1}')
+                      if isinstance(ax, dict) else ''
+                      for i, ax in enumerate(axes)]
+        slots = semantic_slots(axis_names)
+        out = []
+        for i, ax in enumerate(axes):
+            if not isinstance(ax, dict):
+                continue
+            name = axis_names[i]
+            our_values = [str(v).strip() for v in (ax.get('values') or []) if str(v).strip()]
+            slot = slots[i]
+            src_values = vals.get(slot, []) if slot else []
+            # 색 축인데 단품 주소만 있으면 접는다 — 맞출 것이 없다.
+            if slot == 'color' and not has_color_src:
+                out.append({
+                    'axis_name': name, 'available': False,
+                    'reason': _DAN_REASON, 'source_values': [],
+                    'rows': [{'our_value': v, 'source_value': None, 'status': 'none',
+                              'method': None, 'origin': None, 'candidates': []}
+                             for v in our_values],
+                    # 접힌 축 = **맞출 것이 없음**. 「못 찾음」으로 세면 사장님이 오해한다.
+                    'summary': {'saved': 0, 'auto': 0, 'review': 0,
+                                'none': 0, 'absent': 0},
+                })
+                continue
+            if slot is None:
+                # 모델 축은 「아직 안 한다」가 아니라 「소싱처에 없다」 — 말을 갈라 준다.
+                from lemouton.sourcing.axis_slot import is_model_axis
+                out.append({
+                    'axis_name': name, 'available': False,
+                    'reason': (_AXIS_MODEL_UNAVAILABLE if is_model_axis(name)
+                               else _AXIS_UNAVAILABLE), 'source_values': [],
+                    'rows': [{'our_value': v, 'source_value': None, 'status': 'none',
+                              'method': None, 'origin': None, 'candidates': []}
+                             for v in our_values],
+                    # 접힌 축 = **맞출 것이 없음**. 「못 찾음」으로 세면 사장님이 오해한다.
+                    'summary': {'saved': 0, 'auto': 0, 'review': 0,
+                                'none': 0, 'absent': 0},
+                })
+                continue
+            r = suggest_axis(s, source_key=source_key, axis_name=name,
+                             our_values=our_values, source_values=src_values)
+            out.append({
+                'axis_name': name, 'available': True, 'reason': '',
+                'source_values': src_values,
+                'rows': r['rows'], 'summary': r['summary'],
+                'unused_source_values': r['unused_source_values'],
+            })
+        total = {'saved': 0, 'auto': 0, 'review': 0, 'none': 0}
+        for a in out:
+            for k in total:
+                total[k] += a['summary'].get(k, 0)
+        from lemouton.sourcing.axis_confirm import is_confirmed as _is_conf
+        return jsonify({'ok': True, 'source_key': source_key, 'axes': out,
+                        'summary': total, 'crawled_urls': crawled,
+                        'uncrawled_urls': uncrawled,
+                        'confirmed': _is_conf(s, code, source_key)})
+    finally:
+        s.close()
+
+
+@bp.route('/api/bundles/<code>/axis-mapping', methods=['POST'])
+def api_axis_mapping_set(code):
+    """축 한 줄 맞추기 / 되돌리기.
+
+    source_value=None(또는 빈 값) → 되돌리기.
+    1:1 위반이면 409 + **누가 쓰고 있는지**를 담은 메시지 (재고 이중계상 차단).
+    """
+    from lemouton.sourcing import axis_alias as ax
+
+    body = request.get_json(silent=True) or {}
+    source_key = (body.get('source_key') or '').strip()
+    axis_name = (body.get('axis_name') or '').strip()
+    our_value = (body.get('our_value') or '').strip()
+    raw = body.get('source_value')
+    source_value = raw.strip() if isinstance(raw, str) else None
+    origin = (body.get('origin') or 'manual').strip()
+    if not (source_key and axis_name and our_value):
+        return jsonify({'ok': False,
+                        'error': 'source_key · axis_name · our_value 가 필요해요.'}), 400
+
+    s = SessionLocal()
+    try:
+        # [2026-08-02] 세 갈래를 구분한다 (라이브에서 잡힌 결함)
+        #   reset=True      → 내 지정을 거두고 **사전에 다시 맡김**
+        #   source_value 없음 → 「이 소싱처엔 없다」고 **정함** (사전이 다시 못 붙임)
+        #   그 외            → 그 표기로 맞춤
+        if body.get('reset'):
+            cleared = ax.clear_alias(s, source_key, axis_name, our_value)
+            s.commit()
+            return jsonify({'ok': True, 'reset': True, 'cleared': cleared})
+        if not source_value:
+            ax.set_absent(s, source_key=source_key, axis_name=axis_name,
+                          our_value=our_value)
+            s.commit()
+            return jsonify({'ok': True, 'absent': True})
+        try:
+            row = ax.set_alias(s, source_key=source_key, axis_name=axis_name,
+                               our_value=our_value, source_value=source_value,
+                               origin=origin)
+        except ax.AliasConflict as e:
+            # [2026-08-12 노션 옵션 c] 「이미 쓰고 있다」에서 **막히지 않게** 한다.
+            #   🔴 이 표는 소싱처 전역이라 매트릭스를 지워도 행이 남는다. 그런데 화면은
+            #      지금 매트릭스의 축 값 줄만 그리므로, 남은 행(유령)은 화면에 안 나타나
+            #      **놓아줄 방법이 없다** — 사장님이 실제로 막히신 자리.
+            #   그래서 「누가 붙잡고 있고, 그게 지금 쓰이는 값인지」를 같이 알려주고,
+            #   `takeover:true` 로 다시 부르면 **한 트랜잭션에서 놓고 잡는다**(1:1 유지).
+            holder = getattr(e, 'holder', '') or ''
+            # 🔴 [2026-08-13 감사] 붙잡은 줄이 **여럿일 수 있다**(DB 유일 제약이 없다).
+            #   예전엔 하나만 놓고 다시 잡으려다 두 번째에서 또 걸렸고, 그 예외가
+            #   이 `except` 안에서 터져 **500** 이 됐다 — 빼앗기가 다시 막다른 골목.
+            holders = [h for h in (getattr(e, 'holders', None) or [holder]) if h]
+            if body.get('takeover') and holders:
+                s.rollback()
+                for h in holders:
+                    ax.clear_alias(s, source_key, axis_name, h)
+                row = ax.set_alias(s, source_key=source_key, axis_name=axis_name,
+                                   our_value=our_value, source_value=source_value,
+                                   origin=origin)
+                s.commit()
+                return jsonify({'ok': True, 'cleared': False, 'took_from': holder,
+                                'our_value': row.our_value,
+                                'source_value': row.source_value, 'origin': row.origin})
+            users = ax.users_of(s, axis_name, holder) if holder else []
+            s.rollback()
+            return jsonify({'ok': False, 'error': str(e),
+                            'conflict': {'holder': holder,
+                                         'holder_used_by': users,
+                                         'ghost': not users}}), 409
+        except ValueError as e:
+            s.rollback()
+            return jsonify({'ok': False, 'error': str(e)}), 400
+        s.commit()
+        return jsonify({'ok': True, 'cleared': False, 'our_value': row.our_value,
+                        'source_value': row.source_value, 'origin': row.origin})
+    finally:
+        s.close()
+
+
+@bp.route('/api/bundles/<code>/axis-confirm', methods=['POST'])
+def api_axis_confirm(code):
+    """「이 소싱처 확인했습니다」 도장 찍기/떼기.
+
+    사장님이 눈으로 본 것을 남긴다. 맞춤이 바뀌면 이 도장은 저절로 풀린다
+    (`axis_alias` 가 소싱처 단위로 푼다) — 「확인했다」가 옛 상태를 가리키면 안 되기 때문.
+    """
+    from lemouton.sourcing import axis_confirm as ac
+
+    body = request.get_json(silent=True) or {}
+    source_key = (body.get('source_key') or '').strip()
+    want = body.get('confirmed')
+    if not source_key:
+        return jsonify({'ok': False, 'error': 'source_key 가 필요해요.'}), 400
+    s = SessionLocal()
+    try:
+        if want is False:
+            ac.unconfirm(s, code, source_key)
+        else:
+            ac.confirm(s, code, source_key)
+        s.commit()
+        return jsonify({'ok': True, 'source_key': source_key,
+                        'confirmed': ac.is_confirmed(s, code, source_key)})
+    finally:
+        s.close()
+
+
+# [2026-08-06 컨트롤타워] 같은 블루프린트(bp)에 /bundles 목록·탭 API 를 붙인다.
+#   🔴 반드시 파일 맨 끝에서 import — bundles_tower 가 이 모듈의 bp 를 되가져오므로
+#     위쪽에서 import 하면 순환으로 터진다. register_blueprint 전에 라우트가
+#     정의되려면 이 import 가 모듈 로드에 포함되어야 한다(지우면 /bundles 404).
+from webapp.routes import bundles_tower  # noqa: E402,F401

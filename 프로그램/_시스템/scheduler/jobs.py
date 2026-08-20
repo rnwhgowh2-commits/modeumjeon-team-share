@@ -7,10 +7,34 @@ Coupang 어댑터 wiring은 이미 [A]~[D]에서 완료되어 있고, 여기선 
 from __future__ import annotations
 
 import logging
+import json
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# 미리보기(이번 사이클 '나갈 값' 집계) 저장 경로 — /automation 화면이 읽는다.
+_PREVIEW_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'upload_preview.json')
+
+
+def _save_upload_preview(preview: dict) -> None:
+    """마켓별 나갈 값 집계 + 저장 시각을 JSON 으로 저장(원자적 교체)."""
+    payload = {"at": datetime.now(timezone.utc).isoformat(), "markets": preview or {}}
+    os.makedirs(os.path.dirname(_PREVIEW_PATH), exist_ok=True)
+    tmp = _PREVIEW_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    os.replace(tmp, _PREVIEW_PATH)
+
+
+def load_upload_preview() -> dict:
+    """저장된 미리보기 집계. 없으면 빈 결과."""
+    try:
+        with open(_PREVIEW_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:   # noqa: BLE001 — 파일 없음/손상 = 빈 미리보기
+        return {"at": None, "markets": {}}
 
 
 def full_cycle(*, dry_run: bool = False) -> dict:
@@ -32,6 +56,28 @@ def full_cycle(*, dry_run: bool = False) -> dict:
         'dry_run': dry_run,
         'phases': {},
     }
+
+    # [2026-07-30] 표시번호 — 지난 사이클 이후 새로 생긴 행에 번호를 붙인다(멱등).
+    #   이미 번호가 있는 행은 건드리지 않으므로 매 사이클 돌아도 안전하고 거의 공짜다.
+    #   소급 부여(수천 건)는 여기서 하지 않는다 — /api/admin/display-no/backfill 로 끊어 돌린다.
+    if not dry_run:
+        try:
+            from lemouton.matrix.service import ensure_all_origins
+            from lemouton.sourcing.display_no_assign import assign_missing
+            from shared.db import SessionLocal as _SL
+            _s = _SL()
+            try:
+                ensure_all_origins(_s, limit=500)   # 새 모델에 원본 매트릭스 보장
+                _n = assign_missing(_s, limit=500)
+                _s.commit()
+                if any(v for k, v in _n.items() if k != 'skipped'):
+                    logger.info('[display-no] 새 행에 번호 부여 %s', _n)
+                result['phases']['display_no'] = _n
+            finally:
+                _s.close()
+        except Exception:       # noqa: BLE001 — 번호 부여가 실패해도 크롤은 돌아야 한다
+            logger.exception('[display-no] 번호 부여 건너뜀')
+
     # Phase A: sourcing — fetch_unique_sources 로 source_products/options 갱신
     # + run_pipeline 으로 옵션-소스 매핑 aggregate (선택)
     a_output: dict = {}
@@ -108,9 +154,14 @@ def full_cycle(*, dry_run: bool = False) -> dict:
             # decide_ss/cp 는 각 옵션 dict 안에 canonical_sku 키를 기대 → enrich.
             a_enriched = {sku: {**(opt or {}), 'canonical_sku': sku}
                           for sku, opt in a_output.items()}
+            # [2026-08-02] 수수료율을 **손으로 적어 두고 있었다**(스스 0.06 · 쿠팡 0.1155).
+            #   그래서 정책 화면에서 아무리 고쳐도 이 파이프라인만 옛 요율로 계산했다
+            #   — 같은 상품에 두 가격이 나는 자리였다. 이제 단일 원천에 물어본다.
+            #   🔴 여기 숫자를 다시 적지 말 것. 고칠 곳은 화면(마켓별 수수료 기준) 하나다.
+            from lemouton.pricing.unified import default_fee_rate
             settings = {
-                'ss_fee_rate': 0.06,
-                'coupang_fee_rate': 0.1155,
+                'ss_fee_rate': default_fee_rate('smartstore'),
+                'coupang_fee_rate': default_fee_rate('coupang'),
                 'delivery_fee': 3000,
                 'rounding_unit': 100,
             }
@@ -143,38 +194,54 @@ def full_cycle(*, dry_run: bool = False) -> dict:
 
     # Phase D: uploader — Phase C 페이로드 + 어댑터 (없으면 dry-run skip)
     try:
-        if not c_output or not (c_output.get('smartstore') or c_output.get('coupang')):
-            # 변동 없음 → uploader 호출할 데이터 없음
+        from lemouton.uploader.orchestrator import has_uploadable_payload
+        if not has_uploadable_payload(c_output):
+            # 어떤 마켓에도 전송 대상 페이로드 없음 → uploader 호출 불필요
             result['phases']['D_uploader'] = {'ok': True, 'detail': 'skipped — no payload'}
         else:
             from shared.db import SessionLocal as _SL2
             from lemouton.uploader.orchestrator import run_uploader
-            from lemouton.uploader.adapters.base import MarketAdapter, UploadResult
-            class _DryRunAdapter(MarketAdapter):
-                def __init__(self, mkt): self.market_name = mkt
-                def update_price_and_stock(self, *, canonical_sku, market_product_id,
-                                           market_option_id, new_price, new_stock):
-                    return UploadResult(market=self.market_name,
-                                        canonical_sku=canonical_sku,
-                                        success=True, http_status=200,
-                                        error='dry-run (외부 호출 없음)')
+            from lemouton.uploader.runtime import (
+                select_adapters, build_sku_by_option, real_upload_armed,
+            )
+            from lemouton.uploader.throttle import build_market_pacer
             s = _SL2()
             try:
-                # 운영 어댑터 미설치 시 항상 dry-run 어댑터 사용 — 외부 호출 없이 시뮬레이션
-                ss_ad = _DryRunAdapter('smartstore')
-                cp_ad = _DryRunAdapter('coupang')
-                # canonical_sku → 마켓 sku 매핑 (옵션 단위) — 미매핑 시 빈 dict
-                sku_by_option = {sku: {} for sku in (a_output or {})}
+                # 실전송 = 두 겹 잠금(real_upload_armed): 서버 열쇠 MOUM_LIVE_UPLOAD +
+                #   화면 열쇠 autosend_mode=='real'. 둘 다 켜져야 실제 어댑터, 아니면 드라이런.
+                _live = real_upload_armed(s)
+                adapters = select_adapters(live=_live)   # {market: adapter} 레지스트리
+                # (market, 마켓옵션ID) → canonical_sku (matched 채널옵션만)
+                sku_by_option = build_sku_by_option(s)
+                # 업로드 속도 정본 = 계정(API) 단위. 마켓별 '1개당 최소 초 간격'을
+                # 계정 정책에서 파생해 전송 사이에 강제(dry-run·live 공통). 계정 미설정
+                # 이면 간격 0 → 무대기.
+                pacer = build_market_pacer(s)
                 import os
                 dlq_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'uploader_dlq.jsonl')
+                # 변동 종류 토글(소싱처 가격/재고) 을 실제 전송 결정에 반영.
+                from lemouton.pricing.settings import get_automation
+                automation = get_automation(s)
+                # persist=live: 실제 전송했을 때만 기준선 커밋(#12). dry-run 은 커밋 안 함
+                #   → 현행 동작 보존 + 미전송분이 '전송됨' 기준선으로 오염되지 않음.
                 r = run_uploader(s, c_output,
                                  sku_by_option=sku_by_option,
-                                 ss_adapter=ss_ad, cp_adapter=cp_ad,
+                                 adapters=adapters,
                                  dlq_path=dlq_path,
-                                 force=False)
+                                 force=False, persist=_live, pacer=pacer,
+                                 automation=automation)
+                # 미리보기 결과(이번 사이클에 '나갈 값') 를 저장 → /automation 화면이 읽어 표시.
+                try:
+                    _save_upload_preview(r.get('preview') or {})
+                except Exception:   # noqa: BLE001 — 미리보기 저장 실패는 사이클과 무관
+                    pass
+                _mode = 'live' if _live else 'dryrun'
                 result['phases']['D_uploader'] = {
                     'ok': True,
-                    'detail': f"actionable {len(r.get('actionable', []))} / skipped {r.get('skipped', 0)}"
+                    'detail': (f"mode={_mode} · uploaded {r.get('uploaded', 0)} / "
+                               f"skipped {r.get('skipped', 0)} / filtered {r.get('filtered_out', 0)} / "
+                               f"failed {r.get('failed', 0)}"
+                               + (f" / HELD({r.get('hold_reason')})" if r.get('held') else "")),
                 }
             finally:
                 s.close()

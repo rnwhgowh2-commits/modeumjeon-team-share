@@ -17,10 +17,47 @@
   <span class="brand-app-logo {{ market_key }} {{ size }}" aria-hidden="true">{{ glyph }}</span>
 {% endmacro %}
 
-<header class="page-header">
-  <h1>판매처 계정</h1>
-  <p class="subtitle">스마트스토어 / 쿠팡 등 마켓 셀러 계정 — 시크릿은 <code>.env</code> 단일 출처</p>
+<header class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+  <div>
+    <h1>판매처 계정</h1>
+    <p class="subtitle">스마트스토어 / 쿠팡 등 마켓 셀러 계정</p>
+  </div>
+  {# ━━━━━━━━━━ 판매처 매뉴얼 진입 (레이아웃2 · 제목줄 우측 · 흰 카드 통일) ━━━━━━━━━━ #}
+  <div class="mkg-cards" style="display:flex;gap:10px;flex-shrink:0;">
+    <a href="/accounts/crawl-login" class="mkg-card"
+      style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;text-decoration:none;">
+      <span style="font-size:16px;"><i class="ph-light ph-lock-key" aria-hidden="true"></i></span> 크롤 로그인
+    </a>
+    <button type="button" class="mkg-card" data-guide-modal="/marketplace-guide/add?bare=1"
+      style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
+      <span style="font-size:16px;">➕</span> 판매처 추가·업데이트
+    </button>
+    <button type="button" class="mkg-card" data-guide-modal="/marketplace-guide/map?bare=1"
+      style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
+      <span style="font-size:16px;"><i class="ph-light ph-book-open" aria-hidden="true"></i></span> 데이터 코드 지도
+    </button>
+  </div>
 </header>
+
+{# ━━━━━━━━━━ 우리 서버 IP — 마켓 「출발지 IP 등록」칸에 붙여넣을 값 (팀 공유) ━━━━━━━━━━ #}
+<section class="server-ip-card" style="background:#fff;border:1px solid #E5E8EB;border-radius:14px;margin:0 0 18px;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:9px;padding:13px 18px;border-bottom:1px solid #F2F4F6;">
+    <span style="font-size:17px;"><i class="ph-light ph-monitor" aria-hidden="true"></i>️</span>
+    <b style="font-size:14.5px;color:#191F28;">우리 서버 IP</b>
+    <span style="margin-left:auto;color:#6B7684;font-size:12px;">마켓 「출발지 IP 등록」칸에 붙여넣을 값</span>
+  </div>
+  <div id="server-ip-list" style="padding:2px 10px;">
+    <div style="padding:16px 8px;color:#6B7684;font-size:13px;">불러오는 중…</div>
+  </div>
+  <div style="display:flex;gap:8px;padding:11px 14px;background:#F9FAFB;border-top:1px solid #F2F4F6;">
+    <input id="sip-name" placeholder="서버 이름 (예: 업로드 서버)"
+      style="flex:1.1;border:1px solid #E5E8EB;border-radius:8px;padding:8px 11px;font-size:12.5px;">
+    <input id="sip-ip" placeholder="IP 주소" onkeydown="if(event.key==='Enter')sipAdd()"
+      style="flex:1.4;border:1px solid #E5E8EB;border-radius:8px;padding:8px 11px;font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">
+    <button type="button" onclick="sipAdd()"
+      style="border:1px solid #3182F6;background:#3182F6;color:#fff;border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;">+ 추가</button>
+  </div>
+</section>
 
 {# ━━━━━━━━━━ V1 사이드바 + 우측 테이블 레이아웃 ━━━━━━━━━━ #}
 <section class="up-shell">
@@ -68,9 +105,9 @@
     {% else %}
     <table class="up-table" role="table">
       <colgroup>
-        <col class="col-market"    style="width:120px">
+        <col class="col-market"    style="width:220px">
         <col class="col-name"      style="width:auto">
-        <col class="col-status"    style="width:180px">
+        <col class="col-status"    style="width:240px">
         <col class="col-action"    style="width:200px">
       </colgroup>
       <thead>
@@ -100,9 +137,8 @@
                       title="계정명·메모 수정" aria-label="수정"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></button>
             </div>
             {% if acc.note %}
-              <small class="text-muted"><i class="ph-light ph-note-pencil" aria-hidden="true"></i> {{ acc.note }}</small><br>
+              <small class="text-muted"><i class="ph-light ph-note-pencil" aria-hidden="true"></i> {{ acc.note }}</small>
             {% endif %}
-            <small class="text-muted" title="env_prefix: {{ acc.env_prefix }}&#10;account_key: {{ acc.account_key }}" style="cursor:help">ⓘ 식별자</small>
           </td>
           <td>
             <div class="status-stack">
@@ -115,6 +151,8 @@
                   <span class="status-icon err"><i class="ph-light ph-x" aria-hidden="true"></i></span> 미지원
                 {% endif %}
               </div>
+              {# 키 지문 — 같은 지문 = 같은 셀러 키. 중복이면 빨갛게(키 값은 표시하지 않음). #}
+              <div class="status-line fp-line" data-acc-id="{{ acc.id }}" data-market="{{ acc.market }}"></div>
               {% if acc.login_state == 'logged_in' %}
               <div class="status-line" title="영구 인증 쿠키 (NID_AUT 등) 발견 — 자동 로그인 가능">
                 <span class="status-icon ok"><i class="ph-light ph-check" aria-hidden="true"></i></span> 영구 로그인 ({{ acc.login_age_days }}일 경과)
@@ -147,6 +185,17 @@
                 </div>
                 {% endif %}
               {% endif %}
+              {% if acc.live_verifiable %}
+                {% if acc.live_verified %}
+                <div class="status-line" title="{{ acc.live_verified_at }} 에 실주문 {{ acc.live_verified_count }}건으로 대조 완료">
+                  <span class="status-icon ok">✓</span> 라이브 검증됨 ({{ acc.live_verified_at }})
+                </div>
+                {% else %}
+                <div class="status-line muted" title="검증 전에는 이 마켓 주문이 주문내역·마진계산기에 나오지 않습니다.">
+                  <span class="status-icon muted">○</span> 라이브 검증 안 됨 — 주문내역 미공개
+                </div>
+                {% endif %}
+              {% endif %}
               {% if not acc.is_active %}
               <div class="status-line muted">
                 <span class="status-icon muted">○</span> 비활성
@@ -163,6 +212,13 @@
               <button class="btn btn-sm btn-test"
                       onclick="testApiConnection({{ acc.id }}, '{{ acc.display_name|e }}')"
                       title="API 연결 테스트"><i class="ph-light ph-plug" aria-hidden="true"></i> 연결</button>
+              {% endif %}
+              {% if acc.live_verifiable and acc.cred_state == 'ok' %}
+              <button class="btn btn-sm {{ 'btn-test' if acc.live_verified else 'btn-primary' }}"
+                      onclick="openLiveVerify({{ acc.id }}, '{{ acc.display_name|e }}')"
+                      title="{% if acc.live_verified %}{{ acc.live_verified_at }} 검증됨 — 다시 검증하려면 클릭{% else %}실제 주문을 불러와 마켓 화면과 대조합니다. 통과해야 주문내역·마진계산기에 공개됩니다.{% endif %}">
+                {{ '✓ 검증됨' if acc.live_verified else '🧪 라이브 검증' }}
+              </button>
               {% endif %}
               {% if acc.market in ('smartstore', 'coupang') %}
               {% if acc.login_state in ('logged_in', 'stale') %}
@@ -182,6 +238,21 @@
           </td>
         </tr>
         {% endfor %}
+        <tr class="up-addrow">
+          <td colspan="4" style="background:#f7faff;">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 2px">
+              <span style="font-size:13px;font-weight:700;color:#1d4ed8;white-space:nowrap">+ 빠른 추가</span>
+              <input id="qa-alias" type="text" placeholder="별칭 (예: 브랜드샵2)" autocomplete="off"
+                     style="flex:1;min-width:150px;padding:7px 10px;border:1px solid #d1d6db;border-radius:7px;font-size:13px">
+              <select id="qa-market" style="padding:7px 10px;border:1px solid #d1d6db;border-radius:7px;font-size:13px">
+                <option value="">마켓 선택…</option>
+                {% for m in market_nav %}{% if m.ready %}<option value="{{ m.key }}">{{ m.label }}</option>{% endif %}{% endfor %}
+              </select>
+              <button class="btn btn-sm btn-primary" onclick="quickAddAccount()">추가</button>
+              <small class="text-muted" style="white-space:nowrap">키는 추가 후 <i class="ph-light ph-key" aria-hidden="true"></i> 키로 등록</small>
+            </div>
+          </td>
+        </tr>
       </tbody>
     </table>
     <p class="up-empty-result" id="up-empty-result" style="display:none">선택한 마켓에 등록된 계정이 없습니다.</p>
@@ -194,16 +265,16 @@
   .up-shell {
     display: grid;
     grid-template-columns: 240px 1fr;
-    background: white;
+    background: var(--surface,#FFFFFF);
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    border: 1px solid var(--n200, #E5E8EB);
+    border: 1px solid var(--n200, var(--line,#E5E8EB));
     min-height: 540px;
   }
   .up-side {
-    background: var(--n50, #F9FAFB);
-    border-right: 1px solid var(--n200, #E5E8EB);
+    background: var(--n50, var(--bg,#F9FAFB));
+    border-right: 1px solid var(--n200, var(--line,#E5E8EB));
     padding: 14px 10px;
     display: flex;
     flex-direction: column;
@@ -211,7 +282,7 @@
   .up-side-title {
     font-size: 14px;
     font-weight: 700;
-    color: var(--n600, #6B7684);
+    color: var(--n600, var(--글자-보조,#6B7684));
     letter-spacing: 0.06em;
     text-transform: uppercase;
     padding: 4px 10px;
@@ -228,21 +299,21 @@
     transition: all 0.12s;
     user-select: none;
   }
-  .up-mitem:hover { background: white; }
+  .up-mitem:hover { background: var(--surface,#FFFFFF); }
   .up-mitem.active {
-    background: white;
-    box-shadow: 0 0 0 1.5px var(--brand, #3182F6);
+    background: var(--surface,#FFFFFF);
+    box-shadow: 0 0 0 1.5px var(--brand, var(--primary,#3182F6));
   }
   .up-mitem.active .up-mname { font-weight: 700; }
   .up-mitem .up-mname {
     flex: 1;
     font-size: 13.5px;
     font-weight: 600;
-    color: var(--n900, #191F28);
+    color: var(--n900, var(--ink,#191F28));
   }
   .up-mitem .up-mcount {
     background: var(--n100, #F2F4F6);
-    color: var(--n600, #6B7684);
+    color: var(--n600, var(--글자-보조,#6B7684));
     font-size: 14px;
     font-weight: 700;
     padding: 1px 8px;
@@ -251,7 +322,7 @@
     text-align: center;
   }
   .up-mitem.active .up-mcount {
-    background: var(--brand, #3182F6);
+    background: var(--brand, var(--primary,#3182F6));
     color: white;
   }
   .up-mitem.disabled {
@@ -261,15 +332,15 @@
   .up-mitem.disabled .up-mname { font-weight: 400; }
   .up-side-foot {
     padding: 10px 4px 4px;
-    border-top: 1px solid var(--n200, #E5E8EB);
+    border-top: 1px solid var(--n200, var(--line,#E5E8EB));
     margin-top: 10px;
   }
   .up-add-market {
     width: 100%;
     padding: 10px;
-    background: white;
-    border: 1.5px dashed var(--n200, #E5E8EB);
-    color: var(--n600, #6B7684);
+    background: var(--surface,#FFFFFF);
+    border: 1.5px dashed var(--n200, var(--line,#E5E8EB));
+    color: var(--n600, var(--글자-보조,#6B7684));
     border-radius: 8px;
     font-weight: 600;
     font-size: 13px;
@@ -277,8 +348,8 @@
     font-family: inherit;
   }
   .up-add-market:hover {
-    border-color: var(--brand, #3182F6);
-    color: var(--brand, #3182F6);
+    border-color: var(--brand, var(--primary,#3182F6));
+    color: var(--brand, var(--primary,#3182F6));
     background: rgba(49,130,246,0.05);
   }
 
@@ -287,7 +358,7 @@
     display: flex; align-items: center; gap: 12px;
     margin-bottom: 14px;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--n200, #E5E8EB);
+    border-bottom: 1px solid var(--n200, var(--line,#E5E8EB));
   }
   .up-main-head h2 {
     font-size: 19px;
@@ -296,15 +367,15 @@
   }
   .up-main-count {
     font-size: 13px;
-    color: var(--n600, #6B7684);
-    background: var(--n50, #F9FAFB);
+    color: var(--n600, var(--글자-보조,#6B7684));
+    background: var(--n50, var(--bg,#F9FAFB));
     padding: 2px 10px;
     border-radius: 100px;
     font-weight: 600;
   }
   .up-search {
     padding: 8px 12px;
-    border: 1px solid var(--n200, #E5E8EB);
+    border: 1px solid var(--n200, var(--line,#E5E8EB));
     border-radius: 6px;
     font-size: 13px;
     width: 240px;
@@ -312,7 +383,7 @@
   }
   .up-search:focus {
     outline: none;
-    border-color: var(--brand, #3182F6);
+    border-color: var(--brand, var(--primary,#3182F6));
     box-shadow: 0 0 0 3px rgba(49,130,246,0.12);
   }
   /* 테이블 — 고정 레이아웃 + 가로 스크롤 */
@@ -326,17 +397,17 @@
     text-align: left;
     font-size: 14px;
     font-weight: 700;
-    color: var(--n600, #6B7684);
+    color: var(--n600, var(--글자-보조,#6B7684));
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--n200, #E5E8EB);
+    padding:8px 12px;
+    border-bottom: 1px solid var(--n200, var(--line,#E5E8EB));
     position: relative;
     user-select: none;
   }
   .up-table td {
-    padding: 14px 12px;
-    border-bottom: 1px solid var(--n200, #E5E8EB);
+    padding:12px 12px;
+    border-bottom: 1px solid var(--n200, var(--line,#E5E8EB));
     vertical-align: middle;
     overflow: hidden;
     text-overflow: ellipsis;  /* 너무 좁아질 때 ... 표시 */
@@ -355,13 +426,13 @@
     white-space: nowrap;
   }
   .up-table tr:last-child td { border-bottom: none; }
-  .up-table tr:hover { background: var(--n50, #F9FAFB); }
+  .up-table tr:hover { background: var(--n50, var(--bg,#F9FAFB)); }
   .up-table tr.row-inactive { opacity: 0.55; }
   .up-table tr.row-inactive td { font-style: italic; }
   .up-mname-cell {
     font-size: 14px;
     font-weight: 700;
-    color: var(--n900, #191F28);
+    color: var(--n900, var(--ink,#191F28));
   }
   /* 칼럼 리사이즈 핸들 — 헤더 우측 4px 영역 드래그 */
   .col-resize {
@@ -385,11 +456,11 @@
     left: 50%;
     width: 1px;
     height: 40%;
-    background: var(--n300, #D1D6DB);
+    background: var(--n300, var(--faint,#D1D6DB));
   }
   .up-empty-result {
     text-align: center;
-    color: var(--n500, #B0B8C1);
+    color: var(--n500, var(--faint,#B0B8C1));
     padding: 40px;
     font-size: 13px;
     font-style: italic;
@@ -397,12 +468,12 @@
   /* 상태 인디케이터 */
   .status-stack { display: flex; flex-direction: column; gap: 2px; }
   .status-line { font-size: 13px; display: flex; align-items: center; gap: 5px; }
-  .status-line.muted { color: var(--n500, #B0B8C1); font-size: 14px; }
+  .status-line.muted { color: var(--n500, var(--faint,#B0B8C1)); font-size: 14px; }
   .status-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; font-size: 14px; font-weight: 700; line-height: 1; }
-  .status-icon.ok { background: #ECFDF5; color: #065F46; }
-  .status-icon.warn { background: #FEF3C7; color: #92400E; }
-  .status-icon.err { background: #FEE2E2; color: #991B1B; }
-  .status-icon.muted { background: var(--n100, #F2F4F6); color: var(--n500, #B0B8C1); }
+  .status-icon.ok { background: var(--연한-초록,#ECFDF5); color: var(--글자-초록, var(--green,#065F46)); }
+  .status-icon.warn { background: #FEF3C7; color: var(--글자-주황, var(--amber,#92400E)); }
+  .status-icon.err { background: var(--연한-빨강,#FEE2E2); color: var(--글자-빨강, var(--red,#991B1B)); }
+  .status-icon.muted { background: var(--n100, #F2F4F6); color: var(--n500, var(--faint,#B0B8C1)); }
 
   /* 계정명 옆 인라인 [수정] */
   .name-with-edit { display: inline-flex; align-items: center; gap: 6px; }
@@ -425,18 +496,42 @@
   /* 액션 버튼 */
   .action-row { display: flex; gap: 4px; }
   .btn-sm { padding: 6px 10px; font-size: 14px; }
-  .btn-test { background: #ECFDF5; color: #059669; border-color: #D1FAE5; }
-  .btn-test:hover { background: #D1FAE5; }
+  .btn-test { background: var(--연한-초록,#ECFDF5); color: var(--글자-초록, var(--green,#059669)); border-color: var(--연한-초록,#D1FAE5); }
+  .btn-test:hover { background: var(--연한-초록,#D1FAE5); }
   .btn-trash {
     background: var(--n100, #F2F4F6);
-    color: var(--n600, #6B7684);
-    border-color: var(--n200, #E5E8EB);
+    color: var(--n600, var(--글자-보조,#6B7684));
+    border-color: var(--n200, var(--line,#E5E8EB));
   }
   .btn-trash:hover {
-    background: #FEE2E2;
-    color: #DC2626;
-    border-color: #FCA5A5;
+    background: var(--연한-빨강,#FEE2E2);
+    color: var(--글자-빨강, var(--red,#DC2626));
+    border-color: var(--연한-빨강,#FCA5A5);
   }
+
+  /* ── 소싱처 크롤링 가이드 스케일에 완전 일치 — 제목 34·표 24·헤더 21·여백 넉넉(소싱처 실측 기준) ── */
+  .page-header h1 { font-size: 40px; font-weight: 600; letter-spacing: 0; }  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+  .page-header .subtitle { font-size: 17px; }  /* [2026-08-06 확정 5안] 전 탭 공통 17 */
+  .mkg-card { font-size: 18px !important; padding: 14px 20px !important; border-radius: 13px !important; }
+  .mkg-card > span:first-child { font-size: 22px !important; }
+  .up-side { padding: 20px 12px; }
+  .up-side-title { font-size: 17px; }
+  .up-mitem { padding: 14px 16px; }
+  .up-mitem .up-mname { font-size: 22px; }
+  .up-mitem .up-mcount { font-size: 19px; min-width: 28px; }
+  .up-add-market { font-size: 18px; padding: 15px; }
+  .up-main { padding: 30px 34px; }
+  .up-main-head { margin-bottom: 22px; padding-bottom: 20px; }
+  .up-main-head h2 { font-size: 28px; }
+  .up-main-count { font-size: 18px; }
+  .up-main-head .btn { font-size: 18px; padding: 12px 18px; }
+  .up-search { font-size: 18px; width: 320px; padding: 13px 16px; }
+  .up-table th { font-size: 21px; padding:16px 16px; }
+  .up-table td { font-size: 24px; padding:24px 16px; }   /* 소싱처 td 24px 일치 */
+  .up-mname-cell { font-size: 22px; }   /* 마켓명 — 220px 칼럼에 '스마트스토어' 안 잘리게 */
+  .status-line { font-size: 19px !important; }
+  .status-line.muted { font-size: 19px !important; }
+  .btn-sm { font-size: 18px !important; padding: 11px 16px !important; }
 </style>
 
 <div id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -517,11 +612,73 @@
   </div>
 </div>
 
+{# ━━━ 라이브 검증 결과 모달 ━━━ #}
+<div id="lv-modal-bg" class="modal-bg" style="display:none"
+     onclick="if(event.target===this)closeLiveVerify()">
+  <div class="modal lv-modal" role="dialog" aria-modal="true" aria-labelledby="lv-title">
+    <header class="v2-form-head">
+      <div class="v2-icon-lg"><i class="ph-light ph-flask" aria-hidden="true"></i></div>
+      <div><h3 id="lv-title">라이브 검증</h3>
+        <p class="v2-sub">실제 주문을 불러와 마켓 화면과 대조합니다. 통과해야 공개됩니다.</p></div>
+      <button class="v2-close" aria-label="닫기" onclick="closeLiveVerify()">✕</button>
+    </header>
+    <div class="v2-form-body" id="lv-body"></div>
+    <footer class="v2-form-foot">
+      <button class="btn" onclick="closeLiveVerify()">닫기</button>
+      <button class="btn btn-primary btn-large" id="lv-confirm"
+              style="display:none" onclick="submitLiveVerify()">맞습니다 — 공개하기</button>
+    </footer>
+  </div>
+</div>
+
 <style>
+/* ━━━ 라이브 검증 모달 ━━━ */
+.lv-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: 920px;
+  width: calc(100% - 40px);
+  max-height: 88vh;
+  padding: 0;
+  overflow: hidden;
+}
+.lv-modal .v2-form-body { display: block; }
+
+/* ★ 표는 모달 폭 안에 들어와야 한다. 가로로 밀어야 사유가 보이면 아무도 안 본다
+   (2026-07-20 사장님 화면에서 「사유」 칸이 잘려 나갔다).
+   긴 칸(상품명·사유)만 줄바꿈시키고 짧은 칸은 붙여 둔다. */
+.lv-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.lv-table th, .lv-table td {
+  padding:8px 8px;
+  border-bottom: 1px solid var(--n200, var(--line,#E5E8EB));
+  text-align: left;
+  vertical-align: top;
+}
+.lv-table th { background: var(--n50, var(--bg,#F9FAFB)); font-weight: 600; color: var(--n600, var(--글자-보조,#6B7684)); }
+.lv-table td { font-variant-numeric: tabular-nums; }
+.lv-table .c-no    { width: 15%; white-space: nowrap; }
+.lv-table .c-date  { width: 14%; white-space: nowrap; }
+.lv-table .c-name  { width: 27%; word-break: break-word; }
+.lv-table .c-price { width: 10%; white-space: nowrap; text-align: right; }
+.lv-table .c-qty   { width:  6%; white-space: nowrap; text-align: right; }
+.lv-table .c-st    { width: 11%; white-space: nowrap; }
+.lv-table .c-why   { width: 17%; word-break: break-word; }
+.lv-none { color: var(--글자-희미, var(--n400, var(--faint,#B0B8C1))); }
+
 /* ━━━ V2 좌우분할 모달 전용 스타일 ━━━ */
 .v2-modal {
   display: grid;
   grid-template-columns: 280px 1fr;
+  /* ★ minmax(0,1fr) 필수 — auto 행은 내용 높이(마켓 8개 사이드바 ≈873px)까지 늘어나
+     max-height:88vh + overflow:hidden 에 잘린다. 실제로 저장 버튼(.v2-form-foot)이
+     모달 밖으로 밀려 계정 등록 자체가 불가능했다(2026-07-20 옥션 키 등록 중 발견). */
+  grid-template-rows: minmax(0, 1fr);
   max-width: 960px;
   width: calc(100% - 40px);
   max-height: 88vh;
@@ -529,17 +686,18 @@
   overflow: hidden;
 }
 .v2-sidebar {
-  background: var(--n50, #F9FAFB);
-  border-right: 1px solid var(--n200, #E5E8EB);
+  background: var(--n50, var(--bg,#F9FAFB));
+  border-right: 1px solid var(--n200, var(--line,#E5E8EB));
   padding: 22px 14px;
   overflow-y: auto;
+  min-height: 0;   /* 그리드 아이템 기본 min-height:auto 해제 → 실제로 스크롤됨 */
   display: flex;
   flex-direction: column;
 }
 .v2-side-title {
   font-size: 14px;
   font-weight: 700;
-  color: var(--n600, #6B7684);
+  color: var(--n600, var(--글자-보조,#6B7684));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   margin: 0 8px 12px;
@@ -554,10 +712,10 @@
   transition: all 0.12s;
   background: transparent;
 }
-.v2-market-item:hover { background: white; }
+.v2-market-item:hover { background: var(--surface,#FFFFFF); }
 .v2-market-item.selected {
-  background: white;
-  border-color: var(--brand, #3182F6);
+  background: var(--surface,#FFFFFF);
+  border-color: var(--brand, var(--primary,#3182F6));
   box-shadow: 0 2px 8px rgba(49,130,246,0.1);
 }
 .v2-market-item.disabled { opacity: 0.5; cursor: not-allowed; }
@@ -565,33 +723,33 @@
 .v2-market-item .v2-mi-icon { font-size: 22px; flex-shrink: 0; }
 .v2-market-item .v2-mi-meta { flex: 1; min-width: 0; }
 .v2-market-item .v2-mi-name { font-size: 14px; font-weight: 600; }
-.v2-market-item .v2-mi-desc { font-size: 14px; color: var(--n500, #B0B8C1); margin-top: 2px; }
+.v2-market-item .v2-mi-desc { font-size: 14px; color: var(--n500, var(--faint,#B0B8C1)); margin-top: 2px; }
 .v2-market-item .v2-mi-badge {
-  background: var(--n400, #B0B8C1);
+  background: var(--n400, var(--faint,#B0B8C1));
   color: white;
   font-size: 12px;
   padding: 1px 6px;
   border-radius: 3px;
 }
-.v2-market-item .v2-mi-check { color: var(--brand, #3182F6); font-weight: 700; }
+.v2-market-item .v2-mi-check { color: var(--brand, var(--primary,#3182F6)); font-weight: 700; }
 .v2-side-foot {
   font-size: 14px;
-  color: var(--n500, #B0B8C1);
+  color: var(--n500, var(--faint,#B0B8C1));
   padding: 10px 8px 0;
   margin-top: 12px;
-  border-top: 1px solid var(--n200, #E5E8EB);
+  border-top: 1px solid var(--n200, var(--line,#E5E8EB));
 }
 
-.v2-form { display: flex; flex-direction: column; min-width: 0; }
+.v2-form { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .v2-form-head {
   padding: 22px 28px 18px;
-  border-bottom: 1px solid var(--n200, #E5E8EB);
+  border-bottom: 1px solid var(--n200, var(--line,#E5E8EB));
   display: flex;
   align-items: center;
   gap: 14px;
 }
 .v2-form-head h3 { font-size: 18px; font-weight: 700; margin: 0; }
-.v2-form-head .v2-sub { font-size: 13px; color: var(--n600, #6B7684); margin-top: 3px; }
+.v2-form-head .v2-sub { font-size: 13px; color: var(--n600, var(--글자-보조,#6B7684)); margin-top: 3px; }
 .v2-icon-lg {
   width: 44px; height: 44px;
   border-radius: 10px;
@@ -605,12 +763,12 @@
   background: transparent;
   border: none;
   font-size: 18px;
-  color: var(--n500, #B0B8C1);
+  color: var(--n500, var(--faint,#B0B8C1));
   cursor: pointer;
   padding: 6px 10px;
   border-radius: 6px;
 }
-.v2-close:hover { background: var(--n100, #F2F4F6); color: var(--n900, #191F28); }
+.v2-close:hover { background: var(--n100, #F2F4F6); color: var(--n900, var(--ink,#191F28)); }
 .v2-form-body {
   padding: 22px 28px;
   flex: 1;
@@ -621,21 +779,21 @@
   display: block;
   font-size: 14px;
   font-weight: 700;
-  color: var(--n600, #6B7684);
+  color: var(--n600, var(--글자-보조,#6B7684));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   margin-bottom: 10px;
 }
 .v2-help-box {
-  background: #FFF8E5;
-  border: 1px solid #FCD34D;
+  background: var(--연한-주황,#FFF8E5);
+  border: 1px solid var(--amber,#FCD34D);
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 14px;
-  color: #92400E;
+  color: var(--글자-주황, var(--amber,#92400E));
   margin-bottom: 14px;
 }
-.v2-help-box a { color: var(--brand, #3182F6); text-decoration: none; }
+.v2-help-box a { color: var(--brand, var(--primary,#3182F6)); text-decoration: none; }
 .v2-help-box a:hover { text-decoration: underline; }
 .v2-empty {
   flex: 1;
@@ -647,22 +805,92 @@
 }
 .v2-form-foot {
   padding: 14px 28px;
-  background: var(--n50, #F9FAFB);
-  border-top: 1px solid var(--n200, #E5E8EB);
+  background: var(--n50, var(--bg,#F9FAFB));
+  border-top: 1px solid var(--n200, var(--line,#E5E8EB));
   display: flex;
   justify-content: flex-end;
   gap: 8px;
 }
-.v2-loading { padding: 24px; text-align: center; color: var(--n500, #B0B8C1); font-size: 13px; }
+.v2-loading { padding: 24px; text-align: center; color: var(--n500, var(--faint,#B0B8C1)); font-size: 13px; }
 .v2-security-note { margin-top: 8px; }
-.form-row label .req { color: var(--danger, #F04438); margin-left: 2px; }
-.form-row label .opt { font-weight: 400; color: var(--n500, #B0B8C1); margin-left: 4px; font-size: 14px; }
+.form-row label .req { color: var(--글자-빨강, var(--danger, var(--red,#F04438))); margin-left: 2px; }
+.form-row label .opt { font-weight: 400; color: var(--n500, var(--faint,#B0B8C1)); margin-left: 4px; font-size: 14px; }
 .btn-large { padding: 11px 22px; font-size: 14px; }
 @media (max-width: 720px) {
   .v2-modal { grid-template-columns: 1fr; }
-  .v2-sidebar { max-height: 200px; border-right: none; border-bottom: 1px solid var(--n200, #E5E8EB); }
+  .v2-sidebar { max-height: 200px; border-right: none; border-bottom: 1px solid var(--n200, var(--line,#E5E8EB)); }
 }
 </style>
+
+<style>
+/* [3단계 배치3 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지).
+   이 화면의 PC 글자·여백은 「소싱처 가이드 스케일」(td 24px 등)로 일부러 키워져 있어
+   폰에서 그대로 두면 몇 글자 만에 화면이 찬다 — 여기서 폰 크기로 되돌린다.
+   !important 가 많은 이유 둘: ① 위 PC 블록이 이미 !important 로 키워 놨고(같은
+   우선순위는 나중 규칙이 이긴다지만 인라인은 못 이긴다), ② 인라인 style 로 박힌
+   칸(서버 IP 입력칸·빠른 추가 줄·colgroup 폭)은 !important 로만 이긴다. */
+@media (max-width: 768px) {
+  /* 페이지 여백 — 이 파일 맨 위 블록이 .main(base.html 의 판)을 32px!important 로
+     벌려 놨다. 폰(375px)에서 64px 는 화면의 1/6이다. */
+  .main { padding-left: 12px !important; padding-right: 12px !important; }
+  .page-header h1 { font-size: 22px; }
+  .page-header .subtitle { font-size: 14px; }
+  /* [2026-08-05 실측 2회차] docW 511 의 범인 — 아래 wrap 은 배치3부터 있었지만
+     마크업의 인라인 flex-shrink:0 이 그릇 압축을 막아 줄바꿈이 영영 안 일어났다
+     (자식이 접히려면 그릇이 먼저 좁아져야 한다). 인라인은 !important 로만 이긴다.
+     flex-basis 100% = 제목 밑 자기 줄 전체를 받아 카드 3장이 그 안에서 접힌다.
+     스크롤 줄 대신 wrap 인 이유: 행동 단추 3장뿐이라 숨김 없이 다 보이는 쪽. */
+  .mkg-cards { flex-wrap: wrap; flex: 1 1 100% !important; min-width: 0; }
+  .mkg-card { font-size: 14px !important; padding: 10px 12px !important; min-height: 44px; }
+  /* 서버 IP 카드 — 이름·IP·추가 단추를 한 줄씩 쌓는다(인라인 flex·12.5px 을 이긴다).
+     16px = iOS 포커스 확대 방지 */
+  .server-ip-card input { flex: 1 1 100% !important; font-size: 16px !important; min-height: 44px; box-sizing: border-box; }
+  .server-ip-card button { min-height: 44px; }
+  /* 좌측 마켓 사이드바 → 위쪽 가로 스크롤 줄 */
+  .up-shell { grid-template-columns: 1fr; min-height: 0; }
+  .up-side { border-right: none; border-bottom: 1px solid var(--n200, var(--line, #E5E8EB)); padding: 10px; }
+  .up-mlist { flex-direction: row; overflow-x: auto; gap: 6px; }
+  .up-mitem { padding: 10px 12px; min-height: 44px; flex-shrink: 0; white-space: nowrap; }
+  .up-mitem .up-mname { font-size: 14px; }
+  .up-mitem .up-mcount { font-size: 13px; min-width: 22px; }
+  .up-side-title { display: none; }
+  /* 사이드바 발치의 「+ 계정 추가」는 숨긴다 — 본문 머리줄에 같은 단추가 있다 */
+  .up-side-foot { display: none; }
+  .up-main { padding: 14px 12px; }
+  .up-main-head { flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 12px; }
+  .up-main-head h2 { font-size: 19px; }
+  .up-main-count { font-size: 14px; }
+  .up-main-head > div { flex: 1 1 100%; flex-wrap: wrap; }
+  .up-main-head .btn { font-size: 14px; min-height: 44px; padding: 10px 14px; }
+  .up-search { font-size: 16px; flex: 1 1 auto; width: auto; min-width: 0; padding: 10px 12px; box-sizing: border-box; }
+  /* 계정 표 — 표 자체 가로 스크롤 + 첫 열(마켓) 붙박이.
+     colgroup 고정폭(인라인 style + JS 가 localStorage 에서 복원한 값)은 폰 폭을
+     넘긴다 — !important 로만 이긴다. 칼럼 끌기(마우스 전용)는 폰에선 의미 없어 그대로 둔다. */
+  .up-table { display: block; overflow-x: auto; }
+  .up-table colgroup col { width: auto !important; }
+  .up-table th { font-size: 13px; padding: 10px 10px; }
+  .up-table td { font-size: 15px; padding: 12px 10px; }
+  /* 첫 열 붙박이 — 배경이 없으면 밀려 들어온 칸 글자가 밑에 비쳐 보인다
+     (검정 화면에서도 자기 면 색을 따라가도록 --surface). */
+  .up-table th:first-child, .up-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface, #fff); }
+  .up-mname-cell { font-size: 15px; }
+  .status-line { font-size: 14px !important; }
+  .status-line.muted { font-size: 14px !important; }
+  .action-row { flex-wrap: wrap; justify-content: flex-end; }
+  .btn-sm { font-size: 14px !important; padding: 10px 12px !important; min-height: 44px; }
+  .name-edit-btn { min-height: 44px; min-width: 44px; }
+  /* 빠른 추가 줄 — 인라인 13px 을 이긴다(16px = iOS 확대 방지) */
+  .up-addrow input, .up-addrow select { font-size: 16px !important; min-height: 44px; box-sizing: border-box; }
+  /* 라이브 검증 표 — 7열 고정폭이 폰 모달 폭을 넘는다 → 표 자체 가로 스크롤 */
+  .lv-table { display: block; overflow-x: auto; }
+  .lv-table th, .lv-table td { font-size: 14px; min-width: 72px; }
+  /* 키 등록 창 — 폰 폭에서 안쪽 여백을 줄이고 입력칸 확대를 막는다 */
+  .v2-form-head, .v2-form-body { padding-left: 16px; padding-right: 16px; }
+  .v2-form .form-input { font-size: 16px; min-height: 44px; }
+}
+</style>
+{% include "sourcing_guide/_page_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -818,14 +1046,14 @@ async function openEditModal(accountId, market, envPrefix, displayName, note) {
 }
 
 async function loginUploadAccount(accountId, displayName) {
-  showToast(` ${displayName} 로그인 창 여는 중…`, 'info');
+  showToast(`${displayName} 로그인 창 여는 중…`, 'info');
   try {
     const res = await fetch(`/accounts/api/upload/accounts/${accountId}/login`, { method: 'POST' });
     const data = await res.json();
     if (data.ok) {
       showToast(data.message || '로그인 창이 열렸어요', 'success');
     } else {
-      showToast(` ${data.error || '로그인 창 열기 실패'}`, 'error');
+      showToast(`${data.error || '로그인 창 열기 실패'}`, 'error');
     }
   } catch (e) {
     showToast('네트워크 오류: ' + e.message, 'error');
@@ -833,16 +1061,27 @@ async function loginUploadAccount(accountId, displayName) {
 }
 
 async function testApiConnection(accountId, displayName) {
-  showToast(` ${displayName} API 연결 테스트 중…`, 'info');
+  showToast(`${displayName} API 연결 테스트 중…`, 'info');
   try {
     const res = await fetch(`/accounts/api/upload/accounts/${accountId}/test`, { method: 'POST' });
-    const data = await res.json();
+    // 앞단(Cloudflare/Caddy)이 본문을 오류 HTML 로 갈아치우는 경우가 있어 JSON 을 단정하지 않는다.
+    // 그냥 res.json() 을 부르면 「Unexpected token '<'」 만 남고 진짜 사유가 사라진다.
+    const raw = await res.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (_) {
+      showToast(`서버가 JSON 대신 오류 페이지를 보냈어요 (HTTP ${res.status}). `
+                + `앞단(Cloudflare/Caddy)이 본문을 갈아치웠을 수 있어요.`, 'error');
+      console.error('[API test] non-JSON response', res.status, raw.slice(0, 500));
+      return;
+    }
     if (data.ok) {
       showToast(data.message, 'success');
       console.log('[API test]', data);
     } else {
       const detail = data.body_snippet ? `\n응답 본문: ${data.body_snippet}` : '';
-      showToast(` ${data.error || '실패'}${data.hint ? '\n' + data.hint : ''}`, 'error');
+      showToast(`${data.error || '실패'}${data.hint ? '\n' + data.hint : ''}`, 'error');
       console.error('[API test]', data);
       // 본문이 있으면 한 번 더 보기 좋게 alert
       if (data.body_snippet) {
@@ -852,6 +1091,117 @@ async function testApiConnection(accountId, displayName) {
   } catch (e) {
     showToast('네트워크 오류: ' + e.message, 'error');
   }
+}
+
+// ── 라이브 검증 ────────────────────────────────────────────────────────────
+//  실주문을 불러와(기록 X) 사장님이 마켓 화면과 대조 → 「맞음」을 눌러야 저장되고
+//  그 마켓이 주문내역·마진계산기에 공개된다. 자동판정 실패 건은 확인 버튼 자체를 막는다.
+let _lvAccountId = null;
+
+// 검증은 마켓 호출이 많아 30~45초 걸린다. 그 사이 앞단 게이트웨이가 끊으면 JSON 대신
+// HTML 오류 페이지가 온다. 그대로 파싱하면 "Unexpected token '<'" 같은 글자가 화면에
+// 뜨는데, 사장님이 읽을 수 없다. 사람 말로 바꿔서 돌려준다.
+async function lvJson(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch (e) {
+    throw new Error(res.status === 502 || res.status === 504 || /^\s*</.test(text)
+      ? '서버가 제때 응답하지 못했습니다(조회가 오래 걸려 연결이 끊겼습니다). '
+        + '30초쯤 기다렸다가 다시 눌러주세요.'
+      : `서버 오류 (HTTP ${res.status})`);
+  }
+}
+
+async function openLiveVerify(accountId, displayName) {
+  _lvAccountId = accountId;
+  const bg = document.getElementById('lv-modal-bg');
+  document.getElementById('lv-title').textContent = `${displayName} 라이브 검증`;
+  document.getElementById('lv-body').innerHTML =
+    '<div class="v2-loading">실제 주문을 불러오는 중… (최대 30초, 마켓 제한으로 천천히 조회합니다)</div>';
+  document.getElementById('lv-confirm').style.display = 'none';
+  bg.classList.add('visible');
+  bg.style.display = 'flex';
+
+  try {
+    const r = await fetch(`/accounts/api/upload/accounts/${accountId}/verify-live`, { method: 'POST' });
+    const d = await lvJson(r);
+    if (!d.ok) {
+      document.getElementById('lv-body').innerHTML =
+        `<div class="form-error">${escapeHtml(d.error || '실패')}</div>` +
+        (d.hint ? `<p class="form-hint">${escapeHtml(d.hint)}</p>` : '');
+      return;
+    }
+    const issues = (d.issues || []).map(x => `<li>${escapeHtml(x)}</li>`).join('');
+    // 기술 상세(에러 원문)는 접어둔다 — 화면에 그대로 뿌리면 읽을 수 없다.
+    const tech = (d.tech || []).map(x => `<li>${escapeHtml(x)}</li>`).join('');
+    const none = '<span class="lv-none">—</span>';
+    const rowsHtml = (d.samples || []).map(sm => `
+      <tr><td class="c-no">${escapeHtml(sm.주문번호)}</td>
+          <td class="c-date">${escapeHtml(sm.주문일)}</td>
+          <td class="c-name">${escapeHtml(sm.상품명) || none}</td>
+          <td class="c-price">${escapeHtml(sm.단가) || none}</td>
+          <td class="c-qty">${escapeHtml(sm.수량) || none}</td>
+          <td class="c-st">${escapeHtml(sm.주문상태)}</td>
+          <td class="c-why">${escapeHtml(sm['사유/배송메시지']) || none}</td></tr>`).join('');
+
+    document.getElementById('lv-body').innerHTML = `
+      <p style="font-size:15px;margin-bottom:10px;">
+        최근 <b>${d.days}일</b> ${escapeHtml(d.market_label)} 주문 <b style="font-size:20px">${d.count}</b>건을 불러왔습니다.
+      </p>
+      ${issues ? `<div class="form-error"><b>확인이 필요합니다</b><ul style="margin:6px 0 0 18px">${issues}</ul>
+        ${tech ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--n600,#6B7684)">개발자용 상세 보기</summary>
+          <ul style="margin:6px 0 0 18px;font-size:12px;color:var(--n600,#6B7684);word-break:break-all">${tech}</ul></details>` : ''}
+        </div>` : ''}
+      ${rowsHtml ? `<table class="lv-table"><thead><tr>
+          <th class="c-no">주문번호</th><th class="c-date">주문일</th><th class="c-name">상품명</th>
+          <th class="c-price">단가</th><th class="c-qty">수량</th><th class="c-st">상태</th>
+          <th class="c-why">사유</th></tr></thead>
+          <tbody>${rowsHtml}</tbody></table>
+        <p class="form-hint">위 주문이 ${escapeHtml(d.market_label)} 판매자 화면의 최근 주문과 같은지 확인해 주세요.</p>` : ''}
+    `;
+    if (d.auto_pass) {
+      const btn = document.getElementById('lv-confirm');
+      btn.style.display = '';
+      btn.textContent = `맞습니다 — ${d.market_label} 공개하기`;
+    }
+  } catch (e) {
+    document.getElementById('lv-body').innerHTML =
+      `<div class="form-error">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function submitLiveVerify() {
+  const btn = document.getElementById('lv-confirm');
+  btn.disabled = true; btn.textContent = '저장 중…';
+  try {
+    const r = await fetch(`/accounts/api/upload/accounts/${_lvAccountId}/verify-live/confirm`,
+                          { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    const d = await lvJson(r);
+    if (d.ok) {
+      showToast(d.message, 'success');
+      closeLiveVerify();
+      setTimeout(() => location.reload(), 800);
+    } else {
+      // 저장 거부 사유를 그대로 노출한다(조용히 넘어가면 미검증 마켓이 열린 줄 안다).
+      showToast('❌ ' + (d.error || '저장 실패') + ((d.issues || []).length ? '\n' + d.issues.join('\n') : ''), 'error');
+      btn.disabled = false; btn.textContent = '맞습니다 — 공개하기';
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '맞습니다 — 공개하기';
+  }
+}
+
+function closeLiveVerify() {
+  const bg = document.getElementById('lv-modal-bg');
+  bg.classList.remove('visible');
+  bg.style.display = 'none';
+  _lvAccountId = null;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 async function confirmDeleteAccount(accountId, displayName) {
@@ -878,6 +1228,7 @@ async function confirmDeleteAccount(accountId, displayName) {
 let _v2Mode = 'create';      // 'create' | 'keys'
 let _v2Market = null;
 let _v2EnvPrefix = null;
+let _v2CreatePrefix = null;   // 신규 등록 시 발급받은 빈 고유 env_prefix
 let _v2Markets = [];          // /api/markets 응답 캐시
 
 // 호환성 — 기존 호출자
@@ -962,7 +1313,7 @@ async function selectMarket(market) {
   document.getElementById('v2-form-foot').style.display = 'flex';
   document.getElementById('v2-icon').textContent = market.icon;
   document.getElementById('v2-modal-title').textContent = _v2Mode === 'keys'
-    ? ` ${market.label} API 키 입력`
+    ? `${market.label} API 키 입력`
     : `${market.label} 계정 등록`;
   document.getElementById('v2-subtitle').textContent = market.api_type;
   document.getElementById('v2-submit-text').textContent = _v2Mode === 'keys'
@@ -976,12 +1327,20 @@ async function selectMarket(market) {
   // 가이드 박스
   const helpBox = document.getElementById('v2-keys-help');
   helpBox.innerHTML = market.guide_text
-    ? ` <strong>키 받는 법:</strong> ${market.guide_text}` +
+    ? `<strong>키 받는 법:</strong> ${market.guide_text}` +
       (market.guide_url ? ` <a href="${market.guide_url}" target="_blank">가이드 →</a>` : '')
     : '';
 
   // 스키마 로드
-  const envPrefix = _v2EnvPrefix || market.default_prefix || (market.key.toUpperCase() + '_MAIN');
+  //  · keys 모드 : 해당 계정의 env_prefix → 기존 키를 보여줌 (수정)
+  //  · create 모드 : 빈 고유 env_prefix 발급 → 폼이 빈칸으로 뜸 (신규)
+  let envPrefix;
+  if (_v2Mode === 'keys') {
+    envPrefix = _v2EnvPrefix || market.default_prefix || (market.key.toUpperCase() + '_MAIN');
+  } else {
+    envPrefix = await fetchNextPrefix(market.key);
+    _v2CreatePrefix = envPrefix;
+  }
   await loadSchemaIntoFields(market.key, envPrefix);
 
   // 첫 입력란에 포커스
@@ -1001,25 +1360,64 @@ async function loadSchemaIntoFields(market, envPrefix) {
       container.innerHTML = `<div class="form-error">스키마 로드 실패: ${data.error || ''}</div>`;
       return;
     }
+    // ★ 크롬 비밀번호 관리자가 '같은 이름의 칸'으로 인식해 이전 계정 키를 다시 채우는 사고를
+    //   막는다(실제로 11번가 두 쌍이 같은 키로 저장됨). 칸 이름을 열 때마다 무작위화하고,
+    //   렌더 직후 값을 강제로 비운다. 서버에도 중복키 저장 차단(409)이 걸려 있다.
+    const _nonce = Math.random().toString(36).slice(2, 10);
     container.innerHTML = data.fields.map(f => `
       <div class="form-row">
         <label for="v2-secret-${f.suffix}">${f.label}${f.sensitive ? ' 🔒' : ''}<span class="req">*</span></label>
         <input id="v2-secret-${f.suffix}"
-               name="${f.suffix}"
+               name="f-${_nonce}-${f.suffix}"
+               data-suffix="${f.suffix}"
                type="${f.sensitive ? 'password' : 'text'}"
                placeholder="${f.current_set ? '변경하려면 새 값 입력 (비워두면 기존 유지)' : f.env_key}"
                autocomplete="off"
-               spellcheck="false"
+               autocorrect="off" autocapitalize="off" spellcheck="false"
+               data-lpignore="true" data-1p-ignore data-form-type="other"
+               readonly onfocus="this.removeAttribute('readonly')"
                class="form-input ${f.current_set ? 'has-value' : ''}">
         ${f.current_set
             ? `<div class="v2-cur-val" style="margin-top:5px;font-size:12px;color:#0b8a3e;">✓ 현재 저장됨: <code style="background:#eef6ef;padding:1px 6px;border-radius:4px;">${f.masked || '●●●●'}</code></div>`
             : `<div class="v2-cur-val" style="margin-top:5px;font-size:12px;color:#c0392b;">⨯ 미등록</div>`}
       </div>
     `).join('');
+    // 브라우저가 렌더 직후 자동으로 채워 넣는 값을 지운다(비어 있어야 '기존 유지'가 된다).
+    const _clear = () => container.querySelectorAll('input.form-input').forEach(i => { i.value = ''; });
+    _clear(); setTimeout(_clear, 0); setTimeout(_clear, 250);
   } catch (e) {
     container.innerHTML = `<div class="form-error">스키마 로드 실패: ${e.message}</div>`;
   }
 }
+
+// ── 키 지문 표시 — 같은 마켓 안에서 지문이 같으면 '같은 셀러 키'(중복) 이므로 빨갛게 표시.
+//    키 값은 절대 노출하지 않는다(해시 앞 6자만). 서버가 이미 중복 저장을 막지만, 과거에
+//    저장된 중복을 사용자가 눈으로 바로 찾을 수 있어야 한다.
+async function loadKeyFingerprints() {
+  const lines = [].slice.call(document.querySelectorAll('.fp-line[data-acc-id]'));
+  if (!lines.length) return;
+  const got = [];
+  for (const el of lines) {
+    try {
+      const r = await fetch(`/accounts/api/upload/accounts/${el.dataset.accId}/key-fingerprint`,
+                            { headers: { 'Accept': 'application/json' } });
+      const j = await r.json();
+      if (j.ok && j.fingerprint) got.push({ el, market: el.dataset.market, fp: j.fingerprint });
+    } catch (e) { /* 지문은 부가정보 — 실패해도 화면은 그대로 */ }
+  }
+  const count = {};
+  got.forEach(g => { const k = g.market + ':' + g.fp; count[k] = (count[k] || 0) + 1; });
+  got.forEach(g => {
+    const dup = count[g.market + ':' + g.fp] > 1;
+    g.el.innerHTML = dup
+      ? `<span class="status-icon err"></span> <b style="color:#c0392b">키 중복 ${g.fp}</b>`
+      : `<span class="status-icon ok"></span> <span style="color:#6b7684">키 지문 ${g.fp}</span>`;
+    g.el.title = dup
+      ? '같은 마켓의 다른 계정과 API 키가 같습니다. 이 가게의 키로 다시 입력하세요.'
+      : '이 계정에 저장된 셀러 키의 지문(해시 앞 6자). 키 값은 표시하지 않습니다.';
+  });
+}
+document.addEventListener('DOMContentLoaded', loadKeyFingerprints);
 
 function closeV2Modal() {
   document.getElementById('v2-modal-bg').classList.remove('visible');
@@ -1030,6 +1428,7 @@ function closeV2Modal() {
   _v2Mode = 'create';
   _v2Market = null;
   _v2EnvPrefix = null;
+  _v2CreatePrefix = null;
 }
 
 async function submitV2() {
@@ -1045,7 +1444,11 @@ async function submitV2() {
   const keyInputs = document.querySelectorAll('#v2-key-fields input');
   const values = {};
   keyInputs.forEach(i => {
-    if (i.value && i.value.trim()) values[i.name] = i.value.trim();
+    // ★ name 은 자동완성 차단용 무작위 이름(f-{nonce}-{SUFFIX})이라 그대로 보내면 안 된다.
+    //   서버는 순수 suffix(MASTER_ID 등)로만 찾으므로 data-suffix 로 되돌린다.
+    //   이걸 빠뜨려 모든 마켓의 키 저장이 400(필수 필드 누락)으로 실패했다(2026-07-20 발견).
+    const k = i.dataset.suffix || i.name;
+    if (i.value && i.value.trim()) values[k] = i.value.trim();
   });
 
   try {
@@ -1058,10 +1461,11 @@ async function submitV2() {
         document.getElementById('v2-submit-text').textContent = '등록 + API 연동';
         return;
       }
-      // env_prefix 자동 생성 — {MARKET}_{N} 형태 (사용자에게 노출 X)
-      const env_prefix = await generateUniqueEnvPrefix(marketMeta?.default_prefix || (market.toUpperCase() + '_MAIN'));
-      // account_key — 계정명 기반 자동
-      const account_key = display_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_가-힣]/g, '');
+      // env_prefix — 마켓 선택 시 발급받은 빈 고유 prefix 재사용 (없으면 재조회)
+      const env_prefix = _v2CreatePrefix || await fetchNextPrefix(market);
+      // account_key — 계정명 기반 자동. 마켓 접미사를 붙여야 다른 마켓의 동명 계정과
+      // 안 부딪힌다(account_key 는 DB 전역 UNIQUE). 빠른 추가 경로와 같은 규칙.
+      const account_key = display_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_가-힣]/g, '') + '_' + market;
 
       // 1) 계정 생성
       const r1 = await fetch('/accounts/api/upload/accounts', {
@@ -1084,10 +1488,20 @@ async function submitV2() {
         });
         const d2 = await r2.json();
         if (!d2.ok) {
-          showToast('계정은 등록 / 키 저장 실패: ' + (d2.error || ''), 'warning');
-        } else {
-          showToast(` ${display_name} 등록 + API 키 저장 완료`, 'success');
+          // ★ 키 저장 실패 시 모달을 닫지 않는다. 예전엔 닫고 곧바로 새로고침해서
+          //   에러 토스트가 같이 사라졌고, 사용자는 저장된 줄 알았는데 '키 누락'만
+          //   남는 조용한 실패가 됐다(2026-07-20 옥션 등록에서 실제 발생).
+          //   계정 행은 이미 만들어졌으므로 키 저장 모드로 바꿔 그 자리에서 재시도시킨다.
+          showToast('계정은 등록됨 / 키 저장 실패: ' + (d2.error || '') + (d2.hint ? '\n' + d2.hint : ''), 'error');
+          _v2Mode = 'keys';
+          _v2EnvPrefix = env_prefix;
+          const _sec = document.getElementById('v2-section-account');
+          if (_sec) _sec.style.display = 'none';
+          btn.disabled = false;
+          document.getElementById('v2-submit-text').textContent = '키 저장 + 즉시 적용';
+          return;
         }
+        showToast(`${display_name} 등록 + API 키 저장 완료`, 'success');
       } else {
         showToast(d1.message || '계정 등록 완료 (키 미입력)', 'success');
       }
@@ -1111,7 +1525,8 @@ async function submitV2() {
         closeV2Modal();
         setTimeout(() => location.reload(), 700);
       } else {
-        showToast('저장 실패: ' + (d.error || ''), 'error');
+        // 409 = 다른 계정과 같은 키(자동완성 사고 등) → 어느 계정과 겹치는지·해결법 함께 표시
+        showToast('저장 실패: ' + (d.error || '') + (d.hint ? '\n' + d.hint : ''), 'error');
         btn.disabled = false;
         document.getElementById('v2-submit-text').textContent = '키 저장 + 즉시 적용';
       }
@@ -1123,11 +1538,35 @@ async function submitV2() {
   }
 }
 
-async function generateUniqueEnvPrefix(base) {
-  // 기존 계정 목록을 통해 중복 회피 — base, base_2, base_3...
-  // (간단히: 첫 번째 시도로 base 사용, 충돌 시 백엔드가 _2, _3 자동 부여하도록 위임)
-  // 현재는 base 그대로 사용 — 백엔드 409 에러 시 사용자에게 안내됨
-  return base;
+// [빠른 추가] 별칭 → 마켓 선택만으로 판매처 계정 등록 (키는 추후 🔑). env_prefix 는 타임스탬프로 고유화.
+async function quickAddAccount() {
+  var alias = (document.getElementById('qa-alias').value || '').trim();
+  var market = document.getElementById('qa-market').value;
+  if (!alias) { showToast('별칭을 입력하세요', 'error'); return; }
+  if (!market) { showToast('마켓을 선택하세요', 'error'); return; }
+  var env_prefix = market.toUpperCase() + '_' + Date.now();
+  var account_key = alias + '_' + market;
+  try {
+    var r = await fetch('/accounts/api/upload/accounts', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ account_key: account_key, display_name: alias, market: market, env_prefix: env_prefix })
+    });
+    var d = await r.json();
+    if (d.ok) { showToast(alias + ' 추가됨 — 키로 API 키를 등록하세요.', 'success'); setTimeout(function(){ location.reload(); }, 700); }
+    else { showToast('추가 실패: ' + (d.error || ''), 'error'); }
+  } catch (e) { showToast('추가 실패: ' + e, 'error'); }
+}
+
+async function fetchNextPrefix(market) {
+  // 백엔드에서 '빈' 고유 env_prefix 발급 (MAIN → _2 → _3 …)
+  try {
+    const res = await fetch(`/accounts/api/markets/${encodeURIComponent(market)}/next-prefix`);
+    const data = await res.json();
+    if (data.ok && data.env_prefix) return data.env_prefix;
+  } catch (e) { /* 폴백 */ }
+  // 폴백 — 백엔드가 최종 중복검사(409)하므로 base 사용
+  const m = _v2Markets.find(x => x.key === market);
+  return (m && m.default_prefix) || (market.toUpperCase() + '_MAIN');
 }
 
 // ESC 닫기
@@ -1136,5 +1575,61 @@ document.addEventListener('keydown', (e) => {
     closeV2Modal();
   }
 });
+
+// ━━━━━━━━━━ 우리 서버 IP (디자인5 미니멀 리스트) ━━━━━━━━━━
+const SIP_API = '/accounts/api/server-ips';
+function sipEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function sipCopy(ip){
+  const done = () => showToast('📋 ' + ip + ' 복사됨', 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(ip).then(done, () => { sipCopyFallback(ip); done(); });
+  } else { sipCopyFallback(ip); done(); }
+}
+function sipCopyFallback(ip){
+  const a = document.createElement('textarea'); a.value = ip;
+  document.body.appendChild(a); a.select();
+  try { document.execCommand('copy'); } catch(e){} a.remove();
+}
+function sipRender(items){
+  const box = document.getElementById('server-ip-list');
+  if (!box) return;
+  if (!items.length){
+    box.innerHTML = '<div style="padding:16px 8px;color:#6B7684;font-size:13px;">아직 없어요 — 아래에서 이름과 IP를 추가하세요.</div>';
+    return;
+  }
+  box.innerHTML = items.map(it => `
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid #F2F4F6;">
+      <span style="font-size:15px;"></span>
+      <span style="min-width:112px;font-weight:600;font-size:13px;color:#191F28;">${sipEsc(it.name) || '<span style=\'color:#98A2B3\'>이름 없음</span>'}</span>
+      <span style="flex:1;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;letter-spacing:.01em;color:#191F28;">${sipEsc(it.ip)}</span>
+      <button type="button" onclick="sipCopy('${sipEsc(it.ip)}')" title="복사"
+        style="border:1px solid #E5E8EB;background:#fff;color:#3182F6;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;">복사</button>
+      <button type="button" onclick="sipDelete(${it.id})" title="삭제"
+        style="border:none;background:transparent;font-size:14px;cursor:pointer;padding:4px;"></button>
+    </div>`).join('');
+}
+function sipLoad(){
+  fetch(SIP_API).then(r=>r.json()).then(d=>{ if(d.ok) sipRender(d.items); })
+    .catch(()=>{ const b=document.getElementById('server-ip-list'); if(b) b.innerHTML='<div style="padding:16px 8px;color:#DC2626;font-size:13px;">목록을 불러오지 못했어요.</div>'; });
+}
+function sipAdd(){
+  const n = document.getElementById('sip-name'), p = document.getElementById('sip-ip');
+  const ip = (p.value||'').trim();
+  if (!ip){ p.style.borderColor = '#DC2626'; p.focus(); return; }
+  p.style.borderColor = '#E5E8EB';
+  fetch(SIP_API, {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:(n.value||'').trim(), ip})})
+    .then(r=>r.json()).then(d=>{
+      if(!d.ok){ showToast(d.error || '추가 실패', 'error'); return; }
+      n.value=''; p.value=''; n.focus(); sipLoad();
+      showToast('서버 IP 추가됨', 'success');
+    }).catch(()=>showToast('네트워크 오류', 'error'));
+}
+function sipDelete(id){
+  fetch(SIP_API + '/' + id, {method:'DELETE'}).then(r=>r.json()).then(d=>{
+    if(d.ok){ sipLoad(); } else { showToast(d.error || '삭제 실패', 'error'); }
+  }).catch(()=>showToast('네트워크 오류', 'error'));
+}
+sipLoad();
 </script>
 {% endblock %}

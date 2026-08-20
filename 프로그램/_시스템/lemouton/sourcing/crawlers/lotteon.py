@@ -79,7 +79,10 @@ from urllib.parse import parse_qs, urlparse
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup, Tag
 
-from .base import AbstractCrawler, CrawlResult
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    pick_img_src, sanitize_detail_html,
+)
 
 
 # dataBenefit JS 변수: 페이지 인라인 JSON. commonDiscountObj.benefitPrc 가
@@ -190,6 +193,139 @@ def _parse_brand(soup: BeautifulSoup) -> str:
     return "롯데홈쇼핑"
 
 
+def _parse_category_path(soup: BeautifulSoup) -> str:
+    """[2026-07-23 M3] 롯데아이몰 빵부스러기 → '대>중>소'.
+
+    실화면 확인(www.lotteimall.com 상품 페이지, 2026-07-23) — 화면 표시
+    「홈 › 패션슈즈 › 스니커즈/운동화 › 런닝화/워킹화」의 마크업::
+
+        <div class="location">
+          <a class="home">홈</a>
+          <div class="his"><a class="one">패션슈즈</a>
+            <div class="hislayer">…형제 카테고리 목록…</div></div>
+          <div class="his"><a class="one">스니커즈/운동화</a> …</div>
+          <div class="his"><a class="one">런닝화/워킹화</a> …</div>
+        </div>
+
+    ⚠️ 함정: 각 ``div.his`` 안의 ``div.hislayer`` 는 그 단계의 **형제 카테고리**
+    드롭다운(여성브랜드의류·패션잡화 …)이라 경로가 아니다. SSG 와 같은 구조라
+    같은 방어를 쓴다 — ``div.location`` 의 **직계** ``a.home`` 과
+    ``div.his`` 의 **직계** ``a.one`` 만 읽는다.
+    맨 앞 '홈'은 공통 조립기가 제외한다. 못 찾으면 빈 문자열(추측 금지).
+    """
+    loc = soup.select_one("div.location")
+    if loc is None:
+        return ""
+    parts: list[str] = []
+    for child in loc.find_all(recursive=False):
+        if child.name == "a":
+            parts.append(child.get_text(strip=True))
+        elif child.name == "div" and "his" in (child.get("class") or []):
+            a = child.find("a", recursive=False)
+            if a is not None:
+                parts.append(a.get_text(strip=True))
+    return build_category_path(parts)
+
+
+# ─────────────────────────────────────────────────────────────
+# [2026-07-23 M4-4] 이미지·상세 (롯데아이몰)
+# ─────────────────────────────────────────────────────────────
+# 롯데아이몰 상품사진 CDN 은 한 장을 3가지 렌디션으로 낸다 — 실측(2026-07-23):
+#     .../goods/79/86/79/2474798679_H{n}.jpg   (og:image 가 쓰는 판)
+#     .../goods/79/86/79/2474798679_L{n}.jpg   (본문 큰 이미지 = 화면 대표)
+#     .../goods/79/86/79/2474798679_S{n}.jpg   (썸네일 줄)
+#   `{n}` 은 사진 번호(첫 장은 없음, 둘째부터 1·2·3…).
+_LOTTEIMALL_THUMB_RE = re.compile(r"^(.*/goods/.*?)_S(\d*)(\.[A-Za-z]{3,4})$")
+# `onerror` 로 갈아끼우는 '이미지 없음' 회색판. src 속성 자체가 이걸 가리키는 경우가 있어
+#   대표이미지가 회색 네모로 등록되는 걸 막는다(공통 필터의 `noimage` 규칙엔 안 걸린다).
+_LOTTEIMALL_NOIMG = "/goods/common/no_"
+
+
+def _lotteimall_thumb_to_large(url: str) -> str:
+    """썸네일(`_S…`) → 본문 큰 이미지(`_L…`). 패턴이 아니면 **그대로 둔다**.
+
+    🔴 다른 소싱처에서는 이런 치환을 금지했다(르무통: `/small/` → `/big/` 은 404).
+       여기서만 하는 이유 = **HEAD 로 실측했기 때문**이다(2026-07-23, 상품 5건 ·
+       썸네일 17장 전수):
+
+         · 썸네일이 있는 번호는 `_L{n}` 도 전부 200 (17/17, 실패 0)
+         · 크기 비교 예: `_S`=6,845B / `_H`=27,331B / `_L`=67,446B
+           → 마켓 대표이미지로 쓸 만한 건 `_L` 이다(썸네일은 너무 작다)
+
+    ★ [2026-07-23 리뷰지적 M1] 안전한 진짜 근거는 **번호를 지어내지 않는다**는 것이다 —
+      DOM 에 **실제로 있는 썸네일 번호만** `_S`→`_L` 로 바꾼다(`_1`·`_2`… 훑기 없음).
+      (종전 서술 「없는 번호는 307 이라 안전」은 근거가 못 된다. 307 은 리다이렉트라
+       따라가면 대체 이미지로 200 이 날 수 있어, '없다'의 증거가 아니다.)
+    """
+    m = _LOTTEIMALL_THUMB_RE.match(url or "")
+    if not m:
+        return url
+    return f"{m.group(1)}_L{m.group(2)}{m.group(3)}"
+
+
+def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] 롯데아이몰 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실측 구조(www.lotteimall.com 상품 페이지, 2026-07-23)::
+
+        div.area_thumb
+          ├ div.thumb_product  > a > img   ← 큰 대표 이미지 (`{goods_no}_L{n}.jpg`)
+          └ div.list_thumb ul.slide_cont li a img  ← 썸네일 줄 (`{goods_no}_S{n}.jpg`)
+
+    - 대표 = `div.thumb_product img`. (`meta[og:image]` 는 같은 사진의 `_H` 판이라
+      **일부러 안 쓴다** — 대표와 추가가 다른 렌디션으로 섞이면 마켓에서 같은 사진이
+      두 번 실린다. 르무통 I6 과 같은 함정.)
+    - 추가 = 썸네일 줄을 `_S→_L` 로 올려 대표와 같은 렌디션으로 맞춘 뒤 순서유지 dedup.
+      (사진이 1장뿐인 상품은 썸네일 = 대표와 같은 파일이 되어 여기서 걸러진다.)
+
+    ⚠️ `div.thumb_product` 로 좁힌 근거 — 같은 페이지에 롯데 **기획전 배너**
+      (`/upload/corner/…`)·**추천상품 썸네일**(`/upload/event/detail/…`)·
+      cre.ma 리뷰 위젯 이미지가 널려 있다. 페이지 전체 `img` 를 긁으면 그게 대표가 된다.
+
+    🔴 지연로딩 — [리뷰지적 I3] 종전 `src or data-src` 는 **base64 placeholder 가
+      truthy** 라 `data-src` 를 영영 안 봤다. 갤러리가 지연로딩으로 오는 순간
+      대표이미지 0장(+로그 무음) → 6마켓 등록 차단. 상세정리기와 **같은 규칙**
+      (`base.pick_img_src`)을 쓴다. 같은 페이지 상세엔 이미 speedycat base64 가 온다.
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 내려받지 않는다.
+    """
+    cands: list[str] = []
+    for sel in ("div.thumb_product img", "div.list_thumb img"):
+        for tag in soup.select(sel):
+            src = pick_img_src(tag)
+            if not src or _LOTTEIMALL_NOIMG in src:
+                continue          # '이미지 없음' 회색판 — 대표이미지로 쓰면 오등록
+            cands.append(_lotteimall_thumb_to_large(src))
+    return build_image_urls(cands, product_url)
+
+
+def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
+    """[2026-07-23 M4-4] 롯데아이몰 상품상세 HTML. 못 찾으면 빈 문자열.
+
+    실측 구조(2026-07-23)::
+
+        div.detail
+          ├ div.detail_info.v2 / div.ifr_info
+          ├ div.tdy_snd_banner            ← 🔴 롯데 「오늘의 방송」 배너(남의 몰 홍보)
+          └ div.area_statem > div.box_statem
+                └ div#speedycat_container_root   ← 셀러 상세 원문(이미지 46장)
+
+    `div.detail` 을 통째로 쓰면 배너가 딸려 오므로 **`#speedycat_container_root`** 로
+    좁힌다(그게 없는 셀러를 위해 `div.box_statem` → `div.area_statem` 순 폴백).
+
+    ★ 지연로딩 — 롯데의 이미지 최적화(speedycat)가 `src` 에 2×2 base64 placeholder 를
+      넣고 실주소를 `data-src` 에 둔다
+      (`//ca.lotteimall.com/S/ai.esmplus.com/…jpg?sh=1280&imw=780`).
+      그대로면 마켓 상세가 백지 — 공통 `sanitize_detail_html` 이 `data-src` 를 살린다.
+    """
+    node = (soup.select_one("#speedycat_container_root")
+            or soup.select_one("div.area_statem div.box_statem")
+            or soup.select_one("div.area_statem"))
+    if node is None:
+        return ""
+    return sanitize_detail_html(node, product_url)
+
+
 # ─────────────────────────────────────────────────────────────
 # 가격
 # ─────────────────────────────────────────────────────────────
@@ -210,17 +346,20 @@ def _extract_auto_card_discount(html: str, soup: BeautifulSoup) -> Optional[dict
             "rate": 5.0,                  # %
             "amount": 6330,               # 청구할인 금액 (원)
             "label": "삼성카드 5%",
-            "included_in_sale_price": True,
+            "included_in_sale_price": False,
             "source": "dataBenefit.cardDiscountList",
         }
         또는 None.
 
     사용자 명세 매핑:
         카드 청구 할인 / %할인 / "X% (XXX원)" / 자동 ❌ / 크롤링 ✅
-        → ``rate`` + ``amount`` 둘 다 박아서 UI 가 "5% (6,330원)" 텍스트
-          생성 가능. 자동 적용 X (사용자 카드 보유 시만 적용) 라서
-          ``included_in_sale_price=True`` 와 별개로 매트릭스 정책에서
-          자동 ON 시키지 않음 (api_benefits 측 책임).
+        → ``rate`` + ``amount`` 둘 다 박아서 UI 가 "5% (6,330원)" 텍스트 생성 가능.
+
+    ★ 2026-07-18 — ``included_in_sale_price`` 를 True→**False** 로 정정.
+      crawled_price 가 최대할인가(카드 포함) → 표면노출가(카드 미적용) 로 바뀌었으므로
+      카드할인은 더 이상 판매가에 반영돼 있지 않다. 이 플래그가 True 로 남으면
+      ``api_pricing.py`` 의 "카드 OFF 시 가격 환원"(price / (1-rate)) 이 걸려
+      **이미 카드가 빠진 가격을 한 번 더 부풀린다**. False 가 사실이자 안전값.
     """
     # 1) dataBenefit JSON 의 cardDiscountList — 가장 구조화된 출처
     db_meta = _parse_data_benefit(html)
@@ -260,7 +399,7 @@ def _extract_auto_card_discount(html: str, soup: BeautifulSoup) -> Optional[dict
                     "rate": rate,
                     "amount": amount,
                     "label": f"{issuer} {rate_text}",
-                    "included_in_sale_price": True,
+                    "included_in_sale_price": False,
                     "source": "dataBenefit.cardDiscountList",
                 }
 
@@ -279,7 +418,7 @@ def _extract_auto_card_discount(html: str, soup: BeautifulSoup) -> Optional[dict
                 "rate": rate,
                 "amount": 0,
                 "label": f"{issuer} {m.group(2).rstrip('0').rstrip('.')}%" if "." in m.group(2) else f"{issuer} {int(rate)}%",
-                "included_in_sale_price": True,
+                "included_in_sale_price": False,
                 "source": "em.txt_em",
             }
 
@@ -300,7 +439,7 @@ def _extract_auto_card_discount(html: str, soup: BeautifulSoup) -> Optional[dict
                     "rate": rate,
                     "amount": 0,
                     "label": label,
-                    "included_in_sale_price": True,
+                    "included_in_sale_price": False,
                     "source": "commonDiscountObj.benefitPrcLabelTxt",
                 }
 
@@ -316,6 +455,133 @@ def _parse_data_benefit(html: str) -> Optional[dict]:
         return json.loads(m.group(1))
     except (json.JSONDecodeError, ValueError):
         return None
+
+
+def _parse_download_coupons(soup: BeautifulSoup) -> list:
+    """PDP 「쿠폰받기」 레이어의 다운로드 쿠폰 목록 → ``[{label, rate|amount}]``.
+
+    [2026-07-23 라이브 실측] goods_no=2559138690 (사장님 질문에서 출발)
+        <div class="layer_down_coupon"> … <div class="coupon_list"><ul><li>
+          <span class="coupon">
+            <span class="price">5<span class="per">%</span></span>   ← per 가 '%' 면 정률
+            <span class="name">[르무통] 5% 다운로드 쿠폰</span>
+            <button class="btn btnCouponDown">쿠폰받기</button>
+
+    ★ **추가 API 호출이 필요 없다** — 확장이 same-origin fetch 로 이미 받아오는
+      원본 SSR HTML(403KB) 안에 이 레이어가 들어 있다(라이브 fetch 로 확인).
+
+    ⚠️ 이 쿠폰이 들어가는 칸은 **「플러스 할인쿠폰」**이다(2026-07-23 주문서 실측).
+       표면가에 이미 반영된 「할인쿠폰」과는 **동시 적용**되고, 대신 경유
+       「네이버 N%플러스할인쿠폰」과 **택1**이다(쿠폰함 문구: 플러스/즉시적립 1개).
+       차감액 계산은 `resolve_download_coupon_saving`.
+
+    못 읽으면 빈 목록 — 예외를 던지지 않는다(쿠폰 실패가 가격·재고 크롤을 죽이면 안 됨).
+    """
+    box = soup.select_one("div.layer_down_coupon, .layer_down_coupon")
+    if box is None:
+        return []
+    out: list = []
+    for li in box.select(".coupon_list li"):
+        name_el = li.select_one(".name")
+        price_el = li.select_one(".price")
+        if name_el is None or price_el is None:
+            continue
+        label = name_el.get_text(strip=True)
+        per_el = price_el.select_one(".per")
+        unit = per_el.get_text(strip=True) if per_el is not None else ""
+        # `.price` 는 값+단위가 합쳐진 텍스트 → 단위 부분을 떼어 숫자만 남긴다.
+        raw = price_el.get_text(strip=True)
+        if unit and raw.endswith(unit):
+            raw = raw[: -len(unit)]
+        num = _to_int(raw)
+        if not label or num <= 0:
+            continue
+        if "%" in unit:
+            out.append({"label": label, "rate": num / 100.0})
+        else:
+            out.append({"label": label, "amount": num})
+    return out
+
+
+def _parse_preapplied_coupon_amount(html: str) -> int:
+    """표면가에 **이미 반영된** 쿠폰할인 금액. 없으면 0.
+
+    출처: ``dataBenefit.fullDiscountObj.discountList[]`` 중 ``discountNm`` 에
+    '쿠폰' 이 들어간 항목의 ``discountAmount``.
+    실측: ``{"discountNm":"쿠폰할인","discountAmount":"-29,100"}`` → 29100.
+
+    이 값이 있어야 다운로드 쿠폰과의 **택1 비교**가 가능하다. 못 읽으면 0 —
+    0 이면 "할인쿠폰 칸이 비었다"고 보고 다운로드 쿠폰을 그대로 쓰게 되므로,
+    파싱 실패가 매입가를 **과소**하게 만든다. 그래서 이름·금액 두 필드가 붙어
+    있는 형태만 인정하고, 이름이 유니코드 이스케이프여도 풀어서 본다.
+    """
+    total = 0
+    pattern = (r'"discountNm"\s*:\s*"([^"]*)"\s*,\s*'
+               r'"discountAmount"\s*:\s*"([^"]*)"')
+    for m in re.finditer(pattern, html or ""):
+        name, amt = m.group(1), m.group(2)
+        try:
+            name = json.loads('"%s"' % name)
+        except ValueError:
+            pass
+        if "쿠폰" not in name:
+            continue
+        total = max(total, _to_int(amt.replace("-", "")))
+    return total
+
+
+def resolve_download_coupon_saving(*, surface_price, coupons, rival_saving=0) -> int:
+    """PDP 다운로드 쿠폰 차감액. 없으면 0.
+
+    ■ 어느 칸인가 — **「플러스 할인쿠폰」 칸** (2026-07-23 사장님 주문서 실측으로 확정)
+      처음엔 「할인쿠폰」 칸으로 잘못 봤다. 실제 주문서:
+          총 주문금액        149,000
+          할인쿠폰 6장       −29,100   ← 표면가(119,900)에 이미 반영된 그것
+          플러스 할인쿠폰    − 6,000   ← **[르무통] 5% 다운로드 쿠폰이 여기로 들어간다**
+          최종결제금액       113,900
+      → 할인쿠폰과 **택1이 아니라 동시 적용**이고, 기준은 정가가 아니라
+        **할인쿠폰 적용 후 금액(=표면노출가)** 이다: 119,900 × 5% = 5,995 ≈ 6,000.
+
+    ■ 대신 여기가 택1이다 — 쿠폰함 공식 문구 "**플러스/즉시적립할인은 1개만 적용**".
+      경유 「네이버 N%플러스할인쿠폰」도 **같은 플러스 칸**이라 둘 중 하나만 쓴다.
+      그 경쟁 차감액을 `rival_saving` 으로 받아 **더 큰 쪽이 이길 때만** 값을 낸다
+      (진 경우 0 — 호출부가 반대쪽을 주입한다).
+
+    쿠폰이 여러 장이어도 1장만 쓸 수 있으므로 가장 큰 1장으로 계산한다.
+    값이 없거나 이상하면 0(안 깎음 = 매입가 과대 = 안전 방향, §4 폴백 금지).
+    ⚠️ 단수는 내림(`int`)으로 둔다 — 실측 6,000 vs 계산 5,995 의 5원 차이는
+       최종 매입가 백원 버림 단계에서 사라지고, 덜 깎는 쪽이 안전하다.
+    """
+    try:
+        surface = int(surface_price or 0)
+    except (TypeError, ValueError):
+        return 0
+    if surface <= 0 or not coupons:
+        return 0
+    best = 0
+    for c in coupons or []:
+        if not isinstance(c, dict):
+            continue
+        try:
+            rate = float(c.get("rate") or 0)
+            amount = int(c.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+        if rate > 0:
+            cut = int(surface * rate)
+        elif amount > 0:
+            cut = amount
+        else:
+            continue
+        best = max(best, cut)
+    if best <= 0:
+        return 0
+    try:
+        rival = int(rival_saving or 0)
+    except (TypeError, ValueError):
+        rival = 0
+    # 플러스 칸 택1 — 경유 쿠폰이 더 크면 그쪽이 쓰이므로 여기선 0.
+    return best if best > rival else 0
 
 
 def _extract_point_rewards(html: str) -> Optional[dict]:
@@ -380,10 +646,11 @@ def _extract_point_rewards(html: str) -> Optional[dict]:
 
 
 def _extract_max_price_from_databenefit(html: str) -> int:
-    """dataBenefit JSON 의 commonDiscountObj.benefitPrc (예: "120,320") → int.
+    """dataBenefit JSON 의 commonDiscountObj.benefitPrc (예: "108,720") → int.
 
-    페이지에 노출된 "롯데홈쇼핑 최대할인가" 와 1:1 일치 (카드 청구할인 포함).
-    실패 시 0 (호출자가 다른 셀렉터로 폴백).
+    페이지에 노출된 "롯데홈쇼핑 최대할인가" 와 1:1 일치 (★ 카드 청구할인 **포함**).
+    ⚠️ 표면노출가가 아니다. 표면가는 ``_resolve_surface_price`` 로 구할 것.
+    실패 시 0.
     """
     meta = _parse_data_benefit(html)
     if not meta:
@@ -392,21 +659,105 @@ def _extract_max_price_from_databenefit(html: str) -> int:
     return _to_int(cdo.get("benefitPrc"))
 
 
+def _selector_discounted_price(soup: BeautifulSoup) -> int:
+    """V7 셀렉터 ``.price > span.num`` (할인가). 없으면 0."""
+    for price_el in soup.select(".price"):
+        for child in price_el.find_all("span", recursive=False):
+            if "num" in (child.get("class") or []):
+                v = _to_int(child.get_text())
+                if v:
+                    return v
+    return 0
+
+
+def _resolve_surface_price(
+    soup: BeautifulSoup,
+    html: str,
+    card: Optional[dict],
+) -> tuple[int, str]:
+    """★ 2026-07-18 (사용자 확정) — 롯데아이몰 **표면노출가 = 카드 미적용 할인가**.
+
+    배경(왜 바꿨나):
+      2026-05-13 정책은 ``commonDiscountObj.benefitPrc`` (= 롯데홈쇼핑 "최대할인가",
+      카드 청구할인 **포함**) 를 crawled_price 로 담았다. 그런데 현대H몰(hmall.py)은
+      표면가 = ``bbprc`` (카드 미포함) + 카드할인은 ``hmall_card_discount`` 로 분리한다.
+      즉 두 소싱처가 같은 "표면노출가" 슬롯에 의미가 다른 값을 넣어 매트릭스 비교가
+      성립하지 않았다. → 롯데아이몰을 H몰 규약(카드 미적용가)에 맞춘다.
+
+    라이브 예시 (르무통 메이트 메리노울 운동화):
+      정가 149,000 → 할인 −32,100 → **116,900 (22% 할인가) = 표면노출가**
+                   → 삼성카드 7% 청구할인 −8,180 → 108,720 (= benefitPrc, 최대할인가)
+
+    산출 규칙 (★ 추정·폴백 금지):
+      A) 카드 청구할인이 걸린 페이지 (card.rate > 0):
+           benefitPrc 는 카드가 이미 빠진 값이므로 그대로 쓰면 안 된다.
+           표면가 = ``benefitPrc + cardDiscountList[0].discountAmount``.
+           ↑ 항등식 근거: 사이트 노출값이 정확히 이 관계다.
+             · 본 파일 헤더의 실측 예시: 최대할인가 120,320 = 할인가 126,650 − 6,330(국민카드 5%)
+               (126,650 × 5% = 6,332.5 → 10원 절사 6,330 ✓)
+             · 사용자 제공 실측 예시: 108,720 = 116,900 − 8,180(삼성카드 7%)
+               (116,900 × 7% = 8,183 → 10원 절사 8,180 ✓)
+           둘 중 하나라도 결측(benefitPrc==0 또는 amount==0)이면 **0 반환 → 호출자가 실패**.
+           (카드율만 알고 금액을 모를 때 나눗셈으로 역산하면 사이트의 10원 절사 때문에
+            원 단위가 어긋난다. 금전 직결이라 '틀린 값'보다 '실패'를 택한다.)
+      B) 카드 청구할인이 없는 페이지:
+           노출가 자체가 이미 카드 미적용가다 → benefitPrc → ``.price > span.num``
+           → ``.final span.num`` 순으로 채택.
+
+    Returns:
+        (surface_price, source_tag). 확정 불가 시 (0, 사유).
+    """
+    max_price = _extract_max_price_from_databenefit(html) if html else 0
+    sel_price = _selector_discounted_price(soup)
+    final_el = soup.select_one(".final span.num")
+    final_price = _to_int(final_el.get_text() if final_el else "")
+
+    card_rate = float((card or {}).get("rate") or 0)
+    card_amount = _to_int(str((card or {}).get("amount") or 0))
+
+    # A) 카드 청구할인 있음 → benefitPrc 는 카드 포함가라 표면가가 아니다.
+    if card and card_rate > 0:
+        if max_price > 0 and card_amount > 0:
+            return max_price + card_amount, "benefitPrc+cardDiscountAmount"
+        return 0, (
+            "카드 청구할인이 노출됐으나 표면가 복원 불가 "
+            f"(benefitPrc={max_price}, card_amount={card_amount})"
+        )
+
+    # B) 카드 청구할인 없음 → 노출가 = 카드 미적용가
+    #    ⚠️ 단, "카드 파싱이 실패한 것"과 "카드가 정말 없는 것"을 구분해야 한다.
+    #    dataBenefit 에 cardDiscountList 항목이 있는데 card 가 None 이면 파싱 실패다.
+    #    이때 benefitPrc 를 표면가로 쓰면 카드 포함가를 표면가로 둔갑시킨다 → 실패 처리.
+    if not card:
+        _meta = _parse_data_benefit(html) if html else None
+        _raw_cards = ((_meta or {}).get("data") or {}).get("fullDiscountObj") or {}
+        if _raw_cards.get("cardDiscountList"):
+            return 0, "cardDiscountList 존재하나 카드할인 구조화 실패 — 표면가 확정 불가"
+
+    if max_price > 0:
+        return max_price, "benefitPrc(카드할인 없음)"
+    if sel_price > 0:
+        return sel_price, ".price>span.num(카드할인 없음)"
+    if final_price > 0:
+        return final_price, ".final span.num(카드할인 없음)"
+    return 0, "가격 소스 전무"
+
+
 def _parse_prices(soup: BeautifulSoup, html: str = "") -> tuple[int, int, int, int]:
     """롯데홈쇼핑 / 롯데IMALL 가격 파싱.
 
-    ★ 2026-05-13 수정 (사용자 확정 정책):
-      "할인가 (크롤링 기준)" = 롯데홈쇼핑 최대할인가 (카드 청구할인 포함).
-      예: 정가 149,000 → 15% 할인가 126,650 → **최대할인가 120,320** (국민카드 5% 적용).
+    ⚠️ 2026-07-18 — 여기서 나오는 ``max_price`` 는 **최대할인가(카드 청구할인 포함)** 라
+      표면노출가가 **아니다**. crawled_price 로 담는 표면가는 ``_resolve_surface_price``
+      가 단일 진실 원천. 본 함수는 정가·할인율 등 부가 정보용으로만 남는다.
 
     추출 우선순위 (max_price 기준):
-      1) dataBenefit JSON 의 commonDiscountObj.benefitPrc — 페이지 표시와 1:1 일치
-      2) (폴백) V7 셀렉터 ``.price > span.num`` — 15% 할인가 (카드 미적용)
-      3) (최후 폴백) ``.final span.num`` — salePrice 동의어
+      1) dataBenefit JSON 의 commonDiscountObj.benefitPrc — 사이트 "최대할인가" 와 1:1
+      2) (폴백) V7 셀렉터 ``.price > span.num``
+      3) (최후 폴백) ``.final span.num``
 
     Returns: (sale_price, max_price, origin_price, discount_rate)
         - sale_price : ``.final span.num`` (V7 호환, 정보용)
-        - max_price  : 사용자 정책의 sale_price (= 최대할인가, 정책 적용 base)
+        - max_price  : 최대할인가 (카드 포함)
         - origin_price: 정가
     """
     # V7 호환 (정보용)
@@ -418,13 +769,7 @@ def _parse_prices(soup: BeautifulSoup, html: str = "") -> tuple[int, int, int, i
 
     # 2순위: V7 셀렉터 ``.price > span.num``
     if max_price == 0:
-        for price_el in soup.select(".price"):
-            for child in price_el.find_all("span", recursive=False):
-                if "num" in (child.get("class") or []):
-                    max_price = _to_int(child.get_text())
-                    break
-            if max_price:
-                break
+        max_price = _selector_discounted_price(soup)
 
     # 3순위: sale_price (.final span.num) 폴백
     if max_price == 0:
@@ -486,6 +831,132 @@ def _parse_soldout_names(soup: BeautifulSoup) -> set[str]:
         t = p.get_text(strip=True)
         if t:
             out.add(t)
+    return out
+
+
+# ★ 2026-06-25 — 롯데아이몰 실재고 3상태(품절0/실수량N/충분)
+#   페이지 JS 배열 ``itemInvQtyInfo = [{opt_cd_0,opt_val_cd_0,item_no,inv_qty,master_yn}]``
+#   에 옵션별 실재고(inv_qty)가 들어있다. opt_val_cd_0 = 옵션 li 의 id ``<grp>_<N>`` 의 N.
+#   → DOM soldout(품절/있음 2상태) 대신 inv_qty 로 실수량까지 포착(라이브 검증: 0 위치가
+#      DOM 품절과 정확 일치, 240mm=17·270mm=9·255mm=5 등 실수량).
+_ITEM_INV_QTY_PATTERN = re.compile(
+    r"opt_val_cd_0\s*:\s*'?(\d+)'?[\s\S]{0,80}?inv_qty\s*:\s*(\d+)")
+_OPT_LI_ID_PATTERN = re.compile(r"\d+_(\d+)$")
+_SIZE_PAREN_PATTERN = re.compile(r"\s*\(.*?\)\s*")
+
+# ★ 2026-07-13 — 롯데아이몰 재고 3상태 기준을 '사이트 자체 JS'에 정렬(경계 5).
+#   근거: 라이브 상품 페이지 JS 원문(goods 2559329941, 실측)이 재고 라벨을 이렇게 붙인다.
+#       if (optInvQty <= 0)       → ' (품절)'
+#       else if (optInvQty > 500) → ' (판매중)'        # 충분(대량)
+#       else if (optInvQty < 5)   → ' (N개 남음)'       # ★ 한정 = 실수량 노출
+#       else (5 <= inv_qty <= 500)→ 라벨 없음 = 충분
+#   → 사이트가 "N개 남음"(한정)으로 보는 경계는 inv_qty<5 뿐이다. 5~500 은 그냥 '있음/충분'.
+#   [구 로직 폐기] 이전엔 '30 상한→50 표기'였는데, 이는 특정 상품(97조합) 1회 관찰에서
+#     최댓값이 우연히 30이었던 것을 상한으로 오일반화한 것. 그 결과 inv_qty 10 같은
+#     '충분' 재고를 "10개 남음"으로 오표기 → 진짜 한정(2개)과 구분 불가(사용자 리포트).
+#   충분 센티넬 = 999(프로젝트 표준: 품절0 / 실수량N / 충분999). '확인 불가'는 별도(-1).
+_LOTTEIMALL_LIMITED_THRESHOLD = 5   # inv_qty < 5 → 한정(실수량 노출)
+_LOTTEIMALL_SUFFICIENT_DISP = 999   # inv_qty >= 5 → 충분
+
+
+def _lotteimall_disp_qty(inv_qty: int) -> int:
+    """롯데아이몰 재고 3상태 표기값(사이트 JS 기준):
+    품절(<=0)→0 · 한정(0<inv_qty<5)→실수량 그대로 · 충분(>=5)→999."""
+    if inv_qty <= 0:
+        return 0
+    if inv_qty < _LOTTEIMALL_LIMITED_THRESHOLD:
+        return inv_qty
+    return _LOTTEIMALL_SUFFICIENT_DISP
+
+
+def _extract_item_inv_qty(html: str) -> dict[str, int]:
+    """``itemInvQtyInfo`` → {opt_val_cd_0(str): inv_qty(int)}. 없으면 {}."""
+    out: dict[str, int] = {}
+    for m in _ITEM_INV_QTY_PATTERN.finditer(html or ""):
+        out[m.group(1)] = int(m.group(2))
+    return out
+
+
+def _build_inv_qty_by_size(soup: BeautifulSoup, html: str) -> dict[str, int]:
+    """옵션 li id(``<grp>_<N>``) + inv_qty(opt_val_cd_0=N) → {size_text: inv_qty}.
+
+    단일 색상(사이즈 단일축) 상품에서 size 텍스트로 실재고를 직접 찾기 위함.
+    다색상(색×사이즈)은 size 가 색마다 중복돼 모호 → 호출부에서 단일색일 때만 사용.
+    """
+    inv_map = _extract_item_inv_qty(html)
+    if not inv_map:
+        return {}
+    out: dict[str, int] = {}
+    for li in soup.select(".inp_option.inpOptList li[id]"):
+        m = _OPT_LI_ID_PATTERN.match(li.get("id", "") or "")
+        if not m:
+            continue
+        cd = m.group(1)
+        if cd not in inv_map:
+            continue
+        p = li.select_one("p.txt_option")
+        raw = (p.get_text(strip=True) if p else li.get_text(strip=True)) or ""
+        size = _SIZE_PAREN_PATTERN.sub("", raw).strip()   # "260mm (품절)" → "260mm"
+        if size and not OPT_HEADER_PATTERN.match(size):
+            out[size] = inv_map[cd]
+    return out
+
+
+# ★ 2026-06-28 — 롯데아이몰 2축(색상×사이즈) 실재고 3상태.
+#   색상모음전 페이지의 itemInvQtyInfo 객체는 opt_val_cd_0(색 코드)·opt_val_cd_1(사이즈 코드)
+#   ·inv_qty 를 함께 담는다(라이브 검증: 9색×13사이즈=97조합 정확 수량). 단축 경로는 색이
+#   하나라 size 만으로 매핑 가능했지만, 2축은 (색,사이즈) 조합으로 매핑해야 정확.
+_ITEM_INV_OBJ_PATTERN = re.compile(r"\{[^{}]*?inv_qty[^{}]*?\}")
+_OVC0_PATTERN = re.compile(r"opt_val_cd_0\s*:\s*'?(\d+)'?")
+_OVC1_PATTERN = re.compile(r"opt_val_cd_1\s*:\s*'?(\d+)'?")
+_INVQ_PATTERN = re.compile(r"inv_qty\s*:\s*(\d+)")
+
+
+def _extract_item_inv_qty2(html: str) -> dict[tuple[str, str], int]:
+    """``itemInvQtyInfo`` → {(opt_val_cd_0, opt_val_cd_1): inv_qty}. 2축용. 없으면 {}."""
+    out: dict[tuple[str, str], int] = {}
+    for obj in _ITEM_INV_OBJ_PATTERN.findall(html or ""):
+        c0 = _OVC0_PATTERN.search(obj)
+        c1 = _OVC1_PATTERN.search(obj)
+        q = _INVQ_PATTERN.search(obj)
+        if c0 and c1 and q:
+            out[(c0.group(1), c1.group(1))] = int(q.group(1))
+    return out
+
+
+def _opt_code_label_map(ul) -> dict[str, str]:
+    """하나의 옵션 리스트(ul) → {opt_val_cd(li id 의 N): label}. 헤더('색상 선택')는 제외."""
+    out: dict[str, str] = {}
+    if ul is None:
+        return out
+    for li in ul.select("li[id]"):
+        m = _OPT_LI_ID_PATTERN.match(li.get("id", "") or "")
+        if not m:
+            continue
+        p = li.select_one("p.txt_option")
+        raw = (p.get_text(strip=True) if p else li.get_text(strip=True)) or ""
+        label = _SIZE_PAREN_PATTERN.sub("", raw).strip()
+        if label and not OPT_HEADER_PATTERN.match(label):
+            out[m.group(1)] = label
+    return out
+
+
+def _build_inv_qty_by_color_size(soup: BeautifulSoup, html: str) -> dict[tuple[str, str], int]:
+    """2축: (색상 label, 사이즈 label) → inv_qty. 리스트[0]=색상·[1]=사이즈 가정."""
+    inv = _extract_item_inv_qty2(html)
+    if not inv:
+        return {}
+    lists = soup.select(".inp_option.inpOptList")
+    if len(lists) < 2:
+        return {}
+    color_map = _opt_code_label_map(lists[0])   # opt_val_cd_0 → 색 label
+    size_map = _opt_code_label_map(lists[1])     # opt_val_cd_1 → 사이즈 label
+    out: dict[tuple[str, str], int] = {}
+    for (c0, c1), q in inv.items():
+        cl = color_map.get(c0)
+        sl = size_map.get(c1)
+        if cl and sl:
+            out[(cl, sl)] = q
     return out
 
 
@@ -1242,11 +1713,19 @@ class LotteCrawler(AbstractCrawler):
         #   lottehomeshopping / lotteimall → 기존 V7 호환 SSR HTML 파싱
         if _is_lotteon(product_url):
             return _fetch_lotteon(product_url, self.timeout)
+        # 서버 fetch(curl_cffi). ⚠️ lotteimall WAF 가 서버 IP 를 403 으로 막을 수 있어
+        #   라이브는 확장 navGrab → /api/sources/parse → parse_html(실브라우저 HTML) 경로 우선.
+        html = self._fetch_html(product_url)
+        return self.parse_html(html, product_url)
 
+    def parse_html(self, html: str, product_url: str) -> CrawlResult:
+        """롯데홈쇼핑/롯데아이몰 SSR HTML 파싱 (네트워크 없음 — 확장 navGrab 진입점).
+
+        ⚠️ lotteon.com(SPA)은 이 경로가 아니라 fetch→_fetch_lotteon(API)로 처리.
+        실브라우저(확장)가 받은 HTML 을 그대로 파싱 → lotteimall WAF 우회.
+        """
         product_id = _extract_product_id(product_url)
         # V7 는 빈 productId 도 허용 — 동일 동작 유지
-
-        html = self._fetch_html(product_url)
         soup = BeautifulSoup(html, "lxml")
 
         # ── V7 lotteParseProduct 흐름 1:1 ────────────────────
@@ -1258,12 +1737,40 @@ class LotteCrawler(AbstractCrawler):
         auto_card_discount = _extract_auto_card_discount(html, soup)
         # ★ 2026-05-14: 구매 적립혜택 (구매적립 L.POINT) 추출. 리뷰 적립은 명세 제외.
         point_rewards = _extract_point_rewards(html)
+        # ★ 2026-07-23 (사장님 질문에서 출발) — PDP 「쿠폰받기」 다운로드 쿠폰.
+        #   주문서 실측 결과 이 쿠폰은 **「플러스 할인쿠폰」 칸**이다 → 표면가에
+        #   이미 들어간 「할인쿠폰」과 **동시 적용**, 대신 경유 네이버 플러스쿠폰과
+        #   택1. 선반영액(`preapplied_coupon`)은 차감 계산엔 안 쓰고 **검산·진단용**
+        #   으로 계속 실어 보낸다(정가 = 표면가 + 선반영액 대조).
+        download_coupons = _parse_download_coupons(soup)
+        preapplied_coupon = _parse_preapplied_coupon_amount(html)
 
-        # ★ 2026-05-14 — 매입가 단일 진실 원천(api_benefits.compute_breakdown) 으로 통합.
-        #   sale_price = "롯데홈쇼핑 최대할인가" (max_price 우선). 매입가는 매트릭스 UI 가 breakdown API 호출.
-        base_for_policy = max_price if max_price > 0 else sale_price
+        # ★ 2026-07-18 (사용자 확정) — crawled_price = **표면노출가(카드 미적용 할인가)**.
+        #   구 정책은 최대할인가(카드 청구할인 포함)를 담아 H몰(bbprc=카드 미포함)과
+        #   의미가 달랐다 → 매트릭스 비교 불성립. H몰 규약에 맞춘다.
+        #   카드 청구할인은 버리지 않고 lotteimall_card_discount/_label 로 분리 보관.
+        base_for_policy, _price_source = _resolve_surface_price(soup, html, auto_card_discount)
         if base_for_policy <= 0:
-            raise RuntimeError(f"[lotteimall] sale_price/max_price 추출 실패 ({sale_price}/{max_price}) — Fail-safe")
+            # 폴백 금지 — 정가·최대할인가로 조용히 대체하지 않는다(추정가 = 금전 손실).
+            raise RuntimeError(
+                f"[lotteimall] 표면노출가(카드 미적용 할인가) 확정 실패 — {_price_source}"
+            )
+
+        # ★ 카드 청구할인 분리 보관 (H몰 hmall_card_discount/_label 패턴 그대로).
+        #   M1-6 에서 이 값을 조건부 혜택(사용자 토글)으로 붙인다.
+        card_benefits: dict = {}
+        # 다운로드 쿠폰 — 있을 때만 실어 보낸다(빈 값은 서버가 기존값 보존).
+        if download_coupons:
+            card_benefits["lotteimall_download_coupons"] = download_coupons
+        if preapplied_coupon > 0:
+            card_benefits["lotteimall_preapplied_coupon"] = preapplied_coupon
+        if auto_card_discount:
+            _cd_amt = _to_int(str(auto_card_discount.get("amount") or 0))
+            if _cd_amt > 0:
+                card_benefits["lotteimall_card_discount"] = _cd_amt
+                card_benefits["lotteimall_card_label"] = (
+                    auto_card_discount.get("label") or "카드"
+                )
 
         # 옵션 파싱
         opt_lists = soup.select("div.inp_option.inpOptList")
@@ -1282,6 +1789,15 @@ class LotteCrawler(AbstractCrawler):
         else:
             sizes = [{"name": "", "soldOut": False}]
 
+        # ★ 2026-06-25 — 실재고 3상태: 단일축(색 또는 사이즈 한 축)이면 itemInvQtyInfo
+        #   (inv_qty)로 실수량 매핑. 단일색 상품은 inpOptList 1개라 사이즈가 color_text 에
+        #   담기므로(기존 크롤러 특성), 옵션 라벨로 매핑한다.
+        #   ★ 2026-06-28 — 2축(색×사이즈)도 itemInvQtyInfo(opt_val_cd_0·opt_val_cd_1)로
+        #     조합별 실수량 매핑(라이브 검증: 롯데아이몰 색상모음전 97조합). 단축은 기존 size 매핑.
+        _single_axis = not (color_names and size_names)
+        size_qty_map = _build_inv_qty_by_size(soup, html) if _single_axis else {}
+        cs_qty_map = {} if _single_axis else _build_inv_qty_by_color_size(soup, html)
+
         options: list[dict] = []
         for color in colors:
             for size in sizes:
@@ -1290,14 +1806,35 @@ class LotteCrawler(AbstractCrawler):
                 color_text = color["name"] if color["name"] else product_name
                 size_text = size["name"]
                 # 사용자 정책 (2026-05-06): 품절=0 / 충분 재고=999 (표시 없음)
-                stock_int = 0 if is_sold_out else 999
+                #   ★ inv_qty 매핑 있으면 실수량(3상태). 2축=(색,사이즈) 조합 우선, 단축=size 라벨.
+                _label = size_text if size_text else (color["name"] or "")
+                _lbl_key = _SIZE_PAREN_PATTERN.sub("", _label).strip()
+                _csk = (_SIZE_PAREN_PATTERN.sub("", (color["name"] or "")).strip(),
+                        _SIZE_PAREN_PATTERN.sub("", (size_text or "")).strip())
+                if cs_qty_map and _csk in cs_qty_map:
+                    # 2축 조합별 실재고(0=품절·<5=실수량N·>=5=충분999). _lotteimall_disp_qty(사이트 JS 기준).
+                    stock_int = _lotteimall_disp_qty(cs_qty_map[_csk])
+                elif _lbl_key in size_qty_map:
+                    # 단축 실재고(0=품절·<5=실수량N·>=5=충분999). _lotteimall_disp_qty(사이트 JS 기준).
+                    stock_int = _lotteimall_disp_qty(size_qty_map[_lbl_key])
+                else:
+                    stock_int = 0 if is_sold_out else 999
+                # ★ 2026-07-14 — 저장용 라벨에서 상태 꼬리표('(품절)'·'(N개 남음)') 제거.
+                #   버그: 단품(단일색)은 사이즈가 color_text 에 담기는데(위 특성), 한정 사이즈는
+                #   li 텍스트가 "250mm (2개 남음)" 이라 그대로 저장됐다. 매트릭스 매칭
+                #   (_stk_digits = 모든 숫자 이어붙임)이 "250"+"2"="2502" 를 만들어 우리 사이즈
+                #   "250" 과 불일치 → 그 사이즈만 '미크롤' 둔갑(품절은 괄호에 숫자없어 우연히 정상).
+                #   재고 값(stock_int)은 이미 위에서 괄호 제거한 _lbl_key/_csk 로 정확히 뽑았으므로
+                #   여기선 '저장 키'만 정리한다(값·품절판정에 영향 없음).
+                _store_color = _SIZE_PAREN_PATTERN.sub("", color_text or "").strip()
+                _store_size = _SIZE_PAREN_PATTERN.sub("", size_text or "").strip()
                 # CrawlResult.price: V7 는 maxPrice 사용 (옵션 표시 가격)
                 # 단, maxPrice 가 0 일 수 있으므로 V7 의 ``maxPrice || '-'`` 분기는
                 # 본 모듈에서는 0 그대로 유지 (CrawlResult 스키마는 int).
                 options.append({
-                    "option_id": f"{product_id}|{color_text}|{size_text}",
-                    "color_text": color_text,
-                    "size_text": size_text,
+                    "option_id": f"{product_id}|{_store_color}|{_store_size}",
+                    "color_text": _store_color,
+                    "size_text": _store_size,
                     "price": base_for_policy,
                     "sale_price": base_for_policy,
                     # ★ 2026-05-13: 사이트 자동 적용 카드 할인 정보 (UI 표시용)
@@ -1309,6 +1846,8 @@ class LotteCrawler(AbstractCrawler):
                     #        "club_point": 633, "source": "dataBenefit.lPointObj"}
                     "point_rewards": point_rewards,
                     "stock": stock_int,
+                    # ★ 2026-07-18: 카드 청구할인 분리 보관(H몰 패턴). 표면가에 미반영.
+                    **card_benefits,
                 })
 
         # V7: rows.length === 0 → 단일 폴백. 위 로직은 colors=[{빈}], sizes=[{빈}]
@@ -1360,4 +1899,9 @@ class LotteCrawler(AbstractCrawler):
             product_name_raw=product_name,
             options=options,
             discount_info=" / ".join(info_parts),
+            # [2026-07-23 M3] 소싱처 카테고리 경로 — 못 뽑으면 빈 문자열(추측 금지)
+            category_path=_parse_category_path(soup),
+            # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지)
+            image_urls=_parse_image_urls(soup, product_url),
+            detail_html=_parse_detail_html(soup, product_url),
         )

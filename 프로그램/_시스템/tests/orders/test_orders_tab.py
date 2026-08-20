@@ -1,0 +1,294 @@
+# -*- coding: utf-8 -*-
+"""주문·정산·문의반품·신규등록 탭 — 5번 레이아웃(요약+표) · 안전 OFF(연결됨·검증대기)."""
+import datetime as _dt
+import pathlib
+
+import pytest
+from jinja2 import ChoiceLoader, DictLoader, Environment, FileSystemLoader
+from flask import Flask
+
+from webapp.routes import orders as om
+from lemouton.markets import capabilities as cap
+
+TPL = pathlib.Path(om.__file__).parents[1] / "templates"
+
+
+def _render(tab, live_enabled=False):
+    env = Environment(loader=ChoiceLoader([
+        DictLoader({"base.html": "{% block content %}{% endblock %}"}),
+        FileSystemLoader(str(TPL)),
+    ]))
+    # margin 탭 include(orders/_margin.html)는 정적파일 url_for 를 쓴다 — 앱 컨텍스트 없이
+    # 렌더하므로 스텁 제공.
+    env.globals["url_for"] = lambda *a, **k: "#"
+    cfg = om.TAB_CONFIG.get(tab)
+    rows = [] if (live_enabled or not cfg) else cfg["rows"]
+    export_markets = ["coupang", "lotteon", "smartstore"] if tab == "list" else []
+    return env.get_template("orders/index.html").render(
+        tab=tab, subtabs=om.SUBTABS, active="orders_" + tab,
+        cfg=cfg, live_enabled=live_enabled, rows=rows,
+        export_markets=export_markets,
+        all_columns=om._oe.ALL_COLUMNS if tab == "list" else [],
+        col_meta=om._oe.columns_meta() if tab == "list" else {})
+
+
+def _client():
+    app = Flask(__name__, template_folder="webapp/templates",
+                root_path=pathlib.Path(om.__file__).parents[2].as_posix())
+    app.register_blueprint(om.bp)
+    return app.test_client()
+
+
+def test_extra_gate_default_off(monkeypatch):
+    monkeypatch.delenv("MOUM_MARKET_EXTRA", raising=False)
+    assert cap.market_extra_enabled() is False
+
+
+def test_dashboard_tabs_configured():
+    # [2026-07-16] 정산·매출(sales) 탭 삭제 → 남은 샘플 레이아웃 탭만 검증.
+    for t in ["list", "cs", "register"]:
+        c = om.TAB_CONFIG[t]
+        assert c["kpis"] and c["cols"] and c["rows"]
+    assert "sales" not in om.TAB_CONFIG                       # 정산·매출 완전 제거
+    assert all(t["key"] != "sales" for t in om.SUBTABS)       # 서브탭에서도 제거
+
+
+def test_list_tab_has_quick_range_buttons():
+    html = _render("list", live_enabled=True)
+    assert 'id="qchips"' in html            # 빠른 버튼 컨테이너
+    assert 'id="qdirect"' in html           # 「직접」 시작~끝 날짜
+    assert "버튼 관리" in html               # 관리 진입(모달)
+    assert "빠른 기간 버튼 관리" in html      # 관리 모달 제목
+    assert "moum_quick_ranges_v1" in html   # 저장 키
+    assert "2~3일 전" in html and "지난주" in html and "지난달" in html   # 기본 버튼
+
+
+def test_parse_range_reads_from_to():
+    since, until = om._parse_range({"from": "2026-06-01", "to": "2026-06-10"})
+    assert since.date() == _dt.date(2026, 6, 1)
+    assert until.date() == _dt.date(2026, 6, 10)
+    assert until.hour == 23 and until.minute == 59        # 종료일 하루 전체 포함
+
+
+def test_parse_range_swaps_reversed_and_clamps():
+    since, until = om._parse_range({"from": "2026-06-10", "to": "2026-06-01"})
+    assert since.date() == _dt.date(2026, 6, 1) and until.date() == _dt.date(2026, 6, 10)
+    # 상한 = MAX_RANGE_DAYS(365). 90일은 「1년치를 못 본다」의 진짜 원인이라 의도적으로 늘렸다
+    # (2026-07-20 실측). 상수를 참조해 값이 또 바뀌어도 테스트가 안 낡게 한다.
+    s, u = om._parse_range({"from": "2025-01-01", "to": "2026-12-31"})   # ~730일 → 상한으로 클램프
+    assert (u.date() - s.date()).days == om.MAX_RANGE_DAYS
+
+
+def test_parse_range_absent_or_bad_is_none():
+    assert om._parse_range({}) == (None, None)
+    assert om._parse_range({"from": "2026-06-01"}) == (None, None)   # 한쪽만 → None
+    assert om._parse_range({"from": "bad", "to": "also-bad"}) == (None, None)
+
+
+@pytest.mark.parametrize("tab,kpi,col", [
+    ("register", "등록 대기", "카테고리"),
+])
+def test_tab_renders_layout(tab, kpi, col):
+    # list 는 7번(AJAX) 전용 레이아웃이라 별도 테스트. cs 는 실제 클레임 칸반 전용 레이아웃(아래
+    # test_cs_tab_renders_claims_kanban). 정산·매출(sales) 삭제 → register 만 샘플 레이아웃 유지.
+    html = _render(tab)
+    assert kpi in html, kpi
+    assert col in html, col
+    assert "안전 OFF" in html                  # 게이트 OFF 배너
+    assert "쿠팡" in html and "스마트스토어" in html
+
+
+def test_cs_tab_renders_claims_kanban():
+    # cs 탭은 샘플 표 대신 실제 반품·교환·취소 3열 칸반(claims.json 배선)을 렌더한다.
+    html = _render("cs")
+    assert 'id="cs-board"' in html and 'id="cs-mtabs"' in html
+    assert "/orders/cs/claims/ack" in html and "/orders/cs/claims/memo" in html
+    assert "/orders/cs/claims.json" in html
+    assert "반품·교환·취소" in html and "고객문의" in html
+    assert "미답변 문의" not in html            # 구 샘플 레이아웃(TAB_CONFIG['cs']) 미사용
+    # 마켓탭은 클라이언트측 필터 — 페치는 항상 전마켓(건수 배지 정확). 탭 클릭이 재페치 아님.
+    assert "function marketsParam(){ return ALLMK.join(','); }" in html
+    assert "renderBoard(lastGroups)" in html
+    # 스펙 §3: 대응완료 카드에도 메모 읽기전용 표시(memoRO).
+    assert "memoRO" in html
+
+
+def test_action_button_disabled_when_off():
+    html = _render("register")
+    assert "disabled" in html                   # 등록 버튼 비활성(샘플 탭)
+
+
+def test_live_on_shows_empty_state():
+    html = _render("register", live_enabled=True)   # sales 삭제 → register 로 빈상태 검증
+    assert "아직 표시할 실데이터가 없어요" in html
+    assert "안전 OFF" not in html                # live=on → 배너 숨김
+
+
+def test_list_is_seven_layout():
+    # 7번: 좌측 필터(마켓·기간·검색) + 엑셀 양식(프리셋) + 대시보드 + 실주문(preview.json)
+    html = _render("list")
+    for t in ["마켓", "기간", "검색", "엑셀 양식", "양식 관리", "엑셀 내보내기",
+              "preview.json", "kpis", "tablewrap", "presetSel", "colpop",
+              "moum_order_presets_v2", "택배전송용", "마진계산기용"]:
+        assert t in html, t
+    assert "안전 OFF" not in html                # 모순 배너 제거됨
+    assert "레이아웃 미리보기(샘플)" not in html
+
+
+def test_margin_renders_skeleton():
+    # Task C3: margin 탭은 이제 원본 마진계산기 풀페이지를 iframe 으로 임베드한다
+    #   (구 B레이아웃 재구현본 id="margin-app" 은 폐기 — 원본 1:1 방향).
+    html = _render("margin")
+    assert 'id="margin-embed-frame"' in html
+    assert '<iframe' in html
+    assert "후속 구현 예정" not in html
+    # (실제 라우트/src=/orders/margin-embed 는 test_margin_ui_routes.py 가 앱 컨텍스트에서 검증)
+
+
+def test_routes_registered():
+    app = Flask(__name__, template_folder="webapp/templates",
+                root_path=pathlib.Path(om.__file__).parents[2].as_posix())
+    app.register_blueprint(om.bp)
+    rules = {r.rule for r in app.url_map.iter_rules()}
+    assert "/orders/" in rules
+    assert "/orders/export.xlsx" in rules
+    assert "/orders/preview.json" in rules
+
+
+def test_preview_shows_personal_fields_unmasked(monkeypatch):
+    # 사용자 요청(관리자 화면): 구매자·수령자·전화·주소를 마스킹 없이 원본 그대로 노출.
+    monkeypatch.setattr(om._oe, "order_rows", lambda market, days=7, **k: [{
+        "상품명": "코트", "수령자": "김지현", "구매자": "김지현",
+        "수령자전화번호": "01011112222", "구매자번호": "01011112222",
+        "주소": "서울 강남구 테헤란로 123 4층", "주문상태": "배송완료"}])
+    r = _client().get("/orders/preview.json?market=smartstore&days=7")
+    assert r.status_code == 200
+    j = r.get_json()
+    assert j["ok"] and j["count"] == 1
+    row = j["rows"][0]
+    assert row["수령자"] == "김지현" and row["구매자"] == "김지현"       # 마스킹 없음
+    assert row["수령자전화번호"] == "01011112222" and "*" not in row["수령자전화번호"]
+    assert row["주소"] == "서울 강남구 테헤란로 123 4층"              # 주소 전체(안 끊김)
+    assert row["주문상태"] == "배송완료" and row["상품명"] == "코트"
+
+
+def test_list_has_export_controls():
+    html = _render("list")
+    assert "엑셀 내보내기" in html          # 다운로드 버튼
+    assert "최근 7일" in html                # 기간 프리셋 칩
+    assert "정산예정금액" in html            # 양식 열 목록(all_columns)에 포함
+
+
+def test_export_downloads_xlsx_for_smartstore(monkeypatch):
+    monkeypatch.setattr(om._oe, "order_rows",
+                        lambda market, days=7, **k: [{"상품명": "코트", "정산예정금액": 100}])
+    r = _client().get("/orders/export.xlsx?market=smartstore&days=7")
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers["Content-Type"]
+    assert r.data[:2] == b"PK"                # xlsx(zip) 바이트
+
+
+def test_export_rejects_unsupported_market():
+    # order_rows 가 ValueError → 400 (추측 데이터 안 만듦). 11번가=아직 UI 미노출.
+    r = _client().get("/orders/export.xlsx?market=eleven11&days=7")
+    assert r.status_code == 400
+
+
+def test_export_post_visible_rows_matches_screen_exactly():
+    # 화면 그대로 내보내기 — 화면 필터(filtered) 결과를 POST 하면 재조회 없이 그 행 그대로.
+    # 보낸 행 수 == 엑셀 데이터 행 수 (화면=다운로드 100% 일치). 마켓 재조회는 하지 않는다.
+    import io
+    import openpyxl
+    rows = [
+        {"판매처": "쿠팡", "쇼핑몰별칭": "브랜드마켓", "상품명": "신발A", "옵션": "베이지 270",
+         "수량": 1, "수령자": "홍길동", "주소": "서울 강남구"},
+        {"판매처": "쿠팡", "쇼핑몰별칭": "브랜드마켓", "상품명": "신발B", "옵션": "브라운 235",
+         "수량": 1, "수령자": "김철수", "주소": "서울 송파구"},
+    ]
+    cols = ["수령자", "주소", "상품명", "옵션", "수량"]
+    r = _client().post("/orders/export.xlsx",
+                       json={"rows": rows, "cols": cols, "fname": "모음전_주문_쿠팡.xlsx"})
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers["Content-Type"]
+    ws = openpyxl.load_workbook(io.BytesIO(r.data)).active
+    assert ws.max_row - 1 == len(rows)              # 헤더 제외 = 보낸 행 수와 정확히 일치
+    assert [c.value for c in ws[1]] == cols         # 양식 열 구성·순서 그대로
+    assert ws.cell(row=2, column=1).value == "홍길동"
+
+
+def test_export_post_rejects_non_list_rows():
+    # rows 누락/형식오류는 400(추측 데이터·빈 파일 조용히 안 만듦).
+    r = _client().post("/orders/export.xlsx", json={"cols": ["수령자"]})
+    assert r.status_code == 400
+
+
+def test_list_export_offers_three_markets():
+    html = _render("list")
+    assert "스마트스토어" in html and "롯데온" in html and "쿠팡" in html   # 마켓 선택 칩
+
+
+def test_shopmine_fee_derivation():
+    """샵마인 대조(2026-07-08): 마켓수수료 = 실결제 − 정산예정, 수수료율 = 수수료/**실결제**.
+
+    4개 마켓 실샘플로 검증. 실결제 없으면(쿠팡) 총주문금액으로. 정산==실결제(롯데온,
+    정산 API 없음)면 수수료 공란(0/음수 폴백 금지 — 없는 값 지어내지 않음).
+
+    🔴 분모가 「총주문금액」이 아니라 「실결제」인 이유 (2026-08-06 정정)
+        마켓은 **할인 후 받은 돈**에 수수료를 매긴다. 분자(수수료 = 실결제 − 정산)는
+        이미 할인 후 기준인데 분모만 할인 전 정가라, 할인이 붙은 주문일수록 표시 율이
+        계약 요율보다 **낮게** 나왔다.
+        · 세 번째 표본이 그 증거다 — 3,964/83,200 = 4.76%(제각각) 인데
+          3,964/66,060 = **6.00%** 로 스마트스토어 계약 요율과 정확히 맞는다.
+        · 라이브 실측(2026-08-06)도 같다: 스스 33건이 정가 기준 5.27·4.70·4.56% 로
+          흩어지는데 실결제 기준은 전부 6.00%. 쿠팡은 11.43% → **11.55%**(계약 요율).
+        · 실결제가 없으면(공란) 총주문금액으로 떨어진다 — 두 번째 표본이 그 경로다.
+    """
+    from lemouton.markets.order_export import _finalize_rows
+    cases = [   # (실결제, 정산, 기대 수수료, 기대 율)
+        ({"단가": 37400, "수량": 1, "실결제금액": 34830, "정산예정금액": 33146}, 1684, "4.83%"),
+        ({"단가": 140000, "수량": 1, "정산예정금액": 123830}, 16170, "11.55%"),   # 쿠팡: 실결제 없음
+        # 스스 실샘플 — 정가 기준이면 4.76%, 실결제 기준이면 계약 요율 6% 에 딱 맞는다
+        ({"단가": 83200, "수량": 1, "실결제금액": 66060, "정산예정금액": 62096}, 3964, "6.0%"),
+        ({"단가": 65500, "수량": 1, "실결제금액": 55700, "정산예정금액": 55700}, "", ""),  # 롯데온: 정산=실결제
+    ]
+    for row, fee, rate in cases:
+        _finalize_rows([row])
+        assert row["마켓수수료"] == fee, row
+        assert row["수수료율"] == rate, row
+    # 송장 없으면 '송장미입력', 새 열 존재
+    assert cases[0][0]["송장입력"] == "송장미입력"
+    assert cases[0][0]["총주문금액"] == 37400
+
+
+def test_preset_market_fee_wins_over_derivation():
+    """빌더가 정산 API 실값으로 마켓수수료를 미리 채우면 파생값 대신 그걸 사용(롯데온 SettleCommission)."""
+    from lemouton.markets.order_export import _finalize_rows
+    r = {"단가": 100000, "수량": 1, "실결제금액": 100000, "정산예정금액": 90000, "마켓수수료": 8800}
+    _finalize_rows([r])
+    assert r["마켓수수료"] == 8800                 # 파생(100000-90000=10000) 아닌 실값 8800
+    assert r["수수료율"] == "8.8%"                 # 8800/100000 — 여긴 실결제=정가라 값이 같다
+
+
+def test_수수료율_분모는_실결제다_할인이_붙으면_갈린다():
+    """🔴 이 시험이 지키는 사고 — 할인 붙은 주문의 표시 율이 계약 요율보다 낮게 나오던 것.
+
+    같은 수수료 6,000 원인데 정가만 다르게 둔다. 분모가 정가면 두 줄의 율이 갈리고,
+    실결제면 둘 다 같은 율이 나온다(수수료는 할인 후 금액에 붙기 때문).
+    """
+    from lemouton.markets.order_export import _finalize_rows
+    할인없음 = {"단가": 100000, "수량": 1, "실결제금액": 100000, "정산예정금액": 94000}
+    할인있음 = {"단가": 110000, "수량": 1, "실결제금액": 100000, "정산예정금액": 94000}
+    _finalize_rows([할인없음])
+    _finalize_rows([할인있음])
+    assert 할인없음["마켓수수료"] == 6000 and 할인있음["마켓수수료"] == 6000
+    assert 할인없음["수수료율"] == 할인있음["수수료율"] == "6.0%", (
+        "할인이 붙었다고 수수료율이 달라졌다 — 분모가 정가(총주문금액)로 남아 있다: %s vs %s"
+        % (할인없음["수수료율"], 할인있음["수수료율"]))
+
+
+def test_실결제를_모르면_총주문금액으로_떨어진다():
+    """실결제 공란(11번가 구매확정 목록 등)에서 0 으로 나눠 죽거나 공란이 되면 안 된다."""
+    from lemouton.markets.order_export import _finalize_rows
+    r = {"단가": 100000, "수량": 1, "정산예정금액": 94000}
+    _finalize_rows([r])
+    assert r["수수료율"] == "6.0%", "실결제가 없을 때 총주문금액 경로가 끊겼다: %s" % r["수수료율"]

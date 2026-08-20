@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" class="{{ design_body_class|default('') }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,6 +23,13 @@
   <meta name="twitter:description" content="팀 공유 · 재고 · 모음전 · 소싱 · 발주 관리 시스템">
   <meta name="twitter:image" content="https://www.mou-m.com{{ url_for('static', filename='icons/og-card.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+  {# [2026-07-31] 로그인·내 계정 화면도 디자인 타입을 따르게 한다.
+     여기는 base.html 과 뼈대가 달라 토큰 CSS 가 안 실렸다 → 검정 타입인데
+     이 화면들만 흰 판으로 남아 있었다(감사 실측: 흰 판 672곳, 화면 7개).
+     셋 다 선택자가 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='scope_fix.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}">
   <style>
     body {
       background: var(--bg);
@@ -39,9 +46,9 @@
       max-width: 420px;
       background: var(--surface);
       border: 1px solid var(--n200);
-      border-radius: 16px;
-      box-shadow: var(--shadow);
-      padding: 40px 32px;
+      border-radius: 18px;
+      
+      padding: 32px 32px;
     }
     .auth-brand {
       text-align: center;
@@ -50,13 +57,13 @@
     .auth-brand-mark {
       font-size: 32px;
       font-weight: 700;
-      letter-spacing: -0.02em;
-      color: var(--primary);
+      letter-spacing: 0;
+      color: var(--글자-파랑, var(--primary));
     }
     .auth-brand-sub {
       font-size: var(--fs-caption);
       color: var(--n600);
-      margin-top: 6px;
+      margin-top: 4px;
     }
     .auth-title {
       font-size: var(--fs-h2);
@@ -74,16 +81,16 @@
       font-size: var(--fs-caption);
       font-weight: 600;
       color: var(--n700);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .field input[type="email"],
     .field input[type="password"],
     .field input[type="text"] {
       width: 100%;
-      padding: 12px 14px;
+      padding: 12px 12px;
       font-size: var(--fs-body);
       border: 1px solid var(--n300);
-      border-radius: 10px;
+      border-radius: 8px;
       background: var(--surface);
       box-sizing: border-box;
       transition: border-color 0.15s, box-shadow 0.15s;
@@ -91,36 +98,36 @@
     .field input:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 3px var(--primary-tint);
+      
     }
     .field-error {
       font-size: var(--fs-caption);
-      color: var(--danger);
+      color: var(--글자-빨강, var(--danger));
       margin-top: 4px;
     }
     .auth-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: 8px 0 20px;
+      margin: 8px 0 16px;
     }
     .auth-row label {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       font-size: var(--fs-caption);
       color: var(--n700);
       cursor: pointer;
     }
     .btn-primary {
       width: 100%;
-      padding: 14px;
+      padding: 12px;
       font-size: var(--fs-body);
       font-weight: 600;
       color: white;
-      background: var(--primary);
+      background: var(--바탕-파랑, var(--primary));
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       cursor: pointer;
       transition: background 0.15s;
     }
@@ -128,13 +135,13 @@
     .btn-primary:disabled { background: var(--n400); cursor: not-allowed; }
 
     .flash {
-      padding: 12px 14px;
+      padding: 12px 12px;
       border-radius: 8px;
       font-size: var(--fs-caption);
       margin-bottom: 16px;
     }
-    .flash-error { background: var(--danger-bg); color: var(--danger); }
-    .flash-success { background: var(--color-ok-bg); color: var(--color-ok); }
+    .flash-error { background: var(--danger-bg); color: var(--글자-빨강, var(--danger)); }
+    .flash-success { background: var(--color-ok-bg); color: var(--글자-초록, var(--color-ok)); }
     .flash-info { background: var(--color-info-bg); color: var(--color-info); }
 
     .auth-footer {
@@ -144,8 +151,15 @@
       color: var(--n500);
     }
   </style>
+{# [2026-08-03] 표 정렬 — 머리글·내용 둘 다 가운데 (사장님 확정 「1-C」).
+   base.html 을 안 물려받는 독립 화면이라 여기에도 따로 싣는다. #}
+{# [2026-08-03] 글꼴 한 벌 — 화면마다 굴림체·맑은 고딕으로 갈리던 것을 Pretendard 로.
+   라이브 실측 131개 화면 중 40곳이 규칙 밖 글꼴이었다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='font_unify.css') }}?v={{ STATIC_VER|default('') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER|default('') }}">
+<script src="{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER|default('') }}" defer></script>
 </head>
-<body>
+<body class="{{ design_body_class|default('') }}">
   <div class="auth-card">
     <div class="auth-brand">
       <div class="auth-brand-mark">모음전</div>
@@ -166,5 +180,10 @@
       © 모음전 · {{ environment or 'team-share' }}
     </div>
   </div>
+
+{# 로그인·내 계정 화면은 base.html 과 뼈대가 다르다(여기는 auth 전용 카드 한 장).
+   그래서 같은 드롭버튼을 여기에도 붙여야 「어느 화면에서나 오른쪽 위」가 성립한다.
+   로그인 전에는 부품 안에서 current_user 판정으로 스스로 숨는다. #}
+{# [2026-08-02 사장님 확정] 디자인 고르는 단추 제거 — 화이트 타입 하나만 쓴다 #}
 </body>
 </html>

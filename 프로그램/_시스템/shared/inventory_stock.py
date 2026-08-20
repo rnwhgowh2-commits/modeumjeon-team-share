@@ -8,6 +8,25 @@
 성능
 - get_stock_batch(skus) 로 한 번에 N SKU 조회 (N+1 회피)
 - get_stock_summary() 도 1 쿼리로 전체 통계 계산
+
+🔴 조정(adjust)의 뜻 — **차이값이다** (2026-08-13 사장님 확정)
+  창구는 「실사해 보니 5개」를 그대로 받는다(작업자에게 뺄셈을 안 시킨다).
+  원장에는 **그 차이(5 − 지금재고)** 를 남긴다. 차이 계산은 창구 안에서 한다.
+
+  ━━ 왜 차이값인가 — 절대값이면 **위치별 합이 전체와 안 맞는다** ━━━━━━━━━
+    절대값은 SUM 으로 표현할 수 없어, 전체는 「접어서(fold)」 세고 위치별은
+    「더해서(SUM)」 센다. 그러면 같은 데이터가 두 가지로 읽힌다:
+        창고A 입고 10 · 조정 5  →  전체 5 · 창고A 15   (합 15 ≠ 전체 5)
+    창고별 합이 전체와 다르면 **없는 재고를 팔게 된다.**
+    차이값이면 조정도 그냥 더하는 값이라 전체·위치별이 같은 규칙으로 계산돼
+    자동으로 맞고, SUM 한 번으로 끝나 특수 처리도 필요 없다.
+    시험 = tests/inventory/test_adjust_location_consistency.py
+
+  ⚠️ 2026-08-13 하루에 이 규약이 **세 번 뒤집혔다.** 매번 한두 군데만 고쳐서
+    같은 표의 행이 두 가지 뜻을 가졌고, 두 번 다 **에러 없이 숫자만 틀렸다**
+    (재고 4, 그다음 6, 그다음 −2). 고칠 때는 반드시 **다섯 군데를 한 번에**:
+      ① 이 파일 fold_tx_rows  ② _stock_expr  ③ inbound.create_adjustment
+      ④ webapp/routes/mobile.py  ⑤ 시험 두 파일
 """
 from __future__ import annotations
 
@@ -33,6 +52,61 @@ def _stock_expr():
         (InventoryTx.tx_type == 'move', -func.abs(InventoryTx.qty)),
         else_=0,
     )
+
+
+def fold_tx_rows(rows) -> int:
+    """거래를 차례대로 접어 재고 하나를 낸다 — **재고 규칙의 단일 진실 원천.**
+
+    `rows` = (tx_type, qty) 를 **created_at 오름차순**으로. 부호는 저장 방식이
+    갈려 있어(데스크탑 양수 / 모바일 음수) `abs()` 로 통일한다.
+
+    · in     → +
+    · out    → −
+    · adjust → **더한다(차이값·부호 그대로)** — 위 모듈 독스트링 참조
+    · move   → 총합에는 영향 없음(위치만 바뀐다)
+
+    🔴 `cogs.recalc_stock_total` 도 이 함수를 쓴다. 두 곳이 각자 세면 갈린다 —
+       실제로 갈려 있던 것을 여기로 합친 것이다.
+    """
+    total = 0
+    for tx_type, qty in rows:
+        q = int(qty or 0)
+        if tx_type == 'in':
+            total += abs(q)
+        elif tx_type == 'out':
+            total -= abs(q)
+        elif tx_type == 'adjust':
+            total += q                     # 차이값 — 부호 그대로 더한다
+    return total
+
+
+def _skus_with_adjust(session, product_skus) -> set[str]:
+    """조정 이력이 있는 SKU — 이들만 느린 길(차례대로 접기)로 다시 센다."""
+    if not product_skus:
+        return set()
+    return {sk for (sk,) in session.query(InventoryTx.option_canonical_sku)
+            .filter(InventoryTx.option_canonical_sku.in_(list(product_skus)),
+                    InventoryTx.tx_type == 'adjust',
+                    InventoryTx.status == 'completed')
+            .distinct().all()}
+
+
+def _exact_stock(session, product_skus) -> dict[str, int]:
+    """조정이 낀 SKU 를 **차례대로 접어** 정확히 센다(전체 위치 합 기준)."""
+    out: dict[str, int] = {}
+    if not product_skus:
+        return out
+    rows = (session.query(InventoryTx.option_canonical_sku, InventoryTx.tx_type,
+                          InventoryTx.qty)
+            .filter(InventoryTx.option_canonical_sku.in_(list(product_skus)),
+                    InventoryTx.status == 'completed')
+            .order_by(InventoryTx.created_at, InventoryTx.id).all())
+    by: dict[str, list] = {}
+    for sk, t, q in rows:
+        by.setdefault(sk, []).append((t, q))
+    for sk in product_skus:
+        out[sk] = fold_tx_rows(by.get(sk, []))
+    return out
 
 
 def _product_sku_map(session, option_skus) -> dict[str, str]:
@@ -66,18 +140,26 @@ def get_stock_by_sku(session, sku: str, location_id: int | None = None) -> int:
     return get_stock_batch(session, [sku], location_id).get(sku, 0)
 
 
-def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None) -> dict[str, int]:
+def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None,
+                    *, psku_map: dict[str, str] | None = None) -> dict[str, int]:
     """N 옵션 SKU 의 재고 한 번에 조회. {option_sku: stock}.
 
     [제품 공유 v1] 옵션 → 연결된 재고제품의 재고를 반환.
     같은 재고제품을 공유하는 여러 모음전 옵션은 동일한 재고값을 받는다.
     location_id 지정 시 그 위치만.
+
+    [perf 2026-06-12] psku_map: 호출부가 이미 OptionProductLink 를 조회했다면 그
+      옵션→재고제품 매핑을 넘겨 중복 조회를 피한다. None 이면 기존처럼 내부 조회.
+      넘겨도 option_skus 기준으로 self-fallback 재구성하므로 의미 동일(안전).
     """
     option_skus = list(set(s for s in skus if s))
     if not option_skus:
         return {}
-    # 옵션 → 재고제품 SKU 해석
-    psku_map = _product_sku_map(session, option_skus)
+    # 옵션 → 재고제품 SKU 해석 (전달 map 재사용 또는 내부 조회)
+    if psku_map is None:
+        psku_map = _product_sku_map(session, option_skus)
+    else:
+        psku_map = {sk: psku_map.get(sk, sk) for sk in option_skus}
     product_skus = list(set(psku_map.values()))
 
     # 1) in/out/adjust 합 + move 출발 차감 — 재고제품 SKU 단위 집계
@@ -106,6 +188,12 @@ def get_stock_batch(session, skus: Iterable[str], location_id: int | None = None
         mq = mq.filter(InventoryTx.location_to_id == location_id)
     for sk, s in mq.group_by(InventoryTx.option_canonical_sku).all():
         prod_stock[sk] = prod_stock.get(sk, 0) + int(s or 0)
+
+    # 3) 🟢 [2026-08-13] 조정이 **차이값**이 되면서 여기 있던 우회로가 필요 없어졌다.
+    #    예전엔 조정이 절대값이라 SUM 으로 표현이 안 돼, 조정이 낀 SKU 만 따로
+    #    「접어서」 덮어썼다. 그런데 위치별 조회는 그 뜻이 없어 그냥 SUM 했고,
+    #    그래서 **전체와 위치별 합이 갈렸다**(창고A 10·조정 5 → 전체 5, 창고A 15).
+    #    차이값은 그냥 더하는 값이라 위 SUM 하나로 전체·위치별이 같이 맞는다.
 
     # 옵션 → (연결 재고제품) 재고 매핑
     return {opt: prod_stock.get(psku_map[opt], 0) for opt in option_skus}
@@ -237,6 +325,35 @@ def get_stock_summary(session, skus_filter: Iterable[str] | None = None) -> dict
         'in_stock_skus': in_stock,
         'total_stock': total,
         'zero_skus': len(all_skus) - in_stock,
+    }
+
+
+def master_kpi(session) -> dict:
+    """PC 재고관리 「제품」(inventory/data/items) 상단 KPI 3칸과 **같은 정의** — 폰과 공용.
+
+    PC `webapp/routes/inventory/data.py:data_items` 의 무필터 kpi 계산을 그대로 옮겼다
+    (두 화면이 다른 숫자를 말하면 안 된다 — drift 시험이 값 대조로 지킨다):
+      - all_options: 활성 옵션 수 (Option.is_active == True, Model join 없음 — PC 와 동일)
+      - in_stock / total_qty: Model 이 연결된 활성 옵션의 SSOT 재고(get_stock_batch) 기준
+        (PC 쿼리가 Model 을 inner join 하므로 Model 없는 옵션은 재고 집계에서 빠진다 — 동일하게)
+    """
+    from sqlalchemy import func as _f
+    from lemouton.sourcing.models import Option, Model
+
+    skus = [r[0] for r in (
+        session.query(Option.canonical_sku)
+        .join(Model, Option.model_code == Model.model_code)
+        .filter(Option.is_active == True)  # noqa: E712
+        .all()
+    )]
+    stock_map = get_stock_batch(session, skus)
+    all_options = (session.query(_f.count(Option.canonical_sku))
+                   .filter(Option.is_active == True)  # noqa: E712
+                   .scalar()) or 0
+    return {
+        'all_options': int(all_options),
+        'in_stock': sum(1 for v in stock_map.values() if v > 0),
+        'total_qty': int(sum(stock_map.values())),
     }
 
 

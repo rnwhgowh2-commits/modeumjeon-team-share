@@ -1,0 +1,239 @@
+/* 상단 탭(애플식) — 새 디자인 모드 전용. 「현재」 모드에는 이 파일이 실리지 않는다.
+   ────────────────────────────────────────────────────────────────────────
+   애플 실측 (apple.com/kr · 2026-07-31, 뷰포트 1920)
+     · 상단 막대 높이            48px
+     · 상단 네비 max-width       1024px (안쪽 980) — 1920 화면의 53%
+     · 하위 메뉴                 상시 띠 없음. 마우스를 올리면 펼침
+     · 펼침 열                   열마다 회색 작은 제목 (쇼핑하기 / 빠른 링크 / 특별 할인)
+     · 그림자                    없음 (전면 금지)
+   우리 적용
+     · 막대 48px·펼침·열 제목은 그대로 가져온다
+     · 폭은 1024 를 쓰지 않는다 — 우리 표(15열)가 1,945px 를 요구한다(라이브 실측).
+       사장님 결정 = 「꽉 채우기」(좌우 24px). 상단 막대도 같은 줄에 맞춘다.
+   값은 전부 var(--토큰, 예비값) — 예비값이 없으면 「현재」 모드에서 색이 사라진다. */
+
+.tn {
+  height: 48px;
+  flex: 0 0 48px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5, 24px);
+  padding: 0 var(--sp-5, 24px);
+  background: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--line, #e5e8eb);
+  position: relative;
+  z-index: 40;
+}
+
+/* 가운데 정렬의 나머지 절반 — 양옆이 같은 비율로 늘어나야 가운데가 맞는다.
+   `min-width:0` 이 있어야 좁은 창에서 로고가 안 밀리고 줄어든다. */
+.tn .tn-lg { flex: 1 1 0; min-width: 0; }
+.tn .tn-right { flex: 1 1 0; min-width: 0; justify-content: flex-end; }
+
+/* 로고 = 홈 */
+/* ★ 선택자 앞에 .tn 을 꼭 붙인다 — tokens.css 의 `.ds a{color:inherit}` 가
+   (0,1,1) 로 더 구체적이라 `.tn-ml{color:...}` (0,1,0) 을 이겨 버린다.
+   실브라우저 측정에서 잡힌 실제 사고다(글자가 회색으로 묻혔다). */
+.tn .tn-lg {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--ink, #191f28);
+}
+.tn-lg-i { font-size: var(--fs-카드제목, 17px); }
+.tn-lg b { font-size: var(--fs-카드제목, 17px); font-weight: var(--fw-강조, 600); }
+.tn-lg-home { font-size: var(--fs-배지, 11px); color: var(--sub, #8b95a1); margin-left: var(--sp-1, 4px); }
+
+/* 상위 탭 — 화면 한가운데.
+   양옆(로고 / 오른쪽 도구)을 같은 비율로 늘려서 가운데를 맞춘다.
+   탭 묶음만 `left:50%` 로 띄우면 좁은 창에서 로고와 겹친다.
+   애플은 로고+탭+도구 묶음 전체를 1024 폭으로 가운데 두지만, 우리는 막대가
+   화면 폭을 꽉 채우기로 했으므로(사장님 결정 ③) 탭만 가운데로 둔다. */
+.tn-tabs { display: flex; align-items: center; gap: var(--sp-5, 24px); height: 100%;
+  flex: 0 1 auto; justify-content: center; min-width: 0; }
+.tn-tab {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  color: var(--글자-보조, var(--글자-기본,#4e5968));
+  cursor: pointer;
+  font-size: var(--fs-카드제목, 17px);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  /* 펼침 메뉴가 「자기 탭」 밑에 붙도록 기준을 탭이 잡는다.
+     예전에는 static 이라 기준이 .tn(막대 전체)이었고, 그래서 탭이 화면 한가운데
+     있는데도 펼침은 늘 화면 왼쪽 끝에서 시작했다 — 실측 1920 에서 최대 1,221 어긋남. */
+  position: relative;
+}
+.tn-tab.on { color: var(--ink, #191f28); font-weight: var(--fw-강조, 600); border-bottom-color: var(--primary, #0071e3); }
+.tn-tab:hover { color: var(--ink, #191f28); }
+.tn-bd {
+  background: var(--바탕-파랑, var(--primary, #0071e3));
+  color: #fff;
+  font-size: var(--fs-배지, 11px);
+  border-radius: var(--r-알약, 980px);
+  padding: 0 var(--sp-2, 8px);
+  margin-left: var(--sp-1, 4px);
+  line-height: 1.6;
+}
+.tn-bd.sm { margin-left: auto; }
+
+/* 펼침 메뉴 — 마우스를 올린 탭 바로 아래에 매달리는 작은 판 (사장님 결정: 시안 B)
+   ────────────────────────────────────────────────────────────────────────
+   왼쪽 맞춤의 기준은 「글자」다. 판 자체를 탭 왼쪽 끝에 붙이면 판의 안쪽 여백(16)과
+   테두리(1) 때문에 메뉴 글자가 그만큼 안으로 밀려 탭 글자와 어긋난다.
+   그래서 판을 17px 왼쪽으로 당겨 「메뉴 줄 왼쪽 끝 = 탭 왼쪽 끝」 을 만든다.
+   실측(1920): 탭 왼쪽 638 · 메뉴 줄 왼쪽 638 — 어긋남 0.
+   --tn-shift = 오른쪽 끝 탭에서 판이 화면 밖으로 나갈 때만 스크립트가 넣는 되당김 값.
+   애플은 화면 폭 띠를 쓰지만 우리 상위 탭은 8개라, 띠로 열면 어느 탭의 하위인지 안 보인다. */
+.tn-mega {
+  display: none;
+  position: absolute;
+  top: 48px;
+  left: calc(-1 * var(--sp-4, 16px) - 1px - var(--tn-shift, 0px));
+  right: auto;
+  width: max-content;
+  /* ★ 판은 본문 위에 뜬다 — 배경이 비치면 뒤 글자와 겹쳐 메뉴가 안 읽힌다.
+     어두운 모드의 --surface 는 rgba(255,255,255,.04) 라 그대로 쓰면 훤히 비친다
+     (띠였을 땐 덜 드러났지만 떠 있는 판에서는 바로 드러난다).
+     바탕색(--bg, 불투명) 위에 --surface 를 한 겹 덧칠해 같은 색을 불투명으로 만든다. */
+  background-color: var(--bg, #ffffff);
+  background-image: linear-gradient(var(--surface, #ffffff), var(--surface, #ffffff));
+  border: 1px solid var(--line, #e5e8eb);
+  border-radius: var(--r-카드, 12px);
+  padding: var(--sp-4, 16px) var(--sp-5, 24px) var(--sp-4, 16px) var(--sp-4, 16px);
+  gap: var(--sp-7, 48px);
+  z-index: 41;
+}
+.tn-tab:hover .tn-mega,
+.tn-tab:focus-within .tn-mega { display: flex; }
+
+/* 판이 두 개 동시에 뜨면 서로를 덮어 메뉴가 안 읽힌다(라이브 실측: 「상품 관리」 판 위에
+   「주문 관리」 판이 겹쳐 왼쪽 판 글자가 잘렸다).
+   🔴 원인은 :focus-within — 탭은 tabindex=0 이라 「눌러 본」 탭이 포커스를 쥔 채 남고,
+   마우스를 딴 데로 내려도 그 판이 안 닫힌다. 옆 탭으로 가면 그 탭 판까지 열린다.
+   막대에 마우스가 있는 동안에는 「지금 올린 탭」 하나만 연다.
+   ★ 키보드만 쓸 때는 막대에 마우스가 없으므로 :focus-within 이 그대로 살아 있다.
+   ★ 판은 탭의 자식이라 판 안에 마우스가 있어도 그 탭은 :hover 다 — 안 닫힌다. */
+.tn-tabs:hover .tn-tab:not(:hover) .tn-mega { display: none; }
+
+.tn-col { min-width: 170px; }
+.tn-col.fav { border-right: 1px solid var(--line, #e5e8eb); padding-right: var(--sp-5, 24px); }
+.tn-col-t {
+  font-size: var(--fs-표, 12px);
+  color: var(--sub, #8b95a1);
+  margin-bottom: var(--sp-3, 12px);
+  font-weight: var(--fw-보통, 400);
+}
+.tn-col.fav .tn-col-t { color: var(--글자-파랑, var(--primary, #0071e3)); }
+
+.tn .tn-ml {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+  font-size: var(--fs-카드제목, 17px);
+  font-weight: var(--fw-강조, 600);
+  margin-bottom: var(--sp-2, 8px);
+  color: var(--ink, #191f28);
+  text-decoration: none;
+  line-height: 1.4;
+}
+.tn .tn-ml:hover { color: var(--글자-파랑, var(--primary, #0071e3)); }
+.tn .tn-ml.on { color: var(--글자-파랑, var(--primary, #0071e3)); }
+.tn-emo { font-size: var(--fs-표, 12px); width: 1.2em; text-align: center; flex: 0 0 auto; }
+
+/* 오른쪽 — 독립 항목 + 사용자.
+   [2026-07-31] 디자인 전환(.tn-dm)은 여기서 빠졌다. 화면 오른쪽 위 붙박이
+   드롭버튼(partials/design_mode_menu.html) 한 곳으로 합쳤다.
+   그 드롭버튼이 이 막대 오른쪽 끝 위에 떠 있으므로, 사용자 이름이 그 밑에
+   깔리지 않게 오른쪽을 그만큼 비워 둔다(단추 폭 ~100px + 여백). */
+.tn-right { display: flex; align-items: center; gap: var(--sp-3, 12px); white-space: nowrap; padding-right: 124px; }
+/* 재고관리에서는 알림 벨(base.html, right:130px)까지 떠 있어 더 비워야 한다 */
+.tn-right.tn-right-bell { padding-right: 178px; }
+.tn .tn-loose { font-size: var(--fs-카드제목, 17px); color: var(--글자-보조, var(--글자-기본,#4e5968)); text-decoration: none; }
+.tn .tn-loose:hover { color: var(--ink, #191f28); }
+.tn-user { font-size: var(--fs-카드제목, 17px); color: var(--글자-보조, var(--글자-기본,#4e5968)); }
+
+/* 상단 탭을 쓰는 화면의 뼈대 — 사이드바가 없으므로 세로로 쌓는다.
+   화면 폭 = 「꽉 채우기」(사장님 결정, 시안 1). 좌우 24px 만 남기고 전부 쓴다. */
+.app.tn-on { display: block; }
+/* 상단 막대 아래로 「(있으면) 전용 사이드바 + 본문」 한 줄.
+   재고관리·대량등록은 자기만 가진 링크가 있어 상단 탭으로 대체할 수 없다 —
+   전역 막대는 위에, 그 화면 전용 메뉴는 왼쪽에 그대로 둔다. */
+.app.tn-on > .tn-body { display: flex; align-items: stretch; min-height: calc(100vh - 48px); }
+/* [2026-08-06 사장님 확정 — 전 탭 공통] 상단 막대 아래 48 · 좌우/아래는 24 그대로 */
+.app.tn-on > .tn-body > .main { flex: 1; min-width: 0; margin-left: 0; max-width: none; padding: var(--sp-7, 48px) var(--sp-5, 24px) var(--sp-5, 24px); }
+/* 전용 사이드바는 상단 막대 높이만큼 내려온 자리에서 붙는다 */
+.app.tn-on > .tn-body > .sidebar { position: sticky; top: 48px; height: calc(100vh - 48px); }
+
+/* ── 폰(≤768px) 보정 — 전부 이 @media 안에만 적는다: PC 렌더는 1px 도 안 바뀐다.
+   실브라우저 실측(2026-08-05, 라이브 375×812): retrofit 전 화면 문서폭 496~511.
+   넘친 것은 전부 .tn-tab/.tn-tab-n (왼쪽 -109 ~ 오른쪽 511) — 본문은 깨끗했다.
+   원인 = .tn-tabs 의 justify-content:center — 탭 8개(nowrap)가 칸보다 넓으면
+   가운데를 기준으로 **양쪽으로** 삐져나간다(왼쪽 -109 가 그 절반이다).
+   고침 = 탭 줄이 자기 안에서 가로 스크롤을 갖는다 → body 가로 스크롤 0. ── */
+@media (max-width: 768px) {
+  .tn { gap: var(--sp-3, 12px); padding: 0 var(--sp-3, 12px); }
+  /* 「⌂ 홈」 잔글씨는 폰에서 로고 자리만 잡아먹는다 — 로고 자체가 홈이다 */
+  .tn-lg-home { display: none; }
+  .tn-tabs {
+    justify-content: flex-start;   /* 가운데 정렬 = 왼쪽 화면 밖(-109px)의 원인 */
+    overflow-x: auto;              /* 넘침을 탭 줄 안에 가둔다 */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* 오른쪽 끝 흐림 — 「더 있음」 힌트(sidebar_bulk·optgen 가로 탭과 같은 수법) */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .tn-tabs::-webkit-scrollbar { display: none; }
+  /* 펼침 판 — 스크롤 상자(overflow-x:auto)가 된 탭 줄 안의 absolute 판은 잘린다.
+     fixed 는 조상 overflow 에 안 잘리므로 막대 밑 화면 폭 판으로 편다.
+     (left/right 고정이 원 규칙의 calc(...--tn-shift...) 를 덮는다 — 되당김 스크립트는
+      값만 넣고 아무 효과가 없어져 무해하다.) */
+  .tn-mega {
+    position: fixed;
+    top: 48px; left: 0; right: 0;
+    width: auto;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    flex-wrap: wrap;
+    gap: var(--sp-4, 16px);
+    border-radius: 0;
+  }
+  /* ── [2026-08-05 실측 상호작용 감사] 폰 터치에는 :hover 가 없다 — 375px 에서
+     .tn-tab 을 click 해도 판이 display:none 그대로였다(열림 통로가 :hover/:focus-within
+     뿐이고, mousedown preventDefault 가 포커스 경로까지 막는다 — 그 동작은 PC
+     「닫히지 않는 판」 방지용이라 못 건드린다). JS(topnav.html)가 폰 분기에서 탭에
+     .tn-open 을 토글한다. hover 규칙은 데스크톱 전용이라 그대로 두되, 터치 뒤 유령
+     :hover 가 탭 하나에 남으면 「한 번에 하나」 규칙
+     .tn-tabs:hover .tn-tab:not(:hover) .tn-mega (0,5,0)이 다른 탭의 토글 판을
+     display:none 으로 덮는다 — 둘째 선택자(0,6,0)가 그 경우를 이긴다. */
+  .tn-tabs .tn-tab.tn-open .tn-mega,
+  .tn-tabs:hover .tn-tab.tn-open:not(:hover) .tn-mega { display: flex; }
+  /* 판 안 하위 링크 — [2026-08-06 실측] 열린 판의 링크가 24px 라 손끝 목표 미달.
+     세로 가운데 정렬로 44px 확보(글자 크기는 그대로 — 시각 팽창 없이 닿는 영역만). */
+  .tn-mega .tn-ml { display: flex; align-items: center; min-height: 44px; }
+  /* 오른쪽 묶음 — 지워진 드롭버튼 자리(124px)를 폰에서까지 비워 둘 이유가 없다.
+     nowrap 자식(사용자 이름)이 칸 밖으로 비져 나와 문서폭을 늘리지 못하게 가둔다. */
+  .tn-right { padding-right: 0; overflow: hidden; }
+  .tn-right.tn-right-bell { padding-right: 44px; }
+
+  /* ── [2026-08-05 실측 3회차] 전용 사이드바(재고관리·대량등록) 줄 — 세로로 쌓는다.
+     .tn-body 가 폰에서도 가로 flex 로 남으면 두 사고가 한 뿌리에서 난다:
+       · /bulk/ — sidebar_bulk 의 4a 접힘 @media 가 아래 sticky 규칙(0,3,0)과
+         toss 의 flex-shrink:0 에 져서, width:auto 만 적용된 가로 flex 항목이
+         내용폭(가로 nav 줄 max-content)=926px 로 부푼다(docW 1,201).
+       · /inventory/ — 240px 사이드바가 가로로 남아 main 이 135px. 필터 줄의
+         min-width(칩상자 240·select 140)가 그 좁은 칸을 뚫는다(docW 529).
+     여기(한 곳)서 세로 전환+sticky 해제하면 두 사용처가 같이 낫는다 — 접힌 뒤의
+     모양(가로 nav 줄 등)은 각 사이드바 파일의 자기 @media 가 맡는다(4a 그대로). */
+  .app.tn-on > .tn-body { flex-direction: column; }
+  .app.tn-on > .tn-body > .sidebar { position: static; width: auto; height: auto; }
+}
+
+/* 설치된 앱 껍데기(.ms-on — mobile_shell.js 가 「설치된 앱 + 좁은 화면」일 때만
+   <html> 에 붙인다) = 껍데기가 자기 상단바(.ms-topbar)+하단 탭을 그리는 상태.
+   PC 상단 메뉴는 거기서 죽은 무게이자 가로 넘침의 원인이라 통째로 숨긴다. */
+.ms-on .tn { display: none; }

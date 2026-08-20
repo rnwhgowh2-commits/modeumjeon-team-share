@@ -1,0 +1,170 @@
+{% extends "mobile/_base.html" %}
+{% block title %}옵션관리{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── D-1 시안(fD1) 부품 — 클래스 이름·구조는 시안 그대로(시안=코드) ── */
+  .search{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));
+    border-radius:9px;padding:0;margin-bottom:9px;display:flex;align-items:center}
+  .search input{flex:1;border:0;background:transparent;padding:12px;font-size:16px;
+    font-family:inherit;color:var(--n900,var(--ink,#191F28));min-width:0}
+  .search input:focus{outline:none}
+  .search .mag{padding-left:12px;color:var(--n500,var(--sub,#8B95A1));font-size:14px}
+  .card{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));
+    border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:8px;
+    padding:8px 2px;border-bottom:1px solid var(--n100,#F2F4F6)}
+  .row:last-child{border-bottom:0}
+  .rl{min-width:0}
+  .rp{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rm{font-size:12px;color:var(--n500,var(--sub,#8B95A1));margin-top:2px}
+  .rr{text-align:right;flex-shrink:0;display:flex;align-items:center;gap:6px}
+  .num{font-variant-numeric:tabular-nums;font-weight:800;font-size:14px}
+  .bg{font-size:12px;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap}
+  .g-red{background:var(--연한-빨강,#FEE2E2);color:var(--글자-빨강,#B91C1C)}
+  .g-amb{background:var(--연한-노랑,#FEF3C7);color:var(--글자-주황,#92400E)}
+  .g-grn{background:var(--연한-초록,#DCFCE7);color:var(--글자-초록,#15803D)}
+  /* 표면가로 대신 보여줄 때 — 종류를 밝히는 작은 회색 표(모순 금지: 최종가인 척 금지) */
+  .pk{font-size:12px;color:var(--n500,var(--sub,#8B95A1));font-weight:500}
+  /* 최근 검색 칩 */
+  .mm-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .mm-chip{background:var(--n100,#F2F4F6);border:0;border-radius:999px;padding:8px 14px;
+    font-size:13px;font-family:inherit;color:var(--n800,var(--ink,#333D4B));cursor:pointer}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="search"><span class="mag"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
+  <input id="mm-q" type="search" placeholder="옵션·모음전 검색 (예: 니트 블랙 M)"
+         autocomplete="off" enterkeyhint="search">
+</div>
+
+<div id="mm-empty" class="m-empty">
+  <div class="icon"><i class="ph-light ph-wall" aria-hidden="true"></i></div>
+  <div>옵션이나 모음전 이름을 검색하면<br>소싱처별 가격·재고가 카드로 떠요</div>
+  <div class="mm-chips" id="mm-recent" style="justify-content:center"></div>
+</div>
+
+<div id="mm-status" class="m-loading" style="display:none"></div>
+<div id="mm-cards"></div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  'use strict';
+  // ── askServer — crawl.html 관례 사본. 인증 실패는 JSON 이 아니라 HTML 로 온다
+  //   (세션 만료=로그인 200 HTML). 상태코드 → content-type 순서로 거른 뒤에만 파싱.
+  async function askServer(url, opts) {
+    var r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+    if (!r.ok) { throw new Error('http-' + r.status); }
+    var ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) { throw new Error('not-json'); }
+    return r.json();
+  }
+  function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+  function won(n){return Number(n).toLocaleString('ko-KR');}
+
+  var $q = document.getElementById('mm-q');
+  var $empty = document.getElementById('mm-empty');
+  var $status = document.getElementById('mm-status');
+  var $cards = document.getElementById('mm-cards');
+
+  // ── 배지 색 — 뜻(kind)은 서버가 판정해 내려보낸다. 여기는 색만 바꿔 입힌다.
+  //   (재고를 폰에서 다시 판정하지 않는다 — 같은 판정 두 곳 금지, 시험이 못 박음.)
+  var KIND_CLS = { ok: 'g-grn', oos: 'g-red', unknown: 'g-amb' };
+
+  // ── 최근 검색 — 폰에만 저장(홈 화면 ms-recent 관례). 최대 8개.
+  var RECENT_KEY = 'mm-recent-searches';
+  function recentList(){ try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch(e){ return []; } }
+  function recentPush(q){
+    var xs = recentList().filter(function(x){ return x !== q; });
+    xs.unshift(q);
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(xs.slice(0, 8))); } catch(e){}
+  }
+  function renderRecent(){
+    var box = document.getElementById('mm-recent');
+    box.innerHTML = recentList().map(function(x){
+      return '<button type="button" class="mm-chip" data-q="' + esc(x) + '">' + esc(x) + '</button>';
+    }).join('');
+  }
+  document.getElementById('mm-recent').addEventListener('click', function(e){
+    var b = e.target.closest('.mm-chip');
+    if (!b) return;
+    $q.value = b.getAttribute('data-q') || '';
+    search();
+  });
+
+  // ── 검색 — 300ms 디바운스 + loadSeq(늦게 온 옛 답이 새 답을 덮지 않게)
+  var loadSeq = 0, debT = null;
+  $q.addEventListener('input', function(){
+    clearTimeout(debT);
+    debT = setTimeout(search, 300);
+  });
+  $q.addEventListener('keydown', function(e){ if (e.key === 'Enter') { clearTimeout(debT); search(); } });
+
+  function search(){
+    var q = ($q.value || '').trim();
+    var seq = ++loadSeq;
+    if (q.length < 2) {                      // 서버와 같은 문턱 — 빈 검색은 빈 상태로
+      $cards.innerHTML = '';
+      $status.style.display = 'none';
+      $empty.style.display = '';
+      renderRecent();
+      return;
+    }
+    $empty.style.display = 'none';
+    $status.style.display = '';
+    $status.innerHTML = '<span class="m-spinner"></span>찾는 중…';
+    askServer('/mobile/matrix/api/search?q=' + encodeURIComponent(q))
+      .then(function(j){
+        if (seq !== loadSeq) return;
+        if (!j.ok) { $status.textContent = j.error || '불러오지 못했어요'; return; }
+        $status.style.display = 'none';
+        if (!j.items.length) {
+          $cards.innerHTML = '<div class="m-empty"><div class="icon"></div>'
+            + '<div>「' + esc(q) + '」 에 맞는 옵션이 없어요</div></div>';
+          return;
+        }
+        recentPush(q);
+        // 정확한 총수는 안 센다(서버 스캔 1회 원칙) — 「넘침」만 정직하게 알린다.
+        var more = j.more
+          ? '<div class="m-empty" style="padding:12px">' + won(j.items.length)
+            + '개 넘음 — 더 좁혀서 검색해 주세요</div>'
+          : '';
+        $cards.innerHTML = j.items.map(cardHTML).join('') + more;
+      })
+      .catch(function(){
+        if (seq !== loadSeq) return;
+        $status.style.display = '';
+        $status.textContent = '불러오지 못했어요 — 잠시 뒤 다시 검색해 주세요';
+      });
+  }
+
+  // ── 카드 — fD1 구조 그대로: 제목 · SKU · 소싱처 줄(이름 | 가격 + 배지)
+  function cardHTML(it){
+    var head = '<div class="rp">' + esc(it.title) + ' · ' + esc(it.color) + '/' + esc(it.size) + '</div>'
+      + '<div class="rm" style="margin-bottom:7px">' + esc(it.display_no || it.sku)
+      + (it.article_no ? ' · ' + esc(it.article_no) : '') + '</div>';
+    var rows = (it.sources || []).map(function(s){
+      // 가격 — 서버 값 그대로. 없으면 '-'(0·폴백 금지). 표면가면 종류를 밝힌다.
+      var price = (s.price == null ? '-' : won(s.price));
+      var pk = (s.price != null && s.price_kind === 'surface') ? '<span class="pk">표면</span> ' : '';
+      var badge = s.badge || {};
+      var cls = KIND_CLS[badge.kind] || 'g-amb';
+      var name = s.url
+        ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer"'
+          + ' style="color:inherit;text-decoration:none">' + esc(s.label) + ' ↗</a>'
+        : esc(s.label);
+      return '<div class="row"><div class="rl"><div class="rm">' + name + '</div></div>'
+        + '<div class="rr">' + pk + '<span class="num">' + price + '</span>'
+        + ' <span class="bg ' + cls + '">' + esc(badge.label) + '</span></div></div>';
+    }).join('');
+    if (!rows) {
+      rows = '<div class="row"><div class="rl"><div class="rm">아직 어느 소싱처에도 연결되지 않았어요</div></div></div>';
+    }
+    return '<div class="card">' + head + rows + '</div>';
+  }
+
+  renderRecent();
+</script>
+{% endblock %}

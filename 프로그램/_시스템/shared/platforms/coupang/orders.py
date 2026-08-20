@@ -30,22 +30,47 @@ def _vendor_id() -> str:
 def fetch_orders(since: datetime, until: datetime,
                   client: Optional[CoupangClient] = None,
                   status: Optional[str] = None,
-                  max_per_page: int = 50) -> dict:
-    """기간 조건 주문 조회. 생성일 기준 (yyyy-mm-ddTHH:MM:SS).
+                  max_per_page: int = 50,
+                  next_token: Optional[str] = None) -> dict:
+    """발주서 목록 조회(일단위 페이징). 생성일 기준. status 필수(공식).
 
-    Returns: {"data": [...주문...], "nextToken": "..."}
+    공식 스펙(developers.coupangcorp.com, GET_ORDERSHEET, 2026-07-07 실측): v5.
+    status ∈ ACCEPT/INSTRUCT/DEPARTURE/DELIVERING/FINAL_DELIVERY/NONE_TRACKING.
+    페이징: 응답 nextToken 을 다음 요청 next_token 으로. 최대 31일.
+
+    Returns: {"code","message","data":[...발주서...],"nextToken":"..."}
     """
-    vid = _vendor_id()
     client = client or CoupangClient()
-    path = f"/v2/providers/openapi/apis/api/v4/vendors/{vid}/ordersheets"
-    params = {
-        "createdAtFrom": since.strftime("%Y-%m-%dT%H:%M:%S"),
-        "createdAtTo":   until.strftime("%Y-%m-%dT%H:%M:%S"),
-        "maxPerPage":    max_per_page,
-    }
+    # 계정 클라이언트(config 주입 vendor_id) 우선 — UI 저장 키는 COUPANG_MAIN_* 접두라
+    # 전역 COUPANG_VENDOR_ID 는 비어있음. config 없으면 전역 env 폴백.
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    path = f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/ordersheets"
+    # CoupangClient.request 는 query 를 '문자열'로 받아 HMAC 서명에 그대로 쓴다
+    # (settlements.py 동일 패턴). dict 를 넘기면 서명 단계에서 lstrip 크래시.
+    # 날짜 형식은 쿠팡 요구: yyyy-MM-dd+09:00. '+' 는 쿼리에서 공백으로 디코딩되므로
+    # %2B 로 인코딩해야 쿠팡이 KST 오프셋으로 인식(문서 예시 동일). HMAC 서명도 같은
+    # 문자열이라 일치. (리터럴 '+' → 공백 → date-format 400)
+    q = (f"createdAtFrom={since.strftime('%Y-%m-%d')}%2B09:00"
+         f"&createdAtTo={until.strftime('%Y-%m-%d')}%2B09:00"
+         f"&maxPerPage={max_per_page}")
     if status:
-        params["status"] = status
-    return client.request("GET", path, query=params)
+        q += f"&status={status}"
+    if next_token:
+        q += f"&nextToken={next_token}"
+    return client.request("GET", path, query=q)
+
+
+def fetch_ordersheets_by_order_id(order_id: str,
+                                  client: Optional[CoupangClient] = None) -> dict:
+    """발주서 단건 조회(orderId) — 지도 coupang.shipments.single-po-query-using-orderid.
+
+    GET /v5/vendors/{vendorId}/{orderId}/ordersheets. 취소된 주문도 발주서가 조회돼
+    orderedAt(실주문일)을 얻을 수 있다(클레임 응답엔 실주문일이 없다 — 2026-07-23).
+    """
+    client = client or CoupangClient()
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    path = f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/{order_id}/ordersheets"
+    return client.request("GET", path)
 
 
 def fetch_order_detail(order_sheet_id: str,
@@ -55,6 +80,24 @@ def fetch_order_detail(order_sheet_id: str,
     client = client or CoupangClient()
     path = f"/v2/providers/openapi/apis/api/v4/vendors/{vid}/ordersheets/{order_sheet_id}"
     return client.request("GET", path)
+
+
+def acknowledge(shipment_box_ids, client: Optional[CoupangClient] = None) -> dict:
+    """상품준비중 처리(발주확인) — ACCEPT(결제완료) → INSTRUCT(상품준비중).
+
+    공식: PUT /v4/vendors/{vendorId}/ordersheets/acknowledgement,
+          body {"vendorId":vid, "shipmentBoxIds":[long,...]}.
+    ⚠️ 라이브 미검증 — 실주문 1건으로 상태가 INSTRUCT 로 바뀌는지 확인 후 신뢰.
+    """
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    client = client or CoupangClient()
+    path = (f"/v2/providers/openapi/apis/api/v4/vendors/{vid}"
+            f"/ordersheets/acknowledgement")
+    ids = [int(x) if str(x).isdigit() else x for x in shipment_box_ids if x]
+    if not ids:
+        raise ValueError("쿠팡 상품준비중 처리: shipmentBoxId 없음 — 추측 전송 금지")
+    body = {"vendorId": vid, "shipmentBoxIds": ids}
+    return client.request("PUT", path, body=body)
 
 
 def send_tracking(shipment_box_id: str, order_sheet_id: str,

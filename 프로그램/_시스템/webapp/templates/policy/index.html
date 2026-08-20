@@ -1,0 +1,702 @@
+{% extends 'base.html' %}
+{% block title %}정책 생성 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-policies">
+  <style>
+    .pl-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:10px;flex-wrap:wrap}  /* [2026-08-06 확정 5안] 제목↔부제 10 */
+    .pl-head h1{font-size:40px;font-weight:600;margin:0}  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+    .pl-desc{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5;margin-bottom:28px}  /* [2026-08-06 확정 5안] 부제 17·600·검정 */
+    .btn2{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;padding:8px 16px;border-radius:8px;
+          font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+    .btn2.ghost{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
+    .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+    .pl-card{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 16px}
+    .pl-card:hover{border-color:var(--primary,#3182F6)}
+    .pl-card .r1{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+    .pl-card .nm{font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;
+                 text-overflow:ellipsis;white-space:nowrap;text-decoration:none;color:inherit}
+    .tag{font-size:12px;font-weight:700;padding:0px 8px;border-radius:999px}
+    .tag.def{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    .tag.no{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
+    .pl-card .memo{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:8px;line-height:1.6}
+    .bar{height:6px;border-radius:999px;background:var(--n100,#F2F4F6);overflow:hidden;margin:8px 0 4px}
+    .bar i{display:block;height:100%;background:var(--primary,#3182F6)}
+    .pl-meta{font-size:12px;color:var(--sub,#8B95A1);display:flex;gap:12px;flex-wrap:wrap}
+    .pl-meta b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+    .pl-act{margin-top:12px;display:flex;gap:4px}
+    .pl-empty{padding:48px 16px;text-align:center;color:var(--sub,#8B95A1);background:var(--surface,#ffffff);
+              border:1px dashed var(--line,#E5E8EB);border-radius:12px;margin-top:12px}
+    .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:12px 16px;
+          font-size:12px;color: var(--글자-주황, var(--amber,#92400E));line-height:1.7;margin-bottom:16px}
+    .msg{font-size:12px;min-height:18px;padding:4px 0}
+    .msg.err{color: var(--글자-빨강, var(--red,#E5484D))}.msg.ok{color: var(--글자-초록, var(--green,#15803D))}
+    .tag.br{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
+    /* ── 내보낼 마켓 (노션 「마켓별 토글 활성화」) — 알약을 바로 눌러서 켜고 끈다
+       [2026-08-19] 「고치기」 눌러야 펼치던 옛 배지·펼침칸 부품은 걷어냈다 ── */
+    .pl-mk{display:flex;gap:3px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:8px}
+    .v2d-pill{font-size:11px;font-weight:600;padding:3px 10px 3px 7px;border-radius:999px;cursor:pointer;
+              border:1px solid var(--line,#E5E8EB);display:inline-flex;align-items:center;gap:4px;
+              color:var(--sub,#8B95A1);background:var(--surface,#ffffff);user-select:none}
+    .v2d-pill.on{background:var(--연한-파랑,#E8F2FF);border-color:#B9D8FF;color:#1B64DA}
+    .v2d-pill .ck{width:12px;height:12px;border-radius:4px;border:1.5px solid currentColor;
+                  display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;flex:none}
+    .v2d-pill.on .ck{background:#1B64DA;border-color:#1B64DA;color:#fff}
+
+    /* ── 마켓별 상태 — 완료(초록)·작성중(주황)·꺼짐(회색), 옵션생성 화면과 같은 색 뜻 ── */
+    .v1-pill{font-size:10px;font-weight:700;border-radius:6px;padding:1.5px 5px;margin:0 3px 0 0;
+             display:inline-block;cursor:default}
+    .v1-pill.v1-done{background:var(--연한-초록,rgba(52,199,89,.14));color:var(--글자-초록,#1D7A3D)}
+    .v1-pill.v1-writing{background:var(--연한-주황,rgba(255,149,0,.14));color:var(--글자-주황,#9A5B00)}
+    .v1-pill.v1-off{background:var(--n200,#E8E8ED);color:var(--글자-보조,#6B7684)}
+
+    /* ── 붙은 상품 호버 카드 안의 상품 목록 ── */
+    .ap-list{max-height:260px;overflow-y:auto;margin-top:2px}
+    .ap-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;
+            border-bottom:1px solid var(--n100,#F2F4F6)}
+    .ap-row:last-child{border-bottom:0}
+    .ap-nm{font-size:12.5px;color:var(--글자-기본,#333D4B);overflow:hidden;text-overflow:ellipsis;
+           white-space:nowrap}
+    .ap-go{flex:none;font-size:11.5px;font-weight:700;color:var(--글자-파랑,#1B64DA);
+           text-decoration:none;white-space:nowrap;margin-left:8px}
+    .ap-go:hover{text-decoration:underline}
+    .ap-hv{cursor:default}
+    .ap-hv.armed{box-shadow:inset 0 0 0 2px var(--amber,#F59E0B);border-radius:6px}
+    /* ── 사이드바 (주문관리 사이드바와 같은 문법 — 시안 v3 S1 확정) ── */
+    .layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;align-items:start}
+    .pl-sb{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:14px;
+           padding:16px 14px;position:sticky;top:16px}
+    .sb-sec{margin-bottom:18px}
+    .sb-sec:last-child{margin-bottom:0}
+    .sb-lb{font-size:12px;font-weight:700;color:var(--글자-보조,#6B7684);margin-bottom:8px}
+    .sb-in{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:9px 10px;
+           font-size:12.5px;font-family:inherit;background:var(--surface,#ffffff);box-sizing:border-box}
+    .sb-ck{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 2px;cursor:pointer}
+    .sb-ck input{width:17px;height:17px;accent-color:var(--primary,#3182F6);flex:none}
+    .sb-ck span{flex:1;font-weight:600;color:var(--글자-기본,#333D4B)}
+    .sb-ck .cnt{font-style:normal;font-size:12px;color:var(--sub,#8B95A1);font-variant-numeric:tabular-nums}
+    /* ── 상태 줄 V5 부품 (시안 v4 확정): 색점 + 색 알약 개수 + 호버 설명창 ── */
+    .sb-tip{font-weight:400;color:var(--sub,#8B95A1)}
+    .sb-ck .ico{flex:none;width:20px;text-align:center;font-size:13px}
+    .dot{display:inline-block;width:11px;height:11px;border-radius:50%}
+    .dot.g{background:var(--green,#15803D)}
+    .dot.o{background:var(--amber,#B45309)}
+    .dot.b{background:var(--primary,#3182F6)}
+    .starr{color:var(--amber,#B45309);font-weight:800;font-size:14px}
+    .cnt.pill{font-size:12px;font-weight:700;border-radius:999px;padding:1px 9px;color:#fff}
+    .cnt.pill.ready{background:var(--green,#15803D)}
+    .cnt.pill.writing{background:var(--amber,#B45309)}
+    .cnt.pill.working{background:var(--primary,#3182F6)}
+    .cnt.pill.star{background:var(--sub,#8B95A1)}
+    .sb-ck.hv.armed{border-radius:8px}
+    /* ── [2026-08-19] 정책 상태 3단(+하위 2단) — 눌러서 그것만 보기 ── */
+    .pst-row{display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;border-radius:8px}
+    .pst-row:hover{background:var(--n50,#F9FAFB)}
+    .pst-row.on{background:var(--연한-파랑,rgba(0,113,227,.08))}
+    .pst-row .ico{flex:none;width:20px;text-align:center;font-size:13px}
+    .pst-row .lb{flex:1;font-weight:600;color:var(--글자-기본,#333D4B);font-size:13px}
+    .pst-row.on .lb{color:var(--primary,#3182F6)}
+    .pst-sub{padding-left:26px}
+    .pst-sub .lb{font-weight:400;font-size:12.5px}
+    .pst-group{display:flex;align-items:center;gap:8px;padding:8px 4px 2px;font-size:11.5px;
+               font-weight:700;color:var(--글자-보조,#6B7684)}
+    .pst-group .cnt{margin-left:auto}
+    /* 호버 설명창 — hover-info-card 표준(body+fixed) */
+    .pop{display:none;position:fixed;z-index:99999;background:var(--surface,#ffffff);
+         border:1px solid var(--line,#d1d6db);border-radius:14px;max-height:70vh;overflow-y:auto;
+         cursor:default;width:320px;padding:14px 16px;
+         font-size:12.5px;line-height:1.7;color:var(--글자-기본,#333D4B)}
+    .pop.on{display:block}
+    .pop .hv-t{font-size:13.5px;font-weight:700;margin-bottom:4px}
+    .hv-todo{margin-top:8px;background:var(--n100,#F2F4F6);border-radius:8px;padding:8px 10px;
+             font-size:12px;color:var(--글자-기본,#4E5968)}
+    .hv-todo.ok{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    .hv-todo.warn{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
+    /* ── 「+ 정책 생성」 단추 (2026-08-19 사장님 확정 — 「옵션 매트릭스 생성」과
+       같은 모양으로 축소. 전엔 표 위에 점선 테두리 큰 카드였다 — optgen/index.html
+       의 .og-lh·.og-new 그대로 옮겨왔다, 이름만 이 화면 접두어(pl-)로) ── */
+    .pl-lh{font-size:16px;font-weight:700;margin-bottom:12px;display:flex;align-items:center}
+    .pl-lh .n{font-weight:400;color:var(--sub,#8B95A1);margin-left:4px}
+    .pl-addbtn{margin-left:auto;background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:0;
+            border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;
+            font-weight:700;cursor:pointer}
+    .pl-addbtn:hover{filter:brightness(.95)}
+    /* ── 만들기 창 ── */
+    .np-back{display:none;position:fixed;inset:0;background:rgba(25,31,40,.45);z-index:900;
+             align-items:center;justify-content:center}
+    .np-back.open{display:flex}
+    .np-box{background:var(--surface,#ffffff);border-radius:16px;padding:24px 26px;width:420px;
+            max-width:92vw;}
+    .np-t{font-size:16px;font-weight:700;margin-bottom:6px}
+    .np-d{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:12px;line-height:1.6}
+    .np-f{margin-bottom:12px}
+    .np-f label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--글자-기본,#4E5968)}
+    .np-f input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:9px 12px;
+                font-size:13px;font-family:inherit;box-sizing:border-box}
+    .np-f .opt{color:var(--sub,#8B95A1);font-weight:400;font-size:12px}
+    .np-a{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+    .plus{font-weight:800;margin-right:4px;color:#fff}
+    /* ── [2026-08-04 카드형→격자] 줄 목록 표 (시안 B1 확정 — 줄 끝에 버튼 다 보이기) ──
+       사이드바(S1)·만들기 창·상태 설명창은 그대로 두고, 카드 격자만 표로 바꿨다. */
+    .gl-wrap{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+             border-radius:12px;overflow:hidden}
+    table.gl{width:100%;border-collapse:collapse;font-size:13px}
+    .gl thead th{background:var(--n50,#F9FAFB);color:var(--sub,#8B95A1);font-size:12px;font-weight:700;
+                 padding:10px 14px;border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap;
+                 text-align:left}
+    .gl td{padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .gl tbody tr:last-child td{border-bottom:0}
+    .gl .tl{text-align:left}.gl .tr{text-align:right}.gl .tc{text-align:center}
+    .gl .nm{font-size:13px;font-weight:700;text-decoration:none;color:inherit}
+    .gl .nm:hover{color:var(--primary,#3182F6)}
+    .gl .num{font-variant-numeric:tabular-nums}
+    .gl .unit{font-size:12px;color:var(--sub,#8B95A1);margin-left:3px}
+    .gl .memo{font-size:12px;color:var(--글자-보조,#6B7684);margin-top:2px;line-height:1.6}
+    .gl-dim{color:var(--sub,#8B95A1);font-size:12px}
+    .gl-ok{color:var(--글자-초록, var(--green,#15803D));font-weight:600}
+    .gl-bar{display:inline-flex;align-items:center;gap:8px}
+    .gl-bar .bar{width:80px;margin:0}
+    .gl td .pl-mk{margin-top:0}
+    .gl td .pl-act{margin-top:0;display:inline-flex;justify-content:flex-end}
+    /* ── [2026-08-19] 줄 전체 클릭 + 여러 개 고르기 ── */
+    .gl tr.glr{cursor:pointer}
+    .gl tr.glr:hover td{background:var(--연한-파랑,rgba(0,113,227,.06))}
+    .pick{width:1px;white-space:nowrap;text-align:center;padding-right:0}
+    .pick label{display:inline-flex;align-items:center;justify-content:center;
+                min-width:32px;min-height:32px;margin:-9px;padding:9px;cursor:pointer}
+    .pick input{margin:0;cursor:pointer}
+    .pol-pickbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;
+                 background:var(--연한-파랑,rgba(0,113,227,.08));border:1px solid var(--line,#E5E8EB);
+                 border-radius:10px;padding:11px 14px}
+    .pol-pickbar-n{flex:1;font-size:13px;color:var(--글자-파랑,#0066CC)}
+  </style>
+
+  <div class="pl-head">
+    <h1>정책 생성</h1>
+  </div>
+  <div class="pl-desc">마켓마다 어떻게 올릴지 한 벌로 정해두고, 상품에 붙여서 씁니다.</div>
+  <div class="msg" id="msg"></div>
+
+  <div class="warn">
+    <b>지금은 값을 담아두는 단계입니다.</b> 수수료율·마진율이 비어 있는 정책은
+    <b>가격 계산에 쓰지 않습니다</b> — 빈칸을 0으로 읽으면 그 가격이 그대로 마켓에 나가기 때문입니다.
+    숫자를 채우시면 그때 계산에 연결하겠습니다.
+  </div>
+
+  {# 「가격 정책에서 옮겨오기」 상자는 2026-08-04 사장님 확정으로 삭제 —
+     라이브 대조 결과 옛 가격 템플릿 2개가 이미 전부 정책으로 옮겨져 남은 이사 대상 0.
+     서버 API(/api/policies/price-parity·migrate-template)는 그대로 있다. #}
+
+  <div class="layout">
+    {# ── 왼쪽 사이드바 — 검색·브랜드·정책 상태·정렬 (시안 v3 S1 확정) ──
+       서버 ?brand= 거름은 라우트에 그대로 살아 있고, 여기는 화면 위 거름만 맡는다. #}
+    <div class="pl-sb">
+      <div class="sb-sec">
+        <div class="sb-lb">정책 찾기</div>
+        <input class="sb-in" id="psearch" placeholder="정책 이름·브랜드로 찾기">
+      </div>
+      <div class="sb-sec">
+        <div class="sb-lb">브랜드</div>
+        <label class="sb-ck"><input type="checkbox" id="ball" checked>
+          <span>전체</span><i class="cnt">{{ total }}</i></label>
+        {% for b, n in brands %}
+        <label class="sb-ck"><input type="checkbox" class="bck" value="{{ b or '__none__' }}" checked>
+          <span {% if not b %}style="color:var(--amber,#B45309)"{% endif %}>{{ b or '브랜드 없음' }}</span>
+          <i class="cnt">{{ n }}</i></label>
+        {% endfor %}
+      </div>
+      {# [2026-08-19 사장님 확정] 3단(+하위 2단) 분류 — 겹치지 않는 자리 하나(정책.stage).
+         체크박스(여러 개 동시 거름)에서 눌러서 그 상태만 보는 목록으로 바뀌었다.
+         자세한 뜻은 마우스 올리면 뜨는 설명창(hover-info-card 표준)이 말한다. #}
+      <div class="sb-sec">
+        <div class="sb-lb">정책 상태 <span class="sb-tip">— 마우스를 올리면 설명, 눌러서 그것만 보기</span></div>
+        <div id="pstBox">
+          <div class="pst-row hv on" data-s="" data-hv="all">
+            <span class="ico"><i class="dot" style="background:var(--sub,#8B95A1)"></i></span>
+            <span class="lb">전체</span><i class="cnt pill" style="background:var(--sub,#8B95A1)">{{ total }}</i></div>
+          <div class="pst-row hv" data-s="default" data-hv="default">
+            <span class="ico"><span class="starr">★</span></span><span class="lb">기본정책</span>
+            <i class="cnt pill star">{{ stage_counts['default'] }}</i></div>
+          <div class="pst-group">정책 생성 완료<i class="cnt pill ready">{{ stage_counts['ready'] }}</i></div>
+          <div class="pst-row pst-sub hv" data-s="ready-applied" data-hv="ready_applied">
+            <span class="ico"><i class="dot g"></i></span><span class="lb">적용 완료</span>
+            <i class="cnt pill ready">{{ stage_counts['ready-applied'] }}</i></div>
+          <div class="pst-row pst-sub hv" data-s="ready-unapplied" data-hv="ready_unapplied">
+            <span class="ico"><i class="dot g"></i></span><span class="lb">미적용</span>
+            <i class="cnt pill ready">{{ stage_counts['ready-unapplied'] }}</i></div>
+          <div class="pst-row hv" data-s="writing" data-hv="writing">
+            <span class="ico"><i class="dot o"></i></span><span class="lb">정책 생성중</span>
+            <i class="cnt pill writing">{{ stage_counts['writing'] }}</i></div>
+        </div>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-lb">정렬</div>
+        <select class="sb-in" id="psort">
+          <option value="orig">기본 (기본 정책 먼저·최신순)</option>
+          <option value="filled">채움 많은 순</option>
+          <option value="applied">정책 적용 상품 많은 순</option>
+          <option value="name">정책명 순</option>
+        </select>
+      </div>
+    </div>
+
+    {# ── 오른쪽 — 만들기 카드 + 정책 줄 목록 (시안 v3 A2+B5 · 카드형→격자 B1 확정) ── #}
+    <div class="pl-main">
+      <div class="pl-lh">정책 목록<span class="n">{{ items|length }}개</span>
+        <button class="pl-addbtn" type="button" id="addcard">+ 정책 생성</button>
+      </div>
+      {% if items %}
+      {# data-align-keep — 전역 표 정렬 장치(table_align.js)가 이 표를 덮지 않게.
+         [2026-08-19 사장님 확정] 칼럼·항목 전부 가운데 정렬로 통일 — 이 화면 CSS 가 직접 정한다. #}
+      <div class="gl-wrap">
+        <table class="gl" data-align-keep>
+          <thead><tr>
+            <th class="pick"></th>
+            <th class="tc">정책명</th><th class="tc">브랜드</th><th class="tc">채움</th>
+            <th class="tc">정책 적용 상품</th><th class="tc">가격</th>
+            <th class="tc">내보낼 마켓</th><th class="tc">마켓별 상태</th><th class="tc">동작</th>
+          </tr></thead>
+          <tbody id="pgrid">
+          {% for it in items %}
+          {# 줄 아무 데나 누르면 상세로 이동 — 체크칸·알약·동작 단추는 뺀다(아래 스크립트). #}
+          <tr class="glr" data-href="/policies/{{ it.id }}" data-brand="{{ it.brand or '__none__' }}"
+              data-find="{{ ((it.name or '') ~ ' ' ~ (it.brand or ''))|lower }}"
+              data-ready="{{ 1 if it.ready else 0 }}" data-applied="{{ it.applied }}"
+              data-default="{{ 1 if it.is_default else 0 }}" data-filled="{{ it.filled }}"
+              data-stage="{{ it.stage }}"
+              data-name="{{ it.name }}" data-idx="{{ loop.index }}">
+            <td class="pick"><label><input type="checkbox" class="pol-ck" data-id="{{ it.id }}"
+                 aria-label="{{ it.name }} 고르기"></label></td>
+            <td class="tc">
+              <a class="nm" href="/policies/{{ it.id }}">{{ it.name }}</a>
+              {% if it.is_default %}<span class="tag def">기본</span>{% endif %}
+              {% if it.memo %}<div class="memo">{{ it.memo }}</div>{% endif %}
+            </td>
+            <td class="tc">{% if it.brand %}<span class="tag br">{{ it.brand }}</span>
+              {% else %}<span class="gl-dim">—</span>{% endif %}</td>
+            <td class="tc"><span class="gl-bar">
+              <span class="bar"><i style="width:{{ (it.filled / it.total * 100) if it.total else 0 }}%"></i></span>
+              <b class="num">{{ it.filled }}</b><span class="unit">/ {{ it.total }}</span></span></td>
+            {# 정책 적용 상품 — 호버하면 어느 상품인지 뜨고, 상품관리로 바로 간다(hover-info-card 표준). #}
+            <td class="tc">
+              {% if it.applied %}
+              <span class="hv ap-hv" data-hv="applied-{{ it.id }}">
+                <b class="num">{{ it.applied }}</b><span class="unit">개</span></span>
+              {% else %}
+              <b class="num">{{ it.applied }}</b><span class="unit">개</span>
+              {% endif %}
+            </td>
+            <td class="tc">{% if it.ready %}<span class="gl-ok">가격 쓸 수 있음 {{ it.ready|length }}마켓</span>
+              {% else %}<span class="tag no">가격 아직 못 씀</span>{% endif %}</td>
+            {# 내보낼 마켓 — 알약을 바로 눌러서 켜고 끈다(고치기 단계 없이 즉시 반영). #}
+            <td class="tc">
+              <div class="pl-mk mk-toggle" data-id="{{ it.id }}">
+                {% for mk in market_keys %}
+                <span class="v2d-pill {{ 'on' if mk in it.markets else '' }}" data-mk="{{ mk }}">
+                  <span class="ck">{{ '✓' if mk in it.markets else '' }}</span>{{ market_label[mk] }}</span>
+                {% endfor %}
+              </div>
+            </td>
+            {# 마켓별 상태 — 완료(초록)·작성중(주황)·꺼짐(회색), 옵션생성 화면과 같은 색 뜻. #}
+            <td class="tc">
+              {% for mk in market_keys %}
+              {% set st = it.market_status[mk] %}
+              <span class="v1-pill v1-{{ st }}" title="{{ market_label[mk] }} · {{ {'done':'완료','writing':'작성중','off':'꺼짐'}[st] }}">{{ market_label[mk][0] }}</span>
+              {% endfor %}
+            </td>
+            <td class="tc"><span class="pl-act">
+              <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})"><i class="ph-light ph-file" aria-hidden="true"></i> 복사</button>
+              <button class="btn2 ghost" type="button" onclick="toggleDefault({{ it.id }}, this)"
+                      data-default="{{ 1 if it.is_default else 0 }}">{{ '기본 해제' if it.is_default else '기본으로' }}</button>
+              {% if not it.applied %}
+              <button class="btn2 ghost" type="button" style="color:#B91C1C"
+                      onclick="del({{ it.id }}, '{{ it.name }}')">지우기</button>
+              {% endif %}
+            </span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {# 여러 개 골라 한꺼번에 복사·지우기 — 2026-08-19 확정, 고른 줄은 목록 위로 뜬다. #}
+      <div class="pol-pickbar" id="polPickbar" hidden>
+        <span class="pol-pickbar-n">고른 정책 <b id="polPn">0</b>개</span>
+        <button class="btn2 ghost" type="button" id="polPickCopy"><i class="ph-light ph-file" aria-hidden="true"></i> 한꺼번에 복사</button>
+        <button class="btn2 ghost" type="button" id="polPickDel" style="color:#B91C1C">한꺼번에 지우기</button>
+        <button class="btn2 ghost" type="button" id="polPickClr">고르기 취소</button>
+      </div>
+      {% else %}
+      <div class="pl-empty">아직 정책이 없어요. 「+ 정책 생성」 단추를 눌러 만들어 주세요.</div>
+      {% endif %}
+      <div class="pl-empty" id="noneshown" style="display:none">지금 고른 조건에 맞는 정책이 없어요 — 왼쪽 체크를 다시 켜 보세요.</div>
+    </div>
+  </div>
+
+  {# ── 만들기 창 (시안 v3 확정 — 점선 카드를 누르면 열림) ── #}
+  <div class="np-back" id="npback">
+    <div class="np-box">
+      <div class="np-t"><i class="ph-light ph-sparkle" aria-hidden="true"></i> 새 정책 만들기</div>
+      <div class="np-d">마켓마다 어떻게 올릴지 한 벌을 새로 만들어요.</div>
+      <div class="np-f"><label>브랜드 <span class="opt">(안 적어도 돼요)</span></label>
+        <input id="pbrand" placeholder="예: 르무통"></div>
+      <div class="np-f"><label>카테고리 <span class="opt">(안 적어도 돼요)</span></label>
+        <input id="pcategory" placeholder="예: 스니커즈"></div>
+      <div class="np-f"><label>소싱처 <span class="opt">(안 적어도 돼요)</span></label>
+        <input id="psourcing" placeholder="예: 무신사"></div>
+      <div class="np-f"><label>구분</label>
+        <select id="pprefix" class="sb-in">
+          <option value="모음전">모음전</option>
+          <option value="대량">대량</option>
+        </select></div>
+      <div class="np-f"><label>정책 이름 <span class="opt">(비워 두면 위 내용으로 자동으로 채워요)</span></label>
+        <input id="pname" placeholder="예: 르무통 기본"></div>
+      <div class="msg" id="mmsg"></div>
+      <div class="np-a">
+        <button class="btn2 ghost" id="npcancel" type="button">취소</button>
+        <button class="btn2" id="add" type="button"><span class="plus">+</span>만들기</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+/* [3단계 배치3 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  .pl-head h1 { font-size: 22px; }
+  /* 본문 글자 하한 14px (PC 는 12px) */
+  .pl-desc, .gl .memo, .warn, .msg { font-size: 14px; }
+  .btn2 { min-height: 44px; }
+  /* 사이드바 — 폰에서는 본문 위로 한 줄 접힘 (붙박이 해제) */
+  .layout { grid-template-columns: 1fr; }
+  .pl-sb { position: static; }
+  /* 입력칸 16px = iOS 포커스 확대 방지 · 손끝 목표 44px */
+  .sb-in { font-size: 16px; min-height: 44px; }
+  .sb-ck { min-height: 44px; font-size: 14px; }
+  .np-f input { font-size: 16px; min-height: 44px; }
+  .np-box { width: 92vw; }
+  /* 정책 줄 목록 — 표 자체 가로 스크롤 */
+  .gl-wrap { overflow-x: auto; }
+  table.gl { min-width: 900px; }
+  .gl td, .gl thead th { font-size: 14px; }
+  /* 내보낼 마켓 알약 — 손끝 목표 확보 */
+  .v2d-pill { min-height: 32px; font-size: 13px; }
+  .pl-act { flex-wrap: wrap; }
+}
+</style>
+<script>
+const msg = document.getElementById('msg');
+
+/* ── 만들기 창 열고 닫기 (시안 v3 확정 — A2 점선 카드 + B5 가운데 창) ── */
+const npback = document.getElementById('npback');
+const mmsg = document.getElementById('mmsg');
+/* 정책 이름 자동 조합 — 브랜드·카테고리·소싱처·구분을 채우면 이름 칸이 따라 채워진다.
+   이름 칸을 직접 건드리면(pnameTouched) 그 뒤로는 자동 채움을 멈춘다 — 사용자가
+   손으로 고친 값을 자동 채움이 덮어쓰면 안 된다. */
+let pnameTouched = false;
+const pname = document.getElementById('pname');
+const pbrand = document.getElementById('pbrand');
+const pcategory = document.getElementById('pcategory');
+const psourcing = document.getElementById('psourcing');
+const pprefix = document.getElementById('pprefix');
+pname.addEventListener('input', () => { pnameTouched = true; });
+function suggestName(){
+  if (pnameTouched) return;
+  const parts = [pbrand.value.trim(), pcategory.value.trim(), psourcing.value.trim()].filter(Boolean);
+  pname.value = parts.length ? ('[' + pprefix.value + '] ' + parts.join(' ')) : '';
+}
+[pbrand, pcategory, psourcing].forEach((el) => el.addEventListener('input', suggestName));
+pprefix.addEventListener('change', suggestName);
+
+document.getElementById('addcard').addEventListener('click', () => {
+  npback.classList.add('open');
+  [pname, pbrand, pcategory, psourcing].forEach((el) => { el.value = ''; });
+  pprefix.value = '모음전';
+  pnameTouched = false;
+  pbrand.focus();
+});
+document.getElementById('npcancel').addEventListener('click', () => {
+  npback.classList.remove('open');
+});
+npback.addEventListener('click', (e) => {
+  if (e.target === npback) npback.classList.remove('open');
+});
+document.getElementById('add').addEventListener('click', async () => {
+  const name = pname.value;
+  const brand = pbrand.value;
+  const category = pcategory.value;
+  const sourcing = psourcing.value;
+  const prefix = pprefix.value;
+  mmsg.className = 'msg'; mmsg.textContent = '만드는 중…';
+  const r = await fetch('/api/policies', {method:'POST', headers:{'Content-Type':'application/json'},
+                                          body: JSON.stringify({name, brand, category, sourcing, prefix})});
+  const j = await r.json();
+  if (j.ok){ location.href = '/policies/' + j.id; }
+  else { mmsg.className = 'msg err'; mmsg.textContent = j.error; }
+});
+
+/** 정책 복사 — 붙은 상품·기본 표시는 따라오지 않는다(서버가 그렇게 만든다). */
+async function copyPolicy(id){
+  msg.className = 'msg'; msg.textContent = '복사하는 중…';
+  const j = await (await fetch('/api/policies/' + id + '/copy', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
+  if (j.ok) location.href = '/policies/' + j.id;
+  else { msg.className = 'msg err'; msg.textContent = j.error; }
+}
+
+/* 내보낼 마켓 — 알약을 누르면 그 자리에서 바로 켜지고/꺼진다(고치기 단계 없음).
+   먼저 화면을 바꾸고(낙관적 반영) 저장이 실패하면 되돌린다. */
+document.querySelectorAll('.mk-toggle').forEach(function (box) {
+  box.addEventListener('click', async function (e) {
+    const pill = e.target.closest('.v2d-pill');
+    if (!pill) return;
+    const willOn = !pill.classList.contains('on');
+    pill.classList.toggle('on', willOn);
+    pill.querySelector('.ck').textContent = willOn ? '✓' : '';
+    const picked = [].filter.call(box.querySelectorAll('.v2d-pill.on'), function () { return true; })
+                     .map(function (p) { return p.dataset.mk; });
+    const j = await (await fetch('/api/policies/' + box.dataset.id + '/markets', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({markets: picked})})).json();
+    if (!j.ok) {
+      pill.classList.toggle('on', !willOn);              // 저장 실패 — 되돌린다
+      pill.querySelector('.ck').textContent = !willOn ? '✓' : '';
+      msg.className = 'msg err'; msg.textContent = j.error;
+    }
+  });
+});
+async function del(id, name){
+  if (!confirm('「' + name + '」 정책을 지울까요?')) return;
+  const j = await (await fetch('/api/policies/' + id + '/delete', {method:'POST'})).json();
+  if (j.ok) location.reload();
+  else { msg.className = 'msg err'; msg.textContent = j.error; }
+}
+async function toggleDefault(id, btn){
+  const j = await (await fetch('/api/policies/' + id + '/default', {method:'POST'})).json();
+  if (j.ok) location.reload();
+  else { msg.className = 'msg err'; msg.textContent = j.error; }
+}
+
+/* ── 사이드바 거르기·정렬 (시안 v3 S1 확정) ─────────────────────────
+   체크를 끄면 그 부류의 카드가 숨는다. 검색·브랜드·상태는 겹쳐 적용(교집합).
+   서버 ?brand= 거름은 그대로 살아 있다 — 여기는 화면 위 거름만 맡는다. */
+const cards = [].slice.call(document.querySelectorAll('#pgrid tr.glr'));
+const bAll = document.getElementById('ball');
+const bcks = [].slice.call(document.querySelectorAll('.bck'));
+const pstBox = document.getElementById('pstBox');
+const psearch = document.getElementById('psearch');
+const noneshown = document.getElementById('noneshown');
+let selStage = '';                                   // '' = 전체(정책.stage 와 겹치지 않는 자리 하나)
+
+function applyFilter(){
+  const q = psearch.value.trim().toLowerCase();
+  const onBrands = {};
+  bcks.forEach(function (c) { if (c.checked) onBrands[c.value] = 1; });
+  let shown = 0;
+  cards.forEach(function (c) {
+    const d = c.dataset;
+    const show = onBrands[d.brand]
+      && (!selStage || d.stage === selStage)
+      && (!q || d.find.indexOf(q) >= 0);
+    c.style.display = show ? '' : 'none';
+    if (show) shown++;
+  });
+  noneshown.style.display = (cards.length && !shown) ? '' : 'none';
+}
+bAll.addEventListener('change', function () {
+  bcks.forEach(function (c) { c.checked = bAll.checked; });
+  applyFilter();
+});
+bcks.forEach(function (c) { c.addEventListener('change', function () {
+  bAll.checked = bcks.every(function (x) { return x.checked; });
+  applyFilter();
+}); });
+pstBox.addEventListener('click', function (e) {
+  const row = e.target.closest('.pst-row');
+  if (!row) return;
+  selStage = row.dataset.s;
+  pstBox.querySelectorAll('.pst-row').forEach(function (r) { r.classList.toggle('on', r === row); });
+  applyFilter();
+});
+psearch.addEventListener('input', applyFilter);
+
+/* ── 상태 설명창 (hover-info-card 표준 — 열기140·닫기250·body+fixed·
+      오른쪽 정렬·넘치면 위로 뒤집기·스크롤 시 닫기) ──
+   정본: bundles/_matrix_v3.html 의 _pmFloat 계열과 같은 규칙. */
+/* 붙은 상품 호버 카드 데이터 — 정책 id → [{code, name}, ...] */
+const APPLIED = {
+{%- for it in items %}
+  {{ it.id }}: {{ it.applied_products | tojson }},
+{%- endfor %}
+};
+function escHtml(s){
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function hvContentFor(key){
+  if (key.indexOf('applied-') === 0) {
+    const list = APPLIED[key.slice(8)] || [];
+    const rows = list.map(function (p) {
+      return '<div class="ap-row"><span class="ap-nm">' + escHtml(p.name) + '</span>'
+        + '<a class="ap-go" href="/bundles/' + encodeURIComponent(p.code) + '" '
+        + 'onclick="event.stopPropagation()">상품관리 →</a></div>';
+    }).join('');
+    return {t: '이 정책이 적용된 상품 ' + list.length + '개', b: '<div class="ap-list">' + rows + '</div>'};
+  }
+  return HV[key];
+}
+const HV = {
+  all: {t:'분류와 상관없이 전부',
+    b:'기본정책·생성완료·생성중을 가리지 않고 <b>모든 정책</b>을 보여줘요.'
+      + '<div class="hv-todo ok">할 일 없음</div>'},
+  default: {t:'여러 번 재사용하는 기본 틀',
+    b:'브랜드·카테고리별로 미리 만들어 두고 <b>새 정책을 만들 때 바탕으로 쓰는</b> 정책이에요. 채워진 정도와 상관없이 이 자리에 모여요. <b>여러 개</b> 지정할 수 있어요.'
+      + '<div class="hv-todo ok">할 일 없음 — 줄의 「기본으로」 단추로 지정·해제해요</div>'},
+  ready_applied: {t:'다 채워졌고 상품에도 붙은 정책',
+    b:'수수료·마진 같은 숫자가 <b>다 채워져 판매가를 낼 수 있고</b>, 실제 상품에도 붙어 <b>지금 일하고 있어요.</b>'
+      + '<div class="hv-todo ok">할 일 없음 — 잘 되고 있다는 표시예요</div>'},
+  ready_unapplied: {t:'다 채워졌는데 아직 안 붙은 정책',
+    b:'숫자는 다 채워졌지만 <b>아직 어느 상품에도 안 붙었어요.</b> 이대로는 아무 일도 안 해요.'
+      + '<div class="hv-todo">할 일 — 「정책 매칭」에서 상품에 붙여 주세요</div>'},
+  writing: {t:'빈칸이 남은 정책',
+    b:'아직 빈칸이 남아 <b>판매가 계산에 쓰지 않아요.</b> 빈칸을 0원으로 보내는 사고는 나지 않게 막아 뒀어요.'
+      + '<div class="hv-todo">할 일 — 이 줄을 눌러 숫자를 채우거나, 안 쓸 정책이면 지우기</div>'}
+};
+const OPEN_DELAY = 140, CLOSE_DELAY = 250, GAP = 7, EDGE = 8;
+const pop = document.body.appendChild(Object.assign(
+  document.createElement('div'), { className: 'pop' }));
+let openTimer = null, hideTimer = null, armed = null, curKey = null;
+pop.addEventListener('mouseenter', function () {
+  clearTimeout(hideTimer); hideTimer = null;
+  clearTimeout(openTimer); openTimer = null; hvDisarm();
+});
+pop.addEventListener('mouseleave', hvScheduleHide);
+function hvScheduleHide(){
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(function () { pop.classList.remove('on'); curKey = null; }, CLOSE_DELAY);
+}
+function hvDisarm(){ if (armed) { armed.classList.remove('armed'); armed = null; } }
+function hvArm(anchor, key){
+  if (curKey === key) { clearTimeout(hideTimer); hideTimer = null; return; }
+  clearTimeout(openTimer); hvDisarm();
+  armed = anchor; anchor.classList.add('armed');
+  openTimer = setTimeout(function () { hvDisarm(); hvShow(anchor, key); }, OPEN_DELAY);
+}
+function hvShow(anchor, key){
+  clearTimeout(hideTimer); hideTimer = null;
+  curKey = key;
+  const c = hvContentFor(key);
+  pop.innerHTML = '<div class="hv-t">' + c.t + '</div>' + c.b;
+  pop.classList.add('on');                       /* 크기 재기 전에 먼저 보여야 함 */
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let left = r.right - w;
+  left = Math.max(EDGE, Math.min(left, innerWidth - w - EDGE));
+  let top = r.bottom + GAP;
+  if (top + h > innerHeight - EDGE) top = r.top - h - GAP;
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(EDGE, top) + 'px';
+}
+document.querySelectorAll('.sb-ck.hv').forEach(function (a) {
+  a.addEventListener('mouseenter', function () { hvArm(a, a.dataset.hv); });
+  a.addEventListener('mouseleave', function () {
+    clearTimeout(openTimer); hvDisarm(); hvScheduleHide();
+  });
+});
+document.querySelectorAll('.ap-hv').forEach(function (a) {
+  a.addEventListener('mouseenter', function () { hvArm(a, a.dataset.hv); });
+  a.addEventListener('mouseleave', function () {
+    clearTimeout(openTimer); hvDisarm(); hvScheduleHide();
+  });
+});
+addEventListener('scroll', function () { pop.classList.remove('on'); curKey = null; }, { passive: true });
+
+const psort = document.getElementById('psort');
+psort.addEventListener('change', function () {
+  const key = psort.value;
+  const grid = document.getElementById('pgrid');
+  const sorted = cards.slice().sort(function (a, b) {
+    if (key === 'filled') return (+b.dataset.filled) - (+a.dataset.filled);
+    if (key === 'applied') return (+b.dataset.applied) - (+a.dataset.applied);
+    if (key === 'name') return a.dataset.name.localeCompare(b.dataset.name, 'ko');
+    return (+a.dataset.idx) - (+b.dataset.idx);
+  });
+  sorted.forEach(function (c) { grid.appendChild(c); });
+});
+
+/* ── [2026-08-19] 줄 아무 데나 누르면 상세로 — 체크칸·알약·동작 단추는 뺀다 ── */
+document.querySelectorAll('#pgrid tr.glr').forEach(function (r) {
+  r.addEventListener('click', function (e) {
+    if (e.target.closest('.pick, .pl-mk, .pl-act')) return;
+    location.href = r.getAttribute('data-href');
+  });
+});
+
+/* ── 여러 정책 골라 한꺼번에 복사·지우기 + 고른 줄은 위로 뜬다 ── */
+(function () {
+  const pickbar = document.getElementById('polPickbar');
+  if (!pickbar) return;                              // 정책이 하나도 없는 화면
+  const pn = document.getElementById('polPn');
+  const grid = document.getElementById('pgrid');
+  const chosen = new Set();                           // data-idx 기준(자리 바뀌어도 안정)
+
+  function drawPick() {
+    pn.textContent = chosen.size;
+    pickbar.hidden = chosen.size === 0;
+  }
+  function floatChosen() {
+    const rows = [].slice.call(grid.querySelectorAll('tr.glr'));
+    rows.sort(function (a, b) {
+      const pa = chosen.has(a.dataset.idx) ? 0 : 1;
+      const pb = chosen.has(b.dataset.idx) ? 0 : 1;
+      return pa - pb;
+    });
+    rows.forEach(function (r) { grid.appendChild(r); });
+  }
+  function idsOfChosen() {
+    return [].slice.call(grid.querySelectorAll('tr.glr'))
+      .filter(function (r) { return chosen.has(r.dataset.idx); })
+      .map(function (r) { return r.querySelector('.pol-ck').dataset.id; });
+  }
+  document.querySelectorAll('.pol-ck').forEach(function (ck) {
+    ck.addEventListener('click', function (e) { e.stopPropagation(); });
+    ck.addEventListener('change', function () {
+      const tr = ck.closest('tr.glr');
+      if (ck.checked) chosen.add(tr.dataset.idx); else chosen.delete(tr.dataset.idx);
+      drawPick();
+      floatChosen();
+    });
+  });
+  document.getElementById('polPickClr').addEventListener('click', function () {
+    chosen.clear();
+    document.querySelectorAll('.pol-ck').forEach(function (ck) { ck.checked = false; });
+    drawPick();
+  });
+  document.getElementById('polPickCopy').addEventListener('click', async function () {
+    const ids = idsOfChosen();
+    if (!ids.length) return;
+    msg.className = 'msg'; msg.textContent = ids.length + '개 복사하는 중…';
+    let fail = 0;
+    for (const id of ids) {
+      const j = await (await fetch('/api/policies/' + id + '/copy', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})).json();
+      if (!j.ok) fail++;
+    }
+    if (fail) alert(fail + '개는 복사하지 못했습니다.');
+    location.reload();
+  });
+  document.getElementById('polPickDel').addEventListener('click', async function () {
+    const ids = idsOfChosen();
+    if (!ids.length) return;
+    if (!confirm(ids.length + '개 정책을 지울까요?')) return;
+    msg.className = 'msg'; msg.textContent = '지우는 중…';
+    let fail = 0;
+    for (const id of ids) {
+      const j = await (await fetch('/api/policies/' + id + '/delete', {method: 'POST'})).json();
+      if (!j.ok) fail++;
+    }
+    if (fail) alert(fail + '개는 지우지 못했습니다(이미 상품에 붙어 있을 수 있어요).');
+    location.reload();
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,676 @@
+{% extends 'base.html' %}
+{% block title %}옵션관리 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-matrix">
+  <style>
+    .mx-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:28px;flex-wrap:wrap}  /* [2026-08-06 확정 5안] 제목↔부제 10 */
+    .mx-head h1{font-size:40px;font-weight:600;margin:0}  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+    .mx-head .d{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5;}  /* [2026-08-06 확정 5안] 부제 17·600·검정 */
+    .mx-sub{font-size:13px;color:var(--글자-파랑,#3182F6);text-decoration:none}
+    .mx-sub:hover{text-decoration:underline}
+    .mx-badge{font-size:12px;font-weight:700;padding:0px 8px;border-radius:999px;flex-shrink:0}
+    .mx-badge.o{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .mx-badge.d{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
+    .mx-no{font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본,#4E5968);
+           background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:8px;letter-spacing:.2px}
+    .mx-empty{padding:48px 16px;text-align:center;color:var(--sub,#8B95A1);background:var(--surface,#ffffff);
+              border:1px dashed var(--n300,var(--line,#E5E8EB));border-radius:12px}
+    /* ── [2026-08-04 카드형→격자] 왼쪽 사이드바 + 줄 목록 (시안 B1 확정) ── */
+    .gl-app{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:start}
+    /* ── 「어디까지 왔나」 판 — 상품관리(bundles/tower.html) 규칙을 그대로 가져왔다.
+     두 화면이 같은 모양이어야 오가며 봐도 안 헷갈린다(사장님 지시). */
+  .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
+  .stg-head{font-weight:600}
+  .stg-head .n{font-variant-numeric:tabular-nums}
+  .stg-bar{display:flex;height:10px;border-radius:980px;overflow:hidden;margin:8px 10px 10px}
+  .stg-bar i{display:block}
+  .stg-bar i.g1{background:var(--ap-g3,#D2D2D7)}
+  .stg-bar i.g2{background:var(--ap-버튼파랑,#0071E3)}
+  .stg-bar i.g4{background:var(--글자-주황,#C93400)}
+  .stg-bar i.g3{background:var(--ap-green,#34C759)}
+  .stg-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;
+    border:1px solid transparent;cursor:pointer;
+    transition:background .24s cubic-bezier(.4,0,.6,1),color .24s}
+  .stg-row:hover{background:var(--ap-g0,#FAFAFC)}
+  .stg-row.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  .stg-row .lb{flex:1;min-width:0;white-space:nowrap;line-height:1.4}
+  .stg-row .n{flex:none;font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums;line-height:1.4}
+  .stg-row.on .n{color:inherit}
+  .stg-div{height:1px;background:var(--ap-g2,#E8E8ED);margin:8px 10px}
+  /* 단계 구분 = **글자색만**. 줄에 색 배경을 칠하면 「덕지덕지」해진다(사장님 실측). */
+  .stg-row.t1 .lb{color:var(--ap-g45,#6E6E73)}
+  .stg-row.t2 .lb{color:var(--ap-링크파랑,#0066CC)}
+  .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
+  .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
+  .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
+  .stg-row.fix .n{font-weight:600}
+  /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.
+     글자 쪽은 안 건드리므로 화면이 조용하다. */
+  .stg-row .n{background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 9px;
+    min-width:38px;text-align:center;transition:background .24s}
+  .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
+  /* 찾기·정렬·보기를 담는 아래 카드 — 상품관리의 .twr-card(tower.html:52)와 같은 값.
+     [2026-08-12] 여기 같이 복붙돼 있던 .twr-in/.twr-st/.twr-sr 는 이 화면에서 쓰는
+     마크업이 하나도 없어 지웠다(죽은 규칙). 쓰는 곳은 tower.html 뿐이다. */
+  .twr-card{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px}
+  .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
+
+  /* [2026-08-12] 상품관리(.twr-sb · bundles/tower.html:18)와 **같은 판**으로 맞춘다.
+     껍데기는 투명하고 카드는 안쪽 판이 각자 두른다 — 여기에 배경·테두리·여백을 두면
+     .stg-block 카드가 카드 안에 들어앉아 좌우 여백이 14px 두 겹(28px)이 된다.
+     폭 240→250·글자 13→14px 도 상품관리 값. 두 화면을 오가도 표 시작선이 안 튄다. */
+  .gl-sb{position:sticky;top:16px;width:max-content;min-width:250px;max-width:440px;
+         font-size:14px;line-height:1.57}
+    .sb-sec{margin-bottom:18px}
+    .sb-sec:last-child{margin-bottom:0}
+    .sb-t{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin-bottom:8px}
+    .sb-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+            padding:6px 4px;border-radius:8px;cursor:pointer}
+    .sb-row:hover{background:var(--n100,#F2F4F6)}
+    .sb-row input{width:16px;height:16px;accent-color:var(--primary,#3182F6);margin:0}
+    .sb-nm{font-weight:600;color:var(--ink,#191F28)}
+    .sb-all .sb-nm{font-weight:700}
+    .sb-n{color:var(--sub,#8B95A1);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+    .sb-d{font-size:12px;color:var(--sub,#8B95A1);padding:0 4px 4px 28px;line-height:1.5}
+    .sb-search{position:relative}
+    .sb-search input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+                     padding:8px 12px;font-size:12.5px;font-family:inherit;box-sizing:border-box}
+    .gl-sort{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+             padding:8px 12px;font-size:12.5px;font-family:inherit;background:var(--surface,#ffffff);
+             color:var(--ink,#191F28)}
+    .sb-ac{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface,#ffffff);
+           border:1px solid var(--line,#E5E8EB);border-radius:8px;
+           z-index:20;overflow:hidden}
+    .sb-ac.on{display:block}
+    .sb-ac div{padding:7px 12px;font-size:12.5px;cursor:pointer}
+    .sb-ac div:hover{background:var(--n100,#F2F4F6)}
+    .gl-wrap{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+             border-radius:12px;overflow:hidden}
+    table.gl{width:100%;border-collapse:collapse;font-size:13px}
+    .gl thead th{background:var(--n50,#F9FAFB);color:var(--sub,#8B95A1);font-size:12px;font-weight:700;
+                 padding:10px 14px;border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap}
+    .gl td{padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .gl tbody tr:last-child td{border-bottom:0}
+    .gl .tl{text-align:left}.gl .tr{text-align:right}.gl .tc{text-align:center}
+    .gl .nm{font-weight:700;text-decoration:none;color:inherit;font-size:13px}
+    .gl .nm:hover{color:var(--primary,#3182F6)}
+    .gl .num{font-variant-numeric:tabular-nums}
+    .gl .unit{font-size:12px;color:var(--sub,#8B95A1);margin-left:3px}
+    .gl-dim{color:var(--sub,#8B95A1);font-size:12px}
+    .gl-empty{margin:0;border:0;border-radius:0}
+    @media (max-width: 768px) {
+      /* 사이드바+줄 목록 — 폰에선 위아래로 쌓는다. 표는 자체 가로 스크롤 */
+      .gl-app { grid-template-columns: 1fr; }
+      .gl-sb { position: static; }
+      .gl-wrap { overflow-x: auto; }
+      table.gl { min-width: 760px; }
+      .gl td, .gl thead th { font-size: 14px; }
+    }
+    /* ── [2026-08-05 A안 확정] 열 확장 배지 + 오른쪽 미끄럼판 ── */
+    .gl tbody tr.glr{cursor:pointer}
+    .gl tbody tr.glr:hover td{background:var(--n50,#F7FBFF)}
+    .gl tbody tr.glr.sel td{background:var(--연한-파랑,#EEF4FF)}
+    .mx-tag{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;
+            padding:1px 8px;white-space:nowrap}
+    .mx-tag.ok{background:var(--연한-초록,#F0FDF4);color:var(--글자-초록,var(--green,#15803D))}
+    .mx-tag.warn{background:var(--연한-주황,#FFFBEB);color:var(--글자-주황,var(--amber,#B36A00))}
+    .mx-tag.bad{background:#FEF2F2;color:var(--글자-빨강,var(--red,#E5484D))}
+    .mx-tag.mute{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+    .mx-tag.mk{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .mx-stale{color:var(--글자-주황,var(--amber,#B36A00))}
+    .mxp-dim{color:var(--sub,#8B95A1)}
+    /* [2026-08-06 사장님] 판을 화면의 2/5로 — 좁아서 글씨가 작게 눌려 안 보였다 */
+    .mxp{position:fixed;top:0;right:0;bottom:0;width:50vw;min-width:700px;max-width:96vw;z-index:900;
+         background:var(--surface,#ffffff);border-left:1px solid var(--line,#E5E8EB);
+         display:flex;flex-direction:column;
+         transform:translateX(102%);transition:transform .18s ease}
+    .mxp.on{transform:translateX(0)}
+    .mxp-h{display:flex;align-items:center;gap:8px;padding:16px 20px 0;flex-wrap:wrap}
+    .mxp-h h2{font-size:22px;font-weight:700;margin:0}
+    .mxp-x{margin-left:auto;border:none;background:var(--n100,#F2F4F6);border-radius:8px;
+           width:28px;height:28px;font-size:14px;cursor:pointer;color:var(--글자-기본,#4E5968)}
+    .mxp-tabs{display:flex;gap:2px;padding:12px 20px 0;border-bottom:1px solid var(--line,#E5E8EB)}
+    .mxp-tab{border:none;background:none;font-family:inherit;font-size:15px;
+             color:var(--글자-보조,#6B7684);padding:8px 12px;cursor:pointer;
+             border-bottom:2px solid transparent}
+    .mxp-tab.on{color:var(--ink,#191F28);font-weight:700;border-bottom-color:var(--primary,#3182F6)}
+    .mxp-pane{display:none;padding:16px 20px;overflow:auto;flex:1}
+    .mxp-pane.on{display:block}
+    .mxp-sect{font-size:14px;font-weight:700;color:var(--글자-기본,#4E5968);margin:16px 0 8px}
+    .mxp-sect:first-child{margin-top:0}
+    .mxp-kv{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;
+            color:var(--글자-기본,#4E5968);margin-bottom:4px}
+    .mxp-kv b{color:var(--ink,#191F28)}
+    /* [2026-08-06] 격자는 창 높이에 맞춰 늘어난다 — 뺀 값은 머리·탭·요약줄·안내·아래 단추 몫 */
+    .mxp-gwrap{overflow:auto;max-height:calc(100vh - 330px)}
+    .mxp-grid{border-collapse:collapse;font-size:12.5px;width:100%}
+    .mxp-grid th{background:var(--n100,#F2F4F6);padding:6px 4px;border:1px solid var(--line,#E5E8EB);
+                 font-weight:600;color:var(--글자-기본,#4E5968);white-space:nowrap}
+    .mxp-grid td{padding:6px 4px;border:1px solid var(--n100,#F2F4F6);text-align:center;
+                 font-variant-numeric:tabular-nums}
+    .mxp-grid td.none{background:var(--n100,#FAFAFB);color:var(--글자-희미,var(--line,#DDE1E6))}
+    /* [2026-08-06] 칸 3층 — 최종매입가 · 소싱처 · 재고 */
+    .mxp-grid .cg-p{font-size:13.5px;color:var(--ink,#191F28);line-height:1.5}
+    .mxp-grid .cg-s{font-size:12px;color:var(--글자-기본,#4E5968);line-height:1.5}
+    .mxp-grid .cg-best{font-weight:700;color:var(--글자-초록,var(--green,#15803D))}
+    .mxp-grid .cg-k{font-size:12px;line-height:1.5}
+    .mxp-grid .cg-ok{color:var(--글자-초록,var(--green,#15803D))}
+    .mxp-grid .cg-bad{color:var(--글자-빨강,var(--red,#E5484D))}
+    /* 배포 게이트의 CSS 괄호 검사는 줄 단위 — 이 선언은 한 줄이어야 통과한다 */
+    .mxp-grid td.off{color:var(--글자-희미,#C6CBD3);background:repeating-linear-gradient(45deg,transparent,transparent 4px,var(--n100,#F7F8FA) 4px,var(--n100,#F7F8FA) 8px)}
+    .mxp-t{width:100%;border-collapse:collapse;font-size:13.5px}
+    .mxp-t th{background:var(--n100,#F2F4F6);font-size:12px;font-weight:600;
+              color:var(--글자-기본,#4E5968);padding:7px 8px;white-space:nowrap;
+              border-bottom:1px solid var(--line,#E5E8EB)}
+    .mxp-t td{padding:7px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
+    .mxp-t .tl{text-align:left}.mxp-t .tc{text-align:center}
+    .mxp-t .trr{text-align:right;font-variant-numeric:tabular-nums}
+    .mxp-tree{font-size:14px;line-height:2.0}
+    .mxp-tree .lv .lv{padding-left:20px;border-left:2px solid var(--n100,#F2F4F6);margin-left:8px}
+    .mxp-tree .nd{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .mxp-here{background:var(--연한-주황,#FFFBEB);border-radius:6px;padding:0 6px;font-size:12px;
+              color:var(--글자-주황,var(--amber,#B36A00));font-weight:700}
+    .mxp-note{font-size:13.5px;color:var(--글자-보조,#6B7684);line-height:1.7;
+              background:var(--bg,#F9FAFB);border-radius:8px;padding:10px 12px;margin-top:10px}
+    .mxp-go{display:inline-block;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+            padding:7px 12px;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);
+            text-decoration:none;background:var(--surface,#fff);margin:8px 6px 0 0}
+    .mxp-go:hover{border-color:var(--primary,#3182F6);color:var(--primary,#3182F6)}
+    .mxp-load{padding:40px 0;text-align:center;color:var(--sub,#8B95A1);font-size:13px}
+    @media (max-width: 768px){ .mxp{width:100vw} }
+    /* ── [2026-08-06 최종안] ⓘ 호버 설명 말풍선 (정보창 표준: 열기 140ms·닫기 250ms·화면 밖 자리 조정) ── */
+    .sb-hint{margin-left:4px;color:var(--글자-희미,#B0B8C1);font-size:12px;cursor:help}
+    .nx-tip{display:none;position:fixed;z-index:99999;max-width:320px;background:var(--ink,#191F28);color:#fff;border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.7;}
+    .nx-tip b{color:#FFD866}
+  </style>
+
+  <div class="mx-head">
+    <div>
+      <h1>옵션관리</h1>
+      <div class="d">축(색상·사이즈)으로 펼친 <b>원본</b>과, 거기서 일부만 골라 만든 <b>파생</b>입니다.</div>
+    </div>
+  </div>
+
+  {# [2026-08-06 최종안 확정] 사이드바 3구획 — 찾기 · 정렬 · 보기(체크 2개 + ⓘ 호버 설명).
+     기준 = "화면 요소는 사용자의 질문에 답할 때만 존재한다".
+     종류·옵션·담긴 상품·신호 구획은 대응하는 사용자 질문이 없어 삭제 —
+     그 정보는 행의 배지·열이 이미 보여준다. 걸러낼 일이 매일 생기는 건
+     「이상 있는 묶음만」(아침 점검) 하나뿐이다. #}
+  {% set n_warn = items | selectattr('warn') | list | length %}
+  {% set n_hid = items | selectattr('hid') | list | length %}
+  <div class="gl-app">
+    <aside class="gl-sb">
+      {# [2026-08-06 사장님 요청 — 첫 지시 「사이드바에도 구분하자」] 상품관리와 **같은 판**.
+         말·색·순서·숫자 알약까지 그대로 — 두 화면을 오가며 봐도 안 헷갈리게.
+         「손 볼 것」은 아래 「보기 · 이상 있는 묶음만」이 이미 맡고 있어 넣지 않는다
+         (같은 걸 두 곳에서 세면 서로 어긋난다). #}
+      <div class="stg-block" id="mx-stages">
+        <div class="stg-head stg-row on" data-s=""
+             data-n="{{ stage_counts.all }}" data-nh="{{ stage_counts.all_with_hidden }}">
+          <span class="lb">어디까지 왔나</span><span class="n">전체 {{ stage_counts.all }}</span>
+        </div>
+        <div class="stg-bar">
+          {%- for st in stages %}<i class="g{{ st }}"
+            style="width:{{ (stage_counts['s' ~ st] * 100 / stage_counts.all)|round(1) if stage_counts.all else 0 }}%"></i>{% endfor -%}
+          <i class="g0" style="width:{{ (stage_counts.none * 100 / stage_counts.all)|round(1) if stage_counts.all else 0 }}%"></i>
+        </div>
+        {% for st in stages %}
+        <div class="stg-row t{{ st }}" data-s="{{ st }}"
+             data-n="{{ stage_counts['s' ~ st] }}" data-nh="{{ stage_counts['h' ~ st] }}">
+          <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ stage_counts['s' ~ st] }}</span>
+        </div>
+        {% endfor %}
+        <div class="stg-row t0" data-s="none"
+             data-n="{{ stage_counts.none }}" data-nh="{{ stage_counts.hnone }}">
+          <span class="lb">아직 상품 생성 안 함</span><span class="n">{{ stage_counts.none }}</span>
+        </div>
+      </div>
+      {# [2026-08-12] 찾기·정렬·보기는 카드 한 장에 담는다 — 상품관리도 「어디까지 왔나」
+         판(.stg-block) 아래에 카드(.twr-card) 한 장이 오는 두 장 구성이다. #}
+      <div class="twr-card">
+      <div class="sb-sec">
+        <div class="sb-t">찾기</div>
+        <form class="sb-search" method="get">
+          <input id="glq" name="q" value="{{ kw }}"
+                 placeholder="이름 · 번호 · 브랜드 · SKU · 상품명" autocomplete="off">
+          <div class="sb-ac" id="glac"></div>
+        </form>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">정렬</div>
+        <select class="gl-sort" id="glsort">
+          <option value="recent">최근 만든 순</option>
+          <option value="name">이름 순</option>
+          <option value="count">옵션 많은 순</option>
+        </select>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">보기</div>
+        <label class="sb-row" data-tip="<b>품절</b>이 잡혔거나 <b>소싱처 크롤이 실패</b>한 묶음만 남깁니다.<br>표의 「이상 신호」 열에 빨간 표시가 있는 줄입니다.">
+          <input type="checkbox" id="f-warn">
+          <span class="sb-nm">이상 있는 묶음만<span class="sb-hint">ⓘ</span></span>
+          <span class="sb-n">{{ n_warn }}</span></label>
+        {# [2026-08-06 사장님 확정] 「재고 단독 묶음」·「단독_으로 시작」은 코드 앞글자를 그대로
+           읽어 준 말이라 뜻이 안 통했다. 사장님이 보는 말은 「아직 상품 안 만든 것」 한 벌로. #}
+        <label class="sb-row" data-tip="평소 이 화면에서 <b>볼 일이 없어 숨겨 둔 묶음</b>을 꺼내 봅니다.<br><br>· <b>아직 상품 안 만든 묶음</b> — 재고관리에서 「모음전에도 등록」을 체크하지 않고 등록한 물건입니다. 창고에는 있지만 아직 팔 상품으로 만들지 않았습니다. 재고 수량은 재고관리 탭에서 그대로 관리됩니다.<br>· <b>빈 묶음</b> — 옵션이 하나도 안 담긴 묶음.">
+          <input type="checkbox" id="f-hid">
+          <span class="sb-nm">숨긴 묶음 보기<span class="sb-hint">ⓘ</span></span>
+          <span class="sb-n">{{ n_hid }}</span></label>
+      </div>
+      </div>
+    </aside>
+
+    <div>
+      {% if items %}
+      <div class="gl-wrap">
+        {# [2026-08-05 A안 확정] 열 8개 — 종류는 이름 옆 배지로, 모델코드·하나하나 링크는 미끄럼판 요약으로 이동 #}
+        {# data-align-keep — 전역 표 정렬 장치(table_align.js)가 이 표를 가운데로 덮지 않게.
+           칼럼별 정렬(숫자 우측·상태 가운데·글 왼쪽)은 이 화면 CSS 가 직접 정한다. #}
+        <table class="gl" data-align-keep>
+          <thead><tr>
+            <th class="tl">번호</th><th class="tl">이름</th><th class="tl">브랜드</th><th class="tl">축 구성</th>
+            <th class="tr">담긴 상품</th><th class="tc">마켓 등록</th><th class="tr">소싱처</th>
+            <th class="tc" data-tip="빨간 표시가 뜨는 조건 — <b>품절</b>: 소싱처가 알려준 재고가 전부 0인 옵션 수 / <b>실패</b>: 크롤이 실패한 소싱처 수.<br>재고를 모르는 곳은 「확인 불가」로 두고 여기 세지 않습니다.">이상 신호<span class="sb-hint">ⓘ</span></th><th class="tl">최근 확인</th>
+          </tr></thead>
+          <tbody>
+          {% for it in items %}
+          <tr class="glr" data-name="{{ it.blob }}"
+              data-count="{{ it.count }}" data-idx="{{ loop.index0 }}" data-id="{{ it.id }}"
+              data-warn="{{ 1 if it.warn else 0 }}" data-hid="{{ 1 if it.hid else 0 }}"
+              data-stage="{{ it.stage if it.stage else 'none' }}">
+            <td class="tl"><span class="mx-no">{{ it.no or '번호 대기' }}</span></td>
+            <td class="tl"><a class="nm" href="/matrix/{{ it.id }}">{{ it.name }}</a>
+              <span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span></td>
+            <td class="tl">{% if it.brand %}{{ it.brand }}{% else %}<span class="gl-dim">—</span>{% endif %}</td>
+            <td class="tl">{% if it.count %}색상 <b class="num">{{ it.colors }}</b> × 사이즈 <b class="num">{{ it.sizes }}</b>
+              <span class="gl-dim">· 켜짐 <b class="num">{{ it.active }}/{{ it.count }}</b></span>
+              {% else %}<span class="gl-dim">옵션 없음</span>{% endif %}</td>
+            {# [2026-08-06 사장님 지적] 「미사용」인데 마켓 칩이 떠 모순처럼 보였다 —
+               마켓 등록이 있으면 「직접 판매」(옵션이 모델 그대로 팔리는 중)로 갈라 말한다. #}
+            <td class="tr">{% if it.products %}<b class="num">{{ it.products }}</b><span class="unit">개</span>
+              {% elif it.markets %}<span class="mx-tag ok" data-tip="이 묶음의 옵션이 <b>모델 그대로 마켓에 올라가 팔리는 중</b>이에요 — 어느 마켓인지는 옆 「마켓 등록」 칩. 여기서 새 상품을 만들어 간 기록(담긴 상품)과는 별개입니다.">직접 판매</span>
+              {% else %}<span class="mx-tag mute" data-tip="아직 어느 상품에도 담기지 않았고, 마켓에도 올라가 있지 않은 묶음이에요.">미사용</span>{% endif %}</td>
+            <td class="tc">{% for m in it.markets %}<span class="mx-tag mk">{{ m.label }}</span> {% else %}<span class="gl-dim">—</span>{% endfor %}</td>
+            <td class="tr">{% if it.src %}<b class="num">{{ it.src }}</b><span class="unit">곳</span>
+              {% if it.src_fail %} <span class="mx-tag bad">실패 {{ it.src_fail }}</span>{% endif %}
+              {% else %}<span class="gl-dim">—</span>{% endif %}</td>
+            <td class="tc">{% if it.soldout %}<span class="mx-tag bad">품절 {{ it.soldout }}</span>{% endif %}
+              {% if not it.soldout and not it.src_fail %}<span class="gl-dim">—</span>{% endif %}</td>
+            <td class="tl gl-dim mx-seen" {% if it.seen %}data-seen="{{ it.seen.isoformat() }}"{% endif %}>—</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <div class="mx-empty gl-empty" style="display:none">「<span class="gl-kw"></span>」 로 찾은 옵션 묶음이 없어요.</div>
+      </div>
+      {% else %}
+      <div class="mx-empty">
+        {% if kw %}「{{ kw }}」 로 찾은 옵션 묶음이 없어요.{% else %}아직 옵션 묶음이 없어요.{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── [2026-08-05 A안] 오른쪽 미끄럼판 — 행을 누르면 열린다. 살펴보기 전용. ── #}
+  <aside class="mxp" id="mxp" aria-hidden="true">
+    <div class="mxp-h">
+      <h2 id="mxp-name"></h2>
+      <span class="mx-badge" id="mxp-kind"></span>
+      <span class="mx-no" id="mxp-no"></span>
+      <button class="mxp-x" id="mxp-x" type="button" title="닫기">✕</button>
+    </div>
+    <div class="mxp-tabs">
+      <button class="mxp-tab on" data-pane="sum" type="button">요약</button>
+      <button class="mxp-tab" data-pane="tree" type="button">연결 관계</button>
+      <button class="mxp-tab" data-pane="src" type="button">소싱처</button>
+      <button class="mxp-tab" data-pane="run" type="button">이력</button>
+    </div>
+    <div class="mxp-pane on" data-pane="sum"><div class="mxp-load">불러오는 중…</div></div>
+    <div class="mxp-pane" data-pane="tree"></div>
+    <div class="mxp-pane" data-pane="src"></div>
+    <div class="mxp-pane" data-pane="run"></div>
+  </aside>
+
+  <script>
+  /* ── [2026-08-04 카드형→격자] 사이드바 걸러내기·찾기·정렬 — 이 화면 안에서만 동작한다. ── */
+  (function () {
+    function rows(){ return [].slice.call(document.querySelectorAll('tr.glr')); }
+    const glq = document.getElementById('glq'), glac = document.getElementById('glac');
+    let stgPick = '';                     // 「어디까지 왔나」에서 고른 상태('' = 전체)
+    function apply(){
+      /* [2026-08-06 최종안] 거르기는 둘뿐 — 이상만 보기 · 숨긴 묶음 보기.
+         검색은 서버가 내려준 blob(이름·번호·모델코드·브랜드·색상·사이즈·SKU·상품명)을 그대로 본다. */
+      const kw = (glq.value || '').trim().toLowerCase();
+      const onlyWarn = document.getElementById('f-warn').checked;
+      const showHid = document.getElementById('f-hid').checked;
+      let visible = 0;
+      rows().forEach(function (tr) {
+        let ok = true;
+        if (kw && tr.dataset.name.toLowerCase().indexOf(kw) < 0) ok = false;
+        /* [2026-08-06] 「어디까지 왔나」 거르기 — 상품관리와 같은 판. */
+        if (ok && stgPick && tr.dataset.stage !== stgPick) ok = false;
+        if (ok && onlyWarn && tr.dataset.warn !== '1') ok = false;
+        if (ok && !showHid && tr.dataset.hid === '1') ok = false;
+        tr.style.display = ok ? '' : 'none';
+        if (ok) visible++;
+      });
+      const empty = document.querySelector('.gl-empty');
+      if (empty) {
+        empty.style.display = visible ? 'none' : 'block';
+        empty.querySelector('.gl-kw').textContent = kw || '고른 조건';
+      }
+    }
+    /* 🔴 판 숫자는 **화면에 보이는 것**과 같아야 한다. 「숨긴 묶음 보기」를 켜면
+       보이는 대상이 늘어나므로 숫자도 같이 바꾼다 — 안 그러면 「아직 상품 생성 안 함 89」
+       라 해놓고 눌러도 3개만 나온다(라이브 실측). */
+    function syncStageCounts() {
+      const showHid = document.getElementById('f-hid').checked;
+      document.querySelectorAll('#mx-stages .stg-row').forEach(function (r) {
+        const n = r.querySelector('.n');
+        if (!n || r.dataset.n === undefined) return;
+        n.textContent = (r.classList.contains('stg-head') ? '전체 ' : '') +
+                        (showHid ? r.dataset.nh : r.dataset.n);
+      });
+    }
+    ['f-warn', 'f-hid'].forEach(function (id) {
+      const c = document.getElementById(id);
+      if (c) c.addEventListener('change', function () { syncStageCounts(); apply(); });
+    });
+    /* 「어디까지 왔나」 줄 누르기 — 한 번에 하나만(상품관리와 같은 규칙) */
+    const stgBox = document.getElementById('mx-stages');
+    if (stgBox) stgBox.addEventListener('click', function (e) {
+      const r = e.target.closest('.stg-row'); if (!r) return;
+      stgPick = r.dataset.s || '';
+      stgBox.querySelectorAll('.stg-row').forEach(function (x) {
+        x.classList.toggle('on', x === r);
+      });
+      apply();
+    });
+    document.getElementById('glsort').addEventListener('change', function () {
+      const key = this.value;
+      const tb = document.querySelector('table.gl tbody');
+      if (!tb) return;
+      rows().sort(function (a, b) {
+        if (key === 'name') return a.dataset.name.localeCompare(b.dataset.name, 'ko');
+        if (key === 'count') return (+b.dataset.count) - (+a.dataset.count);
+        return (+a.dataset.idx) - (+b.dataset.idx);
+      }).forEach(function (tr) { tb.appendChild(tr); });
+    });
+    /* 찾기 자동완성 — 목록의 검색 blob(이름·번호·브랜드·SKU·상품명…)에서 제안한다 */
+    function suggest(){
+      const kw = (glq.value || '').trim().toLowerCase();
+      const names = [];
+      rows().forEach(function (tr) {
+        tr.dataset.name.split(' ').forEach(function (n) {
+          if (n && names.indexOf(n) < 0) names.push(n);
+        });
+      });
+      const hits = names.filter(function (n) { return kw && n.toLowerCase().indexOf(kw) >= 0; }).slice(0, 7);
+      if (!hits.length) { glac.classList.remove('on'); return; }
+      glac.innerHTML = hits.map(function (h) {
+        return '<div>' + h.replace(/[&<>]/g, function (c) {
+          return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }) + '</div>';
+      }).join('');
+      glac.classList.add('on');
+    }
+    if (glq) {
+      glq.addEventListener('input', function () { apply(); suggest(); });
+      glq.addEventListener('blur', function () {
+        setTimeout(function () { glac.classList.remove('on'); }, 150);
+      });
+      glac.addEventListener('mousedown', function (e) {
+        if (e.target.tagName !== 'DIV' || e.target === glac) return;
+        glq.value = e.target.textContent;
+        glac.classList.remove('on');
+        apply();
+      });
+    }
+    /* [2026-08-06 최종안] 숨긴 묶음(재고 단독·빈 묶음)은 첫 화면부터 걸러 낸다 */
+    apply();
+  })();
+
+  /* ── [2026-08-06 최종안] ⓘ 호버 설명 — 정보창 표준 축소판 ── */
+  (function () {
+    var tip = document.createElement('div');
+    tip.className = 'nx-tip';
+    document.body.appendChild(tip);
+    var openT = null, hideT = null;
+    function show(el){
+      tip.innerHTML = el.dataset.tip;
+      tip.style.display = 'block';
+      var r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+      var left = r.right + 10, top = r.top - 4;
+      if (left + w > window.innerWidth - 8) left = r.left - w - 10;
+      if (left < 8) { left = Math.min(r.left, window.innerWidth - w - 8); top = r.bottom + 8; }
+      if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
+      tip.style.left = left + 'px';
+      tip.style.top = Math.max(8, top) + 'px';
+    }
+    document.querySelectorAll('[data-tip]').forEach(function (el) {
+      el.addEventListener('mouseenter', function () {
+        clearTimeout(hideT);
+        openT = setTimeout(function () { show(el); }, 140);
+      });
+      el.addEventListener('mouseleave', function () {
+        clearTimeout(openT);
+        hideT = setTimeout(function () { tip.style.display = 'none'; }, 250);
+      });
+    });
+    window.addEventListener('scroll', function () { tip.style.display = 'none'; }, {passive: true});
+  })();
+
+  /* ── [2026-08-05 A안] 최근 확인 상대시각 + 오른쪽 미끄럼판 ── */
+  (function () {
+    function esc(v){ return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    var fmt = function (n) { return n == null ? '—' : Number(n).toLocaleString('ko-KR'); };
+    function rel(iso){
+      if (!iso) return '—';
+      // DB 는 UTC 를 시간대 표기 없이 준다 — 그대로 Date 에 넣으면 9시간 어긋난다.
+      var d = new Date(/[Z+]/.test(iso) ? iso : iso + 'Z');
+      if (isNaN(d)) return '—';
+      var m = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (m < 1) return '방금';
+      if (m < 60) return m + '분 전';
+      if (m < 1440) return Math.floor(m / 60) + '시간 전';
+      return Math.floor(m / 1440) + '일 전';
+    }
+    document.querySelectorAll('.mx-seen[data-seen]').forEach(function (td) {
+      var iso = td.dataset.seen, t = rel(iso);
+      td.textContent = t;
+      // 3일 넘게 확인 안 된 것은 주황으로 — 정보의 신선도 경고
+      var d = new Date(/[Z+]/.test(iso) ? iso : iso + 'Z');
+      if (!isNaN(d) && Date.now() - d.getTime() > 3 * 86400000) td.classList.add('mx-stale');
+    });
+
+    var mxp = document.getElementById('mxp');
+    var cur = null;
+    function close(){ mxp.classList.remove('on'); cur = null;
+      document.querySelectorAll('tr.glr.sel').forEach(function (tr) { tr.classList.remove('sel'); }); }
+    document.getElementById('mxp-x').addEventListener('click', close);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    mxp.querySelectorAll('.mxp-tab').forEach(function (b) {
+      b.addEventListener('click', function () {
+        mxp.querySelectorAll('.mxp-tab').forEach(function (x) { x.classList.toggle('on', x === b); });
+        mxp.querySelectorAll('.mxp-pane').forEach(function (p) {
+          p.classList.toggle('on', p.dataset.pane === b.dataset.pane); });
+      });
+    });
+    function pane(k){ return mxp.querySelector('.mxp-pane[data-pane="' + k + '"]'); }
+
+    function marks(list){
+      if (!list || !list.length) return '<span class="mx-tag mute">미등록</span>';
+      return list.map(function (m) {
+        return '<span class="mx-tag ok">' + esc(m.label) + ' ' + m.n + '</span>';
+      }).join(' ');
+    }
+    function prodTree(p){
+      return '<div class="nd"><span class="mx-no">' + esc(p.no || p.model_code) + '</span> <b>'
+        + esc(p.name) + '</b> <span class="mxp-dim">· 옵션 ' + p.copied + '개 담김</span></div>'
+        + '<div class="lv"><div class="nd">' + marks(p.markets) + '</div></div>';
+    }
+    function render(j){
+      var s = j.summary;
+      document.getElementById('mxp-name').textContent = s.name;
+      var kd = document.getElementById('mxp-kind');
+      kd.textContent = s.kind === 'origin' ? '원본' : '파생';
+      kd.className = 'mx-badge ' + (s.kind === 'origin' ? 'o' : 'd');
+      document.getElementById('mxp-no').textContent = s.no || '번호 대기';
+
+      /* 요약 — 축 격자 + 이동 단추 */
+      var h = '<div class="mxp-kv">'
+        + (s.brand ? '<span>브랜드 <b>' + esc(s.brand) + '</b></span>' : '')
+        + (s.category ? '<span>카테고리 <b>' + esc(s.category) + '</b></span>' : '')
+        + (s.model_code ? '<span>모델 <b>' + esc(s.model_code) + '</b></span>' : '')
+        + '<span>옵션 <b>' + s.count + '</b>개'
+        + (s.count - s.active ? ' <span class="mxp-dim">(꺼짐 ' + (s.count - s.active) + ')</span>' : '')
+        + '</span></div>';
+      if (s.grid.length) {
+        /* [2026-08-06 사장님 요청] 칸 = 최종매입가(굵게) / 소싱처 n곳 / 재고 3층.
+           최종매입가를 못 구한 칸은 「—」 그대로 (표면가로 메우지 않는다). */
+        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 그 값을 준 <b>최저 소싱처</b> · 재고 · 빗금 = 꺼진 옵션</span></div>'
+          + '<div class="mxp-gwrap"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
+          + s.sizes.map(function (z) { return '<th>' + esc(z) + '</th>'; }).join('') + '</tr></thead><tbody>'
+          + s.grid.map(function (row) {
+              return '<tr><th style="text-align:left">' + esc(row.color) + '</th>'
+                + row.cells.map(function (c) {
+                    if (!c) return '<td class="none">—</td>';
+                    var stock = (c.stock == null) ? '<span class="mxp-dim">재고 ?</span>'
+                              : (c.stock > 0 ? '<span class="cg-ok">재고 ' + c.stock + '</span>'
+                                             : '<span class="cg-bad">품절</span>');
+                    var price = c.final ? '<b>' + fmt(c.final) + '</b>'
+                              : '<span class="mxp-dim" title="혜택을 아직 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">—</span>';
+                    return '<td class="' + (c.active ? '' : 'off') + '"'
+                      + ' title="' + esc(c.sku) + (c.surface ? ' · 표면가 ' + fmt(c.surface) + '원' : '') + '">'
+                      + '<div class="cg-p">' + price + '</div>'
+                      /* [2026-08-06 사장님] 이름만 적으면 「그게 최저인지」를 모른다 — 최저라고 못 박는다 */
+                      + '<div class="cg-s">' + (c.n
+                          ? (c.best ? '<span class="cg-best">최저</span> ' + esc(c.best)
+                                      + (c.n > 1 ? ' <span class="mxp-dim">외 ' + (c.n - 1) + '곳</span>' : '')
+                                    : c.n + '곳')
+                          : '<span class="mxp-dim">연결 없음</span>') + '</div>'
+                      + '<div class="cg-k">' + stock + '</div></td>';
+                  }).join('') + '</tr>';
+            }).join('') + '</tbody></table></div>';
+      } else {
+        h += '<div class="mxp-note">아직 담긴 옵션이 없어요.</div>';
+      }
+      h += '<div class="mxp-note">여기서는 <b>살펴보기</b>만 합니다 — 만들기·고치기는 아래 단추로 이어집니다.'
+        + (s.editable ? '' : '<br>파생이라 이름·소싱처 주소는 <b>원본에서만</b> 고칠 수 있어요.') + '</div>'
+        // [2026-08-12 노션] 「옵션 클릭 시 옵션 조합 생성·수정 할 수 있어야함」.
+        //   입구는 /optgen/box 하나뿐이다 — 들어가면 조합 만들기·고치기 창이 저절로 열린다
+        //   (bundles/edit.html 의 「옵션 조합 생성 및 수정 →」과 **같은 문**. 설계서 규칙 12).
+        //   🔴 s.model_code 로 판정하면 안 된다 — 파생은 model_code 가 비어서 서버가
+        //      **원본 것을 대신 채워 준다**(matrix.py). 그대로 링크하면 다른 묶음을
+        //      말없이 고치게 된다. 원본 여부(editable)로만 연다.
+        + '<div>'
+        + (s.editable && s.model_code
+            ? '<a class="mxp-go" href="/optgen/box/' + encodeURIComponent(s.model_code)
+              + '">옵션 조합 만들기 · 고치기 →</a>' : '')
+        + '<a class="mxp-go" href="/matrix/' + s.id + '">격자에서 골라 상품·파생 만들기 →</a>'
+        + (s.model_code ? '<a class="mxp-go" href="/matrix/product/' + encodeURIComponent(s.model_code)
+           + '">옵션 하나하나 보기 · 실제 매입가 →</a>' : '')
+        + (s.origin ? '<a class="mxp-go" href="/matrix/' + s.origin.id + '">원본('
+           + esc(s.origin.no || '') + ')으로 가기 →</a>' : '') + '</div>';
+      pane('sum').innerHTML = h;
+
+      /* 연결 관계 */
+      var t = j.tree, th = '';
+      if (!t.origin) {
+        th = '<div class="mxp-note">연결 정보를 찾지 못했어요.</div>';
+      } else {
+        th = '<div class="mxp-sect">이 묶음이 어디에 쓰이고 있나 <span class="mxp-dim" style="font-weight:400">— 원본 → 파생 → 상품 → 마켓</span></div>'
+          + '<div class="mxp-tree"><div class="nd"><span class="mx-no">' + esc(t.origin.no || '')
+          + '</span> <b>' + esc(t.origin.name) + '</b> <span class="mx-badge o">원본</span>'
+          + (t.origin.here ? ' <span class="mxp-here">지금 보는 중</span>' : '') + '</div><div class="lv">'
+          + t.derived.map(function (d) {
+              return '<div class="nd"><span class="mx-no">' + esc(d.no || '') + '</span> '
+                + esc(d.name) + ' <span class="mx-badge d">파생</span> <span class="mxp-dim">· 옵션 '
+                + d.count + '개</span>' + (d.here ? ' <span class="mxp-here">지금 보는 중</span>' : '')
+                + '</div>' + (d.products.length
+                  ? '<div class="lv">' + d.products.map(prodTree).join('') + '</div>' : '');
+            }).join('')
+          + t.products.map(prodTree).join('')
+          + (!t.derived.length && !t.products.length
+             ? '<div class="nd mxp-dim">아직 이 묶음에서 만들어 간 상품이 없어요.</div>' : '')
+          + '</div></div>';
+      }
+      pane('tree').innerHTML = th;
+
+      /* 소싱처 */
+      var sh;
+      if (!j.sources.length) {
+        sh = '<div class="mxp-note">아직 어느 소싱처에도 연결되지 않았어요.</div>';
+      } else {
+        sh = '<div class="mxp-sect">연결된 소싱처 <span class="mxp-dim" style="font-weight:400">— 표면가·최종매입가는 이 묶음 옵션들의 최저값</span></div>'
+          + '<table class="mxp-t"><thead><tr><th class="tl">소싱처</th><th class="tc">옵션 매칭</th>'
+          + '<th class="trr">표면가</th><th class="trr">최종매입가</th><th class="tc">재고</th><th class="tl">확인</th><th class="tc">가기</th></tr></thead><tbody>'
+          + j.sources.map(function (x) {
+              var st = x.stock === '있음' ? '<span class="mx-tag ok">있음</span>'
+                     : x.stock === '품절' ? '<span class="mx-tag bad">품절</span>'
+                     : '<span class="mxp-dim" title="그 소싱처 페이지에서 재고를 아직 못 읽었어요">확인 불가</span>';
+              var bad = x.status === 'error' || x.status === 'timeout';
+              return '<tr><td class="tl">' + esc(x.label)
+                + (bad ? ' <span class="mx-tag bad">크롤 실패</span>' : '') + '</td>'
+                + '<td class="tc">' + (x.matched ? x.matched + '/' + x.total
+                   : '<span class="mx-tag mute" title="모델에 주소만 붙어 있고, 옵션끼리는 아직 짝지어지지 않았어요">주소만</span>') + '</td>'
+                + '<td class="trr">' + fmt(x.surface) + '</td>'
+                + '<td class="trr"><b>' + (x.final ? fmt(x.final) : '—') + '</b></td>'
+                + '<td class="tc">' + st + '</td>'
+                + '<td class="tl mxp-dim">' + rel(x.fetched) + '</td>'
+                + '<td class="tc">' + (x.url ? '<a href="' + esc(x.url)
+                   + '" target="_blank" rel="noopener noreferrer">↗</a>' : '—') + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          + '<div class="mxp-note">최종매입가 = 표면가에서 혜택을 뺀, <b>살 때 낼 것으로 보이는</b> 값이에요(소싱처 크롤 기준 예상). 실제로 사고 낸 값은 주문 내역의 「실매입가」입니다. 못 구한 곳은 「—」 그대로 둡니다(표면가로 메우지 않아요).</div>';
+      }
+      pane('src').innerHTML = sh;
+
+      /* 이력 */
+      var rh;
+      if (!j.runs.length) {
+        rh = '<div class="mxp-note">아직 이 묶음의 실행 기록이 없어요 — 크롤이 돌면 여기 쌓입니다.</div>';
+      } else {
+        rh = '<div class="mxp-sect">최근 실행</div><table class="mxp-t"><tbody>'
+          + j.runs.map(function (r) {
+              var tag = r.status === 'success' || r.status === 'done' || r.status === 'ok'
+                ? '<span class="mx-tag ok">성공</span>'
+                : r.status === 'running' ? '<span class="mx-tag warn">도는 중</span>'
+                : '<span class="mx-tag bad">' + esc(r.status) + '</span>';
+              var ph = {full: '크롤+업로드', crawl: '크롤', upload: '업로드'}[r.phase] || r.phase;
+              return '<tr><td class="tl mxp-dim" style="width:90px">' + rel(r.at) + '</td>'
+                + '<td class="tl">' + tag + ' ' + esc(ph)
+                + (r.note ? ' <span class="mxp-dim">· ' + esc(r.note) + '</span>' : '') + '</td></tr>';
+            }).join('') + '</tbody></table>';
+      }
+      pane('run').innerHTML = rh;
+    }
+
+    function open(id){
+      cur = id;
+      mxp.classList.add('on');
+      pane('sum').innerHTML = '<div class="mxp-load">불러오는 중…</div>';
+      ['tree', 'src', 'run'].forEach(function (k) { pane(k).innerHTML = ''; });
+      fetch('/api/matrix/' + id + '/panel').then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (cur !== id) return;   // 그새 딴 행을 눌렀으면 버린다
+          if (!j.ok) { pane('sum').innerHTML = '<div class="mxp-load">' + esc(j.error || '불러오지 못했어요') + '</div>'; return; }
+          render(j);
+        })
+        .catch(function (e) {
+          if (cur === id) pane('sum').innerHTML = '<div class="mxp-load">불러오지 못했어요: ' + esc(e.message) + '</div>';
+        });
+    }
+    document.querySelectorAll('tr.glr').forEach(function (tr) {
+      tr.addEventListener('click', function (e) {
+        if (e.target.closest('a')) return;   // 이름·바로가기 링크는 그대로 이동
+        document.querySelectorAll('tr.glr.sel').forEach(function (x) { x.classList.remove('sel'); });
+        tr.classList.add('sel');
+        open(+tr.dataset.id);
+      });
+    });
+  })();
+  </script>
+</section>
+{% endblock %}

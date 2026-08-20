@@ -1,0 +1,59 @@
+{
+ "returnCode": "200",
+ "data": {
+  "basicInfo": {
+   "spdNo": "LE1220817293",
+   "sitmNo": "LE1220817293_1325362478",
+   "pdNm": "드라이 핏 ADV 클럽 스트럭처 스우시 캡 FB5636-010"
+  },
+  "imgInfo": {
+   "imageList": [
+    {
+     "rprtImgYn": "Y",
+     "epsrTypCd": "IMG",
+     "epsrTypCdNm": "이미지",
+     "epsrTypDtlCd": "IMG_SQRE",
+     "origImgFileNm": "http://s3-ap-northeast-2.amazonaws.com/ellt.static.lotteeps.com/goods/img/93/72/81/20/12/1220817293_1.jpg?postfix=20260615120751",
+     "imgRteNm": "/20260615120801/LE/12/20/81/72/93/_1/32/53/62/47/8/",
+     "imgFileNm": "LE1220817293_1325362478_1.jpg",
+     "imgCrtYn": "N",
+     "imgSortSeq": 0,
+     "homeShopYn": "N",
+     "bnrImgRteUrl": null
+    },
+    {
+     "rprtImgYn": "N",
+     "epsrTypCd": "IMG",
+     "epsrTypCdNm": "이미지",
+     "epsrTypDtlCd": "IMG_SQRE",
+     "origImgFileNm": "http://s3-ap-northeast-2.amazonaws.com/ellt.static.lotteeps.com/goods/img/93/72/81/20/12/1220817293_2.jpg?postfix=20260615120751",
+     "imgRteNm": "/20260615120801/LE/12/20/81/72/93/_1/32/53/62/47/8/",
+     "imgFileNm": "LE1220817293_1325362478_2.jpg",
+     "imgCrtYn": "N",
+     "imgSortSeq": 0,
+     "homeShopYn": "N",
+     "bnrImgRteUrl": null
+    }
+   ],
+   "emblInfo": null,
+   "homeShopInfo": null,
+   "threeDImgInfo": null,
+   "vdoFileYn": false
+  },
+  "descInfo": {
+   "epnJsn": [
+    {
+     "pdEpnTypCd": "DSCRP",
+     "pdEpnTypCdNm": "상품기술서",
+     "pdEpnShpCd": "html",
+     "pdEpnShpCdNm": null,
+     "dtlFileRteNm": "/LE/12/20/81/72/93/",
+     "origDtlFileNm": "DSCRP_LE1220817293_ORG",
+     "dtlFileNm": "DSCRP_LE1220817293",
+     "fileCrtYn": "N"
+    }
+   ],
+   "fileJsn": []
+  }
+ }
+}

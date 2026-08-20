@@ -2,57 +2,76 @@
 {% block title %}크롤러 설치{% endblock %}
 {% block content %}
 <style>
-  .cri{padding:40px 56px;max-width:920px;}
-  .cri h2{font-size:26px;font-weight:800;letter-spacing:-.4px;margin-bottom:4px;}
-  .cri .sub{color:#8B95A1;font-size:14px;margin-bottom:22px;}
+  .cri{padding:32px 48px;max-width:920px;}
+  .cri h2{font-size:24px;font-weight:800;letter-spacing:0;margin-bottom:4px;}
+  .cri .sub{color:var(--sub,#8B95A1);font-size:14px;margin-bottom:24px;}
   /* 하위탭 */
-  .cri .subtabs{display:flex;gap:26px;border-bottom:1.5px solid #E5E8EB;margin-bottom:26px;}
-  .cri .subtab{padding:10px 2px;font-size:15px;color:#8B95A1;font-weight:600;text-decoration:none;position:relative;}
-  .cri .subtab.on{color:#191F28;font-weight:800;}
-  .cri .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1.5px;height:2.5px;background:#191F28;border-radius:2px;}
+  .cri .subtabs{display:flex;gap:24px;border-bottom:1.5px solid var(--line,#E5E8EB);margin-bottom:24px;}
+  .cri .subtab{padding:8px 0px;font-size:14px;color:var(--sub,#8B95A1);font-weight:600;text-decoration:none;position:relative;}
+  .cri .subtab.on{color:var(--ink,#191F28);font-weight:800;}
+  .cri .subtab.on::after{content:'';position:absolute;left:0;right:0;bottom:-1.5px;height:2.5px;background: var(--바탕-진하게, var(--ink,#191F28));border-radius:0px;}
+  /* 가이드 네비 = 3카드 런처 (시안 3) */
+  .cri .sg-launch{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
+  .cri .sg-launch .lc{display:block;text-align:left;text-decoration:none;border:2px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:18px;padding:16px 16px;cursor:pointer;transition:.15s;font-family:inherit;width:100%;}
+  .cri .sg-launch .lc:hover{border-color:var(--line,#C9D2DC);transform:translateY(-2px);}
+  .cri .sg-launch .lc .lc-ic{font-size:24px;line-height:1;}
+  .cri .sg-launch .lc .lc-t{font-size:17px;font-weight:800;margin-top:8px;color:var(--ink,#191F28);}
+  .cri .sg-launch .lc .lc-d{font-size:12px;color:var(--글자-기본,#555E6B);margin-top:8px;line-height:1.55;min-height:54px;}
+  .cri .sg-launch .lc .lc-tag{display:inline-block;font-size:12px;font-weight:800;border-radius:8px;padding:4px 8px;margin-top:8px;}
+  .cri .sg-launch .lc .lc-tag.b{background:var(--연한-파랑,#E8F1FF);color:#1B64DA;} .cri .sg-launch .lc .lc-tag.g{background:var(--연한-초록,#E6F6EC);color: var(--글자-초록, var(--green,#0F9D58));} .cri .sg-launch .lc .lc-tag.p{background:#F1EAFE;color:#7C3AED;}
+  .cri .sg-launch .lc.on.c-green{border-color:var(--green,#0F9D58);background:var(--n100,#F1FBF5);} .cri .sg-launch .lc.on.c-green .lc-t{color: var(--글자-초록, var(--green,#0F9D58));}
   /* 왜? 다크 배너 */
-  .cri .why{background:#191F28;color:#fff;border-radius:14px;padding:16px 22px;display:flex;gap:14px;align-items:center;margin-bottom:22px;}
-  .cri .why .ic{font-size:21px;}
-  .cri .why .tx{font-size:13.5px;line-height:1.55;color:#D7DDE3;}
+  .cri .why{background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;border-radius:12px;padding:16px 24px;display:flex;gap:12px;align-items:center;margin-bottom:24px;}
+  .cri .why .ic{font-size:24px;}
+  .cri .why .tx{font-size:14px;line-height:1.57;color: var(--글자-희미, var(--line,#D7DDE3));}
   .cri .why .tx b{color:#A9E34B;}
   /* 진행바 */
-  .cri .progwrap{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
-  .cri .prog{height:9px;background:#E5E8EB;border-radius:99px;overflow:hidden;flex:1;max-width:560px;}
-  .cri .prog .bar{height:100%;width:0;background:#3182F6;border-radius:99px;transition:width .25s;}
-  .cri .prog-t{font-size:12.5px;font-weight:700;color:#3182F6;white-space:nowrap;}
+  .cri .progwrap{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .cri .prog{height:9px;background:var(--line,#E5E8EB);border-radius:99px;overflow:hidden;flex:1;max-width:560px;}
+  .cri .prog .bar{height:100%;width:0;background:var(--primary,#3182F6);border-radius:99px;transition:width .25s;}
+  .cri .prog-t{font-size:12px;font-weight:700;color: var(--글자-파랑, var(--primary,#3182F6));white-space:nowrap;}
   /* 체크리스트 */
-  .cri .chk .ci{display:flex;align-items:flex-start;gap:14px;background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px;margin-bottom:10px;cursor:pointer;transition:.12s;}
-  .cri .chk .ci:hover{border-color:#C6CCD3;}
-  .cri .chk .box{width:24px;height:24px;border-radius:7px;border:2px solid #C6CCD3;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;margin-top:1px;transition:.12s;}
-  .cri .chk .ci.done .box{background:#10B981;border-color:#10B981;}
-  .cri .chk .st-t{font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px;}
-  .cri .chk .st-d{font-size:13px;color:#5B6573;line-height:1.55;margin-top:4px;}
-  .cri .chk .st-d code{background:#EEF1F4;border-radius:5px;padding:1px 7px;font-family:ui-monospace,'D2Coding',monospace;font-size:12px;color:#C2410C;}
-  .cri .chk .ci.done .st-t{color:#9AA4B2;}
+  .cri .chk .ci{display:flex;align-items:flex-start;gap:12px;background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 16px;margin-bottom:8px;cursor:pointer;transition:.12s;}
+  .cri .chk .ci:hover{border-color:var(--line,#C6CCD3);}
+  .cri .chk .box{width:24px;height:24px;border-radius:8px;border:2px solid var(--line,#C6CCD3);flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;margin-top:0px;transition:.12s;}
+  .cri .chk .ci.done .box{background:var(--green,#10B981);border-color:var(--green,#10B981);}
+  .cri .chk .st-t{font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px;}
+  .cri .chk .st-d{font-size:12px;color:var(--글자-기본,#5B6573);line-height:1.55;margin-top:4px;}
+  .cri .chk .st-d code{background:var(--line2,#EEF1F4);border-radius:8px;padding:0px 8px;font-family:ui-monospace,'D2Coding',monospace;font-size:12px;color:#C2410C;}
+  .cri .chk .ci.done .st-t{color: var(--글자-희미, var(--faint,#9AA4B2));}
   .cri .chk .ci.done .st-t .nm{text-decoration:line-through;}
   /* 다운로드 버튼 */
-  .cri .dl-btn{display:inline-flex;align-items:center;gap:10px;background:#3182F6;color:#fff;font-size:14.5px;font-weight:800;border:none;border-radius:11px;padding:12px 20px;cursor:pointer;box-shadow:0 4px 14px rgba(49,130,246,.32);text-decoration:none;margin-top:12px;}
-  .cri .dl-btn:hover{background:#1B6FE0;}
+  .cri .dl-btn{display:inline-flex;align-items:center;gap:8px;background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;font-size:14px;font-weight:800;border:none;border-radius:12px;padding:12px 16px;cursor:pointer;text-decoration:none;margin-top:12px;}
+  .cri .dl-btn:hover{background:var(--primary,#1B6FE0);}
   .cri .dl-btn .ico{font-size:17px;}
-  .cri .dl-btn .sz{font-size:11px;font-weight:600;opacity:.85;}
-  .cri .dl-off{margin-top:12px;font-size:12.5px;color:#E03131;background:#FFF0F0;border:1px solid #FFC9C9;border-radius:9px;padding:9px 13px;}
+  .cri .dl-btn .sz{font-size:12px;font-weight:600;opacity:.85;}
+  .cri .dl-off{margin-top:12px;font-size:12px;color: var(--글자-빨강, var(--red,#E03131));background:var(--연한-빨강,#FFF0F0);border:1px solid var(--연한-빨강,#FFC9C9);border-radius:8px;padding:8px 12px;}
   /* 완료/도움 */
-  .cri .endbar{margin-top:18px;background:#E6F9F1;border:1px solid #63E6BE;border-radius:11px;padding:14px 18px;font-size:13.5px;color:#066649;font-weight:700;}
-  .cri .help{margin-top:22px;border-top:1px solid #E5E8EB;padding-top:18px;}
-  .cri .help h3{font-size:14px;font-weight:800;margin-bottom:10px;}
-  .cri .help .qa{font-size:12.5px;color:#5B6573;line-height:1.6;margin-bottom:9px;}
-  .cri .help .qa b{color:#191F28;}
-  .cri .help .qa code{background:#EEF1F4;border-radius:5px;padding:1px 7px;font-family:ui-monospace,monospace;font-size:11.5px;color:#C2410C;}
+  .cri .endbar{margin-top:16px;background:var(--연한-초록,#E6F9F1);border:1px solid var(--green,#63E6BE);border-radius:12px;padding:12px 16px;font-size:14px;color: var(--글자-초록, var(--green,#066649));font-weight:700;}
+  .cri .help{margin-top:24px;border-top:1px solid var(--line,#E5E8EB);padding-top:16px;}
+  .cri .help h3{font-size:14px;font-weight:800;margin-bottom:8px;}
+  .cri .help .qa{font-size:12px;color:var(--글자-기본,#5B6573);line-height:1.6;margin-bottom:8px;}
+  .cri .help .qa b{color:var(--ink,#191F28);}
+  .cri .help .qa code{background:var(--line2,#EEF1F4);border-radius:8px;padding:0px 8px;font-family:ui-monospace,monospace;font-size:12px;color:#C2410C;}
 </style>
 
 <div class="cri">
   <h2>크롤러 설치 — 본인 PC에서 크롤하기</h2>
   <div class="sub">팀원도 본인 PC(또는 다른 PC) 크롬에 「모음전 크롤러」를 한 번만 설치하면, 무신사·롯데온까지 긁어 모음전에 자동 저장됩니다.</div>
 
-  <div class="subtabs">
-    <a class="subtab" href="/sourcing-guide/">전체보기</a>
-    <a class="subtab" href="/sourcing-guide/how-to"><i class="ph-light ph-plus" aria-hidden="true"></i> 신규 소싱처 추가</a>
-    <a class="subtab on" href="/sourcing-guide/install"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i> 크롤러 설치</a>
+  <div class="sg-launch">
+    <a class="lc c-blue" href="/sourcing-guide/">
+      <div class="lc-ic"><i class="ph-light ph-chart-bar" aria-hidden="true"></i></div><div class="lc-t">전체보기</div>
+      <div class="lc-d">소싱처별 크롤링 정보가 한눈에 — 구조·매입가 로직·혜택 방식</div>
+      <span class="lc-tag b"><i class="ph-light ph-users" aria-hidden="true"></i> 모두 · 조회</span></a>
+    <a class="lc c-blue" href="/sourcing-guide/map">
+      <div class="lc-ic"><i class="ph-light ph-book-open" aria-hidden="true"></i></div><div class="lc-t">데이터·코드 지도</div>
+      <div class="lc-d">재고·가격·매트릭스 표시의 데이터 위치·코드 위치 단일 진실 원천</div>
+      <span class="lc-tag b"><i class="ph-light ph-users" aria-hidden="true"></i> 모두 · 조회</span></a>
+    <a class="lc on c-green" href="/sourcing-guide/install">
+      <div class="lc-ic"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i></div><div class="lc-t">크롤러 설치</div>
+      <div class="lc-d">로컬 PC에서 크롤하기 위한 필수 프로그램(크롬 확장) 설치법</div>
+      <span class="lc-tag g"><i class="ph-light ph-wrench" aria-hidden="true"></i> 팀원 · 셋업</span></a>
   </div>
 
   <div class="why">
@@ -73,7 +92,7 @@
         <div class="st-d">아래 버튼으로 「모음전 크롤러」 압축파일(zip)을 받습니다.</div>
         {% if ext_available %}
         <a class="dl-btn" href="/sourcing-guide/install/download" onclick="event.stopPropagation()">
-          <span class="ico"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span> 모음전 크롤러 다운로드 <span class="sz">(.zip)</span>
+          <span class="ico"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span> 모음전 크롤러 다운로드 <span class="sz">(.zip{% if ext_version %} · 항상 최신 v{{ ext_version }}{% endif %})</span>
         </a>
         {% else %}
         <div class="dl-off"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 지금은 다운로드를 준비할 수 없어요. 관리자에게 알려주세요.</div>

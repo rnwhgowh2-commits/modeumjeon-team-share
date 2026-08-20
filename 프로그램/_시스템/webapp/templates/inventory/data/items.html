@@ -6,7 +6,7 @@
 
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품 마스터</h1>
-    <span title="행 클릭 → 인라인 popover 편집" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color:#8F91A0;font-size:9.5px;font-weight:700;cursor:help">i</span>
+    <span title="행 클릭 → 인라인 popover 편집" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color: var(--글자-희미, #8F91A0);font-size:12px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <button type="button" onclick="openNewItemModal()" style="background:#4F67FF;border:none;color:#fff;padding:7px 14px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600">+ 제품 추가</button>
       <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 제품 엑셀 업로드</a>
@@ -45,7 +45,7 @@
         <input type="checkbox" name="in_stock_only" value="1" {% if in_stock_only %}checked{% endif %} style="accent-color:#4F67FF"> 재고 보유만
       </label>
       <button type="submit" style="background:#4F67FF;color:#fff;padding:7px 14px;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer">검색</button>
-      <a id="filterReset" href="{{ url_for('inventory.data_items') }}" style="font-size:12px;color:#8F91A0;text-decoration:none;padding:7px;{% if not (q or brand or in_stock_only) %}display:none{% endif %}">필터 초기화</a>
+      <a id="filterReset" href="{{ url_for('inventory.data_items') }}" style="font-size:12px;color: var(--글자-희미, #8F91A0);text-decoration:none;padding:7px;{% if not (q or brand or in_stock_only) %}display:none{% endif %}">필터 초기화</a>
       <span style="margin-left:auto;font-size:12px;color:#8F91A0"><span id="totalCount">{{ '{:,}'.format(total) }}</span>건</span>
     </form>
   </div>
@@ -59,7 +59,7 @@
     <button type="button" onclick="openBulkBundleModal()" style="background:#FFB454;color:#191F28;border:none;padding:6px 14px;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer"><i class="ph-light ph-gift" aria-hidden="true"></i> 모음전 일괄 등록</button>
     <button type="button" onclick="clearBulkSelection()" style="background:transparent;border:1px solid #fff;color:#fff;padding:6px 14px;border-radius:5px;font-size:12.5px;cursor:pointer">선택 해제</button>
     <span style="flex:1"></span>
-    <span style="color:#C9CDD2;font-size:11.5px">같은 모델·색상·사이즈만 다르면 매트릭스 자동 추론</span>
+    <span style="color:#C9CDD2;font-size:12px">같은 모델·색상·사이즈만 다르면 매트릭스 자동 추론</span>
   </div>
 
   {# 제품 목록 표 — 클릭 시 인라인 popover 편집. 컬럼: ▸·SKU·바코드·브랜드·모델명·품번·색상·사이즈·평균매입가·총재고·위치들·사용·편집 #}
@@ -119,7 +119,7 @@
             data-stock="{{ stock_map.get(opt.canonical_sku, 0) }}"
             data-usage="{{ _usage }}">
           <td style="padding:9px 6px;text-align:center">
-            <span class="ref-toggle" title="쓰이는 모음전·옵션 펼치기" onclick="event.stopPropagation();toggleRefRow(this)" style="cursor:pointer;color:#8F91A0;font-weight:800;user-select:none">▸</span>
+            <span class="ref-toggle" title="쓰이는 모음전·옵션 펼치기" onclick="event.stopPropagation();toggleRefRow(this)" style="cursor:pointer;color: var(--글자-희미, #8F91A0);font-weight:800;user-select:none">▸</span>
           </td>
           {# [Phase 3-1 A2] 행 체크박스 #}
           <td style="padding:9px 6px;text-align:center">
@@ -130,7 +130,7 @@
             {% if opt.image_url %}
               <img src="{{ opt.image_url }}" style="width:38px;height:38px;object-fit:cover;border-radius:4px;border:1px solid #E5E8EB" alt="">
             {% else %}
-              <div style="width:38px;height:38px;background:#F2F4F6;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:#CBCCD3;font-size:14px"><i class="ph-light ph-sneaker" aria-hidden="true"></i></div>
+              <div style="width:38px;height:38px;background:#F2F4F6;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color: var(--글자-희미, #CBCCD3);font-size:14px"><i class="ph-light ph-sneaker" aria-hidden="true"></i></div>
             {% endif %}
           </td>
           {% set _disp_sku = opt.boxhero_sku if (opt.canonical_sku and not opt.canonical_sku.startswith('SKU-') and opt.boxhero_sku) else opt.canonical_sku %}
@@ -174,12 +174,12 @@
   {% if total_pages > 1 %}
   <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;align-items:center;font-size:14px">
     {% if page > 1 %}<a href="?page={{ page-1 }}&page_size={{ page_size }}&q={{ q }}&brand={{ brand }}{% if in_stock_only %}&in_stock_only=1{% endif %}" style="padding:5px 12px;border:1px solid #CBCCD3;border-radius:5px;text-decoration:none;color:#292A2F">‹ 이전</a>{% endif %}
-    <span style="color:#8F91A0;padding:5px 8px">{{ page }} / {{ total_pages }}</span>
+    <span style="color: var(--글자-희미, #8F91A0);padding:5px 8px">{{ page }} / {{ total_pages }}</span>
     {% if page < total_pages %}<a href="?page={{ page+1 }}&page_size={{ page_size }}&q={{ q }}&brand={{ brand }}{% if in_stock_only %}&in_stock_only=1{% endif %}" style="padding:5px 12px;border:1px solid #CBCCD3;border-radius:5px;text-decoration:none;color:#292A2F">다음 ›</a>{% endif %}
   </div>
   {% endif %}
 
-  <div style="margin-top:18px;font-size:12px;color:#8F91A0;line-height:1.6">
+  <div style="margin-top:18px;font-size:12px;color: var(--글자-희미, #8F91A0);line-height:1.6">
     <strong>인라인 편집:</strong> 행 클릭 → 인라인 popover 편집 (모델명·브랜드·컬러·사이즈·이미지). 사이즈 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">FREE</code>, 컬러 빈값은 <code style="background:#F1F1F4;padding:1px 5px;border-radius:3px">ONE Color</code> 로 표시됩니다.<br>
     <strong>제품 추가:</strong> 행 <strong>⧉ 복사</strong> — 한 행을 복제해 색상·사이즈만 수정. <strong>편집 popover</strong> 안 ⊞ 일괄 생성 — 색상×사이즈 매트릭스로 한 번에.<br>
     <strong>사용처:</strong> 행 좌측 <strong>▸</strong> 또는 <i class="ph-light ph-link" aria-hidden="true"></i> 배지 클릭 → 그 제품을 쓰는 모음전·옵션 인라인 트리. 삭제 시 사용처 경고 표시.
@@ -192,7 +192,7 @@
     <div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px">
       <h3 style="font-size:16px;font-weight:700;margin:0;color:#292A2F">제품 인라인 편집</h3>
       <span id="popSkuLabel" style="font-family:ui-monospace,monospace;font-size:12px;color:#4F67FF;background:#EEF1FE;padding:2px 8px;border-radius:3px"></span>
-      <button type="button" onclick="closeItemPopover()" style="margin-left:auto;background:none;border:none;color:#8F91A0;font-size:22px;cursor:pointer">×</button>
+      <button type="button" onclick="closeItemPopover()" style="margin-left:auto;background:none;border:none;color: var(--글자-희미, #8F91A0);font-size:22px;cursor:pointer">×</button>
     </div>
     <form id="popForm" method="post" enctype="multipart/form-data" style="padding:20px 22px">
       <div style="display:grid;gap:14px">
@@ -207,20 +207,20 @@
           </div>
           <div>
             <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">바코드</label>
-            <input id="popBarcode" readonly style="width:100%;padding:9px 12px;border:1px solid #E5E8EB;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;color:#8F91A0;background:#FAFBFC">
+            <input id="popBarcode" readonly style="width:100%;padding:9px 12px;border:1px solid #E5E8EB;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;color: var(--글자-희미, #8F91A0);background:#FAFBFC">
           </div>
         </div>
         <div>
-          <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">품번 <span style="color:#8F91A0;font-weight:400;font-size:12px">· 박스히어로 모델명 (예: FV5420-002)</span></label>
+          <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">품번 <span style="color: var(--글자-희미, #8F91A0);font-weight:400;font-size:12px">· 박스히어로 모델명 (예: FV5420-002)</span></label>
           <input id="popArticleNo" name="article_no" placeholder="(품번 미입력)" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;color:#292A2F">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
-            <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">컬러 <span style="color:#8F91A0;font-weight:400;font-size:12px">· 빈값 → ONE Color</span></label>
+            <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">컬러 <span style="color: var(--글자-희미, #8F91A0);font-weight:400;font-size:12px">· 빈값 → ONE Color</span></label>
             <input id="popColor" name="color_display" placeholder="ONE Color" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F">
           </div>
           <div>
-            <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">사이즈 <span style="color:#8F91A0;font-weight:400;font-size:12px">· 빈값 → FREE</span></label>
+            <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">사이즈 <span style="color: var(--글자-희미, #8F91A0);font-weight:400;font-size:12px">· 빈값 → FREE</span></label>
             <input id="popSize" name="size_display" placeholder="FREE" style="width:100%;padding:9px 12px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;color:#292A2F">
           </div>
         </div>
@@ -228,9 +228,9 @@
         <div>
           <label style="display:block;font-size:14px;color:#292A2F;font-weight:600;margin-bottom:5px">제품 이미지</label>
           <input type="file" name="image" accept="image/*" style="width:100%;padding:7px;border:1px solid #CBCCD3;border-radius:5px;font-size:12px">
-          <div style="font-size:12px;color:#8F91A0;margin-top:4px">jpg / png / webp / gif · 최대 10MB</div>
+          <div style="font-size:12px;color: var(--글자-희미, #8F91A0);margin-top:4px">jpg / png / webp / gif · 최대 10MB</div>
         </div>
-        <div style="background:#F1F1F4;border-radius:5px;padding:10px 12px;font-size:12px;color:#8F91A0;display:flex;gap:14px">
+        <div style="background:#F1F1F4;border-radius:5px;padding:10px 12px;font-size:12px;color: var(--글자-희미, #8F91A0);display:flex;gap:14px">
           <span>평균매입가 <strong id="popAvg" style="color:#292A2F"></strong> 원</span>
           <span>재고 <strong id="popStock" style="color:#292A2F"></strong></span>
           <span style="margin-left:auto">제품 엑셀 업로드 시 자동 계산</span>
@@ -302,12 +302,12 @@
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap">
         <span style="font-weight:800;font-size:14px">색상</span>
         <span id="mtxColorChips" style="display:flex;gap:7px;flex-wrap:wrap"></span>
-        <input id="mtxColorInput" placeholder="＋ 색상 입력 후 Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addMtxColor()}" style="border:1.5px dashed #B7D3F7;border-radius:8px;padding:6px 11px;font-size:13px">
+        <input id="mtxColorInput" placeholder="+ 색상 입력 후 Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addMtxColor()}" style="border:1.5px dashed #B7D3F7;border-radius:8px;padding:6px 11px;font-size:13px">
       </div>
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap">
         <span style="font-weight:800;font-size:14px">사이즈</span>
         <span id="mtxSizeChips" style="display:flex;gap:7px;flex-wrap:wrap"></span>
-        <input id="mtxSizeInput" placeholder="＋ 사이즈 입력 후 Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addMtxSize()}" style="border:1.5px dashed #B7D3F7;border-radius:8px;padding:6px 11px;font-size:13px">
+        <input id="mtxSizeInput" placeholder="+ 사이즈 입력 후 Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();addMtxSize()}" style="border:1.5px dashed #B7D3F7;border-radius:8px;padding:6px 11px;font-size:13px">
       </div>
       <div id="mtxTableWrap" style="overflow:auto"></div>
       <div id="mtxInfo" style="background:#FFF8E6;border:1px solid #F2DFA8;color:#7A5A12;border-radius:9px;padding:11px 15px;font-size:13px;margin-top:12px">
@@ -334,7 +334,7 @@
     <div style="padding:4px 22px 18px;overflow:auto;flex:1">
       <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:9px;padding:12px 15px;margin-bottom:14px">
         <div id="delProdName" style="font-size:16px;font-weight:800;color:#191F28"></div>
-        <div id="delProdSku" style="font-size:13px;color:#8B95A1;font-family:ui-monospace,monospace;margin-top:3px"></div>
+        <div id="delProdSku" style="font-size:13px;color: var(--글자-희미, #8B95A1);font-family:ui-monospace,monospace;margin-top:3px"></div>
       </div>
       <div id="delWarnText" style="font-size:15px;font-weight:700;color:#191F28;margin-bottom:10px"></div>
       <div id="delTree" class="usage-tree" style="border:1px solid #E5E8EB;border-radius:9px;overflow:hidden"></div>
@@ -423,7 +423,7 @@ function submitCopy(){
   }).then(function(r){ return r.json(); }).then(function(d){
     btn.disabled = false; btn.textContent = '복제 생성';
     if(d.ok){
-      alert(' 복제 생성 완료 — ' + d.canonical_sku);
+      alert('복제 생성 완료 — ' + d.canonical_sku);
       location.reload();
     } else {
       errEl.textContent = d.error || '복사 실패';
@@ -500,7 +500,7 @@ function renderMtx(){
   // 매트릭스 테이블
   var wrap = document.getElementById('mtxTableWrap');
   if(_mtxColors.length === 0 || _mtxSizes.length === 0){
-    wrap.innerHTML = '<div style="padding:18px;text-align:center;color:#8B95A1;font-size:13px">색상과 사이즈를 1개 이상 추가하세요.</div>';
+    wrap.innerHTML = '<div style="padding:18px;text-align:center;color: var(--글자-희미, #8B95A1);font-size:13px">색상과 사이즈를 1개 이상 추가하세요.</div>';
   } else {
     var html = '<table style="border-collapse:collapse;width:100%"><tr>'
       + '<th style="background:#F9FAFB;color:#6B7684;font-weight:700;padding:9px;border:1px solid #EAECEF;font-size:13px">색상 ＼ 사이즈</th>';
@@ -571,16 +571,16 @@ function submitMatrix(){
 function escRef(s){ return String(s==null?'':s).replace(/[<>&"]/g,function(ch){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch];}); }
 function renderUsageTree(bundles, emptyMsg){
   if(!bundles || bundles.length === 0){
-    return '<div style="padding:13px 16px;color:#8B95A1;font-size:13px">' + (emptyMsg || '아직 어느 모음전에도 쓰이지 않습니다.') + '</div>';
+    return '<div style="padding:13px 16px;color: var(--글자-희미, #8B95A1);font-size:13px">' + (emptyMsg || '아직 어느 모음전에도 쓰이지 않습니다.') + '</div>';
   }
   var html = '';
   bundles.forEach(function(b){
     html += '<div style="padding:10px 14px;font-size:14px;font-weight:800;background:#F9FAFB;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;gap:8px">'
-      + '▾  ' + escRef(b.model_name)
-      + ' <span style="color:#8B95A1;font-weight:600;font-size:12px">옵션 ' + b.options.length + '</span></div>';
+      + '▾ ' + escRef(b.model_name)
+      + ' <span style="color: var(--글자-희미, #8B95A1);font-weight:600;font-size:12px">옵션 ' + b.options.length + '</span></div>';
     b.options.forEach(function(o){
       html += '<div style="padding:9px 14px 9px 36px;font-size:13px;border-bottom:1px solid #F7F8FA;color:#4E5968">· 옵션 "'
-        + escRef(o.option_label) + '" <span style="font-family:ui-monospace,monospace;color:#9CA3AF;font-size:11px">'
+        + escRef(o.option_label) + '" <span style="font-family:ui-monospace,monospace;color: var(--글자-희미, #9CA3AF);font-size:12px">'
         + escRef(o.option_sku) + '</span></div>';
     });
   });
@@ -632,7 +632,7 @@ function openDeleteDialog(tr){
   document.getElementById('delProdSku').textContent = tr.dataset.sku
     + (tr.dataset.barcode ? (' · 바코드 ' + tr.dataset.barcode) : '');
   document.getElementById('delWarnText').textContent = '사용처 확인 중…';
-  document.getElementById('delTree').innerHTML = '<div style="padding:13px 16px;color:#8B95A1;font-size:13px">불러오는 중…</div>';
+  document.getElementById('delTree').innerHTML = '<div style="padding:13px 16px;color: var(--글자-희미, #8B95A1);font-size:13px">불러오는 중…</div>';
   document.getElementById('deleteModal').style.display = 'flex';
   fetch('/api/inventory/products/' + encodeURIComponent(_delSku) + '/usage')
     .then(function(r){ return r.json(); }).then(function(d){
@@ -663,7 +663,7 @@ function confirmDelete(){
     .then(function(r){ return r.json(); }).then(function(d){
       btn.disabled = false; btn.textContent = '알고도 삭제';
       if(d.ok){
-        alert(' 삭제 완료 — ' + d.deleted_sku);
+        alert('삭제 완료 — ' + d.deleted_sku);
         location.reload();
       } else {
         alert('삭제 실패: ' + (d.error || ''));
@@ -761,7 +761,7 @@ function confirmDelete(){
       }
     }
     tr.innerHTML =
-      '<td style="padding:9px 6px;text-align:center"><span class="ref-toggle" title="쓰이는 모음전·옵션 펼치기" onclick="event.stopPropagation();toggleRefRow(this)" style="cursor:pointer;color:#8F91A0;font-weight:800;user-select:none">▸</span></td>' +
+      '<td style="padding:9px 6px;text-align:center"><span class="ref-toggle" title="쓰이는 모음전·옵션 펼치기" onclick="event.stopPropagation();toggleRefRow(this)" style="cursor:pointer;color: var(--글자-희미, #8F91A0);font-weight:800;user-select:none">▸</span></td>' +
       '<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.sku) + '</td>' +
       '<td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:16px;color:' + (o.barcode?'#292A2F':'#8F91A0') + ';cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.barcode || '—') + '</td>' +
       '<td style="padding:9px 10px;color:#292A2F;cursor:pointer" onclick="openItemPopover(this.parentNode)">' + esc(o.brand || '—') + '</td>' +
@@ -772,7 +772,7 @@ function confirmDelete(){
       '<td style="padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums;color:#292A2F">' + avgCell + '</td>' +
       '<td style="padding:9px 10px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:' + stockColor + '">' + o.stock + '</td>' +
       locCells +
-      '<td style="padding:9px 10px;text-align:center"><span class="ref-badge" onclick="event.stopPropagation();toggleRefRow(this.closest(\'tr\').querySelector(\'.ref-toggle\'))" style="display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:800;cursor:pointer;' + usageStyle + '"> ' + usage + '</span></td>' +
+      '<td style="padding:9px 10px;text-align:center"><span class="ref-badge" onclick="event.stopPropagation();toggleRefRow(this.closest(\'tr\').querySelector(\'.ref-toggle\'))" style="display:inline-flex;align-items:center;gap:3px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:800;cursor:pointer;' + usageStyle + '">' + usage + '</span></td>' +
       '<td style="padding:9px 10px;text-align:center;white-space:nowrap">' +
         '<button type="button" title="이 행 복사" onclick="event.stopPropagation();openCopyRow(this.closest(\'tr\'))" style="background:#EAF3FF;color:#3182F6;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer">⧉</button> ' +
         '<button type="button" title="제품 삭제" onclick="event.stopPropagation();openDeleteDialog(this.closest(\'tr\'))" style="background:#FEECEC;color:#F04438;border:0;border-radius:6px;padding:5px 8px;font-size:13px;font-weight:800;cursor:pointer"></button>' +
@@ -862,8 +862,8 @@ function onWipeInput(e){
   var h = document.getElementById('wipeStatusHint');
   if(h){
     if(!v){ h.textContent='아직 입력되지 않았습니다.'; h.style.color='#9CA3AF'; }
-    else if(match){ h.textContent=' 정확히 입력되었습니다. 아래 빨간 버튼을 누르세요.'; h.style.color='#065F46'; }
-    else { h.textContent=' 정확히 "DELETE ALL" 으로 입력해 주세요 (현재: "'+v+'")'; h.style.color='#B91C1C'; }
+    else if(match){ h.textContent='정확히 입력되었습니다. 아래 빨간 버튼을 누르세요.'; h.style.color='#065F46'; }
+    else { h.textContent='정확히 "DELETE ALL" 으로 입력해 주세요 (현재: "'+v+'")'; h.style.color='#B91C1C'; }
   }
 }
 </script>
@@ -886,7 +886,7 @@ function onWipeInput(e){
       </div>
       <label for="wipeConfirmInput" style="display:block;font-size:12px;font-weight:600;color:#525866;margin-bottom:6px">확인 입력란</label>
       <input id="wipeConfirmInput" name="confirm" type="text" placeholder="여기를 클릭 후 DELETE ALL 타이핑" oninput="onWipeInput(event)" autocomplete="off" style="width:100%;padding:12px 14px;border:2px solid #DC2626;border-radius:6px;font-size:14px;font-family:ui-monospace,monospace;margin-bottom:16px;color:#292A2F;background:#FFFBFB;outline:none;box-sizing:border-box">
-      <div id="wipeStatusHint" style="font-size:12px;color:#9CA3AF;margin-top:-10px;margin-bottom:14px">아직 입력되지 않았습니다.</div>
+      <div id="wipeStatusHint" style="font-size:12px;color: var(--글자-희미, #9CA3AF);margin-top:-10px;margin-bottom:14px">아직 입력되지 않았습니다.</div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" onclick="closeWipeModal()" style="padding:9px 16px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;border-radius:5px;font-size:14px;cursor:pointer">취소</button>
         <button id="wipeSubmitBtn" type="submit" disabled style="padding:9px 16px;background:#DC2626;border:none;color:#fff;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer" onmouseover="if(!this.disabled)this.style.background='#B91C1C'" onmouseout="if(!this.disabled)this.style.background='#DC2626'"><i class="ph-light ph-trash" aria-hidden="true"></i> 자동 백업 후 전체 삭제</button>
@@ -895,9 +895,9 @@ function onWipeInput(e){
   </div>
 </div>
 <style>
-  #wipeSubmitBtn:disabled{background:#E5E7EB !important;color:#9CA3AF !important;cursor:not-allowed;border:1px solid #D1D5DB}
-  #wipeConfirmInput:focus{border-color:#991B1B;background:#FFF;box-shadow:0 0 0 3px rgba(220,38,38,0.15)}
-  #wipeConfirmInput::placeholder{color:#9CA3AF;font-style:italic}
+  #wipeSubmitBtn:disabled{background:var(--line2,#E5E7EB) !important;color:var(--faint,#9CA3AF) !important;cursor:not-allowed;border:1px solid var(--line,#D1D5DB)}
+  #wipeConfirmInput:focus{border-color:var(--red,#991B1B);background:var(--surface,#FFFFFF);box-shadow:0 0 0 3px rgba(220,38,38,0.15)}
+  #wipeConfirmInput::placeholder{color: var(--글자-희미, var(--faint,#9CA3AF));font-style:italic}
   th.sortable-th:hover{background:#E9EBF0 !important}
 </style>
 
@@ -906,12 +906,12 @@ function onWipeInput(e){
   <div style="background:#fff;border-radius:10px;width:580px;max-width:92vw;max-height:88vh;overflow:auto;box-shadow:0 16px 48px rgba(0,0,0,0.18)">
     <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
       <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28;flex:1"><i class="ph-light ph-gift" aria-hidden="true"></i> 모음전 일괄 등록</h3>
-      <button type="button" onclick="closeBulkBundleModal()" style="background:transparent;border:none;font-size:22px;color:#8B95A1;cursor:pointer">×</button>
+      <button type="button" onclick="closeBulkBundleModal()" style="background:transparent;border:none;font-size:22px;color: var(--글자-희미, #8B95A1);cursor:pointer">×</button>
     </div>
     <div style="padding:18px 22px">
       <div style="background:#EFF6FF;border:1px solid #BCD2FF;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#1E3A8A">
         <strong><i class="ph-light ph-package" aria-hidden="true"></i> 선택된 옵션:</strong> <span id="bbm_count">0</span>건<br>
-        <span id="bbm_preview" style="font-size:11.5px;color:#3B4DD1"></span>
+        <span id="bbm_preview" style="font-size:12px;color:#3B4DD1"></span>
       </div>
 
       <div style="margin-bottom:10px">
@@ -933,7 +933,7 @@ function onWipeInput(e){
         <input id="bbm_article_no" type="text" placeholder="예: FV5420-002 (영숫자+하이픈)" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace">
       </div>
 
-      <div id="bbm_axes_preview" style="background:#F9FAFB;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:11.5px">
+      <div id="bbm_axes_preview" style="background:#F9FAFB;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px">
         <div style="font-weight:700;color:#191F28;margin-bottom:6px"><i class="ph-light ph-magic-wand" aria-hidden="true"></i> 자동 추론 단계 설계</div>
         <div id="bbm_axes_body" style="color:#4E5968"></div>
       </div>
@@ -951,12 +951,12 @@ function onWipeInput(e){
   <div style="background:#fff;border-radius:10px;width:560px;max-width:90vw;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.25)">
     <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;background:#F9FAFB;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center">
       <h3 style="font-size:16px;font-weight:700;margin:0;color:#191F28">+ 제품 추가</h3>
-      <button type="button" onclick="closeNewItemModal()" style="background:none;border:none;font-size:20px;color:#9CA3AF;cursor:pointer;padding:0 4px;line-height:1">×</button>
+      <button type="button" onclick="closeNewItemModal()" style="background:none;border:none;font-size:20px;color: var(--글자-희미, #9CA3AF);cursor:pointer;padding:0 4px;line-height:1">×</button>
     </div>
     <form id="newItemForm" method="post" action="{{ url_for('inventory.data_items_create') }}" style="padding:18px 22px" onsubmit="return onSubmitNewItem(event)">
       {# SKU — 매트릭스 모드에서 숨김 (각 SKU 자동 부여) #}
       <div id="niSkuRow" style="margin-bottom:12px">
-        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">SKU <span style="color:#9CA3AF;font-weight:400">(비우면 자동 생성)</span></label>
+        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">SKU <span style="color: var(--글자-희미, #9CA3AF);font-weight:400">(비우면 자동 생성)</span></label>
         <div style="display:flex;gap:6px">
           <input id="niSku" name="canonical_sku" type="text" placeholder="SKU-XXXXXXXX" style="flex:1;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box">
           <button type="button" onclick="genSku()" style="padding:8px 14px;background:#16A34A;color:#fff;border:none;border-radius:5px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">자동 생성</button>
@@ -971,7 +971,7 @@ function onWipeInput(e){
 
       {# 바코드 — 매트릭스 모드에서 숨김 #}
       <div id="niBarcodeRow" style="margin-bottom:12px">
-        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">바코드 <span style="color:#9CA3AF;font-weight:400">(비우면 자동 생성)</span></label>
+        <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">바코드 <span style="color: var(--글자-희미, #9CA3AF);font-weight:400">(비우면 자동 생성)</span></label>
         <div style="display:flex;gap:6px">
           <input id="niBarcode" name="barcode" type="text" placeholder="EAN-13 13자리" style="flex:1;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box">
           <button type="button" onclick="genBarcode()" style="padding:8px 14px;background:#16A34A;color:#fff;border:none;border-radius:5px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">자동 생성</button>
@@ -996,11 +996,11 @@ function onWipeInput(e){
       {# 색상 + 사이즈 — 단일 또는 쉼표로 여러 개 입력 가능. 쉼표 ≥ 2개 또는 색상×사이즈 합산 ≥ 2 시 매트릭스 모드 자동 활성 #}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
         <div>
-          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">색상 <span style="color:#9CA3AF;font-weight:400;font-size:11px">단일 또는 쉼표로 여러 개</span></label>
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">색상 <span style="color: var(--글자-희미, #9CA3AF);font-weight:400;font-size:12px">단일 또는 쉼표로 여러 개</span></label>
           <input id="niColor" name="color" type="text" placeholder="예: 블랙  또는  블랙, 화이트, 베이지" oninput="onOptionsInput()" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
         </div>
         <div>
-          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">사이즈 <span style="color:#9CA3AF;font-weight:400;font-size:11px">단일 또는 쉼표로 여러 개</span></label>
+          <label style="display:block;font-size:12px;color:#525866;margin-bottom:4px;font-weight:600">사이즈 <span style="color: var(--글자-희미, #9CA3AF);font-weight:400;font-size:12px">단일 또는 쉼표로 여러 개</span></label>
           <input id="niSize" name="size" type="text" placeholder="예: 270  또는  250, 260, 270, 280" oninput="onOptionsInput()" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:14px;box-sizing:border-box">
         </div>
       </div>
@@ -1008,10 +1008,10 @@ function onWipeInput(e){
       {#  옵션 일괄 생성 매트릭스 — 색상·사이즈에 쉼표 또는 합산 ≥ 2 일 때 자동 노출 #}
       <div id="matrixSection" style="display:none;background:#FFFAF0;border:1px solid #F5D899;border-radius:6px;padding:12px 14px;margin-bottom:12px">
         <div style="font-size:12.5px;color:#7C5A14;font-weight:700;margin-bottom:6px"><i class="ph-light ph-palette" aria-hidden="true"></i> 옵션 일괄 생성 매트릭스</div>
-        <div style="font-size:11.5px;color:#92400E;margin-bottom:10px;line-height:1.5">• 체크박스로 ON/OFF · 행/열 헤더의 "전체"로 일괄 토글 · 셀에 초기 재고 입력<br>• 셀 수량은 <b>기본 위치</b>로 입고 처리 (다른 위치로 보내려면 등록 후 재고 이동)</div>
+        <div style="font-size:12px;color:#92400E;margin-bottom:10px;line-height:1.5">• 체크박스로 ON/OFF · 행/열 헤더의 "전체"로 일괄 토글 · 셀에 초기 재고 입력<br>• 셀 수량은 <b>기본 위치</b>로 입고 처리 (다른 위치로 보내려면 등록 후 재고 이동)</div>
         <div id="matrixWrap" style="overflow-x:auto"></div>
         <div id="matrixCounter" style="background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:5px;padding:9px 13px;font-size:12.5px;color:#1B64DA;display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-          <span><i class="ph-light ph-calculator" aria-hidden="true"></i> 생성될 SKU <span style="color:#525866;font-weight:400;font-size:11px">(체크된 셀만)</span></span>
+          <span><i class="ph-light ph-calculator" aria-hidden="true"></i> 생성될 SKU <span style="color:#525866;font-weight:400;font-size:12px">(체크된 셀만)</span></span>
           <span><b id="matrixSkuCount" style="font-family:ui-monospace,monospace;font-size:14px">0</b> 개 · 합계 재고 <b id="matrixQtyTotal" style="font-family:ui-monospace,monospace;font-size:14px">0</b></span>
         </div>
       </div>
@@ -1031,8 +1031,8 @@ function onWipeInput(e){
       {#  위치별 초기 재고 (DB 의 InventoryLocation 활성 행 자동 렌더 — 위치 추가/삭제 시 자동 반영). 매트릭스 모드에서는 숨김 — 셀 수량이 기본 위치로 들어감 #}
       <div id="niLocSection" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:7px;padding:12px 14px;margin-bottom:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#191F28">
-          <span><i class="ph-light ph-map-pin" aria-hidden="true"></i> 위치별 초기 재고 <span style="color:#6B7684;font-weight:400;font-size:10.5px;margin-left:6px">(전체 합산 = 총 재고)</span></span>
-          <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="font-size:11px;color:#3182F6;text-decoration:none;font-weight:500"><i class="ph-light ph-gear" aria-hidden="true"></i> 위치 관리 →</a>
+          <span><i class="ph-light ph-map-pin" aria-hidden="true"></i> 위치별 초기 재고 <span style="color:#6B7684;font-weight:400;font-size:12px;margin-left:6px">(전체 합산 = 총 재고)</span></span>
+          <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="font-size:12px;color:#3182F6;text-decoration:none;font-weight:500"><i class="ph-light ph-gear" aria-hidden="true"></i> 위치 관리 →</a>
         </div>
         <div id="niLocList">
           {% for loc in locs %}
@@ -1040,7 +1040,7 @@ function onWipeInput(e){
               <div style="color:#F59E0B;text-align:center"><i class="ph-light ph-map-pin" aria-hidden="true"></i></div>
               <div style="font-size:13px;color:#191F28">
                 <b style="display:block">{{ loc.name }}</b>
-                <small style="color:#8B95A1;font-size:10.5px">id={{ loc.id }}{% if loc.is_default %} · 기본{% endif %}</small>
+                <small style="color: var(--글자-희미, #8B95A1);font-size:12px">id={{ loc.id }}{% if loc.is_default %} · 기본{% endif %}</small>
               </div>
               <div>
                 <input class="ni-loc-stock" type="number" min="0" inputmode="numeric"
@@ -1048,10 +1048,10 @@ function onWipeInput(e){
                        oninput="recalcLocTotal()"
                        style="width:100%;padding:6px 9px;border:1px solid #CBCCD3;border-radius:4px;font-size:13px;font-family:ui-monospace,monospace;text-align:right;outline:none;box-sizing:border-box">
               </div>
-              <div style="color:#8B95A1;font-size:11.5px">개</div>
+              <div style="color: var(--글자-희미, #8B95A1);font-size:12px">개</div>
             </div>
           {% else %}
-            <div style="padding:14px;text-align:center;color:#8B95A1;font-size:12px">활성 위치 없음 — 먼저 <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="color:#3182F6">위치 관리</a> 에서 등록하세요.</div>
+            <div style="padding:14px;text-align:center;color: var(--글자-희미, #8B95A1);font-size:12px">활성 위치 없음 — 먼저 <a href="{{ url_for('inventory.data_locations') }}" target="_blank" style="color:#3182F6">위치 관리</a> 에서 등록하세요.</div>
           {% endfor %}
         </div>
         {% if locs %}
@@ -1079,9 +1079,9 @@ function onWipeInput(e){
           <input type="checkbox" name="register_as_bundle" value="on" style="width:16px;height:16px;cursor:pointer">
           <i class="ph-light ph-gift" aria-hidden="true"></i> 모음전에도 등록
         </label>
-        <div style="margin-top:4px;font-size:11.5px;color:#047857;padding-left:24px;line-height:1.5">
-          체크 X → 단독 옵션 (재고관리에만 표시).<br>
-          체크 <i class="ph-light ph-check" aria-hidden="true"></i> → 정상 모음전 모델 등록 (옵션 매트릭스 사용 가능).
+        <div style="margin-top:4px;font-size:12px;color:#047857;padding-left:24px;line-height:1.5">
+          체크 X → 창고에만 둡니다. 아직 팔 상품으로 만들지 않은 것으로 표시됩니다.<br>
+          체크 <i class="ph-light ph-check" aria-hidden="true"></i> → 팔 상품으로 등록합니다 (옵션 매트릭스 사용 가능).
         </div>
       </div>
 
@@ -1135,7 +1135,7 @@ if(location.hash === '#new'){
   if(document.readyState !== 'loading') setTimeout(openNewItemModal, 50);
 }
 
-/* =====================  옵션 일괄 생성 매트릭스 ===================== */
+/* ===================== 🎨 옵션 일괄 생성 매트릭스 ===================== */
 // 색상·사이즈 인풋에 쉼표가 있거나 색상·사이즈 합산 ≥ 2 시 자동 활성. 단일이면 기존 단일 추가 흐름.
 function parseList_(s){
   return (s || '').split(/[,\n、]/).map(function(x){ return x.trim(); }).filter(function(x){ return x.length > 0; });
@@ -1165,11 +1165,11 @@ function renderMatrix(colors, sizes){
   });
 
   var html = '<table style="width:100%;border-collapse:separate;border-spacing:0;font-size:13px;background:#fff;border:1px solid #E5E8EB;border-radius:5px;overflow:hidden">';
-  html += '<thead><tr><th style="background:#F1F1F4;padding:6px 8px;font-size:11px;color:#525866;border-bottom:1px solid #E5E8EB;border-right:1px solid #E5E8EB;min-width:88px;text-align:left">색상 ＼ 사이즈</th>';
+  html += '<thead><tr><th style="background:#F1F1F4;padding:6px 8px;font-size:12px;color:#525866;border-bottom:1px solid #E5E8EB;border-right:1px solid #E5E8EB;min-width:88px;text-align:left">색상 ＼ 사이즈</th>';
   sizes.forEach(function(sz, i){
     html += '<th style="background:#F1F1F4;padding:6px 8px;font-size:12px;color:#191F28;border-bottom:1px solid #E5E8EB;'+(i < sizes.length - 1 ? 'border-right:1px solid #E5E8EB;' : '')+'text-align:center;font-weight:700">'
          + escapeHtml_(sz)
-         + '<br><label style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500;color:#6B7684;margin-top:2px;cursor:pointer">'
+         + '<br><label style="display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:500;color:#6B7684;margin-top:2px;cursor:pointer">'
          + '<input type="checkbox" class="mx-col-all" data-size="'+escapeHtml_(sz)+'" checked style="accent-color:#4F67FF;width:12px;height:12px"> 전체</label></th>';
   });
   html += '</tr></thead><tbody>';
@@ -1177,7 +1177,7 @@ function renderMatrix(colors, sizes){
     html += '<tr>';
     html += '<th style="background:#FAFBFC;padding:7px 10px;text-align:left;font-weight:700;color:#191F28;font-size:12.5px;'+(ri < colors.length - 1 ? 'border-bottom:1px solid #F1F1F4;' : '')+'border-right:1px solid #E5E8EB">'
          + escapeHtml_(c)
-         + '<br><label style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500;color:#6B7684;margin-top:2px;cursor:pointer">'
+         + '<br><label style="display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:500;color:#6B7684;margin-top:2px;cursor:pointer">'
          + '<input type="checkbox" class="mx-row-all" data-color="'+escapeHtml_(c)+'" checked style="accent-color:#4F67FF;width:12px;height:12px"> 전체</label></th>';
     sizes.forEach(function(sz, ci){
       var k = c + '␟' + sz;
@@ -1410,7 +1410,7 @@ function cssEscape_(s){
     th.style.whiteSpace = 'nowrap';
     var span = document.createElement('span'); span.textContent = label;
     var arrow = document.createElement('span'); arrow.className = 'sort-arrow';
-    arrow.style.cssText = 'color:#3182F6;font-size:9px';
+    arrow.style.cssText = 'color:#3182F6;font-size:12px';
     var fbtn = document.createElement('span'); fbtn.className = 'filter-btn';
     fbtn.textContent = ' ▾';
     fbtn.title = '필터';
@@ -1615,7 +1615,7 @@ function openBulkBundleModal(){
   // 자동 단계 추론 표시
   var body = document.getElementById('bbm_axes_body');
   if(info.steps.length === 0){
-    body.innerHTML = '<span style="color:#DC2626"> 색상·사이즈 정보가 없어 단계 추론 불가. 등록은 가능하나 매트릭스가 비어 있습니다.</span>';
+    body.innerHTML = '<span style="color:#DC2626">색상·사이즈 정보가 없어 단계 추론 불가. 등록은 가능하나 매트릭스가 비어 있습니다.</span>';
   } else {
     body.innerHTML = info.steps.map(function(st, i){
       return '<div style="margin:3px 0"><strong>' + (i+1) + '단계 · ' + st.axis_name + ':</strong> ' +
@@ -1662,11 +1662,11 @@ function submitBulkBundle(){
   .then(function(r){ return r.json().then(function(j){ return {ok: r.ok, body: j}; }); })
   .then(function(res){
     if(!res.ok || res.body.error){
-      alert(' 등록 실패: ' + (res.body.error || res.body.message || '알 수 없는 오류'));
-      btn.disabled = false; btn.textContent = ' 일괄 등록';
+      alert('등록 실패: ' + (res.body.error || res.body.message || '알 수 없는 오류'));
+      btn.disabled = false; btn.textContent = '일괄 등록';
       return;
     }
-    alert(' 모음전 "' + name + '" 등록 완료 (' + res.body.created + '개 옵션 이관).');
+    alert('모음전 "' + name + '" 등록 완료 (' + res.body.created + '개 옵션 이관).');
     closeBulkBundleModal();
     // 모음전 페이지로 이동 옵션
     if(res.body.bundle_url && confirm('모음전 페이지로 이동하시겠어요?')){
@@ -1676,8 +1676,8 @@ function submitBulkBundle(){
     }
   })
   .catch(function(e){
-    alert(' 요청 실패: ' + e.message);
-    btn.disabled = false; btn.textContent = ' 일괄 등록';
+    alert('요청 실패: ' + e.message);
+    btn.disabled = false; btn.textContent = '일괄 등록';
   });
 }
 </script>
@@ -1687,7 +1687,7 @@ function submitBulkBundle(){
   <div style="background:#fff;border-radius:12px;width:680px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.35);overflow:hidden">
     <div style="padding:14px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
       <strong style="font-size:16px;color:#191F28">제품 수정</strong>
-      <button type="button" onclick="closePhxEdit()" style="margin-left:auto;background:transparent;border:0;font-size:22px;color:#8B95A1;cursor:pointer">×</button>
+      <button type="button" onclick="closePhxEdit()" style="margin-left:auto;background:transparent;border:0;font-size:22px;color: var(--글자-희미, #8B95A1);cursor:pointer">×</button>
     </div>
     <form id="phxEditForm" enctype="multipart/form-data" style="padding:18px 22px;overflow-y:auto;flex:1">
       <div style="display:grid;grid-template-columns:1fr 130px;gap:18px;align-items:start">
@@ -1708,7 +1708,7 @@ function submitBulkBundle(){
         {# 사진 — 드래그앤드롭 가능 영역 #}
         <div style="text-align:center">
           <div style="position:relative;width:130px;height:130px;margin:0 auto">
-            <div id="phxDropZone" style="width:100%;height:100%;background:#F9FAFB;border:2px dashed #CBCCD3;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9CA3AF;font-size:11px;overflow:hidden;cursor:pointer;transition:border-color .15s,background .15s">
+            <div id="phxDropZone" style="width:100%;height:100%;background:#F9FAFB;border:2px dashed #CBCCD3;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color: var(--글자-희미, #9CA3AF);font-size:12px;overflow:hidden;cursor:pointer;transition:border-color .15s,background .15s">
               <span id="phxImgPlaceholder" style="text-align:center;padding:0 6px;line-height:1.4"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i><br>드래그하거나<br>클릭해서 업로드</span>
               <img id="phxImg" style="display:none;width:100%;height:100%;object-fit:cover">
             </div>
@@ -1717,7 +1717,7 @@ function submitBulkBundle(){
           </div>
           <input id="phxImgInput" name="image" type="file" accept="image/*" style="display:none">
           <input type="hidden" id="phxImgDeleteFlag" name="image_delete" value="">
-          <div style="margin-top:6px;font-size:11px;color:#8B95A1">jpg / png / webp / gif · 최대 10MB</div>
+          <div style="margin-top:6px;font-size:12px;color:#8B95A1">jpg / png / webp / gif · 최대 10MB</div>
         </div>
       </div>
 
@@ -1729,21 +1729,21 @@ function submitBulkBundle(){
           <input id="phxCategory" name="category" placeholder="예: 스니커즈" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
         </div>
         <div>
-          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">브랜드 <span style="color:#8B95A1;font-weight:400">(빈값 → 미상)</span></label>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">브랜드 <span style="color: var(--글자-희미, #8B95A1);font-weight:400">(빈값 → 미상)</span></label>
           <input id="phxBrand" name="brand" placeholder="미상" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
         </div>
       </div>
       <div style="margin-bottom:12px">
-        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">모델명 (품번) <span style="color:#8B95A1;font-weight:400">· 영숫자+하이픈+언더스코어</span></label>
+        <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">모델명 (품번) <span style="color: var(--글자-희미, #8B95A1);font-weight:400">· 영숫자+하이픈+언더스코어</span></label>
         <input id="phxArticleNo" name="article_no" placeholder="예: FV5420-002" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px;font-family:ui-monospace,monospace">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
         <div>
-          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">색상 <span style="color:#8B95A1;font-weight:400">(빈값 → ONE)</span></label>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">색상 <span style="color: var(--글자-희미, #8B95A1);font-weight:400">(빈값 → ONE)</span></label>
           <input id="phxColor" name="color_display" placeholder="ONE" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
         </div>
         <div>
-          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">사이즈 <span style="color:#8B95A1;font-weight:400">(빈값 → FREE)</span></label>
+          <label style="display:block;font-size:12px;color:#4E5968;margin-bottom:4px;font-weight:600">사이즈 <span style="color: var(--글자-희미, #8B95A1);font-weight:400">(빈값 → FREE)</span></label>
           <input id="phxSize" name="size_display" placeholder="FREE" style="width:100%;padding:8px 11px;border:1px solid #CBCCD3;border-radius:5px;font-size:13.5px">
         </div>
       </div>
@@ -1859,7 +1859,7 @@ function submitPhxEdit(){
   .then(function(r){ return r.json().then(function(j){ return {ok: r.ok, body: j}; }); })
   .then(function(res){
     if(!res.ok || !res.body.ok){
-      alert(' 저장 실패: ' + (res.body.error || res.body.message || '알 수 없음'));
+      alert('저장 실패: ' + (res.body.error || res.body.message || '알 수 없음'));
       btn.disabled = false; btn.textContent = '수정 완료';
       return;
     }
@@ -1868,7 +1868,7 @@ function submitPhxEdit(){
     window.location.reload();
   })
   .catch(function(e){
-    alert(' 요청 실패: ' + e.message);
+    alert('요청 실패: ' + e.message);
     btn.disabled = false; btn.textContent = '수정 완료';
   });
 }

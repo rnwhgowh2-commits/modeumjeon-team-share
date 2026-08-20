@@ -70,6 +70,39 @@ def init_auth(app: Flask) -> None:
         if request.method == "OPTIONS":
             return
 
+        # 🔴 [2026-08-06 PERF] 정적 자원은 **무엇보다 먼저** 빠져나간다.
+        #   아래 DISABLE_AUTH 분기가 이 검사보다 위에 있었던 탓에, CSS·JS·아이콘
+        #   한 개를 받을 때마다 (1) 사용자 조회 DB 쿼리 (2) login_user 로 세션 쿠키
+        #   재발급 (3) remember_token 삭제가 일어났다.
+        #   그 Set-Cookie 가 응답에 Vary: Cookie 를 붙여 **Cloudflare 가 정적파일을
+        #   하나도 캐시하지 못했다**(라이브 실측 cf-cache-status: BYPASS) — 폰이
+        #   화면을 옮길 때마다 CSS 7개·JS 2개를 도쿄 원서버까지 받으러 갔다.
+        #   정적 자원은 로그인과 무관하므로(아래 화이트리스트에도 이미 있다) 여기서
+        #   즉시 통과시킨다. 순서만 바꾸는 것이라 인증 동작은 바뀌지 않는다.
+        if request.path.startswith("/static/"):
+            return
+
+        # [DEV] DISABLE_AUTH=1 — 로그인 벽 우회 (솔로 개발용).
+        #   코드 삭제 없이 환경변수 플래그로만 on/off → 되돌리기: DISABLE_AUTH 제거.
+        #   '그냥 통과'가 아니라 기본 관리자로 자동 로그인 → current_user 를 읽는
+        #   라우트(accounts.created_by, base.html 등)가 깨지지 않게 한다.
+        if os.environ.get("DISABLE_AUTH") == "1":
+            from flask_login import current_user, login_user
+            if not current_user.is_authenticated:
+                try:
+                    with SessionLocal() as s:
+                        u = (s.query(User)
+                               .filter(User.role == "admin", User.is_active.is_(True))
+                               .order_by(User.id).first()
+                             or s.query(User)
+                               .filter(User.is_active.is_(True))
+                               .order_by(User.id).first())
+                        if u is not None:
+                            login_user(u)
+                except Exception:
+                    app.logger.exception("[DISABLE_AUTH] 자동 로그인 실패")
+            return
+
         # 화이트리스트 endpoint
         if request.endpoint in _PUBLIC_ENDPOINTS:
             return

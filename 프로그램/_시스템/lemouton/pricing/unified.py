@@ -13,7 +13,11 @@ ai-workflow cycle 20260521 · Phase 1 · Task 1
   ①②③ 모두 이 함수를 경유하게 하여 "화면값 = 마켓 업로드값" 보장.
 
 계산식 (사용자 확정 — 마켓별·공급별 mode 3종):
-    · mode='rate'   (마진율)   판매가 = 원가 × (1 + 마진율) × (1 + 수수료율) + 배송비
+    · mode='rate'   (마진율)   마진율 = **판매가 대비** (2026-07-20 변경)
+                               판매가 × (1 - 수수료율) - 원가 = 판매가 × 마진율
+                               → 판매가 = 원가 / (1 - 수수료율 - 마진율) + 배송비
+                               (이전: 원가 × (1+마진율) × (1+수수료율) — 원가 대비 가산이라
+                                「9.45%」로 넣어도 실제 판매가 대비 마진은 7.77% 였다)
     · mode='amount' (마진금액) 수수료 뒤 실수령 = 마진금액 → 역산
                                판매가 = 원가 / (1 - 수수료율) + 마진금액/(1 - 수수료율) + 배송비
                                즉 (원가 + 마진금액) / (1 - 수수료율) + 배송비
@@ -51,6 +55,22 @@ def is_crawl_valid(price, status) -> bool:
     화면 진행률 집계·최저가 winner·원가 선정·업로드 원가 — 전 경로 공용 게이트.
     """
     return bool(price and price > 0 and status != 'error')
+
+
+def benefits_fresh(snapshot, last_status=None) -> bool:
+    """혜택 크롤 스냅샷(dynamic_benefits_json['_crawl'])이 계산에 쓸 수 있는가 — 혜택용 게이트.
+
+    조건: 스냅샷이 dict이고 benefits_ok=True (= 실제로 혜택영역을 긁은 성공 크롤).
+    스냅샷 없음/benefits_ok=False → '미수집'(폴백·템플릿 금지). 옛 시스템이 템플릿/타-소싱처
+    값을 현재처럼 쓰던 사고(문제2·3)를 막는 핵심 게이트.
+
+    last_status 는 신선도에 반영하지 않는다(N1, 사용자 2026-06-14): crawl-result 는 성공
+    크롤에서만 _crawl 을 덮어쓰므로 스냅샷은 '마지막 성공 크롤'이다. 이후 재크롤이 error 여도
+    마지막 성공값을 유지(+화면에 크롤 시각 표시)한다. (표면가는 별도 is_crawl_valid 가 error 차단)
+    """
+    if not isinstance(snapshot, dict):
+        return False
+    return bool(snapshot.get('benefits_ok'))
 
 
 @dataclass
@@ -159,21 +179,43 @@ def compute_sale_price_unified(
         breakdown['guardrail_status'] = status
         return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
-    # ── mode='rate' (기본·기존 동작 유지) ──
-    after_margin = purchase_price * (1 + margin_rate)
-    after_fee = after_margin * (1 + fee_rate)
-    raw = after_fee + shipping_fee
+    # ── mode='rate' — 마진율 = **판매가 대비** (2026-07-20 변경) ──
+    #   이전: 판매가 = 원가 × (1+마진율) × (1+수수료율)  ← 원가 대비 가산(markup)이고
+    #         수수료를 '더해서' 근사 보전만 했다. 그 결과 「9.45%」로 설정해도
+    #         실제 판매가 대비 마진은 7.77% 로, 어느 기준으로도 설명되지 않는 값이었다.
+    #   지금: 판매가에서 수수료를 뗀 실수령이 원가보다 '판매가 × 마진율' 만큼 많게 잡는다.
+    #         판매가 × (1 - 수수료율) - 원가 = 판매가 × 마진율
+    #         → 판매가 = 원가 / (1 - 수수료율 - 마진율)
+    #   이러면 amount 모드((원가+마진금액)/(1-수수료율))와 같은 계통이 된다 —
+    #   마진금액 = 판매가 × 마진율 을 넣으면 두 식이 정확히 일치한다.
+    #   화면 표시(_matrix_v3.html 마진 %)도 같은 정의를 쓴다.
+    denom = 1.0 - fee_rate - margin_rate
+    if denom <= 0:
+        # 수수료 + 마진율 ≥ 100% → 성립하는 판매가가 없다. 폴백 금지 — 0 으로 막는다.
+        return PriceResult(
+            final_price=0, guardrail_status='none',
+            breakdown={
+                'mode': 'rate', 'purchase_price': purchase_price,
+                'margin_rate': margin_rate, 'margin_amount': 0,
+                'fee_rate': fee_rate, 'shipping_fee': shipping_fee,
+                'raw_total': 0.0, 'rounding_unit': rounding_unit, 'final_price': 0,
+                'guardrail': guardrail, 'guardrail_status': 'none',
+                'impossible': True,
+                'impossible_reason': '수수료율 + 마진율이 100% 이상이라 판매가를 정할 수 없어요.',
+            },
+        )
+    base = purchase_price / denom          # 배송비 제외 판매가
+    raw = base + shipping_fee
     final = round_to_unit(int(round(raw)), rounding_unit)
     status = _apply_guardrail(final, guardrail)
     breakdown = {
         'mode': 'rate',
         'purchase_price': purchase_price,
         'margin_rate': margin_rate,
-        'margin_amount': int(round(purchase_price * margin_rate)),
-        'subtotal_after_margin': int(round(after_margin)),
+        'margin_amount': int(round(base * margin_rate)),   # 판매가 대비
+        'subtotal_before_ship': int(round(base)),
         'fee_rate': fee_rate,
-        'fee_amount': int(round(after_margin * fee_rate)),
-        'subtotal_after_fee': int(round(after_fee)),
+        'fee_amount': int(round(base * fee_rate)),
         'shipping_fee': shipping_fee,
         'raw_total': raw,
         'rounding_unit': rounding_unit,
@@ -191,8 +233,68 @@ def compute_sale_price_unified(
 #  계산에 연결하는 단일 진입점. 화면·업로드 전 경로가 이 해석기를 경유해야
 #  "화면값 = 업로드값" 이 보장된다.
 
-_PREFIX_MAP = {'ss': 'ss', 'smartstore': 'ss', 'coupang': 'coupang', 'cp': 'coupang'}
-_DEFAULT_RATE = {'ss': 0.0945, 'coupang': 0.1242}
+class UnknownMarketPolicyError(ValueError):
+    """가격 정책(수수료·마진)이 없는 마켓으로 계산을 시도했다. 조용한 폴백 금지."""
+
+
+_PREFIX_MAP = {
+    'ss': 'ss', 'smartstore': 'ss',
+    'coupang': 'coupang', 'cp': 'coupang',
+    # [2026-07-20] 4개 마켓 추가 — 컬럼 이름 규칙이 같아 아래 g(f'{prefix}_...') 가 그대로 읽는다.
+    'lotteon': 'lotteon', 'lotte': 'lotteon',
+    'eleven11': 'eleven11', '11st': 'eleven11', 'eleven': 'eleven11',
+    'auction': 'auction',
+    'gmarket': 'gmarket',
+}
+_DEFAULT_RATE = {'ss': 0.0945, 'coupang': 0.1242, 'lotteon': 0.1242,
+                 'eleven11': 0.1242, 'auction': 0.1242, 'gmarket': 0.1242}
+# 수수료 기본 — **표는 DB 에 있다** (`lemouton/pricing/fee_defaults.py`).
+#   사장님 확정 2026-08-02: 「마켓 정책이 언제든 변경될 수 있으니 기본값도 수기로
+#   조정 가능하게」 → 요율을 코드에 박아 두면 마켓이 바꿀 때마다 개발자를 불러야 한다.
+#   여기 값은 표를 못 읽었을 때만 쓰는 **마지막 방어선**이다(계산이 멈추면 안 되므로).
+#   🔴 요율을 고칠 자리는 화면(🔧 상품 정책화 > 정책 생성 > 마켓별 수수료 기준)이다.
+#   ⚠️ 요율이 바뀌면 판매가가 움직인다: 판매가 = 매입가 / (1 − 수수료율 − 마진율).
+_FALLBACK_FEE_BY_PREFIX = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.18,
+                           'eleven11': 0.11, 'auction': 0.15, 'gmarket': 0.15}
+
+#: 엔진 접두어 → 표의 마켓 키 (fee_defaults.SEED 와 짝)
+_PREFIX_TO_MARKET = {'ss': 'smartstore', 'coupang': 'coupang', 'lotteon': 'lotteon',
+                     'eleven11': 'eleven11', 'auction': 'auction', 'gmarket': 'gmarket'}
+#: 모르는 마켓의 마지막 값 — 0 으로 두면 수수료 0% 로 계산돼 판매가가 실제보다
+#: 싸게 나간다(금전 손실). 그래서 가장 흔한 값을 둔다.
+_FALLBACK_FEE = 0.13
+
+
+def default_fee_rate(market: str) -> float:
+    """정책에 수수료율이 없을 때 그 마켓에 쓰는 값(소수).
+
+    🔴 숫자를 베껴 쓰지 말 것 — 판매가를 정하는 모든 경로가 이 함수 하나를 부른다.
+      예전에 `scheduler/jobs.py` 가 0.06/0.1155 를 손으로 적어 두고 있어서, 정책
+      화면에서 아무리 고쳐도 그 파이프라인만 옛 요율로 계산했다(같은 상품에 두 가격).
+    """
+    prefix = _PREFIX_MAP.get((market or '').lower(), '')
+    if not prefix:
+        return _FALLBACK_FEE
+    try:
+        from lemouton.pricing.fee_defaults import base_pct
+        pct = base_pct(_PREFIX_TO_MARKET.get(prefix, ''))
+        if pct is not None:
+            return float(pct) / 100.0
+    except Exception:                                    # noqa: BLE001
+        pass        # 표를 못 읽어도 계산은 이어간다 — 아래 방어선으로
+    return _FALLBACK_FEE_BY_PREFIX.get(prefix, _FALLBACK_FEE)
+
+
+def default_fee_pct(market: str) -> float:
+    """화면에 넣을 퍼센트 표기 — 6.0 · 11.55 · 18.0 …
+
+    🔴 화면이 이 함수를, 계산이 `default_fee_rate` 를 쓰므로 **둘이 절대 안 갈린다.**
+      (화면에 숫자를 손으로 적어 두면 표를 고쳐도 화면이 안 따라온다.)
+    """
+    pct = round(default_fee_rate(market) * 100, 4)
+    # 6.0 대신 6 으로 — 화면에 「6.0%」가 뜨면 소수 자리가 의미 있는 값처럼 보인다.
+    #   (쿠팡 11.55 처럼 진짜 소수인 값은 그대로 남는다.)
+    return int(pct) if float(pct).is_integer() else pct
 
 
 def resolve_market_policy(tpl, market: str, side: str) -> dict:
@@ -206,7 +308,17 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
     Returns:
         {mode, rate, amount, fixed_price, fee_rate, shipping_fee} (전부 원시값).
     """
-    prefix = _PREFIX_MAP.get((market or '').lower(), 'ss')
+    # [2026-07-20] 모르는 마켓을 조용히 'ss' 로 떨어뜨리지 않는다.
+    #   이전: _PREFIX_MAP.get(market, 'ss') — 'lotteon'/'eleven11'/'auction'/'gmarket' 이
+    #   들어오면 스마트스토어 정책(수수료 6%·마진율 9.45%)으로 계산돼 **틀린 가격**이 나왔다.
+    #   지금은 호출자가 실수로 넣어도 즉시 터뜨려 알린다(정합성 원칙: 모르면 멈춘다).
+    #   reconcile.PRICED_MARKETS 가드가 1차로 막지만, 그 가드가 빠진 새 호출자를 대비한 방어선.
+    _key = (market or '').lower()
+    if _key not in _PREFIX_MAP:
+        raise UnknownMarketPolicyError(
+            f"'{market}' 는 가격 정책이 없는 마켓입니다 — 수수료·마진 설정을 먼저 넣어야 "
+            f"자동 계산할 수 있어요. (지원: {', '.join(sorted(set(_PREFIX_MAP.values())))})")
+    prefix = _PREFIX_MAP[_key]
     side = 'purchase' if side == 'purchase' else 'sourcing'
 
     def g(attr, default=None):
@@ -225,7 +337,7 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
         fixed = g(f'{prefix}_boxhero_sale_price', 0) or 0
     fee_rate = g(f'{prefix}_fee_rate')
     if fee_rate is None:
-        fee_rate = 0.06 if prefix == 'ss' else 0.1155
+        fee_rate = default_fee_rate(prefix)
     shipping_fee = g(f'{prefix}_delivery_fee', 0) or 0
 
     return {

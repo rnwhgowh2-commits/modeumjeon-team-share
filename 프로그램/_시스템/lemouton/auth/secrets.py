@@ -19,11 +19,43 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Type
 
 from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
+
+try:
+    from dotenv import load_dotenv as _load_dotenv
+except ImportError:  # dotenv 미설치 환경(테스트 등)
+    _load_dotenv = None
+
+
+def secrets_env_path() -> Path:
+    """UI(env_writer)가 시크릿을 쓰는 .env 경로.
+
+    ``MOUM_SECRETS_ENV`` 가 있으면 그 경로(배포 시 호스트 볼륨에 마운트된 영속 경로 —
+    컨테이너 교체돼도 유지). 없으면 프로젝트 루트 ``.env``(로컬 개발 폴백).
+    """
+    p = os.environ.get("MOUM_SECRETS_ENV")
+    return Path(p) if p else (Path(__file__).resolve().parents[2] / ".env")
+
+
+def refresh_env() -> None:
+    """멀티 워커(gunicorn --workers N) 간 UI 저장 시크릿 불일치 해소.
+
+    UI 키 저장은 시크릿 ``.env`` 파일 + **저장을 처리한 워커 1개**의 ``os.environ`` 만
+    갱신한다. 나머지 워커는 그 키를 못 봐서 "미등록"·"키 누락"·"필수 필드 누락"이 요청마다
+    오락가락한다. 자격증명·상태를 읽기 직전 **공유 .env 파일을 다시 로드**해 모든 워커를
+    같은 최신 상태로 맞춘다.
+
+    안전: 시크릿 ``.env`` 에는 UI 로 저장한 키만 있고, 쿠팡·스마트스토어 키는
+    ``~/app.env``(os.environ, 파일 아님)에서 오므로 override 대상 아님.
+    """
+    path = secrets_env_path()
+    if _load_dotenv is not None and path.exists():
+        _load_dotenv(path, override=True)
 
 
 # ──────────────────────────────────────────────────────────
@@ -117,10 +149,54 @@ class CoupangCredentials(_MaskedReprMixin):
     vendor_id: str = Field(min_length=1)
 
 
-# 마켓 → 스키마 라우팅 (Phase 2-B/C 에서 11번가·OAuth 등 확장 가능)
+class LotteonCredentials(_MaskedReprMixin):
+    """롯데온 Open API(셀러센터) 자격증명.
+
+    ``.env`` 키: ``{env_prefix}_API_KEY``, ``{env_prefix}_TR_NO``
+    · api_key = 판매자 센터 발급 정적 Bearer 인증키
+    · tr_no   = 거래처번호 (모든 상품/가격/재고 호출 필수 파라미터)
+    """
+
+    api_key: str = Field(min_length=1)
+    tr_no: str = Field(min_length=1)
+
+
+class Eleven11Credentials(_MaskedReprMixin):
+    """11번가 셀러 Open API 자격증명.
+
+    ``.env`` 키: ``{env_prefix}_OPENAPI_KEY``
+    · openapi_key = 셀러오피스에서 발급한 OPENAPI KEY (32자).
+      호출 시 ``openapikey: {키}`` 헤더로 전달(OAuth 토큰교환·시크릿 없음).
+      출발지 IP 를 API 센터에 등록해야 통과(미등록 차단).
+    """
+
+    openapi_key: str = Field(min_length=1)
+
+
+class EsmCredentials(_MaskedReprMixin):
+    """옥션·G마켓(ESM 2.0 · 이베이코리아) 통합 셀러 API 자격증명.
+
+    ``.env`` 키: ``{env_prefix}_MASTER_ID``, ``{env_prefix}_SECRET_KEY``, ``{env_prefix}_SELLER_ID``
+    · master_id  = ESM+ 마스터 ID (JWT header ``kid``).
+    · secret_key = 발급 시크릿 키 — JWT 서명(HmacSHA256)에 사용.
+    · seller_id  = 해당 마켓 판매자 ID (payload ``ssi`` = ``"{site}:{seller_id}"``,
+                   site = 옥션 ``"A"`` / G마켓 ``"G"``).
+    옥션·G마켓은 같은 ESM 마스터 계정이라 master_id·secret_key 는 공통, seller_id 만 다르다.
+    """
+
+    master_id: str = Field(min_length=1)
+    secret_key: str = Field(min_length=1)
+    seller_id: str = Field(min_length=1)
+
+
+# 마켓 → 스키마 라우팅
 MARKET_SCHEMAS: dict[str, Type[_MaskedReprMixin]] = {
     "smartstore": SmartstoreCredentials,
     "coupang": CoupangCredentials,
+    "lotteon": LotteonCredentials,
+    "eleven11": Eleven11Credentials,
+    "auction": EsmCredentials,    # 옥션 (ESM 2.0)
+    "gmarket": EsmCredentials,    # G마켓 (ESM 2.0) — 옥션과 동일 스키마(master·secret 공통)
 }
 
 
@@ -160,6 +236,9 @@ def load_credentials(
     schema = MARKET_SCHEMAS.get(market)
     if schema is None:
         raise SecretsUnknownMarketError(market, supported_markets())
+
+    # 멀티 워커 일관성 — UI 로 방금 저장된 키를 이 워커도 보도록 공유 .env 재로드.
+    refresh_env()
 
     norm = _normalize_prefix(env_prefix)
     field_names = list(schema.model_fields.keys())
