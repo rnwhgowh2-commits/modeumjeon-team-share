@@ -398,12 +398,30 @@ def _register_eleven11(spec: dict, account_key: str = '') -> dict:
     #   같은 이유). 실패해도 product_id 는 잃지 않는다(best-effort). 실패 흔적은
     #   result 안에 남겨 row.raw_json 으로 DB에 보이게 한다(로그만 남기면 조용한
     #   실패가 된다 — 과거에 여러 번 겪은 「돈 잃는」 버그 유형).
-    from shared.platforms.eleven11.products import stop_display
+    # [재조회 검증] 11번가는 stop_display 응답(HTTP 200/resultCode)만으로 성공을
+    #   못 믿는 마켓이다(register_product 의 「거짓 성공 금지」 주석과 같은 특성).
+    #   webapp/routes/live_send_test.py:api_suspend_eleven11 이 이미 쓰는 방식대로
+    #   get_product_detail 로 sel_stat_cd == '105'(전시중지) 인지 재조회 확인한다.
+    from shared.platforms.eleven11.products import stop_display, get_product_detail
     try:
         stop_resp = stop_display(product_no, client=client)
         if not stop_resp:
             logger.warning('11번가 전시중지 응답 없음 prdNo=%s', product_no)
             result['_suspend_failed'] = True
+        else:
+            try:
+                detail = get_product_detail(product_no, client=client)
+            except Exception:  # noqa: BLE001
+                logger.exception('11번가 전시중지 재조회 예외 prdNo=%s', product_no)
+                result['_suspend_failed'] = True
+            else:
+                sel_stat_cd = str((detail or {}).get('sel_stat_cd') or '')
+                if sel_stat_cd != '105':
+                    logger.warning(
+                        '11번가 전시중지 재조회 검증 실패(응답은 성공이었으나 여전히 '
+                        '전시중지 아님) prdNo=%s sel_stat_cd=%s',
+                        product_no, sel_stat_cd)
+                    result['_suspend_failed'] = True
     except Exception:  # noqa: BLE001
         logger.exception('11번가 전시중지 예외 prdNo=%s', product_no)
         result['_suspend_failed'] = True
