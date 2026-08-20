@@ -1,18 +1,30 @@
 # -*- coding: utf-8 -*-
 """DB 용량 줄이기 — 재보고, 지우고, 실제로 반납까지.
 
-배경 (2026-08-19)
-  Supabase 무료 한도를 넘겨 프로젝트가 멈췄다.
-  범인은 price_track_history — 크롤할 때마다 값이 그대로여도 한 줄씩 쌓였고
-  크롤이 60초 간격 연속 모드라 하루 수천 줄이 늘었다.
-  (앞으로 안 쌓이게 하는 건 bulk_crawl.save_crawl_to_track 에서 이미 고침)
+🔴 먼저 읽을 것 — `--apply` 는 지금 **쓸모가 없다** (2026-08-19 라이브 실측)
 
-이 도구가 하는 일
-  1) 재기   : 어느 표가 얼마나 먹는지 (읽기만 — 안전)
+  이 도구는 「범인은 price_track_history」라는 전제로 만들어졌다. **그 전제가 틀렸다.**
+  라이브에서 실제로 재보니 price_track_history 는 상위 15위 안에도 없다(1MB 미만).
+  `--apply` 를 돌려도 1MB 도 못 줄이고 VACUUM FULL 배타 잠금만 걸린다. 돌리지 말 것.
+
+  라이브 718MB 의 실제 구성 (2026-08-19):
+      market_products        409 MB / 439,118 줄   ← 57%. 마켓 상품 캐시(진짜 데이터)
+      crawl_deltas            78 MB / 243,434 줄
+      source_price_history    47 MB / 341,835 줄   ← 진짜 가격 이력은 이 이름이다
+      market_categories       32 MB /  59,048 줄
+      order_rows_cache        28 MB /     838 줄   ← 줄당 34KB
+      margin_analyses         20 MB /      20 줄   ← 줄당 1MB
+  쉬운 것(crawl_deltas·source_price_history·margin_analyses·order_rows_cache)을 다 합쳐도
+  약 173MB → 545MB. 무료 한도 500MB 를 못 넘어선다. 상품 캐시를 어디까지 남길지는
+  사람이 정할 문제라 자동 정리로 풀 수 없다. **사장님 결정 = 안 건드림(Pro 유지).**
+
+이 도구가 지금도 쓸모 있는 것
+  1) 재기   : 어느 표가 얼마나 먹는지 (읽기만 — 안전). ★이것만 쓰면 된다
   2) 미리보기: 지우면 얼마나 줄지 (안 지움)
-  3) 지우기 : 값이 안 바뀐 '중복 줄' 만 지운다. 값이 바뀐 시점은 전부 남긴다
-              → 화면의 가격 추이 그래프는 똑같이 보인다
+  3) 지우기 : 값이 안 바뀐 '중복 줄' 만 지운다 — 다만 대상 표가 위 이유로 무의미
   4) 반납   : 지운 공간을 실제로 돌려준다 (이걸 안 하면 표시 용량이 안 줄어든다)
+
+  → 나중에 정말 줄여야 할 때는 `--apply` 의 대상 표부터 다시 정하고 시작할 것.
 
 쓰는 법
     python scripts/db_slim.py            # 재기만 (안전)
@@ -39,7 +51,7 @@ def q(conn, sql, **kw):
 def measure(conn):
     print('=== 표별 용량 (큰 순서) ===')
     rows = q(conn, """
-        SELECT relname AS 표,
+        SELECT c.relname AS 표,
                pg_size_pretty(pg_total_relation_size(c.oid)) AS 크기,
                pg_total_relation_size(c.oid) AS bytes,
                COALESCE(s.n_live_tup, 0) AS 줄수
@@ -105,12 +117,22 @@ def apply(conn):
         ) d
         WHERE p.id = d.id
     """)).rowcount
-    conn.commit()
+    # 이 연결은 AUTOCOMMIT — 위 DELETE 는 이미 확정됐다.
+    #   전에는 여기서 conn.commit() 과 'COMMIT' 을 또 걸었는데, 진행 중인 트랜잭션이
+    #   없어서 경고만 나고 아무 일도 안 했다. VACUUM 은 트랜잭션 안에서 못 돌기 때문에
+    #   AUTOCOMMIT 이 필수고, 그래서 커밋을 따로 걸 이유도 없다.
     print('  지운 줄: %s' % f'{n:,}')
-    # 지우기만 하면 표시 용량이 안 줄어든다 — 실제로 반납해야 한다
-    conn.execute(text('COMMIT'))
+    if n == 0:
+        print('  지운 게 없어 공간 반납은 건너뛴다')
+        return 0
+
+    before = q(conn, "SELECT pg_size_pretty(pg_total_relation_size('price_track_history'))")[0][0]
+    # 🔴 지우기만 하면 표시 용량이 안 줄어든다 — 실제로 반납해야 한다.
+    #    VACUUM FULL 은 그 표에 **배타 잠금**을 건다(그동안 그 표를 읽는 화면은 기다린다).
     conn.exec_driver_sql('VACUUM FULL price_track_history')
-    print('  공간 반납 완료 (VACUUM FULL)')
+    after = q(conn, "SELECT pg_size_pretty(pg_total_relation_size('price_track_history'))")[0][0]
+    print('  공간 반납 완료 — price_track_history %s → %s' % (before, after))
+    return n
 
 
 def main():
@@ -131,8 +153,8 @@ def main():
                 if not r or r[0] == 0:
                     print('\n지울 중복이 없습니다.'); return 0
                 print('\n지웁니다 …')
-                with engine.connect() as c2:
-                    c2.execution_options(isolation_level='AUTOCOMMIT')
+                # AUTOCOMMIT 은 연결을 열 때 걸어야 한다 — VACUUM 은 트랜잭션 안에서 못 돈다.
+                with engine.connect().execution_options(isolation_level='AUTOCOMMIT') as c2:
                     apply(c2)
                 with engine.connect() as c3:
                     print()
