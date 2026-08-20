@@ -467,7 +467,7 @@ def test_모음전_연결은_읽기전용_배지다():
     (실체 = OptionProductLink 개수). 템플릿에 토글·스위치가 생기면 빨강.
     """
     src = _tpl_src()
-    assert re.search(r'inv-usage">🔗 \$\{fmt\(p\.usage\)\}곳', src), \
+    assert re.search(r'inv-usage">\$\{fmt\(p\.usage\)\}곳', src), \
         '모음전 연결 N곳 배지가 없다'
     # 스위치 부품 자체가 없어야 한다 — 시안의 .toggle 스위치·체크박스 마크업 금지
     #  (toggleSheet 같은 함수 이름이 아니라 **부품 마크업**을 본다 — 낱말 오탐 방지)

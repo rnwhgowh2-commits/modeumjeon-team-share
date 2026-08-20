@@ -169,7 +169,7 @@ const BIG = {
 
   const out = doc.getElementById('ppOut'), dz = doc.getElementById('ppDrop');
   ok(dz.style.display === 'none', '저장이 끝나면 끌어놓기 자리가 접힌다 ← 이번 약속');
-  ok(/✅ 320건 채웠어요/.test(out.innerHTML), '요약 줄이 「✅ 320건 채웠어요」로 시작한다');
+  ok(/320건 채웠어요/.test(out.innerHTML), '요약 줄이 「320건 채웠어요」로 시작한다');
   ok(/읽은 줄 400 · 저장 320/.test(out.innerHTML), '읽은 줄·저장 건수를 한 줄에 같이 말한다');
   ok(/손볼 것 77건/.test(out.innerHTML),
      '「손볼 것」은 못 찾음+줄 못 정함 77건이다(구매가격 없음을 섞지 않는다)');

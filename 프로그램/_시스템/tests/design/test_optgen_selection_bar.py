@@ -137,7 +137,9 @@ def test_한_흐름은_한_이름으로만_불린다():
         html = _읽기(경로)
         assert '지우기' not in html, (
             f'{os.path.basename(경로)} 에 「지우기」가 남아 있다 — 이 흐름의 이름은 「삭제」다')
-    assert '>🗑 이 묶음 삭제</button>' in _읽기(_조립대)
+    _조립대_글 = _읽기(_조립대)
+    assert 'ph-trash' in _조립대_글, '삭제 아이콘이 없다'
+    assert '이 묶음 삭제</button>' in _조립대_글
     assert '>삭제</button>' in _읽기(_목록)
 
 

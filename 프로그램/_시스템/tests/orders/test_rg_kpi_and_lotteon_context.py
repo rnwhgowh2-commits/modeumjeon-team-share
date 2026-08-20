@@ -51,7 +51,7 @@ def test_화면_카드_문구가_옛_공식을_안_보여준다():
     """「지급액 − 빠른정산」이라 적혀 있으면 사장님이 옛 규칙으로 읽는다."""
     tpl = (pathlib.Path(om.__file__).parents[1] / "templates" / "orders"
            / "index.html").read_text(encoding="utf-8")
-    i = tpl.index("🚀 로켓그로스</div>")
+    i = tpl.index("로켓그로스</div>")
     blk = tpl[i:i + 700]
     assert "지급액 '+fmt(rg.지급액)" not in blk
     assert "앞으로 들어올 회차" in blk
