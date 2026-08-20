@@ -90,6 +90,8 @@ def api_rows():
     for r in got['rows']:                       # 화면이 그대로 쓰게 문자열로
         r['crawled_at'] = r['crawled_at'].strftime('%m-%d %H:%M') if r['crawled_at'] else ''
         r['sent'] = {k: v.strftime('%m-%d %H:%M') for k, v in (r['sent'] or {}).items() if v}
+        mc = r.get('market_collected_at')
+        r['market_collected_at'] = mc.strftime('%m-%d %H:%M') if mc else ''
     return jsonify({'ok': True, **got})
 
 
@@ -177,6 +179,120 @@ def api_row_history(set_id: int):
                 'color': o.color_display or o.color_code or '',
                 'size': o.size_display or o.size_code or '',
                 'sources': src_data,
+            })
+        return jsonify(ok=True, skus=out)
+    finally:
+        s.close()
+
+
+@bp.get('/api/market-send/rows/<int:set_id>/margin')
+def api_row_margin(set_id: int):
+    """구성 하나(호버카드용) — 옵션별·마켓별 판매가·최근 변동·예상마진.
+
+    산식은 새로 안 만든다 — 매입가는 `price_diff._current_purchase`(주문 쪽과
+    같은 경로), 수수료율은 `pricing.unified.resolve_market_policy`(가격을 만들 때
+    쓴 그 정책), 마진은 `reconcile.compute_margin_amount` 그대로 재사용한다.
+    셋 중 하나라도 못 구하면 그 칸만 margin_reason 으로 「확인 불가」를 남긴다
+    (listing.py 의 buy_source=None 과 같은 원칙 — 모르는 걸 0 으로 채우지 않는다).
+
+    응답: {skus: [{sku, color, size, markets: {마켓키: {price, stock, fetched_at,
+                   prev_price, margin, margin_reason}}}]}
+    """
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    from collections import defaultdict
+    from shared.db import SessionLocal
+    from lemouton.sets.models import (SetProduct, SetOption, SetChannel,
+                                      SetChannelOption, ChannelChangeEvent)
+    from lemouton.sourcing.models import Option
+    from lemouton.orders.price_diff import _current_purchase, _price_templates_for, _PriceLike
+    from lemouton.pricing.unified import resolve_market_policy
+    from lemouton.uploader.reconcile import compute_margin_amount
+
+    since = _dt.now(_tz.utc) - _td(days=14)
+    s = SessionLocal()
+    try:
+        skus = [r[0] for r in
+                s.query(SetOption.canonical_sku)
+                .join(SetProduct, SetOption.set_product_id == SetProduct.id)
+                .filter(SetProduct.set_id == set_id).all()]
+        if not skus:
+            return jsonify(ok=True, skus=[])
+
+        opts = (s.query(Option).filter(Option.canonical_sku.in_(skus))
+                .order_by(Option.sort_order, Option.color_code, Option.size_code).all())
+
+        finals, _errors = _current_purchase(s, skus)
+        tpl_by_sku = _price_templates_for(s, skus)
+
+        mkt_rows = (s.query(SetChannel.market, SetChannelOption.canonical_sku,
+                            SetChannelOption.mkt_price, SetChannelOption.mkt_stock,
+                            SetChannelOption.mkt_fetched_at)
+                    .join(SetChannelOption, SetChannelOption.channel_id == SetChannel.id)
+                    .filter(SetChannel.set_id == set_id,
+                            SetChannelOption.canonical_sku.in_(skus)).all())
+        by_sku: dict = defaultdict(dict)
+        for mk, sku, price, stock, fetched_at in mkt_rows:
+            by_sku[sku][mk] = {'price': price, 'stock': stock, 'fetched_at': fetched_at}
+
+        # 최근 가격 변동 1건씩 (sku, market) — desc 정렬이라 처음 만난 게 최신
+        chg_rows = (s.query(ChannelChangeEvent)
+                    .filter(ChannelChangeEvent.set_id == set_id,
+                            ChannelChangeEvent.canonical_sku.in_(skus),
+                            ChannelChangeEvent.field == 'price',
+                            ChannelChangeEvent.at >= since)
+                    .order_by(ChannelChangeEvent.canonical_sku, ChannelChangeEvent.market,
+                              ChannelChangeEvent.at.desc()).all())
+        recent_chg = {}
+        for c in chg_rows:
+            recent_chg.setdefault((c.canonical_sku, c.market), c)
+
+        fee_cache: dict = {}
+
+        def _fee_for(market, tpl):
+            key = (market, id(tpl))
+            if key not in fee_cache:
+                try:
+                    pol = resolve_market_policy(tpl, market, 'sourcing')
+                    fee_cache[key] = (float(pol['fee_rate']), int(pol.get('shipping_fee') or 0))
+                except Exception:                                  # noqa: BLE001
+                    fee_cache[key] = None
+            return fee_cache[key]
+
+        out = []
+        for o in opts:
+            mk_data = by_sku.get(o.canonical_sku, {})
+            if not mk_data:
+                continue
+            purchase = finals.get(o.canonical_sku)
+            tpl = tpl_by_sku.get(o.canonical_sku)
+            markets_out = {}
+            for mk, d in mk_data.items():
+                price, margin, reason = d['price'], None, None
+                if price is None:
+                    reason = '판매가 확인 불가'
+                elif purchase is None:
+                    reason = '매입가 확인 불가'
+                else:
+                    fee = _fee_for(mk, tpl)
+                    if fee is None:
+                        reason = '수수료 정책 확인 불가'
+                    else:
+                        fee_rate, shipping = fee
+                        margin = compute_margin_amount(_PriceLike(price, fee_rate, shipping), purchase)
+                        if margin is None:
+                            reason = '계산 불가'
+                chg = recent_chg.get((o.canonical_sku, mk))
+                markets_out[mk] = {
+                    'price': price, 'stock': d['stock'],
+                    'fetched_at': d['fetched_at'].strftime('%m-%d %H:%M') if d['fetched_at'] else None,
+                    'prev_price': chg.prev_value if chg else None,
+                    'margin': margin, 'margin_reason': reason,
+                }
+            out.append({
+                'sku': o.canonical_sku,
+                'color': o.color_display or o.color_code or '',
+                'size': o.size_display or o.size_code or '',
+                'markets': markets_out,
             })
         return jsonify(ok=True, skus=out)
     finally:
