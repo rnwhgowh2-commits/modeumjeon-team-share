@@ -69,6 +69,27 @@ def source_keys_by_model(session, model_codes: list[str]) -> dict[str, list[str]
     return {k: sorted(v) for k, v in out.items()}
 
 
+def source_urls_by_model(session, model_codes: list[str]) -> dict[str, dict[str, list[dict]]]:
+    """모음전별 · 소싱처별 실제 URL 목록 — 호버카드 「바로가기」용.
+
+    {model_code: {source_key: [{url, label}, ...]}}. 여러 URL 이면 sort_order 순.
+    """
+    from lemouton.sourcing.models import BundleSourceUrl
+    if not model_codes:
+        return {}
+    out: dict[str, dict[str, list[dict]]] = {}
+    rows = (session.query(BundleSourceUrl)
+            .filter(BundleSourceUrl.model_code.in_(model_codes))
+            .order_by(BundleSourceUrl.model_code, BundleSourceUrl.source_key,
+                      BundleSourceUrl.sort_order).all())
+    for r in rows:
+        if not r.source_key:
+            continue
+        out.setdefault(r.model_code, {}).setdefault(r.source_key, []).append(
+            {'url': r.url, 'label': r.label or ''})
+    return out
+
+
 def market_product_ids(session, set_ids: list[int]) -> dict[int, dict]:
     """구성별 마켓 상품번호 — `{set_id: {market: 상품번호}}`. 등록된 것만."""
     from lemouton.sets.models import SetChannel
@@ -94,6 +115,25 @@ def _changed_at_subquery(session):
             .group_by(CCE.set_id).subquery())
 
 
+def market_collected_at(session, set_ids: list[int]):
+    """구성별 **판매처에서 값을 마지막으로 긁어온 때** — 「판매처 수집」 칸.
+
+    `SetChannelOption.mkt_fetched_at` 최댓값(여러 마켓·옵션 중 가장 최근).
+    「마켓 전송」(우리가 보낸 때)과는 다른 정보 — 이건 마켓 쪽 값을 우리가 읽어온 때다.
+
+    Returns: `{set_id: datetime}`
+    """
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    if not set_ids:
+        return {}
+    rows = (session.query(SetChannel.set_id, func.max(SetChannelOption.mkt_fetched_at))
+            .join(SetChannelOption, SetChannelOption.channel_id == SetChannel.id)
+            .filter(SetChannel.set_id.in_(set_ids),
+                    SetChannelOption.mkt_fetched_at.isnot(None))
+            .group_by(SetChannel.set_id).all())
+    return {sid: at for sid, at in rows if at is not None}
+
+
 def rows(session, *, page: int = 1, per_page: int = 50,
          date_basis: str = '', date_from='', date_to='',
          policy: str = '', sources: list[str] | None = None,
@@ -104,10 +144,12 @@ def rows(session, *, page: int = 1, per_page: int = 50,
     """필터 → 목록 한 쪽. `{total, page, per_page, rows: [...]}`.
 
     한 줄:
-        {set_id, model_code, display_no, name, set_name, options,
-         sources: [소싱처키…], buy_source: None,
-         policy: 이름|None, policy_from: 'set'|'model'|None,
-         crawled_at, sent: {market: 시각}, listed: {market: 상품번호}}
+        {set_id, model_code, display_no, name, brand, set_name, options,
+         sources: [소싱처키…], source_detail: {소싱처키: [{url,label}…]},
+         buy_source: None,
+         policy: 이름|None, policy_id: int|None, policy_from: 'set'|'model'|None,
+         crawled_at, sent: {market: 시각}, listed: {market: 상품번호},
+         market_collected_at: 판매처에서 값을 마지막으로 긁어온 때|None}
     """
     from lemouton.policy.models import BundlePolicyLink, MarketPolicy, SetPolicyLink
     from lemouton.sets.models import ProductSet, SetOption, SetProduct
@@ -230,9 +272,11 @@ def rows(session, *, page: int = 1, per_page: int = 50,
 
     # ── 곁들여 읽을 것들 (N+1 방지 — 한 번씩만) ──────────────────────
     src_map = source_keys_by_model(session, codes)
+    src_url_map = source_urls_by_model(session, codes)
     listed_map = market_product_ids(session, set_ids)
     from lemouton.send.service import last_sent_at
     sent_map = last_sent_at(session, set_ids=set_ids)
+    mkt_collected_map = market_collected_at(session, set_ids)
 
     opt_cnt = dict(session.query(SetProduct.set_id, func.count(SetOption.id))
                    .join(SetOption, SetOption.set_product_id == SetProduct.id)
@@ -259,16 +303,19 @@ def rows(session, *, page: int = 1, per_page: int = 50,
             'set_id': ps.id, 'model_code': ps.model_code,
             'display_no': m.display_no or ps.model_code,
             'name': m.model_name_display or m.model_name_raw or ps.model_code,
+            'brand': m.brand or '',
             'set_name': ps.name or '단품',
             'options': int(opt_cnt.get(ps.id) or 0),
             'sources': src_map.get(ps.model_code, []),
+            'source_detail': src_url_map.get(ps.model_code, {}),
             # 🔴 「지금 사오는 곳」은 옵션별 최저가 픽이 있어야 안다 — 아직 미배선.
             #   지어내지 않고 None. 화면이 「아직 모름」이라고 말한다.
             'buy_source': None,
-            'policy': pol_name.get(pid), 'policy_from': origin,
+            'policy': pol_name.get(pid), 'policy_id': pid, 'policy_from': origin,
             'crawled_at': m.last_crawled_at,
             'sent': sent_map.get(ps.id, {}),
             'listed': listed_map.get(ps.id, {}),
+            'market_collected_at': mkt_collected_map.get(ps.id),
         })
     return {'total': total, 'page': page, 'per_page': per, 'rows': out}
 

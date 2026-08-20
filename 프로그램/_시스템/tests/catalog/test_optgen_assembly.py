@@ -56,14 +56,16 @@ def test_조립대가_생성_탭_소속으로_열린다(client, matrix_with_opti
     r = client.get(f"/optgen/product/{matrix_with_option['id']}")
     assert r.status_code == 200, r.get_data(as_text=True)
     html = r.get_data(as_text=True)
-    assert '이 옵션들로 상품 만들기' in html          # 조립대가 있다
+    # [2026-08-19 노션 상품생성 3번] 카드 제목 문구는 지우고 만들기 버튼만 남겼다 —
+    # 「조립대가 있다」는 이제 그 버튼(id=build)로 확인한다.
+    assert 'id="build"' in html                      # 조립대가 있다
     assert '← 모음전 상품 생성 목록' in html          # 돌아가는 곳도 이 탭
 
 
 def test_관리_탭의_매트릭스_상세는_보기_전용이다(client, matrix_with_option):
     """설계서 §4 — 확인은 상품관리, 작업은 생성 탭."""
     html = client.get(f"/matrix/{matrix_with_option['id']}").get_data(as_text=True)
-    assert '이 옵션들로 상품 만들기' not in html      # 조립대 없음
+    assert 'id="build"' not in html                   # 조립대 없음
     assert '확인 전용' in html
     assert f"/optgen/product/{matrix_with_option['id']}" in html  # 작업 입구 안내
 

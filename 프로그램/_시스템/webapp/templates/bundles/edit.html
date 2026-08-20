@@ -204,7 +204,7 @@
       {% if piece and piece != 'home' %}
       <div class="piece-banner">
         <span class="piece-banner-pill">
-          {%- if piece == 'price' %}🔧 상품 가공{% elif piece == 'crawl' %}⚙️ 자동화{% else %}🧱 옵션관리{% endif -%}
+          {%- if piece == 'price' %}🔧 상품 정책화{% elif piece == 'crawl' %}⚙️ 자동화{% else %}🧱 옵션관리{% endif -%}
         </span>
         <span class="piece-banner-text">
           {{ bundle.model_code }} —
@@ -1625,7 +1625,7 @@
       ? '<div class="pol-warn"><b>이 상품은 구성이 ' + bs.length + '개인데 그중 '
         + none + '개에 정책이 없습니다.</b> 정책이 없으면 그 구성은 <b>어디에도 안 올라갑니다</b> — '
         + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
-        + '🧩 상품 정책 적용</a> 에서 붙여 주세요.</div>'
+        + '🧩 정책 매칭</a> 에서 붙여 주세요.</div>'
       : '<div class="pol-warn ok"><b>이 상품은 구성이 ' + bs.length + '개입니다.</b> '
         + '구성마다 정책이 달라 마켓에 <b>각각</b> 올라갑니다. 재고는 구성끼리 연동됩니다.</div>';
     box.innerHTML = notice
@@ -1636,7 +1636,7 @@
       + '「—」는 그 마켓에 아직 값을 못 내는 것입니다(마우스를 올리면 이유가 나옵니다). '
       + '구성을 더하거나 정책을 바꾸려면 '
       + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
-      + '🧩 상품 정책 적용</a> 으로 가세요.</div>';
+      + '🧩 정책 매칭</a> 으로 가세요.</div>';
   }
 
   function draw(j) {
@@ -1644,7 +1644,7 @@
     if (!j.policies || !j.policies.length) {
       box.innerHTML = '<div class="pol-warn"><b>이 상품에 붙은 정책이 없습니다.</b> '
         + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
-        + '🧩 상품 정책 적용</a> 에서 먼저 붙여 주세요 — 정책이 없으면 어디에도 안 올라갑니다.</div>';
+        + '🧩 정책 매칭</a> 에서 먼저 붙여 주세요 — 정책이 없으면 어디에도 안 올라갑니다.</div>';
       return;
     }
     const tabs = j.policies.map((p) =>

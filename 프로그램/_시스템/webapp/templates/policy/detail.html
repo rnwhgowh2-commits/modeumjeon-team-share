@@ -29,23 +29,38 @@
                 font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;
                 margin-bottom:10px}
     .mkoff-note b{color:var(--ink,#191F28)}
-    .fill-sum{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
-    .fill-sum b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
-    /* ── [2026-08-12 사장님 확정 C2] 마켓 탭에서 바로 켜고 끄기 (더망고 방식) ──
-       전에는 켜고 끄려면 정책 목록으로 돌아가야 했다.
-       🔴 「흐리게만」이다 — **입력을 막지 않는다.** 값이 보이는데 손댈 수 없으면
-         둘 다 잃는다. 끄는 것은 「안 보낸다」이지 「못 고친다」가 아니다. */
-    .mkgate{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
-            border-radius:12px;padding:13px 16px;margin-bottom:14px}
-    .mkgate.off{border-color:var(--line,#C6CBD3);background:var(--n50,#F9FAFB)}
-    .mkgate label{display:flex;align-items:center;gap:9px;cursor:pointer;
-                  font-size:14px;font-weight:700}
-    .mkgate input{width:18px;height:18px;accent-color:var(--primary,#3182F6);flex:none}
-    .mkgate .d{font-size:12px;color:var(--글자-주황, var(--amber,#B45309));
-               line-height:1.7;margin:6px 0 0 27px}
-    .mkgate .m{font-size:12px;margin:6px 0 0 27px;min-height:0;
-               color:var(--글자-보조,#6B7684)}
-    .mkgate .m.err{color: var(--글자-빨강, var(--red,#E5484D))}
+    /* ── [2026-08-20 3차 확정] 안내 상자 통합 ─────────────────────────────────
+       채움 현황·정책설정 체크·필수 현황·공통 불러오기·전송 규칙·항목 설명 — 흩어져
+       있던 5~6개 상자를 카드 둘로 줄였다. 위(sumtop)는 「정책설정」 체크박스가
+       있는 칸 — 흐림 밖에 둔다(다시 켤 단추가 같이 흐려지면 안 된다, 2026-08-12
+       확정 그대로 자리만 옮겼다). 아래(sumbody)는 나머지 — 마켓을 끄면 함께
+       흐려지는 것이 맞다(꺼진 마켓의 현황을 또렷하게 보여줄 이유가 없다). */
+    .sumtop{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+            border-radius:12px;padding:12px 16px;margin-bottom:8px}
+    .sumtop.off{border-color:var(--line,#C6CBD3);background:var(--n50,#F9FAFB)}
+    .sumtop-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    .sumtop-chk{display:flex;align-items:center;gap:9px;cursor:pointer;
+                font-size:14px;font-weight:700}
+    .sumtop-chk input{width:18px;height:18px;accent-color:var(--primary,#3182F6);flex:none}
+    .sumtop-static{font-size:14px;font-weight:700;color:var(--글자-기본,#4E5968)}
+    .sumtop-right{display:flex;align-items:center;gap:12px;margin-left:auto;flex-wrap:wrap}
+    .sumtop-stats{font-size:12px;color:var(--글자-보조,#6B7684)}
+    .sumtop-stats b{font-variant-numeric:tabular-nums;color:var(--ink,#191F28)}
+    /* 「필수인데 비어 있음」은 경고(주황) — 되돌릴 수 없는 오류(빨강)가 아니다 */
+    .sumtop-warn{display:inline-flex;align-items:center;gap:4px;font-weight:700;font-size:12px;
+                 color: var(--글자-주황, var(--amber,#B45309));background:var(--연한-주황,#FFFBEB);
+                 border:1px solid var(--연한-주황,#FDE68A);border-radius:999px;
+                 padding:2px 9px;cursor:help;white-space:nowrap}
+    .sumtop-warn.ok{color: var(--글자-초록, var(--green,#15803D));background:var(--연한-초록,#DCFCE7);
+                    border-color:var(--연한-초록,#DCFCE7)}
+    .sumtop .m{font-size:12px;margin:6px 0 0 27px;min-height:0;color:var(--글자-보조,#6B7684)}
+    .sumtop .m.err{color: var(--글자-빨강, var(--red,#E5484D))}
+    .sumbody{background:var(--n50,#F9FAFB);border:1px solid var(--line,#E5E8EB);border-radius:12px;
+             padding:10px 16px;margin-bottom:14px;display:flex;align-items:center;gap:8px;
+             flex-wrap:wrap;font-size:12px;color:var(--글자-보조,#6B7684)}
+    .sumbody .sep{color:var(--line,#C6CBD3)}
+    .sumbody .lb{font-weight:700;color:var(--글자-기본,#4E5968)}
+    .sumbody .btn2{margin-left:auto}
     /* 꺼져 있으면 가공 칸을 흐리게. 항목 카드·미리보기만 대상이고
        탭·안내·채움줄·저장줄은 또렷하게 남는다(끈 상태에서도 고칠 수 있어야 한다). */
     #screen-policy-detail.mk-off .it,
@@ -58,10 +73,22 @@
     .it.open .it-h{border-bottom-color:var(--line,#E5E8EB)}
     .it-h .nm{font-size:14px;font-weight:700;color:var(--ink,#191F28)}
     .it-h .ref{font-size:12px;color:var(--sub,#8B95A1)}
-    .it-h .set{margin-left:auto;font-size:12px;font-weight:700;padding:0px 8px;border-radius:999px}
-    .it-h .set.y{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
-    .it-h .set.n{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
     .it-h .chev{color:var(--sub,#8B95A1);font-size:12px;transition:transform .15s;margin-left:4px}
+    /* ── [2026-08-20 3차 확정] 지금 상태 줄 — 「공통/직접/없음」·「정함/안 정함」 삭제 ──
+       마켓 탭에 이미 같은 정보(직접·2/16)가 있고, 필수 항목은 접힌 줄의 「⚠ 필수인데
+       비어 있음」이 이미 알려준다 — 항목마다 또 달면 사장님 눈엔 중복이었다.
+       왼쪽 「지금 상태(필수·전송됨)」 / 오른쪽 「공통 불러오기」만 남는다. */
+    .statusrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;
+               padding-bottom:12px;border-bottom:1px dashed var(--line,#E5E8EB)}
+    .statusrow .stgrp{display:inline-flex;align-items:center;gap:6px}
+    .statusrow .acgrp{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
+    /* ── [2026-08-19 2차 확정 → 2026-08-20 3차 확정 재색칠] 접힌 줄 경고 ──────────
+       「필수인데 비어 있음」만 상시 노출. 색은 주황(경고) — 되돌릴 수 없는
+       오류(빨강)가 아니라 지금 채우면 없어지는 경고라서 바꿨다. */
+    .reqwarn{font-size:12px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
+             background:var(--연한-주황,#FFFBEB);
+             color: var(--글자-주황, var(--amber,#B45309));
+             border:1px solid var(--연한-주황,#FDE68A);cursor:help}
     .it.open .chev{transform:rotate(90deg)}
     .it-b{display:none;padding:16px 16px 16px}
     .it.open .it-b{display:block}
@@ -127,7 +154,12 @@
          가 된다 — 라이브 4모드 실측으로 확인했고, 옆의 기존 `.src.none` 이 지금
          그 상태다(별건이라 여기서 손대지 않는다). */
     .req{font-size:12px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap}
-    .req.must{background:var(--연한-빨강,#FEECEC);
+    /* [2026-08-20 3차 확정] 「필수」는 항목을 펼치면 늘 붙어 있는 분류표다 —
+       빈 채로도 안 채웠어도 항상 뜬다. 채워야 한다는 「경고」(reqwarn, 주황
+       채움)와 색이 같으면 위상 차이가 안 느껴진다는 지적을 받아, 테두리만
+       남기고 옅게 낮췄다. */
+    .req.must{background:transparent;
+              border:1px solid #EF9A9A;
               color: var(--글자-빨강, var(--red,#B91C1C));cursor:help}
     .req.cond{background:var(--연한-파랑,#E8F2FF);
               color: var(--글자-파랑, var(--primary,#1B64DA));cursor:help}
@@ -159,8 +191,11 @@
     .fxt .no{color:var(--글자-보조,#6B7684);line-height:1.6}
     .fxt .src{color:var(--글자-희미,#8B95A1);font-size:11px;white-space:nowrap;
               text-align:right;font-family:ui-monospace,monospace;width:1%}
-    .fx-why{padding:9px 15px;font-size:11.5px;color:var(--글자-보조,#6B7684);
-            line-height:1.7;background:var(--surface,#ffffff)}
+    /* ── [2026-08-19 2차 확정] 정책 설정 요약 두 묶음 — 「무조건」 vs 「안 정하면」 ──
+       🔴 policy_wins 플래그로 가른다. 색만으로 가르지 않는다 — 묶음 제목 글자
+         자체가 뜻을 말한다(가독성 원칙 A: 색상만으로 상태 구분 금지). */
+    .fx-group-t{padding:9px 15px 0;font-size:11.5px;font-weight:700;color:var(--sub,#8B95A1)}
+    .fx-group-t.wins{color: var(--글자-파랑, var(--primary,#1B64DA))}
     .fx-none{background:var(--n100,#F2F4F6);border-radius:12px;padding:11px 15px;
              font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:14px}
     /* ── [2026-08-13 확정 B2] 항목 머리 「정책 ○○ / 실제 ○○」 알약 ── */
@@ -184,12 +219,14 @@
            font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;
            margin-left:6px}
     .btnsm:hover{border-color:var(--primary,#3182F6);color:#1B64DA}
-    .pullbar{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;
-             padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-    .pullbar .pb-t{font-size:13px;font-weight:700}
-    .pullbar .pb-w{font-size:12px;color:var(--sub,#8B95A1)}
-    .pullbar .btn2{margin-left:auto}
     .pb-hint{font-size:12px;color:var(--글자-보조,#6B7684);margin:0 0 12px 4px;line-height:1.7}
+    /* ── [2026-08-19 사장님 확정 시안 1] 물음표 아이콘 — 평소엔 짧게, 올리면 원문 그대로 ──
+       🔴 부연설명 4곳(마켓 끄기·공통 불러오기·전송됨·필수)을 이걸로 줄였다.
+         안에 있던 정보(확인불가=모른다 등)는 안 지웠다 — title 로 그대로 옮겼을 뿐이다. */
+    .qi{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+        border-radius:999px;background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684);
+        font-size:10px;font-weight:800;cursor:help;flex:none;vertical-align:middle}
+    .qi:hover{background:var(--primary,#3182F6);color:#fff}
     .pushrow{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
              color:var(--ink,#191F28);padding-bottom:8px;margin-bottom:8px;
              border-bottom:1px dashed var(--line,#E5E8EB)}
@@ -245,7 +282,6 @@
                      color: var(--글자-빨강, var(--red,#E5484D))}
 /* ── [2026-08-13 사장님 확정 시안 v2] 여기부터 — 시안 파일에서 그대로 잘라온 부품 ── */
 .hz-wrap{position:relative;border-radius:12px}
-.hz-clear{position:relative;z-index:2;background:#fff;border-radius:12px}
 .hz-body{position:relative;opacity:.5;margin-top:10px}
 .hz-body::after{content:'';position:absolute;inset:0;border-radius:12px;pointer-events:none;
   background:repeating-linear-gradient(135deg,transparent 0 14px,rgba(148,163,184,.13) 14px 28px)}
@@ -357,62 +393,46 @@
     켜고 끄기는 <b>아래 체크박스</b>에서 바로 하실 수 있습니다.
   </div>
   {% endif %}
-  <div class="fill-sum">
-    채움 <b>{{ fill_sum.filled }}</b>/<b>{{ fill_sum.total }}</b>
-    — 켠 <b>{{ fill_sum.on }}</b>곳만 셉니다{% if fill_sum.off %} (안 켠 {{ fill_sum.off }}곳은 분모에서 뺐습니다){% endif %}
+
+  {# ── [2026-08-20 3차 확정] 안내 상자 통합 (5~6개 → 카드 2개) ────────────────
+     채움 현황·정책설정 체크·필수 현황·공통 불러오기·전송 규칙·항목 설명이 따로
+     떠 있어 「뭐가 중요한지 모르겠다」는 지적을 받았다. sumtop(채움+정책설정+
+     필수현황) / sumbody(항목설명+전송규칙+공통불러오기)로 묶었다.
+     🔴 「{{ market_label }} 정책설정」 체크박스는 여전히 빗금 **밖**(sumtop)에 둔다 —
+       그 줄이 같이 흐려지면 다시 켤 단추가 안 보인다(2026-08-12 확정 그대로,
+       자리만 옮겼다). #}
+  {% if not is_common %}{% set mk_on = market in enabled %}{% endif %}
+  <div class="sumtop{{ '' if (is_common or mk_on) else ' off' }}"{% if not is_common %} id="mkgate"{% endif %}>
+    <div class="sumtop-row">
+      {% if not is_common %}
+      <label class="sumtop-chk"><input type="checkbox" id="mkon" {{ 'checked' if mk_on }}>
+        <span>[{{ market_label }} 정책설정]</span>
+        <span class="qi" title="체크를 풀면 이 마켓으로 상품정보를 보내지 않습니다. 적어 둔 값은 그대로 남고, 꺼 둔 동안에도 고칠 수 있습니다.">?</span></label>
+      {% else %}
+      <span class="sumtop-static">마켓 공통</span>
+      {% endif %}
+      <span class="sumtop-right">
+        <span class="sumtop-stats">채움 <b>{{ fill_sum.filled }}</b>/<b>{{ fill_sum.total }}</b>
+          — 켠 <b>{{ fill_sum.on }}</b>곳만 셉니다{% if fill_sum.off %} (안 켠 {{ fill_sum.off }}곳은 뺐습니다){% endif %}</span>
+        {% if req_sum %}
+        <span class="sumtop-warn{{ '' if req_sum.missing else ' ok' }}"
+              title="「필수」는 그 마켓 상품등록 문서에 그렇게 적힌 것만 붙습니다. 「확인 불가」는 「필수가 아니다」가 아니라 「모른다」입니다 — 등록 문서에서 근거를 못 찾아 지어내지 않았습니다. 비워 두고 올리면 마켓이 거부할 수 있습니다.">
+          {% if req_sum.missing %}⚠ 필수 {{ req_sum.required }}개 중 {{ req_sum.missing|length }}개 비어 있음
+          {% else %}필수 {{ req_sum.required }}개 다 채워졌습니다{% endif -%}
+          {% if req_sum.unknown %} · 확인 불가 {{ req_sum.unknown }}개{% endif %}
+        </span>
+        {% endif %}
+      </span>
+    </div>
+    {% if not is_common %}<div class="m" id="mkmsg"></div>{% endif %}
   </div>
 
-  {# ── [2026-08-12 사장님 확정 C2] 이 마켓 켜고 끄기 — 더망고식 체크박스 ────────
-     「마켓 공통」은 진짜 마켓이 아니라 값을 담아두는 자리라 여기 안 붙인다. #}
   {# ── [2026-08-13 사장님 확정 시안 v2 · 1-C] 끈 마켓은 **빗금** ──────────────
-     🔴 「{{ market_label }} 정책설정」 줄만 빗금 **밖**에 둔다 — 그 줄이 같이 흐려지면
-       다시 켤 단추가 안 보인다(껐다 켜는 것이 사장님 뜻의 핵심).
      🔴 빗금은 `pointer-events:none` 이라 **아래 칸은 그대로 눌리고 고쳐진다.**
        끄는 것은 「안 보낸다」이지 「못 고친다」가 아니다. #}
   {% if not is_common %}
-  {% set mk_on = market in enabled %}
   <div class="hz-wrap">
-  <div class="hz-clear">
-  <div class="mkgate {{ '' if mk_on else 'off' }}" id="mkgate">
-    <label><input type="checkbox" id="mkon" {{ 'checked' if mk_on }}>
-      <span>[{{ market_label }} 정책설정]</span></label>
-    <div class="d">※ 체크를 풀면 이 마켓으로 <b>상품정보를 보내지 않습니다.</b>
-      적어 둔 값은 그대로 남고, 꺼 둔 동안에도 <b>고칠 수 있습니다.</b></div>
-    <div class="m" id="mkmsg"></div>
-  </div>
-  </div>
-  {# 켜져 있으면 클래스를 아예 안 붙인다 — 시안 CSS 를 한 글자도 안 고치고 쓰기 위해서다. #}
   <div class="{{ '' if mk_on else 'hz-body' }}" id="hzbody">
-  {% endif %}
-
-  {# ── [2026-08-13 사장님 확정 A1] 정해져 나가는 값 — 접힌 줄 하나 ────────────
-     🔴 여기 있는 값은 **사장님이 고칠 수 없는 값**이다. 정책 항목처럼 보이면
-       「고쳤는데 왜 안 먹지」가 된다 — 그래서 가공 항목들과 떨어진 자리에,
-       평소엔 접어서 둔다.
-     ★ 목록은 사람이 여기 적지 않는다 — `policy/fixed_sends.py` 가 원천이고,
-       그 표가 등록 코드와 갈리지 않는지는 시험이 코드 원본을 읽어 대조한다. #}
-  {% if fixed %}
-  {% if fixed.checked %}
-  <details class="fx">
-    <summary class="fx-h">이 마켓엔 이 값들이 정해져 나갑니다
-      <span class="n">{{ fixed.rows|length }}</span></summary>
-    <table class="fxt">
-      {% for r in fixed.rows %}
-      <tr>
-        <td class="lb">{{ r.label }}</td>
-        <td class="vl">{{ r.value }}</td>
-        <td class="no">{{ r.note }}</td>
-        <td class="src">{{ r.where }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-    <div class="fx-why">이 값들은 <b>프로그램이 정해서 보냅니다</b> — 정책 화면에서
-      고를 수 있는 값이 아닙니다. 바꾸려면 알려 주세요.</div>
-  </details>
-  {% else %}
-  <div class="fx-none">이 마켓에 <b>무엇이 정해져 나가는지 아직 확인하지 못했습니다</b> —
-    {{ fixed.reason }}</div>
-  {% endif %}
   {% endif %}
 
   {% if is_common %}
@@ -422,48 +442,13 @@
     <b>저절로 바뀌지 않습니다</b> — 아래에서 그 마켓을 체크해 다시 넣거나,
     그 마켓 탭에서 <b>「공통 불러오기」</b>를 눌러야 바뀝니다.
   </div>
-  {% else %}
-  {% if not readiness[market].price_ready %}
+  {% elif not readiness[market].price_ready %}
   <div class="warn">
     <b>이 마켓은 아직 가격 계산에 쓸 수 없습니다.</b>
     「판매가」 항목을 아직 정하지 않았습니다. 정하지 않은 항목을 임의로 채워 계산하면
     그 가격이 그대로 마켓에 나갑니다.
   </div>
   {% endif %}
-  <div class="pullbar">
-    <span class="pb-t">공통 불러오기</span>
-    <span class="pb-w">
-      {% set sm = summary[market] %}
-      {% if sm.state == 'common' and sm.at %}마지막으로 불러온 때 · {{ sm.at.strftime('%m월 %d일 %H:%M') }}
-      {% elif sm.state == 'own' %}이 마켓에서 직접 고친 값입니다
-      {% else %}아직 불러온 적이 없습니다{% endif %}
-    </span>
-    <button class="btn2 ghost" id="pullAll" type="button">전체 불러오기</button>
-  </div>
-  <div class="pb-hint">「전체 불러오기」는 <b>「마켓 공통」에 채워 둔 항목만</b> 이 마켓에 덮어씁니다 —
-    여기서 고친 값이 있으면 사라집니다.<br><b>공통에 없는 항목은 그대로 둡니다.</b></div>
-  {% endif %}
-
-  {# ── 「이 정책으로 계산하면」 — 보여주기만. 실제 전송 경로는 건드리지 않는다 ── #}
-  <div class="card">
-    <div class="card-t">🧮 이 정책으로 계산하면</div>
-    <div class="card-d">
-      판매가 = <b>최종매입가 × (1 + 마진율)</b> — 기준은 표면가가 아니라 최종매입가입니다.
-      <b>여기 숫자는 보여주기만 합니다.</b> 실제 마켓에 나가는 값은 아직 바꾸지 않습니다.
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-      <select id="pvModel" style="border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;
-              font-size:12px;font-family:inherit;min-width:220px"></select>
-      <button type="button" id="pvGo" class="btn ghost">계산해 보기</button>
-      <span id="pvRate" style="font-size:12px;color:var(--글자-보조,#6B7684)"></span>
-    </div>
-    <div id="pvBox" style="font-size:12px;color:var(--sub,#8B95A1)">상품을 고르고 「계산해 보기」를 누르세요.</div>
-  </div>
-
-  <div style="font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:12px">
-    항목 {{ items|length }}개 — 대량등록 「데이터 가공」의 가공 규칙과 <b>같은 항목</b>입니다.
-    다만 여기서는 <b>마켓마다 따로</b> 정합니다.
-  </div>
 
   {# ── 채워도 안 나가는 항목이 있다 — 화면이 먼저 말한다 ────────────────────
      🔴 [2026-08-12 실측 정정] 전에는 「나가는 것은 판매가와 배송비뿐」이라고 적혀 있었다.
@@ -473,24 +458,23 @@
        ★ 어느 항목이 나가는지는 사람이 여기 적지 않는다 — 항목마다 붙는 초록
          「전송됨」 배지가 `policy/required.py:WIRING` 을 그대로 읽고, 그 표는
          `as_draft` 가 실제로 옮겨 담는 칸을 시험이 대조한다. 한 곳만 고치면 어긋난다. #}
-  <div class="warn">
-    <b>초록 「전송됨」이 붙은 항목만 실제로 마켓에 나갑니다.</b>
-    배지가 없는 항목은 채워 두면 저장은 되지만 <b>아직 마켓으로 나가지 않습니다</b> —
-    배지에 마우스를 올리면 그 항목이 어디로 어떻게 나가는지 알려 줍니다.
-  </div>
-
-  {% if req_sum %}
-  <div class="req-why">
-    <b>「필수」는 그 마켓 상품등록 문서에 그렇게 적힌 것만</b> 붙습니다 —
-    이 마켓 필수 {{ req_sum.required }}개{% if req_sum.missing %},
-    그중 <b>{{ req_sum.missing|length }}개가 아직 비어 있습니다</b>{% endif %}.
-    {% if req_sum.unknown %}
-    <b>「확인 불가」 {{ req_sum.unknown }}개</b>는 <b>「필수가 아니다」가 아니라 「모른다」</b>입니다 —
-    등록 문서에서 근거를 못 찾아 지어내지 않았습니다. 비워 두고 올리면 마켓이 거부할 수 있습니다.
+  <div class="sumbody">
+    <span>항목 {{ items|length }}개 — 대량등록 「데이터 가공」의 가공 규칙과 <b>같은 항목</b>입니다.
+      다만 여기서는 <b>마켓마다 따로</b> 정합니다.</span>
+    <span class="sep">·</span>
+    <span><b>초록 「전송됨」 배지</b>가 있는 항목만 실제로 마켓에 나갑니다
+      <span class="qi" title="배지가 없는 항목은 채워 두면 저장은 되지만 아직 마켓으로 나가지 않습니다 — 배지에 마우스를 올리면 그 항목이 어디로 어떻게 나가는지 알려 줍니다.">?</span></span>
+    {% if not is_common %}
+    {% set sm = summary[market] %}
+    <span class="sep">·</span>
+    <span class="lb">공통 불러오기</span>
+    <span class="qi" title="「전체 불러오기」는 「마켓 공통」에 채워 둔 항목만 이 마켓에 덮어씁니다 — 여기서 고친 값이 있으면 사라집니다. 공통에 없는 항목은 그대로 둡니다.">?</span>
+    <span>{% if sm.state == 'common' and sm.at %}마지막으로 불러온 때 · {{ sm.at.strftime('%m월 %d일 %H:%M') }}
+      {% elif sm.state == 'own' %}이 마켓에서 직접 고친 값입니다
+      {% else %}아직 불러온 적이 없습니다{% endif %}</span>
+    <button class="btn2 ghost" id="pullAll" type="button">전체 불러오기</button>
     {% endif %}
-    배지에 마우스를 올리면 마켓 문서 원문이 그대로 보입니다.
   </div>
-  {% endif %}
 
   {% for it in items %}
   {% set saved = values.get(it.key) %}
@@ -512,45 +496,58 @@
         {% if f.policy %}<b>정책 {{ f.policy }}</b> / {% endif %}실제 <b>{{ f.actual }}</b>
       </span>
       {% endfor %}
-      {# ── 이 마켓이 요구하는가 — 마켓 상품등록 문서에 그렇게 적힌 것만 붙인다.
-         「마켓 공통」 탭에는 req 가 비어 있어 아무것도 안 뜬다(어느 마켓 기준인지
-         정해지지 않아 말할 수 없다). 근거·사유는 마우스를 올리면 보인다. #}
+      {# ── [2026-08-19 2차 확정] 접힌 줄엔 "필수인데 비었음" 경고 하나만 ──────────
+         🔴 1차 정리(정렬+묶음)까지 했는데도 라이브 실측에서 사장님이 다시 짚었다 —
+           「필수」·「없음」 배지가 둘 다 빨간 계열이라 헷갈리고, 줄마다 배지가
+           최대 6개까지 붙어 여전히 촘촘하다. 「평소에 제일 많이 보는 건 필수인데
+           비었다는 경고뿐」이라는 답을 받아, 나머지(전송여부·출처·저장여부·
+           공통 불러오기)는 펼쳐야 보이는 자리(.it-b 의 .statusrow)로 옮겼다. #}
       {% set rq = req.get(it.key) %}
-      {% if rq %}
-        {% if rq.state == 'required' %}
-        <span class="req must" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">필수</span>
-        {% elif rq.state == 'conditional' %}
-        <span class="req cond" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">조건부</span>
-        {% elif rq.state == 'unknown' %}
-        <span class="req unk" title="{{ rq.note }}">확인 불가</span>
-        {% endif %}
+      {% if rq and rq.state == 'required' and not saved %}
+      <span class="reqwarn" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">⚠ 필수인데 비어 있음</span>
       {% endif %}
-      {# 지금 이 값이 실제로 마켓까지 가는가. 가는 것에만 붙인다 —
-         13항목 중 11개에 회색 배지를 달면 화면이 경고로 뒤덮인다(위 안내 한 줄로 갈음). #}
-      {% if wire.get(it.key) and wire[it.key].state == 'wired' %}
-      <span class="wire on" title="{{ wire[it.key].note }}">전송됨</span>
-      {% elif wire.get(it.key) and wire[it.key].note != stored_only_note %}
-      {# [2026-08-13] 「저장만」인데 **사연이 따로 있는** 항목만 배지를 단다.
-         🔴 저장만 항목 전부에 달면 화면이 회색 배지로 뒤덮여 아무도 안 읽는다.
-           그렇다고 안 달면, 이미지처럼 **반쪽은 실제로 작동하는** 항목을
-           사장님이 「아무것도 안 한다」고 오해한다(제외 브랜드가 전송을 막는데도).
-           그래서 「기본 설명과 다른 사연이 있는 것」만 예외로 보여준다. #}
-      <span class="wire half" title="{{ wire[it.key].note }}">일부만</span>
-      {% endif %}
-      {% if not is_common %}
-      {# 이 값이 어디서 왔나 — 공통에서 받았는지 여기서 고쳤는지 #}
-      <span class="src {{ origin.get(it.key) or 'none' }}">
-        {% if origin.get(it.key) == 'common' %}공통
-        {% elif origin.get(it.key) == 'own' %}직접
-        {% else %}없음{% endif %}
-      </span>
-      <button class="btnsm pull-one" type="button" data-item="{{ it.key }}"
-              onclick="event.stopPropagation()">공통 불러오기</button>
-      {% endif %}
-      <span class="set {{ 'y' if saved else 'n' }}">{{ '정함' if saved else '안 정함' }}</span>
       <span class="chev">›</span>
     </div>
     <div class="it-b">
+      {# ── 지금 상태 + 액션 — 펼쳐야 보인다(2026-08-19 2차 확정). 왼쪽 「지금 상태」
+         묶음 / 오른쪽 「액션 + 저장여부」 묶음은 그대로 유지 — 자리만 옮겼다. #}
+      <div class="statusrow">
+        <span class="stgrp">
+        {# ── 이 마켓이 요구하는가 — 마켓 상품등록 문서에 그렇게 적힌 것만 붙인다.
+           「마켓 공통」 탭에는 req 가 비어 있어 아무것도 안 뜬다(어느 마켓 기준인지
+           정해지지 않아 말할 수 없다). 근거·사유는 마우스를 올리면 보인다. #}
+        {% if rq %}
+          {% if rq.state == 'required' %}
+          <span class="req must" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">필수</span>
+          {% elif rq.state == 'conditional' %}
+          <span class="req cond" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">조건부</span>
+          {% elif rq.state == 'unknown' %}
+          <span class="req unk" title="{{ rq.note }}">확인 불가</span>
+          {% endif %}
+        {% endif %}
+        {# 지금 이 값이 실제로 마켓까지 가는가. 가는 것에만 붙인다 —
+           13항목 중 11개에 회색 배지를 달면 화면이 경고로 뒤덮인다(위 안내 한 줄로 갈음). #}
+        {% if wire.get(it.key) and wire[it.key].state == 'wired' %}
+        <span class="wire on" title="{{ wire[it.key].note }}">전송됨</span>
+        {% elif wire.get(it.key) and wire[it.key].note != stored_only_note %}
+        {# [2026-08-13] 「저장만」인데 **사연이 따로 있는** 항목만 배지를 단다.
+           🔴 저장만 항목 전부에 달면 화면이 회색 배지로 뒤덮여 아무도 안 읽는다.
+             그렇다고 안 달면, 이미지처럼 **반쪽은 실제로 작동하는** 항목을
+             사장님이 「아무것도 안 한다」고 오해한다(제외 브랜드가 전송을 막는데도).
+             그래서 「기본 설명과 다른 사연이 있는 것」만 예외로 보여준다. #}
+        <span class="wire half" title="{{ wire[it.key].note }}">일부만</span>
+        {% endif %}
+        </span>
+        {# ── [2026-08-20 3차 확정] 「공통/직접/없음」·「정함/안 정함」 배지 삭제 ──────
+           마켓 탭에 이미 같은 정보(직접·2/16)가 있고, 필수 항목은 위 접힌 줄의
+           「⚠ 필수인데 비어 있음」이 이미 알려준다 — 항목마다 또 달면 중복이었다.
+           남는 것은 「공통 불러오기」 버튼뿐(액션이라 정보 배지와 다르다). #}
+        {% if not is_common %}
+        <span class="acgrp">
+        <button class="btnsm pull-one" type="button" data-item="{{ it.key }}">공통 불러오기</button>
+        </span>
+        {% endif %}
+      </div>
       {% if it.note %}<div class="it-note">{{ it.note }}</div>{% endif %}
       {% if it.key == 'price' %}
       {# ── 판매가 전용 (확정 G1·I2·J3·K3) ──────────────────────────────
@@ -884,6 +881,61 @@
   </div>
   {% endfor %}
 
+  {# ── [2026-08-13 사장님 확정 A1] 정해져 나가는 값 — 접힌 줄 하나 ────────────
+     [2026-08-19 확정 시안 2] 항목 목록을 다 보신 **다음**에 「결과적으로
+     이렇게 나간다」를 보시도록 맨 아래(저장 바로 위)로 옮기고, 이름도
+     「정책 설정 요약」으로 바꿨다 — 원래 자리(맨 위)에 있으면 사장님이 고르는
+     정책 항목처럼 보여 「고쳤는데 왜 안 먹지」가 됐었다.
+     [2026-08-19 2차 확정] 🔴 여기 있는 값이 **전부** 「사장님이 못 고치는 값」은
+       아니었다 — 절반(policy_wins=True)은 「정책에서 안 정하면 쓰는 기본값」이라
+       배송 항목 등에서 정하면 그 값이 이긴다. 이름을 「요약」으로 바꾼 뒤로 이
+       구분이 더 안 보였다는 실측 지적을 받아, 두 묶음으로 갈라 보여준다.
+     ★ 목록은 사람이 여기 적지 않는다 — `policy/fixed_sends.py` 가 원천이고,
+       그 표가 등록 코드와 갈리지 않는지는 시험이 코드 원본을 읽어 대조한다. #}
+  {% if fixed %}
+  {% if fixed.checked %}
+  {% set fixed_default = fixed.rows|rejectattr('policy_wins')|list %}
+  {% set fixed_fallback = fixed.rows|selectattr('policy_wins')|list %}
+  <details class="fx">
+    <summary class="fx-h">정책 설정 요약
+      <span class="n">{{ fixed.rows|length }}</span></summary>
+    {% if fixed_default %}
+    <div class="fx-group">
+      <div class="fx-group-t">무조건 이 값이 나갑니다 — 사장님이 못 고칩니다</div>
+      <table class="fxt">
+        {% for r in fixed_default %}
+        <tr>
+          <td class="lb">{{ r.label }}</td>
+          <td class="vl">{{ r.value }}</td>
+          <td class="no">{{ r.note }}</td>
+          <td class="src">{{ r.where }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+    {% if fixed_fallback %}
+    <div class="fx-group">
+      <div class="fx-group-t wins">정책에서 안 정하면 이 값이 나갑니다 — 정하면 그 값이 이깁니다</div>
+      <table class="fxt">
+        {% for r in fixed_fallback %}
+        <tr>
+          <td class="lb">{{ r.label }}</td>
+          <td class="vl">{{ r.value }}</td>
+          <td class="no">{{ r.note }}</td>
+          <td class="src">{{ r.where }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+  </details>
+  {% else %}
+  <div class="fx-none">이 마켓에 <b>무엇이 정해져 나가는지 아직 확인하지 못했습니다</b> —
+    {{ fixed.reason }}</div>
+  {% endif %}
+  {% endif %}
+
   {% if is_common %}
   {# 넣을 마켓 고르기 — 「직접」인 마켓을 고르면 그 마켓이 고쳐 둔 값이 사라진다. #}
   <div class="savebar" style="display:block;padding:12px 0 16px">
@@ -926,7 +978,7 @@
   </div>
   {% endif %}
 
-  {# [2026-08-01] 붙이기의 본자리는 사이드바 「🧩 상품 정책 적용」이다.
+  {# [2026-08-01] 붙이기의 본자리는 사이드바 「🧩 정책 매칭」이다.
      여기 남긴 것은 **이 정책에 빨리 붙일 때**만 쓰는 지름길 — 같은 일을 두 화면이
      하니, 어느 쪽이 본자리인지 화면이 말해 준다. #}
   <div class="card">
@@ -934,7 +986,7 @@
       color:var(--sub,#8B95A1)">— 빠른 길</span></div>
     <div class="card-d">상품 하나에 정책 하나가 붙습니다.
       브랜드로 걸러내며 여러 정책을 견주려면 <a href="/policies/apply"
-      style="color:var(--primary,#3182F6);font-weight:700">🧩 상품 정책 적용</a> 화면이 편합니다.</div>
+      style="color:var(--primary,#3182F6);font-weight:700">🧩 정책 매칭</a> 화면이 편합니다.</div>
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <input id="bq" placeholder="상품 이름·번호·브랜드로 찾기"
              style="flex:1;min-width:220px;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;font-size:12px;font-family:inherit">
@@ -1236,59 +1288,34 @@ document.getElementById('apply').addEventListener('click', async () => {
   else { am.className = 'msg err'; am.textContent = j.error; }
 });
 
-/* ── 「이 정책으로 계산하면」 ─────────────────────────────────────────────
-   🔴 보여주기만 한다. 모르는 값은 「확인 불가」로 두고 0 으로 채우지 않는다.   */
-const pvSel = document.getElementById('pvModel');
-const pvBox = document.getElementById('pvBox');
-const pvRate = document.getElementById('pvRate');
+/* ── 즉시할인 미리보기가 쓸 기준 판매가 불러오기 ───────────────────────────
+   [2026-08-19] 「이 정책으로 계산하면」 카드는 사장님 확정으로 삭제했다. 다만
+   이 함수 자체는 남긴다 — 아래 즉시할인 미리보기(discPaint)가 여기서 구한
+   discBase 없이는 「깎으면 얼마」를 보여줄 수 없다(카드가 없어졌다고 다리까지
+   끊으면 즉시할인 미리보기가 조용히 멈춘다). 화면에 보여주던 표는 없앴고,
+   계산 결과만 즉시할인 쪽으로 넘기는 자리로 줄였다.
+   🔴 모르는 값은 「확인 불가」로 두고 0 으로 채우지 않는다. */
 const won = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
 
 async function pvLoad(model){
-  pvBox.textContent = '계산하는 중…';
   const q = new URLSearchParams({m: MARKET});
   if (model) q.set('model', model);
   let j;
   try { j = await (await fetch('/api/policies/' + PID + '/preview?' + q)).json(); }
-  catch(e){ pvBox.textContent = '계산하지 못했어요: ' + e.message; return; }
-
-  if (pvSel.options.length === 0 && (j.models || []).length){
-    pvSel.innerHTML = j.models.map(m =>
-      '<option value="' + m + '"' + (m === j.model_code ? ' selected' : '') + '>' + m + '</option>').join('');
-  }
-  pvRate.textContent = (j.rate != null) ? ('마진율 ' + j.rate + '%')
-    : (j.fixed ? ('고정 판매가 ' + won(j.fixed) + '원') : '');
+  catch(e){ discBase = null; discWhyNot = '판매가를 불러오지 못했어요.'; discPaint(); return; }
 
   if (!j.ok){
-    pvBox.innerHTML = '<span style="color:#B54708">' + (j.error || j.reason || '계산할 수 없어요') + '</span>';
     /* 🔴 여기서 멈출 때도 즉시할인 미리보기에 **왜 못 보여주는지**를 넘긴다.
-       안 넘기면 「먼저 눌러 주세요」가 그대로 남아, 눌렀는데도 안 눌렀다고
-       말하는 화면이 된다(사실과 다른 안내). */
+       안 넘기면 이유 없이 「미리 보여드릴 수 없습니다」만 남는다(사실과 다른 안내). */
     discBase = null; discWhyNot = j.error || j.reason || ''; discPaint();
     return;
   }
 
   const rows = j.rows || [];
   if (!rows.length){
-    pvBox.textContent = '이 상품에 옵션이 없어요.';
     discBase = null; discWhyNot = '이 상품에 옵션이 없어요.'; discPaint();
     return;
   }
-  const head = '<tr><th class="ta-l">옵션</th><th class="ta-r">최종매입가</th>'
-    + '<th class="ta-r">정책 판매가</th><th class="ta-r">지금 판매가</th><th class="ta-r">차이</th></tr>';
-  const body = rows.map(r => {
-    const d = r.diff;
-    const dc = (d == null) ? '#8B95A1' : (d > 0 ? '#15803D' : (d < 0 ? '#E5484D' : '#8B95A1'));
-    return '<tr><td class="ta-l">' + (r.color || '') + ' · ' + (r.size || '') + '</td>'
-      + '<td class="ta-r">' + (r.purchase == null
-          ? '<span style="color:var(--sub,#8B95A1)" title="혜택을 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>'
-          : won(r.purchase)) + '</td>'
-      + '<td class="ta-r"><b>' + won(r.policy_price) + '</b></td>'
-      + '<td class="ta-r" style="color:var(--sub,#8B95A1)">' + won(r.current_price) + '</td>'
-      + '<td class="ta-r" style="color:' + dc + '">' + (d == null ? '—' : (d > 0 ? '+' : '') + won(d)) + '</td></tr>';
-  }).join('');
-  pvBox.innerHTML = (j.reason ? '<div style="color:#B54708;margin-bottom:8px">' + j.reason + '</div>' : '')
-    + '<div style="overflow-x:auto"><table class="t" style="width:100%;border-collapse:collapse">'
-    + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
   /* [2026-08-06] 즉시할인 미리보기가 쓸 「기준 판매가」 —
      🔴 여기서 값을 새로 계산하지 않는다. 계산은 서버(preview)가 한 것 하나뿐이고,
        화면은 그 결과를 그대로 쓴다. 두 벌로 계산하면 반드시 갈린다. */
@@ -1317,7 +1344,7 @@ function discPaint(){
       ? '깎을 값을 적으면 여기서 미리 보여드립니다'
       : (discWhyNot
           ? ('미리 보여드릴 수 없습니다 — ' + discWhyNot)
-          : '위 「계산해 보기」를 먼저 누르면 실제 판매가로 보여드립니다');
+          : '판매가를 불러오는 중입니다…');
     return;
   }
   const after = (unit === 'PERCENT')
@@ -1336,9 +1363,7 @@ function discPaint(){
   const u = document.querySelector('[data-k="discount_unit"]');
   if (u) u.addEventListener('change', discPaint);
 }
-document.getElementById('pvGo').addEventListener('click', () => pvLoad(pvSel.value));
-pvSel.addEventListener('change', () => pvLoad(pvSel.value));
-pvLoad('');   /* 처음엔 상품 목록만 채운다(계산은 붙은 상품이 있을 때만 돈다) */
+pvLoad('');   /* 페이지를 열자마자 조용히 한 번 구해 즉시할인 미리보기 기준값을 채운다 */
 
 /* ══ 「마켓 공통」 넣기 · 불러오기 ══════════════════════════════════════
    공통은 따라다니지 않는다 — 넣는(또는 불러오는) 순간 값이 복사되고 끝난다. */

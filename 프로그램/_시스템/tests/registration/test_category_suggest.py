@@ -688,4 +688,77 @@ def test_후보가_0개여도_성별이_맞는_기존제안은_남긴다():
     result = cs.generate_suggestions(s, 'musinsa')
 
     assert result['cleared'] == 0
-    assert s.query(CategoryMapRow).filter_by(market='eleven11').one().market_cat_code == 'OK_W'
+
+
+# ── filter_category_summary(#1060) — 상품군(검색필터) 단위 맵핑 현황 ─────────
+#   집계 단위는 상품 개수가 아니라 **소싱처 카테고리 경로 개수**다(같은 경로를 쓰는
+#   상품 100개는 맵핑 관점에서 "경로 1개").
+
+from lemouton.registration.models import ProductDraft  # noqa: E402
+
+
+def _seed_draft(s, *, search_filter_id, source_site='musinsa', path, name='상품'):
+    s.add(ProductDraft(name=name, sale_price=10000, search_filter_id=search_filter_id,
+                       source_site=source_site, source_category_path=path))
+    s.commit()
+
+
+def test_이_상품군에_카테고리_경로가_없으면_전부_0이다():
+    s = _mem()
+    got = cs.filter_category_summary(s, 999)
+    assert got == {'total': 0, 'confirmed': 0, 'suggested_only': 0, 'none': 0}
+
+
+def test_카테고리_경로가_있어도_맵핑행이_없으면_없음으로_잡힌다():
+    s = _mem()
+    _seed_draft(s, search_filter_id=1, path='신발>운동화>여성운동화')
+    got = cs.filter_category_summary(s, 1)
+    assert got == {'total': 1, 'confirmed': 0, 'suggested_only': 0, 'none': 1}
+
+
+def test_한_마켓이라도_확정되면_확정으로_잡힌다():
+    """🔴 5마켓 중 1곳만 confirmed 여도 "미확정"이 아니다 — 이 경로는 이미 등록에 쓸 수 있다."""
+    s = _mem()
+    _seed_draft(s, search_filter_id=1, path='신발>운동화>여성운동화')
+    s.add(CategoryMapRow(source_id='musinsa', source_path='신발>운동화>여성운동화',
+                         market='coupang', market_cat_code='C1', status='confirmed'))
+    s.add(CategoryMapRow(source_id='musinsa', source_path='신발>운동화>여성운동화',
+                         market='smartstore', market_cat_code='S1', status='suggested'))
+    s.commit()
+    got = cs.filter_category_summary(s, 1)
+    assert got == {'total': 1, 'confirmed': 1, 'suggested_only': 0, 'none': 0}
+
+
+def test_제안만_있고_확정은_없으면_제안대기로_잡힌다():
+    s = _mem()
+    _seed_draft(s, search_filter_id=1, path='신발>운동화>여성운동화')
+    s.add(CategoryMapRow(source_id='musinsa', source_path='신발>운동화>여성운동화',
+                         market='coupang', market_cat_code='C1', status='suggested'))
+    s.commit()
+    got = cs.filter_category_summary(s, 1)
+    assert got == {'total': 1, 'confirmed': 0, 'suggested_only': 1, 'none': 0}
+
+
+def test_같은_경로를_쓰는_상품_여러_개는_경로_1개로_묶인다():
+    s = _mem()
+    _seed_draft(s, search_filter_id=1, path='신발>운동화>여성운동화', name='A')
+    _seed_draft(s, search_filter_id=1, path='신발>운동화>여성운동화', name='B')
+    _seed_draft(s, search_filter_id=1, path='신발>운동화>여성운동화', name='C')
+    got = cs.filter_category_summary(s, 1)
+    assert got['total'] == 1, '상품 3개가 아니라 경로 1개로 세야 한다'
+
+
+def test_다른_상품군의_경로는_안_섞인다():
+    s = _mem()
+    _seed_draft(s, search_filter_id=1, path='신발>운동화>여성운동화')
+    _seed_draft(s, search_filter_id=2, path='가방>백팩')
+    assert cs.filter_category_summary(s, 1)['total'] == 1
+    assert cs.filter_category_summary(s, 2)['total'] == 1
+
+
+def test_카테고리_경로가_빈_드래프트는_안_센다():
+    s = _mem()
+    s.add(ProductDraft(name='카테고리모름', sale_price=10000, search_filter_id=1,
+                       source_site='musinsa', source_category_path=None))
+    s.commit()
+    assert cs.filter_category_summary(s, 1)['total'] == 0

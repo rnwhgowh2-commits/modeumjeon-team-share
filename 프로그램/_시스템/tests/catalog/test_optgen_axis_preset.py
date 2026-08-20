@@ -9,6 +9,8 @@
   · 프리셋 밖의 축 구성은 받지 않는다.
   · 브랜드 없이는 못 만든다.
 """
+import uuid
+
 import pytest
 
 
@@ -21,7 +23,10 @@ def client():
 
 
 def _make(client, **kw):
-    body = {'name': '프리셋 검사함', 'brand': '르무통'}
+    # [2026-08-19 ui-verify 감사] 옵션함 이름이 겹치면 이제 두 번째부터 거절된다
+    #   (중복이름 저장 금지) — 이 파일의 시험 여럿이 같은 이름으로 이 창구를 부르므로
+    #   매번 다른 이름을 준다. 시험은 이름 값 자체를 검사하지 않는다.
+    body = {'name': f'프리셋 검사함 {uuid.uuid4().hex[:8]}', 'brand': '르무통'}
     body.update(kw)
     return client.post('/optgen/api/option-box', json=body)
 

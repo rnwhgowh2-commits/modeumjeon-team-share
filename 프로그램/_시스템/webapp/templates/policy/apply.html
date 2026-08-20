@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}정책 적용 — 모음전 자동화{% endblock %}
+{% block title %}정책 매칭 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-policy-apply">
   <style>
@@ -19,7 +19,7 @@
                 border:1px solid var(--line,#E5E8EB)}
     .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
 
-    /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 적용」 순서다. */
+    /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 매칭」 순서다. */
     .ap-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 
     /* ── [2026-08-12 · 사장님 확정 D3] 「① 상품 다음 ② 정책」 순서 느낌 ──────────
@@ -76,6 +76,108 @@
     .tag.no{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
     .tag.cur{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .tag.none2{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+
+    /* ── [이슈 #1058] 상품 고르기 8칸 확장 ─────────────────────────────── */
+    .ap-list td.wrap{white-space:normal}
+    .mtx-name{font-weight:700}
+    .mtx-no{color:var(--sub,#8B95A1);font-size:12px}
+    .mtx-axis{color:var(--글자-보조,#6B7684);font-size:12px;margin-top:2px}
+    .mtx-empty{color:var(--글자-주황,#B45309);font-size:12px}
+    .mtx-empty a{color:var(--primary,#3182F6);text-decoration:none;font-weight:700;margin-left:4px}
+    .prod-brand{color:var(--글자-보조,#6B7684);font-weight:400}
+    .prod-models{color:var(--sub,#8B95A1);font-size:12px;margin-top:2px}
+    .prod-code{color:var(--sub,#8B95A1);font-size:12px;margin-top:2px}
+
+    /* 소싱처·판매처 배지 — ② 축약 텍스트칩(2026-08-19 사장님 확정, 텍스트만·아이콘 없음) */
+    .site-grp{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:3px}
+    .site-grp:last-child{margin-bottom:0}
+    .site-chip{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;flex:none}
+    .site-chip.on{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .site-chip.off{background:var(--surface,#ffffff);color:var(--글자-희미,#C2C8CF);
+                   border:1px solid var(--n100,#EDEFF2)}
+
+    /* 정책 다중 배지 — ① 가로 나열(2026-08-19 사장님 확정) */
+    .pol-badges{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+
+    /* 수집 칸 — 시각 + 호버 트리거 */
+    .collect-cell{position:relative}
+    .collect-time{font-size:12px;color:var(--글자-기본,#4E5968);font-variant-numeric:tabular-nums;
+                  cursor:default;border-bottom:1px dashed var(--line,#D1D6DB);display:inline-block}
+    .collect-none{font-size:12px;color:var(--sub,#8B95A1)}
+
+    /* 호버카드 — ② 위아래 스택(2026-08-19 사장님 확정) */
+    .hv-card{position:fixed;z-index:99999;background:var(--surface,#ffffff);
+             border:1px solid var(--line,#E5E8EB);border-radius:10px;
+             box-shadow:0 8px 24px rgba(0,0,0,.14);padding:14px;width:340px;font-size:12px}
+    .hv-title{font-size:11px;font-weight:700;color:var(--sub,#8B95A1);margin-bottom:6px}
+    .hv-sec + .hv-sec{margin-top:12px;padding-top:12px;border-top:1px solid var(--n100,#F2F4F6)}
+    .hv-row{display:flex;justify-content:space-between;padding:3px 0;color:var(--글자-기본,#4E5968)}
+    .hv-row .t{color:var(--sub,#8B95A1);font-variant-numeric:tabular-nums}
+    .hv-empty{color:var(--sub,#8B95A1);padding:6px 0}
+    .hv-table{width:100%;border-collapse:collapse;font-size:11.5px}
+    .hv-table th{background:var(--n100,#F7FAFF);padding:4px 6px;text-align:right;font-weight:700;
+                 color:var(--글자-보조,#6B7684)}
+    .hv-table th:first-child{text-align:left}
+    .hv-table td{padding:4px 6px;text-align:right;border-bottom:1px solid var(--n100,#F5F6F8);
+                 font-variant-numeric:tabular-nums}
+    .hv-table td:first-child{text-align:left;font-variant-numeric:initial}
+
+    /* 필터 — ① 토글칩 통일형(브랜드 칩과 같은 chip2, 2026-08-19 사장님 확정) */
+    .ap-status{padding:0 16px 10px;display:flex;gap:6px;flex-wrap:wrap}
+
+    /* ── [#1059] 정책 고르기 — 카드형(A3 좌측 아이콘 강조 + B2 상태 아이콘 + D3 잠금) ── */
+    .polcards{display:flex;flex-direction:column;gap:10px;padding:12px 16px}
+    .polcard{display:flex;gap:12px;padding:13px 14px;border:1.5px solid var(--line,#E5E8EB);
+         border-radius:12px;cursor:pointer;position:relative;background:var(--surface,#ffffff)}
+    .polcard:hover{border-color:var(--primary,#3182F6)}
+    .polcard:has(input:checked){border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF)}
+    .polcard input[type=radio]{position:absolute;top:13px;right:13px;margin:0}
+    .pc-ava{width:38px;height:38px;border-radius:50%;flex:none;display:flex;align-items:center;
+         justify-content:center;font-size:14px;font-weight:800;color:#fff}
+    .pc-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-right:26px}
+    .pc-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .pc-nm{font-size:13.5px;font-weight:800;color:var(--ink,#191F28)}
+    .pc-lock{font-size:11px;font-weight:800;color:var(--글자-주황,#92400E);
+         background:var(--연한-주황,#FFFBEB);border-radius:6px;padding:1px 7px;white-space:nowrap}
+    .pc-mk{display:flex;flex-wrap:wrap;gap:4px}
+    /* [#1072] 내보낼 마켓 — 활성화 초록/비활성화 회색, 전 마켓을 다 보여준다
+       (켠 것만 보이면 「몇 개 중 몇 개가 켜졌는지」를 알 수 없다). */
+    .mkbadge{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
+    .mkbadge.on{background:#E7F7EE;color:#15803D}
+    .mkbadge.off{background:#F2F4F6;color:#8B95A1}
+    .pc-st{display:flex;flex-wrap:wrap;gap:5px}
+    .pc-stchip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;
+         border-radius:999px;padding:1px 8px 1px 6px;white-space:nowrap}
+    .pc-stchip .pc-sticon{width:14px;height:14px;border-radius:50%;display:inline-flex;
+         align-items:center;justify-content:center;font-size:9px;color:#fff;flex:none}
+    .pc-stchip.sale{background:rgba(52,199,89,.10);color:#1D7A3D}
+    .pc-stchip.sale .pc-sticon{background:#15803D}
+    .pc-stchip.mid{background:rgba(0,113,227,.10);color:#0066CC}
+    .pc-stchip.mid .pc-sticon{background:#0066CC}
+    .pc-stchip.wait{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+    .pc-stchip.wait .pc-sticon{background:#9CA3AF}
+    .pc-foot{display:flex;align-items:center;gap:10px;margin-top:2px}
+    .pc-applied{font-size:12px;color:var(--글자-파랑,#1B64DA);font-weight:700;cursor:default}
+    .pc-edit{font-size:12px;color:var(--sub,#8B95A1);text-decoration:none;margin-left:auto}
+    .pc-edit:hover{color:var(--primary,#3182F6)}
+    .polcard.locked{opacity:.7;cursor:default}
+    .polcard.locked:hover{border-color:var(--line,#E5E8EB)}
+    .polcard.locked .pc-gocreate{margin-left:auto;text-decoration:none}
+
+    /* 적용 상품 호버 카드 — hover-info-card 표준(body+fixed·닫기250ms·열기140ms·
+       카드진입시취소·오른쪽정렬+위로뒤집기). 정본 = policy/index.html 의 hvArm/hvShow. */
+    .pop{display:none;position:fixed;z-index:99999;background:var(--surface,#ffffff);
+         border:1px solid #d1d6db;border-radius:14px;padding:12px 14px;width:260px;
+         max-height:60vh;overflow-y:auto;box-shadow:0 10px 26px rgba(0,0,0,.18);
+         cursor:default;font-size:12px}
+    .pop.on{display:block}
+    .pop .pop-h{font-size:12.5px;font-weight:800;margin-bottom:8px}
+    .pop .pop-cnt{font-weight:600;color:var(--sub,#8B95A1);font-size:11px}
+    .pop .pop-row{padding:4px 0;border-bottom:1px solid var(--n100,#F2F4F6)}
+    .pop .pop-row:last-of-type{border-bottom:0}
+    .pop .pop-row a{color:var(--ink,#191F28);text-decoration:none;font-weight:600}
+    .pop .pop-row a:hover{color:var(--primary,#3182F6)}
+    .pop .pop-more{margin-top:6px;font-size:11px;color:var(--sub,#8B95A1)}
 
     /* 붙이는 줄 — 화면 아래 고정. 고른 걸 잊지 않게 계속 보인다. */
     .ap-go{position:sticky;bottom:0;z-index:5;margin-top:16px;
@@ -140,7 +242,7 @@
   </style>
 
   <div class="ap-head">
-    <h1>정책 적용</h1>
+    <h1>정책 매칭</h1>
   </div>
   <div class="ap-desc">왼쪽에서 상품을 고르고, 오른쪽에서 정책을 골라 한 번에 붙입니다.</div>
   <div class="msg" id="msg"></div>
@@ -164,14 +266,21 @@
                value="{{ pick_q|default('', true) }}">
         <button class="btn2 ghost" id="mall" type="button">보이는 것 전부</button>
       </div>
+      <div class="ap-status" id="mstatus">
+        <button class="chip2 on" data-applied="">전체</button>
+        <button class="chip2" data-applied="yes">매칭됨</button>
+        <button class="chip2" data-applied="no">매칭 안 됨</button>
+      </div>
       <div class="chips" id="mbrands"></div>
       <div class="ap-list">
         <table>
           <thead><tr>
-            <th style="width:34px"></th><th>상품</th><th>브랜드</th><th>지금 붙은 정책</th>
+            <th style="width:34px"></th><th style="width:30px">NO</th><th>상품</th>
+            <th>옵션매트릭스</th><th>소싱처</th><th>정책</th><th>판매처</th>
+            <th>소싱처 수집</th><th>판매처 수집</th>
           </tr></thead>
           <tbody id="mlist">
-            <tr><td colspan="4" class="ap-empty">불러오는 중…</td></tr>
+            <tr><td colspan="9" class="ap-empty">불러오는 중…</td></tr>
           </tbody>
         </table>
       </div>
@@ -195,28 +304,60 @@
         {% endfor %}
       </div>
       <div class="ap-list">
-        <table>
-          <thead><tr>
-            <th style="width:34px"></th><th>정책</th><th>가격</th>
-            <th class="num">붙은 상품</th>
-          </tr></thead>
-          <tbody id="plist">
-            {% for p in policies %}
-            <tr data-brand="{{ p.brand }}" data-name="{{ p.name|lower }}">
-              <td><input type="radio" name="pol" value="{{ p.id }}" data-nm="{{ p.name }}"></td>
-              <td><a href="/policies/{{ p.id }}" style="color:inherit;font-weight:700">{{ p.name }}</a>
+        <div class="polcards" id="plist">
+          {% for p in policies %}
+          {% set initial = (p.brand or p.name or '?')[0] %}
+          <label class="polcard {{ 'locked' if not p.usable else '' }}"
+                 data-brand="{{ p.brand }}" data-name="{{ p.name|lower }}">
+            <input type="radio" name="pol" value="{{ p.id }}" data-nm="{{ p.name }}"
+                   {% if not p.usable %}disabled{% endif %}>
+            <span class="pc-ava" style="background:{{ ['#7C6FF0','#0EA5A4','#DB2777','#6366F1','#B45309','#475569'][(p.brand or p.name)|length % 6] }}">{{ initial }}</span>
+            <span class="pc-body">
+              <span class="pc-top">
+                <span class="pc-nm">{{ p.name }}</span>
                 {% if p.is_default %}<span class="tag def">기본</span>{% endif %}
-                {% if p.brand %}<span class="tag br">{{ p.brand }}</span>{% endif %}</td>
-              <td>{% if p.ready %}<span class="tag cur">쓸 수 있음 {{ p.ready|length }}마켓</span>
-                  {% else %}<span class="tag no">아직 못 씀</span>{% endif %}</td>
-              <td class="num">{{ p.applied }}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="4" class="ap-empty">아직 정책이 없어요.
-              오른쪽 위 「정책 만들러 가기」에서 먼저 만들어 주세요.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+                {% if p.brand %}<span class="tag br">{{ p.brand }}</span>{% endif %}
+                {% if not p.usable %}<span class="pc-lock">🔒 미완성</span>{% endif %}
+              </span>
+              <span class="pc-mk">
+                {% for m in market_keys %}<span class="mkbadge {{ 'on' if m in p.enabled else 'off' }}">{{ market_label[m] }}</span>{% endfor %}
+              </span>
+              {% if p.enabled %}
+              <span class="pc-st">
+                {% for m in p.enabled %}
+                <span class="pc-stchip {{ p.status[m] }}">
+                  <i class="pc-sticon">{% if p.status[m] == 'sale' %}✓{% elif p.status[m] == 'mid' %}◐{% else %}○{% endif %}</i>{{ market_label[m] }}
+                </span>
+                {% endfor %}
+              </span>
+              {% endif %}
+              <span class="pc-foot">
+                {% if p.usable %}
+                <span class="pc-applied hv" data-hvkey="ap{{ p.id }}">적용 상품 {{ p.applied_info.total }}개</span>
+                <template class="pc-pophtml" data-hvkey="ap{{ p.id }}">
+                  <div class="pop-h">적용 상품 <span class="pop-cnt">{{ p.applied_info.total }}개{% if p.applied_info.total > p.applied_info.sample|length %} 중 대표 {{ p.applied_info.sample|length }}개{% endif %}</span></div>
+                  {% for it in p.applied_info.sample %}
+                  <div class="pop-row"><a href="/policies/product/{{ it.model_code|urlencode }}">{{ it.no or it.model_code }} {{ it.name }}</a></div>
+                  {% else %}
+                  <div class="pop-row">적용 상품이 없어요</div>
+                  {% endfor %}
+                  {% if p.applied_info.total > p.applied_info.sample|length %}
+                  <div class="pop-more">이 외 {{ p.applied_info.total - p.applied_info.sample|length }}개 더 있어요</div>
+                  {% endif %}
+                </template>
+                <a href="/bundles?policy={{ p.id }}&pname={{ p.name|urlencode }}" class="pc-edit">상품관리에서 보기 →</a>
+                {% else %}
+                <a href="/policies/{{ p.id }}" class="btn2 ghost pc-gocreate">정책 생성으로 →</a>
+                {% endif %}
+              </span>
+            </span>
+          </label>
+          {% else %}
+          <div class="ap-empty">아직 정책이 없어요.
+            오른쪽 위 「정책 만들러 가기」에서 먼저 만들어 주세요.</div>
+          {% endfor %}
+        </div>
+        <div class="ap-empty" id="pnoneshown" style="display:none">찾는 정책이 없어요.</div>
       </div>
     </div>
   </div>
@@ -243,6 +384,8 @@
   /* 본문 글자 하한 14px (PC 는 12px) */
   .ap-desc, .warn, .msg, .ap-go .n { font-size: 14px; }
   .ap-list table { font-size: 14px; }
+  .polcard { font-size: 14px; }
+  .pc-nm { font-size: 14px; }
   /* 체크칸 — 16px 은 손끝에 너무 작다.
      [배치4a 검토] 화면 뿌리(#screen-policy-apply)로 못 박는다 — 맨몸 선택자면
      나중에 껍데기(mobile_shell)가 체크박스를 갖게 될 때 22px 을 물려받는다. */
@@ -264,11 +407,74 @@ const gmsg = document.getElementById('gmsg');
 const picked = new Set({{ (pick or [])|tojson }});   // 고른 상품
 const pickedSets = new Set();      // 고른 구성 — 구성이 2개 이상인 상품에서만 쓴다
 let curBrand = '';                 // 상품 쪽 브랜드 거르기
+let curApplied = '';               // [이슈 #1058] 정책 매칭 상태 거르기 — '' | 'yes' | 'no'
 let rows = [];
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ── [이슈 #1058] 소싱처·판매처 배지 — 축약 텍스트칩(② 2026-08-19 확정) ──────
+   전체 자리를 항상 다 그린다(연동 안 된 곳도 흐리게) — 사장님 확정.
+   짧은표시명: [서버가 주는 연동 라벨들] — 서버 라벨과 정확히 일치해야 켜진다. */
+const SOURCING_ROWS = [
+  ['롯데온', '롯데백화점', '롯데홈쇼핑', 'SSG', 'H몰', '더현대', 'GS샵'],
+  ['무신사', 'ABC마트', '29CM', 'Grandstage', 'SSF'],
+];
+const SRC_MATCH = {
+  '롯데온': ['롯데온'], '롯데백화점': [], '롯데홈쇼핑': ['롯데아이몰'],
+  'SSG': ['SSG'], 'H몰': ['H몰'], '더현대': [], 'GS샵': [],
+  '무신사': ['무신사'], 'ABC마트': [], '29CM': [], 'Grandstage': [], 'SSF': ['SSF샵'],
+};
+const SELLING_ROWS = [
+  ['쿠팡', '스스', '롯데온', '11번가', '옥션', 'G마켓'],
+  ['SSG', 'GS샵', '롯데홈쇼핑', 'H몰', 'CJ', 'SK'],
+];
+const SELL_MATCH = {
+  '쿠팡': ['쿠팡'], '스스': ['스마트스토어'], '롯데온': ['롯데온'], '11번가': ['11번가'],
+  '옥션': ['옥션'], 'G마켓': ['G마켓'],
+  'SSG': [], 'GS샵': [], '롯데홈쇼핑': [], 'H몰': [], 'CJ': [], 'SK': [],
+};
+
+function siteBadges(rowsDef, matchTable, connected) {
+  const got = new Set(connected || []);
+  return rowsDef.map((row) => '<div class="site-grp">' + row.map((name) => {
+    const on = (matchTable[name] || []).some((label) => got.has(label));
+    return '<span class="site-chip ' + (on ? 'on' : 'off') + '">' + esc(name) + '</span>';
+  }).join('') + '</div>').join('');
+}
+
+/* ── 옵션매트릭스 칸 — /optgen/box/<model_code> 는 상품관리·옵션매트릭스
+   화면이 이미 쓰는 「이 상품 옵션함으로」 진입로다(matrix/index.html · bundles/edit.html
+   과 같은 링크 그대로 재사용 — 있으면 편집, 없으면 만들기로 자연히 이어진다). */
+function matrixCell(mtx, code) {
+  const href = '/optgen/box/' + encodeURIComponent(code);
+  if (!mtx) {
+    return '<div class="mtx-empty">매트릭스 없음 <a href="' + href + '">만들기</a></div>';
+  }
+  return '<a href="' + href + '" style="color:inherit;text-decoration:none">'
+       + '<div class="mtx-name">' + esc(mtx.name) + '</div>'
+       + '<div class="mtx-no">' + esc(mtx.no || '') + '</div></a>'
+       + '<div class="mtx-axis">색상×사이즈 · SKU ' + mtx.sku_count + '개</div>';
+}
+
+/* ── 정책 다중 배지 — 가로 나열(① 2026-08-19 확정, 이름만) ─────────────── */
+function policyBadges(bundles, singlePolicy) {
+  const list = (bundles && bundles.length)
+    ? bundles.map((b) => b.policy).filter(Boolean)
+    : (singlePolicy ? [singlePolicy] : []);
+  if (!list.length) return '<span class="tag none2">미적용</span>';
+  return '<div class="pol-badges">'
+       + list.map((nm) => '<span class="tag cur">' + esc(nm) + '</span>').join('') + '</div>';
+}
+
+/* ── 소싱처·판매처 수집 칸 — 시각 + 호버 트리거 ──────────────────────── */
+function collectCell(iso, kind, code) {
+  if (!iso) return '<span class="collect-none">수집 기록 없음</span>';
+  const cls = kind === 'src' ? 'collect-src' : 'collect-sell';
+  return '<span class="collect-time ' + cls + '" data-code="' + esc(code) + '">'
+       + esc(iso.slice(0, 16).replace('T', ' ')) + '</span>';
 }
 
 /* ── 상품 목록 ────────────────────────────────────────────── */
@@ -286,78 +492,62 @@ function drawBrands(brands, total) {
   });
 }
 
-/* 정책 딱지 — 붙은 것 / 없는 것 */
-function polTag(name) {
-  return name ? '<span class="tag cur">' + esc(name) + '</span>'
-              : '<span class="tag none2">없음</span>';
-}
-
 /* 줄 끝 「⋯」 — 평소엔 아주 흐리다. 눌러야 메뉴가 뜬다. */
-function dots(code, setId) {
-  return '<span class="dots" data-menu="' + esc(code) + '"'
-       + (setId ? ' data-set="' + setId + '"' : '') + '>···</span>';
+function dots(code) {
+  return '<span class="dots" data-menu="' + esc(code) + '">···</span>';
 }
 
-/* 🔴 구성이 하나(또는 없는) 상품은 **오늘과 똑같이** 그린다.
-     구성이 2개 이상인 상품에서만 아래로 구성 줄이 펼쳐진다. */
+/* [이슈 #1058 · 2026-08-19 확정] 구성이 몇 개든 **항상 한 줄**로 그린다.
+   구성이 여럿일 때 「어느 구성에 새 정책을 갈아끼울지」는 줄 끝 ⋯ 메뉴에서 고른다
+   (표에 구성별 줄을 따로 안 둔다 — 예전엔 부모+자식 줄로 펼쳤었다). */
 function drawRows() {
   const tb = document.getElementById('mlist');
   if (!rows.length) {
-    tb.innerHTML = '<tr><td colspan="4" class="ap-empty">찾는 상품이 없습니다.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="9" class="ap-empty">찾는 상품이 없습니다.</td></tr>';
     upd();
     return;
   }
   const html = [];
-  rows.forEach((r) => {
+  rows.forEach((r, i) => {
     const bl = r.bundles || [];
-    const name = '<td><b>' + esc(r.no || r.model_code) + '</b>%TAG%'
-      + (r.no ? '<div style="font-size:12px;color:var(--sub,#8B95A1)">'
-                + esc(r.model_code) + '</div>' : '') + '</td>';
-    /* [2026-08-02 §4] 이 상품의 「가격 매기기」 조각으로 바로 — 붙인 정책이
-       실제로 얼마가 되는지 여기서 확인한다. 구성이 여럿이어도 상품 하나짜리 링크다. */
-    const priceLink = ' <a href="/policies/product/' + encodeURIComponent(r.model_code) + '"'
-      + ' style="font-size:12px;color:var(--글자-파랑,#3182F6);text-decoration:none;white-space:nowrap"'
-      + ' title="가격 템플릿·사올 때·팔 때·마켓 등록">가격 보기 →</a>';
-
-    if (bl.length >= 2) {
-      /* 구성이 여럿 — 정책이 구성마다 다를 수 있으니 상품 줄엔 값을 안 쓴다 */
-      html.push('<tr class="hasset"><td></td>'
-        + name.replace('%TAG%', '<span class="tag setn">구성 ' + bl.length + '개</span>')
-        + '<td>' + esc(r.brand || '') + '</td>'
-        + '<td class="endcell"><span class="tag br">구성마다 다름</span>' + priceLink
-        + dots(r.model_code) + '</td></tr>');
-      bl.forEach((b, i) => {
-        /* 마지막 구성 줄에 아래 선을 그어 덩어리를 닫는다 */
-        html.push('<tr class="sub' + (i === bl.length - 1 ? ' subend' : '') + '">'
-          + '<td><input type="checkbox" data-s="' + b.set_id + '"'
-          + (pickedSets.has(b.set_id) ? ' checked' : '') + '></td>'
-          + '<td class="ind2">└ <span class="comp">' + esc(b.name || '이름 없음') + '</span></td>'
-          + '<td></td><td class="endcell">' + polTag(b.policy)
-          + dots(r.model_code, b.set_id) + '</td></tr>');
-      });
-    } else {
-      html.push('<tr><td><input type="checkbox" data-c="' + esc(r.model_code) + '"'
-        + (picked.has(r.model_code) ? ' checked' : '') + '></td>'
-        + name.replace('%TAG%', '')
-        + '<td>' + esc(r.brand || '') + '</td>'
-        + '<td class="endcell">' + polTag(bl.length ? bl[0].policy : r.policy) + priceLink
-        + dots(r.model_code, bl.length ? bl[0].set_id : null) + '</td></tr>');
+    const models = (r.models_display || []).length ? r.models_display : null;
+    let modelLine = '';
+    if (models) {
+      const shown = models.slice(0, 8);
+      modelLine = '<div class="prod-models">' + esc(shown.join(' · '))
+        + (models.length > 8 ? ' …' : '') + '</div>';
     }
+    const nameCell = '<td class="wrap"><b>' + esc(r.name || r.no || r.model_code) + '</b>'
+      + (r.brand ? ' <span class="prod-brand">· ' + esc(r.brand) + '</span>' : '')
+      + modelLine
+      + '<div class="prod-code">' + esc(r.no || r.model_code) + '</div></td>';
+    /* 체크박스 — 구성이 2개 이상이면 「어느 구성?」이 애매해져 줄 자체를 못 고른다.
+       그 경우엔 ⋯ 메뉴로만 고른다(비워 둔 칸이 그 안내다). */
+    const checkCell = bl.length >= 2 ? '<td></td>'
+      : '<td><input type="checkbox" data-c="' + esc(r.model_code) + '"'
+        + (picked.has(r.model_code) ? ' checked' : '') + '></td>';
+    html.push('<tr data-code="' + esc(r.model_code) + '">'
+      + checkCell
+      + '<td class="num">' + (i + 1) + '</td>'
+      + nameCell
+      + '<td class="wrap">' + matrixCell(r.matrix, r.model_code) + '</td>'
+      + '<td>' + siteBadges(SOURCING_ROWS, SRC_MATCH, (r.sourcing || {}).connected) + '</td>'
+      + '<td class="endcell wrap">' + policyBadges(bl, r.policy) + dots(r.model_code) + '</td>'
+      + '<td>' + siteBadges(SELLING_ROWS, SELL_MATCH, (r.selling || {}).connected) + '</td>'
+      + '<td class="collect-cell">' + collectCell((r.sourcing || {}).collected_at, 'src', r.model_code) + '</td>'
+      + '<td class="collect-cell">' + collectCell((r.selling || {}).collected_at, 'sell', r.model_code) + '</td>'
+      + '</tr>');
   });
   tb.innerHTML = html.join('');
 
   tb.querySelectorAll('input[data-c]').forEach((c) => {
     c.onchange = () => { c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd(); };
   });
-  tb.querySelectorAll('input[data-s]').forEach((c) => {
-    const id = Number(c.dataset.s);
-    c.onchange = () => { c.checked ? pickedSets.add(id) : pickedSets.delete(id); upd(); };
-  });
   tb.querySelectorAll('.dots').forEach((d) => { d.onclick = () => openMenu(d); });
   upd();
 }
 
-/* ── 줄 끝 메뉴 (D2) ─────────────────────────────────────── */
+/* ── 줄 끝 메뉴 (D2 + 이슈 #1058 다중구성 확장) ─────────────────────────── */
 
 function closeMenu() {
   const old = document.querySelector('#mlist tr.menurow');
@@ -371,13 +561,28 @@ function openMenu(dot) {
   if (already) return;
   dot.classList.add('on');
   const code = dot.dataset.menu;
+  const r = rows.find((x) => x.model_code === code);
+  const bl = (r && r.bundles) || [];
   const tr = dot.closest('tr');
   const row = document.createElement('tr');
   row.className = 'menurow';
-  row.innerHTML = '<td colspan="4"><div class="menu">'
+  /* [2026-08-19 사장님 확정] 구성이 2개 이상이면 「OO구성에 갈아끼우기」를 구성마다 하나씩 —
+     표에서 사라진 구성별 체크박스를 여기서 대신한다(고르면 오른쪽 정책판이 그 구성용으로 켜진다). */
+  const items = bl.length >= 2
+    ? bl.map((b) => '<div class="mi" data-act="pick-set" data-set="' + b.set_id + '">'
+        + esc(b.name || '이름 없는 구성') + '에 갈아끼우기</div>').join('')
+    : '';
+  row.innerHTML = '<td colspan="9"><div class="menu">' + items
     + '<div class="mi" data-act="add">+ 정책 하나 더 붙이기 (구성 늘리기)</div>'
     + '<div class="mi" data-act="close">닫기</div></div></td>';
   tr.after(row);
+  row.querySelectorAll('[data-act="pick-set"]').forEach((mi) => {
+    mi.onclick = () => {
+      const id = Number(mi.dataset.set);
+      pickedSets.has(id) ? pickedSets.delete(id) : pickedSets.add(id);
+      closeMenu(); upd();
+    };
+  });
   row.querySelector('[data-act="add"]').onclick = () => { closeMenu(); openAdd(code); };
   row.querySelector('[data-act="close"]').onclick = closeMenu;
 }
@@ -387,8 +592,9 @@ function load() {
   const p = new URLSearchParams();
   if (q) p.set('q', q);
   if (curBrand) p.set('brand', curBrand);
+  if (curApplied) p.set('applied', curApplied);
   document.getElementById('mlist').innerHTML =
-    '<tr><td colspan="4" class="ap-empty">불러오는 중…</td></tr>';
+    '<tr><td colspan="9" class="ap-empty">불러오는 중…</td></tr>';
   fetch('/api/policies/bundles?' + p.toString())
     .then((r) => r.json())
     .then((j) => {
@@ -402,6 +608,18 @@ function load() {
 
 let t = null;
 document.getElementById('mq').oninput = () => { clearTimeout(t); t = setTimeout(load, 250); };
+
+/* [이슈 #1058] 정책 매칭 상태 필터 — 브랜드 칩과 같은 chip2 스타일(토글칩 통일형,
+   2026-08-19 확정) 로 이미 있는 필터와 헷갈리지 않게 통일한다. */
+document.querySelectorAll('#mstatus .chip2').forEach((c) => {
+  c.onclick = () => {
+    document.querySelectorAll('#mstatus .chip2').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+    curApplied = c.dataset.applied || '';
+    load();
+  };
+});
+
 document.getElementById('mall').onclick = () => {
   /* 구성이 여럿인 상품은 **구성을 전부** 고른다 — 상품코드로 고르면 구성에 안 붙는다 */
   rows.forEach((r) => {
@@ -418,16 +636,20 @@ function filterPolicies() {
   const kw = document.getElementById('pq').value.trim().toLowerCase();
   const on = document.querySelector('#pbrands .chip2.on');
   const wb = on ? (on.dataset.brand || '') : '';
-  document.querySelectorAll('#plist tr[data-name]').forEach((tr) => {
-    const b = tr.dataset.brand || '';
+  const cards = document.querySelectorAll('#plist .polcard[data-name]');
+  let shown = 0;
+  cards.forEach((card) => {
+    const b = card.dataset.brand || '';
     let show = true;
     if (wb === '__none__') show = !b;
     else if (wb) show = (b === wb);
-    if (show && kw) show = tr.dataset.name.indexOf(kw) >= 0;
-    tr.style.display = show ? '' : 'none';
-    /* 숨긴 줄이 골라져 있으면 푼다 — 안 보이는 게 붙으면 사고다 */
-    if (!show) { const r = tr.querySelector('input[type=radio]'); if (r) r.checked = false; }
+    if (show && kw) show = card.dataset.name.indexOf(kw) >= 0;
+    card.style.display = show ? '' : 'none';
+    if (show) shown++;
+    /* 숨긴 카드가 골라져 있으면 푼다 — 안 보이는 게 붙으면 사고다 */
+    if (!show) { const r = card.querySelector('input[type=radio]'); if (r) r.checked = false; }
   });
+  document.getElementById('pnoneshown').style.display = (cards.length && !shown) ? '' : 'none';
   upd();
 }
 document.getElementById('pq').oninput = filterPolicies;
@@ -441,6 +663,45 @@ document.querySelectorAll('#pbrands .chip2').forEach((c) => {
 document.querySelectorAll('#plist input[type=radio]').forEach((r) => {
   r.onchange = upd;
 });
+
+/* ── [#1059] 적용 상품 호버 카드 — hover-info-card 표준(정본: policy/index.html 의
+   hvArm/hvShow/hvDisarm/hvScheduleHide) 그대로. 내용은 서버가 미리 그려 둔
+   <template class="pc-pophtml"> 를 그대로 옮겨 붙인다(스크립트로 새로 만들지 않는다). */
+const OPEN_DELAY = 140, CLOSE_DELAY = 250, GAP = 7, EDGE = 8;
+const pop = document.body.appendChild(Object.assign(
+  document.createElement('div'), { className: 'pop' }));
+let openTimer = null, hideTimer = null, curKey = null;
+pop.addEventListener('mouseenter', () => { clearTimeout(hideTimer); hideTimer = null; });
+pop.addEventListener('mouseleave', hvScheduleHide);
+function hvScheduleHide() {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => { pop.classList.remove('on'); curKey = null; }, CLOSE_DELAY);
+}
+function hvShow(anchor, key) {
+  clearTimeout(hideTimer); hideTimer = null;
+  curKey = key;
+  const tpl = document.querySelector('template.pc-pophtml[data-hvkey="' + key + '"]');
+  if (!tpl) return;
+  pop.innerHTML = '';
+  pop.appendChild(tpl.content.cloneNode(true));
+  pop.classList.add('on');
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let left = r.right - w;
+  left = Math.max(EDGE, Math.min(left, innerWidth - w - EDGE));
+  let top = r.bottom + GAP;
+  if (top + h > innerHeight - EDGE) top = r.top - h - GAP;
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(EDGE, top) + 'px';
+}
+document.querySelectorAll('.pc-applied.hv').forEach((a) => {
+  a.addEventListener('mouseenter', () => {
+    if (curKey === a.dataset.hvkey) { clearTimeout(hideTimer); hideTimer = null; return; }
+    clearTimeout(openTimer);
+    openTimer = setTimeout(() => hvShow(a, a.dataset.hvkey), OPEN_DELAY);
+  });
+  a.addEventListener('mouseleave', () => { clearTimeout(openTimer); hvScheduleHide(); });
+});
+addEventListener('scroll', () => { pop.classList.remove('on'); curKey = null; }, { passive: true });
 
 /* ── 붙이기 ──────────────────────────────────────────────── */
 
@@ -473,7 +734,7 @@ function openAdd(code) {
   const r = rows.find((x) => x.model_code === code);
   const bl = (r && r.bundles) || [];
   /* 정책 고르는 칸은 오른쪽 목록에서 그대로 가져온다 — 원천이 하나여야 어긋나지 않는다 */
-  const opts = [...document.querySelectorAll('#plist input[type=radio]')]
+  const opts = [...document.querySelectorAll('#plist input[type=radio]:not(:disabled)')]
     .map((x) => '<option value="' + x.value + '">' + esc(x.dataset.nm) + '</option>').join('');
   if (!opts) { alert('먼저 정책을 만들어 주세요.'); return; }
 
@@ -564,6 +825,143 @@ document.getElementById('go').addEventListener('click', async () => {
     setTimeout(() => location.reload(), 800);
   } catch (e) { gmsg.className = 'msg err'; gmsg.textContent = e.message; }
 });
+
+/* ── [이슈 #1058] 소싱처·판매처 수집 호버카드 — 위아래 스택(② 2026-08-19 확정) ──
+   정본은 bundles/_matrix_v3.html 의 _pmFloat/_pmShowFloat/_pmScheduleHide 다.
+   그 파일은 이 화면에 안 실리므로 optgen/index.html 과 같은 규칙으로 옮겨 적는다
+   (모양·시간을 바꾸지 않는다). 지키는 여섯 가지:
+     ① 카드는 body 에 붙이고 창 기준(fixed) — 표 상자에 안 갇힌다
+     ② 앵커에서 나가면 250ms 뒤 닫는다 — 카드로 가는 손이 끊기지 않게
+     ③ 카드 안으로 들어오면 닫기를 취소, 나가면 다시 예약
+     ④ 오른쪽 끝 정렬 + 화면 아래를 넘으면 위로 뒤집기
+     ⑤ 구르면 닫는다(캡처) — fixed 좌표는 페이지를 안 따라간다
+     ⑥ 여는 데 140ms 지연 — 촘촘한 표 줄에서 지나가는 줄이 카드를 가로채지 않게 */
+(function () {
+  function fmtDate(iso) { return iso ? iso.slice(0, 16).replace('T', ' ') : '—'; }
+  function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
+
+  function srcCardHtml(d) {
+    if (!d) return '<div class="hv-empty">불러오는 중…</div>';
+    if (d.error) return '<div class="hv-empty">' + esc(d.error) + '</div>';
+    const hist = d.history || [], opts = d.options || [];
+    let h = '<div class="hv-sec"><div class="hv-title">과거 수집 이력 (최근순)</div>';
+    h += hist.length ? hist.map((r) => '<div class="hv-row"><span>'
+        + esc(r.note || (r.status === 'done' ? '정상' : r.status || '')) + '</span>'
+        + '<span class="t">' + fmtDate(r.at) + '</span></div>').join('')
+      : '<div class="hv-empty">아직 수집 기록이 없어요.</div>';
+    h += '</div><div class="hv-sec"><div class="hv-title">옵션별 가격 &amp; 재고</div>';
+    /* [사장님 2026-08-19] 표 순서 — 옵션 → 재고 → 가격 */
+    h += opts.length ? '<table class="hv-table"><thead><tr><th>옵션</th><th>재고</th><th>가격</th></tr></thead><tbody>'
+        + opts.map((o) => '<tr><td>' + esc([o.color, o.size].filter(Boolean).join(' ') || o.sku)
+            + '</td><td>' + num(o.stock) + '</td><td>' + num(o.price) + '</td></tr>').join('')
+        + '</tbody></table>'
+      : '<div class="hv-empty">옵션이 없어요.</div>';
+    return h + '</div>';
+  }
+
+  function sellCardHtml(d) {
+    if (!d) return '<div class="hv-empty">불러오는 중…</div>';
+    if (d.error) return '<div class="hv-empty">' + esc(d.error) + '</div>';
+    const hist = d.history || [];
+    const mkts = (d.markets || []).filter((m) => m.price != null);
+    let h = '<div class="hv-sec"><div class="hv-title">최근 동기화 (최근순)</div>';
+    h += hist.length ? hist.map((r) => '<div class="hv-row"><span>' + esc(r.label || r.market)
+        + '</span><span class="t">' + fmtDate(r.at) + '</span></div>').join('')
+      : '<div class="hv-empty">아직 동기화 기록이 없어요.</div>';
+    h += '</div><div class="hv-sec"><div class="hv-title">마켓별 판매가 &amp; 예상 마진</div>';
+    h += mkts.length ? '<table class="hv-table"><thead><tr><th>마켓</th><th>판매가</th><th>마진</th></tr></thead><tbody>'
+        + mkts.map((m) => '<tr><td>' + esc(m.label) + '</td><td>' + num(m.price) + '</td><td>'
+            + (m.margin_rate == null ? '—' : m.margin_rate + '%') + '</td></tr>').join('')
+        + '</tbody></table>'
+      : '<div class="hv-empty">아직 판매가를 낼 수 없어요.</div>';
+    return h + '</div>';
+  }
+
+  let _pmFloatEl = null, _pmHideTimer = null;
+  function _pmFloat() {
+    if (_pmFloatEl) return _pmFloatEl;
+    const el = document.createElement('div');
+    el.className = 'hv-card';
+    el.addEventListener('mouseenter', () => {
+      if (_pmHideTimer) { clearTimeout(_pmHideTimer); _pmHideTimer = null; }
+    });
+    el.addEventListener('mouseleave', _pmScheduleHide);
+    document.body.appendChild(el);
+    _pmFloatEl = el;
+    return el;
+  }
+  function _pmShowFloat(anchor, html) {
+    if (_pmHideTimer) { clearTimeout(_pmHideTimer); _pmHideTimer = null; }
+    const el = _pmFloat();
+    el.innerHTML = html;
+    el.classList.add('on');
+    const r = anchor.getBoundingClientRect();
+    const cw = el.offsetWidth, ch = el.offsetHeight;
+    let left = r.right - cw;
+    if (left + cw > window.innerWidth - 8) left = window.innerWidth - 8 - cw;
+    if (left < 8) left = 8;
+    let top = r.bottom + 7;
+    if (top + ch > window.innerHeight - 8) top = r.top - ch - 7;
+    if (top < 8) top = 8;
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+  }
+  function _pmScheduleHide() {
+    if (_pmHideTimer) clearTimeout(_pmHideTimer);
+    _pmHideTimer = setTimeout(() => { if (_pmFloatEl) _pmFloatEl.classList.remove('on'); }, 250);
+  }
+
+  let 열기 = null, 대기 = null, 지금앵커 = null;
+  const 열기지연 = 140;
+  const 곳간 = {}, 받는중 = {};
+
+  function 받아오기(kind, code, 그리기) {
+    const key = kind + ':' + code;
+    if (곳간[key]) { 그리기(); return; }
+    if (받는중[key]) return;
+    받는중[key] = true;
+    const url = '/api/policies/product/' + encodeURIComponent(code)
+      + (kind === 'src' ? '/sourcing-detail' : '/selling-detail');
+    fetch(url).then((r) => r.json())
+      .then((j) => { 곳간[key] = (j && j.ok) ? j : {error: '값을 불러오지 못했어요.'}; 그리기(); })
+      .catch((e) => { 곳간[key] = {error: '값을 불러오지 못했어요 — ' + (e && e.message || e)}; 그리기(); })
+      .finally(() => { 받는중[key] = false; });
+  }
+  function 예약취소() { if (열기) { clearTimeout(열기); 열기 = null; } 대기 = null; }
+  function 열자(a) {
+    지금앵커 = a;
+    const kind = a.classList.contains('collect-src') ? 'src' : 'sell';
+    const code = a.dataset.code;
+    const key = kind + ':' + code;
+    const render = kind === 'src' ? srcCardHtml : sellCardHtml;
+    _pmShowFloat(a, render(곳간[key]));
+    받아오기(kind, code, () => {
+      if (지금앵커 === a && _pmFloatEl && _pmFloatEl.classList.contains('on')) {
+        _pmShowFloat(a, render(곳간[key]));
+      }
+    });
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    const a = e.target.closest && e.target.closest('.collect-time');
+    if (!a || a === 대기) return;
+    예약취소();
+    const kind = a.classList.contains('collect-src') ? 'src' : 'sell';
+    받아오기(kind, a.dataset.code, () => {});
+    대기 = a;
+    열기 = setTimeout(() => { 대기 = null; 열기 = null; 열자(a); }, 열기지연);
+  });
+  document.addEventListener('mouseout', (e) => {
+    const a = e.target.closest && e.target.closest('.collect-time');
+    if (!a) return;
+    if (a === 대기) 예약취소();
+    _pmScheduleHide();
+  });
+  window.addEventListener('scroll', () => {
+    예약취소(); 지금앵커 = null;
+    if (_pmFloatEl) _pmFloatEl.classList.remove('on');
+  }, true);
+})();
 
 load();
 </script>

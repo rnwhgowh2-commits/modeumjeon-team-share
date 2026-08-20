@@ -47,18 +47,19 @@
       {% endif %}
     </div>
     {% if boxes %}
-    {# [2026-08-04 사장님 확정 E1+타이핑·C3] 왼쪽 서랍(검색+브랜드)이 표를 추리고,
-       줄 아무 데나 누르면 이어서 — 삭제는 「⋯」 안(실수 삭제 방지). #}
-    {# [2026-08-14 사장님 확정 1] 표 배치 **4안** — 일곱 칸 + 오른쪽 판.
-       칸을 하나 더 붙이므로 `og-w4` 를 같이 단다(격자 규칙은 CSS 쪽 주석에 까닭). #}
-    <div class="og-wrap og-w4">
-      <aside class="og-rail">
+    {# [2026-08-19 사장님 확정 B안] 왼쪽 서랍 → 위 가로 바(찾기·정렬·체크 2개
+       1단 + 브랜드 칩 2단). 표가 서랍 폭(230~520px)만큼 넓어진다.
+       🔴 이 마크업은 `og-topbar` 전용이다 — 상품 생성 탭의 왼쪽 서랍(`og-rail`)은
+          그대로 두고 손대지 않는다. 로직(JS)은 id/class 로만 걸려 있어 배치를
+          바꿔도 안 건드린다.
+          [이슈 #1081] 상품 생성 탭의 「어디까지 왔나」 판은 그 뒤 별도로 삭제됐다
+          (체크리스트 [1]번 확정) — 이 문단이 말하는 「그대로 둔다」는 og-rail
+          구조 얘기지 그 판 얘기가 아니다. #}
+    <div class="og-topbar">
+      <div class="og-topbar-row1">
         <input class="og-in og-find" id="og-find" autocomplete="off"
                placeholder="브랜드·매트릭스 이름으로 찾기">
-        <div class="og-rail-t">브랜드</div>
-        <div id="og-brands"></div>
         {# [2026-08-04 사장님 확정 B1] 정렬 — 정책 생성 서랍과 같은 문법 #}
-        <div class="og-rail-t">정렬</div>
         <select class="og-in og-sort" id="og-sort">
           <option value="new">최근 만든 순</option>
           <option value="name">이름 순</option>
@@ -87,7 +88,15 @@
           <span class="og-bc">{{ box_counts.made }}</span>
         </label>
         {% endif %}
-      </aside>
+      </div>
+      {# 브랜드 칩 — JS(`buildBrands()`)가 `.og-b` 로 그대로 채운다. 모양(가로 칩)만
+         `.og-topbar #og-brands` CSS 로 바꿨다 — 자바스크립트는 안 건드렸다. #}
+      <div class="og-topbar-row2" id="og-brands"></div>
+    </div>
+    {# [2026-08-14 사장님 확정 1] 표 배치 4안 — 일곱 칸 + 오른쪽 판.
+       [2026-08-19 사장님 확정 B안] 서랍 칸을 뺐으니 격자는 표+판 2칸이다
+       (CSS `.og-wrap.og-w4`). #}
+    <div class="og-wrap og-w4">
       <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
         {# ── [2026-08-14 사장님 확정 ① A안] 고른 줄 띠 — **표 바로 윗줄 한 줄** ──
@@ -116,20 +125,19 @@
              🔴 여기서 「전체」는 **지금 화면에 보이는 줄**뿐이다. 검색·브랜드·
                 「창고에만 있는 물건 보기」로 숨긴 줄까지 고르면 사장님이 **안 보이는
                 것을 지우게 된다.** 판정은 `og보이는체크()` 한 곳에만 있다. #}
+          {# [2026-08-19 사장님 확정] 칼럼 재구성 — 번호·이름·브랜드 3칸을 「옵션
+             매트릭스」 한 칸(2행)으로 합치고, SKU 구성수→옵션축(칩)으로, 맵핑·SKU
+             정보 상태 2칸을 걷어 SKU 연결상태·소싱처 2칸으로 바꾼다. 상태 칸은
+             그대로 두되 이 목록 한정으로 회색/초록(`direct_phase_cls`). #}
           <tr><th class="og-pick"><label><input type="checkbox" id="og-ckall"
                  aria-label="보이는 줄 모두 고르기"></label></th>
-            <th>옵션 매트릭스 번호</th>
-            <th>옵션 매트릭스 이름</th>
-            <th>브랜드</th>
+            <th class="og-ctr">NO</th>
+            <th>옵션 매트릭스</th>
             <th>모음전 구성</th>
-            <th class="og-num">SKU 구성수</th>
-            <th class="og-ctr">맵핑</th>
+            <th class="og-ctr">옵션축</th>
+            <th class="og-ctr">SKU 연결상태</th>
+            <th class="og-ctr">소싱처</th>
             <th class="og-ctr">상태</th>
-            {# [2026-08-14 사장님 확정 ㉯ D안] SKU 마다 붙는 번호 셋의 진척.
-               🔴 「상태」 칸에 끼워 넣지 않고 **열을 따로** 뺀다 — 상태는 「상품을 만들
-                  수 있나」이고 이건 「번호를 다 적었나」다. 서로 다른 물음이라 한 칸에
-                  두면 초록·회색이 섞여 어느 쪽 얘기인지 알 수 없다. #}
-            <th class="og-ctr">SKU 정보 상태</th>
             <th></th></tr>
           </thead>
           <tbody>
@@ -142,56 +150,62 @@
             <td class="og-pick"><label><input type="checkbox" class="og-bk"
                  data-code="{{ b.code }}" data-name="{{ b.name }}"
                  data-opts="{{ b.options }}" aria-label="{{ b.name }} 고르기"></label></td>
-            {# 번호 — 정본은 **매트릭스 번호**(`no`)다. 아직 매트릭스를 안 짠 줄
-               (재고관리로 들어온 창고 물건)에는 그 번호가 없다. 없는 것을 있는 척하지
-               않고 창고 번호를 보여 주되, 왜 다른지 마우스 설명으로 알린다. #}
-            <td class="mono og-no">{% if b.no %}{{ b.no }}{% else %}<span
-                title="아직 옵션 매트릭스를 안 짜서 매트릭스 번호가 없습니다 — 창고 번호를 보여 줍니다."
-                >{{ b.shown_code }}</span>{% endif %}{% if b.kind %}
-              {# 🔴 갈래를 모를 때(매트릭스가 없는 줄)는 배지를 아예 안 단다.
-                 「원본이 아니다 = 파생」으로 뭉개면 없는 사실을 화면이 지어낸다. #}
-              <span class="og-badge stgb wait og-kind"
-                    >{{ '원본' if b.kind == 'origin' else '파생' }}</span>{% endif %}</td>
-            <td class="og-name">{% if b.unbuilt %}<div class="ub-d-wrap"><span class="ub-d-cap"
-                title="재고관리에 낱개로만 등록되고, 아직 옵션 매트릭스로 안 짜인 SKU 입니다."
-                ><svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3.3" fill="none" stroke="currentColor"
-                stroke-width="1.1"/></svg>미구성 SKU</span><b title="{{ b.name }}">{{ b.name }}</b></div>
-              {% else %}<b title="{{ b.name }}">{{ b.name }}</b>{% endif %}</td>
-            <td>{{ b.brand or '—' }}</td>
+            <td class="og-ctr">{{ loop.index }}</td>
+            {# ── 옵션 매트릭스 (병합, 2행 압축) ──────────────────────────────
+               1행 = 이름(굵게, 미구성 SKU면 딱지도). 2행 = 매트릭스 번호 + 원본/
+               파생 표시 · 브랜드 · 모델명(모델모음전이면 최대 8개 나열, 그 이상은
+               「+N」 칩).
+               🔴 번호가 없는 줄(재고관리로 들어온 창고 물건)엔 창고 번호를 대신
+                  보여 주고 왜 다른지 마우스 설명으로 알린다 — 있는 척하지 않는다.
+               🔴 갈래(원본/파생)를 모를 때(매트릭스가 없는 줄)는 배지를 아예 안
+                  단다. 「원본이 아니다 = 파생」으로 뭉개면 없는 사실을 지어낸다. #}
+            <td class="og-name">
+              {% if b.unbuilt %}<div class="ub-d-wrap"><span class="ub-d-cap"
+                  title="재고관리에 낱개로만 등록되고, 아직 옵션 매트릭스로 안 짜인 SKU 입니다."
+                  ><svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3.3" fill="none" stroke="currentColor"
+                  stroke-width="1.1"/></svg>미구성 SKU</span><b title="{{ b.name }}">{{ b.name }}</b></div>
+              {% else %}<div><b title="{{ b.name }}">{{ b.name }}</b></div>{% endif %}
+              <div class="og-frac">{% if b.no %}{{ b.no }}{% else %}<span
+                  title="아직 옵션 매트릭스를 안 짜서 매트릭스 번호가 없습니다 — 창고 번호를 보여 줍니다."
+                  >{{ b.shown_code }}</span>{% endif %}{% if b.kind %}<span
+                  class="og-badge stgb wait og-kind"
+                  >{{ '원본' if b.kind == 'origin' else '파생' }}</span>{% endif -%}
+                {%- if b.brand %} · {{ b.brand }}{% endif -%}
+                {%- if b.model_names %} · {% for m in b.model_names[:8] -%}
+                  {{ m }}{% if not loop.last %}, {% endif -%}
+                {%- endfor %}{% if b.model_names | length > 8 %} <span
+                  class="axis-chip">+{{ b.model_names | length - 8 }}</span>{% endif -%}
+                {%- endif %}</div>
+            </td>
             <td>{% if b.moum_kind_label %}{{ b.moum_kind_label }}{% else %}<span
                 class="og-dash" title="아직 어떤 모음전인지 안 정했습니다.">—</span>{% endif %}</td>
-            <td class="og-num">{{ b.options }}<span class="단위">개</span></td>
-            {# 맵핑 — 🔴 「모른다」를 「0」이나 「미완료」로 뭉개지 않는다.
-               `complete` 가 None 인 자리는 둘뿐이고(소싱처 주소 0개 · SKU 0개),
-               둘 다 잴 대상이 없어 못 잰 것이라 「—」로 적고 까닭을 붙인다. #}
-            <td class="og-ctr">{% if b.map.complete is none %}<span class="og-dash"
-                title="{% if b.urls < 1 %}소싱처 주소가 0개라 이었는지 못 이었는지 판정할 수 없습니다.{% else %}SKU 가 0개라 이을 대상이 없어 판정할 수 없습니다.{% endif %}"
-                >—</span>{% else %}<span class="og-frac"
-                title="SKU {{ b.map.skus }}개 중 {{ b.map.skus_done }}개가 소싱처와 이어짐 · 소싱처 {{ b.map.sources }}곳 중 {{ b.map.sources_done }}곳 끝{% if b.map.over_total %}&#10;🔴 실제로 이어진 SKU 는 {{ b.map.over_total }}개로 분모보다 많습니다 — 옵션 수를 다시 세야 합니다.{% endif %}"
-                >{{ b.map.skus_done }}/{{ b.map.skus }}</span>{% endif %}</td>
-            {# 상태 — 🔴 이름과 색은 `readiness.PHASE_LABEL`·`PHASE_CLS` 에서만 온다.
-               여기에 글자를 또 적으면 한쪽만 고쳤을 때 화면마다 다른 말을 한다. #}
-            <td class="og-ctr"><span class="og-badge stgb {{ phase_cls[b.phase] }}"
+            {# 옵션축 — 축마다 서로 다른 값이 몇 개인지 칩으로. 축이 없으면 「—」.
+               🔴 [2026-08-19 사장님 지적] 칩이 3개(모델·색상·사이즈)로 늘어나면
+                  칸이 좁아 보였다 — `og-axiscell` 로 최소 폭을 확보한다. #}
+            <td class="og-ctr og-axiscell">{% if b.axis_pairs %}<span class="axis-chip-row">{% for aname, acnt in b.axis_pairs -%}
+                <span class="axis-chip">{{ aname }} <b>{{ acnt }}</b></span>
+                {%- endfor %}</span>{% else %}<span class="og-dash"
+                title="아직 축을 안 짰습니다.">—</span>{% endif %}</td>
+            {# SKU 연결상태 — 개수 배지 + 호버(SKU별 번호·브랜드·모델·색상·사이즈).
+               자료는 마우스를 올릴 때 `/optgen/api/sku-identity/<code>` 에서 받는다
+               (줄 수만큼 미리 조회하면 목록이 옵션함 수만큼 느려진다). #}
+            <td class="og-ctr og-skucell"><span class="og-idbadge" data-code="{{ b.code }}"
+                data-name="{{ b.name }}" tabindex="0"
+                title="마우스를 올리면 SKU별 정보가 보입니다">SKU <b>{{ b.options }}</b>개</span></td>
+            {# 소싱처 — 개수 배지 + 호버(소싱처별 URL·바로가기 + 맵핑 진척 요약).
+               맵핑 요약은 이미 목록이 센 값(`b.map`)을 그대로 쓴다 — 다시 안 센다. #}
+            <td class="og-ctr og-srccell"><span class="og-srcbadge" data-code="{{ b.code }}"
+                data-name="{{ b.name }}"
+                data-mapped="{% if b.map.complete is not none %}{{ b.map.skus_done }}/{{ b.map.skus }}{% endif %}"
+                data-labels='{{ b.sources | tojson | forceescape }}' tabindex="0"
+                title="마우스를 올리면 소싱처별 주소가 보입니다">소싱처 <b>{{ b.sources | length }}</b>곳</span></td>
+            {# 상태 — 🔴 이름은 `readiness.PHASE_LABEL` 한 곳에서만 온다. 색은 이
+               목록 한정으로 `direct_phase_cls`(회색/초록) — `phase_cls`(공용,
+               회색/파랑/초록)를 직접 바꾸면 「모음전 상품 생성」 탭의 3단계 막대가
+               같이 바뀌어 완료·상품생성됨이 둘 다 초록이 된다. #}
+            <td class="og-ctr"><span class="og-badge stgb {{ direct_phase_cls[b.phase] }}"
                 {%- if b.missing %} title="아직 안 된 것 — {{ b.missing | join(' · ') }}"{% endif %}
                 >{{ phase_label[b.phase] }}</span></td>
-            {# ── SKU 정보 상태 — 품번 · 바코드 · GTIN 을 **셋 따로** 놓고 각각 호버 ──
-               🔴 이름과 순서를 여기 적지 않는다 — `matrix/sku_info.FIELDS`·`LABELS`
-                  한 곳에서 온다(서버가 `sku_fields`·`sku_labels` 로 내려 준다).
-               🔴 못 세는 것은 **0 이 아니라 「—」** 다. SKU 가 0개면 분모가 없어
-                  「0/0 다 됐다」도 「하나도 안 했다」도 거짓이다. 0 으로 적으면
-                  사장님이 「지워졌다」로 읽는다. #}
-            <td class="og-ctr og-skucell">
-              <div class="og-sku3">
-                {%- for f in sku_fields %}
-                {%- set v = (b.sku_info or {}).get(f) %}
-                {%- if v is none %}<span class="og-dash"
-                    title="{{ sku_labels[f] }}를 셀 수 없습니다 — 이 묶음에 SKU 가 아직 없습니다.">{{ sku_labels[f] }} —</span>
-                {%- else %}<span class="og-skuh{% if v >= b.sku_info.total %} done{% endif %}"
-                     data-sku-code="{{ b.code }}" data-sku-field="{{ f }}" tabindex="0"
-                     >{{ sku_labels[f] }} {{ v }}/{{ b.sku_info.total }}</span>{% endif %}
-                {%- endfor %}
-              </div>
-            </td>
             <td class="og-ctr og-actcell og-icell">
               {# [확정 1] 나머지 값은 오른쪽 판에서 본다 — 줄을 누르는 것은 원래대로
                  「이어서 하기」라, 판을 여는 단추를 따로 둔다. #}
@@ -313,58 +327,28 @@
     {% if made %}
     <div class="og-made">
       <span class="og-made-t">✅ 「{{ made.no }}」 상품이 만들어졌어요{% if made.options %} — 옵션 {{ made.options }}개{% endif %}</span>
-      <span class="og-made-n">다음 단계: <b>상품 가공</b>에서 정책을 붙이면 마켓에 보낼 수 있어요.</span>
-      <a class="og-made-a" href="/policies/apply">🔧 상품 정책 적용으로 →</a>
+      <span class="og-made-n">다음 단계: <b>상품 정책화</b>에서 정책을 붙이면 마켓에 보낼 수 있어요.</span>
+      <a class="og-made-a" href="/policies/apply">🔧 정책 매칭으로 →</a>
       {% if made.code %}<a class="og-made-a ghost" href="/bundles/{{ made.code }}">만든 상품 보기</a>{% endif %}
     </div>
     {% endif %}
-    <div class="og-lh">어느 옵션 묶음으로 만들까요 <span class="og-cnt">{{ mats|length }}</span></div>
+    {# [이슈 #1074] 옵션 탭 "+ 옵션 매트릭스 생성"과 같은 자리·같은 모양의 진입점.
+       실제 만들기는 아래 표에서 고른 매트릭스로 하므로(og-pgo 재사용), 늘 보이되
+       하나도 안 골랐으면 안내만 한다 — 옵션 0개 상품은 목록에 못 뜨는 기존 규칙과
+       부딪치지 않기 위해 빈 상품은 만들지 않는다(사장님 확정). #}
+    <div class="og-lh">어느 옵션 묶음으로 만들까요 <span class="og-cnt">{{ mats|length }}</span>
+      <button class="og-new" type="button" id="pb-open">+ 새 상품 생성</button>
+    </div>
     {% if mats %}
     {# [2026-08-04 사장님 확정] 옵션 탭과 같은 표 규격 — 상태는 색 배지(마켓 상품
        찾기 표와 같은 규칙), 줄 누르면 격자로, 옵션 고치기는 「⋯」 안. #}
     <div class="og-wrap">
       <aside class="og-rail">
-        {# [2026-08-06 사장님 첫 지시 「사이드바에도 구분하자」] 상품관리와 같은 판. #}
-        <div class="stg-block" id="og-stages">
-          <div class="stg-head stg-row on" data-s="">
-            <span class="lb">어디까지 왔나</span><span class="n">전체 {{ mat_counts.all }}</span>
-          </div>
-          <div class="stg-bar">
-            {%- for st in stages %}<i class="g{{ st }}"
-              style="width:{{ (mat_counts['s' ~ st] * 100 / mat_counts.all)|round(1) if mat_counts.all else 0 }}%"></i>{% endfor -%}
-            {# 회색 토막 = 아직 상품이 아닌 옵션함 몫(위상 3종을 합친 수).
-               🔴 예전엔 「아직 상품 생성 안 함」 하나만 셌는데, 그러면 상품을 만든
-                  옵션함 줄이 막대 어디에도 안 들어가 막대와 목록의 합이 갈렸다. #}
-            <i class="g0" style="width:{{ (mat_counts.box * 100 / mat_counts.all)|round(1) if mat_counts.all else 0 }}%"></i>
-          </div>
-          {% for st in stages %}
-          <div class="stg-row t{{ st }}" data-s="{{ st }}">
-            <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ mat_counts['s' ~ st] }}</span>
-          </div>
-          {% endfor %}
-          {# [2026-08-14] 옵션함 갈래 = 위상(준비 미완료 / 준비 완료 / 상품 생성에 사용됨).
-             🔴 이름·색을 여기 적지 않는다 — `lemouton/matrix/readiness.py` 한 곳에서만 온다.
-                예전엔 「상품 만듦」·「아직 상품 생성 안 함」을 손으로 적어 뒀는데, 그 두
-                글자는 「상품을 만들었나」만 물어서 **아직 축도 안 짠 옵션함**과 **지금 바로
-                상품을 만들 수 있는 옵션함**이 화면에서 같은 글자로 보였다. #}
-          {# 판의 글자색도 배지와 **같은 갈래 이름**(wait·mid·sale)을 쓴다 —
-             같은 뜻이 판에서는 회색인데 표에서는 초록이면 화면이 두 말을 하는 셈이다. #}
-          {# 🔴 [2026-08-14 검수] **개수가 0인 위상 줄은 안 그린다** — 예전 이 자리의
-             「상품 만듦」 줄이 지키던 관례(`if mat_counts.made` 로 감쌌었다)를 되살린 것이다.
-             왜 되살리나. 없는 상태를 0으로 늘어놓으면 판이 「고를 수 있는 것」이 아니라
-             용어 사전이 된다(눌러도 0줄). 특히 「상품 생성에 사용됨 0」은 사장님 확정
-             (그 옵션함은 **옵션 생성 목록**에서 뺀다)과 겹쳐 읽혀 「여기선 쓴다는 건가」로
-             헷갈린다. 라벨 자체는 남긴다 — 상품 생성 탭은 다른 목록이라 실제로 그
-             줄이 생기고, 그때는 숫자와 함께 떠야 한다. #}
-          {% for p in phases %}{% if mat_counts[p] %}
-          <div class="stg-row {{ phase_cls[p] }}" data-s="{{ p }}">
-            <span class="lb">{{ phase_label[p] }}</span><span class="n">{{ mat_counts[p] }}</span>
-          </div>
-          {% endif %}{% endfor %}
-          {% if mat_counts.derived %}<div class="stg-row t0" data-s="derived">
-            <span class="lb">갈라진 묶음</span><span class="n">{{ mat_counts.derived }}</span>
-          </div>{% endif %}
-        </div>
+        {# [이슈 #1081 · 체크리스트 [1]번 확정] 「어디까지 왔나」 판 삭제 — 상품&정책
+           연결상태가 표 칸으로 옮겨 가서 판이 세던 위상(준비 미완료/완료/상품생성
+           사용됨)이 이 탭에서 더 안 쓰인다. 브랜드 필터만 남긴다.
+           🔴 옵션 생성 탭(direct/market)의 og-rail 은 이 변경과 무관 — 그 판은
+              여전히 위상을 센다(옵션함이 상품이 될 준비가 됐나를 묻는 다른 화면). #}
         <input class="og-in og-find" id="og-find" autocomplete="off"
                placeholder="브랜드·묶음 이름으로 찾기">
         <div class="og-rail-t">브랜드</div>
@@ -372,11 +356,17 @@
       </aside>
       <div class="og-tbwrap">
         <div class="og-cap" id="og-cap" hidden></div>
-        <table class="og-tb og-c3">
-          {# [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 체크칸을 늘 보이게 —
-             단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 개를 골라야 한다. #}
-          <tr><th class="og-pick"></th><th>번호</th><th>이름</th><th>브랜드</th>
-            <th class="c">상태</th><th class="r">옵션</th><th class="r"></th></tr>
+        <table class="og-tb og-c3 og-tb4">
+          {# [이슈 #1081 · 체크리스트 [1]번 확정] 칼럼 재구성 — 옵션 생성 탭(direct)의
+             「병합 칸 + 옵션축 + SKU 연결상태 + 소싱처」와 같은 재료·같은 호버 카드를
+             쓴다(`_attach_matrix_facts` → `_box_facts`, 이 파일 상단 og-idbadge/
+             og-srcbadge 호버 배선 재사용 — 새 배선 없음). 「상태」 한 칸은
+             「상품&정책 연결상태」 2행으로 바뀐다(사장님 확정 칼럼 순서 그대로). #}
+          <tr><th class="og-pick"></th><th class="og-ctr">NO</th>
+            <th>옵션 매트릭스</th><th>모음전 구성</th>
+            <th class="og-ctr">옵션축</th><th class="og-ctr">SKU 연결상태</th>
+            <th class="og-ctr">상품&amp;정책 연결상태</th><th class="og-ctr">소싱처</th>
+            <th></th></tr>
           {# [2026-08-06 확정 1번a] 줄 클릭 = 조립대(/optgen/product/…) — 이 탭 소속.
              /matrix/… 로 보내면 상단 탭이 「상품 관리」로 점프하는 어긋남이 있었다. #}
           {% for m in mats %}
@@ -388,29 +378,53 @@
             <td class="og-pick"><label><input type="checkbox" class="og-ck"
                  data-id="{{ m.id }}" data-name="{{ m.name }}"
                  data-opts="{{ m.options }}" aria-label="{{ m.name }} 고르기"></label></td>
-            <td class="mono">{{ m.no }}</td>
-            <td><b>{{ m.name }}</b></td>
-            <td>{{ m.brand or '—' }}</td>
-            {# [2026-08-06 사장님 확정] 상품관리와 **같은 4가지 상태**. 예전엔
-               「옵션함이 아니면 판매 중」이라 마켓에 안 올라간 묶음까지 판매 중으로 나왔다. #}
-            {# 🔴 옵션함 줄은 **위상**을 말한다 — 「상품을 만들었나」만이 아니라
-               「지금 상품을 만들 수 있나」까지. 글자·색은 `readiness` 한 곳에서 온다.
-               판(위 사이드바)이 세는 값과 **같은 표**를 쓰므로 둘이 갈릴 수 없다. #}
-            <td class="c">{% if m.show == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
-              {%- elif m.show in phases %}<span class="og-badge stgb {{ phase_cls[m.show] }}">{{ phase_label[m.show] }}</span>
-              {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}
-              {# 🔴 `/bundles?q=…` 로 보내면 **아무 데도 안 간다** — 그 화면의 찾기는 화면 안
-                 JS 전용이라 주소의 q 를 안 읽는다(90행 그대로 뜬다). 상품 화면으로 바로. #}
-              {# [2026-08-12 노션 상품 c-1] 만든 상품 줄마다 정책 바로가기 —
-                 정책은 옵션이 아니라 **상품**에 붙으므로 상품 줄에 단다.
-                 붙었으면 보러, 안 붙었으면 붙이러(상태에 따라 갈린다). #}
-              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<div class="og-made-one"><a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a><a class="og-pol" href="{{ d.policy_url }}" title="{{ d.policy_tip }}">🔧</a></div>{% endfor %}</div>{% endif %}</td>
-            <td class="r">{{ m.options }}</td>
-            <td class="r og-actcell">
+            <td class="og-ctr">{{ loop.index }}</td>
+            {# ── 옵션 매트릭스 (병합) ── 1행 = 이름(굵게)·브랜드·모델명. 2행 = 매트릭스
+               번호 + 원본/파생 딱지. (옵션 생성 탭과 줄 순서가 다르다 — 사장님 확정
+               그대로: 이름 줄에 브랜드·모델명을 같이 둔다.) #}
+            <td class="og-name">
+              <div><b title="{{ m.name }}">{{ m.name }}</b>{% if m.brand %} · {{ m.brand }}{% endif -%}
+                {%- if m.model_names %} · {% for mn in m.model_names[:8] -%}
+                  {{ mn }}{% if not loop.last %}, {% endif -%}
+                {%- endfor %}{% if m.model_names | length > 8 %} <span
+                  class="axis-chip">+{{ m.model_names | length - 8 }}</span>{% endif -%}
+                {%- endif %}</div>
+              <div class="og-frac">{{ m.no }}{% if m.kind %}<span
+                  class="og-badge stgb wait og-kind"
+                  >{{ '원본' if m.kind == 'origin' else '파생' }}</span>{% endif %}</div>
+            </td>
+            <td>{% if m.moum_kind_label %}{{ m.moum_kind_label }}{% else %}<span
+                class="og-dash" title="아직 어떤 모음전인지 안 정했습니다.">—</span>{% endif %}</td>
+            <td class="og-ctr og-axiscell">{% if m.axis_pairs %}<span class="axis-chip-row">{% for aname, acnt in m.axis_pairs -%}
+                <span class="axis-chip">{{ aname }} <b>{{ acnt }}</b></span>
+                {%- endfor %}</span>{% else %}<span class="og-dash"
+                title="아직 축을 안 짰습니다.">—</span>{% endif %}</td>
+            {# SKU 연결상태 — 옵션 생성 탭과 같은 호버 배지(og-idbadge). 자료는
+               `/optgen/api/sku-identity/<code>` — 새 API 를 안 만든다. #}
+            <td class="og-ctr og-skucell">{% if m.code %}<span class="og-idbadge" data-code="{{ m.code }}"
+                data-name="{{ m.name }}" tabindex="0"
+                title="마우스를 올리면 SKU별 정보가 보입니다">SKU <b>{{ m.options }}</b>개</span>
+                {%- else %}<span class="og-dash">—</span>{% endif %}</td>
+            {# 상품&정책 연결상태 — 새 판정 없이 이미 붙여 둔 값만 쓴다
+               (`_attach_product_status` — made_ok·policy_ok). 만든 상품이 있으면
+               그 상품 바로가기(정책 붙었으면 보러, 안 붙었으면 붙이러)도 같이 둔다. #}
+            <td class="og-ctr">
+              <div class="og-pp2">
+                <span class="og-badge stgb {{ 'sale' if m.made_ok else 'wait' }}">상품 생성</span>
+                <span class="og-badge stgb {{ 'sale' if m.policy_ok else 'wait' }}">정책 적용</span>
+              </div>
+              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<div class="og-made-one"><a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a><a class="og-pol" href="{{ d.policy_url }}" title="{{ d.policy_tip }}">🔧</a></div>{% endfor %}</div>{% endif %}
+            </td>
+            {# 소싱처 — 옵션 생성 탭과 같은 호버 배지(og-srcbadge, /api/bundles/<code>/source-urls). #}
+            <td class="og-ctr og-srccell">{% if m.code %}<span class="og-srcbadge" data-code="{{ m.code }}"
+                data-name="{{ m.name }}"
+                data-mapped="{% if m.map and m.map.complete is not none %}{{ m.map.skus_done }}/{{ m.map.skus }}{% endif %}"
+                data-labels='{{ (m.sources or []) | tojson | forceescape }}' tabindex="0"
+                title="마우스를 올리면 소싱처별 주소가 보입니다">소싱처 <b>{{ (m.sources or []) | length }}</b>곳</span>
+                {%- else %}<span class="og-dash">—</span>{% endif %}</td>
+            <td class="og-ctr og-actcell">
               {% if m.code %}
               <button class="og-more" type="button" aria-label="더 할 일">···</button>
-              {% endif %}
-              {% if m.code %}
               <div class="og-menu" hidden>
                 <a class="og-mi" href="/optgen/box/{{ m.code }}">옵션 고치기 →</a>
                 {# [2026-08-12 사장님 확정 1안] 옵션함 쪽에 이미 있던 삭제를 여기에도.
@@ -441,12 +455,18 @@
         <button class="og-mx" type="button" id="mb-close" aria-label="닫기">✕</button>
         <div class="og-mt">📦 고른 묶음으로 상품 만들기</div>
         <div class="og-md" id="mb-sum"></div>
-        <label class="og-lb">상품 이름</label>
-        <input class="og-in" id="mb-name" placeholder="예: 르무통 메이트 스니커즈" maxlength="120">
+        {# [이슈 #1074 · 사장님 확정 순서] 브랜드 → 상품 이름 → 카테고리. 이 창은
+           「고른 묶음으로 상품 만들기」·「+ 새 상품 생성」 두 진입점이 같이 쓴다 —
+           칸 순서를 여기 한 곳만 바꾸면 둘 다 같이 맞는다. #}
         <label class="og-lb">브랜드 <span style="font-weight:400;color:var(--color-text-tertiary)">(하나만)</span></label>
         <input class="og-in" id="mb-brand" placeholder="예: 르무통" maxlength="60">
-        <label class="og-lb">카테고리</label>
-        <input class="og-in" id="mb-cat" placeholder="예: 스니커즈" maxlength="60">
+        <label class="og-lb">상품 이름 <span style="font-weight:400;color:var(--color-text-tertiary)">(마켓에 보낼 이름)</span></label>
+        <input class="og-in" id="mb-name" placeholder="예: 르무통 메이트 스니커즈" maxlength="120">
+        {# 드롭다운(기존 카테고리) + 자동완성(타이핑 검색), 새 이름도 그대로 입력 가능 —
+           목록은 bundles/new.html 과 같은 원천(Model.category distinct, categories= 로 전달됨). #}
+        <label class="og-lb">카테고리 <span style="font-weight:400;color:var(--color-text-tertiary)">(프로그램용)</span></label>
+        <input class="og-in" id="mb-cat" list="mb-cat-list" placeholder="예: 스니커즈" maxlength="60" autocomplete="off">
+        <datalist id="mb-cat-list">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
         <button class="og-btn" type="button" id="mb-make">상품 만들기</button>
         <div class="og-err" id="mb-err"></div>
       </div>
@@ -581,6 +601,32 @@
      화면은 그대로 두고 **표만 안에서 굴러가게** 한다(가로 넘침 규칙과 같은 처방). */
   .og-tbwrap{min-width:0;overflow-x:auto}
 
+  /* ══ [2026-08-19 사장님 확정 B안] 서랍 → 위 가로 바 ═══════════════════
+     🔴 이 목록(direct/market)에만 쓴다. 상품 생성 탭은 여전히 왼쪽
+        `.og-rail`(아래 별도 규칙, 손 안 댐)을 그대로 쓴다.
+     🔴 `.og-b`(브랜드 한 줄)는 JS(`buildBrands()`)가 그대로 채우는 요소라
+        이름을 안 바꿨다 — 모양만 `.og-topbar .og-b` 로 덮어써서 상품 생성 탭의
+        세로 목록용 `.og-b`(아래)와 안 겹치게 했다. */
+  .og-topbar{background:var(--surface,#fff);border:1px solid var(--color-border);
+    border-radius:12px;padding:var(--sp-3);margin-bottom:var(--sp-4)}
+  .og-topbar-row1{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .og-topbar-row1 .og-in{width:auto;margin-bottom:0}
+  .og-topbar .og-find{width:260px}
+  .og-topbar .og-sort{width:160px}
+  .og-topbar-row1 .og-hid-row{margin-top:0;padding:0;border-top:none}
+  .og-topbar-row2{display:flex;gap:6px;flex-wrap:wrap}
+  .og-topbar-row2:not(:empty){margin-top:10px;padding-top:10px;
+    border-top:1px dashed var(--color-border)}
+  .og-topbar .og-b{display:inline-flex;align-items:center;gap:5px;
+    background:var(--ap-g1,#F5F5F7);border:1px solid var(--color-border);
+    border-radius:999px;padding:4px 12px;font-size:13px;
+    color:var(--color-text-secondary);cursor:pointer;white-space:nowrap}
+  .og-topbar .og-b.on{background:var(--연한-파랑,rgba(0,113,227,.08));
+    color:var(--primary-strong,#0066CC);border-color:var(--color-primary);font-weight:700}
+  .og-topbar .og-bc{font-size:12px;color:var(--color-text-tertiary);
+    font-variant-numeric:tabular-nums}
+  .og-topbar .og-b.on .og-bc{color:inherit}
+
   /* ══ [2026-08-14 사장님 확정 1] 표 배치 4안 — 일곱 칸 + 오른쪽 판 ═══════
      정본은 시안 `_시안_임시/optgen_direct_배치_5안.html` 의 5번째 탭이다.
      선언은 시안 그대로 옮겼고 **이름만** 시안 틀 앞글자(mk-)에서 이 화면 앞글자로
@@ -590,12 +636,12 @@
        mk-dash→og-dash · mk-frac→og-frac · mk-clamp→og-name · mk-kind→og-kind
        mk-row4.on→og-row.on · mk-u→`단위`(디자인 시스템에 같은 것이 이미 있다)
 
-     🔴 `.og-wrap` 본 규칙은 **안 건드린다.** 저 규칙과 `.og-tbwrap{overflow-x:auto}`
-        와 `.og-rail{width:max-content}` 셋은 한 몸이고, 하나만 손대면 문서 전체가
-        가로로 구른다(라이브 사고 2건 — 위 각 주석에 실측이 있다). 그래서 여기서는
-        **칸을 하나 더 붙이는 규칙만** 따로 둔다. 새 칸은 고정 380px 이라 표 칸은
-        여전히 `minmax(0,1fr)` 로 남고, 넘치는 표는 `.og-tbwrap` 안에서만 구른다. */
-  .og-wrap.og-w4{grid-template-columns:auto minmax(0,1fr) 380px}
+     🔴 `.og-wrap` 본 규칙은 **안 건드린다.** 상품 생성 탭은 여전히 그 본 규칙(서랍+표
+        2칸)을 그대로 쓴다. 여기서는 **이 목록(og-w4) 전용 규칙만** 따로 둔다.
+        [2026-08-19 사장님 확정 B안] 서랍을 위 가로 바(`og-topbar`)로 옮기면서 이
+        칸에서는 서랍(auto) 열을 뺐다 — 표 칸은 `minmax(0,1fr)`, 판은 고정 380px,
+        넘치는 표는 `.og-tbwrap` 안에서만 구른다. */
+  .og-wrap.og-w4{grid-template-columns:minmax(0,1fr) 380px}
   .og-side{width:380px;background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;overflow:hidden}
   .og-side-h{background:var(--color-bg-muted);color:var(--color-text-secondary);
@@ -612,12 +658,11 @@
   .og-miss{margin-top:12px;background:var(--연한-주황,rgba(255,149,0,.10));
     color:var(--글자-주황,#9A5B00);border-radius:8px;padding:9px 11px;font-size:12px;
     line-height:1.6}
-  /* 🔴 [1080px 아래] 판을 표 밑으로 내린다. 서랍은 가장 긴 상태 이름에 맞춰 최대
-     520px 까지 넓어지므로(위 `.og-rail`), 판 380 + 사이 여백 32 를 더하면 932px 이
-     이미 차 있어 그 아래에서는 표에 남는 자리가 없다 — 그대로 두면 셋이 창을 넘겨
-     문서가 가로로 구른다. 폰(768px 아래)은 아래 폰 구역이 따로 1칸으로 눌러 준다. */
+  /* 🔴 [1080px 아래] 판을 표 밑으로 내린다. 표+판(380+32) 이 좁은 창에서 나란히
+     못 서므로 표만 남기고 판은 아래로. 폰(768px 아래)은 아래 폰 구역이 따로
+     1칸으로 눌러 준다. */
   @media (max-width: 1080px){
-    .og-wrap.og-w4{grid-template-columns:auto minmax(0,1fr)}
+    .og-wrap.og-w4{grid-template-columns:minmax(0,1fr)}
     .og-side{width:auto;grid-column:1 / -1}
   }
   /* 줄 끝 ⓘ — 판을 여는 단추. 「···」와 나란히 서므로 같은 칩 규격을 쓴다. */
@@ -669,22 +714,41 @@
   .og-dash{color:var(--color-text-tertiary)}
   .og-frac{font-size:12px;color:var(--color-text-secondary);
     font-variant-numeric:tabular-nums}
-  /* ── [2026-08-14 사장님 확정 ㉯ D안] SKU 정보 상태 — 셋 따로 · 각각 호버 ──
-     🔴 셋을 **세로로 쌓는다.** 시안 D 는 한 줄에 나란히였는데, 실측해 보니 그 모습은
-        표를 1870 창에서 옆으로 밀었다(가로 178px · 세로 76px). 표가 밀리면 4안을
-        고른 까닭(「일곱 칸이 한눈에 · 옆으로 밀 일 없음」)이 깨지고, 그건
-        `tests/design/test_optgen_4an_width.py` 가 지키는 약속이다.
-        D 의 알맹이(**셋을 따로 두고 각각 올린다**)는 그대로다 — 줄만 바꿨다.
-     🔴 글자 12px 은 이 저장소의 바닥선이다. 더 줄여서 폭을 벌지 않는다. */
-  .og-skucell{white-space:nowrap}
-  .og-sku3{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;
-    font-size:12px;line-height:1.5;color:var(--color-text-secondary);
-    font-variant-numeric:tabular-nums}
-  .og-skuh{cursor:help;border-bottom:1px dashed var(--color-border)}
-  .og-skuh:hover,.og-skuh:focus{color:var(--ap-링크파랑,#0066CC);
-    border-bottom-color:currentColor;outline:none}
-  /* 다 채운 줄만 초록 — 「초록 = 됨」은 이 프로그램 고정 규칙이다. */
-  .og-skuh.done{color:var(--글자-초록,#248A3D)}
+  /* ── [2026-08-19 사장님 확정] 옵션축 칩 · SKU 연결상태·소싱처 배지 ──
+     🔴 이름이 비슷한 `.og-badge`(위상 딱지)와 안 섞이게 새 이름을 쓴다. */
+  .og-skucell,.og-srccell{white-space:nowrap}
+  /* 🔴 [2026-08-19 사장님 지적] 칩이 3개(모델·색상·사이즈)로 늘어도 한 줄에
+     들어가게 최소 폭을 잡아 둔다 — 안 잡으면 표가 좁을 때 칩이 세로로 접혀
+     칸이 「좁다」는 인상을 준다. 칩 3개(약 55px씩)+사이 여백 기준 실측. */
+  .og-axiscell{min-width:172px}
+  /* [이슈 #1081] 상품&정책 연결상태 — 2행(상품 생성·정책 적용) 배지 세로 쌓기. */
+  .og-pp2{display:flex;flex-direction:column;gap:3px;align-items:center}
+  .axis-chip-row{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:center}
+  .axis-chip{background:var(--ap-g1,#F5F5F7);border-radius:6px;padding:2px 7px;
+    font-size:11px;color:var(--color-text-secondary);white-space:nowrap}
+  .axis-chip b{color:var(--color-text-primary);font-variant-numeric:tabular-nums}
+  .og-idbadge,.og-srcbadge{display:inline-flex;align-items:center;gap:4px;
+    background:var(--ap-g1,#F5F5F7);border:1px solid var(--color-border);
+    border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;
+    color:var(--color-text-secondary);cursor:help;white-space:nowrap}
+  .og-idbadge b,.og-srcbadge b{color:var(--color-text-primary);font-variant-numeric:tabular-nums}
+  .og-idbadge:hover,.og-idbadge:focus,.og-srcbadge:hover,.og-srcbadge:focus{
+    border-color:var(--ap-링크파랑,#0066CC);color:var(--ap-링크파랑,#0066CC);outline:none}
+  /* 호버 카드 안 줄들 — SKU 연결상태·소싱처가 같이 쓴다 */
+  .hc-row{display:flex;gap:6px;padding:2px 0;font-size:12px}
+  .hc-row .k{color:var(--color-text-tertiary);width:48px;flex:none}
+  .hc-row .v{color:var(--color-text-primary)}
+  .hc-div{border-top:1px dashed var(--color-border,#e5e8eb);margin:6px 0}
+  .hc-later{font-size:11px;color:var(--ap-g4,#86868B)}
+  .hc-later .lbl{display:inline-block;background:var(--ap-g1,#F5F5F7);border-radius:5px;
+    padding:1px 5px;margin-right:4px}
+  .hc-src-name{font-size:12px;font-weight:700;color:var(--color-text-primary);margin:6px 0 2px}
+  .hc-src-name:first-child{margin-top:0}
+  .hc-url{display:flex;align-items:center;gap:5px;padding:3px 0;font-size:11.5px}
+  .hc-url .u{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:ui-monospace,monospace;color:var(--color-text-secondary)}
+  .hc-url a{flex:none;color:var(--글자-파랑,#0066CC);text-decoration:none;font-size:11.5px}
+  .hc-url a:hover{text-decoration:underline}
   /* ── 호버 카드 — 정본 `bundles/_matrix_v3.html` 의 `.pm-card` 를 그대로 쓴다 ──
      🔴 그 파일은 이 화면에 안 실린다(모음전 상세 전용). 그래서 규칙만 옮겨 적되
         **모양을 바꾸지 않는다** — 같은 카드가 화면마다 다르게 생기면 사장님이
@@ -717,44 +781,9 @@
   html body table.og-tb4 td.og-num,html body table.og-tb4 th.og-num{
     text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   html body table.og-tb4 td.og-ctr,html body table.og-tb4 th.og-ctr{text-align:center}
-  .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
-  .stg-head{font-weight:600}
-  .stg-head .n{font-variant-numeric:tabular-nums}
-  .stg-bar{display:flex;height:10px;border-radius:980px;overflow:hidden;margin:8px 10px 10px}
-  .stg-bar i{display:block}
-  .stg-bar i.g1{background:var(--ap-g3,#D2D2D7)}
-  .stg-bar i.g2{background:var(--ap-버튼파랑,#0071E3)}
-  .stg-bar i.g4{background:var(--글자-주황,#C93400)}
-  .stg-bar i.g3{background:var(--ap-green,#34C759)}
-  .stg-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;
-    border:1px solid transparent;cursor:pointer;
-    transition:background .24s cubic-bezier(.4,0,.6,1),color .24s}
-  .stg-row:hover{background:var(--ap-g0,#FAFAFC)}
-  .stg-row.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
-  .stg-row .lb{flex:1;min-width:0;white-space:nowrap;line-height:1.4}
-  .stg-row .n{flex:none;font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums;line-height:1.4}
-  .stg-row.on .n{color:inherit}
-  .stg-div{height:1px;background:var(--ap-g2,#E8E8ED);margin:8px 10px}
-  /* 단계 구분 = **글자색만**. 줄에 색 배경을 칠하면 「덕지덕지」해진다(사장님 실측). */
-  .stg-row.t1 .lb{color:var(--ap-g45,#6E6E73)}
-  .stg-row.t2 .lb{color:var(--ap-링크파랑,#0066CC)}
-  .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
-  .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
-  /* 옵션함 위상(readiness.PHASE_CLS) — 배지와 **같은 색 뜻**을 쓴다.
-     회색=아직 · 파랑=중간 · 초록=끝. 위 t1~t4 와 같은 색 변수라 화면 어디서나 뜻이 같다. */
-  .stg-row.wait .lb{color:var(--ap-g45,#6E6E73)}
-  .stg-row.mid .lb{color:var(--ap-링크파랑,#0066CC)}
-  .stg-row.sale .lb{color:var(--글자-초록,#248A3D)}
-  .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
-  .stg-row.fix .n{font-weight:600}
-  /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.
-     글자 쪽은 안 건드리므로 화면이 조용하다. */
-  .stg-row .n{background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 9px;
-    min-width:38px;text-align:center;transition:background .24s}
-  .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
-  .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
-  .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
-  .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
+  /* [이슈 #1081] 삭제 확정된 왼쪽 진행판(.stg-block 이하) 전용 CSS 도 같이 제거 —
+     마크업 없는 선택자를 남기면 test_screen_truthfulness 가 잡는다.
+     `.og-rail` 은 옵션 탭 서랍과 공용이라 안 건드림(바로 아래 블록). */
   /* [2026-08-12 노션 상품 a-1 · 사장님 확정 「사이드바를 키운다」]
      440px 에서 라벨이 쓸 수 있는 폭은 카드 두 겹(서랍 + 판) 패딩을 빼면 318px 뿐인데
      가장 긴 상태 이름(「상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용」)은 375px 라
@@ -929,7 +958,6 @@
      · `width:max-content` 자체도 안 건드린다(PC 규격 · test_screen_truthfulness).
      → 폰에서만 **줄바꿈을 허용**한다. 두 줄이 되어도 글자는 다 보인다. */
   .og-rail { width: auto; max-width: 100%; min-width: 0; }
-  .stg-row .lb { white-space: normal; }
   /* 체크칸 손끝 목표 — 입력칸 자체는 13px 이라 라벨로 44px 를 만든다(감사 실측). */
   .og-pick label { min-width: 44px; min-height: 44px; }
 }
@@ -1076,6 +1104,9 @@
     });
     obBack.addEventListener('click', function (e) {
       if (e.target === obBack) obBack.classList.remove('open');
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && obBack.classList.contains('open')) obBack.classList.remove('open');
     });
   }
 
@@ -1235,7 +1266,7 @@
     var brandsBox = document.getElementById('og-brands');
     var cap = document.getElementById('og-cap');
     var selBrand = null, q = '';
-    var selStage = '';                 // 「어디까지 왔나」에서 고른 상태('' = 전체)
+    var selStage = '';                 // 늘 전체('') — 상태로 거르는 판을 이 탭들은 안 쓴다
     // [2026-08-12] 숨긴 묶음(단독_·빈 묶음) 보기 — 옵션 탭에만 있다.
     var hidBox = document.getElementById('og-hid');
     var boxN = document.getElementById('og-boxn');
@@ -1273,16 +1304,6 @@
       if (boxN) boxN.textContent = total;   // 머리줄 숫자도 같이 — 두 숫자가 갈리면 안 된다
       selBrand = null;                      // 고른 브랜드가 사라질 수 있으니 푼다
       buildBrands();
-      apply();
-    });
-
-    /* 「어디까지 왔나」 줄 누르기 — 상품관리와 같은 규칙(한 번에 하나) */
-    var stgBox = document.getElementById('og-stages');
-    if (stgBox) stgBox.addEventListener('click', function (e) {
-      var r = e.target.closest('.stg-row'); if (!r) return;
-      selStage = r.getAttribute('data-s') || '';
-      stgBox.querySelectorAll('.stg-row').forEach(function (x) {
-        x.classList.toggle('on', x === r); });
       apply();
     });
 
@@ -1402,44 +1423,45 @@
   window.addEventListener('scroll', ogCloseMenus, true);
   window.addEventListener('resize', ogCloseMenus);
 
-  // ── [2026-08-14 사장님 확정 ㉯ D안] 「SKU 정보 상태」 호버 카드 ───────────
+  // ── [2026-08-19 사장님 확정] 「SKU 연결상태」·「소싱처」 호버 카드 ─────────
   //   정본은 `webapp/templates/bundles/_matrix_v3.html` 의
-  //   `_pmFloat` / `_pmShowFloat` / `_pmScheduleHide` 다. 그 파일은 이 화면에 안
-  //   실리므로 **같은 이름·같은 규칙으로 옮겨 적는다**(모양·시간을 바꾸지 않는다).
-  //   지키는 여섯 가지:
-  //     ① 카드는 body 에 붙이고 창 기준(fixed) — 표 상자에 안 갇힌다
-  //     ② 앵커에서 나가면 **250ms 뒤** 닫는다 — 카드로 가는 손이 끊기지 않게
-  //     ③ 카드 안으로 들어오면 닫기를 **취소**, 나가면 다시 예약
-  //     ④ 오른쪽 끝 정렬 + 화면 아래를 넘으면 **위로 뒤집기**
-  //     ⑤ 구르면 닫는다(캡처) — fixed 좌표는 페이지를 안 따라간다
-  //     ⑥ 🔴 **여는 데 140ms 지연.** 표 줄은 촘촘한 앵커라 지연이 없으면
-  //        지나가는 줄이 카드를 가로채 화면이 깜빡인다(시안 ㉯-D 와 같은 값).
-  (function () {
-    var 앵커들 = document.querySelectorAll('.og-skuh');
+  //   `_pmFloat` / `_pmShowFloat` / `_pmScheduleHide` 다(모양·시간을 바꾸지 않는다).
+  //   지키는 여섯 가지 — ①body에 붙여 창 기준(fixed) ②나가면 250ms 뒤 닫기
+  //   ③카드 안으로 들어오면 닫기 취소 ④오른쪽 끝 정렬 + 아래 넘치면 위로 뒤집기
+  //   ⑤구르면 닫기(캡처) ⑥🔴 여는 데 140ms 지연(촘촘한 표 줄에서 지나가는
+  //   줄이 카드를 가로채는 깜빡임을 막는다).
+  //   두 카드가 규칙은 같고 자료·글만 달라 **한 공장 함수**로 만든다 —
+  //   따로 베끼면 한쪽만 고쳤을 때 열리는 속도·닫히는 시점이 갈린다.
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
+    });
+  }
+  function og새호버카드(opts) {
+    // opts: {선택자, 얻기(a)→코드, 그리기(자료, a)→HTML}
+    var 앵커들 = document.querySelectorAll(opts.선택자);
     if (!앵커들.length) return;
 
-    var _pmFloatEl = null, _pmHideTimer = null;
-    function _pmFloat() {
-      if (_pmFloatEl) return _pmFloatEl;
+    var _el = null, _hideTimer = null;
+    function _float() {
+      if (_el) return _el;
       var el = document.createElement('div');
       el.className = 'og-skucard';
       el.addEventListener('mouseenter', function () {
-        if (_pmHideTimer) { clearTimeout(_pmHideTimer); _pmHideTimer = null; }
+        if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
       });
-      el.addEventListener('mouseleave', _pmScheduleHide);
+      el.addEventListener('mouseleave', _scheduleHide);
       document.body.appendChild(el);
-      _pmFloatEl = el; return el;
+      _el = el; return el;
     }
-    function _pmShowFloat(anchor, html) {
-      if (_pmHideTimer) { clearTimeout(_pmHideTimer); _pmHideTimer = null; }
-      var el = _pmFloat();
+    function _showFloat(anchor, html) {
+      if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
+      var el = _float();
       el.innerHTML = html;
       el.classList.add('on');
       var r = anchor.getBoundingClientRect();
       var cw = el.offsetWidth, ch = el.offsetHeight;
       var left = r.right - cw;
-      // 이 표는 가로로 넘칠 수 있어 앵커가 상자 오른쪽 밖에 있을 수 있다 —
-      // `ogPlaceMenu` 가 같은 이유로 붙잡는다(그쪽 주석에 실측).
       if (left + cw > window.innerWidth - 8) left = window.innerWidth - 8 - cw;
       if (left < 8) left = 8;
       var top = r.bottom + 7;
@@ -1448,73 +1470,43 @@
       el.style.left = left + 'px';
       el.style.top = top + 'px';
     }
-    function _pmScheduleHide() {
-      if (_pmHideTimer) clearTimeout(_pmHideTimer);
-      _pmHideTimer = setTimeout(function () {
-        if (_pmFloatEl) _pmFloatEl.classList.remove('on');
+    function _scheduleHide() {
+      if (_hideTimer) clearTimeout(_hideTimer);
+      _hideTimer = setTimeout(function () {
+        if (_el) _el.classList.remove('on');
       }, 250);
     }
 
     var 열기 = null, 대기 = null, 지금앵커 = null;
     var 열기지연 = 140;
-    var 곳간 = {};        // code → 서버가 준 줄 목록 (한 묶음당 한 번만 묻는다)
+    var 곳간 = {};        // code → 서버가 준 자료 (한 묶음당 한 번만 묻는다)
     var 받는중 = {};
-
-    function esc(s) {
-      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-        return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
-      });
-    }
-    function 이름(code) {
-      var r = document.querySelector('.og-row .og-skuh[data-sku-code="' + code + '"]');
-      var tr = r && r.closest('tr');
-      var b = tr && tr.querySelector('.og-name b');
-      return b ? b.getAttribute('title') || b.textContent : code;
-    }
-    function 카드글(code, field) {
-      var d = 곳간[code];
-      var 칸이름 = ({{ sku_labels | tojson }})[field] || field;
-      if (!d) return '<div class="pmc-note">불러오는 중…</div>';
-      if (d.error) {
-        // 🔴 못 불러왔으면 「없다」가 아니라 **못 불러왔다**고 적는다.
-        return '<div class="pmc-note">' + esc(d.error) + '</div>';
-      }
-      var rows = d.rows || [];
-      var 찬것 = rows.filter(function (o) { return o[field]; }).length;
-      var h = '<div class="pmc-h"><span class="pmc-name">' + esc(이름(code))
-            + '</span><span class="pmc-cnt">' + 칸이름 + ' ' + 찬것 + '/' + rows.length
-            + '</span></div>';
-      if (!rows.length) {
-        return h + '<div class="pmc-note">이 묶음에는 아직 SKU 가 없습니다 — '
-                 + '셀 대상이 없어 「—」로 적었습니다.</div>';
-      }
-      rows.forEach(function (o) {
-        var v = o[field];
-        h += '<div class="pmc-row"><div class="pmc-tx"><div class="pmc-lbl">'
-           + esc(o.label || o.no || o.sku) + '</div><div class="pmc-url">'
-           + esc(o.sku) + '</div></div><span class="pmc-val">' + 칸이름 + ' <b>'
-           + (v ? esc(v) : '—') + '</b></span></div>';
-      });
-      h += '<div class="pmc-note">「—」는 <b>아직 안 적음</b>입니다. '
-         + '값은 「옵션 조합 생성 및 수정」 창의 격자에서 채웁니다.</div>';
-      return h;
-    }
-    function 받아오기(code, 그리기) {
-      if (곳간[code]) { 그리기(); return; }
+    var 콜백대기 = {};    // code → 응답 오면 부를 그리기끝 함수들
+    // 🔴 미리받기(mouseover)와 늦은 그리기(열자, 열기지연 뒤)가 같은 code 를 거의
+    //    동시에 부른다 — 먼저 온 호출이 아직 응답 대기 중이면 나중 호출은 여기
+    //    막혀 콜백이 등록도 안 되고 사라졌다(먼저 등록된 빈 콜백만 불림). 그래서
+    //    카드가 응답이 늦게 오면 "불러오는 중"에서 영원히 안 바뀌었다 — 콜백을
+    //    하나만 쥐지 않고 대기열에 쌓아 뒀다가 응답 오면 전부 부른다.
+    function 받아오기(code, 그리기끝) {
+      if (곳간[code]) { 그리기끝(); return; }
+      (콜백대기[code] = 콜백대기[code] || []).push(그리기끝);
       if (받는중[code]) return;
       받는중[code] = true;
-      fetch('/optgen/api/sku-info/' + encodeURIComponent(code))
+      fetch(opts.주소(code))
         .then(function (r) { return r.json(); })
         .then(function (j) {
           곳간[code] = (j && j.ok) ? j
             : {error: '값을 불러오지 못했습니다 — ' + ((j && j.error) || '서버 응답 없음')};
-          그리기();
         })
         .catch(function (e) {
           곳간[code] = {error: '값을 불러오지 못했습니다 — ' + (e && e.message || e)};
-          그리기();
         })
-        .finally(function () { 받는중[code] = false; });
+        .finally(function () {
+          받는중[code] = false;
+          var 대기목록 = 콜백대기[code] || [];
+          콜백대기[code] = [];
+          대기목록.forEach(function (cb) { cb(); });
+        });
     }
     function 예약취소() {
       if (열기) { clearTimeout(열기); 열기 = null; }
@@ -1522,46 +1514,109 @@
     }
     function 열자(a) {
       지금앵커 = a;
-      var code = a.getAttribute('data-sku-code');
-      var field = a.getAttribute('data-sku-field');
-      _pmShowFloat(a, 카드글(code, field));
+      var code = a.getAttribute('data-code');
+      _showFloat(a, opts.그리기(a, 곳간[code]));
       // 자료가 늦게 오면 그때 다시 그린다 — 그 사이 다른 줄로 옮겼으면 안 그린다.
       받아오기(code, function () {
-        if (지금앵커 === a && _pmFloatEl && _pmFloatEl.classList.contains('on')) {
-          _pmShowFloat(a, 카드글(code, field));
+        if (지금앵커 === a && _el && _el.classList.contains('on')) {
+          _showFloat(a, opts.그리기(a, 곳간[code]));
         }
       });
     }
 
     document.addEventListener('mouseover', function (e) {
-      var a = e.target.closest && e.target.closest('.og-skuh');
+      var a = e.target.closest && e.target.closest(opts.선택자);
       if (!a || a === 대기) return;
       예약취소();
       // 🔴 미리 받아 둔다 — 140ms 안에 오면 「불러오는 중」이 아예 안 보인다.
-      받아오기(a.getAttribute('data-sku-code'), function () {});
+      받아오기(a.getAttribute('data-code'), function () {});
       대기 = a;
       열기 = setTimeout(function () { 대기 = null; 열기 = null; 열자(a); }, 열기지연);
     });
     document.addEventListener('mouseout', function (e) {
-      var a = e.target.closest && e.target.closest('.og-skuh');
+      var a = e.target.closest && e.target.closest(opts.선택자);
       if (!a) return;
       if (a === 대기) 예약취소();
-      _pmScheduleHide();
+      _scheduleHide();
     });
     // 마우스가 없어도 볼 수 있게 — 글쇠(Tab)로도 열린다.
     document.addEventListener('focusin', function (e) {
-      var a = e.target.closest && e.target.closest('.og-skuh');
+      var a = e.target.closest && e.target.closest(opts.선택자);
       if (a) { 예약취소(); 열자(a); }
     });
     document.addEventListener('focusout', function (e) {
-      if (e.target.closest && e.target.closest('.og-skuh')) _pmScheduleHide();
+      if (e.target.closest && e.target.closest(opts.선택자)) _scheduleHide();
     });
     // 🔴 구르면 닫는다(캡처) — 목록 상자 안쪽 스크롤은 window 로 안 올라온다.
     window.addEventListener('scroll', function () {
       예약취소(); 지금앵커 = null;
-      if (_pmFloatEl) _pmFloatEl.classList.remove('on');
+      if (_el) _el.classList.remove('on');
     }, true);
-  })();
+  }
+
+  // ── SKU 연결상태 — 필수 5가지(SKU번호·브랜드·모델·색상·사이즈) + 추후예정 ──
+  og새호버카드({
+    선택자: '.og-idbadge',
+    주소: function (code) { return '/optgen/api/sku-identity/' + encodeURIComponent(code); },
+    그리기: function (a, d) {
+      var 이름 = a.getAttribute('data-name') || '';
+      var h = '<div class="pmc-h"><span class="pmc-name">' + esc(이름) + '</span></div>';
+      if (!d) return h + '<div class="pmc-note">불러오는 중…</div>';
+      if (d.error) return h + '<div class="pmc-note">' + esc(d.error) + '</div>';
+      var rows = d.rows || [];
+      if (!rows.length) {
+        return h + '<div class="pmc-note">이 묶음에는 아직 SKU 가 없습니다.</div>';
+      }
+      rows.forEach(function (o) {
+        h += '<div class="pmc-row"><div class="pmc-tx"><div class="pmc-lbl">'
+           + esc(o.no || o.sku) + '</div><div class="pmc-url">'
+           + esc([o.brand, o.model_name, o.color, o.size].filter(Boolean).join(' · '))
+           + '</div></div></div>';
+      });
+      h += '<div class="hc-div"></div>'
+         + '<div class="hc-later"><span class="lbl">추후예정</span>초기재고</div>'
+         + '<div class="hc-later"><span class="lbl">추후예정</span>품번</div>'
+         + '<div class="hc-later"><span class="lbl">추후예정</span>바코드·GTIN</div>';
+      return h;
+    },
+  });
+
+  // ── 소싱처 — 맵핑 진척 요약(이미 목록이 센 값) + 소싱처별 URL·바로가기 ──
+  og새호버카드({
+    선택자: '.og-srcbadge',
+    주소: function (code) { return '/api/bundles/' + encodeURIComponent(code) + '/source-urls'; },
+    그리기: function (a, d) {
+      var 이름 = a.getAttribute('data-name') || '';
+      var 맵핑 = a.getAttribute('data-mapped') || '';
+      var h = '<div class="pmc-h"><span class="pmc-name">' + esc(이름) + '</span></div>';
+      // 🔴 「모른다」와 「이었다」는 다른 값이다 — 주소 0개라 못 잰 것을 「미완료」로
+      //    단정하지 않는다(`source_url_stats.mapping_coverage` 규칙 그대로).
+      h += 맵핑
+        ? '<div class="hc-row" style="color:var(--글자-파랑,#0066CC);font-weight:700">맵핑 '
+          + esc(맵핑) + ' 끝</div><div class="hc-div"></div>'
+        : '<div class="hc-row" style="color:var(--color-text-tertiary)">맵핑 판정 불가 — 소싱처 주소가 없습니다</div><div class="hc-div"></div>';
+      if (!d) return h + '<div class="pmc-note">불러오는 중…</div>';
+      if (d.error) return h + '<div class="pmc-note">' + esc(d.error) + '</div>';
+      var labels = {};
+      try { labels = JSON.parse(a.getAttribute('data-labels') || '[]')
+        .reduce(function (m, s) { m[s.key] = s.label; return m; }, {}); } catch (e) {}
+      var urls = d.urls || {};
+      // 🔴 이 API 는 소싱처 키를 **전부** 내려준다(주소가 0개인 키도 빈 목록으로).
+      //    그래서 「키가 있나」가 아니라 「URL 이 하나라도 있나」로 빈 상태를 가른다.
+      var keys = Object.keys(urls).filter(function (k) { return (urls[k] || []).length; });
+      if (!keys.length) {
+        return h + '<div class="pmc-note">아직 붙은 소싱처 주소가 없습니다.</div>';
+      }
+      keys.forEach(function (k) {
+        h += '<div class="hc-src-name">' + esc(labels[k] || k) + '</div>';
+        urls[k].forEach(function (u) {
+          h += '<div class="hc-url"><span class="u">' + esc(u.url) + '</span>'
+             + '<a href="' + esc(u.url) + '" target="_blank" rel="noopener">바로가기 ↗</a></div>';
+        });
+      });
+      return h;
+    },
+  });
 
   // ── [2026-08-12 노션 상품 c-2 · 사장님 C1 확정] 여러 묶음 골라 상품 만들기 ──
   //   왜 필요한가 — 단일 모음전 매트릭스만 있을 때 색상 모음전을 만들려면 여러 옵션을
@@ -1597,7 +1652,7 @@
 
     var mbBack = document.getElementById('mb-back');
     var mbErr = document.getElementById('mb-err');
-    document.getElementById('og-pgo').addEventListener('click', function () {
+    function openBuildModal() {
       var names = []; picked.forEach(function (v) { names.push(v.name); });
       document.getElementById('mb-sum').innerHTML =
         '고른 묶음 <b>' + picked.size + '개</b>를 한 상품으로 담습니다.<br>' +
@@ -1606,7 +1661,22 @@
       mbErr.textContent = '';
       mbBack.classList.add('open');
       document.getElementById('mb-name').focus();
-    });
+    }
+    document.getElementById('og-pgo').addEventListener('click', openBuildModal);
+    // [이슈 #1074] 헤더의 "+ 새 상품 생성" — 표에서 미리 고른 매트릭스가 있으면
+    // 「고른 묶음으로 상품 만들기」와 똑같은 창을 그대로 연다. 하나도 안 골랐으면
+    // (또는 이 화면에 매트릭스가 아예 없어 og-pickbar 조차 없으면) 만들 재료가
+    // 없다는 뜻이므로 안내만 하고 빈 상품은 만들지 않는다.
+    var pbOpen = document.getElementById('pb-open');
+    if (pbOpen) {
+      pbOpen.addEventListener('click', function () {
+        if (!picked || picked.size === 0) {
+          alert('먼저 표에서 옵션 매트릭스를 골라주세요.');
+          return;
+        }
+        openBuildModal();
+      });
+    }
     document.getElementById('mb-close').addEventListener('click', function () {
       mbBack.classList.remove('open');
     });
@@ -1643,6 +1713,15 @@
           mbErr.textContent = '만들지 못했습니다 — ' + e; b.disabled = false;
         });
     });
+  } else {
+    // [이슈 #1074] 매트릭스가 아예 없는 화면 — og-pickbar·mb-back 자체가 없다.
+    // 아래 빈 상태 안내("먼저 옵션을 만드세요")와 같은 뜻을 버튼에서도 알린다.
+    var pbOpenEmpty = document.getElementById('pb-open');
+    if (pbOpenEmpty) {
+      pbOpenEmpty.addEventListener('click', function () {
+        alert('먼저 옵션 매트릭스를 만들어주세요 — 「모음전 옵션 생성 (직접)」에서 시작합니다.');
+      });
+    }
   }
 
   // ── [2026-08-12 사장님] 여러 묶음 골라 한 번에 삭제 ──────────────────

@@ -21,11 +21,14 @@
   여기는 「그 물건을 어디로 옮길까」를 처리하는 곳이다. 옮기기는 손댈 곳이 일곱 군데라
   (아래 `api_adopt_sku` 참조) 목록 화면에 섞으면 한 군데를 빠뜨리기 쉽다.
 """
+import logging
+
 from flask import Blueprint, jsonify, request
 
 from shared.db import SessionLocal
 
 bp = Blueprint('optgen_sku', __name__, url_prefix='/optgen')
+_log = logging.getLogger(__name__)
 
 #: 한 번에 내주는 최대 줄 수 — 화면이 큰 값을 보내도 서버가 통째로 퍼내지 않게 막는다.
 #: 🔴 이 값을 올리려면 `lemouton/matrix/readiness._CHUNK`(=500)도 같이 봐야 한다.
@@ -35,12 +38,18 @@ _LIMIT_MAX = 500
 _LIMIT_DEFAULT = 50
 
 
-def _err(message: str, status: int = 400):
+def _err(message: str, status: int = 400, code: str | None = None):
     """실패는 **왜 안 되는지**를 한국어로 돌려준다 — 조용히 넘어가지 않는다.
 
     사장님은 개발자가 아니다. 화면에 그대로 띄워도 뜻이 통하는 문장이어야 한다.
+
+    `code` 는 화면이 아니라 다른 프로그램(호출자)이 실패 갈래를 가릴 때 쓴다.
+    안 주면 상태코드로 무난한 기본값을 고른다.
     """
-    return jsonify({'ok': False, 'error': message}), status
+    if code is None:
+        code = ('NOT_FOUND' if status == 404 else
+                'SERVER_ERROR' if status >= 500 else 'VALIDATION_ERROR')
+    return jsonify({'ok': False, 'error': message, 'code': code}), status
 
 
 def _why_not_unbuilt(session, model_code: str) -> str:
@@ -243,18 +252,19 @@ def api_adopt_sku(code: str):
             return _err(f'그런 옵션함이 없습니다: {code}', 404)
         if not target.is_option_box:
             return _err('판매용 모음전에는 여기서 넣을 수 없습니다. '
-                        '아직 판매 안 하는 옵션함에만 편입할 수 있습니다.')
+                        '아직 판매 안 하는 옵션함에만 편입할 수 있습니다.',
+                        code='LIVE_BUNDLE')
 
         opt = s.get(Option, sku)
         if opt is None:
             return _err(f'그런 SKU 가 없습니다: {sku}', 404)
         moved_from = opt.model_code
         if moved_from == code:
-            return _err('이미 이 옵션함에 들어 있는 SKU 입니다.')
+            return _err('이미 이 옵션함에 들어 있는 SKU 입니다.', code='ALREADY_HERE')
         # 판정은 `lemouton/matrix/unbuilt.py` 하나뿐 — 여기서 조건을 다시 적지 않는다.
         if not unbuilt_batch(s, [moved_from]):
             return _err(f'미구성 SKU 가 아닙니다: {sku} — '
-                        f'{_why_not_unbuilt(s, moved_from)}')
+                        f'{_why_not_unbuilt(s, moved_from)}', code='NOT_UNBUILT')
 
         # ── ② 축 값이 대상의 축 설계와 맞나 ─────────────────────────────
         steps = (s.query(BundleOptionStep).filter_by(model_code=code)
@@ -263,10 +273,11 @@ def api_adopt_sku(code: str):
             # 축이 없는 옵션함은 그 자체로 미구성이다. 넣으면 「옵션 2개 · 축 0개」가 돼
             # 미구성도 아니고 매트릭스도 아닌 어중간한 묶음이 된다.
             return _err('대상 옵션함에 축(색상·사이즈…)이 아직 없습니다. '
-                        '축을 먼저 만든 뒤에 편입할 수 있습니다.')
+                        '축을 먼저 만든 뒤에 편입할 수 있습니다.', code='NO_AXES')
         if len(values) != len(steps):
             return _err(f'축이 {len(steps)}개인데 값을 {len(values)}개 주셨습니다 — '
-                        f'축 순서: {" · ".join(st.axis_name for st in steps)}')
+                        f'축 순서: {" · ".join(st.axis_name for st in steps)}',
+                        code='AXIS_COUNT_MISMATCH')
         for st, v in zip(steps, values):
             try:
                 allowed = [str(x) for x in (json.loads(st.values_json or '[]') or [])]
@@ -277,14 +288,16 @@ def api_adopt_sku(code: str):
                 #    그 옵션은 격자에도 안 뜨고 전송 목록에서도 빠져 조용히 사라진다.
                 return _err(f'「{st.axis_name}」 축에 없는 값입니다: '
                             f'{v or "(빈 값)"} — 있는 값: '
-                            f'{" · ".join(allowed) or "(아직 없음)"}')
+                            f'{" · ".join(allowed) or "(아직 없음)"}',
+                            code='AXIS_VALUE_INVALID')
 
         # ── ③ 그 조합이 이미 차 있지 않나 ───────────────────────────────
         combo = tuple(values)
         for o in s.query(Option).filter_by(model_code=code).all():
             if axes_of(o) == combo:
                 return _err(f'이미 같은 조합의 옵션이 있습니다: {o.canonical_sku} '
-                            f'({" ".join(values)}) — 한 조합에 옵션은 하나뿐입니다.')
+                            f'({" ".join(values)}) — 한 조합에 옵션은 하나뿐입니다.',
+                            code='COMBO_TAKEN')
 
         # ── ④~⑥ 이사 ────────────────────────────────────────────────────
         axis_names = [st.axis_name for st in steps]
@@ -328,6 +341,7 @@ def api_adopt_sku(code: str):
         return _err(str(e))
     except Exception as e:                              # noqa: BLE001
         s.rollback()
+        _log.exception('[optgen_sku] SKU 편입 실패 code=%s sku=%s', code, sku)
         return _err(str(e)[:300], 500)
     finally:
         s.close()
@@ -398,6 +412,7 @@ def api_sku_info_save(code: str):
         s.commit()
     except Exception as e:                              # noqa: BLE001
         s.rollback()
+        _log.exception('[optgen_sku] SKU 정보 저장 실패 code=%s', code)
         return _err(str(e)[:300], 500)
     finally:
         s.close()
@@ -439,3 +454,31 @@ def api_sku_info_gen_barcodes(code: str):
     finally:
         s.close()
     return jsonify({'ok': True, 'barcodes': out})
+
+
+# ════════════════════════════════════════════════════════════════
+#  SKU 연결상태 — SKU 하나하나가 누구인가(번호·브랜드·모델명·색상·사이즈)
+#
+#  판정은 여기 없다 — 전부 `lemouton/matrix/sku_identity.py` 한 곳이다.
+#  품번·바코드·GTIN(위 sku-info)과는 다른 물음이라 창구도 따로 둔다.
+# ════════════════════════════════════════════════════════════════
+
+@bp.get('/api/sku-identity/<path:code>')
+def api_sku_identity(code: str):
+    """묶음 하나의 SKU 줄 목록 — 목록의 「SKU 연결상태」 호버 카드가 쓴다.
+
+    응답: `{ok, code, rows: [{sku, no, brand, model_name, color, size}]}`
+      · `size` 는 매트릭스 전체가 사이즈 1개뿐이면 「FREE」로 나온다.
+      · 값이 없는 칸은 `null` — 지어내지 않는다.
+    """
+    from lemouton.matrix.sku_identity import rows_of
+    from lemouton.sourcing.models import Model
+
+    s = SessionLocal()
+    try:
+        if s.query(Model.model_code).filter_by(model_code=code).first() is None:
+            return _err(f'그런 묶음이 없습니다: {code}', 404)
+        rows = rows_of(s, code)
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'code': code, 'rows': rows})

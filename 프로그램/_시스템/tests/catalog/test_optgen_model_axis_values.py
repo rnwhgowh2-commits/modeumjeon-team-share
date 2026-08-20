@@ -20,6 +20,8 @@
      둘 다 넣으면 같은 사실이 두 곳에 생기고, `option_name.model_name_of` 의 판정
      순서(① 축 값 → ② 그 칸)상 뒤엣것이 조용히 가려져 있다가 언젠가 갈린다.
 """
+import uuid
+
 import pytest
 
 from lemouton.matrix.option_name import split_model_names
@@ -34,7 +36,10 @@ def client():
 
 
 def _만들기(client, **kw):
-    body = {'name': '모델축 검사함', 'brand': '르무통'}
+    # [2026-08-19 ui-verify 감사] 옵션함 이름이 겹치면 이제 두 번째부터 거절된다
+    #   (중복이름 저장 금지) — 이 파일의 시험 여럿이 같은 이름으로 이 창구를 부르므로
+    #   매번 다른 이름을 준다. 이름 값 자체를 검사하는 시험은 없다(있으면 이름을 직접 준다).
+    body = {'name': f'모델축 검사함 {uuid.uuid4().hex[:8]}', 'brand': '르무통'}
     body.update(kw)
     r = client.post('/optgen/api/option-box', json=body)
     assert r.status_code == 200, r.get_data(as_text=True)

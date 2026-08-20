@@ -15,6 +15,15 @@ from config import Config
 from shared.db import init_db
 
 
+def _resolve_samba_wave_url() -> str | None:
+    """SAMBA_WAVE_URL 환경변수를 읽어 공백 제거 후 반환, 없거나 공백뿐이면 None.
+
+    모듈 최상단 함수로 빼서 create_app()(실DB 연결 필요) 없이 단독 테스트 가능하게 함
+    — _inject_samba_wave_url 컨텍스트 프로세서가 이 함수만 부른다.
+    """
+    return (os.environ.get('SAMBA_WAVE_URL') or '').strip() or None
+
+
 def create_app() -> Flask:
     app = Flask(
         __name__,
@@ -483,6 +492,12 @@ def create_app() -> Flask:
             return {'brand_color_overrides': list_icons().get('brand', {})}
         except Exception:
             return {'brand_color_overrides': {}}
+
+    # 대량등록 모드 → samba-wave 로 전환하는 스위치. 값 없으면(기본) 기존 /bulk/ 그대로 —
+    # samba-wave 실배포 전까지 라이브 동작 무변화.
+    @app.context_processor
+    def _inject_samba_wave_url():
+        return {'samba_wave_url': _resolve_samba_wave_url()}
 
     # 옛 링크 호환 — /markets/<market> → /accounts/upload?market=<market>
     from flask import redirect as _redirect

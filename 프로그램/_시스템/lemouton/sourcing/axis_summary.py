@@ -72,7 +72,8 @@ def _blank() -> dict:
     다른 줄까지 같이 바뀐다(리스트·딕트는 같은 물건을 가리킨다).
     """
     return {'axis_names': [], 'axis_label': None, 'kind': None,
-            'kind_label': None, 'model_names': [], 'empty_axes': 0}
+            'kind_label': None, 'model_names': [], 'empty_axes': 0,
+            'axis_counts': []}
 
 
 def _kind_labels() -> dict[str, str]:
@@ -100,6 +101,9 @@ def axis_batch(session, codes: list[str]) -> dict[str, dict]:
         kind_label  : '모델 모음전' | '색상 모음전' | None
         model_names : ['메이트','스위트']       — 모델 축이 없으면 []
         empty_axes  : 값이 하나도 없는 축의 수 (축은 만들었는데 값을 안 채운 것)
+        axis_counts : [1,4,3]  — `axis_names` 와 같은 순서·같은 길이.
+            축마다 서로 다른 값이 몇 개인지(옵션생성 목록의 「모델 1개 × 색상 4개 ×
+            사이즈 3개」 표시가 이 숫자를 그대로 쓴다). 값이 빈 축은 0.
 
     🔴 **물어본 코드는 전부 돌려준다** — 축이 없는 상품도 빈 답으로 들어 있다.
        화면이 「없으면 이렇게」 폴백을 따로 짜면 그 폴백이 여기와 갈린다.
@@ -141,6 +145,7 @@ def axis_batch(session, codes: list[str]) -> dict[str, dict]:
         name = (axis_name or '').strip()
         values = _values_of(values_json)
         entry['axis_names'].append(name)
+        entry['axis_counts'].append(len(values))   # 축마다 「서로 다른 값이 몇 개」
         if not values:
             entry['empty_axes'] += 1
         if is_model_axis(name):

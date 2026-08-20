@@ -9,12 +9,27 @@
   옵션함의 `model_code` 가 곧 `U…` 번호라, 그 코드를 넘기면 **기존 창이 그대로 열린다.**
   창을 새로 만들지 않는다 — 다시 만들면 반드시 갈린다.
 """
+import logging
+
 from flask import (Blueprint, abort, jsonify, redirect, render_template,
                    request, url_for)
 
 from shared.db import SessionLocal
 
 bp = Blueprint('optgen', __name__, url_prefix='/optgen')
+_log = logging.getLogger(__name__)
+
+
+def _err(message: str, status: int = 400, code: str | None = None):
+    """실패는 **왜 안 되는지**를 한국어로 돌려준다 — 조용히 넘어가지 않는다.
+
+    `code` 는 화면이 읽는 값이 아니라 다른 프로그램(호출자)이 실패 갈래를
+    코드로 가릴 때 쓴다. 안 주면 상태코드로 무난한 기본값을 고른다.
+    """
+    if code is None:
+        code = ('NOT_FOUND' if status == 404 else
+                'SERVER_ERROR' if status >= 500 else 'VALIDATION_ERROR')
+    return jsonify({'ok': False, 'error': message, 'code': code}), status
 
 
 def _option_children():
@@ -311,6 +326,10 @@ def _boxes(session, *, show_made: bool = False):
             # 섞이기 쉬워 앞에 `moum_` 을 붙여 둔다.
             'moum_kind': ax.get('kind'), 'moum_kind_label': ax.get('kind_label'),
             'axis_label': ax.get('axis_label'),
+            # 옵션축 칸(「모델 3개 × 색상 4개 × 사이즈 3개」 칩) — 이름·개수를
+            # 짝지어 둔다. 축이 없으면 빈 목록(화면은 「—」로 그린다).
+            'axis_pairs': list(zip(ax.get('axis_names') or [],
+                                   ax.get('axis_counts') or [])),
             # 🔴 「모델명」은 축 값과 묶음 칸 **두 곳**에서 온다. 순서를 여기서
             #    다시 정하지 않는다 — `option_name.bundle_model_names` 한 곳이
             #    `model_name_of` 와 같은 순서를 지킨다(보는 것 = 나가는 것).
@@ -368,24 +387,29 @@ def _matrices(session, limit: int = 100):
     from lemouton.matrix.models import MatrixOption
     from lemouton.sourcing.models import Model, Option
     # [2026-08-04] brand 추가 — 왕쪽 서럍(브랜드로 추리기)이 상품 탭에서도 돌아야 한다.
+    # [이슈 #1081] bundle_model_name 추가 — 옵션함 목록(_boxes)과 같은 재료로
+    # 모델명을 채우려면(bundle_model_names) 이 칸이 필요하다.
     rows = (session.query(MatrixOption.id, MatrixOption.display_no,
                           MatrixOption.name, MatrixOption.kind,
                           Model.is_option_box, Model.brand,
                           func.count(Option.canonical_sku),
-                          MatrixOption.model_code)
+                          MatrixOption.model_code, Model.bundle_model_name)
             .outerjoin(Model, Model.model_code == MatrixOption.model_code)
             .outerjoin(Option, Option.model_code == MatrixOption.model_code)
             .filter(MatrixOption.deleted_at.is_(None))
             .group_by(MatrixOption.id, MatrixOption.display_no, MatrixOption.name,
                       MatrixOption.kind, Model.is_option_box, Model.brand,
-                      MatrixOption.model_code)
+                      MatrixOption.model_code, Model.bundle_model_name)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
     out = [{'id': i, 'no': no or '—', 'name': display_name(nm, mc), 'kind': k,
-            'box': bool(box), 'brand': br, 'options': n, 'code': mc}
-           for i, no, nm, k, box, br, n, mc in rows if n]
+            'box': bool(box), 'brand': br, 'options': n, 'code': mc,
+            '_bundle_model_name': bmn}
+           for i, no, nm, k, box, br, n, mc, bmn in rows if n]
     _attach_stage(session, out)
     _attach_made(session, out)
     _attach_phase(session, out)
+    _attach_matrix_facts(session, out)
+    _attach_product_status(session, out)
     return out
 
 
@@ -412,6 +436,71 @@ def _attach_phase(session, mats):
         # 🔴 라벨은 안 담는다 — 화면이 `readiness.PHASE_LABEL` 에서 찾아 쓴다(원천 하나).
         m['phase'] = p['phase']
         m['missing'] = p['missing']
+
+
+def _attach_matrix_facts(session, mats):
+    """[이슈 #1081] 「옵션 매트릭스」 병합칸·모음전 구성·옵션축·SKU/소싱처 개수.
+
+    🔴 옵션함 목록(`_boxes`)과 **같은 재료**(`_box_facts`)를 그대로 쓴다 — 이 탭이
+       따로 세면, 같은 매트릭스가 두 목록에서 다른 축·소싱처 수로 보일 수 있다
+       (이 저장소가 여러 번 겪은 「같은 사실, 다른 화면」 사고).
+
+    🔴 옵션함(box)뿐 아니라 **이미 상품이 된 매트릭스도 같이 묻는다** — `_attach_phase`
+       (위상)와 달리 축·소싱처·SKU 구성은 상품이 됐다고 사라지는 사실이 아니다.
+    """
+    from lemouton.matrix.option_name import bundle_model_names
+    from lemouton.sourcing.source_url_stats import source_labels
+
+    codes = [m['code'] for m in mats if m.get('code')]
+    if not codes:
+        return
+    option_counts = {m['code']: int(m.get('options') or 0) for m in mats if m.get('code')}
+    사실 = _box_facts(session, codes, option_counts)
+    축, 소싱처, URL수, 맵핑, SKU번호 = (사실['axes'], 사실['sources'], 사실['urls'],
+                                    사실['map'], 사실['sku_info'])
+    키들 = sorted({k for v in 소싱처.values() for k, _n in v})
+    이름 = source_labels(키들) if 키들 else {}
+    for m in mats:
+        c = m.get('code')
+        if not c:
+            continue
+        ax = 축.get(c) or {}
+        m['moum_kind_label'] = ax.get('kind_label')
+        m['axis_pairs'] = list(zip(ax.get('axis_names') or [], ax.get('axis_counts') or []))
+        m['model_names'] = bundle_model_names(ax.get('model_names'), m.get('_bundle_model_name'))
+        m['sources'] = [{'key': k, 'label': 이름.get(k) or k, 'n': cnt}
+                        for k, cnt in (소싱처.get(c) or ())]
+        m['urls'] = URL수.get(c, 0)
+        m['map'] = 맵핑.get(c)
+        m['sku_info'] = SKU번호.get(c)
+
+
+def _attach_product_status(session, mats):
+    """[이슈 #1081] 「상품&정책 연결상태」 2행 — 상품 생성 · 정책 적용.
+
+    🔴 새 판정을 만들지 않는다 — 이미 `_attach_made`(어느 상품으로 만들었나)가
+       구해 둔 것과, `policy_models`(상품관리·정책생성 화면과 같은 단일 판정 —
+       상품 ∪ 구성 정책을 같이 본다) 만 합친다.
+
+    상품 생성 = 이 줄 자체가 이미 상품(옵션함이 아님)이거나, 이 옵션함으로 만든
+                상품이 하나라도 있다.
+    정책 적용 = 그 상품(자기 자신 포함) 중 하나라도 정책이 붙어 있다.
+    """
+    from webapp.routes.bundles_tower import policy_models
+
+    codes = set()
+    for m in mats:
+        if m.get('code') and not m.get('box'):
+            codes.add(m['code'])
+        for d in (m.get('made') or []):
+            codes.add(d['code'])
+    policies = policy_models(session, list(codes)) if codes else set()
+    for m in mats:
+        made_list = m.get('made') or []
+        self_is_product = bool(m.get('code')) and not m.get('box')
+        m['made_ok'] = bool(made_list) or self_is_product
+        m['policy_ok'] = (self_is_product and m['code'] in policies) or any(
+            d['code'] in policies for d in made_list)
 
 
 #: 코드 앞글자 「단독_」 — 옛날에 「재고관리에만 두는 물건」을 문자열로 흉내 낸 흔적.
@@ -560,6 +649,11 @@ def index():
             # 「없음」 대신 오류로 죽으므로, 만드는 쪽과 **같은 열쇠**를 쓴다.
             boxes, box_counts = [], _빈_박스_숫자()
         mats = _matrices(s) if tab == 'product' else []
+        # [이슈 #1074] "+새 상품 생성" 팝업의 카테고리 칸 — bundles/new.html 과 같은
+        # 목록을 쓴다(Model.category 가 단일 진실 원천). 두 곳에서 각자 만들면
+        # 한쪽만 새 카테고리를 알아 목록이 갈린다 — 기존 함수를 그대로 가져다 쓴다.
+        from webapp.routes.bundles import _all_categories
+        categories = _all_categories() if tab == 'product' else []
     finally:
         s.close()
     # [2026-08-06 사장님 확정 2번] 상품을 만들면 이 초기화면으로 돌아온다 —
@@ -570,10 +664,18 @@ def index():
                 'code': request.args.get('code') or '',
                 'options': request.args.get('opts') or ''}
     # 「어디까지 왔나」 판 — 상품관리와 같은 4상태(사장님 첫 지시 「사이드바에도 구분하자」)
-    from lemouton.matrix.readiness import PHASE_CLS, PHASE_LABEL, PHASES
+    from lemouton.matrix.readiness import (PHASE_CLS, PHASE_DRAFT, PHASE_LABEL,
+                                          PHASE_READY, PHASES)
     from lemouton.matrix.sku_info import FIELDS as SKU_FIELDS
     from lemouton.matrix.sku_info import LABELS as SKU_LABELS
     from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
+    # 🔴 [2026-08-19 사장님 확정] 「모음전 옵션 생성」 목록의 「상태」 칸만 회색/초록
+    #    2색이다. `PHASE_CLS`(위상 3종 공용, wait=회색·mid=파랑·sale=초록)는 그대로
+    #    두고 **이 화면 렌더링에서만** 로컬로 덮어쓴다 — 이 목록은 상품 생성에 쓴
+    #    옵션함(PHASE_USED)을 이미 빼고 보여주므로 미완료/완료 2종뿐이다.
+    #    `PHASE_CLS` 를 직접 바꾸면 「모음전 상품 생성」 탭의 3단계 막대(미완료·완료·
+    #    상품생성됨)에서 완료와 상품생성됨이 둘 다 초록이 되어 구분이 사라진다.
+    direct_phase_cls = {PHASE_DRAFT: 'wait', PHASE_READY: 'sale'}
     _attach_shown(mats)
     mat_counts = {'all': len(mats)}
     for st in STAGES:
@@ -597,12 +699,14 @@ def index():
                            #    화면이 「상품생성 준비 완료」 같은 글자를 또 적으면
                            #    한쪽만 고쳤을 때 같은 옵션함이 화면마다 다른 이름으로 불린다.
                            phases=PHASES, phase_label=PHASE_LABEL,
-                           phase_cls=PHASE_CLS, show_made=show_made,
+                           phase_cls=PHASE_CLS, direct_phase_cls=direct_phase_cls,
+                           show_made=show_made,
                            # 🔴 「품번·바코드·GTIN」이라는 이름과 **그 순서**도 한 곳에서만
                            #    온다(`matrix/sku_info.FIELDS`·`LABELS`). 화면에 손으로
                            #    적어 두면 칸이 하나 늘거나 이름이 바뀔 때 이 화면만 뒤처져,
                            #    격자에서 고친 값이 목록에서는 다른 이름으로 세어진다.
-                           sku_fields=SKU_FIELDS, sku_labels=SKU_LABELS)
+                           sku_fields=SKU_FIELDS, sku_labels=SKU_LABELS,
+                           categories=categories)
 
 
 @bp.get('/product/by-code/<path:code>')
@@ -647,6 +751,7 @@ def product_assembly(mo_id: int):
        (2026-08-06 사장님 확정 1번a). 화면 재료는 matrix 쪽 함수를 그대로
        나눠 쓴다 — 두 벌이 되면 반드시 갈린다.
     """
+    from webapp.routes.bundles import _all_categories
     from webapp.routes.matrix import detail_context
     ctx = detail_context(mo_id)
     if ctx is None:
@@ -658,7 +763,8 @@ def product_assembly(mo_id: int):
                                requested_sku=str(mo_id)), 404
     return render_template('matrix/detail.html',
                            active_app='bundles', active='optgen_product',
-                           assembly=True, detail_base='/optgen/product/', **ctx)
+                           assembly=True, detail_base='/optgen/product/',
+                           categories=_all_categories(), **ctx)
 
 
 #: 모음전 종류별 축 프리셋 — 노션 옵션 b (사장님 확정 2026-08-12).
@@ -733,14 +839,14 @@ def api_create_option_box():
        판정 순서(① 축 값 → ② 그 칸)상 뒤엣것이 조용히 가려져 언젠가 갈린다.
     """
     from lemouton.matrix.option_name import split_model_names
-    from lemouton.matrix.service import create_option_box
+    from lemouton.matrix.service import DuplicateNameError, create_option_box
     from lemouton.sourcing.axis_slot import is_model_axis
     from lemouton.sourcing.option_service import save_step_design
     body = request.get_json(silent=True) or {}
     axes = [str(a).strip() for a in (body.get('axes') or []) if str(a).strip()]
     if axes and tuple(axes) not in _ALLOWED_AXES:
-        return jsonify({'ok': False,
-                        'error': f'고를 수 없는 축 구성이에요: {" · ".join(axes)}'}), 400
+        return _err(f'고를 수 없는 축 구성이에요: {" · ".join(axes)}',
+                    code='INVALID_AXES')
     적은모델명 = str(body.get('model_name') or '').strip()
     모델축있음 = any(is_model_axis(a) for a in axes)
     # 모델 축이 있을 때만 나눈다 — 색상 모음전에서 쉼표를 나누면 사장님이 적은 이름을
@@ -763,76 +869,108 @@ def api_create_option_box():
         s.commit()
         out = {'ok': True, 'code': mo.model_code,
                'display_no': mo.display_no, 'name': mo.name}
+    except DuplicateNameError as e:
+        s.rollback()
+        return _err(str(e), code='DUPLICATE_NAME')
     except ValueError as e:
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 400
+        return _err(str(e))
     except Exception as e:                              # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 500
+        _log.exception('[optgen] 옵션함 만들기 실패 name=%r brand=%r',
+                       body.get('name'), body.get('brand'))
+        return _err(str(e), 500)
     finally:
         s.close()
     return jsonify(out)
 
 
+def _box_info(session, code: str) -> dict | None:
+    """옵션함 하나의 상세 정보 — 화면(box.html)과 모달의 「재고 입력」 드로어가 같이 쓴다.
+
+    🔴 두 벌로 나누면 반드시 갈린다(이 저장소가 여러 번 겪은 사고 패턴) — 그래서
+       Jinja 라우트와 JSON API 가 **이 함수 하나**를 부른다.
+    """
+    from lemouton.sourcing.models import Model, Option
+    # [2026-08-01] 옵션함뿐 아니라 **기존 모음전도** 받는다.
+    #   🔴 라이브에서 드러난 구멍 — 옵션함만 열려 기존 172개는 404 였고,
+    #      그래서 「같은 기능의 입구는 하나」(설계서 규칙 12)를 적용할 수 없었다.
+    #   파는 것과 안 파는 것은 화면에서 갈라 보여준다(아래 sellable).
+    m = session.query(Model).filter_by(model_code=code).first()
+    if m is None:
+        return None
+    nm = m.model_name_display or m.model_name_raw or m.model_code
+    opts = (session.query(Option).filter_by(model_code=code)
+            .order_by(Option.display_no, Option.canonical_sku).all())
+    # [2026-08-12 노션 옵션 b★] 옵션마다 **모델명이 비지 않게** 한다.
+    #   모델 축이 있으면 그 값, 없으면(색상모음전) 매트릭스 이름이 곧 모델명이다.
+    #   축 이름은 저장된 단계 설계에서 읽는다 — 새 칸을 만들지 않는다.
+    from lemouton.sourcing.models import BundleOptionStep
+    axis_names = [a for (a,) in session.query(BundleOptionStep.axis_name)
+                  .filter_by(model_code=code)
+                  .order_by(BundleOptionStep.step_no).all()]
+    # [2026-08-12] 재고 숫자의 출처를 **원장 합계**로 바꾼다.
+    #   `Option.boxhero_stock_total` 은 캐시라, 서비스를 안 거친 경로가 갱신을
+    #   빠뜨리면 화면 숫자와 실재고가 갈린다(shared/inventory_stock.py 독스트링).
+    from shared.inventory_stock import get_stock_batch
+    stock = get_stock_batch(session, [o.canonical_sku for o in opts]) if opts else {}
+    # 🔴 [2026-08-13] 「재고 0」과 「아직 안 셌음」은 **다른 상태**다. 수량만으로는
+    #   못 가르므로 재고 이력이 있는지 따로 본다 — 화면이 0 을 「—」 로 잘못 보이면
+    #   사장님이 이미 센 것을 또 세게 된다.
+    from lemouton.inventory.models import InventoryTx
+    has_tx = {sk for (sk,) in session.query(InventoryTx.option_canonical_sku)
+              .filter(InventoryTx.option_canonical_sku.in_(
+                  [o.canonical_sku for o in opts] or ['']),
+                  InventoryTx.status == 'completed').distinct().all()} if opts else set()
+    # 🔴 [2026-08-13] 여기가 사장님이 모델명을 **눈으로 확인하는 화면**이다.
+    #   `m.bundle_model_name` 을 안 넘기면 화면엔 매트릭스 이름이 뜨는데
+    #   마켓엔 적어 둔 모델명이 나가 「보는 것 ≠ 나가는 것」이 된다.
+    from lemouton.matrix.option_name import full_name, model_name_of
+    rows = [{'no': o.display_no, 'name': full_name(nm, o),
+             'sku': o.canonical_sku,
+             'model_name': model_name_of(
+                 nm, o, axis_names, bundle_model_name=m.bundle_model_name),
+             'color': o.color_display or o.color_code,
+             'size': o.size_display or o.size_code,
+             'active': bool(o.is_active),
+             'stock_on': bool(o.use_purchase_inventory),
+             'stock': int(stock.get(o.canonical_sku) or 0),
+             'tx': o.canonical_sku in has_tx}
+            for o in opts]
+    return {'code': m.model_code, 'name': nm, 'brand': m.brand,
+            'options': len(rows), 'rows': rows,
+            'is_box': bool(m.is_option_box), 'no': m.display_no}
+
+
 @bp.get('/box/<path:code>')
 def box(code: str):
     """옵션함 하나 — 들어오면 색상·사이즈 창이 바로 열린다."""
-    from lemouton.sourcing.models import Model, Option
     s = SessionLocal()
     try:
-        # [2026-08-01] 옵션함뿐 아니라 **기존 모음전도** 받는다.
-        #   🔴 라이브에서 드러난 구멍 — 옵션함만 열려 기존 172개는 404 였고,
-        #      그래서 「같은 기능의 입구는 하나」(설계서 규칙 12)를 적용할 수 없었다.
-        #   파는 것과 안 파는 것은 화면에서 갈라 보여준다(아래 sellable).
-        m = s.query(Model).filter_by(model_code=code).first()
-        if m is None:
+        info = _box_info(s, code)
+        if info is None:
             abort(404)
-        nm = m.model_name_display or m.model_name_raw or m.model_code
-        opts = (s.query(Option).filter_by(model_code=code)
-                .order_by(Option.display_no, Option.canonical_sku).all())
-        # [2026-08-12 노션 옵션 b★] 옵션마다 **모델명이 비지 않게** 한다.
-        #   모델 축이 있으면 그 값, 따로 적어 뒀으면 그 값, 없으면 매트릭스 이름.
-        #   축 이름은 저장된 단계 설계에서 읽는다.
-        #   🔴 [2026-08-13] 여기가 사장님이 모델명을 **눈으로 확인하는 화면**이다.
-        #     `m.bundle_model_name` 을 안 넘기면 화면엔 매트릭스 이름이 뜨는데
-        #     마켓엔 적어 둔 모델명이 나가 「보는 것 ≠ 나가는 것」이 된다.
-        from lemouton.sourcing.models import BundleOptionStep
-        axis_names = [a for (a,) in s.query(BundleOptionStep.axis_name)
-                      .filter_by(model_code=code)
-                      .order_by(BundleOptionStep.step_no).all()]
-        # [2026-08-12] 재고 숫자의 출처를 **원장 합계**로 바꾼다.
-        #   `Option.boxhero_stock_total` 은 캐시라, 서비스를 안 거친 경로가 갱신을
-        #   빠뜨리면 화면 숫자와 실재고가 갈린다(shared/inventory_stock.py 독스트링).
-        from shared.inventory_stock import get_stock_batch
-        stock = get_stock_batch(s, [o.canonical_sku for o in opts]) if opts else {}
-        # 🔴 [2026-08-13] 「재고 0」과 「아직 안 셌음」은 **다른 상태**다. 수량만으로는
-        #   못 가르므로 재고 이력이 있는지 따로 본다 — 화면이 0 을 「—」 로 잘못 보이면
-        #   사장님이 이미 센 것을 또 세게 된다.
-        from lemouton.inventory.models import InventoryTx
-        has_tx = {sk for (sk,) in s.query(InventoryTx.option_canonical_sku)
-                  .filter(InventoryTx.option_canonical_sku.in_(
-                      [o.canonical_sku for o in opts] or ['']),
-                      InventoryTx.status == 'completed').distinct().all()} if opts else set()
-        from lemouton.matrix.option_name import full_name, model_name_of
-        rows = [{'no': o.display_no, 'name': full_name(nm, o),
-                 'sku': o.canonical_sku,
-                 'model_name': model_name_of(
-                     nm, o, axis_names,
-                     bundle_model_name=m.bundle_model_name),
-                 'color': o.color_display or o.color_code,
-                 'size': o.size_display or o.size_code,
-                 'active': bool(o.is_active),
-                 'stock_on': bool(o.use_purchase_inventory),
-                 'stock': int(stock.get(o.canonical_sku) or 0),
-                 'tx': o.canonical_sku in has_tx}
-                for o in opts]
-        info = {'code': m.model_code, 'name': nm, 'brand': m.brand,
-                'options': len(rows), 'rows': rows,
-                'is_box': bool(m.is_option_box), 'no': m.display_no}
     finally:
         s.close()
     return render_template('optgen/box.html',
                            active_app='bundles', active='optgen_direct', box=info)
+
+
+@bp.get('/api/box/<path:code>/rows')
+def api_box_rows(code: str):
+    """옵션함의 옵션 표 — 모달 「📦 재고 입력」 드로어가 연다.
+
+    box.html 과 완전히 같은 자료(`_box_info`)를 JSON 으로 준다 — 어느 화면에서
+    창을 열었든(목록·매트릭스 등) 이 드로어가 스스로 채울 수 있게.
+    """
+    s = SessionLocal()
+    try:
+        info = _box_info(s, code)
+        if info is None:
+            return jsonify({'ok': False, 'error': f'그런 묶음이 없습니다: {code}'}), 404
+    finally:
+        s.close()
+    return jsonify({'ok': True, **info})
 
 
 @bp.post('/api/box/<path:code>/initial-stock')
@@ -871,7 +1009,7 @@ def api_initial_stock(code: str):
     body = request.get_json(silent=True) or {}
     raw = body.get('qty') or {}
     if not isinstance(raw, dict):
-        return jsonify({'ok': False, 'error': 'qty 는 {SKU: 수량} 이어야 해요.'}), 400
+        return _err('qty 는 {SKU: 수량} 이어야 해요.')
     want: dict[str, int] = {}
     for sku, n in raw.items():
         try:
@@ -894,8 +1032,8 @@ def api_initial_stock(code: str):
                         Option.canonical_sku.in_(list(want))).all()}
         stray = [k for k in want if k not in mine]
         if stray:
-            return jsonify({'ok': False,
-                            'error': f'이 묶음의 옵션이 아니에요: {", ".join(stray[:5])}'}), 400
+            return _err(f'이 묶음의 옵션이 아니에요: {", ".join(stray[:5])}',
+                        code='NOT_MY_OPTION')
 
         # 🔴 읽기 **전에** 옵션 줄을 잠근다 — 동시 요청 이중 계상 막이(위 ② 참조).
         #   SQLite 는 FOR UPDATE 를 모르므로 조용히 건너뛴다(쓰기 직렬화로 대체).
@@ -940,10 +1078,11 @@ def api_initial_stock(code: str):
         s.commit()
     except ValueError as e:
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 400
+        return _err(str(e))
     except Exception as e:                              # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+        _log.exception('[optgen] 초기 재고 반영 실패 code=%s', code)
+        return _err(str(e)[:300], 500)
     finally:
         s.close()
     return jsonify({'ok': True, 'added': len(added), 'skus': added,
@@ -966,24 +1105,23 @@ def api_delete_option_box(code: str):
     try:
         m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
-            return jsonify({'ok': False, 'error': f'그런 묶음이 없습니다: {code}'}), 404
+            return _err(f'그런 묶음이 없습니다: {code}', 404)
         if not m.is_option_box:
-            return jsonify({'ok': False,
-                            'error': '판매용 모음전은 여기서 지울 수 없습니다. '
-                                     '옵션함(아직 판매 안 함)만 지울 수 있습니다.'}), 400
+            return _err('판매용 모음전은 여기서 지울 수 없습니다. '
+                        '옵션함(아직 판매 안 함)만 지울 수 있습니다.',
+                        code='LIVE_BUNDLE')
 
         mo = s.query(MatrixOption).filter_by(model_code=code).first()
         if mo is not None:
             made = s.query(BundleMatrixLink).filter_by(
                 matrix_option_id=mo.id).count()
             if made:
-                return jsonify({'ok': False,
-                                'error': f'이 묶음으로 만든 상품이 {made}개 있어 지울 수 없습니다. '
-                                         '먼저 그 상품을 정리하세요.'}), 400
+                return _err(f'이 묶음으로 만든 상품이 {made}개 있어 지울 수 없습니다. '
+                            '먼저 그 상품을 정리하세요.', code='HAS_PRODUCTS')
             derived = s.query(MatrixOption).filter_by(origin_id=mo.id).count()
             if derived:
-                return jsonify({'ok': False,
-                                'error': f'이 묶음에서 갈라진 묶음이 {derived}개 있어 지울 수 없습니다.'}), 400
+                return _err(f'이 묶음에서 갈라진 묶음이 {derived}개 있어 지울 수 없습니다.',
+                            code='HAS_DERIVED')
 
         n_opt = s.query(Option).filter_by(model_code=code).count()
         n_url = s.query(BundleSourceUrl).filter_by(model_code=code).count()
@@ -1031,7 +1169,8 @@ def api_delete_option_box(code: str):
         s.commit()
     except Exception as e:                              # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)}), 500
+        _log.exception('[optgen] 옵션함 삭제 실패 code=%s', code)
+        return _err(str(e), 500)
     finally:
         s.close()
     return jsonify({'ok': True, 'code': code,
@@ -1057,7 +1196,7 @@ def api_reset_stock():
     body = request.get_json(silent=True) or {}
     codes = [str(c) for c in (body.get('codes') or []) if str(c).strip()]
     if not codes:
-        return jsonify({'ok': False, 'error': '묶음을 골라 주세요.'}), 400
+        return _err('묶음을 골라 주세요.')
     s = SessionLocal()
     try:
         skus = [r[0] for r in s.query(Option.canonical_sku)
@@ -1092,7 +1231,8 @@ def api_reset_stock():
         s.commit()
     except Exception as e:                          # noqa: BLE001
         s.rollback()
-        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+        _log.exception('[optgen] 재고 이력 초기화 실패 codes=%s', codes)
+        return _err(str(e)[:300], 500)
     finally:
         s.close()
     return jsonify({'ok': True, 'boxes': len(codes), 'options': len(skus),
@@ -1111,7 +1251,7 @@ def api_bulk_delete_boxes():
     body = request.get_json(silent=True) or {}
     codes = [str(c) for c in (body.get('codes') or []) if str(c).strip()]
     if not codes:
-        return jsonify({'ok': False, 'error': '지울 묶음을 골라 주세요.'}), 400
+        return _err('지울 묶음을 골라 주세요.')
     done, failed = [], []
     for c in codes:
         r = api_delete_option_box(c)
@@ -1121,7 +1261,10 @@ def api_bulk_delete_boxes():
             done.append({'code': c, 'options': j.get('deleted_options', 0),
                          'purged': j.get('purged') or {}})
         else:
-            failed.append({'code': c, 'error': j.get('error') or '지우지 못했습니다.'})
+            # 🔴 `error_code` — 이 목록의 `code` 는 이미 「어느 묶음인지」로 쓰고 있어
+            #    실패 갈래 값을 거기 겹쳐 넣으면 둘 중 하나가 가려진다.
+            failed.append({'code': c, 'error': j.get('error') or '지우지 못했습니다.',
+                           'error_code': j.get('code') or 'SERVER_ERROR'})
     return jsonify({'ok': True, 'deleted': len(done), 'failed': len(failed),
                     'done': done, 'errors': failed})
 
@@ -1150,13 +1293,41 @@ def api_import_from_market():
         s.commit()
     except ValueError as e:
         s.rollback()
+        return _err(str(e))
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        _log.exception('[optgen] 마켓 상품 가져오기 실패 market=%r product_id=%r',
+                       body.get('market'), body.get('market_product_id'))
+        return _err(str(e)[:300], 500)
+    finally:
+        s.close()
+    return jsonify({'ok': True, **out})
+
+
+@bp.post('/api/import-from-market-merge')
+def api_import_from_market_merge():
+    """마켓 상품 여러 개 → 「모델」 축 매트릭스 1개로 태어난다(지금은 스마트스토어만).
+
+    🔴 실패하면 아무것도 안 만든다(rollback) — 반쪽짜리 옵션함 금지. 단건
+       가져오기(`/api/import-from-market`)와 같은 계약.
+    """
+    from lemouton.matrix.import_from_market import import_market_products_merged
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        out = import_market_products_merged(
+            s, items=body.get('items') or [],
+            name=body.get('name') or '', brand=body.get('brand') or '')
+        s.commit()
+    except ValueError as e:
+        s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
     except Exception as e:                              # noqa: BLE001
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)[:300]}), 500
     finally:
         s.close()
-    return jsonify({'ok': True, **out})
+    return jsonify(out)
 
 
 @bp.get('/import')

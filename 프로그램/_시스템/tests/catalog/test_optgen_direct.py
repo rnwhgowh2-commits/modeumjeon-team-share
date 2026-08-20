@@ -35,6 +35,57 @@ def test_이름이_비면_거절하고_이유를_말한다(client):
     j = r.get_json()
     assert j['ok'] is False
     assert '이름' in j['error']
+    assert j['code'] == 'VALIDATION_ERROR'
+
+
+def test_같은_브랜드_같은_이름은_거절하고_코드로_알린다(client):
+    """[2026-08-19 ui-verify 감사] 사장님 확정 — 중복이름 저장 금지."""
+    first = client.post('/optgen/api/option-box',
+                        json={'name': '중복확인함', 'brand': '르무통'})
+    assert first.status_code == 200, first.get_data(as_text=True)
+    dup = client.post('/optgen/api/option-box',
+                      json={'name': '중복확인함', 'brand': '르무통'})
+    assert dup.status_code == 400, dup.get_data(as_text=True)
+    j = dup.get_json()
+    assert j['ok'] is False
+    assert j['code'] == 'DUPLICATE_NAME'
+    assert '중복확인함' in j['error']
+    client.delete(f"/optgen/api/option-box/{first.get_json()['code']}")
+
+
+def test_에러_응답마다_code_필드가_있다(client):
+    """[2026-08-19 ui-verify 감사] 호출자가 실패 갈래를 문자열로 가릴 수 있어야 한다."""
+    묶음없음 = client.delete('/optgen/api/option-box/U19700101-000000')
+    assert 묶음없음.get_json()['code'] == 'NOT_FOUND'
+
+    빈이름 = client.post('/optgen/api/option-box', json={'name': '', 'brand': '르무통'})
+    assert 빈이름.get_json()['code'] == 'VALIDATION_ERROR'
+
+    안고른축 = client.post('/optgen/api/option-box',
+                        json={'name': '축확인', 'brand': '르무통',
+                              'axes': ['색상', '색상', '색상']})
+    assert 안고른축.get_json()['code'] == 'INVALID_AXES'
+
+
+def test_예상못한_오류는_서버_로그에_남는다(client, monkeypatch, caplog):
+    """[2026-08-19 ui-verify 감사] 예전엔 클라이언트 응답에만 나가고 서버 로그엔
+    아무 흔적이 없었다 — 라이브에서 뭐가 터졌는지 나중에 알 방법이 없었다."""
+    import lemouton.matrix.service as service_mod
+
+    def _boom(*a, **kw):
+        raise RuntimeError('시험용 예기치 못한 오류')
+    # 🔴 라우트가 `create_option_box` 를 함수 안에서 매번 새로 import 하므로
+    #    (지연 import), 여기서 갈아끼워도 다음 호출이 그대로 받아 간다.
+    monkeypatch.setattr(service_mod, 'create_option_box', _boom)
+
+    import logging
+    with caplog.at_level(logging.ERROR, logger='webapp.routes.optgen'):
+        r = client.post('/optgen/api/option-box',
+                        json={'name': '로그확인', 'brand': '르무통'})
+    assert r.status_code == 500
+    assert r.get_json()['code'] == 'SERVER_ERROR'
+    assert any('옵션함 만들기 실패' in rec.message for rec in caplog.records), \
+        '예기치 못한 오류가 서버 로그에 안 남았다'
 
 
 def test_만든_옵션함_화면이_열린다(client):

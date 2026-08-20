@@ -1,6 +1,8 @@
 """정책 생성 화면 — 목록 · 편집(마켓 공통 + 마켓 가로탭) · 상품에 적용.
 
-노션 「상품 가공 (정책 생성 & 정책 적용)」. 규칙은 lemouton/policy/service.py 가 단일 원천.
+상위탭 「상품 정책화」(구 「상품 가공」) — 하위탭 정책 생성 & 정책 매칭(구 「정책 적용」,
+[2026-08-19] 사장님 확정 재개명). 노션 원문은 「상품 가공 (정책 생성 & 정책 적용)」.
+규칙은 lemouton/policy/service.py 가 단일 원천.
 
 🔴 값이 비어 있는 정책은 **가격 계산에 물리지 않는다**. 화면이 「아직 못 씀」을 보여준다.
 """
@@ -20,10 +22,10 @@ bp = Blueprint('policy', __name__)
 @bp.route('/policies')
 def policy_index():
     from lemouton.policy.common_sync import market_summary
-    from lemouton.policy.fields import MARKET_LABEL
+    from lemouton.policy.fields import MARKET_KEYS, MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import (
-        applied_count, brand_counts, enabled_markets, readiness,
+        applied_count, applied_products_list, brand_counts, enabled_markets, readiness,
     )
     want_brand = (request.args.get('brand') or '').strip()
     s = SessionLocal()
@@ -35,14 +37,35 @@ def policy_index():
             #   안 켠 마켓을 분모에 두면 100% 가 영영 안 찬다.
             on = enabled_markets(s, p)
             rd = readiness(s, p.id, markets=on)
+            ready = {m for m, v in rd.items() if v['price_ready']}
+            on_set = set(on)
+            # [2026-08-19] 「마켓별 상태」 칼럼 — 켠 마켓만 완료/작성중을 가르고,
+            #   안 켠 마켓은 꺼짐. 근거는 위 채움 계산(readiness)과 그대로 같다 —
+            #   따로 새 신호를 만들면 이 칼럼과 「가격」 칼럼이 서로 다른 말을 하게 된다.
+            market_status = {mk: ('done' if mk in ready else 'writing') if mk in on_set
+                             else 'off' for mk in MARKET_KEYS}
+            is_default = bool(p.is_default)
+            is_ready = bool(ready)
+            is_applied = applied_count(s, p.id) > 0
+            # [2026-08-19 사장님 확정] 왼쪽 분류 3단(+하위 2단) — 겹치지 않는 자리 하나.
+            #   기본정책이 먼저다 — 템플릿 용도라 채움 상태와 무관하게 그 자리로 간다.
+            if is_default:
+                stage = 'default'
+            elif is_ready:
+                stage = 'ready-applied' if is_applied else 'ready-unapplied'
+            else:
+                stage = 'writing'
             items.append({
                 'id': p.id, 'name': p.name, 'memo': p.memo, 'brand': p.brand,
-                'is_default': bool(p.is_default),
+                'is_default': is_default,
                 'applied': applied_count(s, p.id),
+                'applied_products': applied_products_list(s, p.id),
                 'filled': sum(v['filled'] for v in rd.values()),
                 'total': sum(v['total'] for v in rd.values()),
                 'ready': [m for m, v in rd.items() if v['price_ready']],
                 'markets': on,
+                'market_status': market_status,
+                'stage': stage,
                 'summary': market_summary(s, p.id),
             })
         brands = brand_counts(s)
@@ -53,14 +76,19 @@ def policy_index():
         items = [it for it in items if not it['brand']]
     elif want_brand:
         items = [it for it in items if it['brand'] == want_brand]
+    stage_counts = {'default': 0, 'ready-applied': 0, 'ready-unapplied': 0, 'writing': 0}
+    for it in items:
+        stage_counts[it['stage']] += 1
+    stage_counts['ready'] = stage_counts['ready-applied'] + stage_counts['ready-unapplied']
     return render_template('policy/index.html', active='policies', items=items,
                            brands=brands, want_brand=want_brand,
-                           market_label=MARKET_LABEL, total=len(items))
+                           market_label=MARKET_LABEL, market_keys=MARKET_KEYS,
+                           stage_counts=stage_counts, total=len(items))
 
 
 @bp.route('/policies/<int:pid>')
 def policy_detail(pid: int):
-    from lemouton.policy.common_sync import market_summary, origin_of
+    from lemouton.policy.common_sync import market_summary
     from lemouton.policy.fields import COMMON_KEY, COMMON_LABEL, MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import (
@@ -146,7 +174,6 @@ def policy_detail(pid: int):
             'wire': wire_map,
             'req_sum': req_sum,
             'stored_only_note': REQ.STORED_ONLY_NOTE,
-            'origin': origin_of(s, pid, market),
             'summary': market_summary(s, pid),
             'readiness': _rd_all,
             'applied': applied_count(s, pid),
@@ -215,7 +242,8 @@ def api_create():
     s = SessionLocal()
     try:
         got = create_policy(s, name=p.get('name') or '', memo=p.get('memo') or '',
-                            brand=p.get('brand') or '')
+                            brand=p.get('brand') or '', category=p.get('category') or '',
+                            sourcing=p.get('sourcing') or '', prefix=p.get('prefix') or '')
         s.commit()
         return jsonify({'ok': True, 'id': got.id, 'name': got.name})
     except PolicyError as e:
@@ -360,16 +388,17 @@ def api_add_bundle(model_code: str):
 
 @bp.post('/api/policies/<int:pid>/default')
 def api_set_default(pid: int):
+    """기본정책(여러 번 쓰는 템플릿) 지정을 켜고 끈다 — 여러 개 동시 지정 가능(2026-08-19 확정)."""
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import set_default
+    from lemouton.policy.service import toggle_default
     s = SessionLocal()
     try:
         pol = s.get(MarketPolicy, pid)
         if pol is None:
             return jsonify({'ok': False, 'error': '정책을 찾을 수 없어요.'}), 404
-        set_default(s, policy=pol)
+        is_default = toggle_default(s, policy=pol)
         s.commit()
-        return jsonify({'ok': True})
+        return jsonify({'ok': True, 'is_default': is_default})
     finally:
         s.close()
 
@@ -408,10 +437,17 @@ def api_bundles():
     from lemouton.sourcing.models import Model
     kw = (request.args.get('q') or '').strip().lower()
     want_brand = (request.args.get('brand') or '').strip()
+    want_applied = (request.args.get('applied') or '').strip()  # 'yes' | 'no' | ''(전체)
     s = SessionLocal()
     try:
         names = dict(s.query(MarketPolicy.id, MarketPolicy.name).all())
         linked = dict(s.query(BundlePolicyLink.model_code, BundlePolicyLink.policy_id).all())
+        # [이슈 #1058] 정책 적용 필터 — 상품(BundlePolicyLink) ∪ 구성(SetPolicyLink)
+        #   합집합을 봐야 한다. 상품 단위만 보면 구성으로만 정책이 붙은 상품을
+        #   「미적용」으로 잘못 판정한다(bundles_tower.policy_models 와 같은 규칙 재사용).
+        from webapp.routes.bundles_tower import policy_models
+        all_codes = [c for (c,) in s.query(Model.model_code).all()]
+        applied_codes = policy_models(s, all_codes) if want_applied else set()
         rows, counts, total = [], {}, 0
         # [2026-08-02] 이름으로도 찾게 한다 — 사장님은 번호가 아니라 「메이트」로 찾는다.
         #   찾는 칸만 넓힌 것이라 번호·브랜드로 찾던 결과는 그대로 나온다.
@@ -427,6 +463,10 @@ def api_bundles():
             if kw and kw not in (code + ' ' + (disp or '') + ' ' + (brand or '')
                                  + ' ' + (nm or '')).lower():
                 continue
+            if want_applied == 'yes' and code not in applied_codes:
+                continue
+            if want_applied == 'no' and code in applied_codes:
+                continue
             if len(rows) < 300:
                 rows.append({'model_code': code, 'no': disp, 'brand': brand, 'name': nm,
                              'policy': names.get(linked.get(code))})
@@ -436,6 +476,83 @@ def api_bundles():
         by_code = bundles_of(s, [r['model_code'] for r in rows])
         for r in rows:
             r['bundles'] = by_code.get(r['model_code'], [])
+
+        # [이슈 #1058] 옵션매트릭스 — 상품(Model) 하나에 원본 매트릭스 하나(1:1).
+        #   없는 상품(아직 매트릭스를 안 만든 것)은 matrix=None(지어내지 않는다).
+        from sqlalchemy import func
+        from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+        from lemouton.sourcing.models import Option
+        page_codes = [r['model_code'] for r in rows]
+        matrices = {mo.model_code: mo for mo in
+                    s.query(MatrixOption)
+                    .filter(MatrixOption.model_code.in_(page_codes),
+                            MatrixOption.kind == KIND_ORIGIN,
+                            MatrixOption.deleted_at.is_(None)).all()}
+        sku_counts = dict(s.query(Option.model_code, func.count(Option.canonical_sku))
+                          .filter(Option.model_code.in_(page_codes))
+                          .group_by(Option.model_code).all())
+        for r in rows:
+            mo = matrices.get(r['model_code'])
+            r['matrix'] = ({'id': mo.id, 'name': mo.name, 'no': mo.display_no,
+                            'sku_count': sku_counts.get(r['model_code'], 0)}
+                           if mo else None)
+
+        # [이슈 #1058] 소싱처 연동 — 사이트 라벨 + 마지막 수집 시각. 배치 1쿼리
+        #   (300행 목록에서 상품마다 따로 물으면 N+1이 된다 — 소싱처 필터가
+        #   276쿼리였던 전례가 있다). URL 상세(재고·가격)는 호버카드가 따로 부른다.
+        from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
+        from lemouton.sources.site_labels import SITE_LABEL
+        from webapp.routes.bundles_tower import _iso
+        sku_model = dict(s.query(Option.canonical_sku, Option.model_code)
+                         .filter(Option.model_code.in_(page_codes)).all())
+        sourcing_by_model = {c: {'connected': set(), 'collected_at': None}
+                             for c in page_codes}
+        if sku_model:
+            for sku, site, fetched in (
+                    s.query(OptionSourceLink.canonical_sku, SourceProduct.site,
+                            SourceProduct.last_fetched_at)
+                    .join(SourceOption,
+                          SourceOption.id == OptionSourceLink.source_option_id)
+                    .join(SourceProduct,
+                          SourceProduct.id == SourceOption.source_product_id)
+                    .filter(OptionSourceLink.canonical_sku.in_(list(sku_model)))
+                    .all()):
+                mc = sku_model.get(sku)
+                if not mc:
+                    continue
+                st = sourcing_by_model[mc]
+                st['connected'].add(SITE_LABEL.get(site, site))
+                if fetched and (st['collected_at'] is None or fetched > st['collected_at']):
+                    st['collected_at'] = fetched
+        for r in rows:
+            st = sourcing_by_model.get(r['model_code']) \
+                or {'connected': set(), 'collected_at': None}
+            r['sourcing'] = {'connected': sorted(st['connected']),
+                             'collected_at': _iso(st['collected_at'])}
+
+        # [이슈 #1058] 판매처 연동 — 등록 판정은 기존 _registered_markets
+        #   (3원천 합집합)를 그대로 재사용(재계산 금지). 수집(동기화) 시각은
+        #   MarketRegistration.last_success_at 배치 1쿼리.
+        from lemouton.policy.fields import MARKET_LABEL
+        from lemouton.uploader.models import MarketRegistration
+        from webapp.routes.bundles_tower import _registered_markets
+        reg_markets = _registered_markets(s, page_codes)
+        last_sync_by_model = {c: None for c in page_codes}
+        if sku_model:
+            for sku, ts in (s.query(MarketRegistration.canonical_sku,
+                                    MarketRegistration.last_success_at)
+                            .filter(MarketRegistration.canonical_sku.in_(list(sku_model)),
+                                    MarketRegistration.last_success_at.isnot(None))
+                            .all()):
+                mc = sku_model.get(sku)
+                if not mc:
+                    continue
+                if last_sync_by_model[mc] is None or ts > last_sync_by_model[mc]:
+                    last_sync_by_model[mc] = ts
+        for r in rows:
+            mkts = reg_markets.get(r['model_code']) or set()
+            r['selling'] = {'connected': sorted(MARKET_LABEL.get(m, m) for m in mkts),
+                            'collected_at': _iso(last_sync_by_model.get(r['model_code']))}
     finally:
         s.close()
     # 많은 순 → 이름 순, 브랜드 없는 것은 맨 뒤(만들다 만 것이 위를 차지하면 안 된다)
@@ -444,6 +561,99 @@ def api_bundles():
         named.append(('', counts['']))
     return jsonify({'ok': True, 'rows': rows, 'total': total,
                     'brands': [{'name': b, 'count': n} for b, n in named]})
+
+
+@bp.get('/api/policies/product/<path:code>/sourcing-detail')
+def api_sourcing_detail(code: str):
+    """상품 고르기 호버카드 — 소싱처 수집: 과거 실행 이력(최근순) + 옵션별 가격·재고.
+
+    [이슈 #1058] 값을 새로 계산하지 않는다 — BundleRun · webapp.routes.matrix._rows_for
+    를 그대로 호출만 한다(bundles_tower.py 와 같은 원칙). 목록(api_bundles)에는
+    안 싣는다 — 300행 전체의 이력·매트릭스까지 매번 부르면 목록이 무거워진다.
+    """
+    import json as _json
+    from lemouton.sourcing.models import BundleRun, Model, Option
+    from webapp.routes.bundles_tower import _iso
+    from webapp.routes.matrix import _rows_for
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first() is None:
+            return jsonify({'ok': False, 'error': '상품을 찾을 수 없어요.'}), 404
+        skus = [o.canonical_sku for o in
+                s.query(Option).filter_by(model_code=code).all()]
+        rows, _colors, _sizes = _rows_for(s, skus)
+        history = []
+        for r in (s.query(BundleRun).filter(BundleRun.model_code == code)
+                  .order_by(BundleRun.started_at.desc()).limit(10).all()):
+            note = ''
+            try:
+                d = _json.loads(r.details_json or '{}')
+                srcs = d.get('sources') or {}
+                ok = sum(1 for v in srcs.values() if v.get('ok'))
+                if srcs:
+                    note = f'소싱처 {ok}/{len(srcs)} 성공'
+            except Exception:                          # noqa: BLE001
+                pass
+            history.append({'status': r.status, 'note': note, 'at': _iso(r.started_at)})
+        # [사장님 2026-08-19] 호버카드 표 순서 — 옵션 → 재고 → 가격.
+        options = [{'sku': r['sku'], 'color': r['color'], 'size': r['size'],
+                   'stock': r['stock'], 'price': r['min_final']} for r in rows]
+        return jsonify({'ok': True, 'history': history, 'options': options})
+    finally:
+        s.close()
+
+
+@bp.get('/api/policies/product/<path:code>/selling-detail')
+def api_selling_detail(code: str):
+    """상품 고르기 호버카드 — 판매처 수집: 최근 동기화 + 마켓별 판매가·예상 마진.
+
+    [이슈 #1058] 계산은 lemouton.policy.preview.result_by_market **호출만**
+    (bundles_tower.tower_summary 와 같은 원칙 — 재계산 금지). 마켓 쪽은 소싱처의
+    BundleRun 같은 실행 로그가 없어, 이력은 MarketRegistration.last_success_at
+    (마켓별 마지막 동기화 시각)으로 대신한다 — 있는 사실만 보여준다.
+    """
+    from lemouton.policy.preview import result_by_market
+    from lemouton.policy.service import policy_of
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.uploader.models import MarketRegistration
+    from webapp.routes.bundles_tower import TOWER_MARKETS, _iso
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first() is None:
+            return jsonify({'ok': False, 'error': '상품을 찾을 수 없어요.'}), 404
+        skus = [o.canonical_sku for o in
+                s.query(Option).filter_by(model_code=code).all()]
+        history = []
+        if skus:
+            by_market = {}
+            for mk, ts in (s.query(MarketRegistration.market,
+                                   MarketRegistration.last_success_at)
+                          .filter(MarketRegistration.canonical_sku.in_(skus),
+                                  MarketRegistration.last_success_at.isnot(None))
+                          .all()):
+                if mk not in by_market or ts > by_market[mk]:
+                    by_market[mk] = ts
+            mk_label = {k: label for k, label, _g in TOWER_MARKETS}
+            history = sorted(
+                ({'market': mk, 'label': mk_label.get(mk, mk), 'at': _iso(ts)}
+                 for mk, ts in by_market.items()),
+                key=lambda x: x['at'] or '', reverse=True)
+        pol = policy_of(s, code)
+        by_mk = {}
+        if pol is not None:
+            res = result_by_market(s, model_code=code, policy_id=pol.id)
+            by_mk = {r['market']: r for r in res['rows']}
+        markets = []
+        for mk, label, _g in TOWER_MARKETS:
+            r = by_mk.get(mk) or {}
+            markets.append({'market': mk, 'label': label,
+                            'price': r.get('price'), 'margin': r.get('margin'),
+                            'margin_rate': r.get('margin_rate'),
+                            'ready': r.get('ready', False)})
+        return jsonify({'ok': True, 'history': history, 'markets': markets,
+                        'policy': ({'id': pol.id, 'name': pol.name} if pol else None)})
+    finally:
+        s.close()
 
 
 @bp.route('/policies/fees')
@@ -502,25 +712,39 @@ def api_save_fee_defaults():
 
 @bp.route('/policies/apply')
 def policy_apply_page():
-    """「상품 정책 적용」 — 노션 하위탭 ②.
+    """「정책 매칭」(구 「상품 정책 적용」) — 노션 하위탭 ②.
 
     왼쪽에서 상품을 고르고 오른쪽에서 정책을 골라 한 번에 붙인다(그룹핑).
     🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
       하면 거짓 기능이 된다(「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤).
     """
+    from lemouton.policy.fields import MARKET_KEYS, MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import applied_count, brand_counts, readiness
+    from lemouton.policy.service import (
+        applied_count, applied_products, brand_counts, enabled_markets,
+        market_status,
+    )
     s = SessionLocal()
     try:
         policies = []
         for p in s.query(MarketPolicy).filter(MarketPolicy.deleted_at.is_(None)) \
                   .order_by(MarketPolicy.is_default.desc(), MarketPolicy.name):
-            rd = readiness(s, p.id)
+            on = enabled_markets(s, p)
+            # market_status() 가 켠 마켓만 골라 readiness() 를 이미 계산한다 —
+            #   전체 마켓 readiness 를 여기서 또 구하면 같은 조회를 두 번 하는 셈이다.
+            status = market_status(s, p.id, markets=on)
+            # [#1059 카드형 정책 고르기] 켠 마켓 중 하나도 「가격 쓸 수 있음」이
+            #   아니면 이 정책은 지금 상품에 붙여도 아무 데도 값이 안 나간다 —
+            #   그런 정책은 카드에서 고를 수 없게 잠그고 「정책 생성으로」 안내한다.
+            usable = any(v != 'wait' for v in status.values())
             policies.append({
                 'id': p.id, 'name': p.name, 'brand': p.brand or '',
                 'is_default': bool(p.is_default),
                 'applied': applied_count(s, p.id),
-                'ready': [m for m, v in rd.items() if v['price_ready']],
+                'enabled': on,
+                'status': status,
+                'usable': usable,
+                'applied_info': applied_products(s, p.id, limit=3),
             })
         pbrands = brand_counts(s)
     finally:
@@ -530,7 +754,8 @@ def policy_apply_page():
     #      「체크했다는데 목록에 없다」가 된다.
     pick = [c for c in request.args.getlist('model') if c]
     return render_template('policy/apply.html', active='policy_apply',
-                           policies=policies, pbrands=pbrands,
+                           policies=policies, pbrands=pbrands, market_label=MARKET_LABEL,
+                           market_keys=MARKET_KEYS,
                            pick=pick, pick_q=(pick[0] if len(pick) == 1 else ''))
 
 
@@ -709,7 +934,7 @@ def api_bundle_policy_result(model_code: str):
         if not attached:
             return jsonify({'ok': True, 'policies': [], 'rows': [],
                             'reason': '이 상품에 붙은 정책이 없습니다 — '
-                                      '「🧩 상품 정책 적용」에서 먼저 붙여 주세요.'})
+                                      '「🧩 정책 매칭」에서 먼저 붙여 주세요.'})
         pid = int(want) if (want or '').isdigit() else attached[0]['id']
         if pid not in {a['id'] for a in attached}:
             pid = attached[0]['id']
