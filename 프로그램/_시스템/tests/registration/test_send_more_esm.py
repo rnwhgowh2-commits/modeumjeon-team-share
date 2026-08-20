@@ -58,3 +58,60 @@ def test_register_esm_calls_set_sold_out_after_success(monkeypatch):
 
     assert result['product_id'] == '999888'
     mock_suspend.assert_called_once_with('999888', 'auction', client=fake_client)
+
+
+def test_register_esm_marks_suspend_failed_when_set_sold_out_returns_false(monkeypatch):
+    """set_sold_out 이 False 를 돌려주면(전환 실패) — 스마트스토어(service.py:_send_live)와
+    같이 result['raw']['_suspend_failed'] = True 를 남겨야 한다.
+
+    이 흔적이 없으면 등록은 성공(goodsNo 확보)했는데 상품이 판매중 상태로 남았다는
+    사실이 DB(row.raw_json) 어디에도 안 남는다 — 로그만 찍고 아무도 안 본다.
+    """
+    fake_client = MagicMock()
+    monkeypatch.setattr(
+        'lemouton.uploader.market_fetch._esm_client', lambda market, prefix: fake_client)
+
+    with patch('shared.platforms.esm.products.search_goods',
+               return_value={'items': [{'goodsNo': '111'}]}), \
+         patch('shared.platforms.esm.products.get_goods_detail',
+               return_value={'itemAddtionalInfo': {}}), \
+         patch('shared.platforms.esm.products.extract_register_prereq',
+               return_value=_PREREQ), \
+         patch('shared.platforms.esm.products.build_esm_register_payload',
+               return_value={}), \
+         patch('shared.platforms.esm.products.register_goods',
+               return_value={'goodsNo': '999888'}), \
+         patch('shared.platforms.esm.inventory.set_sold_out') as mock_suspend:
+        mock_suspend.return_value = False
+        result = _register_esm('auction', dict(_SPEC), '')
+
+    assert result['product_id'] == '999888'
+    assert result['raw'].get('_suspend_failed') is True
+
+
+def test_register_esm_marks_suspend_failed_when_set_sold_out_raises(monkeypatch):
+    """set_sold_out 이 예외를 던져도(전환 실패) 같은 흔적을 남겨야 한다.
+
+    등록 자체는 이미 성공했으므로(goodsNo 확보) 예외를 삼키는 것 자체는 맞다
+    (best-effort) — 다만 삼킨 뒤 아무 흔적도 안 남기면 안 된다.
+    """
+    fake_client = MagicMock()
+    monkeypatch.setattr(
+        'lemouton.uploader.market_fetch._esm_client', lambda market, prefix: fake_client)
+
+    with patch('shared.platforms.esm.products.search_goods',
+               return_value={'items': [{'goodsNo': '111'}]}), \
+         patch('shared.platforms.esm.products.get_goods_detail',
+               return_value={'itemAddtionalInfo': {}}), \
+         patch('shared.platforms.esm.products.extract_register_prereq',
+               return_value=_PREREQ), \
+         patch('shared.platforms.esm.products.build_esm_register_payload',
+               return_value={}), \
+         patch('shared.platforms.esm.products.register_goods',
+               return_value={'goodsNo': '999888'}), \
+         patch('shared.platforms.esm.inventory.set_sold_out') as mock_suspend:
+        mock_suspend.side_effect = RuntimeError('네트워크 오류')
+        result = _register_esm('auction', dict(_SPEC), '')
+
+    assert result['product_id'] == '999888'
+    assert result['raw'].get('_suspend_failed') is True

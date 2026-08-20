@@ -193,10 +193,16 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
     try:
         suspended = set_sold_out(goods_no_new, market, client=client)
         if not suspended:
+            # 등록 자체는 성공했다 — 판매중으로 남았다는 사실을 숨기지 않는다.
+            #   (service.py:_send_live 스마트스토어 분기와 같은 흔적 — result 가 곧
+            #   register_live() 의 'raw' 로 리턴돼 row.raw_json 에 그대로 저장된다.
+            #   여기서 안 남기면 로그만 찍고 DB 어디에도 안 남는다.)
             logger.warning('%s 판매중지 전환 실패 goodsNo=%s — 상품이 판매중 상태로 남았습니다.',
                             market, goods_no_new)
+            result['_suspend_failed'] = True
     except Exception:  # noqa: BLE001 — best-effort. 등록 자체는 이미 성공했다(상품ID 확보).
         logger.exception('%s 판매중지 전환 예외 goodsNo=%s', market, goods_no_new)
+        result['_suspend_failed'] = True
     return {'product_id': goods_no_new, 'raw': result}
 
 
