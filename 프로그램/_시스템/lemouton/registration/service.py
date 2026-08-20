@@ -66,6 +66,11 @@ def prepare_compile_draft(session, draft, market: str = '', *, gate=None,
                                             collect_banned_words=collect_words)
     skipped = list(notes) + list(skipped)
     view, filled_from = apply_notice_defaults(session, view)
+    # [2026-08-20] 정책도 사람도 안 정한 배송비·반품비·원산지 — 컴파일 직전에만
+    #   프로그램 최종 기본값을 채운다(process_apply.py 의 OPERATIONAL_FALLBACKS 참고).
+    #   preflight_rows·register_draft 가 둘 다 이 함수 하나를 거치므로 한 번만 적으면 된다.
+    view, fallback_applied = PA.apply_operational_fallbacks(view)
+    applied = list(applied) + fallback_applied
     # [2026-07-31] 고시·카테고리·판매가는 이 엔진이 만들지 않는다(담당처가 따로 있다).
     #   그렇다고 규칙을 읽지도 않고 넘기면 「화면에서 정했는데 아무 일도 안 일어난다」가
     #   된다 — 담당처의 실제 결과와 대조해 어긋나면 사유로 표면화한다.

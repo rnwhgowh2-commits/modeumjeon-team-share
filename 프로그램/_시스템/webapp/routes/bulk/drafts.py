@@ -114,9 +114,15 @@ def create_draft():
             options_json=json.dumps(raw_opts, ensure_ascii=False),
             # ★ 빈 칸이 0 이 되면 안 된다 — 쿠팡 컴파일러가 0 을 deliveryChargeType='FREE'
             #   (무료배송=판매자 부담)로 보내 돈이 샌다. 0 은 '무료배송' 이라는 뜻 있는 값이라
-            #   coerce_int 가 None(미입력) 과 구분한다 → 미입력만 기본값으로.
-            delivery_fee=delivery_fee if delivery_fee is not None else 3000,
-            return_fee=return_fee if return_fee is not None else 5000,
+            #   coerce_int 가 None(미입력) 과 구분한다.
+            # 🔴 [2026-08-20] 예전엔 여기서 미입력을 3000·5000 으로 확정해 저장했다 —
+            #   그러면 「사람이 3,000원이라 입력함」과 「안 건드림」이 구분 안 돼, 정책에서
+            #   다른 배송비를 정해도 절대 못 먹었다(process_apply._is_blank 가 늘 거짓).
+            #   NULL 그대로 남긴다 — 안 건드리면(NULL) 정책이 채우고, 정책도 없으면
+            #   등록 직전 `process_apply.apply_operational_fallbacks()` 가 이 값(3000·5000)을
+            #   채운다(재현·수정: tests/registration/test_policy_fallback_column_default.py).
+            delivery_fee=delivery_fee,
+            return_fee=return_fee,
             minor_purchasable=bool(p.get('minor_purchasable', True)),
             after_service_phone=(p.get('after_service_phone') or '').strip(),
             after_service_guide=(p.get('after_service_guide') or '').strip(),

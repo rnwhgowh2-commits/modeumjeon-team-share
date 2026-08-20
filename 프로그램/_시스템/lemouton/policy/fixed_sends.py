@@ -93,7 +93,7 @@ FIXED: dict[str, list] = {
     ],
     'smartstore': [
         Fixed('원산지', '국내산', FROM_DEFAULT,
-              'registration/models.py:52', 'origin',
+              'registration/process_apply.py:OPERATIONAL_FALLBACKS', 'origin',
               '정책에서 「고정값」으로 정하면 그 값이 나갑니다 — 안 정하면(자동) 이 값입니다.',
               policy_wins=True),
         Fixed('수입사', '- (하이픈)', FROM_CODE,
@@ -178,11 +178,11 @@ COMMON_DEFAULTS: list = [
           'registration/models.py:43', 'notice',
           '🔴 모음전 경로에서는 신발·가방도 「의류」 고시로 나갑니다.'),
     Fixed('배송비', '3,000원', FROM_DEFAULT,
-          'registration/models.py:54', 'shipping',
+          'registration/process_apply.py:OPERATIONAL_FALLBACKS', 'shipping',
           '정책에서 정하면 그 금액이 나갑니다 — 안 정하면 이 값입니다.',
           policy_wins=True),
     Fixed('반품 배송비', '5,000원', FROM_DEFAULT,
-          'registration/models.py:55', 'shipping',
+          'registration/process_apply.py:OPERATIONAL_FALLBACKS', 'shipping',
           '정책에서 정하면 그 금액이 나갑니다 — 안 정하면 이 값입니다.',
           policy_wins=True),
 ]
