@@ -393,7 +393,21 @@ def _register_eleven11(spec: dict, account_key: str = '') -> dict:
     fields['extra'].setdefault('rtngExchDetail', '상품 수령 후 7일 이내 교환/반품 가능. 비용 본인부담.')
     xml_body = build_register_xml(fields)
     result = register_product(xml_body, client=client)   # productNo 없으면 raise
-    return {'product_id': str(result['productNo']), 'raw': result}
+    product_no = str(result['productNo'])
+    # ★ 등록 직후 전시중지 — 11번가는 등록 즉시 전시(판매)로 뜬다(ESM·스마트스토어와
+    #   같은 이유). 실패해도 product_id 는 잃지 않는다(best-effort). 실패 흔적은
+    #   result 안에 남겨 row.raw_json 으로 DB에 보이게 한다(로그만 남기면 조용한
+    #   실패가 된다 — 과거에 여러 번 겪은 「돈 잃는」 버그 유형).
+    from shared.platforms.eleven11.products import stop_display
+    try:
+        stop_resp = stop_display(product_no, client=client)
+        if not stop_resp:
+            logger.warning('11번가 전시중지 응답 없음 prdNo=%s', product_no)
+            result['_suspend_failed'] = True
+    except Exception:  # noqa: BLE001
+        logger.exception('11번가 전시중지 예외 prdNo=%s', product_no)
+        result['_suspend_failed'] = True
+    return {'product_id': product_no, 'raw': result}
 
 
 # ── 롯데온 ─────────────────────────────────────────────────────
