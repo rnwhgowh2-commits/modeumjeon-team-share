@@ -7968,7 +7968,11 @@ function openColFilter(col, anchor) {
   if (isCardAll && ctxCard && ctxCard !== 'all') {
     allRows = _getRowsByCardFilter(ctxCard);
   } else if (isCardAll) {
-    allRows = (state.tab1Data || []).filter(function(r){
+    /* [모음전 2026-08-20] 전체내역(ctxCard='all') 필터 옵션 소스 통일 — state.tab1Data(classified)엔
+       마진율/순마진처럼 buildDetailTable 이 실제로 그리는 표에만 있는 파생 필드가 없어서, 이 컬럼들의
+       필터가 늘 (빈값) 하나로만 보였다(사장님 신고 2026-08-20). _getDetailRowsSorted 가 이미 같은 이유로
+       _moumAllBaseRows() 로 통일돼 있던 것과 같은 소스로 맞춘다. */
+    allRows = (typeof window._moumAllBaseRows === 'function') ? window._moumAllBaseRows() : (state.tab1Data || []).filter(function(r){
       var src = r['데이터출처'] || '';
       return src === '더망고+샵마인' || src === '더망고만';
     });
