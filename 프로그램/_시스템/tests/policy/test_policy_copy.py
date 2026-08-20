@@ -65,9 +65,9 @@ def test_붙은_상품은_따라오지_않는다(db):
 
 def test_기본_정책_표시는_따라오지_않는다(db):
     from lemouton.policy.copy import copy_policy
-    from lemouton.policy.service import set_default
+    from lemouton.policy.service import toggle_default
     p = create_policy(db, name='르무통 기본')
-    set_default(db, policy=p)
+    toggle_default(db, policy=p)
 
     c = copy_policy(db, policy=p)
 

@@ -216,6 +216,52 @@ def test_구성에만_붙인_정책도_정책_적용으로_센다(client):
         s.close()
 
 
+def test_행에_정책_id가_실린다(client):
+    """[#1072] 「정책 매칭」 카드의 "상품관리에서 보기 →" 가 ?policy=<id> 로 걸러 보이려면
+    각 행이 자기 정책 id 를 data-policy 로 들고 있어야 한다."""
+    from shared.db import SessionLocal
+    from lemouton.policy.models import BundlePolicyLink, MarketPolicy
+    from lemouton.sourcing.models import Model
+    from webapp.routes import bundles_tower as T
+
+    code = f'정책id행_{uuid.uuid4().hex[:8]}'
+    s = SessionLocal()
+    pol = None
+    try:
+        s.add(Model(model_code=code, model_name_raw=code, model_name_display=code,
+                    brand='르무통', display_no='M20260806-000003'))
+        pol = MarketPolicy(name=f'상품관리링크시험_{code}')
+        s.add(pol)
+        s.flush()
+        s.add(BundlePolicyLink(model_code=code, policy_id=pol.id))
+        s.commit()
+        pid = pol.id
+    finally:
+        s.close()
+    with T._cache_lock:
+        T._sales_cache.clear()
+        T._price_cache = None
+
+    html = client.get('/bundles').get_data(as_text=True)
+    i = html.find(f'data-code="{code}"')
+    assert i > 0
+    row = html[i:i + 300]
+    assert f'data-policy="{pid}"' in row
+
+
+def test_정책_거르기_배선이_화면에_있다():
+    """[#1072] ?policy= 를 읽어 초기 필터를 걸고, 칩으로 알려주는 배선이 실제로 있는지
+    소스로 확인 — JS 는 파이썬 테스트로 실행할 수 없어 문자열 존재로 대신한다."""
+    from pathlib import Path
+    from webapp.routes import bundles_tower as T
+    tpl = Path(T.__file__).resolve().parents[1] / 'templates' / 'bundles' / 'tower.html'
+    src = tpl.read_text(encoding='utf-8')
+    assert "state.policy" in src
+    assert "URLSearchParams" in src
+    assert "twr-policy-chip" in src
+    assert 'data-policy="{{ it.policy_id or \'\' }}"' in src
+
+
 def test_네_상태_숫자의_합이_전체와_같다():
     """막대(4토막)와 목록이 어긋나지 않는다는 증거 — 겹치지 않게 나눠 센다."""
     from webapp.routes.bundles_tower import (

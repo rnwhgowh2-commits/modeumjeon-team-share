@@ -68,9 +68,12 @@
     .msg.err{color: var(--글자-빨강, var(--red,#E5484D))}.msg.ok{color: var(--글자-초록, var(--green,#15803D))}
     .fld{margin-bottom:12px}
     .fld label{display:block;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);margin-bottom:4px}
-    .fld input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;
+    .fld input,.fld select{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;
                font-size:12px;font-family:inherit;background:var(--surface,#ffffff);color:var(--ink,#191F28)}
-    .fld input:focus{outline:none;border-color:var(--primary,#3182F6);}
+    .fld input:focus,.fld select:focus{outline:none;border-color:var(--primary,#3182F6);}
+    /* [2026-08-19 노션 상품생성 3번] 배지 자리를 대신하는 상단 기본정보 3칸(조립대 전용) */
+    .mxd-basic{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:10px 0 18px}
+    .mxd-basic .fld{margin-bottom:0}
     .hintbox{background:var(--bg,#F9FAFB);border-radius:8px;padding:12px 12px;font-size:12px;
              color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:12px}
     .hintbox b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
@@ -129,25 +132,43 @@
   {% endif %}
   <div class="mxd-h">
     <h1>{{ mo.name }}</h1>
+    {# [2026-08-19 노션 상품생성 3번] 조립대(상품 만들기)에서는 원본/파생 딱지·매트릭스
+       번호·「옵션 N개」 줄을 빼고, 그 자리를 상품 기본정보 입력으로 대신한다(아래 .mxd-basic).
+       옵션관리(보기 전용)는 확인용 정보라 그대로 둔다. #}
+    {% if not assembly %}
     <span class="mxd-badge {{ 'o' if mo.kind == 'origin' else 'd' }}">{{ '원본' if mo.kind == 'origin' else '파생' }}</span>
     <span class="mxd-no">{{ mo.no or '번호 대기' }}</span>
+    {% endif %}
     {# [2026-08-12 사장님 확정 1안] 삭제는 **작업하는 화면(조립대)에만** 둔다.
        상품관리 쪽 옵션관리는 코드가 「보기 전용」이라 못 박은 화면이라 넣지 않는다. #}
     {% if assembly and mo.model_code %}
     <button class="mxd-del" type="button" data-del="{{ mo.model_code }}"
-            data-name="{{ mo.name }}" data-opts="{{ rows|length }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 이 묶음 삭제</button>
+            data-name="{{ mo.name }}" data-opts="{{ rows|length }}">🗑 이 묶음 삭제</button>
     {% endif %}
   </div>
+  {% if not assembly %}
   <div class="mxd-sub">
     옵션 {{ rows|length }}개
     {% if mo.model_code %} · 모델 {{ mo.model_code }}{% endif %}
     {% if origin and mo.kind != 'origin' %} · 원본 <span class="mxd-no">{{ origin.no }}</span>{% endif %}
   </div>
+  {% else %}
+  <div class="mxd-basic">
+    <div class="fld"><label>상품 이름</label>
+      <input id="bname" placeholder="예: 르무통 메이트 스니커즈"></div>
+    <div class="fld"><label>브랜드 <span style="color:var(--sub,#8B95A1);font-weight:400">(하나만)</span></label>
+      <input id="bbrand" placeholder="예: 르무통"></div>
+    <div class="fld"><label>카테고리</label>
+      <select id="bcat" data-category-add>
+        {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select></div>
+  </div>
+  {% endif %}
 
   {# ── E1: 파생이면 위쪽 띠 + 원본으로 가기 ── #}
   {% if not editable %}
   <div class="lockbar">
-    <span style="font-size:17px"><i class="ph-light ph-warning" aria-hidden="true"></i>️</span>
+    <span style="font-size:17px">⚠️</span>
     <span class="t"><b>파생 옵션입니다.</b> {{ lock_reason }}</span>
     {% if origin %}<a href="{{ detail_base }}{{ origin.id }}">원본으로 가기 →</a>{% endif %}
   </div>
@@ -157,7 +178,7 @@
   <div style="display:grid;grid-template-columns:{% if assembly %}minmax(0,1fr) 380px{% else %}minmax(0,1fr){% endif %};gap:16px;align-items:start">
   <div class="card">
     <div class="card-t">
-      {% if assembly and editable %}<i class="ph-light ph-wall" aria-hidden="true"></i> 격자에서 고르기{% else %}<i class="ph-light ph-wall" aria-hidden="true"></i> 담긴 옵션{% endif %}
+      {% if assembly and editable %}🧱 격자에서 고르기{% else %}🧱 담긴 옵션{% endif %}
       <span class="cnt">{{ rows|length }}개</span>
     </div>
     {# [2026-08-12 노션 · 사장님 B2 확정] 모델 탭 — 격자는 색상 × 사이즈 두 축뿐이라
@@ -176,8 +197,6 @@
     <div class="pickbar">
       <span class="n">고른 옵션 <b id="selN">0</b>개
         <span style="color:var(--primary,#5B7FB9)">／ 전체 {{ rows|length }}개</span></span>
-      <button class="btn2 ghost" id="clear" type="button">비우기</button>
-      <button class="btn2 ghost" id="all" type="button">전부 고르기</button>
     </div>
     {% endif %}
   </div>
@@ -191,7 +210,7 @@
           「여기서 고칠 수 있다」는 거짓 신호가 된다(옵션은 복제본이라 여기서 못 고친다). #}
     {% if made %}
     <div class="card">
-      <div class="card-t"><i class="ph-light ph-package" aria-hidden="true"></i> 이 묶음으로 만든 상품 <span class="cnt">{{ made|length }}개</span></div>
+      <div class="card-t">📦 이 묶음으로 만든 상품 <span class="cnt">{{ made|length }}개</span></div>
       {% for d in made %}
       <div class="madebox">
         <div class="madeline"><b>{{ d.name }}</b>
@@ -218,18 +237,9 @@
     {% if made %}<details class="card remake"><summary>➕ 이 묶음으로 <b>또</b> 상품 만들기</summary>
       <div class="warnline">이 묶음으로 이미 {{ made|length }}개를 만들었습니다. 같은 상품을 두 번 만들지 않도록 확인해 주세요.</div>
     {% else %}<div class="card">
-      <div class="card-t"><i class="ph-light ph-package" aria-hidden="true"></i> 이 옵션들로 상품 만들기</div>
     {% endif %}
-      <div class="fld"><label>상품 이름</label>
-        <input id="bname" placeholder="예: 르무통 메이트 스니커즈"></div>
-      <div class="fld"><label>브랜드 <span style="color:var(--sub,#8B95A1);font-weight:400">(하나만)</span></label>
-        <input id="bbrand" placeholder="예: 르무통"></div>
-      <div class="fld"><label>카테고리</label>
-        <input id="bcat" placeholder="예: 스니커즈"></div>
-      <div class="hintbox">
-        고른 옵션이 <b id="bcount">0</b>개 담깁니다. 소싱처 연결도 함께 따라옵니다.<br>
-        상품번호(<span class="code">M…</span>)는 만들 때 자동으로 붙습니다.
-      </div>
+      {# [2026-08-19 노션 상품생성 3번] 상품이름·브랜드·카테고리는 위 기본정보(.mxd-basic)로
+         옮겼다 — 이미 거기서 채웠으므로 여기는 만들기 버튼만 남긴다. #}
       <button class="btn2" id="build" type="button" style="width:100%;justify-content:center" disabled>
         상품 만들기</button>
       <div class="msg" id="bmsg"></div>
@@ -241,7 +251,7 @@
        프로그램은 1개짜리 파생도 만들 수 있지만, 실제로 쓰지 않으신다고 확정하셨다
        (파생 = 원본에서 옵션을 골라 담은 목록 — 하나만 담을 일이 없다). #}
     <div class="card" id="dcard" hidden>
-      <div class="card-t"><i class="ph-light ph-scissors" aria-hidden="true"></i>️ 고른 것만 새 묶음으로</div>
+      <div class="card-t">✂️ 고른 것만 새 묶음으로</div>
       <div class="fld"><label>파생 묶음 이름</label>
         <input id="dname" placeholder="예: 인기색 4종"></div>
       <div class="hintbox">
@@ -269,18 +279,18 @@
     {% if editable and mo.model_code %}
     <a href="/optgen/box/{{ mo.model_code|urlencode }}" style="border:1px solid var(--line,#E5E8EB);
        color:var(--ink,#191F28);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;
-       text-decoration:none;white-space:nowrap"><i class="ph-light ph-wall" aria-hidden="true"></i> 옵션 조합 만들기 · 고치기 →</a>
+       text-decoration:none;white-space:nowrap">🧱 옵션 조합 만들기 · 고치기 →</a>
     {% endif %}
     <a href="/optgen/product/{{ mo.id }}" style="background:var(--바탕-파랑,var(--primary,#3182F6));
        color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;
-       text-decoration:none;white-space:nowrap"><i class="ph-light ph-wrench" aria-hidden="true"></i> 이 묶음으로 상품 만들기 →</a>
+       text-decoration:none;white-space:nowrap">🛠 이 묶음으로 상품 만들기 →</a>
   </div>
   {% endif %}
 
   {# ── 노션 ④ 상품 관리 — 「적용된 정책 보기」 · 「카테고리 맵핑 보기」 ── #}
   {% if mo.model_code %}
   <div class="card">
-    <div class="card-t"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 이 상품에 적용된 것</div>
+    <div class="card-t">📋 이 상품에 적용된 것</div>
     <div id="pinfo" style="font-size:12.5px;color:var(--sub,#8B95A1)">불러오는 중…</div>
   </div>
   {% endif %}
@@ -406,7 +416,7 @@ function popHTML(r){
     + '<button type="button" id="phbtn" data-sku="' + r.sku + '" style="margin-left:auto;'
     + 'background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:7px;'
     + 'padding:3px 9px;font-size:12px;font-family:inherit;cursor:pointer;'
-    + 'color:var(--글자-기본,#4E5968)">가격 흐름</button>'
+    + 'color:var(--글자-기본,#4E5968)">📈 가격 흐름</button>'
     + '<div id="phbox" style="width:100%;margin-top:8px"></div></div>';
 }
 
@@ -561,7 +571,6 @@ function build(){
 function upd(){
   if (!ASSEMBLY) return;      // 보기 전용 — 고르기 UI 자체가 없다
   document.getElementById('selN').textContent = sel.size;
-  document.getElementById('bcount').textContent = sel.size;
   document.getElementById('build').disabled = sel.size === 0;
   const mk = document.getElementById('make');
   if (mk){
@@ -659,11 +668,6 @@ build(); upd();
 })();
 
 if (ASSEMBLY){
-document.getElementById('clear').addEventListener('click', () => { sel.clear(); build(); upd(); });
-document.getElementById('all').addEventListener('click', () => {
-  ROWS.filter(inModel).forEach(r => sel.add(r.sku)); build(); upd();
-});
-
 /* 상품 만들기 — 성공하면 하위탭③ 초기화면으로 돌아가 배너로 알린다(확정 2번).
    다음 단계(상품 가공)는 그 배너가 가리킨다. */
 document.getElementById('build').addEventListener('click', async () => {
@@ -747,4 +751,5 @@ if (ASSEMBLY && EDITABLE){
     });
   });
 </script>
+{% if assembly %}<script src="{{ url_for('static', filename='category_select.js') }}"></script>{% endif %}
 {% endblock %}

@@ -693,9 +693,12 @@ def test_표_처리_구조가_박혀있다():
         'policies: 사이드바가 폰에서 본문 위로 안 접힌다'
     assert '.pl-sb { position: static; }' in pol, \
         'policies: 사이드바 붙박이가 폰에서 안 풀린다 — 스크롤을 가린다'
-    assert '.mk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }' in pol, \
-        'policies: 내보낼 마켓 격자(3열 max-content)가 폰 폭을 넘는다'
-    # 상품 정책 적용: 좌우 두 판이 세로 한 줄로
+    # [2026-08-19] 3열 max-content 격자(고치기 눌러야 펼침) → 바로 누르는 알약으로
+    #   바뀌면서 격자 자체가 없어졌다. 알약은 .pl-mk 의 flex-wrap 으로 이미 접혀
+    #   폰 폭을 넘지 않는다 — 여기서는 손끝 목표(32px)만 확인한다.
+    assert '.v2d-pill { min-height: 32px; font-size: 13px; }' in pol, \
+        'policies: 내보낼 마켓 알약이 폰에서 손끝 목표를 안 키운다'
+    # 정책 매칭: 좌우 두 판이 세로 한 줄로
     ap = _media_body(_template('policy/apply.html'))
     assert '.ap-two { grid-template-columns: 1fr; }' in ap, \
         'apply: 좌우 두 판이 세로 한 줄로 안 접힌다'

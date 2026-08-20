@@ -355,6 +355,19 @@ function flash(msg, kind) {
   setTimeout(() => el.remove(), 2600);
 }
 
+// [2026-08-19] 옵션 조합 창을 저장하고 닫으면 그 자리(옵션함 화면)가 아니라 목록으로
+//   이동한다 — 새로 도착한 화면에서 "저장 완료" 를 여기 한 곳에서 띄운다(어느 화면으로
+//   이동하든 공통). option_url_modal.js 가 sessionStorage 에 남겨 둔 메시지를 소비한다.
+(function () {
+  try {
+    const raw = sessionStorage.getItem('oum:justSaved');
+    if (!raw) return;
+    sessionStorage.removeItem('oum:justSaved');   // 한 번만 보여준다
+    const v = JSON.parse(raw);
+    if (v && v.msg) flash(v.msg);
+  } catch (e) { /* 알림 하나 놓치는 것보다 화면이 깨지는 게 더 나쁘다 */ }
+})();
+
 // 모음전 코드 추출 — 이미 인코딩된 path를 1회만 인코딩하기 위해 디코드 후 다시 인코딩.
 function currentBundleCode() {
   const last = window.location.pathname.split('/').pop();

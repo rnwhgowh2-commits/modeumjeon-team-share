@@ -221,3 +221,90 @@ def test_날짜_기준을_안_고르면_안_거른다(s):
     _model(s, 'M1', 'A', crawled=datetime(2026, 1, 1))
     _set(s, 'M1', '단품')
     assert L.rows(s, date_from='2026-08-02', date_to='2026-08-02')['total'] == 1
+
+
+# ── 상품수집&전송 화면 개편 (2026-08) — 브랜드·정책ID·소싱처 URL ──────────
+
+def test_브랜드가_실린다(s):
+    _model(s, 'M1', '나이키 반팔')          # _model 은 brand='르무통' 고정
+    _set(s, 'M1', '단품')
+    assert L.rows(s)['rows'][0]['brand'] == '르무통'
+
+
+def test_정책_아이디가_실린다_정책_편집_링크용(s):
+    from lemouton.policy.models import SetPolicyLink
+    _model(s, 'M1', 'A')
+    ps = _set(s, 'M1', '단품')
+    p = _policy(s, '정책A')
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    r = L.rows(s)['rows'][0]
+    assert r['policy_id'] == p.id
+
+
+def test_정책_없으면_아이디도_없다(s):
+    _model(s, 'M1', 'A')
+    _set(s, 'M1', '단품')
+    assert L.rows(s)['rows'][0]['policy_id'] is None
+
+
+def test_소싱처_URL_상세가_실린다_바로가기용(s):
+    _model(s, 'M1', '나이키 반팔')
+    _set(s, 'M1', '단품')
+    _src(s, 'M1', 'musinsa', 'https://musinsa.com/a')
+    r = L.rows(s)['rows'][0]
+    assert r['source_detail']['musinsa'] == [{'url': 'https://musinsa.com/a', 'label': ''}]
+
+
+def test_같은_소싱처_URL_여러개는_전부_실린다(s):
+    """sources 는 한 번만 세지만(칩용), source_detail 은 URL 전부(호버카드용) — 서로 다른 목적."""
+    _model(s, 'M1', '나이키 반팔')
+    _set(s, 'M1', '단품')
+    _src(s, 'M1', 'musinsa', 'https://a')
+    _src(s, 'M1', 'musinsa', 'https://b')
+    r = L.rows(s)['rows'][0]
+    assert r['sources'] == ['musinsa']
+    assert [u['url'] for u in r['source_detail']['musinsa']] == ['https://a', 'https://b']
+
+
+def test_소싱처_없으면_source_detail도_빈다(s):
+    _model(s, 'M1', 'A')
+    _set(s, 'M1', '단품')
+    assert L.rows(s)['rows'][0]['source_detail'] == {}
+
+
+# ── 판매처 수집일 — 「판매처 수집」 칸 (2026-08 개편 ⑦) ────────────────────
+
+def test_판매처에서_긁어온_때가_실린다(s):
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    _model(s, 'M1', 'A')
+    ps = _set(s, 'M1', '단품')
+    ch = SetChannel(set_id=ps.id, market='coupang')
+    s.add(ch)
+    s.flush()
+    s.add(SetChannelOption(channel_id=ch.id, canonical_sku='SKU1', status='matched',
+                           mkt_price=10000, mkt_fetched_at=datetime(2026, 8, 19, 13, 0)))
+    s.flush()
+    assert L.rows(s)['rows'][0]['market_collected_at'] == datetime(2026, 8, 19, 13, 0)
+
+
+def test_긁은_적_없으면_판매처_수집_때도_없다(s):
+    _model(s, 'M1', 'A')
+    _set(s, 'M1', '단품')
+    assert L.rows(s)['rows'][0]['market_collected_at'] is None
+
+
+def test_마켓이_여럿이면_가장_최근_때가_실린다(s):
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    _model(s, 'M1', 'A')
+    ps = _set(s, 'M1', '단품')
+    ch1 = SetChannel(set_id=ps.id, market='coupang')
+    ch2 = SetChannel(set_id=ps.id, market='smartstore')
+    s.add_all([ch1, ch2])
+    s.flush()
+    s.add(SetChannelOption(channel_id=ch1.id, canonical_sku='SKU1', status='matched',
+                           mkt_fetched_at=datetime(2026, 8, 1, 9, 0)))
+    s.add(SetChannelOption(channel_id=ch2.id, canonical_sku='SKU1', status='matched',
+                           mkt_fetched_at=datetime(2026, 8, 19, 13, 0)))
+    s.flush()
+    assert L.rows(s)['rows'][0]['market_collected_at'] == datetime(2026, 8, 19, 13, 0)

@@ -17,7 +17,7 @@ from lemouton.policy.fields import (
 from lemouton.policy.models import BundlePolicyLink, MarketPolicyValue
 from lemouton.policy.service import (
     PolicyError, applied_count, apply_to, create_policy, policy_of, readiness,
-    save_item, save_values, set_default, values_for,
+    save_item, save_values, toggle_default, values_for,
 )
 from lemouton.sourcing.models import Model
 
@@ -122,6 +122,37 @@ def test_같은_이름은_두_번_못_만든다(db):
     create_policy(db, name='르무통 기본')
     with pytest.raises(PolicyError, match='이미 있어요'):
         create_policy(db, name='르무통 기본')
+
+
+# ── [2026-08-19] 정책명 자동 조합 ([대량]/[모음전] + 브랜드 + 카테고리 + 소싱처) ──
+
+def test_이름_없이_브랜드만_있으면_모음전_기본값으로_조합한다(db):
+    p = create_policy(db, brand='르무통')
+    assert p.name == '[모음전] 르무통'
+    assert p.brand == '르무통'
+
+
+def test_브랜드_카테고리_소싱처를_다_조합한다(db):
+    p = create_policy(db, brand='르무통', category='스니커즈', sourcing='무신사')
+    assert p.name == '[모음전] 르무통 스니커즈 무신사'
+    assert p.category == '스니커즈' and p.sourcing == '무신사'
+
+
+def test_구분을_대량으로_바꿀_수_있다(db):
+    p = create_policy(db, brand='나이키', prefix='대량')
+    assert p.name == '[대량] 나이키'
+
+
+def test_조합할_조각이_하나도_없으면_그래도_이름을_요구한다(db):
+    """「[모음전]」 하나만 덩그러니 남는 이름은 뜻이 없다 — 자동 조합을 안 하고
+    기존처럼 이름을 직접 받는다(이 성질이 깨지면 위 test_이름이_없으면_막는다 도 깨진다)."""
+    with pytest.raises(PolicyError, match='이름'):
+        create_policy(db, category='', sourcing='')
+
+
+def test_이름을_직접_적으면_자동_조합이_안_덮는다(db):
+    p = create_policy(db, name='내가 지은 이름', brand='르무통', category='스니커즈')
+    assert p.name == '내가 지은 이름'
 
 
 # ── 항목값 ────────────────────────────────────────────────────────────────
@@ -262,12 +293,21 @@ def test_하나도_안_고르면_막는다(db):
         apply_to(db, policy=p, model_codes=[])
 
 
-def test_기본_정책은_하나뿐이다(db):
+def test_기본정책은_여러_개_지정할_수_있다(db):
+    """[2026-08-19 사장님 확정] 여러 번 재사용하는 템플릿이라 여러 개 허용 — 예전엔 하나 제한."""
     p1 = create_policy(db, name='정책1')
     p2 = create_policy(db, name='정책2')
-    set_default(db, policy=p1)
-    set_default(db, policy=p2)
-    assert p1.is_default == 0 and p2.is_default == 1
+    toggle_default(db, policy=p1)
+    toggle_default(db, policy=p2)
+    assert p1.is_default == 1 and p2.is_default == 1
+
+
+def test_기본정책_지정은_다시_누르면_풀린다(db):
+    p = create_policy(db, name='정책1')
+    assert toggle_default(db, policy=p) is True
+    assert p.is_default == 1
+    assert toggle_default(db, policy=p) is False
+    assert p.is_default == 0
 
 
 # ── 정책 고르기 카드(#1059) — 마켓별 상태 3단계·적용 상품 목록 ─────────────────

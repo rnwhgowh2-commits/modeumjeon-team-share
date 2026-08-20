@@ -332,6 +332,7 @@
           data-issues="{{ it.issues }}"
           data-sold="{{ it.sold_qty or 0 }}" data-margin="{{ it.margin_pct if it.margin_pct is not none else -999 }}"
           data-created="{{ it.created or '' }}" data-matrix="{{ it.matrix_id or '' }}"
+          data-policy="{{ it.policy_id or '' }}"
           data-blob="{{ (it.name ~ ' ' ~ it.brand ~ ' ' ~ it.no ~ ' ' ~ it.code)|lower }}">
         <td class="l">
           <div style="display:flex;gap:12px;align-items:center">
@@ -397,7 +398,9 @@ function dim(s){ return '<span class="twr-u">' + esc(s) + '</span>'; }
 /* ── 서랍 필터·정렬 (화면 안에서만 거른다 — 서버 재조회 없음) ── */
 /* [2026-08-06] 거르기 축은 하나뿐 — 「어디까지 왔나」 판. 예전엔 현황 카드(f)와
    브랜드 밑 상태 목록(status) 둘이 같은 일을 해서 서로 어긋날 수 있었다. */
-var state = { f:'all', stage:'', brand:'', q:'', sort:'recent' };
+/* [#1072] policy — 「정책 매칭」 카드에서 ?policy=<id> 로 넘어왔을 때만 켜지는
+   축. 다른 축과 달리 화면 안에 고르는 UI가 없다 — 딥링크 전용이라 칩으로만 보여준다. */
+var state = { f:'all', stage:'', brand:'', q:'', sort:'recent', policy:'', policyName:'' };
 function rows(){ return Array.prototype.slice.call(document.querySelectorAll('#twr-table tr.row')); }
 function applyFilter(){
   var shown = 0;
@@ -406,6 +409,7 @@ function applyFilter(){
     if(state.f === 'stage' && tr.dataset.stage !== state.stage) ok = false;
     if(state.f === 'fix' && !(parseInt(tr.dataset.issues||'0',10) > 0)) ok = false;
     if(state.brand && tr.dataset.brand !== state.brand) ok = false;
+    if(state.policy && tr.dataset.policy !== state.policy) ok = false;
     if(state.q && tr.dataset.blob.indexOf(state.q) < 0) ok = false;
     tr.style.display = ok ? '' : 'none';
     if(!ok) collapse(tr);
@@ -427,6 +431,7 @@ function zeroHint(shown){
   }
   if(state.f === 'fix') 거르기.push('「손 볼 것」');
   if(state.brand) 거르기.push('브랜드 「' + state.brand + '」');
+  if(state.policy) 거르기.push('정책 「' + (state.policyName || state.policy) + '」');
   box.hidden = (shown > 0);
   if(shown > 0) return;
   var why = document.getElementById('twr-zero-why');
@@ -478,6 +483,7 @@ if(sortEl) sortEl.addEventListener('change', function(){ state.sort = this.value
 var zc = document.getElementById('twr-zero-clear');
 if(zc) zc.addEventListener('click', function(){
   state.f = 'all'; state.stage = ''; state.brand = '';
+  clearPolicyFilter();
   document.querySelectorAll('.stg-block .stg-row').forEach(function(x, i){
     x.classList.toggle('on', i === 0);           // 맨 위 「어디까지 왔나」로 되돌린다
   });
@@ -486,6 +492,32 @@ if(zc) zc.addEventListener('click', function(){
   });
   applyFilter();
 });
+
+/* [#1072] 「정책 매칭」 카드의 "상품관리에서 보기 →" 딥링크 —
+   ?policy=<id>&pname=<정책명> 으로 들어오면 그 정책이 붙은 상품만 걸러 보여준다.
+   화면 안에 고르는 UI가 없는 축이라 칩 하나로만 상태를 보여주고, 칩을 지우면 풀린다. */
+function clearPolicyFilter(){
+  state.policy = ''; state.policyName = '';
+  var chip = document.getElementById('twr-policy-chip');
+  if(chip) chip.remove();
+}
+(function initPolicyFilter(){
+  var params = new URLSearchParams(location.search);
+  var pid = params.get('policy');
+  if(!pid) return;
+  var pname = params.get('pname') || ('#' + pid);
+  state.policy = pid; state.policyName = pname;
+  var chip = document.createElement('span');
+  chip.id = 'twr-policy-chip';
+  chip.className = 'twr-btn gho sm';
+  chip.style.cursor = 'pointer';
+  chip.textContent = '정책: ' + pname + ' ✕';
+  chip.title = '눌러서 이 거르기를 풉니다';
+  chip.addEventListener('click', function(){ clearPolicyFilter(); applyFilter(); });
+  var sp = document.querySelector('.twr-ch .sp');
+  if(sp) sp.parentNode.insertBefore(chip, sp);
+  applyFilter();
+})();
 
 /* ── 줄 아래 전폭 펼침 — 탭 4개 (사장님 확정) ────────────────────────────
    한눈에 / 사올 때 / 팔 때 / 판매·정산

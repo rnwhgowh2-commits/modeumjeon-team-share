@@ -109,6 +109,18 @@ def test_축과_옵션번호까지_태어난다(client, monkeypatch):
         s.close(); _cleanup(client, code)
 
 
+def test_번호_앞자리로_직접생성과_갈린다(client, monkeypatch):
+    """품번 구분자 — 내마켓 불러오기는 순번 앞자리가 1, 직접 생성(0)과 절대 안 겹친다."""
+    s = _session(); _seed(s, pid='7000008'); s.close()
+    j = _import(client, monkeypatch, [_MO('a', '블랙', '230')], pid='7000008').get_json()
+    assert j['ok'] is True, j
+    code = j['code']
+    try:
+        assert code[-6] == '1', f'내마켓 불러오기 매트릭스는 band=1 이어야 한다: {code}'
+    finally:
+        _cleanup(client, code)
+
+
 def test_두_번_가져오면_거절한다(client, monkeypatch):
     """같은 상품을 두 번 가져오면 옵션 묶음이 둘로 갈린다 — 막는다."""
     s = _session(); _seed(s, pid='7000002'); s.close()

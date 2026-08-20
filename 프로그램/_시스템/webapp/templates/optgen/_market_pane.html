@@ -41,7 +41,51 @@
     <div class="im-msg" id="im-msg">상품명이나 상품번호를 적고 「찾기」를 누르세요. 비워두면 최근 것부터 보여드립니다.</div>
   </div>
 
+  <div class="im-selbar off" id="im-selbar">
+    <span class="im-sel-n"><b id="im-sel-count">0</b>개 선택 — 스마트스토어 상품만 함께 고를 수 있습니다</span>
+    <button class="im-btn" type="button" id="im-selgo" disabled>+ 옵션 매트릭스 생성</button>
+  </div>
+
   <div id="im-list"></div>
+
+  {# [2026-08-19 사장님 확정 항목2] 여러 상품 선택 → 「모델」 축 매트릭스 1개.
+     팝업은 "직접" 탭의 og-back/og-mbox 옷을 그대로 입는다(같은 페이지에
+     렌더되므로 index.html 의 스타일을 그대로 물려받는다) — 새 CSS 를 안 만든다.
+     이 패널은 「내 마켓에 등록된 상품」목록이라 전체선택(해제)·삭제 버튼은
+     안 둔다(프로그램 상품 패널과 다름 — 사장님 확정). #}
+  <div class="og-back" id="im-back" hidden>
+    <div class="og-mbox">
+      <button class="og-mx" type="button" id="im-mx-close" aria-label="닫기">✕</button>
+      <div class="og-mt">🆕 + 옵션 매트릭스 생성</div>
+      <div class="og-md">고른 상품마다 <b>「모델」</b> 축 값 하나씩을 받는 매트릭스 1개를 만들어요.</div>
+
+      <label class="og-lb">매트릭스 이름</label>
+      <input class="og-in" id="im-mx-name" placeholder="예: 르무통 메이트" maxlength="120">
+
+      <label class="og-lb">브랜드</label>
+      <input class="og-in" id="im-mx-brand" placeholder="예: 르무통" maxlength="60">
+
+      <label class="og-lb">고른 상품마다 모델명 — 「모델」 축 값이 됩니다</label>
+      <div id="im-mx-models"></div>
+
+      <button class="og-btn" type="button" id="im-mx-make">만들고 확인하러 가기 →</button>
+      <div class="og-err" id="im-mx-err"></div>
+    </div>
+  </div>
+
+<style>
+  .im-selbar{display:flex;align-items:center;gap:12px;margin-top:var(--sp-4);
+    max-width:var(--화면-상한);padding:10px 14px;border-radius:10px;
+    background:var(--color-bg-muted);transition:opacity .15s}
+  .im-selbar.off{opacity:.55}
+  .im-sel-n{font-size:13.5px;color:var(--color-text-secondary)}
+  .im-sel-n b{color:var(--color-primary);font-variant-numeric:tabular-nums}
+  .im-mx-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .im-mx-row .im-mx-pname{flex:0 0 200px;min-width:0;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;font-size:13px;
+    color:var(--color-text-tertiary)}
+  .im-mx-row .im-mx-model{flex:1}
+</style>
 
 <style>
   .im-note{background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;
@@ -80,6 +124,9 @@
   .im-btn.im-gobig{height:48px;border-radius:11px;padding:0 26px;font-size:15px}
   .im-btn:disabled{opacity:.55;cursor:default}
   .im-msg{font-size:13px;color:var(--color-text-tertiary);margin-top:10px;line-height:1.6}
+  .im-ckcol{width:34px}
+  .im-ckcol label{display:flex;align-items:center;justify-content:center;
+    min-width:34px;min-height:34px}
   /* 🔴 [2026-08-13 라이브 실측] 표는 **내용이 길면 상한을 넘는다** — 검색창은 1100 에
      멈추는데 표만 1452 로 삐져나가 폭이 352 어긋나 보였다(짧은 이름으론 재현 안 됨).
      감싼 상자에 상한을 주고 표는 그 안에서 100% 로 맞춘다. */
@@ -145,6 +192,12 @@
   var list = document.getElementById('im-list');
   var acBox = document.getElementById('im-ac');
   var meta = document.getElementById('im-meta');
+
+  // ── 항목2 [2026-08-19] 여러 상품 선택 → 「모델」 축 매트릭스 1개 ──────
+  var selbar = document.getElementById('im-selbar');
+  var selCount = document.getElementById('im-sel-count');
+  var selGo = document.getElementById('im-selgo');
+  var selected = new Map();          // pid → {name, market, acct, pid}
 
   function esc(t) {
     return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
@@ -289,6 +342,27 @@
       .catch(function (e) { alert('만들지 못했습니다 — ' + e); btn.disabled = false; });
   }
 
+  function updateSelbar() {
+    var n = selected.size;
+    selCount.textContent = n;
+    selbar.classList.toggle('off', n === 0);
+    selGo.disabled = n === 0;
+  }
+  // 체크칸은 검색이 다시 그려질 때마다 새로 생기므로 위임(delegation)으로 잡는다.
+  list.addEventListener('change', function (e) {
+    var ck = e.target.closest('.im-ck');
+    if (!ck) return;
+    var pid = ck.getAttribute('data-pid');
+    if (ck.checked) {
+      selected.set(pid, {name: ck.getAttribute('data-name'),
+                         market: ck.getAttribute('data-market'),
+                         acct: ck.getAttribute('data-acct'), pid: pid});
+    } else {
+      selected.delete(pid);
+    }
+    updateSelbar();
+  });
+
   // B3 — 브랜드 칸을 뺐다(실측 99% 빈칸). 상태를 맨 앞에 배지로.
   //   브랜드는 표에서 안 보여도 pick 이 data-brand 로 그대로 가져간다(있는 마켓은 살린다).
   function render(j) {
@@ -298,13 +372,21 @@
         '<b>「상품 관리 &gt; 실마켓 상품 현황」</b> 에서 먼저 불러와야 여기 보입니다.</div>';
       return;
     }
-    var h = '<table class="im-tb"><tr><th>상태</th><th>마켓</th><th>계정</th>' +
+    var h = '<table class="im-tb"><tr><th class="im-ckcol"></th><th>상태</th><th>마켓</th><th>계정</th>' +
             '<th>상품명</th><th class="r">판매가</th>' +
             '<th class="r">노출가</th><th class="r">배송비</th><th>상품번호</th><th></th></tr>';
     rows.forEach(function (r) {
       var from = '불러온 곳: ' + (MK[r.market] || r.market || '?') +
                  ' ' + (r.market_product_id || '');
-      h += '<tr><td><span class="im-pill ' + pillCls(r.status) + '">' +
+      // [2026-08-19 항목2] 여러 개 선택 병합은 지금 스마트스토어만 검증됐다
+      //   (SUPPORTED_MARKETS, import_from_market.py) — 나머지는 체크를 꺼 둔다.
+      var isSS = r.market === 'smartstore';
+      h += '<tr><td class="im-ckcol"><label><input type="checkbox" class="im-ck"' +
+             (isSS ? '' : ' disabled title="스마트스토어 상품만 함께 고를 수 있습니다"') +
+             ' data-name="' + esc(r.name) + '" data-market="' + esc(r.market || '') +
+             '" data-acct="' + esc(r.account_key || '') +
+             '" data-pid="' + esc(r.market_product_id || '') + '"></label></td>' +
+           '<td><span class="im-pill ' + pillCls(r.status) + '">' +
              esc(ST[r.status] || r.status || '?') + '</span></td>' +
            '<td>' + esc(MK[r.market] || r.market) + '</td>' +
            '<td>' + esc(r.account_key || '—') + '</td>' +
@@ -327,6 +409,10 @@
     list.querySelectorAll('.im-pick').forEach(function (b) {
       b.addEventListener('click', function () { pick(b); });
     });
+    // 검색이 다시 그려지면 이전 결과의 체크는 사라진다 — 고른 것도 같이 비운다
+    // (표에 없는 줄을 골라둔 채로 두면 팝업에 안 보이는 상품이 남는다).
+    selected.clear();
+    updateSelbar();
   }
 
   function search() {
@@ -353,5 +439,60 @@
   mk.addEventListener('change', search);
   acct.addEventListener('change', search);
   search();
+
+  // ── 항목2 팝업 — 「직접」 탭과 같은 옷(og-back/og-mbox)을 입는다 ──────
+  var mxBack = document.getElementById('im-back');
+  var mxName = document.getElementById('im-mx-name');
+  var mxBrand = document.getElementById('im-mx-brand');
+  var mxModels = document.getElementById('im-mx-models');
+  var mxMake = document.getElementById('im-mx-make');
+  var mxErr = document.getElementById('im-mx-err');
+  var mxClose = document.getElementById('im-mx-close');
+  var mxItems = [];                  // 팝업을 연 시점의 선택 — 열려 있는 동안 안 바뀐다
+
+  selGo.addEventListener('click', function () {
+    mxItems = Array.from(selected.values());
+    if (!mxItems.length) return;
+    mxErr.textContent = '';
+    mxName.value = mxItems[0].name || '';
+    mxBrand.value = '';
+    // 모델명은 상품명으로 미리 채운다 — 사장님이 그대로 두거나 고칠 수 있다.
+    mxModels.innerHTML = mxItems.map(function (it, i) {
+      return '<div class="im-mx-row"><span class="im-mx-pname">' + esc(it.name) + '</span>' +
+             '<input class="og-in im-mx-model" data-i="' + i + '" value="' + esc(it.name) + '"></div>';
+    }).join('');
+    mxBack.hidden = false;
+  });
+  mxClose.addEventListener('click', function () { mxBack.hidden = true; });
+
+  mxMake.addEventListener('click', function () {
+    mxErr.textContent = '';
+    var name = mxName.value.trim();
+    if (!name) { mxErr.textContent = '매트릭스 이름을 적어주세요.'; mxName.focus(); return; }
+    var brand = mxBrand.value.trim();
+    if (!brand) { mxErr.textContent = '브랜드를 적어주세요.'; mxBrand.focus(); return; }
+    var modelInputs = mxModels.querySelectorAll('.im-mx-model');
+    var items = [];
+    for (var i = 0; i < mxItems.length; i++) {
+      var mn = (modelInputs[i].value || '').trim();
+      if (!mn) { mxErr.textContent = '모델명이 빈 칸이 있습니다.'; modelInputs[i].focus(); return; }
+      items.push({market: mxItems[i].market, account_key: mxItems[i].acct,
+                 market_product_id: mxItems[i].pid, model_name: mn});
+    }
+    mxMake.disabled = true;
+    fetch('/optgen/api/import-from-market-merge', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({items: items, name: name, brand: brand}),
+    }).then(function (r) { return r.json().then(function (j) { return {s: r.status, j: j}; }); })
+      .then(function (res) {
+        if (!res.j || !res.j.ok) {
+          mxErr.textContent = (res.j && res.j.error) || ('만들지 못했습니다 (' + res.s + ')');
+          mxMake.disabled = false;
+          return;
+        }
+        location.href = '/optgen/box/' + encodeURIComponent(res.j.code);
+      })
+      .catch(function (e) { mxErr.textContent = '만들지 못했습니다 — ' + e; mxMake.disabled = false; });
+  });
 })();
 </script>
