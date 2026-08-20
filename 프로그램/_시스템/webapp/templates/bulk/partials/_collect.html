@@ -63,7 +63,7 @@
   /* 시안과 같은 격자 — 숫자칸을 고정폭으로 두어야 자릿수가 세로로 맞는다.
      셀 통째 정렬로 때우면 행마다 어긋난다. */
   .sf-row{display:grid;
-    grid-template-columns:minmax(0,1fr) 84px 68px 68px 68px 84px 320px;
+    grid-template-columns:minmax(0,1fr) 84px 68px 68px 68px 84px 170px 320px;
     gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6)}
   .sf-row:last-child{border-bottom:0}
   .sf-nm{font-size:13px;font-weight:700;color:var(--ink,#191F28)}
@@ -121,12 +121,24 @@
     border:1px solid var(--line,#E5E8EB);border-radius:4px;padding:1px 4px;
     background:var(--surface,#fff);max-width:170px}
   .sf-empty{padding:24px 14px;text-align:center;font-size:12px;color:var(--sub,#8B95A1);line-height:1.9}
+  /* [#1060] 상품군(검색필터) 단위 카테고리 자동 맵핑 현황 — 엔진 자체는
+     대량등록 설정 탭(소싱처 단위)에 이미 있다. 여기는 상품군 단위로 보여줄 뿐이다. */
+  .sf-cm{display:flex;flex-direction:column;gap:3px}
+  .sf-cm-bar{height:5px;border-radius:999px;background:var(--n100,#F2F4F6);overflow:hidden}
+  .sf-cm-bar i{display:block;height:100%;background:#27500A}
+  .sf-cm-txt{font-size:11px;color:var(--sub,#8B95A1);white-space:nowrap}
+  .sf-cm-empty{font-size:12px;color:var(--sub,#8B95A1)}
+  .sf-cm-btn{margin-top:2px;background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
+    border-radius:6px;padding:3px 8px;font-family:inherit;font-size:11px;font-weight:700;
+    color:var(--글자-기본,#4E5968);cursor:pointer;align-self:flex-start}
+  .sf-cm-btn[disabled]{opacity:.5;cursor:default}
 </style>
 <style>
 /* 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다(이 파일의 기존 규칙과 같은 방식). */
 @media (max-width: 768px) {
   .sf-row{grid-template-columns:1fr 1fr;gap:8px}
   .sf-main{grid-column:1 / -1}
+  .sf-cm{grid-column:1 / -1}
   .sf-act{grid-column:1 / -1;text-align:left}
   .sf-btn{min-height:44px}
   .sf-grid{grid-template-columns:repeat(2,1fr)}
@@ -174,6 +186,24 @@
     } else { p.push('첫 쪽만'); }
     p.push(f.max_items ? ('최대 ' + f.max_items + '개') : '상한 없음');
     return p.join(' · ');
+  }
+
+  // [#1060] 카테고리 자동 맵핑 — 집계 단위는 상품 개수가 아니라 소싱처
+  //   카테고리 경로 개수다(같은 경로를 쓰는 상품 여럿은 「경로 1개」).
+  //   엔진은 이미 있다 — 여기서는 상품군 단위로 현황만 보여주고, 「지금 다시
+  //   맞추기」는 그 소싱처 전체를 다시 살펴보는 기존 기능을 그대로 부른다.
+  function catmapCell(f) {
+    const cm = f.catmap || { total: 0, confirmed: 0, suggested_only: 0, none: 0 };
+    if (!cm.total) {
+      return `<div class="sf-cm"><span class="sf-cm-empty">카테고리 아직 모름</span></div>`;
+    }
+    const pct = Math.round(cm.confirmed / cm.total * 100);
+    return `
+      <div class="sf-cm">
+        <div class="sf-cm-bar"><i style="width:${pct}%"></i></div>
+        <div class="sf-cm-txt">확정 ${cm.confirmed} · 제안 ${cm.suggested_only} · 없음 ${cm.none}</div>
+        <button class="sf-cm-btn" data-catmap="${f.id}" data-src="${esc(f.source_key)}">지금 다시 맞추기</button>
+      </div>`;
   }
 
   function row(f) {
@@ -234,6 +264,7 @@
               : `<div style="font-size:12px;opacity:.7">확장 ${esc(f.last_ext_version)}</div>`
           ) : ''
         }</div>
+        ${catmapCell(f)}
         <div class="sf-act">
           <button class="sf-btn" data-run="${f.id}" ${running ? 'disabled' : ''}>
             ${running ? '훑는 중' : '지금 수집'}</button>
@@ -254,12 +285,12 @@
       <input class="sf-in" id="sf-url" placeholder="https://www.musinsa.com/search/goods?keyword=나이키">
       <div class="sf-grid">
         <label>몇 개까지<input class="sf-in sm" id="sf-max" placeholder="비우면 상한 없음"></label>
-        {# ★ 소싱처에 따라 주소로 넘기거나(무신사·SSF·르무통) 「다음」 단추를 눌러
+        {# 소싱처에 따라 주소로 넘기거나(무신사·SSF·르무통) 「다음」 단추를 눌러
            넘긴다(롯데온·롯데아이몰). 사장님은 몇 쪽인지만 적으면 된다 —
            같은 뜻인데 칸이 둘이면 어느 쪽을 채워야 할지 모른다. #}
         <label title="비우면 첫 쪽만 봅니다">몇 쪽부터<input class="sf-in sm" id="sf-pf" placeholder="1"></label>
         <label title="최대 60쪽. 무신사 한 쪽 60개 · 롯데온 47개 · 롯데아이몰 60개">몇 쪽까지<input class="sf-in sm" id="sf-pt" placeholder="1"></label>
-        <!-- 🔴 한 줄짜리 칸이라 줄바꿈을 못 넣는다 — 쉼표로 여러 개를 적는다. -->
+        <!-- 한 줄짜리 칸이라 줄바꿈을 못 넣는다 — 쉼표로 여러 개를 적는다. -->
         <label>뺄 옵션(쉼표)<input class="sf-in sm" id="sf-ex" placeholder="예: 샘플, 중고"></label>
         <label>이름(비우면 자동)<input class="sf-in sm" id="sf-nm" placeholder="무신사_나이키_001"></label>
         <label>소싱처<input class="sf-in sm" id="sf-src" value="musinsa"></label>
@@ -269,7 +300,7 @@
         <button class="sf-btn pri" id="sf-save">만들기</button>
         <button class="sf-btn" id="sf-cancel">그만두기</button>
         <span class="sf-hint" id="sf-msg">만든 뒤 「지금 수집」을 눌러야 훑기 시작합니다</span>
-        {# 🔴 소싱처마다 「여러 쪽을 걷을 수 있나」가 다르다 — 실측(2026-08-08).
+        {# 소싱처마다 「여러 쪽을 걷을 수 있나」가 다르다 — 실측(2026-08-08).
            안 되는 곳에 쪽수를 적으면 같은 1쪽을 반복하므로 미리 알린다. #}
         <span class="sf-hint" style="display:block;margin-top:6px;line-height:1.7">
           여러 쪽 걷기 —
@@ -334,6 +365,9 @@
     root.querySelectorAll('[data-del]').forEach((b) => {
       b.onclick = () => delNow(b.dataset.del, b);
     });
+    root.querySelectorAll('[data-catmap]').forEach((b) => {
+      b.onclick = () => runCatmap(b.dataset.src, b);
+    });
     watch();
   }
 
@@ -370,6 +404,22 @@
     fetch('/bulk/api/search-filters/' + id + '/run', { method: 'POST' })
       .then((r) => r.json()).then(() => load())
       .catch(() => load());
+  }
+
+  // [#1060] 이 소싱처 전체의 카테고리 자동 제안을 다시 만든다(기존 M2 기능
+  //   그대로 — 소싱처 단위다. 이 상품군만 골라 돌리는 수단은 아직 없다).
+  function runCatmap(src, btn) {
+    btn.disabled = true; btn.textContent = '맞추는 중…';
+    fetch('/bulk/api/catmap/suggest/' + encodeURIComponent(src), { method: 'POST' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) { window.alert(j.error || '카테고리를 못 맞췄습니다.'); return; }
+        window.alert('「' + src + '」 소싱처 전체를 다시 살펴봤어요 — 새로 제안된 것 '
+          + (j.suggested || 0) + '건');
+        load();
+      })
+      .catch((e) => window.alert(e.message))
+      .then(() => { btn.disabled = false; btn.textContent = '지금 다시 맞추기'; });
   }
 
   // 찾은 주소 보기 — 「찾음 31」만 보고는 **무엇을** 찾았는지 알 수 없다.
@@ -475,7 +525,7 @@
           // 🔴 크롤이 꺼져 있으면 「기다리면 된다」고 말하면 안 된다 — 영영 안 늘어난다.
           //   대기에 넣은 것과 그게 처리되는 것은 다른 사실이다.
           msg += (j.crawl_enabled === false)
-            ? '\n\n⚠️ 지금 크롤 자동 실행이 꺼져 있습니다.'
+            ? '\n\n지금 크롤 자동 실행이 꺼져 있습니다.'
               + '\n켜기 전에는 기다려도 상품이 늘어나지 않습니다.'
               + '\n「자동화」 화면에서 크롤을 켜 주세요.'
             : '\n\n크롤은 이 PC 의 크롬이 차례로 돕니다.'

@@ -127,7 +127,7 @@
     <div class="step hidden" id="lst-step2">
       <div class="step-h"><span class="step-n">2</span> 2단계 · 실제로 보낼까요?</div>
       <div class="step-b">
-        <div class="guard"><span>⚠️</span><div><b>실제 판매처에 반영됩니다.</b>
+        <div class="guard"><span><i class="ph-light ph-warning" aria-hidden="true"></i>️</span><div><b>실제 판매처에 반영됩니다.</b>
           위 「보낼 값」이 셀러 계정에 그대로 올라갑니다. 0원·이상가는 자동 차단됩니다.</div></div>
         <label class="agree"><input type="checkbox" id="lst-agree">
           위 값을 실제로 전송하는 데 동의합니다</label>
@@ -186,7 +186,7 @@
       <button class="btn btn-revert" id="lst-ex-revert" type="button">↩ 원래값으로 되돌리기</button>
     </div>
 
-    <div class="guard"><span>⚠️</span><div><b>실제 판매처에 반영됩니다.</b>
+    <div class="guard"><span><i class="ph-light ph-warning" aria-hidden="true"></i>️</span><div><b>실제 판매처에 반영됩니다.</b>
       지정한 옵션 <b>1건만</b> 입력값 그대로 전송됩니다. 0원·이상가는 자동 차단됩니다.</div></div>
     <label class="agree"><input type="checkbox" id="lst-ex-agree">
       이 값을 실제로 전송하는 데 동의합니다</label>
@@ -347,13 +347,13 @@
   }
   function renderResult(body){
     var mode = $('lst-result-mode');
-    if(body.use_real){ mode.className = 'st live'; mode.textContent = '★ 실전송(LIVE)'; }
+    if(body.use_real){ mode.className = 'st live'; mode.textContent = '실전송(LIVE)'; }
     else { mode.className = 'st dry'; mode.textContent = '드라이런(미전송)'; }
     var res = (body.result) || {};
     var html = '';
     if(body.refusal){
       html += '<div class="guard" style="background:var(--lst-amber-bg);border-color:var(--연한-주황,#f5d99a);color: var(--글자-주황, var(--amber,#8a6100));">' +
-        '<span>ℹ️</span><div>' + esc(body.refusal) + '</div></div>';
+        '<span>ℹ</span><div>' + esc(body.refusal) + '</div></div>';
     }
     if(res.held){
       html += '<div class="guard"><span>⏸</span><div><b>자동 보류.</b> ' +
@@ -531,19 +531,19 @@
 
   function exRenderResult(body){
     var mode = $('lst-ex-result-mode');
-    if(body.use_real){ mode.className = 'st live'; mode.textContent = '★ 실전송(LIVE)'; }
+    if(body.use_real){ mode.className = 'st live'; mode.textContent = '실전송(LIVE)'; }
     else { mode.className = 'st dry'; mode.textContent = '드라이런(미전송)'; }
     var html = '';
     if(body.price_error){
-      html += '<div class="guard"><span>⛔</span><div><b>가격 안전 차단.</b> ' +
+      html += '<div class="guard"><span></span><div><b>가격 안전 차단.</b> ' +
         esc(body.price_error) + '</div></div>';
     }
     if(body.error){
-      html += '<div class="guard"><span>⚠️</span><div>' + esc(body.error) + '</div></div>';
+      html += '<div class="guard"><span></span><div>' + esc(body.error) + '</div></div>';
     }
     if(body.refusal){
       html += '<div class="guard" style="background:var(--lst-amber-bg);border-color:var(--연한-주황,#f5d99a);color: var(--글자-주황, var(--amber,#8a6100));">' +
-        '<span>ℹ️</span><div>' + esc(body.refusal) + '</div></div>';
+        '<span>ℹ</span><div>' + esc(body.refusal) + '</div></div>';
     }
     var res = body.result || null;
     if(res){

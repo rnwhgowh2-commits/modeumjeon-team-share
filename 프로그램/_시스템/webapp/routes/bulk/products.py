@@ -5,7 +5,7 @@
   더망고에서 가져올 것: 상품별 「상품/가격/재고 업데이트 ON·OFF」 토글,
   원문 상품명 병기, 마켓전송가격, 옵션 목록.
 
-★ 토글 3개(update_product/price/stock)는 ProductDraft 에 **이미 있다** —
+ 토글 3개(update_product/price/stock)는 ProductDraft 에 **이미 있다** —
   모델 주석에 "Phase 2 상품관리 탭. 컬럼은 지금 만든다" 라고 적혀 있다. 그걸 쓴다.
 """
 from flask import jsonify, request

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}🆕 신규 모음전 만들기 — 모음전 자동화{% endblock %}
+{% block title %}<i class="ph-light ph-sparkle" aria-hidden="true"></i> 신규 모음전 만들기 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active">
   <a class="btn btn-ghost" href="/bundles">← 모음전 목록</a>
@@ -11,7 +11,7 @@
   <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--연한-파랑,#E8F2FF);
               border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;margin:12px 0 16px;font-size:14px;
               color: var(--글자-파랑, var(--primary,#1B4A9E));line-height:1.6;flex-wrap:wrap">
-    <span style="font-size:17px">🧱</span>
+    <span style="font-size:17px"><i class="ph-light ph-wall" aria-hidden="true"></i></span>
     <span style="flex:1;min-width:220px">
       <b>이미 만들어 둔 옵션이 있나요?</b>
       「옵션관리」에서 색상·사이즈 격자로 골라 담으면 훨씬 빠릅니다.
@@ -63,10 +63,10 @@
       <div class="pc-opt-head">
         <strong>옵션</strong><span class="pc-cnt" id="opt-count">0</span>
         <span style="flex:1"></span>
-        <button type="button" class="btn btn-primary" id="open-stock">🔍 재고에서 옵션 추가</button>
+        <button type="button" class="btn btn-primary" id="open-stock"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 재고에서 옵션 추가</button>
       </div>
       <div id="opt-list">
-        <div class="pc-empty" id="opt-empty"><div style="font-size:32px">📦</div>
+        <div class="pc-empty" id="opt-empty"><div style="font-size:32px"><i class="ph-light ph-package" aria-hidden="true"></i></div>
           아직 옵션이 없습니다 — 「재고에서 옵션 추가」로 보유 재고를 골라 담으세요.</div>
       </div>
     </div>
@@ -95,7 +95,7 @@
         <div class="pc-colh">검색 결과 — 재고관리</div>
         <div id="stock-results"><div class="pc-loading">불러오는 중…</div></div>
         <div class="pc-actbar" id="left-actbar" style="display:none">
-          <span>✅ <b id="left-sel">0</b>개 선택</span><span style="flex:1"></span>
+          <span><i class="ph-light ph-check-circle" aria-hidden="true"></i> <b id="left-sel">0</b>개 선택</span><span style="flex:1"></span>
           <button type="button" class="btn btn-primary btn-sm" id="to-basket">선택 → 바구니에 담기</button>
         </div>
       </div>
@@ -103,7 +103,7 @@
         <div class="pc-colh">담은 옵션 <span id="basket-cnt">0</span></div>
         <div id="basket-list"><div class="pc-bk-empty">좌측에서 재고를 골라 담으세요.</div></div>
         <div class="pc-actbar red" id="basket-actbar" style="display:none">
-          <span>🗑 <b id="basket-sel">0</b>개 선택</span><span style="flex:1"></span>
+          <span><i class="ph-light ph-trash" aria-hidden="true"></i> <b id="basket-sel">0</b>개 선택</span><span style="flex:1"></span>
           <button type="button" class="btn btn-sm" id="basket-del">선택 삭제</button>
         </div>
       </div>
@@ -224,7 +224,7 @@
     var list=$('#opt-list');
     $('#opt-count').textContent=addedOptions.length;
     if(!addedOptions.length){
-      list.innerHTML='<div class="pc-empty"><div style="font-size:32px">📦</div>'
+      list.innerHTML='<div class="pc-empty"><div style="font-size:32px"></div>'
         +'아직 옵션이 없습니다 — 「재고에서 옵션 추가」로 보유 재고를 골라 담으세요.</div>';
     }else{
       list.innerHTML=addedOptions.map(function(o,i){
@@ -232,7 +232,7 @@
           +'<div class="pc-oinfo"><div class="pc-omain">'+esc(o.brand)+' '+esc(o.model)+' · '+esc(o.color)+' '+esc(o.size)+'</div>'
           +'<div class="pc-osub">SKU '+esc(o.product_sku)+(o.barcode?' · 바코드 '+esc(o.barcode):'')+'</div></div>'
           +'<span class="pc-ostk">'+o.stock+'<span class="u">개</span></span>'
-          +'<span class="pc-orm" data-sku="'+esc(o.product_sku)+'">✕</span></div>';
+          +'<span class="pc-orm" data-sku="'+esc(o.product_sku)+'"></span></div>';
       }).join('');
       list.querySelectorAll('.pc-orm').forEach(function(b){
         b.addEventListener('click',function(){
@@ -366,7 +366,7 @@
           +'<div class="pc-bi"><div class="pc-b1">'+esc(b.brand)+' '+esc(b.model)+' · '+esc(b.color)+' '+esc(b.size)+'</div>'
           +'<div class="pc-b2">SKU '+esc(b.product_sku)+(b.barcode?' · 바코드 '+esc(b.barcode):'')+'</div></div>'
           +'<span class="pc-bstk">'+b.stock+'</span>'
-          +'<span class="pc-bx" data-sku="'+esc(b.product_sku)+'">✕</span></div>';
+          +'<span class="pc-bx" data-sku="'+esc(b.product_sku)+'"></span></div>';
       }).join('');
       box.querySelectorAll('.pc-bck').forEach(function(c){
         c.addEventListener('click',function(){

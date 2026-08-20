@@ -32,7 +32,7 @@
         <div id="designPreview" style="border:2px solid #4F67FF;border-radius:8px;background:#fff;color:#000;text-align:center;margin-bottom:6px;min-height:120px;overflow:hidden"></div>
 
         {# 폰트·여백 설정 토글 #}
-        <button type="button" onclick="document.getElementById('designSettings').style.display=document.getElementById('designSettings').style.display==='none'?'block':'none'" style="margin-top:8px;background:none;border:none;font-size:12px;color:#4F67FF;font-weight:600;cursor:pointer;padding:0">⚙ 폰트·여백 설정 ▾</button>
+        <button type="button" onclick="document.getElementById('designSettings').style.display=document.getElementById('designSettings').style.display==='none'?'block':'none'" style="margin-top:8px;background:none;border:none;font-size:12px;color:#4F67FF;font-weight:600;cursor:pointer;padding:0"><i class="ph-light ph-gear" aria-hidden="true"></i> 폰트·여백 설정 ▾</button>
         <div id="designSettings" style="display:none;margin-top:10px;padding:12px;background:#F1F1F4;border-radius:6px">
           {# 폰트 크기 + 굵기 (3 행) #}
           <div style="font-size:12px;color: var(--글자-희미, #8F91A0);font-weight:600;margin-bottom:5px">폰트</div>
@@ -89,7 +89,7 @@
 
             {# 사용자 정의 입력 — 가로 X개 × 세로 X개 (A4 자동 분할) #}
             <div id="customPanel" style="display:{% if template_key == 'custom' %}block{% else %}none{% endif %};margin-top:12px;padding:14px;background:#EEF1FE;border-radius:6px;border:1px solid #4F67FF">
-              <div style="font-size:12px;color:#1E40AF;font-weight:600;margin-bottom:10px">📐 A4 (210×297mm) 자동 분할 — 가로 / 세로 칸 수만 입력</div>
+              <div style="font-size:12px;color:#1E40AF;font-weight:600;margin-bottom:10px"><i class="ph-light ph-ruler" aria-hidden="true"></i> A4 (210×297mm) 자동 분할 — 가로 / 세로 칸 수만 입력</div>
               <div style="display:flex;gap:10px;align-items:end">
                 <div style="flex:1">
                   <label style="display:block;font-size:12px;color:#292A2F;margin-bottom:3px">가로</label>
@@ -121,7 +121,7 @@
         <div style="display:flex;align-items:center;margin-bottom:12px">
           <h2 style="font-size:14px;font-weight:600;margin:0;color:#292A2F">제품 선택</h2>
           <button type="button" onclick="bulkAdd()" style="margin-left:auto;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;font-weight:600">⊕ 일괄 추가</button>
-          <button type="button" style="margin-left:6px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;font-weight:600">📁 엑셀 가져오기</button>
+          <button type="button" style="margin-left:6px;background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;font-weight:600"><i class="ph-light ph-folder" aria-hidden="true"></i> 엑셀 가져오기</button>
         </div>
 
         <form method="post" action="{{ url_for('inventory.barcode_print') }}" target="_blank" id="printForm">
@@ -150,7 +150,7 @@
                   <td style="padding:8px">
                     <div style="display:flex;align-items:center;gap:8px">
                       {% if o.image_url %}<img src="{{ o.image_url }}" style="width:32px;height:32px;border-radius:4px;object-fit:cover">
-                      {% else %}<div style="width:32px;height:32px;border-radius:4px;background:#F1F1F4;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8F91A0">👟</div>{% endif %}
+                      {% else %}<div style="width:32px;height:32px;border-radius:4px;background:#F1F1F4;display:flex;align-items:center;justify-content:center;font-size:14px;color:#8F91A0"><i class="ph-light ph-sneaker" aria-hidden="true"></i></div>{% endif %}
                       <div>
                         <div style="font-size:12px;font-weight:600;color:#292A2F">{{ _pname }}</div>
                         <div style="font-size:12px;color:#8F91A0">{{ o.canonical_sku }} · {{ _size }} · {{ _color }}</div>

@@ -552,7 +552,7 @@ def api_product_list():
       각 마켓의 목록 조회 API 가 문서로 확보돼 있어 그대로 연결한다.
 
     query: market, account(=UploadAccount.account_key), limit
-    ⚠️ 응답 필드 스펙이 지도에 미확보(res 비어 있음) → **원본 응답을 그대로 돌려준다**.
+    [주의] 응답 필드 스펙이 지도에 미확보(res 비어 있음) → **원본 응답을 그대로 돌려준다**.
        여기서 상품번호 필드를 추측해 뽑지 않는다(틀린 번호로 연동하면 남의 상품에 가격이 간다).
     """
     market = (request.args.get("market") or "").strip()
@@ -853,7 +853,7 @@ def api_register_esm():
            place_no, dispatch_policy_no, return_addr_no, delivery_company_no,
            official_notice_no, official_notice_details[], image_url, detail_html,
            options[], arm}
-    ★ 실등록은 arm=='1' AND 서버 MOUM_LIVE_UPLOAD 둘 다 켜야. 아니면 payload만 조립해 돌려준다.
+     실등록은 arm=='1' AND 서버 MOUM_LIVE_UPLOAD 둘 다 켜야. 아니면 payload만 조립해 돌려준다.
     """
     p = request.get_json(silent=True) or {}
     market = (p.get("market") or "").strip()
@@ -1148,7 +1148,7 @@ def api_register_lotteon():
     """[2026-07-21] 롯데온 상품 등록 — raw payload 통과형. dry-run(기본)/실등록(arm 2중잠금).
 
     body: {payload:{...등록 body 전체 — detail 응답과 동일 구조}, account, arm}
-    trGrpCd/trNo 는 계정 cfg 로 강제 주입(★다계정 trNo 함정 — 전역 config 쓰면 8888).
+    trGrpCd/trNo 는 계정 cfg 로 강제 주입(다계정 trNo 함정 — 전역 config 쓰면 8888).
     성공판정 = returnCode 0000 + spdNo 수령(거짓 성공 금지).
     """
     p = request.get_json(silent=True) or {}
@@ -1251,7 +1251,7 @@ def api_register_eleven11():
     body: {disp_ctgr_no, prd_nm, brand, image_url, detail_html, price, stock,
            as_detail, addr_seq_out, addr_seq_in, return_cost, exchange_cost,
            account, arm}
-    ★ 실등록은 arm=='1' AND 서버 LIVE_REGISTER_ARMED=1 둘 다(ESM 과 같은 게이트).
+     실등록은 arm=='1' AND 서버 LIVE_REGISTER_ARMED=1 둘 다(ESM 과 같은 게이트).
     """
     p = request.get_json(silent=True) or {}
     from shared.platforms.eleven11.products import build_register_xml, register_product
@@ -1370,7 +1370,7 @@ _ESM_HEAVY_BLOCKED = HEAVY_BLOCKED["auction"]
 def _heavy_axis_refusal(market: str, axes, *, unblocked: bool = False):
     """무거운 축 요청이면 (사유, 막힌축) 을 준다. 통과면 None.
 
-    🔴 축을 안 주면 5축 전부라 **그때도 막아야 한다** — 기본값이 위험한 쪽으로
+    [중요] 축을 안 주면 5축 전부라 **그때도 막아야 한다** — 기본값이 위험한 쪽으로
        열리면 안 된다.
     """
     if unblocked:
@@ -1896,7 +1896,7 @@ def api_roundtrip_journals():
 def api_roundtrip_restore():
     """저널로 되돌리기 — **원복이 실패했을 때의 손복구**. body: {journal, arm}
 
-    🔴 왜 따로 있나: 원복이 실패하면 마켓에 시험값이 남는데, 왕복을 다시 부르면
+    [중요] 왜 따로 있나: 원복이 실패하면 마켓에 시험값이 남는데, 왕복을 다시 부르면
        **지금 값(시험값)을 원래값으로 삼아** 더 나빠진다. 되돌리기 전용 경로가 필요하다.
     """
     p = request.get_json(silent=True) or {}

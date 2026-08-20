@@ -966,7 +966,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     <!-- 매입 파일 — label[for]로 클릭 시 input 자동 트리거 (JS 불필요) -->
     <label class="upload-box" id="buyBox" for="buyFileInput">
       <input type="file" id="buyFileInput" accept=".xlsx,.xls,.htm,.html" multiple>
-      <div class="upload-icon">📥</div>
+      <div class="upload-icon"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></div>
       <div class="upload-label">매입 엑셀 (더망고)</div>
       <div class="upload-sub">.xlsx / .xls — 클릭 또는 드래그</div>
       <div class="upload-status" id="buyStatus">파일 없음</div>
@@ -975,7 +975,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     <!-- 매출 파일 -->
     <label class="upload-box" id="sellBox" style="display:none">  <!-- [모음전] 매출=마켓API 자동조회 → 올릴 게 없어 칸 자체를 감춘다(요소는 원본 initUploadBox 가 찾으므로 남김) -->
       <input type="file" id="sellFileInput" accept=".xlsx,.xls,.htm,.html" multiple disabled style="display:none">
-      <div class="upload-icon">🔗</div>
+      <div class="upload-icon"><i class="ph-light ph-link" aria-hidden="true"></i></div>
       <div class="upload-label">매출 = 마켓 API 자동 조회</div>
       <div class="upload-sub">샵마인 업로드 불필요 — 분석 시작 시 판매처 API에서 매출을 불러옵니다</div>
       <div class="upload-status" id="sellStatus" style="display:none">파일 없음</div>
@@ -987,7 +987,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
   <div id="dataFolderBar" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #F2F4F6;">
     <button type="button" class="btn btn-sm" id="dataFolderBtn"
       style="background:#EBF2FF;color:#3182F6;font-weight:700;border:1px solid #C9DDFF;"
-      onclick="openDataFolderModal()">📁 데이터 폴더에서 불러오기</button>
+      onclick="openDataFolderModal()"><i class="ph-light ph-folder" aria-hidden="true"></i> 데이터 폴더에서 불러오기</button>
     <span style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-left:8px;" id="dataFolderHint"></span>
   </div>
 </div>
@@ -1029,8 +1029,8 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     <button class="tab-btn" data-tab="source"     onclick="switchTab(this)">소싱처별</button>
     <!-- 우측 정렬: 블랙스팟·설정 -->
     <div class="tab-nav-right">
-      <button class="tab-btn tab-btn-dark" data-tab="blackspot" onclick="switchTab(this)">⚫ 블랙스팟</button>
-      <button class="tab-btn tab-btn-dark" data-tab="settings"  onclick="switchTab(this)">⚙️ 설정</button>
+      <button class="tab-btn tab-btn-dark" data-tab="blackspot" onclick="switchTab(this)"><i class="ph-light ph-circle" aria-hidden="true"></i> 블랙스팟</button>
+      <button class="tab-btn tab-btn-dark" data-tab="settings"  onclick="switchTab(this)"><i class="ph-light ph-gear" aria-hidden="true"></i>️ 설정</button>
     </div>
   </div>
   <div id="tabContents" style="padding:20px 24px;">
@@ -1251,9 +1251,9 @@ async function openDataFolderModal() {
   overlay.innerHTML =
     '<div style="background:#fff;border-radius:14px;width:680px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.25);">'
     + '<div style="padding:18px 20px;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;">'
-    +   '<div style="font-size:16px;font-weight:700;color:#191F28;">📁 데이터 폴더에서 불러오기</div>'
+    +   '<div style="font-size:16px;font-weight:700;color:#191F28;">데이터 폴더에서 불러오기</div>'
     +   '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-left:10px;">더망고=매입 · 실마켓(API)=매출 (파일명 자동 추천)</div>'
-    +   '<button type="button" onclick="document.getElementById(\'dataFolderOverlay\').remove()" style="margin-left:auto;background:none;border:none;font-size:20px;color: var(--글자-희미, #8B95A1);cursor:pointer;">✕</button>'
+    +   '<button type="button" onclick="document.getElementById(\'dataFolderOverlay\').remove()" style="margin-left:auto;background:none;border:none;font-size:20px;color: var(--글자-희미, #8B95A1);cursor:pointer;"></button>'
     + '</div>'
     + '<div style="overflow-y:auto;">' + rows + '</div>'
     + '</div>';
@@ -1286,7 +1286,7 @@ async function loadFromDataFolder(rel, kind, name, btnEl) {
       updateAnalyzeBtn();
       /* 모달 행에 로드 표시 */
       const row = btnEl ? btnEl.closest('.df-row') : null;
-      if (row) { const lab = row.querySelector('.df-loaded'); if (lab) lab.textContent = (kind === 'buy' ? '✓ 매입' : '✓ 매출'); }
+      if (row) { const lab = row.querySelector('.df-loaded'); if (lab) lab.textContent = (kind === 'buy' ? '매입' : '매출'); }
     } else {
       alert('로드 실패: ' + (data.error || res.status));
     }
@@ -1943,7 +1943,7 @@ function renderDataVerifyBanner(opts) {
   /* === 좌측 (1/4) — V4: 큰 수 967 + 1단(매칭) + 2단(매입진행) stacked === */
   h += '<div style="background:linear-gradient(135deg,#1f2937,#374151);color:#fff;border-radius:14px;'
     + 'padding:20px 22px;display:flex;flex-direction:column;box-shadow:0 2px 6px rgba(0,0,0,0.06)">'
-    +   '<div style="font-size:13px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:4px">📦 더망고 전체 (엑셀 업로드)</div>'
+    +   '<div style="font-size:13px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:4px">더망고 전체 (엑셀 업로드)</div>'
     +   '<div style="font-size:42px;font-weight:800;line-height:0.95;letter-spacing:-0.03em;color:#fff">'
     +     fmt(total)
     +     '<span style="font-size:18px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:6px">건</span>'
@@ -1954,7 +1954,7 @@ function renderDataVerifyBanner(opts) {
     /* 1단: 매칭 vs 미매칭 */
     +   '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #4b5563">'
     +     '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:#cbd5e1;margin-bottom:6px">'
-    +       '<span>🔗 실마켓(API) 매칭</span><span style="color:#9ca3af">'+pctMatched.toFixed(1)+'%</span>'
+    +       '<span>실마켓(API) 매칭</span><span style="color:#9ca3af">'+pctMatched.toFixed(1)+'%</span>'
     +     '</div>'
     +     '<div style="height:11px;background:#4b5563;border-radius:5px;overflow:hidden;display:flex">'
     +       '<div style="background:#10b981;height:100%;width:'+pctMatched.toFixed(1)+'%"></div>'
@@ -1968,7 +1968,7 @@ function renderDataVerifyBanner(opts) {
     /* 2단: 매입 진행 vs 미이행 */
     +   '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #4b5563">'
     +     '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:#cbd5e1;margin-bottom:6px">'
-    +       '<span>🔎 매입 진행 여부</span>'  /* [모음전] NEW 배지 제거 */
+    +       '<span>매입 진행 여부</span>'  /* [모음전] NEW 배지 제거 */
     +       '<span style="color:#fbbf24;font-weight:800">'+pctTraceBar.toFixed(1)+'%</span>'
     +     '</div>'
     +     '<div style="height:11px;background:#4b5563;border-radius:5px;overflow:hidden;display:flex">'
@@ -1983,7 +1983,7 @@ function renderDataVerifyBanner(opts) {
     /* ★ 주문이행률 — 매입흔적 ÷ 더망고 전체 (제외 반영) */
     +   '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #4b5563">'
     +     '<div style="display:flex;align-items:baseline;gap:8px">'
-    +       '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:500">✅ 주문이행률</span>'
+    +       '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:500">주문이행률</span>'
     +       '<span style="font-size:32px;font-weight:800;color:#f59e0b;line-height:1;letter-spacing:-0.02em">'+pctRate.toFixed(1)+'<span style="font-size:16px;font-weight:700;margin-left:1px">%</span></span>'
     +     '</div>'
     +     '<div style="font-size:11px;color: var(--글자-희미, #9ca3af);margin-top:3px;line-height:1.4">매입흔적 '+fmt(withTrace)+' / 분석 대상 '+fmt(denominator)+_rateNote+'</div>'
@@ -2001,11 +2001,11 @@ function renderDataVerifyBanner(opts) {
     : 'background:#fff;border:1px solid #e5e7eb;border-left:5px solid #f59e0b;border-radius:14px;'
     + 'padding:20px 22px;display:flex;flex-direction:column';
   h += '<div style="'+traceCardStyle+'">'
-    +   (expanded ? '<div style="position:absolute;top:-26px;right:14px;background:#f59e0b;color:#fff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:6px 6px 0 0;letter-spacing:0.5px">📂 펼쳐진 상태</div>' : '')
+    +   (expanded ? '<div style="position:absolute;top:-26px;right:14px;background:#f59e0b;color:#fff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:6px 6px 0 0;letter-spacing:0.5px">펼쳐진 상태</div>' : '')
     /* 헤더 + 1-3 NEW 보조 표시 */
     +   '<div style="display:flex;align-items:center;margin-bottom:8px;gap:8px">'
     +     '<span style="display:inline-block;background:'+(expanded?'#fff':'#fef3c7')+';color:#92400e;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.5px">1</span>'
-    +     '<span style="font-size:15px;font-weight:600;color:#374151">🔎 매입 흔적 포함</span>'
+    +     '<span style="font-size:15px;font-weight:600;color:#374151">매입 흔적 포함</span>'
     +     (unmWithSite > 0
       ? '<span style="background:#fee2e2;color:#991b1b;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;border:1px solid #fca5a5">'
         + ''  /* [모음전] NEW 배지 제거 */
@@ -2025,7 +2025,7 @@ function renderDataVerifyBanner(opts) {
     +         '<span style="font-size:11px;font-weight:700;color:#92400e;background:#fff;padding:2px 8px;border-radius:10px">1-1</span>'
     +         '<span style="font-size:11px;color:#9ca3af">사이트번호</span>'
     +       '</div>'
-    +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">🛒 주문번호 매입</div>'
+    +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">주문번호 매입</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#b45309;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
     +         fmt(withOrder)
     +         '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:2px">건</span>'
@@ -2037,7 +2037,7 @@ function renderDataVerifyBanner(opts) {
     +         '<span style="font-size:11px;font-weight:700;color:#92400e;background:#fff;padding:2px 8px;border-radius:10px">1-2</span>'
     +         '<span style="font-size:11px;color:#9ca3af">송장·URL·구매가</span>'
     +       '</div>'
-    +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">✏️ 매입 흔적만</div>'
+    +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">매입 흔적만</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#b45309;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
     +         fmt(traceOnly)
     +         '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:2px">건</span>'
@@ -2049,7 +2049,7 @@ function renderDataVerifyBanner(opts) {
     +         '<span style="font-size:11px;font-weight:700;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:10px">1-3</span>'  /* [모음전] NEW 배지 제거 */
     +         '<span style="font-size:11px;color:#9ca3af">실마켓(API) 미동기화</span>'
     +       '</div>'
-    +       '<div style="font-size:12px;font-weight:600;color:#991b1b;margin-top:6px">🚨 블랙스팟 의심</div>'
+    +       '<div style="font-size:12px;font-weight:600;color:#991b1b;margin-top:6px">블랙스팟 의심</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#991b1b;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
     +         fmt(unmWithSite)
     +         '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:2px">건</span>'
@@ -2064,7 +2064,7 @@ function renderDataVerifyBanner(opts) {
     + 'padding:20px 22px;display:flex;flex-direction:column;justify-content:center;cursor:pointer">'
     +   '<div style="display:flex;align-items:center;margin-bottom:10px">'
     +     '<span style="display:inline-block;background:#f3f4f6;color:#374151;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.5px">2</span>'
-    +     '<span style="margin-left:10px;font-size:15px;font-weight:600;color:#374151">📝 주문 미이행</span>'
+    +     '<span style="margin-left:10px;font-size:15px;font-weight:600;color:#374151">주문 미이행</span>'
     +     '<span style="margin-left:auto;font-size:11px;color:#3b82f6;font-weight:700">행 보기 →</span>'
     +   '</div>'
     +   '<div style="font-size:42px;font-weight:800;color:#374151;line-height:1;letter-spacing:-0.02em">'
@@ -2082,7 +2082,7 @@ function renderDataVerifyBanner(opts) {
   sourceMatched.forEach(function(r){ if (MR.isMarginUncomputable(r)) _marginExcl++; });
   if (_marginExcl > 0) {
     h += '<div style="margin-top:12px;padding:10px 16px;background:#FFF7ED;border:1px solid #FDBA74;border-left:4px solid #F97316;border-radius:10px;font-size:12.5px;color:#9A3412;line-height:1.5">'
-      +   '⚠️ <b>마진 계산 제외 ' + fmt(_marginExcl) + '건</b> — 정산금액과 매입가(더망고 구매가격)가 <b>둘 다 0/미입력</b>인 행만 집계에서 제외했습니다. (정산0+매입有=손실, 정산有+매입0=고마진은 이상마진으로 포함) '
+      +   '<b>마진 계산 제외 ' + fmt(_marginExcl) + '건</b> — 정산금액과 매입가(더망고 구매가격)가 <b>둘 다 0/미입력</b>인 행만 집계에서 제외했습니다. (정산0+매입有=손실, 정산有+매입0=고마진은 이상마진으로 포함) '
       +   '<span style="color:#C2410C">구매가격을 보완 입력하면 자동 반영됩니다.</span>'
       + '</div>';
   }
@@ -2169,7 +2169,7 @@ function renderPeriodAvgBanner(opts) {
   var h = '<div style="background:#fff;border:1px solid #e5e7eb;border-left:4px solid #f59e0b;border-radius:12px;'
         + 'padding:18px 24px;margin:0 0 16px 0">'
     + '<div style="display:flex;align-items:baseline;margin-bottom:14px">'
-      + '<span style="font-size:15px;font-weight:600;color:#374151">📊 기간 평균'+(titleLabel?' ('+titleLabel+')':'')+'</span>'
+      + '<span style="font-size:15px;font-weight:600;color:#374151">기간 평균'+(titleLabel?' ('+titleLabel+')':'')+'</span>'
       + '<span style="margin-left:auto;font-size:13px;color:#6b7280">기간 <b style="color:#1f2937">'+days+'일</b>'
       + (hasEntity ? ' · '+esc(opts.entityLabel)+' <b style="color:#1f2937">'+opts.entityCount+'개</b>' : '')
       + '</span>'
@@ -2247,7 +2247,7 @@ function renderAbnormalBanner(rows) {
   return '<div onclick="gotoAbnormalAll()" style="display:flex;align-items:center;gap:10px;'
        + 'padding:10px 14px;background:#FFF0F0;border-left:4px solid #F04452;border-radius:6px;'
        + 'margin-bottom:12px;cursor:pointer;user-select:none;">'
-       + '<span style="font-size:16px">⚠️</span>'
+       + '<span style="font-size:16px"></span>'
        + '<b style="color:#F04452;">이상마진 ' + abn.length + '건 포함</b>'
        + '<span style="color:#6b7280;font-size:12px;">마이너스 또는 고마진 주문이 집계에 포함되어 있습니다.</span>'
        + '<span style="margin-left:auto;color:#F04452;font-weight:700;font-size:12px;'
@@ -2443,9 +2443,9 @@ function renderSettings() {
   /* ★ 카드별 키워드 관리 섹션 (사용자 명시) */
   var kwAll = _getCardKeywords();
   var kwHTML = '<div class="card" style="max-width:900px;margin-bottom:16px">'
-    + '<div class="table-header" style="margin-bottom:14px"><h3>🏷️ 카드별 분류 키워드 관리</h3></div>'
+    + '<div class="table-header" style="margin-bottom:14px"><h3>카드별 분류 키워드 관리</h3></div>'
     + '<div style="font-size:12px;color:#6b7280;line-height:1.5;margin-bottom:14px">'
-    +   '각 카드 행의 ⚙️ 아이콘 또는 아래 [편집] 버튼으로 키워드 추가/수정/삭제. 저장 시 즉시 반영.'
+    +   '각 카드 행의 아이콘 또는 아래 [편집] 버튼으로 키워드 추가/수정/삭제. 저장 시 즉시 반영.'
     + '</div>'
     + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
     + '<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">'
@@ -2463,8 +2463,8 @@ function renderSettings() {
     if (c.mg && c.mg.length) parts.push('<b>더망고:</b> '+esc(c.mg.join(', ')));
     if (c.mk_sync && c.mk_sync.length) parts.push('<b>마켓:</b> '+esc(c.mk_sync.join(', ')));
     var subParts = [];
-    if (c.sub_rtn && c.sub_rtn.length) subParts.push('<span style="color:#DC2626;font-weight:700">🔴</span> '+esc(c.sub_rtn.join(', ')));
-    if (c.sub_ex && c.sub_ex.length) subParts.push('<span style="color:#16A34A;font-weight:700">🟢</span> '+esc(c.sub_ex.join(', ')));
+    if (c.sub_rtn && c.sub_rtn.length) subParts.push('<span style="color:#DC2626;font-weight:700"></span> '+esc(c.sub_rtn.join(', ')));
+    if (c.sub_ex && c.sub_ex.length) subParts.push('<span style="color:#16A34A;font-weight:700"></span> '+esc(c.sub_ex.join(', ')));
     kwHTML += '<tr style="border-bottom:1px solid #f3f4f6">'
       + '<td style="padding:8px 10px;font-weight:600;color:#1f2937">'+esc(label)
       +   '<div style="font-size:10px;color: var(--글자-희미, #9ca3af);font-weight:400;margin-top:2px;font-family:monospace">'+esc(key)+'</div></td>'
@@ -2472,16 +2472,16 @@ function renderSettings() {
       + '<td style="padding:8px 10px;color:#374151;line-height:1.6">'+(subParts.length ? subParts.join('<br>') : '<span style="color:#9ca3af">—</span>')+'</td>'
       + '<td style="padding:8px 10px;text-align:right">'
       +   '<button onclick="_openKeywordEditor(\''+key+'\',\''+esc(label).replace(/\'/g,"\\\\\'")+'\')" '
-      +     'style="padding:5px 12px;background:#3b82f6;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600">⚙️ 편집</button>'
+      +     'style="padding:5px 12px;background:#3b82f6;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600">편집</button>'
       + '</td></tr>';
   });
   kwHTML += '</tbody></table></div>';
 
   return kwHTML
        + '<div class="card" style="max-width:700px;">'
-       + '<div class="table-header" style="margin-bottom:16px;"><h3>⚙️ 사용자 설정</h3></div>'
+       + '<div class="table-header" style="margin-bottom:16px;"><h3>사용자 설정</h3></div>'
        + '<div style="padding:16px;background:#F9FAFB;border-radius:8px;margin-bottom:12px;">'
-       + '<h4 style="margin-bottom:12px;color:#191F28;">📈 고마진 기준</h4>'
+       + '<h4 style="margin-bottom:12px;color:#191F28;">고마진 기준</h4>'
        + '<div style="font-size:13px;color: var(--글자-희미, #8B95A1);margin-bottom:12px;">'
        + '아래 두 조건을 <b>모두</b> 충족하는 행만 [고마진] 배지·행 강조·필터 대상이 됩니다.'
        + '</div>'
@@ -2501,8 +2501,8 @@ function renderSettings() {
        + '<div id="settingsMsg" style="margin-top:12px;font-size:13px;color:#00C48C;"></div>'
        + '</div>'
        + '<div style="padding:16px;background:#F9FAFB;border-radius:8px;margin-bottom:12px;">'
-       + '<h4 style="margin-bottom:6px;color:#191F28;">📊 효율1 기준 (브랜드별·마켓별 효율점수 하이라이트)</h4>'
-       + '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-bottom:14px;">등록 상품 <b>1개당</b> 월 기준값 입력. 실제 ÷ 기준 = 효율 점수 (1.0x 이상 ✅ 초록, 미만 ❌ 빨강)</div>'
+       + '<h4 style="margin-bottom:6px;color:#191F28;">효율1 기준 (브랜드별·마켓별 효율점수 하이라이트)</h4>'
+       + '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-bottom:14px;">등록 상품 <b>1개당</b> 월 기준값 입력. 실제 ÷ 기준 = 효율 점수 (1.0x 이상 초록, 미만 빨강)</div>'
        + '<div style="display:flex;gap:10px;margin-bottom:12px;">'
        + '<div style="flex:1;border:1.5px solid #E5E8EB;border-radius:8px;padding:12px 14px;background:#fff;">'
        + '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin-bottom:6px;">매출효율1 기준</div>'
@@ -2522,7 +2522,7 @@ function renderSettings() {
        + '</div>'
        + '</div>'
        + '<div id="eff1Preview" style="background:linear-gradient(135deg,#EFF5FF 0%,#E6F7EE 100%);border-radius:8px;padding:10px 14px;">'
-       + '<div style="font-size:11px;font-weight:700;color:#4E5968;margin-bottom:6px;">📦 상품 10,000개 업로드 시 효율1 기준</div>'
+       + '<div style="font-size:11px;font-weight:700;color:#4E5968;margin-bottom:6px;">상품 10,000개 업로드 시 효율1 기준</div>'
        + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;">'
        + '<span>월 매출 달성 기준</span><span style="font-weight:700;color:#3182F6;" id="eff1SalePreview">' + fmtEff(s.saleEff1) + '</span>'
        + '</div>'
@@ -2535,19 +2535,19 @@ function renderSettings() {
        + '<button class="btn btn-primary" onclick="applyUserSettings()">저장 및 적용</button>'
        + '</div>'
        + '<hr style="margin:30px 0;border:none;border-top:1px solid #e5e7eb">'
-       + '<h3 style="font-size:16px;font-weight:600;margin:20px 0 12px">🔐 소싱처 계정 관리</h3>'
+       + '<h3 style="font-size:16px;font-weight:600;margin:20px 0 12px">소싱처 계정 관리</h3>'
        + '<p style="font-size:12px;color:#6b7280;margin-bottom:12px">더망고 간단메모의 URL로 주문상태를 자동 확인하려면 각 소싱처에 1회 로그인이 필요합니다. Chrome 프로필은 PC 로컬(%LOCALAPPDATA%\\invoice_profiles)에 저장됩니다.</p>'
        + '<div id="sourcingAccountsContainer" style="max-height:700px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#fafafa">로딩 중...</div>'
        + '<div style="margin-top:12px;display:flex;gap:8px">'
-       + '  <button onclick="saveSourcingAccounts()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">💾 저장</button>'
-       + '  <button onclick="reloadCookieStatus()" style="padding:8px 16px;background:#6b7280;color:#fff;border:none;border-radius:6px;cursor:pointer">🍪 쿠키 상태 재확인</button>'
+       + '  <button onclick="saveSourcingAccounts()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:500">저장</button>'
+       + '  <button onclick="reloadCookieStatus()" style="padding:8px 16px;background:#6b7280;color:#fff;border:none;border-radius:6px;cursor:pointer">쿠키 상태 재확인</button>'
        + '</div>'
        + '</div>'
        + '<div class="card" style="max-width:900px;">'
-       + '<div class="table-header" style="margin-bottom:14px"><h3>🏷️ 브랜드 사전 관리</h3>'
+       + '<div class="table-header" style="margin-bottom:14px"><h3>브랜드 사전 관리</h3>'
        +   '<span style="color:#6b7280;font-size:12px">키워드가 든 상품이 그 브랜드로 분류됩니다. 미확정을 여기서 정리하세요.</span></div>'
        + '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;align-items:center">'
-       +   '<input id="bdSearch" placeholder="🔍 브랜드·키워드 검색" oninput="filterBrandDict()" style="flex:1;min-width:160px;border:1px solid #d1d6db;border-radius:6px;padding:6px 10px;font-size:13px">'
+       +   '<input id="bdSearch" placeholder="브랜드·키워드 검색" oninput="filterBrandDict()" style="flex:1;min-width:160px;border:1px solid #d1d6db;border-radius:6px;padding:6px 10px;font-size:13px">'
        +   '<input id="bdKw" placeholder="키워드 (예: 라코스테)" style="border:1px solid #d1d6db;border-radius:6px;padding:6px 10px;font-size:13px;width:150px">'
        +   '<input id="bdBrand" placeholder="브랜드 (예: 라코스테)" style="border:1px solid #d1d6db;border-radius:6px;padding:6px 10px;font-size:13px;width:150px">'
        +   '<button onclick="addBrandDict()" style="background:#2563EB;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer">추가</button>'
@@ -2555,7 +2555,7 @@ function renderSettings() {
        + '<div id="brandDictBox" style="padding:8px 0 4px">불러오는 중…</div>'
        + '</div>'
        + '<div class="card" style="margin-top:16px;border:2px solid #FACC15">'
-       + '<div class="table-header"><h3>⚠️ 미확정 정리</h3>'
+       + '<div class="table-header"><h3>미확정 정리</h3>'
        +   '<span style="color:#6b7280;font-size:12px" id="mjSummary">분석 후 이용 가능</span></div>'
        + '<div style="display:flex;gap:6px;padding:10px 14px 0">'
        +   '<button id="mjTab0" class="mj-tab on" onclick="mjSwitch(0)">자동 추천</button>'
@@ -2581,7 +2581,7 @@ function applyUserSettings() {
   window.userSettings.marginEff1       = margEff1;
   saveUserSettings();
   var msg = document.getElementById('settingsMsg');
-  if (msg) msg.textContent = '✓ 저장됨. 다른 탭에서 즉시 반영됩니다.';
+  if (msg) msg.textContent = '저장됨. 다른 탭에서 즉시 반영됩니다.';
   if (analysisData && currentTab !== 'settings') renderCurrentTab();
 }
 
@@ -2671,10 +2671,10 @@ function _buildSourcingAccountsHtml() {
         });
         html += '  </select>';
         /* 액션 버튼 */
-        html += '  <button onclick="loginSourcing(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="자동 로그인 (Chrome 프로필 열림)" style="padding:4px 8px;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">🔑 로그인</button>';
-        html += '  <button onclick="checkLoginSourcing(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="로그인 상태 확인" style="padding:4px 8px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">✓</button>';
+        html += '  <button onclick="loginSourcing(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="자동 로그인 (Chrome 프로필 열림)" style="padding:4px 8px;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">로그인</button>';
+        html += '  <button onclick="checkLoginSourcing(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="로그인 상태 확인" style="padding:4px 8px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px"></button>';
         html += '  <span title="' + escAttr(cText) + '" style="font-size:14px">' + cIcon + '</span>';
-        html += '  <button onclick="removeSourcingAccount(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="삭제" style="padding:4px 8px;background:#ef4444;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">🗑</button>';
+        html += '  <button onclick="removeSourcingAccount(\'' + escAttr(siteKey) + '\',' + accIdx + ')" title="삭제" style="padding:4px 8px;background:#ef4444;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px"></button>';
         html += '</div>';
       });
     }
@@ -2822,9 +2822,9 @@ function renderEff1Popover(idPrefix) {
   var s = window.userSettings;
   var pid = idPrefix + '_eff1pop';
   return '<div class="eff1-popover-wrap">'
-    + '<button class="eff1-pop-btn" onclick="toggleEff1Pop(\'' + pid + '\')">⚙ 기준 설정 ▾</button>'
+    + '<button class="eff1-pop-btn" onclick="toggleEff1Pop(\'' + pid + '\')">기준 설정 ▾</button>'
     + '<div class="eff1-popover" id="' + pid + '">'
-    + '<div class="eff1-pop-title">⚙ 효율1 기준 빠른 설정</div>'
+    + '<div class="eff1-pop-title">효율1 기준 빠른 설정</div>'
     + '<div class="eff1-pop-row"><label>매출효율1</label>'
     + '<div class="pop-input-wrap"><span class="pop-unit">상품 1개당</span>'
     + '<input type="number" id="' + idPrefix + '_popSale" value="' + s.saleEff1 + '" min="1" step="100" oninput="updatePopPreview(\'' + idPrefix + '\')">'
@@ -2940,7 +2940,7 @@ function loadBrandDict(){
     brands.forEach(function(b){
       var chips=byBrand[b].sort().map(function(kw){
         return '<span class="bd-chip"><span class="bd-kw">'+esc(kw)+'</span>'
-          +'<span class="bd-x" onclick="delBrandDict(\''+escAttr(kw)+'\')">✕</span></span>';
+          +'<span class="bd-x" onclick="delBrandDict(\''+escAttr(kw)+'\')"></span></span>';
       }).join('');
       h+='<div class="bd-group" data-brand="'+escAttr(b)+'"><div class="bd-bname">'+esc(b)
         +' <span class="bd-count">'+byBrand[b].length+'</span></div><div class="bd-chips">'+chips+'</div></div>';
@@ -3187,9 +3187,9 @@ function updateAnalyzeMsg() {
     + ' <span style="margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;">총마진 ' + fmtW(margn) + '원</span>';
   try{ var _sc=(window._moumSettleChips)?window._moumSettleChips((typeof getFilteredData==='function'&&(getFilteredData()||{}).matched)||(window.analysisData&&window.analysisData.matched)||[]):''; if(_sc) msg.innerHTML += _sc; }catch(_e){}  /* [모음전] 정산 정직성 색칩(실정산·추정·미확인) */
   var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */
-  if (_mFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */
+  if (_mFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;">아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */
   var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */
-  if (_mNotice.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;">💡 ' + _mNotice.map(function(w){ return String(w).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */
+  if (_mNotice.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;">' + _mNotice.map(function(w){ return String(w).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */
   var _rFailed = window._moumRefreshFailed || [];  /* [모음전] 분석 앞단 최신수집(refreshOrdersToNow)에서 못 불러온 마켓 */
   if (_rFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF8E8;border:1px solid #F2D9A0;border-radius:8px;color:#8A5A00;font-size:13px;line-height:1.65;">⏳ 분석 전 <b>최신 주문 받아오기</b>에 실패한 판매처가 있어요 — 아래 마켓은 <b>저장된(옛) 주문</b>으로 분석했습니다:<br>' + _rFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _rFailed 배너 */
   if (typeof currentTab !== 'undefined' && currentTab === 'summary' && typeof renderCurrentTab === 'function') {
@@ -3605,7 +3605,7 @@ function _buildItemDateMatrix(rows, keyField) {
 function _renderChartPanel(rows, keyField, label, chartId) {
   var matrix = _buildItemDateMatrix(rows, keyField);
   if (!matrix.items.length || !matrix.dates.length) {
-    return '<div class="chart-panel"><div class="panel-title">📈 ' + esc(label) + '별 일자별 추세</div>'
+    return '<div class="chart-panel"><div class="panel-title">' + esc(label) + '별 일자별 추세</div>'
          + '<div style="padding:30px;text-align:center;color: var(--글자-희미, #9ca3af);font-size:13px">표시할 데이터 없음</div></div>';
   }
   /* matrix 를 window 전역 stash — 인터랙션 시 재사용 */
@@ -3625,13 +3625,13 @@ function _renderChartPanel(rows, keyField, label, chartId) {
 
   /* HTML 생성 */
   var sideHtml = '<div class="cp-side">'
-    +   '<h4>🏆 TOP 기준</h4>'
+    +   '<h4>TOP 기준</h4>'
     +   '<select onchange="_chartTopBase(\''+chartId+'\', this.value)">'
     +     '<option value="매출" selected>매출 기준</option>'
     +     '<option value="마진">순마진 기준</option>'
     +     '<option value="마진율">마진율 기준</option>'
     +   '</select>'
-    +   '<h4 style="margin-top:14px">🎯 TOP 선택</h4>'
+    +   '<h4 style="margin-top:14px">TOP 선택</h4>'
     +   '<div class="cp-top-btns">';
   [1,2,3,4,5].forEach(function(n){
     sideHtml += '<button class="cp-top-btn" onclick="_chartTopN(\''+chartId+'\','+n+')">'+n+'</button>';
@@ -3639,7 +3639,7 @@ function _renderChartPanel(rows, keyField, label, chartId) {
   sideHtml += '<button class="cp-top-btn cp-toggle-all" onclick="_chartToggleAll(\''+chartId+'\')" title="전체 ON/OFF 토글 (클릭 시 모두 ON / 재클릭 시 모두 OFF)">전체</button>'
     +   '</div>'
     +   '<div class="cp-divider"></div>'
-    +   '<h4>📋 ' + esc(label) + ' (' + matrix.items.length + '개)</h4>'
+    +   '<h4>' + esc(label) + ' (' + matrix.items.length + '개)</h4>'
     +   '<div class="cp-items" id="cp-items-' + chartId + '">';
   items.forEach(function(it){
     var c = colorMap[it];
@@ -3657,7 +3657,7 @@ function _renderChartPanel(rows, keyField, label, chartId) {
   /* 차트 영역 — 지표 토글을 차트 위쪽 헤더로 분리 (표 가리지 않도록) */
   var chartHtml = '<div class="cp-chart-wrap">'
     +   '<div class="cp-metric-toggle">'
-    +     '<span class="mt-label">📊 지표 표시</span>'
+    +     '<span class="mt-label">지표 표시</span>'
     +     '<label><input type="checkbox" checked data-metric="매출" onchange="_chartRedraw(\''+chartId+'\')">'
     +       '<span class="legend-line ll-rev"></span><span class="m-rev">매출 (좌축)</span></label>'
     +     '<label><input type="checkbox" checked data-metric="마진" onchange="_chartRedraw(\''+chartId+'\')">'
@@ -3675,7 +3675,7 @@ function _renderChartPanel(rows, keyField, label, chartId) {
   /* ★ inline <script> 태그가 HTML 파서를 깨뜨림 — 외부에서 setTimeout 호출 */
   setTimeout(function(){ if(typeof _chartRedraw==='function') _chartRedraw(chartId); }, 50);
   return '<div class="chart-panel">'
-    + '<div class="panel-title">📈 ' + esc(label) + '별 일자별 추세 — 멀티 항목 비교</div>'
+    + '<div class="panel-title">' + esc(label) + '별 일자별 추세 — 멀티 항목 비교</div>'
     + '<div class="cp-grid">' + sideHtml + chartHtml + '</div>'
     + '</div>';
 }
@@ -3869,7 +3869,7 @@ function _makeChartHoverCard(matrix, dayIdx, items, metrics, colorMap) {
       +    '</div>'
       +  '</div>';
   }
-  var html = '<div class="hc-date">📅 ' + esc(date) + ' <span style="color:#666;font-weight:600;font-size:12px;margin-left:8px">— ' + items.length + '개 항목 · 현재 vs ⌀일평균 ('+nDays+'일)</span></div>';
+  var html = '<div class="hc-date">' + esc(date) + ' <span style="color:#666;font-weight:600;font-size:12px;margin-left:8px">— ' + items.length + '개 항목 · 현재 vs ⌀일평균 ('+nDays+'일)</span></div>';
   html += '<div class="hc-d1-head"><div></div><div>매출 (만원)</div><div>건수</div><div>마진 (만원)</div><div>마진율 (%)</div></div>';
   var sorted = items.slice().filter(function(it) {
     return matrix.data[it] && matrix.data[it][date];
@@ -4164,7 +4164,7 @@ function _tabOrders(field, val, label) {
 }
 function _tabBtn(field, val, label) {
   return '<button type="button" class="ord-drill-btn" title="주문건 보기" onclick="event.stopPropagation();_tabOrders(\''
-    + escAttr(field) + '\',\'' + escAttr(val) + '\',\'' + escAttr(label != null ? label : val) + '\')">📋</button>';
+    + escAttr(field) + '\',\'' + escAttr(val) + '\',\'' + escAttr(label != null ? label : val) + '\')"></button>';
 }
 
 function _renderCrossAnalysis(itemKey, tabKey) {
@@ -4173,10 +4173,10 @@ function _renderCrossAnalysis(itemKey, tabKey) {
   var rows = _crossItemRows(itemKey, tabKey);
   if (!rows.length) return '<div style="padding:30px;text-align:center;color:#999;font-size:13px">'+esc(itemKey)+' 데이터 없음</div>';
   var dims = {
-    brand:  [{k:'market',l:'🛒 마켓 비중'}, {k:'price',l:'💰 금액대 비중'}, {k:'source',l:'📦 소싱처 비중'}],
-    market: [{k:'brand', l:'🏷️ 브랜드 비중'}, {k:'price',l:'💰 금액대 비중'}, {k:'source',l:'📦 소싱처 비중'}],
-    source: [{k:'market',l:'🛒 마켓 비중'}, {k:'brand',l:'🏷️ 브랜드 비중'}, {k:'price',l:'💰 금액대 비중'}],
-    price:  [{k:'market',l:'🛒 마켓 비중'}, {k:'brand',l:'🏷️ 브랜드 비중'}, {k:'source',l:'📦 소싱처 비중'}]
+    brand:  [{k:'market',l:'마켓 비중'}, {k:'price',l:'금액대 비중'}, {k:'source',l:'소싱처 비중'}],
+    market: [{k:'brand', l:'브랜드 비중'}, {k:'price',l:'금액대 비중'}, {k:'source',l:'소싱처 비중'}],
+    source: [{k:'market',l:'마켓 비중'}, {k:'brand',l:'브랜드 비중'}, {k:'price',l:'금액대 비중'}],
+    price:  [{k:'market',l:'마켓 비중'}, {k:'brand',l:'브랜드 비중'}, {k:'source',l:'소싱처 비중'}]
   };
   var keyOf = _crossKeyOf;
   var dimList = dims[tabKey];
@@ -4492,10 +4492,10 @@ function _renderETable(s){
   var hi = s['_고마진N']||0, lo = s['_손실N']||0;
   var jc = s['집계매입건수']||0, normal = Math.max(0, jc - hi - lo);
   var h = '<table class="etable"><thead><tr><th class="et-l">항목</th><th>건수</th><th>매출 기여</th><th>순마진 기여</th><th class="et-c">반영</th></tr></thead><tbody>';
-  h += '<tr><td class="et-l">정상 매출</td><td>'+normal+'</td><td>집계 포함</td><td>집계 포함</td><td class="et-c"><span class="et-pill in">반영 ✓</span></td></tr>';
-  h += '<tr class="et-parent" onclick="toggleAbnRows(\'hi\')"><td class="et-l">🟧 고마진 <span style="color:#F97316;font-size:12px">(고마진율 — 매입0·일반 포함)</span> <span class="et-caret" id="etc-hi">▼ 주문 보기</span></td><td>'+hi+'</td><td>포함</td><td style="color:#F97316">포함</td><td class="et-c"><span class="et-pill hi">반영 ✓</span></td></tr>';
+  h += '<tr><td class="et-l">정상 매출</td><td>'+normal+'</td><td>집계 포함</td><td>집계 포함</td><td class="et-c"><span class="et-pill in">반영 </span></td></tr>';
+  h += '<tr class="et-parent" onclick="toggleAbnRows(\'hi\')"><td class="et-l">고마진 <span style="color:#F97316;font-size:12px">(고마진율 — 매입0·일반 포함)</span> <span class="et-caret" id="etc-hi">▼ 주문 보기</span></td><td>'+hi+'</td><td>포함</td><td style="color:#F97316">포함</td><td class="et-c"><span class="et-pill hi">반영 </span></td></tr>';
   h += '<tr class="et-exp" id="ete-hi"><td colspan="5"><div id="etd-hi" class="et-detail"></div></td></tr>';
-  h += '<tr class="et-parent" onclick="toggleAbnRows(\'su\')"><td class="et-l">🔴 손실 <span style="color:#F04452;font-size:12px">(마진 마이너스 — 정산미수령·과다구매 포함)</span> <span class="et-caret" id="etc-su">▼ 주문 보기</span></td><td>'+lo+'</td><td>포함</td><td style="color:#F04452">손실 반영</td><td class="et-c"><span class="et-pill loss">손실</span></td></tr>';
+  h += '<tr class="et-parent" onclick="toggleAbnRows(\'su\')"><td class="et-l">손실 <span style="color:#F04452;font-size:12px">(마진 마이너스 — 정산미수령·과다구매 포함)</span> <span class="et-caret" id="etc-su">▼ 주문 보기</span></td><td>'+lo+'</td><td>포함</td><td style="color:#F04452">손실 반영</td><td class="et-c"><span class="et-pill loss">손실</span></td></tr>';
   h += '<tr class="et-exp" id="ete-su"><td colspan="5"><div id="etd-su" class="et-detail"></div></td></tr>';
   h += '<tr><td class="et-l">반품·취소(자동)+수기 제외</td><td>'+(s['사용자제외건수']||0)+'</td><td>—</td><td>—</td><td class="et-c"><span class="et-pill out">제외</span></td></tr>';
   h += '<tr><td class="et-l">계산불가 (정산0 &amp; 매입0)</td><td>'+(s['마진제외건수']||0)+'</td><td>—</td><td>—</td><td class="et-c"><span class="et-pill out">제외</span></td></tr>';
@@ -4529,7 +4529,7 @@ function _renderAbnDetail(kind){
       var buyc = buyChanged ? _ba(fmt(o매), fmt(매입), {changed:true, color:'color:#3182F6', delta:{dir:'dn', txt:(매입-o매>=0?'+':'−')+fmt(Math.abs(매입-o매))}}) : _ba(fmt(매입), fmt(매입));
       var smTxt = (sm<0?'−':'+')+fmt(Math.abs(sm));
       var marc = _ba(smTxt, smTxt, {color:'color:'+(sm<0?'#F04452':'#C2570C')});
-      var how = payChanged ? '<span class="et-how pay">정산입력 ✓</span>' : buyChanged ? '<span class="et-how buy">매입입력 ✓</span>' : '<span class="et-how todo">미처리</span>';
+      var how = payChanged ? '<span class="et-how pay">정산입력 </span>' : buyChanged ? '<span class="et-how buy">매입입력 </span>' : '<span class="et-how todo">미처리</span>';
       var name = (r['마켓']||'') + ' · ' + String(r['상품명']||'').slice(0,24);
       var buyer = String(r['수령인']||'').trim();
       var nameHtml = esc(name) + (buyer ? ' <span class="et-buyer" style="color:#6B7684;font-size:12px;font-weight:600">· '+esc(buyer)+'</span>' : '');
@@ -4633,8 +4633,8 @@ function renderSummary(d) {
   var _abnN = _abnLoss.length + _abnHigh.length;
   h += '<div class="sum-abn" onclick="gotoAbnormalAll()" title="클릭 → 전체내역에서 이상마진만 보기">'
      + '<span class="sa-tag">이상마진 ' + _abnN + '건</span>'
-     + '<span class="sa-chip hi">🟧 고마진 ' + _abnHigh.length + '</span>'
-     + '<span class="sa-chip su">🔴 손실 ' + _abnLoss.length + '</span>'
+     + '<span class="sa-chip hi">고마진 ' + _abnHigh.length + '</span>'
+     + '<span class="sa-chip su">손실 ' + _abnLoss.length + '</span>'
      + '<span class="sa-live">↻ 수기 정정·제외 시 실시간</span>'
      + '<span class="sa-go">클릭 → 전체내역 보기 →</span>'
      + '</div>';
@@ -5107,7 +5107,7 @@ function renderBrand(d) {
   }
 
   /* 브랜드 미확정 배너 (백엔드 d.brand_unresolved) */
-  let h = '<button class="hier-btn" onclick="openHier(\'brand\')">🔎 계층 분석 (브랜드 › 마켓 › 계정)</button>';
+  let h = '<button class="hier-btn" onclick="openHier(\'brand\')">계층 분석 (브랜드 › 마켓 › 계정)</button>';
   h += renderBrandUnresolvedBanner(d);
 
   /* 기간 평균 배너 (사용자 요청 C — 4-카드, 브랜드당 평균 추가) */
@@ -5192,7 +5192,7 @@ function renderBrandRow(g, idx) {
 
   h += '<tr class="product-detail" id="bDetail' + idx + '"><td colspan="12">'
      + '<div class="cross-inline-wrap" style="background:#fafafa;border-bottom:2px solid #000;margin-bottom:10px">'
-     +   '<div style="padding:10px 18px 4px;font-size:13px;font-weight:800;color:#000;letter-spacing:0.3px">📐 ' + esc(g.브랜드) + ' — Cross 비중 분석 (마켓 / 금액대 / 소싱처)</div>'
+     +   '<div style="padding:10px 18px 4px;font-size:13px;font-weight:800;color:#000;letter-spacing:0.3px">' + esc(g.브랜드) + ' — Cross 비중 분석 (마켓 / 금액대 / 소싱처)</div>'
      +   _renderCrossAnalysis(g.브랜드, 'brand')
      + '</div>'
      + renderBrandMarketDetail(g.items, idx)
@@ -5854,10 +5854,10 @@ function _toggleTier1GroupSection() {
   var isHidden = section.style.display === 'none';
   if (isHidden) {
     section.style.display = '';
-    if (btn) btn.innerHTML = '📂 그룹별 분류 보기 (정상매칭/더망고만/샵마인만)  ▲ 접기';
+    if (btn) btn.innerHTML = '그룹별 분류 보기 (정상매칭/더망고만/샵마인만)  ▲ 접기';
   } else {
     section.style.display = 'none';
-    if (btn) btn.innerHTML = '📂 그룹별 분류 보기 (정상매칭/더망고만/샵마인만)  ▼ 펼치기';
+    if (btn) btn.innerHTML = '그룹별 분류 보기 (정상매칭/더망고만/샵마인만)  ▼ 펼치기';
   }
 }
 
@@ -5895,10 +5895,10 @@ function formatDetailLabel(detail, mode, row, cardType) {
   if (!detail) return '';
   // ★ tier2 진행중·완료 그룹 가상 코드 처리
   if (detail === '__INPROG__') {
-    return '🔄 반품·교환·취소 처리 중 — 모니터링';
+    return '반품·교환·취소 처리 중 — 모니터링';
   }
   if (detail === '__DONE__') {
-    return '✔️ 반품·교환·취소 처리 완료 — 조치 불필요';
+    return '반품·교환·취소 처리 완료 — 조치 불필요';
   }
   // ★ 카드 전체보기 가상 코드 — cardType 의 라벨 사용
   if (detail === '__CARD_ALL__') {
@@ -5921,15 +5921,15 @@ function formatDetailLabel(detail, mode, row, cardType) {
       .replace(/\s*\(정상\)/g,'')
       .trim();
     var prefixMap = {
-      immediate: '🔴 손실위험: ',
-      sourcing:  '🟠 소싱처 점검: ',
-      market:    '🟡 마켓 점검: ',
-      inprogress:'🔄 처리 중: ',
-      completed: '✔️ 처리 완료: ',
-      normal:    '✅ 정상: ',
+      immediate: '손실위험: ',
+      sourcing:  '소싱처 점검: ',
+      market:    '마켓 점검: ',
+      inprogress:'처리 중: ',
+      completed: '처리 완료: ',
+      normal:    '정상: ',
       pending:   '⏳ 발송 대기: ',
-      kkadaegi:  '📦 까대기: ',
-      margin:    '🟣 마진 검토: '
+      kkadaegi:  '까대기: ',
+      margin:    '마진 검토: '
     };
     var prefix = prefixMap[cardType] || (col.emoji + ' ');
     var label = '<span style="color:'+col.text+';font-weight:500">' + prefix + esc(cleanName) + '</span>';
@@ -5945,7 +5945,7 @@ function formatDetailLabel(detail, mode, row, cardType) {
     var smInProgress = PROG.some(function(p){ return sm.indexOf(p) >= 0; });
     var mgInProgress = mg.indexOf('진행중') >= 0;
     if (smInProgress || mgInProgress) {
-      var label2 = '🔄 반품/교환/취소 진행중';
+      var label2 = '반품/교환/취소 진행중';
       if (mode === 'short') return label2;
       return label2 + ' <code style="font-size:10px;color:#6b7280;background:#f3f4f6;padding:1px 5px;border-radius:3px" title="원본 분류: ' + esc(detail) + '">' + esc(code) + '</code>';
     }
@@ -5967,7 +5967,7 @@ function _toggleTier2Note(badge) {
   if (!note) return;
   var isOpen = note.style.display !== 'none';
   note.style.display = isOpen ? 'none' : 'block';
-  badge.textContent = isOpen ? '💡 왜?' : '💡 접기';
+  badge.textContent = isOpen ? '왜?' : '접기';
 }
 
 // ── 카테고리별 기본 설명 (blackspot lines 1610-1628) ──
@@ -6061,11 +6061,11 @@ function _highlightGroupBadges(type) {
   banner.style.cssText = 'margin:-8px 0 12px 0;padding:8px 14px;background:#fef9c3;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#713f12;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px';
   var reason = (_CARD_SUBTITLES[type] || {}).reason || '';
   banner.innerHTML = '<div style="flex:1">'
-    + '<div>🎯 <b>'+info.label+' '+fmt(total)+'건</b> = '+parts.join(' + ')+' '
+    + '<div><b>'+info.label+' '+fmt(total)+'건</b> = '+parts.join(' + ')+' '
     + '<span style="font-size:10px;opacity:0.7">(아래 그룹 외곽선 강조)</span></div>'
-    + (reason ? '<div style="margin-top:4px;font-size:11px;color:#92400e">💡 <b>조치</b>: '+esc(reason)+'</div>' : '')
+    + (reason ? '<div style="margin-top:4px;font-size:11px;color:#92400e"><b>조치</b>: '+esc(reason)+'</div>' : '')
     + '</div>'
-    + '<button onclick="filterByCard(\'all\');this.parentElement.remove();" style="padding:3px 10px;background:#fff;border:1px solid #f59e0b;color:#78350f;border-radius:4px;cursor:pointer;font-size:11px;align-self:flex-start">✕ 필터 해제</button>';
+    + '<button onclick="filterByCard(\'all\');this.parentElement.remove();" style="padding:3px 10px;background:#fff;border:1px solid #f59e0b;color:#78350f;border-radius:4px;cursor:pointer;font-size:11px;align-self:flex-start">필터 해제</button>';
   var resultsEl = document.getElementById('blackspot-view');
   if (!resultsEl) resultsEl = document.getElementById('tab-content');
   if (resultsEl) {
@@ -6154,8 +6154,8 @@ function _openKeywordEditor(cardType, cardLabel) {
     {key:'mk_sync', label:'마켓 sync 상태 (마켓 연동)',     ph:'예: 송장전송실패'},
   ];
   if (hasSub) {
-    fields.push({key:'sub_rtn', label:'🔴 반품/취소 분류 키워드 (Pill 좌측)', ph:'예: 반품, 취소', _sub:true});
-    fields.push({key:'sub_ex',  label:'🟢 교환 분류 키워드 (Pill 우측 — 정산 받음)', ph:'예: 교환', _sub:true});
+    fields.push({key:'sub_rtn', label:'반품/취소 분류 키워드 (Pill 좌측)', ph:'예: 반품, 취소', _sub:true});
+    fields.push({key:'sub_ex',  label:'교환 분류 키워드 (Pill 우측 — 정산 받음)', ph:'예: 교환', _sub:true});
   }
   var modal = document.createElement('div');
   modal.id = 'kwEditorModal';
@@ -6163,7 +6163,7 @@ function _openKeywordEditor(cardType, cardLabel) {
   modal.onclick = function(e){ if (e.target === modal) modal.remove(); };
   var html = '<div style="background:#fff;border-radius:10px;max-width:560px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'
     + '<div style="padding:16px 20px;background:#f9fafb;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">'
-    +   '<h3 style="margin:0;font-size:16px;color:#111827">⚙️ 키워드 편집 — <span style="color:#3b82f6">'+esc(cardLabel)+'</span></h3>'
+    +   '<h3 style="margin:0;font-size:16px;color:#111827">키워드 편집 — <span style="color:#3b82f6">'+esc(cardLabel)+'</span></h3>'
     +   '<span onclick="document.getElementById(\'kwEditorModal\').remove()" style="cursor:pointer;font-size:22px;color:#6b7280">×</span>'
     + '</div>'
     + '<div style="padding:18px 20px">'
@@ -6177,8 +6177,8 @@ function _openKeywordEditor(cardType, cardLabel) {
     if (f._sub && !subStarted) {
       subStarted = true;
       html += '<div style="margin:18px 0 10px 0;padding:10px 12px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;font-size:11.5px;color:#92400e">'
-        +    '<b>📌 카드 내 Pill 분류 (반품/취소 ↔ 교환)</b><br>'
-        +    '카드 안의 작은 Pill 버튼 (🔴 반품/취소 / 🟢 교환) 분류 기준. 행에 두 키워드 모두 매칭 시 <b>교환 우선</b> (정산 받음).'
+        +    '<b>카드 내 Pill 분류 (반품/취소 ↔ 교환)</b><br>'
+        +    '카드 안의 작은 Pill 버튼 (반품/취소 / 교환) 분류 기준. 행에 두 키워드 모두 매칭 시 <b>교환 우선</b> (정산 받음).'
         +  '</div>';
     }
     html += '<div style="margin-bottom:14px">'
@@ -6190,7 +6190,7 @@ function _openKeywordEditor(cardType, cardLabel) {
   });
   html += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb">'
     +   '<button onclick="document.getElementById(\'kwEditorModal\').remove()" style="padding:8px 14px;background:#fff;color:#6b7280;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;font-size:13px">취소</button>'
-    +   '<button onclick="_saveKeywordEditor(\''+cardType+'\')" style="padding:8px 18px;background:#10b981;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:13px;box-shadow:0 2px 4px rgba(16,185,129,0.3)">✓ 저장</button>'
+    +   '<button onclick="_saveKeywordEditor(\''+cardType+'\')" style="padding:8px 18px;background:#10b981;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:13px;box-shadow:0 2px 4px rgba(16,185,129,0.3)">저장</button>'
     + '</div>'
     + '</div></div>';
   modal.innerHTML = html;
@@ -6257,11 +6257,11 @@ function _uploadIssueFile(files) {
       if (resp && resp.status === 'ok') {
         if (statusEl) statusEl.innerHTML = '✅ ' + resp.count + '건 등록 — <span style="color: var(--글자-희미, #9ca3af);font-size:10px">분석 시 자동 적용</span>';
       } else {
-        if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">❌ ' + (resp.message || resp.status || '실패') + '</span>';
+        if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">' + (resp.message || resp.status || '실패') + '</span>';
       }
     })
     .catch(function(e){
-      if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">❌ ' + e.message + '</span>';
+      if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">' + e.message + '</span>';
     });
 }
 
@@ -6445,7 +6445,7 @@ function _summaryCardHTML(type, count, label, color, splitData) {
     ? '<span onclick="event.stopPropagation();_openKeywordEditor(\''+type+'\',\''+label.replace(/'/g,"\\'")+'\')" '
       + 'style="position:absolute;top:6px;right:6px;cursor:pointer;font-size:13px;opacity:0.55;padding:2px 4px;border-radius:3px;transition:all 0.15s" '
       + 'onmouseover="this.style.opacity=1;this.style.background=\'#f3f4f6\'" onmouseout="this.style.opacity=0.55;this.style.background=\'\'" '
-      + 'title="키워드 편집">⚙️</span>'
+      + 'title="키워드 편집"></span>'
     : '';
   return '<div class="'+cls+'" onclick="_selectBsCard(\''+type+'\',\''+label.replace(/'/g,"\\'")+'\')" style="position:relative;display:flex;flex-direction:column;gap:2px;cursor:pointer" title="'+numTitle+'">'
     + gearBtn
@@ -6455,7 +6455,7 @@ function _summaryCardHTML(type, count, label, color, splitData) {
     + splitHTML
     + '<button onclick="event.stopPropagation();(window._goAllWithCardFilter||showCardBreakdown)(\''+type+'\','+'\''+label+'\')" '  /* [모음전] _goAllWithCardFilter — 전체내역으로 통일 */
     + 'style="margin-top:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:#3b82f6;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;font-weight:600" '
-    + 'title="'+btnTitle+'">📋 전체내역에서 보기</button>'  /* [모음전] _goAllWithCardFilter */
+    + 'title="'+btnTitle+'">전체내역에서 보기</button>'  /* [모음전] _goAllWithCardFilter */
     + '</div>';
 }
 
@@ -6478,7 +6478,7 @@ function _selectBsCard(type, label) {
 function _renderBsSidePanelContent() {
   var type = state.selectedCardType;
   if (!type) {
-    return '<div style="font-size:13px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:8px">💡 카드 선택</div>'
+    return '<div style="font-size:13px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:8px">카드 선택</div>'
          + '<div style="font-size:14px;color:#d1d5db;line-height:1.5">왼쪽 카드를 클릭하면<br>여기에 액션 메뉴가 나타납니다</div>'
          + '<div style="margin-top:14px;font-size:12px;color: var(--글자-희미, #9ca3af);line-height:1.5">예: 정상/완료 클릭 → 전체내역 필터</div>';
   }
@@ -6491,8 +6491,8 @@ function _renderBsSidePanelContent() {
        +   '<span style="font-size:13px;color:#d1d5db">'+esc(label)+'</span>'
        + '</div>'
        + '<div style="display:flex;flex-direction:column;gap:8px">'
-       +   '<button onclick="showCardBreakdown(\''+type+'\',\''+label.replace(/'/g,"\\'")+'\')" style="padding:12px 14px;font-size:13px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:#374151;color:#fff;text-align:left">📋 상세내역 보기</button>'
-       +   '<button onclick="_jumpAllByCard(\''+type+'\')" style="padding:12px 14px;font-size:13px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:#2563eb;color:#fff;text-align:left">📊 전체내역에서 보기 →</button>'
+       +   '<button onclick="showCardBreakdown(\''+type+'\',\''+label.replace(/'/g,"\\'")+'\')" style="padding:12px 14px;font-size:13px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:#374151;color:#fff;text-align:left">상세내역 보기</button>'
+       +   '<button onclick="_jumpAllByCard(\''+type+'\')" style="padding:12px 14px;font-size:13px;font-weight:600;border:none;border-radius:6px;cursor:pointer;background:#2563eb;color:#fff;text-align:left">전체내역에서 보기 →</button>'
        + '</div>';
 }
 
@@ -6650,7 +6650,7 @@ function showCardBreakdown(type, label) {
     + '<button onclick="document.getElementById(\'cardBreakdownModal\').remove();_showCardAllRows(\''+esc(type)+'\')" '
     + 'style="width:100%;padding:12px;background:'+cardCol.main+';color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity 0.15s" '
     + 'onmouseover="this.style.opacity=\'0.85\'" onmouseout="this.style.opacity=\'1\'">'
-    + '📋 전체 '+fmt(rows.length)+'건 한번에 보기'
+    + '전체 '+fmt(rows.length)+'건 한번에 보기'
     + '<span style="font-size:11px;font-weight:400;opacity:0.9">(상세분류 무관)</span>'
     + '</button>'
     + '<div style="margin-top:6px;font-size:11px;color:#6b7280;text-align:center">또는 아래에서 상세분류별로 골라보기</div>'
@@ -6700,7 +6700,7 @@ function showCardBreakdown(type, label) {
       var leftoverCodes = leftover.map(function(x){ return x.detail.split('_')[0]; });
       var uniqueCodes = leftoverCodes.filter(function(v,i,a){ return a.indexOf(v) === i; });
       cats.push({
-        name: '🔄 기타 (이번 카드의 추가 코드)',
+        name: '기타 (이번 카드의 추가 코드)',
         color: '#6366F1',
         bg: '#E0E7FF',
         codes: uniqueCodes,
@@ -6718,7 +6718,7 @@ function showCardBreakdown(type, label) {
 
     var catsForTab = _computeCategories(t.detail);
     if (catsForTab.length > 0) {
-      html += '<div style="margin-bottom:14px"><b style="font-size:13px;color:#111827">📊 카테고리 구성</b></div>';
+      html += '<div style="margin-bottom:14px"><b style="font-size:13px;color:#111827">카테고리 구성</b></div>';
       html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:16px">';
       catsForTab.forEach(function(c, idx){
         var codesText = c.codes.join(', ');
@@ -6732,7 +6732,7 @@ function showCardBreakdown(type, label) {
           + '<div style="font-size:10px;color:#6b7280;margin-top:4px">포함: '+esc(codesText)+'</div>'
           + '<div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap">'
           + '<button onclick="event.stopPropagation();_showCategoryDesc(\''+esc(c.name).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+esc(c.desc).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')+'\',\''+codesText.replace(/'/g,"\\'")+'\','+c.count+','+JSON.stringify(c.details).replace(/'/g,"\\'").replace(/\\/g,'\\\\')+',\''+esc(type)+'\')" '
-          + 'style="flex:1;padding:5px 8px;font-size:11px;background:'+c.color+';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">💡 설명</button>'
+          + 'style="flex:1;padding:5px 8px;font-size:11px;background:'+c.color+';color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">설명</button>'
           + '</div>'
           + '</div>';
       });
@@ -6800,7 +6800,7 @@ function _toggleCategoryFilter(cardEl, catName) {
     });
   }
   if (filterTag) {
-    filterTag.textContent = '🔍 필터: '+catName+' (클릭한 카드 재클릭 시 해제)';
+    filterTag.textContent = '필터: '+catName+' (클릭한 카드 재클릭 시 해제)';
     filterTag.style.display = '';
   }
 }
@@ -6827,7 +6827,7 @@ function _showCategoryDesc(name, desc, codes, count, detailsJson, cardType) {
   }).join('');
   m.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:560px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);padding:20px 24px">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-    + '<h3 style="margin:0;font-size:16px">📖 '+esc(name)+' — '+fmt(count)+'건</h3>'
+    + '<h3 style="margin:0;font-size:16px">'+esc(name)+' — '+fmt(count)+'건</h3>'
     + '<span onclick="document.getElementById(\'catDescModal\').remove()" style="cursor:pointer;font-size:22px;color:#6b7280">×</span>'
     + '</div>'
     + '<div style="padding:12px 14px;background:#f9fafb;border-left:3px solid #3b82f6;border-radius:4px;font-size:13px;line-height:1.6;color:#374151;white-space:pre-wrap;margin-bottom:14px">'+esc(desc)+'</div>'
@@ -7011,10 +7011,10 @@ function buildTier1Group(group) {
     var mgDone = mg.indexOf('완료') >= 0 && (mg.indexOf('반품') >= 0 || mg.indexOf('교환') >= 0 || mg.indexOf('취소') >= 0);
     var smC = smCatTier(sm);
     if (mgInProg || smC === 'in_progress') {
-      major  = '🔄 반품/교환/취소 진행중';
+      major  = '반품/교환/취소 진행중';
       detail = '__INPROG__';
     } else if (mgDone || smC === 'done') {
-      major  = '✔️ 반품/교환/취소 완료';
+      major  = '반품/교환/취소 완료';
       detail = '__DONE__';
     }
     if(!tree[major]) tree[major] = {};
@@ -7031,17 +7031,17 @@ function buildTier1Group(group) {
   h += '<div class="tier1-header" onclick="toggleGroup(\''+key+'\')" id="header-'+key+'">';
   h += '<span class="arrow" id="arrow-'+key+'">&#9660;</span>';
   h += '<span class="group-title">'+esc(group.title)+'</span>';
-  if (dateRange) h += '<span class="group-daterange">📅 '+esc(dateRange)+'</span>';
+  if (dateRange) h += '<span class="group-daterange">'+esc(dateRange)+'</span>';
   h += '<span class="group-breakdown" style="margin-left:16px;display:inline-flex;gap:4px;font-size:11px;font-weight:500">';
-  if (bd.immediate) h += '<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:3px" title="즉시확인">🔴'+fmt(bd.immediate)+'</span>';
-  if (bd.sourcing)  h += '<span style="background:#fed7aa;color:#9a3412;padding:2px 6px;border-radius:3px" title="소싱처확인">🟠'+fmt(bd.sourcing)+'</span>';
-  if (bd.market)    h += '<span style="background:#fef3c7;color:#854d0e;padding:2px 6px;border-radius:3px" title="마켓확인">🟡'+fmt(bd.market)+'</span>';
-  if (bd.inprogress) h += '<span style="background:#fce7f3;color:#9d174d;padding:2px 6px;border-radius:3px" title="반품/교환/취소 진행중">🔄'+fmt(bd.inprogress)+'</span>';
-  if (bd.completed) h += '<span style="background:#f3f4f6;color:#374151;padding:2px 6px;border-radius:3px" title="반품/교환/취소 완료">✔️'+fmt(bd.completed)+'</span>';
-  if (bd.normal)    h += '<span style="background:#d1fae5;color:#065f46;padding:2px 6px;border-radius:3px" title="정상/완료">🟢'+fmt(bd.normal)+'</span>';
+  if (bd.immediate) h += '<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:3px" title="즉시확인">'+fmt(bd.immediate)+'</span>';
+  if (bd.sourcing)  h += '<span style="background:#fed7aa;color:#9a3412;padding:2px 6px;border-radius:3px" title="소싱처확인">'+fmt(bd.sourcing)+'</span>';
+  if (bd.market)    h += '<span style="background:#fef3c7;color:#854d0e;padding:2px 6px;border-radius:3px" title="마켓확인">'+fmt(bd.market)+'</span>';
+  if (bd.inprogress) h += '<span style="background:#fce7f3;color:#9d174d;padding:2px 6px;border-radius:3px" title="반품/교환/취소 진행중">'+fmt(bd.inprogress)+'</span>';
+  if (bd.completed) h += '<span style="background:#f3f4f6;color:#374151;padding:2px 6px;border-radius:3px" title="반품/교환/취소 완료">'+fmt(bd.completed)+'</span>';
+  if (bd.normal)    h += '<span style="background:#d1fae5;color:#065f46;padding:2px 6px;border-radius:3px" title="정상/완료">'+fmt(bd.normal)+'</span>';
   if (bd.pending)   h += '<span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:3px" title="발송대기">⏳'+fmt(bd.pending)+'</span>';
-  if (bd.kkadaegi)  h += '<span style="background:#ccfbf1;color:#065f46;padding:2px 6px;border-radius:3px" title="까대기">📦'+fmt(bd.kkadaegi)+'</span>';
-  if (bd.margin)    h += '<span style="background:#ede9fe;color:#5b21b6;padding:2px 6px;border-radius:3px" title="마진이상(중첩)">🟣'+fmt(bd.margin)+'</span>';
+  if (bd.kkadaegi)  h += '<span style="background:#ccfbf1;color:#065f46;padding:2px 6px;border-radius:3px" title="까대기">'+fmt(bd.kkadaegi)+'</span>';
+  if (bd.margin)    h += '<span style="background:#ede9fe;color:#5b21b6;padding:2px 6px;border-radius:3px" title="마진이상(중첩)">'+fmt(bd.margin)+'</span>';
   h += '</span>';
   h += '<span class="group-spacer"></span>';
   h += '<span class="group-count">'+fmt(group.rows.length)+'건</span>';
@@ -7077,7 +7077,7 @@ function buildTier1Group(group) {
         h += '<span class="item-label" style="flex:1" title="'+esc(detail)+'">'+formatDetailLabel(detail)+'</span>';
         h += '<span class="item-count">'+fmt(count)+'건</span>';
         if (hasNote) {
-          h += '<span onclick="event.stopPropagation();_toggleTier2Note(this)" style="cursor:pointer;font-size:11px;color:#3b82f6;background:#eff6ff;padding:2px 8px;border-radius:10px;user-select:none" title="판정 근거 / 확인사항 보기">💡 왜?</span>';
+          h += '<span onclick="event.stopPropagation();_toggleTier2Note(this)" style="cursor:pointer;font-size:11px;color:#3b82f6;background:#eff6ff;padding:2px 8px;border-radius:10px;user-select:none" title="판정 근거 / 확인사항 보기">왜?</span>';
         }
         h += '</div>';
         if (hasNote) {
@@ -7374,7 +7374,7 @@ function toggleMemoStar(el, rowId) {
 // ── 별표만 보기 필터 토글 (blackspot lines 2618-2624) ──
 function toggleMemoStarFilter(btn) {
   state.memoStarFilterOn = !state.memoStarFilterOn;
-  btn.textContent = state.memoStarFilterOn ? '⭐ 별표만 보기 (ON)' : '☆ 별표만 보기';
+  btn.textContent = state.memoStarFilterOn ? '별표만 보기 (ON)' : '별표만 보기';
   btn.style.background = state.memoStarFilterOn ? '#fbbf24' : '';
   btn.style.color = state.memoStarFilterOn ? '#fff' : '';
   _rerenderDetailPreservingSearch();
@@ -7635,10 +7635,10 @@ function buildDetailTable(detailCode, rows, cardType) {
     + 'style="width:200px;">';
   h += '<button class="btn btn-success" onclick="downloadExcel(\'tab1\')">Excel 다운로드</button>';
   h += '<button class="btn btn-outline" onclick="checkSourcingBatch()">소싱처 일괄확인</button>';
-  var starBtnLabel = state.memoStarFilterOn ? '⭐ 별표만 보기 (ON)' : '☆ 별표만 보기';
+  var starBtnLabel = state.memoStarFilterOn ? '별표만 보기 (ON)' : '별표만 보기';
   var starBtnStyle = state.memoStarFilterOn ? 'background:#fbbf24;color:#fff' : '';
   h += '<button class="btn btn-outline" style="'+starBtnStyle+'" onclick="toggleMemoStarFilter(this)">'+starBtnLabel+'</button>';
-  h += '<button class="btn btn-outline" onclick="closeDetail()">✕ 닫기</button>';
+  h += '<button class="btn btn-outline" onclick="closeDetail()">닫기</button>';
   h += '</div>';
 
   var cols = ['제외','비대량등록','더망고주문상태 (사용자 연동)','마켓주문상태 (오픈 마켓 연동)','국내송장번호','샵마인_주문상태','샵마인_송장입력','샵마인_택배사','주문일','_소싱처','마켓','마켓주문번호','수령인명','브랜드','상품명','옵션_매출','단가','수량_매출','실결제금액','배송비','정산예상금액','구매가격','순마진','마진율','판매경로','소싱처확인결과','간단메모','_추가메모'];  /* [모음전] 전체내역 열 구성 — 사장님 지정 순서 2026-07-24, 제외·비대량등록·간단메모 추가 2026-07-25 */
@@ -7722,7 +7722,7 @@ function buildDetailTable(detailCode, rows, cardType) {
       + '</th>';
   });
   /* 점프 컬럼 (사용자 요청 A) — 전체내역 탭에서 동일 주문 보기 */
-  h += '<th style="white-space:nowrap;color:#3b82f6">📋 전체내역</th>';
+  h += '<th style="white-space:nowrap;color:#3b82f6">전체내역</th>';
   h += '</tr></thead><tbody id="detailTbody">';
 
   var sorted = rows;
@@ -7858,7 +7858,7 @@ function buildDetailTable(detailCode, rows, cardType) {
     var orderNoEsc = String(r['마켓주문번호'] || '').replace(/'/g, "\\'");
     h += '<td><button onclick="_jumpToAllByOrder(\''+orderNoEsc+'\')" '
        + 'style="padding:3px 8px;font-size:11px;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;white-space:nowrap" '
-       + 'title="전체내역 탭에서 같은 주문 보기">📋 전체내역</button></td>';
+       + 'title="전체내역 탭에서 같은 주문 보기">전체내역</button></td>';
     h += '</tr>';
   });
 
@@ -8058,7 +8058,7 @@ function openColFilter(col, anchor) {
   html += '</div>'
     + '<div style="padding:12px 12px;border-top:2px solid #e5e7eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0">'
     + '<button onclick="colFilterClear(\''+col.replace(/'/g,"\\'")+'\')" style="padding:8px 14px;background:#fff;color:#F04452;border:1px solid #F04452;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600">필터 해제</button>'
-    + '<button onclick="colFilterApply(\''+col.replace(/'/g,"\\'")+'\')" style="padding:8px 18px;background:#10b981;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:13px;box-shadow:0 2px 4px rgba(16,185,129,0.3)">✓ 적용</button>'
+    + '<button onclick="colFilterApply(\''+col.replace(/'/g,"\\'")+'\')" style="padding:8px 18px;background:#10b981;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:13px;box-shadow:0 2px 4px rgba(16,185,129,0.3)">적용</button>'
     + '</div>';
   dd.innerHTML = html;
   document.body.appendChild(dd);
@@ -8317,7 +8317,7 @@ function openAllColFilter(col, anchor) {
   html += '</div>'
     + '<div style="padding:12px 12px;border-top:2px solid #e5e7eb;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0">'
     + '<button onclick="allColFilterClear(\''+col.replace(/'/g,"\\'")+'\')" style="padding:8px 14px;background:#fff;color:#F04452;border:1px solid #F04452;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600">필터 해제</button>'
-    + '<button onclick="allColFilterApply(\''+col.replace(/'/g,"\\'")+'\')" style="padding:8px 18px;background:#10b981;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:13px;box-shadow:0 2px 4px rgba(16,185,129,0.3)">✓ 적용</button>'
+    + '<button onclick="allColFilterApply(\''+col.replace(/'/g,"\\'")+'\')" style="padding:8px 18px;background:#10b981;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:13px;box-shadow:0 2px 4px rgba(16,185,129,0.3)">적용</button>'
     + '</div>';
   dd.innerHTML = html;
   document.body.appendChild(dd);
@@ -8417,7 +8417,7 @@ function _getSuspVirtualRows() {
       '수량_매출':        1,
       '수령인':           b['수령인'] || '',
       '상품코드':         '',
-      '매칭타입':         '⚠️ 미매칭',
+      '매칭타입':         '미매칭',
       '마켓주문번호':     b['마켓주문번호'] || '',
       '간단메모':         b['간단메모'] || '',
       '사이트주문번호':   b['사이트주문번호'] || '',
@@ -8426,7 +8426,7 @@ function _getSuspVirtualRows() {
       '마켓주문상태 (오픈 마켓 연동)': '',
       '수령인명':         b['수령인'] || '',
       '마켓상품명':       b['상품명'] || '',
-      '샵마인_주문상태':  '⚠️ 실마켓(API) 미동기화',
+      '샵마인_주문상태':  '실마켓(API) 미동기화',
       '샵마인_샵마인주문상태': '',
       '대분류':           '4_매입X(블랙스팟의심)',
       '상세분류':         '1-3_블랙스팟의심',
@@ -8476,7 +8476,7 @@ function _getUnfulfilledUnmatchedRows() {
       '수량_매출':        1,
       '수령인':           b['수령인'] || '',
       '상품코드':         '',
-      '매칭타입':         '⚠️ 미매칭',
+      '매칭타입':         '미매칭',
       '마켓주문번호':     b['마켓주문번호'] || '',
       '간단메모':         b['간단메모'] || '',
       '사이트주문번호':   b['사이트주문번호'] || '',
@@ -8485,7 +8485,7 @@ function _getUnfulfilledUnmatchedRows() {
       '마켓주문상태 (오픈 마켓 연동)': '',
       '수령인명':         b['수령인'] || '',
       '마켓상품명':       b['상품명'] || '',
-      '샵마인_주문상태':  '⚠️ 실마켓(API) 미매칭',
+      '샵마인_주문상태':  '실마켓(API) 미매칭',
       '샵마인_샵마인주문상태': '',
       '데이터출처':       '더망고만',
       '_idx':             base + out.length,
@@ -8897,9 +8897,9 @@ function renderBlackspot(d) {
 
   // 데이터출처별 3그룹 분류 (사용자 친화 라벨)
   var groups = {
-    matched:      {title:'✅ 정상 매칭 (더망고+샵마인 모두 있음)', rows:[], key:'matched'},
-    mangoOnly:    {title:'⚠️ 더망고에만 있음 (샵마인 정산 누락 위험)', rows:[], key:'mangoOnly'},
-    shopmineOnly: {title:'📦 실마켓(API)에만 있음 (사용자 미매입 — 취소·반품)', rows:[], key:'shopmineOnly'},
+    matched:      {title:'정상 매칭 (더망고+샵마인 모두 있음)', rows:[], key:'matched'},
+    mangoOnly:    {title:'더망고에만 있음 (샵마인 정산 누락 위험)', rows:[], key:'mangoOnly'},
+    shopmineOnly: {title:'실마켓(API)에만 있음 (사용자 미매입 — 취소·반품)', rows:[], key:'shopmineOnly'},
   };
   data.forEach(function(row){
     var src = row['데이터출처'] || '';
@@ -8912,16 +8912,16 @@ function renderBlackspot(d) {
   var shOnly = ex.shopmineOnlyCount || 0;
   var h = '<div id="blackspot-view">';
   h += '<div style="padding:10px 14px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e3a8a;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-    + '<div>📊 <b>더망고 기준 분석</b> — 사용자가 매입 진행한 <b>'+fmt(ex.total)+'건</b> 대상 (정상매칭 + 매입했으나 실마켓(API) 미매칭).</div>'
+    + '<div><b>더망고 기준 분석</b> — 사용자가 매입 진행한 <b>'+fmt(ex.total)+'건</b> 대상 (정상매칭 + 매입했으나 실마켓(API) 미매칭).</div>'
     + '<div style="display:flex;gap:6px;align-items:center;font-size:11px">'
-    +   '<span title="용어 설명" style="cursor:pointer;background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:12px;font-weight:600" onclick="_toggleGlossary()">ℹ️ 용어 설명</span>';
+    +   '<span title="용어 설명" style="cursor:pointer;background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:12px;font-weight:600" onclick="_toggleGlossary()">ℹ용어 설명</span>';
   if (shOnly > 0) {
-    h += '<span style="color:#6b7280">📦 미매입 마켓 주문 <b>'+fmt(shOnly)+'건</b> — 하단 섹션</span>';
+    h += '<span style="color:#6b7280">미매입 마켓 주문 <b>'+fmt(shOnly)+'건</b> — 하단 섹션</span>';
   }
   h += '</div></div>';
   // 용어 설명 드롭박스 (기본 접힘)
   h += '<div id="bsGlossary" style="display:none;margin:-8px 0 12px 0;padding:10px 14px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:11.5px;color:#374151;line-height:1.7">'
-    +   '<b>📖 약어 / 분류 용어</b><br>'
+    +   '<b>약어 / 분류 용어</b><br>'
     +   '<b>S·P·x (미이행 사유)</b> — 더망고 간단메모에 입력하는 매입 안 함 사유:<br>'
     +   '&nbsp;&nbsp;• <b>S</b> = 매장 품절 (Sold out)<br>'
     +   '&nbsp;&nbsp;• <b>P</b> = 가격 변동 / 판매 중지 (Pause)<br>'
@@ -8951,14 +8951,14 @@ function renderBlackspot(d) {
   h += '<div class="bs-3zone">';
   // Zone 1 — 전체현황
   h += '<div>';
-  h += '<div class="bs-zone-hdr bs-zone1-hdr">📊 전체현황</div>';
+  h += '<div class="bs-zone-hdr bs-zone1-hdr">전체현황</div>';
   h += '<div class="bs-zone-body">';
   h += _summaryCardHTML('all', ex.total, '전체 건수', '');
   h += '</div></div>';
   // Zone 2 — 즉시처리필요 (즉시확인 / 소싱처 / 마켓 / 더망고 점검)
   // ★ 마진 이상 카드 삭제 — 이상마진은 전체내역 상단 배너에서 별도 필터링 (사용자 요청)
   h += '<div>';
-  h += '<div class="bs-zone-hdr bs-zone2-hdr">🚨 즉시처리필요</div>';
+  h += '<div class="bs-zone-hdr bs-zone2-hdr">즉시처리필요</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0">';
   h += _summaryCardHTML('immediate', ex.immediate, '즉시 확인',   'red');
   h += _summaryCardHTML('sourcing', ex.sourcing, '소싱처 확인', 'orange');
@@ -8974,7 +8974,7 @@ function renderBlackspot(d) {
   h += '</div>';
   // Zone 3 — 모니터링&정상흐름 (정상+발송대기+까대기 / 확인된 블랙스팟 / 진행중+완료메모O+완료메모X)
   h += '<div>';
-  h += '<div class="bs-zone-hdr bs-zone3-hdr">👀 모니터링&amp;정상흐름</div>';
+  h += '<div class="bs-zone-hdr bs-zone3-hdr">모니터링&amp;정상흐름</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0">';
   h += (window._normalCardHTML ? window._normalCardHTML(ex.normal)
                                : _summaryCardHTML('normal',   ex.normal,   '정상/완료', 'green'));  /* [모음전] 역마진 경고 (_normalCardHTML) */
@@ -9014,8 +9014,8 @@ function renderBlackspot(d) {
 
   // 전역 버튼
   h += '<div style="display:flex;justify-content:flex-end;margin:-8px 0 12px 0;gap:8px">'
-    + '<button id="globalExportBtn" class="btn btn-success" onclick="downloadExcelByCard()">📥 전체 Excel 다운로드</button>'
-    + '<button id="globalBatchBtn" class="btn btn-outline" onclick="globalCardBatchCheck()">📦 전체 일괄 소싱처 확인</button>'
+    + '<button id="globalExportBtn" class="btn btn-success" onclick="downloadExcelByCard()">전체 Excel 다운로드</button>'
+    + '<button id="globalBatchBtn" class="btn btn-outline" onclick="globalCardBatchCheck()">전체 일괄 소싱처 확인</button>'
     + '</div>';
 
   // ★ 블랙스팟 조사 섹션 — 기본 숨김 (사용자 헷갈림 방지) + 토글 버튼
@@ -9023,15 +9023,15 @@ function renderBlackspot(d) {
   h += '<div style="margin:8px 0 12px 0">'
     + '<button onclick="_toggleTier1GroupSection()" id="tier1ToggleBtn" '
     + 'style="padding:6px 12px;font-size:12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;color:#374151">'
-    + '📂 그룹별 분류 보기 (정상매칭/더망고만/샵마인만)  ▼ 펼치기'
+    + '그룹별 분류 보기 (정상매칭/더망고만/샵마인만)  ▼ 펼치기'
     + '</button>'
-    + '<span style="margin-left:10px;font-size:11px;color:#9ca3af">기본: 카드 중심 — 숫자 또는 📋 세부보기 클릭</span>'
+    + '<span style="margin-left:10px;font-size:11px;color:#9ca3af">기본: 카드 중심 — 숫자 또는 세부보기 클릭</span>'
     + '</div>';
 
   h += '<div id="tier1GroupSection" style="display:none">';
   // 블랙스팟 조사 섹션 (매칭됨 + 더망고만)
   h += '<div style="margin:8px 0 4px 0;padding:8px 14px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;font-size:13px;color:#78350f;font-weight:600">'
-    + '🔍 블랙스팟 조사 대상 '
+    + '블랙스팟 조사 대상 '
     + '<span style="font-weight:400;font-size:11px;opacity:0.85">(사용자가 매입 진행한 주문 — 손실/이상 점검)</span>'
     + '</div>';
   ['matched','mangoOnly'].forEach(function(key){
@@ -9041,11 +9041,11 @@ function renderBlackspot(d) {
   // 원인 조사 섹션 (샵마인만 — 미매입 마켓 주문)
   if (groups.shopmineOnly.rows.length > 0) {
     h += '<div style="margin:20px 0 4px 0;padding:8px 14px;background:#e0e7ff;border-left:4px solid #6366f1;border-radius:4px;font-size:13px;color:#3730a3;font-weight:600">'
-      + '📦 미매입 마켓 주문 (참고) '
+      + '미매입 마켓 주문 (참고) '
       + '<span style="font-weight:400;font-size:11px;opacity:0.85">(고객은 주문했으나 사용자가 매입 안 함 — 대부분 취소·반품)</span>'
       + '</div>';
     h += '<div style="margin:0 0 8px 0;padding:8px 14px;background:#f0f9ff;border:1px dashed #93c5fd;border-radius:4px;font-size:11px;color:#1e3a8a;line-height:1.6">'
-      + '💡 <b>이 섹션의 의미</b>: 실마켓 API(마켓 정산)에는 있지만 더망고(사용자 매입)에는 없는 주문입니다.<br>'
+      + '<b>이 섹션의 의미</b>: 실마켓 API(마켓 정산)에는 있지만 더망고(사용자 매입)에는 없는 주문입니다.<br>'
       + '대부분 <b>취소완료·반품완료·환불승인</b> 상태로, 사용자가 매입 진행 안 한 정상 케이스입니다.<br>'
       + '예외적으로 <b>배송완료·정산완료</b> 인데 더망고 누락이라면 <b>매입 기록 누락 위험</b> — 즉시 점검 필요.'
       + '</div>';
@@ -9060,7 +9060,7 @@ function renderBlackspot(d) {
   // renderMissingOrderNoSection / unmBuy·unmSell 테이블 렌더 함수는 다른 경로에서 재사용 가능하므로 유지.
 
   /* Phase 4 섹션 C 플레이스홀더 — 중복발송·교환 탐지 (보조 기능, 추후 활성화 예정) */
-  h += '<div class="card" style="margin-top:16px;opacity:0.6;"><div style="font-size:13px;color: var(--글자-희미, #8B95A1);">🔍 중복발송·교환 탐지 (보조 기능) — Phase 4에서 활성화 예정</div></div>';
+  h += '<div class="card" style="margin-top:16px;opacity:0.6;"><div style="font-size:13px;color: var(--글자-희미, #8B95A1);">중복발송·교환 탐지 (보조 기능) — Phase 4에서 활성화 예정</div></div>';
 
   h += '</div>'; // close #blackspot-view
   return h;
@@ -9072,7 +9072,7 @@ function renderBlackspot(d) {
 function renderMissingOrderNoSection(missing) {
   let h = '<div class="card" style="margin-bottom:16px;border-left:4px solid #F04452;">';
   h += '<div class="table-header" style="margin-bottom:12px;">';
-  h += '<h3 style="color:#F04452;">📌 주문번호 미기입 — ' + missing.length + '건 <span style="font-size:12px;color: var(--글자-희미, #8B95A1);font-weight:400;">★ 최우선 확인</span></h3>';
+  h += '<h3 style="color:#F04452;">주문번호 미기입 — ' + missing.length + '건 <span style="font-size:12px;color: var(--글자-희미, #8B95A1);font-weight:400;">최우선 확인</span></h3>';
   h += '<span style="font-size:12px;color: var(--글자-희미, #8B95A1);">사이트주문번호(G열) 공백. 이행 실패로 간주되어 매출·마진 집계에서 제외됨.</span>';
   h += '</div>';
 
@@ -9098,8 +9098,8 @@ function renderMissingOrderNoSection(missing) {
        + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;" title="' + esc(String(r['간단메모']||'')) + '">' + esc(memo) + '</td>'
        + '<td><input type="text" id="supp_input_' + uid + '" placeholder="주문번호 입력" style="width:160px;padding:4px 6px;font-size:11px;border:1px solid #E5E8EB;border-radius:4px;"></td>'
        + '<td style="white-space:nowrap;">'
-       + '<button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:11px;" onclick="submitManualOrderNo(\'' + uid + '\')">✏️ 반영</button> '
-       + '<button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:11px;" onclick="fetchOrderNoFromSource(\'' + uid + '\')">🔍 소싱처</button>'
+       + '<button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:11px;" onclick="submitManualOrderNo(\'' + uid + '\')">반영</button> '
+       + '<button class="btn btn-outline btn-sm" style="padding:4px 8px;font-size:11px;" onclick="fetchOrderNoFromSource(\'' + uid + '\')">소싱처</button>'
        + '</td>'
        + renderSourcingCell(r, srcKey)
        + '</tr>'
@@ -9114,7 +9114,7 @@ function renderMissingOrderNoSection(missing) {
 ══════════════════════════════════════════════════════ */
 function renderClassifiedSection(classified, summary) {
   let h = '<div class="card" style="margin-bottom:16px;">';
-  h += '<div class="table-header" style="margin-bottom:12px;"><h3>📊 5대분류 분류 결과 — 총 ' + classified.length + '건</h3></div>';
+  h += '<div class="table-header" style="margin-bottom:12px;"><h3>5대분류 분류 결과 — 총 ' + classified.length + '건</h3></div>';
 
   const bymajor = {};
   /* Phase 2b 확장: 원본 classified 배열 인덱스 보존 → "classified_N" 복합 키로 renderSourcingCell 호출 */
@@ -9132,8 +9132,8 @@ function renderClassifiedSection(classified, summary) {
     h += '<div style="padding:8px 0 0 12px;">';
     Object.keys(details).sort().forEach(function(detailCode) {
       const entries = details[detailCode], first = entries[0].row, note = first['확인사항'] || '';
-      const srcChk = first['소싱처확인필요'] ? '<span class="badge" style="background:#FFE5B4;color:#FF8A00;">🔗 소싱처확인</span>' : '';
-      const mktChk = first['마켓확인필요'] ? '<span class="badge" style="background:#FFE5E5;color:#F04452;">🔗 마켓확인</span>' : '';
+      const srcChk = first['소싱처확인필요'] ? '<span class="badge" style="background:#FFE5B4;color:#FF8A00;">소싱처확인</span>' : '';
+      const mktChk = first['마켓확인필요'] ? '<span class="badge" style="background:#FFE5E5;color:#F04452;">마켓확인</span>' : '';
       h += '<details style="margin-bottom:6px;"><summary style="font-size:13px;padding:6px;background:#FFF;border:1px solid #E5E8EB;border-radius:4px;cursor:pointer;">' + esc(detailCode) + ' (' + entries.length + '건) ' + srcChk + ' ' + mktChk + '</summary>';
       if (note) h += '<div style="padding:10px;margin:6px 0;background:#F4F4F4;border-radius:6px;font-size:12px;white-space:pre-wrap;line-height:1.6;">' + esc(note) + '</div>';
       h += '<table><thead><tr><th>주문일</th><th>판매처</th><th>상품명</th><th>옵션</th><th>수령인</th><th>구매가</th><th>정산</th><th>데이터출처</th><th>교차검증</th><th>소싱처확인</th></tr></thead><tbody>';
@@ -9176,20 +9176,20 @@ function fetchOrderNoFromSource(uid) {
   const logRow = document.getElementById('log_row_' + uid);
   const logContent = document.getElementById('log_content_' + uid);
   if (logRow) logRow.style.display = '';
-  if (logContent) logContent.textContent = '🔵 추출 중...\n';
+  if (logContent) logContent.textContent = '추출 중...\n';
   var _mMissRow = ((window.analysisData && window.analysisData.missing_order_no) || []).filter(function(x){return String(x['_uid'])===String(uid);})[0] || {};  /* [모음전] 무상태 서버 → uid 행의 간단메모를 클라에서 찾아 동봉 (_mMissRow) */
   fetch('/api/blackspot/fetch_order_no', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:uid, memo:(_mMissRow['간단메모']||'')})})  /* [모음전] memo 동봉 (_mMissRow) */
     .then(r => r.json()).then(res => {
-      if (res.error && !res.success && !res.logs) { if (logContent) logContent.textContent = '❌ 오류: ' + res.error; return; }
+      if (res.error && !res.success && !res.logs) { if (logContent) logContent.textContent = '오류: ' + res.error; return; }
       const logs = (res.logs || []).join('\n');
       if (res.success) {
         const summary = '✅ ' + (res.site_name || '소싱처') + ' 주문번호: ' + res.order_no + ' (출처: ' + res.source + ')';  /* [모음전] 무상태 → 매칭/미기입 카운트 없음(거짓 숫자 금지) */
         if (logContent) logContent.textContent = logs + '\n\n' + summary;
         var _mSupp = document.getElementById('supp_input_' + uid); if (_mSupp) _mSupp.value = res.order_no;  /* [모음전] 무상태 → 재분석(로그 삭제) 대신 반영칸 프리필 */
       } else {
-        if (logContent) logContent.textContent = logs + '\n\n❌ ' + (res.error || '추출 실패') + '\n→ 좌측 입력칸에 직접 주문번호를 입력 후 [✏️ 반영] 을 눌러주세요.';
+        if (logContent) logContent.textContent = logs + '\n\n' + (res.error || '추출 실패') + '\n→ 좌측 입력칸에 직접 주문번호를 입력 후 [반영] 을 눌러주세요.';
       }
-    }).catch(e => { if (logContent) logContent.textContent = '❌ 통신 오류: ' + e; });
+    }).catch(e => { if (logContent) logContent.textContent = '통신 오류: ' + e; });
 }
 
 function analyzeAndRender() {
@@ -9302,12 +9302,12 @@ function renderAll(d) {
   var srcBanner = '';
   if (srcFilter === 'need') {
     srcBanner = '<div class="warn-banner" style="background:#FFF6E5;border-left-color:#FF8A00;margin-bottom:12px;">'
-              + '🔍 <b>소싱처 미확인</b> 필터 적용 중 — URL 있으나 확인 안 한 건만 표시 '
+              + '<b>소싱처 미확인</b> 필터 적용 중 — URL 있으나 확인 안 한 건만 표시 '
               + '<button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="clearSourcingFilter()">필터 해제</button>'
               + '</div>';
   } else if (srcFilter === 'done') {
     srcBanner = '<div class="warn-banner" style="background:#E8F9F1;border-left-color:#00C48C;margin-bottom:12px;">'
-              + '✅ <b>소싱처 확인완료</b> 필터 적용 중 — 확인 결과가 있는 건만 표시 '
+              + '<b>소싱처 확인완료</b> 필터 적용 중 — 확인 결과가 있는 건만 표시 '
               + '<button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="clearSourcingFilter()">필터 해제</button>'
               + '</div>';
   }
@@ -9321,9 +9321,9 @@ function renderAll(d) {
     var cardLabel = (typeof _CARD_COLOR_MAP === 'object' && _CARD_COLOR_MAP[window.__cardFilterForAll])
                   ? _CARD_COLOR_MAP[window.__cardFilterForAll].label : window.__cardFilterForAll;
     cardBanner = '<div style="display:flex;align-items:center;gap:10px;padding:12px 18px;margin:0 0 14px 0;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;font-size:14px">'
-      + '<span style="font-size:13px;color:#92400e;font-weight:600">📋 블랙스팟 카드 필터:</span>'
+      + '<span style="font-size:13px;color:#92400e;font-weight:600">블랙스팟 카드 필터:</span>'
       + '<span style="font-size:15px;font-weight:700;color:#b45309">'+esc(cardLabel)+'</span>'
-      + '<button onclick="window.__cardFilterForAll=null;renderCurrentTab()" style="margin-left:auto;background:#fff;color:#92400e;border:1px solid #f59e0b;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✕ 필터 해제</button>'
+      + '<button onclick="window.__cardFilterForAll=null;renderCurrentTab()" style="margin-left:auto;background:#fff;color:#92400e;border:1px solid #f59e0b;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">필터 해제</button>'
       + '</div>';
   }
   /* 데이터 검증 배너 + 기간 평균 배너 (사용자 요청) */
@@ -9338,7 +9338,7 @@ function renderAll(d) {
         + '<option value=""'+(!window.__allMarginFilter?' selected':'')+'>전체 마진</option>'
         + '<option value="normal"'+(window.__allMarginFilter==='normal'?' selected':'')+'>정상 마진 (0% ~ 고마진 미만)</option>'
         + '<option value="abnormal"'+(window.__allMarginFilter==='abnormal'?' selected':'')+'>비정상 마진 (마이너스 또는 고마진)</option>'
-        + '<option value="unfulfilled"'+(window.__allMarginFilter==='unfulfilled'?' selected':'')+'>📝 주문 미이행 (비대량등록 체크용)</option>'
+        + '<option value="unfulfilled"'+(window.__allMarginFilter==='unfulfilled'?' selected':'')+'>주문 미이행 (비대량등록 체크용)</option>'
         + '</select>'
         + (function(){
             /* 카드 필터 (사용자 요청 — 전체 구분 대체) */
@@ -9348,39 +9348,39 @@ function renderAll(d) {
             }
             return '<select class="filter-select" id="fCardAll" onchange="window.__cardFilterForAll=this.value||null;window.__allColFilters={};renderCurrentTab();filterAll()" title="블랙스팟 카드별 필터" style="min-width:200px">'
               + _opt('', '전체 카드')
-              + '<optgroup label="🚨 즉시처리필요">'
+              + '<optgroup label="즉시처리필요">'
               +   _opt('immediate', '즉시 확인')
               +   _opt('sourcing',  '소싱처 확인')
               +   _opt('market',    '마켓 확인')
-              +   _opt('mango_check', '⚠️ 더망고 상태 점검')
-              +   _opt('status_mismatch', '🔄 상태 불일치 (실마켓↔더망고)')
-              +   _opt('etc', '❔ 기타')
+              +   _opt('mango_check', '더망고 상태 점검')
+              +   _opt('status_mismatch', '상태 불일치 (실마켓↔더망고)')
+              +   _opt('etc', '기타')
               + '</optgroup>'
-              + '<optgroup label="👀 모니터링&정상흐름">'
-              +   _opt('normal',    '✅ 정상/완료')
+              + '<optgroup label="모니터링&정상흐름">'
+              +   _opt('normal',    '정상/완료')
               +   _opt('pending',   '⏳ 발송 대기')
-              +   _opt('kkadaegi',  '📦 까대기')
-              +   _opt('tracking_failed', '📮 송장 재전송 실패')
-              +   _opt('confirmed_blackspot', '🎯 확인된 블랙스팟')
-              +   _opt('memo_settled', '💰 입금/철회 완료')
-              +   _opt('inprogress', '🔄 반품/교환/취소 진행중')
-              +   _opt('completed_memo_yes', '✔️ 반품/교환/취소 완료 (메모O)')
-              +   _opt('completed_memo_no',  '❓ 반품/교환/취소 완료 (메모X) 재확인')
+              +   _opt('kkadaegi',  '까대기')
+              +   _opt('tracking_failed', '송장 재전송 실패')
+              +   _opt('confirmed_blackspot', '확인된 블랙스팟')
+              +   _opt('memo_settled', '입금/철회 완료')
+              +   _opt('inprogress', '반품/교환/취소 진행중')
+              +   _opt('completed_memo_yes', '반품/교환/취소 완료 (메모O)')
+              +   _opt('completed_memo_no',  '반품/교환/취소 완료 (메모X) 재확인')
               + '</optgroup>'
-              + '<optgroup label="🔎 특수 모아보기">'
-              +   _opt('purchase_trace_only', '🔎 매입흔적만 (사이트번호 X)')
+              + '<optgroup label="특수 모아보기">'
+              +   _opt('purchase_trace_only', '매입흔적만 (사이트번호 X)')
               + '</optgroup>'
               + '</select>';
           })()
         + '<input type="text" id="searchAll" placeholder="검색..." class="filter-select" style="width:180px;ime-mode:active;" lang="ko" autocomplete="off" oninput="if(!this._composing){clearTimeout(this._t);this._t=setTimeout(filterAll,250)}" oncompositionstart="this._composing=1" oncompositionend="this._composing=0;clearTimeout(this._t);this._t=setTimeout(filterAll,150)">'
         /* ★ V1 — 키워드 찾기(필터) 위젯 — 제외 아님, 화면 좁혀보기용 (제외는 체크박스 수기) */
         + '<div style="display:flex;gap:6px;align-items:center;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:8px;padding:4px 6px 4px 10px">'
-        +   '<span style="font-size:13px">🔍</span>'
+        +   '<span style="font-size:13px"></span>'
         +   '<input type="text" id="kwExcludeInput" placeholder="키워드로 찾기..." style="width:130px;padding:6px 9px;border:1.5px solid #3B82F6;border-radius:5px;font-size:12.5px;background:#fff;color:#1e3a8a;font-family:inherit" oninput="if(!this._composing)previewKwExclude()" oncompositionstart="this._composing=1" oncompositionend="this._composing=0;previewKwExclude()" onkeydown="if(event.key===\'Enter\')applyKwExclude()">'
         +   '<span id="kwExcludePreview" style="font-size:11px;color:#1e3a8a;font-weight:700;min-width:80px"></span>'
-        +   '<button onclick="applyKwExclude()" style="padding:6px 10px;background:#3b82f6;color:#fff;border:none;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer">🔍 찾기</button>'
+        +   '<button onclick="applyKwExclude()" style="padding:6px 10px;background:#3b82f6;color:#fff;border:none;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer">찾기</button>'
         + '</div>'
-        + '<button onclick="checkSourcingBatch()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">📦 일괄 소싱처 확인</button>'
+        + '<button onclick="checkSourcingBatch()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">일괄 소싱처 확인</button>'
         + '<button class="btn btn-outline btn-sm" onclick="downloadExcel()">엑셀 다운로드</button>'
         + '</div></div>'
         + '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-bottom:10px;line-height:1.6;">'
@@ -9409,7 +9409,7 @@ function renderAll(d) {
         + '<th>주문번호(더망고·샵마인)</th>'
         + mkFilterTh('더망고 상태', '더망고주문상태 (사용자 연동)')
         + mkFilterTh('간단메모', '간단메모')
-        + '<th>소싱처확인</th><th>⚫ 블랙스팟 카드</th><th>표시</th><th>상세</th><th>🎯 점프</th>'
+        + '<th>소싱처확인</th><th>블랙스팟 카드</th><th>표시</th><th>상세</th><th>점프</th>'
         + '</tr></thead>'
         + '<tbody id="allBody">'
         + all.map(function(r, i) { return renderAllRow(r, i); }).join('')
@@ -9526,7 +9526,7 @@ function renderKwExcludeChips() {
   if (!window._kwExcludeList || window._kwExcludeList.length === 0) return '';
   var matched = (analysisData && analysisData.matched) || [];
   var html = '<div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:10px;padding:9px 14px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
-  html += '<span style="font-size:12px;color:#78350f;font-weight:700">🚫 제외 키워드 (' + window._kwExcludeList.length + '개):</span>';
+  html += '<span style="font-size:12px;color:#78350f;font-weight:700">제외 키워드 (' + window._kwExcludeList.length + '개):</span>';
   var totalHit = 0, totalProtect = 0, totalExcl = 0;
   window._kwExcludeList.forEach(function(kw){
     var hit = 0, traceHit = 0;
@@ -9540,15 +9540,15 @@ function renderKwExcludeChips() {
     totalHit += hit; totalProtect += traceHit; totalExcl += excl;
     html += '<span style="background:#FCA5A5;color:#7f1d1d;padding:4px 5px 4px 11px;border-radius:15px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px">'
           +   esc(kw)
-          +   '<span style="background:#10B981;color:#fff;padding:1px 6px;border-radius:9px;font-size:10px;font-weight:800" title="자동보호 (매입흔적 있음)">🛡️' + traceHit + '</span>'
+          +   '<span style="background:#10B981;color:#fff;padding:1px 6px;border-radius:9px;font-size:10px;font-weight:800" title="자동보호 (매입흔적 있음)">' + traceHit + '</span>'
           +   '<span style="opacity:0.5">/</span>'
-          +   '<span style="background:#fff;color:#dc2626;padding:1px 6px;border-radius:9px;font-size:10px;font-weight:800" title="실제 제외 (매입흔적 없음)">🚫' + excl + '</span>'
+          +   '<span style="background:#fff;color:#dc2626;padding:1px 6px;border-radius:9px;font-size:10px;font-weight:800" title="실제 제외 (매입흔적 없음)">' + excl + '</span>'
           +   '<span onclick="removeKwExclude(\'' + esc(kw).replace(/'/g, "\\'") + '\')" style="background:#fff;color:#dc2626;width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer" title="제거">×</span>'
           + '</span>';
   });
   html += '<span style="margin-left:auto;font-size:11.5px;color:#78350f">'
-        +   '<b style="color:#10B981">🛡️ 자동보호 ' + totalProtect + '</b> · '
-        +   '<span style="color:#dc2626">🚫 실제 제외 ' + totalExcl + '</span>'
+        +   '<b style="color:#10B981">자동보호 ' + totalProtect + '</b> · '
+        +   '<span style="color:#dc2626">실제 제외 ' + totalExcl + '</span>'
         + '</span>';
   html += '<button onclick="clearAllKwExclude()" style="padding:5px 10px;background:#fff;color:#92400e;border:1.5px solid #FCD34D;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer">↩ 모두 복원</button>';
   html += '</div>';
@@ -9597,10 +9597,10 @@ function renderAllRow(r, _i) {
   const isOrderUnfulfilled = !!r['_주문미이행'] && !isPurchaseTrace;
   const highM = !isOrderUnfulfilled && isHighMargin(marginRate, marginAmt);
   const recipient = String(r['수령인'] || '').trim();
-  if (isPurchaseTrace) badges += '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b">[🔎 매입 흔적]</span> ';
-  else if (isOrderUnfulfilled) badges += '<span class="badge" style="background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db">[📝 주문 미이행]</span> ';
+  if (isPurchaseTrace) badges += '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b">[매입 흔적]</span> ';
+  else if (isOrderUnfulfilled) badges += '<span class="badge" style="background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db">[주문 미이행]</span> ';
   // ★ 더망고만 행 (블랙스팟 후보) 최우선 배지
-  if (r._isDmgOnly)    badges += '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b">[⚠️ 더망고만 — 블랙스팟 후보]</span> ';
+  if (r._isDmgOnly)    badges += '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #f59e0b">[더망고만 — 블랙스팟 후보]</span> ';
   if (r['수량2이상'])  badges += '<span class="badge badge-qty">[수량' + (r['수량_매출'] || '') + ']</span> ';
   if (r['동일인연속']) badges += '<span class="badge badge-repeat" onclick="filterByRecipient(\'' + escAttr(recipient) + '\', event)" style="cursor:pointer;" title="이 수령인의 연속구매 내역 필터">[연속구매]</span> ';
   if (r['이상가'])     badges += '<span class="badge badge-abnormal">[이상가]</span> ';
@@ -9655,7 +9655,7 @@ function renderAllRow(r, _i) {
        + '<td>' + esc(r['옵션_매출'] || '') + '</td>'
        + editInput('단가')
        + '<td class="num">' + (r['수량_매출'] || 1) + '</td>'
-       + '<td class="num" style="font-weight:600;' + (isBs ? 'color:#9ca3af' : '') + '">' + fmt(dispSalePrice) + (isBs ? ' <span style="font-size:10px;color:#DC2626;font-weight:700" title="블랙스팟 — 0원">⚫</span>' : '') + '</td>'
+       + '<td class="num" style="font-weight:600;' + (isBs ? 'color:#9ca3af' : '') + '">' + fmt(dispSalePrice) + (isBs ? ' <span style="font-size:10px;color:#DC2626;font-weight:700" title="블랙스팟 — 0원"></span>' : '') + '</td>'
        + editInput('정산예상금액')
        + editInput('구매가격')
        + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="num neg"' : ' class="num"') + '>' + fmt(dispNetMargin) + '</td>'
@@ -9701,8 +9701,8 @@ function renderAllRow(r, _i) {
        + renderSourcingCell(r, rIdx)
        + _cardBadgeCell(r, rIdx)
        + '<td>' + badges + '</td>'
-       + '<td><button onclick="showAllRowDetail(' + rIdx + ')" style="padding:3px 8px;font-size:11px;background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;border-radius:4px;cursor:pointer;white-space:nowrap">🔍 상세</button></td>'
-       + '<td><button onclick="_jumpToBlackspotByOrder(' + rIdx + ')" style="padding:3px 8px;font-size:11px;background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4;border-radius:4px;cursor:pointer;white-space:nowrap" title="블랙스팟 탭에서 같은 주문 보기">🎯 블랙스팟</button></td>'
+       + '<td><button onclick="showAllRowDetail(' + rIdx + ')" style="padding:3px 8px;font-size:11px;background:#f0fdf4;color:#065f46;border:1px solid #6ee7b7;border-radius:4px;cursor:pointer;white-space:nowrap">상세</button></td>'
+       + '<td><button onclick="_jumpToBlackspotByOrder(' + rIdx + ')" style="padding:3px 8px;font-size:11px;background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4;border-radius:4px;cursor:pointer;white-space:nowrap" title="블랙스팟 탭에서 같은 주문 보기">블랙스팟</button></td>'
        + '</tr>';
 }
 
@@ -9746,15 +9746,15 @@ function renderSourcingCell(r, idx) {
     cell +=
       '<span class="tag ' + tagClass + '">' + esc(sourcingResult) + '</span>' +
       '<div class="sourcing-actions">' +
-        '<button class="btn-check btn-recheck" onclick="checkSourcing(' + idxArg + ')" title="다시 확인">🔄 재확인</button>' +
-        (hasMemoUrl ? '<button class="btn-check btn-openorder" onclick="openOrderPage(' + idxArg + ')" title="소싱처 Chrome 프로필로 주문내역 열기">🔗 주문내역</button>' : '') +
-        '<button class="btn-check btn-report" onclick="reportMisjudgment(' + idxArg + ', ' + reportArg2 + ')" title="오판 신고">❌ 오판</button>' +
+        '<button class="btn-check btn-recheck" onclick="checkSourcing(' + idxArg + ')" title="다시 확인">재확인</button>' +
+        (hasMemoUrl ? '<button class="btn-check btn-openorder" onclick="openOrderPage(' + idxArg + ')" title="소싱처 Chrome 프로필로 주문내역 열기">주문내역</button>' : '') +
+        '<button class="btn-check btn-report" onclick="reportMisjudgment(' + idxArg + ', ' + reportArg2 + ')" title="오판 신고">오판</button>' +
       '</div>';
   } else if (hasMemoUrl) {
     cell +=
-      '<button class="btn-check" onclick="checkSourcing(' + idxArg + ')" style="background:#3b82f6;color:#fff;border-color:#3b82f6;padding:4px 10px;font-size:11px;">✓ 확인</button>' +
+      '<button class="btn-check" onclick="checkSourcing(' + idxArg + ')" style="background:#3b82f6;color:#fff;border-color:#3b82f6;padding:4px 10px;font-size:11px;">확인</button>' +
       '<div class="sourcing-actions">' +
-        '<button class="btn-check btn-openorder" onclick="openOrderPage(' + idxArg + ')" title="주문내역 열기">🔗 주문내역</button>' +
+        '<button class="btn-check btn-openorder" onclick="openOrderPage(' + idxArg + ')" title="주문내역 열기">주문내역</button>' +
       '</div>';
   } else {
     cell += '<span class="tag tag-gray">URL없음</span>';
@@ -9826,8 +9826,8 @@ function showAllRowDetail(idx) {
   }
 
   var checkBadges = '';
-  if (needS) checkBadges += '<span style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px">🟠 소싱처 확인 필요</span>';
-  if (needM) checkBadges += '<span style="background:#fef08a;color:#713f12;padding:2px 8px;border-radius:10px;font-size:11px">🟡 마켓 확인 필요</span>';
+  if (needS) checkBadges += '<span style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px">소싱처 확인 필요</span>';
+  if (needM) checkBadges += '<span style="background:#fef08a;color:#713f12;padding:2px 8px;border-radius:10px;font-size:11px">마켓 확인 필요</span>';
 
   var srcTag = '';
   if (srcResult) {
@@ -9840,8 +9840,8 @@ function showAllRowDetail(idx) {
 
   var html = '<div style="background:#fff;border-radius:10px;max-width:560px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">'
     + '<div style="padding:14px 18px;background:#f0fdf4;border-bottom:2px solid #6ee7b7;display:flex;justify-content:space-between;align-items:center">'
-    + '<span style="font-weight:700;font-size:14px;color:#065f46">🔍 주문 상세 정보</span>'
-    + '<button onclick="this.closest(\'.modal-overlay\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280">✕</button>'
+    + '<span style="font-weight:700;font-size:14px;color:#065f46">주문 상세 정보</span>'
+    + '<button onclick="this.closest(\'.modal-overlay\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#6b7280"></button>'
     + '</div>'
     + '<div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px;font-size:13px">'
 
@@ -9894,8 +9894,8 @@ function showAllRowDetail(idx) {
 
     // 하단 버튼
     + '<div style="padding:12px 18px;background:#f9fafb;border-top:1px solid #e5e7eb;display:flex;gap:8px">'
-    + (memoUrl ? '<button onclick="openOrderPage(' + JSON.stringify(idx).replace(/"/g,'&quot;') + ')" style="padding:6px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">🔗 소싱처 주문내역 열기</button>' : '')
-    + '<button onclick="checkSourcing(' + JSON.stringify(idx).replace(/"/g,'&quot;') + ')" style="padding:6px 14px;background:#10b981;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">✓ 소싱처 상태 확인</button>'
+    + (memoUrl ? '<button onclick="openOrderPage(' + JSON.stringify(idx).replace(/"/g,'&quot;') + ')" style="padding:6px 14px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">소싱처 주문내역 열기</button>' : '')
+    + '<button onclick="checkSourcing(' + JSON.stringify(idx).replace(/"/g,'&quot;') + ')" style="padding:6px 14px;background:#10b981;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px">소싱처 상태 확인</button>'
     + '<button onclick="this.closest(\'.modal-overlay\').remove()" style="padding:6px 14px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:12px">닫기</button>'
     + '</div>'
     + '</div>';
@@ -10146,13 +10146,13 @@ async function _runBatchSourcingCheck(targets, label) {
   function renderBar(currentMemo) {
     var pct = total > 0 ? Math.round(doneAll / total * 100) : 0;
     bar.innerHTML =
-      '<div style="font-size:13px;font-weight:500">📦 일괄 소싱처 확인' + titleLabel + ' ' + doneAll + '/' + total + ' (' + pct + '%)</div>' +
+      '<div style="font-size:13px;font-weight:500">일괄 소싱처 확인' + titleLabel + ' ' + doneAll + '/' + total + ' (' + pct + '%)</div>' +
       '<div style="font-size:11px;opacity:0.8;margin-top:4px">성공 ' + doneOk + ' · 실패 ' + doneFail + '</div>' +
       (currentMemo ? '<div style="font-size:11px;opacity:0.7;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">▶ ' + esc(currentMemo) + '</div>' : '') +
       '<div style="display:flex;gap:6px;margin-top:8px">' +
         '<button onclick="window.__batchAbort=true;if(window.__batchAbortController)window.__batchAbortController.abort();" style="padding:4px 10px;background:#ef4444;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">⏹ 중단</button>' +
-        '<button onclick="var p=document.getElementById(\'batchLogPanel\');p.style.display=(p.style.display===\'none\'?\'block\':\'none\')" style="padding:4px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">📋 로그</button>' +
-        '<button onclick="this.parentElement.parentElement.remove()" style="padding:4px 10px;background:#4b5563;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">✕</button>' +
+        '<button onclick="var p=document.getElementById(\'batchLogPanel\');p.style.display=(p.style.display===\'none\'?\'block\':\'none\')" style="padding:4px 10px;background:#6b7280;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">로그</button>' +
+        '<button onclick="this.parentElement.parentElement.remove()" style="padding:4px 10px;background:#4b5563;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px"></button>' +
       '</div>' +
       '<div id="batchLogPanel" style="display:none;margin-top:8px;max-height:220px;overflow-y:auto;background:#000;color:#0f0;padding:6px 8px;border-radius:4px;font-size:10px;font-family:monospace;line-height:1.4"></div>';
   }
@@ -10220,7 +10220,7 @@ async function _runBatchSourcingCheck(targets, label) {
 
   renderBar('');
   bar.innerHTML =
-    '<div style="font-size:14px;font-weight:600">✅ 완료' + titleLabel + ' ' + doneAll + '/' + total + '</div>' +
+    '<div style="font-size:14px;font-weight:600">완료' + titleLabel + ' ' + doneAll + '/' + total + '</div>' +
     '<div style="font-size:12px;opacity:0.9;margin-top:4px">성공 ' + doneOk + ' · 실패 ' + doneFail + '</div>' +
     '<button onclick="this.parentElement.remove()" style="margin-top:8px;padding:6px 14px;background:#10b981;color:#fff;border:none;border-radius:4px;cursor:pointer">확인</button>';
   setTimeout(function(){ if(bar.parentElement) bar.remove(); }, 15000);
@@ -10244,7 +10244,7 @@ async function checkSourcingBatch() {
     }
   });
   if (targets.length === 0) {
-    alert('확인할 건이 없습니다. (이미 확인된 건은 🔄 재확인 버튼으로 개별 재실행)');
+    alert('확인할 건이 없습니다. (이미 확인된 건은 재확인 버튼으로 개별 재실행)');
     return;
   }
   if (!confirm(targets.length + '건 소싱처 확인을 시작합니다.\n1건당 5~30초 소요. 순차 진행 (1개씩).')) return;
@@ -10272,7 +10272,7 @@ async function checkSourcingBatchBlackspot() {
     });
   });
   if (targets.length === 0) {
-    alert('확인할 건이 없습니다. (이미 확인된 건은 🔄 재확인 버튼으로 개별 재실행)');
+    alert('확인할 건이 없습니다. (이미 확인된 건은 재확인 버튼으로 개별 재실행)');
     return;
   }
   if (!confirm('블랙스팟 ' + targets.length + '건 소싱처 확인을 시작합니다.\n1건당 5~30초 소요. 순차 진행 (1개씩).')) return;
@@ -10630,7 +10630,7 @@ function renderMarketTab(d) {
   }
 
   /* 기간 평균 배너 (사용자 요청 C — 4-카드 마켓당 평균) */
-  var h = '<button class="hier-btn" onclick="openHier(\'market\')">🔎 계층 분석 (마켓 › 계정 › 브랜드 › 소싱처)</button>';
+  var h = '<button class="hier-btn" onclick="openHier(\'market\')">계층 분석 (마켓 › 계정 › 브랜드 › 소싱처)</button>';
   h += renderPeriodAvgBanner({tabKey:'market', entityCount: markets.length, entityLabel:'마켓', entityEmoji:'🛒'});
 
   h += '<div class="summary-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">';
@@ -10813,7 +10813,7 @@ function renderSourceTab(d) {
 
   var tagged = rows.reduce(function(s,g){return s+g.건수;},0);
   h += '<div style="padding:10px 14px;background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;font-size:12px;color:#14532d;margin-bottom:16px">';
-  h += '🛒 <b>소싱처별 분석</b> — 간단메모 URL·키워드 자동 분류. 분류 건수: <b>'+tagged+'건</b> / 전체 <b>'+matched.length+'건</b>';
+  h += '<b>소싱처별 분석</b> — 간단메모 URL·키워드 자동 분류. 분류 건수: <b>'+tagged+'건</b> / 전체 <b>'+matched.length+'건</b>';
   if (untagged.건수>0) h += ' | 미분류: '+untagged.건수+'건 (메모 미입력 또는 미등록 패턴)';
   h += periodTotalsBadge(rows);
   h += '</div>';
@@ -10855,7 +10855,7 @@ function renderSourceTab(d) {
 
   /* 소싱처 간 비교 섹션 */
   h += '<div class="period-ui" style="margin-top:20px">';
-  h += '<div class="period-ui-hdr"><h4>📊 소싱처 간 기간 비교</h4>';
+  h += '<div class="period-ui-hdr"><h4>소싱처 간 기간 비교</h4>';
   h += '<button class="btn btn-outline btn-sm" onclick="_toggleSrcCompare()">'+(ss.compareOpen?'▲ 닫기':'▼ 열기')+'</button>';
   h += '</div>';
   if (ss.compareOpen) {
@@ -10969,7 +10969,7 @@ function renderPeriodCompareSection(tabId, keyFn, keyLabel) {
 
   var h = '<div class="period-ui">';
   h += '<div class="period-ui-hdr">';
-  h += '<h4>📅 구간별 비교</h4>';
+  h += '<h4>구간별 비교</h4>';
   h += '<button class="btn btn-outline btn-sm" onclick="_togglePeriodUI(\''+tabId+'\')">'+
        (ps.open?'▲ 닫기':'▼ 열기')+'</button>';
   h += '</div>';
@@ -11014,7 +11014,7 @@ function renderPeriodCompareSection(tabId, keyFn, keyLabel) {
     h += '<input type="date" value="'+esc(p.from)+'" onchange="_setPF(\''+tabId+'\','+i+',\'from\',this.value)">';
     h += '<span style="font-size:12px;color:#9ca3af">~</span>';
     h += '<input type="date" value="'+esc(p.to)+'" onchange="_setPF(\''+tabId+'\','+i+',\'to\',this.value)">';
-    h += '<button class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fca5a5" onclick="_rmPeriod(\''+tabId+'\','+i+')">✕</button>';
+    h += '<button class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fca5a5" onclick="_rmPeriod(\''+tabId+'\','+i+')"></button>';
     h += '</div>';
   });
 
@@ -11399,7 +11399,7 @@ function renderHier(){
   document.getElementById('hierBody').innerHTML=h;
 }
 function _hierOrders(rows){
-  var h='<div class="hier-lv">📋 주문내역 ('+rows.length+'건)</div>';
+  var h='<div class="hier-lv">주문내역 ('+rows.length+'건)</div>';
   h+='<table class="hier-tbl ord"><thead><tr><th>주문일</th><th>상품명</th><th>옵션</th><th class="r">판매가</th><th class="r">순마진</th><th class="r">마진율</th><th>소싱처</th></tr></thead><tbody>';
   rows.slice(0,200).forEach(function(r){
     var 매출=+r['판매가']||0, 마진=+r['순마진']||0, mr=매출>0?(마진/매출*100):0;

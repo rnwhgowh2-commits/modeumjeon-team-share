@@ -114,9 +114,15 @@ def create_draft():
             options_json=json.dumps(raw_opts, ensure_ascii=False),
             # ★ 빈 칸이 0 이 되면 안 된다 — 쿠팡 컴파일러가 0 을 deliveryChargeType='FREE'
             #   (무료배송=판매자 부담)로 보내 돈이 샌다. 0 은 '무료배송' 이라는 뜻 있는 값이라
-            #   coerce_int 가 None(미입력) 과 구분한다 → 미입력만 기본값으로.
-            delivery_fee=delivery_fee if delivery_fee is not None else 3000,
-            return_fee=return_fee if return_fee is not None else 5000,
+            #   coerce_int 가 None(미입력) 과 구분한다.
+            # 🔴 [2026-08-20] 예전엔 여기서 미입력을 3000·5000 으로 확정해 저장했다 —
+            #   그러면 「사람이 3,000원이라 입력함」과 「안 건드림」이 구분 안 돼, 정책에서
+            #   다른 배송비를 정해도 절대 못 먹었다(process_apply._is_blank 가 늘 거짓).
+            #   NULL 그대로 남긴다 — 안 건드리면(NULL) 정책이 채우고, 정책도 없으면
+            #   등록 직전 `process_apply.apply_operational_fallbacks()` 가 이 값(3000·5000)을
+            #   채운다(재현·수정: tests/registration/test_policy_fallback_column_default.py).
+            delivery_fee=delivery_fee,
+            return_fee=return_fee,
             minor_purchasable=bool(p.get('minor_purchasable', True)),
             after_service_phone=(p.get('after_service_phone') or '').strip(),
             after_service_guide=(p.get('after_service_guide') or '').strip(),
@@ -155,7 +161,7 @@ def list_drafts():
 def _draft_detail(d) -> dict:
     """드래프트 1건 → 화면이 폼을 **그대로 되살릴 수 있는** 전체 payload.
 
-    ★ 빈 값을 채우지 않는다. NULL 은 null 로, ''는 ''로 내보낸다. 여기서 ''로
+     빈 값을 채우지 않는다. NULL 은 null 로, ''는 ''로 내보낸다. 여기서 ''로
       통일해 버리면 "입력받지 않음"이 "「소싱처 기본값」을 골랐음"으로 둔갑해,
       복원된 화면이 사장님이 하지 않은 선택을 한 것처럼 보인다.
     """
@@ -328,7 +334,7 @@ def _brand_restriction_block(session, draft, market, category_code=None):
 def _brand_missing_block(session, draft):
     """브랜드가 비어 제한표를 판정조차 못 하는 상태면 사유, 아니면 None.
 
-    ★ [2026-07-23 리뷰 C2] 크롤이 만드는 초안은 브랜드가 대개 비어 있고,
+     [2026-07-23 리뷰 C2] 크롤이 만드는 초안은 브랜드가 대개 비어 있고,
       `brand_restrict.is_blocked` 는 브랜드가 비면 None(무판정) 이다. 즉 이 기능이
       만드는 **모든 초안이 기본적으로 무판정**이라 제한표가 통째로 무력해진다.
       더구나 compile_eleven11 은 예전에 상품명 첫 토큰을 브랜드로 합성해 보냈다
@@ -406,7 +412,7 @@ def _brand_block_row(session, draft_id, market, *, category_code, account_key, r
     막힌 것도 기록이다 — 남기지 않으면 나중에 「왜 이 마켓만 안 올라갔지?」를 알 수 없다.
     error_code: 'BRAND_RESTRICTED'(제한표에 걸림) | 'BRAND_UNKNOWN'(브랜드가 비어 무판정).
 
-    ★ 이미 등록됨(ok)·불확실(uncertain) 행은 **덮지 않는다** — 마켓에 상품이 있을 수도
+     이미 등록됨(ok)·불확실(uncertain) 행은 **덮지 않는다** — 마켓에 상품이 있을 수도
       있다는 사실이 「막혔다」로 지워지면 그게 곧 중복 등록의 문이 된다.
     """
     row = _ledger_row(session, draft_id, market, account_key)
@@ -423,7 +429,7 @@ def _brand_block_row(session, draft_id, market, *, category_code, account_key, r
 def _ledger_extras(session, draft_id, market, account_key):
     """등록 시도 뒤 장부 행에서 **마켓 응답 원문**과 에러코드를 꺼낸다.
 
-    ★ 원문을 버리지 않는다 — 4xx 본문(ESM resultCode 1000 message · 11번가 필드명 ·
+     원문을 버리지 않는다 — 4xx 본문(ESM resultCode 1000 message · 11번가 필드명 ·
       롯데온 data[].resultCode)이 곧 진짜 스펙이고 실패 원인은 거기에만 있다.
       과거이력: 「dry-run(조립 검증)은 마켓 수용성을 못 잡는다 — 400 본문이 진짜 스펙이다.
       raise_for_status 로 본문을 버리면 스펙 발굴이 불가능해진다.」
@@ -500,17 +506,17 @@ def _ledger_guard(session, draft_id, market, account_key):
         detail = 그 행의 error_message 원문. 회수(판매중지)가 됐는지가 여기에만 있다 —
                  안 읽고 「내려두었습니다」라고 단정하면 거짓 성공이다(4차리뷰 치명②).
 
-    ★ 'registered' 의 근거는 `status=='ok'` **이고** 상품번호가 있는 것뿐이다(성공의
+     'registered' 의 근거는 `status=='ok'` **이고** 상품번호가 있는 것뿐이다(성공의
       유일한 증거 = 마켓이 준 상품번호. service.py 의 성공 판정과 같은 규약).
-    ★ 'uncertain' 은 상품번호를 몰라도 잠근다 — 「모른다」는 「없다」가 아니다.
+     'uncertain' 은 상품번호를 몰라도 잠근다 — 「모른다」는 「없다」가 아니다.
       ① ESM 옵션 부착 실패(상품은 생성됨) ② 전송 뒤 끊김. 둘 다 마켓에 상품이 있을 수
       있어서, 여기서 안 잠그면 다음 클릭이 같은 상품을 하나 더 만든다.
-    ★ 실패(failed)·막힘(blocked)은 걸리지 않는다 — **재시도는 막지 않는다**.
+     실패(failed)·막힘(blocked)은 걸리지 않는다 — **재시도는 막지 않는다**.
 
     여러 별칭 행이 있으면 **잠그는 쪽이 이긴다**(registered > uncertain > 없음) —
     조용히 놓치는 것보다 한 번 더 확인하게 하는 쪽이 싸다.
 
-    ★★ [3차리뷰 중요④] 장부만 보면 **스레드가 죽은 직후~다음 POST 사이**가 빈다.
+     [3차리뷰 중요④] 장부만 보면 **스레드가 죽은 직후~다음 POST 사이**가 빈다.
       그 창에서는 위쪽 점검이 초록(ready·미리체크)인데 아래쪽 결과표는 「확인 필요」라,
       같은 화면이 서로 다른 말을 한다. 그래서 죽은 것으로 의심되는 실행이 **처리 중이던**
       마켓도 여기서 함께 잠근다(읽기 전용 판정 — 아무것도 쓰지 않는다).
@@ -547,11 +553,11 @@ def _dup_source_holds(session, draft_id, market, aliases):
     같은 마켓에 두 번 등록**된다 = 마켓 중복 = 계정 위험. 대량등록에서는 이게 손이 아니라
     배치로 일어난다.
 
-    🔴 `source_url` 이 **빈 초안은 판정에서 아예 뺀다.** 수기 등록 초안은 URL 이 None 이라
+    [중요] `source_url` 이 **빈 초안은 판정에서 아예 뺀다.** 수기 등록 초안은 URL 이 None 이라
       (models.py:106) 빈값끼리 묶으면 **수기 초안 전부가 서로를 막는다.**
       「빈 값은 0도 전체도 아니다」 — 없는 것은 없는 것으로 둔다.
 
-    ★ 성공 판정 규약은 위와 같다 — `status=='ok'` **이고** 상품번호가 있을 때만.
+     성공 판정 규약은 위와 같다 — `status=='ok'` **이고** 상품번호가 있을 때만.
       실패·막힘은 걸리지 않는다(재시도는 막지 않는다).
 
     Returns:
@@ -592,7 +598,7 @@ def _run_done_markets(run):
 def _is_dead_run(run, now=None):
     """이 실행은 죽은 것으로 보이는가 — **판정은 이 함수 하나뿐이다.**
 
-    ★★ [4차리뷰 중요①] 예전에는 판정이 세 벌이었다:
+     [4차리뷰 중요①] 예전에는 판정이 세 벌이었다:
         · 폴링      stale or (running=False 인데 error 가 있음)
         · 잠금      running=True 일 때만
         · 장부기록  running=True 일 때만
@@ -691,7 +697,7 @@ def _rollback_phrase(detail):
     """
     text = str(detail or '')
     if ROLLBACK_FAILED_MARK in text:
-        return ('⚠ 판매중지에는 실패했습니다 — 그 상품이 아직 판매중일 수 있으니 '
+        return ('[주의] 판매중지에는 실패했습니다 — 그 상품이 아직 판매중일 수 있으니 '
                 '셀러센터에서 직접 내려주세요.')
     if ROLLBACK_DONE_MARK in text:
         return '판매중지로 내려두었습니다.'
@@ -707,7 +713,7 @@ def _where_to_check(market):
 def _uncertain_ledger_message(market, pid, code=None, detail=None):
     """확인 전까지 잠근다는 사실 + 무엇을 확인해야 하는지.
 
-    ★★ [3차리뷰 치명③] 상품이 **확정적으로 만들어진** 경우(PARTIAL)에는 「모릅니다」를
+     [3차리뷰 치명③] 상품이 **확정적으로 만들어진** 경우(PARTIAL)에는 「모릅니다」를
       쓰지 않는다. 상품번호를 찍어 놓고 「생겼는지 모릅니다」라고 하면 한 문장 안에서
       자기모순이고, 그 말을 들은 사람은 못 찾았다고 판단해 다시 올린다(= 중복).
     """
@@ -857,7 +863,7 @@ UNCERTAIN_ERROR_CODES = ('CALL', 'NO_PRODUCT_ID', 'PARTIAL', 'UNKNOWN_AFTER_SEND
 def _mark_uncertain(out, market):
     """결과행을 **불확실**로 바꾼다 — 장부와 같은 문구·같은 확인 수단.
 
-    ★★ [3차리뷰 치명③] PARTIAL 은 상품이 확정적으로 만들어진 경우다. 「연결이 끊겼습니다
+     [3차리뷰 치명③] PARTIAL 은 상품이 확정적으로 만들어진 경우다. 「연결이 끊겼습니다
       — 올라갔는지 모릅니다」로 말하면 사실과 다르고, 그 말을 믿은 사람이 못 찾으면
       다시 올려 중복이 된다. 코드층에서 가른 것을 사람층에서 되돌리지 않는다.
     """
@@ -888,7 +894,7 @@ def register(draft_id: int, market: str):
     body 의 `reregister: true` 는 「이미 등록된 마켓에 한 번 더 올린다」는 명시적
     opt-in 이다(기본 false — 안 보내면 이미 등록된 마켓은 아예 부르지 않는다).
 
-    ★★ [재리뷰 I-C] 이 라우트도 **복수 등록과 같은 실행 잠금**에 참여한다. 예전에는
+     [재리뷰 I-C] 이 라우트도 **복수 등록과 같은 실행 잠금**에 참여한다. 예전에는
       참여하지 않아서, 복수 잡이 도는 중 같은 드래프트·마켓으로 단수 POST 가 들어오면
       409 없이 **동시에** 마켓을 불렀다(라이브는 DISABLE_AUTH=1 이라 누구나 부를 수 있다).
       진행 중이면 409, 끝나면 잠금을 반드시 돌려준다(안 풀면 그 드래프트는 스테일 5분이
@@ -1074,7 +1080,7 @@ _CATEGORY_WHAT = {
 
 
 #: 쿠팡 계정정보가 없을 때 붙이는 길잡이 — 「무엇이 없다」로 끝내지 않고 어디서 채우는지까지.
-COUPANG_VENDOR_HINT = (' 설정 탭의 「🛒 쿠팡 계정정보」에서 계정정보(반품지·출고지)를 '
+COUPANG_VENDOR_HINT = (' 설정 탭의 「 쿠팡 계정정보」에서 계정정보(반품지·출고지)를 '
                        '먼저 저장해 주세요 — 「쿠팡에서 불러오기」를 누르면 대부분 자동으로 채워집니다.')
 
 
@@ -1348,7 +1354,7 @@ def preflight(draft_id: int):
                  판정조차 못 하는 상태) /
                registered(이미 등록됨 — 잠금) / uncertain(올라갔는지 모름 — 확인 전까지 잠금)
 
-    ⚠ ready 는 '등록 성공 보장'이 아니다 — 게이트 뒤 선행자원(출하지·본보기·CDN 이미지·
+    [주의] ready 는 '등록 성공 보장'이 아니다 — 게이트 뒤 선행자원(출하지·본보기·CDN 이미지·
       쿠팡 계정정보)에서 실패할 수 있고, 그 사실은 caveats 로 마켓마다 실어 보낸다.
     """
     p = request.get_json(silent=True) or {}
@@ -1561,7 +1567,7 @@ def _register_run_active(session, draft_id):
 def _claim_register_run(session, draft_id, markets):
     """실행 상태 행을 원자적으로 클레임한다 → 새 job_id, 실패하면 None(=409).
 
-    ★★★ [2026-07-23 3차리뷰 — 구조] **죽은 실행을 회수하면, 그 사실을 이 함수가 직접
+     [2026-07-23 3차리뷰 — 구조] **죽은 실행을 회수하면, 그 사실을 이 함수가 직접
       장부에 남긴다**(같은 트랜잭션 흐름 안에서). 「죽은 실행을 회수했다」를 아는 지점은
       여기 하나뿐이라, 여기서 남겨야 호출자가 무엇을 하든 규약이 지켜진다.
       예전에는 호출자에게 `taken` 으로 알려 주고 처리를 맡겼는데, 그러면 호출자가 하나
@@ -1577,7 +1583,7 @@ def _claim_register_run(session, draft_id, markets):
     그게 곧 중복 등록(같은 상품 2개)이다. 사장님이 마켓에서 확인한 뒤 다시 누르는
     흐름만 허용한다(자동 재시도 금지).
 
-    ★ [I4 2026-07-23 리뷰] 잠금을 **엔진에 맡기지 않는다.** 예전에는 `with_for_update()`
+     [I4 2026-07-23 리뷰] 잠금을 **엔진에 맡기지 않는다.** 예전에는 `with_for_update()`
       로 행을 잠갔는데, SQLite 는 그 구문을 조용히 무시한다 — 이 저장소는 SQLite 폴백
       이력이 실제로 있어서, 폴백으로 떨어지면 가드가 통째로 사라진다.
       대신 **단일 조건부 UPDATE + rowcount** 로 판정한다:
@@ -1672,7 +1678,7 @@ def _register_run_write(draft_id, job_id, **fields):
     스테일 회수로 새 실행이 시작된 뒤에 옛 좀비 스레드가 뒤늦게 깨어나 상태를 덮으면,
     새 실행의 진행 상황이 옛 결과로 되감긴다(사장님은 그걸 보고 또 누른다 = 중복 등록).
 
-    ★ [I4] 읽고-비교하고-쓰기(TOCTOU)가 아니라 **조건부 UPDATE + rowcount** 다 —
+     [I4] 읽고-비교하고-쓰기(TOCTOU)가 아니라 **조건부 UPDATE + rowcount** 다 —
       `UPDATE … WHERE draft_id=:d AND job_id=:j`. 예전 구현은 조회 뒤 job_id 를 파이썬에서
       비교하고 별도 UPDATE 를 날려, 그 사이에 회수된 행을 좀비가 덮어쓸 창이 남았다.
     """
@@ -1725,7 +1731,7 @@ def _uncertain_ledger_row(session, draft_id, market, *, account_key, reason):
     이미 성공(ok)으로 적힌 행은 건드리지 않는다 — 확정된 사실을 모른다로 되돌리면
     그게 후퇴다. 결과표는 닫히면 사라지지만 장부는 남는다(리뷰 C-2·I-E).
 
-    ★ 계정 키는 **해석된 물리 계정**으로 맞춘다 — 빈칸('default')으로 남기면 그 계정
+     계정 키는 **해석된 물리 계정**으로 맞춘다 — 빈칸('default')으로 남기면 그 계정
       이름으로 다시 올릴 때 안 잠긴다(C-1 별칭 구멍과 같은 함정).
     """
     account_key = _account_aliases(session, market, account_key)[0]
@@ -1749,21 +1755,21 @@ def _register_job(draft_id, job_id, ordered, *, codes, keys, vendor_in, reregist
     반대 순서(끝나고 나서 기록)였다면 죽은 마켓이 아예 흔적을 안 남겨, 안 올라간 것처럼
     보인다(그게 유령 상품을 못 찾게 만드는 거짓 안심이다).
 
-    ★★ [C2 2026-07-23 리뷰] 상태 쓰기가 `False` 를 돌려주면 **그 자리에서 멈춘다**.
+     [C2 2026-07-23 리뷰] 상태 쓰기가 `False` 를 돌려주면 **그 자리에서 멈춘다**.
       False 는 「스테일 회수로 이 실행의 주인이 바뀌었다」는 뜻이다. 예전에는 그 반환값을
       전부 무시해서, 회수된 옛 스레드가 쓰기만 막힌 채 남은 마켓을 계속 불렀다 —
       새 스레드와 옛 스레드가 같은 드래프트를 같은 마켓에 동시에 올린다(같은 상품 2개).
       매 반복 맨 위의 `current_market` 쓰기가 소유권 재확인 지점이라, 중단은 언제나
       **다음 마켓을 부르기 전에** 일어난다.
 
-    ★ [재리뷰 I-D] 기록 실패(None)는 중단이 아니다 — 소유권을 확인하지 못한 것뿐이라
+     [재리뷰 I-D] 기록 실패(None)는 중단이 아니다 — 소유권을 확인하지 못한 것뿐이라
       등록은 계속한다(멀쩡한 등록을 죽이는 쪽이 더 비싸다). 다만 그대로 두면 「부르기
       전에 기록한다」는 전제가 조용히 깨진다: 기록이 안 된 채 그 마켓에서 죽으면
       current_market 은 **이전 마켓**을 가리키고, 진짜 유령이 생긴 마켓은 pending
       (=「부른 적 없다」가 확실한 칸)으로 보고된다. 그래서 ①한 번 재시도하고
       ②연속 실패가 REGISTER_WRITE_BLIND_LIMIT 에 닿으면 멈춘다.
 
-    ★ [3차리뷰 — 구조] 회수한 죽은 실행이 처리 중이던 마켓을 **여기서 따로 걸러내지
+     [3차리뷰 — 구조] 회수한 죽은 실행이 처리 중이던 마켓을 **여기서 따로 걸러내지
       않는다.** `_claim_register_run` 이 회수하는 순간 장부에 'uncertain' 을 남기므로,
       사전점검(`_ledger_guard`)이 그 마켓을 알아서 잠근다. 특례 분기를 두면 호출자가
       하나 늘 때마다 구멍이 하나 는다(그렇게 두 번 뚫렸다).
@@ -1968,7 +1974,7 @@ def register_many(draft_id: int):
       vendor         : {...}                 쿠팡 계정정보(안 보내면 계정 저장값)
       reregister     : ['smartstore', ...]   「다시 올리기」 opt-in (기본 없음)
 
-    ★ 이미 등록된 마켓(장부에 status='ok' + 상품번호)은 `reregister` 에 없으면 **마켓을
+     이미 등록된 마켓(장부에 status='ok' + 상품번호)은 `reregister` 에 없으면 **마켓을
       부르지 않는다** — 결과는 status='already' 로 그 상품번호와 함께 돌아온다.
 
     응답 계약 (화면 JS 가 그대로 분기한다):
@@ -2052,7 +2058,7 @@ def register_status(draft_id: int = None):
       {ok, job_id, running, stale, current_market, done, total, markets, pending,
        rows: […그때까지 확정된 행…], summary, uncertain, error, started_at/finished_at/progress_at}
 
-    ★ `uncertain` 이 채워져 오면 그 마켓은 **성공도 실패도 아니다** — 등록 스레드가 그
+     `uncertain` 이 채워져 오면 그 마켓은 **성공도 실패도 아니다** — 등록 스레드가 그
       마켓을 부르던 중 죽었다는 뜻이고, 마켓에 상품이 생겼을 수도 있다. 화면은 그 문구를
       그대로 보여줘야 한다(요약·완곡화 금지).
     """
@@ -2095,9 +2101,9 @@ def register_status(draft_id: int = None):
 def market_confirm(draft_id: int):
     """사람이 마켓에서 **확인한 결과**를 장부에 넣는다 — 「확인 필요」의 정직한 결말.
 
-    ★★★ [2026-07-23 3차리뷰 중요③] 이 라우트가 없으면 `uncertain` 은 **영구 교착**이다:
+     [2026-07-23 3차리뷰 중요③] 이 라우트가 없으면 `uncertain` 은 **영구 교착**이다:
       확인해 보니 상품이 **있더라** 라는 결과를 기록할 방법이 없어 행은 영원히 확인 필요로
-      남고(칩도 ⚠ 고정), Phase 2 가격·재고 자동갱신 대상에서도 빠진다. 그러면 사장님에게
+      남고(칩도 [주의] 고정), Phase 2 가격·재고 자동갱신 대상에서도 빠진다. 그러면 사장님에게
       남는 유일한 행동이 「다시 올리기 = 중복 감수」뿐이다 — 정직한 결말이 표현 불가능한
       상태 기계는 만들면 안 된다.
 
@@ -2106,15 +2112,15 @@ def market_confirm(draft_id: int):
       market_product_id : 마켓에서 확인한 상품번호 (필수 — 이게 곧 성공의 증거다)
       account_key       : 생략하면 'default'(해석된 물리 계정으로 정규화)
 
-    ★ 상품번호 없이는 확정하지 않는다. 이 저장소의 성공 판정은 언제나 「마켓이 준
+     상품번호 없이는 확정하지 않는다. 이 저장소의 성공 판정은 언제나 「마켓이 준
       상품번호를 받았는가」 하나뿐이다(service.py 와 같은 규약).
 
-    ★★ [4차리뷰 중요③] **조회 API 가 있는 마켓(11번가·롯데온)은 서버가 한 번 대조한다.**
+     [4차리뷰 중요③] **조회 API 가 있는 마켓(11번가·롯데온)은 서버가 한 번 대조한다.**
       틀린 번호를 확정하면 그 뒤 가격·재고 자동갱신이 **남의 상품으로 나간다**(금전 사고).
       나머지 4마켓은 이름으로 찾는 조회 API 자체가 없어(LOOKUP_MARKETS 주석의 전수 근거)
       사람이 셀러센터에서 본 번호를 믿는 수밖에 없다 — 대신 그 사실을 응답에 적는다.
 
-    ★★ [4차리뷰 중요④] 등록 실행 잠금에 **참여한다**. 그 드래프트가 등록 중이면 409 —
+     [4차리뷰 중요④] 등록 실행 잠금에 **참여한다**. 그 드래프트가 등록 중이면 409 —
       잡이 그 마켓을 처리하는 중에 확정이 끼어들어 status='ok' 를 써 버리면, 뒤이어
       끝난 등록 결과와 장부가 어긋난다.
     """
@@ -2226,7 +2232,7 @@ def _verify_market_product_id(session, draft, market, pid):
         ('ok', '…확인했습니다')      그 번호의 상품이 우리 계정에 실제로 있다
         ('unknown', '…못 했습니다')  확인하지 못했다(없거나·조회 실패·이름 불일치)
 
-    ★★ [5차 C1] 확인 실패를 **「그 번호는 없다」로 단정하지 않는다.** 조회가 잠깐 죽었을
+     [5차 C1] 확인 실패를 **「그 번호는 없다」로 단정하지 않는다.** 조회가 잠깐 죽었을
       수도, 색인이 늦을 수도 있다. 못 확인하면 사장님에게 되묻고(force) 그 답을 기록한다 —
       확정을 영구히 막으면 그게 곧 중복 등록으로 미는 길이다.
     """
@@ -2270,7 +2276,7 @@ def market_lookup(draft_id: int):
     `LOOKUP_MARKETS` 뿐이다(상품번호 없이 이름으로 찾을 수 있는 API 가 이미 있는 마켓만 —
     근거는 그 상수 주석 참조). 지원하지 않는 마켓에 가짜 버튼을 달지 않는다.
 
-    ★ 0건이 「안 올라갔다」의 증명은 아니다 — 마켓 색인이 늦거나 이름이 잘려 저장됐을 수
+     0건이 「안 올라갔다」의 증명은 아니다 — 마켓 색인이 늦거나 이름이 잘려 저장됐을 수
       있다. 응답의 note 로 그 한계를 같이 말한다(조용한 거짓 안심 금지).
     """
     market = (request.args.get('market') or '').strip()
@@ -2351,7 +2357,7 @@ def _first_upload_env_prefix(session, market):
 
 @bp.post('/api/drafts/<int:draft_id>/detail/remove-assets')
 def remove_detail_assets(draft_id: int):
-    """상세에서 **사장님이 고른 이미지만** 뺀다 (자동 제거 ❌ — 2026-07-23 (나)안).
+    """상세에서 **사장님이 고른 이미지만** 뺀다 (자동 제거 [안됨] — 2026-07-23 (나)안).
 
     body: {urls: ['https://…/ssg_banner.jpg', …]}   ← 점검이 보여 준 주소 그대로
     응답: {ok, removed, detail_html, foreign_assets}  ← 뺀 뒤 다시 훑은 결과

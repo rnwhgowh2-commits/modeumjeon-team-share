@@ -23,11 +23,11 @@
 
   <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
     {% if not items %}
-      <div style="padding:48px 24px;text-align:center;color:var(--faint,#9CA3AF)"><div style="font-size:48px;margin-bottom:8px">🔔</div><div style="font-size:14px">알림이 없습니다</div></div>
+      <div style="padding:48px 24px;text-align:center;color:var(--faint,#9CA3AF)"><div style="font-size:48px;margin-bottom:8px"><i class="ph-light ph-bell" aria-hidden="true"></i></div><div style="font-size:14px">알림이 없습니다</div></div>
     {% else %}
       {% for n in items %}
       <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--n100,#F2F4F6);{% if not n.is_read %}background:var(--연한-파랑,#F0F9FF){% endif %}">
-        <div style="font-size:17px;flex-shrink:0">{% if n.severity == 'error' %}🛑{% elif n.severity == 'warning' %}⚠️{% elif n.severity == 'success' %}✅{% else %}ℹ️{% endif %}</div>
+        <div style="font-size:17px;flex-shrink:0">{% if n.severity == 'error' %}<i class="ph-light ph-stop-circle" aria-hidden="true"></i>{% elif n.severity == 'warning' %}<i class="ph-light ph-warning" aria-hidden="true"></i>️{% elif n.severity == 'success' %}<i class="ph-light ph-check-circle" aria-hidden="true"></i>{% else %}ℹ️{% endif %}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <strong style="font-size:14px;color:var(--ink,#191F28)">{{ n.title }}</strong>

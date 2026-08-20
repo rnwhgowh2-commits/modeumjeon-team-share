@@ -32,10 +32,12 @@ def test_default_group_names_and_order():
     이름을 바꿀 땐 여기도 같이 — 그게 이 테스트의 존재 이유다.
 
     [2026-08-06 사장님 지시] 전송 분류 이름 → 「상품수집&전송」.
+
+    [2026-08-19 사장님 확정] 「상품 가공」 → 「상품 정책화」.
     """
     layout = api_sidebar._default_layout()
     names = [st['name'] for st in layout['stages']]
-    assert names == ['옵션생성 & 상품생성', '상품 가공', '상품수집&전송', '상품 관리',
+    assert names == ['옵션생성 & 상품생성', '상품 정책화', '상품수집&전송', '상품 관리',
                      '주문 관리', '통계·분석', '재고관리', '기타']
 
 
@@ -87,7 +89,7 @@ def test_default_contains_all_visible_items():
         'bulk',
         # [2026-08-02] 노션 원문대로 하위탭 3개 — 합본 'optgen' 하나였다.
         'optgen_direct', 'optgen_market', 'optgen_product',
-        'policies', 'policy_apply', 'templates',         # 상품 가공
+        'policies', 'policy_apply', 'templates',         # 상품 정책화
         # [2026-08-02] 「자동화」가 전송 분류로 바뀌며 하위탭이 늘었다(#687).
         'automation', 'market_send',                     # 상품수집&전송
         'bundles', 'matrix', 'catalog',                  # 상품 관리
@@ -230,17 +232,18 @@ def test_get_layout_strips_sources_even_if_saved(monkeypatch, tmp_path):
 def test_편집_화면이_실제_사이드바와_같은_것을_본다(client):
     """🔴 편집 화면(GET /api/sidebar/layout)은 저장본을 날것으로 줬다.
 
-    저장본에 없고 스펙에서 주입되는 항목(정책 생성·정책 적용)이 편집 화면에서만
-    사라져, 「상품 가공」 서랍이 텅 빈 채로 보였다 — 실제 사이드바에는 둘 다 있는데.
-    옮기기 작업(옵션 맵핑 템플릿 → 기타) 뒤 이 어긋남이 눈에 띄었다.
+    저장본에 없고 스펙에서 주입되는 항목(정책 생성·정책 매칭)이 편집 화면에서만
+    사라져, 「상품 가공」(현 「상품 정책화」) 서랍이 텅 빈 채로 보였다 — 실제
+    사이드바에는 둘 다 있는데. 옮기기 작업(옵션 맵핑 템플릿 → 기타) 뒤 이 어긋남이
+    눈에 띄었다.
     """
     got = client.get('/api/sidebar/layout').get_json()
     ids = {i['id'] for st in got['stages'] for i in st['items']}
     assert 'i_policies' in ids, '편집 화면에 「정책 생성」이 없다'
-    assert 'i_policy_apply' in ids, '편집 화면에 「정책 적용」이 없다'
+    assert 'i_policy_apply' in ids, '편집 화면에 「정책 매칭」이 없다'
 
     proc = [st for st in got['stages'] if st['id'] == 's_process']
-    assert proc and proc[0]['items'], '「상품 가공」 서랍이 비어 보인다'
+    assert proc and proc[0]['items'], '「상품 정책화」 서랍이 비어 보인다'
 
 
 def test_편집_화면에도_중복_id_가_없다(client):

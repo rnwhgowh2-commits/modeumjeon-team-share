@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
-{% block title %}🗑 휴지통 — 모음전 자동화{% endblock %}
+{% block title %}<i class="ph-light ph-trash" aria-hidden="true"></i> 휴지통 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-trash">
   <h1>휴지통</h1>
   <p class="greeting">soft-delete 된 항목 — 30일 후 자동 hard-delete (예정).</p>
 
   <div style="margin-bottom:12px">
-    <a href="/audit" class="btn">📜 전체 변경 이력 보기 →</a>
+    <a href="/audit" class="btn"><i class="ph-light ph-scroll" aria-hidden="true"></i> 전체 변경 이력 보기 →</a>
   </div>
 
   {% if not items %}
@@ -81,7 +81,7 @@ document.querySelectorAll('[data-action="restore-trash"]').forEach(btn => {
     const r = await fetch(`/trash/${id}/restore`, {method: 'POST'});
     const j = await r.json();
     if (j.ok) {
-      btn.textContent = '✓ 복구됨';
+      btn.textContent = '복구됨';
       btn.disabled = true;
       setTimeout(() => location.reload(), 800);
     } else alert('복구 실패: ' + (j.error || ''));

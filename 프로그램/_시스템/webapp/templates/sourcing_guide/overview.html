@@ -178,10 +178,10 @@
   </style>
   <div class="sg-utilbar">
     <button type="button" class="su" data-guide-modal="/sourcing-guide/add?bare=1"><span class="ic">➕</span>소싱처 추가·업데이트</button>
-    <button type="button" class="su" data-guide-modal="/sourcing-guide/map?bare=1"><span class="ic">📖</span>데이터·코드 지도</button>
-    <button type="button" id="instOpenBtn" class="su"><span class="ic">🧩</span>크롤러 설치</button>
-    <button type="button" class="su" data-guide-modal="/sourcing-guide/crawl-check?bare=1"><span class="ic">🔎</span>크롤링 검사</button>
-    <button type="button" class="su" data-guide-modal="/sourcing-guide/price-verify?bare=1"><span class="ic">🧾</span>최종매입가 검증</button>
+    <button type="button" class="su" data-guide-modal="/sourcing-guide/map?bare=1"><span class="ic"><i class="ph-light ph-book-open" aria-hidden="true"></i></span>데이터·코드 지도</button>
+    <button type="button" id="instOpenBtn" class="su"><span class="ic"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i></span>크롤러 설치</button>
+    <button type="button" class="su" data-guide-modal="/sourcing-guide/crawl-check?bare=1"><span class="ic"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>크롤링 검사</button>
+    <button type="button" class="su" data-guide-modal="/sourcing-guide/price-verify?bare=1"><span class="ic"><i class="ph-light ph-receipt" aria-hidden="true"></i></span>최종매입가 검증</button>
   </div>
   <div class="sg-card" style="padding:0;overflow:hidden;">
     <table class="sg-atbl">
@@ -208,17 +208,17 @@
           <td {% if not g.verification.last_new_check %}class="u"{% endif %}>{% if g.verification.last_new_check %}검증함{% else %}—{% endif %}</td>
           <td>{{ '상품별 크롤' if g.pricing.benefit_collection=='per_product' else '일괄' }}</td>
           <td class="sg-mng-cell" onclick="event.stopPropagation()" style="white-space:nowrap">
-            <button type="button" class="sg-mng" data-act="rename" title="이름 변경">✎</button>
-            <button type="button" class="sg-mng" data-act="logo" title="로고(URL)">🖼</button>
-            <button type="button" class="sg-mng" data-act="hide" title="{{ '숨기기' if r.is_active else '표시' }}">{{ '🙈' if r.is_active else '👁' }}</button>
-            {% if not r.is_builtin %}<button type="button" class="sg-mng" data-act="delete" title="삭제" style="color: var(--글자-빨강, var(--red,#e0455e)">🗑</button>{% endif %}
+            <button type="button" class="sg-mng" data-act="rename" title="이름 변경"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></button>
+            <button type="button" class="sg-mng" data-act="logo" title="로고(URL)"><i class="ph-light ph-image" aria-hidden="true"></i></button>
+            <button type="button" class="sg-mng" data-act="hide" title="{{ '숨기기' if r.is_active else '표시' }}"><i class="ph-light ph-{{ 'eye-slash' if r.is_active else 'eye' }}" aria-hidden="true"></i></button>
+            {% if not r.is_builtin %}<button type="button" class="sg-mng" data-act="delete" title="삭제" style="color: var(--글자-빨강, var(--red,#e0455e)"><i class="ph-light ph-trash" aria-hidden="true"></i></button>{% endif %}
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  <div class="sg-hint">행 클릭 → 상세 4단계 · 관리(✎이름·🖼로고·👁숨김·🗑삭제)는 행 끝에서. 추가는 위 ‘소싱처 추가·업데이트’ 카드.</div>
+  <div class="sg-hint">행 클릭 → 상세 4단계 · 관리(<i class="ph-light ph-pencil-simple" aria-hidden="true"></i>이름·<i class="ph-light ph-image" aria-hidden="true"></i>로고·<i class="ph-light ph-eye" aria-hidden="true"></i>숨김·<i class="ph-light ph-trash" aria-hidden="true"></i>삭제)는 행 끝에서. 추가는 위 ‘소싱처 추가·업데이트’ 카드.</div>
 </div>
 
 <style>
@@ -292,7 +292,7 @@
       </div>
     </div>
   </div>
-  <button type="button" class="nsg-more" data-nsg-open-detail>📖 상세 로직 · 설명 전체 보기 →</button>
+  <button type="button" class="nsg-more" data-nsg-open-detail><i class="ph-light ph-book-open" aria-hidden="true"></i> 상세 로직 · 설명 전체 보기 →</button>
 </div>
 
 <!-- 상세 로직 모달 -->
@@ -300,13 +300,13 @@
 <div id="nsgDetail" class="nsg-detail" hidden>
   <div class="nsg-dh">
     <div>
-      <h3>📖 신규 소싱처 크롤링 — 상세 로직 (Claude 실행 SOP)</h3>
+      <h3><i class="ph-light ph-book-open" aria-hidden="true"></i> 신규 소싱처 크롤링 — 상세 로직 (Claude 실행 SOP)</h3>
       <div class="ds">정식 절차: 라이브 크롤링 가이드 — <a href="/sourcing-guide/map" target="_blank">/sourcing-guide/map (보기)</a> · <a href="/sourcing-guide/map.md" target="_blank">/sourcing-guide/map.md (원문)</a></div>
     </div>
     <button type="button" class="nsg-x" data-nsg-close-detail>✕</button>
   </div>
 
-  <div class="nsg-cmd"><span class="ic">💬</span><span class="tx">지시 예시 — <b>"신규 소싱처 추가 가이드 참고해서 SSF샵 추가해줘"</b><br><span class="mini">사용자는 URL 1개만 제공 · 2~7단계는 Claude 자동 수행</span></span></div>
+  <div class="nsg-cmd"><span class="ic"><i class="ph-light ph-chat" aria-hidden="true"></i></span><span class="tx">지시 예시 — <b>"신규 소싱처 추가 가이드 참고해서 SSF샵 추가해줘"</b><br><span class="mini">사용자는 URL 1개만 제공 · 2~7단계는 Claude 자동 수행</span></span></div>
 
   <div class="nsg-sec">
     <h4>STEP 2 · 수집 방식 4분면 분류 (어떻게 긁나 × 로그인 필요한가)</h4>
@@ -336,7 +336,7 @@
       <span class="lg"><b>인증</b> — 비인증(로그인 없이 보임) · 인증(로그인 세션 필요)</span>
     </div>
     <div class="nsg-hint" style="margin-top:8px;background:var(--연한-주황,#FFF4E6);border:1px solid var(--연한-주황,#FFD8A8);border-radius:8px;padding:8px 12px;color: var(--글자-주황, var(--amber,#B45309));">
-      ⚠️ <b>옵션·재고는 위치만 적고 끝내지 않는다 — 재고 3단계를 명시.</b>
+      <i class="ph-light ph-warning" aria-hidden="true"></i>️ <b>옵션·재고는 위치만 적고 끝내지 않는다 — 재고 3단계를 명시.</b>
       ① 품절(마커 → 0) · ② 한정수량(<b>잔여·N개 남음·마지막·품절임박 등 표기 전부</b> → 실수량 N) · ③ 표식없음(표식 정말 없을 때만 '재고있음').
       ②를 한 가지만 적고 다른 표기를 빠뜨리면 = 한정재고가 "재고있음"으로 둔갑하는 버그(실제 무신사 사례).
     </div>
@@ -351,7 +351,7 @@
     <h4>STEP 5 · 검증 체크리스트 — 수집 · 가공 · 전송 (무결성)</h4>
     <div class="nsg-integrity">샘플 URL을 실제 크롤(로그인 세션/확장 경로)해서 사용자가 화면에서 본 값과 <b>100% 일치</b>하는지 대조.<br>"최종가만 맞으면 끝"이 아니라 <b>수집 → 가공 → 전송</b> 3단계를 항목별로 통과시킨다. 특히 재고는 한정수량 N이 매트릭스 표시까지 <b>둔갑 없이</b> 보존되는지 본다.</div>
     <div class="nsg-ck" id="nsgCk" style="margin-top:12px;">
-      {% set ph_meta = [('integrity','⚡ 동시·무결성','integrity'),('collect','🔍 수집','collect'),('process','⚙️ 가공','process'),('transmit','📡 전송','transmit')] %}
+      {% set ph_meta = [('integrity','동시·무결성','integrity'),('collect','수집','collect'),('process','가공','process'),('transmit','전송','transmit')] %}
       {% for pkey, plab, pcls in ph_meta %}
       {% set pit = checklist | selectattr('phase','equalto',pkey) | list %}
       <div class="nsg-ckg c-{{ pcls }}" data-ph="{{ pkey }}">
@@ -370,7 +370,7 @@
       {% endfor %}
       <div class="nsg-cktot">전체 <b id="nsgCkTot">0</b> / {{ checklist|length }} 통과</div>
     </div>
-    <div class="nsg-hint">✅ 항목을 클릭하면 통과 체크 + 단계별 진행률이 채워집니다. ⚠️ <b>전부 통과</b> 전에는 "추가 완료" 선언 금지 (가격·재고 오류 = 금전 손실). 소싱처별 실제 통과/실패 상태는 각 소싱처 상세 ▸ ⑤ 체크리스트에서 저장. 단일 진실원천 = <code>crawl_guide.py</code>의 <code>_CHECKLIST_TEMPLATE</code>.</div>
+    <div class="nsg-hint"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 항목을 클릭하면 통과 체크 + 단계별 진행률이 채워집니다. <i class="ph-light ph-warning" aria-hidden="true"></i>️ <b>전부 통과</b> 전에는 "추가 완료" 선언 금지 (가격·재고 오류 = 금전 손실). 소싱처별 실제 통과/실패 상태는 각 소싱처 상세 ▸ ⑤ 체크리스트에서 저장. 단일 진실원천 = <code>crawl_guide.py</code>의 <code>_CHECKLIST_TEMPLATE</code>.</div>
   </div>
 
   <div class="nsg-sec">
@@ -523,11 +523,11 @@
 <!-- ───────── 재고 점검(STEP4) 상세 — 우측 슬라이드 드로어 (시안2) ───────── -->
 <div id="nsgStDim" class="nsg-st-dim" hidden></div>
 <aside id="nsgStDrawer" class="nsg-st-drawer" hidden>
-  <div class="nsg-st-h"><span class="ic">📦</span><h3>재고 점검 — 소싱처별 수집 방식</h3><button type="button" class="nsg-st-x" id="nsgStClose">✕</button></div>
+  <div class="nsg-st-h"><span class="ic"><i class="ph-light ph-package" aria-hidden="true"></i></span><h3>재고 점검 — 소싱처별 수집 방식</h3><button type="button" class="nsg-st-x" id="nsgStClose">✕</button></div>
   <div class="nsg-st-body">
     <div class="nsg-st-coll" id="nsgStColl"><span class="qi">?</span><span>데이터 원본 차이 — HTML · API · DOM</span><span class="car">▾</span></div>
     <div class="nsg-st-chips" id="nsgStChips"></div>
-    <div class="nsg-st-note">💡 우선순위 <code>API &gt; 원본 HTML/JS &gt; DOM</code> · 🛡 전체크롤=하드리셋 · <b>크롤 실패 시 "크롤 실패" 표기 · 옛 가격/재고 금지</b>(폴백가 금지).</div>
+    <div class="nsg-st-note"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 우선순위 <code>API &gt; 원본 HTML/JS &gt; DOM</code> · <i class="ph-light ph-shield" aria-hidden="true"></i> 전체크롤=하드리셋 · <b>크롤 실패 시 "크롤 실패" 표기 · 옛 가격/재고 금지</b>(폴백가 금지).</div>
     <div class="nsg-st-cmpw"><table class="nsg-st-cmp"><thead><tr><th>소싱처 / 방식</th><th>데이터</th><th>재고 표기</th><th>난이도</th><th></th></tr></thead><tbody id="nsgStTb"></tbody></table></div>
     <div class="nsg-st-dpop" id="nsgStDpop"></div>
   </div>
@@ -599,7 +599,7 @@
    {key:'ssf',name:'SSF샵',color:'#111',diff:'mid',diffL:'중',ds:'html',dsL:'원본 HTML',state:'품절/한정N/충분',
     methods:[{ds:'html',dsL:'원본 HTML',ep:'상품 raw HTML (SSR · 한국 IP)',rules:[['x','statCd=SLDOUT','품절'],['n','품절임박 ( N )','한정 N'],['o','표시 없음','충분']],warn:'정규식 괄호공백 "품절임박 ( N )" 필수. 도쿄 IP는 숫자 없음.',tip:'확장이 한국 IP raw HTML 떠서 서버 파서로.'}]},
    {key:'lotteon',name:'롯데온',color:'#da291c',diff:'easy',diffL:'쉬움',ds:'api',dsL:'API/DOM',state:'SKU 실수량 / 3상태',dual:true,
-    dualNote:'⚙️ <b>API 우선 → 실패 시 DOM 폴백.</b> 화면(DOM)은 API 데이터를 그린 결과라 API가 더 정확.',
+    dualNote:'<b>API 우선 → 실패 시 DOM 폴백.</b> 화면(DOM)은 API 데이터를 그린 결과라 API가 더 정확.',
     methods:[
      {tag:'① API (우선)',ds:'api',dsL:'API',ep:'pbf.lotteon.com/product/v2/detail/option/mapping/{spd}/{sitm}',rules:[['x','SALE 아님·stkQty 0','품절'],['o','SALE & stkQty>0','실수량'],['n','키 없음','미존재(제외)']],warn:'단품은 color="" → 전 색 번짐. 상품명 끝 토큰("…블랙")으로 색 라벨.',tip:'경로만 200·격리(ISOLATED)서도 fetch. 실수량+없는사이즈 제외.'},
      {tag:'② DOM (폴백)',ds:'dom',dsL:'DOM',ep:'ul.selectLists > li · .caption / .stock',rules:[['x','품절·[품절]·재입고알림','품절'],['n','N개 남음·마지막 N개','한정 N'],['o','표시 없음','충분']],warn:'"10개" 캡·없는사이즈 false충분. 모음전 색클릭 60초 타임아웃 주의.',tip:'단품 무클릭(이미지 일치). 모음전 색 클릭 순회.'}]},
@@ -633,8 +633,8 @@
     var r=m.rules.map(function(x){return '<div class="rule"><span class="tg '+x[0]+'">'+x[1]+'</span><span>→ '+x[2]+'</span></div>';}).join('');
     return '<div class="nsg-st-ps"><div class="lab">데이터 소스 · 엔드포인트</div><div class="ep"><span class="nsg-st-dt"><span class="d '+m.ds+'"></span>'+m.dsL+'</span><br>'+m.ep+'</div></div>'
       +'<div class="nsg-st-ps"><div class="lab">재고 판정 규칙</div>'+r+'</div>'
-      +'<div class="nsg-st-ps warn"><div class="lab">⚠ 함정</div><div class="tx">'+m.warn+'</div></div>'
-      +'<div class="nsg-st-ps tip"><div class="lab">✓ 팁</div><div class="tx">'+m.tip+'</div></div>';
+      +'<div class="nsg-st-ps warn"><div class="lab">함정</div><div class="tx">'+m.warn+'</div></div>'
+      +'<div class="nsg-st-ps tip"><div class="lab">팁</div><div class="tx">'+m.tip+'</div></div>';
   }
   function openDpop(rowEl,key){
     var s=null; SRC.forEach(function(x){if(x.key===key)s=x;}); if(!s)return;
@@ -642,7 +642,7 @@
     if(s.dual){ b='<div class="nsg-st-dn">'+s.dualNote+'</div><div class="nsg-st-mt">'+s.methods.map(function(m,i){return '<button class="'+(i===0?'on':'')+'" data-mt="'+key+'-'+i+'">'+m.tag+'</button>';}).join('')+'</div>'
         +s.methods.map(function(m,i){return '<div class="nsg-st-mp '+(i===0?'on':'')+'" id="nsgstmp-'+key+'-'+i+'">'+secs(m)+'</div>';}).join(''); }
     else b=secs(s.methods[0]);
-    dpop.innerHTML='<div class="ph"><span class="nsg-st-ci" style="width:11px;height:11px;background:'+s.color+'"></span><span class="nm">'+s.name+'</span><button class="x" id="nsgStDpopX">✕</button></div><div class="pb">'+b+'</div>';
+    dpop.innerHTML='<div class="ph"><span class="nsg-st-ci" style="width:11px;height:11px;background:'+s.color+'"></span><span class="nm">'+s.name+'</span><button class="x" id="nsgStDpopX"></button></div><div class="pb">'+b+'</div>';
     dpop.classList.add('on');  /* 위치=CSS 화면중앙(transform), z 9400 → 모달 위 */
     document.getElementById('nsgStDpopX').addEventListener('click', function(){ dpop.classList.remove('on'); });
     dpop.querySelectorAll('.nsg-st-mt button').forEach(function(btn){ btn.addEventListener('click', function(){

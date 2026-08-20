@@ -25,8 +25,8 @@
       <div style="display:flex;align-items:center;margin-bottom:8px">
         <label style="font-size:14px;color:var(--ink,#191F28);font-weight:600">제품 선택</label>
         <div style="margin-left:auto;display:flex;gap:4px">
-          <button type="button" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">📁 엑셀 가져오기</button>
-          <button type="button" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">📷 바코드 스캔</button>
+          <button type="button" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer"><i class="ph-light ph-folder" aria-hidden="true"></i> 엑셀 가져오기</button>
+          <button type="button" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer"><i class="ph-light ph-camera" aria-hidden="true"></i> 바코드 스캔</button>
         </div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
@@ -202,7 +202,7 @@ function td_preset(v){
 }
 
 // 커스텀 필드
-function addCustomField(){const wrap=document.getElementById('customFields');const div=document.createElement('div');div.style='display:grid;grid-template-columns:auto 1fr 1fr auto;gap:4px;margin-bottom:4px;align-items:center';div.innerHTML='<span style="width:24px;color:var(--sub,#8F91A0)">⚏</span><input name="cf_key" placeholder="필드명" style="padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px"><input name="cf_value" placeholder="필드 값" style="padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px"><button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--sub,#8F91A0);font-size:17px;cursor:pointer">×</button>';wrap.appendChild(div)}
+function addCustomField(){const wrap=document.getElementById('customFields');const div=document.createElement('div');div.style='display:grid;grid-template-columns:auto 1fr 1fr auto;gap:4px;margin-bottom:4px;align-items:center';div.innerHTML='<span style="width:24px;color:var(--sub,#8F91A0)"></span><input name="cf_key" placeholder="필드명" style="padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px"><input name="cf_value" placeholder="필드 값" style="padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px"><button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--sub,#8F91A0);font-size:17px;cursor:pointer">×</button>';wrap.appendChild(div)}
 
 // 거래처 자동완성 datalist 채우기
 document.querySelector('input[name=partner_label]').addEventListener('input', e => {

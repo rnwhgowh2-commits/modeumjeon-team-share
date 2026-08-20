@@ -31,7 +31,7 @@ def _norm_path(p: str) -> str:
 def same_screen(url: str) -> str:
     """**메뉴 줄**의 신원 — 끝 빗금과 #조각만 다듬는다.
 
-    🔴 물음표 뒤(탭)는 **일부러 안 뗀다.** 주문 관리는 한 주소의 탭 4개가
+    [중요] 물음표 뒤(탭)는 **일부러 안 뗀다.** 주문 관리는 한 주소의 탭 4개가
       메뉴에서 각각 다른 줄이다(`/orders/?tab=list|ship|cs|margin`).
       탭을 떼면 그중 하나만 폰 전용으로 바꿔도 **네 줄 전부** 폰 전용 배지가 붙는다.
     """
@@ -146,7 +146,7 @@ MOBILE_READY_URLS: set[str] = {
     "/policies",         # 정책 생성 — templates/policy/index.html.
                          #   ⚠️ ?brand= 로 걸러진 주소는 값이 임의라 열거 불가 —
                          #   걸러진 화면에선 노란 띠가 다시 뜬다(껍데기 설계 한계).
-    "/policies/apply",   # 상품 정책 적용 — templates/policy/apply.html
+    "/policies/apply",   # 정책 매칭 — templates/policy/apply.html
     "/accounts/upload",  # 판매처 계정 — templates/accounts/upload.html (72KB 최대 retrofit)
     # ── 배치4a (2026-08-04) ──
     "/market-send",      # 마켓 전송 — templates/market_send/index.html

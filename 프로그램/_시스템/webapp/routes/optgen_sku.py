@@ -8,7 +8,7 @@
   나중에 그 물건을 모음전으로 팔기로 하면, 이미 짜 둔 매트릭스의 빈 조합 자리
   (예: 「블랙 · 260」)로 옮겨 넣어야 한다. 그 이사를 하는 창구가 여기다.
 
-🔴 이사는 **옮기는 것이지 새로 만드는 것이 아니다.**
+[중요] 이사는 **옮기는 것이지 새로 만드는 것이 아니다.**
    `canonical_sku` 를 그대로 두는 것이 이 파일의 첫 번째 규칙이다. 그 열쇠 하나로
    재고 이력·소싱처 URL 매핑·마켓 등록 기록이 전부 자동으로 따라온다.
    새 SKU 를 발급하고 값을 복사하는 방식이었다면 저 셋을 손으로 옮겨야 하고,
@@ -21,11 +21,14 @@
   여기는 「그 물건을 어디로 옮길까」를 처리하는 곳이다. 옮기기는 손댈 곳이 일곱 군데라
   (아래 `api_adopt_sku` 참조) 목록 화면에 섞으면 한 군데를 빠뜨리기 쉽다.
 """
+import logging
+
 from flask import Blueprint, jsonify, request
 
 from shared.db import SessionLocal
 
 bp = Blueprint('optgen_sku', __name__, url_prefix='/optgen')
+_log = logging.getLogger(__name__)
 
 #: 한 번에 내주는 최대 줄 수 — 화면이 큰 값을 보내도 서버가 통째로 퍼내지 않게 막는다.
 #: 🔴 이 값을 올리려면 `lemouton/matrix/readiness._CHUNK`(=500)도 같이 봐야 한다.
@@ -35,12 +38,18 @@ _LIMIT_MAX = 500
 _LIMIT_DEFAULT = 50
 
 
-def _err(message: str, status: int = 400):
+def _err(message: str, status: int = 400, code: str | None = None):
     """실패는 **왜 안 되는지**를 한국어로 돌려준다 — 조용히 넘어가지 않는다.
 
     사장님은 개발자가 아니다. 화면에 그대로 띄워도 뜻이 통하는 문장이어야 한다.
+
+    `code` 는 화면이 아니라 다른 프로그램(호출자)이 실패 갈래를 가릴 때 쓴다.
+    안 주면 상태코드로 무난한 기본값을 고른다.
     """
-    return jsonify({'ok': False, 'error': message}), status
+    if code is None:
+        code = ('NOT_FOUND' if status == 404 else
+                'SERVER_ERROR' if status >= 500 else 'VALIDATION_ERROR')
+    return jsonify({'ok': False, 'error': message, 'code': code}), status
 
 
 def _why_not_unbuilt(session, model_code: str) -> str:
@@ -75,13 +84,13 @@ def api_unbuilt_skus():
       · `total` = 자른(limit) 앞의 전체 건수. 화면 머리줄 숫자가 상한값을
         전체인 양 보여주는 거짓말을 막는다(`optgen._boxes` 가 겪었던 그 사고).
 
-    🔴 재고는 **원장 합계**(`shared/inventory_stock.get_stock_batch`)로 읽는다.
+    [중요] 재고는 **원장 합계**(`shared/inventory_stock.get_stock_batch`)로 읽는다.
        `Option.boxhero_stock_total` 은 캐시 칸이라 갱신을 빠뜨린 경로가 있어
        화면 숫자와 실재고가 갈린다. 편입 화면에서 재고를 잘못 보면 「빈 자리인 줄 알고」
        엉뚱한 물건을 옮기게 된다. (`webapp/routes/optgen.py` 의 `box()` 가 같은 이유로
         같은 함수를 쓴다 — 두 화면이 다른 숫자를 보이면 안 된다.)
 
-    🔴 판정은 여기서 다시 적지 않는다 — `lemouton/matrix/unbuilt.py` 하나뿐이다.
+    [중요] 판정은 여기서 다시 적지 않는다 — `lemouton/matrix/unbuilt.py` 하나뿐이다.
        거르는 조건을 SQL 로 한 번 더 적으면(예: `HAVING count = 1`) 그 순간
        같은 규칙이 두 곳에 살고, 한쪽만 고쳐도 아무 에러 없이 목록만 달라진다.
     """
@@ -199,7 +208,7 @@ def api_adopt_sku(code: str):
     body: `{"sku": "SKU-…", "axis_values": ["블랙", "260"]}`
     응답: `{ok, sku, moved_from, display_no, axis_values}`
 
-    🔴 손댈 곳이 일곱 군데다. **하나라도 빠지면 에러 없이 데이터만 조용히 깨진다.**
+    [중요] 손댈 곳이 일곱 군데다. **하나라도 빠지면 에러 없이 데이터만 조용히 깨진다.**
       ① 대상이 진짜 옵션함인가 · SKU 가 진짜 미구성인가
       ② 축 값 개수가 대상 축 수와 같은가 · 각 값이 그 축에 실제로 있는가
       ③ 그 조합에 이미 옵션이 있지 않은가 (한 조합에 옵션은 하나뿐)
@@ -208,11 +217,11 @@ def api_adopt_sku(code: str):
          before_flush 는 **None 인 것만** 채운다. 안 비우면 옵션이 **옛 매트릭스를
          계속 가리키고 아무도 모른다**(화면은 새 묶음에 있는데 속은 옛 주인).
       ⑥ 축 값 재배정 — `axis_values_json` · `color_code` · `size_code`
-         🔴 빠뜨리면 옵션은 있는데 **조합 격자에서 사라진다.** 큰 창
+         [중요] 빠뜨리면 옵션은 있는데 **조합 격자에서 사라진다.** 큰 창
             (`webapp/static/option_url_modal.js`)이 축 수와 값 수가 다른 옵션을 버린다.
       ⑦ 표시번호 재발급 — 번호는 「매트릭스번호 + 순번」이라 이사하면 반드시 바뀐다.
 
-    🔴 하지 **않는** 것도 규칙이다.
+    [중요] 하지 **않는** 것도 규칙이다.
       · `canonical_sku` 를 안 바꾼다 (이 파일 머리말 참조 — 재고 이력이 유령이 된다)
       · 텅 빈 원래 옵션함을 **안 지운다.** 되돌릴 수 있어야 한다.
         옵션 0개짜리 옵션함은 현행 `hid` 규칙이 이미 화면에서 감춘다(`optgen._boxes`).
@@ -243,18 +252,19 @@ def api_adopt_sku(code: str):
             return _err(f'그런 옵션함이 없습니다: {code}', 404)
         if not target.is_option_box:
             return _err('판매용 모음전에는 여기서 넣을 수 없습니다. '
-                        '아직 판매 안 하는 옵션함에만 편입할 수 있습니다.')
+                        '아직 판매 안 하는 옵션함에만 편입할 수 있습니다.',
+                        code='LIVE_BUNDLE')
 
         opt = s.get(Option, sku)
         if opt is None:
             return _err(f'그런 SKU 가 없습니다: {sku}', 404)
         moved_from = opt.model_code
         if moved_from == code:
-            return _err('이미 이 옵션함에 들어 있는 SKU 입니다.')
+            return _err('이미 이 옵션함에 들어 있는 SKU 입니다.', code='ALREADY_HERE')
         # 판정은 `lemouton/matrix/unbuilt.py` 하나뿐 — 여기서 조건을 다시 적지 않는다.
         if not unbuilt_batch(s, [moved_from]):
             return _err(f'미구성 SKU 가 아닙니다: {sku} — '
-                        f'{_why_not_unbuilt(s, moved_from)}')
+                        f'{_why_not_unbuilt(s, moved_from)}', code='NOT_UNBUILT')
 
         # ── ② 축 값이 대상의 축 설계와 맞나 ─────────────────────────────
         steps = (s.query(BundleOptionStep).filter_by(model_code=code)
@@ -263,10 +273,11 @@ def api_adopt_sku(code: str):
             # 축이 없는 옵션함은 그 자체로 미구성이다. 넣으면 「옵션 2개 · 축 0개」가 돼
             # 미구성도 아니고 매트릭스도 아닌 어중간한 묶음이 된다.
             return _err('대상 옵션함에 축(색상·사이즈…)이 아직 없습니다. '
-                        '축을 먼저 만든 뒤에 편입할 수 있습니다.')
+                        '축을 먼저 만든 뒤에 편입할 수 있습니다.', code='NO_AXES')
         if len(values) != len(steps):
             return _err(f'축이 {len(steps)}개인데 값을 {len(values)}개 주셨습니다 — '
-                        f'축 순서: {" · ".join(st.axis_name for st in steps)}')
+                        f'축 순서: {" · ".join(st.axis_name for st in steps)}',
+                        code='AXIS_COUNT_MISMATCH')
         for st, v in zip(steps, values):
             try:
                 allowed = [str(x) for x in (json.loads(st.values_json or '[]') or [])]
@@ -277,14 +288,16 @@ def api_adopt_sku(code: str):
                 #    그 옵션은 격자에도 안 뜨고 전송 목록에서도 빠져 조용히 사라진다.
                 return _err(f'「{st.axis_name}」 축에 없는 값입니다: '
                             f'{v or "(빈 값)"} — 있는 값: '
-                            f'{" · ".join(allowed) or "(아직 없음)"}')
+                            f'{" · ".join(allowed) or "(아직 없음)"}',
+                            code='AXIS_VALUE_INVALID')
 
         # ── ③ 그 조합이 이미 차 있지 않나 ───────────────────────────────
         combo = tuple(values)
         for o in s.query(Option).filter_by(model_code=code).all():
             if axes_of(o) == combo:
                 return _err(f'이미 같은 조합의 옵션이 있습니다: {o.canonical_sku} '
-                            f'({" ".join(values)}) — 한 조합에 옵션은 하나뿐입니다.')
+                            f'({" ".join(values)}) — 한 조합에 옵션은 하나뿐입니다.',
+                            code='COMBO_TAKEN')
 
         # ── ④~⑥ 이사 ────────────────────────────────────────────────────
         axis_names = [st.axis_name for st in steps]
@@ -328,6 +341,7 @@ def api_adopt_sku(code: str):
         return _err(str(e))
     except Exception as e:                              # noqa: BLE001
         s.rollback()
+        _log.exception('[optgen_sku] SKU 편입 실패 code=%s sku=%s', code, sku)
         return _err(str(e)[:300], 500)
     finally:
         s.close()
@@ -374,11 +388,11 @@ def api_sku_info_save(code: str):
     body: `{"items": [{"sku": "SKU-…", "article_no": "…", "barcode": "…", "gtin": "…"}, …]}`
     응답: `{ok, saved, rejected: [{sku, field, value, reason}], warnings: […], unknown: […]}`
 
-    🔴 `ok` 는 **거부가 하나도 없을 때만** True 다. 거부가 있는데 True 를 내면 화면이
+    [중요] `ok` 는 **거부가 하나도 없을 때만** True 다. 거부가 있는데 True 를 내면 화면이
        「저장 완료」라고 말하고, 사장님은 안 들어간 칸을 들어간 줄 안다.
        그렇다고 **맞는 칸까지 되돌리지는 않는다** — 까닭은 `sku_info` 머리말에 있다.
 
-    🔴 안 보낸 칸은 안 건드린다. `{"sku": X, "barcode": ""}` = 「바코드를 지운다」,
+    [중요] 안 보낸 칸은 안 건드린다. `{"sku": X, "barcode": ""}` = 「바코드를 지운다」,
        `{"sku": X}` = 「이번엔 아무것도 안 건드린다」. 이 둘을 뭉개면 화면이 한 칸만
        보내도 나머지 두 칸이 조용히 지워진다.
     """
@@ -398,6 +412,7 @@ def api_sku_info_save(code: str):
         s.commit()
     except Exception as e:                              # noqa: BLE001
         s.rollback()
+        _log.exception('[optgen_sku] SKU 정보 저장 실패 code=%s', code)
         return _err(str(e)[:300], 500)
     finally:
         s.close()
@@ -412,7 +427,7 @@ def api_sku_info_gen_barcodes(code: str):
     body: `{"skus": ["SKU-…", …]}` — 화면이 「지금 비어 있는 줄」만 골라 보낸다.
     응답: `{ok, barcodes: {sku: 번호}}`
 
-    🔴 「빈 것만 채운다」는 판정을 서버가 못 한다. 사장님이 방금 손으로 적고 아직
+    [중요] 「빈 것만 채운다」는 판정을 서버가 못 한다. 사장님이 방금 손으로 적고 아직
        저장 안 한 값은 화면에만 있기 때문이다. 서버가 DB 만 보고 빈 줄을 고르면
        **방금 적은 값을 덮어쓴다.** 그래서 고르는 일은 화면이 하고, 서버는 준 목록에
        대해서만 겹치지 않는 번호를 만든다.
@@ -439,3 +454,31 @@ def api_sku_info_gen_barcodes(code: str):
     finally:
         s.close()
     return jsonify({'ok': True, 'barcodes': out})
+
+
+# ════════════════════════════════════════════════════════════════
+#  SKU 연결상태 — SKU 하나하나가 누구인가(번호·브랜드·모델명·색상·사이즈)
+#
+#  판정은 여기 없다 — 전부 `lemouton/matrix/sku_identity.py` 한 곳이다.
+#  품번·바코드·GTIN(위 sku-info)과는 다른 물음이라 창구도 따로 둔다.
+# ════════════════════════════════════════════════════════════════
+
+@bp.get('/api/sku-identity/<path:code>')
+def api_sku_identity(code: str):
+    """묶음 하나의 SKU 줄 목록 — 목록의 「SKU 연결상태」 호버 카드가 쓴다.
+
+    응답: `{ok, code, rows: [{sku, no, brand, model_name, color, size}]}`
+      · `size` 는 매트릭스 전체가 사이즈 1개뿐이면 「FREE」로 나온다.
+      · 값이 없는 칸은 `null` — 지어내지 않는다.
+    """
+    from lemouton.matrix.sku_identity import rows_of
+    from lemouton.sourcing.models import Model
+
+    s = SessionLocal()
+    try:
+        if s.query(Model.model_code).filter_by(model_code=code).first() is None:
+            return _err(f'그런 묶음이 없습니다: {code}', 404)
+        rows = rows_of(s, code)
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'code': code, 'rows': rows})

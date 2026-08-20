@@ -374,9 +374,9 @@
   <div class="au-h">자동화 설정</div>
   <div class="au-sub">쉬지 않고 오래된 것부터 자동으로 긁고, 값이 바뀌면 자동으로 판매처에 보냅니다. (팀 공유 · 켜고 끄면 바로 저장돼요)</div>
   <div class="live-banner {{ 'live' if armed else 'safe' }}" id="page-banner">
-    {% if armed %}<span class="em">🟢</span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요.
+    {% if armed %}<span class="em"><i class="ph-light ph-circle" aria-hidden="true"></i></span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요.
       <span class="rbadge on"><span class="blip"></span>실제 나감</span>
-    {% else %}<span class="em">⚪</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.{% endif %}
+    {% else %}<span class="em"><i class="ph-light ph-circle" aria-hidden="true"></i></span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.{% endif %}
   </div>
 
   {# [2026-08-02 설계서 §4] 상품 하나만 골라 크롤 — 「모음전 상세」에 섞여 있던
@@ -438,7 +438,7 @@
     <div class="au-card src-run {{ 'crawl-on' if a.crawl_auto_enabled else '' }}" id="crawl-card">
       <div class="au-band src">소싱처 · 자동으로 긁기</div>
       <div class="au-body">
-        <div class="au-ct"><div class="au-title">🐘 크롤 · 자동으로 긁기<span class="au-cont">연속</span></div>
+        <div class="au-ct"><div class="au-title"><i class="ph-light ph-database" aria-hidden="true"></i> 크롤 · 자동으로 긁기<span class="au-cont">연속</span></div>
           <div class="rsc" id="crawl-seg">
             <button type="button" class="run" data-run="1"><span class="ic"></span>실행</button>
             <button type="button" class="stop" data-run="0"><span class="ic"></span>정지</button>
@@ -460,10 +460,10 @@
           <div class="cz-paused" id="cz-paused">⏸ 정지됨 — 「실행」을 켜면 시작해요</div>
         </div>
         <div class="czlog" id="czlog" style="display:none">
-          <div class="czlog-h">🕐 차수별 완료 시각<button type="button" class="czlog-tg" id="czlog-tg"></button></div>
+          <div class="czlog-h"><i class="ph-light ph-clock" aria-hidden="true"></i> 차수별 완료 시각<button type="button" class="czlog-tg" id="czlog-tg"></button></div>
           <div class="czlog-list" id="czlog-list"></div>
         </div>
-        <div class="km-lab">🌲 소싱처별 설정 — 계수(자주 긁을수록 ×N) · 동시 상한(한 번에 몇 갈래)</div>
+        <div class="km-lab"><i class="ph-light ph-tree" aria-hidden="true"></i> 소싱처별 설정 — 계수(자주 긁을수록 ×N) · 동시 상한(한 번에 몇 갈래)</div>
         <table class="km">
           <thead><tr><th class="km-th" style="text-align:left">소싱처</th><th class="km-th r">계수</th><th class="km-th r">동시 상한 <span class="km-prep">· 한 번에 몇 개</span></th><th class="km-th r">지금 진행</th></tr></thead>
           <tbody id="km-body"><tr><td colspan="4" class="km-empty" style="font-size:12px;color:var(--sub,#8b95a1);padding:8px 0px">불러오는 중…</td></tr></tbody>
@@ -475,26 +475,26 @@
     <!-- 판매처 (우) -->
     <div class="au-card {{ 'run' if armed else '' }}" id="mkt-card">
       <div class="au-band band-flex {{ 'mkt-run' if armed else 'mkt-idle' }}" id="mkt-band">
-        <span>📤 판매처 · 자동으로 보내기</span>
+        <span><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 판매처 · 자동으로 보내기</span>
         <span class="rbadge {{ 'on' if armed else '' }}" id="mkt-rbadge"><span class="blip"></span>실제 나감</span>
         <span class="band-chip" id="mkt-chip">{{ '실행중' if armed else '안 나감' }}</span>
       </div>
       <div class="au-body">
-        <div class="au-ct"><div class="au-title">📤 자동 전송</div></div>
+        <div class="au-ct"><div class="au-title"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 자동 전송</div></div>
         <div class="au-d">값이 바뀌면 자동으로 판매처에 보내요. 기본은 안전하게 「미리보기만」이에요.</div>
         <div class="locks">
           <div class="lock" id="lk-server">
-            <div class="l-top">🔒 서버 잠금 <span class="pill {{ 'on' if server_unlocked else 'off' }}">{{ '열림' if server_unlocked else '잠김' }}</span></div>
+            <div class="l-top"><i class="ph-light ph-lock" aria-hidden="true"></i> 서버 잠금 <span class="pill {{ 'on' if server_unlocked else 'off' }}">{{ '열림' if server_unlocked else '잠김' }}</span></div>
             <div class="l-val">{{ '실제 전송 허용됨' if server_unlocked else '실제 전송 차단' }}</div>
           </div>
           <div class="lock {{ 'hot' if armed else '' }}" id="lk-ui">
-            <div class="l-top">🖥️ 화면 스위치 <span class="pill {{ 'red' if armed else 'off' }}" id="lk-ui-pill">{{ '실제 전송' if armed else '미리보기만' }}</span></div>
+            <div class="l-top"><i class="ph-light ph-monitor" aria-hidden="true"></i>️ 화면 스위치 <span class="pill {{ 'red' if armed else 'off' }}" id="lk-ui-pill">{{ '실제 전송' if armed else '미리보기만' }}</span></div>
             <div class="l-val" id="lk-ui-val">{{ '🔴 나가는 중' if armed else '안 나감' }}</div>
           </div>
         </div>
         {% set pv = (preview or {}).get('markets') or {} %}
         <div class="pv-box">
-          <div class="pv-h">📋 미리보기 결과 · 이번에 나갈 값 <small>{% if preview and preview.get('at') %}(마지막 확인 방금){% else %}(아직 집계 전){% endif %}</small></div>
+          <div class="pv-h"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 미리보기 결과 · 이번에 나갈 값 <small>{% if preview and preview.get('at') %}(마지막 확인 방금){% else %}(아직 집계 전){% endif %}</small></div>
           {% if pv %}
           <table class="pv-t"><thead><tr><th>마켓</th><th class="r">보낼 건수</th><th class="r">가격 바뀜</th><th class="r">재고 바뀜</th></tr></thead>
           <tbody>
@@ -513,7 +513,7 @@
           <label class="rd" data-mode="preview"><span class="dot"></span><span class="rt">미리보기만 <small>· 마켓에 안 보내고 「보낼 값」만 만들어 둠 (안전)</small></span></label>
           <label class="rd real{{ ' locked' if not server_unlocked else '' }}" data-mode="real"><span class="dot"></span><span class="rt">실제 전송 <small>{% if server_unlocked %}· 쿠팡·스마트스토어에 바로 반영{% else %}· 서버 잠금이 걸려 지금은 고를 수 없어요{% endif %}</small></span></label>
         </div>
-        <div class="au-warn" id="warn">⚠️ 「실제 전송」은 쿠팡·스마트스토어에 바로 반영됩니다. 처음 한 번은 확인을 거쳐요.</div>
+        <div class="au-warn" id="warn"><i class="ph-light ph-warning" aria-hidden="true"></i>️ 「실제 전송」은 쿠팡·스마트스토어에 바로 반영됩니다. 처음 한 번은 확인을 거쳐요.</div>
 
         <div class="sec">어떤 변동이면 보낼까요?</div>
         <div class="cond" style="opacity:.55;"><div class="cl">사입(직접 매입) 재고·가격 변동 <small style="color: var(--글자-빨강, var(--red,#c0343f));">준비 중 — 아직 전송에 반영 안 됨</small></div><div class="tog" id="t-pur"></div></div>
@@ -521,7 +521,7 @@
         <div class="cond"><div class="cl">소싱처 가격 변동</div><div class="tog" id="t-prc"></div></div>
 
         <div class="spd">
-          <div class="spd-h">🚚 마켓 · 계정(API)별 업로드 속도</div>
+          <div class="spd-h"><i class="ph-light ph-truck" aria-hidden="true"></i> 마켓 · 계정(API)별 업로드 속도</div>
           <table class="spd-t" id="spd-t"><thead><tr>
             <th>마켓 · 계정</th><th class="r">1개당 초</th><th class="r">시간당 개수</th>
           </tr></thead><tbody id="spd-body"><tr><td colspan="3" class="spd-empty">불러오는 중…</td></tr></tbody></table>
@@ -532,7 +532,7 @@
   </div>
 
   <div class="runsec" id="runsec">
-    <div class="rs-band">🚨 크롤 실패<span class="rs-live" id="rs-live"></span></div>
+    <div class="rs-band"><i class="ph-light ph-siren" aria-hidden="true"></i> 크롤 실패<span class="rs-live" id="rs-live"></span></div>
     <div class="rs-body">
       <div class="rs-fail-h">크롤 실패 <span class="fbadge" id="f-count">0</span> · 소싱처별</div>
       <div id="f-acc"><div class="fnone">불러오는 중…</div></div>
@@ -565,7 +565,7 @@
   </style>
 
   <div class="runsec">
-    <div class="rs-band">🔍 소싱처 수집 · 매칭 실패
+    <div class="rs-band"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 소싱처 수집 · 매칭 실패
       <span class="rpt-n {{ 'zero' if not match_fail.total }}">{{ match_fail.total }}</span></div>
     <div class="rs-body">
       {% if not match_fail.total %}
@@ -596,7 +596,7 @@
   </div>
 
   <div class="runsec">
-    <div class="rs-band">📤 판매처 전송 · 실패 내역
+    <div class="rs-band"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 판매처 전송 · 실패 내역
       <span class="rpt-n {{ 'zero' if not upload_fail.total }}">{{ upload_fail.total }}</span></div>
     <div class="rs-body">
       {% if not upload_fail.total %}
@@ -639,11 +639,11 @@
     autosend_on_price: R.dataset.prc==='1'
   };
   var savedEl=document.getElementById('saved'), _st;
-  function toast(){ savedEl.classList.remove('err'); savedEl.textContent='✓ 자동 저장됨'; savedEl.classList.add('on'); clearTimeout(_st); _st=setTimeout(function(){ savedEl.classList.remove('on'); },1400); }
+  function toast(){ savedEl.classList.remove('err'); savedEl.textContent='자동 저장됨'; savedEl.classList.add('on'); clearTimeout(_st); _st=setTimeout(function(){ savedEl.classList.remove('on'); },1400); }
   // [2026-08-06] 저장 실패를 조용히 삼키지 않는다 — 옛 코드는 `.catch(function(){})` 로
   //   먹어버려, 저장이 안 나갔는데도 화면은 바뀐 척했다(사장님 「눌러도 아무 일이 없다」).
   //   부품은 새로 만들지 않고 같은 토스트(#saved)를 빨갛게 돌려 쓴다.
-  function toastFail(msg){ savedEl.classList.add('err'); savedEl.textContent='⚠ '+(msg||'저장 실패')+' — 서버에 반영되지 않았어요'; savedEl.classList.add('on'); clearTimeout(_st); _st=setTimeout(function(){ savedEl.classList.remove('on'); savedEl.classList.remove('err'); savedEl.textContent='✓ 자동 저장됨'; },6000); }
+  function toastFail(msg){ savedEl.classList.add('err'); savedEl.textContent='⚠ '+(msg||'저장 실패')+' — 서버에 반영되지 않았어요'; savedEl.classList.add('on'); clearTimeout(_st); _st=setTimeout(function(){ savedEl.classList.remove('on'); savedEl.classList.remove('err'); savedEl.textContent='자동 저장됨'; },6000); }
   function save(patch){ return fetch('/api/automation/save',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(patch)}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ toast(); return true; } toastFail((d&&d.error)||'저장 실패'); return false; }).catch(function(){ toastFail('서버에 닿지 못했어요'); return false; }); }
 
   function tog(el,on){ el.classList.toggle('on',!!on); }
@@ -663,7 +663,7 @@
     var armed = serverUnlocked && st.autosend_mode==='real';
     var pill=document.getElementById('lk-ui-pill'), val=document.getElementById('lk-ui-val'), lk=document.getElementById('lk-ui');
     if(pill){ pill.textContent=armed?'실제 전송':'미리보기만'; pill.className='pill '+(armed?'on':'off'); }
-    if(val){ val.textContent=armed?'🟢 나가는 중':'안 나감'; }
+    if(val){ val.textContent=armed?'나가는 중':'안 나감'; }
     if(lk){ lk.classList.toggle('hot',armed); }
     // 판매처 카드 = 소싱처와 같은 계열: 실행중=초록 / 그 외=회색 + 빨간 배지·상태칩
     var band=document.getElementById('mkt-band'), card=document.getElementById('mkt-card');
@@ -674,8 +674,8 @@
     var b=document.getElementById('page-banner');
     if(b){ b.className='live-banner '+(armed?'live':'safe');
       b.innerHTML=armed
-        ? '<span class="em">🟢</span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요. <span class="rbadge on"><span class="blip"></span>실제 나감</span>'
-        : '<span class="em">⚪</span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.'; }
+        ? '<span class="em"></span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요. <span class="rbadge on"><span class="blip"></span>실제 나감</span>'
+        : '<span class="em"></span> 지금은 「미리보기만」이에요 — 값이 바뀌어도 판매처에 <b>실제로 나가지 않습니다</b>.'; }
   }
 
   // 초기 렌더
@@ -785,7 +785,7 @@
       var total=groups.reduce(function(s,g){return s+g.count;},0);
       document.getElementById('f-count').textContent=total;
       var acc=document.getElementById('f-acc');
-      if(!total){ acc.innerHTML='<div class="fnone">✓ 크롤 실패 없음</div>'; return; }
+      if(!total){ acc.innerHTML='<div class="fnone">크롤 실패 없음</div>'; return; }
       // 모든 실패 item 평탄화(+유형) → 소싱처별 그룹
       var bySite={};
       groups.forEach(function(g){ (g.items||[]).forEach(function(it){
@@ -800,7 +800,7 @@
           var at=_absTime(it.at);
           return '<div class="frow"><span class="fopt">'+_esc(it.opt||'')+'</span>'+
             '<span class="furl">'+_shortUrl(it.url)+'</span>'+
-            (at?'<span class="ftime">🕐 '+at+'</span>':'')+
+            (at?'<span class="ftime">'+at+'</span>':'')+
             '<span class="ftg t-'+_esc(it.tc)+'">'+_esc(it.em+' '+it.tl)+'</span></div>';
         }).join('');
         return '<div class="facc open"><button class="facc-h" type="button">'+
@@ -1105,7 +1105,7 @@
       +'<span class="lrh-no" id="lrh-no"></span><span class="lrh-tm" id="lrh-tm"></span>'
       +'<span class="lrh-du" id="lrh-du"></span><span class="lrh-sp"></span>'
       +'<span class="lrh-nav"><button type="button" id="lr-prev"></button><button type="button" id="lr-next"></button></span>'
-      +'<button type="button" class="lrh-x" id="lr-x">✕</button></div>'
+      +'<button type="button" class="lrh-x" id="lr-x"></button></div>'
       +'<div class="lrb" id="lrb"></div></div>';
     document.body.appendChild(m);
     m.addEventListener('click',function(e){ if(e.target===m) closeLap(); });

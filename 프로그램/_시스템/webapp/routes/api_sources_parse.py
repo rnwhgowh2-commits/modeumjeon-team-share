@@ -167,14 +167,14 @@ def _persist_images_and_detail(source_key: str, url: str, image_urls, detail_htm
                                *, payload=None) -> None:
     """parse 결과의 이미지 URL 목록·상세 HTML 을 URL+site 매칭 SourceProduct 에 저장.
 
-    ★ 무스톰프 — 빈 값이면 **건드리지 않는다**(기존값 보존). 한 번 실패한 크롤이
+     무스톰프 — 빈 값이면 **건드리지 않는다**(기존값 보존). 한 번 실패한 크롤이
       이미 확보한 이미지를 지우면 그 상품은 등록 자체가 막힌다(6마켓 전부 이미지 필수).
-    ★ 🟠 [리뷰지적 I3] 성공 게이트 — `_crawl_status_ok(payload)` 가 아니면 **안 쓴다**.
+      [리뷰지적 I3] 성공 게이트 — `_crawl_status_ok(payload)` 가 아니면 **안 쓴다**.
       무스톰프는 '빈 값'만 막지 '틀린 값'(다른 상품 사진)은 못 막는다.
-    ★ 🟠 [리뷰지적 I4] 수신 경계 재정제 — 받은 값을 `build_image_urls`·
+      [리뷰지적 I4] 수신 경계 재정제 — 받은 값을 `build_image_urls`·
       `sanitize_detail_html` 에 **다시** 태운다. 정제기는 서버에 있고 멱등이라 비용 0.
       상세 HTML 은 마켓에 그대로 실리므로(남의 몰 링크 = 판매금지) 이중 관문이 맞다.
-    ★ 저장 대상은 **URL 문자열**뿐이다. 이미지 파일은 받지 않는다 — 이미지는 브랜드
+     저장 대상은 **URL 문자열**뿐이다. 이미지 파일은 받지 않는다 — 이미지는 브랜드
       저작물이라 실제 마켓 업로드는 브랜드별 지재권 제외 정책 통과 후 별도 단계에서 한다.
     """
     import json as _json
@@ -275,7 +275,7 @@ def _heal_product_name(source_key: str, url: str, new_name) -> None:
 def _save_navgrab_dynamic_benefits(source_key: str, url: str, options: list) -> None:
     """parse 결과 options 의 동적 혜택을 (url + site=source_key) 매칭 SourceProduct 에 저장.
 
-    ★ site 일치 필수 — 같은 URL 이 여러 SourceProduct(site 다름; 예: 'lemouton'·'ssf')에
+     site 일치 필수 — 같은 URL 이 여러 SourceProduct(site 다름; 예: 'lemouton'·'ssf')에
       걸려 있어, site 를 안 가리면 엉뚱한 상품에 저장돼 compute_breakdown(site=해당소싱처)이
       못 읽는다(라이브 SSF 멤버십포인트 미반영 실증·수정). source_key 와 site 일치 상품에만 저장.
     """

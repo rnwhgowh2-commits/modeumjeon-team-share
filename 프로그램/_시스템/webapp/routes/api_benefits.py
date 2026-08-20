@@ -173,7 +173,7 @@ def delete_template_item(item_id: int):
 
 @bp.post('/templates/<int:source_id>/save-all')
 def save_all_template(source_id: int):
-    """전체 항목 일괄 저장 (UI 의 [💾 저장] 버튼).
+    """전체 항목 일괄 저장 (UI 의 [ 저장] 버튼).
 
     payload: {items: [{id?, benefit_name, benefit_type, value, enabled, sort_order}, ...]}
     기존 항목 중 payload 에 없는 id 는 삭제. id 없으면 신규 추가.
@@ -375,7 +375,7 @@ def _build_breakdown_cache(session, items: list, sp_rows: list | None = None,
       URL 색인(`normalize_url` 을 행마다 돌린다)은 items 와 무관해서 매번 다시 만들
       까닭이 없는데, 매트릭스가 모델코드마다 이 함수를 부르는 바람에 소싱상품 수 ×
       모델 수만큼 정규화가 돌고 있었다(실측 15모델 = 34만 회, 6.5초).
-      🔴 인덱싱 정책(마지막 행 승)은 그대로다 — 만드는 횟수만 줄인다."""
+      [중요] 인덱싱 정책(마지막 행 승)은 그대로다 — 만드는 횟수만 줄인다."""
     from collections import defaultdict
     from lemouton.sources.models import SourceProduct
     from lemouton.sourcing.models_pricing import OptionSourceUrl
@@ -550,7 +550,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     1. SourceBenefitTemplate (사이트 default) 조회
     2. OptionBenefitOverride (옵션 override) 조회 — 우선 적용
     3. enabled 항목만 누적 차감
-    4. ★ 2026-05-13 — 카드 미반영 토글 (CardDiscountUserPref) 자동 반영:
+    4.  2026-05-13 — 카드 미반영 토글 (CardDiscountUserPref) 자동 반영:
        card_enabled=False 면 benefit_name 안에 카드 issuer (예: '현대카드') 가
        포함된 항목들의 enabled 강제 False (UI 토글과 무관).
     """
@@ -751,7 +751,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     class _WithRatio:
         """override 행을 **건드리지 않고** base_ratio 만 덧씌우는 프록시.
 
-        ⚠ ORM 객체에 직접 대입하면 세션 flush 때 DB 에 써진다 — 이 저장소는 예전에
+        [주의] ORM 객체에 직접 대입하면 세션 flush 때 DB 에 써진다 — 이 저장소는 예전에
           effective 항목의 ``it.enabled`` 를 직접 바꿨다가 공유 캐시로 도는 다른 SKU 의
           차감이 통째로 누락된 전력이 있다(final_price._compute_legacy 주석). 그래서
           읽기 전용 프록시로 감싸고, 쓰기는 전부 원본으로 넘긴다(동작 불변).
@@ -1710,7 +1710,7 @@ def get_breakdown(sku: str, source_id):
     """단건 계산. Returns: {final_price, steps, items_used, path,
     lotteon_basis?(롯데온 최대혜택가 모드 — 가산/보유카드 근거), ...}
 
-    ★source_id 는 **정수도 문자 키도** 받는다. 카탈로그 소싱처(현대H몰·롯데아이몰)는
+    source_id 는 **정수도 문자 키도** 받는다. 카탈로그 소싱처(현대H몰·롯데아이몰)는
      id 가 'key:hmall'·'key:lotteimall' 같은 문자열이라 `<int:source_id>` 로 두면
      라우트에 아예 안 걸려 404(not_found) — 화면엔 「계산식 로드 실패」로 보인다
      (2026-07-23 사장님 화면 실측). 일괄(/breakdowns)은 2026-07-20 에 이미
@@ -2210,7 +2210,7 @@ def set_value_bundle():
       - bundle_code 의 모든 옵션에 (source_id, sku, benefit_name) override 를 upsert.
       - 같은 이름의 소싱처 템플릿이 있으면 template_id 로 연결 + 태그(category/apply_mode/
         pay_method/channel) 복사 → 엔진이 템플릿을 이 override 로 대체(결제경로 계산 보존).
-      - 매트릭스 ✎ 인라인 수정의 새 저장 경로('이 모음전만' 반영).
+      - 매트릭스  인라인 수정의 새 저장 경로('이 모음전만' 반영).
     """
     data = request.get_json(silent=True) or {}
     try:
@@ -2289,7 +2289,7 @@ def bundle_diff(bundle_code: str, source_id: int):
 
     모음전 옵션의 override 값(스냅샷) ↔ 현재 템플릿 값을 이름으로 비교.
     returns {differs: bool, count: int, items: [{name, current, default, type}]}
-    옵션마다 값이 같다고 가정(✎ 수정이 모음전 전체 적용) → 첫 옵션 기준 비교.
+    옵션마다 값이 같다고 가정( 수정이 모음전 전체 적용) → 첫 옵션 기준 비교.
     """
     s = SessionLocal()
     try:

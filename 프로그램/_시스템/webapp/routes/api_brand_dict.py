@@ -27,7 +27,7 @@ def api_brand_dict_suggest():
     """미확정 상품명에서 브랜드 후보를 추출·순위화(사전 일괄추가용).
 
     모음전은 무상태 → 마지막 업로드된 매입 엑셀(pending_store)의 '마켓상품명' 을 사용.
-    ★스테이징은 DB 단일 행이다 — 워커가 여럿이라 프로세스 전역 dict 는 못 쓴다.
+    스테이징은 DB 단일 행이다 — 워커가 여럿이라 프로세스 전역 dict 는 못 쓴다.
     업로드 전이면 빈 결과(추측 금지).
     """
     from webapp.routes import api_margin

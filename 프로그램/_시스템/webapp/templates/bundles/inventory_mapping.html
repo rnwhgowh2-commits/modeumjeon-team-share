@@ -5,17 +5,17 @@
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
     <a href="{{ url_for('bundles.bundle_edit', code=bundle.model_code) }}" style="color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none;font-size:14px;font-weight:600">← 모음전으로 돌아가기</a>
     <h1 style="font-size:17px;font-weight:700;margin:0;color:var(--ink,#191F28)">
-      📦 {{ bundle.model_name_display or bundle.model_name_raw }} <span style="color:var(--sub,#8B95A1);font-weight:400">— 재고관리 매핑</span>
+      <i class="ph-light ph-package" aria-hidden="true"></i> {{ bundle.model_name_display or bundle.model_name_raw }} <span style="color:var(--sub,#8B95A1);font-weight:400">— 재고관리 매핑</span>
     </h1>
   </div>
 
   {# 범례 — Phase 4-5 #}
   <div style="background:var(--bg,#F9FAFB);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:12px">
-    <strong style="color:var(--ink,#191F28)">🎨 셀 색 의미:</strong>
+    <strong style="color:var(--ink,#191F28)"><i class="ph-light ph-palette" aria-hidden="true"></i> 셀 색 의미:</strong>
     <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--line2,#E5E7EB);border:1px solid var(--faint,#CBCCD3)"></span>옵션만 ON</span>
     <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--연한-파랑,#DBEAFE);border:1px solid var(--primary,#3B82F6)"></span>+ URL 매핑</span>
     <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--연한-초록,#DCFCE7);border:1px solid var(--green,#10B981)"></span>+ 재고 매핑</span>
-    <span style="margin-left:auto;color:var(--sub,#8B95A1);font-size:12px">옵션마다 0~N개 재고 SKU 매핑 가능 · 표기 차이 자동 추론 ✨</span>
+    <span style="margin-left:auto;color:var(--sub,#8B95A1);font-size:12px">옵션마다 0~N개 재고 SKU 매핑 가능 · 표기 차이 자동 추론 <i class="ph-light ph-sparkle" aria-hidden="true"></i></span>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr;gap:12px">
@@ -25,8 +25,8 @@
       <div style="padding:12px 16px;border-bottom:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:8px">
         <strong style="font-size:14px;color:var(--ink,#191F28)">옵션 매핑 표</strong>
         <span id="mappingCountBadge" style="background:var(--연한-파랑,#EFF6FF);color:#1E3A8A;padding:0px 8px;border-radius:99px;font-size:12px;font-weight:700">로딩...</span>
-        <button type="button" id="applyCandidatesBtn" style="margin-left:auto;background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✨ 자동 추론 일괄 적용</button>
-        <button type="button" id="saveMappingBtn" style="background:var(--green,#03A65A);color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💾 매핑 저장</button>
+        <button type="button" id="applyCandidatesBtn" style="margin-left:auto;background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer"><i class="ph-light ph-sparkle" aria-hidden="true"></i> 자동 추론 일괄 적용</button>
+        <button type="button" id="saveMappingBtn" style="background:var(--green,#03A65A);color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 매핑 저장</button>
       </div>
       <div style="overflow:auto">
         <table id="mappingTable" style="width:100%;border-collapse:collapse;font-size:14px">
@@ -99,7 +99,7 @@
 
     const candList = candidates[bopt.canonical_sku] || [];
     const candBtn = candList.length
-      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:var(--연한-파랑,#EFF6FF);border:1px solid var(--연한-파랑,#BFDBFE);color: var(--글자-파랑, var(--primary,#1E40AF));padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
+      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:var(--연한-파랑,#EFF6FF);border:1px solid var(--연한-파랑,#BFDBFE);color: var(--글자-파랑, var(--primary,#1E40AF));padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer;margin-left:4px">추론 (${candList.length})</button>`
       : '';
 
     const ucolor = bopt.color || '-';
@@ -198,7 +198,7 @@
       cands.forEach(c => cur.add(c));
       mappings[b] = Array.from(cur);
       renderTable();
-      toast('✨ 자동 추론 적용 — ' + cands.length + '건 매핑');
+      toast('자동 추론 적용 — ' + cands.length + '건 매핑');
       return;
     }
     // 검색 드롭다운 외부 클릭 시 닫기
@@ -217,7 +217,7 @@
       mappings[b] = Array.from(cur);
     });
     renderTable();
-    toast('✨ 전체 자동 추론 적용 — ' + n + '건 신규 매핑');
+    toast('전체 자동 추론 적용 — ' + n + '건 신규 매핑');
   });
 
   document.getElementById('saveMappingBtn').addEventListener('click', function(){
@@ -231,20 +231,20 @@
     .then(r => r.json())
     .then(res => {
       if(res.ok){
-        toast('✅ 저장 완료 — 매핑 ' + res.mapped + '건', '#03A65A');
+        toast('저장 완료 — 매핑 ' + res.mapped + '건', '#03A65A');
       } else {
-        toast('❌ 저장 실패: ' + (res.error || '알 수 없음'), '#DC2626');
+        toast('저장 실패: ' + (res.error || '알 수 없음'), '#DC2626');
       }
     })
-    .catch(e => toast('❌ 요청 실패: ' + e.message, '#DC2626'))
-    .finally(() => { btn.disabled = false; btn.textContent = '💾 매핑 저장'; });
+    .catch(e => toast('요청 실패: ' + e.message, '#DC2626'))
+    .finally(() => { btn.disabled = false; btn.textContent = '매핑 저장'; });
   });
 
   // 초기 로드
   fetch(API_URL)
     .then(r => r.json())
     .then(res => {
-      if(!res.ok){ toast('❌ 로드 실패: ' + (res.error || '알 수 없음'), '#DC2626'); return; }
+      if(!res.ok){ toast('로드 실패: ' + (res.error || '알 수 없음'), '#DC2626'); return; }
       // bundle 옵션은 서버에서 받지 않으므로 inventory_options 와 mappings 키에서 도출 + Bundle 정보는 페이지 컨텍스트
       mappings = res.mappings || {};
       candidates = res.candidates || {};
@@ -254,7 +254,7 @@
       bundleOptions = (window.BUNDLE_OPTIONS_INLINE || []);
       renderTable();
     })
-    .catch(e => toast('❌ 요청 실패: ' + e.message, '#DC2626'));
+    .catch(e => toast('요청 실패: ' + e.message, '#DC2626'));
 })();
 </script>
 

@@ -39,7 +39,7 @@
         <div>
           <label style="display:block;font-size:14px;color:var(--ink,#292A2F);margin-bottom:4px;font-weight:600">거래 유형 (다중)</label>
           <div style="display:flex;gap:8px">
-            {% for code, label in [('in','📥 입고'),('out','📤 출고'),('adjust','⚖ 조정'),('move','이동')] %}
+            {% for code, label in [('in','입고'),('out','출고'),('adjust','조정'),('move','이동')] %}
               <label style="display:flex;align-items:center;gap:4px;padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:12px;cursor:pointer">
                 <input type="checkbox" name="tx_types" value="{{ code }}" checked style="accent-color:var(--primary,#4F67FF)">{{ label }}
               </label>
@@ -126,7 +126,7 @@
 
     <div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid var(--line2,#F1F1F4)">
       <button type="submit" formaction="{{ url_for('inventory.reports_custom_run') }}" style="background:var(--primary,#4F67FF);color:#fff;padding:8px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">▶ 실행 미리보기</button>
-      <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--primary,#4F67FF);color: var(--글자-파랑, var(--primary,#4F67FF));padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 저장</button>
+      <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--primary,#4F67FF);color: var(--글자-파랑, var(--primary,#4F67FF));padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 저장</button>
     </div>
   </form>
 

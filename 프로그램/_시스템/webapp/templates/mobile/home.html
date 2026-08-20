@@ -3,8 +3,8 @@
 {% block header %}
 <header class="m-header">
   <span style="width: 36px;"></span>
-  <h1>📦 모음전</h1>
-  <a href="/auth/me" class="m-back" style="font-size: 17px;">👤</a>
+  <h1><i class="ph-light ph-package" aria-hidden="true"></i> 모음전</h1>
+  <a href="/auth/me" class="m-back" style="font-size: 17px;"><i class="ph-light ph-user" aria-hidden="true"></i></a>
 </header>
 {% endblock %}
 
@@ -23,22 +23,22 @@
 
 <div class="m-btn-grid">
   <a href="/mobile/scan" class="m-action-btn primary">
-    <span class="icon">📷</span>
+    <span class="icon"><i class="ph-light ph-camera" aria-hidden="true"></i></span>
     바코드 스캔
   </a>
   <a href="/mobile/inventory" class="m-action-btn">
-    <span class="icon">📋</span>
+    <span class="icon"><i class="ph-light ph-clipboard" aria-hidden="true"></i></span>
     재고 목록
   </a>
 </div>
 
 <div class="m-btn-grid" style="margin-top: 12px;">
   <a href="/mobile/scan-batch?mode=in" class="m-action-btn success">
-    <span class="icon">📥</span>
+    <span class="icon"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span>
     연속 입고 (여러 SKU 일괄)
   </a>
   <a href="/mobile/scan-batch?mode=out" class="m-action-btn danger">
-    <span class="icon">📤</span>
+    <span class="icon"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i></span>
     연속 출고 (여러 SKU 일괄)
   </a>
 </div>
@@ -46,22 +46,22 @@
 {# 포장 스캔 — 주문을 보고 나가는 출고. 「사입」으로 표시한 주문만 재고가 깎인다. #}
 <div class="m-btn-grid" style="margin-top: 12px;">
   <a href="/mobile/scan-ship" class="m-action-btn">
-    <span class="icon">📦</span>
+    <span class="icon"><i class="ph-light ph-package" aria-hidden="true"></i></span>
     포장 스캔 출고 (주문 확인 후 차감)
   </a>
 </div>
 
 <div class="m-btn-grid col3" style="margin-top: 12px;">
   <a href="/mobile/scan?action=in" class="m-action-btn success" style="min-height:80px;font-size: 14px">
-    <span class="icon" style="font-size:24px">📥</span>
+    <span class="icon" style="font-size:24px"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span>
     1건 입고
   </a>
   <a href="/mobile/scan?action=out" class="m-action-btn danger" style="min-height:80px;font-size: 14px">
-    <span class="icon" style="font-size:24px">📤</span>
+    <span class="icon" style="font-size:24px"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i></span>
     1건 출고
   </a>
   <a href="/mobile/scan?action=adjust" class="m-action-btn" style="min-height:80px;font-size: 14px">
-    <span class="icon" style="font-size:24px">⚖️</span>
+    <span class="icon" style="font-size:24px"><i class="ph-light ph-scales" aria-hidden="true"></i>️</span>
     조정
   </a>
 </div>
@@ -70,7 +70,7 @@
    3칸은 /mobile/orders 위에만 있다(같은 숫자 두 곳 금지). 홈은 바로가기 한 줄만. #}
 <a href="/mobile/orders" class="m-card"
    style="display:flex;align-items:center;gap:8px;padding:12px 14px;margin-top:12px;margin-bottom:0;text-decoration:none;color:inherit">
-  <span style="font-size:18px;flex:none">🧾</span>
+  <span style="font-size:18px;flex:none"><i class="ph-light ph-receipt" aria-hidden="true"></i></span>
   <span style="flex:1;font-size:14px;font-weight:600">주문 보러 가기</span>
   <span style="font-size:12px;color:var(--n500)">›</span>
 </a>
@@ -131,7 +131,7 @@
     }
     try {
       if (!d.ok || !d.items.length) {
-        list.innerHTML = '<div class="m-empty"><div class="icon">📭</div>최근 활동이 없어요</div>';
+        list.innerHTML = '<div class="m-empty"><div class="icon"></div>최근 활동이 없어요</div>';
         return;
       }
       const typeLabels = { 'in': '입고', 'out': '출고', 'adjust': '조정', 'move': '이동' };

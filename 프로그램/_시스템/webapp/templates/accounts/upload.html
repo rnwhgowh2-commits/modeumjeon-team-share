@@ -26,7 +26,7 @@
   <div class="mkg-cards" style="display:flex;gap:10px;flex-shrink:0;">
     <a href="/accounts/crawl-login" class="mkg-card"
       style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;text-decoration:none;">
-      <span style="font-size:16px;">🔐</span> 크롤 로그인
+      <span style="font-size:16px;"><i class="ph-light ph-lock-key" aria-hidden="true"></i></span> 크롤 로그인
     </a>
     <button type="button" class="mkg-card" data-guide-modal="/marketplace-guide/add?bare=1"
       style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
@@ -34,7 +34,7 @@
     </button>
     <button type="button" class="mkg-card" data-guide-modal="/marketplace-guide/map?bare=1"
       style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
-      <span style="font-size:16px;">📖</span> 데이터 코드 지도
+      <span style="font-size:16px;"><i class="ph-light ph-book-open" aria-hidden="true"></i></span> 데이터 코드 지도
     </button>
   </div>
 </header>
@@ -42,7 +42,7 @@
 {# ━━━━━━━━━━ 우리 서버 IP — 마켓 「출발지 IP 등록」칸에 붙여넣을 값 (팀 공유) ━━━━━━━━━━ #}
 <section class="server-ip-card" style="background:#fff;border:1px solid #E5E8EB;border-radius:14px;margin:0 0 18px;overflow:hidden;">
   <div style="display:flex;align-items:center;gap:9px;padding:13px 18px;border-bottom:1px solid #F2F4F6;">
-    <span style="font-size:17px;">🖥️</span>
+    <span style="font-size:17px;"><i class="ph-light ph-monitor" aria-hidden="true"></i>️</span>
     <b style="font-size:14.5px;color:#191F28;">우리 서버 IP</b>
     <span style="margin-left:auto;color:#6B7684;font-size:12px;">마켓 「출발지 IP 등록」칸에 붙여넣을 값</span>
   </div>
@@ -134,10 +134,10 @@
               <strong>{{ acc.display_name }}</strong>
               <button class="name-edit-btn"
                       onclick="openEditModal({{ acc.id }}, '{{ acc.market }}', '{{ acc.env_prefix }}', '{{ acc.display_name|e }}', '{{ acc.note|e }}')"
-                      title="계정명·메모 수정" aria-label="수정">✎</button>
+                      title="계정명·메모 수정" aria-label="수정"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i></button>
             </div>
             {% if acc.note %}
-              <small class="text-muted">📝 {{ acc.note }}</small>
+              <small class="text-muted"><i class="ph-light ph-note-pencil" aria-hidden="true"></i> {{ acc.note }}</small>
             {% endif %}
           </td>
           <td>
@@ -146,7 +146,7 @@
                 {% if acc.cred_state == 'ok' %}
                   <span class="status-icon ok">✓</span> API 키 등록
                 {% elif acc.cred_state == 'missing' %}
-                  <span class="status-icon warn">⚠</span> 키 누락 ({{ acc.missing_count }})
+                  <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 키 누락 ({{ acc.missing_count }})
                 {% else %}
                   <span class="status-icon err">✗</span> 미지원
                 {% endif %}
@@ -159,15 +159,15 @@
               </div>
               {% elif acc.login_state == 'stale' %}
               <div class="status-line" title="30일 경과 — 재로그인 권장">
-                <span class="status-icon warn">⚠</span> 영구 로그인 ({{ acc.login_age_days }}일 — 재로그인 권장)
+                <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 영구 로그인 ({{ acc.login_age_days }}일 — 재로그인 권장)
               </div>
               {% elif acc.login_state == 'session_only' %}
               <div class="status-line" title="Commerce ID [이메일/판매자 아이디] 로그인 — 세션 종료 시 만료됨. 재로그인 필요할 수 있음. 영구화하려면 [네이버 아이디 + 로그인 상태 유지] path 사용">
-                <span class="status-icon warn">⚠</span> 세션 only (재로그인 필요할 수 있음)
+                <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 세션 only (재로그인 필요할 수 있음)
               </div>
               {% elif acc.login_state == 'incomplete' %}
               <div class="status-line" title="프로필 있으나 인증 흔적 없음 — 로그인 끝까지 안 감">
-                <span class="status-icon warn">⚠</span> 로그인 미완료
+                <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 로그인 미완료
               </div>
               {% elif acc.login_state == 'not_logged_in' %}
               <div class="status-line muted">
@@ -207,11 +207,11 @@
             <div class="action-row" style="justify-content:flex-end;">
               <button class="btn btn-sm btn-primary"
                       onclick="openSecretsModal('{{ acc.market }}', '{{ acc.env_prefix }}', '{{ acc.display_name }}')"
-                      title="API 키 입력">🔑 키</button>
+                      title="API 키 입력"><i class="ph-light ph-key" aria-hidden="true"></i> 키</button>
               {% if acc.cred_state == 'ok' %}
               <button class="btn btn-sm btn-test"
                       onclick="testApiConnection({{ acc.id }}, '{{ acc.display_name|e }}')"
-                      title="API 연결 테스트">🔌 연결</button>
+                      title="API 연결 테스트"><i class="ph-light ph-plug" aria-hidden="true"></i> 연결</button>
               {% endif %}
               {% if acc.live_verifiable and acc.cred_state == 'ok' %}
               <button class="btn btn-sm {{ 'btn-test' if acc.live_verified else 'btn-primary' }}"
@@ -228,12 +228,12 @@
               {% else %}
               <button class="btn btn-sm"
                       onclick="loginUploadAccount({{ acc.id }}, '{{ acc.display_name|e }}')"
-                      title="브라우저 영구 로그인 (한 번만 직접 입력 → 이후 자동)">🔐 로그인</button>
+                      title="브라우저 영구 로그인 (한 번만 직접 입력 → 이후 자동)"><i class="ph-light ph-lock-key" aria-hidden="true"></i> 로그인</button>
               {% endif %}
               {% endif %}
               <button class="btn btn-sm btn-trash"
                       onclick="confirmDeleteAccount({{ acc.id }}, '{{ acc.display_name }}')"
-                      title="계정 삭제" aria-label="삭제">🗑</button>
+                      title="계정 삭제" aria-label="삭제"><i class="ph-light ph-trash" aria-hidden="true"></i></button>
             </div>
           </td>
         </tr>
@@ -249,7 +249,7 @@
                 {% for m in market_nav %}{% if m.ready %}<option value="{{ m.key }}">{{ m.label }}</option>{% endif %}{% endfor %}
               </select>
               <button class="btn btn-sm btn-primary" onclick="quickAddAccount()">추가</button>
-              <small class="text-muted" style="white-space:nowrap">키는 추가 후 🔑 키로 등록</small>
+              <small class="text-muted" style="white-space:nowrap">키는 추가 후 <i class="ph-light ph-key" aria-hidden="true"></i> 키로 등록</small>
             </div>
           </td>
         </tr>
@@ -558,7 +558,7 @@
     {# 우측 폼 #}
     <section class="v2-form">
       <header class="v2-form-head">
-        <div class="v2-icon-lg" id="v2-icon">🔧</div>
+        <div class="v2-icon-lg" id="v2-icon"><i class="ph-light ph-wrench" aria-hidden="true"></i></div>
         <div>
           <h3 id="v2-modal-title">마켓을 선택하세요</h3>
           <p class="v2-sub" id="v2-subtitle">왼쪽에서 등록할 마켓을 클릭하세요.</p>
@@ -586,13 +586,13 @@
 
         {# API 키 — 마켓에 따라 동적 #}
         <div class="v2-section">
-          <span class="v2-label-section">🔑 API 키</span>
+          <span class="v2-label-section"><i class="ph-light ph-key" aria-hidden="true"></i> API 키</span>
           <div id="v2-keys-help" class="v2-help-box"></div>
           <div id="v2-key-fields"></div>
         </div>
 
         <div class="form-hint v2-security-note">
-          🔒 입력값은 로컬 <code>.env</code> 파일에만 저장 (DB·외부 전송 X). 화면 표시 항상 마스킹.
+          <i class="ph-light ph-lock" aria-hidden="true"></i> 입력값은 로컬 <code>.env</code> 파일에만 저장 (DB·외부 전송 X). 화면 표시 항상 마스킹.
         </div>
       </div>
 
@@ -617,7 +617,7 @@
      onclick="if(event.target===this)closeLiveVerify()">
   <div class="modal lv-modal" role="dialog" aria-modal="true" aria-labelledby="lv-title">
     <header class="v2-form-head">
-      <div class="v2-icon-lg">🧪</div>
+      <div class="v2-icon-lg"><i class="ph-light ph-flask" aria-hidden="true"></i></div>
       <div><h3 id="lv-title">라이브 검증</h3>
         <p class="v2-sub">실제 주문을 불러와 마켓 화면과 대조합니다. 통과해야 공개됩니다.</p></div>
       <button class="v2-close" aria-label="닫기" onclick="closeLiveVerify()">✕</button>
@@ -1046,14 +1046,14 @@ async function openEditModal(accountId, market, envPrefix, displayName, note) {
 }
 
 async function loginUploadAccount(accountId, displayName) {
-  showToast(`🔐 ${displayName} 로그인 창 여는 중…`, 'info');
+  showToast(`${displayName} 로그인 창 여는 중…`, 'info');
   try {
     const res = await fetch(`/accounts/api/upload/accounts/${accountId}/login`, { method: 'POST' });
     const data = await res.json();
     if (data.ok) {
       showToast(data.message || '로그인 창이 열렸어요', 'success');
     } else {
-      showToast(`❌ ${data.error || '로그인 창 열기 실패'}`, 'error');
+      showToast(`${data.error || '로그인 창 열기 실패'}`, 'error');
     }
   } catch (e) {
     showToast('네트워크 오류: ' + e.message, 'error');
@@ -1061,7 +1061,7 @@ async function loginUploadAccount(accountId, displayName) {
 }
 
 async function testApiConnection(accountId, displayName) {
-  showToast(`🔌 ${displayName} API 연결 테스트 중…`, 'info');
+  showToast(`${displayName} API 연결 테스트 중…`, 'info');
   try {
     const res = await fetch(`/accounts/api/upload/accounts/${accountId}/test`, { method: 'POST' });
     // 앞단(Cloudflare/Caddy)이 본문을 오류 HTML 로 갈아치우는 경우가 있어 JSON 을 단정하지 않는다.
@@ -1071,7 +1071,7 @@ async function testApiConnection(accountId, displayName) {
     try {
       data = JSON.parse(raw);
     } catch (_) {
-      showToast(`❌ 서버가 JSON 대신 오류 페이지를 보냈어요 (HTTP ${res.status}). `
+      showToast(`서버가 JSON 대신 오류 페이지를 보냈어요 (HTTP ${res.status}). `
                 + `앞단(Cloudflare/Caddy)이 본문을 갈아치웠을 수 있어요.`, 'error');
       console.error('[API test] non-JSON response', res.status, raw.slice(0, 500));
       return;
@@ -1081,7 +1081,7 @@ async function testApiConnection(accountId, displayName) {
       console.log('[API test]', data);
     } else {
       const detail = data.body_snippet ? `\n응답 본문: ${data.body_snippet}` : '';
-      showToast(`❌ ${data.error || '실패'}${data.hint ? '\n' + data.hint : ''}`, 'error');
+      showToast(`${data.error || '실패'}${data.hint ? '\n' + data.hint : ''}`, 'error');
       console.error('[API test]', data);
       // 본문이 있으면 한 번 더 보기 좋게 alert
       if (data.body_snippet) {
@@ -1115,7 +1115,7 @@ async function lvJson(res) {
 async function openLiveVerify(accountId, displayName) {
   _lvAccountId = accountId;
   const bg = document.getElementById('lv-modal-bg');
-  document.getElementById('lv-title').textContent = `🧪 ${displayName} 라이브 검증`;
+  document.getElementById('lv-title').textContent = `${displayName} 라이브 검증`;
   document.getElementById('lv-body').innerHTML =
     '<div class="v2-loading">실제 주문을 불러오는 중… (최대 30초, 마켓 제한으로 천천히 조회합니다)</div>';
   document.getElementById('lv-confirm').style.display = 'none';
@@ -1127,7 +1127,7 @@ async function openLiveVerify(accountId, displayName) {
     const d = await lvJson(r);
     if (!d.ok) {
       document.getElementById('lv-body').innerHTML =
-        `<div class="form-error">❌ ${escapeHtml(d.error || '실패')}</div>` +
+        `<div class="form-error">${escapeHtml(d.error || '실패')}</div>` +
         (d.hint ? `<p class="form-hint">${escapeHtml(d.hint)}</p>` : '');
       return;
     }
@@ -1313,7 +1313,7 @@ async function selectMarket(market) {
   document.getElementById('v2-form-foot').style.display = 'flex';
   document.getElementById('v2-icon').textContent = market.icon;
   document.getElementById('v2-modal-title').textContent = _v2Mode === 'keys'
-    ? `🔑 ${market.label} API 키 입력`
+    ? `${market.label} API 키 입력`
     : `${market.label} 계정 등록`;
   document.getElementById('v2-subtitle').textContent = market.api_type;
   document.getElementById('v2-submit-text').textContent = _v2Mode === 'keys'
@@ -1327,7 +1327,7 @@ async function selectMarket(market) {
   // 가이드 박스
   const helpBox = document.getElementById('v2-keys-help');
   helpBox.innerHTML = market.guide_text
-    ? `💡 <strong>키 받는 법:</strong> ${market.guide_text}` +
+    ? `<strong>키 받는 법:</strong> ${market.guide_text}` +
       (market.guide_url ? ` <a href="${market.guide_url}" target="_blank">가이드 →</a>` : '')
     : '';
 
@@ -1410,8 +1410,8 @@ async function loadKeyFingerprints() {
   got.forEach(g => {
     const dup = count[g.market + ':' + g.fp] > 1;
     g.el.innerHTML = dup
-      ? `<span class="status-icon err">✗</span> <b style="color:#c0392b">키 중복 ${g.fp}</b>`
-      : `<span class="status-icon ok">✓</span> <span style="color:#6b7684">키 지문 ${g.fp}</span>`;
+      ? `<span class="status-icon err"></span> <b style="color:#c0392b">키 중복 ${g.fp}</b>`
+      : `<span class="status-icon ok"></span> <span style="color:#6b7684">키 지문 ${g.fp}</span>`;
     g.el.title = dup
       ? '같은 마켓의 다른 계정과 API 키가 같습니다. 이 가게의 키로 다시 입력하세요.'
       : '이 계정에 저장된 셀러 키의 지문(해시 앞 6자). 키 값은 표시하지 않습니다.';
@@ -1501,7 +1501,7 @@ async function submitV2() {
           document.getElementById('v2-submit-text').textContent = '키 저장 + 즉시 적용';
           return;
         }
-        showToast(`✅ ${display_name} 등록 + API 키 저장 완료`, 'success');
+        showToast(`${display_name} 등록 + API 키 저장 완료`, 'success');
       } else {
         showToast(d1.message || '계정 등록 완료 (키 미입력)', 'success');
       }
@@ -1552,7 +1552,7 @@ async function quickAddAccount() {
       body: JSON.stringify({ account_key: account_key, display_name: alias, market: market, env_prefix: env_prefix })
     });
     var d = await r.json();
-    if (d.ok) { showToast(alias + ' 추가됨 — 🔑 키로 API 키를 등록하세요.', 'success'); setTimeout(function(){ location.reload(); }, 700); }
+    if (d.ok) { showToast(alias + ' 추가됨 — 키로 API 키를 등록하세요.', 'success'); setTimeout(function(){ location.reload(); }, 700); }
     else { showToast('추가 실패: ' + (d.error || ''), 'error'); }
   } catch (e) { showToast('추가 실패: ' + e, 'error'); }
 }
@@ -1599,13 +1599,13 @@ function sipRender(items){
   }
   box.innerHTML = items.map(it => `
     <div style="display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid #F2F4F6;">
-      <span style="font-size:15px;">🖥️</span>
+      <span style="font-size:15px;"></span>
       <span style="min-width:112px;font-weight:600;font-size:13px;color:#191F28;">${sipEsc(it.name) || '<span style=\'color:#98A2B3\'>이름 없음</span>'}</span>
       <span style="flex:1;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;letter-spacing:.01em;color:#191F28;">${sipEsc(it.ip)}</span>
       <button type="button" onclick="sipCopy('${sipEsc(it.ip)}')" title="복사"
-        style="border:1px solid #E5E8EB;background:#fff;color:#3182F6;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;">📋 복사</button>
+        style="border:1px solid #E5E8EB;background:#fff;color:#3182F6;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;">복사</button>
       <button type="button" onclick="sipDelete(${it.id})" title="삭제"
-        style="border:none;background:transparent;font-size:14px;cursor:pointer;padding:4px;">🗑</button>
+        style="border:none;background:transparent;font-size:14px;cursor:pointer;padding:4px;"></button>
     </div>`).join('');
 }
 function sipLoad(){

@@ -337,7 +337,7 @@
 <div class="sd-wrap">
   <div class="sd-head">
     <div>
-      <div class="sd-title">🏬 판매처 연동</div>
+      <div class="sd-title"><i class="ph-light ph-storefront" aria-hidden="true"></i> 판매처 연동</div>
       <div class="sd-sub">판매처에 연동된 모음전 상품 · 마켓 매칭 · 최신 재고/가격 수집 현황</div>
     </div>
     <a class="sd-new" href="/api/sets/flow"><span style="font-size:17px;line-height:1;color:#fff">+</span>새 연동 만들기</a>
@@ -349,7 +349,7 @@
         <span class="sd-panel-n" id="sd-result-n">결과 -건</span>
       </div>
       <div class="sd-search">
-        <span style="color:var(--sub,#8b95a1)">🔍</span>
+        <span style="color:var(--sub,#8b95a1)"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i></span>
         <input id="sd-q" type="text" placeholder="상품명·코드·번호 검색…" autocomplete="off">
       </div>
       <label class="fp-master">
@@ -367,7 +367,7 @@
 </div>
 <div class="dm-back" id="delModal">
   <div class="dm">
-    <div class="dm-h">🗑️ 구성 삭제 — 확인</div>
+    <div class="dm-h"><i class="ph-light ph-trash" aria-hidden="true"></i>️ 구성 삭제 — 확인</div>
     <div class="dm-b">
       <div class="dm-warn" id="delImpact"></div>
       <label class="dm-chk"><input type="checkbox" id="delChk1"> 연동된 마켓 매칭이 모두 사라지는 걸 이해합니다</label>
@@ -408,7 +408,7 @@
   var AL_SEV={critical:4,danger:3,warning:2,info:1};
   var AL_COLOR={critical:'#b91c1c',danger:'#e03a3e',warning:'#B45309',info:'#185FA5'};
   function alTop(alerts){ var best=null; (alerts||[]).forEach(function(a){ if(!best||(AL_SEV[a.severity]||0)>(AL_SEV[best]||0)) best=a.severity; }); return best; }
-  function alBadge(alerts){ if(!alerts||!alerts.length) return ''; var sev=alTop(alerts); return '<span class="sd-alert" style="background:'+(AL_COLOR[sev]||'var(--sub,#888888)')+'" title="주의가 필요한 항목 '+alerts.length+'건">⚠ '+alerts.length+'</span>'; }
+  function alBadge(alerts){ if(!alerts||!alerts.length) return ''; var sev=alTop(alerts); return '<span class="sd-alert" style="background:'+(AL_COLOR[sev]||'var(--sub,#888888)')+'" title="주의가 필요한 항목 '+alerts.length+'건">'+alerts.length+'</span>'; }
   function alForMarket(alerts, mk){ return (alerts||[]).filter(function(a){return a.market===mk;}); }
 
   function mkBadge(c){
@@ -470,7 +470,7 @@
     var finCell=(ss.final!=null)
       ? '<span class="dv finalb">'+numUnit(ss.final,'원')+'</span>'
       : (ss.final_error
-          ? '<span class="dv muted" title="최종매입가 계산에 실패했어요 — 펼쳐서 확인·재시도">상세 ⚠</span>'
+          ? '<span class="dv muted" title="최종매입가 계산에 실패했어요 — 펼쳐서 확인·재시도">상세 </span>'
           : '<span class="dv muted" title="펼치면 영수증·최종매입가를 보여줘요">상세 ▾</span>');
     so+='<span class="ps">소</span><span class="dn">매입</span>'+finCell;
     so+='<span class="hairline"></span>';   // 9번: 소 묶음과 판/현 시각 분리
@@ -497,12 +497,12 @@
     else if(srcTot!=null && mkTot!=null){ stTy='ty-g'; stTx='소싱 '+srcTot+'개 = 판매 설정 '+mkTot+'개 · 일치'; }
     else { stTy='ty-g'; stTx='소싱 '+(srcTot==null?'미상':srcTot+'개')+' / 판매 설정 '+(mkTot==null?'미상':mkTot+'개'); }
     var stockRow='<div class="det-row"><span class="det-ty '+stTy+'">재고</span><span class="det-cmp">'+stTx+'</span>'
-      +(s.stock==='sev'?'<button class="det-act sev" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="stock">📈 변동 이력</button>':'')+'</div>';
+      +(s.stock==='sev'?'<button class="det-act sev" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="stock">변동 이력</button>':'')+'</div>';
     // 가격 — 상세 영수증(표면 노출가 → 혜택 항목별 차감[빨강] → 최종 매입가). 대표(최저가 옵션) 기준.
     //   src_summary.receipt 는 목록 계산 시 provider 가 담아줌(셀·영수증 단일 진실 원천).
     //   없으면(계산 지연·실패) 기존 안내문 폴백(숫자 날조 금지).
     var rc=(r.src_summary&&r.src_summary.receipt);
-    var histBtn='<button class="det-act" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">📈 변동 이력</button>';
+    var histBtn='<button class="det-act" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">변동 이력</button>';
     var priceRow;
     if(rc){
       var won=function(n){ return Number(n||0).toLocaleString('ko-KR')+'<small>원</small>'; };
@@ -545,8 +545,8 @@
         +'<div>'+cPrice(r,c)+'</div>'
         +'<div class="ctr">'+cSignals(c)+'</div>'
         +'<div class="rgt"><span class="rowacts">'
-          +'<button class="mini-btn accent" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">📈 이력</button>'
-          +'<button class="mini-btn" data-act="pv" data-mk="'+esc(c.market)+'" data-cid="'+c.id+'"'+(canPv?'':' disabled')+'>👁 미리보기</button>'
+          +'<button class="mini-btn accent" data-act="hist" data-mk="'+esc(c.market)+'" data-fld="price">이력</button>'
+          +'<button class="mini-btn" data-act="pv" data-mk="'+esc(c.market)+'" data-cid="'+c.id+'"'+(canPv?'':' disabled')+'>미리보기</button>'
         +'</span></div>'
         +'</div>'
         +cExpand(r,c)
@@ -576,7 +576,7 @@
   }
   function _autoFoot(m){ return (m==='off')?'지금 「끄기」 — 이 판매처는 자동에서 빠집니다.'
     :(m==='manual')?'지금 「수동설정」 — 아래 이 판매처만의 주기를 씁니다.'
-    :'지금 「켜기」 — 전체 「⚙️ 자동화 설정」 주기를 그대로 씁니다.'; }
+    :'지금 「켜기」 — 전체 「자동화 설정」 주기를 그대로 씁니다.'; }
   var CRAWL_PRE=[[0,30,'30분'],[1,0,'1시간'],[3,0,'3시간'],[6,0,'6시간']];
   var UPLOAD_PRE=[[1,0,'1시간'],[3,0,'3시간'],[6,0,'6시간'],[24,0,'하루']];
   function freqBlock(kind,cls,lbl,pre,hh,mm){
@@ -595,8 +595,8 @@
       +'<div class="au-strip">이 구성만 자동</div>'
       +'<div class="au-inner">'
       +'<div class="au-manual" data-manual style="display:'+(m==='manual'?'':'none')+'">'
-        +freqBlock('crawl','s','🔎 소싱처 크롤 주기',CRAWL_PRE,r.manual_crawl_hours||0,r.manual_crawl_minutes||0)
-        +freqBlock('upload','p','📤 판매처 업로드 주기',UPLOAD_PRE,r.manual_upload_hours||0,r.manual_upload_minutes||0)
+        +freqBlock('crawl','s','소싱처 크롤 주기',CRAWL_PRE,r.manual_crawl_hours||0,r.manual_crawl_minutes||0)
+        +freqBlock('upload','p','판매처 업로드 주기',UPLOAD_PRE,r.manual_upload_hours||0,r.manual_upload_minutes||0)
       +'</div>'
       +'<div class="au-foot" data-aufoot>'+_autoFoot(m)+'</div>'
       +'</div></div>';
@@ -633,12 +633,12 @@
         +'<span class="updwrap">'
           +'<button class="b-up" data-act="updtoggle">↻ 업데이트 ▾</button>'
           +'<span class="updmenu">'
-            +'<button class="sd-upd-mkt" data-sid="'+r.set_id+'">🛒 판매처 업데이트</button>'
-            +'<button class="sd-upd-src" data-sid="'+r.set_id+'" data-codes="'+esc(srcCodes.join(','))+'">📦 소싱처 업데이트</button>'
+            +'<button class="sd-upd-mkt" data-sid="'+r.set_id+'">판매처 업데이트</button>'
+            +'<button class="sd-upd-src" data-sid="'+r.set_id+'" data-codes="'+esc(srcCodes.join(','))+'">소싱처 업데이트</button>'
           +'</span>'
         +'</span>'
-        +'<a class="b-txt edit" href="/api/sets/flow?edit='+r.set_id+'">✎ 편집</a>'
-        +'<button class="b-txt del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">🗑 삭제</button>'
+        +'<a class="b-txt edit" href="/api/sets/flow?edit='+r.set_id+'">편집</a>'
+        +'<button class="b-txt del" data-sid="'+r.set_id+'" data-name="'+esc(r.name)+'">삭제</button>'
         +autoChip(r)
       +'</div>';
       h+=' '+autoPanel(r);
@@ -877,7 +877,7 @@
     var legend='<span class="det-legend"><span class="b-buy">사입</span> 직접매입 우선 · <span class="b-src">소싱</span> 소싱처 크롤 — 옵션마다 모음전 판매조건을 그대로 따름</span>';
     var pvBtns=(data.channels||[]).filter(function(c){return c.status==='linked';}).map(function(c){
       var nm=c.market==='coupang'?'쿠팡':(c.market==='smartstore'?'스마트스토어':esc(c.market));
-      return '<button class="pv-btn" data-cid="'+c.id+'" data-mk="'+esc(c.market)+'">📋 '+nm+' 전송 미리보기</button>';
+      return '<button class="pv-btn" data-cid="'+c.id+'" data-mk="'+esc(c.market)+'">'+nm+' 전송 미리보기</button>';
     }).join('');
     box.innerHTML='<div class="det-bar"><div class="det-tabs"><span class="det-tab on" data-view="cell">셀 보기</span><span class="det-tab" data-view="matrix">매트릭스 보기</span></div>'+legend+'</div>'
       +(pvBtns?'<div class="pv-bar">'+pvBtns+'<span class="sd-cnt">전송 전 \'마켓 현재값 → 보낼 값\' 대조(마켓에 쓰지 않음)</span></div>':'')
@@ -887,7 +887,7 @@
   function renderPreview(d, mk, cid){
     var nm=mk==='coupang'?'쿠팡':(mk==='smartstore'?'스마트스토어':mk);
     var s=d.summary||{};
-    var warn = s.hold ? '<div class="pv-warn">⚠️ 평균 가격변동 '+s.avg_price_change_pct+'% — 큰 변동이에요. 실제 전송 시 한 번 더 확인하세요.</div>' : '';
+    var warn = s.hold ? '<div class="pv-warn">평균 가격변동 '+s.avg_price_change_pct+'% — 큰 변동이에요. 실제 전송 시 한 번 더 확인하세요.</div>' : '';
     var h='<div class="pv-legend">‘현재’ = 판매처(마켓)가 지금 가진 값 · ‘보낼’ = 우리(소싱·사입)가 보낼 값. <b>마켓에 쓰지 않고 대조만</b> 합니다.</div>';
     h+='<div class="pv-summary">변동 <b>'+s.changed+'</b>/'+s.total+'건 · 평균 가격변동 '+s.avg_price_change_pct+'%</div>'+warn;
     if(d.note){ h+='<div class="sd-cnt" style="padding:0px 0 4px">'+esc(d.note)+'</div>'; }
@@ -905,24 +905,24 @@
       });
       h+='</tbody></table>';
     }
-    h+='<div class="sd-cnt" style="margin-top:8px">파란 값 = 전송하면 바뀔 값. 시뮬(🧪)은 마켓에 쓰지 않고 계산만, 실제 전송(⚠️)은 쿠팡 재고만 보냅니다(가격·스마트스토어는 준비 중).'+(mk==='coupang'?' 쿠팡은 현재 재고를 응답에 주지 않아 ‘미상’으로 표시돼요.':'')+'</div>';
+    h+='<div class="sd-cnt" style="margin-top:8px">파란 값 = 전송하면 바뀔 값. 시뮬()은 마켓에 쓰지 않고 계산만, 실제 전송()은 쿠팡 재고만 보냅니다(가격·스마트스토어는 준비 중).'+(mk==='coupang'?' 쿠팡은 현재 재고를 응답에 주지 않아 ‘미상’으로 표시돼요.':'')+'</div>';
     h+='<div class="pv-actions">'
-      +'<button class="pv-btn" data-send="dry" data-cid="'+cid+'">🧪 재고 전송 시뮬</button>'
-      +(mk==='coupang'?'<button class="pv-btn pv-btn-danger" data-send="real" data-cid="'+cid+'">⚠️ 실제 재고 전송</button>':'<span class="sd-cnt" style="align-self:center">실제 전송은 쿠팡만 지원(준비 중)</span>')
+      +'<button class="pv-btn" data-send="dry" data-cid="'+cid+'">재고 전송 시뮬</button>'
+      +(mk==='coupang'?'<button class="pv-btn pv-btn-danger" data-send="real" data-cid="'+cid+'">실제 재고 전송</button>':'<span class="sd-cnt" style="align-self:center">실제 전송은 쿠팡만 지원(준비 중)</span>')
       +'</div><div data-sendres></div>';
     return h;
   }
   function renderSendResult(d){
     var s=d.summary||{};
-    var head=d.dry_run?'🧪 시뮬 결과 (마켓에 쓰지 않음)':'✅ 실제 전송 결과';
+    var head=d.dry_run?'시뮬 결과 (마켓에 쓰지 않음)':'실제 전송 결과';
     var h='<div class="pv-head" style="margin-top:8px">'+head+' · 전송 '+(s.sent||0)+' · 실패 '+(s.failed||0)+' · 제외 '+(s.skipped||0)+' / '+(s.total||0)+'</div>';
     if(d.note){ h+='<div class="sd-cnt" style="padding:4px 0">'+esc(d.note)+'</div>'; }
     if((d.results||[]).length){
       h+='<table class="det-tbl"><thead><tr><th>옵션</th><th class="ta-r">보낼 재고</th><th class="ta-r">결과</th></tr></thead><tbody>';
       d.results.forEach(function(r){
         var st = r.skipped ? ('<span class="sd-cnt">제외: '+esc(r.reason||'')+'</span>')
-          : (r.ok ? ('<span style="color: var(--글자-초록, var(--green,#047857));font-weight:700">'+(r.dry?'시뮬 OK':'✓ 성공')+'</span>')
-          : ('<span style="color: var(--글자-주황, var(--amber,#b45309));font-weight:700">✗ '+esc(r.error||'실패')+'</span>'));
+          : (r.ok ? ('<span style="color: var(--글자-초록, var(--green,#047857));font-weight:700">'+(r.dry?'시뮬 OK':'성공')+'</span>')
+          : ('<span style="color: var(--글자-주황, var(--amber,#b45309));font-weight:700">'+esc(r.error||'실패')+'</span>'));
         h+='<tr><td>'+esc(r.label||r.sku)+'</td><td class="ta-r">'+(r.new_stock==null?'-':r.new_stock)+'</td><td class="ta-r">'+st+'</td></tr>';
       });
       h+='</tbody></table>';

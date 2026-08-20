@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 r"""블랙스팟 소싱처 주문번호 추출 API — `/api/blackspot/fetch_order_no` (POST).
 
-마진 계산기 페이지(orders/margin_embed.html)의 '주문번호 미기입' 표에서 [🔍 소싱처]
+마진 계산기 페이지(orders/margin_embed.html)의 '주문번호 미기입' 표에서 [ 소싱처]
 버튼이 이 리터럴 경로를 호출한다(`fetchOrderNoFromSource`). `/api/margin` 프리픽스가
 아니라 최상위 `/api/blackspot/...` 여야 한다 — 이식된 원본 페이지가 그 경로를
 하드코딩했기 때문(api_keywords 와 동일한 이유).
@@ -47,7 +47,7 @@ def api_fetch_order_no():
 def api_manual_order_no():
     """[정직한 미지원 스텁] 주문번호 수동 반영·재매칭.
 
-    페이지의 [✏️ 반영] 버튼(`submitManualOrderNo`)이 이 경로로 POST 한다. 원본은
+    페이지의 [ 반영] 버튼(`submitManualOrderNo`)이 이 경로로 POST 한다. 원본은
     supplement 저장 + 전체 재매칭을 했지만, 그건 무상태 모음전 서버가 갖지 못한
     stateful 워크플로(별도 후속 작업)다. 아직 미구현이므로 **재매칭을 꾸며내지 않고**
     HTTP 200 + success:false + 명확한 안내 문구를 돌려준다. 이렇게 해야 페이지가

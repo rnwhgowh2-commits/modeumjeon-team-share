@@ -46,7 +46,7 @@ def status():
 def backfill():
     """한 번 호출에 종류별 limit 건씩. all=1 이면 남은 것이 없을 때까지 반복.
 
-    ⚠️ 라이브에서 한 번에 다 돌리면 요청이 100초를 넘길 수 있다(CF 상한).
+    [주의] 라이브에서 한 번에 다 돌리면 요청이 100초를 넘길 수 있다(CF 상한).
        기본은 500건씩 끊어 돌리고, 남으면 응답의 pending 을 보고 다시 부른다.
     """
     limit = request.args.get('limit', type=int) or 500

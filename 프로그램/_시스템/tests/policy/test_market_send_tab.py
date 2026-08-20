@@ -117,11 +117,45 @@ def test_두_화면_모두_하위탭_2개를_보여준다(client):
 def test_필터가_전부_펼쳐져_있다(client):
     """A안 확정 — 더망고처럼 필터를 접지 않고 다 보여준다."""
     html = client.get('/market-send').get_data(as_text=True)
-    for 있어야 in ('소싱처 수집날', '마켓 전송날',      # ④ 날짜 골라쓰기
+    for 있어야 in ('소싱처 수집날', '마켓 전송날', '가격·재고 변동일',   # ④ 날짜 골라쓰기
                   '정책 안 붙은 것만',                 # ③ 우리에게만 있는 안전 필터
-                  '아직 미등록만',                     # ③ 마켓 등록 여부
                   '보낼 마켓'):
         assert 있어야 in html, 있어야
+
+
+def test_조건검색_3분류가_각각_보인다(client):
+    """1-B 확정 — 상품·소싱처·판매처 기준을 세로 라벨+줄로 나눈다."""
+    html = client.get('/market-send').get_data(as_text=True)
+    for 있어야 in ('상품 기준', '소싱처 기준', '판매처 기준'):
+        assert 있어야 in html, 있어야
+
+
+def test_재고상태는_판매처_기준_줄에_있다(client):
+    """2026-08-19 사장님 지시 — 재고상태는 소싱처가 아니라 판매처 기준."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'fStock' in html
+    for 있어야 in ('재고', '품절'):
+        assert 있어야 in html, 있어야
+
+
+def test_미판매중_등록됨은_독립된_체크박스_둘이다(client):
+    """3번 확정 (a) — 따로 켜고 끄는 두 조건."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'fUnlisted' in html and 'fRegistered' in html
+    assert '미판매중' in html
+
+
+def test_자동완성_검색창이_있다(client):
+    """3-A 확정 — 통합 1칸 + 종류 표시."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert '/api/market-send/suggest/products' in html
+    assert '/api/market-send/suggest/policies' in html
+
+
+def test_판매처_계정_선택이_있다(client):
+    """4-D 확정 — 마켓 칩 + 계정 칩."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'fAcct' in html or 'acc-chip' in html
 
 
 def test_전송_버튼이_있고_재고_경고를_같이_말한다(client):
@@ -162,19 +196,19 @@ def test_소싱처_긁기는_내_PC_크롬에_맡긴다(client):
     """🔴 크롤=로컬 PC 원칙 — 서버는 소싱처를 못 긁는다.
 
     확장이 없으면 **그 사실을 말하고 체크를 막는다.** 조용히 건너뛰면
-    옛 값이 그대로 마켓에 나간다.
+    옛 값이 그대로 마켓에 나간다. 2026-08-19 — 단일 체크박스에서 왼쪽
+    패널(소싱처 수집) ON/OFF 스위치로 자리를 옮김(2-A 확정), 요구사항은 그대로.
     """
     html = client.get('/market-send').get_data(as_text=True)
-    assert 'id="fCrawl"' in html
     assert 'MoumExt' in html and 'enqueueCrawl' in html
     assert '크롬 확장이 꺼져 있어 긁을 수 없습니다' in html
 
 
-def test_긁기와_보내기가_따로_있다(client):
-    """사장님 확정 ② — 둘 다 둔다(더망고의 「업데이트 항목」 자리)."""
+def test_왼쪽_소싱처수집_오른쪽_판매처전송_ON_OFF가_따로_있다(client):
+    """2-A 확정 — 큰 스위치. 사장님 확정 ② 「둘 다 둔다」를 잇는다."""
     html = client.get('/market-send').get_data(as_text=True)
-    assert '① 소싱처에서 다시 긁기' in html
-    assert '② 보낼 마켓' in html
+    assert '소싱처 수집' in html and '판매처 전송' in html
+    assert 'tgl' in html   # 토글 스위치 클래스 — 시안 v2 확정안과 같은 부품
 
 
 # ── [2026-08-06 사장님 지시] 「상품 마켓 전송」 → 「상품수집&전송」 개명 ──────────
@@ -242,3 +276,242 @@ def test_두_화면_어디에도_옛_이름이_안_뜬다(client):
         html = client.get(url).get_data(as_text=True)
         assert '상품 마켓 전송' not in html, url
         assert '상품수집&amp;전송' in html, url        # 상단 메뉴 분류 이름
+
+
+# ── 칸별 호버카드 — 옵션별·소싱처별 가격·재고 이력 (2026-08 개편) ──────────
+
+def _seed_history(session, *, model_code='M1', sku='SKU1', color='화이트', size='250'):
+    from datetime import datetime
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption
+    from lemouton.templates.models import PriceTrackHistory
+    m = Model(model_code=model_code, model_name_raw='나이키 반팔', model_name_display='나이키 반팔',
+              brand='나이키', display_no='M20260101-000001')
+    session.add(m)
+    o = Option(canonical_sku=sku, model_code=model_code, color_code=color, color_display=color,
+               size_code=size, size_display=size)
+    session.add(o)
+    ps = ProductSet(model_code=model_code, name='단품')
+    session.add(ps)
+    session.flush()
+    sp = SetProduct(set_id=ps.id, model_code=model_code)
+    session.add(sp)
+    session.flush()
+    session.add(SetOption(set_product_id=sp.id, canonical_sku=sku))
+    session.add(PriceTrackHistory(canonical_sku=sku, source='musinsa',
+                                  price=38900, stock=11,
+                                  captured_at=datetime(2026, 8, 19, 9, 0)))
+    session.add(PriceTrackHistory(canonical_sku=sku, source='musinsa',
+                                  price=38900, stock=12,
+                                  captured_at=datetime(2026, 8, 20, 9, 0)))
+    session.flush()
+    return ps.id
+
+
+def test_호버카드_이력_API가_옵션당_소싱처별_최근_2줄을_돌려준다(client):
+    sess = client._Session()
+    try:
+        set_id = _seed_history(sess)
+        sess.commit()
+    finally:
+        sess.close()
+    r = client.get(f'/api/market-send/rows/{set_id}/history')
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d['ok'] is True
+    assert len(d['skus']) == 1
+    sk = d['skus'][0]
+    assert sk['color'] == '화이트' and sk['size'] == '250'
+    musinsa = sk['sources']['musinsa']
+    assert musinsa['current_stock'] == 12 and musinsa['current_price'] == 38900
+    assert len(musinsa['history']) == 2        # 최근 2줄만 — 전체 이력은 price-chart 몫
+
+
+def test_이력_없는_옵션은_카드에서_빠진다(client):
+    """빈 줄을 늘어놓지 않는다 — listing.py 의 「지어내지 않는다」와 같은 원칙."""
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption
+    sess = client._Session()
+    try:
+        sess.add(Model(model_code='M2', model_name_raw='이력없음', display_no='M-2'))
+        sess.add(Option(canonical_sku='SKU2', model_code='M2', color_code='블랙', size_code='250'))
+        ps = ProductSet(model_code='M2', name='단품')
+        sess.add(ps)
+        sess.flush()
+        sp = SetProduct(set_id=ps.id, model_code='M2')
+        sess.add(sp)
+        sess.flush()
+        sess.add(SetOption(set_product_id=sp.id, canonical_sku='SKU2'))
+        sess.commit()
+        set_id = ps.id
+    finally:
+        sess.close()
+    d = client.get(f'/api/market-send/rows/{set_id}/history').get_json()
+    assert d['skus'] == []
+
+
+def test_소싱처가_둘이면_한_숫자로_뭉개지_않고_둘_다_나온다(client):
+    """🔴 listing.py 의 buy_source=None 원칙과 같다 — 「지금 사오는 곳」을 안 정했다."""
+    from datetime import datetime
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption
+    from lemouton.templates.models import PriceTrackHistory
+    sess = client._Session()
+    try:
+        sess.add(Model(model_code='M3', model_name_raw='복수소싱', display_no='M-3'))
+        sess.add(Option(canonical_sku='SKU3', model_code='M3', color_code='화이트', size_code='250'))
+        ps = ProductSet(model_code='M3', name='단품')
+        sess.add(ps)
+        sess.flush()
+        sp = SetProduct(set_id=ps.id, model_code='M3')
+        sess.add(sp)
+        sess.flush()
+        sess.add(SetOption(set_product_id=sp.id, canonical_sku='SKU3'))
+        sess.add(PriceTrackHistory(canonical_sku='SKU3', source='musinsa', price=38900, stock=10,
+                                   captured_at=datetime(2026, 8, 20, 9, 0)))
+        sess.add(PriceTrackHistory(canonical_sku='SKU3', source='ssf', price=39900, stock=3,
+                                   captured_at=datetime(2026, 8, 20, 9, 0)))
+        sess.commit()
+        set_id = ps.id
+    finally:
+        sess.close()
+    d = client.get(f'/api/market-send/rows/{set_id}/history').get_json()
+    srcs = d['skus'][0]['sources']
+    assert set(srcs.keys()) == {'musinsa', 'ssf'}
+    assert srcs['musinsa']['current_price'] == 38900
+    assert srcs['ssf']['current_price'] == 39900
+
+
+# ── 판매처 수집 칸 호버카드 — 옵션별·마켓별 판매가·예상마진 (2026-08 개편 ⑦) ──
+
+def _seed_market_channel(session, *, model_code='MM1', sku='MSKU1', color='화이트', size='250'):
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption, SetChannel, SetChannelOption
+    session.add(Model(model_code=model_code, model_name_raw='마켓상품', display_no='M-MM1'))
+    session.add(Option(canonical_sku=sku, model_code=model_code, color_code=color, size_code=size))
+    ps = ProductSet(model_code=model_code, name='단품')
+    session.add(ps)
+    session.flush()
+    sp = SetProduct(set_id=ps.id, model_code=model_code)
+    session.add(sp)
+    session.flush()
+    session.add(SetOption(set_product_id=sp.id, canonical_sku=sku))
+    ch = SetChannel(set_id=ps.id, market='smartstore')
+    session.add(ch)
+    session.flush()
+    from datetime import datetime
+    session.add(SetChannelOption(channel_id=ch.id, canonical_sku=sku, status='matched',
+                                 mkt_price=49000, mkt_stock=7,
+                                 mkt_fetched_at=datetime(2026, 8, 19, 13, 0)))
+    session.flush()
+    return ps.id, ch.id
+
+
+def test_판매처_수집_API가_옵션당_마켓별_판매가_재고를_돌려준다(client):
+    sess = client._Session()
+    try:
+        set_id, _ = _seed_market_channel(sess)
+        sess.commit()
+    finally:
+        sess.close()
+    r = client.get(f'/api/market-send/rows/{set_id}/margin')
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d['ok'] is True
+    assert len(d['skus']) == 1
+    sk = d['skus'][0]
+    assert sk['color'] == '화이트' and sk['size'] == '250'
+    ss = sk['markets']['smartstore']
+    assert ss['price'] == 49000 and ss['stock'] == 7
+    assert ss['fetched_at'] == '08-19 13:00'
+
+
+def test_매입가를_모르면_마진을_지어내지_않고_사유를_남긴다(client):
+    """🔴 소싱 크롤 데이터가 없어 최종매입가를 못 구하는 흔한 경우 — margin 은 None, 사유는 있어야 한다."""
+    sess = client._Session()
+    try:
+        set_id, _ = _seed_market_channel(sess)
+        sess.commit()
+    finally:
+        sess.close()
+    d = client.get(f'/api/market-send/rows/{set_id}/margin').get_json()
+    ss = d['skus'][0]['markets']['smartstore']
+    assert ss['margin'] is None
+    assert ss['margin_reason']       # 빈 문자열이 아니라 실제 사유가 있어야 한다
+
+
+def test_마켓_데이터가_없는_옵션은_카드에서_빠진다(client):
+    """빈 줄을 늘어놓지 않는다 — history 엔드포인트와 같은 원칙."""
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption
+    sess = client._Session()
+    try:
+        sess.add(Model(model_code='MM2', model_name_raw='마켓데이터없음', display_no='M-MM2'))
+        sess.add(Option(canonical_sku='MSKU2', model_code='MM2', color_code='블랙', size_code='250'))
+        ps = ProductSet(model_code='MM2', name='단품')
+        sess.add(ps)
+        sess.flush()
+        sp = SetProduct(set_id=ps.id, model_code='MM2')
+        sess.add(sp)
+        sess.flush()
+        sess.add(SetOption(set_product_id=sp.id, canonical_sku='MSKU2'))
+        sess.commit()
+        set_id = ps.id
+    finally:
+        sess.close()
+    d = client.get(f'/api/market-send/rows/{set_id}/margin').get_json()
+    assert d['skus'] == []
+
+
+def test_마켓이_둘이면_한_숫자로_뭉개지_않고_둘_다_나온다(client):
+    from datetime import datetime
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.sets.models import ProductSet, SetProduct, SetOption, SetChannel, SetChannelOption
+    sess = client._Session()
+    try:
+        sess.add(Model(model_code='MM3', model_name_raw='복수마켓', display_no='M-MM3'))
+        sess.add(Option(canonical_sku='MSKU3', model_code='MM3', color_code='화이트', size_code='250'))
+        ps = ProductSet(model_code='MM3', name='단품')
+        sess.add(ps)
+        sess.flush()
+        sp = SetProduct(set_id=ps.id, model_code='MM3')
+        sess.add(sp)
+        sess.flush()
+        sess.add(SetOption(set_product_id=sp.id, canonical_sku='MSKU3'))
+        ch1 = SetChannel(set_id=ps.id, market='smartstore')
+        ch2 = SetChannel(set_id=ps.id, market='coupang')
+        sess.add_all([ch1, ch2])
+        sess.flush()
+        sess.add(SetChannelOption(channel_id=ch1.id, canonical_sku='MSKU3', status='matched',
+                                  mkt_price=49000, mkt_stock=7,
+                                  mkt_fetched_at=datetime(2026, 8, 19, 13, 0)))
+        sess.add(SetChannelOption(channel_id=ch2.id, canonical_sku='MSKU3', status='matched',
+                                  mkt_price=51000, mkt_stock=2,
+                                  mkt_fetched_at=datetime(2026, 8, 19, 13, 0)))
+        sess.commit()
+        set_id = ps.id
+    finally:
+        sess.close()
+    d = client.get(f'/api/market-send/rows/{set_id}/margin').get_json()
+    mk = d['skus'][0]['markets']
+    assert set(mk.keys()) == {'smartstore', 'coupang'}
+    assert mk['smartstore']['price'] == 49000
+    assert mk['coupang']['price'] == 51000
+
+
+def test_최근_가격_변동이_같이_실린다(client):
+    from datetime import datetime
+    from lemouton.sets.models import ChannelChangeEvent
+    sess = client._Session()
+    try:
+        set_id, _ = _seed_market_channel(sess)
+        sess.add(ChannelChangeEvent(set_id=set_id, market='smartstore', canonical_sku='MSKU1',
+                                    field='price', source='market',
+                                    prev_value=45000, next_value=49000,
+                                    at=datetime(2026, 8, 19, 13, 0)))
+        sess.commit()
+    finally:
+        sess.close()
+    d = client.get(f'/api/market-send/rows/{set_id}/margin').get_json()
+    ss = d['skus'][0]['markets']['smartstore']
+    assert ss['prev_price'] == 45000

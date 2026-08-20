@@ -259,7 +259,7 @@ _PRICE_FIELDS = {
 def _applied_price(o: dict, market: str, is_pur: bool):
     """그 마켓에 보낼 가격. 칸이 없는 마켓은 None(전송 보류).
 
-    🔴 [2026-08-13] **적용 카드를 따른다.** 예전엔 재고만 `purchase_priority_resolved`
+    [중요] [2026-08-13] **적용 카드를 따른다.** 예전엔 재고만 `purchase_priority_resolved`
        를 보고 가격은 늘 소싱 카드 값을 썼다 — 사입이 적용된 옵션에 소싱 가격이 나가,
        `uploader/preview.py` 머리말이 못 박은 「표시가 = 업로드가」가 여기서 깨졌다.
     """

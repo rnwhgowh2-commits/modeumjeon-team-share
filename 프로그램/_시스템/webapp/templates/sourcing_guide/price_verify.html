@@ -110,8 +110,8 @@
   </div>
 
   <div class="pvfseg">
-    <button type="button" class="pvfs on" data-pvfview="new">🔍 새 검증</button>
-    <button type="button" class="pvfs" data-pvfview="hist">📋 검증 이력</button>
+    <button type="button" class="pvfs on" data-pvfview="new"><i class="ph-light ph-magnifying-glass" aria-hidden="true"></i> 새 검증</button>
+    <button type="button" class="pvfs" data-pvfview="hist"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 검증 이력</button>
   </div>
 
   <!-- ══ 새 검증 ══════════════════════════════════════════════ -->
@@ -188,7 +188,7 @@
         {% for s in sources %}<option value="{{ s.key }}">{{ s.label }}</option>{% endfor %}
       </select>
       <button type="button" class="pvfbtn ghost" id="pvfReload">새로고침</button>
-      <button type="button" class="pvfbtn ghost" id="pvfExport">📥 엑셀 내보내기</button>
+      <button type="button" class="pvfbtn ghost" id="pvfExport"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 엑셀 내보내기</button>
     </div>
     <div id="pvfHist"><div class="pvfmsg">불러오는 중…</div></div>
   </div>
@@ -230,7 +230,7 @@
     d.className = 'pvfbrow';
     d.innerHTML = '<input class="pvfin wide pvfbn" placeholder="혜택 이름 (예: L.POINT 적립)" autocomplete="off">' +
                   '<input class="pvfin num pvfba" placeholder="금액" inputmode="numeric" autocomplete="off">' +
-                  '<button type="button" class="pvfbx" title="삭제">✕</button>';
+                  '<button type="button" class="pvfbx" title="삭제"></button>';
     d.querySelector('.pvfbn').value = name || '';
     if(amount !== null && amount !== undefined) d.querySelector('.pvfba').value = amount;
     d.querySelector('.pvfbx').addEventListener('click', function(){ d.remove(); });

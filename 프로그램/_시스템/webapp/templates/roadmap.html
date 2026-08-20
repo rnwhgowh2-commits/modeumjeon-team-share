@@ -38,7 +38,7 @@
   <p class="greeting">우리 모음전 자동화에 더할 기능들. 분야별 대분류로 묶어둡니다. (까먹지 않게)</p>
 
   <div class="principle-card">
-    <h3>📐 데이터 관리 원칙</h3>
+    <h3><i class="ph-light ph-ruler" aria-hidden="true"></i> 데이터 관리 원칙</h3>
     <div class="principle">{{ roadmap.principle }}</div>
   </div>
 
@@ -78,7 +78,7 @@
 
   {% if roadmap.notes %}
   <div class="notes">
-    <h3>📝 메모</h3>
+    <h3><i class="ph-light ph-note-pencil" aria-hidden="true"></i> 메모</h3>
     <ul>{% for n in roadmap.notes %}<li>{{ n }}</li>{% endfor %}</ul>
   </div>
   {% endif %}

@@ -211,7 +211,7 @@ def data_items_bulk_bundle_register():
 def data_items_mark_standalone_as_box():
     """옛 「단독_」 모델을 **옵션함(아직 판매 안 함)** 으로 표시한다. 되돌릴 수 있다.
 
-    🔴 [2026-08-06 · 사장님 확정 A안] 왜 필요한가
+    [중요] [2026-08-06 · 사장님 확정 A안] 왜 필요한가
       「단독_」 는 목록 두 곳에서 숨겨질 뿐 시스템은 **판매 가능**으로 취급해 왔다 —
       모상품번호(M…)를 받고, 품절 스캔을 돌고, 전송 목록에도 뜬다.
       `is_option_box=True` 하나만 켜면 그 셋에서 전부 자동으로 빠진다
@@ -362,10 +362,10 @@ def data_items_auto_clean_colors():
                         cleaned_count += 1
 
         s.commit()
-        flash(f'✅ 색상 자동 정리 완료 — 옵션 {cleaned_count}개, 모델 {model_updated}개', 'success')
+        flash(f'색상 자동 정리 완료 — 옵션 {cleaned_count}개, 모델 {model_updated}개', 'success')
     except Exception as e:
         s.rollback()
-        flash(f'❌ 자동 정리 실패: {e}', 'error')
+        flash(f'자동 정리 실패: {e}', 'error')
     finally:
         s.close()
     return redirect(url_for('inventory.home'))
@@ -938,7 +938,7 @@ def data_items_create():
 
         s.commit()
 
-        msg = f'✅ 제품 추가 완료 — {canonical_sku} ({model_name} / {color} / {size})'
+        msg = f'제품 추가 완료 — {canonical_sku} ({model_name} / {color} / {size})'
         if initial_stock_total > 0:
             msg += f' · 초기 재고 {initial_stock_total}개 ({", ".join(initial_stock_detail)})'
         flash(msg, 'success')
@@ -1289,11 +1289,11 @@ def data_items_wipe():
         after_options = s.execute(sa_text('SELECT COUNT(*) FROM options')).scalar() or 0
 
         flash(
-            f"✅ 제품 마스터 전체 삭제 완료\n"
+            f"[확인] 제품 마스터 전체 삭제 완료\n"
             f"  - 모델: {before_models} → {after_models}\n"
             f"  - 옵션: {before_options} → {after_options}\n"
             f"  - 자동 백업: {backup_path}\n"
-            f"  → 이제 [📥 박스히어로 엑셀 업로드] 에서 재로드 가능합니다.",
+            f"  → 이제 [ 박스히어로 엑셀 업로드] 에서 재로드 가능합니다.",
             'success'
         )
     except Exception as e:

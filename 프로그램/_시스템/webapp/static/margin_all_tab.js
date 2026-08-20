@@ -147,7 +147,7 @@
   function bsSidePanelNoButtons() {
     var type = (window.state && window.state.selectedCardType) || null;
     if (!type) {
-      return '<div style="font-size:13px;color:#9ca3af;font-weight:500;margin-bottom:8px">💡 카드 선택</div>'
+      return '<div style="font-size:13px;color:#9ca3af;font-weight:500;margin-bottom:8px">카드 선택</div>'
            + '<div style="font-size:14px;color:#d1d5db;line-height:1.5">왼쪽 카드를 클릭하면<br>아래에 상세내역이 바로 나타납니다</div>';
     }
     var label = (window.state && window.state.selectedCardLabel) || type;

@@ -198,7 +198,7 @@
           <span class="u">{{ u.url }}</span>
           <span class="ops">
             <a href="{{ u.url }}" target="_blank" class="op">↗ 열기</a>
-            <span class="op del" data-del-url>🗑 삭제</span>
+            <span class="op del" data-del-url><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</span>
           </span>
         </div>
         {% endfor %}
@@ -338,14 +338,14 @@
           <span>이 소싱처 혜택 기본값을 전 모음전에 덮어씁니다 (주의)</span>
         </label>
         <div id="aa-toast" style="display:none;margin-top:4px;font-size:12px;color: var(--글자-빨강, var(--red,#E0392B));font-weight:700;"></div>
-        <button type="button" id="aa-btn" disabled style="margin-top:8px;width:100%;padding:8px;border:none;border-radius:8px;background:var(--연한-빨강,#F4C7CB);color:#fff;font-weight:800;font-size:12px;cursor:not-allowed;font-family:inherit">🔒 따라쓰기 (잠김)</button>
+        <button type="button" id="aa-btn" disabled style="margin-top:8px;width:100%;padding:8px;border:none;border-radius:8px;background:var(--연한-빨강,#F4C7CB);color:#fff;font-weight:800;font-size:12px;cursor:not-allowed;font-family:inherit"><i class="ph-light ph-lock" aria-hidden="true"></i> 따라쓰기 (잠김)</button>
       </div>
 
       <!-- ③-요약 — 가격 계산 로직 한눈에 보기 (읽기 전용) -->
       {% set SMAP = {'always':'상시','conditional':'조건부','optional':'선택','planned':'예정'} %}
       {% set CATS = [('선반영',['preapplied'],'#3182F6'),('후반영',['deduct','accrue'],'#10B981'),('결제',['payment'],'#8B5CF6'),('캐시백',['cashback'],'#F59E0B')] %}
       <div class="sg3-logic" style="margin-top:16px;border:1px solid var(--line,#E5E8EB);border-radius:12px;overflow:hidden">
-        <div style="padding:12px 16px;background:var(--bg,#F9FAFB);border-bottom:1px solid var(--line,#E5E8EB);font-size:14px;font-weight:800;color:var(--ink,#191F28)">💰 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:var(--sub,#8B95A1);font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
+        <div style="padding:12px 16px;background:var(--bg,#F9FAFB);border-bottom:1px solid var(--line,#E5E8EB);font-size:14px;font-weight:800;color:var(--ink,#191F28)"><i class="ph-light ph-coins" aria-hidden="true"></i> 가격 계산 로직 — 한눈에 보기 <span style="font-weight:600;color:var(--sub,#8B95A1);font-size:12px">· 위 설정값 요약 (읽기 전용) · 표면 노출가 → 최종 매입가 순</span></div>
         <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px">
           <thead>
@@ -416,9 +416,9 @@
                 <a class="exshot-link" href="{{ ex.screenshot_url }}" target="_blank"><img src="{{ ex.screenshot_url }}"></a>
                 {% else %}
                 <div class="shot">
-                  <span class="cam">📷</span>
+                  <span class="cam"><i class="ph-light ph-camera" aria-hidden="true"></i></span>
                   <span>기준 스크린샷</span>
-                  <button type="button" class="shot-auto" data-ex-index="{{ loop.index0 }}">🤖 자동 캡처</button>
+                  <button type="button" class="shot-auto" data-ex-index="{{ loop.index0 }}"><i class="ph-light ph-robot" aria-hidden="true"></i> 자동 캡처</button>
                   <span class="drop-hint">또는 이미지 드래그앤드랍</span>
                   <span class="dt">{{ ex.name }}</span>
                 </div>
@@ -470,8 +470,8 @@
 
             <!-- 🔑 키워드 게이트 검증 — ③ 포함/제외 키워드 반영 영수증 (시안 2: 좌 문구+하이라이트) -->
             <div class="sg-kwgate" style="margin-top:16px;border-top:1px dashed var(--line,#E5E8EB);padding-top:16px;">
-              <div class="fxnote" style="margin-bottom:8px;">🔑 <b>키워드 게이트 검증</b> — ③에서 정한 포함/제외 키워드가 실제 상품 혜택에 제대로 먹히는지 확인. (포함/제외 키워드는 오른쪽 ③ 칩 / 여기엔 <b>긁은 문구</b>만)</div>
-              <div class="sg-kw-lbl">📋 긁은 혜택 문구 <span class="x">— 키워드 넣는 칸 아님! 상품 페이지에 적힌 글자 그대로</span></div>
+              <div class="fxnote" style="margin-bottom:8px;"><i class="ph-light ph-key" aria-hidden="true"></i> <b>키워드 게이트 검증</b> — ③에서 정한 포함/제외 키워드가 실제 상품 혜택에 제대로 먹히는지 확인. (포함/제외 키워드는 오른쪽 ③ 칩 / 여기엔 <b>긁은 문구</b>만)</div>
+              <div class="sg-kw-lbl"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 긁은 혜택 문구 <span class="x">— 키워드 넣는 칸 아님! 상품 페이지에 적힌 글자 그대로</span></div>
               <textarea id="sg-kw-lines" placeholder="상품 페이지 혜택 문구를 한 줄에 하나씩 붙여넣기 (키워드 ❌)&#10;예)&#10;등급 할인 불가&#10;상품 쿠폰&#10;구매 적립 / 선할인&#10;10% 추가 적립&#10;결제혜택" style="width:100%;min-height:78px;box-sizing:border-box;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.7;color:var(--ink,#3a424b);resize:vertical;"></textarea>
               <div class="sg-kw-lbl" style="margin-top:12px;">③ 키워드 적용 미리보기 <span class="x">포함=<b style="color: var(--글자-초록, var(--green,#1FA463));">초록</b> / 제외=<b style="color: var(--글자-빨강, var(--red,#C0392B));">빨강취소선</b></span></div>
               <div id="sg-kw-hl" class="sg-hlbox"><span class="muted" style="font-size:12px;">위에 문구를 붙여넣으면 ③ 키워드가 어디에 걸리는지 색으로 표시됩니다.</span></div>
@@ -492,7 +492,7 @@
               <div class="g exc">제외</div>
               {% if kwns.exc %}{% for t in kwns.exc %}<span class="chip exc">{{ t }}</span>{% endfor %}{% else %}<span class="chip-empty">— 없음</span>{% endif %}
             </div>
-            <div class="sg-saved-h" style="margin-top:16px;">📑 저장된 검증</div>
+            <div class="sg-saved-h" style="margin-top:16px;"><i class="ph-light ph-files" aria-hidden="true"></i> 저장된 검증</div>
             <div id="sg-saved-list">
               {% for c in guide.verification.get('saved_checks', []) %}
               <div class="sg-saved-item" data-url="{{ c.url or '' }}">

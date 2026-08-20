@@ -102,7 +102,7 @@
       console.error('[mobile-inv]', e);
       list.innerHTML =
         `<div class="m-empty">
-          <div class="icon">⚠️</div>
+          <div class="icon"></div>
           재고 불러오기 실패<br>
           <span style="font-size: 14px; color: var(--n500);">${esc(e.message || '')}</span>
         </div>`;
@@ -125,7 +125,7 @@
 
     if (!items || !items.length) {
       list.innerHTML = `<div class="m-empty">
-        <div class="icon">📭</div>
+        <div class="icon"></div>
         ${query ? `"${esc(query)}" 검색 결과 없음` : '옵션 없음'}
       </div>`;
       return;
@@ -143,7 +143,7 @@
       const boxhero = it.boxhero_sku || '';
       const img = it.image_url
         ? `<img src="${esc(it.image_url)}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;">`
-        : `<div style="width: 48px; height: 48px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0;">📦</div>`;
+        : `<div style="width: 48px; height: 48px; border-radius: 8px; background: var(--n100); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0;"></div>`;
       const stockColor = stock > 0 ? 'var(--color-ok, #16a34a)' : (stock < 0 ? 'var(--danger, #F04452)' : 'var(--n500, #8B95A1)');
       return `<div class="m-card inv-card" data-sku="${esc(sku)}" role="button" tabindex="0" style="display: flex; gap: 12px; align-items: center; color: inherit; padding: 12px 12px; margin-bottom: 8px;">
         ${img}
@@ -199,7 +199,7 @@
     } catch (e) {
       console.error('[mobile-inv-sheet]', e);
       sheet.innerHTML = `<div class="m-empty" style="padding: 24px 12px;">
-        <div class="icon">⚠️</div>제품 정보 불러오기 실패<br>
+        <div class="icon"></div>제품 정보 불러오기 실패<br>
         <span style="font-size: 14px; color: var(--n500);">${esc(e.message || '')}</span>
       </div>`;
     }
@@ -219,7 +219,7 @@
         <div class="inv-srow"><span class="inv-slab">바코드</span><span class="inv-sval">${esc(p.barcode) || '—'}</span></div>
         <div class="inv-srow"><span class="inv-slab">평균매입가</span><span class="inv-sval">${fmt(p.avg_purchase_price)}<span class="inv-stag">원</span></span></div>
         <div class="inv-srow"><span class="inv-slab">모음전 연결</span>
-          <span class="inv-usage">🔗 ${fmt(p.usage)}곳</span></div>`;
+          <span class="inv-usage">${fmt(p.usage)}곳</span></div>`;
     } else {
       infoRows = `<div class="inv-srow"><span class="inv-slab">제품 정보</span>
         <span class="inv-sval" style="color: var(--n500);">모음전 옵션 미등록 — 재고 거래만 존재</span></div>`;
@@ -261,7 +261,7 @@
       ${locRows || '<div class="inv-srow"><span class="inv-slab">위치 정보 없음</span></div>'}
       ${mtx}
       ${move}
-      <a class="inv-btn gray" id="inv-io-link" href="/mobile/sku/${encodeURIComponent(sku)}">📦 입고 · 출고</a>
+      <a class="inv-btn gray" id="inv-io-link" href="/mobile/sku/${encodeURIComponent(sku)}">입고 · 출고</a>
     `;
 
     // 받는 위치 기본값 — 보내는 위치와 다른 첫 항목
@@ -308,9 +308,9 @@
         });
       });
       sheet.querySelector('#inv-move-qty').value = '';
-      showToast(`✅ ${d.from_location.name} → ${d.to_location.name} ${d.qty}개 이동`, 'success');
+      showToast(`${d.from_location.name} → ${d.to_location.name} ${d.qty}개 이동`, 'success');
     } catch (e) {
-      showToast('❌ 이동 실패: ' + (e.message || ''), 'error');
+      showToast('이동 실패: ' + (e.message || ''), 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = '이동 저장';

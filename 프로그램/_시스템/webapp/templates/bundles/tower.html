@@ -332,6 +332,7 @@
           data-issues="{{ it.issues }}"
           data-sold="{{ it.sold_qty or 0 }}" data-margin="{{ it.margin_pct if it.margin_pct is not none else -999 }}"
           data-created="{{ it.created or '' }}" data-matrix="{{ it.matrix_id or '' }}"
+          data-policy="{{ it.policy_id or '' }}"
           data-blob="{{ (it.name ~ ' ' ~ it.brand ~ ' ' ~ it.no ~ ' ' ~ it.code)|lower }}">
         <td class="l">
           <div style="display:flex;gap:12px;align-items:center">
@@ -358,7 +359,7 @@
           {% else %}<span class="twr-u">—</span>{% endif %}
         </td>
         <td><span class="twr-mks">{% for mk, label, g in tower_markets %}<span class="twr-mk{% if mk in it.markets %} y{% endif %}" title="{{ label }}{% if mk in it.markets %} 등록됨{% else %} 미등록{% endif %}">{{ g }}</span>{% endfor %}</span></td>
-        <td>{% if it.issues %}<span class="twr-badge err">⚠ {{ it.issues }}건</span>{% else %}<span class="twr-badge sale">없음</span>{% endif %}</td>
+        <td>{% if it.issues %}<span class="twr-badge err"><i class="ph-light ph-warning" aria-hidden="true"></i> {{ it.issues }}건</span>{% else %}<span class="twr-badge sale">없음</span>{% endif %}</td>
         <td><button class="twr-btn gho sm twr-open" type="button">자세히 보기</button></td>
       </tr>
       {% endfor %}
@@ -397,7 +398,9 @@ function dim(s){ return '<span class="twr-u">' + esc(s) + '</span>'; }
 /* ── 서랍 필터·정렬 (화면 안에서만 거른다 — 서버 재조회 없음) ── */
 /* [2026-08-06] 거르기 축은 하나뿐 — 「어디까지 왔나」 판. 예전엔 현황 카드(f)와
    브랜드 밑 상태 목록(status) 둘이 같은 일을 해서 서로 어긋날 수 있었다. */
-var state = { f:'all', stage:'', brand:'', q:'', sort:'recent' };
+/* [#1072] policy — 「정책 매칭」 카드에서 ?policy=<id> 로 넘어왔을 때만 켜지는
+   축. 다른 축과 달리 화면 안에 고르는 UI가 없다 — 딥링크 전용이라 칩으로만 보여준다. */
+var state = { f:'all', stage:'', brand:'', q:'', sort:'recent', policy:'', policyName:'' };
 function rows(){ return Array.prototype.slice.call(document.querySelectorAll('#twr-table tr.row')); }
 function applyFilter(){
   var shown = 0;
@@ -406,6 +409,7 @@ function applyFilter(){
     if(state.f === 'stage' && tr.dataset.stage !== state.stage) ok = false;
     if(state.f === 'fix' && !(parseInt(tr.dataset.issues||'0',10) > 0)) ok = false;
     if(state.brand && tr.dataset.brand !== state.brand) ok = false;
+    if(state.policy && tr.dataset.policy !== state.policy) ok = false;
     if(state.q && tr.dataset.blob.indexOf(state.q) < 0) ok = false;
     tr.style.display = ok ? '' : 'none';
     if(!ok) collapse(tr);
@@ -427,6 +431,7 @@ function zeroHint(shown){
   }
   if(state.f === 'fix') 거르기.push('「손 볼 것」');
   if(state.brand) 거르기.push('브랜드 「' + state.brand + '」');
+  if(state.policy) 거르기.push('정책 「' + (state.policyName || state.policy) + '」');
   box.hidden = (shown > 0);
   if(shown > 0) return;
   var why = document.getElementById('twr-zero-why');
@@ -478,6 +483,7 @@ if(sortEl) sortEl.addEventListener('change', function(){ state.sort = this.value
 var zc = document.getElementById('twr-zero-clear');
 if(zc) zc.addEventListener('click', function(){
   state.f = 'all'; state.stage = ''; state.brand = '';
+  clearPolicyFilter();
   document.querySelectorAll('.stg-block .stg-row').forEach(function(x, i){
     x.classList.toggle('on', i === 0);           // 맨 위 「어디까지 왔나」로 되돌린다
   });
@@ -486,6 +492,32 @@ if(zc) zc.addEventListener('click', function(){
   });
   applyFilter();
 });
+
+/* [#1072] 「정책 매칭」 카드의 "상품관리에서 보기 →" 딥링크 —
+   ?policy=<id>&pname=<정책명> 으로 들어오면 그 정책이 붙은 상품만 걸러 보여준다.
+   화면 안에 고르는 UI가 없는 축이라 칩 하나로만 상태를 보여주고, 칩을 지우면 풀린다. */
+function clearPolicyFilter(){
+  state.policy = ''; state.policyName = '';
+  var chip = document.getElementById('twr-policy-chip');
+  if(chip) chip.remove();
+}
+(function initPolicyFilter(){
+  var params = new URLSearchParams(location.search);
+  var pid = params.get('policy');
+  if(!pid) return;
+  var pname = params.get('pname') || ('#' + pid);
+  state.policy = pid; state.policyName = pname;
+  var chip = document.createElement('span');
+  chip.id = 'twr-policy-chip';
+  chip.className = 'twr-btn gho sm';
+  chip.style.cursor = 'pointer';
+  chip.textContent = '정책: ' + pname + ' ✕';
+  chip.title = '눌러서 이 거르기를 풉니다';
+  chip.addEventListener('click', function(){ clearPolicyFilter(); applyFilter(); });
+  var sp = document.querySelector('.twr-ch .sp');
+  if(sp) sp.parentNode.insertBefore(chip, sp);
+  applyFilter();
+})();
 
 /* ── 줄 아래 전폭 펼침 — 탭 4개 (사장님 확정) ────────────────────────────
    한눈에 / 사올 때 / 팔 때 / 판매·정산
@@ -531,8 +563,8 @@ function expand(tr){
     '<div class="twr-tabs">' + tabsHtml +
       '<div style="flex:1"></div>' +
       '<div style="display:flex;gap:8px;padding:8px 0;align-items:center">' +
-        '<a class="twr-btn pri sm" href="' + editHref + '">✏️ 편집 (생성 탭)</a>' +
-        '<a class="twr-btn gho sm" href="/market-send">📤 전송</a>' +
+        '<a class="twr-btn pri sm" href="' + editHref + '">편집 (생성 탭)</a>' +
+        '<a class="twr-btn gho sm" href="/market-send">전송</a>' +
         '<button class="twr-btn gho sm twr-dup" type="button">복제</button>' +
         '<button class="twr-btn gho sm danger twr-del" type="button">삭제</button>' +
       '</div>' +
@@ -994,13 +1026,13 @@ function renderT2(j){
   var h = '<div class="tcard"><div class="tcard-t">옵션 매트릭스 (최저가만)' +
     '<span class="cap">칸 = 최저 최종매입가 · 재고 · <b style="color:var(--ap-링크파랑,#0066CC)">최저 소싱처</b> — 누르면 소싱처 전체 비교</span>' +
     '<span class="sp"></span>' +
-    '<a class="twr-btn pri sm" href="/bundles/' + encodeURIComponent(open.tr.dataset.code) + '/all">🧾 소싱처 ' +
+    '<a class="twr-btn pri sm" href="/bundles/' + encodeURIComponent(open.tr.dataset.code) + '/all">소싱처 ' +
       (소싱처수 ? 소싱처수 + '곳 ' : '') + '전부 보기 →</a>' +
-    '<a class="twr-btn gho sm" href="/inventory/">🏷 사입 재고 (재고관리)</a>' +
+    '<a class="twr-btn gho sm" href="/inventory/">사입 재고 (재고관리)</a>' +
     /* [2026-08-12] 원본이 없으면 단추가 아예 사라지던 자리 — 머리줄 「편집」과 같은
        문(코드 기준)으로 보낸다. 같은 일을 하는 단추가 서로 다른 데로 가면 안 된다. */
     '<a class="twr-btn pri sm" href="/optgen/product/by-code/' +
-      encodeURIComponent(open.tr.dataset.code) + '">✏️ 매트릭스 수정 (생성 탭)</a>' +
+      encodeURIComponent(open.tr.dataset.code) + '">매트릭스 수정 (생성 탭)</a>' +
     '</div>';
   if(!j.cells.length){
     h += '<div class="twr-u">옵션이 아직 없어요.</div></div>';
@@ -1072,7 +1104,7 @@ function renderT2Detail(cell){
 function renderT3(j){
   var h = '<div class="tcard"><div class="tcard-t">소싱처 수집 이력 ' +
     '<span class="cap">주소 ' + j.urls.length + '개 · 실패 ' + j.fail + '</span>' +
-    '<span class="sp"></span><button class="twr-btn pri sm" id="t3crawl" type="button">🔄 이 상품 지금 수집</button></div>';
+    '<span class="sp"></span><button class="twr-btn pri sm" id="t3crawl" type="button">이 상품 지금 수집</button></div>';
   h += '<div class="tinfo">「지금 수집」을 누르면 이 상품이 수집 줄 맨 앞에 서고, 사장님 컴퓨터의 수집기(크롬 확장)가 다음 바퀴에 바로 가져옵니다 — 보통 몇 분 안에 반영돼요.</div>';
   if(!j.urls.length) h += '<div class="twr-u" style="padding:8px 0">연결된 소싱처 주소가 없어요.</div>';
   j.urls.forEach(function(u){
@@ -1110,7 +1142,7 @@ function renderT3(j){
   if(btn) btn.addEventListener('click', function(){
     btn.disabled = true; btn.textContent = '넣는 중…';
     fetch(api('crawl-now'), {method:'POST'}).then(function(r){ return r.json(); }).then(function(x){
-      btn.textContent = x.ok ? (x.queued ? '✅ 줄 맨 앞에 세웠어요' : '✅ 이미 줄에 서 있어요') : '넣지 못했어요';
+      btn.textContent = x.ok ? (x.queued ? '줄 맨 앞에 세웠어요' : '이미 줄에 서 있어요') : '넣지 못했어요';
     }).catch(function(){ btn.textContent = '넣지 못했어요'; });
   });
 }
@@ -1218,7 +1250,7 @@ function namePanel(list){
           esc(m.reg_name || '정책이 만든 이름') + '"' + (own ? '' : ' disabled') +
           '>' + nameCounter(m, (m.name_override || '').length) + '</div>';
     }).join('') +
-    '<div class="cpn-p-n">🔴 상세페이지·추가이미지는 <b>담을 칸이 아직 없습니다</b> — ' +
+    '<div class="cpn-p-n">상세페이지·추가이미지는 <b>담을 칸이 아직 없습니다</b> — ' +
       '지금은 어느 마켓에도 빈 값으로 나갑니다.</div></div>';
 }
 
@@ -1354,7 +1386,7 @@ function renderT4(j){
       }).join('') + '</table></td></tr>';
   });
   h += '</table>';
-  h += '<div class="tnote">노출가 = 정책 판매가 − 즉시할인쿠폰(쿠팡은 마켓 캐시 실측값) · 마진 = preview 계산(정책 수수료·최저 매입가 기준) · 「옵션별 ▾」 = 그 마켓에 실제 전송된 옵션 단위 값 · <a href="/market-send">📤 미등록 마켓에 보내러 가기 →</a></div></div>';
+  h += '<div class="tnote">노출가 = 정책 판매가 − 즉시할인쿠폰(쿠팡은 마켓 캐시 실측값) · 마진 = preview 계산(정책 수수료·최저 매입가 기준) · 「옵션별 ▾」 = 그 마켓에 실제 전송된 옵션 단위 값 · <a href="/market-send">미등록 마켓에 보내러 가기 →</a></div></div>';
   /* 쿠폰 판 — 표 밑에 한 장(사장님 확정 A2) */
   var _cp = (j.markets || []).filter(function(x){ return x.market === 'coupang'; })[0];
   h += couponPanel(_cp);
@@ -1444,8 +1476,8 @@ function renderT5(sum){
   var h = '<div class="tcard"><div class="tcard-t">가격/재고 변동 이력' +
     '<span class="cap">소싱처 실측값(표면가) 기준 — 기존 가격 이력 기록을 그대로 봅니다</span>' +
     '<span class="sp"></span><div class="tseg" id="t5seg">' +
-    '<button class="on" data-m="g" type="button">📈 그래프</button>' +
-    '<button data-m="l" type="button">📋 날짜별 목록</button></div></div>';
+    '<button class="on" data-m="g" type="button">그래프</button>' +
+    '<button data-m="l" type="button">날짜별 목록</button></div></div>';
   if(!opts.length){
     h += '<div class="twr-u">옵션이 없어요.</div></div>';
     body().innerHTML = h; return;

@@ -197,7 +197,7 @@
 <div class="cl-wrap">
   <div class="cl-tabs">
     <a class="cl-tab" href="/accounts/upload">판매처 계정</a>
-    <a class="cl-tab on" href="/accounts/crawl-login">🔐 크롤 로그인</a>
+    <a class="cl-tab on" href="/accounts/crawl-login"><i class="ph-light ph-lock-key" aria-hidden="true"></i> 크롤 로그인</a>
   </div>
 
   <div class="cl-head">
@@ -250,7 +250,7 @@
         <div class="rc-row"><span class="rc-k">다음</span><span class="rc-v" id="stl-next">—</span></div>
       </div>
       <div class="rc-note" id="stl-auto-state"></div>
-      <div class="rc-warn" id="stl-conn-warn" hidden>⚠ 확장과 연결 끊김 — 새로고침(Ctrl+F5)하면 다시 붙습니다</div>
+      <div class="rc-warn" id="stl-conn-warn" hidden><i class="ph-light ph-warning" aria-hidden="true"></i> 확장과 연결 끊김 — 새로고침(Ctrl+F5)하면 다시 붙습니다</div>
     </div>
   </div>
   <div class="helpbox" id="stl-helpbox" hidden>
@@ -322,9 +322,9 @@
           <span class="cl-runlog" title=""></span>
           <span class="cl-test-result"></span>
           {% if a.saved %}
-          <span class="cl-badge b-ok cl-badge-state">🔒 저장됨</span>
+          <span class="cl-badge b-ok cl-badge-state"><i class="ph-light ph-lock" aria-hidden="true"></i> 저장됨</span>
           {% else %}
-          <span class="cl-badge b-warn cl-badge-state">🔓 미저장</span>
+          <span class="cl-badge b-warn cl-badge-state"><i class="ph-light ph-lock-open" aria-hidden="true"></i> 미저장</span>
           {% endif %}
         </span>
       </div>
@@ -355,7 +355,7 @@
                  placeholder="{% if a.saved %}변경할 때만 입력{% else %}비밀번호{% endif %}">
         </div>
         <div class="cl-btns">
-          <button class="btn cl-test" title="저장된 아이디·비번으로 로그인만 해봅니다(수집 안 함)">🔑 로그인 테스트</button>
+          <button class="btn cl-test" title="저장된 아이디·비번으로 로그인만 해봅니다(수집 안 함)"><i class="ph-light ph-key" aria-hidden="true"></i> 로그인 테스트</button>
           <!-- [2026-08-06] 실패 계정만 콕 집어 다시 — 여태 실패 1건에도 「전체 자동 수집」으로
                7계정을 다 돌려야 했다(사장님 요청). 자동 회차와 같은 길(로그아웃→로그인→수집→반영)을
                이 계정 하나만 탄다. -->
@@ -367,7 +367,7 @@
     {% endfor %}
 
     <div class="cl-note">
-      ⚠️ <b>보안 안내</b> — 비밀번호는 암호화되어 저장됩니다(평문 저장 안 함). 다만 자동 로그인을 위해
+      <i class="ph-light ph-warning" aria-hidden="true"></i>️ <b>보안 안내</b> — 비밀번호는 암호화되어 저장됩니다(평문 저장 안 함). 다만 자동 로그인을 위해
       크롤러가 복호화해 사용하므로, 서버·암호화키가 동시에 유출되면 비밀번호도 노출될 수 있습니다.
     </div>
   </div>
@@ -487,7 +487,7 @@
         }catch(e){fail++;}
       }
       out.style.color=(fail?'#8a6100':'#0a7a55');
-      out.textContent='✔ 백필 완료 — '+totUpserted+'주문 제휴판단 저장 ('+trNo+', '+chunks.length+'구간'+(fail?(' · 실패 '+fail):'')+')';
+      out.textContent='백필 완료 — '+totUpserted+'주문 제휴판단 저장 ('+trNo+', '+chunks.length+'구간'+(fail?(' · 실패 '+fail):'')+')';
       _bfBtn.disabled=false; btn.disabled=false;
     });});
   }
@@ -738,13 +738,13 @@
         out.textContent='로그인 시도 중…';
         var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,login_only:true},300000);
         var resp=(r&&r.resp)?r.resp:r;
-        if(resp&&resp.needs_verify){out.style.color='#8a6100';out.textContent='⚠ 2단계 인증 필요';}
+        if(resp&&resp.needs_verify){out.style.color='#8a6100';out.textContent='2단계 인증 필요';}
         else if(resp&&resp.ok){
           var tr=(card.querySelector('.cl-trno')||{}).value||'';
           var mismatch=(tr&&resp.trNo&&tr.toUpperCase()!==(''+resp.trNo).toUpperCase());
           // ★로그인된 판매자ID 가 이 카드의 판매자ID 와 다르면 = 계정이 섞인 것. 성공으로 칠하지 않는다.
-          if(mismatch){out.style.color='#c00';out.textContent='✖ 다른 계정! 로그인='+resp.trNo+' ≠ 카드='+tr;}
-          else{out.style.color='#0a7a55';out.textContent='✔ 로그인 OK'+(resp.trNo?(' · '+resp.trNo):'');}
+          if(mismatch){out.style.color='#c00';out.textContent='다른 계정! 로그인='+resp.trNo+' ≠ 카드='+tr;}
+          else{out.style.color='#0a7a55';out.textContent='로그인 OK'+(resp.trNo?(' · '+resp.trNo):'');}
         }
         else{out.style.color='#c00';out.textContent='✖ '+((resp&&resp.step)?('['+resp.step+'] '):'')+((resp&&resp.error)||'실패');}
       }catch(e){out.style.color='#c00';out.textContent='오류: '+e;}
@@ -1105,7 +1105,7 @@ document.querySelectorAll('.cl-save').forEach(function(btn){
       if(!d.ok){ alert('저장 실패: ' + (d.error||'')); return; }
       var badge = card.querySelector('.cl-badge-state');
       badge.className = 'cl-badge b-ok cl-badge-state';
-      badge.textContent = '🔒 저장됨';
+      badge.textContent = '저장됨';
       card.classList.remove('editing');
       card.querySelector('.cl-pw').value = '';
       card.querySelector('.cl-pw').placeholder = '변경할 때만 입력';

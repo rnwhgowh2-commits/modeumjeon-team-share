@@ -168,7 +168,7 @@ def test_화면에_반품교환완료_카드가_있다():
            / "orders" / "index.html").read_text(encoding="utf-8")
     assert "spn-returned-card" in tpl
     assert "k.returned" in tpl                     # 숫자를 실제로 그린다
-    assert "'returned','↩️ 반품·교환 완료" in tpl   # 눌렀을 때 목록이 뜬다
+    assert "'returned','↩ 반품·교환 완료" in tpl   # 눌렀을 때 목록이 뜬다
     assert "반품비는 남겨 뒀어요" in tpl            # 왜 총액이 안 줄었는지 말해 준다
 
 

@@ -139,10 +139,10 @@ def build_brief(mid: str, full: bool = False) -> str | None:
         for r in call.get("rows", []):
             add(f"- {r[0]}: `{r[1]}` — {r[2]}")
         if call.get("note"):
-            add(f"- ⚠️ {call['note']}")
+            add(f"- {call['note']}")
     for c in ac.get("cautions", []):
         if c.get("id") == mid:
-            add(f"- ⚠️ {c.get('text')}")
+            add(f"- {c.get('text')}")
     add("")
     add("## 5. 통일 주문상태 전이 (transitions)")
     hit = False
@@ -194,5 +194,5 @@ def build_brief(mid: str, full: bool = False) -> str | None:
     todo = sum(1 for a in apis if a.get("st") == "todo")
     add("## 9. 요약 — 배선 현황")
     add(f"- 우리 코드 연결(ok+code): {wired} · 문서만(off): {off} · 미확인(todo): {todo}")
-    add("- 빈칸 채우기: 인앱 「📘 API 문서 수집법」 탭(=docs/markets/_API문서수집법.md) 플레이북 순서로 확보 → 이 JSON에 되채움(validate_map 통과).")
+    add("- 빈칸 채우기: 인앱 「API 문서 수집법」 탭(=docs/markets/_API문서수집법.md) 플레이북 순서로 확보 → 이 JSON에 되채움(validate_map 통과).")
     return "\n".join(out)

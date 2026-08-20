@@ -19,7 +19,7 @@
   GET /api/upload-rate-probe/ramp?market=&product_id=&option_id=&hold=20
       → 계단식 증속(0.2→20 req/s). 처음 429 난 계단과 그 직전.
 
-★ 안전
+ 안전
   - **무변화 갱신**이라 재고가 바뀌지 않는다. 상태를 남기지 않으므로 원복도 불필요.
   - 매 요청이 시작 전 baseline 을 잡고, 끝나고 **다시 읽어** 값이 그대로인지 확인한다.
     달라졌으면 응답에 `restored=false` 로 표면화한다(조용한 오염 금지).
@@ -137,7 +137,7 @@ def discover():
 def _discover_lotteon(cli, limit):
     """상품 목록 → 각 상품의 단품(sitmNo) 1개까지 해석.
 
-    ★ 파라미터를 쿼리로 바꿀 수 있게 열어 뒀다 — 500 이 나면 조건을 바꿔가며
+     파라미터를 쿼리로 바꿀 수 있게 열어 뒀다 — 500 이 나면 조건을 바꿔가며
       재배포 없이 시도해야 하기 때문. 지도 스펙(apiNo=93)의 필수는
       trGrpCd·trNo·regStrtDttm·regEndDttm 이고 slStatCd 는 선택이다.
       (slStatCd 문서 표기는 END/SALE/SOUT/STP 인데 응답 예시는 "20" 이라 모호 →
@@ -200,7 +200,7 @@ def _discover_lotteon(cli, limit):
 
 
 def _discover_esm(cli, market, limit):
-    """goods/search → 마스터번호 → 추천옵션 id. ★ 분당 30회 제한 API."""
+    """goods/search → 마스터번호 → 추천옵션 id. 분당 30회 제한 API."""
     from shared.platforms.esm.inventory import get_recommended_options, _option_id_of
 
     resp = cli.request(method="POST", path="/item/v1/goods/search",
@@ -328,7 +328,7 @@ def _discover_coupang(cli, limit):
 def _discover_eleven11(cli, env_prefix, limit):
     """11번가 **상품 목록** — `prodmarket` 조건검색.
 
-    ★ 「다중 상품 조회」라는 이름 때문에 "번호를 넣어야 하는 것"으로 오해했었다.
+     「다중 상품 조회」라는 이름 때문에 "번호를 넣어야 하는 것"으로 오해했었다.
       실제로는 prdNo 가 **선택**이고 selStatCd(판매상태)·기간으로 조건검색이 된다.
       selStatCd: 103=판매중 104=품절 105=전시중지 …
       schDateType: 1=생성일 2=판매일 4=수정일 / schBgnDt·schEndDt 동반 필수
@@ -734,7 +734,7 @@ def keytest():
     두 계정 모두 같은 서버 IP 에서 나가므로, 이 테스트는 '계정별 vs 공유'를 가른다.
     (IP별 vs 전역을 더 가르려면 두 번째 IP 가 필요 — 현재 미확보)
 
-    ★ 429 를 못 보면 판별 자체가 불가능하다 → verdict='판별불가(429 미발생)'
+     429 를 못 보면 판별 자체가 불가능하다 → verdict='판별불가(429 미발생)'
     """
     a, err = _args()
     if err:

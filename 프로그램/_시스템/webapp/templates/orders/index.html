@@ -934,7 +934,7 @@
         <label class="ck"><input type="checkbox" id="mk-all" checked> <b>전체</b></label>
         {% for m in export_markets %}<label class="ck"><input type="checkbox" class="mk-ck" value="{{ m }}" checked> {{ mklabel.get(m, m) }}</label>{% endfor %}
       </div>
-      <div class="fg"><div class="fl">기간 <span style="font-weight:400;color:var(--faint)">· 주문일 기준</span> <span class="qmng" id="qmng">⚙ 버튼 관리</span></div>
+      <div class="fg"><div class="fl">기간 <span style="font-weight:400;color:var(--faint)">· 주문일 기준</span> <span class="qmng" id="qmng"><i class="ph-light ph-gear" aria-hidden="true"></i> 버튼 관리</span></div>
         <div class="qchips" id="qchips"></div>
         <div class="qdirect" id="qdirect">
           <input type="date" id="qfrom"><span class="qdash">~</span><input type="date" id="qto">
@@ -942,18 +942,18 @@
       </div>
       <div class="fg"><div class="fl">모든 항목에서 찾기</div><input class="srch" id="srch" placeholder="상품명·주문번호…"
              title="상품명·주문번호·송장번호·계정·주소 — 아무거나 찾습니다"></div>
-      <div class="fg"><div class="fl" style="line-height:1.5">💡 표의 <b>열 제목</b>을 누르면<br>값을 골라 거를 수 있어요(필터)</div></div>
+      <div class="fg"><div class="fl" style="line-height:1.5"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 표의 <b>열 제목</b>을 누르면<br>값을 골라 거를 수 있어요(필터)</div></div>
       <div class="fg" style="margin-bottom:0">
         <div class="fl">엑셀 양식</div>
         <select class="presetsel" id="presetSel"></select>
-        <button type="button" class="gbtn" id="cfgbtn">⚙ 양식 관리</button>
+        <button type="button" class="gbtn" id="cfgbtn"><i class="ph-light ph-gear" aria-hidden="true"></i> 양식 관리</button>
         <a class="xbtn" id="xlsxbtn" href="#">⬇ 엑셀 내보내기</a>
       </div>
     </aside>
     <main class="main">
       {% if tab == 'ship' %}{# 🧾 배송흐름 감시 — 항상 맨 위. 엑셀과 무관하게 늘 돌아간다. #}
       <section class="watch">
-        <div class="wh">🧾 배송흐름 감시</div>
+        <div class="wh"><i class="ph-light ph-receipt" aria-hidden="true"></i> 배송흐름 감시</div>
         <div class="wd">송장을 넣었는데 <b>24시간 넘게</b> 배송 흐름이 안 바뀐 주문입니다. 엑셀을 올리지 않아도 늘 돌아갑니다.</div>
         <div id="watchBody"><div class="wsoon">보는 중…</div></div>
       </section>
@@ -965,7 +965,7 @@
         <div class="sb">
       <label class="xldz" id="xlDz">
         <input type="file" id="xlFile" accept=".xlsx" style="display:none">
-        <span class="ic">📄</span>
+        <span class="ic"><i class="ph-light ph-file" aria-hidden="true"></i></span>
         <span class="t">택배사 엑셀 고르기 · 여기에 끌어놓기</span>
         <span class="d">「오픈마켓주문번호」와 「운송장번호」 열이 있는 엑셀(.xlsx)</span>
         <span class="fn" id="xlFn"></span>
@@ -974,7 +974,7 @@
 
       <div class="mango-card open" id="mangoCard">
         <button type="button" class="mc-head" id="mangoHead">
-          <span class="mc-badge">📥 더망고 대조</span>
+          <span class="mc-badge"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 더망고 대조</span>
           <span class="mc-headsub">오픈마켓주문번호로 마켓과 대조 → 배송방식·배송검사</span>
           <span class="mc-result" id="mangoResult"></span>
           <span class="mc-chev">▾</span>
@@ -982,7 +982,7 @@
         <div class="mc-body" id="mangoBody">
           <label class="mc-dz" id="mangoDz">
             <input type="file" id="mangoFile" accept=".xls,.htm,.html" style="display:none">
-            <span class="ic">📥</span><span class="t">더망고 엑셀 선택 · 끌어놓기</span><span class="fn" id="mangoFn"></span>
+            <span class="ic"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span><span class="t">더망고 엑셀 선택 · 끌어놓기</span><span class="fn" id="mangoFn"></span>
           </label>
           <div class="mc-row">
             <div class="fl" style="margin:0 8px 0 0">전체 배송방식</div>
@@ -991,7 +991,7 @@
             <label class="mc-rc"><input type="radio" name="mgbulk" value="직배" hidden>전부 직배</label>
             <span style="margin-left:auto"></span>
             <button class="gbtn" id="mgClearBtn" style="width:auto;margin:0;background:transparent;border-color:var(--line2);color:var(--sub);font-size:12px">비우기</button>
-            <button class="gbtn" id="mgMapBtn" style="width:auto;margin:0">⚙ 구분자 매핑</button>
+            <button class="gbtn" id="mgMapBtn" style="width:auto;margin:0"><i class="ph-light ph-gear" aria-hidden="true"></i> 구분자 매핑</button>
             <button class="gbtn" id="mgUpBtn" style="width:auto;margin:0;background:var(--blue);border-color:var(--blue);color:#fff">업로드</button>
           </div>
           <div class="mc-msg" id="mangoMsg"></div>
@@ -1002,9 +1002,9 @@
       {% endif %}
       {% if tab == 'ship' %}{# 뷰 탭 3개 — 단계로 대체 #}
       <div class="oview-tabs" id="oviewTabs">
-        <button type="button" class="ovt on" data-v="mkt">📋 전체 주문</button>
-        <button type="button" class="ovt" data-v="check">🚚 배송검사 <span id="ovtCheckN"></span></button>
-        <button type="button" class="ovt auto" data-v="auto">⚡ 자동전환 <span id="ovtAutoN" style="color:var(--green)"></span></button>
+        <button type="button" class="ovt on" data-v="mkt"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 전체 주문</button>
+        <button type="button" class="ovt" data-v="check"><i class="ph-light ph-truck" aria-hidden="true"></i> 배송검사 <span id="ovtCheckN"></span></button>
+        <button type="button" class="ovt auto" data-v="auto"><i class="ph-light ph-lightning" aria-hidden="true"></i> 자동전환 <span id="ovtAutoN" style="color:var(--green)"></span></button>
       </div>
       {% endif %}
       {% if tab == 'ship' %}{# 엑셀을 올려야 나온다 — 찾아온 주문을 갈라 보고 그 자리에서 보낸다 #}
@@ -1055,7 +1055,7 @@
            그래서 몇 초면 끝나고, 칸마다 「언제 긁은 값인지」가 같이 적힌다. #}
       {% if tab != 'ship' %}
       <div class="ffbar" id="ffBar">
-        <button type="button" class="ffbtn" id="ffJudge">🔄 주문 이행 가능 판단</button>
+        <button type="button" class="ffbtn" id="ffJudge"><i class="ph-light ph-arrows-clockwise" aria-hidden="true"></i> 주문 이행 가능 판단</button>
         <span class="ffbar-msg" id="ffJudgeMsg"></span>
       </div>
       {% endif %}
@@ -1065,7 +1065,7 @@
            「매입가 미입력」 탭을 고르면 예전처럼 펼쳐진 채 큼직하게 뜬다(ppSyncMode). #}
       <div class="ppcard" id="ppCard">
         <button type="button" class="pph" id="ppHead">
-          <b>💰 더망고 매입 엑셀 올리기</b>
+          <b><i class="ph-light ph-coins" aria-hidden="true"></i> 더망고 매입 엑셀 올리기</b>
           <span class="ppsub" id="ppSub">엑셀을 <b>표 위에 끌어다 놓기만</b> 하면 됩니다 — 「구매가격」이 곧 실매입가입니다</span>
           <span style="margin-left:auto" id="ppChev">▾</span>
         </button>
@@ -1073,7 +1073,7 @@
           <div id="ppDrop">
             <label class="ppdz" id="ppDz">
               <input type="file" id="ppFile" accept=".xls,.xlsx,.htm,.html" style="display:none">
-              <span class="ppdz-ic">📥</span>
+              <span class="ppdz-ic"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></span>
               <span class="ppdz-tx">
                 <span class="ppdz-t">더망고 매입 엑셀을 여기에 끌어놓으세요</span>
                 <span class="ppdz-s" id="ppDzSub">엑셀의 「구매가격」이 실매입가로 들어갑니다 · xls · xlsx · html</span>
@@ -1096,7 +1096,7 @@
         <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
         {% if tab == 'ship' %}{# 택배사 엑셀 끌어놓기 안내막 #}
         <div class="dropov" id="dropov" hidden>
-          <div class="in"><div class="ic">📄</div><div class="t">여기에 놓으세요</div>
+          <div class="in"><div class="ic"><i class="ph-light ph-file" aria-hidden="true"></i></div><div class="t">여기에 놓으세요</div>
             <div class="d">「오픈마켓주문번호」·「운송장번호」 열이 있는 엑셀 (.xlsx)</div></div>
         </div>
         {% else %}
@@ -1104,13 +1104,13 @@
            평소엔 아무것도 없다가, 엑셀을 화면으로 끌어오는 순간 **표 전체가 놓을 자리**로
            바뀐다. 송장 작업 탭이 이미 쓰는 장치를 그대로 가져왔다(같은 클래스·같은 배선). #}
         <div class="dropov" id="dropov-pp" hidden>
-          <div class="in"><div class="ic">💰</div><div class="t">더망고 매입 엑셀을 여기에 놓으세요</div>
+          <div class="in"><div class="ic"><i class="ph-light ph-coins" aria-hidden="true"></i></div><div class="t">더망고 매입 엑셀을 여기에 놓으세요</div>
             <div class="d">「구매가격」이 곧 실매입가입니다 · xls · xlsx · html</div></div>
         </div>
         {% endif %}
       </div>
       <div id="pdxLegend"></div>
-      <div style="font-size:12px;color:var(--sub);margin-top:8px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다.{% if tab != 'ship' %} 「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>(마켓·계정·기간·검색 반영) 내려받아요.{% endif %}</div>
+      <div style="font-size:12px;color:var(--sub);margin-top:8px"><i class="ph-light ph-lightbulb" aria-hidden="true"></i> 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다.{% if tab != 'ship' %} 「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>(마켓·계정·기간·검색 반영) 내려받아요.{% endif %}</div>
       </div>
       {% if tab == 'ship' %}{# 전송 버튼 — 발송 대상 표 바로 아래 하나만(옛 ③단계 없앰) #}
       <div id="sendBar"></div>
@@ -1120,10 +1120,10 @@
         <div class="sb">{% endif %}
       {% if tab == 'ship' %}{# 배송검사 뷰 #}
       <div id="checkView" style="display:none">
-        <div style="font-size:12px;color:var(--sub);margin:0px 0 8px">🚚 더망고 대조 <b>전체</b> 기준(왼쪽 마켓·기간 필터와 무관). 문제 없는 것만 골라 송장 전송하세요.</div>
+        <div style="font-size:12px;color:var(--sub);margin:0px 0 8px"><i class="ph-light ph-truck" aria-hidden="true"></i> 더망고 대조 <b>전체</b> 기준(왼쪽 마켓·기간 필터와 무관). 문제 없는 것만 골라 송장 전송하세요.</div>
         <div id="chkTopTabs" style="display:flex;gap:8px;margin-bottom:12px">
-          <button type="button" class="chk-tt on" data-tt="need">🛠 조치 필요 <b id="ttNeedN">0</b></button>
-          <button type="button" class="chk-tt" data-tt="nonneed">✅ 조치 불필요 <b id="ttNonN">0</b></button>
+          <button type="button" class="chk-tt on" data-tt="need"><i class="ph-light ph-wrench" aria-hidden="true"></i> 조치 필요 <b id="ttNeedN">0</b></button>
+          <button type="button" class="chk-tt" data-tt="nonneed"><i class="ph-light ph-check-circle" aria-hidden="true"></i> 조치 불필요 <b id="ttNonN">0</b></button>
         </div>
         <div id="checkSections"><div class="state">더망고를 업로드하면 검사 결과가 나옵니다.</div></div>
         <div id="chkPop" class="chk-pop"></div>
@@ -1132,7 +1132,7 @@
       {% endif %}
       {% if tab == 'ship' %}{# 자동전환 — 발송 준비 작업이라 「송장 작업」에만 둔다 #}
       <div id="autoView" style="display:none">
-        <div style="font-size:12px;color:var(--sub);margin:0px 0 8px">⚡ 「결제완료」 주문을 「배송준비중」으로 넘깁니다. <b>자동 실행</b>을 켜두면 정한 간격마다 알아서, 꺼두면 <b>「지금 즉시 전환」</b>으로 직접. 마켓·계정별로 대상을 켜세요.</div>
+        <div style="font-size:12px;color:var(--sub);margin:0px 0 8px"><i class="ph-light ph-lightning" aria-hidden="true"></i> 「결제완료」 주문을 「배송준비중」으로 넘깁니다. <b>자동 실행</b>을 켜두면 정한 간격마다 알아서, 꺼두면 <b>「지금 즉시 전환」</b>으로 직접. 마켓·계정별로 대상을 켜세요.</div>
         <div id="autoBody"><div class="state">불러오는 중…</div></div>
       </div>
       {% endif %}
@@ -1380,7 +1380,7 @@
           if(!j.ok||!j.silent_total)return;
           var per=j.markets.filter(function(m){return m.silent.length;})
             .map(function(m){return '<b>'+esc(m.label)+'</b> — '+m.silent.map(esc).join(' · ');});
-          bar.innerHTML='⚠️ 등록해 두신 계정 중 <b>'+j.silent_total+'곳</b>이 최근 '
+          bar.innerHTML='등록해 두신 계정 중 <b>'+j.silent_total+'곳</b>이 최근 '
             +j.days+'일 동안 주문을 하나도 안 줬어요.<br>'+per.join('<br>')
             +'<br><span class="sub">정말 판매가 없었을 수도 있고, 키가 만료됐거나 서버 IP 등록이 풀렸을 수도 있어요. '
             +'「판매처 관리」에서 그 계정을 확인해 주세요.</span>';
@@ -1759,7 +1759,7 @@
       var fails=ws.filter(function(w){return !isDupKind(w);});
       var html='';
       if(fails.length){
-        html+='<div class="wt">⚠️ 아래 계정 '+fails.length+'개는 주문을 불러오지 못해 표에서 빠져 있어요</div>'
+        html+='<div class="wt">아래 계정 '+fails.length+'개는 주문을 불러오지 못해 표에서 빠져 있어요</div>'
           +'<ul>'+fails.map(function(w){
             var mk=warnMk(w);
             return '<li title="'+esc(w)+'">'+esc(warnText(w))
@@ -1768,7 +1768,7 @@
           +'<div class="hint">「판매처 관리」에서 그 계정의 키와 서버 IP 등록을 확인해 주세요. 빠진 계정이 있는 동안 「엑셀 내보내기」는 발송 누락을 막기 위해 파일을 만들지 않습니다.</div>';
       }
       if(dups.length){
-        html+='<div class="dupwrap"><div class="wt">ℹ️ 중복 등록된 계정은 한 번만 조회했어요 (주문 2배 계상 방지)</div>'
+        html+='<div class="dupwrap"><div class="wt">ℹ중복 등록된 계정은 한 번만 조회했어요 (주문 2배 계상 방지)</div>'
           +'<ul>'+dups.map(function(w){return '<li title="'+esc(w)+'">'+esc(dupText(w))+'</li>';}).join('')+'</ul>'
           +'<div class="hint">같은 셀러가 두 번 등록돼 있어요. 「판매처 관리」에서 중복 계정을 정리해 주세요.</div></div>';
       }
@@ -1827,10 +1827,10 @@
     }
     function dmCheckCell(r){
       var m=dmOf(r); if(!m)return '<span class="muted">—</span>';
-      if(m.dup)return '<span class="bd red" title="더망고는 해외현지배송중인데 마켓엔 이미 송장">🔴 이중송장</span>';
-      if(m.flow)return '<span class="bd amber" title="송장 넣고 24h 배송중 안 됨">🟡 정체</span>';
-      if(m.unk)return '<span class="bd gray" title="마켓 조회 실패(서버 IP 미등록 등)">⚪ 확인불가</span>';
-      return '<span class="bd green">🟢 정상</span>';
+      if(m.dup)return '<span class="bd red" title="더망고는 해외현지배송중인데 마켓엔 이미 송장">이중송장</span>';
+      if(m.flow)return '<span class="bd amber" title="송장 넣고 24h 배송중 안 됨">정체</span>';
+      if(m.unk)return '<span class="bd gray" title="마켓 조회 실패(서버 IP 미등록 등)">확인불가</span>';
+      return '<span class="bd green">정상</span>';
     }
     var dmCheckFilter=null;   // 'dup'|'flow'|'unk'|null — 사이드바 막대 클릭
     // 상위탭(A안): 조치 필요(이중송장·정체·확인불가·발송대상) / 조치 불필요(취소반품·이미발송)
@@ -1868,7 +1868,7 @@
     function apiInvCell(o){
       if(o.market_api_invoice){var el=elapsedTxt(o);
         return '<b style="font-variant-numeric:tabular-nums">'+esc(o.market_api_invoice)+'</b>'
-          +'<div style="margin-top:4px"><span class="reprint">🚫 재전송 금지</span>'
+          +'<div style="margin-top:4px"><span class="reprint">재전송 금지</span>'
           +(el?' <span class="muted" style="font-size:12px;font-variant-numeric:tabular-nums">· '+esc(el)+'</span>':'')+'</div>';}
       if(o.invoice)return '<span class="muted" title="더망고 입력값 · 마켓엔 아직 미등록">'+esc(o.invoice)+' <span style="font-size:12px">(더망고)</span></span>';
       return '<span class="muted">—</span>';
@@ -1940,7 +1940,7 @@
       function sec(cls,emoji,title,sk,opt){ opt=opt||{};
         var base=ordersOfSec(sk); if(!base.length)return '';
         var list=base.filter(function(o){return passSec(o,sk);});
-        var btn=opt.send?'<button class="sbtn" id="chkSendOk">✓ '+list.length+'건 송장 전송</button>':'';
+        var btn=opt.send?'<button class="sbtn" id="chkSendOk">'+list.length+'건 송장 전송</button>':'';
         return '<div class="chk-sec"><div class="chk-sec-h '+cls+'">'+emoji+' '+title+' <b style="font-variant-numeric:tabular-nums">'+list.length+'</b>'+btn+'</div>'+chkTable(list,sk,opt)+'</div>';}
       function ss(k){return !dmCheckFilter||dmCheckFilter===k;}   // 사이드바 막대 클릭 시 그 섹션만
       function tt(t){return chkTopTab===t;}                       // 상위탭(A안) 게이트
@@ -1949,9 +1949,9 @@
         +(tt('need')&&ss('unk')?sec('cs-unk','🔴','확인불가 · 매칭 안 됨','unk',{why:true}):'')
         +(tt('nonneed')&&ss('cancel')?
              sec('cs-cancel','🚫','취소','c_취소')
-            +sec('cs-cancel','↩️','반품','c_반품')
+            +sec('cs-cancel','↩','반품','c_반품')
             +sec('cs-cancel','🔄','교환','c_교환')
-            +sec('cs-cancel','▫️','그외 (완료·구분 불가)','c_그외')
+            +sec('cs-cancel','▫','그외 (완료·구분 불가)','c_그외')
           :'')
         +(tt('nonneed')&&ss('done')?
              sec('cs-done','🚚','배송중','d_배송중')
@@ -2014,11 +2014,11 @@
       var el=document.getElementById('dmbars'); if(!el)return;
       // 마켓 API 실데이터 기준 카운트 — 마켓·기간 필터와 무관하게 더망고 전체.
       // 조치 필요=색(파/노/빨), 조치 불필요=회색. 색 있으면 '지금 볼 것'.
-      var defs=[['send','🔵 발송 대상','var(--blue)',ordersOfSec('send').length],
-                ['stall','🟡 배송흐름 정체','var(--amber)',ordersOfSec('stall').length],
-                ['unk','🔴 확인불가','var(--red)',ordersOfSec('unk').length],
-                ['cancel','⚪ 취소·반품·교환','var(--faint)',ordersOfSec('cancel').length],
-                ['done','⚪ 이미 발송·완료','var(--faint)',ordersOfSec('done').length]];
+      var defs=[['send','발송 대상','var(--blue)',ordersOfSec('send').length],
+                ['stall','배송흐름 정체','var(--amber)',ordersOfSec('stall').length],
+                ['unk','확인불가','var(--red)',ordersOfSec('unk').length],
+                ['cancel','취소·반품·교환','var(--faint)',ordersOfSec('cancel').length],
+                ['done','이미 발송·완료','var(--faint)',ordersOfSec('done').length]];
       var mx=Math.max(1,defs[0][3],defs[1][3],defs[2][3],defs[3][3],defs[4][3]);
       el.innerHTML=defs.map(function(d){
         var on=(dmCheckFilter===d[0])?' style="outline:2px solid '+d[2]+';outline-offset:1px;border-radius:8px"':'';
@@ -2100,8 +2100,8 @@
       var ph=(tier&&tier!=='real'&&d.price!=null)?ppWon(d.price):'직접 입력';
       var tag, tcls;
       if(st==='saving'){tag='저장 중…';tcls='pp-t-none';}
-      else if(st==='ok'){tag='✓ 저장됨';tcls='pp-ok';}
-      else if(st==='err'){tag='✗ 저장 실패';tcls='pp-err';}
+      else if(st==='ok'){tag='저장됨';tcls='pp-ok';}
+      else if(st==='err'){tag='저장 실패';tcls='pp-err';}
       else if(tier){tag=PP_TAG[tier]||tier;tcls='pp-t-'+tier;}
       else {tag='확인 불가';tcls='pp-t-none';}
       var icls=(tier==='real'?' pp-real':'')+(st==='saving'?' pp-saving':'')
@@ -2110,7 +2110,7 @@
          왜인지 알 수 없다」를 막는 창구다(특히 엑셀 재업로드가 수기 값을 덮어쓴 경우). */
       var hbtn=(tier==='real')
         ? '<button type="button" class="pp-hist" data-uid="'+esc(uid)+'" '
-          +'title="이 줄의 매입가가 언제 얼마에서 얼마로 바뀌었는지 봅니다">🕘 이력</button>' : '';
+          +'title="이 줄의 매입가가 언제 얼마에서 얼마로 바뀌었는지 봅니다">이력</button>' : '';
       return '<span class="pp-cell"><input class="pp-in'+icls+'" data-uid="'+esc(uid)+'" '
            + 'inputmode="numeric" value="'+esc(real)+'" placeholder="'+esc(ph)+'" '
            + 'title="진짜 사온 값을 적으세요. 비우고 나가면 지워집니다(=입력 안 함).">'
@@ -2291,7 +2291,7 @@
       ppHistClose();
       var pop=document.createElement('div');
       pop.className='pp-hpop';
-      pop.innerHTML='<div class="hh">🕘 매입가 변경 이력<button type="button" class="x">✕</button></div>'
+      pop.innerHTML='<div class="hh">매입가 변경 이력<button type="button" class="x"></button></div>'
                    +'<div class="why">불러오는 중…</div>';
       document.body.appendChild(pop); ppHPop=pop;
       var r=anchor.getBoundingClientRect();
@@ -2324,11 +2324,11 @@
           });
           h+='</tbody></table>';
           if(it[0]&&it[0].ref)h+='<div class="why">최근 출처: '+esc(it[0].ref)+'</div>';
-          pop.innerHTML='<div class="hh">🕘 매입가 변경 이력<button type="button" class="x">✕</button></div>'+h;
+          pop.innerHTML='<div class="hh">매입가 변경 이력<button type="button" class="x"></button></div>'+h;
           pop.querySelector('.x').addEventListener('click',ppHistClose);
         })
         .catch(function(){
-          if(ppHPop===pop)pop.querySelector('.why').textContent='✗ 네트워크 오류로 이력을 못 불러왔어요.';
+          if(ppHPop===pop)pop.querySelector('.why').textContent='네트워크 오류로 이력을 못 불러왔어요.';
         });
     }
     document.addEventListener('click',function(e){
@@ -2387,7 +2387,7 @@
       var tag='', tcls='';
       if(st==='saving'){tag='저장 중…';tcls='pp-t-none';}
       else if(st==='ok'){tag='✓';tcls='pp-ok';}
-      else if(st==='err'){tag='✗ 실패';tcls='pp-err';}
+      else if(st==='err'){tag='실패';tcls='pp-err';}
       var opts=['dropship','stock'].map(function(m){
         return '<option value="'+m+'"'+(m===mode?' selected':'')+'>'+SM_LABEL[m]+'</option>';}).join('');
       return '<span class="sm-cell">'
@@ -2452,8 +2452,8 @@
           return '<div class="ost-it'+(on?' on':'')+'" data-oid="'+o.id+'">'
             +'<span class="ost-dot ost-d-'+esc(o.color)+'"></span>'
             +'<span class="ost-nmv">'+esc(o.name)+'</span>'
-            +(o.is_default?'<span class="ost-star" title="새 주문에 기본으로 보이는 항목">⭐</span>':'')
-            +(on?'<span class="ost-ck">✓</span>':'')+'</div>';
+            +(o.is_default?'<span class="ost-star" title="새 주문에 기본으로 보이는 항목"></span>':'')
+            +(on?'<span class="ost-ck"></span>':'')+'</div>';
         }).join('');
         h+='<div class="ost-it" data-oid="" style="color:var(--ap-g4,#86868B)">'
           +'<span class="ost-dot" style="background:var(--ap-g2,#E8E8ED)"></span>'
@@ -2463,7 +2463,7 @@
         +'placeholder="여기에 적고 Enter — 바로 추가돼요">'
         +'<button type="button" id="ostAdd">추가</button></div>'
         +'<div class="ost-err" id="ostErr"></div>'
-        +'<div class="ost-foot" id="ostManage">⚙️ 이름·색·순서 고치기 →</div>';
+        +'<div class="ost-foot" id="ostManage">이름·색·순서 고치기 →</div>';
       return h;
     }
     function closeOstDrop(){
@@ -2569,8 +2569,8 @@
     }
     // ── 항목 관리 창 (수정·삭제·순서·색·기본) ────────────────────────────
     function ostModalHTML(){
-      var h='<div class="ost-mh"><div class="t">⚙️ 주문 관리 항목</div>'
-        +'<button type="button" class="x" id="ostX">✕ 닫기</button></div>'
+      var h='<div class="ost-mh"><div class="t">주문 관리 항목</div>'
+        +'<button type="button" class="x" id="ostX">닫기</button></div>'
         +'<div class="ost-md">여기서 만든 항목이 드롭다운에 나옵니다. 팀 전체가 같은 목록을 씁니다.</div>'
         +'<div class="ost-mb">';
       if(!ostOpts.length){
@@ -2592,7 +2592,7 @@
             +'title="이름을 눌러 바로 고칩니다 — 다른 곳을 누르면 저장돼요">'
             +'<button type="button" class="ost-dflt'+(o.is_default?' on':'')+'" data-oid="'+o.id+'" '
             +'title="새 주문에 이 상태가 보입니다 — 저장되는 게 아니라 표시만 합니다">'
-            +(o.is_default?'⭐ 기본':'기본으로')+'</button>'
+            +(o.is_default?'기본':'기본으로')+'</button>'
             +'<span class="ost-sw">'+OST_COLORS.map(function(c){
                 return '<i class="ost-d-'+c+(c===o.color?' on':'')+'" data-oid="'+o.id
                   +'" data-color="'+c+'" title="'+OST_CLABEL[c]+'"></i>';
@@ -2606,7 +2606,7 @@
         +(ostOpts.length?'+ 추가':'+ 첫 항목 만들기')+'</button></div>'
         +'<div class="ost-msg" id="ostMMsg"></div>'
         +'<div id="ostMCfm"></div>'
-        +'<div class="ost-warn">⚠️ 쓰고 있는 항목을 지우면 그 주문들의 상태가 비워집니다 — '
+        +'<div class="ost-warn">쓰고 있는 항목을 지우면 그 주문들의 상태가 비워집니다 — '
         +'<b>몇 건이 쓰는 중</b>인지 알려드리고 한 번 더 물어봅니다.</div>'
         +'<div class="ost-note">▲▼ 를 눌러(또는 ⠿ 를 끌어) 순서를 바꿉니다 — '
         +'폰에서는 끌기가 안 되니 ▲▼ 를 쓰세요 · 이름을 눌러 바로 고칩니다 · '
@@ -2776,11 +2776,11 @@
       if(used>0){
         h='<div class="ost-cfm"><b>「'+esc(o.name)+'」를 지울까요?</b><br>'
           +'지금 <b>'+used+'건</b>이 이 상태를 쓰고 있어요. 지우면 그 주문들은 「지정 안 함」이 됩니다.'
-          +(o.is_default?'<br>⭐ 이 항목은 <b>기본</b>이라, 지우면 새 주문은 빈 상태로 보입니다.':'');
+          +(o.is_default?'<br>이 항목은 <b>기본</b>이라, 지우면 새 주문은 빈 상태로 보입니다.':'');
       }else{
         h='<div class="ost-cfm ost-free"><b>「'+esc(o.name)+'」를 지울까요?</b><br>'
           +'<b>쓰는 주문이 없어요</b> — 바로 지워도 괜찮습니다.'
-          +(o.is_default?'<br>⭐ 이 항목은 <b>기본</b>이라, 지우면 새 주문은 빈 상태로 보입니다.':'');
+          +(o.is_default?'<br>이 항목은 <b>기본</b>이라, 지우면 새 주문은 빈 상태로 보입니다.':'');
       }
       h+='<div class="ost-btns"><button type="button" class="ost-no">그만두기</button>'
         +'<button type="button" class="ost-yes">지우기</button></div></div>';
@@ -2912,25 +2912,25 @@
     function invCellHTML(r,v){
       var k=invKey(r), res=invResult[k];
       if(res){
-        if(!res.success) return '<span class="inv-no" title="'+esc(res.error||'')+'">✗ 실패</span>';
+        if(!res.success) return '<span class="inv-no" title="'+esc(res.error||'')+'">실패</span>';
         var typed=String((invMap[k]||{}).invoice_no||'').trim();
-        if(res.dry_run) return '<span class="inv-ok">미리보기 ✓ '+esc(typed)+'</span>';
+        if(res.dry_run) return '<span class="inv-ok">미리보기 '+esc(typed)+'</span>';
         // 실전송 성공 — 표시 숫자는 '마켓 재조회값'이 기준(입력값 아님).
         var mkt=res.market_invoice_no==null?'':String(res.market_invoice_no).trim();
         if(!mkt)  // 마켓이 아직 안 돌려줌 → 입력값을 보여주되 '확인 대기'로 표기(마켓값인 척 금지)
-          return '<span class="inv-ok" title="마켓에서 아직 송장을 확인하지 못했어요(전파 지연일 수 있음)">✓ 전송 '
+          return '<span class="inv-ok" title="마켓에서 아직 송장을 확인하지 못했어요(전파 지연일 수 있음)">전송 '
                + esc(typed)+' <span class="inv-wait">· 마켓확인대기</span></span>';
         if(typed && mkt!==typed)  // 입력≠마켓 → 빨간 경고로 드러냄(오입력 즉시 포착)
           return '<span class="inv-no" title="입력한 송장번호와 마켓 등록값이 달라요. 마켓 기준이 진짜입니다.">'
-               + '⚠ 마켓 '+esc(mkt)+' <s>입력 '+esc(typed)+'</s></span>';
-        return '<span class="inv-ok" title="마켓에 실제 등록된 송장번호(재조회 확인)">✓ 전송 '+esc(mkt)+'</span>';
+               + '마켓 '+esc(mkt)+' <s>입력 '+esc(typed)+'</s></span>';
+        return '<span class="inv-ok" title="마켓에 실제 등록된 송장번호(재조회 확인)">전송 '+esc(mkt)+'</span>';
       }
       // 제외된 줄 — 「왜」가 칸에서 바로 보여야 한다. 이미 송장이 있으면 그 번호를 보여준다.
       if(invBad[k]){
         var had=String(v||'').trim();
         return '<span class="inv-no" title="'+esc(invBad[k])+'">'
              + (had && had!=='송장미입력' && had!=='확인 불가'
-                ? '⚠ 이미 '+esc(had) : '⚠ 엑셀 모순 — 제외')+'</span>';
+                ? '이미 '+esc(had) : '엑셀 모순 — 제외')+'</span>';
       }
       if(!invSel[k]){
         // 서버가 '없음'을 문자열 "송장미입력" 로 채워 보낸다 → 값이 아니라 '빈 상태'로 취급.
@@ -2967,7 +2967,7 @@
           +esc(String(x.label).slice(0,2))+'</a>');});
       if(L.product)out.push('<a href="'+esc(L.product)+'" title="상품 관리" class="qlk">품</a>');
       if(d.sku)out.push('<button type="button" class="qlk" data-ph="'+esc(d.sku)
-        +'" title="가격·재고 이력">📈</button>');
+        +'" title="가격·재고 이력"></button>');
       return out.length?('<span class="qlks">'+out.join('')+'</span>')
                        :'<span class="muted">—</span>';
     }
@@ -3151,8 +3151,8 @@
         if(!tag)return;
         var txt,cls;
         if(st==='saving'){txt='저장 중…';cls='pp-t-none';}
-        else if(st==='ok'){txt='✓ 저장됨';cls='pp-ok';}
-        else if(st==='err'){txt='✗ 저장 실패';cls='pp-err';}
+        else if(st==='ok'){txt='저장됨';cls='pp-ok';}
+        else if(st==='err'){txt='저장 실패';cls='pp-err';}
         else if(tier){txt=PP_TAG[tier]||tier;cls='pp-t-'+tier;}
         else {txt='확인 불가';cls='pp-t-none';}
         tag.className='pp-tag '+cls; tag.textContent=txt;
@@ -3214,7 +3214,7 @@
           var txt='', cls='';
           if(st==='saving'){txt='저장 중…';cls='pp-t-none';}
           else if(st==='ok'){txt='✓';cls='pp-ok';}
-          else if(st==='err'){txt='✗ 실패';cls='pp-err';}
+          else if(st==='err'){txt='실패';cls='pp-err';}
           if(!txt){ if(tag)tag.remove(); return; }
           if(!tag){tag=document.createElement('span');cell.appendChild(tag);}
           tag.className='pp-tag '+cls; tag.textContent=txt;
@@ -3329,7 +3329,7 @@
       var txt=String(raw==null?'':raw).replace(/[, ]/g,'').trim();
       if(txt&&!/^\d+$/.test(txt)){
         var m0=document.getElementById('supmsg');
-        if(m0)m0.textContent='✗ 매입가는 숫자로 적어 주세요.';
+        if(m0)m0.textContent='매입가는 숫자로 적어 주세요.';
         return;
       }
       var q=txt
@@ -3365,7 +3365,7 @@
           // 지웠으면 2·3순위를 다시 물어야 하고, 적었으면 탭 판정이 바뀐다.
           if(o.j.price==null)loadPurchasePrice(loadSeq); else ppRefreshFlags();
         })
-        .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
+        .catch(function(){ if(msg)msg.textContent='네트워크 오류'; });
     }
     /* 고른 여러 줄에 상태를 한꺼번에. 열쇠는 반드시 line_uid(공급방식 일괄과 같은 규약). */
     function ostBulk(optionId){
@@ -3387,7 +3387,7 @@
           supSay('✓ '+o.j.saved+'줄 저장됨'
             +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):''));
         })
-        .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
+        .catch(function(){ if(msg)msg.textContent='네트워크 오류'; });
     }
     function smBulk(mode){
       var uids=Object.keys(smSel); if(!uids.length)return;
@@ -3408,7 +3408,7 @@
           supSay('✓ '+o.j.saved+'줄 저장됨'
             +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):''));
         })
-        .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
+        .catch(function(){ if(msg)msg.textContent='네트워크 오류'; });
     }
     function loadSupplyMode(seq,done){
       var mine=++smSeq;
@@ -3618,15 +3618,15 @@
         +'<span class="u">건 보낼 수 있어요</span>'
         +'<span class="of">엑셀 '+xlRead+'줄 읽음</span></div>'
         +'<div class="rprob">'
-        +'<button type="button" class="rp ok" data-c="go">🔵 발송 대상 <b>'+c.go+'</b></button>'
-        +'<button type="button" class="rp" data-c="dup">🔴 이중송장 <b>'+c.dup+'</b></button>'
-        +'<button type="button" class="rp" data-c="unk">🔴 확인불가 <b>'+c.unk+'</b></button></div>'
+        +'<button type="button" class="rp ok" data-c="go">발송 대상 <b>'+c.go+'</b></button>'
+        +'<button type="button" class="rp" data-c="dup">이중송장 <b>'+c.dup+'</b></button>'
+        +'<button type="button" class="rp" data-c="unk">확인불가 <b>'+c.unk+'</b></button></div>'
         +'<div class="rmeter"><i class="go" style="width:'+pct(c.go)+'%"></i>'
         +'<i class="dup" style="width:'+pct(c.dup)+'%"></i>'
         +'<i class="unk" style="width:'+pct(c.unk)+'%"></i></div>'
         +'<div class="rfoot">'+(bad
-            ? '🔴 표시된 <b>'+bad+'건</b>은 <b>보내지 않습니다</b> — 눌러서 왜 그런지 확인하세요.'
-            : '✅ 모두 보낼 수 있어요. 아래 표에 송장번호가 채워져 있습니다.')
+            ? '표시된 <b>'+bad+'건</b>은 <b>보내지 않습니다</b> — 눌러서 왜 그런지 확인하세요.'
+            : '모두 보낼 수 있어요. 아래 표에 송장번호가 채워져 있습니다.')
         +'</div></div>';
       [].slice.call(el.querySelectorAll('.rp')).forEach(function(b){
         b.onclick=function(){shipCls=b.getAttribute('data-c');onlyBad=false;render();};});
@@ -3638,7 +3638,7 @@
       if(!xlLoaded||shipCls!=='unk'){el.style.display='none';el.innerHTML='';return;}
       el.style.display='';
       if(!clsUnk.length){
-        el.innerHTML='<div class="unkcard"><div class="uh">✅ 못 찾은 번호가 없어요'
+        el.innerHTML='<div class="unkcard"><div class="uh">못 찾은 번호가 없어요'
           +'<span class="hint">엑셀의 주문번호를 전부 우리 주문에서 찾았습니다</span></div></div>';
         return;}
       var rows=clsUnk.map(function(o){
@@ -3650,7 +3650,7 @@
                                      :'<span class="muted">비슷한 주문 없음</span>')+'</td>'
           +'<td><span class="act">'+esc(n.action||'기간 확인')+'</span></td></tr>';}).join('');
       el.innerHTML='<div class="unkcard">'
-        +'<div class="uh">🔴 우리 주문에서 못 찾은 번호 <b>'+clsUnk.length+'</b>건'
+        +'<div class="uh">우리 주문에서 못 찾은 번호 <b>'+clsUnk.length+'</b>건'
         +'<span class="hint">보내지 않습니다 — 아래 이유를 보고 엑셀이나 기간을 확인하세요</span></div>'
         +'<table><tr><th>엑셀의 주문번호</th><th>왜 못 찾았나</th>'
         +'<th>가장 비슷한 우리 주문</th><th>그 주문</th><th></th></tr>'+rows+'</table></div>';
@@ -3693,7 +3693,7 @@
         +'<div class="shint">되돌리기 어렵습니다 — 고객 배송조회에 바로 반영돼요. 표의 송장번호를 먼저 확인하세요.</div></div>'
         +'<div class="sact"><button type="button" class="gbtn" id="invclear">선택 해제</button>'
         +'<button type="button" class="sendbtn" id="invsend"'+(ready.length?'':' disabled')+'>'
-        +'🚚 마켓으로 전송 ('+ready.length+'건)</button></div></div>';
+        +'마켓으로 전송 ('+ready.length+'건)</button></div></div>';
       document.getElementById('invclear').onclick=function(){
         invSel={};invMap={};invBad={};invResult={};
         xlLoaded=false;clsOf={};clsUnk=[];shipCls='go';onlyBad=false;
@@ -3814,7 +3814,7 @@
           });
           render();
           var head = j.live ? '실제 전송' : '미리보기(실제로 보내지 않음)';
-          if(live && !j.live) head='⚠︎ 실전송 스위치가 꺼져 있어 미리보기로 처리했습니다';
+          if(live && !j.live) head='︎ 실전송 스위치가 꺼져 있어 미리보기로 처리했습니다';
           alert(head+' — 성공 '+j.sent+'건 / 실패 '+j.failed+'건'
                 +(j.failed?'\n\n실패 사유는 「송장입력」 칸에 마우스를 올리면 보입니다.':''));
         }).catch(function(){alert('전송 실패(네트워크)');});
@@ -3828,7 +3828,7 @@
         ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
         document.body.appendChild(ov);}
       ov.innerHTML='<div style="background:var(--surface,#ffffff);border-radius:14px;padding:18px 20px;width:min(560px,92vw)">'
-        +'<div style="font-weight:800;font-size:14px;margin-bottom:8px">📈 가격·재고 이력 '
+        +'<div style="font-weight:800;font-size:14px;margin-bottom:8px">가격·재고 이력 '
         +'<span style="font-size:12px;color:var(--sub);font-weight:400">'+esc(sku)+'</span></div>'
         +'<div id="phbody" style="font-size:12px;color:var(--sub)">불러오는 중…</div></div>';
       try{
@@ -4148,7 +4148,7 @@
       function resultHTML(j){
         var fix=j.unmatched.length+j.ambiguous.length, wait=j.skipped_zero.length;
         var h='<div class="ppres"><div class="ppres-h">'
-          +'<span class="big ok">✅ '+j.saved+'건 채웠어요</span>'
+          +'<span class="big ok">'+j.saved+'건 채웠어요</span>'
           +'<span class="mid">읽은 줄 '+j.parsed+' · 저장 '+j.saved+'</span>';
         if(fix)h+='<span class="big warn">손볼 것 '+fix+'건</span>';
         if(wait)h+='<span class="mid">매입 처리를 기다리는 것 '+wait+'건</span>';
@@ -4398,10 +4398,10 @@
       thisWeek:'이번 주',lastWeek:'지난주',thisMonth:'이번 달',lastMonth:'지난달',fixed:'시작~끝 직접'};
     function renderQList(){qlist.innerHTML='';quick.forEach(function(q,i){var row=document.createElement('div');row.className='qrow';
       row.innerHTML='<span class="qn">'+q.name+'<span class="qd">'+kindDesc(q)+'</span></span>'
-        +'<button class="ar edit" title="수정">✎</button>'
+        +'<button class="ar edit" title="수정"></button>'
         +'<button class="ar up" '+(i===0?'style=visibility:hidden':'')+'>↑</button>'
         +'<button class="ar dn" '+(i===quick.length-1?'style=visibility:hidden':'')+'>↓</button>'
-        +'<button class="ar del" title="삭제">🗑</button>';
+        +'<button class="ar del" title="삭제"></button>';
       row.querySelector('.edit').addEventListener('click',function(){openQForm(i);});
       row.querySelector('.up').addEventListener('click',function(){quick.splice(i-1,0,quick.splice(i,1)[0]);renderQList();});
       row.querySelector('.dn').addEventListener('click',function(){quick.splice(i+1,0,quick.splice(i,1)[0]);renderQList();});
@@ -4456,7 +4456,7 @@
       pbar.innerHTML='';
       presets.forEach(function(p,i){var row=document.createElement('div');row.className='prow'+(i===editIdx?' on':'');
         row.innerHTML='<span class="pn">'+p.name+'</span><span class="pc">'+onCnt(p)+'열</span>'
-          +'<button class="ic ren" title="이름수정">✎</button><button class="ic del" title="삭제">🗑</button>';
+          +'<button class="ic ren" title="이름수정"></button><button class="ic del" title="삭제"></button>';
         row.addEventListener('click',function(e){if(e.target.closest('.ic'))return;editIdx=i;cols=presets[i].cols;renderPresetBar();renderColRows();});
         row.querySelector('.ren').addEventListener('click',function(e){e.stopPropagation();var nn=prompt('양식 이름',p.name);if(nn&&nn.trim()){p.name=nn.trim();renderPresetBar();}});
         row.querySelector('.del').addEventListener('click',function(e){e.stopPropagation();if(presets.length<=1){alert('양식은 최소 1개 필요해요');return;}presets.splice(i,1);if(editIdx>=presets.length)editIdx=presets.length-1;cols=presets[editIdx].cols;renderPresetBar();renderColRows();});
@@ -4580,12 +4580,12 @@
             m.state=e.state;m.matched=e.matched||0;m.total=e.total;m.label=e.label;prog[e.slug]=m;
             if(order.indexOf(e.slug)<0)order.push(e.slug);drawProg();}
           else if(e.phase==='done'){
-            document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+parsed+'건 처리 · 마켓대조 '+(e.checked||0)+'건</span>';
+            document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">'+parsed+'건 처리 · 마켓대조 '+(e.checked||0)+'건</span>';
             document.getElementById('mangoResult').textContent='✔ '+parsed+'건 · 마켓대조 '+(e.checked||0);
             setTimeout(function(){box.style.display='none';document.getElementById('mangoCard').classList.remove('open');loadMango();},700);}
         }
         fetch('/orders/inspect/upload-stream',{method:'POST',body:fd}).then(function(resp){
-          if(!resp.ok||!resp.body){resp.json().then(function(j){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ '+esc((j&&j.error)||'업로드 실패')+'</span>';}).catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ 업로드 실패</span>';});box.style.display='none';return;}
+          if(!resp.ok||!resp.body){resp.json().then(function(j){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">'+esc((j&&j.error)||'업로드 실패')+'</span>';}).catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">업로드 실패</span>';});box.style.display='none';return;}
           var reader=resp.body.getReader(),dec=new TextDecoder(),buf='';
           function pump(){return reader.read().then(function(r){
             if(r.done)return;
@@ -4593,7 +4593,7 @@
             lines.forEach(function(ln){if(ln.trim()){try{onEv(JSON.parse(ln));}catch(x){}}});
             return pump();});}
           return pump();
-        }).catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ 업로드 실패(네트워크)</span>';box.style.display='none';});});
+        }).catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">업로드 실패(네트워크)</span>';box.style.display='none';});});
       document.getElementById('mgMapBtn').addEventListener('click',function(){window.open('/orders/?tab=inspect','_blank');});
       document.getElementById('mgClearBtn').addEventListener('click',function(){
         var n=(mangoSummary&&mangoSummary.total)||0;
@@ -4601,11 +4601,11 @@
         if(!confirm('배송검사 '+n+'건을 모두 비울까요?\n(더망고 주문을 지워 미실시 0 상태로 되돌립니다)'))return;
         document.getElementById('mangoMsg').textContent='비우는 중…';
         fetch('/orders/inspect/clear',{method:'POST'}).then(function(r){return r.json();}).then(function(j){
-          if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">✔ '+j.deleted+'건 비움 · 배송검사 미실시</span>';
+          if(j.ok){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--green)">'+j.deleted+'건 비움 · 배송검사 미실시</span>';
             document.getElementById('mangoResult').textContent='';
             loadMango();}
-          else document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ 비우기 실패</span>';})
-          .catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">✖ 비우기 실패(네트워크)</span>';});});
+          else document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">비우기 실패</span>';})
+          .catch(function(){document.getElementById('mangoMsg').innerHTML='<span style="color:var(--red)">비우기 실패(네트워크)</span>';});});
     }
     // 배송방식 토글칩 클릭(표에 위임) → 수기 지정
     document.getElementById('tablewrap').addEventListener('click',function(e){
@@ -4649,14 +4649,14 @@
         ? '<span class="ac-pulse"></span> 켜짐 · '+au.interval_minutes+'분마다 · 다음 <b style="color:var(--ink);font-variant-numeric:tabular-nums">'+(au.next_run_at?hhmm(au.next_run_at):'곧')+'</b>'
         : '⏸ 꺼짐 · 자동으로 넘기지 않음';
       var html='<div class="ac-head'+(on?'':' off')+'">'
-        +'<span class="ac-title">⚡ 자동 실행</span>'
+        +'<span class="ac-title">자동 실행</span>'
         +'<label class="sw lg"><input type="checkbox" id="acAuto"'+(on?' checked':'')+'><span class="tk"></span></label>'
         +'<span class="ac-sub" id="acStatus">'+status+'</span>'
         +'<span class="ac-ivl">간격 <input type="number" id="acIvl" value="'+au.interval_minutes+'" min="1" max="180"> <span class="u">분마다</span></span>'
         +'<span class="ac-live'+(on?'':' off')+'">'+(on?'실전환 켜짐':'대기')+'</span>'
         +'<span style="margin-left:auto"></span>'
-        +'<button class="ac-runmini'+(on?'':' primary')+'" id="acRun">⚡ 지금 즉시 전환</button></div>';
-      html+='<div class="ac-offhint'+(on?'':' show')+'" id="acOffHint">⏸ 자동 실행이 꺼져 있어요. 지금 넘기려면 오른쪽 <b>「⚡ 지금 즉시 전환」</b>을 누르세요.</div>';
+        +'<button class="ac-runmini'+(on?'':' primary')+'" id="acRun">지금 즉시 전환</button></div>';
+      html+='<div class="ac-offhint'+(on?'':' show')+'" id="acOffHint">⏸ 자동 실행이 꺼져 있어요. 지금 넘기려면 오른쪽 <b>「지금 즉시 전환」</b>을 누르세요.</div>';
       html+='<div style="font-size:12px;color:var(--sub);margin:0px 0px 8px;font-weight:700">결제완료 → 배송준비중 · 계정별로 대상 켜고, 넘긴 시각은 줄을 눌러 펼치기</div>';
       html+='<table class="ac-table"><tr><th style="width:34%">마켓 · 계정</th>'
         +'<th class="ctr" style="width:82px">대상</th><th>마지막 전환</th><th style="width:30px"></th></tr>';
@@ -4693,8 +4693,8 @@
       [].slice.call(document.querySelectorAll('#autoBody .ac-chev')).forEach(function(c){
         c.addEventListener('click',function(){var k=c.getAttribute('data-key');acExpand[k]=!acExpand[k];renderAutoView();});});
     }
-    var AC_RESULT_KO={sent:'✅ 전환·확인됨',partial:'🟡 일부만 이동',failed:'❌ 실패',
-                     unsupported:'⚪ 아직 미지원',dryrun:'미리보기',skip:'대상 없음'};
+    var AC_RESULT_KO={sent:'전환·확인됨',partial:'일부만 이동',failed:'실패',
+                     unsupported:'아직 미지원',dryrun:'미리보기',skip:'대상 없음'};
     function autoResultLines(j){
       return (j.by||[]).filter(function(b){return b.result!=='skip';}).map(function(b){
         var s=(AC_RESULT_KO[b.result]||b.result)+' — '+b.label+' '+b.alias+' '+b.count+'건';
@@ -4733,13 +4733,13 @@
         .then(function(r){return r.json();}).then(function(j){
           if(!j.ok){alert('전환 실패: '+(j.error||''));return;}
           loadAutoConfig();
-          var head=j.live?('⚡ 전환 완료 — 「배송준비중」으로 '+j.total+'건 넘김'):'⏸ 비상 정지 중이라 미리보기로 처리됐어요';
+          var head=j.live?('전환 완료 — 「배송준비중」으로 '+j.total+'건 넘김'):'⏸ 비상 정지 중이라 미리보기로 처리됐어요';
           var lines=autoResultLines(j)||'대상 주문이 없어요(켜진 계정에 결제완료 주문 없음).';
           var msg=head+'\n\n'+lines;
-          if((j.warnings||[]).length)msg+='\n\n⚠️ 주의:\n· '+j.warnings.join('\n· ');
+          if((j.warnings||[]).length)msg+='\n\n주의:\n· '+j.warnings.join('\n· ');
           alert(msg);
         }).catch(function(){alert('전환 실패(네트워크)');})
-        .then(function(){var b=document.getElementById('acRun'); if(b){b.disabled=false;b.textContent='⚡ 지금 즉시 전환';}});
+        .then(function(){var b=document.getElementById('acRun'); if(b){b.disabled=false;b.textContent='지금 즉시 전환';}});
     }
 
     load();
@@ -4819,7 +4819,7 @@
         +'<span class="u">건 '+(n?'멈춤':'모두 정상')+'</span></div>'
         +(n?'<div class="wsub">가장 오래 멈춘 건 <b>'+data.rows[0]._stall_hours+'시간</b>째입니다.</div>':'')
         +'<button type="button" class="wbtn" id="watchOpen"'+(n?'':' disabled')+'>모아보기 →</button>'
-        +(u?'<div class="wsub">⚠️ <b>'+u+'건</b>은 마켓이 발송 시각을 안 줘서 판정하지 못했어요'
+        +(u?'<div class="wsub"><b>'+u+'건</b>은 마켓이 발송 시각을 안 줘서 판정하지 못했어요'
             +'<br><span style="font-size:12px">(쿠팡·옥션·G마켓은 그 값을 안 줍니다)</span></div>':'')
         +(n?'<div class="wlist">'+Object.keys(data.per_market).map(function(m){
             return '<div class="wrow"><span>'+esc2(m)+'</span><span class="c">'+data.per_market[m]+'</span></div>';
@@ -4854,15 +4854,15 @@
              return '<td class="n'+(red?' stuck':'')+'">'+(v||(v===0?'<span class="z">0</span>':0))+'</td>';
            }).join('')+'</tr>';}).join('');
       var stuck=daily.stuck||0;
-      w.innerHTML='<div class="d7t"><div class="d7h">🧾 최근 '+daily.days+'일 지켜본 결과'
+      w.innerHTML='<div class="d7t"><div class="d7h">최근 '+daily.days+'일 지켜본 결과'
         +' <span class="d7hint">— 「송장 전송」이 나머지 넷의 합이에요. 날짜를 누르면 그날 주문이 보여요</span></div>'
         +'<table class="dsum">'+head+body+'</table>'
-        +(stuck?'<div class="d7bad">🔴 <b>'+stuck+'건</b>이 지난 날짜인데 아직 <b>배송준비중</b>이에요 '
+        +(stuck?'<div class="d7bad"><b>'+stuck+'건</b>이 지난 날짜인데 아직 <b>배송준비중</b>이에요 '
           +'<span class="sub">— 송장을 넣었는데 배송 흐름이 안 잡힌 겁니다. 빨간 숫자를 눌러 확인하세요</span></div>':'')
-        +(daily.unknown?'<div class="d7u">⚠️ 이 표에서 빠진 <b>'+daily.unknown+'건</b> '
+        +(daily.unknown?'<div class="d7u">이 표에서 빠진 <b>'+daily.unknown+'건</b> '
           +'<span class="sub">— 마켓이 발송 시각을 안 줘서 어느 날짜인지 모릅니다</span></div>':'')
         +(Object.keys(daily.unseen||{}).length
-          ?'<div class="d7u">⚠️ 처음 보는 주문상태 '
+          ?'<div class="d7u">처음 보는 주문상태 '
             +Object.keys(daily.unseen).map(function(s){
                return '<b>'+esc2(s)+'</b> '+daily.unseen[s]+'건';}).join(' · ')
             +' <span class="sub">— 「배송준비중」 칸에 넣어 뒀지만 멈춘 것으로는 안 셌어요</span></div>':'')
@@ -4917,7 +4917,7 @@
         }).join('');
         tbl='<div class="d7tbl"><table>'+h+b+'</table></div>';
       }
-      box.innerHTML='<div class="d7d"><div class="d7dh">📅 '+esc2(j.date)+' 상세</div>'
+      box.innerHTML='<div class="d7d"><div class="d7dh">'+esc2(j.date)+' 상세</div>'
         +'<div class="dtabs">'+tabs+'</div>'+tbl+'</div>';
       [].slice.call(box.querySelectorAll('.dtab')).forEach(function(t){
         t.onclick=function(){openKind=t.getAttribute('data-k');drawDetail(box,j);};});
@@ -5598,7 +5598,7 @@
       var head='<div class="top" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
         +chBadge(row['문의형태'])+'<span class="mk">'+esc(row['마켓'])+'</span><b>'+esc(row['고객'])+'</b>'
         +'<span class="when" style="margin-left:auto;font-size:12px;color:var(--sub2)">'+esc(row['일시'])+'</span></div>';
-      var prod='<div class="prod" style="font-size:12px;color:var(--sub);margin-bottom:4px">📦 '+esc(row['상품'])+'</div>';
+      var prod='<div class="prod" style="font-size:12px;color:var(--sub);margin-bottom:4px">'+esc(row['상품'])+'</div>';
       var q='<div class="q">'+esc(row['문의내용'])+'</div>';
       var tail='';
       if(row['상태']==='답변완료'){
@@ -5607,7 +5607,7 @@
       } else {
         tail='<div class="composer"><textarea placeholder="답변을 작성하세요…" id="cs-inq-reply-ta"></textarea>'
            +'<div class="row"><button type="button" class="btn g" data-act="preview">미리보기</button>'
-           +'<button type="button" class="btn off" disabled title="전송은 마켓 검증 후 열립니다(준비 중)">전송 🔒</button>'
+           +'<button type="button" class="btn off" disabled title="전송은 마켓 검증 후 열립니다(준비 중)">전송 </button>'
            +'<span class="offnote">전송은 마켓 검증 후 열립니다(준비 중)</span></div>'
            +'<div id="cs-inq-preview-out"></div></div>';
       }
@@ -5828,7 +5828,7 @@
   </style>
   <div class="ord5">
     {% if not live_enabled %}
-    <div class="banner">🔒 <b>안전 OFF · 연결됨(검증대기)</b> — 아래는 <b>레이아웃 미리보기(샘플)</b>입니다. 실제 마켓 데이터를 불러오려면 <b>실계정 API 키 연결 + 검증</b>이 필요합니다(<code>MOUM_MARKET_EXTRA</code>). 작업 버튼은 검증 전까지 비활성입니다.</div>
+    <div class="banner"><i class="ph-light ph-lock" aria-hidden="true"></i> <b>안전 OFF · 연결됨(검증대기)</b> — 아래는 <b>레이아웃 미리보기(샘플)</b>입니다. 실제 마켓 데이터를 불러오려면 <b>실계정 API 키 연결 + 검증</b>이 필요합니다(<code>MOUM_MARKET_EXTRA</code>). 작업 버튼은 검증 전까지 비활성입니다.</div>
     {% endif %}
 
     {% if export_markets %}
@@ -5844,7 +5844,7 @@
         <span class="pchip" data-days="30">최근 30일</span>
       </div>
       <div class="grp" style="margin-left:auto">
-        <button type="button" id="cfgbtn" class="gbtn">⚙ 양식 설정</button>
+        <button type="button" id="cfgbtn" class="gbtn"><i class="ph-light ph-gear" aria-hidden="true"></i> 양식 설정</button>
         <a id="xlsxbtn" class="xbtn" href="#">⬇ 엑셀 내보내기</a>
       </div>
     </div>
@@ -6156,7 +6156,7 @@
        🔴 기준일을 잘못 뽑으면 대조 자체가 거짓이라, 항목을 고르면 **마켓에서 어떻게
          뽑아야 하는지**를 화면이 먼저 말해 준다(노션 규칙 그대로). #}
     <div class="rcn" id="spn-recon">
-      <div class="rcn-h">📋 마켓 정산 대조 <span class="note">마켓 정산 화면에서 받은 엑셀을 올리면 우리 숫자와 나란히 놓고 차이·원인을 보여드려요</span></div>
+      <div class="rcn-h"><i class="ph-light ph-clipboard" aria-hidden="true"></i> 마켓 정산 대조 <span class="note">마켓 정산 화면에서 받은 엑셀을 올리면 우리 숫자와 나란히 놓고 차이·원인을 보여드려요</span></div>
       <div class="rcn-items" id="rcn-items"><div class="state">불러오는 중…</div></div>
     </div>
   </div>
@@ -6262,7 +6262,7 @@
              +(fw?(' · 빠른정산 <b>'+fmt(fw)+'원</b>'):'')
              +(wb?(' · 셀러월렛 잔액 <b>'+fmt(wb)+'원</b>'):'')+'</div>'):'')
         +(rgv?('<div class="fastnote" style="background:rgba(255,255,255,.12)">'
-             +'🚀 로켓그로스 <b>'+fmt(rgv)+'원</b>도 <b>더해서</b> 계산했어요 '
+             +'로켓그로스 <b>'+fmt(rgv)+'원</b>도 <b>더해서</b> 계산했어요 '
              +'<span style="opacity:.85">(위 막대는 마켓플레이스 몫만 — 로켓그로스는 회차 단위라 기간에 못 나눠요)</span></div>'):'')
         +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
@@ -6282,7 +6282,7 @@
         //     옛 표기(지급액 − 빠른정산)는 **이미 받은 회차까지 세어** 9,508,138 을
         //     보여줬다(실제 7,818,202). 그래서 「이미 받은 회차」를 같이 적어 둔다 —
         //     숫자가 줄어든 이유를 화면이 스스로 말해야 사장님이 안 헷갈린다.
-        +(((rg||{}).지급액||0)?('<div class="kpi"><div class="t">🚀 로켓그로스</div>'
+        +(((rg||{}).지급액||0)?('<div class="kpi"><div class="t">로켓그로스</div>'
              +'<div class="v">'+fmt(rgv)+'</div><div class="s">'
              +'앞으로 들어올 회차 '+(rg.앞으로회차수||0)+'건'
              +(rg.이미받은회차합?(' · 이미 받은 회차 '+fmt(rg.이미받은회차합)+'은 뺐어요'):'')
@@ -6309,15 +6309,15 @@
              +'</div></div>'):'');
       $('#spn-kpi').innerHTML=h;
       $('#spn-done').innerHTML='<div class="donebox">'
-        +'<div class="donettl">✔️ 이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
+        +'<div class="donettl">이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
         +'<div class="kpis">'+done+'</div></div>';
-      [['spn-overdue-card','overdue','⚠️ 입금일 지남 · 미확인'],
+      [['spn-overdue-card','overdue','입금일 지남 · 미확인'],
        ['spn-notstarted-card','not_started','⏳ 아직 정산 시작 전 (구매확정 전 — 늦은 게 아님)'],
-       ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
-       ['spn-paid-card','paid','🏦 이미 받은 것으로 확인 (마켓이 입금 알려줌)'],
-       ['spn-assumed-card','assumed_paid','💤 이미 받았을 것 (확인 불가 · 합계 제외)'],
-       ['spn-risk-card','risk','🔺 반품·취소 진행 중 (합계 제외)'],
-       ['spn-returned-card','returned','↩️ 반품·교환 완료 (상품값 합계 제외 · 반품비만 남김)']].forEach(function(x){
+       ['spn-undated-card','undated','받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
+       ['spn-paid-card','paid','이미 받은 것으로 확인 (마켓이 입금 알려줌)'],
+       ['spn-assumed-card','assumed_paid','이미 받았을 것 (확인 불가 · 합계 제외)'],
+       ['spn-risk-card','risk','반품·취소 진행 중 (합계 제외)'],
+       ['spn-returned-card','returned','↩ 반품·교환 완료 (상품값 합계 제외 · 반품비만 남김)']].forEach(function(x){
         var el=$('#'+x[0]);
         if(el) el.onclick=function(){toggleExtra(x[1],x[2]);};
       });
@@ -6398,7 +6398,7 @@
       });
       if(!used.length)return '';
       var h='<div class="donebox" style="margin-top:18px">'
-        +'<div class="donettl">📜 지난 날 — 정산 받은 이력 (위 「앞으로 받을 돈」에는 <b>안 들어갑니다</b>)</div>'
+        +'<div class="donettl">지난 날 — 정산 받은 이력 (위 「앞으로 받을 돈」에는 <b>안 들어갑니다</b>)</div>'
         +'<table class="gd" id="spn-past"><tr><th class="txt">기간</th>';
       used.forEach(function(k){h+='<th class="n">'+dot(k[2])+k[1]+'</th>';});
       h+='<th class="n">합계</th></tr>';
@@ -6434,7 +6434,7 @@
         .then(function(d){
           var lbl=(PAST_KIND.filter(function(k){return k[0]===kind;})[0]||[])[1]||kind;
           cell.innerHTML='<b style="font-size:13px">'+bucketLabel(bucket)+' · '+esc(lbl)+'</b>'
-            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +(d.truncated?'<div class="note">2,000건까지만 표시했습니다.</div>':'')
             +'<div style="margin-top:8px">'+flatTable(d.rows||[], kind)+'</div>';
         })
         .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e.message||e)+'</div>';});
@@ -6454,9 +6454,9 @@
       if(warn.length||oks.length){
         meta+='<div class="rsum" style="margin:8px 0 4px">'
           +(warn.length?'<div class="r" style="border-color:#FEC84B;background:var(--연한-노랑,#FFFAEB)">'
-            +'<b>⚠️ 수수료가 기대와 다릅니다</b><div class="how">'+warn.map(esc).join('<br>')+'</div>'
+            +'<b>수수료가 기대와 다릅니다</b><div class="how">'+warn.map(esc).join('<br>')+'</div>'
             +'<div class="how">정산액이 크거나 매출이 작게 잡혔을 수 있어요 — 마켓 정산 화면과 한 건만 대조해 보세요</div></div>':'')
-          +(oks.length?'<div class="r"><b>✅ 수수료 정상 범위</b><div class="how">'+oks.map(esc).join('<br>')+'</div></div>':'')
+          +(oks.length?'<div class="r"><b>수수료 정상 범위</b><div class="how">'+oks.map(esc).join('<br>')+'</div></div>':'')
           +'</div>';
       }
       if(!data.buckets||!data.buckets.length){
@@ -6501,7 +6501,7 @@
         .then(function(d){
           cell.innerHTML='<b style="font-size:13px">'+(MKL[mk]||mk)+' · '+bucketLabel(bucket)
             +' <span class="note">(주문일 기준)</span></b>'
-            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +(d.truncated?'<div class="note">2,000건까지만 표시했습니다.</div>':'')
             +'<div style="margin-top:8px">'+orderAxisTable(d.rows||[])+'</div>';
         })
         .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e.message||e)+'</div>';});
@@ -6645,7 +6645,7 @@
         .then(function(d){
           cell.innerHTML='<b style="font-size:13px">'+MKL[mk]+' · '+bucketLabel(bucket)
             +' <span class="chip '+(cat==='confirmed'?'cat-c':'cat-u')+'">'+(cat==='confirmed'?'확정':'미확정')+'</span></b>'
-            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +(d.truncated?'<div class="note">2,000건까지만 표시했습니다.</div>':'')
             +'<div style="margin-top:8px">'+detailTable(d.rows||[])+'</div>';
         })
         .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
@@ -6723,8 +6723,8 @@
         +' <span class="note" style="margin-left:6px">'+rows.length+'건 · '+fmt(sum)+'원</span>'
         // 목록은 2,000건에서 잘린다 — 통장 대조는 엑셀로(상한 없음).
         +' <a class="btn" style="float:right;text-decoration:none;font-size:12px;padding:5px 12px" '
-        +'href="/orders/api/settle-plan/export.xlsx?category='+extraOpen.cat+'">⬇ 엑셀로 전건 받기</a>'
-        +(extraRows.length>=2000?'<div class="note" style="color:var(--글자-주황,#B45309)">⚠️ 화면에는 2,000건까지만 보여요 — 전부 보시려면 엑셀로 받으세요</div>':'')
+        +'href="/orders/api/settle-plan/export.xlsx?category='+extraOpen.cat+'">엑셀로 전건 받기</a>'
+        +(extraRows.length>=2000?'<div class="note" style="color:var(--글자-주황,#B45309)">화면에는 2,000건까지만 보여요 — 전부 보시려면 엑셀로 받으세요</div>':'')
         +(_hasReason(extraOpen.cat)?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
         +'<div style="margin-top:8px">'+chipHtml()+'</div>'
         // 🔴 마켓·계정은 **칩으로 거르고** 목록은 한 표에 **받는 날 최근순**(사장님 지시).
@@ -6784,7 +6784,7 @@
       });
       if(!rows) rows='<div class="note" style="margin-top:6px">위 표에서 빠른정산 쓰는 계정을 먼저 골라 주세요.</div>';
       return '<div style="margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--n100,#F8FAFB)">'
-        +'<b style="font-size:13px">💰 셀러월렛에 아직 안 찾아간 돈</b>'
+        +'<b style="font-size:13px">셀러월렛에 아직 안 찾아간 돈</b>'
         +'<div class="note" style="margin-top:4px">이미 사장님 돈인데 인출만 안 한 금액이에요. '
         +'인출해야 마켓 정산에서 빠지기 때문에, 적어 두지 않으면 <b>앞으로 받을 돈이 그만큼 부풀어</b> 보입니다.</div>'
         +rows
@@ -6817,7 +6817,7 @@
         });
         h+='</table>'
           +'<div style="margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--n100,#F8FAFB)">'
-          +'<b style="font-size:13px">💤 이미 받았다고 볼 기준</b>'
+          +'<b style="font-size:13px">이미 받았다고 볼 기준</b>'
           +'<div style="margin-top:6px;font-size:13px">받을 날이 '
           +'<input type="number" min="1" max="365" id="spn-assume-days" value="'+esc(rules.assume_paid_after_days)+'"> 일 넘게 지나면 '
           +'<b>이미 받은 것</b>으로 보고 총액에서 뺍니다(별도 칸에는 계속 보여요).</div>'
@@ -6904,7 +6904,7 @@
          자기 자신을 증명하는 거짓말이 되므로 **화면 숫자를 그대로 받는다.**
          이 값은 대조 상대일 뿐 우리 정산액이 되지 않는다. */
     var RCN_EXTRA={
-      smartstore:'<button class="rcn-live" type="button">🔄 마켓에서 바로 대조 (엑셀 없이)</button>'
+      smartstore:'<button class="rcn-live" type="button">마켓에서 바로 대조 (엑셀 없이)</button>'
         +'<div class="how">스마트스토어 정산 API 를 정산예정일 축으로 1달 읽어 옵니다.</div>',
       coupang_unconfirmed:'<div class="rcn-man">'
         +'<input class="rcn-man-v" type="text" inputmode="numeric" placeholder="화면 합계(원)">'
@@ -6919,7 +6919,7 @@
       return '<div class="rcn-card" data-k="'+esc(it.key)+'">'
         +'<div class="t">'+esc(it['라벨'])+'</div>'
         +'<div class="how"><b>어디서</b> '+esc(it['마켓화면'])+'<br><b>기준일</b> '+esc(it['기준일'])+'</div>'
-        +'<label class="rcn-dz">📥 <span>엑셀 고르기 · 끌어놓기</span>'
+        +'<label class="rcn-dz"><span>엑셀 고르기 · 끌어놓기</span>'
         +'<input type="file" accept=".xlsx,.xls" style="display:none" data-k="'+esc(it.key)+'"></label>'
         +(RCN_EXTRA[it.key]||'')
         +'<div class="rcn-slot">'+(L?rcnResultHtml(L.result,L.parsed,L.ran_at):'')+'</div>'
@@ -7186,7 +7186,7 @@
           m.style.color=miss?'var(--글자-주황,#B45309)':'var(--글자-초록,#15803D)';
           m.textContent='✔ '+(resp.collected||0)+'건 가져옴 · 반영 '+((pr&&pr['적용'])||0)+'건'
             +(miss?(' · 우리 주문에 없음 '+miss+'건'):'')
-            +(resp.failedChunks?(' · ⚠ 못 읽은 기간 '+resp.failedChunks+'토막'):'');
+            +(resp.failedChunks?(' · 못 읽은 기간 '+resp.failedChunks+'토막'):'');
           load();                                   // 총액·카드 다시 계산
         }catch(e){ m.style.color='var(--글자-빨강,#B91C1C)'; m.textContent='실패: '+e; }
         finally{ b.disabled=false; }
@@ -7324,19 +7324,19 @@
       <div class="ct">더망고 주문내역 업로드</div>
       <label class="dz" id="di-dz">
         <input type="file" id="di-file" accept=".xls,.htm,.html" style="display:none">
-        <div class="ic">📥</div><div class="t">더망고 엑셀을 선택하거나 여기로 끌어놓기</div>
+        <div class="ic"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i></div><div class="t">더망고 엑셀을 선택하거나 여기로 끌어놓기</div>
         <div class="fn" id="di-fn"></div>
       </label>
       <div style="margin-top:12px">
         <div class="fl">이번 업로드 전체 배송방식</div>
         <div class="rcs">
           <label class="rc on"><input type="radio" name="di-bulk" value="자동판정" checked hidden><b>자동판정</b><span>구분자 매핑대로</span></label>
-          <label class="rc"><input type="radio" name="di-bulk" value="까대기" hidden><b>전부 까대기</b><span>📦 사무실 경유</span></label>
-          <label class="rc"><input type="radio" name="di-bulk" value="직배" hidden><b>전부 직배</b><span>🚚 소싱처 직접</span></label>
+          <label class="rc"><input type="radio" name="di-bulk" value="까대기" hidden><b>전부 까대기</b><span><i class="ph-light ph-package" aria-hidden="true"></i> 사무실 경유</span></label>
+          <label class="rc"><input type="radio" name="di-bulk" value="직배" hidden><b>전부 직배</b><span><i class="ph-light ph-truck" aria-hidden="true"></i> 소싱처 직접</span></label>
         </div>
       </div>
       <div style="margin-top:12px;text-align:right">
-        <button class="btn s" type="button" id="di-mapbtn">⚙ 구분자 매핑</button>
+        <button class="btn s" type="button" id="di-mapbtn"><i class="ph-light ph-gear" aria-hidden="true"></i> 구분자 매핑</button>
         <button class="btn p" type="button" id="di-upbtn">업로드</button>
       </div>
       <div class="msg" id="di-msg"></div>
@@ -7356,7 +7356,7 @@
   </div>
 
   <div class="di"><div class="ov" id="di-mapov"><div class="box">
-    <div class="bh">⚙ 구분자 매핑 설정 <button class="x" type="button" id="di-mapx">×</button></div>
+    <div class="bh"><i class="ph-light ph-gear" aria-hidden="true"></i> 구분자 매핑 설정 <button class="x" type="button" id="di-mapx">×</button></div>
     <div class="bb"><table><thead><tr><th>더망고주문상태(원본)</th><th class="c">의미</th>
       <th class="c">기본 배송방식</th><th class="c">배송흐름 검사</th></tr></thead>
       <tbody id="di-mapbody"></tbody></table></div>
@@ -7424,9 +7424,9 @@
       fd.append('bulk_method',document.querySelector('input[name=di-bulk]:checked').value);
       $('#di-msg').textContent='업로드 중…';
       fetch('/orders/inspect/upload',{method:'POST',body:fd}).then(function(r){return r.json();})
-        .then(function(j){if(j.ok){$('#di-msg').innerHTML='<span style="color:var(--green,#16A34A)">✔ '+j.parsed
+        .then(function(j){if(j.ok){$('#di-msg').innerHTML='<span style="color:var(--green,#16A34A)">'+j.parsed
           +'건 처리 (신규 '+j.inserted+' · 갱신 '+j.updated+')</span>';load();}
-          else $('#di-msg').innerHTML='<span style="color:#EF4444">✖ '+esc(j.error)+'</span>';});};
+          else $('#di-msg').innerHTML='<span style="color:#EF4444">'+esc(j.error)+'</span>';});};
     // 매핑 모달
     function openMap(){$('#di-mapbody').innerHTML=(DATA.status_map||[]).map(function(m){
       return '<tr data-value="'+esc(m.value)+'"><td style="font-weight:600">'+esc(m.value)+'</td>'
@@ -7492,7 +7492,7 @@
       <div class="ct">샵마인 정답지 엑셀 업로드 (통합주문관리 &gt; 주문관리 마스터 검색결과 .xls)</div>
       <label class="dz" id="smr-dz">
         <input type="file" id="smr-file" accept=".xls,.xlsx" style="display:none">
-        <div class="ic">📋</div><div class="t">샵마인 엑셀을 선택하거나 여기로 끌어놓기</div>
+        <div class="ic"><i class="ph-light ph-clipboard" aria-hidden="true"></i></div><div class="t">샵마인 엑셀을 선택하거나 여기로 끌어놓기</div>
         <div class="fn" id="smr-fn"></div>
       </label>
       <div style="margin-top:12px;text-align:right">
@@ -7597,12 +7597,12 @@
       det=det||{};
       var mm=det.mismatch||[], ms=det.missing||[], ud=det.undecided||[], df=det.defs||[];
       function capNote(list,total){ return total>list.length?('<div class="note" style="padding:0 16px 12px">상세는 '+list.length+'건까지 표시 — 전체 '+total+'건(요약 수치는 전수)</div>'):''; }
-      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">🔴 필드 불일치 상세 (작업필요 '+fmt(sum.mismatch_total)+'건)</div>'
+      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">필드 불일치 상세 (작업필요 '+fmt(sum.mismatch_total)+'건)</div>'
         +(mm.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>주문번호</th><th>계정</th><th>필드</th><th class="rt">샵마인</th><th class="rt">우리</th><th>상품</th></tr></thead><tbody>'
           +mm.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td class="mono">'+esc(x.order_no)+'</td><td>'+esc(x.sm_alias)+'</td><td><b>'+esc(FLD[x.field]||x.field)+'</b></td>'
             +'<td class="rt r">'+((x.field==='date')?esc(x.shop):fmt(x.shop))+'</td><td class="rt">'+((x.field==='date')?esc(x.ours):fmt(x.ours))+'</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.product)+'</td></tr>';}).join('')
           +'</tbody></table></div>'+capNote(mm,sum.mismatch_total)
-          : '<div class="state g">🎉 필드 불일치 0건</div>')+'</div>';
+          : '<div class="state g">필드 불일치 0건</div>')+'</div>';
       /* 노랑도 어느 주문인지 확인할 수 있어야 한다 — 종전엔 빨강만 표본이 있었다. */
       if(df.length){
         h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">'
@@ -7614,12 +7614,12 @@
             +'<td style="max-width:320px">'+esc(x.reason)+'</td></tr>';}).join('')
           +'</tbody></table></div></div>';
       }
-      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">🔴 누락 주문 상세 ('+fmt(sum.existence&&sum.existence.missing)+'주문 / '+fmt(sum.missing_total)+'행)</div>'
+      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">누락 주문 상세 ('+fmt(sum.existence&&sum.existence.missing)+'주문 / '+fmt(sum.missing_total)+'행)</div>'
         +(ms.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>샵마인 계정</th><th>우리 계정</th><th>주문번호</th><th>주문일</th><th>상품</th><th class="rt">실결제</th><th>샵 상태</th></tr></thead><tbody>'
           +ms.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td>'+esc(x.sm_alias)+'</td><td>'+esc(x.our_account||'—')+'</td><td class="mono">'+esc(x.order_no)+'</td><td>'+esc(x.date)+'</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.product)+'</td><td class="rt">'+fmt(x.paid)+'</td><td>'+esc(x.status)+'</td></tr>';}).join('')
           +'</tbody></table></div>'+capNote(ms,sum.missing_total)
-          : '<div class="state g">🎉 누락 주문 0건 — 샵마인 전건이 우리 적재에 있습니다</div>')+'</div>';
-      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">⚪ 판정불가 ('+fmt(sum.undecided_total)+'라인 — 다품 옵션·단가 짝짓기 실패)</div>'
+          : '<div class="state g">누락 주문 0건 — 샵마인 전건이 우리 적재에 있습니다</div>')+'</div>';
+      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:12px 16px 0">판정불가 ('+fmt(sum.undecided_total)+'라인 — 다품 옵션·단가 짝짓기 실패)</div>'
         +(ud.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>주문번호</th><th>샵 옵션</th><th class="rt">단가</th><th class="rt">수량</th><th>우리 쪽 옵션들</th></tr></thead><tbody>'
           +ud.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td class="mono">'+esc(x.order_no)+'</td><td>'+esc(x.option)+'</td><td class="rt">'+fmt(x.unit)+'</td><td class="rt">'+fmt(x.qty)+'</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc((x.our_options||[]).join(' | '))+'</td></tr>';}).join('')
           +'</tbody></table></div>'+capNote(ud,sum.undecided_total)
@@ -7640,10 +7640,10 @@
       fetch('/orders/shopmine-recon/run',{method:'POST',body:fd})
         .then(function(r){return r.json();})
         .then(function(j){ btn.disabled=false;
-          if(j.ok){ $('#smr-msg').innerHTML='<span class="g">✔ 대조 완료</span>';
+          if(j.ok){ $('#smr-msg').innerHTML='<span class="g">대조 완료</span>';
             render(j.summary,j.detail,j.prev,j.ran_at,fileEl.files[0].name,j.prev_ran_at); }
-          else $('#smr-msg').innerHTML='<span class="r">✖ '+esc(j.error)+'</span>'; })
-        .catch(function(e){ btn.disabled=false; $('#smr-msg').innerHTML='<span class="r">✖ 요청 실패: '+esc(e)+'</span>'; });
+          else $('#smr-msg').innerHTML='<span class="r">'+esc(j.error)+'</span>'; })
+        .catch(function(e){ btn.disabled=false; $('#smr-msg').innerHTML='<span class="r">요청 실패: '+esc(e)+'</span>'; });
     };
     fetch('/orders/shopmine-recon/latest').then(function(r){return r.json();})
       .then(function(j){ if(j.ok&&j.latest) render(j.latest.summary,j.latest.detail,j.prev,j.latest.ran_at,j.latest.filename,j.prev_ran_at); })
@@ -7656,7 +7656,7 @@
   {% endif %}
 
   <div style="margin-top:16px;font-size: 14px;color:var(--n500);text-align:center">
-    💡 마켓 API 자격증명은 좌측 사이드바 「🛒 판매처 계정」에서 등록됩니다.
+    <i class="ph-light ph-lightbulb" aria-hidden="true"></i> 마켓 API 자격증명은 좌측 사이드바 「<i class="ph-light ph-shopping-cart" aria-hidden="true"></i> 판매처 계정」에서 등록됩니다.
   </div>
 </section>
 {% endblock %}

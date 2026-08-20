@@ -77,6 +77,24 @@ def test_3축_모델모음전은_모델로_판정되고_모델명이_나온다(s
     assert got['kind'] == 'model'
     assert got['model_names'] == ['메이트', '스위트']
     assert got['empty_axes'] == 0
+    assert got['axis_counts'] == [2, 2, 2], '옵션축 칸(모델2×색상2×사이즈2) 숫자가 안 맞는다'
+
+
+def test_축마다_서로_다른_값_개수가_따로_쌓인다(s):
+    """🔴 옵션축 칸(「모델 1개 × 색상 4개 × 사이즈 3개」)이 읽는 숫자다.
+
+    세 축의 값 개수를 일부러 다르게 심어 섞이지 않는지 본다.
+    """
+    from lemouton.sourcing.axis_summary import axis_batch
+    session, _ = s
+    code = _seed(s, [(1, '모델', ['메이트']),
+                     (2, '색상', ['블랙', '화이트', '네이비', '베이지']),
+                     (3, '사이즈', ['250', '260', '270'])])
+
+    got = axis_batch(session, [code])[code]
+
+    assert got['axis_counts'] == [1, 4, 3]
+    assert len(got['axis_counts']) == len(got['axis_names']), '축 이름·개수 길이가 안 맞는다'
 
 
 def test_2축_색상모음전은_모델명이_비어_있다(s):
@@ -101,7 +119,8 @@ def test_축이_없으면_모른다로_돌려준다(s):
     got = axis_batch(session, [code])[code]
 
     assert got == {'axis_names': [], 'axis_label': None, 'kind': None,
-                   'kind_label': None, 'model_names': [], 'empty_axes': 0}
+                   'kind_label': None, 'model_names': [], 'empty_axes': 0,
+                   'axis_counts': []}
 
 
 def test_물어본_코드는_없어도_전부_돌려준다(s):
@@ -126,15 +145,16 @@ def test_step_no를_뒤섞어_심어도_라벨_순서가_맞는다(s):
     """
     from lemouton.sourcing.axis_summary import axis_batch
     session, _ = s
-    code = _seed(s, [(3, '사이즈', ['250']),
+    code = _seed(s, [(3, '사이즈', ['250', '260']),
                      (1, '모델', ['메이트']),
-                     (2, '색상', ['블랙'])])
+                     (2, '색상', ['블랙', '화이트', '네이비'])])
 
     got = axis_batch(session, [code])[code]
 
     assert got['axis_names'] == ['모델', '색상', '사이즈']
     assert got['axis_label'] == '모델 × 색상 × 사이즈'
     assert got['model_names'] == ['메이트'], '축 순서가 어긋나면 모델명도 어긋난다'
+    assert got['axis_counts'] == [1, 3, 2], '심은 순서(사이즈·모델·색상)를 따라가면 [2,1,3]이 되어 틀린다'
 
 
 # ── 값이 빈 축 ─────────────────────────────────────────────────────────
@@ -151,6 +171,7 @@ def test_값이_빈_축을_센다(s):
 
     assert got['empty_axes'] == 2
     assert got['axis_label'] == '모델 × 색상 × 사이즈', '값이 없어도 축은 축이다'
+    assert got['axis_counts'] == [1, 0, 0], '값이 빈 축은 0개여야지 없는 셈 치면 안 된다'
 
 
 def test_깨진_JSON은_터지지_않고_값없음으로_센다(s):
