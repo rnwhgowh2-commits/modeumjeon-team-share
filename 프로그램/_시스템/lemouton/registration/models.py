@@ -52,10 +52,20 @@ class ProductDraft(Base):
     #   크롤·손입력 초안에는 없다(소싱처 옵션에 모델 축 칸이 없다).
     options_json = Column(Text, default='[]')         # [{model,color,size,stock,extra_price,sku}]
 
-    origin_area_code = Column(String(32), default='0200037')  # 국내산 기본
+    # 🔴 [2026-08-20] 세 칸 다 **컬럼 기본값을 걸지 않는다** — 위 「매입가·마진 입력」
+    #   절(86-96행)과 같은 규율이다. `registration/process_apply.py:_is_blank()` 가
+    #   「아직 안 정함」을 NULL(과 빈 문자열)로만 본다. 여기 `default=` 를 걸면 초안이
+    #   **만들어지자마자** 3000·5000·'0200037' 이 채워져, 정책이 다른 값을 정해도
+    #   `_is_blank(cur)` 가 늘 거짓이 되어 정책값이 영원히 못 먹는다(재현·수정:
+    #   tests/registration/test_policy_fallback_column_default.py). 그래도 필요한
+    #   「아무도 안 정했을 때의 최종 기본값」은 `registration/process_apply.py`의
+    #   `apply_operational_fallbacks()` 가 정책·사람 값을 다 따진 **컴파일 직전에만**
+    #   채운다 — `fixed_sends.py` COMMON_DEFAULTS 가 화면에 보여주는 그 수치와 반드시
+    #   같아야 한다.
+    origin_area_code = Column(String(32))              # NULL = 안 정함. 국내산 기본은 위 참고
     importer = Column(String(120), default='')
-    delivery_fee = Column(Integer, default=3000)      # 0 = 무료배송
-    return_fee = Column(Integer, default=5000)
+    delivery_fee = Column(Integer)                     # NULL = 안 정함. 0 = 무료배송(정한 값)
+    return_fee = Column(Integer)                       # NULL = 안 정함
 
     # ── 등록 상수 (2026-08-13) — 정책에서 정한 값이 담길 자리 ──────────────
     #   전에는 담을 칸이 없어 마켓 등록 코드에 「과세」가 박힌 채 나갔다.

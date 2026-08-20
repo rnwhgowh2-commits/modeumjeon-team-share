@@ -43,8 +43,28 @@ def test_스스_고정값이_실제_코드에_그대로_있다():
 def test_초안_기본값이_실제_모델과_같다():
     src = _read('models.py')
     assert "notice_type = Column(String(32), default='WEAR'" in src
-    assert 'delivery_fee = Column(Integer, default=3000)' in src
-    assert 'return_fee = Column(Integer, default=5000)' in src
+
+
+def test_배송비_반품비_원산지_기본값이_실제_코드와_같다():
+    """[2026-08-20] 배송비·반품비·원산지는 더는 ProductDraft 컬럼 기본값이 아니다 —
+    컬럼 기본값을 걸면 초안이 만들어지자마자 값이 확정돼, 정책이 다른 값을 정해도
+    `_is_blank` 가 늘 거짓이 되어 못 먹었다(재현: tests/registration/
+    test_policy_fallback_column_default.py). 지금은 `process_apply.py` 의
+    `OPERATIONAL_FALLBACKS` 가 「정책도 사람도 안 정했을 때」컴파일 직전에만 채운다 —
+    이 표(COMMON_DEFAULTS)가 화면에 보여주는 수치는 그 상수와 같아야 한다.
+    """
+    from lemouton.registration.process_apply import OPERATIONAL_FALLBACKS
+    by_attr = {attr: fallback for _item, _field, attr, fallback in OPERATIONAL_FALLBACKS}
+    assert by_attr['delivery_fee'] == 3000
+    assert by_attr['return_fee'] == 5000
+    assert by_attr['origin_area_code'] == '0200037'
+
+    # 모델 컬럼 자체엔 이제 기본값이 없어야 한다 — 다시 걸리면 버그가 재발한 것이다.
+    src = _read('models.py')
+    assert 'delivery_fee = Column(Integer, default=3000)' not in src, (
+        '컬럼 기본값이 되살아났다 — 정책값이 다시 못 먹는 버그가 재발한다')
+    assert 'return_fee = Column(Integer, default=5000)' not in src
+    assert "origin_area_code = Column(String(32), default='0200037')" not in src
 
 
 def test_모음전_경로는_신발_가방을_자동_판정한다():

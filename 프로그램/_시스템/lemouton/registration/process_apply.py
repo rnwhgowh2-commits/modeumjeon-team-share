@@ -910,6 +910,62 @@ def _apply_origin(draft, cfg):
     return over, applied, skipped
 
 
+# ── 배송비·반품비·원산지 「프로그램 최종 기본값」 (2026-08-20) ───────────────
+#
+# 왜 있나: `_apply_shipping`/`_apply_origin` 은 **정책이 있을 때만** 빈 칸을 채운다
+#   (`apply_rules` 가 `rules.get('shipping')/('origin')` 이 None 이면 아예 안 부른다).
+#   그런데 정책 자체가 없는 초안(수기 대량등록·크롤 초안은 흔히 그렇다)도 결국
+#   마켓으로 나간다 — 그때 배송비·원산지가 빈 채로 나가면 「0원=무료배송」·
+#   「원산지 미표기」처럼 마켓이 다르게 해석해 돈이 새거나 거부당한다.
+#
+#   예전엔 `ProductDraft` 컬럼 기본값(3000·5000·'0200037')이 이 자리를 메웠는데,
+#   그 기본값이 **초안이 만들어지는 순간** 박혀 정책값을 영영 못 먹게 막았다
+#   (바로 위 `_apply_shipping`/`_apply_origin` 의 `_is_blank` 판정 참고).
+#
+#   그래서 같은 숫자를 **여기 한 곳**으로 옮겼다 — 정책도 사람도 다 따진
+#   **컴파일 직전**에만, 그래도 빈 칸이면 채운다. `fixed_sends.py` COMMON_DEFAULTS 가
+#   화면에 보여주는 「정책 없으면 이 값」이 가리키는 곳이 바로 여기다 — 값을 바꾸면
+#   거기도 같이 고쳐야 한다(그 파일 머리말 규율과 같다).
+#
+#   (item, field, draft 칸, 기본값) — item/field 는 `_apply_shipping`/`_apply_origin` 이
+#   그 칸을 채울 때 쓰는 것과 **같은 이름**을 쓴다 — 화면 로그에 같은 항목으로 보여야
+#   「정책이 채웠다」와 「기본값이 채웠다」를 같은 자리에서 비교할 수 있다.
+OPERATIONAL_FALLBACKS = (
+    ('shipping', 'fee_amount', 'delivery_fee', 3000),
+    ('shipping', 'return_fee', 'return_fee', 5000),
+    ('origin', 'fixed_value', 'origin_area_code', '0200037'),
+)
+
+
+def apply_operational_fallbacks(view):
+    """정책도 사람도 안 정한 배송비·반품비·원산지에 프로그램 최종 기본값을 채운다.
+
+    🔴 `apply_rules()` 가 다 끝난 **뒤**, 컴파일 바로 직전에만 부른다
+      (`registration/service.py:prepare_compile_draft`). 저장된 드래프트는 절대
+      건드리지 않는다 — 모듈 머리말 규율과 같다.
+
+    Args:
+        view: `apply_rules()` 가 돌려준 사본(또는 정책이 없어 그대로인 원본).
+
+    Returns:
+        (view, applied) — 채울 게 없으면 원본 view 를 그대로 돌려준다.
+    """
+    over = {}
+    applied = []
+    for item, field, attr, fallback in OPERATIONAL_FALLBACKS:
+        cur = getattr(view, attr, None)
+        if not _is_blank(cur):
+            continue
+        over[attr] = fallback
+        applied.append(_applied(item, field, cur, fallback,
+                                note='정책도 사람 입력도 없어 프로그램 기본값을 넣었습니다.'))
+    if not over:
+        return view, []
+    return (DraftProcessView(view, getattr(view, 'name', ''),
+                             getattr(view, 'process_tags', ()), over),
+            applied)
+
+
 #: 「판매방식·통관」 중 **초안에 담을 칸이 아직 없는** 것들.
 #:   🔴 지어내서 마켓으로 보내면 금전 사고다 — 마켓별 payload 를 열어 어디에
 #:     넣을지 정하기 전까지는 「못 보냅니다」라고 말만 한다.
