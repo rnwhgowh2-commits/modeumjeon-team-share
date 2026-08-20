@@ -400,9 +400,15 @@
                 {%- endfor %}</span>{% else %}<span class="og-dash"
                 title="아직 축을 안 짰습니다.">—</span>{% endif %}</td>
             {# SKU 연결상태 — 옵션 생성 탭과 같은 호버 배지(og-idbadge). 자료는
-               `/optgen/api/sku-identity/<code>` — 새 API 를 안 만든다. #}
+               `/optgen/api/sku-identity/<code>` — 새 API 를 안 만든다.
+               [이슈 #1101 · 사장님 확정] 「어디까지 왔나」 판이 없어지며 갈 곳을
+               잃은 미완료 사유(`m.missing` — 옵션 없음·축 없음·소싱처 URL 없음
+               등)를 이 호버 안으로 흡수 — `data-missing` 이 있으면 호버카드가
+               맨 위에 경고 줄로 먼저 보여준다(옆 탭 og-idbadge 는 이 속성이
+               없어 그대로 조용하다). #}
             <td class="og-ctr og-skucell">{% if m.code %}<span class="og-idbadge" data-code="{{ m.code }}"
-                data-name="{{ m.name }}" tabindex="0"
+                data-name="{{ m.name }}"
+                {%- if m.missing %} data-missing="{{ m.missing | join(' · ') }}"{% endif %} tabindex="0"
                 title="마우스를 올리면 SKU별 정보가 보입니다">SKU <b>{{ m.options }}</b>개</span>
                 {%- else %}<span class="og-dash">—</span>{% endif %}</td>
             {# 상품&정책 연결상태 — 새 판정 없이 이미 붙여 둔 값만 쓴다
@@ -1582,6 +1588,11 @@
     그리기: function (a, d) {
       var 이름 = a.getAttribute('data-name') || '';
       var h = '<div class="pmc-h"><span class="pmc-name">' + esc(이름) + '</span></div>';
+      // [이슈 #1101] 「모음전 상품 생성」 탭에서만 `data-missing` 이 실린다 — 준비
+      //   미완료 사유를 이 호버 안으로 흡수했다(옆 탭은 이 값이 없어 그냥 안 뜬다).
+      var 미완료 = a.getAttribute('data-missing') || '';
+      if (미완료) h += '<div class="hc-row" style="color:var(--글자-주황,#9A5B00)">아직 안 된 것 — '
+        + esc(미완료) + '</div><div class="hc-div"></div>';
       if (!d) return h + '<div class="pmc-note">불러오는 중…</div>';
       if (d.error) return h + '<div class="pmc-note">' + esc(d.error) + '</div>';
       var rows = d.rows || [];

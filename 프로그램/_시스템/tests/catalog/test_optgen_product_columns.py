@@ -199,3 +199,24 @@ def test_만든_상품_바로가기는_그대로(client, monkeypatch):
     html = client.get('/optgen/?tab=product').get_data(as_text=True)
     assert '만든상품 →' in html
     assert '/policies/apply?model=M1' in html
+
+
+def test_미완료_사유는_SKU연결상태_호버_속성으로_흡수된다(client, monkeypatch):
+    """🔴 사장님 확정(이슈 #1101) — 「어디까지 왔나」 판이 없어지면서, 그 판이
+    보여주던 미완료 사유(옵션 없음·축 없음 등)는 화면에서 완전히 사라지는 게
+    아니라 SKU 연결상태 호버(`data-missing`)로 옮겨간다."""
+    import webapp.routes.optgen as og
+    row = _row(code='U-MISS', missing=['축 없음', '소싱처 URL 없음'])
+    monkeypatch.setattr(og, '_matrices', lambda s, *a, **k: [row])
+
+    html = client.get('/optgen/?tab=product').get_data(as_text=True)
+    assert 'data-missing="축 없음 · 소싱처 URL 없음"' in html
+
+
+def test_미완료_사유_없으면_data_missing_속성도_없다(client, monkeypatch):
+    import webapp.routes.optgen as og
+    row = _row(code='U-OK', missing=[])
+    monkeypatch.setattr(og, '_matrices', lambda s, *a, **k: [row])
+
+    html = client.get('/optgen/?tab=product').get_data(as_text=True)
+    assert 'data-missing=' not in html
