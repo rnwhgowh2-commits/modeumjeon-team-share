@@ -4553,9 +4553,17 @@ function _renderAbnDetail(kind){
   h += '</tbody></table>';
   return h;
 }
-/* [모음전 2026-08-20] 요약탭 고마진/손실 상세 인라인 편집 — editCell 로 실제 반영 후 이 패널만 다시 그림 */
+/* [모음전 2026-08-20] 요약탭 고마진/손실 상세 인라인 편집 — editCell 로 실제 반영 후,
+   analysisData.matched 는 모든 탭이 공유하는 같은 행 참조라 renderCurrentTab() 한 번이면
+   이 탭(요약) 상단 카드·E표까지 전부 최신값으로 다시 그려지고, 전체내역·일별 등 다른 탭도
+   다음에 열 때(재렌더/탭 전환) 같은 데이터를 읽어 자동으로 반영된다. */
 window._moumAbnEdit = function(idx, field, val, kind){
   editCell(idx, field, val);
+  if (typeof renderCurrentTab === 'function' && typeof currentTab !== 'undefined' && currentTab === 'summary') {
+    renderCurrentTab();
+    if (typeof toggleAbnRows === 'function') toggleAbnRows(kind);
+    return;
+  }
   var det = document.getElementById('etd-' + kind);
   if (det) det.innerHTML = _renderAbnDetail(kind);
 };
