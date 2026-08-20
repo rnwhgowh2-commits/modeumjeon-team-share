@@ -80,7 +80,7 @@ def test_사이드바에_상태_부류와_설명이_나온다(client):
 def test_사이드바에_정렬이_있다(client):
     body = _body(client)
     assert '채움 많은 순' in body
-    assert '이름 순' in body
+    assert '정책명 순' in body
 
 
 # ── 만들기 (2026-08-19 확정 — 옵션 매트릭스 생성과 같은 작은 단추 + B5 가운데 창) ──
