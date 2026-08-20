@@ -57,7 +57,7 @@ EXTRA_ITEMS: list[dict] = [
     #   스스 전용도 아니게 됐다 — 가격 템플릿은 6마켓 모두 이 규칙을 갖고 있었다.
     {
         'key': '_site_discount', 'label': '사이트 부담 지원할인', 'spec_ref': '노션 (2) 기본 정책',
-        'note': 'G마켓·롯데온만 있는 항목.', 'only': ['gmarket', 'lotteon'],
+        'note': 'G마켓·옥션·롯데온만 있는 항목.', 'only': ['gmarket', 'auction', 'lotteon'],
         'fields': [
             {'key': 'amount', 'label': '지원할인 금액', 'type': 'int', 'default': 0,
              'choices': [], 'hint': '', 'unit': '원', 'item_shape': '', 'columns': []},
