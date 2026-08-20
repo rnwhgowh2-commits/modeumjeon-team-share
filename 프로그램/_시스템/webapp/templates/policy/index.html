@@ -304,7 +304,7 @@
               {% endfor %}
             </td>
             <td class="tc"><span class="pl-act">
-              <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})">📄 복사</button>
+              <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})"><i class="ph-light ph-file" aria-hidden="true"></i> 복사</button>
               <button class="btn2 ghost" type="button" onclick="toggleDefault({{ it.id }}, this)"
                       data-default="{{ 1 if it.is_default else 0 }}">{{ '기본 해제' if it.is_default else '기본으로' }}</button>
               {% if not it.applied %}
@@ -320,7 +320,7 @@
       {# 여러 개 골라 한꺼번에 복사·지우기 — 2026-08-19 확정, 고른 줄은 목록 위로 뜬다. #}
       <div class="pol-pickbar" id="polPickbar" hidden>
         <span class="pol-pickbar-n">고른 정책 <b id="polPn">0</b>개</span>
-        <button class="btn2 ghost" type="button" id="polPickCopy">📄 한꺼번에 복사</button>
+        <button class="btn2 ghost" type="button" id="polPickCopy"><i class="ph-light ph-file" aria-hidden="true"></i> 한꺼번에 복사</button>
         <button class="btn2 ghost" type="button" id="polPickDel" style="color:#B91C1C">한꺼번에 지우기</button>
         <button class="btn2 ghost" type="button" id="polPickClr">고르기 취소</button>
       </div>
@@ -334,7 +334,7 @@
   {# ── 만들기 창 (시안 v3 확정 — 점선 카드를 누르면 열림) ── #}
   <div class="np-back" id="npback">
     <div class="np-box">
-      <div class="np-t">🆕 새 정책 만들기</div>
+      <div class="np-t"><i class="ph-light ph-sparkle" aria-hidden="true"></i> 새 정책 만들기</div>
       <div class="np-d">마켓마다 어떻게 올릴지 한 벌을 새로 만들어요.</div>
       <div class="np-f"><label>브랜드 <span class="opt">(안 적어도 돼요)</span></label>
         <input id="pbrand" placeholder="예: 르무통"></div>

@@ -489,7 +489,7 @@ def _attach_product_status(session, mats):
     [이슈 #1095 · 사장님 확정 「막대 채우기」] `made` 목록 각 항목에도
     `has_policy` 를 붙인다 — 파생으로 상품을 여러 개 만들었을 때(항목1) 화면이
     "몇 개 중 몇 개"를 막대로 보여주려면 상품 하나하나의 정책 여부가 필요하다.
-    🔴 여기서 다시 세지 않는다 — 위에서 이미 구한 `policies` 집합을 그대로
+    [중요] 여기서 다시 세지 않는다 — 위에서 이미 구한 `policies` 집합을 그대로
        재사용한다(옛 `_attach_made` 의 `has_policy` 는 `BundlePolicyLink` 만 봐서
        `policy_models` 가 보는 `SetPolicyLink`(구성 정책)를 놓쳤다 — 두 판정이
        갈리면 이 칸과 상품관리 화면이 다른 말을 한다).
