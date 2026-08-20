@@ -33,7 +33,7 @@ def _count_apply(s, attr_name, tpl_id):
 def _templates_context(s) -> dict:
     """색상·사이즈 사전 + 템플릿 한 벌 — 화면(/templates)과 옵션 조합 창의
 
-    「🎨 템플릿 참고」 드로어가 같이 쓴다. 두 벌로 나누면 반드시 갈린다.
+    「 템플릿 참고」 드로어가 같이 쓴다. 두 벌로 나누면 반드시 갈린다.
     """
     color_tpls = s.query(ColorTemplate).order_by(ColorTemplate.id).all()
     size_tpls = s.query(SizeTemplate).order_by(SizeTemplate.id).all()
@@ -77,7 +77,7 @@ def index():
 
 @bp.get('/templates/api/data')
 def api_data():
-    """색상·사이즈 사전 + 템플릿을 JSON 으로 — 옵션 조합 창의 「🎨 템플릿 참고」 드로어가 연다.
+    """색상·사이즈 사전 + 템플릿을 JSON 으로 — 옵션 조합 창의 「 템플릿 참고」 드로어가 연다.
 
     `/templates` 화면과 같은 자료(`_templates_context`)를 그대로 읽는다.
     """

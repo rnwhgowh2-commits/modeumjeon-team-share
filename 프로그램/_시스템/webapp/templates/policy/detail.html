@@ -417,7 +417,7 @@
         {% if req_sum %}
         <span class="sumtop-warn{{ '' if req_sum.missing else ' ok' }}"
               title="「필수」는 그 마켓 상품등록 문서에 그렇게 적힌 것만 붙습니다. 「확인 불가」는 「필수가 아니다」가 아니라 「모른다」입니다 — 등록 문서에서 근거를 못 찾아 지어내지 않았습니다. 비워 두고 올리면 마켓이 거부할 수 있습니다.">
-          {% if req_sum.missing %}⚠ 필수 {{ req_sum.required }}개 중 {{ req_sum.missing|length }}개 비어 있음
+          {% if req_sum.missing %}<i class="ph-light ph-warning" aria-hidden="true"></i> 필수 {{ req_sum.required }}개 중 {{ req_sum.missing|length }}개 비어 있음
           {% else %}필수 {{ req_sum.required }}개 다 채워졌습니다{% endif -%}
           {% if req_sum.unknown %} · 확인 불가 {{ req_sum.unknown }}개{% endif %}
         </span>

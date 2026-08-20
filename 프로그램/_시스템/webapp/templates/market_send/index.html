@@ -334,9 +334,9 @@
     // ② 정책 배지 — 클릭하면 「정책 편집 / 적용 정책 변경」 중 고르는 작은 메뉴
     const polMenuId = 'polm' + r.set_id;
     const editRow = r.policy_id
-      ? '<a href="/policies/' + r.policy_id + '" target="_blank">✎ 정책 편집</a>' : '';
+      ? '<a href="/policies/' + r.policy_id + '" target="_blank">정책 편집</a>' : '';
     const applyRow = '<a href="/policies/apply?model=' + encodeURIComponent(r.model_code)
-      + '" target="_blank">🔍 적용 정책 변경</a>';
+      + '" target="_blank">적용 정책 변경</a>';
     const pol = (r.policy
       ? '<button type="button" class="pol" data-pol-toggle="' + polMenuId + '" title="'
         + (r.policy_from === 'set' ? '이 구성에 직접 붙임' : '상품에 붙은 것을 따름') + '">' + esc(r.policy) + '</button>'

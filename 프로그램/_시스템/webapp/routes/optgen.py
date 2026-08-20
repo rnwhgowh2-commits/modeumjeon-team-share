@@ -441,11 +441,11 @@ def _attach_phase(session, mats):
 def _attach_matrix_facts(session, mats):
     """[이슈 #1081] 「옵션 매트릭스」 병합칸·모음전 구성·옵션축·SKU/소싱처 개수.
 
-    🔴 옵션함 목록(`_boxes`)과 **같은 재료**(`_box_facts`)를 그대로 쓴다 — 이 탭이
+    [중요] 옵션함 목록(`_boxes`)과 **같은 재료**(`_box_facts`)를 그대로 쓴다 — 이 탭이
        따로 세면, 같은 매트릭스가 두 목록에서 다른 축·소싱처 수로 보일 수 있다
        (이 저장소가 여러 번 겪은 「같은 사실, 다른 화면」 사고).
 
-    🔴 옵션함(box)뿐 아니라 **이미 상품이 된 매트릭스도 같이 묻는다** — `_attach_phase`
+    [중요] 옵션함(box)뿐 아니라 **이미 상품이 된 매트릭스도 같이 묻는다** — `_attach_phase`
        (위상)와 달리 축·소싱처·SKU 구성은 상품이 됐다고 사라지는 사실이 아니다.
     """
     from lemouton.matrix.option_name import bundle_model_names
@@ -478,7 +478,7 @@ def _attach_matrix_facts(session, mats):
 def _attach_product_status(session, mats):
     """[이슈 #1081] 「상품&정책 연결상태」 2행 — 상품 생성 · 정책 적용.
 
-    🔴 새 판정을 만들지 않는다 — 이미 `_attach_made`(어느 상품으로 만들었나)가
+    [중요] 새 판정을 만들지 않는다 — 이미 `_attach_made`(어느 상품으로 만들었나)가
        구해 둔 것과, `policy_models`(상품관리·정책생성 화면과 같은 단일 판정 —
        상품 ∪ 구성 정책을 같이 본다) 만 합친다.
 
@@ -888,7 +888,7 @@ def api_create_option_box():
 def _box_info(session, code: str) -> dict | None:
     """옵션함 하나의 상세 정보 — 화면(box.html)과 모달의 「재고 입력」 드로어가 같이 쓴다.
 
-    🔴 두 벌로 나누면 반드시 갈린다(이 저장소가 여러 번 겪은 사고 패턴) — 그래서
+    [중요] 두 벌로 나누면 반드시 갈린다(이 저장소가 여러 번 겪은 사고 패턴) — 그래서
        Jinja 라우트와 JSON API 가 **이 함수 하나**를 부른다.
     """
     from lemouton.sourcing.models import Model, Option
@@ -958,7 +958,7 @@ def box(code: str):
 
 @bp.get('/api/box/<path:code>/rows')
 def api_box_rows(code: str):
-    """옵션함의 옵션 표 — 모달 「📦 재고 입력」 드로어가 연다.
+    """옵션함의 옵션 표 — 모달 「 재고 입력」 드로어가 연다.
 
     box.html 과 완전히 같은 자료(`_box_info`)를 JSON 으로 준다 — 어느 화면에서
     창을 열었든(목록·매트릭스 등) 이 드로어가 스스로 채울 수 있게.
@@ -1308,7 +1308,7 @@ def api_import_from_market():
 def api_import_from_market_merge():
     """마켓 상품 여러 개 → 「모델」 축 매트릭스 1개로 태어난다(지금은 스마트스토어만).
 
-    🔴 실패하면 아무것도 안 만든다(rollback) — 반쪽짜리 옵션함 금지. 단건
+    [중요] 실패하면 아무것도 안 만든다(rollback) — 반쪽짜리 옵션함 금지. 단건
        가져오기(`/api/import-from-market`)와 같은 계약.
     """
     from lemouton.matrix.import_from_market import import_market_products_merged
