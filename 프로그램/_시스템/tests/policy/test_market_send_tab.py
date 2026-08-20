@@ -117,11 +117,45 @@ def test_두_화면_모두_하위탭_2개를_보여준다(client):
 def test_필터가_전부_펼쳐져_있다(client):
     """A안 확정 — 더망고처럼 필터를 접지 않고 다 보여준다."""
     html = client.get('/market-send').get_data(as_text=True)
-    for 있어야 in ('소싱처 수집날', '마켓 전송날',      # ④ 날짜 골라쓰기
+    for 있어야 in ('소싱처 수집날', '마켓 전송날', '가격·재고 변동일',   # ④ 날짜 골라쓰기
                   '정책 안 붙은 것만',                 # ③ 우리에게만 있는 안전 필터
-                  '아직 미등록만',                     # ③ 마켓 등록 여부
                   '보낼 마켓'):
         assert 있어야 in html, 있어야
+
+
+def test_조건검색_3분류가_각각_보인다(client):
+    """1-B 확정 — 상품·소싱처·판매처 기준을 세로 라벨+줄로 나눈다."""
+    html = client.get('/market-send').get_data(as_text=True)
+    for 있어야 in ('상품 기준', '소싱처 기준', '판매처 기준'):
+        assert 있어야 in html, 있어야
+
+
+def test_재고상태는_판매처_기준_줄에_있다(client):
+    """2026-08-19 사장님 지시 — 재고상태는 소싱처가 아니라 판매처 기준."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'fStock' in html
+    for 있어야 in ('재고', '품절'):
+        assert 있어야 in html, 있어야
+
+
+def test_미판매중_등록됨은_독립된_체크박스_둘이다(client):
+    """3번 확정 (a) — 따로 켜고 끄는 두 조건."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'fUnlisted' in html and 'fRegistered' in html
+    assert '미판매중' in html
+
+
+def test_자동완성_검색창이_있다(client):
+    """3-A 확정 — 통합 1칸 + 종류 표시."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert '/api/market-send/suggest/products' in html
+    assert '/api/market-send/suggest/policies' in html
+
+
+def test_판매처_계정_선택이_있다(client):
+    """4-D 확정 — 마켓 칩 + 계정 칩."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'fAcct' in html or 'acc-chip' in html
 
 
 def test_전송_버튼이_있고_재고_경고를_같이_말한다(client):
@@ -162,19 +196,19 @@ def test_소싱처_긁기는_내_PC_크롬에_맡긴다(client):
     """🔴 크롤=로컬 PC 원칙 — 서버는 소싱처를 못 긁는다.
 
     확장이 없으면 **그 사실을 말하고 체크를 막는다.** 조용히 건너뛰면
-    옛 값이 그대로 마켓에 나간다.
+    옛 값이 그대로 마켓에 나간다. 2026-08-19 — 단일 체크박스에서 왼쪽
+    패널(소싱처 수집) ON/OFF 스위치로 자리를 옮김(2-A 확정), 요구사항은 그대로.
     """
     html = client.get('/market-send').get_data(as_text=True)
-    assert 'id="fCrawl"' in html
     assert 'MoumExt' in html and 'enqueueCrawl' in html
     assert '크롬 확장이 꺼져 있어 긁을 수 없습니다' in html
 
 
-def test_긁기와_보내기가_따로_있다(client):
-    """사장님 확정 ② — 둘 다 둔다(더망고의 「업데이트 항목」 자리)."""
+def test_왼쪽_소싱처수집_오른쪽_판매처전송_ON_OFF가_따로_있다(client):
+    """2-A 확정 — 큰 스위치. 사장님 확정 ② 「둘 다 둔다」를 잇는다."""
     html = client.get('/market-send').get_data(as_text=True)
-    assert '① 소싱처에서 다시 긁기' in html
-    assert '② 보낼 마켓' in html
+    assert '소싱처 수집' in html and '판매처 전송' in html
+    assert 'tgl' in html   # 토글 스위치 클래스 — 시안 v2 확정안과 같은 부품
 
 
 # ── [2026-08-06 사장님 지시] 「상품 마켓 전송」 → 「상품수집&전송」 개명 ──────────

@@ -8,6 +8,13 @@
      옵션축 · SKU 연결상태 · 상품&정책 연결상태(2행 배지) · 소싱처.
   🔴 상품&정책 연결상태는 `made_ok`·`policy_ok` 값 그대로 초록/회색이 갈린다 —
      새 판정을 화면에서 다시 하지 않는다(`_attach_product_status` 가 이미 정함).
+
+[이슈 #1095 · 사장님 확정 「막대 채우기」] `made` 목록(파생 등으로 만든 상품이
+실제로 있는 보통 줄)은 더 이상 단순 2행 배지가 아니라 **막대**를 쓴다 — 상품
+여러 개 중 몇 개에 정책이 붙었는지(예 "2개 중 1개") 를 정확히 보여주기 위해서다.
+단순 초록/회색으로는 "하나라도 있으면 초록"이 되어 부분완료를 다 됐다고 속인다.
+2행 배지(`.og-pp2`)는 `made` 없이 `made_ok` 만 참인 드문 줄(이 매트릭스 자체가
+이미 상품인 경우)에만 남는다.
 """
 import re
 
@@ -78,6 +85,11 @@ def test_옵션매트릭스_칸_1행에_이름_브랜드_모델명(client, monke
 
 
 def test_상품_정책_연결상태_배지_색(client, monkeypatch):
+    """`made` 리스트가 없는(=이 매트릭스 자체가 이미 상품인) 드문 줄만 2행 배지.
+
+    [이슈 #1095] 셋 중 `made_ok=False` 인 줄은 이제 「대기중」 단일 배지로
+    바뀌었다 — `.og-pp2` 는 만들었다/정책 있다 둘 중 하나라도 참인 줄에서만 쓴다.
+    """
     import webapp.routes.optgen as og
     made_row = _row(id=1, code='U-A', made_ok=True, policy_ok=False)
     none_row = _row(id=2, code='U-B', made_ok=False, policy_ok=False)
@@ -86,10 +98,69 @@ def test_상품_정책_연결상태_배지_색(client, monkeypatch):
 
     html = client.get('/optgen/?tab=product').get_data(as_text=True)
     blocks = re.findall(r'<div class="og-pp2">(.*?)</div>', html, re.S)
-    assert len(blocks) == 3
+    assert len(blocks) == 2, blocks
     assert 'stgb sale">상품 생성' in blocks[0] and 'stgb wait">정책 적용' in blocks[0]
-    assert 'stgb wait">상품 생성' in blocks[1] and 'stgb wait">정책 적용' in blocks[1]
-    assert 'stgb sale">상품 생성' in blocks[2] and 'stgb sale">정책 적용' in blocks[2]
+    assert 'stgb sale">상품 생성' in blocks[1] and 'stgb sale">정책 적용' in blocks[1]
+    assert re.search(r'<span class="og-badge stgb wait">대기중</span>', html), (
+        'made_ok=False 인 줄은 「대기중」 단일 배지여야 한다')
+
+
+def test_상품_여러개_중_일부만_정책이면_막대가_부분_채워진다(client, monkeypatch):
+    """🔴 「막대 채우기」의 핵심(#1095) — 단순 초록/회색으론 "2개 중 1개"를
+    표현 못 해 초록(=다 됐다)으로 거짓말한다."""
+    import webapp.routes.optgen as og
+    row = _row(code='U-BAR', made=[
+        {'code': 'M1', 'name': '상품A', 'no': 'M-1',
+         'policy_url': '/a', 'policy_tip': ''},
+        {'code': 'M2', 'name': '상품B', 'no': 'M-2',
+         'policy_url': '/b', 'policy_tip': ''},
+    ])
+    # has_policy 는 _attach_product_status 가 policy_models() 결과로 붙인다 —
+    # 여기서는 그 함수가 실제로 도는 경로(og._matrices 대신 og._attach_product_status
+    # 자체)로 확인해야 정확하지만, 목록 렌더 계약은 M1 만 정책 있는 걸로 심는다.
+    row['made'][0]['has_policy'] = True
+    row['made'][1]['has_policy'] = False
+    monkeypatch.setattr(og, '_matrices', lambda s, *a, **k: [row])
+
+    html = client.get('/optgen/?tab=product').get_data(as_text=True)
+    assert '상품 생성 2개' in html
+    assert '<span class="og-polbar-n">1/2</span>' in html, (
+        '정책 붙은 상품 1개 · 전체 2개 — 진행 표시가 1/2 이어야 한다')
+    bar = re.search(r'<span class="og-polbar"[^>]*>(.*?)</span>', html).group(1)
+    assert bar.count('<i class="on">') == 1 and bar.count('<i class="">') == 1, (
+        f'막대 칸이 부분 채움(1/2)으로 안 그려진다: {bar}')
+    # 기존 만든 상품 바로가기 목록은 막대 아래 그대로 남아야 한다(회귀 없음).
+    assert '상품A →' in html and '상품B →' in html
+
+
+def test_상품_생성_전이면_대기중_단일_배지(client, monkeypatch):
+    import webapp.routes.optgen as og
+    row = _row(made_ok=False, policy_ok=False, made=[])
+    monkeypatch.setattr(og, '_matrices', lambda s, *a, **k: [row])
+
+    html = client.get('/optgen/?tab=product').get_data(as_text=True)
+    assert re.search(r'<span class="og-badge stgb wait">대기중</span>', html)
+    # 'og-pp2'/'og-polbar' 는 <style> 정의 자체엔 늘 있다 — 이 줄 렌더에 실제로
+    # 쓰였는지(class="…") 만 본다.
+    assert 'class="og-pp2"' not in html
+    assert 'class="og-polbar"' not in html
+
+
+def test_attach_product_status가_made항목마다_has_policy를_붙인다(client, monkeypatch):
+    """실제 배선 확인 — `policy_models()` 를 통해 얻은 정책 집합으로 `made` 각
+    항목에 `has_policy` 가 붙는지(화면 렌더가 아니라 함수 계약 자체를 검사)."""
+    import webapp.routes.optgen as og
+
+    mats = [{'id': 1, 'code': 'U-X', 'box': True,
+            'made': [{'code': 'M-HAS', 'name': 'a', 'no': '1'},
+                     {'code': 'M-NOT', 'name': 'b', 'no': '2'}]}]
+    monkeypatch.setattr('webapp.routes.bundles_tower.policy_models',
+                        lambda s, codes: {'M-HAS'})
+    og._attach_product_status(None, mats)
+
+    made = mats[0]['made']
+    by_code = {d['code']: d['has_policy'] for d in made}
+    assert by_code == {'M-HAS': True, 'M-NOT': False}
 
 
 def test_옵션축_칩과_모음전_구성(client, monkeypatch):

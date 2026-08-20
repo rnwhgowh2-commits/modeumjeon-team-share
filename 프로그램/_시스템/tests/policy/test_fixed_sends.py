@@ -47,6 +47,21 @@ def test_초안_기본값이_실제_모델과_같다():
     assert 'return_fee = Column(Integer, default=5000)' in src
 
 
+def test_모음전_경로는_신발_가방을_자동_판정한다():
+    """[2026-08-20] as_draft.py::upsert() 가 notice_type 을 전혀 안 채우던 버그.
+
+    표만 고치고 코드를 안 고치면(또는 반대면) 화면이 거짓말한다 — 이 파일의
+    존재 이유. 등록 코드 원본에서 실제로 판정 함수를 부르는지 읽어서 확인한다.
+    """
+    src = Path('lemouton/send/as_draft.py').read_text(encoding='utf-8')
+    assert 'guess_notice_type' in src, '자동 판정을 호출하지 않는다 — 표가 낡았다'
+    assert 'd.notice_type' in src, 'notice_type 을 여전히 안 채운다 — 표가 낡았다'
+
+    row = [r for r in FS.for_market('coupang')['rows'] if r['label'] == '고시 유형'][0]
+    assert '자동' in row['value'] or '자동' in row['note'], (
+        '자동 판정으로 바뀌었는데 표 설명이 여전히 예전(「전부 의류」) 그대로다')
+
+
 def test_근거_위치가_전부_적혀_있다():
     """「어디에 박혀 있나」가 없으면 사장님도 나도 다시 못 찾는다."""
     for mk in ('coupang', 'smartstore'):

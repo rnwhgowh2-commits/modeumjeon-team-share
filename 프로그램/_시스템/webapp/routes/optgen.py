@@ -485,6 +485,14 @@ def _attach_product_status(session, mats):
     상품 생성 = 이 줄 자체가 이미 상품(옵션함이 아님)이거나, 이 옵션함으로 만든
                 상품이 하나라도 있다.
     정책 적용 = 그 상품(자기 자신 포함) 중 하나라도 정책이 붙어 있다.
+
+    [이슈 #1095 · 사장님 확정 「막대 채우기」] `made` 목록 각 항목에도
+    `has_policy` 를 붙인다 — 파생으로 상품을 여러 개 만들었을 때(항목1) 화면이
+    "몇 개 중 몇 개"를 막대로 보여주려면 상품 하나하나의 정책 여부가 필요하다.
+    🔴 여기서 다시 세지 않는다 — 위에서 이미 구한 `policies` 집합을 그대로
+       재사용한다(옛 `_attach_made` 의 `has_policy` 는 `BundlePolicyLink` 만 봐서
+       `policy_models` 가 보는 `SetPolicyLink`(구성 정책)를 놓쳤다 — 두 판정이
+       갈리면 이 칸과 상품관리 화면이 다른 말을 한다).
     """
     from webapp.routes.bundles_tower import policy_models
 
@@ -497,10 +505,12 @@ def _attach_product_status(session, mats):
     policies = policy_models(session, list(codes)) if codes else set()
     for m in mats:
         made_list = m.get('made') or []
+        for d in made_list:
+            d['has_policy'] = d['code'] in policies
         self_is_product = bool(m.get('code')) and not m.get('box')
         m['made_ok'] = bool(made_list) or self_is_product
         m['policy_ok'] = (self_is_product and m['code'] in policies) or any(
-            d['code'] in policies for d in made_list)
+            d['has_policy'] for d in made_list)
 
 
 #: 코드 앞글자 「단독_」 — 옛날에 「재고관리에만 두는 물건」을 문자열로 흉내 낸 흔적.

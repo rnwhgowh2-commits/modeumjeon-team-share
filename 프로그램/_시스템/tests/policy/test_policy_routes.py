@@ -1113,3 +1113,31 @@ def test_만들기_창에_카테고리_소싱처_구분_칸이_있다(client):
     body = client.get('/policies').get_data(as_text=True)
     assert 'id="pcategory"' in body and 'id="psourcing"' in body and 'id="pprefix"' in body
     assert '비워 두면 위 내용으로 자동으로 채워요' in body
+
+
+# ── [2026-08-19 사장님 확정] 칼럼 이름 정책명/정책 적용 상품 + 전부 가운데 정렬 ──────
+
+def test_칼럼_이름이_정책명_정책_적용_상품이다(client):
+    """「이름」→「정책명」, 「붙은 상품」→「정책 적용 상품」.
+
+    🔴 표 머리줄(<thead>)은 정책이 하나라도 있어야 그려진다 — 빈 목록이면
+       "아직 정책이 없어요" 문구만 뜨고 표 자체가 없다({% if items %} 분기).
+    """
+    _new_policy(client, '헤더확인')
+    body = client.get('/policies').get_data(as_text=True)
+    assert '<th class="tc">정책명</th>' in body
+    assert '<th class="tc">정책 적용 상품</th>' in body
+    assert '<th class="tl">이름</th>' not in body
+    assert '<th class="tr">붙은 상품</th>' not in body
+
+
+def test_칼럼_전부_가운데_정렬이다(client):
+    """데이터 성격별 정렬(글 왼쪽·숫자 오른쪽)에서 전부 가운데로 통일."""
+    import re
+    _new_policy(client, '정렬확인')
+    body = client.get('/policies').get_data(as_text=True)
+    m = re.search(r'<thead><tr>\s*<th class="pick"></th>\s*(.*?)</tr></thead>', body, re.S)
+    assert m, '표 머리줄을 못 찾았다'
+    ths = re.findall(r'<th class="(\w+)">', m.group(1))
+    assert ths, '칼럼이 하나도 없다'
+    assert ths == ['tc'] * len(ths), f'가운데 정렬이 아닌 칼럼이 있다: {ths}'

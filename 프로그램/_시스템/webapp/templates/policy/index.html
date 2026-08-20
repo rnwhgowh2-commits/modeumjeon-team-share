@@ -33,7 +33,7 @@
     .tag.br{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
     /* ── 내보낼 마켓 (노션 「마켓별 토글 활성화」) — 알약을 바로 눌러서 켜고 끈다
        [2026-08-19] 「고치기」 눌러야 펼치던 옛 배지·펼침칸 부품은 걷어냈다 ── */
-    .pl-mk{display:flex;gap:3px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    .pl-mk{display:flex;gap:3px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:8px}
     .v2d-pill{font-size:11px;font-weight:600;padding:3px 10px 3px 7px;border-radius:999px;cursor:pointer;
               border:1px solid var(--line,#E5E8EB);display:inline-flex;align-items:center;gap:4px;
               color:var(--sub,#8B95A1);background:var(--surface,#ffffff);user-select:none}
@@ -233,8 +233,8 @@
         <select class="sb-in" id="psort">
           <option value="orig">기본 (기본 정책 먼저·최신순)</option>
           <option value="filled">채움 많은 순</option>
-          <option value="applied">붙은 상품 많은 순</option>
-          <option value="name">이름 순</option>
+          <option value="applied">정책 적용 상품 많은 순</option>
+          <option value="name">정책명 순</option>
         </select>
       </div>
     </div>
@@ -245,15 +245,15 @@
         <button class="pl-addbtn" type="button" id="addcard">+ 정책 생성</button>
       </div>
       {% if items %}
-      {# data-align-keep — 전역 표 정렬 장치(table_align.js)가 이 표를 가운데로 덮지 않게.
-         칼럼별 정렬(숫자 우측·상태 가운데·글 왼쪽)은 이 화면 CSS 가 직접 정한다. #}
+      {# data-align-keep — 전역 표 정렬 장치(table_align.js)가 이 표를 덮지 않게.
+         [2026-08-19 사장님 확정] 칼럼·항목 전부 가운데 정렬로 통일 — 이 화면 CSS 가 직접 정한다. #}
       <div class="gl-wrap">
         <table class="gl" data-align-keep>
           <thead><tr>
             <th class="pick"></th>
-            <th class="tl">이름</th><th class="tl">브랜드</th><th class="tl">채움</th>
-            <th class="tr">붙은 상품</th><th class="tc">가격</th>
-            <th class="tl">내보낼 마켓</th><th class="tl">마켓별 상태</th><th class="tr">동작</th>
+            <th class="tc">정책명</th><th class="tc">브랜드</th><th class="tc">채움</th>
+            <th class="tc">정책 적용 상품</th><th class="tc">가격</th>
+            <th class="tc">내보낼 마켓</th><th class="tc">마켓별 상태</th><th class="tc">동작</th>
           </tr></thead>
           <tbody id="pgrid">
           {% for it in items %}
@@ -266,18 +266,18 @@
               data-name="{{ it.name }}" data-idx="{{ loop.index }}">
             <td class="pick"><label><input type="checkbox" class="pol-ck" data-id="{{ it.id }}"
                  aria-label="{{ it.name }} 고르기"></label></td>
-            <td class="tl">
+            <td class="tc">
               <a class="nm" href="/policies/{{ it.id }}">{{ it.name }}</a>
               {% if it.is_default %}<span class="tag def">기본</span>{% endif %}
               {% if it.memo %}<div class="memo">{{ it.memo }}</div>{% endif %}
             </td>
-            <td class="tl">{% if it.brand %}<span class="tag br">{{ it.brand }}</span>
+            <td class="tc">{% if it.brand %}<span class="tag br">{{ it.brand }}</span>
               {% else %}<span class="gl-dim">—</span>{% endif %}</td>
-            <td class="tl"><span class="gl-bar">
+            <td class="tc"><span class="gl-bar">
               <span class="bar"><i style="width:{{ (it.filled / it.total * 100) if it.total else 0 }}%"></i></span>
               <b class="num">{{ it.filled }}</b><span class="unit">/ {{ it.total }}</span></span></td>
-            {# 붙은 상품 — 호버하면 어느 상품인지 뜨고, 상품관리로 바로 간다(hover-info-card 표준). #}
-            <td class="tr">
+            {# 정책 적용 상품 — 호버하면 어느 상품인지 뜨고, 상품관리로 바로 간다(hover-info-card 표준). #}
+            <td class="tc">
               {% if it.applied %}
               <span class="hv ap-hv" data-hv="applied-{{ it.id }}">
                 <b class="num">{{ it.applied }}</b><span class="unit">개</span></span>
@@ -288,7 +288,7 @@
             <td class="tc">{% if it.ready %}<span class="gl-ok">가격 쓸 수 있음 {{ it.ready|length }}마켓</span>
               {% else %}<span class="tag no">가격 아직 못 씀</span>{% endif %}</td>
             {# 내보낼 마켓 — 알약을 바로 눌러서 켜고 끈다(고치기 단계 없이 즉시 반영). #}
-            <td class="tl">
+            <td class="tc">
               <div class="pl-mk mk-toggle" data-id="{{ it.id }}">
                 {% for mk in market_keys %}
                 <span class="v2d-pill {{ 'on' if mk in it.markets else '' }}" data-mk="{{ mk }}">
@@ -297,14 +297,14 @@
               </div>
             </td>
             {# 마켓별 상태 — 완료(초록)·작성중(주황)·꺼짐(회색), 옵션생성 화면과 같은 색 뜻. #}
-            <td class="tl">
+            <td class="tc">
               {% for mk in market_keys %}
               {% set st = it.market_status[mk] %}
               <span class="v1-pill v1-{{ st }}" title="{{ market_label[mk] }} · {{ {'done':'완료','writing':'작성중','off':'꺼짐'}[st] }}">{{ market_label[mk][0] }}</span>
               {% endfor %}
             </td>
-            <td class="tr"><span class="pl-act">
-              <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})"><i class="ph-light ph-file" aria-hidden="true"></i> 복사</button>
+            <td class="tc"><span class="pl-act">
+              <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})">📄 복사</button>
               <button class="btn2 ghost" type="button" onclick="toggleDefault({{ it.id }}, this)"
                       data-default="{{ 1 if it.is_default else 0 }}">{{ '기본 해제' if it.is_default else '기본으로' }}</button>
               {% if not it.applied %}
@@ -320,7 +320,7 @@
       {# 여러 개 골라 한꺼번에 복사·지우기 — 2026-08-19 확정, 고른 줄은 목록 위로 뜬다. #}
       <div class="pol-pickbar" id="polPickbar" hidden>
         <span class="pol-pickbar-n">고른 정책 <b id="polPn">0</b>개</span>
-        <button class="btn2 ghost" type="button" id="polPickCopy"><i class="ph-light ph-file" aria-hidden="true"></i> 한꺼번에 복사</button>
+        <button class="btn2 ghost" type="button" id="polPickCopy">📄 한꺼번에 복사</button>
         <button class="btn2 ghost" type="button" id="polPickDel" style="color:#B91C1C">한꺼번에 지우기</button>
         <button class="btn2 ghost" type="button" id="polPickClr">고르기 취소</button>
       </div>
@@ -334,7 +334,7 @@
   {# ── 만들기 창 (시안 v3 확정 — 점선 카드를 누르면 열림) ── #}
   <div class="np-back" id="npback">
     <div class="np-box">
-      <div class="np-t"><i class="ph-light ph-sparkle" aria-hidden="true"></i> 새 정책 만들기</div>
+      <div class="np-t">🆕 새 정책 만들기</div>
       <div class="np-d">마켓마다 어떻게 올릴지 한 벌을 새로 만들어요.</div>
       <div class="np-f"><label>브랜드 <span class="opt">(안 적어도 돼요)</span></label>
         <input id="pbrand" placeholder="예: 르무통"></div>
@@ -541,7 +541,7 @@ function hvContentFor(key){
         + '<a class="ap-go" href="/bundles/' + encodeURIComponent(p.code) + '" '
         + 'onclick="event.stopPropagation()">상품관리 →</a></div>';
     }).join('');
-    return {t: '이 정책이 붙은 상품 ' + list.length + '개', b: '<div class="ap-list">' + rows + '</div>'};
+    return {t: '이 정책이 적용된 상품 ' + list.length + '개', b: '<div class="ap-list">' + rows + '</div>'};
   }
   return HV[key];
 }

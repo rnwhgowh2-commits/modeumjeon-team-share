@@ -138,6 +138,15 @@ def upsert(session, *, set_id: int, market: str, view=None):
     d.source_site = ''                      # 구성은 소싱처가 여럿이라 한 곳을 못 적는다
     d.source_category_path = (m.category if m else '') or ''
 
+    # [2026-08-20] 고시 유형(notice_type) — 여기를 안 채워서 신발·가방도 전부
+    #   「의류」 고시로 나가고 있었다(policy/fixed_sends.py COMMON_DEFAULTS
+    #   「고시 유형」 참고). 카테고리 텍스트로 확신 있게 판정될 때만 SHOES/BAG 로
+    #   채우고, 못 하면 컬럼 기본값과 같은 'WEAR' 를 그대로 둔다 — 잘못 단정하는
+    #   것보다 안전하다(폴백 금지 원칙). 구성이 바뀌면 판정도 다시 하도록 매번
+    #   재계산한다(위 name·brand·options_json 과 같은 방식 — 갈아끼우기).
+    from lemouton.registration.notice_type_guess import guess_notice_type
+    d.notice_type = guess_notice_type(d.source_category_path) or 'WEAR'
+
     # ── A/S — 회사에 하나뿐인 값이라 전역 설정에서 가져온다 (사장님 확정 A안) ──
     #   🔴 **없으면 비워 둔다.** 예전 모음전 코드는 `or "02-0000-0000"` 로 때웠는데
     #     그건 가짜 번호를 실제 판매 상품에 게시하는 것이다. 비면 preflight 가 막는다.
