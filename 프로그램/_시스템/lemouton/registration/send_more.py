@@ -503,7 +503,42 @@ def _register_lotteon(spec: dict, account_key: str = '') -> dict:
         if isinstance(img, dict) and img.get('origImgFileNm'):
             img['origImgFileNm'] = spec['image_url']
     result = register_product(inner, client=client)   # spdNo 없으면 raise
-    return {'product_id': str(result['spdNo']), 'raw': result}
+    spd_no = str(result['spdNo'])
+    # ★ 등록 직후 판매종료 — 롯데온은 등록 즉시 판매중(SALE)으로 뜬다. SOUT(품절)
+    #   대신 END(판매종료)를 쓰는 이유: SOUT 은 재고 수치에 연동돼, 이후 재고 동기화가
+    #   재고를 채우면 자동으로 판매중으로 되돌아갈 위험이 있다. END 는 재고와 무관하게
+    #   고정된다. 실패해도 product_id 는 잃지 않는다(best-effort). 실패 흔적은 result
+    #   안에 남겨 row.raw_json 으로 DB에 보이게 한다(로그만 남기면 조용한 실패가 된다
+    #   — 과거에 여러 번 겪은 「돈 잃는」 버그 유형).
+    # [재조회 검증] set_sale_status 는 status/change 응답의 **최상위 returnCode 만**
+    #   보고 boolean 을 만든다(products.py:344) — register_product 의 「함정2」(최상위
+    #   0000 이어도 data[] 항목별 resultCode 는 실패일 수 있음, 같은 spdLst 래퍼 구조)와
+    #   같은 위험을 안고 있고, set_sale_status 자체 docstring 도 "반환 True 여도
+    #   호출부가 get_product_detail 로 slStatCd 재조회 검증 권장"이라 명시한다. 그래서
+    #   True 를 받아도 get_product_detail 로 spdSlStatCd == 'END' 인지 재조회 확인한다.
+    from shared.platforms.lotteon.products import set_sale_status
+    try:
+        ok = set_sale_status(spd_no, 'END', client=client)
+        if not ok:
+            logger.warning('lotteon 판매종료 전환 실패 spdNo=%s', spd_no)
+            result['_suspend_failed'] = True
+        else:
+            try:
+                detail = get_product_detail(spd_no, client=client)
+            except Exception:  # noqa: BLE001
+                logger.exception('lotteon 판매종료 재조회 예외 spdNo=%s', spd_no)
+                result['_suspend_failed'] = True
+            else:
+                spd_sl_stat_cd = str((detail or {}).get('spdSlStatCd') or '')
+                if spd_sl_stat_cd != 'END':
+                    logger.warning(
+                        'lotteon 판매종료 재조회 검증 실패(응답은 성공이었으나 여전히 '
+                        '판매종료 아님) spdNo=%s spdSlStatCd=%s', spd_no, spd_sl_stat_cd)
+                    result['_suspend_failed'] = True
+    except Exception:  # noqa: BLE001
+        logger.exception('lotteon 판매종료 예외 spdNo=%s', spd_no)
+        result['_suspend_failed'] = True
+    return {'product_id': spd_no, 'raw': result}
 
 
 def register_live(market: str, spec: dict, account_key: str = '') -> dict:
