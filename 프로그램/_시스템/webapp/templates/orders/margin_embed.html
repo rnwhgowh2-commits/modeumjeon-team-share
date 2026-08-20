@@ -934,6 +934,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
   <script src="{{ url_for('static', filename='margin_route_cell.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_etc_reasons.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_all_tab.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_col_filter_fix.js') }}"></script>  <!-- [모음전 2026-08-20] 전체내역 컬럼필터 (빈값)·제외/비대량등록 통일 -->
   <script src="{{ url_for('static', filename='margin_settle_cell.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_checksum.js') }}"></script>
   <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id="sellBox" 감춤 → 매입 칸이 한 칸 전체 -->
@@ -3446,6 +3447,7 @@ function _refreshGroupTotals(idx) {
   function recompute(items) {
     const live = items.filter(function(x) {
       if (x._excluded) return false;
+      if (x['_주문미이행'] && !x['_매입흔적']) return false;  /* [모음전 2026-08-20] 일별/브랜드/상품 그룹 재계산 — 초기 렌더(_isLiveRow)·백엔드 aggregator.py 와 동일 기준으로 통일 (누락 시 편집 직후 그룹 건수·매출·순마진이 튐) */
       if (MR.isMarginUncomputable(x)) return false;
       return true;
     });
@@ -4525,8 +4527,9 @@ function _renderAbnDetail(kind){
       var rate = _rb > 0 ? (sm / _rb * 100) : 0;   /* 순마진 기여 기준 — 손실행은 항상 마이너스로 표시 */
       var o정 = r['_orig_정산예상금액'], o매 = r['_orig_구매가격'];
       var payChanged = (o정!=null && o정!==정산), buyChanged = (o매!=null && o매!==매입);
-      var pay = payChanged ? _ba(fmt(o정), fmt(정산), {changed:true, color:'color:#1AB053', delta:{dir:'up', txt:(정산-o정>=0?'+':'−')+fmt(Math.abs(정산-o정))}}) : _ba(fmt(정산), fmt(정산));
-      var buyc = buyChanged ? _ba(fmt(o매), fmt(매입), {changed:true, color:'color:#3182F6', delta:{dir:'dn', txt:(매입-o매>=0?'+':'−')+fmt(Math.abs(매입-o매))}}) : _ba(fmt(매입), fmt(매입));
+      /* [모음전 2026-08-20] 요약탭 고마진/손실 상세도 전체내역과 같은 인라인 편집(editCell) — 사장님 요청. 편집 시 이 패널만 즉시 다시 그림(_moumAbnEdit). */
+      var pay = '<input type="number" class="cell-input'+(payChanged?' edited':'')+'" value="'+정산+'" onchange="_moumAbnEdit('+r._idx+', &quot;정산예상금액&quot;, this.value, &quot;'+kind+'&quot;)" title="수정 시 마진 자동 재계산" style="width:88px">';
+      var buyc = '<input type="number" class="cell-input'+(buyChanged?' edited':'')+'" value="'+매입+'" onchange="_moumAbnEdit('+r._idx+', &quot;구매가격&quot;, this.value, &quot;'+kind+'&quot;)" title="수정 시 마진 자동 재계산" style="width:88px">';
       var smTxt = (sm<0?'−':'+')+fmt(Math.abs(sm));
       var marc = _ba(smTxt, smTxt, {color:'color:'+(sm<0?'#F04452':'#C2570C')});
       var how = payChanged ? '<span class="et-how pay">정산입력 </span>' : buyChanged ? '<span class="et-how buy">매입입력 </span>' : '<span class="et-how todo">미처리</span>';
@@ -4550,6 +4553,12 @@ function _renderAbnDetail(kind){
   h += '</tbody></table>';
   return h;
 }
+/* [모음전 2026-08-20] 요약탭 고마진/손실 상세 인라인 편집 — editCell 로 실제 반영 후 이 패널만 다시 그림 */
+window._moumAbnEdit = function(idx, field, val, kind){
+  editCell(idx, field, val);
+  var det = document.getElementById('etd-' + kind);
+  if (det) det.innerHTML = _renderAbnDetail(kind);
+};
 window.toggleAbnRows = function(kind){
   var exp = document.getElementById('ete-'+kind), det = document.getElementById('etd-'+kind), c = document.getElementById('etc-'+kind);
   if (!exp || !det) return;
@@ -7477,8 +7486,7 @@ function _getDetailRowsSorted() {
     rows = rows.filter(function(r){
       return activeCols.every(function(c){
         var allowed = colFilters[c];
-        var val = r[c];
-        var key = (val == null || val === '') ? '(빈값)' : String(val);
+        var key = (window._moumColFilterKey ? window._moumColFilterKey(r, c) : ((r[c] == null || r[c] === '') ? '(빈값)' : String(r[c])));  /* [모음전 2026-08-20] 컬럼필터 — 제외/비대량등록 + nan/None 빈값 통일 (margin_col_filter_fix.js) */
         return allowed.has(key);
       });
     });
@@ -7989,8 +7997,7 @@ function openColFilter(col, anchor) {
   Object.keys(cf).forEach(function(c){
     if (c !== col && cf[c]) {
       allRows = allRows.filter(function(r){
-        var val = r[c];
-        var key = (val == null || val === '') ? '(빈값)' : String(val);
+        var key = (window._moumColFilterKey ? window._moumColFilterKey(r, c) : ((r[c] == null || r[c] === '') ? '(빈값)' : String(r[c])));  /* [모음전 2026-08-20] 컬럼필터 — 제외/비대량등록 + nan/None 빈값 통일 (margin_col_filter_fix.js) */
         return cf[c].has(key);
       });
     }
@@ -7999,8 +8006,7 @@ function openColFilter(col, anchor) {
   // 고유값 수집 + 카운트
   var valueMap = {};
   allRows.forEach(function(r){
-    var val = r[col];
-    var key = (val == null || val === '') ? '(빈값)' : String(val);
+    var key = (window._moumColFilterKey ? window._moumColFilterKey(r, col) : ((r[col] == null || r[col] === '') ? '(빈값)' : String(r[col])));  /* [모음전 2026-08-20] 컬럼필터 — 제외/비대량등록 + nan/None 빈값 통일 (margin_col_filter_fix.js) */
     valueMap[key] = (valueMap[key] || 0) + 1;
   });
   var values = Object.keys(valueMap).sort();

@@ -50,6 +50,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_route_cell.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_etc_reasons.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_all_tab.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_col_filter_fix.js') }}\"></script>  <!-- [모음전 2026-08-20] 전체내역 컬럼필터 (빈값)·제외/비대량등록 통일 -->\n"
         "  <script src=\"{{ url_for('static', filename='margin_settle_cell.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_checksum.js') }}\"></script>\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
@@ -885,6 +886,113 @@ for _o, _n in [
     ('    +     \'<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 14px">\'', '    +     \'<div onclick="if(window._moumSuspectClick)window._moumSuspectClick()" title="클릭 → 블랙스팟 의심 건 상세" style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 14px;cursor:pointer">\'  /* [모음전] 블랙스팟 의심 클릭 */'),
 ]:
     SEAMS.append((_o, _n, 1))
+
+# ── [모음전 2026-08-20] 일별/브랜드/상품 그룹 재계산 — 편집 후 그룹합계 필터 통일 ──
+#  사장님 신고: 일별탭에서 단가/정산/매입 아무 셀이나 고치면 그날 매출·매입·순마진이
+#  갑자기 이상해짐. 원인 — _refreshGroupTotals 의 local recompute() 가 쓰는 "살아있는 행"
+#  판정이 초기 렌더(_isLiveRow, 2219행)·백엔드 aggregator.py(35-47행)와 다르게
+#  "_주문미이행 && !_매입흔적" 조건이 빠져 있었다. 그래서 최초엔 안 잡히던 행이
+#  편집을 계기로 그룹 재집계에 슬쩍 끼어들어 건수·매출·순마진이 튀었다.
+#  세 곳(초기 렌더·편집 후 재집계·백엔드)의 "포함 대상" 정의를 하나로 맞춘다.
+SEAMS.append((
+    "  function recompute(items) {\n"
+    "    const live = items.filter(function(x) {\n"
+    "      if (x._excluded) return false;\n"
+    "      if (MR.isMarginUncomputable(x)) return false;\n"
+    "      return true;\n"
+    "    });",
+    "  function recompute(items) {\n"
+    "    const live = items.filter(function(x) {\n"
+    "      if (x._excluded) return false;\n"
+    "      if (x['_주문미이행'] && !x['_매입흔적']) return false;  /* [모음전 2026-08-20] 일별/브랜드/상품 그룹 재계산 — 초기 렌더(_isLiveRow)·백엔드 aggregator.py 와 동일 기준으로 통일 (누락 시 편집 직후 그룹 건수·매출·순마진이 튐) */\n"
+    "      if (MR.isMarginUncomputable(x)) return false;\n"
+    "      return true;\n"
+    "    });",
+    1,
+))
+
+# ── [모음전 2026-08-20] 전체내역 컬럼 필터 — 제외/비대량등록 + nan/None 빈값 통일 ──
+#  사장님 신고: 헤더 필터를 걸어도 안 걸러지는 칼럼이 있고, 빈 셀도 (빈값)으로 안 걸린다.
+#  원인 — '제외'·'비대량등록' 칼럼은 체크박스가 r._excluded/r._manual_reg 를 보는데
+#  필터는 r['제외']/r['비대량등록'](늘 undefined)을 읽어 옵션이 (빈값) 하나뿐이었고,
+#  "nan"/"None" 문자열이 (빈값)과 갈라져 별도 옵션으로 남았다. 값-키 산출을 한 곳
+#  (static/margin_col_filter_fix.js, window._moumColFilterKey)으로 모은다 — 함수 없으면
+#  원본 동작 그대로 폴백(안전).
+SEAMS.append((
+    "      return activeCols.every(function(c){\n"
+    "        var allowed = colFilters[c];\n"
+    "        var val = r[c];\n"
+    "        var key = (val == null || val === '') ? '(빈값)' : String(val);\n"
+    "        return allowed.has(key);\n"
+    "      });",
+    "      return activeCols.every(function(c){\n"
+    "        var allowed = colFilters[c];\n"
+    "        var key = (window._moumColFilterKey ? window._moumColFilterKey(r, c) : ((r[c] == null || r[c] === '') ? '(빈값)' : String(r[c])));  /* [모음전 2026-08-20] 컬럼필터 — 제외/비대량등록 + nan/None 빈값 통일 (margin_col_filter_fix.js) */\n"
+    "        return allowed.has(key);\n"
+    "      });",
+    1,
+))
+SEAMS.append((
+    "      allRows = allRows.filter(function(r){\n"
+    "        var val = r[c];\n"
+    "        var key = (val == null || val === '') ? '(빈값)' : String(val);\n"
+    "        return cf[c].has(key);\n"
+    "      });",
+    "      allRows = allRows.filter(function(r){\n"
+    "        var key = (window._moumColFilterKey ? window._moumColFilterKey(r, c) : ((r[c] == null || r[c] === '') ? '(빈값)' : String(r[c])));  /* [모음전 2026-08-20] 컬럼필터 — 제외/비대량등록 + nan/None 빈값 통일 (margin_col_filter_fix.js) */\n"
+    "        return cf[c].has(key);\n"
+    "      });",
+    1,
+))
+SEAMS.append((
+    "  var valueMap = {};\n"
+    "  allRows.forEach(function(r){\n"
+    "    var val = r[col];\n"
+    "    var key = (val == null || val === '') ? '(빈값)' : String(val);\n"
+    "    valueMap[key] = (valueMap[key] || 0) + 1;\n"
+    "  });",
+    "  var valueMap = {};\n"
+    "  allRows.forEach(function(r){\n"
+    "    var key = (window._moumColFilterKey ? window._moumColFilterKey(r, col) : ((r[col] == null || r[col] === '') ? '(빈값)' : String(r[col])));  /* [모음전 2026-08-20] 컬럼필터 — 제외/비대량등록 + nan/None 빈값 통일 (margin_col_filter_fix.js) */\n"
+    "    valueMap[key] = (valueMap[key] || 0) + 1;\n"
+    "  });",
+    1,
+))
+
+# ── [모음전 2026-08-20] 요약탭 고마진/손실 상세 — 매입가·정산가 인라인 편집 ──
+#  사장님 요청: 요약탭 고마진/주문 내역에서 바로 매입가·정산가를 고칠 수 있게.
+#  기존엔 정산·매입 칸이 「전→후」 텍스트뿐인 읽기전용이었다. 전체내역 탭과 같은
+#  editCell()/recomputeRow() 를 그대로 재사용(같은 analysisData.matched 참조라 전체내역과
+#  자동 동기화) — input 으로 바꾸고, onchange 시 이 패널(#etd-<kind>)만 다시 그린다.
+SEAMS.append((
+    "      var o정 = r['_orig_정산예상금액'], o매 = r['_orig_구매가격'];\n"
+    "      var payChanged = (o정!=null && o정!==정산), buyChanged = (o매!=null && o매!==매입);\n"
+    "      var pay = payChanged ? _ba(fmt(o정), fmt(정산), {changed:true, color:'color:#1AB053', delta:{dir:'up', txt:(정산-o정>=0?'+':'−')+fmt(Math.abs(정산-o정))}}) : _ba(fmt(정산), fmt(정산));\n"
+    "      var buyc = buyChanged ? _ba(fmt(o매), fmt(매입), {changed:true, color:'color:#3182F6', delta:{dir:'dn', txt:(매입-o매>=0?'+':'−')+fmt(Math.abs(매입-o매))}}) : _ba(fmt(매입), fmt(매입));\n",
+    "      var o정 = r['_orig_정산예상금액'], o매 = r['_orig_구매가격'];\n"
+    "      var payChanged = (o정!=null && o정!==정산), buyChanged = (o매!=null && o매!==매입);\n"
+    "      /* [모음전 2026-08-20] 요약탭 고마진/손실 상세도 전체내역과 같은 인라인 편집(editCell) — 사장님 요청. 편집 시 이 패널만 즉시 다시 그림(_moumAbnEdit). */\n"
+    "      var pay = '<input type=\"number\" class=\"cell-input'+(payChanged?' edited':'')+'\" value=\"'+정산+'\" onchange=\"_moumAbnEdit('+r._idx+', &quot;정산예상금액&quot;, this.value, &quot;'+kind+'&quot;)\" title=\"수정 시 마진 자동 재계산\" style=\"width:88px\">';\n"
+    "      var buyc = '<input type=\"number\" class=\"cell-input'+(buyChanged?' edited':'')+'\" value=\"'+매입+'\" onchange=\"_moumAbnEdit('+r._idx+', &quot;구매가격&quot;, this.value, &quot;'+kind+'&quot;)\" title=\"수정 시 마진 자동 재계산\" style=\"width:88px\">';\n",
+    1,
+))
+SEAMS.append((
+    "  h += '</tbody></table>';\n"
+    "  return h;\n"
+    "}\n"
+    "window.toggleAbnRows = function(kind){",
+    "  h += '</tbody></table>';\n"
+    "  return h;\n"
+    "}\n"
+    "/* [모음전 2026-08-20] 요약탭 고마진/손실 상세 인라인 편집 — editCell 로 실제 반영 후 이 패널만 다시 그림 */\n"
+    "window._moumAbnEdit = function(idx, field, val, kind){\n"
+    "  editCell(idx, field, val);\n"
+    "  var det = document.getElementById('etd-' + kind);\n"
+    "  if (det) det.innerHTML = _renderAbnDetail(kind);\n"
+    "};\n"
+    "window.toggleAbnRows = function(kind){",
+    1,
+))
 
 if __name__ == "__main__":
     main()

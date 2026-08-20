@@ -270,8 +270,7 @@
           rows = rows.filter(function (r) {
             return activeCols.every(function (c) {
               var allowed = colFilters[c];
-              var val = r[c];
-              var key = (val == null || val === '') ? '(빈값)' : String(val);
+              var key = window._moumColFilterKey ? window._moumColFilterKey(r, c) : ((r[c] == null || r[c] === '') ? '(빈값)' : String(r[c]));
               return allowed.has(key);
             });
           });
