@@ -101,5 +101,15 @@ tmp_*.py
 .cache/
 .claude/
 
+# ─── 세션 스크래치 산출물 (2026-08-20 정리) ───
+**/_multi_backup_*.json
+**/*_backup_*.json
+**/backup_*/
+*.bak.*
+**/_demo_*.py
+_404_audit/
+**/*_임시/
+_붙여넣기_다음세션_프롬프트.md
+
 .superpowers/
 .worktrees/

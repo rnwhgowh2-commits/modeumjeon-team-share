@@ -183,11 +183,33 @@ async function handleCrawl(payload) {
   return { ok: true, count: results.length, results };
 }
 
+// ── 크롤 창 화면 밖 배치 (2026-08-06, 사장님 요청) ──────────────
+// 크롤 창이 눈에 안 보이게 화면 왼쪽 바깥으로 보낸다. 창 너비(1000)보다
+// 훨씬 왼쪽이라 어느 모니터에도 걸치지 않는다. 크롬이 create 단계에서
+// 화면 안으로 되돌리는 경우가 있어 windows.update 로 한 번 더 밀어낸다.
+// ⚠️ 화면 밖 창에 focus 가 가면 키보드 입력이 안 보이는 창으로 들어가므로
+//    이 경로들의 focused 는 반드시 false 여야 한다.
+const OFFSCREEN_LEFT = -2200;
+const OFFSCREEN_TOP = 60;
+const CRAWL_WIN_W = 1000;
+const CRAWL_WIN_H = 760;
+
+async function pushOffscreen(winId) {
+  if (winId == null) return;
+  try {
+    await chrome.windows.update(winId, { left: OFFSCREEN_LEFT, top: OFFSCREEN_TOP });
+  } catch (_) {}
+}
+
 async function crawlOne(s) {
   const extractor = EXTRACTORS[s.source_key];
   if (!extractor) return { ok: false, error: "레시피 없음(미구현 소싱처): " + s.source_key };
-  // 보이는 새 창으로 열기(focused:false → 사용자 작업 방해 최소화하되 화면엔 보임).
-  const win = await chrome.windows.create({ url: s.url, focused: false });
+  // 화면 밖 새 창으로 열기(focused:false → 사용자 작업 방해 없음, 화면에도 안 보임).
+  const win = await chrome.windows.create({
+    url: s.url, focused: false,
+    left: OFFSCREEN_LEFT, top: OFFSCREEN_TOP, width: CRAWL_WIN_W, height: CRAWL_WIN_H,
+  });
+  if (win && win.id != null) await pushOffscreen(win.id);
   const tab = win && win.tabs && win.tabs[0];
   if (!tab) { try { await chrome.windows.remove(win.id); } catch (_) {} return { ok: false, error: "창 탭 없음" }; }
   try {
@@ -205,7 +227,11 @@ async function crawlOne(s) {
 async function handleGrabHtml(payload) {
   const url = payload.url;
   if (!url) return { ok: false, error: "url 없음" };
-  const win = await chrome.windows.create({ url, focused: false });
+  const win = await chrome.windows.create({
+    url, focused: false,
+    left: OFFSCREEN_LEFT, top: OFFSCREEN_TOP, width: CRAWL_WIN_W, height: CRAWL_WIN_H,
+  });
+  if (win && win.id != null) await pushOffscreen(win.id);
   const tab = win && win.tabs && win.tabs[0];
   if (!tab) { try { await chrome.windows.remove(win.id); } catch (_) {} return { ok: false, error: "창 탭 없음" }; }
   try {
@@ -225,20 +251,21 @@ async function handleGrabHtml(payload) {
 //  창 재사용 모델 (v0.4.1) — 소싱처 1곳당 창 1개, URL은 그 창에서 순차 이동
 // ════════════════════════════════════════════
 
-// openWin — 보이는 빈 창 1개 생성(focused:true, cascade 위치). 첫 탭 id 확보.
+// openWin — 빈 창 1개 생성(화면 밖·비활성, cascade 위치). 첫 탭 id 확보.
 async function handleOpenWin(_payload) {
   const k = _winSeq++ % 6;
-  const left = 60 + k * 70;
-  const top  = 60 + k * 48;
+  const left = OFFSCREEN_LEFT + k * 70;
+  const top  = OFFSCREEN_TOP + k * 48;
   const win = await chrome.windows.create({
-    url: "about:blank", focused: true, type: "normal",
-    left, top, width: 1000, height: 760,
+    url: "about:blank", focused: false, type: "normal",
+    left, top, width: CRAWL_WIN_W, height: CRAWL_WIN_H,
   });
   const tab = win && win.tabs && win.tabs[0];
   if (!win || !tab) {
     if (win && win.id != null) { try { await chrome.windows.remove(win.id); } catch (_) {} }
     return { ok: false, error: "창 생성 실패(탭 없음)" };
   }
+  try { await chrome.windows.update(win.id, { left, top }); } catch (_) {}
   return { ok: true, winId: win.id, tabId: tab.id };
 }
 

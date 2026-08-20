@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}데이터 흐름 지도{% endblock %}
+{% block content %}
+<style>
+  /* 크롤 가이드 하위탭 바 — overview/install 과 동일 룩 */
+  .df-wrap{ padding:28px 30px 60px; max-width:1000px; }
+  .df-wrap .page-head h2{ font-size:28px; font-weight:800; letter-spacing:-.4px; margin:0 0 22px; }
+  .df-wrap .subtabs{ display:flex; align-items:center; gap:34px; border-bottom:2px solid #E5E8EB; margin-bottom:22px; }
+  .df-wrap .subtab{ padding:12px 2px; font-size:18px; color:#8B95A1; font-weight:600; text-decoration:none; position:relative; }
+  .df-wrap .subtab.on{ color:#191F28; font-weight:800; }
+  .df-wrap .subtab.on::after{ content:''; position:absolute; left:0; right:0; bottom:-2px; height:3px; background:#191F28; border-radius:2px; }
+  .df-hint{ color:#8B95A1; font-size:13px; margin:0 0 14px; }
+  /* 승인된 문서를 그대로 임베드 — 프로그램 CSS 와 격리 (same-origin, 자동 높이) */
+  #dfFrame{ width:100%; border:1px solid #E5E8EB; border-radius:16px; background:#fff; display:block; min-height:600px; }
+</style>
+
+<div class="df-wrap">
+  <div class="page-head"><h2>크롤링 가이드</h2></div>
+  <div class="subtabs">
+    <a class="subtab" href="/sourcing-guide/">전체보기</a>
+    <a class="subtab" href="/sourcing-guide/how-to"><i class="ph-light ph-plus" aria-hidden="true"></i> 신규 소싱처 추가</a>
+    <a class="subtab" href="/sourcing-guide/install"><i class="ph-light ph-puzzle-piece" aria-hidden="true"></i> 크롤러 설치</a>
+    <a class="subtab on" href="/sourcing-guide/data-flow"><i class="ph-light ph-chart-bar" aria-hidden="true"></i> 데이터 흐름</a>
+  </div>
+  <p class="df-hint">데이터가 어떻게 수집·가공·전송되는지, 그리고 각 탭의 데이터가 어디에 쓰이는지 정리한 지도입니다. (내부 교육자료 · 아래 문서는 별도 페이지로도 열 수 있음)</p>
+  <iframe id="dfFrame" src="/sourcing-guide/data-flow/doc" title="데이터 흐름 지도" scrolling="no"></iframe>
+</div>
+
+<script>
+  // same-origin iframe 자동 높이 — 내부 문서 전체가 스크롤 없이 펼쳐지도록
+  (function(){
+    var f = document.getElementById('dfFrame');
+    function fit(){
+      try {
+        var d = f.contentwindow || f.contentWindow;
+        var doc = d.document;
+        var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+        f.style.height = (h + 24) + 'px';
+      } catch(e) {}
+    }
+    f.addEventListener('load', function(){ fit(); setTimeout(fit, 200); setTimeout(fit, 800); });
+    window.addEventListener('resize', fit);
+  })();
+</script>
+{% endblock %}
