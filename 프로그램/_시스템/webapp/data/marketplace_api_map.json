@@ -83849,7 +83849,7 @@
     "description": "해당주문의 주문정보를 조회할수 있습니다."
    },
    "res": {
-    "fields_count": 71,
+    "fields_count": 73,
     "sample": "",
     "errorResponse_fields": 3
    },
@@ -84233,6 +84233,16 @@
      "key": "tmallApplyDscAmt",
      "meaning": "11번가 **적용**할인액 — 표기할인(tmallDscPrc)과 다를 수 있다. 샵마인 실결제 = ordAmt − 적용할인이라, 우리 실결제 = ordPayAmt − 배송비 + (표기−적용 차액)로 보정(086884234 +300·086157090 +324 실측 일치)",
      "example": "4400"
+    },
+    {
+     "key": "moCpnDscSellerDfrmAmt",
+     "meaning": "판매자분담 쿠폰할인액 · string [필수] · 11번가가 발행한 쿠폰에서 판매자가 분담한 할인금액. 2026/08/05부터 신규제공",
+     "example": "0"
+    },
+    {
+     "key": "basicDscSellerDfrmAmt",
+     "meaning": "상품에 설정한 기본즉시할인(판매자부담분) · string [필수] · 2026/08/05부터 신규제공",
+     "example": "0"
     }
    ],
    "success": "HTTP 200 + 응답 XML 정상 파싱. 실패 시 errorResponse(오류.* 필드)·resultCode 확인. openapikey 헤더·IP 등록 필수(401/403/429).",
@@ -84241,6 +84251,398 @@
    "codeRef": "",
    "docUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=110",
    "summary": "해당주문의 주문정보를 조회할수 있습니다.",
+   "apiVersion": "1.6"
+  },
+  {
+   "id": "eleven11.116",
+   "market": "eleven11",
+   "fnKey": "eleven11:116",
+   "tabs": [
+    "주문상태"
+   ],
+   "category": "주문",
+   "nm": "발주확인할내역(기간별 결제완료_목록조회)",
+   "dir": "receive",
+   "st": "ok",
+   "endpoint": "GET https://api.11st.co.kr/rest/ordservices/complete/[startTime]/[endTime]",
+   "req": {
+    "method": "GET",
+    "protocol": "https",
+    "url": "https://api.11st.co.kr/rest/ordservices/complete/[startTime]/[endTime]",
+    "params": [
+     {
+      "name": "경로.startTime",
+      "desc": "검색시작일 · string [필수] · YYYYMMDDhhmm",
+      "example": "201001100000"
+     },
+     {
+      "name": "경로.endTime",
+      "desc": "검색종료일 · string [필수] · YYYYMMDDhhmm(조회기간 최대 7일)",
+      "example": "201001110000"
+     }
+    ],
+    "description": "결제완료되어 발송을 기다리는 주문상품 목록. 최대 3,000건까지 조회 가능."
+   },
+   "res": {
+    "fields_count": 60,
+    "sample": "",
+    "errorResponse_fields": 3
+   },
+   "fields": [
+    {
+     "key": "ns2:orders",
+     "meaning": "ns2:orders · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "ns2:order",
+     "meaning": "ns2:order · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "addPrdNo",
+     "meaning": "추가구성상품의 원상품번호 · enum [필수] · 코드: 0=추가구성상품 아님 / 0이 아닐경우=추가구성상품의 원상품번호",
+     "example": "0"
+    },
+    {
+     "key": "addPrdYn",
+     "meaning": "추가 구성 상품 유무 · enum [필수] · 코드: Y=있음 / N=없음",
+     "example": "N"
+    },
+    {
+     "key": "bndlDlvSeq",
+     "meaning": "묶음배송일련번호 · integer [필수]",
+     "example": "4506571"
+    },
+    {
+     "key": "bndlDlvYN",
+     "meaning": "묶음 배송 유무 · enum [필수] · 코드: Y=묶음 배송 / N=개별 배송",
+     "example": "Y"
+    },
+    {
+     "key": "custGrdNm",
+     "meaning": "고객등급 · enum [필수] · 코드: 우수고객=우수고객 / 일반고객=일반고객",
+     "example": ""
+    },
+    {
+     "key": "dlvCst",
+     "meaning": "배송비 · integer [필수]",
+     "example": "0"
+    },
+    {
+     "key": "dlvCstType",
+     "meaning": "배송비 착불 여부 · enum [필수] · 코드: 01=선불 / 02=착불 / 03=무료",
+     "example": "03"
+    },
+    {
+     "key": "bmDlvCst",
+     "meaning": "도서산간배송비 · integer [필수] · 2014/12/19부터 신규제공",
+     "example": "4500"
+    },
+    {
+     "key": "bmDlvCstType",
+     "meaning": "도서산간배송비 착불 여부 · enum [필수] · 2014/12/19부터 신규제공 · 코드: 01=선불 / 02=착불 / 04=도서산간배송비 청구 필요(선물하기 주문)",
+     "example": "04"
+    },
+    {
+     "key": "dlvNo",
+     "meaning": "배송번호 · string [필수]",
+     "example": "40860365"
+    },
+    {
+     "key": "gblDlvYn",
+     "meaning": "전세계배송여부 · string [필수]",
+     "example": "N"
+    },
+    {
+     "key": "giftCd",
+     "meaning": "api 사용유저는 해당사항 없음 [필수]",
+     "example": ""
+    },
+    {
+     "key": "memID",
+     "meaning": "회원ID · string [필수]",
+     "example": "test11st"
+    },
+    {
+     "key": "memNo",
+     "meaning": "회원번호 · integer [필수]",
+     "example": "1111111"
+    },
+    {
+     "key": "ordAmt",
+     "meaning": "주문총액 · integer [필수] · 판매단가*수량(주문-취소-반품)+옵션가",
+     "example": "19000"
+    },
+    {
+     "key": "ordBaseAddr",
+     "meaning": "주문자 기본주소 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "ordDlvReqCont",
+     "meaning": "배송시 요청사항 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "ordDt",
+     "meaning": "주문일시 · string [필수]",
+     "example": "2010-01-10 04:07:11"
+    },
+    {
+     "key": "ordDtlsAddr",
+     "meaning": "구매자 상세주소 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "ordMailNo",
+     "meaning": "구매자 우편번호 · string [필수]",
+     "example": "360100"
+    },
+    {
+     "key": "ordNm",
+     "meaning": "구매자 이름 · string [필수]",
+     "example": "홍길동"
+    },
+    {
+     "key": "ordNo",
+     "meaning": "11번가 주문번호 · integer [필수]",
+     "example": "201001108318120"
+    },
+    {
+     "key": "ordOptWonStl",
+     "meaning": "주문상품옵션결제금액 · integer [필수]",
+     "example": "0"
+    },
+    {
+     "key": "ordPayAmt",
+     "meaning": "결제금액 · integer [필수] · 주문금액+배송비−판매자 할인금액−mo쿠폰",
+     "example": "16310"
+    },
+    {
+     "key": "ordPrdSeq",
+     "meaning": "주문순번 · integer [필수]",
+     "example": "1"
+    },
+    {
+     "key": "ordPrtblTel",
+     "meaning": "구매자 휴대폰번호 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "ordQty",
+     "meaning": "수량 · integer [필수]",
+     "example": "1"
+    },
+    {
+     "key": "ordStlEndDt",
+     "meaning": "결제완료일시 · string [필수]",
+     "example": "2010-01-12 16:20:59"
+    },
+    {
+     "key": "ordTlphnNo",
+     "meaning": "주문자전화번호 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "prdNm",
+     "meaning": "상품명 · string [필수]",
+     "example": "셔링 브이넥 니트 티셔츠"
+    },
+    {
+     "key": "prdNo",
+     "meaning": "11번가상품번호 · integer [필수]",
+     "example": "29370295"
+    },
+    {
+     "key": "prdStckNo",
+     "meaning": "주문상품옵션코드 · integer [필수]",
+     "example": "999999999"
+    },
+    {
+     "key": "rcvrBaseAddr",
+     "meaning": "배송기본주소 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "rcvrDtlsAddr",
+     "meaning": "배송상세주소 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "rcvrMailNo",
+     "meaning": "배송지우편번호 · string [필수]",
+     "example": "360100"
+    },
+    {
+     "key": "rcvrMailNoSeq",
+     "meaning": "배송지우편번호순번 · string [필수]",
+     "example": "011"
+    },
+    {
+     "key": "rcvrNm",
+     "meaning": "수령자명 · string [필수]",
+     "example": "홍길동"
+    },
+    {
+     "key": "rcvrPrtblNo",
+     "meaning": "수령자핸드폰번호 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "rcvrTlphn",
+     "meaning": "수령자전화번호 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "selPrc",
+     "meaning": "판매가 객단가 · integer [필수]",
+     "example": "19000"
+    },
+    {
+     "key": "sellerDscPrc",
+     "meaning": "판매자 할인금액 · integer [필수]",
+     "example": "2280"
+    },
+    {
+     "key": "sellerPrdCd",
+     "meaning": "판매자상품번호 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "slctPrdOptNm",
+     "meaning": "주문상품옵션명 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "tmallDscPrc",
+     "meaning": "11번가 할인금액 · integer [필수]",
+     "example": "410"
+    },
+    {
+     "key": "gifeser",
+     "meaning": "선물포장 · enum [필수] · 코드: 0=요청 없음 / 1=선물포장 요청 / 2=포장재 동봉 요청",
+     "example": "1"
+    },
+    {
+     "key": "typeAdd",
+     "meaning": "주소 유형 · enum [필수] · 2013/11/29부터 신규제공 · 코드: 01=지번명 / 02=도로명",
+     "example": "01"
+    },
+    {
+     "key": "typeBilNo",
+     "meaning": "건물관리번호 · string [필수]",
+     "example": ""
+    },
+    {
+     "key": "lstTmallDscPrc",
+     "meaning": "11번가 할인금액-각상품별 · integer [필수]",
+     "example": "0"
+    },
+    {
+     "key": "lstSellerDscPrc",
+     "meaning": "판매자 할인금액-각상품별 · integer [필수]",
+     "example": "0"
+    },
+    {
+     "key": "referSeq",
+     "meaning": "원클릭체크아웃 주문코드 · integer [필수]",
+     "example": "455221112"
+    },
+    {
+     "key": "sellerStockCd",
+     "meaning": "판매자 재고번호 · string [필수] · 2016/03/25부터 신규제공",
+     "example": "43434232"
+    },
+    {
+     "key": "appmtDdDlvDy",
+     "meaning": "희망배송일자(대형가전/가구) · string [필수] · 2017/04/20부터 신규제공",
+     "example": "20170420"
+    },
+    {
+     "key": "appmtEltRefuseYn",
+     "meaning": "폐가전수거여부 · enum [필수] · 2017/04/20부터 신규제공 · 코드: Y=수거요청함 / N=수거요청안함",
+     "example": ""
+    },
+    {
+     "key": "appmtselStockCd",
+     "meaning": "희망일배송 모델코드 · string [필수] · 2017/04/20부터 신규제공",
+     "example": ""
+    },
+    {
+     "key": "engNm",
+     "meaning": "영문명 · string [선택] · 2019/3/28부터 신규제공",
+     "example": "CHULSU KIM"
+    },
+    {
+     "key": "psnCscUniqNo",
+     "meaning": "개인통관고유부호 · string [선택] · 2019/3/28부터 신규제공",
+     "example": "P000000000000"
+    },
+    {
+     "key": "cscOtpNo",
+     "meaning": "관세청 일회용 인증번호 · string [선택] · 2026년 8월 관세청 신규 시스템 오픈 이후 주문부터 제공, 이전 주문은 빈 문자열(\"\")로 반환",
+     "example": ""
+    },
+    {
+     "key": "dlvSndDue",
+     "meaning": "발송마감일자 · string [필수] · 2019/05/30부터 신규제공(주문시 발송약속한 마감일자)",
+     "example": "2019-05-30 04:07:11"
+    },
+    {
+     "key": "delaySendDt",
+     "meaning": "발송예정일자 · string [필수] · 2019/05/30부터 신규제공(발송지연안내 한 일자)",
+     "example": "2019-05-30 04:07:11"
+    },
+    {
+     "key": "visitDlvYn",
+     "meaning": "방문수령여부 · string [필수] · 2019/07/15부터 신규제공(방문수령 주문건인지 확인가능)",
+     "example": ""
+    },
+    {
+     "key": "sendGiftYn",
+     "meaning": "선물하기여부 · string [선택] · 2021/03/04부터 신규제공(선물 주문건인지 확인가능)",
+     "example": "Y"
+    },
+    {
+     "key": "sendClfCd",
+     "meaning": "오늘발송 설정 상품 여부 · string [필수] · 2021/08/26부터 신규제공(Y/N)",
+     "example": "Y"
+    },
+    {
+     "key": "use11stRetailYn",
+     "meaning": "11번가 물류센터 이용 여부 · string [선택]",
+     "example": ""
+    },
+    {
+     "key": "moCpnDscSellerDfrmAmt",
+     "meaning": "판매자분담 쿠폰할인액 · string [필수] · 11번가가 발행한 쿠폰에서 판매자가 분담한 할인금액. 2026/08/05부터 신규제공",
+     "example": "0"
+    },
+    {
+     "key": "basicDscSellerDfrmAmt",
+     "meaning": "상품에 설정한 기본즉시할인(판매자부담분) · string [필수] · 2026/08/05부터 신규제공",
+     "example": "0"
+    },
+    {
+     "key": "오류.ns2:result_code",
+     "meaning": "결과코드 · enum [필수] · 코드: 0=조회된 결과가 없습니다(에러 아님) / -1=비지니스 Error(메시지 비고정) / -3103=start_dt 포맷 오류 / -3104=end_dt 포맷 오류 / -3105=최대 조회기간(7일) 초과 / -1000=서버 점검중(매주 금요일 새벽)",
+     "example": "0"
+    },
+    {
+     "key": "오류.ns2:result_text",
+     "meaning": "결과내용 · string [필수]",
+     "example": "조회된 결과가 없습니다."
+    }
+   ],
+   "success": "HTTP 200 + 응답 XML 정상 파싱. 실패 시 errorResponse(오류.* 필드)·resultCode 확인. openapikey 헤더·IP 등록 필수(401/403/429).",
+   "idTraps": [
+    "bndlDlvSeq=0 은 '묶음배송 없음'이 아니라 비묶음 주문도 공통으로 0 이 온다(eleven11.110 과 동일 함정) — 배송비 키로 쓰지 말 것, 주문번호를 키로 쓸 것."
+   ],
+   "persistIds": [],
+   "codeRef": "shared/platforms/eleven11/orders.py:23(_PATH)·170(iter_orders) · lemouton/markets/order_export.py:2653(eleven11_order_rows) — 실제 프로덕션 주문 목록 수집이 쓰는 본선 엔드포인트(eleven11.110 은 ordNo 단건 조회용, 이 API 가 목록 배치용으로 서로 다름).",
+   "docUrl": "https://openapi.11st.co.kr/openapi/OpenApiGuide.tmall?categoryNo=110&apiSeq=1876",
+   "summary": "결제완료되어 발송을 기다리는 주문상품 목록(기간 조회) — 발주확인 처리 대상.",
    "apiVersion": "1.6"
   },
   {
