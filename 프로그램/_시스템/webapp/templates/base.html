@@ -29,6 +29,10 @@
 {# 사이드바 v3 — Phosphor light 라인 아이콘 (1,248개, 사용자 선택 시 색상 자유 변경) #}
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}?v={{ STATIC_VER }}">
+{# 디자인 기준 한 벌 — 2026-08-19 확정 18가지의 단일 진실 원천. toss.css 다음에 와야 덮어쓴다.
+   ?v= 를 손으로 붙이지 않는다 — STATIC_VER 는 toss.css 시각이라 ds.css 를 고쳐도 안 바뀐다.
+   app.py 의 _static_auto_version 훅이 파일별 수정시각을 자동으로 붙인다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='ds.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss_add_benefit.css') }}"><!-- v6 D2-A 혜택추가폼 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='stripe.css') }}">
 {# v32 — 아이콘 picker (노션 스타일). v34.10: site-logo (매트릭스 thead 마켓 헤더) selector 추가. #}
@@ -201,7 +205,108 @@ window.MOUM_SOURCE_LABELS = {{ (source_labels or {})|tojson }};</script>
 <script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260819_unbuilt_ctx"></script><!-- 2026-08-19 v61 — SKU 번호 격자(㉰) 추가: 품번·바코드·GTIN 을 줄=SKU·칸=번호로 입력, 자체 바코드 생성(빈 칸만), 저장. 🔴 이전 버전의 CSS 주석 속 백틱이 template literal 을 조기 종료시켜 전체 모달이 깨져 있던 것도 같이 고쳤다. + [2026-08-19] 매트릭스 셀 우클릭 → 미구성 SKU 등록(W12) — 기존 adopt-sku API 연결, 성공 시 그 자리만 즉시 반영(재조회 없음). 현재 3,300줄대. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
 <script src="{{ url_for('static', filename='nav_prefetch.js') }}" defer></script><!-- [2026-08-06 PERF] 탭·메뉴에 마우스 올리면 다음 화면을 미리 받아 둔다 → 누르자마자 뜬다 -->
 
+
 {% block scripts %}{% endblock %}
+
+{# 2026-08-19 디자인 통일 (확정 10번 C) — 경고는 화면 맨 위 고정, 알림은 오른쪽 아래 잠깐.
+   화면마다 따로 있는 showToast 를 감싸서 '오류' 만 위로 돌린다. 나머지 동작은 그대로. #}
+<div id="ds-warnbar" role="alert" aria-live="assertive"></div>
+<div id="ds-toasts" aria-live="polite"></div>
+<script>
+(function(){
+  var bar = document.getElementById('ds-warnbar');
+  var box = document.getElementById('ds-toasts');
+  if (!bar || !box) return;
+
+  function esc(s){ var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+
+  // 경고 — 고칠 때까지 안 사라진다
+  window.dsWarn = function(msg){
+    var row = document.createElement('div');
+    row.className = 'ds-warn-row';
+    row.innerHTML = '<i class="ph-light ph-warning" aria-hidden="true"></i><span>' + esc(msg) + '</span>'
+                  + '<button type="button" class="ds-warn-x">닫기</button>';
+    row.querySelector('.ds-warn-x').addEventListener('click', function(){
+      row.remove();
+      if (!bar.children.length) { bar.classList.remove('on'); document.body.classList.remove('ds-has-warn'); }
+      fit();
+    });
+    bar.appendChild(row);
+    bar.classList.add('on');
+    document.body.classList.add('ds-has-warn');
+    fit();
+  };
+
+  // 경고가 여러 줄이면 그만큼 본문을 밀어야 내용이 안 가린다 (고정값이면 가려짐)
+  function fit(){
+    var h = bar.classList.contains('on') ? Math.ceil(bar.getBoundingClientRect().height) : 0;
+    document.body.style.paddingTop = h ? h + 'px' : '';
+  }
+  window.addEventListener('resize', fit);
+
+  // 알림 — 잠깐 떴다 사라진다
+  window.dsToast = function(msg, kind){
+    var t = document.createElement('div');
+    t.className = 'ds-toast' + (kind === 'ok' || kind === 'success' ? ' ok' : '');
+    t.textContent = msg;
+    box.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 3200);
+  };
+
+  // 화면마다 있는 showToast 를 감싼다 — 오류만 위 고정 띠로
+  function wrap(){
+    var prev = window.showToast;
+    if (prev && prev.__dsWrapped) return;
+    var next = function(msg, kind){
+      var k = String(kind || '').toLowerCase();
+      if (k.indexOf('err') >= 0 || k.indexOf('danger') >= 0 || k.indexOf('fail') >= 0) {
+        return window.dsWarn(msg);
+      }
+      if (typeof prev === 'function') return prev.apply(this, arguments);
+      return window.dsToast(msg, kind);
+    };
+    next.__dsWrapped = true;
+    window.showToast = next;
+  }
+  wrap();
+  window.addEventListener('load', wrap);   // 나중에 정의되는 화면도 잡는다
+
+  // ── 브라우저 기본 경고창(alert) → 위 고정 띠 ─────────────────────
+  //  alert 은 화면을 멈춰 세우지만 띠는 안 멈춘다. 그래서
+  //      alert('삭제 완료'); location.href = '...'
+  //  같은 곳에서 메시지가 사라진다. 넘어간 화면에서 이어 보여주도록
+  //  잠깐 적어 뒀다가 다음 화면에서 띄운다.
+  //  confirm() · prompt() 는 값을 돌려주므로 건드리지 않는다.
+  var PEND = 'ds-pending-warn';
+  function carry(msg){
+    try {
+      var a = JSON.parse(sessionStorage.getItem(PEND) || '[]');
+      a.push({m: String(msg), t: Date.now()});
+      sessionStorage.setItem(PEND, JSON.stringify(a.slice(-5)));
+    } catch (e) {}
+  }
+  function drain(){
+    var a = [];
+    try { a = JSON.parse(sessionStorage.getItem(PEND) || '[]'); sessionStorage.removeItem(PEND); } catch (e) {}
+    var now = Date.now();
+    a.forEach(function(x){ if (now - x.t < 10000) window.dsWarn(x.m); });
+  }
+  drain();
+
+  var nativeAlert = window.alert;
+  window.alert = function(msg){
+    window.dsWarn(msg);
+    carry(msg);                       // 화면이 넘어가도 다음 화면에서 다시 보이게
+    setTimeout(function(){            // 안 넘어갔으면 적어 둔 것을 지운다
+      try {
+        var a = JSON.parse(sessionStorage.getItem(PEND) || '[]');
+        sessionStorage.setItem(PEND, JSON.stringify(a.filter(function(x){ return x.m !== String(msg); })));
+      } catch (e) {}
+    }, 1200);
+  };
+  window.dsNativeAlert = nativeAlert;  // 정말 멈춰야 할 때 쓰라고 남겨 둠
+})();
+</script>
 
 {# [Task 7] 폰 앱 껍데기 — 탭 원천은 서버 ms_shell_data(PHONE_NATIVE_ROWS) 하나뿐이다.
    JS 에 탭 주소를 적지 않고 이 JSON 블록으로 넘긴다(admin 여부까지 서버가 반영,

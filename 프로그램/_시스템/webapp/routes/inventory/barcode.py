@@ -27,12 +27,12 @@ def _load_bundles() -> list:
 
 
 # 라벨 용지 프리셋 (단위 mm, A4 = 210×297)
-# - 📦 박스히어로 호환: 사용자 익숙도 우선 (박스히어로 SaaS 표기 그대로)
-# - 🇰🇷 한국폼텍 공식: 한국폼텍 공식 사이트 + 다나와/홈플러스 크로스체크 ✅
-# - 🇺🇸 Avery gLabels: github.com/j-evins/glabels-qt avery-iso-templates.xml ✅
+# - [상자] 박스히어로 호환: 사용자 익숙도 우선 (박스히어로 SaaS 표기 그대로)
+# -  한국폼텍 공식: 한국폼텍 공식 사이트 + 다나와/홈플러스 크로스체크 [확인]
+# -  Avery gLabels: github.com/j-evins/glabels-qt avery-iso-templates.xml [확인]
 # 진실 원천 추적: docs/label_paper_specs.md
 LABEL_TEMPLATES = {
-    # ─── 📦 박스히어로 호환 (사용자 익숙도)
+    # ─── [상자] 박스히어로 호환 (사용자 익숙도)
     '3m_21314': {'name': '3M Asia Pacific 21314 (A4) — 4×10 = 40칸', 'cols': 4, 'rows': 10,
                 'label_w': 48.5, 'label_h': 29.7, 'paper_w': 210, 'paper_h': 297,
                 'margin_top': 0, 'margin_left': 7.5, 'gap_x': 0, 'gap_y': 0,
@@ -53,7 +53,7 @@ LABEL_TEMPLATES = {
                     'label_w': 64, 'label_h': 38.1, 'paper_w': 210, 'paper_h': 297,
                     'margin_top': 15.1, 'margin_left': 7, 'gap_x': 2.5, 'gap_y': 0,
                     'per_page': 21},
-    # ─── 🇰🇷 한국폼텍 공식 검증 ✅ (다나와·홈플러스·코스트코 크로스체크)
+    # ─── 한국폼텍 공식 검증 [확인] (다나와·홈플러스·코스트코 크로스체크)
     'kr_ls3100': {'name': '폼텍 LS-3100 — 5×13 = 65칸 (38.1×21.2mm) 바코드용', 'cols': 5, 'rows': 13,
                     'label_w': 38.1, 'label_h': 21.2, 'paper_w': 210, 'paper_h': 297,
                     'margin_top': 10.7, 'margin_left': 9.75, 'gap_x': 0, 'gap_y': 0,
@@ -94,7 +94,7 @@ LABEL_TEMPLATES = {
                     'label_w': 210.0, 'label_h': 297.0, 'paper_w': 210, 'paper_h': 297,
                     'margin_top': 0, 'margin_left': 0, 'gap_x': 0, 'gap_y': 0,
                     'per_page': 1},
-    # ─── 🇺🇸 Avery gLabels 검증 ✅ (avery-iso-templates.xml)
+    # ─── Avery gLabels 검증 [확인] (avery-iso-templates.xml)
     'us_l7160': {'name': 'Avery L7160 — 3×7 = 21칸 (63.5×38.1mm)', 'cols': 3, 'rows': 7,
                     'label_w': 63.5, 'label_h': 38.1, 'paper_w': 210, 'paper_h': 297,
                     'margin_top': 15.49, 'margin_left': 7.48, 'gap_x': 2.05, 'gap_y': 0,
@@ -123,7 +123,7 @@ LABEL_TEMPLATES = {
                     'label_w': 45.7, 'label_h': 25.4, 'paper_w': 210, 'paper_h': 297,
                     'margin_top': 22.0, 'margin_left': 10.0, 'gap_x': 2.80, 'gap_y': 0,
                     'per_page': 40},
-    # ─── ♨ 감열지 (열전사 프린터용 1장 1라벨)
+    # ─── 감열지 (열전사 프린터용 1장 1라벨)
     'thermal_60_35': {'name': '감열지 60×35mm', 'cols': 1, 'rows': 1,
                     'label_w': 60, 'label_h': 35, 'paper_w': 60, 'paper_h': 35,
                     'margin_top': 0, 'margin_left': 0, 'gap_x': 0, 'gap_y': 0,
@@ -168,7 +168,7 @@ def barcode_view():
     """바코드 인쇄 — 박스히어로 1:1 라벨 디자인 + 제품 선택 + 미리보기."""
     s = SessionLocal()
     try:
-        # ★ 'sku' 는 사전 선택된 옵션 list (multi value) 로 사용 — SQL 필터 ❌, 클라이언트 검색만.
+        # * 'sku' 는 사전 선택된 옵션 list (multi value) 로 사용 — SQL 필터 [안됨], 클라이언트 검색만.
         sku_filter = ''  # SQL 필터 비활성
         template_key = request.args.get('template', 'kr_ls3102')  # 기본 4×10
         cutline = request.args.get('cutline') == '1'
@@ -179,7 +179,7 @@ def barcode_view():
             .options(joinedload(Option.model))
             .order_by(Option.model_code).limit(5000).all()
         )
-        # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
+        # * LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(options)
         # 사용자 정의 템플릿 우선

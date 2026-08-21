@@ -259,7 +259,7 @@
         <div class="icp-head">
           <h3>${escapeHtml(title)}</h3>
           ${subtitle ? `<span class="icp-sub">${escapeHtml(subtitle)}</span>` : ''}
-          <button type="button" class="icp-esc">Esc ✕</button>
+          <button type="button" class="icp-esc">Esc <i class="ph-light ph-x" aria-hidden="true"></i></button>
         </div>
         <div class="icp-search">
           <input type="text" placeholder="검색 — 한글/영문/키워드 (예: 집·home·홈)" autocomplete="off">
@@ -518,10 +518,10 @@
     _activeOverlay = null;
   };
 
-  // ─────── 글로벌 트리거 — [data-icon-edit] 우클릭 또는 ✎ 버튼 클릭 시 picker ───────
-  // 사용법: <span data-icon-edit="context|target_id" data-icon-current="🏠" data-icon-color="blue">🏠</span>
-  //   · 호버 시 우측 상단에 ✎ 버튼 노출
-  //   · ✎ 클릭 또는 우클릭(contextmenu) 시 picker 열림
+  // ─────── 글로벌 트리거 — [data-icon-edit] 우클릭 또는 [수정] 버튼 클릭 시 picker ───────
+  // 사용법: <span data-icon-edit="context|target_id" data-icon-current="" data-icon-color="blue"></span>
+  //  · 호버 시 우측 상단에 [수정] 버튼 노출
+  //  · [수정] 클릭 또는 우클릭(contextmenu) 시 picker 열림
   //   · 일반 클릭은 원래 동작 (a 태그 navigation 등) 그대로 유지
   function _openPickerFor(trigger) {
     // v32 — 사이드바 자체 picker (sb3-emoji-modal) 가 있는 곳이면 그것 호출 (Phosphor 라인 아이콘 더 풍부)
@@ -613,8 +613,8 @@
     _openPickerFor(trigger);
   });
 
-  // 호버 시 ✎ 버튼 표시 — v33.1: 1000ms 딜레이 (UX 안정성)
-  //   진입 후 1초 머물러야 ✎ 노출. 1초 안에 빠져나가면 cancel.
+  // 호버 시 [수정] 버튼 표시 — v33.1: 1000ms 딜레이 (UX 안정성)
+  //  진입 후 1초 머물러야 [수정] 노출. 1초 안에 빠져나가면 cancel.
   const HOVER_DELAY_MS = 1000;
   const _icoHoverTimers = new WeakMap();
   document.addEventListener('mouseover', e => {
@@ -697,7 +697,7 @@
 
   // v32 — 이모지 + 텍스트 inline 매칭 정규식 (Type B)
   //   "📍 사이트 소싱처 URL" / "+ 항목 추가" / "⏳ 임시저장 (0)" 처럼 첫 글자가 이모지
-  const INLINE_EMOJI_RE = /^([\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F9FF}][\u{FE0F}\u{200D}\u{20E3}]*|[++×])\s+(\S)/u;
+  const INLINE_EMOJI_RE = /^([\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F9FF}][\u{FE0F}\u{200D}\u{20E3}]*|[+×])\s+(\S)/u;
 
   function autoDetect() {
     // 1) 알려진 클래스 — class 매칭 (단일 이모지 검사 생략, known 이면 통과)
@@ -714,7 +714,7 @@
       if (fs < 13) return;
       attachAutoTrigger(el);
     });
-    // 3) Type B — 이모지 + 텍스트 inline (예: "📍 사이트 소싱처 URL")
+    // 3) Type B — 이모지 + 텍스트 inline (예: " 사이트 소싱처 URL")
     //    첫 글자가 이모지 + 공백 + 텍스트 → element 자체에 trigger (변경 시 첫 글자만 교체)
     document.querySelectorAll('h1, h2, h3, h4, h5, h6, .add-item, .add-stage, .draft-fab, .step-tab, .nav-item').forEach(el => {
       if (el.hasAttribute('data-icon-edit')) return;
@@ -742,10 +742,10 @@
     // 시스템 UI 위치 — 제외
     if (el.closest('#theme-toggle-wrap, #bell-wrap, .icp-overlay, #g-progress-widget')) return;
     if (el.closest('.sb3-modal-overlay, .sb3-dropdown, .sb3-ctxmenu')) return;
-    // [data-act="emoji"] 자체는 skip 안 함 — v32 호버 ✎ 표시 + 클릭 시 자체 picker 호출 (_openPickerFor 가 분기 처리)
+    // [data-act="emoji"] 자체는 skip 안 함 — v32 호버 [수정] 표시 + 클릭 시 자체 picker 호출 (_openPickerFor 가 분기 처리)
     // 단, [data-act="emoji"] 안의 자식만 skip (중첩 방지)
     if (el.closest('[data-act="emoji"]') && !el.matches('[data-act="emoji"]')) return;
-    // v32 — 사이드바 메뉴 항목의 emo/st-emo/sb-mode-ic 는 호버 ✎ 표시 허용 (클릭 시 자체 picker 호출)
+    // v32 — 사이드바 메뉴 항목의 emo/st-emo/sb-mode-ic 는 호버 [수정] 표시 허용 (클릭 시 자체 picker 호출)
     if (el.closest('.sb3-stage, .sb3-item, .sb3-stand')) {
       if (!el.matches('.emo, .st-emo, .sb-mode-ic') && !el.querySelector('.ph-light')) return;
     }
@@ -823,7 +823,7 @@
   //  v32 — 색상 박스 mini picker (마켓 chip · brand chip · badge 등)
   //
   //  사용:
-  //   · [data-color-edit="context|target_id"] 속성 가진 element 호버 → 🎨 mini 버튼
+  //  · [data-color-edit="context|target_id"] 속성 가진 element 호버 →  mini 버튼
   //   · 또는 우클릭 → 색상 palette popover (12색)
   //   · 클릭 시 background-color (또는 color) 변경 + 서버 저장
   // ═══════════════════════════════════════════════════════════════
@@ -1478,7 +1478,7 @@
     e.preventDefault(); e.stopPropagation();
     openColorPopover(trigger, e);
   });
-  // 호버 → 🎨 mini 버튼 — v33.1: 1000ms 딜레이 (UX 안정성)
+  // 호버 →  mini 버튼 — v33.1: 1000ms 딜레이 (UX 안정성)
   const _colHoverTimers = new WeakMap();
   document.addEventListener('mouseover', e => {
     const t = e.target.closest('[data-color-edit]');
@@ -1516,7 +1516,7 @@
     '.brand-favi',         // 브랜드 favicon container
     '.site-logo[data-src-logo-id]', // v34.12 — 매트릭스 thead 소싱처 헤더 박스 (르무/스마/무신/SS/롯데)
     '.m4v1-pri',           // 매트릭스 우선 chip (소싱/사입)
-    '.applied-badge',      // ✓ 적용 뱃지
+    '.applied-badge',      // v 적용 뱃지
     '.m4v1-stock-chip',    // 재고 chip
     '.m4v1-inv-link',      // + 재고관리 link
     '.hub-hero-cnt',       // hero 카운트 chip
@@ -1551,7 +1551,7 @@
     '.iad-save-badge',     // 자동 저장 뱃지 (대기/저장됨)
     '.iad-dot',            // 자동 저장 dot
     '.odd-chip',           // INV 드로어 상태 칩
-    '.odd-chip.green',     // ✓ 연동 (초록)
+    '.odd-chip.green',     // v 연동 (초록)
     '.scope-badge',        // 적용 범위 카운터
     '.scope-badge.sel-ct', // 선택 카운터
     '.cf-card-chip',       // 카드 칩
@@ -1568,7 +1568,7 @@
     '.m4v1-head',          // 매트릭스 head
     '.d2-src-status-error',
     '.d2-src-empty',
-    '.btn-ico', '.btn-icon',  // 셀 인라인 액션 버튼 (🔄 ✎ 🗑 ↗)
+    '.btn-ico', '.btn-icon',  // 셀 인라인 액션 버튼 ( [수정] [삭제] ↗)
   ];
   function autoDetectColors() {
     COLOR_BOX_SELECTORS.forEach(sel => {
@@ -1613,7 +1613,7 @@
       // 의미 있는 추가/변경만 트리거 (텍스트 변경·data-icon-edit 자가 부착 무시)
       for (const m of muts) {
         if (m.type === 'childList' && (m.addedNodes.length > 0 || m.removedNodes.length > 0)) {
-          // 아이콘 picker 가 자신의 ✎/🎨 버튼을 붙이는 경우 제외
+          // 아이콘 picker 가 자신의 [수정]/ 버튼을 붙이는 경우 제외
           let onlyOwnNodes = true;
           for (const n of m.addedNodes) {
             if (n.nodeType !== 1) { onlyOwnNodes = false; break; }

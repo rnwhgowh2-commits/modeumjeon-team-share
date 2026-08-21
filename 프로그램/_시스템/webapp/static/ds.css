@@ -1,0 +1,406 @@
+/* ============================================================
+   ds.css — 모음전 디자인 기준 한 벌 (Design Standard)
+   2026-08-19 사장님 확정 18가지의 단일 진실 원천.
+
+   확정 내역 (시안 v1~v4 로 확정):
+     1  그림문자 자리      → 선 아이콘 한 벌 (Phosphor Light, base.html 이 이미 로드)
+     2  상태 표시          → 딱지 없이 「아이콘 + 색 글자」 (배경·테두리 없음)
+     3  소속 딱지          → 판매처=꽉 찬 색 딱지 / 소싱처=회색 딱지 + 앞 색 네모
+     4  탭 3단             → 상위=밑줄 / 하위=알약 / 패널=네모묶음
+     5  버튼               → 채움 / 테두리 / 글자 3벌 + 삭제만 빨강
+     6  기준표             → 색 9(+마켓 6) · 글자 5단 · 모서리 3단
+     7  검색·필터          → 항상 표 위 가로줄
+     8  표 머리 거르기     → 깔때기(조건 걸린 열에만 보임) + 통합창
+     9  마켓 색            → 그대로 유지 (딱지 안에서만 사용)
+     10 알림·경고          → 경고=화면 맨 위 고정 띠 / 알림=오른쪽 아래 잠깐
+     11 부연 설명          → 마우스 올리면 (표준 호버 규칙 따름)
+     12 팝업               → 오른쪽 서랍
+     13 표                 → 촘촘 기본 + 「촘촘/5줄」 전환 단추 (사진 열 맨 왼쪽)
+     14 켜짐/꺼짐          → 흐리게 + 올리면 이유
+
+   [주의] 규칙: 여기 없는 모양은 새로 만들지 않는다. 늘려야 하면 이 파일을 고친다.
+   [주의] 글자 바닥선 12px (표 13px) — 사장님 확정, 어느 값도 이 아래로 내리지 않는다.
+   [주의] 모든 이름은 ds- 로 시작 — 기존 화면(toss.css)과 절대 안 섞인다.
+   ============================================================ */
+
+:root {
+  /* ── 색 9개 — 뜻이 고정이고 화면마다 안 바뀐다 ── */
+  --ds-pri:    #3182F6;   /* 주요 — 지금 할 일 */
+  --ds-ok:     #1B7F3B;   /* 완료 */
+  --ds-no:     #D02B3C;   /* 진행불가 · 삭제 · 위험 */
+  --ds-warn:   #96650A;   /* 알수없음 · 주의 (글자용) */
+  --ds-warn-l: #E5A00D;   /* 주의 (면·점용) */
+  --ds-brand:  #7C3AED;   /* 브랜드 표시 */
+  --ds-t:      #191F28;   /* 글자 */
+  --ds-t2:     #6B7684;   /* 보조 글자 */
+  --ds-line:   #D1D6DB;   /* 선 */
+  --ds-fill:   #F2F4F6;   /* 옅은 면 */
+  --ds-mute:   #8B95A1;   /* 흐린 글자 (미완료) */
+
+  /* ── 마켓 6색 — 딱지 안에서만 쓴다 (9색 밖) ── */
+  --ds-mk-coupang:     #C7641A;
+  --ds-mk-smartstore:  #128A4F;
+  --ds-mk-11st:        #D02B3C;
+  --ds-mk-lotteon:     #B4283C;
+  --ds-mk-auction:     #C0392B;
+  --ds-mk-gmarket:     #1B7F3B;
+  --ds-src-chip:       #333D4B;  /* 소싱처 딱지 바탕 */
+
+  /* ── 글자 5단 (바닥선 12px) ── */
+  --ds-f-h1: 28px;   /* 페이지 제목 */
+  --ds-f-h2: 20px;   /* 구역 제목 */
+  --ds-f-b:  15px;   /* 본문 */
+  --ds-f-t:  13px;   /* 표 */
+  --ds-f-l:  12px;   /* 라벨 · 바닥선 */
+
+  /* ── 모서리 3단 ── */
+  --ds-r-s:  6px;    /* 기본 (버튼·입력칸) */
+  --ds-r-m:  12px;   /* 카드·표 */
+  --ds-r-f:  999px;  /* 딱지 */
+
+  /* ── 여백 (8 배수) ── */
+  --ds-sp-1: 4px;  --ds-sp-2: 8px;  --ds-sp-3: 12px;
+  --ds-sp-4: 16px; --ds-sp-6: 24px; --ds-sp-8: 32px;
+}
+
+/* ============================================================
+   1. 상태 — 딱지 없이 「아이콘 + 색 글자」
+   ------------------------------------------------------------
+   쓰는 법: <span class="ds-st ds-st--ok"><i class="ph-light ph-check"></i>완료</span>
+   다섯 가지 말고는 만들지 않는다.
+   ============================================================ */
+.ds-st {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--ds-f-t); font-weight: 600; line-height: 1.5;
+  white-space: nowrap;
+  background: none; border: 0; padding: 0;   /* 딱지 아님 — 배경·테두리 없음 */
+}
+.ds-st i { font-size: 15px; line-height: 1; }
+.ds-st--ok   { color: var(--ds-ok); }
+.ds-st--idle { color: var(--ds-mute); }
+.ds-st--no   { color: var(--ds-no); }
+.ds-st--unk  { color: var(--ds-warn); }
+.ds-st--est  { color: var(--ds-pri); }
+
+/* ============================================================
+   2. 소속 딱지 — 판매처(꽉 찬 색) / 소싱처(회색 + 앞 네모)
+   ------------------------------------------------------------
+   딱지가 있으면 「어디」, 없으면 「어떤 상태」. 이 규칙이 둘을 가른다.
+   ============================================================ */
+.ds-mkt {
+  display: inline-flex; align-items: center;
+  padding: 3px 11px; border-radius: var(--ds-r-f);
+  font-size: var(--ds-f-l); font-weight: 700; line-height: 1.5;
+  background: var(--ds-src-chip); color: #fff; white-space: nowrap;
+}
+.ds-mkt--coupang     { background: var(--ds-mk-coupang); }
+.ds-mkt--smartstore  { background: var(--ds-mk-smartstore); }
+.ds-mkt--11st        { background: var(--ds-mk-11st); }
+.ds-mkt--lotteon     { background: var(--ds-mk-lotteon); }
+.ds-mkt--auction     { background: var(--ds-mk-auction); }
+.ds-mkt--gmarket     { background: var(--ds-mk-gmarket); }
+.ds-mkt--off         { background: #E5E8EB; color: var(--ds-mute); }
+
+.ds-src {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 11px; border-radius: var(--ds-r-f);
+  font-size: var(--ds-f-l); font-weight: 600; line-height: 1.5;
+  background: var(--ds-fill); color: #333D4B; white-space: nowrap;
+}
+.ds-src > i.ds-sq { width: 8px; height: 8px; border-radius: 2px; flex: none; display: block; }
+
+/* ============================================================
+   3. 탭 3단 — 밑줄 / 알약 / 네모묶음
+   ------------------------------------------------------------
+   몇 층인지 모양만 보고 알 수 있어야 한다. 이 셋 말고는 안 만든다.
+   ============================================================ */
+.ds-tab1 { display: flex; gap: 24px; border-bottom: 2px solid #E5E8EB; }
+.ds-tab1 > a {
+  padding: 11px 2px; font-size: 19px; font-weight: 600;
+  color: var(--ds-mute); text-decoration: none; position: relative;
+}
+.ds-tab1 > a.on { color: var(--ds-t); font-weight: 700; }
+.ds-tab1 > a.on::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -2px;
+  height: 3px; background: var(--ds-t); border-radius: 2px;
+}
+
+.ds-tab2 { display: flex; gap: 7px; flex-wrap: wrap; }
+.ds-tab2 > a {
+  padding: 6px 14px; border-radius: var(--ds-r-f);
+  font-size: 14px; font-weight: 600;
+  color: var(--ds-t2); background: var(--ds-fill); text-decoration: none;
+}
+.ds-tab2 > a.on { background: var(--ds-t); color: #fff; }
+
+.ds-tab3 {
+  display: inline-flex; border: 1px solid var(--ds-line);
+  border-radius: 8px; overflow: hidden;
+}
+.ds-tab3 > a, .ds-tab3 > button {
+  padding: 6px 13px; font-size: var(--ds-f-t); font-weight: 600;
+  color: var(--ds-t2); background: #fff; text-decoration: none;
+  border: 0; border-right: 1px solid #E5E8EB; cursor: pointer;
+  font-family: inherit;
+}
+.ds-tab3 > a:last-child, .ds-tab3 > button:last-child { border-right: 0; }
+.ds-tab3 > a.on, .ds-tab3 > button.on { background: var(--ds-fill); color: var(--ds-t); }
+
+/* ============================================================
+   4. 버튼 3벌 — 채움 / 테두리 / 글자
+   ------------------------------------------------------------
+   파랑 채움은 화면당 하나(지금 할 일). 삭제만 빨강. 외울 규칙 3개.
+   ============================================================ */
+.ds-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  padding: 9px 15px; border-radius: var(--ds-r-s);
+  border: 1.3px solid var(--ds-line); background: #fff; color: #333D4B;
+  cursor: pointer; white-space: nowrap; line-height: 1.4;
+}
+.ds-btn i { font-size: 16px; line-height: 1; }
+.ds-btn--pri { background: var(--ds-pri); border-color: var(--ds-pri); color: #fff; }
+.ds-btn--txt { background: transparent; border-color: transparent; color: var(--ds-t2); padding: 9px 7px; }
+.ds-btn--dan { color: var(--ds-no); }
+.ds-btn--txt.ds-btn--dan { color: var(--ds-no); }
+.ds-btn--sm { font-size: var(--ds-f-t); padding: 6px 11px; }
+.ds-btn--sm.ds-btn--txt { padding: 6px 6px; }
+.ds-btn:disabled, .ds-btn.is-off { opacity: .42; cursor: not-allowed; }
+
+/* ============================================================
+   5. 표 — 머릿글 정렬 (지적 사항 교정)
+   ------------------------------------------------------------
+   [중요] 왜 어긋났나:
+      열마다 값은 가운데·오른쪽인데, 머릿글에는 그 열 클래스를 안 붙여
+      기본값(왼쪽)으로 떨어져 있었다. 「가운데로 정한 적이 없어서」가 아니라
+      「정한 적이 없어 기본값이 이긴 것」.
+   [확인] 규칙: 머릿글 정렬 = 값 정렬. 아래 두 벌을 th·td 양쪽에 같이 쓴다.
+   ============================================================ */
+.ds-c  { text-align: center !important; }
+.ds-r  { text-align: right  !important; }
+.ds-n  { text-align: right  !important; font-variant-numeric: tabular-nums; }
+
+/* [중요] !important 가 필요한 이유 (지우지 말 것):
+   기존 화면들은 `.bl-table th { text-align:left }` 처럼 「표+th」로 규칙을 걸어 두었고,
+   열 클래스(.bl-c-action-h 등)는 그보다 약해서 **써 놓고도 한 번도 이긴 적이 없다.**
+   실측: 액션 머릿글은 text-align:right 를 지정받고도 실제로는 left 로 그려지고 있었다. */
+th.ds-c, th.ds-n { /* 머릿글도 같은 규칙 — 기본값으로 떨어지지 않게 */ }
+
+/* 정렬 표시(⇅ ▲ ▼)·깔때기가 머릿글 글자를 옆으로 밀지 않게 한다.
+   흐름 안에 두면 가운데/오른쪽 정렬이 아이콘 폭의 절반만큼 어긋난다. */
+th.ds-c, th.ds-n { position: relative; }
+th.ds-c > .ds-ind, th.ds-n > .ds-ind {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  margin: 0; pointer-events: none;
+}
+th.ds-c > .ds-ind { left: auto; right: 6px; }
+th.ds-n > .ds-ind { left: 6px; right: auto; }
+
+/* 깔때기 — 조건이 걸린 열에만 보인다 (확정 ④ C안) */
+.ds-funnel { color: transparent; cursor: pointer; font-size: 13px; }
+th:hover > .ds-funnel { color: #C4CBD3; }
+.ds-funnel.on { color: var(--ds-pri) !important; }
+
+/* ============================================================
+   6. 표 밀도 — 촘촘 / 5줄 전환 (확정 ⑬ + 전환 단추)
+   ------------------------------------------------------------
+   기본은 촘촘(한 화면 약 23줄). 5줄은 사진 146px(한 화면 약 4줄).
+   전환은 표를 감싼 요소에 data-ds-density="tall" 을 붙였다 떼는 것으로 한다.
+   ============================================================ */
+[data-ds-density]           { --ds-row-pad: 6px 12px; --ds-thumb: 26px; }
+[data-ds-density="tall"]    { --ds-row-pad: 8px 12px; --ds-thumb: 146px; }
+[data-ds-density] .ds-thumb {
+  width: var(--ds-thumb); height: var(--ds-thumb);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ds-fill); border-radius: var(--ds-r-s);
+  color: #B0B8C1; flex: none; overflow: hidden;
+}
+[data-ds-density="tall"] .ds-thumb { border-radius: 8px; }
+[data-ds-density] .ds-thumb img { width: 100%; height: 100%; object-fit: cover; }
+/* 촘촘일 때는 품번 줄을 감춰 한 줄 높이를 지킨다 */
+[data-ds-density] .ds-sub        { display: none; }
+[data-ds-density="tall"] .ds-sub { display: block; font-size: var(--ds-f-l); color: var(--ds-mute); margin-top: 3px; }
+
+/* ============================================================
+   7. 알림·경고 — 경고는 맨 위 고정 띠, 알림은 오른쪽 아래
+   ============================================================ */
+.ds-strip {
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 15px; border-radius: var(--ds-r-s);
+  font-size: var(--ds-f-t); font-weight: 600;
+}
+.ds-strip--no   { background: #FDECEE; color: #B01F30; border: 1px solid #F7C2C9; }
+.ds-strip--warn { background: #FFF6E0; color: #8A5C08; border: 1px solid #FAE0A6; }
+.ds-strip--ok   { background: #E7F6EC; color: var(--ds-ok); border: 1px solid #B9E3C8; }
+
+/* ============================================================
+   8. 네 가지 화면 상태 — 불러오는 중 / 비었음 / 오류 / 정상
+   ============================================================ */
+.ds-empty { text-align: center; padding: 40px 24px; color: var(--ds-t2); font-size: var(--ds-f-t); }
+.ds-empty > i { font-size: 34px; color: var(--ds-line); display: block; margin-bottom: 10px; }
+.ds-empty b   { display: block; font-size: var(--ds-f-b); color: #333D4B; margin-bottom: 5px; }
+.ds-empty--err > i { color: #F2A0A8; }
+.ds-skel { height: 13px; border-radius: 4px; background: linear-gradient(90deg,#F2F4F6,#E9ECF0,#F2F4F6); }
+
+/* ============================================================
+   9. 끌어서 옮기기 — 손잡이는 평소 회색, 잡으면 파랑
+   ============================================================ */
+.ds-grip { color: #C4CBD3; cursor: grab; font-size: 16px; }
+.ds-grip:active, .is-dragging .ds-grip { color: var(--ds-pri); cursor: grabbing; }
+
+/* ============================================================
+   10. 기존 화면 통일 — 옛 이름들을 기준 한 벌로 끌어온다
+   ------------------------------------------------------------
+   왜 이렇게 하나:
+     화면 108개의 마크업을 하나씩 고치면 위험하고 오래 걸린다.
+     ds.css 는 toss.css 다음에 오므로, 옛 이름들의 '크기·모서리' 만
+     기준값으로 덮어쓰면 한 파일로 전 화면이 한 벌이 된다.
+   무엇만 건드리나:
+     글자 크기 · 모서리 둥글기 만. 색·배치·여백은 그대로 둔다
+     (색까지 바꾸면 뜻이 달라져 화면이 무너질 수 있다).
+   실측 근거 (화면 18개, 통일 전):
+     딱지 글자 7가지·모서리 7가지 / 버튼 글자 4·모서리 5 / 탭 글자 3
+   ============================================================ */
+
+/* ── 딱지: 글자 12px · 완전 둥근 모서리 (확정 3번 — 소속 딱지는 알약) ── */
+.chip, .badge, .chip-v3,
+[class*="badge-"], [class*="chip-"],
+.nsg-pill, .x-pill, .x-pill-ok, .x-pill-mute, .sg-chip, .ref-badge,
+.brand-pill-v2, .mc-chip, .market-chip, .nav-badge {
+  font-size: var(--ds-f-l);
+  border-radius: var(--ds-r-f);
+}
+/* 숫자만 담는 작은 딱지는 알약이 어색해 기본 모서리로 */
+.chip-count-ok, .chip-count-zero, .nav-badge { border-radius: var(--ds-r-s); }
+
+/* ── 버튼: 글자 14px(작은 것 13px) · 모서리 6px (확정 5번) ── */
+.btn, .tb-btn, .x-btn, .x-btn-pri, .btn-ok, .btn-rm, .btn-go,
+.btn-cancel, .btn-mini-v2, .bl-ab-btn, .nsg-openbtn {
+  font-size: 14px;
+  border-radius: var(--ds-r-s);
+}
+.btn-sm, .btn-mini-v2, .bl-ab-btn { font-size: var(--ds-f-t); }
+.btn-large { font-size: var(--ds-f-b); border-radius: var(--ds-r-s); }
+
+/* ── 탭: 층마다 모양은 그대로 두고 글자 크기만 3단으로 (확정 4번) ── */
+.subtab           { font-size: 19px; }   /* 하위 탭 — 화면마다 22/18/15 로 갈려 있던 것 */
+.step-tab         { font-size: var(--ds-f-t); border-radius: var(--ds-r-s); }
+.pc-tab           { font-size: var(--ds-f-b); }
+.em-tabs > button { font-size: var(--ds-f-t); border-radius: var(--ds-r-s); }
+
+/* ── 실화면에서 잡아낸 예외들 (화면 18개 실측) ──────────────
+   화면 파일 안 <style> 은 ds.css 보다 뒤에 오므로 같은 세기면 그쪽이 이긴다.
+   그래서 여기만 !important 를 쓴다. 아래 목록은 실제로 튀던 것들.
+     ref-badge      99px  → 알약(999)
+     sg-chip        20px  → 12px  (딱지가 본문보다 컸다)
+     nsg-pill       16px/20px
+     x-pill         11px  → 12px  [중요] 확정 바닥선(12px) 위반이던 것
+     search-chip-box 5px  → 알약
+     btn-cancel/go  13.5px/10px
+     subtab         22px  → 19px  (같은 하위탭이 화면마다 22/18/15 였다)
+   ------------------------------------------------------------ */
+.ref-badge, .search-chip-box, .nsg-pill, .sg-chip, .x-pill {
+  border-radius: var(--ds-r-f) !important;
+}
+.sg-chip, .nsg-pill { font-size: var(--ds-f-l) !important; }
+.x-pill, .x-pill-ok, .x-pill-mute { font-size: var(--ds-f-l) !important; }
+.btn-cancel, .btn-go { font-size: 14px !important; border-radius: var(--ds-r-s) !important; }
+.sg-ov .subtab, .df-wrap .subtab, .sgh .subtab, .cri .subtab { font-size: 19px !important; }
+
+/* ============================================================
+   11. 알림·팝업·부연설명 (확정 10·11·12번)
+   ------------------------------------------------------------
+   확정 내용
+     10번 C — 경고는 화면 맨 위에 고정(안 사라짐) / 알림은 오른쪽 아래 잠깐
+     11번 B — 부연 설명은 마우스 올리면 뜬다
+     12번 B — 팝업은 오른쪽에서 밀려나오는 서랍 (뒤 표를 보면서 고칠 수 있게)
+   ============================================================ */
+
+/* ── 경고 띠 — 화면 맨 위 고정. 고칠 때까지 안 사라진다 ── */
+#ds-warnbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+  display: none; flex-direction: column; gap: 1px;
+}
+#ds-warnbar.on { display: flex; }
+#ds-warnbar .ds-warn-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 20px; font-size: var(--ds-f-t); font-weight: 600;
+  background: #FDECEE; color: #B01F30; border-bottom: 1px solid #F7C2C9;
+}
+#ds-warnbar .ds-warn-row i { font-size: 17px; }
+#ds-warnbar .ds-warn-x {
+  margin-left: auto; background: none; border: 0; cursor: pointer;
+  color: inherit; font-family: inherit; font-size: var(--ds-f-t); font-weight: 600;
+}
+body.ds-has-warn { padding-top: 42px; }
+
+/* ── 알림 — 오른쪽 아래, 잠깐 (기존 toast 자리를 그대로 씀) ── */
+#ds-toasts {
+  position: fixed; right: 24px; bottom: 24px; z-index: 880;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+#ds-toasts .ds-toast {
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 15px; border-radius: var(--ds-r-s);
+  font-size: var(--ds-f-t); font-weight: 600;
+  background: var(--ds-t); color: #fff; box-shadow: 0 8px 22px rgba(0,0,0,.22);
+}
+#ds-toasts .ds-toast.ok { background: var(--ds-ok); }
+
+/* ── 팝업 = 오른쪽 서랍 (표준 .modal 을 쓰는 화면에 적용) ── */
+.modal-bg.visible { align-items: stretch; justify-content: flex-end; padding: 0; }
+.modal-bg.visible > .modal {
+  width: 420px; max-width: 92vw; max-height: 100vh; height: 100vh;
+  border-radius: 0; margin: 0;
+  box-shadow: -10px 0 28px rgba(0,0,0,.14);
+  display: flex; flex-direction: column;
+}
+.modal-bg.visible > .modal > .modal-body { flex: 1; overflow-y: auto; }
+/* 넓은 편집이 필요한 팝업은 서랍을 넓게 (업로드 등) */
+.modal-bg.visible > .modal.modal-upload { width: 560px; }
+
+/* ── 부연 설명 = 마우스 올리면 ────────────────────────────────
+   [주의] 입력칸에 붙은 설명(.form-row 안)만 숨긴다.
+   따로 서 있는 안내문(보안 고지 등)은 올릴 대상이 없어서
+   숨기면 영영 안 보인다 — 실화면에서 실제로 그럴 뻔했다. 그대로 둔다. */
+.form-row { position: relative; }
+.form-row > .form-hint {
+  display: none;
+  position: absolute; left: 130px; top: calc(100% + 6px); z-index: 30;
+  max-width: 420px;
+  background: var(--ds-t); color: #fff; border-radius: var(--ds-r-s);
+  padding: 9px 12px; font-size: var(--ds-f-l); line-height: 1.6;
+  box-shadow: 0 8px 20px rgba(0,0,0,.2);
+}
+.form-row:hover > .form-hint,
+.form-row > .form-hint:hover { display: block; }
+
+/* ── 화면마다 손으로 만든 팝업 → 오른쪽 서랍 (확정 12번 B) ──────
+   판을 부모 배치에서 떼어내(fixed) 오른쪽 끝에 붙인다.
+   부모가 가운데 정렬이든 뭐든 상관없이 서랍이 된다.
+
+   바꾸는 것 (편집·정보 팝업 — '뒤를 보면서 고친다' 가 통하는 것)
+     .pm-ov-modal   420px  재고 수정
+     .sj-help-body  520px  도움말
+     .sb-modal-body 680px  소싱처 편집
+
+   그대로 두는 것 (서랍이 오히려 나쁜 것)
+     .pc-modal        1180px — 서랍으로 만들면 화면을 거의 다 덮어 '뒤를 보는' 뜻이 사라진다
+     .emoji-modal      920px — 아이콘 고르기 격자. 좁히면 못 쓴다
+     .scan-overlay / .sb-cam-overlay — 카메라 화면. 서랍이 아니다
+     .stock-memo-drawer — 이미 서랍
+   ------------------------------------------------------------ */
+.pm-ov-modal, .sj-help-body, .sb-modal-body {
+  position: fixed !important;
+  top: 0 !important; right: 0 !important; left: auto !important; bottom: 0 !important;
+  height: 100vh !important; max-height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: -10px 0 28px rgba(0,0,0,.14) !important;
+  display: flex !important; flex-direction: column;
+  overflow-y: auto;
+  z-index: 1000;
+}
+.pm-ov-modal  { width: 420px !important; max-width: 92vw !important; }
+.sj-help-body { width: 460px !important; max-width: 92vw !important; }
+.sb-modal-body{ width: 560px !important; max-width: 92vw !important; }
