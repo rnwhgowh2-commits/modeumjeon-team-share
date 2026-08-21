@@ -1002,6 +1002,38 @@ SEAMS.append((
     1,
 ))
 
+# ── [모음전 2026-08-20] 전체내역(ctxCard='all') 컬럼 필터 — 행 소스를 실제 표와 통일 ──
+#  사장님 신고: 마진율 필터를 열면 화면엔 -100% 같은 실값이 버젓이 보이는데 필터 옵션은
+#  "(빈값)" 하나뿐이었다. 원인 — openColFilter 의 isCardAll 분기가 state.tab1Data(classified)
+#  를 옵션 소스로 쓰는데, 이 배열엔 마진율/순마진처럼 buildDetailTable 이 실제로 그리는 표
+#  (_moumAllBaseRows() 소스)에만 있는 파생 필드가 없다. _getDetailRowsSorted 는 같은 이유로
+#  이미 _moumAllBaseRows() 로 통일돼 있었는데(2026-07-25), openColFilter 는 그때 안 고쳐졌다.
+SEAMS.append((
+    "  if (isCardAll && ctxCard && ctxCard !== 'all') {\n"
+    "    allRows = _getRowsByCardFilter(ctxCard);\n"
+    "  } else if (isCardAll) {\n"
+    "    allRows = (state.tab1Data || []).filter(function(r){\n"
+    "      var src = r['데이터출처'] || '';\n"
+    "      return src === '더망고+샵마인' || src === '더망고만';\n"
+    "    });\n"
+    "  } else if (ctxCard && ctxCard !== 'all') {\n"
+    "    var cardRows2 = _getRowsByCardFilter(ctxCard);",
+    "  if (isCardAll && ctxCard && ctxCard !== 'all') {\n"
+    "    allRows = _getRowsByCardFilter(ctxCard);\n"
+    "  } else if (isCardAll) {\n"
+    "    /* [모음전 2026-08-20] 전체내역(ctxCard='all') 필터 옵션 소스 통일 — state.tab1Data(classified)엔\n"
+    "       마진율/순마진처럼 buildDetailTable 이 실제로 그리는 표에만 있는 파생 필드가 없어서, 이 컬럼들의\n"
+    "       필터가 늘 (빈값) 하나로만 보였다(사장님 신고 2026-08-20). _getDetailRowsSorted 가 이미 같은 이유로\n"
+    "       _moumAllBaseRows() 로 통일돼 있던 것과 같은 소스로 맞춘다. */\n"
+    "    allRows = (typeof window._moumAllBaseRows === 'function') ? window._moumAllBaseRows() : (state.tab1Data || []).filter(function(r){\n"
+    "      var src = r['데이터출처'] || '';\n"
+    "      return src === '더망고+샵마인' || src === '더망고만';\n"
+    "    });\n"
+    "  } else if (ctxCard && ctxCard !== 'all') {\n"
+    "    var cardRows2 = _getRowsByCardFilter(ctxCard);",
+    1,
+))
+
 if __name__ == "__main__":
     main()
 
