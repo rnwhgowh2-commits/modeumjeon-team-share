@@ -2021,12 +2021,12 @@ function renderDataVerifyBanner(opts) {
     /* 자식 1-1, 1-2, 1-3 (3열 grid) */
     +   '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:auto">'
     /* 1-1 */
-    +     '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px">'
+    +     '<div title="사이트주문번호가 있고 마켓 매출(API)과도 매칭 성공한 건 — 사이트주문번호만 있는 전체 건수는 아님" style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px">'
     +       '<div style="display:flex;align-items:center;justify-content:space-between">'
     +         '<span style="font-size:11px;font-weight:700;color:#92400e;background:#fff;padding:2px 8px;border-radius:10px">1-1</span>'
     +         '<span style="font-size:11px;color:#9ca3af">사이트번호</span>'
     +       '</div>'
-    +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">주문번호 매입</div>'
+    +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">주문번호 매입 <span style="font-weight:400;color:#B45309">(마켓매칭○)</span></div>'
     +       '<div style="font-size:28px;font-weight:800;color:#b45309;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
     +         fmt(withOrder)
     +         '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:2px">건</span>'
@@ -4536,20 +4536,26 @@ function _renderAbnDetail(kind){
       var name = (r['마켓']||'') + ' · ' + String(r['상품명']||'').slice(0,24);
       var buyer = String(r['수령인']||'').trim();
       var nameHtml = esc(name) + (buyer ? ' <span class="et-buyer" style="color:#6B7684;font-size:12px;font-weight:600">· '+esc(buyer)+'</span>' : '');
+      /* [모음전 2026-08-23] 더망고 주문 페이지 바로가기 — 마켓주문번호 우선, 없으면 사이트주문번호 (사장님 요청) */
+      var orderNum = String(r['마켓주문번호'] || r['사이트주문번호'] || '').trim();
+      var mangoBtn = orderNum
+        ? '<button class="et-goto mango-link" data-type="order_number" data-keyword="'+esc(orderNum)+'" title="더망고 주문 페이지 열기">더망고 ↗</button>'
+        : '<span style="color:#C5CCD3;font-size:12px">-</span>';
       h += '<tr><td class="et-l">'+nameHtml+'</td><td>'+fmt(Number(r['판매가'])||0)+'</td><td>'+pay+'</td><td>'+buyc+'</td>'
          + '<td class="et-rate '+(sm<0?'neg':'hi')+'">'+(rate>=0?'+':'')+rate.toFixed(1)+'%</td><td>'+marc+'</td>'
          + '<td class="et-c">'+how+'</td>'
-         + '<td class="et-c"><button class="et-goto" onclick="event.stopPropagation();gotoOrderInAll('+r._idx+')">전체내역 ↗</button></td></tr>';
+         + '<td class="et-c"><button class="et-goto" onclick="event.stopPropagation();gotoOrderInAll('+r._idx+')">전체내역 ↗</button></td>'
+         + '<td class="et-c">'+mangoBtn+'</td></tr>';
     });
     return h;
   }
   var spLabel  = (kind==='su') ? '특수 · 정산미수령 (정산0+매입有, 블랙스팟급)' : '특수 · 매입0 (정산有+매입0)';
   var genLabel = (kind==='su') ? '일반 · 마진 마이너스 (정산&lt;매입 — 과다구매·계산실수 의심)' : '일반 · 고마진 (정산有+매입有, 마진율 높음)';
   var h = '<table class="etable" style="border:1px solid #E5E8EB"><thead><tr>'
-        + '<th class="et-l">주문</th><th>판매가</th><th>정산 (전→후)</th><th>매입 (전→후)</th><th>마진율</th><th>순마진 (전→후)</th><th class="et-c">처리</th><th class="et-c">바로가기</th></tr></thead><tbody>';
-  if (special.length) h += '<tr class="et-sub"><td class="et-l" colspan="8">▸ '+spLabel+' — '+special.length+'건</td></tr>' + rowsHtml(special);
-  if (general.length) h += '<tr class="et-sub"><td class="et-l" colspan="8">▸ '+genLabel+' — '+general.length+'건</td></tr>' + rowsHtml(general);
-  if (!special.length && !general.length) h += '<tr><td class="et-l" colspan="8" style="color:#8B95A1">해당 주문 없음</td></tr>';
+        + '<th class="et-l">주문</th><th>판매가</th><th>정산 (전→후)</th><th>매입 (전→후)</th><th>마진율</th><th>순마진 (전→후)</th><th class="et-c">처리</th><th class="et-c">바로가기</th><th class="et-c">더망고</th></tr></thead><tbody>';
+  if (special.length) h += '<tr class="et-sub"><td class="et-l" colspan="9">▸ '+spLabel+' — '+special.length+'건</td></tr>' + rowsHtml(special);
+  if (general.length) h += '<tr class="et-sub"><td class="et-l" colspan="9">▸ '+genLabel+' — '+general.length+'건</td></tr>' + rowsHtml(general);
+  if (!special.length && !general.length) h += '<tr><td class="et-l" colspan="9" style="color:#8B95A1">해당 주문 없음</td></tr>';
   h += '</tbody></table>';
   return h;
 }
