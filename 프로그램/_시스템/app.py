@@ -108,6 +108,7 @@ def create_app() -> Flask:
     #     화면은 "불러오지 못했습니다"만 띄운다(에러 원인이 안 드러남).
     import lemouton.catalog.models  # noqa: F401
     import lemouton.registration.process_policy  # noqa: F401  # 대량등록 ② 가공정책 4테이블
+    import lemouton.policy.models  # noqa: F401  # [2026-08-24] 정책·0층 규칙·2층 계정설정
     import lemouton.registration.notice_defaults  # noqa: F401  # 고시정보 기본값 (notice_defaults)
     # ★ 소싱 정규화 모델(source_products·crawl_deltas·crawl_lap_runs·crawl_change_stats).
     #   여태 team-share-dev 에서만 import 됐는데, create_all 은 **import 된 모델만** 만든다
