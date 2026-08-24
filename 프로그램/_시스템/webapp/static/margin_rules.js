@@ -4,21 +4,14 @@
 (function (root) {
   'use strict';
   function num(v){ var n = Number(String(v).replace(/,/g,'')); return isFinite(n) ? n : 0; }
-  // 취소완료·반품완료 확정 — 서버(sell_source._settlement_for)는 **우리 마켓 API 상태**가
-  // 취소완료일 때만 정산을 0으로 강제한다. 그런데 사용자가 직접 쓰는 더망고(발송관리)의
-  // 확정 상태가 마켓 API 재수집보다 먼저 들어오는 경우가 있어(2026-08-25 라이브 실측:
-  // 더망고=반품/교환/취소완료인데 마켓 재수집 지연으로 정산예상금액이 취소 전 값 그대로 —
-  // 106건, 유령매출 1,628만원·유령마진 1,419만원), 그 사이 정산이 취소 전 값 그대로 남아
-  // 매출·마진에 얹힌다. 더망고·마켓 상태 둘 중 하나라도 최종 취소/반품 확정이면 정산을
-  // 신뢰하지 않고 0 으로 본다(거래 무산 = 정산·수수료 없음, 서버 규약과 동일).
-  function isFinalCancelStatus(r){
-    if (!r) return false;
-    var pat = /취소완료|반품완료/;
-    var mg  = String(r['더망고주문상태 (사용자 연동)'] || '');
-    var mkt = String(r['마켓주문상태 (오픈 마켓 연동)'] || '');
-    return pat.test(mg) || pat.test(mkt);
-  }
-  function settle(r){ return isFinalCancelStatus(r) ? 0 : num(r && r['정산예상금액']); }
+  // 2026-08-25: '더망고주문상태 (사용자 연동)' 기준 취소/반품 확정 판정을 시도했다가 되돌림.
+  //   더망고는 반품·교환·취소를 전부 "반품/교환/취소완료" 한 라벨로 뭉뚱그린다 — 실측 결과
+  //   그 라벨이 걸린 105건 중 93건이 실제 마켓 상태(샵마인_주문상태)는 배송완료·구매확정·
+  //   상품준비중 등 정상 진행 중이었다(교환 처리 등으로 더망고만 앞서 갱신됨). 정산은
+  //   서버(sell_source._settlement_for)가 **마켓 API 원문 상태**로 이미 정확히 0 처리하고
+  //   있어(취소완료 → zero_cancel) 클라이언트가 다시 볼 필요가 없다 — 더망고 라벨을
+  //   신뢰하면 오히려 정상 매출을 0원으로 지운다. 절대 되살리지 말 것.
+  function settle(r){ return num(r && r['정산예상금액']); }
   function buy(r){ return num(r && r['구매가격']); }
 
   function isKeywordBlackspot(r){
@@ -99,7 +92,7 @@
     return s;
   }
 
-  var api = { num, settle, buy, isFinalCancelStatus, isKeywordBlackspot, isLossRow, isHighMarginRow,
+  var api = { num, settle, buy, isKeywordBlackspot, isLossRow, isHighMarginRow,
               isMarginUncomputable, classify, rowSale, rowMargin, summarize };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.MR = api;

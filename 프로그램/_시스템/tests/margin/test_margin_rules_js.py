@@ -39,27 +39,25 @@ def test_classify_rules_via_node():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node 없음")
-def test_final_cancel_status_zeroes_settle_via_node():
-    """더망고·마켓 상태가 취소완료/반품완료 확정이면, 정산예상금액이 취소 전 값(양수)으로
-    남아 있어도 0으로 본다 — 정산이 마켓 API 재수집 지연으로 취소 전 값 그대로 남아 매출·
-    마진에 얹히던 버그(2026-08-25 라이브 실측: 106건, 유령매출 1,628만원·유령마진 1,419만원).
+def test_settle_does_not_trust_mango_status_over_settlement_amount():
+    """2026-08-25 되돌림 회귀 테스트 — 더망고주문상태(사용자 연동)만 보고 정산을 0으로 깎으면
+    안 된다. 더망고는 반품·교환·취소를 전부 "반품/교환/취소완료" 한 라벨로 뭉뚱그리는데,
+    실측 결과 그 라벨이 걸린 105건 중 93건이 실제 마켓 상태(샵마인_주문상태)는 배송완료·
+    구매확정 등 정상 진행 중이었다(교환 처리 등으로 더망고만 앞서 갱신). 정산은 서버
+    (sell_source._settlement_for)가 마켓 API 원문 상태로 이미 정확히 0 처리하므로, settle()
+    은 정산예상금액을 그대로 읽어야 한다 — 더망고 라벨로 다시 덮어쓰면 정상 매출이 지워진다.
     """
     script = r"""
     const MR = require(process.argv[1]);
-    // 더망고=반품/교환/취소완료, 마켓=취소신청(아직 미확정) → 그래도 취소로 본다.
-    const mangoDone = {정산예상금액:41005, 구매가격:0,
-      '더망고주문상태 (사용자 연동)':'반품/교환/취소완료', '마켓주문상태 (오픈 마켓 연동)':'취소신청'};
-    // 마켓 상태만 반품완료
-    const marketDone = {정산예상금액:9000, 구매가격:0, '마켓주문상태 (오픈 마켓 연동)':'반품완료'};
-    // 매입이 있는 취소 → 손실(-매입)
-    const cancelWithBuy = {정산예상금액:20000, 구매가격:15000, '더망고주문상태 (사용자 연동)':'취소완료'};
-    // 정상 배송 중 주문은 그대로
-    const normal = {정산예상금액:70000, 구매가격:50000, '더망고주문상태 (사용자 연동)':'국내배송중'};
+    // 더망고=반품/교환/취소완료 라벨이 붙어 있어도, 실제 마켓 상태(샵마인)는 정상 진행 중
+    // (교환 처리 등) → 정산예상금액을 그대로 신뢰해야 한다.
+    const mangoLabelButActive = {정산예상금액:123830, 구매가격:0,
+      '더망고주문상태 (사용자 연동)':'반품/교환/취소완료',
+      '마켓주문상태 (오픈 마켓 연동)':'취소/반품/교환 완료',
+      '샵마인_주문상태':'배송완료'};
     const out = {
-      mangoDone_settle: MR.settle(mangoDone), mangoDone_classify: MR.classify(mangoDone),
-      marketDone_settle: MR.settle(marketDone),
-      cancelWithBuy_classify: MR.classify(cancelWithBuy), cancelWithBuy_margin: MR.rowMargin(cancelWithBuy),
-      normal_settle: MR.settle(normal), normal_classify: MR.classify(normal),
+      settle: MR.settle(mangoLabelButActive),
+      classify: MR.classify(mangoLabelButActive),
     };
     console.log(JSON.stringify(out));
     """
@@ -68,10 +66,5 @@ def test_final_cancel_status_zeroes_settle_via_node():
     assert r.returncode == 0, r.stderr
     import json
     out = json.loads(r.stdout.strip())
-    assert out["mangoDone_settle"] == 0
-    assert out["mangoDone_classify"] == "uncomputable"
-    assert out["marketDone_settle"] == 0
-    assert out["cancelWithBuy_classify"] == "loss"
-    assert out["cancelWithBuy_margin"] == -15000
-    assert out["normal_settle"] == 70000      # 취소 아닌 행은 그대로
-    assert out["normal_classify"] == "normal"
+    assert out["settle"] == 123830           # 정산예상금액 그대로 — 더망고 라벨로 안 지움
+    assert out["classify"] == "highmargin"   # 정산>0, 매입0 → 원래 규칙대로
