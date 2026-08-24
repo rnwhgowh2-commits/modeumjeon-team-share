@@ -41,6 +41,10 @@ class MarketPolicy(Base):
     # [2026-08-24] 0층 규칙 저장소 참조 — 규칙 한 벌을 여러 정책이 공유한다.
     #   🔴 NULL 이 정상이다: 규칙을 안 고른 정책은 지금까지처럼 상품 원본 값을 그대로
     #     쓴다(기존 동작 그대로 — 이 컬럼이 생겼다고 달라지는 정책은 하나도 없다).
+    # [2026-08-24 Phase 4-3] 마켓별로 **어느 계정으로 보낼지**. JSON {마켓: 계정키}.
+    #   🔴 NULL·빈 값이 정상이다 — 안 고르면 지금까지처럼 'default' 계정으로 나간다.
+    #     (예전엔 고를 방법 자체가 없어 **늘** 'default' 였다.)
+    market_accounts = Column(Text)
     name_rule_id = Column(Integer, ForeignKey('name_rules.id'))
     detail_template_id = Column(Integer, ForeignKey('detail_templates.id'))
     created_at = Column(DateTime, default=_utcnow, nullable=False)

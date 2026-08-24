@@ -278,8 +278,17 @@ def _register(s, *, job, set_id, market, base_view=None) -> None:
         s.flush()
         missing = AD.missing_fields(draft)
 
+        # ★ [2026-08-24 Phase 4-3] 정책이 고른 계정으로 보낸다.
+        #   🔴 예전엔 `keys` 를 안 넘겨서 `preflight_rows` 가 늘 'default' 로 떨어졌다 —
+        #     마켓마다 계정이 여러 개여도 **전부 기본 계정 하나로** 나가고 있었다.
+        #   안 고른 마켓은 키 자체를 안 넣는다 → 지금까지처럼 'default'.
+        from lemouton.policy import market_accounts as MA
+        from lemouton.policy.to_payload import resolve_policy
+        _pol, _ = resolve_policy(s, set_id=set_id)
+        _keys = MA.keys_for(_pol, [market]) if _pol is not None else {}
+
         from webapp.routes.bulk.drafts import preflight_rows
-        rows = preflight_rows(s, draft, [market])
+        rows = preflight_rows(s, draft, [market], keys=_keys)
         row = rows[0] if rows else {}
     except Exception as e:                  # noqa: BLE001
         _safe_rollback(s)

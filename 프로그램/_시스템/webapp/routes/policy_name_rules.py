@@ -209,3 +209,49 @@ def api_name_rule_preview():
                       for x in (skipped or []) if not x.get('blocking')],
         })
     return jsonify({'ok': True, 'rows': rows})
+
+
+# ══ 마켓별 「보낼 계정」 (2026-08-24 Phase 4-3) ═══════════════════════════
+#
+# 🔴 예전엔 고를 방법이 아예 없어 **늘 'default' 계정으로** 나갔다.
+#   `send/runner.py:_register` 가 `preflight_rows` 에 `keys` 를 안 넘겨서,
+#   마켓마다 계정이 여러 개여도 전부 기본 계정 하나로 갔다.
+
+@bp.get('/api/policies/<int:pid>/accounts')
+def api_policy_accounts(pid: int):
+    """그 정책이 고른 계정 + 고를 수 있는 계정 목록."""
+    from lemouton.policy import market_accounts as MA
+    from lemouton.policy.models import MarketPolicy
+    s = SessionLocal()
+    try:
+        p = s.get(MarketPolicy, pid)
+        if p is None:
+            return jsonify({'ok': False, 'message': '그 정책이 없어요.'}), 404
+        return jsonify({'ok': True, 'chosen': MA.all_for(p),
+                        'choices': MA.choices_for(s)})
+    finally:
+        s.close()
+
+
+@bp.post('/api/policies/<int:pid>/accounts')
+def api_set_policy_accounts(pid: int):
+    """마켓별 보낼 계정을 정한다. 빈 값이면 「안 고름」(= 기본 계정)."""
+    from lemouton.policy import market_accounts as MA
+    from lemouton.policy.models import MarketPolicy
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        p = s.get(MarketPolicy, pid)
+        if p is None:
+            return jsonify({'ok': False, 'message': '그 정책이 없어요.'}), 404
+        got = MA.set_accounts(s, policy=p, values=body.get('accounts') or {})
+        s.commit()
+        return jsonify({'ok': True, 'chosen': got})
+    except ValueError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'message': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[정책계정] 저장 실패 pid=%s', pid)
+        return jsonify({'ok': False, 'message': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()

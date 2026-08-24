@@ -346,6 +346,13 @@
                 font-weight:700;cursor:pointer;font-family:inherit}
   .cpd-no{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
   .cpd-go{background:var(--primary,#3182F6);color:#fff}
+  .acct-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .acct-lb{font-size:12px;color:var(--글자-보조,#6B7684);white-space:nowrap}
+  .acct-row select{height:30px;border:1px solid var(--n200,#E5E8EB);border-radius:8px;
+                   padding:0 8px;font-size:12px;font-family:inherit;max-width:280px}
+  .acct-msg{font-size:12px;color:var(--글자-보조,#8B95A1)}
+  .acct-msg.err{color:#C93B3B}
+  .acct-msg.ok{color:#1B8A5A}
   /* ── 상품명 조립기 (Phase 3) ─────────────────────────────────────── */
   .nr-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .nr-pick select{flex:1;min-width:220px;height:34px;border:1px solid var(--n200,#E5E8EB);
@@ -462,6 +469,18 @@
         {% endif %}
       </span>
     </div>
+    {% if not is_common %}
+    {# ── [2026-08-24 Phase 4-3] 어느 계정으로 보낼지 ────────────────────────
+       🔴 예전엔 고를 방법이 아예 없어 **늘 기본 계정 하나로** 나갔다.
+         마켓마다 계정이 여러 개인데 전부 한 곳으로 갔다는 뜻이다.
+       계정이 하나뿐이면 드롭다운을 안 그린다 — 고를 게 없는데 칸만 늘면
+       화면이 무거워지고 「뭘 골라야 하지」가 생긴다. #}
+    <div class="acct-row" id="acctrow" hidden>
+      <span class="acct-lb">보낼 계정</span>
+      <select id="acctsel"><option value="">기본 계정</option></select>
+      <span class="acct-msg" id="acctmsg"></span>
+    </div>
+    {% endif %}
     {% if not is_common %}<div class="m" id="mkmsg"></div>{% endif %}
   </div>
 
@@ -1860,6 +1879,64 @@ document.querySelectorAll('select[data-k$="_mode"]').forEach(function (sel) {
     drawTokens();
     await load();
   })();
+})();
+
+
+/* ══ 마켓별 「보낼 계정」 (2026-08-24 Phase 4-3) ═════════════════════════
+   🔴 예전엔 고를 방법이 없어 늘 기본 계정 하나로 나갔다.
+   계정이 하나뿐이면 드롭다운을 안 그린다 — 고를 게 없는데 칸만 늘면 화면이 무거워진다. */
+(function(){
+  const row = document.getElementById('acctrow');
+  if(!row) return;
+  const sel = document.getElementById('acctsel');
+  const msg = document.getElementById('acctmsg');
+  const PID = (window.PID !== undefined) ? window.PID : null;
+  const pid = PID !== null ? PID
+            : (location.pathname.match(/\/policies\/(\d+)/) || [])[1];
+  const mk = new URLSearchParams(location.search).get('m') || '';
+  if(!pid || !mk) return;
+
+  function say(t, cls){ msg.textContent = t || ''; msg.className = 'acct-msg ' + (cls||''); }
+
+  (async function(){
+    let j;
+    try{ j = await (await fetch('/api/policies/'+pid+'/accounts')).json(); }
+    catch(e){ return; }
+    if(!j.ok) return;
+    const list = (j.choices || {})[mk] || [];
+    if(list.length < 2){
+      /* 고를 게 없으면 안 보여준다 — 다만 계정이 아예 없으면 그건 말해 준다. */
+      if(!list.length){
+        row.hidden = false;
+        sel.style.display = 'none';
+        say('이 마켓에 등록된 계정이 없습니다 — 「기타 > 판매처 관리」에서 먼저 만들어 주세요.');
+      }
+      return;
+    }
+    row.hidden = false;
+    sel.innerHTML = '<option value="">기본 계정</option>'
+      + list.map(a => '<option value="'+a.key+'">'+a.label+'</option>').join('');
+    const cur = (j.chosen || {})[mk];
+    if(cur) sel.value = cur;
+    if(cur && sel.value !== cur){
+      /* 고른 계정이 목록에 없다 — 지워졌거나 껐다. 조용히 기본으로 보이면 안 된다. */
+      say('고른 계정("'+cur+'")을 지금 목록에서 못 찾았습니다 — 지워졌거나 꺼져 있을 수 있어요.', 'err');
+    }
+  })();
+
+  sel.addEventListener('change', async () => {
+    sel.disabled = true; say('바꾸는 중…');
+    try{
+      const body = {accounts: {}};
+      body.accounts[mk] = sel.value;
+      const j = await (await fetch('/api/policies/'+pid+'/accounts', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)})).json();
+      if(!j.ok){ say(j.message || '못 바꿨어요', 'err'); return; }
+      say(sel.value ? '이 마켓은 그 계정으로 보냅니다.' : '기본 계정으로 보냅니다.', 'ok');
+    }catch(e){ say(e.message, 'err'); }
+    finally{ sel.disabled = false; }
+  });
 })();
 
 </script>
