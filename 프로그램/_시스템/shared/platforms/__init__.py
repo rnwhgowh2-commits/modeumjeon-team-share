@@ -50,6 +50,11 @@ COUPANG: dict = {
             "/v2/providers/seller_api/apis/api/v1/marketplace"
             "/seller-products/{sellerProductId}"
         ),
+        # 브랜드 검색 — 상품 생성 payload 의 brandId 를 얻는 창구.
+        #   지도 coupang.brands.brand-search · POST · body{brandName,countPerPage,page}
+        "brand_search": (
+            "/v2/providers/seller_api/apis/api/v1/marketplace/brands/search"
+        ),
         "update_price": (
             "/v2/providers/seller_api/apis/api/v1/marketplace"
             "/vendor-items/{vendorItemId}/prices/{price}"
