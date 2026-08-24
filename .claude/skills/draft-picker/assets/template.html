@@ -187,6 +187,74 @@ h1 { font-size: 24px; font-weight: 600; letter-spacing: .01em; line-height: 1.29
 }
 .modal-select-btn.is-selected { background: var(--confirm-bg); }
 
+/* ── 시안 시각화 부품 ──────────────────────────────────────────────────
+   draft.visual (raw HTML) 을 카드 축소판·팝업 원본 크기 두 곳에 그린다.
+   "화면이 실제로 어떻게 보이는지" 를 글로 설명하지 않고 직접 그려서 보여주는
+   용도 — design-mockup 스킬의 mock-window 표준과 같은 어휘를 여기 미리
+   심어 뒀다. 시안을 만들 때 이 클래스들을 그대로 갖다 쓴다(새 CSS를 매번
+   따로 안 만들어도 됨). 색은 전부 위 :root 토큰을 따르므로 라이트·다크 모두
+   맞는다. */
+/* 카드 축소판 — 배율은 "카드 폭에 목업 폭을 맞추는" 값이다. 목업을 대략 720px 폭으로
+   그리므로 260px 카드에 맞추려면 0.36 근처가 된다. 너무 작게 줄이면(0.24 등) 150px 칸에
+   43px 만 차서 그림이 있으나 마나가 된다 — 실측으로 잡은 값이니 임의로 낮추지 말 것. */
+.card-visual {
+  height: 132px; overflow: hidden; border-radius: var(--r-sm);
+  border: 1px solid var(--border); margin-bottom: 10px; background: var(--bg);
+  pointer-events: none; /* 카드 축소판은 훑어보기 전용 — 안의 버튼을 눌러도 반응 안 함 */
+}
+.card-visual-inner { zoom: 0.36; } /* Chromium 전용(아티팩트 렌더 환경) — transform-scale보다 단순 */
+.modal-visual {
+  align-self: stretch; width: 100%; max-width: none; text-align: left;
+  overflow-x: auto; margin-top: 14px; border-radius: var(--r-lg);
+}
+/* ── 화면 재현 프레임 (mock-window) — design-mockup 표준과 동일 어휘 ── */
+.mock-win { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.mock-bar { background: var(--bg); padding: 9px 14px; font-size: 12px; color: var(--text-sub);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 7px; }
+.mock-bar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); flex: none; }
+.mock-bar .url { background: var(--surface); padding: 4px 12px; border-radius: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; flex: 1; color: var(--text-sub); }
+.mock-app { display: grid; grid-template-columns: 190px 1fr; min-height: 480px; }
+.mock-sb { background: #191F28; color: #fff; padding: 14px 10px; font-size: 12.5px; }
+.mock-sb .sb-i { padding: 7px 10px; border-radius: 7px; color: #AEB5BE; }
+.mock-sb .sb-i.on { background: rgba(255,255,255,.12); color: #fff; font-weight: 600; }
+.mock-content { padding: 20px 24px; background: var(--bg); min-width: 0; }
+/* ── 화면 안 부품 — 값·표·버튼 등을 실제 화면처럼 그릴 때 ── */
+.pg-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.pg-head h2 { font-size: 18px; font-weight: 700; margin: 0; }
+.m-btn { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 7px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12.5px; }
+.m-btn.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+.m-chip { display: inline-block; padding: 2px 9px; border-radius: 5px; background: var(--bg);
+  color: var(--text-sub); font-size: 11.5px; font-weight: 500; }
+.m-chip.ok { background: rgba(52,199,89,.14); color: #0f7b3f; }
+.m-chip.warn { background: rgba(255,149,0,.16); color: var(--warn-text); }
+.m-chip.bad { background: rgba(255,59,48,.13); color: #b3261e; }
+.m-sect { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+.m-sect-t { display: block; font-size: 12px; font-weight: 700; color: var(--text-sub); margin-bottom: 10px; }
+.mrow { display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: center; padding: 6px 0; }
+.mrow label { font-size: 12.5px; color: var(--text-sub); }
+.m-input, .m-sel { display: inline-flex; align-items: center; min-width: 160px; height: 30px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px; }
+.m-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+.m-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; background: var(--surface); }
+.m-tbl th { background: var(--bg); color: var(--text-sub); font-weight: 600; font-size: 11.5px; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.m-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--bg); vertical-align: middle; }
+/* ── 절차·비교를 그림으로: 흐름(가로 화살표) / 층(계층) ── */
+.flow { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+.fl-box { flex: 1 1 140px; border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; background: var(--surface); }
+.fl-box b { display: block; font-size: 13px; margin-bottom: 3px; }
+.fl-box span { font-size: 11.5px; color: var(--text-sub); line-height: 1.45; }
+.fl-box.ok { border-color: #0f7b3f; } .fl-box.warn { border-color: var(--warn-text); } .fl-box.bad { border-color: #b3261e; }
+.fl-ar { display: flex; align-items: center; color: var(--text-sub); font-size: 17px; flex: none; }
+.stack { display: flex; flex-direction: column; gap: 9px; }
+.st-row { display: grid; grid-template-columns: 160px 1fr; gap: 14px; align-items: center;
+  border: 1px solid var(--border); border-left-width: 4px; border-radius: 9px; padding: 12px 14px; background: var(--surface); }
+.st-row.ok { border-left-color: #0f7b3f; } .st-row.warn { border-left-color: var(--warn-text); }
+.st-n b { display: block; font-size: 13px; } .st-n span { font-size: 11.5px; color: var(--text-sub); }
+.st-items { display: flex; gap: 6px; flex-wrap: wrap; }
+.st-i { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; font-size: 12px; }
+
 .group-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .group-actions button {
   flex: 1 1 auto; min-height: 44px; padding: 10px 12px;
@@ -238,6 +306,10 @@ h1 { font-size: 24px; font-weight: 600; letter-spacing: .01em; line-height: 1.29
 var SELF_SCRIPT_TEXT = document.currentScript.textContent;
 
 // 예시 데이터 — 실제 사용 시 이 부분만 실제 시안 내용으로 교체한다.
+// d.visual 은 선택 사항이 아니라 기본값이다 — 화면·흐름·배치처럼 "보면 바로 판단되는"
+// 결정이면 반드시 채운다. 위 CSS 부품(mock-win/mock-app/m-sect/mrow/flow/stack 등)을
+// 그대로 조립해서 쓴다 — 새 스타일을 매번 따로 짓지 않는다. 순수하게 개념·문구·숫자
+// 하나만 고르는 항목(치환 문구, 숫자 값 등)만 visual 없이 title/desc 로 충분하다.
 var DATA = {
   title: "버튼 스타일 시안 선택",
   groups: [
@@ -245,17 +317,46 @@ var DATA = {
       id: "g1",
       label: "1. 주문 확정 버튼 색상",
       drafts: [
-        { id: 1, title: "블루 그라디언트", desc: "차분하고 신뢰감 있는 느낌" },
-        { id: 2, title: "오렌지 단색", desc: "브랜드 포인트 컬러, 눈에 잘 띔" },
-        { id: 3, title: "다크 네이비", desc: "고급스러운 느낌, 톤다운" }
+        { id: 1, title: "블루 그라디언트", desc: "차분하고 신뢰감 있는 느낌",
+          visual: '<div class="mock-win"><div class="mock-bar"><span class="dot"></span><span class="url">주문 확정 화면</span></div>' +
+                  '<div class="mock-content" style="text-align:center;padding:40px 20px">' +
+                  '<button class="m-btn pri" style="background:linear-gradient(135deg,#2997ff,#0071e3);' +
+                  'border:none;height:44px;padding:0 28px;font-size:15px">주문 확정하기</button></div></div>' },
+        { id: 2, title: "오렌지 단색", desc: "브랜드 포인트 컬러, 눈에 잘 띔",
+          visual: '<div class="mock-win"><div class="mock-bar"><span class="dot"></span><span class="url">주문 확정 화면</span></div>' +
+                  '<div class="mock-content" style="text-align:center;padding:40px 20px">' +
+                  '<button class="m-btn pri" style="background:#ff7a1a;border-color:#ff7a1a;' +
+                  'height:44px;padding:0 28px;font-size:15px">주문 확정하기</button></div></div>' },
+        { id: 3, title: "다크 네이비", desc: "고급스러운 느낌, 톤다운",
+          visual: '<div class="mock-win"><div class="mock-bar"><span class="dot"></span><span class="url">주문 확정 화면</span></div>' +
+                  '<div class="mock-content" style="text-align:center;padding:40px 20px">' +
+                  '<button class="m-btn pri" style="background:#1d2b45;border-color:#1d2b45;' +
+                  'height:44px;padding:0 28px;font-size:15px">주문 확정하기</button></div></div>' }
       ]
     },
     {
       id: "g2",
       label: "2. 재고 부족 경고 표시 방식",
       drafts: [
-        { id: 1, title: "빨간 뱃지 숫자", desc: "카드 우상단에 남은 수량 숫자로 표시" },
-        { id: 2, title: "테두리 강조", desc: "카드 전체 테두리를 빨갛게" }
+        { id: 1, title: "빨간 뱃지 숫자", desc: "카드 우상단에 남은 수량 숫자로 표시",
+          visual: '<div class="mock-win"><div class="mock-bar"><span class="dot"></span><span class="url">상품 목록</span></div>' +
+                  '<div class="mock-content" style="padding:28px 20px"><div style="max-width:220px;margin:0 auto;position:relative;' +
+                  'border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--surface)">' +
+                  '<span style="position:absolute;top:-8px;right:-8px;background:#ff3b30;color:#fff;font-size:11px;' +
+                  'font-weight:700;min-width:20px;height:20px;border-radius:10px;display:flex;align-items:center;' +
+                  'justify-content:center;padding:0 5px">3</span>' +
+                  '<div style="width:100%;height:70px;background:var(--bg);border-radius:8px;margin-bottom:10px"></div>' +
+                  '<div style="font-size:13px;font-weight:600">르무통 스니커즈</div>' +
+                  '<div style="font-size:12px;color:var(--text-sub);margin-top:2px">재고 3개 남음</div>' +
+                  '</div></div></div>' },
+        { id: 2, title: "테두리 강조", desc: "카드 전체 테두리를 빨갛게",
+          visual: '<div class="mock-win"><div class="mock-bar"><span class="dot"></span><span class="url">상품 목록</span></div>' +
+                  '<div class="mock-content" style="padding:28px 20px"><div style="max-width:220px;margin:0 auto;' +
+                  'border:2px solid #ff3b30;border-radius:12px;padding:16px;background:var(--surface)">' +
+                  '<div style="width:100%;height:70px;background:var(--bg);border-radius:8px;margin-bottom:10px"></div>' +
+                  '<div style="font-size:13px;font-weight:600">르무통 스니커즈</div>' +
+                  '<div style="font-size:12px;color:#ff3b30;font-weight:600;margin-top:2px">재고 부족</div>' +
+                  '</div></div></div>' }
       ]
     }
   ]
@@ -351,11 +452,16 @@ function buildSummaryText() {
 // 카드(그리드/리스트의 축소판)는 훑어보기 전용 — 탭하면 고르는 게 아니라 팝업을 연다.
 // 좁은 칸 안에 제목·설명·버튼을 다 욱여넣으면 이번에 지적받은 "내용을 상세히 못 본다"
 // 문제가 다시 생기므로, 실제 고르기·상세 설명·더보기는 전부 팝업(renderModal) 쪽으로 옮겼다.
+//
+// d.visual (있으면): 실제 화면·흐름을 그린 raw HTML 문자열(Claude가 직접 지어 넣는 것 —
+// 사용자 입력이 아니므로 escapeHtml 하지 않는다). 카드에는 축소판(zoom)으로,
+// 팝업에는 원본 크기로 그린다. "글로 설명" 대신 "보여주기"가 이 스킬의 기본 동작이다.
 function renderCard(g, d) {
   var selected = g.selected === d.id;
   return (
     '<div class="card ' + (selected ? "selected" : "") + '" role="button" tabindex="0" ' +
     'data-action="open-modal" data-group="' + g.id + '" data-draft="' + d.id + '">' +
+      (d.visual ? '<div class="card-visual"><div class="card-visual-inner">' + d.visual + "</div></div>" : "") +
       '<div class="card-badge">' + d.id + "</div>" +
       '<div class="card-title">' + escapeHtml(d.title) + "</div>" +
       (d.desc ? '<div class="card-desc">' + escapeHtml(d.desc) + "</div>" : "") +
@@ -385,6 +491,7 @@ function renderModal() {
           '<div class="modal-title">' + escapeHtml(d.title) + "</div>" +
           (d.desc ? '<div class="modal-desc">' + escapeHtml(d.desc) + "</div>" : "") +
           (selected ? '<div class="check">✓ 선택됨</div>' : "") +
+          (d.visual ? '<div class="modal-visual">' + d.visual + "</div>" : "") +
         "</div>" +
         '<div class="modal-nav">' +
           '<button type="button" class="modal-arrow" data-action="modal-prev" ' + (atFirst ? "disabled" : "") + ' aria-label="이전 시안">‹</button>' +
