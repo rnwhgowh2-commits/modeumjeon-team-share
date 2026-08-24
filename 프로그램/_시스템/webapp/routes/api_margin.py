@@ -655,18 +655,32 @@ def analyses_delete(analysis_id):
 
 @bp.route("/export", methods=["POST"])
 def export_route():
-    """{analysis_id, tab, rows?, column_order?} → xlsx 다운로드."""
+    """{analysis_id, tab, rows?, column_order?, payload?} → xlsx 다운로드.
+
+    🔴 [2026-08-24 실측] `payload` 없이 늘 `analysis_id`로 DB 저장분(=「분석 시작」
+    시점 원본, 전체기간)만 읽었다 — 화면에서 날짜를 좁히거나 행을 제외·수정해도
+    다운로드에는 전혀 반영되지 않고 매번 전체기간이 나오던 버그의 근본 원인.
+    `payload`가 오면(margin_embed.html 이 현재 화면의 getFilteredData() 결과를 실어
+    보낸다) 그걸 그대로 쓴다 — DB 재조회 없이 "화면에 보이는 바로 그 숫자"가 나간다.
+    `payload`가 없으면(예: 저장된 분석 목록에서 재다운로드하는 경로) 기존처럼
+    DB 저장분으로 폴백한다 — 하위호환.
+    """
     body = request.get_json(silent=True) or {}
     aid = body.get("analysis_id")
     if aid is None:
         return jsonify({"error": "analysis_id 가 필요합니다."}), 400
-    session = SessionLocal()
-    try:
-        payload = store.load(session, int(aid))
-    except LookupError:
-        return jsonify({"error": "분석을 찾을 수 없습니다."}), 404
-    finally:
-        session.close()
+
+    client_payload = body.get("payload")
+    if isinstance(client_payload, dict) and client_payload:
+        payload = client_payload
+    else:
+        session = SessionLocal()
+        try:
+            payload = store.load(session, int(aid))
+        except LookupError:
+            return jsonify({"error": "분석을 찾을 수 없습니다."}), 404
+        finally:
+            session.close()
 
     data = export.to_xlsx(
         payload, tab=body.get("tab", "all"),
