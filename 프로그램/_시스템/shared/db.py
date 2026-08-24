@@ -225,6 +225,10 @@ def _apply_lightweight_migrations() -> None:
         ('ix_mol_date', 'market_order_lines', 'order_date'),
     ]
     migrations = [
+        # [2026-08-24] 0층 규칙 저장소 참조 — 규칙 한 벌을 여러 정책이 공유한다.
+        #   NULL 이 정상(규칙 안 고른 정책 = 지금까지 동작 그대로).
+        ("market_policies", "name_rule_id", "INTEGER"),
+        ("market_policies", "detail_template_id", "INTEGER"),
         # [2026-08-06] 포장 스캔 출고가 어느 주문 줄이었나 — 같은 줄 두 번 찍어도
         #   재고가 두 번 안 깎이게 하는 열쇠(메모 문자열로 박으면 나중에 못 조회한다).
         ("inventory_txs", "order_line_uid", "VARCHAR(200)"),
