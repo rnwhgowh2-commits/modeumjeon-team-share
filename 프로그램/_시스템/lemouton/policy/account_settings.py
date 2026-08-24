@@ -59,3 +59,101 @@ def is_set(session, upload_account_id: int, key: str) -> bool:
     if key in _COLUMNS:
         return getattr(s, key) is not None
     return key in (s.extra or {})
+
+
+# ══ [Phase 2 · 2026-08-24] 마켓별 허용 키 ══════════════════════════════════
+#
+# 왜 화이트리스트인가:
+#   `extra` 는 JSON 이라 아무 키나 들어간다. 오타 난 키(`retrunFee`)가 조용히 저장되면
+#   화면엔 값이 보이는데 마켓엔 안 나가고, 「왜 안 먹지」로 한참 헤맨다. 이 저장소가
+#   반복적으로 겪은 형태라 **저장 창구에서 막는다.**
+#
+# 출처: docs/superpowers/specs/2026-08-24-2층-계정설정-칸목록.md §2
+#   (삼바 settings/config.ts 의 STORE_MARKETS 전수 추출 — 삼바는 이 칸들로 매일 등록한다)
+#
+# 🔴 자격증명(apiKey·secretKey 등)은 **여기 없다.** 시크릿 단일 원천은 `.env` 다
+#   (`lemouton/auth/secrets.py`). 삼바는 DB 에 담지만 우리는 그 설계를 안 따른다.
+# 🔴 재고 기본값(stockQuantity)도 **없다.** 「재고는 소싱처 실제 재고로만」이 절대
+#   규칙이라, 삼바의 999 기본값을 들이면 없는 재고를 있다고 파는 셈이다.
+
+#: 옥션·G마켓 공용 (ESM) — 두 마켓이 같은 칸을 쓴다. 갈라 두면 한쪽만 저장되는 사고가 난다.
+_ESM_KEYS = frozenset({
+    'shippingFeeType',    # 무료/유료
+    'shippingPlaceNo',    # 출고지 '번호' (주소 아님 — ESM 에 미리 등록해 둔 것)
+    'returnPlaceNo',      # 반품/교환지 번호
+    'dispatchPolicyNo',   # 배송정책 번호
+    'shippingCompanyNo',  # 발송 택배사
+    'shippingFee',        # 배송비
+})
+
+MARKET_EXTRA_KEYS: dict = {
+    'smartstore': frozenset({
+        'discountRate', 'returnSafeguard', 'naverShopping',
+        'multiPurchaseDiscount', 'multiPurchaseQty', 'multiPurchaseRate',
+        'purchasePointEnabled', 'purchasePointRate', 'reviewPointEnabled',
+        'reviewTextPoint', 'reviewPhotoPoint',
+        'reviewMonthTextPoint', 'reviewMonthPhotoPoint',
+    }),
+    # 🔴 쿠팡 출고지·반품지는 여기 없다 — `coupang_vendor_settings` 표가 이미 갖고 있고
+    #   읽는 곳이 5군데다. 두 벌로 만들면 「어느 출고지로 나갔나」를 못 쫓는다.
+    'coupang': frozenset({'discountRate'}),
+    'auction': _ESM_KEYS,
+    'gmarket': _ESM_KEYS,
+    'eleven11': frozenset({
+        'sellerType', 'deliveryType', 'deliveryFee', 'discountRate',
+        'shipFromAddress', 'returnAddress', 'dispatchTemplateNo',
+        'returnExchangeGuide', 'minorRestrict',
+        'multiPurchaseDiscount', 'multiPurchaseBasisType',
+        'multiPurchaseDiscountMethod', 'multiPurchaseQty', 'multiPurchaseAmt',
+        'multiPurchasePeriodEnabled', 'multiPurchaseStartDate', 'multiPurchaseEndDate',
+        'llpayPointEnabled', 'llpayPointType', 'llpayPointValue',
+    }),
+    'lotteon': frozenset({
+        'dvCstPolNo', 'dvIslandCstPolNo', 'owhpNo', 'rtrpNo',
+        'bundleDelivery', 'dispatchDays',
+        'reviewTextPoint', 'reviewPhotoPoint',
+        'reviewMonthTextPoint', 'reviewMonthPhotoPoint',
+        # 🔴 행사 제외 5칸 — 마켓이 우리 마진을 깎는 행사에서 빠지는 스위치. 금전 직결.
+        'ownerDiscountExclude', 'unitCouponExclude', 'deliveryCouponExclude',
+        'cmPcsExclude', 'pcsExclude',
+    }),
+}
+
+#: 마켓 이름 — 오류 문구를 사람 말로 내기 위해
+_MARKET_LABEL = {
+    'smartstore': '스마트스토어', 'coupang': '쿠팡', 'auction': '옥션',
+    'gmarket': 'G마켓', 'eleven11': '11번가', 'lotteon': '롯데ON',
+}
+
+
+class UnknownSettingKey(ValueError):
+    """그 마켓에 없는 칸으로 저장하려 했다. 오타를 조용히 삼키지 않는다."""
+
+
+def allowed_keys(market: str) -> frozenset:
+    """그 마켓에서 쓸 수 있는 전용 칸 이름들. 모르는 마켓이면 빈 집합."""
+    return MARKET_EXTRA_KEYS.get(str(market or '').strip(), frozenset())
+
+
+def set_extra(session, upload_account_id: int, market: str, values: dict):
+    """마켓 전용 칸을 저장한다. 허용 목록에 없는 키는 **거부**한다.
+
+    🔴 SQLAlchemy 는 JSON 칸을 **제자리에서 고치면 못 알아챈다** — 새 dict 를 통째로
+      다시 대입해야 저장된다(이 저장소에서 반복적으로 났던 조용한 저장 실패).
+    """
+    mk = str(market or '').strip()
+    ok = allowed_keys(mk)
+    bad = sorted(set(values or {}) - ok)
+    if bad:
+        raise UnknownSettingKey(
+            f'{_MARKET_LABEL.get(mk, mk)} 에 없는 칸입니다: {", ".join(bad)} — '
+            f'오타이거나 다른 마켓 칸일 수 있습니다.')
+
+    s = setting_for(session, upload_account_id)
+    if s is None:
+        s = MarketAccountSetting(upload_account_id=upload_account_id)
+        session.add(s)
+    merged = dict(s.extra or {})
+    merged.update(values or {})
+    s.extra = merged          # ★ 통째 대입 — 제자리 수정이면 저장이 조용히 안 된다
+    return s

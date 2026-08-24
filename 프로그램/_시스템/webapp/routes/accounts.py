@@ -896,6 +896,33 @@ def create_upload_account():
         s.add(acc)
         s.commit()
         s.refresh(acc)
+
+        # ── [Phase 2 · 2026-08-24] 새 계정에 기본 배송비를 넣어 준다 ──────────
+        #   사장님 확정: 반품 5,000(편도) · 교환 10,000(왕복).
+        #   🔴 **새로 만들 때만** 넣는다. 기존 계정의 「안 정함」(NULL)을 나중에
+        #     5,000 으로 채우면 「안 정함」이 사라져, 이 표를 만든 뜻이 없어진다.
+        #   🔴 계정 등록 자체를 이것 때문에 실패시키지 않는다 — 곁가지다.
+        try:
+            from lemouton.policy.models import DEFAULT_FEES, MarketAccountSetting
+            s.add(MarketAccountSetting(upload_account_id=acc.id, **DEFAULT_FEES))
+            s.commit()
+        except Exception as _e:      # noqa: BLE001
+            # 🔴 [2026-08-24 실화면에서 잡음] Phase 1 을 배포한 **뒤에** 「안 정함=NULL」로
+            #   규칙을 바꿨는데, 이미 만들어진 표에는 NOT NULL 이 남아 있다.
+            #   그러면 as_phone=NULL 이 제약에 걸려 설정 행이 **아예 안 만들어졌다** —
+            #   시험은 매번 새 표를 만들어서 통과했고, 실제 서버에서만 죽었다.
+            #   PostgreSQL 은 위 마이그레이션이 제약을 풀지만, SQLite 는 못 푼다.
+            #   그래서 빈 값을 허용하지 않는 옛 표에서도 **행은 만들어지게** 한 번 더 시도한다.
+            #   ★ 여기서 빈 칸을 0 으로 채워 넣고 싶어지는데, **그건 하면 안 된다.**
+            #     제주·도서산간 배송비에 0 을 지어 넣으면 「무료로 정함」이 돼서
+            #     그대로 마켓에 나가고 그 차액은 우리가 문다.
+            #     행이 없으면 전 칸이 「안 정함」 — 그게 사실이고, 화면에서 보인다.
+            s.rollback()
+            logger.error("기본 배송비 넣기 실패 account_id=%s: %s — "
+                         "표에 옛 NOT NULL 이 남아 있을 수 있다"
+                         "(shared/db.py 의 market_account_settings 마이그레이션 확인)",
+                         acc.id, _e)
+
         return jsonify({
             "ok": True,
             "id": acc.id,
@@ -3210,3 +3237,108 @@ def crawl_login_creds(env_prefix: str):
     return jsonify({"ok": True, "login_id": st["login_id"], "password": pw,
                     "display_name": acc.display_name})
 
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  2층 계정 설정 — 등록 설정 (Phase 2 · 2026-08-24)
+#
+#  🔴 여기는 **등록 설정만** 다룬다. 자격증명(API 키)은 위 `save_secrets` 가
+#    `.env` 에 쓴다 — 시크릿 단일 원천은 파일이고 DB 이중 저장은 금지다.
+# ══════════════════════════════════════════════════════════════════════════
+
+@bp.route("/api/settings/<int:account_id>", methods=["GET"])
+def get_account_settings(account_id: int):
+    """그 계정의 등록 설정 한 벌.
+
+    Response: ``{"ok": true, "columns": {...}, "extra": {...}, "allowed": [...]}``
+      · 값이 ``null`` 이면 **아직 안 정함**이다. 0 이나 빈 문자열과 다르다.
+    """
+    from lemouton.policy import account_settings as AS
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+
+        row = AS.setting_for(s, account_id)
+        cols = {k: (getattr(row, k) if row else None) for k in sorted(AS._COLUMNS)}
+        return jsonify({
+            "ok": True,
+            "market": acc.market,
+            "columns": cols,
+            "extra": (row.extra if row else {}) or {},
+            "allowed": sorted(AS.allowed_keys(acc.market)),
+        })
+    finally:
+        s.close()
+
+
+@bp.route("/api/settings/<int:account_id>", methods=["POST"])
+def save_account_settings(account_id: int):
+    """등록 설정 저장.
+
+    Body: ``{"columns": {"return_fee": 5000, ...}, "extra": {"owhpNo": "OW1", ...}}``
+
+    🔴 **빈 문자열은 「안 정함」(NULL)으로 저장한다.** 화면에서 칸을 비우는 것이
+      「안 정함으로 되돌리기」의 유일한 방법이다.
+    🔴 **0 은 0 으로 저장한다.** 반품비 0원(무료 반품)과 미설정은 다른 뜻이고,
+      배송비는 금전 직결이라 이 혼동이 곧 손실이다.
+    """
+    from lemouton.policy import account_settings as AS
+    from lemouton.policy.models import MarketAccountSetting
+
+    body = request.get_json(silent=True) or {}
+    cols = body.get("columns") or {}
+    extra = body.get("extra") or {}
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+
+        bad_cols = sorted(set(cols) - AS._COLUMNS)
+        if bad_cols:
+            return jsonify({
+                "ok": False,
+                "error": f"공통 칸이 아닙니다: {', '.join(bad_cols)}",
+            }), 400
+
+        # ★ extra 를 먼저 검사한다 — 거부될 값이면 컬럼도 저장하지 않는다
+        #   (일부만 저장되면 화면과 실제가 어긋난다).
+        if extra:
+            bad_extra = sorted(set(extra) - AS.allowed_keys(acc.market))
+            if bad_extra:
+                # ★ 마켓 이름은 **사람이 읽는 말**로 낸다("coupang" ❌ → "쿠팡" ✅).
+                #   화면에 그대로 뜨는 문구다.
+                label = AS._MARKET_LABEL.get(acc.market, acc.market)
+                return jsonify({
+                    "ok": False,
+                    "error": (f"{label} 에 없는 칸입니다: {', '.join(bad_extra)} — "
+                              f"오타이거나 다른 마켓 칸일 수 있습니다."),
+                }), 400
+
+        # ★ 행은 **여기서 한 번만** 만든다.
+        #   🔴 [2026-08-24 시험이 잡음] 예전에는 여기서 만들고 AS.set_extra 도 또
+        #     만들어, extra 만 저장할 때 UNIQUE 제약에 걸려 500 이 났다.
+        #     같은 행을 두 곳에서 만들면 「계정당 설정 한 벌」 규칙과 부딪힌다.
+        row = AS.setting_for(s, account_id)
+        if row is None:
+            row = MarketAccountSetting(upload_account_id=account_id)
+            s.add(row)
+            s.flush()          # set_extra 가 이 행을 찾을 수 있게 먼저 밀어 넣는다
+
+        for k, v in cols.items():
+            # ★ 빈 문자열 → None(안 정함). 0 은 그대로 0.
+            setattr(row, k, None if (isinstance(v, str) and v.strip() == "") else v)
+
+        if extra:
+            merged = dict(row.extra or {})
+            merged.update(extra)
+            row.extra = merged   # ★ 통째 대입 — 제자리 수정이면 저장이 조용히 안 된다
+
+        s.commit()
+        return jsonify({"ok": True})
+    finally:
+        s.close()
