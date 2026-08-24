@@ -1454,9 +1454,17 @@ async function startAnalysis() {
    날짜 필터
 ══════════════════════════════════════════════════════ */
 function parseDate26(s) {
-  /* '26.04.08' → '2026-04-08' */
+  /* '2026-08-23 20:52:02' / '2026-08-23' → '2026-08-23' (모음전 API 「분석 시작」 주문일 형식)
+     '26.04.08' → '2026-04-08' (레거시 더망고 엑셀 업로드 표기, 계속 지원)
+     🔴 2026-08-24 실측 — ISO 형식을 못 읽어 항상 빈 문자열을 돌렸고, 그 결과 날짜 필터가
+       (dateFrom/dateTo 를 바꿔도) 완전히 무시됐다. daily/monthly/기간평균배너 등 이 함수를
+       쓰는 곳 전부가 같은 증상이라, 이 함수 하나만 고치면 전체 탭이 같이 고쳐진다. */
+  var str = String(s || '').trim();
+  if (!str) return '';
+  var iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
   try {
-    var p = String(s).trim().split('.');
+    var p = str.split('.');
     if (p.length === 3) return '20' + p[0] + '-' + p[1] + '-' + p[2];
   } catch(e) {}
   return '';
