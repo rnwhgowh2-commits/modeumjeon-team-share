@@ -346,6 +346,44 @@
                 font-weight:700;cursor:pointer;font-family:inherit}
   .cpd-no{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
   .cpd-go{background:var(--primary,#3182F6);color:#fff}
+  /* ── 상품명 조립기 (Phase 3) ─────────────────────────────────────── */
+  .nr-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .nr-pick select{flex:1;min-width:220px;height:34px;border:1px solid var(--n200,#E5E8EB);
+                  border-radius:8px;padding:0 10px;font-size:13px;font-family:inherit}
+  .nr-msg{margin-top:8px;font-size:12px;min-height:16px}
+  .nr-msg.err{color:#C93B3B}
+  .nr-msg.ok{color:#1B8A5A}
+  .hint-i{font-size:12px;font-weight:400;color:var(--sub,#8B95A1);margin-left:6px}
+  .nr-toks{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .nr-tok{border:1px solid var(--n200,#E5E8EB);background:#fff;border-radius:999px;
+          padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+  .nr-tok:hover{border-color:var(--primary,#3182F6);color:var(--primary,#3182F6)}
+  .nr-chips{display:flex;gap:6px;flex-wrap:wrap;min-height:40px;padding:8px;
+            border:1px dashed var(--n200,#E5E8EB);border-radius:10px;background:#FAFBFC}
+  .nr-chip{display:flex;align-items:center;gap:6px;background:#EAF2FE;
+           border:1px solid #C9DEFB;border-radius:8px;padding:5px 8px 5px 10px;
+           font-size:12px;color:#1B4F91;cursor:grab}
+  .nr-chip.free{background:#F2F4F6;border-color:#E5E8EB;color:#4E5968}
+  .nr-chip.drag{opacity:.4}
+  .nr-chip button{border:0;background:none;cursor:pointer;color:inherit;
+                  font-size:13px;line-height:1;padding:0 2px;font-family:inherit}
+  .nr-chip-empty{font-size:12px;color:var(--sub,#8B95A1);padding:4px}
+  .nr-add{display:flex;gap:6px;margin-top:8px}
+  .nr-add input{flex:1;height:32px;border:1px solid var(--n200,#E5E8EB);
+                border-radius:8px;padding:0 10px;font-size:13px;font-family:inherit}
+  .nr-sample{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .nr-sample input{flex:1;min-width:130px;height:32px;border:1px solid var(--n200,#E5E8EB);
+                   border-radius:8px;padding:0 10px;font-size:13px;font-family:inherit}
+  .nr-prev{display:flex;flex-direction:column;gap:6px}
+  .nr-row{display:flex;align-items:center;gap:10px;padding:8px 10px;
+          border:1px solid var(--n200,#E5E8EB);border-radius:8px;font-size:13px}
+  .nr-row .mk{width:92px;flex:none;color:var(--sub,#6B7684);font-size:12px}
+  .nr-row .nm{flex:1;word-break:break-all}
+  .nr-row .ct{flex:none;font-size:12px;color:var(--sub,#8B95A1);white-space:nowrap}
+  .nr-row.cut{border-color:#F5C6C6;background:#FFF6F6}
+  .nr-row.cut .ct{color:#C93B3B;font-weight:700}
+  .nr-cutbadge{flex:none;font-size:11px;background:#FDECEC;color:#C93B3B;
+               border-radius:6px;padding:2px 6px;white-space:nowrap}
   </style>
 
   <a class="pd-back" href="/policies">← 정책 생성 목록</a>
@@ -709,6 +747,51 @@
               <div id="pf-disc-none" class="hint">깎을 값을 적으면 여기서 미리 보여드립니다</div>
             </div>
           </div>
+        </div>
+      </div>
+      {% elif it.key == 'name' %}
+      {# ── 상품명 조립기 (2026-08-24 Phase 3 · 사장님 요청) ──────────────────
+         「상품명에 필요한 항목들 버튼으로 불러오고, 조립순서를 드래그앤드랍으로
+          변경할 수 있게 해줘」
+
+         🔴 규칙은 **정책 밖(0층)에 저장**한다. 규칙 한 벌을 여러 정책이 참조해서,
+           치환표를 한 번 채우면 그 규칙을 쓰는 정책 전부에 반영된다. 정책 안에
+           두면 정책 수만큼 다시 채워야 한다(삼바가 별도 저장소를 둔 이유).
+         🔴 미리보기는 **전송과 같은 엔진**을 부른다(/api/name-rules/preview).
+           여기서 다시 조립하면 화면과 실제 전송이 갈린다. #}
+      {% set cfg = saved or {} %}
+      <div class="nr-wrap" data-pid="{{ policy.id }}"
+           data-rule="{{ policy.name_rule_id or '' }}">
+        <div class="grp">
+          <h4>규칙 세트</h4>
+          <div class="nr-pick">
+            <select id="nr-sel"><option value="">— 이 정책에서 직접 정함 —</option></select>
+            <button class="btnsm" type="button" id="nr-new">새로 만들기</button>
+            <button class="btnsm" type="button" id="nr-save">이 규칙 저장</button>
+          </div>
+          <div class="hint">규칙 세트를 고르면 <b>그 규칙을 쓰는 정책 전부</b>가 같이
+            바뀝니다. 「직접 정함」이면 이 정책만의 값을 씁니다.</div>
+          <div class="nr-msg" id="nr-msg"></div>
+        </div>
+
+        <div class="grp">
+          <h4>조립 순서 <span class="hint-i">끌어서 순서를 바꿉니다</span></h4>
+          <div class="nr-toks" id="nr-toks"></div>
+          <div class="nr-chips" id="nr-chips"></div>
+          <div class="nr-add">
+            <input type="text" id="nr-free" placeholder="직접 입력 (예: 정품)">
+            <button class="btnsm" type="button" id="nr-free-add">넣기</button>
+          </div>
+        </div>
+
+        <div class="grp">
+          <h4>이렇게 나갑니다 <span class="hint-i">실제 전송과 같은 계산입니다</span></h4>
+          <div class="nr-sample">
+            <input type="text" id="nr-s-brand" placeholder="브랜드" value="나이키">
+            <input type="text" id="nr-s-name" placeholder="상품명" value="에어포스 1 남성 스니커즈">
+            <input type="text" id="nr-s-art" placeholder="품번" value="CW2288-111">
+          </div>
+          <div class="nr-prev" id="nr-prev"></div>
         </div>
       </div>
       {% elif it.key == 'listing' %}
@@ -1449,5 +1532,335 @@ document.querySelectorAll('select[data-k$="_mode"]').forEach(function (sel) {
     });
   });
 });
+
+/* ══ 상품명 조립기 (2026-08-24 Phase 3) ══════════════════════════════════
+   🔴 미리보기는 서버(/api/name-rules/preview)에 맡긴다 — 여기서 조립을 흉내 내면
+     화면이 「이렇게 나갑니다」라고 해 놓고 실제 전송은 다른 이름이 나간다.        */
+(function(){
+  const wrap = document.querySelector('.nr-wrap');
+  if(!wrap) return;
+  const PID = wrap.dataset.pid;
+  const $ = id => document.getElementById(id);
+  let TOKENS = [], RULES = [], ORDER = [], CUR = wrap.dataset.rule || '';
+
+  const label = k => (TOKENS.find(t => t.key === k) || {}).label || null;
+
+  function msg(t, cls){ const m = $('nr-msg'); m.textContent = t || ''; m.className = 'nr-msg ' + (cls||''); }
+
+  function drawTokens(){
+    $('nr-toks').innerHTML = TOKENS.map(t =>
+      '<button type="button" class="nr-tok" data-k="'+t.key+'" title="'+t.hint+'">+ '+t.label+'</button>'
+    ).join('');
+  }
+
+  function drawChips(){
+    const box = $('nr-chips');
+    if(!ORDER.length){
+      box.innerHTML = '<span class="nr-chip-empty">위 단추를 눌러 조각을 넣어 주세요 — '
+                    + '비워 두면 상품명이 통째로 사라집니다.</span>';
+      return;
+    }
+    box.innerHTML = ORDER.map((k,i) => {
+      const lb = label(k);
+      return '<span class="nr-chip'+(lb?'':' free')+'" draggable="true" data-i="'+i+'">'
+           + (lb || k) + '<button type="button" data-x="'+i+'" aria-label="빼기">✕</button></span>';
+    }).join('');
+  }
+
+  function draw(){ drawChips(); preview(); }
+
+  let pvTimer = null;
+  function preview(){
+    clearTimeout(pvTimer);
+    pvTimer = setTimeout(async () => {
+      const box = $('nr-prev');
+      if(!ORDER.length){ box.innerHTML = ''; return; }
+      let j;
+      try{
+        j = await (await fetch('/api/name-rules/preview', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({token_order: ORDER, sample: {
+            brand: $('nr-s-brand').value, name: $('nr-s-name').value,
+            article_no: $('nr-s-art').value }})})).json();
+      }catch(e){ box.innerHTML = '<div class="nr-row">미리보기를 못 불러왔습니다</div>'; return; }
+      if(!j.ok){ box.innerHTML = '<div class="nr-row">'+(j.message||'')+'</div>'; return; }
+      box.innerHTML = j.rows.map(r => {
+        const cap = r.cap_bytes ? (r.bytes+'/'+r.cap_bytes+'바이트')
+                  : (r.cap_chars ? (r.chars+'/'+r.cap_chars+'자')
+                                 : (r.chars+'자 · '+r.bytes+'바이트'));
+        return '<div class="nr-row'+(r.over?' cut':'')+'">'
+             + '<span class="mk">'+r.label+'</span>'
+             + '<span class="nm">'+(r.name||'—')+'</span>'
+             + (r.over ? '<span class="nr-cutbadge">잘림</span>' : '')
+             + '<span class="ct">'+cap+'</span></div>';
+      }).join('');
+    }, 180);
+  }
+
+  function drawSel(){
+    $('nr-sel').innerHTML = '<option value="">— 이 정책에서 직접 정함 —</option>'
+      + RULES.map(r => '<option value="'+r.id+'"'+(String(r.id)===String(CUR)?' selected':'')
+                     + '>'+r.name+'</option>').join('');
+  }
+
+  async function load(){
+    const j = await (await fetch('/api/name-rules')).json();
+    RULES = j.rules || [];
+    drawSel();
+    const cur = RULES.find(r => String(r.id) === String(CUR));
+    if(cur) ORDER = cur.token_order.slice();
+    draw();
+  }
+
+  /* ── 단추 ── */
+  $('nr-toks').addEventListener('click', e => {
+    const b = e.target.closest('.nr-tok'); if(!b) return;
+    ORDER.push(b.dataset.k); draw();
+  });
+  $('nr-chips').addEventListener('click', e => {
+    const b = e.target.closest('button[data-x]'); if(!b) return;
+    ORDER.splice(+b.dataset.x, 1); draw();
+  });
+  $('nr-free-add').addEventListener('click', () => {
+    const v = $('nr-free').value.trim();
+    if(!v) return;
+    ORDER.push(v); $('nr-free').value = ''; draw();
+  });
+  ['nr-s-brand','nr-s-name','nr-s-art'].forEach(id =>
+    $(id).addEventListener('input', preview));
+
+  /* ── 끌어서 순서 바꾸기 ── */
+  let from = null;
+  $('nr-chips').addEventListener('dragstart', e => {
+    const c = e.target.closest('.nr-chip'); if(!c) return;
+    from = +c.dataset.i; c.classList.add('drag');
+  });
+  $('nr-chips').addEventListener('dragend', e => {
+    const c = e.target.closest('.nr-chip'); if(c) c.classList.remove('drag');
+  });
+  $('nr-chips').addEventListener('dragover', e => e.preventDefault());
+  $('nr-chips').addEventListener('drop', e => {
+    e.preventDefault();
+    const c = e.target.closest('.nr-chip');
+    if(from === null) return;
+    const to = c ? +c.dataset.i : ORDER.length - 1;
+    const [x] = ORDER.splice(from, 1);
+    ORDER.splice(to, 0, x);
+    from = null; draw();
+  });
+
+  /* ── 규칙 고르기 ── */
+  $('nr-sel').addEventListener('change', async () => {
+    const v = $('nr-sel').value;
+    const r = await (await fetch('/api/policies/'+PID+'/name-rule', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name_rule_id: v || null})})).json();
+    if(!r.ok){ msg(r.message || '못 바꿨어요', 'err'); return; }
+    CUR = v;
+    const cur = RULES.find(x => String(x.id) === String(v));
+    ORDER = cur ? cur.token_order.slice() : [];
+    msg(v ? '이 정책이 그 규칙을 따릅니다.' : '이 정책에서 직접 정합니다.', 'ok');
+    draw();
+  });
+
+  /* ── 새로 만들기 · 저장 ── */
+  $('nr-new').addEventListener('click', async () => {
+    const nm = prompt('규칙 이름을 적어 주세요 (예: 브랜드 먼저)');
+    if(!nm) return;
+    const r = await (await fetch('/api/name-rules', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name: nm, token_order: ORDER.length ? ORDER
+                                                                : ['brand','origin_name']})})).json();
+    if(!r.ok){ msg(r.message || '못 만들었어요', 'err'); return; }
+    CUR = String(r.id);
+    await load();
+    await fetch('/api/policies/'+PID+'/name-rule', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name_rule_id: r.id})});
+    msg('규칙을 만들고 이 정책에 붙였습니다.', 'ok');
+  });
+
+  $('nr-save').addEventListener('click', async () => {
+    if(!CUR){ msg('먼저 규칙 세트를 고르거나 새로 만들어 주세요.', 'err'); return; }
+    const r = await (await fetch('/api/name-rules/'+CUR, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({token_order: ORDER})})).json();
+    if(!r.ok){ msg(r.message || '저장 못 했어요', 'err'); return; }
+    msg('저장했습니다 — 이 규칙을 쓰는 정책 전부에 반영됩니다.', 'ok');
+    await load();
+  });
+
+  (async () => {
+    TOKENS = ((await (await fetch('/api/name-rules/tokens')).json()).tokens) || [];
+    drawTokens();
+    await load();
+  })();
+})();
+
+
+/* ══ 상품명 조립기 (2026-08-24 Phase 3) ══════════════════════════════════
+   🔴 미리보기는 서버(/api/name-rules/preview)에 맡긴다 — 여기서 조립을 흉내 내면
+     화면이 「이렇게 나갑니다」라고 해 놓고 실제 전송은 다른 이름이 나간다.        */
+(function(){
+  const wrap = document.querySelector('.nr-wrap');
+  if(!wrap) return;
+  const PID = wrap.dataset.pid;
+  const $ = id => document.getElementById(id);
+  let TOKENS = [], RULES = [], ORDER = [], CUR = wrap.dataset.rule || '';
+
+  const label = k => (TOKENS.find(t => t.key === k) || {}).label || null;
+
+  function msg(t, cls){ const m = $('nr-msg'); m.textContent = t || ''; m.className = 'nr-msg ' + (cls||''); }
+
+  function drawTokens(){
+    $('nr-toks').innerHTML = TOKENS.map(t =>
+      '<button type="button" class="nr-tok" data-k="'+t.key+'" title="'+t.hint+'">+ '+t.label+'</button>'
+    ).join('');
+  }
+
+  function drawChips(){
+    const box = $('nr-chips');
+    if(!ORDER.length){
+      box.innerHTML = '<span class="nr-chip-empty">위 단추를 눌러 조각을 넣어 주세요 — '
+                    + '비워 두면 상품명이 통째로 사라집니다.</span>';
+      return;
+    }
+    box.innerHTML = ORDER.map((k,i) => {
+      const lb = label(k);
+      return '<span class="nr-chip'+(lb?'':' free')+'" draggable="true" data-i="'+i+'">'
+           + (lb || k) + '<button type="button" data-x="'+i+'" aria-label="빼기">✕</button></span>';
+    }).join('');
+  }
+
+  function draw(){ drawChips(); preview(); }
+
+  let pvTimer = null;
+  function preview(){
+    clearTimeout(pvTimer);
+    pvTimer = setTimeout(async () => {
+      const box = $('nr-prev');
+      if(!ORDER.length){ box.innerHTML = ''; return; }
+      let j;
+      try{
+        j = await (await fetch('/api/name-rules/preview', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({token_order: ORDER, sample: {
+            brand: $('nr-s-brand').value, name: $('nr-s-name').value,
+            article_no: $('nr-s-art').value }})})).json();
+      }catch(e){ box.innerHTML = '<div class="nr-row">미리보기를 못 불러왔습니다</div>'; return; }
+      if(!j.ok){ box.innerHTML = '<div class="nr-row">'+(j.message||'')+'</div>'; return; }
+      box.innerHTML = j.rows.map(r => {
+        const cap = r.cap_bytes ? (r.bytes+'/'+r.cap_bytes+'바이트')
+                  : (r.cap_chars ? (r.chars+'/'+r.cap_chars+'자')
+                                 : (r.chars+'자 · '+r.bytes+'바이트'));
+        return '<div class="nr-row'+(r.over?' cut':'')+'">'
+             + '<span class="mk">'+r.label+'</span>'
+             + '<span class="nm">'+(r.name||'—')+'</span>'
+             + (r.over ? '<span class="nr-cutbadge">잘림</span>' : '')
+             + '<span class="ct">'+cap+'</span></div>';
+      }).join('');
+    }, 180);
+  }
+
+  function drawSel(){
+    $('nr-sel').innerHTML = '<option value="">— 이 정책에서 직접 정함 —</option>'
+      + RULES.map(r => '<option value="'+r.id+'"'+(String(r.id)===String(CUR)?' selected':'')
+                     + '>'+r.name+'</option>').join('');
+  }
+
+  async function load(){
+    const j = await (await fetch('/api/name-rules')).json();
+    RULES = j.rules || [];
+    drawSel();
+    const cur = RULES.find(r => String(r.id) === String(CUR));
+    if(cur) ORDER = cur.token_order.slice();
+    draw();
+  }
+
+  /* ── 단추 ── */
+  $('nr-toks').addEventListener('click', e => {
+    const b = e.target.closest('.nr-tok'); if(!b) return;
+    ORDER.push(b.dataset.k); draw();
+  });
+  $('nr-chips').addEventListener('click', e => {
+    const b = e.target.closest('button[data-x]'); if(!b) return;
+    ORDER.splice(+b.dataset.x, 1); draw();
+  });
+  $('nr-free-add').addEventListener('click', () => {
+    const v = $('nr-free').value.trim();
+    if(!v) return;
+    ORDER.push(v); $('nr-free').value = ''; draw();
+  });
+  ['nr-s-brand','nr-s-name','nr-s-art'].forEach(id =>
+    $(id).addEventListener('input', preview));
+
+  /* ── 끌어서 순서 바꾸기 ── */
+  let from = null;
+  $('nr-chips').addEventListener('dragstart', e => {
+    const c = e.target.closest('.nr-chip'); if(!c) return;
+    from = +c.dataset.i; c.classList.add('drag');
+  });
+  $('nr-chips').addEventListener('dragend', e => {
+    const c = e.target.closest('.nr-chip'); if(c) c.classList.remove('drag');
+  });
+  $('nr-chips').addEventListener('dragover', e => e.preventDefault());
+  $('nr-chips').addEventListener('drop', e => {
+    e.preventDefault();
+    const c = e.target.closest('.nr-chip');
+    if(from === null) return;
+    const to = c ? +c.dataset.i : ORDER.length - 1;
+    const [x] = ORDER.splice(from, 1);
+    ORDER.splice(to, 0, x);
+    from = null; draw();
+  });
+
+  /* ── 규칙 고르기 ── */
+  $('nr-sel').addEventListener('change', async () => {
+    const v = $('nr-sel').value;
+    const r = await (await fetch('/api/policies/'+PID+'/name-rule', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name_rule_id: v || null})})).json();
+    if(!r.ok){ msg(r.message || '못 바꿨어요', 'err'); return; }
+    CUR = v;
+    const cur = RULES.find(x => String(x.id) === String(v));
+    ORDER = cur ? cur.token_order.slice() : [];
+    msg(v ? '이 정책이 그 규칙을 따릅니다.' : '이 정책에서 직접 정합니다.', 'ok');
+    draw();
+  });
+
+  /* ── 새로 만들기 · 저장 ── */
+  $('nr-new').addEventListener('click', async () => {
+    const nm = prompt('규칙 이름을 적어 주세요 (예: 브랜드 먼저)');
+    if(!nm) return;
+    const r = await (await fetch('/api/name-rules', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name: nm, token_order: ORDER.length ? ORDER
+                                                                : ['brand','origin_name']})})).json();
+    if(!r.ok){ msg(r.message || '못 만들었어요', 'err'); return; }
+    CUR = String(r.id);
+    await load();
+    await fetch('/api/policies/'+PID+'/name-rule', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name_rule_id: r.id})});
+    msg('규칙을 만들고 이 정책에 붙였습니다.', 'ok');
+  });
+
+  $('nr-save').addEventListener('click', async () => {
+    if(!CUR){ msg('먼저 규칙 세트를 고르거나 새로 만들어 주세요.', 'err'); return; }
+    const r = await (await fetch('/api/name-rules/'+CUR, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({token_order: ORDER})})).json();
+    if(!r.ok){ msg(r.message || '저장 못 했어요', 'err'); return; }
+    msg('저장했습니다 — 이 규칙을 쓰는 정책 전부에 반영됩니다.', 'ok');
+    await load();
+  });
+
+  (async () => {
+    TOKENS = ((await (await fetch('/api/name-rules/tokens')).json()).tokens) || [];
+    drawTokens();
+    await load();
+  })();
+})();
+
 </script>
 {% endblock %}

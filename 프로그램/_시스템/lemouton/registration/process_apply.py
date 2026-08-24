@@ -1469,11 +1469,40 @@ def _build_name(draft, cfg, brand_cfg, market):
                 continue
             parts.append(before.strip())
         elif key == 'model_no':
-            # ★ ProductDraft 에 품번 칸이 없다(models.py:23~ 전수 확인). 조용히 빼지
-            #   않고 말한다 — 다음 사람이 「규칙이 안 먹는다」로 오해하지 않게.
-            skipped.append(_skip('name', 'model_no', 'NO_MODEL_NO',
-                                 '품번을 담는 칸이 아직 없어 상품명에 품번을 넣지 '
-                                 '못했습니다 — 조립 순서에서 품번은 빠집니다.', False))
+            # ★ [2026-08-24 Phase 3] 품번은 `Model.article_no` 에 있다.
+            #   구성 사본(`to_payload.set_view`)이 실어 주면 여기서 붙는다.
+            #   예전엔 「담을 칸이 아예 없다」였는데, 칸은 있고 사본이 안 실어
+            #   주고 있었을 뿐이다. 그래도 **비면 조용히 빼지 않고 말한다** —
+            #   다음 사람이 「규칙이 안 먹는다」로 오해하지 않게.
+            art = str(getattr(draft, 'article_no', '') or '').strip()
+            if art:
+                parts.append(art)
+            else:
+                skipped.append(_skip('name', 'model_no', 'NO_MODEL_NO',
+                                     '이 상품에는 품번이 비어 있어 상품명에 품번을 '
+                                     '넣지 못했습니다 — 조립 순서에서 품번은 빠집니다.',
+                                     False))
+        elif key == 'product_no':
+            # 상품번호 — 화면에서 보이는 번호가 있으면 그것, 없으면 모델 코드.
+            pno = (str(getattr(draft, 'display_no', '') or '').strip()
+                   or str(getattr(draft, 'model_code', '') or '').strip())
+            if pno:
+                parts.append(pno)
+            else:
+                skipped.append(_skip('name', 'product_no', 'NO_PRODUCT_NO',
+                                     '이 상품에는 상품번호가 없어 상품명에 넣지 '
+                                     '못했습니다.', False))
+        elif key == 'category':
+            # 🔴 '신발>스니커즈' 를 통째로 넣으면 상품명에 꺾쇠가 들어간다 —
+            #   맨 끝 칸(가장 좁은 분류)만 쓴다.
+            path = str(getattr(draft, 'source_category_path', '') or '').strip()
+            leaf = path.replace('>', '/').split('/')[-1].strip() if path else ''
+            if leaf:
+                parts.append(leaf)
+            else:
+                skipped.append(_skip('name', 'category', 'NO_CATEGORY',
+                                     '이 상품에는 카테고리가 없어 상품명에 넣지 '
+                                     '못했습니다.', False))
         elif key.strip():
             parts.append(key.strip())        # 임의 텍스트 (§7-1)
 

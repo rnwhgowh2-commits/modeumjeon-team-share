@@ -95,7 +95,14 @@ def rules_for(session, *, set_id: int, market: str) -> tuple[dict, object, str]:
     if policy is None:
         return {}, None, None
     from lemouton.policy.service import values_for
-    return values_for(session, policy.id, market), policy, origin
+    rules = values_for(session, policy.id, market)
+    # ★ [2026-08-24 Phase 3] 0층 상품명 규칙을 여기서 얹는다.
+    #   🔴 이 다리가 없으면 화면에서 규칙을 골라도 **나가는 상품명이 안 바뀐다** —
+    #     `name_rule_id` 칸은 Phase 1 부터 있었는데 읽는 곳이 0곳이었다.
+    #   규칙을 안 고른 정책(NULL)은 `rules` 를 그대로 돌려받는다(동작 불변).
+    from lemouton.policy import name_rules as _NR
+    return _NR.apply_to_rules(session, policy=policy, market=market,
+                              rules=rules), policy, origin
 
 
 def price_template_for(session, *, set_id: int, fallback=None):
@@ -113,9 +120,11 @@ def price_template_for(session, *, set_id: int, fallback=None):
 
 # ── ② 구성을 엔진이 읽을 수 있는 모양으로 ────────────────────────────────
 #
-# `apply_rules` 가 읽는 칸은 아홉 개뿐이다(실측):
+# `apply_rules` 가 읽는 칸(실측):
 #   name · brand · detail_html · options_json · notice_json ·
 #   origin_area_code · delivery_fee · return_fee · source_category_path
+#   + [2026-08-24 Phase 3] article_no(품번) · display_no(상품번호) · model_code
+#     — 상품명 조립 조각용. 사본이 안 실으면 그 조각은 늘 빈 채로 빠진다.
 # ProductDraft 를 흉내 내되 **읽기 전용**이다 — 쓰면 DB 에 안 남고 사라진다.
 
 class SetProcessView:
@@ -275,14 +284,24 @@ def set_view(session, *, set_id: int) -> SetProcessView:
     model_name = ''
     brand = ''
     category_path = ''
+    article_no = ''
+    display_no = ''
     if m is not None:
         model_name = m.model_name_display or m.model_name_raw or m.model_code
         brand = m.brand or ''
         category_path = m.category or ''
+        # ★ [2026-08-24 Phase 3] 상품명 조립에 품번·상품번호를 쓸 수 있게 실어 준다.
+        #   🔴 예전엔 「품번을 담는 칸이 아예 없다」고 안내하고 있었는데, 칸은
+        #     `Model.article_no` 에 있었고 **사본이 안 실어 주고 있었을 뿐**이다.
+        #     사본에 없으면 조각을 골라도 늘 빈 채로 빠진다.
+        article_no = str(m.article_no or '').strip()
+        display_no = str(m.display_no or '').strip()
 
     return SetProcessView({
         'set_id': ps.id,
         'model_code': ps.model_code,
+        'article_no': article_no,
+        'display_no': display_no,
         'name': (ps.name or '').strip() or model_name,
         'brand': brand,
         'detail_html': '',                 # 상세는 아직 구성에 칸이 없다(3단계 범위 밖)

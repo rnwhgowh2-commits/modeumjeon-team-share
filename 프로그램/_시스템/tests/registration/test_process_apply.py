@@ -639,3 +639,49 @@ def test_표기를_고르면_대문자화는_그대로_동작한다():
                                              'brand_case': 'upper'},
                                     'brand': {'mode': 'english', 'position': 'front'}})
     assert view.name == 'NIKE air force 1', view.name
+
+
+# ── 새 조립 조각 (2026-08-24 Phase 3) ───────────────────────────────────────
+#
+# 🔴 여기 없는 조각을 화면에 단추로 내놓으면 안 된다. 사장님이 눌렀는데 아무것도
+#   안 붙으면 「규칙이 안 먹는다」가 되고, 그 오해를 푸는 데 한참 걸린다.
+
+def test_품번을_상품명에_넣는다():
+    """품번은 Model.article_no 에 있다 — 구성 사본이 실어 주면 붙는다."""
+    d = _Draft(name='에어포스 1', brand='나이키', article_no='CW2288-111')
+    view, _, skipped = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', 'model_no']}})
+    assert view.name == '에어포스 1 CW2288-111'
+    assert 'NO_MODEL_NO' not in _codes(skipped)
+
+
+def test_품번이_비면_조용히_빼지_않고_말한다():
+    d = _Draft(name='에어포스 1', brand='나이키', article_no='')
+    view, _, skipped = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', 'model_no']}})
+    assert view.name == '에어포스 1'
+    assert 'NO_MODEL_NO' in _codes(skipped)
+    assert not _blocking(skipped), '품번이 없다고 전송을 막으면 안 된다'
+
+
+def test_상품번호를_상품명에_넣는다():
+    d = _Draft(name='에어포스 1', brand='', model_code='M-1234')
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', 'product_no']}})
+    assert view.name == '에어포스 1 M-1234'
+
+
+def test_카테고리는_맨_끝_칸만_쓴다():
+    """'신발>스니커즈' 를 통째로 넣으면 상품명에 꺾쇠가 들어간다."""
+    d = _Draft(name='에어포스 1', brand='', source_category_path='신발>스니커즈')
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['category', 'origin_name']}})
+    assert view.name == '스니커즈 에어포스 1'
+
+
+def test_모르는_조각은_임의_텍스트로_들어간다():
+    """기존 동작 — 조각 이름이 아니면 그 글자를 그대로 붙인다(회귀 확인)."""
+    d = _Draft(name='에어포스 1', brand='')
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', '정품']}})
+    assert view.name == '에어포스 1 정품'
