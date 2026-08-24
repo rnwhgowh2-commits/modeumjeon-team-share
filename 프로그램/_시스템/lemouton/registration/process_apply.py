@@ -479,6 +479,26 @@ def _cut_safe(text, cap):
     return cut.rstrip()
 
 
+def _cut_to_bytes(text, cap_b):
+    """UTF-8 `cap_b` 바이트에 맞게 자른다 — **글자를 반토막 내지 않는다**.
+
+    ★ 왜 글자 단위로 물러나나: 바이트 경계에서 그냥 자르면 한글 한 글자가 쪼개져
+      깨진 글자가 마켓에 올라간다. `errors='ignore'` 로 뭉개는 방법도 있지만
+      그러면 깨진 바이트가 조용히 남을 수 있어 쓰지 않는다.
+    ★ 이모지 안전 처리는 `_cut_safe` 와 같은 규칙을 그대로 태운다 — 두 벌로 만들면
+      한쪽만 고쳐져 어긋난다.
+    """
+    if not text or cap_b is None or cap_b <= 0:
+        return text
+    n = len(text)
+    while n > 0:
+        cut = _cut_safe(text, n)
+        if len(cut.encode('utf-8')) <= cap_b:
+            return cut
+        n -= 1
+    return ''
+
+
 def _dedupe_keep_first(items):
     seen, out = set(), []
     for it in items:
@@ -1494,10 +1514,18 @@ def _build_name(draft, cfg, brand_cfg, market):
     rule_max = cfg.get('max_len')
     if isinstance(rule_max, int) and not isinstance(rule_max, bool) and rule_max > 0:
         limits.append((rule_max, '가공 규칙'))
-    mk_max = ML.name_max_len(market)
+    # ★ [2026-08-24] 마켓 한도는 **글자수와 바이트 두 가지**다. 예전엔 글자수만 봤다.
+    #   마켓 문서가 「100자」라고 적어 둔 곳도 실제 등록기는 바이트로 자른다 —
+    #   한글은 UTF-8 로 3바이트라, 글자수만 통과시키면 마켓이 거부하거나 잘라 버린다.
+    #   🔴 11번가 99바이트·롯데ON 149바이트는 삼바 실측값이다(그 값으로 매일 등록된다).
+    mk_lim = ML.name_limit_for(market)
+    mk_max = mk_lim['chars']
+    mk_bytes = mk_lim['bytes']
     if mk_max:
         limits.append((mk_max, f'{market} 상한'))
-    elif market:
+    if not mk_max and not mk_bytes and market:
+        # 글자수도 바이트도 모를 때만 「확인 불가」다. 바이트만 아는 마켓(롯데ON)을
+        # 여기로 떨어뜨리면 **상한이 없는 셈**이 되어 잘린 이름이 그대로 팔린다.
         why = ML.name_limit_unknown_reason(market)
         if why:
             skipped.append(_skip('name', 'max_len', 'NO_MARKET_LIMIT', why, False))
@@ -1508,6 +1536,12 @@ def _build_name(draft, cfg, brand_cfg, market):
             applied.append(_applied('name', 'max_len', name, cut,
                                     note=f'{who}({cap}자)에 맞춰 뒤를 잘랐습니다.'))
             name = cut
+    if mk_bytes and len(name.encode('utf-8')) > mk_bytes:
+        cut = _cut_to_bytes(name, mk_bytes)
+        applied.append(_applied('name', 'max_len', name, cut,
+                                note=f'{market} 상한({mk_bytes}바이트)에 맞춰 뒤를 '
+                                     f'잘랐습니다 — 한글은 한 글자가 3바이트입니다.'))
+        name = cut
 
     if name != before:
         applied.append(_applied('name', 'name', before, name,
