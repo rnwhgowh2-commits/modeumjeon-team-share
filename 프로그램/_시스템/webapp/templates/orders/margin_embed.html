@@ -1646,6 +1646,31 @@ function getFilteredData() {
   var brandRows   = groupAgg(normal, function(r) { return r['브랜드'] || '기타'; }, '브랜드')
                       .sort(function(a, b) { return b['매출'] - a['매출']; });
 
+  /* 상품별 집계 — 엑셀 다운로드(payload.product)용. 화면 상품별 탭(renderProduct)과 같은
+     모집단(normal=이상가 포함 통일)·같은 규칙(MR)을 쓴다 — 표시와 다운로드가 갈리지 않게. */
+  var productGroups = {};
+  normal.forEach(function(r) {
+    if (MR.isMarginUncomputable(r)) return;
+    var code = r['상품코드'] || '코드없음';
+    if (!productGroups[code]) {
+      productGroups[code] = { 매출:0, 매입:0, 순마진:0, 건수:0,
+                              상품명: r['상품명'] || '', 브랜드: r['브랜드'] || '기타' };
+    }
+    var pg = productGroups[code];
+    pg.매출 += MR.rowSale(r, saleAmt);
+    pg.매입 += Number(r['구매가격']) || 0;
+    pg.순마진 += MR.rowMargin(r);
+    pg.건수 += 1;
+  });
+  var productRows = Object.keys(productGroups).map(function(k) {
+    var g = productGroups[k];
+    return {
+      상품코드: k, 상품명: g.상품명, 브랜드: g.브랜드,
+      매출: Math.round(g.매출), 매입: Math.round(g.매입), 순마진: Math.round(g.순마진),
+      건수: g.건수, 마진율: g.매출 > 0 ? Math.round((g.순마진 / g.매출 * 100) * 100) / 100 : 0,
+    };
+  }).sort(function(a, b) { return b.매출 - a.매출; });
+
   var _cls = MR.summarize(effective, { saleAmt: saleAmt });
   return {
     summary: {
@@ -1667,6 +1692,7 @@ function getFilteredData() {
     monthly: monthlyRows,
     brand: brandRows,
     priceRange: priceRows,
+    product: productRows,
     filters: analysisData.filters,
     unmatched_buy: analysisData.unmatched_buy,
     unmatched_sell: analysisData.unmatched_sell,
@@ -10571,6 +10597,17 @@ document.getElementById('rangeModal').addEventListener('click', function(e) {
 /* ══════════════════════════════════════════════════════
    엑셀 다운로드
 ══════════════════════════════════════════════════════ */
+/* 엑셀로 나갈 행에서 UI 내부용 키(_idx·_excluded·_edited 등)를 뺀다 — 화면 표시용
+   플래그가 그대로 열로 찍히면 사용자에게 의미 없는 잡열이 된다(기명 한글 필드만 남김). */
+function _stripInternalKeys(rows) {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map(function(r) {
+    var out = {};
+    Object.keys(r || {}).forEach(function(k) { if (k.charAt(0) !== '_') out[k] = r[k]; });
+    return out;
+  });
+}
+
 async function downloadExcel(tabKey) {
   try {
     /* 수기 제외 / 인라인 편집을 서버 집계에 반영하기 위해 함께 전송 */
@@ -10601,14 +10638,32 @@ async function downloadExcel(tabKey) {
       }
     }
 
+    /* 🔴 [2026-08-24 실측] 일반 다운로드(useFilterMode=false)는 analysis_id 로 서버가
+       "분석 시작" 시점 원본을 다시 불러와, 화면의 날짜필터·제외·인라인편집이 전혀
+       반영되지 않고 항상 전체기간이 나오던 버그가 있었다. 화면이 이미 계산해 둔
+       getFilteredData() 결과(=지금 보고 있는 바로 그 숫자)를 그대로 실어 보내
+       서버가 재조회 없이 그걸 쓰게 한다 — 화면과 다운로드가 갈릴 수 없다. */
+    var exportPayload = null;
+    if (!useFilterMode && typeof getFilteredData === 'function') {
+      var _d = getFilteredData();
+      exportPayload = {
+        matched: _stripInternalKeys(_d.matched),
+        unmatched_buy: _stripInternalKeys(_d.unmatched_buy),
+        unmatched_sell: _stripInternalKeys(_d.unmatched_sell),
+        market: _d.market, daily: _d.daily, monthly: _d.monthly, brand: _d.brand,
+        priceRange: _d.priceRange, product: _d.product, summary: _d.summary,
+      };
+    }
+
     const body = JSON.stringify({
-      analysis_id: (window.analysisData && window.analysisData.analysis_id),  /* [모음전] /api/margin/export 는 저장 payload 로드에 analysis_id 필수 */
+      analysis_id: (window.analysisData && window.analysisData.analysis_id),  /* [모음전] 파일명·(payload 없을 때) 백업 로드용 */
       tab: useFilterMode ? 'detail_filtered' : 'all',
       price_ranges: priceRanges,
       excluded_ids: Array.from(window._excludedSet),
       matched: hasOverrides ? (analysisData && analysisData.matched) : null,
       rows: useFilterMode ? filteredRows : null,
       column_order: columnOrder,  // ★ 화면 컬럼 순서 (detail 다운로드 시)
+      payload: exportPayload,     // ★ 화면에 표시된 현재 필터·편집 반영 데이터(일반 다운로드)
     });
     const res = await fetch('/api/margin/export', {
       method: 'POST',
