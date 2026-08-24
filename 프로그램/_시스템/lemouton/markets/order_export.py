@@ -731,7 +731,24 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         if od_no:
             return iter_delivery_orders_by_no(od_no, client=client,
                                               since=since, until=_lo_fetch_until)
-        return iter_delivery_orders(since, _lo_fetch_until, client=client)
+        # ifCplYN="" 은 '아직 연동 안 된 신규 주문'만 준다(공식 문서). 같은 API 키를
+        # 쓰는 다른 프로그램(예: 더망고)이 먼저 209 를 읽어가면 그 순간 롯데온이
+        # 그 주문을 '연동완료(Y)'로 표시하고, 그 뒤로는 이 기본 조회로 **영원히**
+        # 다시 안 잡힌다 — 매입은 있는데 마진계산기엔 안 뜨는 '블랙스팟 의심' 오판정의
+        # 근본원인(2026-08-24 실측: 롯데온 16건, 진단 API `lotteon-odno-probe` 로
+        # ifCplYN=Y 에서만 히트 확인 — 이미 배송완료된 주문도 포함돼 '아직 미확정이라
+        # 안 잡힌다'는 가설은 기각됨). 그래서 신규(빈값)·연동완료(Y) 둘 다 훑어 합친다.
+        seen = set()
+        merged = []
+        for cpl in ("", "Y"):
+            for od in iter_delivery_orders(since, _lo_fetch_until, client=client,
+                                           if_cpl_yn=cpl):
+                key = (str(_g(od, "odNo", default="")), str(_g(od, "odSeq", default="")))
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(od)
+        return merged
 
     rows = []
     for od in _lo_source():

@@ -751,6 +751,49 @@ def test_lotteon_delivery_window_extends_to_now(monkeypatch):
     assert cap["until"] >= now - dt.timedelta(seconds=5)   # 과거 until 이 아니라 now 로 확장
 
 
+def test_lotteon_delivery_sweeps_already_linked_orders(monkeypatch):
+    """ifCplYN="" 은 '아직 연동 안 된 신규 주문'만 준다(공식 문서). 같은 API 키를 쓰는
+    다른 프로그램(더망고 등)이 먼저 209 를 읽어가면 그 주문은 '연동완료(Y)'로 표시돼
+    기본 조회(빈값)로는 영원히 안 잡힌다 — 매입 기록은 있는데 마진계산기엔 안 뜨는
+    '블랙스팟 의심' 오판정의 근본원인(2026-08-24 실측, 롯데온 16건). 신규(빈값)·
+    연동완료(Y) 두 값 다 훑어 합쳐야 한다."""
+    import shared.platforms.lotteon.orders as _lo
+    import shared.platforms.lotteon.claims as _lc
+    monkeypatch.setattr(_lc, "commission_map", lambda *a, **k: {})
+    for nm in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(_lc, nm, lambda *a, **k: iter([]))
+
+    def _fake_iter(s, u, client=None, if_cpl_yn=""):
+        if if_cpl_yn == "":                 # 신규 — mou-m 이 직접 잡은 주문
+            return iter([{"odNo": "LO-NEW", "odSeq": "1", "spdNm": "새주문", "odQty": 1}])
+        if if_cpl_yn == "Y":                # 연동완료 — 더망고가 먼저 읽어간 주문
+            return iter([{"odNo": "LO-OLD", "odSeq": "1", "spdNm": "이미연동", "odQty": 1}])
+        return iter([])
+    monkeypatch.setattr(_lo, "iter_delivery_orders", _fake_iter)
+
+    rows = oe.lotteon_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                                 dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    order_nos = {r["오픈마켓주문번호"] for r in rows}
+    assert order_nos == {"LO-NEW", "LO-OLD"}   # 둘 다 잡힘 — Y 만 걸린 주문이 누락되지 않는다
+
+
+def test_lotteon_delivery_sweep_dedupes_by_odno_odseq(monkeypatch):
+    """같은 주문이 신규·연동완료 두 조회 모두에서 나오면(경쟁 상태 등) 한 번만 남긴다."""
+    import shared.platforms.lotteon.orders as _lo
+    import shared.platforms.lotteon.claims as _lc
+    monkeypatch.setattr(_lc, "commission_map", lambda *a, **k: {})
+    for nm in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(_lc, nm, lambda *a, **k: iter([]))
+    same_od = {"odNo": "LO-DUP", "odSeq": "1", "spdNm": "같은주문", "odQty": 1}
+    monkeypatch.setattr(_lo, "iter_delivery_orders",
+                        lambda s, u, client=None, if_cpl_yn="": iter([dict(same_od)]))
+
+    rows = oe.lotteon_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                                 dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert len(rows) == 1
+    assert rows[0]["오픈마켓주문번호"] == "LO-DUP"
+
+
 def test_lotteon_claim_window_extends_to_now(monkeypatch):
     """롯데온 클레임도 접수일 기준 → 기간 밖 취소 누락(라이브: 4건). 조회 끝을 now 로 넓힌다."""
     import shared.platforms.lotteon.orders as _lo
