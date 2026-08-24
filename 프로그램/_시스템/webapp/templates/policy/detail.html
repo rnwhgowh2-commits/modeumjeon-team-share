@@ -346,6 +346,14 @@
                 font-weight:700;cursor:pointer;font-family:inherit}
   .cpd-no{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
   .cpd-go{background:var(--primary,#3182F6);color:#fff}
+  .oimg-rows{display:flex;flex-direction:column;gap:6px}
+  .oimg-row{display:flex;align-items:center;gap:10px;font-size:12px}
+  .oimg-mk{width:92px;flex:none;color:var(--글자-보조,#6B7684)}
+  .oimg-badge{flex:none;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700}
+  .oimg-badge.supported{background:#E7F6EE;color:#1B8A5A}
+  .oimg-badge.unsupported{background:#FDECEC;color:#C93B3B}
+  .oimg-badge.unknown{background:#F2F4F6;color:#6B7684}
+  .oimg-why{color:var(--글자-보조,#8B95A1);line-height:1.5}
   .acct-row{display:flex;align-items:center;gap:8px;margin-top:8px}
   .acct-lb{font-size:12px;color:var(--글자-보조,#6B7684);white-space:nowrap}
   .acct-row select{height:30px;border:1px solid var(--n200,#E5E8EB);border-radius:8px;
@@ -767,6 +775,60 @@
             </div>
           </div>
         </div>
+      </div>
+      {% elif it.key == 'images' %}
+      {# ── 옵션별 대표이미지 — 어느 마켓에 실제로 나가나 (2026-08-24 Phase 4-4) ──
+         🔴 옵션마다 사진을 걸어 뒀는데 마켓이 그 칸을 안 받으면 아무 일도 안 난다.
+           화면이 「걸었다」고만 보여 주면 사장님은 **걸린 줄 안다.**
+         🔴 「확인 불가」를 「안 나감」으로 적지 않는다 — 모르는 것을 단정하면 나중에
+           받는 걸로 밝혀져도 아무도 다시 안 본다. #}
+      <div class="grp oimg">
+        <h4>옵션별 사진, 어디로 나가나 <span class="hint-i">2026-08-24 판매처 지도 실측</span></h4>
+        <div class="oimg-rows">
+          {% for b in option_image_support %}
+          <div class="oimg-row">
+            <span class="oimg-mk">{{ b.market_label }}</span>
+            <span class="oimg-badge {{ b.state }}">{{ b.label }}</span>
+            <span class="oimg-why">{{ b.why }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% set cfg = saved or {} %}
+      <div class="flds">
+        {% for f in it.fields %}
+        {% set v = cfg.get(f.key) %}
+        {% if f.type == 'bool' %}
+        <div class="fld bool">
+          <input type="checkbox" data-k="{{ f.key }}" data-t="bool"
+                 {{ 'checked' if (v if v is not none else f.default) }}>
+          <label>{{ f.label }}</label>
+        </div>
+        {% elif f.type == 'choice' %}
+        <div class="fld"><label>{{ f.label }}</label>
+          <select data-k="{{ f.key }}" data-t="choice">
+            <option value="">— 안 정함 —</option>
+            {% for c in f.choices %}
+            <option value="{{ c }}" {{ 'selected' if (v if v is not none else f.default) == c }}>{{ (f.choice_labels or {}).get(c, c) }}</option>
+            {% endfor %}
+          </select>
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% elif f.type == 'int' %}
+        <div class="fld"><label>{{ f.label }}</label>
+          <input class="form-input" type="number" data-k="{{ f.key }}" data-t="int"
+                 value="{{ v if v is not none else '' }}"
+                 placeholder="{{ f.default if f.default is not none else '' }}">
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% else %}
+        <div class="fld"><label>{{ f.label }}</label>
+          <input class="form-input" data-k="{{ f.key }}" data-t="{{ f.type }}"
+                 value="{{ v if v is not none else '' }}">
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
       </div>
       {% elif it.key == 'name' %}
       {# ── 상품명 조립기 (2026-08-24 Phase 3 · 사장님 요청) ──────────────────

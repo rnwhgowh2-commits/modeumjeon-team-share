@@ -95,6 +95,7 @@ def policy_detail(pid: int):
         applied_count, enabled_markets, readiness, values_for,
     )
     from lemouton.policy import fixed_sends as FIXED
+    from lemouton.registration import option_images as _OI
     from lemouton.policy import required as REQ
     from lemouton.pricing import fee_defaults
     from lemouton.pricing.unified import default_fee_pct
@@ -141,6 +142,9 @@ def policy_detail(pid: int):
             # 🔴 화면에 넘기는 것은 **정해진 칸만 담은 사본**이다. 칸을 안 넣으면
             #   템플릿에서 조용히 빈 값이 되고, 저장은 됐는데 화면엔 안 나온다
             #   (2026-08-24 실화면에서 잡음 — 규칙을 골라도 새로고침하면 풀렸다).
+            # [2026-08-24 Phase 4-4] 옵션별 사진이 어느 마켓에 실제로 나가나 —
+            #   화면이 「걸었다」고만 보여 주면 사장님은 걸린 줄 안다.
+            'option_image_support': _OI.badges(),
             'policy': {'id': p.id, 'name': p.name, 'memo': p.memo or '',
                        'is_default': bool(p.is_default), 'brand': p.brand or '',
                        'name_rule_id': p.name_rule_id},
