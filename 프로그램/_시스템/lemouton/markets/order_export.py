@@ -738,11 +738,21 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         # 근본원인(2026-08-24 실측: 롯데온 16건, 진단 API `lotteon-odno-probe` 로
         # ifCplYN=Y 에서만 히트 확인 — 이미 배송완료된 주문도 포함돼 '아직 미확정이라
         # 안 잡힌다'는 가설은 기각됨). 그래서 신규(빈값)·연동완료(Y) 둘 다 훑어 합친다.
+        # ★ 두 조회를 **동시에** 돌린다 — 순차로 하면(7일 창 기준 실측 42초, 기존
+        #   4~20초의 배가 됨) 주문관리 화면의 실시간 조회까지 느려진다(2026-08-25
+        #   라이브 실측). 클라이언트의 토큰버킷(lock 보유)이 스레드 안전이라 같은
+        #   client 로 병렬 호출해도 초당 상한은 그대로 지켜진다.
+        from concurrent.futures import ThreadPoolExecutor as _TPE
+
+        def _fetch_one(cpl):
+            return list(iter_delivery_orders(since, _lo_fetch_until, client=client,
+                                              if_cpl_yn=cpl))
+        with _TPE(max_workers=2) as ex:
+            batches = list(ex.map(_fetch_one, ("", "Y")))
         seen = set()
         merged = []
-        for cpl in ("", "Y"):
-            for od in iter_delivery_orders(since, _lo_fetch_until, client=client,
-                                           if_cpl_yn=cpl):
+        for batch in batches:
+            for od in batch:
                 key = (str(_g(od, "odNo", default="")), str(_g(od, "odSeq", default="")))
                 if key in seen:
                     continue
