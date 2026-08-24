@@ -1388,14 +1388,20 @@ def tower_markets_api(code: str):
             _col = _NAME_OVERRIDE_COL.get(mk)
             if _col:
                 from lemouton.registration.market_limits import (
-                    name_limit_unknown_reason, name_max_len)
+                    name_limit_for, name_limit_unknown_reason)
                 _v = getattr(_model_or_404(s, code), _col, None)
                 item['name_override'] = _v
                 item['name_own'] = bool(_v)
                 # 글자수 카운터용 — 🔴 상한을 **모르면 지어내지 않고** 왜 모르는지를 준다.
                 #   지어낸 상한으로 상품명을 자르면 그게 더 큰 손해다.
-                item['name_cap'] = name_max_len(mk)
-                item['name_cap_reason'] = name_limit_unknown_reason(mk)
+                # ★ [2026-08-24] 바이트 한도도 같이 내려보낸다 — 글자수만 세면
+                #   한글 이름이 마켓에서 잘리는 것을 화면이 못 보여 준다.
+                _lim = name_limit_for(mk)
+                item['name_cap'] = _lim['chars']
+                item['name_cap_bytes'] = _lim['bytes']
+                item['name_cap_reason'] = (
+                    name_limit_unknown_reason(mk)
+                    if not _lim['chars'] and not _lim['bytes'] else None)
             out.append(item)
         return jsonify({'ok': True, 'markets': out,
                         'policy': ({'id': pol.id, 'name': pol.name}

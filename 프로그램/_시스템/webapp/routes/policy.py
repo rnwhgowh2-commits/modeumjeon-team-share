@@ -1042,7 +1042,7 @@ def api_name_override(model_code: str):
     [중요] 마켓 한도를 넘으면 **보내기 전에** 사람 말로 막는다. 마켓까지 가면
       「유효하지 않습니다」만 돌아와 무엇이 잘못인지 알 수 없다.
     """
-    from lemouton.registration.market_limits import name_max_len
+    from lemouton.registration.market_limits import name_limit_for
     from lemouton.sourcing.models import Model
     COLS = {'coupang': 'coupang_product_name_override',
             'smartstore': 'naver_product_name_override'}
@@ -1055,11 +1055,21 @@ def api_name_override(model_code: str):
                                    '쿠팡·스마트스토어뿐입니다 — 나머지 마켓엔 '
                                    '그 칸이 아직 없습니다.'}), 400
     value = (body.get('value') or '').strip()
-    cap = name_max_len(market)
+    # ★ [2026-08-24] 글자수와 바이트를 **둘 다** 본다. 지금 이 화면이 다루는
+    #   쿠팡·스마트스토어엔 바이트 한도가 없지만, 나중에 생기면 여기가 조용히 새는
+    #   자리가 된다(11번가·롯데ON 이 딱 그렇게 새고 있었다).
+    _lim = name_limit_for(market)
+    cap = _lim['chars']
     if cap and len(value) > cap:
         return jsonify({'ok': False,
                         'message': f'{market} 상품명은 {cap}자까지입니다 '
                                    f'(지금 {len(value)}자).'}), 400
+    cap_b = _lim['bytes']
+    if cap_b and len(value.encode('utf-8')) > cap_b:
+        return jsonify({'ok': False,
+                        'message': f'{market} 상품명은 {cap_b}바이트까지입니다 '
+                                   f'(지금 {len(value.encode("utf-8"))}바이트 — '
+                                   f'한글은 한 글자가 3바이트입니다).'}), 400
     s = SessionLocal()
     try:
         m = s.get(Model, model_code)

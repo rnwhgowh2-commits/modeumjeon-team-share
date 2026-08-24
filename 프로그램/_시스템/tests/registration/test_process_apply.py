@@ -232,6 +232,57 @@ def test_상한_0_은_제한_없음():
     assert len(view.name) == 300
 
 
+# ── 바이트 상한 (2026-08-24 삼바 실측) ──────────────────────────────────────
+#
+# 🔴 왜 따로 재나 — 마켓 문서는 「100자」라고 적어 두고 실제로는 **바이트**로 자른다.
+#   한글은 UTF-8 로 3바이트라, 글자수만 보면 통과한 이름이 마켓에서 거부되거나
+#   잘려서 올라간다. 잘린 상품명은 그대로 팔리므로 눈에 잘 안 띈다.
+
+def test_11번가는_바이트_상한도_지킨다():
+    """글자수(100자)는 통과하지만 바이트(99)는 넘는 이름 — 예전엔 그대로 나갔다."""
+    d = _Draft(name='가' * 40, brand='')          # 40자 · 120바이트
+    view, applied, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='eleven11')
+    assert len(view.name.encode('utf-8')) <= 99, (
+        f'11번가 99바이트를 넘겼다: {len(view.name.encode("utf-8"))}바이트')
+    assert any(a['field'] == 'max_len' for a in applied)
+
+
+def test_롯데온도_바이트_상한을_지킨다():
+    """롯데온은 글자수 상한이 「모름」이라 예전엔 **상한이 아예 없었다**."""
+    d = _Draft(name='가' * 60, brand='')          # 60자 · 180바이트
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='lotteon')
+    assert len(view.name.encode('utf-8')) <= 149, (
+        f'롯데온 149바이트를 넘겼다: {len(view.name.encode("utf-8"))}바이트')
+
+
+def test_바이트로_잘라도_글자가_안_깨진다():
+    """한글은 3바이트 — 바이트 경계에서 자르면 글자가 반토막 난다."""
+    d = _Draft(name='가' * 40, brand='')
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='eleven11')
+    view.name.encode('utf-8').decode('utf-8')      # 깨졌으면 여기서 터진다
+    assert '�' not in view.name
+
+
+def test_바이트_상한을_아는_마켓은_모른다고_안_한다():
+    """롯데온은 글자수는 모르지만 **바이트는 안다** — 「확인 불가」로 넘기면 안 된다."""
+    d = _Draft(name='가' * 60, brand='')
+    _, _, skipped = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='lotteon')
+    assert 'NO_MARKET_LIMIT' not in _codes(skipped)
+
+
+def test_바이트_상한이_없는_마켓은_그대로_둔다():
+    """옥션은 글자수도 바이트도 모른다 — 지어내서 자르지 않는다."""
+    d = _Draft(name='가' * 300, brand='')
+    view, _, skipped = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='auction')
+    assert len(view.name) == 300
+    assert 'NO_MARKET_LIMIT' in _codes(skipped)
+
+
 # ── 금지어 ──────────────────────────────────────────────────────────────────
 
 def test_수집_금지어는_전_마켓_차단():
