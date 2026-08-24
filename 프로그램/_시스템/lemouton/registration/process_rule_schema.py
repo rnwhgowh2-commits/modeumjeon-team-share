@@ -399,7 +399,16 @@ SCHEMAS: dict = {
             # 스스 naverShoppingRegistration[필수] · 11번가 prcCmpExpYn(선택) · ESM pcs>isUse
             #   🔴 쿠팡 등록 API 에는 이 개념 자체가 없다 — 사장님 엑셀도 X 로 적혀 있다.
             _F("expose", "가격비교 노출", "bool", default=True,
-               hint="사장님 확정 = 노출. 쿠팡은 이 칸이 없어 아무 일도 안 합니다"),
+               hint="사장님 확정 = 노출 · 스스(필수)·11번가·옥션·G마켓에 나갑니다 "
+                    "· 쿠팡은 등록 API 에 이 칸이 없어 아무 일도 안 합니다 "
+                    "· 롯데ON 은 등록 필드를 아직 확인 못 해 안 보냅니다"),
+            # [2026-08-24 지도 전문 실측] 11번가 prcDscCmpExpYn · 옥션 isUseIacPcsCoupon.
+            #   🔴 G마켓 쿠폰 칸(isUseGmkPcsCoupon)은 지도에 「사용불가」 — 마켓이
+            #     설정을 막아 뒀다. 노출 여부만 가능하다.
+            _F("coupon", "가격비교 쿠폰 적용", "bool", default=None,
+               hint="가격비교 사이트에서 쿠폰 할인을 적용할지 · 11번가·옥션만 정할 수 "
+                    "있습니다(G마켓은 마켓이 설정을 막아 뒀습니다) "
+                    "· 안 정하면 그 칸을 아예 안 보냅니다"),
             _F("fee_add_pct", "가격비교 수수료 가산", "int", default=2, unit="%",
                hint="사장님 엑셀 = 롯데온·11번가 2%. 🔴 지금은 적어 두기만 하고 "
                     "판매가 계산에는 아직 안 들어갑니다"),

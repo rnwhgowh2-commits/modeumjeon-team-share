@@ -141,6 +141,8 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
         market=market, goods_name=spec['goods_name'],
         cat_code=spec['cat_code'], site_cat_code=spec['site_cat_code'],
         site_type=1 if market == 'auction' else 2,
+        # ★ [2026-08-24] 정책의 「가격비교 노출」 — 안 정했으면 None 이라 칸을 안 만든다.
+        pcs_use=spec.get('pcs_use'), pcs_coupon_iac=spec.get('pcs_coupon_iac'),
         price=spec['price'], stock=spec['stock'],
         place_no=int(prereq['place_no']),
         dispatch_policy_no=int(prereq['dispatch_policy_no']),
