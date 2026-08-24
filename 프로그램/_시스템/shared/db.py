@@ -705,6 +705,65 @@ def _apply_lightweight_migrations() -> None:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {pg_dtype}"))
             except Exception:
                 pass
+        # ── [2026-08-24] 계정 설정: NOT NULL 풀기 (「안 정함」과 「0원」 구분) ──
+        #   🔴 왜 필요한가 — Phase 1 을 배포한 뒤에 「안 정함 = NULL」로 규칙을 바꿨다.
+        #     create_all 은 **이미 있는 표의 제약을 안 고친다.** 그래서 라이브에는
+        #     NOT NULL 이 그대로 남아, 빈 칸(=안 정함)을 저장하려 하면 터진다.
+        #     실제로 로컬에서 재현했다(2026-08-24): 새 계정에 기본 배송비를 넣을 때
+        #     as_phone=NULL 이 NOT NULL 제약에 걸려 계정 설정이 아예 안 만들어졌다.
+        #
+        #   라이브(PostgreSQL)는 ALTER 로 풀고, 로컬(SQLite)은 ALTER COLUMN 이 없어서
+        #   표를 다시 지어 옮긴다. **양쪽을 똑같이 만드는 게 핵심이다** —
+        #   한쪽만 고치면 「내 PC 에선 되는데 서버에선 안 되는」 일이 그대로 남는다.
+        _AS_NULLABLE = ('as_phone', 'as_message', 'return_fee', 'exchange_fee',
+                        'jeju_fee', 'island_fee', 'tax_type', 'origin_default',
+                        'stock_default', 'promotion_message')
+        if conn.dialect.name == "postgresql":
+            for _col in _AS_NULLABLE:
+                try:
+                    conn.execute(text(
+                        f"ALTER TABLE market_account_settings "
+                        f"ALTER COLUMN {_col} DROP NOT NULL"))
+                except Exception:
+                    pass   # 표가 아직 없거나 이미 풀려 있으면 그냥 넘어간다(멱등)
+        else:
+            try:
+                import re as _re
+
+                from sqlalchemy import inspect as _inspect
+                _cols = _inspect(conn).get_columns("market_account_settings")
+                _막힌칸 = [c["name"] for c in _cols
+                          if c["name"] in _AS_NULLABLE and not c.get("nullable", True)]
+                if _막힌칸:
+                    # ★ 순서가 핵심이다. **새 표를 먼저 짓고 마지막에 원본을 지운다** —
+                    #   중간에 실패해도 원본이 그대로 남는다. (반대로 하면 자료가 뜬다.)
+                    #   ★ 표 정의는 모델이 아니라 **지금 표의 CREATE 문**에서 가져온다.
+                    #     모델의 `__table__.create()` 는 남의 메타데이터에 있는
+                    #     `upload_accounts` 를 못 찾아 실패한다(2026-08-24 실측).
+                    _원문 = conn.execute(text(
+                        "SELECT sql FROM sqlite_master WHERE type='table' "
+                        "AND name='market_account_settings'")).scalar() or ""
+                    _새문 = _원문
+                    for _col in _막힌칸:
+                        _새문 = _re.sub(
+                            r"(\b" + _re.escape(_col) + r"\b\s+\w+(?:\([^)]*\))?)\s+NOT NULL",
+                            r"\1", _새문, count=1)
+                    _새문 = _새문.replace("market_account_settings",
+                                        "market_account_settings__new", 1)
+                    _이름 = ", ".join(c["name"] for c in _cols)
+                    conn.execute(text("DROP TABLE IF EXISTS market_account_settings__new"))
+                    conn.execute(text(_새문))
+                    conn.execute(text(
+                        f"INSERT INTO market_account_settings__new ({_이름}) "
+                        f"SELECT {_이름} FROM market_account_settings"))
+                    conn.execute(text("DROP TABLE market_account_settings"))
+                    conn.execute(text("ALTER TABLE market_account_settings__new "
+                                      "RENAME TO market_account_settings"))
+                    print(f"[migration] market_account_settings 표를 다시 지어 "
+                          f"{len(_막힌칸)}개 칸의 NOT NULL 을 풀었다")
+            except Exception as _e:      # noqa: BLE001
+                print(f"[migration] market_account_settings NOT NULL 풀기 건너뜀: {_e}")
+
         # PARITY_720 K-1 — 검색 인덱스 멱등 생성 (양쪽 dialect 동일 문법)
         for idx_name, table, column in indexes:
             try:
