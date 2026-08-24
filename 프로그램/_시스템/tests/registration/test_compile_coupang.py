@@ -410,3 +410,81 @@ def test_최저가가_망가져_있어도_등록이_안_막힌다():
     for junk in ('abc', None, '', [1]):
         p, _ = compile_coupang(_full(auto_pricing_min=junk), category_code=1, vendor=VENDOR)
         assert 'autoPricingInfo' not in p['items'][0], junk
+
+
+# ── [2026-08-24] 쿠팡 브랜드번호(brandId) + 정품코드 가드 ─────────────────────
+#   쿠팡은 2026-08-01 부터 API 등록 상품에 상품 식별번호 정책을 시행했다. 우리는 여태
+#   브랜드 **이름 문자열만** 보내고 brandId 를 안 보냈다(대조군 삼바는 보낸다).
+#   지도 idTraps: isUIDRequired=true 브랜드에 임의 번호를 넣으면 **등록·노출 제한 대상**.
+
+_MATCHED = {'brand': '나이키', 'brand_id': 'KR-5', 'uid_required': False,
+            'allowed_uid_types': [], 'matched': True}
+_UNMATCHED = {'brand': '해칭룸', 'brand_id': None, 'uid_required': None,
+              'allowed_uid_types': [], 'matched': False}
+_UID_NEEDED = {'brand': '나이키', 'brand_id': 'KR-5', 'uid_required': True,
+               'allowed_uid_types': ['GTIN', 'MPN'], 'matched': True}
+_UID_UNKNOWN = {'brand': '나이키', 'brand_id': None, 'uid_required': None,
+                'allowed_uid_types': [], 'matched': False}
+
+
+def test_확인된_브랜드면_brandId_가_들어간다():
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR, brand_info=_MATCHED)
+    assert p['brandId'] == 'KR-5'
+
+
+def test_판정_못한_브랜드면_brandId_키가_아예_없다():
+    """🔴 추측한 brandId 는 빈 값보다 나쁘다 — 그 자체가 거부 사유다."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR, brand_info=_UNMATCHED)
+    assert 'brandId' not in p
+
+
+def test_brand_info_를_안_주면_예전과_똑같다():
+    """회귀 확인 — 기존 호출부(brand_info 없음)가 그대로 돌아야 한다."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert 'brandId' not in p
+    assert p['brand'] == '르무통'
+
+
+def test_정품코드_필수인데_둘_다_없으면_막는다():
+    d = D()
+    d.barcode = ''
+    d.model_no = ''
+    with pytest.raises(CompileError, match='상품 식별번호'):
+        compile_coupang(d, category_code=1, vendor=VENDOR, brand_info=_UID_NEEDED)
+
+
+def test_정품코드_필수여도_모델번호가_있으면_통과():
+    d = D()
+    d.barcode = ''
+    d.model_no = 'DUF24G03R2'
+    p, _ = compile_coupang(d, category_code=1, vendor=VENDOR, brand_info=_UID_NEEDED)
+    assert p['brandId'] == 'KR-5'
+
+
+def test_정품코드_필수여도_바코드가_있으면_통과():
+    d = D()
+    d.barcode = '8809123456789'
+    d.model_no = ''
+    p, _ = compile_coupang(d, category_code=1, vendor=VENDOR, brand_info=_UID_NEEDED)
+    assert p['brandId'] == 'KR-5'
+
+
+def test_판정_불가면_막지_않는다():
+    """🔴 「모른다」를 「필요함」으로 읽으면 멀쩡한 상품이 안 올라간다."""
+    d = D()
+    d.barcode = ''
+    d.model_no = ''
+    p, _ = compile_coupang(d, category_code=1, vendor=VENDOR, brand_info=_UID_UNKNOWN)
+    assert 'brandId' not in p          # 판정 못 했으니 번호도 안 넣는다
+
+
+def test_자체채번_바코드는_정품코드로_안_친다():
+    """🔴 우리가 만든 내부 바코드는 쿠팡이 말하는 GTIN 이 아니다."""
+    from lemouton.inventory import barcode as BC
+    d = D()
+    d.barcode = BC.make_internal(1) if hasattr(BC, 'make_internal') else '880000000000'
+    d.model_no = ''
+    if not BC.is_internal(d.barcode):
+        pytest.skip('이 저장소의 내부 바코드 규칙을 못 찾음')
+    with pytest.raises(CompileError, match='상품 식별번호'):
+        compile_coupang(d, category_code=1, vendor=VENDOR, brand_info=_UID_NEEDED)

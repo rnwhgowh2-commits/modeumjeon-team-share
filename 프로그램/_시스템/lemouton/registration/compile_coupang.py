@@ -160,7 +160,16 @@ def _auto_pricing(draft, sale_price: int) -> dict:
     return {'autoPricingInfo': {'minSalePrice': floor, 'active': True}}
 
 
-def compile_coupang(draft, *, category_code: int, vendor: dict):
+#: 쿠팡이 정품코드로 받아 주는 것 — 지도 coupang.brands.brand-search 의 allowedUIDTypes.
+#:   GTIN = 바코드 · MPN = 모델번호(품번). 우리 초안 칸으로는 barcode · model_no 다.
+_UID_MISSING_MSG = (
+    '이 브랜드는 쿠팡이 상품 식별번호(바코드 또는 모델번호)를 요구합니다 — '
+    '임의 번호를 넣으면 등록·노출 제한 대상이라 지어내지 않고 막습니다. '
+    '실제 값을 넣어 주세요.'
+)
+
+
+def compile_coupang(draft, *, category_code: int, vendor: dict, brand_info: dict = None):
     """ProductDraft → (쿠팡 상품 생성 payload, 제외된 옵션 목록).
 
     excluded 를 함께 돌려주는 이유는 compile_smartstore 와 같다 — 사용자가 입력한
@@ -171,13 +180,42 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
                 return_center_code, return_charge_name(반품지명, 코드와 다른 사람이 읽는 이름),
                 return_zip, return_address, return_address_detail, return_phone,
                 outbound_place_code
+        brand_info: 쿠팡 브랜드 판별 결과(`registration/brand_registry.lookup()` 반환).
+            ``None`` 이면 **판별한 적 없음** — 예전과 똑같이 동작한다(회귀 없음).
+            {'brand_id', 'uid_required'(🔴 None=모름), 'matched', ...}
 
     Raises:
-        CompileError: 카테고리·이미지·판매가 누락, 또는 계정정보 9키 중 빈 칸이 있을 때
+        CompileError: 카테고리·이미지·판매가 누락, 계정정보 9키 중 빈 칸,
+            또는 정품코드 필수 브랜드인데 바코드·모델번호가 둘 다 없을 때
             (빈 칸은 **이름을 대며** 막는다 — VENDOR_KEY_LABELS)
+
+    ■ 브랜드번호(brandId) — 2026-08-24 신설
+      쿠팡은 2026-08-01 부터 API 등록 상품에 상품 식별번호 정책을 시행했다. 우리는 여태
+      브랜드 **이름 문자열만** 보내고 brandId 를 안 보냈다(대조군 삼바는 보낸다).
+      🔴 **정확일치로 확인된 경우에만** 넣는다 — 추측한 brandId 는 그 자체가 거부 사유다.
+      matched=False(판정 불가)면 키를 **아예 넣지 않아** 예전과 같은 payload 가 된다.
     """
     require_category(category_code, what='쿠팡 displayCategoryCode')
     cat_code = coerce_int(category_code, '쿠팡 displayCategoryCode')
+
+    # ── 정품코드(GTIN·MPN) 가드 ────────────────────────────────────────────
+    #   지도 idTraps: isUIDRequired=true 인 브랜드는 상품 식별번호가 **의무**이고,
+    #   임의로 만든 숫자·판매자 내부 SKU 로 채우면 **등록 제한·노출 제한 대상**이다.
+    #   그래서 지어내지 않고 **막는다**.
+    #
+    #   🔴 uid_required 가 None(판정 불가)이면 이 가드는 **작동하지 않는다.**
+    #     「모름」을 「필요함」으로 읽으면 멀쩡한 상품이 안 올라가고, 「필요 없음」으로
+    #     읽으면 제재 대상이 올라간다. 둘 다 하지 않고 예전 동작을 유지한다.
+    _uid_required = (brand_info or {}).get('uid_required')
+    if _uid_required is True:
+        from lemouton.inventory import barcode as _BC
+        _bar = str(getattr(draft, 'barcode', '') or '').strip()
+        # 자체 채번 바코드는 쿠팡이 말하는 GTIN 이 아니다 — 있는 셈 치면 안 된다.
+        if _BC.is_internal(_bar):
+            _bar = ''
+        _mpn = str(getattr(draft, 'model_no', '') or '').strip()
+        if not _bar and not _mpn:
+            raise CompileError(_UID_MISSING_MSG)
     # ★ 9키 **전수** 검사. vendor_id 만 보고 나머지를 흘리면 반쯤 빈 반품지로 등록된다.
     _check_vendor(vendor)
     # 출고지 코드는 라이브 검증된 coupang.py:115 와 같이 **정수**로 나간다. DB 컬럼은
@@ -275,6 +313,7 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
         'saleStartedAt': _SALE_STARTED_AT,
         'saleEndedAt': _SALE_ENDED_AT,
         'brand': draft.brand or '',
+        # brandId 는 아래에서 **확인된 경우에만** 넣는다 (추측값 = 거부 사유).
         # 지도 근거: manufacture — 「정확한 제조사를 기입할 수 없는 경우 [brand] 항목과
         #   동일하게 입력 가능」. 그 안내를 그대로 따른다(지어내지 않는다).
         'manufacture': (str(getattr(draft, 'manufacturer', '') or '').strip()
@@ -303,4 +342,13 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
         'requiredDocuments': [],
         'extraInfoMessage': '',
     }
+
+    # ── 브랜드번호(brandId) ────────────────────────────────────────────────
+    #   🔴 **정확일치로 확인된 경우에만** 넣는다. 부분일치·판정 불가일 때 넣으면
+    #     엉뚱한 브랜드 번호가 붙는다(삼바 실측: 해칭룸→해피룸, 모이에토이파리스→아미파리스).
+    #     그건 빈 값보다 나쁘다 — 지도상 잘못된 brandId 는 그 자체가 거부 사유다.
+    #   키를 아예 안 넣으면 예전과 **완전히 같은** payload 라 회귀가 없다.
+    if brand_info and brand_info.get('matched') and brand_info.get('brand_id'):
+        payload['brandId'] = brand_info['brand_id']
+
     return payload, excluded
