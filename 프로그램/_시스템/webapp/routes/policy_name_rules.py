@@ -255,3 +255,47 @@ def api_set_policy_accounts(pid: int):
         return jsonify({'ok': False, 'message': f'저장하지 못했어요: {e}'}), 500
     finally:
         s.close()
+
+
+# ══ 기존 계정에 기본 배송비 채우기 (2026-08-24 사장님 확정) ═══════════════
+#
+# 왜 단추인가: 기본값 5,000/10,000 은 **새로 만드는 계정에만** 들어간다.
+#   이미 있던 계정 33개는 「안 정함」인데, 프로그램이 임의로 채우면 사장님이 정한
+#   적 없는 값을 지어내는 셈이라 안 했다. 사장님이 **누르면** 그건 정한 것이다.
+#
+# 🔴 이미 값이 있는 계정은 안 건드린다. 0원(무료로 정함)도 「정한 값」이다 —
+#   덮으면 무료 반품을 유료로 바꿔 버린다.
+
+@bp.post('/accounts/api/settings/fill-default-fees')
+def api_fill_default_fees():
+    from lemouton.policy.models import DEFAULT_FEES, MarketAccountSetting
+    from lemouton.sourcing.models_v2 import UploadAccount
+    s = SessionLocal()
+    try:
+        기존 = {r.upload_account_id: r
+                for r in s.query(MarketAccountSetting).all()}
+        채움, 건너뜀 = 0, 0
+        for acc in s.query(UploadAccount).all():
+            row = 기존.get(acc.id)
+            if row is None:
+                s.add(MarketAccountSetting(upload_account_id=acc.id, **DEFAULT_FEES))
+                채움 += 1
+                continue
+            바뀜 = False
+            for k, v in DEFAULT_FEES.items():
+                # 🔴 `is None` 으로 본다 — 0 은 「무료로 정함」이라 덮으면 안 된다.
+                if getattr(row, k) is None:
+                    setattr(row, k, v)
+                    바뀜 = True
+            채움 += 1 if 바뀜 else 0
+            건너뜀 += 0 if 바뀜 else 1
+        s.commit()
+        return jsonify({'ok': True, 'filled': 채움, 'skipped': 건너뜀,
+                        'message': (f'{채움}개 계정에 기본 배송비를 넣었습니다'
+                                    + (f' · {건너뜀}개는 이미 정해져 있어 그대로 뒀습니다.'
+                                       if 건너뜀 else '.'))})
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[계정설정] 기본 배송비 채우기 실패')
+        return jsonify({'ok': False, 'message': f'넣지 못했어요: {e}'}), 500
+    finally:
+        s.close()

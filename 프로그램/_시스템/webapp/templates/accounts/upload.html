@@ -36,6 +36,17 @@
       style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
       <span style="font-size:16px;"><i class="ph-light ph-book-open" aria-hidden="true"></i></span> 데이터 코드 지도
     </button>
+    {# [2026-08-24 사장님 확정] 기본값 5,000/10,000 은 **새로 만드는 계정에만** 들어간다.
+       이미 있던 계정은 「안 정함」인데, 프로그램이 임의로 채우면 사장님이 정한 적 없는
+       값을 지어내는 셈이다. 사장님이 **누르면** 그건 정한 것이다.
+       🔴 이미 값이 있는 계정은 안 건드린다 — 0원(무료로 정함)도 「정한 값」이라
+         덮으면 무료 반품이 유료로 바뀐다. #}
+    <button type="button" class="mkg-card" id="fillFeesBtn"
+      title="아직 「안 정함」인 계정에만 반품 5,000원·교환 10,000원을 넣습니다 — 이미 정해 둔 값은 그대로 둡니다"
+      style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
+      <span style="font-size:16px;"><i class="ph-light ph-truck" aria-hidden="true"></i></span> 기본 배송비 한 번에 넣기
+    </button>
+    <span id="fillFeesMsg" style="font-size:12px;color:#6B7684"></span>
   </div>
 </header>
 
@@ -1771,5 +1782,24 @@ function submitAccountSettings(){
     document.getElementById('as-msg').textContent = '';
     showToast('네트워크 오류', 'error'); });
 }
+
+/* ── 기본 배송비 한 번에 넣기 (2026-08-24) ─────────────────────────────── */
+(function(){
+  const b = document.getElementById('fillFeesBtn');
+  if(!b) return;
+  const m = document.getElementById('fillFeesMsg');
+  b.addEventListener('click', async () => {
+    if(!confirm('아직 「안 정함」인 계정에만 반품 5,000원 · 교환 10,000원을 넣습니다. '
+              + '이미 정해 둔 값(0원 포함)은 그대로 둡니다. 넣을까요?')) return;
+    b.disabled = true; m.textContent = '넣는 중…'; m.style.color = '#6B7684';
+    try{
+      const j = await (await fetch('/accounts/api/settings/fill-default-fees',
+                                   {method:'POST'})).json();
+      m.textContent = j.message || (j.ok ? '완료' : '실패');
+      m.style.color = j.ok ? '#1B8A5A' : '#C93B3B';
+    }catch(e){ m.textContent = e.message; m.style.color = '#C93B3B'; }
+    finally{ b.disabled = false; }
+  });
+})();
 </script>
 {% endblock %}
