@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}카테고리 잇기 — 정책 생성{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-category-link">
+  <style>
+    .cl-back{font-size:12px;color:var(--글자-기본,#4E5968);text-decoration:none}
+    .cl-h{font-size:24px;font-weight:700;margin:8px 0 4px}
+    .cl-sub{font-size:13px;color:var(--글자-보조,#6B7684);margin-bottom:16px;line-height:1.57}
+    .cl-why{background:var(--n50,#F9FAFB);border:1px solid var(--line,#E5E8EB);
+            border-radius:10px;padding:12px 16px;font-size:12.5px;line-height:1.8;
+            color:var(--글자-기본,#4E5968);margin-bottom:16px}
+    .cl-why b{color:var(--ink,#191F28)}
+    .cl-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .cl-bar input{flex:1;min-width:200px;height:34px;border:1px solid var(--line,#E5E8EB);
+                  border-radius:8px;padding:0 10px;font-size:13px;font-family:inherit}
+    .cl-btn{border:1px solid var(--line,#E5E8EB);background:var(--surface,#fff);
+            border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;
+            cursor:pointer;font-family:inherit;color:var(--ink,#191F28);white-space:nowrap}
+    .cl-msg{font-size:12px;color:var(--글자-보조,#8B95A1)}
+    .cl-msg.ok{color:#1B8A5A}
+    .cl-msg.err{color:#C93B3B}
+    .cl-tbl{width:100%;border-collapse:collapse;font-size:13px;
+            background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
+            border-radius:12px;overflow:hidden}
+    .cl-tbl th{background:var(--n100,#F2F4F6);font-size:12px;font-weight:600;
+               color:var(--글자-기본,#4E5968);padding:8px 12px;text-align:left}
+    .cl-tbl td{padding:8px 12px;border-top:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .cl-src{font-size:11px;color:var(--글자-보조,#8B95A1)}
+    .cl-pick{width:100%;height:32px;border:1px solid var(--line,#E5E8EB);
+             border-radius:8px;padding:0 8px;font-size:12.5px;font-family:inherit}
+    .cl-empty{padding:28px 12px;text-align:center;font-size:13px;
+              color:var(--글자-보조,#8B95A1)}
+    .cl-cand{font-size:11px;color:var(--글자-보조,#8B95A1);margin-top:3px}
+  </style>
+
+  <a class="cl-back" href="/policies">← 정책 생성</a>
+  <h1 class="cl-h">카테고리 잇기</h1>
+  <p class="cl-sub">소싱처 분류를 <b>정규 카테고리</b> 한 곳에 이으면, 그 정규
+    카테고리에 이어 둔 <b>6마켓이 한꺼번에</b> 풀립니다.</p>
+
+  {# 🔴 왜 이렇게 하는지를 화면이 말한다 — 안 말하면 「왜 두 번 잇지」가 된다. #}
+  <div class="cl-why">
+    소싱처 분류 <b>→ 정규 카테고리 →</b> 마켓 분류, 두 번에 나눠 잇습니다.<br>
+    예전에는 소싱처 분류 하나를 <b>마켓 6곳에 각각</b> 이어야 해서, 소싱처가 늘 때마다
+    일이 6배로 늘었습니다.<br>
+    <b>점수가 아무리 높아도 저절로 이어지지 않습니다</b> — 카테고리가 틀리면 마켓이
+    등록을 거부하거나 엉뚱한 분류로 올라가서, 사람이 눌러야 이어집니다.
+  </div>
+
+  <div class="cl-bar">
+    <input type="text" id="clq" placeholder="정규 카테고리 검색 (예: 원피스)">
+    <button class="cl-btn" type="button" id="clboot"
+            title="마켓 트리에서 정규 카테고리를 만들고, 예전에 확정해 둔 매핑을 옮깁니다. 여러 번 눌러도 안전합니다">씨앗 붓기 · 기존 매핑 옮기기</button>
+    <span class="cl-msg" id="clmsg"></span>
+  </div>
+
+  <table class="cl-tbl">
+    <thead><tr>
+      <th style="width:44%">소싱처 분류</th>
+      <th>어느 정규 카테고리로</th>
+    </tr></thead>
+    <tbody id="clrows">
+      <tr><td colspan="2" class="cl-empty">불러오는 중…</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let CATS = [];
+
+  function say(t, cls){ $('clmsg').textContent = t || ''; $('clmsg').className = 'cl-msg ' + (cls||''); }
+
+  function optionsHtml(sel){
+    return '<option value="">— 아직 안 이음 —</option>'
+      + CATS.map(c => '<option value="' + c.id + '"' + (String(c.id) === String(sel) ? ' selected' : '')
+                    + '>' + esc(c.path) + '</option>').join('');
+  }
+
+  function render(items){
+    if(!items.length){
+      $('clrows').innerHTML = '<tr><td colspan="2" class="cl-empty">'
+        + '이을 것이 없습니다 — 소싱처 분류가 전부 이어져 있습니다.</td></tr>';
+      return;
+    }
+    $('clrows').innerHTML = items.map(it => {
+      const cand = (it.candidates || []).map(c => esc(c.path || '')).filter(Boolean);
+      return '<tr>'
+        + '<td><div>' + esc(it.source_path) + '</div>'
+        + '<div class="cl-src">' + esc(it.source_id) + '</div>'
+        + (cand.length ? '<div class="cl-cand">비슷한 것: ' + cand.slice(0,3).join(' · ') + '</div>' : '')
+        + '</td>'
+        + '<td><select class="cl-pick" data-id="' + it.id + '">' + optionsHtml(null) + '</select></td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  async function loadCats(q){
+    const j = await (await fetch('/api/normalized-categories?q=' + encodeURIComponent(q||''))).json();
+    CATS = j.items || [];
+  }
+
+  async function loadPending(){
+    const j = await (await fetch('/api/category-pending')).json();
+    render(j.items || []);
+  }
+
+  $('clrows').addEventListener('change', async (e) => {
+    const sel = e.target.closest('.cl-pick');
+    if(!sel) return;
+    sel.disabled = true; say('잇는 중…');
+    try{
+      const j = await (await fetch('/api/category-pending/' + sel.dataset.id, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({normalized_category_id: sel.value || null})})).json();
+      if(!j.ok){ say(j.message || '못 이었어요', 'err'); return; }
+      say(sel.value ? '이었습니다 — 이 정규 카테고리에 이어 둔 마켓이 같이 풀립니다.' : '보류함으로 되돌렸습니다.', 'ok');
+      if(sel.value) await loadPending();
+    }catch(err){ say(err.message, 'err'); }
+    finally{ sel.disabled = false; }
+  });
+
+  let t = null;
+  $('clq').addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(async () => { await loadCats($('clq').value); await loadPending(); }, 250);
+  });
+
+  $('clboot').addEventListener('click', async () => {
+    const b = $('clboot');
+    b.disabled = true; say('만드는 중… 카테고리가 많으면 좀 걸립니다');
+    try{
+      const j = await (await fetch('/api/normalized-categories/bootstrap', {method:'POST'})).json();
+      say(j.message || (j.ok ? '완료' : '실패'), j.ok ? 'ok' : 'err');
+      await loadCats($('clq').value); await loadPending();
+    }catch(err){ say(err.message, 'err'); }
+    finally{ b.disabled = false; }
+  });
+
+  (async () => { await loadCats(''); await loadPending(); })();
+})();
+</script>
+{% endblock %}

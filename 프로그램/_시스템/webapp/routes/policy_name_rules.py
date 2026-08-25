@@ -299,3 +299,113 @@ def api_fill_default_fees():
         return jsonify({'ok': False, 'message': f'넣지 못했어요: {e}'}), 500
     finally:
         s.close()
+
+
+# ══ 정규 카테고리 — 보류함·잇기 (2026-08-25 Phase 7-2b) ═══════════════════
+#
+# 🔴 보류함은 **별도 표가 아니다** — 소싱처 카테고리 중 정규 카테고리를 아직 안
+#   가리키는 행이다. 별도 표를 두면 원천이 두 벌이 되고, 한쪽에서 이어도 다른 쪽은
+#   모른다(이 저장소가 반복해 사고를 낸 형태).
+# 🔴 **자동 확정하지 않는다**(사장님 확정). 점수는 고를 거리를 줄 뿐이다.
+
+@bp.get('/api/normalized-categories')
+def api_normalized_categories():
+    """정규 카테고리 목록 — 잇기 화면이 고를 거리."""
+    from lemouton.policy.normalized_category import NormalizedCategory
+    q = (request.args.get('q') or '').strip()
+    s = SessionLocal()
+    try:
+        rows = s.query(NormalizedCategory)
+        if q:
+            rows = rows.filter(NormalizedCategory.path.contains(q))
+        rows = rows.order_by(NormalizedCategory.path).limit(200).all()
+        return jsonify({'ok': True, 'items': [
+            {'id': r.id, 'path': r.path, 'depth': r.depth,
+             'source_market': r.source_market} for r in rows]})
+    finally:
+        s.close()
+
+
+@bp.get('/api/category-pending')
+def api_category_pending():
+    """보류함 — 아직 정규 카테고리를 안 가리키는 소싱처 분류들."""
+    import json as _json
+
+    from lemouton.policy import category_bootstrap as CB
+    s = SessionLocal()
+    try:
+        rows = CB.pending(s, source_id=(request.args.get('source') or '').strip() or None)
+        out = []
+        for r in rows:
+            후보 = []
+            if r.candidates_json:
+                try:
+                    후보 = _json.loads(r.candidates_json) or []
+                except (TypeError, ValueError):
+                    후보 = []      # 깨진 값은 「후보 없음」처럼 — 조용히 쓰지 않는다
+            out.append({'id': r.id, 'source_id': r.source_id,
+                        'source_path': r.source_path,
+                        'confidence': r.confidence, 'candidates': 후보})
+        return jsonify({'ok': True, 'items': out, 'count': len(out)})
+    finally:
+        s.close()
+
+
+@bp.post('/api/category-pending/<int:link_id>')
+def api_link_category(link_id: int):
+    """소싱처 분류를 정규 카테고리에 잇는다(또는 뗀다).
+
+    🔴 사람이 눌러야 이어진다 — 점수만으로 이어지는 길은 만들지 않는다.
+    """
+    from lemouton.policy.normalized_category import NormalizedCategory, SourceCategoryLink
+    body = request.get_json(silent=True) or {}
+    nid = body.get('normalized_category_id')
+    s = SessionLocal()
+    try:
+        row = s.get(SourceCategoryLink, link_id)
+        if row is None:
+            return jsonify({'ok': False, 'message': '그 줄이 없어요.'}), 404
+        if nid in (None, '', 0):
+            row.normalized_category_id = None     # 다시 보류함으로
+        else:
+            # 🔴 없는 정규 카테고리를 가리키면 화면엔 이어진 것처럼 보이는데 안 먹는다.
+            if s.get(NormalizedCategory, int(nid)) is None:
+                return jsonify({'ok': False,
+                                'message': '그 정규 카테고리가 없어요.'}), 400
+            row.normalized_category_id = int(nid)
+        s.commit()
+        return jsonify({'ok': True, 'normalized_category_id': row.normalized_category_id})
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[정규카테고리] 잇기 실패 id=%s', link_id)
+        return jsonify({'ok': False, 'message': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/normalized-categories/bootstrap')
+def api_bootstrap_categories():
+    """마켓 트리에서 씨앗을 붓고, 확정된 기존 매핑을 옮긴다. 멱등."""
+    from lemouton.policy import category_bootstrap as CB
+    s = SessionLocal()
+    try:
+        씨앗 = CB.bootstrap(s)
+        옮김 = CB.migrate_confirmed(s)
+        s.commit()
+        전체 = sum(씨앗.values())
+        return jsonify({'ok': True, 'seeded': 씨앗, 'migrated': 옮김,
+                        'message': (f'정규 카테고리 {전체}칸을 새로 만들고, '
+                                    f'확정된 매핑 {옮김["sources"]}건을 옮겼습니다'
+                                    + (f' · 마켓 경로를 몰라 {옮김["skipped"]}건은 '
+                                       f'건너뛰었습니다.' if 옮김['skipped'] else '.'))})
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[정규카테고리] 씨앗 붓기 실패')
+        return jsonify({'ok': False, 'message': f'하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.route('/policies/categories')
+def policy_categories():
+    """카테고리 잇기 화면 — 보류함 + 정규 카테고리 고르기."""
+    from flask import render_template
+    return render_template('policy/categories.html', active='policies')
