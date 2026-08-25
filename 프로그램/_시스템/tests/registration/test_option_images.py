@@ -14,9 +14,23 @@ from lemouton.registration.options import build_coupang_items
 
 # ── 마켓 지원 표 ──────────────────────────────────────────────────────────
 
-def test_쿠팡과_11번가는_옵션별로_받는다():
+def test_쿠팡만_옵션별로_실제로_나간다():
+    """🔴 [2026-08-25 정정] 11번가를 「나감」으로 적어 뒀는데 사실이 아니었다.
+
+    지도 원문이 **조건부**다 — 「우아(OOAh) 서비스 상품일 경우」 + 「첫번째 옵션에
+    해당하는 항목들 기준으로만」. 게다가 우리 11번가 등록 XML 은 이 칸을 아예 안
+    만든다. 화면이 「나감」이라 말하면 사장님은 걸린 줄 안다.
+    """
     assert OI.sends_per_option('coupang') is True
-    assert OI.sends_per_option('eleven11') is True
+    assert OI.sends_per_option('eleven11') is False
+
+
+def test_11번가는_조건과_미배선을_같이_말한다():
+    상태, 왜 = OI.support_of('eleven11')
+    assert 상태 == OI.NOT_WIRED
+    assert '우아' in 왜, '조건(OOAh 서비스)을 안 말하면 「왜 안 되지」가 된다'
+    assert '첫 번째 옵션' in 왜, '색상별까지라는 한계를 말해야 한다'
+    assert '안 보내고' in 왜, '우리가 아직 안 보낸다는 사실을 말해야 한다'
 
 
 def test_옥션과_G마켓은_마켓이_막아_뒀다():
@@ -49,6 +63,8 @@ def test_화면이_쓸_배지에_이유가_붙는다():
         assert b['label'] and b['why'], '왜 그런지 없이 배지만 달면 못 고친다'
     쿠팡 = [b for b in got if b['market'] == 'coupang'][0]
     assert 쿠팡['label'] == '옵션별로 나감'
+    십일 = [b for b in got if b['market'] == 'eleven11'][0]
+    assert 십일['label'] == '아직 안 보냄'
 
 
 # ── 쿠팡 옵션별 사진이 실제로 실리나 ──────────────────────────────────────
