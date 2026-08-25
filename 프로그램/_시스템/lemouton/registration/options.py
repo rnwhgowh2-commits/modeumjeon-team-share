@@ -204,6 +204,10 @@ def _normalize(opts, *, split_model=False):
             'stock': _num(o.get('stock'), '재고'),
             'extra_price': 0 if extra is None else extra,
             'sku': _text(o.get('sku')),
+            # ★ [2026-08-24 Phase 4-4] 옵션마다 다른 사진. 여기서 버리고 있어서
+            #   **모든 옵션에 대표 사진 한 장이 똑같이** 나갔다 — 쿠팡은 옵션별
+            #   사진(`items[].images`)을 받는데도 그랬다. 없으면 빈 글자(대표로 되받음).
+            'image_url': _text(o.get('image_url')),
         })
 
     # ★ 한 상품 안에서 사이즈 유무가 섞이면 안 된다 — 스스 옵션 그룹은 상품 단위로
@@ -499,9 +503,15 @@ def build_coupang_items(opts, *, sale_price, image_url):
     items = []
     for o in rows:
         price = _final_price(base, o)
+        # ★ [2026-08-24 Phase 4-4] 옵션에 사진이 있으면 **그 사진**을 쓴다.
+        #   🔴 예전엔 대표 사진 한 장을 모든 옵션에 똑같이 넣었다 — 색이 달라도
+        #     구매자에게는 같은 사진이 보였다. 쿠팡은 옵션별 사진을 받는다
+        #     (지도 실측 `items[].images` — vendorPath/imageType/imageOrder).
+        #   옵션에 사진이 없으면 대표 사진으로 되받는다(지어내지 않는다).
+        opt_img = str(o.get('image_url') or '').strip() or image_url
         images = ([{'imageOrder': 0, 'imageType': 'REPRESENTATION',
-                    'vendorPath': image_url}]
-                  if image_url else [])
+                    'vendorPath': opt_img}]
+                  if opt_img else [])
         # 사이즈 없으면(색상만) itemName·attributes 에서 사이즈를 뺀다 —
         # 빈 attributeValueName 은 쿠팡이 필수라 거부한다.
         item_name = f"{o['color']}-{o['size']}" if o['size'] else o['color']

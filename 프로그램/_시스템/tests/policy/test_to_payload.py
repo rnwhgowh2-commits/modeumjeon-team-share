@@ -619,3 +619,55 @@ def test_사본에_있는_화면용_값까지_옮기지는_않는다(s):
     got = _draft_fields(s, ps)
     assert 'source_category_path' not in got
     assert 'set_id' not in got and 'model_code' not in got
+
+
+# ── 0층 상품명 규칙이 **전송 경로까지** 이어지는가 (2026-08-24 Phase 3) ─────
+#
+# 🔴 `name_rule_id` 칸은 Phase 1 부터 있었는데 **읽는 곳이 0곳**이었다.
+#   `apply_to_rules` 단독 시험만 있으면 그 함수를 아무도 안 불러도 초록불이다.
+#   그래서 전송이 실제로 쓰는 `rules_for` 를 통과시켜 확인한다.
+
+def test_정책이_고른_상품명_규칙이_전송_규칙에_실린다(s):
+    from lemouton.policy.models import NameRule, SetPolicyLink
+    _model(s)
+    ps = _set(s)
+    p = _policy(s)
+    r = NameRule(name='품번 먼저', token_order=['model_no', 'brand', 'origin_name'])
+    s.add(r)
+    s.flush()
+    p.name_rule_id = r.id
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    _save(s, p, 'coupang', 'name', {'token_order': ['brand'], 'max_len': 80})
+    s.flush()
+
+    rules, got, _ = TP.rules_for(s, set_id=ps.id, market='coupang')
+    assert got.id == p.id
+    assert rules['name']['token_order'] == ['model_no', 'brand', 'origin_name'], (
+        '규칙을 골랐는데 정책 값이 그대로 나갔다 — 다리가 끊겼다')
+    assert rules['name']['max_len'] == 80, '규칙이 안 가진 칸은 정책 값이 남아야 한다'
+
+
+def test_규칙을_안_고른_정책은_전송_규칙이_안_바뀐다(s):
+    from lemouton.policy.models import SetPolicyLink
+    _model(s)
+    ps = _set(s)
+    p = _policy(s)
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    _save(s, p, 'coupang', 'name', {'token_order': ['brand', 'origin_name']})
+    s.flush()
+    rules, _, _ = TP.rules_for(s, set_id=ps.id, market='coupang')
+    assert rules['name']['token_order'] == ['brand', 'origin_name']
+
+
+def test_구성_사본이_품번과_상품번호를_싣는다(s):
+    """🔴 사본이 안 실으면 「품번」 조각을 골라도 늘 빈 채로 빠진다."""
+    from lemouton.sourcing.models import Model
+    m = _model(s)
+    m.article_no = 'CW2288-111'
+    m.display_no = 'D-77'
+    s.flush()
+    ps = _set(s)
+    s.flush()
+    v = TP.set_view(s, set_id=ps.id)
+    assert v.article_no == 'CW2288-111'
+    assert v.display_no == 'D-77'

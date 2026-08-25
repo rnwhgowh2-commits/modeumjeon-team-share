@@ -227,6 +227,7 @@ def _apply_lightweight_migrations() -> None:
     migrations = [
         # [2026-08-24] 0층 규칙 저장소 참조 — 규칙 한 벌을 여러 정책이 공유한다.
         #   NULL 이 정상(규칙 안 고른 정책 = 지금까지 동작 그대로).
+        ("market_policies", "market_accounts", "TEXT"),
         ("market_policies", "name_rule_id", "INTEGER"),
         ("market_policies", "detail_template_id", "INTEGER"),
         # [2026-08-06] 포장 스캔 출고가 어느 주문 줄이었나 — 같은 줄 두 번 찍어도

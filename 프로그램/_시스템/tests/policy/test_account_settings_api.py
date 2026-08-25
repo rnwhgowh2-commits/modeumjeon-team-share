@@ -175,3 +175,62 @@ def test_기존_계정의_안_정한_칸은_안_채운다(client):
     aid = _account(client, key='르무통_기존')
     got = client.get(f'/accounts/api/settings/{aid}').get_json()
     assert got['columns']['return_fee'] is None
+
+
+# ── 기본 배송비 한 번에 넣기 (2026-08-24 사장님 확정) ─────────────────────
+#
+# 🔴 이미 정해 둔 값은 안 건드린다. **0원도 「정한 값」**이다 — 덮으면 무료 반품이
+#   유료로 바뀐다(사장님이 정한 적 없는 변경).
+
+def test_안_정한_계정에만_기본_배송비를_넣는다(client):
+    from lemouton.policy.models import MarketAccountSetting
+    갑 = _account(client, market='coupang', key='갑')
+    을 = _account(client, market='lotteon', key='을')
+
+    s = client._Session()
+    try:
+        # 을은 이미 「0원(무료)」로 정해 뒀다
+        s.add(MarketAccountSetting(upload_account_id=을, return_fee=0,
+                                   exchange_fee=0))
+        # 갑의 설정 행은 아예 없다(= 전 칸 「안 정함」)
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.post('/accounts/api/settings/fill-default-fees')
+    assert r.status_code == 200, r.get_data(as_text=True)
+    assert r.get_json()['ok'] is True
+
+    갑값 = client.get(f'/accounts/api/settings/{갑}').get_json()['columns']
+    을값 = client.get(f'/accounts/api/settings/{을}').get_json()['columns']
+    assert (갑값['return_fee'], 갑값['exchange_fee']) == (5000, 10000)
+    assert (을값['return_fee'], 을값['exchange_fee']) == (0, 0), (
+        '이미 「무료로 정함」인 계정을 덮었다 — 무료 반품이 유료가 된다')
+
+
+def test_다른_칸은_안_건드린다(client):
+    """배송비만 넣는다 — A/S 전화까지 지어내면 안 된다."""
+    aid = _account(client, market='coupang', key='병')
+    client.post('/accounts/api/settings/fill-default-fees')
+    got = client.get(f'/accounts/api/settings/{aid}').get_json()['columns']
+    assert got['as_phone'] is None
+    assert got['jeju_fee'] is None
+
+
+def test_두_번_눌러도_같은_결과다(client):
+    """멱등 — 두 번째부터는 이미 정해진 값이라 안 바뀐다."""
+    aid = _account(client, market='coupang', key='정')
+    client.post('/accounts/api/settings/fill-default-fees')
+    client.post(f'/accounts/api/settings/{aid}',
+                json={'columns': {'return_fee': 3000}})
+    client.post('/accounts/api/settings/fill-default-fees')
+    got = client.get(f'/accounts/api/settings/{aid}').get_json()['columns']
+    assert got['return_fee'] == 3000, '사장님이 고친 값을 되돌렸다'
+
+
+def test_화면에_단추가_있다(client):
+    _account(client, market='coupang', key='무')
+    html = client.get('/accounts/upload').get_data(as_text=True)
+    assert 'id="fillFeesBtn"' in html
+    assert '기본 배송비 한 번에 넣기' in html
+    assert '/accounts/api/settings/fill-default-fees' in html

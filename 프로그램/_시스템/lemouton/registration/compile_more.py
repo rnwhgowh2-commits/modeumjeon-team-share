@@ -187,6 +187,17 @@ def compile_auction_gmarket(draft, *, category_code) -> tuple:
         'bar_code': spec['barcode'],
         'is_adult_product': not spec['minor_purchasable'],
     })
+    # ★ [2026-08-24 Phase 4-5] 가격비교 노출 — 지도 실측
+    #     `addtionalInfo > pcs > isUse` (Boolean) · 쿠폰 `isUseIacPcsCoupon` (옥션용)
+    #   🔴 G마켓 쿠폰 칸(`isUseGmkPcsCoupon`)은 지도에 **「사용불가」**로 적혀 있다 —
+    #     마켓이 설정을 막아 둔 것이라 우리가 보낼 수 없다. 노출 여부만 가능.
+    #   정책이 말하지 않으면 **칸을 아예 안 넣는다** — 지금까지 안 보내던 그대로.
+    _pcs = getattr(draft, 'price_compare_expose', None)
+    if _pcs is not None:
+        spec['pcs_use'] = bool(_pcs)
+    _pcs_cp = getattr(draft, 'price_compare_coupon', None)
+    if _pcs_cp is not None:
+        spec['pcs_coupon_iac'] = bool(_pcs_cp)
     return spec, excluded
 
 
@@ -216,6 +227,15 @@ def compile_eleven11(draft, *, category_code) -> tuple:
         'return_cost': coerce_int(draft.return_fee, '반품배송비') or 0,
         'exchange_cost': (coerce_int(draft.return_fee, '반품배송비') or 0) * 2,
     })
+    # ★ [2026-08-24 Phase 4-5] 가격비교 노출 — 지도 실측
+    #     `prcCmpExpYn` (Y/N, 선택) · 할인적용 `prcDscCmpExpYn` (Y/N, 선택)
+    #   정책이 말하지 않으면 **칸을 아예 안 넣는다** — 지금까지 안 보내던 그대로.
+    _pcs = getattr(draft, 'price_compare_expose', None)
+    if _pcs is not None:
+        spec['prc_cmp_exp_yn'] = 'Y' if _pcs else 'N'
+    _pcs_cp = getattr(draft, 'price_compare_coupon', None)
+    if _pcs_cp is not None:
+        spec['prc_dsc_cmp_exp_yn'] = 'Y' if _pcs_cp else 'N'
     return spec, excluded
 
 

@@ -95,6 +95,7 @@ def policy_detail(pid: int):
         applied_count, enabled_markets, readiness, values_for,
     )
     from lemouton.policy import fixed_sends as FIXED
+    from lemouton.registration import option_images as _OI
     from lemouton.policy import required as REQ
     from lemouton.pricing import fee_defaults
     from lemouton.pricing.unified import default_fee_pct
@@ -138,8 +139,15 @@ def policy_detail(pid: int):
             'on': len(_on), 'off': len(_off),
         }
         ctx = {
+            # 🔴 화면에 넘기는 것은 **정해진 칸만 담은 사본**이다. 칸을 안 넣으면
+            #   템플릿에서 조용히 빈 값이 되고, 저장은 됐는데 화면엔 안 나온다
+            #   (2026-08-24 실화면에서 잡음 — 규칙을 골라도 새로고침하면 풀렸다).
+            # [2026-08-24 Phase 4-4] 옵션별 사진이 어느 마켓에 실제로 나가나 —
+            #   화면이 「걸었다」고만 보여 주면 사장님은 걸린 줄 안다.
+            'option_image_support': _OI.badges(),
             'policy': {'id': p.id, 'name': p.name, 'memo': p.memo or '',
-                       'is_default': bool(p.is_default), 'brand': p.brand or ''},
+                       'is_default': bool(p.is_default), 'brand': p.brand or '',
+                       'name_rule_id': p.name_rule_id},
             'markets': [(COMMON_KEY, COMMON_LABEL)] + list(MARKETS),
             'market': market,
             # ── [2026-08-12 사장님 확정 B2] 노션 「마켓 활성화 체크한 것만 가공 활성화」 ──
@@ -1267,3 +1275,9 @@ def api_migrate_template():
         return jsonify({'ok': False, 'error': f'옮기지 못했어요: {e}'}), 500
     finally:
         s.close()
+
+
+# ── 0층 상품명 규칙 세트 창구 ─────────────────────────────────────────────
+#   같은 블루프린트에 얹히는 라우트라 여기서 불러 등록한다.
+#   🔴 맨 끝에서 부른다 — 위에서 부르면 `bp` 가 아직 없어 순환 import 가 난다.
+from webapp.routes import policy_name_rules  # noqa: E402,F401

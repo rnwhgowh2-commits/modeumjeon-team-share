@@ -1183,6 +1183,50 @@ def _check_market_required(draft, name, over, market):
     return out
 
 
+def _apply_price_compare(draft, cfg):
+    """가격비교 노출 (§7-6) — (덮을 칸, applied, skipped).
+
+    🔴 [2026-08-24 Phase 4-5] 이 항목은 **저장만 되고 아무 데도 안 갔다.**
+      스스는 `naverShoppingRegistration: True` 가 코드에 박혀 있었고,
+      11번가·ESM 은 칸 자체를 안 보냈다. 사장님이 「노출 안 함」으로 정해도
+      그대로 노출됐다는 뜻이다 — 가격비교는 수수료가 더 붙는다(금전 직결).
+
+    ■ 마켓별 칸 (2026-08-24 지도 전문 + 라이브 대조 실측)
+      · 스마트스토어 `naverShoppingRegistration` (boolean) **필수**
+        ⚠️ 네이버 쇼핑 광고주가 아니면 보낸 값과 무관하게 false 로 저장된다.
+      · 11번가 `prcCmpExpYn` (Y/N, 선택) · 할인적용 `prcDscCmpExpYn` (Y/N, 선택)
+      · 옥션 `addtionalInfo>pcs>isUse` (Boolean) · 쿠폰 `isUseIacPcsCoupon`
+      · G마켓 `addtionalInfo>pcs>isUse` (Boolean)
+        🔴 쿠폰 칸(`isUseGmkPcsCoupon`)은 지도에 **「사용불가」** — 설정 못 한다.
+      · 쿠팡 **칸 없음** (지도·라이브 둘 다 0건)
+      · 롯데온 **확인 불가** — 등록 API 필드가 지도에 부분만 실려 있다.
+
+    🔴 정책이 말하지 않으면 손대지 않는다 — 지금까지의 동작이 그대로 유지된다.
+    """
+    over, applied, skipped = {}, [], []
+    if 'expose' in cfg:
+        want = cfg.get('expose')
+        if isinstance(want, bool):
+            over['price_compare_expose'] = want
+            applied.append(_applied('price_compare', 'expose', None, want,
+                                    note=('가격비교에 노출합니다.' if want else
+                                          '가격비교에 노출하지 않습니다 — 수수료 가산이 '
+                                          '붙지 않습니다.')))
+        else:
+            skipped.append(_skip('price_compare', 'expose', 'BAD_EXPOSE',
+                                 f'노출 여부가 예/아니오가 아닙니다: {want!r} — '
+                                 '지어내지 않습니다.', False))
+    if 'coupon' in cfg:
+        want_c = cfg.get('coupon')
+        if isinstance(want_c, bool):
+            over['price_compare_coupon'] = want_c
+            applied.append(_applied('price_compare', 'coupon', None, want_c,
+                                    note='가격비교에서 쿠폰 적용 여부입니다 — '
+                                         '11번가·옥션만 정할 수 있습니다'
+                                         '(G마켓은 마켓이 설정을 막아 뒀습니다).'))
+    return over, applied, skipped
+
+
 def _apply_kc(draft, cfg):
     """KC 인증 — 담을 칸이 없다. **조용히 넘기지 않고** 무엇이 없어서인지 말한다."""
     skipped = []
@@ -1392,7 +1436,8 @@ def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
     # ── 5) 운영값 — 배송·원산지·KC (§7-10 / §7-6 / §7-7) ────────────────────
     #   빈 칸만 채운다. 사람이 넣은 값은 규칙보다 우선이고, 다르면 사유로 말한다.
     for item, fn in (('shipping', _apply_shipping), ('origin', _apply_origin),
-                     ('kc', _apply_kc), ('listing', _apply_listing)):
+                     ('kc', _apply_kc), ('listing', _apply_listing),
+                     ('price_compare', _apply_price_compare)):
         cfg = rules.get(item)
         if cfg is None:
             continue
@@ -1469,11 +1514,40 @@ def _build_name(draft, cfg, brand_cfg, market):
                 continue
             parts.append(before.strip())
         elif key == 'model_no':
-            # ★ ProductDraft 에 품번 칸이 없다(models.py:23~ 전수 확인). 조용히 빼지
-            #   않고 말한다 — 다음 사람이 「규칙이 안 먹는다」로 오해하지 않게.
-            skipped.append(_skip('name', 'model_no', 'NO_MODEL_NO',
-                                 '품번을 담는 칸이 아직 없어 상품명에 품번을 넣지 '
-                                 '못했습니다 — 조립 순서에서 품번은 빠집니다.', False))
+            # ★ [2026-08-24 Phase 3] 품번은 `Model.article_no` 에 있다.
+            #   구성 사본(`to_payload.set_view`)이 실어 주면 여기서 붙는다.
+            #   예전엔 「담을 칸이 아예 없다」였는데, 칸은 있고 사본이 안 실어
+            #   주고 있었을 뿐이다. 그래도 **비면 조용히 빼지 않고 말한다** —
+            #   다음 사람이 「규칙이 안 먹는다」로 오해하지 않게.
+            art = str(getattr(draft, 'article_no', '') or '').strip()
+            if art:
+                parts.append(art)
+            else:
+                skipped.append(_skip('name', 'model_no', 'NO_MODEL_NO',
+                                     '이 상품에는 품번이 비어 있어 상품명에 품번을 '
+                                     '넣지 못했습니다 — 조립 순서에서 품번은 빠집니다.',
+                                     False))
+        elif key == 'product_no':
+            # 상품번호 — 화면에서 보이는 번호가 있으면 그것, 없으면 모델 코드.
+            pno = (str(getattr(draft, 'display_no', '') or '').strip()
+                   or str(getattr(draft, 'model_code', '') or '').strip())
+            if pno:
+                parts.append(pno)
+            else:
+                skipped.append(_skip('name', 'product_no', 'NO_PRODUCT_NO',
+                                     '이 상품에는 상품번호가 없어 상품명에 넣지 '
+                                     '못했습니다.', False))
+        elif key == 'category':
+            # 🔴 '신발>스니커즈' 를 통째로 넣으면 상품명에 꺾쇠가 들어간다 —
+            #   맨 끝 칸(가장 좁은 분류)만 쓴다.
+            path = str(getattr(draft, 'source_category_path', '') or '').strip()
+            leaf = path.replace('>', '/').split('/')[-1].strip() if path else ''
+            if leaf:
+                parts.append(leaf)
+            else:
+                skipped.append(_skip('name', 'category', 'NO_CATEGORY',
+                                     '이 상품에는 카테고리가 없어 상품명에 넣지 '
+                                     '못했습니다.', False))
         elif key.strip():
             parts.append(key.strip())        # 임의 텍스트 (§7-1)
 
