@@ -109,6 +109,9 @@ def create_app() -> Flask:
     import lemouton.catalog.models  # noqa: F401
     import lemouton.registration.process_policy  # noqa: F401  # 대량등록 ② 가공정책 4테이블
     import lemouton.policy.models  # noqa: F401  # [2026-08-24] 정책·0층 규칙·2층 계정설정
+    # [2026-08-25 Phase 7-1] 정규 카테고리 3표 — 표를 만들려면 여기서 불러야 한다
+    #   (`shared/db.py:init_db` 의 create_all 은 **등록된 모델만** 만든다).
+    import lemouton.policy.normalized_category  # noqa: F401
     import lemouton.registration.notice_defaults  # noqa: F401  # 고시정보 기본값 (notice_defaults)
     # ★ 소싱 정규화 모델(source_products·crawl_deltas·crawl_lap_runs·crawl_change_stats).
     #   여태 team-share-dev 에서만 import 됐는데, create_all 은 **import 된 모델만** 만든다

@@ -214,26 +214,20 @@ class DetailTemplate(Base):
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
 
-class CategoryMappingReview(Base):
-    """AI 카테고리·태그 매핑 「보류함」 — 확신 낮은 것만 쌓인다.
-
-    ■ 왜 전량 자동이 아닌가 (2026-08-24 사장님 확정)
-      카테고리는 틀리면 노출이 죽고 마켓 제재 대상이 된다. AI 가 확신하는 것만
-      바로 넣고 애매한 것은 여기로 보내, 사장님은 **보류함만** 보면 된다.
-
-    🔴 `ai_suggestion` 은 확정·수정 후에도 **덮어쓰지 않는다** — 나중에 「AI 가 무엇을
-      얼마나 틀렸나」를 세려면 추천값과 실제값이 둘 다 남아 있어야 한다.
-    """
-    __tablename__ = 'category_mapping_reviews'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    product_id = Column(String(64), nullable=False, index=True)
-    market = Column(String(20), nullable=False)
-    ai_suggestion = Column(String(200))
-    confidence = Column(Float)
-    status = Column(String(16), default='pending', nullable=False)  # pending|confirmed|corrected
-    resolved_value = Column(String(200))
-    created_at = Column(DateTime, default=_utcnow, nullable=False)
+# ── [2026-08-25 사장님 확정 「삼바것 따라가기」] CategoryMappingReview 를 지웠다 ──
+#
+# 이 표는 AI 카테고리 「보류함」용으로 Phase 1 에서 만들었는데, **읽는 곳이 0곳**인
+# 채로 남아 있었고 같은 일을 하는 체계가 이미 둘이나 있었다:
+#   · `registration/models.py:CategoryMapRow` — 제안/확정/재확정 + 확신도 + 후보 3개
+#   · `webapp/routes/bulk/category_map.py` + 대량등록 설정 화면
+#
+# 사장님 확정으로 **삼바 구조**를 따르기로 했고, 삼바에서 보류함은 별도 표가 아니라
+# **「아직 안 이은 행」**이다 (`policy/normalized_category.py:SourceCategoryLink` 의
+# `normalized_category_id IS NULL`). 원천을 두 벌로 두면 한쪽에서 이어도 다른 쪽은
+# 모른다 — 이 저장소가 반복해 사고를 낸 형태라 지웠다.
+#
+# 🔴 지워도 안전한 이유: 읽는 코드가 0곳이었고, 라이브에 쌓인 행도 없다
+#   (화면·창구가 없어 넣을 방법 자체가 없었다).
 
 
 class BrandRegistryCache(Base):
