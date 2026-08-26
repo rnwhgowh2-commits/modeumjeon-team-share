@@ -213,6 +213,28 @@ def test_analyze_aborts_when_a_market_fails(client, monkeypatch):
     assert lst == []
 
 
+def test_unhandled_exception_still_returns_json_not_html(client, monkeypatch):
+    """[2026-08-26] pipeline.run 처럼 analyze() 안에서 try/except 로 안 감싼 단계가
+    터져도 blueprint 전용 errorhandler(_always_json_error)가 항상 JSON 으로 바꿔준다.
+
+    이게 없으면 Flask 기본 HTML 500 페이지가 나가 margin_embed.html 의 res.json() 이
+    파싱 실패 → 화면엔 이유 없이 "서버 오류"만 뜬다(라이브에서 실제로 겪은 증상 —
+    OOM-kill 로 연결이 끊기는 경우와는 다른, 코드 예외로도 같은 증상이 난다는 걸 확인).
+    """
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+
+    def _boom(buy_df, sell_df):
+        raise RuntimeError("예상치 못한 처리 실패")
+    monkeypatch.setattr("webapp.routes.api_margin.pipeline.run", _boom)
+
+    r = client.post("/api/margin/analyze", json={})
+    assert r.status_code == 500
+    j = r.get_json()  # None 이면 여기서 이미 실패 — 응답이 JSON 이 아니었다는 뜻
+    assert j is not None
+    assert "예상치 못한 처리 실패" in j["error"]
+
+
 def test_account_warnings_surface_in_response_and_db(client, monkeypatch):
     _upload(client)
     sell = _sell_df([("1000", "real", 50000)])

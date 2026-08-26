@@ -43,6 +43,21 @@ logger = logging.getLogger(__name__)
 
 bp = Blueprint("api_margin", __name__, url_prefix="/api/margin")
 
+
+@bp.errorhandler(Exception)
+def _always_json_error(e):
+    """[2026-08-26] 미처리 예외가 HTML 500 페이지로 새면 margin_embed.html 의
+    startAnalysis()가 res.json() 파싱에 실패해 이유 없이 "서버 오류"만 뜬다 — 같은
+    문제를 이미 겪은 /api/sources/parse(O13)와 동일 패턴으로 이 blueprint 한정
+    항상 JSON 응답을 보장한다.
+    (프록시/컨테이너 메모리 상한(OOM)으로 연결 자체가 끊기는 경우는 Flask 밖이라
+     이걸로는 못 잡는다 — 그건 별도로 컨테이너 메모리 여유를 확보해야 한다.)"""
+    from werkzeug.exceptions import HTTPException
+    code = e.code if isinstance(e, HTTPException) else 500
+    if code == 500:
+        logger.error("마진 API 처리 중 미처리 예외", exc_info=True)
+    return jsonify({"error": f"{type(e).__name__}: {e}"[:300]}), code
+
 PERIOD_MARGIN_DAYS = 3
 _XLSX_CT = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
