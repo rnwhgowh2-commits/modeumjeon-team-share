@@ -15,6 +15,18 @@
         아니게 되어 화면엔 "서버 오류"만 뜬다(실제로 분석이 매번 실패했다).
       주문내역 탭이 멀쩡한 이유도 마켓을 나눠 부르기 때문이다. 같은 방식을 따른다.
 
+   🔴🔴 2026-08-26 — 나눠 부르는 것과 별개로 **동시에** 부르면 안 된다.
+      라이브 컨테이너는 램 900MB 로 상한이 걸려 있는데(Dockerfile), 배경 스케줄러
+      (크롤 폴링·정산 스윕)만으로 이미 899.4/900MB(99.93%) 를 상시로 쓰고 있다
+      (서버 진단 실측 — 오늘 하루에만 OOM-kill 3회, 전부 gunicorn/스레드풀 대상).
+      6마켓을 Promise.all 로 한꺼번에 쏘면 6개 요청 + 마켓별 내부 스레드가 동시에
+      메모리를 잡아먹어, 뒤이은 「분석 시작」(pandas 매칭·집계·블랙스팟) 에 필요한
+      여유분이 없어 커널 OOM-killer 가 워커를 죽인다 — 응답이 끊겨 똑같이 "서버 오류"로
+      보인다. 주문건이 많을수록 이 여유분이 더 필요해 더 잘 터진다.
+      → 아래에서 마켓을 **순서대로 하나씩 기다려서** 부른다(동시 요청 1개로 유지).
+        각 호출은 여전히 별도 HTTP 요청이라 Cloudflare 100초 제한은 요청마다 새로
+        적용된다 — 순차로 바꿔도 개별 호출이 오래 걸릴 위험은 늘지 않는다.
+
    서버(/api/orders-ingest/run-sync)는 자체적으로 50초에 끊고 사유를 JSON 으로 준다 —
    그래서 이 호출들은 서버 상한에 걸리지 않는다.
 
@@ -63,7 +75,10 @@
     window._moumRefreshFailed = [];   /* 이전 분석의 실패 목록이 남지 않게 매번 비운다 */
     if (msg) msg.textContent = '최근 주문 불러오는 중… 0/' + total;
 
-    await Promise.all(MARKETS.map(async function (m) {
+    /* 동시(Promise.all)가 아니라 순서대로 — 컨테이너 메모리 여유를 지키기 위해서다.
+       (씨앗 위 주석 2026-08-26 항목 참조) */
+    for (var mi = 0; mi < MARKETS.length; mi++) {
+      var m = MARKETS[mi];
       try {
         var res = await fetch('/api/orders-ingest/run-sync', {
           method: 'POST',
@@ -83,7 +98,7 @@
       }
       done++;
       if (msg) msg.textContent = '최근 주문 불러오는 중… ' + done + '/' + total;
-    }));
+    }
 
     window._moumRefreshFailed = failed;
     return { failed: failed, total: total };
