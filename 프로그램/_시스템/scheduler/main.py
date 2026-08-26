@@ -664,9 +664,38 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       id='coupang_coupon', max_instances=1, coalesce=True,
                       misfire_grace_time=300)
         logger.info('scheduler: coupang_coupon queue+renew every 1min')
+    # ── 메모리 심박 로그 (2026-08-26 라이브 OOM 조사) ───────────────────────
+    #  🔴 OOM-kill 은 SIGKILL 이라 죽는 순간 파이썬 코드가 한 줄도 못 돈다 — "몇 시에
+    #    죽었다"는 커널 로그로 알아도 "그때 뭘 하고 있었는지"는 알 방법이 없었다.
+    #    5분마다 RSS 를 남겨두면, 다음에 또 죽었을 때 죽기 직전 수치와 그 앞뒤에 찍힌
+    #    다른 작업 로그(auto-confirm tick 시작/종료 등)를 맞춰봐서 범인을 좁힐 수 있다.
+    #    컨테이너 램 상한(900MB)과 바로 비교되게 MiB 로 남긴다.
+    if (os.environ.get('MOUM_MEM_HEARTBEAT', '1') == '1'
+            and sched.get_job('mem_heartbeat') is None):
+        sched.add_job(_mem_heartbeat_tick, 'interval', minutes=5,
+                      id='mem_heartbeat', max_instances=1, coalesce=True,
+                      misfire_grace_time=300)
+        logger.info('scheduler: mem_heartbeat RSS 로그 every 5min')
     if not sched.running:
         sched.start()
     return sched
+
+
+def _mem_heartbeat_tick() -> None:
+    """현재 프로세스 RSS(MiB) 로그 — /proc/self/status 읽기(리눅스 전용, 의존성 추가 없음).
+
+    리눅스가 아니면(윈도우 개발 PC 등) 조용히 스킵 — 이 로그는 라이브 진단용이라
+    로컬 개발에는 의미 없고, 실패해도 스케줄러 자체가 죽으면 안 된다.
+    """
+    try:
+        with open('/proc/self/status', 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('VmRSS:'):
+                    kb = int(line.split()[1])
+                    logger.info('[mem] RSS=%.1fMiB', kb / 1024)
+                    return
+    except (FileNotFoundError, OSError, ValueError):
+        pass   # /proc 없음(윈도우 등) — 조용히 스킵
 
 
 def _coupang_coupon_tick() -> None:
