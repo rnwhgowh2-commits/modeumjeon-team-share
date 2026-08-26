@@ -198,6 +198,11 @@ def compile_auction_gmarket(draft, *, category_code) -> tuple:
     _pcs_cp = getattr(draft, 'price_compare_coupon', None)
     if _pcs_cp is not None:
         spec['pcs_coupon_iac'] = bool(_pcs_cp)
+    # ★ [2026-08-26] 즉시할인 — 가공이 사본에 실어 준 값을 그대로 옮긴다.
+    #   🔴 여기서 계산하지 않는다. 판정·검사는 `policy/discount.py` 한 곳이다.
+    _sd = getattr(draft, 'seller_discount', None)
+    if _sd:
+        spec['seller_discount'] = _sd
     return spec, excluded
 
 

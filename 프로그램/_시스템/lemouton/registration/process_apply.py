@@ -1433,6 +1433,33 @@ def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
         skipped.extend(s)
         over['process_option_axis'] = axis
 
+    # ── 4-b) 즉시할인 — 옥션·G마켓은 등록 요청 안에 실어 보낸다 ─────────────
+    #   🔴 [2026-08-26 지도 전수정독] `addtionalInfo.sellerDiscount` 는 **별도 API 가
+    #     아니라 등록 payload 안**에 있다. 그래서 여기(가공)에서 사본에 실어야
+    #     조립기가 집어 갈 수 있다.
+    #   🔴 판정·검사는 `policy/discount.py` 한 곳이다 — 여기서 다시 계산하면
+    #     화면이 「보낸다」고 한 값과 실제로 나가는 값이 갈린다.
+    #   🔴 못 받을 값이면 **안 싣는다.** `problem_for` 가 이미 사람 말로 사유를
+    #     말하므로, 조용히 깎거나 반올림해서 보내지 않는다.
+    if market and rules.get('price') is not None:
+        from lemouton.policy import discount as _DC
+        _dc = _DC.discount_of(rules)
+        if _dc:
+            _why = _DC.problem_for(market, _dc)
+            if _why:
+                skipped.append(_skip('price', 'discount_value', 'DISCOUNT_NOT_SENT',
+                                     _why, False))
+            else:
+                _sd = _DC.esm_seller_discount(market, _dc)
+                if _sd:
+                    over['seller_discount'] = _sd
+                    applied.append(_applied(
+                        'price', 'discount_value', None, _dc['value'],
+                        note=(f'{_DC.market_label(market)} 즉시할인을 '
+                              + (f"{_dc['value']:,}원" if _dc['unitType'] == 'WON'
+                                 else f"{_dc['value']}%")
+                              + ' 걸어 보냅니다.')))
+
     # ── 5) 운영값 — 배송·원산지·KC (§7-10 / §7-6 / §7-7) ────────────────────
     #   빈 칸만 채운다. 사람이 넣은 값은 규칙보다 우선이고, 다르면 사유로 말한다.
     for item, fn in (('shipping', _apply_shipping), ('origin', _apply_origin),
