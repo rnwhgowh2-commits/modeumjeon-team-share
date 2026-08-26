@@ -279,11 +279,13 @@ def test_missing_courier_leaves_blank_not_fabricated():
     assert str(out["matched"][0].get("샵마인_택배사", "")).strip() == ""
 
 
-def test_margin_rate_uses_paid_plus_shipping():
-    """마진율 분모 = 실결제+배송비 (판매가 아님). 사장님 확정 2026-07-25.
+def test_margin_rate_uses_sale_price_plus_shipping_not_paid():
+    """마진율 분모 = 판매가(총주문금액)+배송비 — 실결제·할인 무관. 사장님 확정 2026-08-27.
 
-    롯데온 정가 41,000이지만 고객 실결제 35,990 + 배송비 3,000 = 38,990.
-    순마진 4,271 → 마진율 = 4271/38990 = 10.95% (판매가 기준 10.42% 아님).
+    2026-07-25엔 "실결제+배송비"였다("고객이 낸 돈" 기준). 2026-08-27 재확정:
+    "내가 판매가로 최종 결정한 것"이 매출이니 고객이 할인받아 덜 낸 돈(실결제)이
+    아니라 내가 정한 판매가(단가×수량, 여기선 41,000) + 배송비 3,000 = 44,000 이
+    분모다. 순마진 4,271 → 마진율 = 4271/44000 = 9.71%.
     """
     buy = pd.DataFrame([_buy(구매가격=33298)])
     sell = pd.DataFrame([_sell(단가=41000, 실결제금액=35990, 배송비=3000,
@@ -291,11 +293,12 @@ def test_margin_rate_uses_paid_plus_shipping():
     out = P.run(buy, sell)
     r = out["matched"][0]
     assert r["순마진"] == 37569 - 33298                      # 정산−매입, 배송기준 무관
-    assert r["마진율"] == round((37569-33298)/(35990+3000)*100, 2) == 10.95
+    assert r["마진율"] == round((37569-33298)/(41000+3000)*100, 2) == 9.71
 
 
-def test_margin_rate_falls_back_to_saleprice_when_no_paid():
-    """실결제가 없으면 판매가로 폴백(옛 데이터·일부 마켓)."""
+def test_margin_rate_ignores_paid_uses_sale_price_even_when_zero():
+    """[2026-08-27] 실결제금액이 0 이어도(고객 할인 등) 분모는 판매가+배송비 그대로 —
+    실결제는 이제 마진율 분모와 아예 무관하다(옛 "실결제 폴백" 개념 자체가 없어짐)."""
     buy = pd.DataFrame([_buy(구매가격=30000)])
     sell = pd.DataFrame([_sell(단가=50000, 실결제금액=0, 배송비=0,
                               정산예상금액_배송비포함=40000)])
