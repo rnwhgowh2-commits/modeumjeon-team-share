@@ -738,14 +738,16 @@
              「고객에게 보이는 값만 깎습니다」라고 말하고 있었다 — 적어도 안 나가는데
              깎이는 줄 안다. 화면이 사실과 달라선 안 된다(이 저장소 반복 사고).
              정본 = lemouton/policy/discount.SUPPORTED. #}
-          {% set disc_sends = market in ('smartstore', 'coupang') %}
+          {# 🔴 [2026-08-26] 목록을 여기 박아 두면 정본이 늘어도 화면은 옛말을 한다.
+             서버가 정본(`policy/discount.SUPPORTED`)으로 판정해 넘겨 준다. #}
+          {% set disc_sends = discount_sends %}
           {% if not disc_sends and not is_common %}
           <div class="pf-disc-off">이 마켓은 즉시할인을 보낼 자리를 아직 못 찾았습니다 —
             <b>적어 두면 저장은 되지만 마켓으로 나가지 않습니다.</b></div>
           {% endif %}
           <div class="gt">즉시할인 <span class="pf-disc-sub">{% if disc_sends %}판매가는
             그대로 두고, 고객에게 보이는 값만 깎습니다{% else %}지금 나가는 마켓은
-            스마트스토어·쿠팡뿐입니다{% endif %}</span></div>
+            {{ discount_markets }}뿐입니다{% endif %}</span></div>
           {# ── [2026-08-13 확정 시안 v2 · 4-D] 켜기 스위치 ─────────────────────
              전에는 「깎을 값」을 비우는 것이 유일한 끄는 법이라, **껐는지 안 정했는지**
              화면만 봐선 알 수 없었다. 스위치가 그 상태를 말한다.

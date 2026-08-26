@@ -95,6 +95,7 @@ def policy_detail(pid: int):
         applied_count, enabled_markets, readiness, values_for,
     )
     from lemouton.policy import fixed_sends as FIXED
+    from lemouton.policy import discount as _DC
     from lemouton.registration import option_images as _OI
     from lemouton.policy import required as REQ
     from lemouton.pricing import fee_defaults
@@ -145,6 +146,11 @@ def policy_detail(pid: int):
             # [2026-08-24 Phase 4-4] 옵션별 사진이 어느 마켓에 실제로 나가나 —
             #   화면이 「걸었다」고만 보여 주면 사장님은 걸린 줄 안다.
             'option_image_support': _OI.badges(),
+            # [2026-08-26] 즉시할인이 실제로 나가는 마켓 — 화면이 목록을 손으로
+            #   박아 두고 있었다. 정본(`policy/discount.SUPPORTED`)이 늘어도
+            #   화면은 옛 목록을 말해, 「나간다고 했는데 안 나간다」가 된다.
+            'discount_sends': market in _DC.SUPPORTED,
+            'discount_markets': '·'.join(_DC.market_label(m) for m in _DC.SUPPORTED),
             'policy': {'id': p.id, 'name': p.name, 'memo': p.memo or '',
                        'is_default': bool(p.is_default), 'brand': p.brand or '',
                        'name_rule_id': p.name_rule_id},

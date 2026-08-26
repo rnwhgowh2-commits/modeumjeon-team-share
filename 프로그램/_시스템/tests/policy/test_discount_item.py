@@ -61,7 +61,18 @@ def test_고객가_계산은_한_곳에서만():
 
 
 def test_보낼_수_있는_마켓만():
-    assert set(SUPPORTED) == {'smartstore', 'coupang'}
+    """🔴 [2026-08-26 갱신] 옥션·G마켓이 늘었다.
+
+    지도를 전문으로 읽으니 즉시할인이 **등록 payload 안**(`addtionalInfo.sellerDiscount`)에
+    있었다 — 별도 API 가 아니었다. 11번가·롯데ON 은 여전히 자리를 못 찾았다
+    (롯데ON 「판매자할인 저장」 apiNo=122 는 지도에 [off]·상세 미접수).
+
+    🔴 이 목록을 늘릴 때는 **지도 근거가 있어야** 한다. 비슷해 보이는 칸에 끼워
+      넣으면 엉뚱한 값이 마켓에 올라간다.
+    """
+    assert set(SUPPORTED) == {'smartstore', 'coupang', 'auction', 'gmarket'}
+    for mk in ('eleven11', 'lotteon'):
+        assert mk not in SUPPORTED, f'{mk} 는 아직 자리를 못 찾았다'
 
 
 # ── 쿠팡 쿠폰 — 지도 스펙 그대로 ────────────────────────────────────────
@@ -254,12 +265,16 @@ def test_화면_못보내는_마켓은_안_나간다고_말한다(client):
     # ⚠️ 클래스 **이름**으로 세면 <style> 안 정의까지 세어 늘 「있음」이 된다
     #   (2026-08-06 브라우저 확인에서도 같은 함정을 밟았다) → 렌더된 요소로 본다.
     RENDERED = 'class="pf-disc-off"'
-    for mk in ('lotteon', 'eleven11', 'auction', 'gmarket'):
+    # [2026-08-26] 옥션·G마켓이 「나가는 쪽」으로 옮겨 갔다. 목록을 여기 손으로
+    #   박아 두면 정본이 늘 때마다 이 시험이 옛말을 하게 된다 — 정본에서 읽는다.
+    from lemouton.policy.discount import SUPPORTED as _SENDS
+    for mk in ('lotteon', 'eleven11'):
+        assert mk not in _SENDS, '이 시험의 전제가 깨졌다'
         html, _ = _detail(client, mk)
         assert RENDERED in html, f'{mk}: 안 나간다는 안내가 없다'
         assert '마켓으로 나가지 않습니다' in html
         assert '고객에게 보이는 값만 깎습니다' not in html, f'{mk}: 깎인다고 말하고 있다'
-    for mk in ('smartstore', 'coupang'):
+    for mk in _SENDS:
         html, _ = _detail(client, mk)
         assert RENDERED not in html, f'{mk}: 나가는 마켓인데 못 나간다고 한다'
         assert '고객에게 보이는 값만 깎습니다' in html
