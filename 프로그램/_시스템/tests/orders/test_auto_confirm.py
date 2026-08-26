@@ -263,6 +263,30 @@ class TestAutoConfigAndTick:
         # 방금 돌았으니 간격 전 재틱은 no-op(멀티워커 중복 방지)
         assert ac.tick(session)["ran"] is False
 
+    def test_tick_caps_backlog_per_leaf_so_it_cannot_run_forever(
+            self, session, accounts, monkeypatch):
+        """[2026-08-26] 백로그가 커도 한 틱은 _tick_limit() 만큼만 시도한다.
+
+        나머지는 '결제완료'로 남아 다음 틱에서 다시 대상이 된다 — 유실은 없다,
+        다만 한 틱이 몰아서 오래 붙잡지 않는다(라이브 OOM 조사에서 나온 개선).
+        """
+        rows = {"coupang": [
+            {"판매처": "쿠팡", "쇼핑몰별칭": "브랜드위시", "주문상태": "결제완료",
+             "오픈마켓주문번호": f"C{i}"} for i in range(5)]}
+        monkeypatch.setattr(ac._oe, "combined_order_rows", lambda mks, **kw: rows.get(mks[0], []))
+        monkeypatch.setattr(ac, "_client_for", lambda m, a: object())
+        seen = {}
+        monkeypatch.setattr("lemouton.orders.confirm_api.confirm_targets",
+                            lambda market, targets, client: seen.__setitem__(market, len(targets)))
+        monkeypatch.setattr(ac, "_readback_moved", lambda market, targets, client: len(targets))
+        monkeypatch.setenv("MOUM_AUTO_CONFIRM_TICK_LIMIT", "2")
+        ac.set_account(session, "coupang", "브랜드위시", True)
+        ac.set_config(session, enabled=True, interval_minutes=5)
+        r1 = ac.tick(session)
+        assert r1["ran"] is True
+        assert seen["coupang"] == 2                # 5건 중 2건만 이번 틱에서 시도
+        assert r1["by"][0]["attempted"] == 2
+
 
 # ── 옥션·G마켓(ESM) 주문확인 배선 (2026-07-21) ──────────────────────────────
 
