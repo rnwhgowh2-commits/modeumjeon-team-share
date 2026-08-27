@@ -55,6 +55,27 @@ def test_unfulfilled_with_trace_is_included():
     assert out["summary"]["총순마진"] == 90000
 
 
+def test_unpriced_trace_row_kept_in_totals_but_excluded_from_brand_breakdown():
+    """[2026-08-27] 사장님 신고 — 브랜드별·일별 탭에 매입 0원인데 매출·순마진이 찍혀
+    마진율이 90%대로 부풀어 보였다(실측: 플리츠플리즈 82건, 전부 송장은 있고
+    구매가격=0). 매입흔적(송장/URL)만으로 "이행" 취급해 정상 집계에 넣었더니,
+    원가를 모르는 행이 마치 고마진인 것처럼 보인 것 — "주문이행 = 실제 매입 있음"
+    이라는 확정 기준대로 구매가격이 없으면 브랜드별 등 "정상" 집계에서 뺀다.
+    (총계에는 그대로 남긴다 — 이상가와 같은 패턴, 존재를 숨기지 않음.)
+    """
+    unpriced = _row(마켓주문번호="2", 브랜드="아디다스", _주문미이행=True, _매입흔적=True,
+                     구매가격=0, 순마진=70000, 국내송장번호="123")
+    out = A.aggregate([_row(), unpriced], DEFAULT_PRICE_RANGES)
+    # 총계엔 남는다(기존 동작 유지)
+    assert out["summary"]["총순마진"] == 90000
+    assert out["summary"]["매칭건수"] == 2
+    # 브랜드별 breakdown 엔 구매가 미확정 행(아디다스)이 안 잡힌다
+    brands = {r["브랜드"] for r in out["brand"]}
+    assert brands == {"나이키"}
+    assert out["summary"]["정상순마진"] == 20000
+    assert out["summary"]["구매가미확정건수"] == 1
+
+
 def test_filters_expose_brands_and_markets():
     out = A.aggregate([_row(), _row(마켓="스마트스토어", 브랜드="아디다스")],
                       DEFAULT_PRICE_RANGES)

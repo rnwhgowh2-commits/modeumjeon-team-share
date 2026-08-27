@@ -143,16 +143,27 @@ def aggregate(result_rows, price_ranges):
     total_순마진 = df['순마진'].sum()
     avg_마진율   = (total_순마진 / total_매출 * 100) if total_매출 > 0 else 0
 
-    # 이상가 제외 집계
+    # 이상가(과다매입 의심) + 구매가미확정(원가를 아직 모름) 제외 집계
+    #  ★ 2026-08-27 사장님 신고 — 브랜드별·일별 탭에 매입 0원인데 매출·순마진이 찍혀
+    #    마진율이 90%대로 부풀어 보였다. 원인: 매입흔적(송장/URL)만 있어도 "이행"으로
+    #    쳐서 정상 집계에 넣는데, 매입흔적이 있다고 구매가격(원가)까지 아는 건 아니다
+    #    (송장은 있는데 구매가격=0인 실측 사례: 플리츠플리즈 82건 전부 이 패턴).
+    #    "주문이행 = 실제 매입이 있는 것"이라는 사장님 확정 기준대로, 구매가격이
+    #    없으면(0/결측) 원가 모를 뿐 마진이 실제로 그런 게 아니므로 브랜드별·일별 등
+    #    "정상" 집계에서 뺀다. 총매출/총매입 등 전체 합계에는 이상가처럼 그대로
+    #    남겨(존재를 숨기지 않음) — 사람이 검토할 몫은 요약탭 "고마진" 카드가 보여준다.
     if '이상가' in df.columns:
-        normal = df[df['이상가'] == False]
+        mask_abnormal_price = df['이상가'] == True
     else:
-        normal = df
+        mask_abnormal_price = pd.Series(False, index=df.index)
+    mask_unpriced = pd.to_numeric(df['구매가격'], errors='coerce').fillna(0) <= 0
+    normal = df[~mask_abnormal_price & ~mask_unpriced]
     normal_매출   = normal['_매출기준'].sum()      # 매출 = 실결제+배송비 (위 정의)
     normal_매입   = normal['구매가격'].sum()
     normal_순마진 = normal['순마진'].sum()
     normal_마진율 = (normal_순마진 / normal_매출 * 100) if normal_매출 > 0 else 0
-    이상가건수 = int(len(df) - len(normal))
+    이상가건수 = int(mask_abnormal_price.sum())
+    구매가미확정건수 = int(mask_unpriced.sum())
 
     # ── 소싱처 확인 현황 (Task 7) ──
     # 간단메모에 http URL 이 포함되어 있고 아직 확인 안 한 건 / 확인 완료된 건 카운트
@@ -233,6 +244,7 @@ def aggregate(result_rows, price_ranges):
         '정상순마진': int(round(normal_순마진)),
         '정상마진율': round(float(normal_마진율), 2),
         '이상가건수': 이상가건수,
+        '구매가미확정건수': 구매가미확정건수,
         'card_sourcing_need': card_sourcing_need,
         'card_sourcing_done': card_sourcing_done,
         # ── Phase 2c: 블랙스팟 7카드 집계 ──
