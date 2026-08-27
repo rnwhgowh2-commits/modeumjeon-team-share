@@ -291,7 +291,14 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         )):
             normal_count += 1
         # ★ 6순위: 더망고 = 발송 대기 키워드 ('배송대기중' 등)
-        elif any(k in mg_status for k in KW_PENDING_MG):
+        #   🔴 2026-08-27 — 더망고(사람이 손으로 갱신, 지연됨)가 아직 평상 라벨인데
+        #     샵마인_주문상태(마켓 API 실값, 더 최신)는 이미 취소·반품 진행/완료로
+        #     넘어간 행이 있었다. sm_cat 을 안 보고 먼저 채가면 그 행이 pending 으로
+        #     빠져 반품·취소 자동 제외(inprogress/completed_memo_* 카드만 훑음) 대상에서
+        #     아예 벗어나 체크박스가 안 켜진 채 매출·마진에 남는다. 샵마인이 이미
+        #     진행중/완료 클레임이면 더망고 라벨을 안 믿고 9·12순위로 넘긴다
+        #     (margin_embed.html isMgPending 분기와 동일하게 맞춤).
+        elif any(k in mg_status for k in KW_PENDING_MG) and sm_cat not in ('in_progress', 'done_rtn'):
             pending_count += 1
         # ★ 8순위 [결정 3 — 위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 여부
         #   - 메모 phrase (반품완료/교환완료/취소완료/환불완료/환불승인/회수완료) 일치 → completed_memo_yes

@@ -160,6 +160,13 @@ _SEAM_TOKENS = (
     #  아래 태그가 오늘 바뀐/추가된 줄 전부에 하나씩 붙는다(본문 무수정 가드 통과용).
     "[모음전 2026-08-20]",
     "margin_col_filter_fix.js", "_moumColFilterKey",  # 컬럼필터 (빈값)·제외/비대량등록 통일
+    # ── [모음전 2026-08-27] 더망고 지연 라벨이 pending 을 먼저 채가던 버그 ──
+    #  샵마인_주문상태가 이미 취소·반품 진행/완료(smC)인데 더망고가 아직 평상 라벨
+    #  (배송대기중 등)이면 isMgPending 이 smC 를 안 보고 먼저 pending 카드로 채가
+    #  반품·취소 자동 제외(inprogress/completed_memo_* 카드만 훑음) 대상에서 빠졌다.
+    #  "isMgPending" 은 지워지는 옛 줄에도 이미 있던 토큰이라 그대로 재사용한다
+    #  (PROGRESS_PATTERNS 선례와 동일 — 지워지는 줄엔 새 토큰을 못 심는다).
+    "isMgPending",
 )
 
 

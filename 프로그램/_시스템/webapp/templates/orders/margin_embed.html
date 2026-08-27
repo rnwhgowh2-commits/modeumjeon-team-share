@@ -8775,7 +8775,14 @@ function _getRowsByCardFilter_internal(data, type) {
     if (mg.indexOf('국내배송중') >= 0 && (
         sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
     ))                                                          return type === 'normal';
-    if (isMgPending)                                             return type === 'pending';
+    /* 🔴 2026-08-27 사장님 신고 — 더망고(사람이 손으로 갱신, 지연됨)가 아직 "배송대기중" 등
+       평상 라벨에 머물러 있는데 샵마인_주문상태(마켓 API 실값, 더 최신)는 이미 취소·반품
+       진행/완료로 넘어간 행이 있었다. isMgPending 이 smC 를 안 보고 먼저 채가서 pending
+       카드로 빠지면 반품·취소 자동 제외(_applyAutoExcludeReturns, inprogress/completed_memo_*
+       카드만 훑음) 대상에 아예 안 걸려 체크박스가 안 켜진 채 매출·마진에 남았다.
+       샵마인이 이미 진행중/완료 클레임이면 더망고 라벨을 안 믿고 아래 순위(9·12순위)로 넘긴다. */
+    if (isMgPending && smC !== 'in_progress' && smC !== 'done_rtn')
+                                                                 return type === 'pending';
     // ★ 8순위 [위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 시 완료(메모O), 아니면 완료(메모X)
     //   ⚠️ site/track mismatch 보다 위 — 반품 시 송장 회수돼도 반품 카드로
     if (mgCompletedRtn) {
