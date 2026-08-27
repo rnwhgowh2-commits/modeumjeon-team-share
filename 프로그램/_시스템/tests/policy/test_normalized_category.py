@@ -154,19 +154,32 @@ def test_앱이_이_표들을_등록한다():
     assert 'import lemouton.policy.normalized_category' in 소스
 
 
-def test_기존_카테고리_체계를_아직_안_건드렸다():
-    """🔴 Phase 7-1 은 데이터 바닥이다 — 동작이 하나도 안 바뀌어야 한다.
+def test_전송은_옛_방식을_먼저_본다():
+    """🔴 [2026-08-26 Phase 7-2c 에서 갱신] 이제 전송도 새 표를 본다.
 
-    기존 `CategoryMapRow` 가 여전히 정본이다. 여기서 전송 경로를 바꾸면
-    카테고리가 잘못 나가 등록이 통째로 막힐 수 있다.
+    Phase 7-1·7-2 동안에는 「아직 안 붙었다」를 여기서 못 박아 뒀다. 배선이 끝난 지금은
+    **순서**를 못 박는다 — 옛 방식(`CategoryMapRow` confirmed)을 **먼저** 보고,
+    거기 없을 때만 새 방식으로 간다. 그래야 지금까지 잘 나가던 상품의 카테고리가
+    한 개도 안 바뀐다.
     """
     import pathlib
-    뿌리 = pathlib.Path(__file__).resolve().parents[2]
-    for 파일 in ('lemouton/registration/process_apply.py',
-                'webapp/routes/bulk/drafts.py'):
-        소스 = (뿌리 / 파일).read_text(encoding='utf-8')
-        assert 'normalized_category' not in 소스, (
-            f'{파일} 이 벌써 새 표를 본다 — Phase 7-1 범위를 넘었다')
+    소스 = (pathlib.Path(__file__).resolve().parents[2]
+            / 'webapp' / 'routes' / 'bulk' / 'drafts.py').read_text(encoding='utf-8')
+    블록 = 소스.split('def _mapped_category')[1].split('def _normalized_category')[0]
+    assert 'CategoryMapRow' in 블록, '옛 방식을 안 본다'
+    assert 블록.index('CategoryMapRow') < 블록.index('_normalized_category'), (
+        '새 방식을 먼저 본다 — 잘 나가던 상품의 카테고리가 바뀐다')
+
+
+def test_가공_엔진은_카테고리_표를_직접_안_본다():
+    """판정은 `_mapped_category` 한 곳이다 — 두 곳이면 답이 갈린다."""
+    import pathlib
+    소스 = (pathlib.Path(__file__).resolve().parents[2]
+            / 'lemouton' / 'registration' / 'process_apply.py').read_text(
+        encoding='utf-8')
+    코드만 = chr(10).join(l for l in 소스.splitlines()
+                        if not l.lstrip().startswith('#'))
+    assert 'normalized_category' not in 코드만
 
 
 def test_중복_보류함_표가_사라졌다():

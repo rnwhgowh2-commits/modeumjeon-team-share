@@ -1058,14 +1058,81 @@ def _compile_probe(draft, market, category_code, vendor):
 
 
 def _mapped_category(session, draft, market):
-    """드래프트의 소싱처 분류에 **confirmed** 로 맵핑된 마켓 카테고리 코드 (없으면 None)."""
+    """드래프트의 소싱처 분류에 이어 둔 마켓 카테고리 코드 (없으면 None).
+
+    ■ [2026-08-26 Phase 7-2c] 두 방식을 **이 순서로** 본다
+        ① 옛 방식 — `CategoryMapRow` 의 confirmed (소싱처 → 마켓 직접)
+        ② 새 방식 — 소싱처 → **정규 카테고리** → 마켓 (`policy/normalized_category`)
+
+      🔴 옛 것을 먼저 본다. 지금까지 잘 나가던 상품의 카테고리가 **한 개도 안 바뀌게**
+        하기 위해서다. 카테고리가 바뀌면 마켓이 등록을 거부하거나 엉뚱한 분류로 올라간다.
+        새 방식은 **옛 방식에 없던 것만** 채운다(덮지 않는다).
+
+      🔴 「못 올림(BLOCKED)」·「인증 필요(REQUIRES_CERT)」는 코드를 **안 돌려준다.**
+        그 분류로 올리면 마켓이 거부한다. 「아직 안 이음」과 같은 자리로 떨어져
+        전송 게이트가 막는다 — 사유는 `blocked_category_reason` 이 따로 말한다.
+    """
     if not (draft.source_site and draft.source_category_path):
         return None
     from lemouton.registration.models import CategoryMapRow
     row = (session.query(CategoryMapRow)
            .filter_by(source_id=draft.source_site, source_path=draft.source_category_path,
                       market=market, status='confirmed').first())
-    return (row.market_cat_code or None) if row is not None else None
+    if row is not None and (row.market_cat_code or '').strip():
+        return row.market_cat_code
+    return _normalized_category(session, draft, market)
+
+
+def _normalized_category(session, draft, market):
+    """새 방식 — 소싱처 → 정규 카테고리 → 마켓. 없거나 못 올리면 None.
+
+    🔴 읽다 실패했다고 전송을 멈추지 않는다 — 옛 방식으로 나가던 상품이 조용히 죽는다.
+    """
+    try:
+        from lemouton.policy.normalized_category import (
+            MAPPED, MarketCategoryLink, SourceCategoryLink,
+        )
+        link = (session.query(SourceCategoryLink)
+                .filter_by(source_id=draft.source_site,
+                           source_path=draft.source_category_path).first())
+        if link is None or not link.normalized_category_id:
+            return None
+        mk = (session.query(MarketCategoryLink)
+              .filter_by(normalized_category_id=link.normalized_category_id,
+                         market=market).first())
+        if mk is None or mk.status != MAPPED:
+            return None                 # 「못 올림」·「인증 필요」·「아직 안 이음」
+        return (mk.market_cat_code or '').strip() or None
+    except Exception:                   # noqa: BLE001
+        return None
+
+
+def blocked_category_reason(session, draft, market):
+    """이 분류를 **그 마켓에 못 올리는** 사유. 없으면 None.
+
+    🔴 「카테고리가 없습니다」로만 끝내면 사장님은 이으러 갔다가 「이미 이었는데?」
+      하고 헤맨다. 이어는 뒀지만 **그 마켓이 안 받는 분류**라는 것을 말해야 한다.
+    """
+    if not (draft.source_site and draft.source_category_path):
+        return None
+    try:
+        from lemouton.policy.normalized_category import (
+            MAPPED, STATUS_LABEL, MarketCategoryLink, SourceCategoryLink,
+        )
+        link = (session.query(SourceCategoryLink)
+                .filter_by(source_id=draft.source_site,
+                           source_path=draft.source_category_path).first())
+        if link is None or not link.normalized_category_id:
+            return None
+        mk = (session.query(MarketCategoryLink)
+              .filter_by(normalized_category_id=link.normalized_category_id,
+                         market=market).first())
+        if mk is None or mk.status == MAPPED:
+            return None
+        말 = STATUS_LABEL.get(mk.status, mk.status)
+        return f'이 분류는 「{말}」로 표시돼 있습니다' + (f' — {mk.note}' if mk.note else '')
+    except Exception:                   # noqa: BLE001
+        return None
 
 
 #: 카테고리 칸이 마켓마다 다른 것을 뜻한다 — 없을 때 무엇을 채워야 하는지 그대로 말한다.
@@ -1226,7 +1293,11 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
     row['category_code'] = str(category_code) if category_code else None
     if not category_code:
         row['status'] = 'need_category'
-        reason = f'아직 정해지지 않았습니다 — 필요한 값: {_CATEGORY_WHAT[market]}.'
+        # 🔴 [2026-08-26] 「이어는 뒀지만 그 마켓이 안 받는 분류」를 「아직 안 정했다」로
+        #   말하면, 사장님은 이으러 갔다가 「이미 이었는데?」 하고 헤맨다.
+        _막힘 = blocked_category_reason(session, draft, market)
+        reason = (f'{_막힘} — 다른 분류로 이어 주세요.' if _막힘 else
+                  f'아직 정해지지 않았습니다 — 필요한 값: {_CATEGORY_WHAT[market]}.')
         # 카테고리와 별개로 지금 비어 있는 값도 같이 보여준다 — 형식상 코드로 컴파일러의
         # 카테고리 검사만 통과시켜 뒤쪽 필수값 검사에 닿게 한 결과다(등록에 쓰지 않는다).
         also = [s['reason'] for s in _empty_req]

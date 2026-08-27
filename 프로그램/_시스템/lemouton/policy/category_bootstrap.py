@@ -41,22 +41,31 @@ def _split(path: str) -> list:
     return ['>'.join(조각[:i + 1]) for i in range(len(조각))]
 
 
-def ensure_path(session, path: str, *, source_market=None):
+def ensure_path(session, path: str, *, source_market=None, _cache=None):
     """그 경로의 정규 카테고리를 만들어(또는 찾아) 돌려준다. 조상도 같이 만든다.
 
     🔴 이미 있으면 **안 건드린다** — 나중에 부은 마켓이 먼저 부은 마켓의 유래를
       덮으면 「이 가지가 어디서 왔나」를 못 쫓는다.
+
+    Args:
+        _cache: `{경로: row}` 를 미리 채워 넘기면 **조상마다 SELECT 를 안 한다.**
+            🔴 마켓 트리는 수만 줄일 수 있다. 줄마다 조상 깊이만큼 SELECT 를 날리면
+              씨앗 붓기 한 번이 몇 분씩 걸려 화면이 멎는다(2026-08-26에 고침).
     """
     마지막 = None
     부모 = None
     for i, 조상 in enumerate(_split(path)):
-        row = session.query(NormalizedCategory).filter_by(path=조상).first()
+        row = _cache.get(조상) if _cache is not None else None
+        if row is None:
+            row = session.query(NormalizedCategory).filter_by(path=조상).first()
         if row is None:
             row = NormalizedCategory(
                 path=조상, parent_id=(부모.id if 부모 else None), depth=i,
                 source_market=source_market)
             session.add(row)
             session.flush()
+        if _cache is not None:
+            _cache[조상] = row
         부모 = row
         마지막 = row
     return 마지막
@@ -69,6 +78,10 @@ def bootstrap(session, *, markets=None, limit_per_market=None) -> dict:
     """
     from lemouton.registration.models import MarketCategory
 
+    # 🔴 있는 경로를 **한 번에** 읽어 둔다. 예전에는 줄마다 전체 개수를 두 번 세고
+    #   조상마다 SELECT 를 날려서, 마켓 트리가 커지면 씨앗 붓기 한 번에 몇 분씩
+    #   걸려 화면이 멎었다(2026-08-26 고침).
+    캐시 = {r.path: r for r in session.query(NormalizedCategory).all()}
     결과 = {}
     for mk in (markets or CASCADE):
         q = (session.query(MarketCategory)
@@ -76,16 +89,14 @@ def bootstrap(session, *, markets=None, limit_per_market=None) -> dict:
              .order_by(MarketCategory.depth, MarketCategory.id))
         if limit_per_market:
             q = q.limit(limit_per_market)
-        새것 = 0
+        전 = len(캐시)
         for row in q.all():
             경로 = (row.full_path or '').strip()
             if not 경로:
                 continue
-            before = session.query(NormalizedCategory).count()
-            ensure_path(session, 경로, source_market=mk)
-            새것 += session.query(NormalizedCategory).count() - before
-        결과[mk] = 새것
-        logger.info('정규 카테고리 씨앗 — %s 에서 %s칸 새로 만듦', mk, 새것)
+            ensure_path(session, 경로, source_market=mk, _cache=캐시)
+        결과[mk] = len(캐시) - 전
+        logger.info('정규 카테고리 씨앗 — %s 에서 %s칸 새로 만듦', mk, 결과[mk])
     session.flush()
     return 결과
 

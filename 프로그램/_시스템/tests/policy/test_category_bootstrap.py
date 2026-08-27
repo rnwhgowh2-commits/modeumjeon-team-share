@@ -200,13 +200,75 @@ def test_보류함은_안_이은_행만_준다(db):
 
 # ── 아직 전송 경로엔 안 붙었다 ────────────────────────────────────────────
 
-def test_전송_경로는_아직_새_표를_안_본다():
-    """🔴 Phase 7-2a 는 표를 채우기만 한다. 여기서 배선하면 카테고리가 잘못 나가
-    등록이 통째로 막힐 수 있다."""
+def test_전송은_씨앗_붓기를_직접_안_부른다():
+    """🔴 전송 중에 표를 채우면 안 된다 — 사장님이 누를 때만 채워져야 한다.
+
+    (전송이 새 표를 **읽는** 배선은 Phase 7-2c 에서 붙었다 —
+     `tests/policy/test_category_send_wiring.py` 가 순서를 못 박는다.)
+    """
     import pathlib
     뿌리 = pathlib.Path(__file__).resolve().parents[2]
     for 파일 in ('lemouton/registration/process_apply.py',
                 'webapp/routes/bulk/drafts.py'):
         소스 = (뿌리 / 파일).read_text(encoding='utf-8')
-        assert 'normalized_category' not in 소스
         assert 'category_bootstrap' not in 소스
+
+
+# ── 큰 트리에서도 감당되나 ────────────────────────────────────────────────
+
+def test_큰_트리도_쿼리가_줄수에_비례한다(db):
+    """🔴 [2026-08-26에 고침] 예전에는 줄마다 **전체 개수를 두 번 세고** 조상마다
+    SELECT 를 날렸다. 마켓 트리는 수만 줄일 수 있어, 씨앗 붓기 한 번이 몇 분씩
+    걸려 화면이 멎는다.
+
+    쿼리 수를 세어 「줄 수에 대충 비례」하는지 본다 — 제곱으로 늘면 여기서 걸린다.
+    """
+    from sqlalchemy import event
+
+    for i in range(300):
+        _마켓칸(db, 'lotteon', f'여성>원피스>{i}', f'L{i}', depth=3)
+
+    쿼리 = []
+    eng = db.get_bind()
+
+    def _센다(conn, cur, stmt, params, ctx, many):
+        쿼리.append(stmt)
+
+    event.listen(eng, 'before_cursor_execute', _센다)
+    try:
+        CB.bootstrap(db)
+        db.commit()
+    finally:
+        event.remove(eng, 'before_cursor_execute', _센다)
+
+    assert db.query(NC.NormalizedCategory).count() == 302   # 여성 · 원피스 · 0~299
+    # 줄 300개 · 조상 3단 → INSERT 302 + 목록 조회 몇 개. 넉넉히 잡아도 900 이하.
+    #   예전 방식이면 COUNT 만 600 + 조상 SELECT 900 = 1,500 을 훌쩍 넘는다.
+    assert len(쿼리) < 900, f'쿼리가 너무 많다({len(쿼리)}개) — 줄 수의 제곱으로 늘고 있다'
+
+
+def test_두_번째_씨앗_붓기는_거의_공짜다(db):
+    """멱등이면서 **빨라야** 한다 — 두 번째에도 전부 다시 훑으면 소용없다."""
+    from sqlalchemy import event
+
+    for i in range(200):
+        _마켓칸(db, 'lotteon', f'여성>원피스>{i}', f'L{i}', depth=3)
+    CB.bootstrap(db)
+    db.commit()
+
+    쿼리 = []
+    eng = db.get_bind()
+
+    def _센다(conn, cur, stmt, params, ctx, many):
+        쿼리.append(stmt)
+
+    event.listen(eng, 'before_cursor_execute', _센다)
+    try:
+        CB.bootstrap(db)
+        db.commit()
+    finally:
+        event.remove(eng, 'before_cursor_execute', _센다)
+
+    assert not [q for q in 쿼리 if q.strip().upper().startswith('INSERT')], (
+        '두 번째인데 새로 만들었다 — 멱등이 깨졌다')
+    assert len(쿼리) < 60, f'두 번째인데 쿼리가 {len(쿼리)}개다 — 캐시가 안 먹는다'
