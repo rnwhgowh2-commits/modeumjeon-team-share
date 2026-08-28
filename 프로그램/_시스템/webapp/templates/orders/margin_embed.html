@@ -1407,6 +1407,7 @@ async function startAnalysis() {
       r._idx = i;
       r._excluded = false;
       r._auto_excluded_return = false;
+      r._brand_marker_excluded = false;
       r._manual_reg = false;
     });
     /* ★ 사용자 보장 3 — 새 분석 시 모든 클라이언트 상태 완전 초기화 (옛 데이터 절대 잔존 방지) */
@@ -2497,6 +2498,7 @@ function renderSettings() {
     if (c.memo && c.memo.length) parts.push('<b>메모:</b> '+esc(c.memo.join(', ')));
     if (c.mg && c.mg.length) parts.push('<b>더망고:</b> '+esc(c.mg.join(', ')));
     if (c.mk_sync && c.mk_sync.length) parts.push('<b>마켓:</b> '+esc(c.mk_sync.join(', ')));
+    if (c.brand && c.brand.length) parts.push('<b>브랜드:</b> '+esc(c.brand.join(', ')));
     var subParts = [];
     if (c.sub_rtn && c.sub_rtn.length) subParts.push('<span style="color:#DC2626;font-weight:700"></span> '+esc(c.sub_rtn.join(', ')));
     if (c.sub_ex && c.sub_ex.length) subParts.push('<span style="color:#16A34A;font-weight:700"></span> '+esc(c.sub_ex.join(', ')));
@@ -5739,6 +5741,7 @@ function _syncBlackspotState() {
     tracking_failed:     cnt('tracking_failed'),
     status_mismatch:     cnt('status_mismatch'),
     etc:                 cnt('etc'),
+    sourcing_brand_marker: cnt('sourcing_brand_marker'),
   };
   state.activeCardFilter = state.activeCardFilter || null;
 }
@@ -5845,6 +5848,7 @@ var _CARD_COLOR_MAP = {
   tracking_failed:     {main:'#06B6D4', bg:'#cffafe', text:'#155e75', emoji:'📮', label:'송장 재전송 실패'},
   status_mismatch:     {main:'#8B5CF6', bg:'#ede9fe', text:'#5b21b6', emoji:'🔄', label:'상태 불일치 (실마켓↔더망고)'},
   etc:                 {main:'#64748B', bg:'#f1f5f9', text:'#334155', emoji:'❔', label:'기타'},
+  sourcing_brand_marker: {main:'#7C3AED', bg:'#ede9fe', text:'#5b21b6', emoji:'🧳', label:'사입 판매 표시(대량등록 마커)'},
 };
 function _cardColor(cardType) { return _CARD_COLOR_MAP[cardType] || _CARD_COLOR_MAP.all; }
 
@@ -6209,7 +6213,11 @@ function _openKeywordEditor(cardType, cardLabel) {
   var data = allKw[cardType] || {};
   /* 3개 카드 (반품/교환/취소 진행중·완료메모O·완료메모X) — sub_rtn/sub_ex 분리 입력 */
   var hasSub = (cardType === 'inprogress' || cardType === 'completed_memo_yes' || cardType === 'completed_memo_no');
-  var fields = [
+  // ★ [2026-08-28] sourcing_brand_marker 카드 — 메모/더망고/마켓 필드 대신 브랜드명만 입력
+  var isBrandCard = (cardType === 'sourcing_brand_marker');
+  var fields = isBrandCard ? [
+    {key:'brand', label:'사입 판매 브랜드 (더망고=반품/교환/취소 라벨과 함께 매칭)', ph:'예: 르무통, 플리츠플리즈'},
+  ] : [
     {key:'memo',    label:'간단메모 (키워드 부분 매칭)',  ph:'예: 반품완료, 교환'},
     {key:'mg',      label:'더망고 주문상태',                ph:'예: 해외현지배송중, 오류입고'},
     {key:'mk_sync', label:'마켓 sync 상태 (마켓 연동)',     ph:'예: 송장전송실패'},
@@ -6260,7 +6268,7 @@ function _openKeywordEditor(cardType, cardLabel) {
 
 function _saveKeywordEditor(cardType) {
   var data = {};
-  ['memo', 'mg', 'mk_sync', 'sub_rtn', 'sub_ex'].forEach(function(f){
+  ['memo', 'mg', 'mk_sync', 'sub_rtn', 'sub_ex', 'brand'].forEach(function(f){
     var inp = document.getElementById('kw_input_' + f);
     if (!inp) return;
     var raw = inp.value || '';
@@ -6963,7 +6971,7 @@ function _showDetailByCode(detailCode, cardType) {
 function _getGroupCardBreakdown(rows) {
   var b = {immediate:0, sourcing:0, market:0, normal:0, pending:0, inprogress:0, completed:0, margin:0,
           confirmed_blackspot:0, mango_check:0, completed_memo_yes:0, completed_memo_no:0, memo_settled:0,
-          tracking_failed:0, status_mismatch:0, etc:0};
+          tracking_failed:0, status_mismatch:0, etc:0, sourcing_brand_marker:0};
   // 샵마인 주문상태별 분류 (백엔드와 동일 패턴)
   var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청','취소요청'];  /* [모음전] 취소요청 추가 — 기타로 새던 1건 */
   var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부'];
@@ -7034,6 +7042,8 @@ function _getGroupCardBreakdown(rows) {
         sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
     )) { b.normal++; }
     else if (isMgPending) { b.pending++; }
+    // ★ 7.5순위 [2026-08-28] sourcing_brand_marker — 르무통 등 사입 판매 마커 브랜드는 진짜 반품 아님
+    else if ((mgCompletedRtn || mgInProgress) && _matchesAny(String(r['브랜드'] || ''), _kw('sourcing_brand_marker', 'brand'))) { b.sourcing_brand_marker++; }
     // ★ 8순위 [위로 이동]: 더망고 종결 → 메모 phrase 일치 시 메모O, 아니면 메모X
     else if (mgCompletedRtn) {
       if (hasDoneMemo) { b.completed_memo_yes++; b.completed++; }
@@ -8680,6 +8690,18 @@ function _applyAutoExcludeReturns() {
   if (added > 0) {
     console.log('[자동 제외 — 반품·취소] ' + added + '건 (분류박스 카드 기준, 교환 보호)');
   }
+  // ★ [2026-08-28 사장님 명시] sourcing_brand_marker 카드 — 전량 제외(교환 보호 없음, 카드 라우팅이 이미 확정) + 별도 플래그로 '수기 반품·취소 제외'와 구분
+  var brandAdded = 0;
+  _getRowsByCardFilter('sourcing_brand_marker').forEach(function(r){
+    if (!r || typeof r._idx !== 'number') return;
+    window._excludedSet.add(r._idx);
+    r._excluded = true;
+    r._brand_marker_excluded = true;
+    brandAdded++;
+  });
+  if (brandAdded > 0) {
+    console.log('[자동 제외 — 사입 판매 마커] ' + brandAdded + '건');
+  }
 }
 
 function _getRowsByCardFilter_internal(data, type) {
@@ -8797,6 +8819,9 @@ function _getRowsByCardFilter_internal(data, type) {
        샵마인이 이미 진행중/완료 클레임이면 더망고 라벨을 안 믿고 아래 순위(9·12순위)로 넘긴다. */
     if (isMgPending && smC !== 'in_progress' && smC !== 'done_rtn')
                                                                  return type === 'pending';
+    // ★ 7.5순위 [2026-08-28 사장님 명시] sourcing_brand_marker — 르무통 등 사입 판매 마커 브랜드는 진짜 반품 아님, 8·9순위보다 먼저 별도 카드로
+    var isSourcingBrandMarker = (mgCompletedRtn || mgInProgress) && _matchesAny(String(r['브랜드'] || ''), _kw('sourcing_brand_marker', 'brand'));
+    if (isSourcingBrandMarker)                                  return type === 'sourcing_brand_marker';
     // ★ 8순위 [위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 시 완료(메모O), 아니면 완료(메모X)
     //   ⚠️ site/track mismatch 보다 위 — 반품 시 송장 회수돼도 반품 카드로
     if (mgCompletedRtn) {
@@ -8833,7 +8858,7 @@ function _getRowsByCardFilter_internal(data, type) {
 
 // ── 카드 버튼 라벨 갱신 (blackspot lines 3800-3807) ──
 function _updateCardButtonLabels(type) {
-  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',confirmed_blackspot:'확인된 블랙스팟',mango_check:'더망고 상태 점검',completed_memo_yes:'반품/교환/취소 완료(메모O)',completed_memo_no:'반품/교환/취소 완료(메모X) 재확인',memo_settled:'입금/철회 완료',tracking_failed:'송장 재전송 실패',status_mismatch:'상태 불일치(실마켓↔더망고)',etc:'기타',purchase_trace_only:'매입흔적만 (사이트번호 X)'};
+  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',confirmed_blackspot:'확인된 블랙스팟',mango_check:'더망고 상태 점검',completed_memo_yes:'반품/교환/취소 완료(메모O)',completed_memo_no:'반품/교환/취소 완료(메모X) 재확인',memo_settled:'입금/철회 완료',tracking_failed:'송장 재전송 실패',status_mismatch:'상태 불일치(실마켓↔더망고)',etc:'기타',purchase_trace_only:'매입흔적만 (사이트번호 X)',sourcing_brand_marker:'사입 판매 표시(대량등록 마커)'};
   var lbl = labelMap[type] || type;
   var batchBtn = document.getElementById('globalBatchBtn');
   if (batchBtn) batchBtn.textContent = '📦 '+lbl+' 일괄 소싱처 확인';
@@ -8846,7 +8871,7 @@ function _updateCardButtonLabels(type) {
 //   사용자 요구로 적응형 동시성은 적용하지 않음 (1개씩 순차).
 async function globalCardBatchCheck() {
   var type = state.activeCardFilter || 'all';
-  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',confirmed_blackspot:'확인된 블랙스팟',mango_check:'더망고 상태 점검',completed_memo_yes:'반품/교환/취소 완료(메모O)',completed_memo_no:'반품/교환/취소 완료(메모X) 재확인',memo_settled:'입금/철회 완료',tracking_failed:'송장 재전송 실패',status_mismatch:'상태 불일치(실마켓↔더망고)',etc:'기타',purchase_trace_only:'매입흔적만 (사이트번호 X)'};
+  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',confirmed_blackspot:'확인된 블랙스팟',mango_check:'더망고 상태 점검',completed_memo_yes:'반품/교환/취소 완료(메모O)',completed_memo_no:'반품/교환/취소 완료(메모X) 재확인',memo_settled:'입금/철회 완료',tracking_failed:'송장 재전송 실패',status_mismatch:'상태 불일치(실마켓↔더망고)',etc:'기타',purchase_trace_only:'매입흔적만 (사이트번호 X)',sourcing_brand_marker:'사입 판매 표시(대량등록 마커)'};
   var label = labelMap[type] || type;
   var allRows = _getRowsByCardFilter(type);
   var classified = (window.analysisData && window.analysisData.classified) || [];
@@ -8874,7 +8899,7 @@ async function globalCardBatchCheck() {
 // ── 카드별 Excel 다운로드 (blackspot lines 3775-3797) ──
 function downloadExcelByCard() {
   var type = state.activeCardFilter || 'all';
-  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료'};
+  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',sourcing_brand_marker:'사입 판매 표시(대량등록 마커)'};
   var count = _getRowsByCardFilter(type).length;
   if (count === 0) { alert('다운로드할 행이 없습니다.'); return; }
   if (!confirm('['+(labelMap[type]||type)+'] '+count+'건을 Excel로 다운로드합니다.')) return;
@@ -9091,6 +9116,8 @@ function renderBlackspot(d) {
   h += _summaryCardHTML('completed_memo_yes', ex.completed_memo_yes, '반품/교환/취소 완료 (메모O)',           'gray',   _splitRtnEx('completed_memo_yes'));
   h += _summaryCardHTML('completed_memo_no',  ex.completed_memo_no,  '반품/교환/취소 완료 (메모X) 재확인',     'orange', _splitRtnEx('completed_memo_no'));
   h += '</div></div>';
+  // 🆕 [2026-08-28] sourcing_brand_marker 카드 — 르무통 등 사입 판매 마커 브랜드, 매출/마진 총계 제외분 별도 표시
+  h += '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin:6px 0 0 0">' + _summaryCardHTML('sourcing_brand_marker', ex.sourcing_brand_marker, '사입 판매 표시 (대량등록 마커)', 'purple') + '</div>';
   h += '</div>'; // close .bs-3zone
   h += '</div>'; // close 좌측 (zone wrapper)
 
