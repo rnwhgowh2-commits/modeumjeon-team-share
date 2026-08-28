@@ -98,9 +98,14 @@ FIXED: dict[str, list] = {
               policy_wins=True),
         Fixed('수입사', '- (하이픈)', FROM_CODE,
               'compile_smartstore.py:86'),
-        Fixed('가격비교 노출', '노출함', FROM_CODE,
-              'compile_smartstore.py:165', 'price_compare',
-              '사장님 엑셀도 「노출」이라 값은 맞습니다.'),
+        # [2026-08-24 Phase 4-5] 예전엔 코드에 박혀 있었다(FROM_CODE) — 사장님이
+        #   「노출 안 함」으로 정해도 그대로 노출됐다. 이제 정책이 이긴다.
+        Fixed('가격비교 노출', '노출함', FROM_DEFAULT,
+              'compile_smartstore.py:naverShoppingRegistration', 'price_compare',
+              '정책에서 「가격비교 노출」을 끄면 안 나갑니다 — 안 정하면 이 값입니다. '
+              '⚠️ 네이버 쇼핑 광고주가 아니면 보낸 값과 무관하게 「노출 안 함」으로 '
+              '저장됩니다(마켓 문서 그대로).',
+              policy_wins=True),
     ],
     # ── [2026-08-13 3단계] 11번가 조립 코드를 열었다 ────────────────────────
     #   🔴 앞에서는 「안 열어 봤다」로 비워 두고 있었다. 이번에 과세구분·제조사·

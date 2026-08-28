@@ -216,8 +216,9 @@ def register_routes(app: Flask) -> None:
         # [배치 재설계] 상단 탭은 같은 layout 을 옮겨 담기만 한다 — 메뉴를 두 번 적지 않는다.
         # 여기서 터지면 사이드바까지 같이 죽으므로, 실패해도 화면은 뜨게 두고 로그만 남긴다.
         try:
-            from webapp.nav_top import build as _build_topnav
-            topnav = _build_topnav(layout)
+            from webapp.nav_top import apply_samba_wave_override, build as _build_topnav
+            from app import _resolve_samba_wave_url
+            topnav = apply_samba_wave_override(_build_topnav(layout), _resolve_samba_wave_url())
         except Exception:
             from flask import current_app
             current_app.logger.exception('[topnav] 상단 탭 구성 실패 — 사이드바로 폴백')

@@ -36,6 +36,17 @@
       style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
       <span style="font-size:16px;"><i class="ph-light ph-book-open" aria-hidden="true"></i></span> 데이터 코드 지도
     </button>
+    {# [2026-08-24 사장님 확정] 기본값 5,000/10,000 은 **새로 만드는 계정에만** 들어간다.
+       이미 있던 계정은 「안 정함」인데, 프로그램이 임의로 채우면 사장님이 정한 적 없는
+       값을 지어내는 셈이다. 사장님이 **누르면** 그건 정한 것이다.
+       🔴 이미 값이 있는 계정은 안 건드린다 — 0원(무료로 정함)도 「정한 값」이라
+         덮으면 무료 반품이 유료로 바뀐다. #}
+    <button type="button" class="mkg-card" id="fillFeesBtn"
+      title="아직 「안 정함」인 계정에만 반품 5,000원·교환 10,000원을 넣습니다 — 이미 정해 둔 값은 그대로 둡니다"
+      style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E8EB;border-radius:11px;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:700;color:#191F28;white-space:nowrap;">
+      <span style="font-size:16px;"><i class="ph-light ph-truck" aria-hidden="true"></i></span> 기본 배송비 한 번에 넣기
+    </button>
+    <span id="fillFeesMsg" style="font-size:12px;color:#6B7684"></span>
   </div>
 </header>
 
@@ -208,6 +219,10 @@
               <button class="btn btn-sm btn-primary"
                       onclick="openSecretsModal('{{ acc.market }}', '{{ acc.env_prefix }}', '{{ acc.display_name }}')"
                       title="API 키 입력"><i class="ph-light ph-key" aria-hidden="true"></i> 키</button>
+              {# [Phase 2 · 2026-08-24] 등록 설정 — 정책마다 다시 넣지 않게 계정에 한 번만 #}
+              <button class="btn btn-sm"
+                      onclick="openAccountSettings({{ acc.id }}, '{{ acc.market }}', '{{ acc.display_name|e }}')"
+                      title="A/S 전화·배송비·출고지 등 — 한 번 넣으면 정책마다 다시 안 넣어도 됩니다"><i class="ph-light ph-sliders-horizontal" aria-hidden="true"></i> 설정</button>
               {% if acc.cred_state == 'ok' %}
               <button class="btn btn-sm btn-test"
                       onclick="testApiConnection({{ acc.id }}, '{{ acc.display_name|e }}')"
@@ -627,6 +642,31 @@
       <button class="btn" onclick="closeLiveVerify()">닫기</button>
       <button class="btn btn-primary btn-large" id="lv-confirm"
               style="display:none" onclick="submitLiveVerify()">맞습니다 — 공개하기</button>
+    </footer>
+  </div>
+</div>
+
+{# ━━━ [Phase 2 · 2026-08-24] 계정 등록 설정 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   왜 있나 — 출고지·반품지·A/S 전화 같은 값은 정책을 100개 만들어도 똑같다.
+   정책에 두면 ① 정책마다 다시 입력해야 하고 ② 반품지를 바꾼 날 옛 정책들이
+   조용히 틀린 주소로 등록한다. 그래서 **계정에 한 번만** 넣는다.
+
+   🔴 자격증명(API 키)은 여기 없다 — 위 「키」 버튼이 .env 에 쓴다. #}
+<div id="as-modal-bg" class="modal-bg" style="display:none"
+     onclick="if(event.target===this)closeAccountSettings()">
+  <div class="modal lv-modal" role="dialog" aria-modal="true" aria-labelledby="as-title">
+    <header class="v2-form-head">
+      <div class="v2-icon-lg"><i class="ph-light ph-sliders-horizontal" aria-hidden="true"></i></div>
+      <div><h3 id="as-title">등록 설정</h3>
+        <p class="v2-sub" id="as-sub">한 번 넣으면 정책마다 다시 안 넣어도 됩니다.</p></div>
+      <button class="v2-close" aria-label="닫기" onclick="closeAccountSettings()">✕</button>
+    </header>
+    <div class="v2-form-body" id="as-body"></div>
+    <footer class="v2-form-foot">
+      <span id="as-msg" style="margin-right:auto; font-size:13px; color:var(--n600,#6B7684)"></span>
+      <button class="btn" onclick="closeAccountSettings()">닫기</button>
+      <button class="btn btn-primary btn-large" id="as-save"
+              onclick="submitAccountSettings()">저장</button>
     </footer>
   </div>
 </div>
@@ -1631,5 +1671,135 @@ function sipDelete(id){
   }).catch(()=>showToast('네트워크 오류', 'error'));
 }
 sipLoad();
+
+/* ━━━ [Phase 2 · 2026-08-24] 계정 등록 설정 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   🔴 「안 정함」과 「0원」을 가른다 — 칸을 비우면 「안 정함」으로 저장되고,
+     0 을 넣으면 0(무료)으로 저장된다. 반품비는 금전 직결이라 이 구분이 중요하다.
+   🔴 무슨 칸을 그릴지는 **서버가 알려준다**(allowed). 화면에 목록을 또 두면
+     서버와 갈려서 「저장했는데 안 먹는」 칸이 생긴다. */
+const AS_COL_LABEL = {
+  as_phone: 'A/S 전화번호', as_message: 'A/S 안내 문구',
+  return_fee: '반품 배송비(편도)', exchange_fee: '교환 배송비(왕복)',
+  jeju_fee: '제주 추가 배송비', island_fee: '도서산간 추가 배송비',
+  tax_type: '과세구분', origin_default: '원산지 기본값',
+  promotion_message: '상품 홍보문구',
+};
+/* 🔴 재고 기본값(stock_default)은 **일부러 안 그린다** — 「재고는 소싱처 실제
+   재고로만」이 절대 규칙이라, 기본값을 두면 없는 재고를 있다고 파는 셈이다. */
+const AS_COL_ORDER = ['as_phone','as_message','return_fee','exchange_fee',
+                      'jeju_fee','island_fee','tax_type','origin_default','promotion_message'];
+const AS_EXTRA_LABEL = {
+  discountRate:'즉시할인율(%)', returnSafeguard:'반품안심케어', naverShopping:'가격비교 사이트 등록',
+  shippingFeeType:'배송비 설정', shippingPlaceNo:'출고지 번호', returnPlaceNo:'반품/교환지 번호',
+  dispatchPolicyNo:'배송정책 번호', shippingCompanyNo:'발송 택배사', shippingFee:'배송비',
+  sellerType:'판매자 형태', deliveryType:'배송비 유형', deliveryFee:'배송비',
+  shipFromAddress:'출고지 주소', returnAddress:'반품지 주소', dispatchTemplateNo:'발송정책',
+  returnExchangeGuide:'반품/교환 안내', minorRestrict:'청소년 구매불가',
+  dvCstPolNo:'배송정책번호', dvIslandCstPolNo:'도서산간 배송정책번호',
+  owhpNo:'출고지번호', rtrpNo:'회수지번호', bundleDelivery:'묶음배송', dispatchDays:'발송완료 N일 이내',
+  ownerDiscountExclude:'오너스할인 제외', unitCouponExclude:'상품단위쿠폰 제외',
+  deliveryCouponExclude:'배송쿠폰 제외', cmPcsExclude:'가격비교채널할인 제외', pcsExclude:'가격비교할인 제외',
+  // 🔴 [2026-08-24 실화면에서 잡음] 아래 4칸은 이름을 안 붙여 둬서 화면에 영어가 그대로 떴다.
+  //   서버는 멀쩡했고 시험도 통과했다 — 눈으로 봐야만 걸리는 종류다.
+  reviewPointEnabled:'구매평 적립금 사용',
+  reviewTextPoint:'글 구매평 적립금', reviewPhotoPoint:'사진 구매평 적립금',
+  reviewMonthTextPoint:'한달 후 글 구매평 적립금', reviewMonthPhotoPoint:'한달 후 사진 구매평 적립금',
+  purchasePointEnabled:'구매 적립금 사용', purchasePointRate:'구매 적립율(%)',
+  multiPurchaseDiscount:'복수구매 할인', multiPurchaseQty:'복수구매 수량',
+  multiPurchaseRate:'복수구매 할인율(%)', multiPurchaseAmt:'복수구매 할인액',
+  multiPurchaseBasisType:'복수구매 기준', multiPurchaseDiscountMethod:'복수구매 할인방식',
+  multiPurchasePeriodEnabled:'복수구매 기간 사용',
+  multiPurchaseStartDate:'복수구매 시작일', multiPurchaseEndDate:'복수구매 종료일',
+  llpayPointEnabled:'11페이 적립 사용', llpayPointType:'11페이 적립 방식',
+  llpayPointValue:'11페이 적립 값',
+};
+let AS_STATE = { id:null, market:null, allowed:[] };
+
+function asRow(key, label, val, hint){
+  const v = (val === null || val === undefined) ? '' : val;
+  const ph = (val === null || val === undefined) ? '안 정함' : '';
+  return '<div class="form-row"><label for="as-f-'+key+'">'+label+
+         (hint ? ' <small class="opt">'+hint+'</small>' : '')+'</label>'+
+         '<input id="as-f-'+key+'" class="form-input" data-as-key="'+key+'" '+
+         'value="'+String(v).replace(/"/g,'&quot;')+'" placeholder="'+ph+'"></div>';
+}
+
+function openAccountSettings(id, market, name){
+  AS_STATE = { id:id, market:market, allowed:[] };
+  document.getElementById('as-sub').textContent =
+    name + ' — 한 번 넣으면 정책마다 다시 안 넣어도 됩니다.';
+  document.getElementById('as-msg').textContent = '';
+  document.getElementById('as-body').innerHTML = '<div class="v2-loading">불러오는 중…</div>';
+  document.getElementById('as-modal-bg').style.display = 'flex';
+
+  fetch('/accounts/api/settings/' + id).then(r=>r.json()).then(d=>{
+    if(!d.ok){ document.getElementById('as-body').innerHTML =
+      '<div class="v2-help-box">'+(d.error||'불러오지 못했습니다')+'</div>'; return; }
+    AS_STATE.allowed = d.allowed || [];
+    let h = '<div class="v2-section"><span class="v2-label-section">배송 · A/S</span>';
+    AS_COL_ORDER.forEach(k=>{ h += asRow(k, AS_COL_LABEL[k], d.columns[k],
+      k==='return_fee' ? '편도' : (k==='exchange_fee' ? '왕복' : '')); });
+    h += '</div>';
+    if((d.allowed||[]).length){
+      h += '<div class="v2-section"><span class="v2-label-section">이 마켓 전용</span>';
+      d.allowed.forEach(k=>{ h += asRow(k, AS_EXTRA_LABEL[k] || k, (d.extra||{})[k]); });
+      h += '</div>';
+    }
+    if(market === 'coupang'){
+      h += '<div class="form-hint v2-security-note">쿠팡 출고지·반품지는 '+
+           '「쿠팡 계정정보」에서 관리합니다 — 여기서 또 만들면 두 값이 갈립니다.</div>';
+    }
+    h += '<div class="form-hint v2-security-note">칸을 비우면 「안 정함」으로 저장됩니다. '+
+         '0 을 넣으면 0원(무료)으로 저장돼 서로 구분됩니다.</div>';
+    document.getElementById('as-body').innerHTML = h;
+  }).catch(()=>{ document.getElementById('as-body').innerHTML =
+    '<div class="v2-help-box">네트워크 오류</div>'; });
+}
+
+function closeAccountSettings(){
+  document.getElementById('as-modal-bg').style.display = 'none';
+}
+
+function submitAccountSettings(){
+  const cols = {}, extra = {};
+  document.querySelectorAll('#as-body [data-as-key]').forEach(el=>{
+    const k = el.dataset.asKey;
+    (AS_STATE.allowed.indexOf(k) >= 0 ? extra : cols)[k] = el.value;
+  });
+  const btn = document.getElementById('as-save');
+  btn.disabled = true;
+  document.getElementById('as-msg').textContent = '저장 중…';
+  fetch('/accounts/api/settings/' + AS_STATE.id, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({columns: cols, extra: extra}),
+  }).then(r=>r.json()).then(d=>{
+    btn.disabled = false;
+    if(d.ok){ document.getElementById('as-msg').textContent = '저장됨';
+              showToast('등록 설정을 저장했습니다', 'success'); }
+    else { document.getElementById('as-msg').textContent = '';
+           showToast(d.error || '저장 실패', 'error'); }
+  }).catch(()=>{ btn.disabled = false;
+    document.getElementById('as-msg').textContent = '';
+    showToast('네트워크 오류', 'error'); });
+}
+
+/* ── 기본 배송비 한 번에 넣기 (2026-08-24) ─────────────────────────────── */
+(function(){
+  const b = document.getElementById('fillFeesBtn');
+  if(!b) return;
+  const m = document.getElementById('fillFeesMsg');
+  b.addEventListener('click', async () => {
+    if(!confirm('아직 「안 정함」인 계정에만 반품 5,000원 · 교환 10,000원을 넣습니다. '
+              + '이미 정해 둔 값(0원 포함)은 그대로 둡니다. 넣을까요?')) return;
+    b.disabled = true; m.textContent = '넣는 중…'; m.style.color = '#6B7684';
+    try{
+      const j = await (await fetch('/accounts/api/settings/fill-default-fees',
+                                   {method:'POST'})).json();
+      m.textContent = j.message || (j.ok ? '완료' : '실패');
+      m.style.color = j.ok ? '#1B8A5A' : '#C93B3B';
+    }catch(e){ m.textContent = e.message; m.style.color = '#C93B3B'; }
+    finally{ b.disabled = false; }
+  });
+})();
 </script>
 {% endblock %}

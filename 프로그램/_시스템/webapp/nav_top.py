@@ -101,3 +101,27 @@ def build(layout: Dict[str, Any]) -> Dict[str, Any]:
         })
 
     return {'home': home, 'tabs': tabs, 'loose': loose}
+
+
+def apply_samba_wave_override(topnav: Dict[str, Any], samba_wave_url: str | None) -> Dict[str, Any]:
+    """대량등록 loose 항목의 주소를 samba-wave 로 바꾼다 (설정돼 있을 때만).
+
+    sidebar_layout.json 의 i_bulk 항목은 url 이 '/bulk/' 로 고정 저장돼 있다 —
+    사이드바 카드(_modeswitch.html)는 Jinja 에서 samba_wave_url 을 직접 봐서
+    이미 전환되지만, 여기서 옮겨 담은 상단 탭 loose 항목은 저장된 값을 그대로
+    쓰기 때문에 같은 스위치를 안 봤다. 두 곳이 서로 다른 주소로 갈리지 않도록
+    같은 env(SAMBA_WAVE_URL) 결과값을 받아 여기서도 덮어쓴다.
+
+    새 dict/list 를 만들어 반환한다 — topnav['loose'] 의 원소는 get_layout_for_template()
+    이 돌려준 layout(캐시/공유될 수 있음)과 같은 dict 객체라, 제자리 수정하면 다음
+    요청·다른 사용자에게도 새 값이 새는 사고가 날 수 있다.
+    """
+    if not samba_wave_url or not topnav.get('loose'):
+        return topnav
+    return {
+        **topnav,
+        'loose': [
+            {**it, 'url': samba_wave_url} if it.get('active_key') == 'bulk' else it
+            for it in topnav['loose']
+        ],
+    }

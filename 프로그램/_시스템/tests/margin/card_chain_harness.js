@@ -111,6 +111,13 @@ function _hasUnknownKoreanInMemo(memoText, recipientName) {
 function _isExchangeRow(r, cardType) {
   if (!r) return false;
   cardType = cardType || 'completed_memo_yes';
+  /* ★ 2026-08-26 사장님 명시 — 간단메모에 "철회" 있으면 정산을 지우지 않는다(정상 처리).
+     "취소철회"·"반품철회"(=취소·반품 신청했다가 철회돼 정상으로 되돌아간 것)는 그 상태
+     문자열 자체에 "취소"·"반품" 글자를 포함해 아래 반품/취소 키워드 매칭에 먼저 걸려
+     반대로 제외되고 있었다 — 철회는 반품/취소 키워드 검사보다 먼저 확인한다.
+     (서버 classifier._determine_settlement_status 는 SETTLEMENT_REVERT_KEYWORDS 로
+     이미 이걸 정상(O) 처리하는데 클라이언트만 이 보호가 없었다.) */
+  if (String(r['간단메모']||'').indexOf('철회') >= 0) return true;
   var combined = String(r['간단메모']||'') + ' '
                + String(r['더망고주문상태 (사용자 연동)']||'') + ' '
                + String(r['샵마인_주문상태']||'') + ' '
@@ -128,6 +135,16 @@ function _isExchangeRow(r, cardType) {
   for (var j = 0; j < subRtn.length; j++) {
     if (clean.indexOf(subRtn[j]) >= 0) return false;
   }
+  /* ★ 2026-08-25 수정 — 위 두 키워드 다 안 걸리면(더망고 복합 라벨 "반품/교환/취소"만
+     있고 벗겨내고 나니 남는 게 없는 경우 포함) 실제 마켓 상태(샵마인_주문상태, 가장
+     신뢰도 높은 원문)로 최종 판정한다. 그 전엔 무조건 '반품/취소로 안전 분류'(제외)
+     했는데, 그 복합 라벨 자체가 반품·교환·취소를 다 뭉뚱그린 라벨이라 벗겨내면 신호가
+     통째로 사라져 실제로는 정상 완료(배송완료·구매확정 등)인 주문까지 반품·취소로
+     오판해 정산을 지우고 있었다(라이브 실측 113건 — 사장님 지적으로 확인).
+     샵마인_주문상태가 명백히 정상 진행/완료면 정산을 지우지 않는다(교환과 동일 취급). */
+  var _DONE_NORMAL = ['배송완료','구매확정','배송중','상품준비중','출고지시','배송지시',
+                      '배송준비중','발송완료','수취완료'];
+  if (_DONE_NORMAL.indexOf(String(r['샵마인_주문상태']||'').trim()) >= 0) return true;
   /* 기본: 반품/취소로 안전 분류 */
   return false;
 }
@@ -406,7 +423,14 @@ function _getRowsByCardFilter_internal(data, type) {
     if (mg.indexOf('국내배송중') >= 0 && (
         sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
     ))                                                          return type === 'normal';
-    if (isMgPending)                                             return type === 'pending';
+    /* 🔴 2026-08-27 사장님 신고 — 더망고(사람이 손으로 갱신, 지연됨)가 아직 "배송대기중" 등
+       평상 라벨에 머물러 있는데 샵마인_주문상태(마켓 API 실값, 더 최신)는 이미 취소·반품
+       진행/완료로 넘어간 행이 있었다. isMgPending 이 smC 를 안 보고 먼저 채가서 pending
+       카드로 빠지면 반품·취소 자동 제외(_applyAutoExcludeReturns, inprogress/completed_memo_*
+       카드만 훑음) 대상에 아예 안 걸려 체크박스가 안 켜진 채 매출·마진에 남았다.
+       샵마인이 이미 진행중/완료 클레임이면 더망고 라벨을 안 믿고 아래 순위(9·12순위)로 넘긴다. */
+    if (isMgPending && smC !== 'in_progress' && smC !== 'done_rtn')
+                                                                 return type === 'pending';
     // ★ 8순위 [위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 시 완료(메모O), 아니면 완료(메모X)
     //   ⚠️ site/track mismatch 보다 위 — 반품 시 송장 회수돼도 반품 카드로
     if (mgCompletedRtn) {

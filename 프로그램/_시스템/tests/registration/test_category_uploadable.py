@@ -92,3 +92,26 @@ def test_카테고리를_안_정했으면_여기서_또_말하지_않는다(db):
     r = CC.check(db, market='smartstore', code='')
     assert r['state'] == CC.NO_CODE
     assert CC.as_skip(r) is None
+
+
+def test_롯데온은_사전에_엉뚱한_행이_있어도_service_단계에서_막지_않는다(db):
+    """[2026-08-20 재현] 롯데온의 '카테고리 칸'은 본보기 상품번호(spdNo)다 — 진짜
+    카테고리 코드가 아니다(category_suggest.py::SUGGESTION_MARKETS 와 같은 이유로
+    market_categories 사전을 아예 쓰지 않는다). 그런데 다른 수집 작업 등으로
+    market_categories 에 market='lotteon' 행이 우연히 생기면, check() 혼자서는
+    이 spdNo 를 못 찾아 NOT_FOUND(막힘)로 오판한다 — 실제로 라이브에서 이렇게
+    막혀 있었다(정상 spdNo 를 넣어도 '이 마켓에 없는 카테고리입니다'로 매번 거부).
+    service.prepare_compile_draft 가 market='lotteon' 이면 이 검사 자체를
+    아예 타지 않아야 한다."""
+    _cat(db, market='lotteon', code='엉뚱한코드')   # 우연히 생긴 무관한 행
+
+    from lemouton.registration.models import ProductDraft
+    from lemouton.registration.service import prepare_compile_draft
+
+    draft = ProductDraft(name='테스트 상품', sale_price=10000)
+    db.add(draft)
+    db.commit()
+
+    _, info = prepare_compile_draft(db, draft, 'lotteon', category_code='LO2751529664')
+    blocking = [s for s in info['skipped'] if s.get('blocking')]
+    assert not blocking, f'롯데온 본보기 상품번호가 카테고리 사전 검사로 막혔다: {blocking}'

@@ -598,7 +598,9 @@ def order_axis_row(line: dict, *, unit: str = "day",
       (KPI 5.5억 · 드릴다운 0건, 2026-08-06). 두 쪽이 이 함수 하나만 부른다.
 
     제외 = 클레임 행(_kind=change) · 취소완료 · 반품완료 · 반품/교환/취소 **진행 중**.
-    매출액 = 실결제금액, 없으면 상품금액+배송비로 **대체**하고 그 사실을 표시한다.
+    매출액 = order_export._매출기준액(판매가+배송비, 할인 무관) 그대로 — 마진계산기와
+      같은 정의를 쓴다(2026-08-27 「이 화면만 옛 정의로 따로 논다」 사고 교정).
+      옛 저장분이라 그 칸이 없으면 상품금액+배송비로 **대체**하고 그 사실을 표시한다.
     """
     from lemouton.markets.order_export import _to_int
     row = line["row"]
@@ -610,7 +612,7 @@ def order_axis_row(line: dict, *, unit: str = "day",
     od = str(row.get("주문일") or "")[:10]
     if not od or (d_from and od < d_from) or (d_to and od > d_to):
         return None
-    rev = _to_int(row.get("실결제금액"))
+    rev = _to_int(row.get("_매출기준액"))
     substituted = False
     if not rev:
         p = _to_int(row.get("상품금액"), 0) or 0
@@ -628,8 +630,8 @@ def aggregate_by_order_date(lines: list, *, unit: str = "day",
     """주문일 축 — 클레임(취소완료·반품완료·클레임 행·위험 진행분) 제외
     매출액 + 정산예정금 합계.
 
-    매출액 = 실결제금액, 없으면 상품금액+배송비 대체 — 대체 건수를 meta 로 표기한다
-    (조용한 대체 금지, 스펙 재검토 구멍⑤).
+    매출액 = _매출기준액(판매가+배송비, 할인 무관), 없으면 상품금액+배송비 대체 —
+    대체 건수를 meta 로 표기한다(조용한 대체 금지, 스펙 재검토 구멍⑤).
     """
     buckets: dict = {}
     substituted = 0

@@ -113,9 +113,15 @@ def test_card_partition_sums_to_all(date):
 #     새 카드 19+1+1 = 21. 의도된 이동이며 전체 155 는 그대로다.
 CLIENT_GOLDEN_260714 = {
     # ★2026-07-24 2차 — '배송중'을 발송 대기에서 제외(16건이 정상/완료로 이동).
-    "all": 155, "normal": 65, "pending": 44, "kkadaegi": 19, "mango_check": 2,
+    # ★2026-08-27 3차 — 사장님 신고("반품/취소/교환건 체크 해제돼 있음") 추적 결과,
+    #   더망고=평상 라벨(배송대기중 등)인데 샵마인_주문상태는 이미 취소·반품 진행/완료인
+    #   행이 isMgPending 우선순위에 먼저 채여 발송대기(pending) 카드로 잘못 빠지고
+    #   있었다 — 이 260714 스크린샷 표본에도 그 패턴 1건이 섞여 있었다(pending 44→43,
+    #   inprogress 4→5). isMgPending 이 샵마인 진행중/완료 클레임 상태를 이기지 못하게
+    #   가드를 추가한 뒤 재확정한 값 — 버그가 고쳐진 결과이지 harness 오류가 아니다.
+    "all": 155, "normal": 65, "pending": 43, "kkadaegi": 19, "mango_check": 2,
     "kkadaegi_sent": 21,
-    "etc": 0, "tracking_failed": 0, "inprogress": 4, "status_mismatch": 0,
+    "etc": 0, "tracking_failed": 0, "inprogress": 5, "status_mismatch": 0,
     "confirmed_blackspot": 0, "memo_settled": 0, "completed_memo_yes": 0,
     "completed_memo_no": 0, "immediate": 0, "sourcing": 0, "market": 0,
 }

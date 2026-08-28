@@ -141,6 +141,10 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
         market=market, goods_name=spec['goods_name'],
         cat_code=spec['cat_code'], site_cat_code=spec['site_cat_code'],
         site_type=1 if market == 'auction' else 2,
+        # ★ [2026-08-24] 정책의 「가격비교 노출」 — 안 정했으면 None 이라 칸을 안 만든다.
+        pcs_use=spec.get('pcs_use'), pcs_coupon_iac=spec.get('pcs_coupon_iac'),
+        # ★ [2026-08-26] 정책의 즉시할인 — 안 정했으면 None 이라 칸을 안 만든다.
+        seller_discount=spec.get('seller_discount'),
         price=spec['price'], stock=spec['stock'],
         place_no=int(prereq['place_no']),
         dispatch_policy_no=int(prereq['dispatch_policy_no']),
@@ -183,6 +187,26 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
                     cat_code=spec['cat_code'], site_cat_code=spec['site_cat_code'],
                     err=e, rollback=rollback),
                 product_id=goods_no_new) from e
+
+    # ★ 등록(+옵션부착) 끝난 뒤 판매중지 — 스마트스토어(service.py:_send_live)와 같은
+    #   안전장치. ESM 은 등록 즉시 판매중(11)으로 뜬다(스마트스토어는 mark_suspension
+    #   이 이미 이 역할을 한다 — ESM 만 빠져 있었다). 실패해도 상품ID 는 잃지 않는다
+    #   (best-effort — 옵션부착 실패 시의 위 롤백 경로와는 별개: 저건 실패 회수,
+    #   이건 성공 직후 정상 경로의 안전장치다).
+    from shared.platforms.esm.inventory import set_sold_out
+    try:
+        suspended = set_sold_out(goods_no_new, market, client=client)
+        if not suspended:
+            # 등록 자체는 성공했다 — 판매중으로 남았다는 사실을 숨기지 않는다.
+            #   (service.py:_send_live 스마트스토어 분기와 같은 흔적 — result 가 곧
+            #   register_live() 의 'raw' 로 리턴돼 row.raw_json 에 그대로 저장된다.
+            #   여기서 안 남기면 로그만 찍고 DB 어디에도 안 남는다.)
+            logger.warning('%s 판매중지 전환 실패 goodsNo=%s — 상품이 판매중 상태로 남았습니다.',
+                            market, goods_no_new)
+            result['_suspend_failed'] = True
+    except Exception:  # noqa: BLE001 — best-effort. 등록 자체는 이미 성공했다(상품ID 확보).
+        logger.exception('%s 판매중지 전환 예외 goodsNo=%s', market, goods_no_new)
+        result['_suspend_failed'] = True
     return {'product_id': goods_no_new, 'raw': result}
 
 
@@ -373,7 +397,39 @@ def _register_eleven11(spec: dict, account_key: str = '') -> dict:
     fields['extra'].setdefault('rtngExchDetail', '상품 수령 후 7일 이내 교환/반품 가능. 비용 본인부담.')
     xml_body = build_register_xml(fields)
     result = register_product(xml_body, client=client)   # productNo 없으면 raise
-    return {'product_id': str(result['productNo']), 'raw': result}
+    product_no = str(result['productNo'])
+    # ★ 등록 직후 전시중지 — 11번가는 등록 즉시 전시(판매)로 뜬다(ESM·스마트스토어와
+    #   같은 이유). 실패해도 product_id 는 잃지 않는다(best-effort). 실패 흔적은
+    #   result 안에 남겨 row.raw_json 으로 DB에 보이게 한다(로그만 남기면 조용한
+    #   실패가 된다 — 과거에 여러 번 겪은 「돈 잃는」 버그 유형).
+    # [재조회 검증] 11번가는 stop_display 응답(HTTP 200/resultCode)만으로 성공을
+    #   못 믿는 마켓이다(register_product 의 「거짓 성공 금지」 주석과 같은 특성).
+    #   webapp/routes/live_send_test.py:api_suspend_eleven11 이 이미 쓰는 방식대로
+    #   get_product_detail 로 sel_stat_cd == '105'(전시중지) 인지 재조회 확인한다.
+    from shared.platforms.eleven11.products import stop_display, get_product_detail
+    try:
+        stop_resp = stop_display(product_no, client=client)
+        if not stop_resp:
+            logger.warning('11번가 전시중지 응답 없음 prdNo=%s', product_no)
+            result['_suspend_failed'] = True
+        else:
+            try:
+                detail = get_product_detail(product_no, client=client)
+            except Exception:  # noqa: BLE001
+                logger.exception('11번가 전시중지 재조회 예외 prdNo=%s', product_no)
+                result['_suspend_failed'] = True
+            else:
+                sel_stat_cd = str((detail or {}).get('sel_stat_cd') or '')
+                if sel_stat_cd != '105':
+                    logger.warning(
+                        '11번가 전시중지 재조회 검증 실패(응답은 성공이었으나 여전히 '
+                        '전시중지 아님) prdNo=%s sel_stat_cd=%s',
+                        product_no, sel_stat_cd)
+                    result['_suspend_failed'] = True
+    except Exception:  # noqa: BLE001
+        logger.exception('11번가 전시중지 예외 prdNo=%s', product_no)
+        result['_suspend_failed'] = True
+    return {'product_id': product_no, 'raw': result}
 
 
 # ── 롯데온 ─────────────────────────────────────────────────────
@@ -383,8 +439,14 @@ def _register_eleven11(spec: dict, account_key: str = '') -> dict:
 #: (`dmstOvsDvDvsCdNm` = "국내배송"). 우리는 국내 소싱·국내 배송이다.
 _LOTTEON_DOMESTIC = 'DMST'
 
-#: 판매자상품 판매상태 「판매중」. 실측 근거 — 같은 덤프 :37 `"spdSlStatCd": "SALE"`
-#: (`spdSlStatCdNm` = "판매중"). products.set_sale_status 의 코드계 [SALE/SOUT/END] 와 같다.
+#: 판매자상품 판매상태 「판매중」. products.set_sale_status 의 코드계 [SALE/SOUT/END] 와 같다.
+#: [2026-08-20 정정] `_lotteon_pbf_dump/lemouton_base.json` 의 `spdSlStatCd` 는
+#:   실제 등록 흐름이 쓰는 product/detail 응답이 아니라 **다른 API(PBF)의 응답**이었다
+#:   (그 덤프는 data.basicInfo.{pdSlStatCd,itmSlStatCd,spdSlStatCd,sitmSlStatCd} 처럼
+#:   여러 단위가 섞여 있다). 실제로 `get_product_detail()`(product/detail)이 돌려주는
+#:   최상위 필드는 `slStatCd` 하나뿐 — 라이브 재현(roundtrip-probe)으로 실측 확인,
+#:   `spdSlStatCd` 키는 그 응답에 아예 없어 판매중인 본보기도 매번 "판매상태 없음"으로
+#:   막고 있었다.
 _LOTTEON_ON_SALE = 'SALE'
 
 
@@ -414,10 +476,9 @@ def _assert_lotteon_template_safe(template: dict, spd_no: str) -> None:
             f'해외직구로 나가고 마켓에서 바꿀 수 없습니다(삭제 후 재등록만 가능). '
             f'국내배송 판매중 상품번호로 바꿔 주세요.')
 
-    sale = str(template.get('spdSlStatCd') or '').strip().upper()
+    sale = str(template.get('slStatCd') or '').strip().upper()
     if sale != _LOTTEON_ON_SALE:
-        shown = (str(template.get('spdSlStatCdNm') or '').strip()
-                 or sale or '(값 없음)')
+        shown = sale or '(값 없음)'
         raise PrereqError(
             f'롯데온 본보기 상품({spd_no})이 판매중이 아닙니다 — 판매상태 「{shown}」. '
             f'판매가 끝난 상품은 롯데온이 정리해 없앨 수 있고, 그러면 이 본보기를 쓰는 '
@@ -451,7 +512,42 @@ def _register_lotteon(spec: dict, account_key: str = '') -> dict:
         if isinstance(img, dict) and img.get('origImgFileNm'):
             img['origImgFileNm'] = spec['image_url']
     result = register_product(inner, client=client)   # spdNo 없으면 raise
-    return {'product_id': str(result['spdNo']), 'raw': result}
+    spd_no = str(result['spdNo'])
+    # ★ 등록 직후 판매종료 — 롯데온은 등록 즉시 판매중(SALE)으로 뜬다. SOUT(품절)
+    #   대신 END(판매종료)를 쓰는 이유: SOUT 은 재고 수치에 연동돼, 이후 재고 동기화가
+    #   재고를 채우면 자동으로 판매중으로 되돌아갈 위험이 있다. END 는 재고와 무관하게
+    #   고정된다. 실패해도 product_id 는 잃지 않는다(best-effort). 실패 흔적은 result
+    #   안에 남겨 row.raw_json 으로 DB에 보이게 한다(로그만 남기면 조용한 실패가 된다
+    #   — 과거에 여러 번 겪은 「돈 잃는」 버그 유형).
+    # [재조회 검증] set_sale_status 는 status/change 응답의 **최상위 returnCode 만**
+    #   보고 boolean 을 만든다(products.py:344) — register_product 의 「함정2」(최상위
+    #   0000 이어도 data[] 항목별 resultCode 는 실패일 수 있음, 같은 spdLst 래퍼 구조)와
+    #   같은 위험을 안고 있고, set_sale_status 자체 docstring 도 "반환 True 여도
+    #   호출부가 get_product_detail 로 slStatCd 재조회 검증 권장"이라 명시한다. 그래서
+    #   True 를 받아도 get_product_detail 로 slStatCd == 'END' 인지 재조회 확인한다.
+    from shared.platforms.lotteon.products import set_sale_status
+    try:
+        ok = set_sale_status(spd_no, 'END', client=client)
+        if not ok:
+            logger.warning('lotteon 판매종료 전환 실패 spdNo=%s', spd_no)
+            result['_suspend_failed'] = True
+        else:
+            try:
+                detail = get_product_detail(spd_no, client=client)
+            except Exception:  # noqa: BLE001
+                logger.exception('lotteon 판매종료 재조회 예외 spdNo=%s', spd_no)
+                result['_suspend_failed'] = True
+            else:
+                sl_stat_cd = str((detail or {}).get('slStatCd') or '')
+                if sl_stat_cd != 'END':
+                    logger.warning(
+                        'lotteon 판매종료 재조회 검증 실패(응답은 성공이었으나 여전히 '
+                        '판매종료 아님) spdNo=%s slStatCd=%s', spd_no, sl_stat_cd)
+                    result['_suspend_failed'] = True
+    except Exception:  # noqa: BLE001
+        logger.exception('lotteon 판매종료 예외 spdNo=%s', spd_no)
+        result['_suspend_failed'] = True
+    return {'product_id': spd_no, 'raw': result}
 
 
 def register_live(market: str, spec: dict, account_key: str = '') -> dict:

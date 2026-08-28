@@ -317,6 +317,24 @@ def run(session, *, live: bool = False, days: int = 7, limit=None,
     return {"ok": True, "live": is_live, "total": total, "by": by, "warnings": warnings}
 
 
+def _tick_limit():
+    """한 틱에 계정별 최대 몇 건까지 전환할지.
+
+    [2026-08-26] 라이브 실측 — 백로그가 쌓이면 한 틱이 몇 분씩 걸려 다음 1분 틱과
+    계속 겹쳤다("maximum number of running instances reached" 반복). ESM 은 계정당
+    5초/1콜 제한이라, 밀린 주문이 많을수록 한 틱 안에서 그만큼 오래 붙잡고 있었다
+    (ESM 호출제한 재시도·쿠팡 429 재시도가 로그에 계속 찍힌 것도 같은 증상).
+    한 틱에서 처리할 건수를 계정별로 제한하면, 못 다한 나머지는 '결제완료' 상태로
+    남아 있는 한 다음 틱에서 자동으로 다시 대상이 된다 — 유실 없이 나눠서 처리.
+    0 이면 예전처럼 무제한(비상용 폴백).
+    """
+    try:
+        v = int(os.environ.get("MOUM_AUTO_CONFIRM_TICK_LIMIT", "20"))
+    except (TypeError, ValueError):
+        v = 20
+    return v if v > 0 else None
+
+
 def tick(session) -> dict:
     """스케줄러 1분 틱 — 자동 실행 ON + 간격 지났으면 한 바퀴 실전환.
 
@@ -324,6 +342,7 @@ def tick(session) -> dict:
     여러 워커가 동시에 틱을 돌려도 UPDATE 를 성공시킨 1개 워커만 실행(중복 전환 방지).
     반환: {ran: bool, ...}.
     """
+    import time as _time
     from sqlalchemy import update
     cfg = get_config(session)
     if not cfg.enabled:
@@ -340,9 +359,13 @@ def tick(session) -> dict:
     session.commit()
     if res_upd.rowcount != 1:   # 다른 워커가 이미 가져갔거나 간격 안 됨
         return {"ran": False, "reason": "interval not elapsed / taken by other worker"}
-    res = run(session, live=True, source="auto")
+    # [2026-08-26] 오래 걸리는 틱이 다음 틱과 겹치는지(OOM 조사용) 시작·소요시간을 남긴다.
+    logger.info("auto-confirm tick: 시작 (limit=%s)", _tick_limit())
+    t0 = _time.monotonic()
+    res = run(session, live=True, source="auto", limit=_tick_limit())
     res["ran"] = True
-    logger.info("auto-confirm tick: total=%s by=%s", res.get("total"),
+    logger.info("auto-confirm tick: 종료 %.1fs total=%s by=%s", _time.monotonic() - t0,
+                res.get("total"),
                 [(b["market"], b["result"], b["count"]) for b in res.get("by", [])])
     return res
 

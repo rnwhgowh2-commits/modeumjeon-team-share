@@ -61,4 +61,11 @@
     단 **모델 모듈을 `app.py` 가 import 해야** 등록된다 (`import lemouton.xxx.models  # noqa: F401`).
   - 기존 테이블의 신규 **컬럼** → `shared/db.py:_apply_lightweight_migrations()` 의
     `migrations` 리스트에 `(table, column, dtype)` 추가.
+  - 🔴 **이미 배포된 표의 제약(NOT NULL 등)을 바꾸려면 마이그레이션을 따로 써야 한다.**
+    `create_all` 은 **있는 표를 절대 안 고친다**. 모델만 바꾸면 시험은 전부 통과하는데
+    (시험은 매번 새 표를 만든다) **실서버에서만 조용히 틀린다**.
+    2026-08-24 `market_account_settings` 에서 실제로 겪음 — 기본 배송비가 안 들어갔다.
+    본보기: `shared/db.py` 의 같은 표 블록(PostgreSQL=`ALTER … DROP NOT NULL`,
+    SQLite=표 다시 짓기. **새 표를 먼저 짓고 원본은 마지막에 지운다** — 중간에 실패해도
+    자료가 남는다).
 - 데이터 무결성: 중복·모순 절대 금지 (가격·재고 오류 = 금전 손실)

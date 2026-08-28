@@ -215,7 +215,15 @@ def compile_smartstore(draft, *, category_code: str, require_cdn_images: bool = 
         'originProduct': origin_product,
         'smartstoreChannelProduct': {
             'channelProductDisplayStatusType': 'ON',
-            'naverShoppingRegistration': True,
+            # ★ [2026-08-24 Phase 4-5] 정책의 「가격비교 노출」을 따른다.
+            #   🔴 예전엔 True 가 박혀 있어, 사장님이 「노출 안 함」으로 정해도
+            #     그대로 노출됐다(가격비교는 수수료가 더 붙는다 — 금전 직결).
+            #   정책이 말하지 않으면 True — 이 칸은 [필수]라 값이 있어야 한다.
+            #   ⚠️ 네이버 쇼핑 광고주가 아니면 보낸 값과 무관하게 false 로 저장된다
+            #     (지도 실측 — 「네이버 쇼핑 광고주가 아닌 경우에는 false로 저장됩니다」).
+            'naverShoppingRegistration': bool(
+                getattr(draft, 'price_compare_expose', None)
+                if getattr(draft, 'price_compare_expose', None) is not None else True),
         },
     }
     return body, excluded

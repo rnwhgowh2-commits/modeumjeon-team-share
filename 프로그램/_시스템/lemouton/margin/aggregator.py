@@ -90,24 +90,28 @@ def aggregate(result_rows, price_ranges):
     # 금액대는 판매가(수량 반영) 기준 — 버킷 분류 축이므로 정가로 나눈다(매출 기준과 별개).
     df['금액대'] = df['판매가'].apply(_classify)
 
-    # 매출 기준 = 정가 + 배송비 − **판매자부담** 할인 (사장님 확정 2026-08-13).
-    #  · 마켓(사이트)이 부담한 할인은 마켓이 대신 내주고 우리는 정가대로 정산받으므로 안 뺀다.
-    #    빼면 매출이 실제보다 작아지고, 분모가 작아져 마진율이 실제보다 높게 보인다.
-    #    라이브 실측 30일: 롯데온 3,205,562원·스스 24,000원이 그렇게 빠지고 있었다.
+    # 매출 기준 = 내가 판매가로 최종 결정한 것 = 총주문금액(단가×수량+옵션) + 배송비
+    #  (사장님 확정 2026-08-27). 할인은 판매자부담이든 마켓부담이든 안 뺀다 —
+    #  2026-08-13엔 "판매자할인만 뺀다"였다가 다시 확정. 취소완료(거래 무산)만
+    #  0 으로 둔다(order_export 가 이미 그렇게 만들어 준다).
     #  · 그 값은 주문내역(order_export)이 `_매출기준액` 한 칸으로 **한 번만** 만든다.
     #    여기선 다시 계산하지 않고 받아 쓴다 — 두 화면이 각자 계산하면 규약이 바뀐 날
     #    조용히 갈라진다(2026-07-23 정산액 사고와 같은 함정).
-    #  · 없거나 0(판매자할인 모름·옛 저장분·취소)이면 옛 기준(실결제+배송비)→판매가로 폴백.
+    #  · 없거나 0(취소완료·엑셀 전용 데이터 등)이면 여기서 같은 규칙으로 직접 만든다:
+    #    총주문금액(없으면 판매가=단가×수량) + 배송비.
+    #  🔴 "0"과 "미기재"를 값만으로 구분 못 한다(_CARRY_FIELDS 경로가 미기재를 0으로
+    #    민다 — 기존부터 그런 한계다) — 그래서 기존과 같이 ">0" 로 가른다.
     #  ★per-row 는 pipeline._recompute_margin_rate 가 같은 규칙으로 마진율을 만든다.
     if '배송비' not in df.columns:
         df['배송비'] = 0
-    _list = pd.to_numeric(df['판매가'], errors='coerce').fillna(0)
     _ship = pd.to_numeric(df['배송비'], errors='coerce').fillna(0)
-    if '실결제금액' in df.columns:
-        _paid = pd.to_numeric(df['실결제금액'], errors='coerce').fillna(0)
-        _base = (_paid + _ship).where(_paid > 0, _list)
+    if '총주문금액' in df.columns:
+        _amt = pd.to_numeric(df['총주문금액'], errors='coerce').fillna(0)
+        _list = pd.to_numeric(df['판매가'], errors='coerce').fillna(0)
+        _amt = _amt.where(_amt > 0, _list)   # 총주문금액 미기재 행만 판매가로 보강
     else:
-        _base = _list
+        _amt = pd.to_numeric(df['판매가'], errors='coerce').fillna(0)
+    _base = _amt + _ship
     if '_매출기준액' in df.columns:
         _sale = pd.to_numeric(df['_매출기준액'], errors='coerce').fillna(0)
         df['_매출기준'] = _sale.where(_sale > 0, _base)
@@ -136,23 +140,34 @@ def aggregate(result_rows, price_ranges):
             result.append(row)
         return result
 
-    total_매출   = df['_매출기준'].sum()          # 매출 = 실결제+배송비 (위 정의)
+    total_매출   = df['_매출기준'].sum()          # 매출 = 판매가+배송비 (위 정의)
     total_정산   = df['정산예상금액'].sum() if '정산예상금액' in df.columns else 0
     total_실결제 = df['실결제금액'].sum()   if '실결제금액'   in df.columns else 0
     total_매입   = df['구매가격'].sum()
     total_순마진 = df['순마진'].sum()
     avg_마진율   = (total_순마진 / total_매출 * 100) if total_매출 > 0 else 0
 
-    # 이상가 제외 집계
+    # 이상가(과다매입 의심) + 구매가미확정(원가를 아직 모름) 제외 집계
+    #  ★ 2026-08-27 사장님 신고 — 브랜드별·일별 탭에 매입 0원인데 매출·순마진이 찍혀
+    #    마진율이 90%대로 부풀어 보였다. 원인: 매입흔적(송장/URL)만 있어도 "이행"으로
+    #    쳐서 정상 집계에 넣는데, 매입흔적이 있다고 구매가격(원가)까지 아는 건 아니다
+    #    (송장은 있는데 구매가격=0인 실측 사례: 플리츠플리즈 82건 전부 이 패턴).
+    #    "주문이행 = 실제 매입이 있는 것"이라는 사장님 확정 기준대로, 구매가격이
+    #    없으면(0/결측) 원가 모를 뿐 마진이 실제로 그런 게 아니므로 브랜드별·일별 등
+    #    "정상" 집계에서 뺀다. 총매출/총매입 등 전체 합계에는 이상가처럼 그대로
+    #    남겨(존재를 숨기지 않음) — 사람이 검토할 몫은 요약탭 "고마진" 카드가 보여준다.
     if '이상가' in df.columns:
-        normal = df[df['이상가'] == False]
+        mask_abnormal_price = df['이상가'] == True
     else:
-        normal = df
-    normal_매출   = normal['_매출기준'].sum()      # 매출 = 실결제+배송비 (위 정의)
+        mask_abnormal_price = pd.Series(False, index=df.index)
+    mask_unpriced = pd.to_numeric(df['구매가격'], errors='coerce').fillna(0) <= 0
+    normal = df[~mask_abnormal_price & ~mask_unpriced]
+    normal_매출   = normal['_매출기준'].sum()      # 매출 = 판매가+배송비 (위 정의)
     normal_매입   = normal['구매가격'].sum()
     normal_순마진 = normal['순마진'].sum()
     normal_마진율 = (normal_순마진 / normal_매출 * 100) if normal_매출 > 0 else 0
-    이상가건수 = int(len(df) - len(normal))
+    이상가건수 = int(mask_abnormal_price.sum())
+    구매가미확정건수 = int(mask_unpriced.sum())
 
     # ── 소싱처 확인 현황 (Task 7) ──
     # 간단메모에 http URL 이 포함되어 있고 아직 확인 안 한 건 / 확인 완료된 건 카운트
@@ -233,6 +248,7 @@ def aggregate(result_rows, price_ranges):
         '정상순마진': int(round(normal_순마진)),
         '정상마진율': round(float(normal_마진율), 2),
         '이상가건수': 이상가건수,
+        '구매가미확정건수': 구매가미확정건수,
         'card_sourcing_need': card_sourcing_need,
         'card_sourcing_done': card_sourcing_done,
         # ── Phase 2c: 블랙스팟 7카드 집계 ──

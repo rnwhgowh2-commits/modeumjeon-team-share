@@ -751,6 +751,49 @@ def test_lotteon_delivery_window_extends_to_now(monkeypatch):
     assert cap["until"] >= now - dt.timedelta(seconds=5)   # 과거 until 이 아니라 now 로 확장
 
 
+def test_lotteon_delivery_sweeps_already_linked_orders(monkeypatch):
+    """ifCplYN="" 은 '아직 연동 안 된 신규 주문'만 준다(공식 문서). 같은 API 키를 쓰는
+    다른 프로그램(더망고 등)이 먼저 209 를 읽어가면 그 주문은 '연동완료(Y)'로 표시돼
+    기본 조회(빈값)로는 영원히 안 잡힌다 — 매입 기록은 있는데 마진계산기엔 안 뜨는
+    '블랙스팟 의심' 오판정의 근본원인(2026-08-24 실측, 롯데온 16건). 신규(빈값)·
+    연동완료(Y) 두 값 다 훑어 합쳐야 한다."""
+    import shared.platforms.lotteon.orders as _lo
+    import shared.platforms.lotteon.claims as _lc
+    monkeypatch.setattr(_lc, "commission_map", lambda *a, **k: {})
+    for nm in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(_lc, nm, lambda *a, **k: iter([]))
+
+    def _fake_iter(s, u, client=None, if_cpl_yn=""):
+        if if_cpl_yn == "":                 # 신규 — mou-m 이 직접 잡은 주문
+            return iter([{"odNo": "LO-NEW", "odSeq": "1", "spdNm": "새주문", "odQty": 1}])
+        if if_cpl_yn == "Y":                # 연동완료 — 더망고가 먼저 읽어간 주문
+            return iter([{"odNo": "LO-OLD", "odSeq": "1", "spdNm": "이미연동", "odQty": 1}])
+        return iter([])
+    monkeypatch.setattr(_lo, "iter_delivery_orders", _fake_iter)
+
+    rows = oe.lotteon_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                                 dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    order_nos = {r["오픈마켓주문번호"] for r in rows}
+    assert order_nos == {"LO-NEW", "LO-OLD"}   # 둘 다 잡힘 — Y 만 걸린 주문이 누락되지 않는다
+
+
+def test_lotteon_delivery_sweep_dedupes_by_odno_odseq(monkeypatch):
+    """같은 주문이 신규·연동완료 두 조회 모두에서 나오면(경쟁 상태 등) 한 번만 남긴다."""
+    import shared.platforms.lotteon.orders as _lo
+    import shared.platforms.lotteon.claims as _lc
+    monkeypatch.setattr(_lc, "commission_map", lambda *a, **k: {})
+    for nm in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(_lc, nm, lambda *a, **k: iter([]))
+    same_od = {"odNo": "LO-DUP", "odSeq": "1", "spdNm": "같은주문", "odQty": 1}
+    monkeypatch.setattr(_lo, "iter_delivery_orders",
+                        lambda s, u, client=None, if_cpl_yn="": iter([dict(same_od)]))
+
+    rows = oe.lotteon_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
+                                 dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())
+    assert len(rows) == 1
+    assert rows[0]["오픈마켓주문번호"] == "LO-DUP"
+
+
 def test_lotteon_claim_window_extends_to_now(monkeypatch):
     """롯데온 클레임도 접수일 기준 → 기간 밖 취소 누락(라이브: 4건). 조회 끝을 now 로 넓힌다."""
     import shared.platforms.lotteon.orders as _lo
@@ -1206,23 +1249,20 @@ def test_ESM_실결제는_판매자할인만_뺀다():
     assert r3["실결제금액"] == 50000, "취소 행까지 할인을 뺐다: %s" % r3["실결제금액"]
 
 
-def test_매출기준액은_마켓부담_할인을_빼지_않는다():
-    """매출 = 정가 + 배송비 − **판매자부담** 할인 (사장님 확정 2026-08-13).
+def test_매출기준액은_할인을_아예_빼지_않는다():
+    """매출 = 총주문금액(단가×수량+옵션) + 배송비, 할인 무관 (사장님 확정 2026-08-27).
 
-    🔴 `실결제금액`은 마켓마다 뜻이 다르다 — 스스·롯데온·11번가는 **마켓이 부담한 할인까지**
-      빠진 값이다. 그걸 매출로 쓰면 우리 매출이 실제보다 작아지고, 분모가 작아져 마진율이
-      실제보다 높게 보인다. 라이브 30일 실측(2026-08-13): 롯데온 3,205,562원 과소.
-
-    아래 롯데온 행은 **라이브 실측값**이다 — 37,900 − 셀러 1,436 − 롯데 5,744 = 30,720
-    으로 산수가 정확히 맞아떨어진 줄이다.
+    2026-08-13엔 "판매자부담 할인만 뺀다"였다. 2026-08-27 재확정: "내가 판매가로
+    최종 결정한 것"이 매출이니 판매자할인이든 마켓할인이든 아예 안 뺀다 —
+    `_dc_seller`/`_dc_market` 는 이제 이 계산에 관여하지 않는다.
     """
     lo = {"판매처": "롯데온", "주문상태": "상품준비", "단가": 37900, "수량": 1,
           "옵션추가금": 0, "배송비": 0, "실결제금액": 30720,
           "_dc_seller": "1436", "_dc_market": "5744"}
     oe._finalize_rows([lo])
-    assert lo["_매출기준액"] == 36464, (
-        "롯데 부담 5,744 까지 매출에서 뺐다(= 매출 과소): %s" % lo["_매출기준액"])
-    assert lo["_매출기준출처"] == "gross_minus_seller_dc"
+    assert lo["_매출기준액"] == 37900, (
+        "할인을 뺐다(할인은 이제 매출기준액과 무관해야 한다): %s" % lo["_매출기준액"])
+    assert lo["_매출기준출처"] == "sale_price_plus_shipping"
     # 실결제금액은 손대지 않는다 — 샵마인 K열 대조·마켓수수료 파생이 그것을 쓴다.
     assert lo["실결제금액"] == 30720, "실결제금액에 매출 정의를 덮어썼다: %s" % lo["실결제금액"]
 
@@ -1230,26 +1270,18 @@ def test_매출기준액은_마켓부담_할인을_빼지_않는다():
     ss = {"판매처": "스마트스토어", "주문상태": "배송중", "단가": 50000, "수량": 2,
           "옵션추가금": 3000, "배송비": 2500, "실결제금액": 96000, "_dc_seller": "5000"}
     oe._finalize_rows([ss])
-    assert ss["_매출기준액"] == 100500, (
-        "정가(단가×수량+옵션추가금)+배송비−판매자할인 이 아니다: %s" % ss["_매출기준액"])
+    assert ss["_매출기준액"] == 105500, (
+        "정가(단가×수량+옵션추가금)+배송비 가 아니다(할인이 껴들었나): %s" % ss["_매출기준액"])
 
-
-def test_판매자할인_모르면_0으로_치지_않는다():
-    """「0원」과 「모름」은 다르다 — 모르면 옛 기준으로 두고 출처를 남긴다.
-
-    🔴 11번가는 배송중·배송완료·구매확정 **목록조회가 `sellerDscPrc` 를 아예 안 준다**
-      (라이브 실측 2026-08-13: 150/157행). 파서는 자식 태그를 그대로 담으므로 우리가
-      버리는 게 아니다. 여기서 0 으로 치면 그 차액을 전부 「마켓 부담」이라 단정하는 셈이라
-      반대 방향으로 틀린다.  회수 경로는 단건조회 eleven11.110 — 별건.
-    """
+    # _dc_seller 가 아예 없어도(11번가 목록조회 미제공 등) 결과가 똑같아야 한다 —
+    #  할인 필드 유무 자체가 이제 이 계산과 무관하다.
     e11 = {"판매처": "11번가", "주문상태": "배송중", "단가": 63100, "수량": 1,
            "옵션추가금": 0, "배송비": 3000, "실결제금액": 59950}   # _dc_seller 없음
     oe._finalize_rows([e11])
-    assert e11["_매출기준출처"] == "paid_seller_dc_unknown", (
-        "판매자할인을 모르는데 아는 것처럼 셌다: %s" % e11["_매출기준출처"])
-    assert e11["_매출기준액"] == 62950, "폴백(실결제+배송비)이 아니다: %s" % e11["_매출기준액"]
+    assert e11["_매출기준액"] == 66100, "총주문금액+배송비 가 아니다: %s" % e11["_매출기준액"]
+    assert e11["_매출기준출처"] == "sale_price_plus_shipping"
 
-    # 취소완료 = 거래 무산 → 매출 0 (배송비가 매출로 새면 안 된다)
+    # 취소완료 = 거래 무산 → 매출 0 (배송비가 매출로 새면 안 된다) — 유일한 예외.
     cx = {"판매처": "쿠팡", "주문상태": "취소완료", "단가": 40000, "수량": 1,
           "옵션추가금": 0, "배송비": 3000, "실결제금액": 40000, "_dc_seller": "0"}
     oe._finalize_rows([cx])

@@ -95,7 +95,14 @@ def rules_for(session, *, set_id: int, market: str) -> tuple[dict, object, str]:
     if policy is None:
         return {}, None, None
     from lemouton.policy.service import values_for
-    return values_for(session, policy.id, market), policy, origin
+    rules = values_for(session, policy.id, market)
+    # ★ [2026-08-24 Phase 3] 0층 상품명 규칙을 여기서 얹는다.
+    #   🔴 이 다리가 없으면 화면에서 규칙을 골라도 **나가는 상품명이 안 바뀐다** —
+    #     `name_rule_id` 칸은 Phase 1 부터 있었는데 읽는 곳이 0곳이었다.
+    #   규칙을 안 고른 정책(NULL)은 `rules` 를 그대로 돌려받는다(동작 불변).
+    from lemouton.policy import name_rules as _NR
+    return _NR.apply_to_rules(session, policy=policy, market=market,
+                              rules=rules), policy, origin
 
 
 def price_template_for(session, *, set_id: int, fallback=None):
@@ -113,9 +120,11 @@ def price_template_for(session, *, set_id: int, fallback=None):
 
 # ── ② 구성을 엔진이 읽을 수 있는 모양으로 ────────────────────────────────
 #
-# `apply_rules` 가 읽는 칸은 아홉 개뿐이다(실측):
+# `apply_rules` 가 읽는 칸(실측):
 #   name · brand · detail_html · options_json · notice_json ·
 #   origin_area_code · delivery_fee · return_fee · source_category_path
+#   + [2026-08-24 Phase 3] article_no(품번) · display_no(상품번호) · model_code
+#     — 상품명 조립 조각용. 사본이 안 실으면 그 조각은 늘 빈 채로 빠진다.
 # ProductDraft 를 흉내 내되 **읽기 전용**이다 — 쓰면 DB 에 안 남고 사라진다.
 
 class SetProcessView:
@@ -178,7 +187,39 @@ def _stock_by_sku(session, model_code: str) -> dict:
     return {o['sku']: (o.get('sources') or []) for o in (md.get('options') or [])}
 
 
-def _options_json(session, set_id: int, stock_by_sku: dict | None = None) -> str:
+def _purchase_stock_by_sku(session, model_code: str) -> dict:
+    """옵션별 **사입(우리 창고) 재고** — 화면(매트릭스)이 쓰는 그 값 그대로.
+
+    ■ 왜 필요한가 (2026-08-24 사장님 확정)
+      「기본적으로 소싱처 URL 의 재고를 따르되, **사입용으로 갖고 있는 재고**는
+      재고관리에서 수량을 다루고 그 수량이 프로그램 전체에 반영돼야 한다.」
+      예전에는 전송이 **소싱 재고만** 봐서, 우리가 창고에 갖고 있는데도
+      소싱처가 품절이면 그 옵션이 통째로 빠졌다 — 팔 수 있는 물건을 못 팔았다.
+
+    🔴 이건 「재고를 지어내는 것」이 아니다. 사입 재고는 재고관리 원장(InventoryTx)에
+      실제로 기록된 수량이고, 화면이 이미 그 값을 보여 준다. 최상위 규칙이 금지하는
+      것은 **소싱 재고의 추정·폴백**이지, 실제로 가진 재고를 세는 것이 아니다.
+
+    Returns:
+        `{canonical_sku: 수량}` — 못 읽으면 `{}`.
+    """
+    from webapp.routes.api_pricing import _option_matrix_data
+    try:
+        md = _option_matrix_data(model_code)
+    except Exception:                       # noqa: BLE001
+        return {}
+    if not md.get('ok'):
+        return {}
+    out = {}
+    for o in (md.get('options') or []):
+        qty = o.get('purchase_stock')
+        if isinstance(qty, int) and qty > 0:
+            out[o['sku']] = qty
+    return out
+
+
+def _options_json(session, set_id: int, stock_by_sku: dict | None = None,
+                  purchase_by_sku: dict | None = None) -> str:
     """구성에 담긴 옵션들 → 드래프트의 `options_json` 모양.
 
     재고는 :func:`_stock_by_sku` 가 준 **화면과 같은 값**을 싣는다. 못 읽은 옵션은
@@ -253,6 +294,28 @@ def _options_json(session, set_id: int, stock_by_sku: dict | None = None) -> str
             else:
                 cell['stock_blocked'] = why    # 왜 못 보내는지 그대로 실어 보낸다
         # ★ 못 읽었으면 'stock' 키를 **아예 넣지 않는다** — 0 을 넣으면 품절로 나간다.
+
+        # ★ [2026-08-24 사장님 확정] **사입(우리 창고) 재고**로도 팔 수 있다.
+        #   「기본적으로 소싱처 URL 의 재고를 따르되, 사입용으로 갖고 있는 재고는
+        #    재고관리에서 다루고 그 수량이 프로그램 전체에 반영돼야 한다.」
+        #   🔴 소싱 재고를 **덮지 않는다** — 소싱으로 보낼 수 있으면 그대로 둔다.
+        #     소싱이 품절이거나 못 읽었을 때만 사입 수량으로 살린다. 그러지 않으면
+        #     창고에 물건이 있는데도 소싱처 사정으로 판매가 멈춘다.
+        #   🔴 이건 재고를 지어내는 것이 아니다 — 재고관리 원장에 실제로 기록된
+        #     수량이고, 화면(매트릭스)이 이미 같은 값을 보여 준다.
+        사입 = (purchase_by_sku or {}).get(o.canonical_sku)
+        if 사입:
+            _소싱 = cell.get('stock', '없음')
+            # 「소싱으로 팔 수 있다」가 아닐 때만 사입으로 살린다:
+            #   · 키 자체가 없음  = 소싱을 못 읽었거나 붙은 소싱처가 없다
+            #   · 0              = 소싱처 품절 (창고에 있으면 팔 수 있다)
+            #   🔴 None 은 「있음(수량 미상)」이라 **덮지 않는다** — 소싱으로 팔린다.
+            #   🔴 소싱 수량에 **더하지 않는다.** 둘을 합치면 실제보다 많이 팔릴 수
+            #     있다(오버셀). 적게 파는 쪽이 안전하다.
+            if _소싱 == '없음' or _소싱 == 0:
+                cell['stock'] = int(사입)
+                cell['buy_source'] = 'purchase'   # 어디서 온 재고인지 구분해 싣는다
+                cell.pop('stock_blocked', None)   # 사입으로 보낼 수 있으니 막을 이유가 없다
         out.append(cell)
     return json.dumps(out, ensure_ascii=False)
 
@@ -275,19 +338,30 @@ def set_view(session, *, set_id: int) -> SetProcessView:
     model_name = ''
     brand = ''
     category_path = ''
+    article_no = ''
+    display_no = ''
     if m is not None:
         model_name = m.model_name_display or m.model_name_raw or m.model_code
         brand = m.brand or ''
         category_path = m.category or ''
+        # ★ [2026-08-24 Phase 3] 상품명 조립에 품번·상품번호를 쓸 수 있게 실어 준다.
+        #   🔴 예전엔 「품번을 담는 칸이 아예 없다」고 안내하고 있었는데, 칸은
+        #     `Model.article_no` 에 있었고 **사본이 안 실어 주고 있었을 뿐**이다.
+        #     사본에 없으면 조각을 골라도 늘 빈 채로 빠진다.
+        article_no = str(m.article_no or '').strip()
+        display_no = str(m.display_no or '').strip()
 
     return SetProcessView({
         'set_id': ps.id,
         'model_code': ps.model_code,
+        'article_no': article_no,
+        'display_no': display_no,
         'name': (ps.name or '').strip() or model_name,
         'brand': brand,
         'detail_html': '',                 # 상세는 아직 구성에 칸이 없다(3단계 범위 밖)
-        'options_json': _options_json(session, ps.id,
-                                      _stock_by_sku(session, ps.model_code)),
+        'options_json': _options_json(
+            session, ps.id, _stock_by_sku(session, ps.model_code),
+            _purchase_stock_by_sku(session, ps.model_code)),
         # 🔴 [2026-08-13] 이 칸이 없어서 **전송이 통째로 막혔다.**
         #   정책에 「이미지」 항목만 저장해 두면, 가공 엔진이 사본에서 사진을 못 찾아
         #   「이미지가 한 장도 없습니다」로 판정하고 막았다(process_apply.py 의

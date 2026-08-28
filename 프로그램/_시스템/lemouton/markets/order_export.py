@@ -731,7 +731,34 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         if od_no:
             return iter_delivery_orders_by_no(od_no, client=client,
                                               since=since, until=_lo_fetch_until)
-        return iter_delivery_orders(since, _lo_fetch_until, client=client)
+        # ifCplYN="" 은 '아직 연동 안 된 신규 주문'만 준다(공식 문서). 같은 API 키를
+        # 쓰는 다른 프로그램(예: 더망고)이 먼저 209 를 읽어가면 그 순간 롯데온이
+        # 그 주문을 '연동완료(Y)'로 표시하고, 그 뒤로는 이 기본 조회로 **영원히**
+        # 다시 안 잡힌다 — 매입은 있는데 마진계산기엔 안 뜨는 '블랙스팟 의심' 오판정의
+        # 근본원인(2026-08-24 실측: 롯데온 16건, 진단 API `lotteon-odno-probe` 로
+        # ifCplYN=Y 에서만 히트 확인 — 이미 배송완료된 주문도 포함돼 '아직 미확정이라
+        # 안 잡힌다'는 가설은 기각됨). 그래서 신규(빈값)·연동완료(Y) 둘 다 훑어 합친다.
+        # ★ 두 조회를 **동시에** 돌린다 — 순차로 하면(7일 창 기준 실측 42초, 기존
+        #   4~20초의 배가 됨) 주문관리 화면의 실시간 조회까지 느려진다(2026-08-25
+        #   라이브 실측). 클라이언트의 토큰버킷(lock 보유)이 스레드 안전이라 같은
+        #   client 로 병렬 호출해도 초당 상한은 그대로 지켜진다.
+        from concurrent.futures import ThreadPoolExecutor as _TPE
+
+        def _fetch_one(cpl):
+            return list(iter_delivery_orders(since, _lo_fetch_until, client=client,
+                                              if_cpl_yn=cpl))
+        with _TPE(max_workers=2) as ex:
+            batches = list(ex.map(_fetch_one, ("", "Y")))
+        seen = set()
+        merged = []
+        for batch in batches:
+            for od in batch:
+                key = (str(_g(od, "odNo", default="")), str(_g(od, "odSeq", default="")))
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(od)
+        return merged
 
     rows = []
     for od in _lo_source():
@@ -3367,34 +3394,27 @@ def _finalize_rows(rows: list) -> list:
             r["실결제금액"] = total - _esm_sdc
             paid = r["실결제금액"]
 
-        # ── 매출 기준액(사장님 확정 2026-08-13) — 「우리가 번 돈」을 한 칸으로 ──
-        #  매출 = 총주문금액(단가×수량+옵션추가금) + 배송비 − **판매자부담** 할인.
-        #   · 판매자할인은 우리 주머니에서 나가므로 뺀다.
-        #   · 마켓(사이트) 부담 할인은 마켓이 대신 내주고 우리는 정가대로 정산받으므로
-        #     **안 뺀다** — 빼면 매출이 실제보다 작아진다.
+        # ── 매출 기준액(사장님 확정 2026-08-27) — 「내가 판매가로 최종 결정한 것」 ──
+        #  매출 = 총주문금액(단가×수량+옵션추가금) + 배송비. 할인은 판매자부담이든
+        #  마켓부담이든 **안 뺀다** — 내가 정한 판매가 그대로가 매출이라는 확정.
+        #  (2026-08-13엔 "판매자할인만 뺀다"였다가 2026-08-27에 "아예 안 뺀다"로
+        #   다시 확정 — _dc_seller 조회·차감 로직 자체를 걷어냈다.)
         #  🔴 여기서 **한 번만** 만든다. 주문내역·마진계산기·엑셀이 이 칸을 그대로 읽는다.
         #    (2026-07-23 사고: 마진계산기가 정산액을 자기 방식으로 다시 계산해, 규약이 바뀐 날
         #     두 화면이 조용히 갈라졌다. 같은 실수를 매출에서 반복하지 않는다.)
         #  🔴 `실결제금액`은 그대로 둔다 — 샵마인 K열 대조·마켓수수료 파생이 그것을 쓴다.
         #    같은 이름에 다른 뜻을 담으면 그 소비처들이 조용히 틀어진다.
-        #  🔴 판매자할인을 **모르는** 행은 0 으로 치지 않는다 — 「0원」과 「모름」은 다르다.
-        #    모르면 옛 기준(실결제+배송비)으로 두고 출처를 남겨 화면이 드러낸다.
-        #    실측 2026-08-13: 11번가는 배송중·배송완료·구매확정 목록조회가 `sellerDscPrc`를
-        #    아예 안 준다(150/157행). 단건조회 eleven11.110 에는 있다 — 회수는 별건.
-        _sdc_raw = r.get("_dc_seller")
-        _is_claim = zero_cancel or any(t in _st for t in ("취소", "반품", "철회"))
+        #  🔴 취소완료(zero_cancel)만 예외 — 거래가 무산됐으니 판매가가 아니라 0.
+        #    그 외(취소요청·반품·철회 등 미확정 클레임)는 아직 거래가 살아있을 수 있어
+        #    똑같이 판매가+배송비로 둔다(집계에서 빠지는 건 별도 제외 규칙이 담당).
         if zero_cancel:
             r["_매출기준액"], r["_매출기준출처"] = 0, "zero_cancel"
-        elif _is_claim:
-            # 클레임 행은 원금 규약(샵마인 K열)을 그대로 따른다 — 매출 집계에선 어차피 빠진다.
-            r["_매출기준액"] = (paid + ship) if paid is not None else ""
-            r["_매출기준출처"] = "claim"
-        elif isinstance(total, int) and _sdc_raw not in ("", None):
-            r["_매출기준액"] = total + ship - (_to_int(_sdc_raw, 0) or 0)
-            r["_매출기준출처"] = "gross_minus_seller_dc"
+        elif isinstance(total, int):
+            r["_매출기준액"] = total + ship
+            r["_매출기준출처"] = "sale_price_plus_shipping"
         elif paid is not None:
             r["_매출기준액"] = paid + ship
-            r["_매출기준출처"] = "paid_seller_dc_unknown"
+            r["_매출기준출처"] = "paid_fallback_no_total"
         else:
             r["_매출기준액"], r["_매출기준출처"] = "", "none"
 

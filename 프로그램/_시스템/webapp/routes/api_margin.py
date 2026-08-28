@@ -43,6 +43,21 @@ logger = logging.getLogger(__name__)
 
 bp = Blueprint("api_margin", __name__, url_prefix="/api/margin")
 
+
+@bp.errorhandler(Exception)
+def _always_json_error(e):
+    """[2026-08-26] 미처리 예외가 HTML 500 페이지로 새면 margin_embed.html 의
+    startAnalysis()가 res.json() 파싱에 실패해 이유 없이 "서버 오류"만 뜬다 — 같은
+    문제를 이미 겪은 /api/sources/parse(O13)와 동일 패턴으로 이 blueprint 한정
+    항상 JSON 응답을 보장한다.
+    (프록시/컨테이너 메모리 상한(OOM)으로 연결 자체가 끊기는 경우는 Flask 밖이라
+     이걸로는 못 잡는다 — 그건 별도로 컨테이너 메모리 여유를 확보해야 한다.)"""
+    from werkzeug.exceptions import HTTPException
+    code = e.code if isinstance(e, HTTPException) else 500
+    if code == 500:
+        logger.error("마진 API 처리 중 미처리 예외", exc_info=True)
+    return jsonify({"error": f"{type(e).__name__}: {e}"[:300]}), code
+
 PERIOD_MARGIN_DAYS = 3
 _XLSX_CT = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -655,18 +670,32 @@ def analyses_delete(analysis_id):
 
 @bp.route("/export", methods=["POST"])
 def export_route():
-    """{analysis_id, tab, rows?, column_order?} → xlsx 다운로드."""
+    """{analysis_id, tab, rows?, column_order?, payload?} → xlsx 다운로드.
+
+    🔴 [2026-08-24 실측] `payload` 없이 늘 `analysis_id`로 DB 저장분(=「분석 시작」
+    시점 원본, 전체기간)만 읽었다 — 화면에서 날짜를 좁히거나 행을 제외·수정해도
+    다운로드에는 전혀 반영되지 않고 매번 전체기간이 나오던 버그의 근본 원인.
+    `payload`가 오면(margin_embed.html 이 현재 화면의 getFilteredData() 결과를 실어
+    보낸다) 그걸 그대로 쓴다 — DB 재조회 없이 "화면에 보이는 바로 그 숫자"가 나간다.
+    `payload`가 없으면(예: 저장된 분석 목록에서 재다운로드하는 경로) 기존처럼
+    DB 저장분으로 폴백한다 — 하위호환.
+    """
     body = request.get_json(silent=True) or {}
     aid = body.get("analysis_id")
     if aid is None:
         return jsonify({"error": "analysis_id 가 필요합니다."}), 400
-    session = SessionLocal()
-    try:
-        payload = store.load(session, int(aid))
-    except LookupError:
-        return jsonify({"error": "분석을 찾을 수 없습니다."}), 404
-    finally:
-        session.close()
+
+    client_payload = body.get("payload")
+    if isinstance(client_payload, dict) and client_payload:
+        payload = client_payload
+    else:
+        session = SessionLocal()
+        try:
+            payload = store.load(session, int(aid))
+        except LookupError:
+            return jsonify({"error": "분석을 찾을 수 없습니다."}), 404
+        finally:
+            session.close()
 
     data = export.to_xlsx(
         payload, tab=body.get("tab", "all"),

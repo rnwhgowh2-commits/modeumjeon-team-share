@@ -8,7 +8,7 @@
 """
 import pytest
 
-from webapp.nav_top import build, 열당_최대
+from webapp.nav_top import apply_samba_wave_override, build, 열당_최대
 
 
 # ── 1) 옮겨 담기: 빠짐 0 · 중복 0 ────────────────────────────────────────
@@ -401,3 +401,35 @@ def test_폰_판_안_하위_링크는_44px_손끝이다():
     mh = re.search(r'min-height\s*:\s*([\d.]+)px', 본문)
     assert mh and float(mh.group(1)) >= 44, '판 안 링크 손끝 목표 44px 미만'
     assert 'align-items: center' in 본문, '높이만 늘면 글자가 위에 붙는다 — 세로 가운데 필요'
+
+
+# ── samba-wave 전환 스위치 — 상단 탭의 「대량등록」도 사이드바 카드와 같은 곳을 봐야 한다 ──
+def _대량등록_있는_topnav():
+    lay = _레이아웃([], standalone=[
+        {'id': 'i_home', 'name': '홈', 'url': '/'},
+        {'id': 'i_road', 'name': '로드맵', 'url': '/roadmap', 'active_key': 'roadmap'},
+        {'id': 'i_bulk', 'name': '대량등록', 'url': '/bulk/', 'active_key': 'bulk'},
+    ])
+    return build(lay)
+
+
+def test_samba_wave_미설정이면_대량등록_링크는_그대로다():
+    out = apply_samba_wave_override(_대량등록_있는_topnav(), None)
+    by_key = {it['active_key']: it['url'] for it in out['loose']}
+    assert by_key['bulk'] == '/bulk/'
+
+
+def test_samba_wave_설정되면_대량등록_링크만_바뀐다():
+    out = apply_samba_wave_override(_대량등록_있는_topnav(), 'https://samba.mou-m.com')
+    by_key = {it['active_key']: it['url'] for it in out['loose']}
+    assert by_key['bulk'] == 'https://samba.mou-m.com'
+    assert by_key['roadmap'] == '/roadmap', '대량등록 아닌 다른 loose 항목까지 바뀌면 안 된다'
+
+
+def test_samba_wave_원본_topnav는_제자리에서_안_바뀐다():
+    """topnav['loose'] 원소는 get_layout_for_template() 이 돌려준 layout 과 같은
+    dict 일 수 있다 — 제자리 수정하면 캐시/공유본이 오염돼 다음 요청에도 샌다."""
+    원본 = _대량등록_있는_topnav()
+    apply_samba_wave_override(원본, 'https://samba.mou-m.com')
+    by_key = {it['active_key']: it['url'] for it in 원본['loose']}
+    assert by_key['bulk'] == '/bulk/', '원본을 제자리에서 고치면 안 된다'

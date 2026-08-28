@@ -715,19 +715,25 @@ def test_discount_column_does_not_borrow_the_price_wiring():
     항목으로만 배선을 보면 **할인 열이 판매가의 초록불을 빌려 쓴다.**
     실측(2026-08-13): 6마켓 중 5곳이 「나감」으로 떴는데 할인은 어디로도 안 나갔다.
 
-    ⚠️ 그 뒤 main(#1018)이 **쿠팡만** 실제로 뚫었다(즉시할인쿠폰). 그래도 상태는
-      「저장만」이 맞다 — 여섯 중 하나만 나가는데 「나감」으로 적으면 나머지
-      다섯이 조용히 묻힌다. 안내가 그 사실을 정확히 말하는지도 함께 본다.
+    ⚠️ 그 뒤 배선이 이어졌다 — main(#1018)이 쿠팡을, main(#1132)이 옥션·G마켓을
+      뚫었다(즉시할인쿠폰). 그래도 상태는 「저장만」이 맞다 — 아직 못 뚫은
+      마켓이 남아 있는 한 「나감」으로 적으면 그 마켓들이 조용히 묻힌다.
+      🔴 안내문의 「어디로 나가는지」 목록을 **손으로 박지 않는다** —
+      `discount.SUPPORTED` 가 늘 때마다(실제로 한 번 낡았다) 정본에서 다시 읽는다.
     """
+    from lemouton.policy.discount import SUPPORTED, market_label
+
     cells = C.build()["cells"]
     for mk in ("coupang", "smartstore", "eleven11", "auction", "gmarket"):
         c = cells[f"{mk}:6"]
         assert c["wiring"] != "wired", f"{mk} 할인 열이 아직 「나감」이다: {c['wiring_note']}"
         note = c["wiring_note"]
         assert "판매가 계산" in note, f"{mk} 할인 열 설명이 판매가 것이다: {note}"
-        # 🔴 어디로 나가고 어디로 안 나가는지 **둘 다** 말해야 한다
-        assert "쿠팡" in note and "못 찾았습니다" in note, \
-            f"{mk} 나가는 곳/안 나가는 곳을 안 가른다: {note}"
+        # 🔴 어디로 나가고 어디로 안 나가는지 둘 다, **지금 정본대로** 말해야 한다
+        assert "못 찾았습니다" in note, f"{mk} 안 나가는 곳 설명이 없다: {note}"
+        for m in SUPPORTED:
+            assert market_label(m) in note, \
+                f"{mk} 안내에 실제로 나가는 {market_label(m)} 이 빠졌다: {note}"
     # 판매가(5열)는 그대로 나가야 한다 — 같이 죽이면 안 된다
     assert cells["smartstore:5"]["wiring"] == "wired"
 

@@ -400,6 +400,9 @@ def build_esm_register_payload(
     model_no: str = "",
     bar_code: str = "",
     is_adult_product: bool = False,
+    pcs_use: bool = None,
+    pcs_coupon_iac: bool = None,
+    seller_discount: dict = None,
 ) -> dict:
     """옥션·G마켓 상품 등록 payload 조립 — 지도 필수 26필드를 채운다.
 
@@ -450,7 +453,7 @@ def build_esm_register_payload(
     if catalog:
         basic["catalog"] = catalog
 
-    return {
+    body = {
         "itemBasicInfo": basic,
         "itemAddtionalInfo": {
             "price": price_block,
@@ -483,6 +486,27 @@ def build_esm_register_payload(
             "siteDiscount": {"gmkt": False, "iac": False},
         },
     }
+    # ★ [2026-08-26] 즉시할인(판매자할인) — 지도 실측 `addtionalInfo.sellerDiscount`.
+    #   별도 API 가 아니라 **등록 요청 안에** 있다.
+    #   🔴 조각은 `policy/discount.esm_seller_discount` 가 만든다 — 여기서 다시
+    #     만들면 옥션(iac)/G마켓(gmkt) 키를 헷갈릴 위험이 두 곳으로 늘어난다.
+    #   🔴 안 정했으면 **칸 자체를 안 넣는다.** 지금까지 안 보내던 칸이라, 기본값을
+    #     지어 넣으면 사장님이 정한 적 없는 할인이 걸린다(금전 직결).
+    if seller_discount:
+        body["addtionalInfo"]["sellerDiscount"] = seller_discount
+    # ★ [2026-08-24] 가격비교사이트 노출 — 지도 실측 `addtionalInfo > pcs > isUse`.
+    #   🔴 안 정했으면 **칸 자체를 안 넣는다**. 지금까지 안 보내던 칸이라,
+    #     기본값을 지어 넣으면 그 자체가 사장님이 정한 적 없는 변경이 된다.
+    #   🔴 G마켓 쿠폰 칸(`isUseGmkPcsCoupon`)은 지도에 「사용불가」 — 마켓이 설정을
+    #     막아 뒀다. 노출 여부만 보낼 수 있고, 쿠폰은 옥션(`isUseIacPcsCoupon`)뿐이다.
+    if pcs_use is not None or pcs_coupon_iac is not None:
+        pcs = {}
+        if pcs_use is not None:
+            pcs["isUse"] = bool(pcs_use)
+        if pcs_coupon_iac is not None:
+            pcs["isUseIacPcsCoupon"] = bool(pcs_coupon_iac)
+        body["addtionalInfo"]["pcs"] = pcs
+    return body
 
 
 def extract_register_prereq(detail: dict, market: str) -> dict:

@@ -232,6 +232,57 @@ def test_상한_0_은_제한_없음():
     assert len(view.name) == 300
 
 
+# ── 바이트 상한 (2026-08-24 삼바 실측) ──────────────────────────────────────
+#
+# 🔴 왜 따로 재나 — 마켓 문서는 「100자」라고 적어 두고 실제로는 **바이트**로 자른다.
+#   한글은 UTF-8 로 3바이트라, 글자수만 보면 통과한 이름이 마켓에서 거부되거나
+#   잘려서 올라간다. 잘린 상품명은 그대로 팔리므로 눈에 잘 안 띈다.
+
+def test_11번가는_바이트_상한도_지킨다():
+    """글자수(100자)는 통과하지만 바이트(99)는 넘는 이름 — 예전엔 그대로 나갔다."""
+    d = _Draft(name='가' * 40, brand='')          # 40자 · 120바이트
+    view, applied, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='eleven11')
+    assert len(view.name.encode('utf-8')) <= 99, (
+        f'11번가 99바이트를 넘겼다: {len(view.name.encode("utf-8"))}바이트')
+    assert any(a['field'] == 'max_len' for a in applied)
+
+
+def test_롯데온도_바이트_상한을_지킨다():
+    """롯데온은 글자수 상한이 「모름」이라 예전엔 **상한이 아예 없었다**."""
+    d = _Draft(name='가' * 60, brand='')          # 60자 · 180바이트
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='lotteon')
+    assert len(view.name.encode('utf-8')) <= 149, (
+        f'롯데온 149바이트를 넘겼다: {len(view.name.encode("utf-8"))}바이트')
+
+
+def test_바이트로_잘라도_글자가_안_깨진다():
+    """한글은 3바이트 — 바이트 경계에서 자르면 글자가 반토막 난다."""
+    d = _Draft(name='가' * 40, brand='')
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='eleven11')
+    view.name.encode('utf-8').decode('utf-8')      # 깨졌으면 여기서 터진다
+    assert '�' not in view.name
+
+
+def test_바이트_상한을_아는_마켓은_모른다고_안_한다():
+    """롯데온은 글자수는 모르지만 **바이트는 안다** — 「확인 불가」로 넘기면 안 된다."""
+    d = _Draft(name='가' * 60, brand='')
+    _, _, skipped = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='lotteon')
+    assert 'NO_MARKET_LIMIT' not in _codes(skipped)
+
+
+def test_바이트_상한이_없는_마켓은_그대로_둔다():
+    """옥션은 글자수도 바이트도 모른다 — 지어내서 자르지 않는다."""
+    d = _Draft(name='가' * 300, brand='')
+    view, _, skipped = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name'], 'max_len': 0}}, market='auction')
+    assert len(view.name) == 300
+    assert 'NO_MARKET_LIMIT' in _codes(skipped)
+
+
 # ── 금지어 ──────────────────────────────────────────────────────────────────
 
 def test_수집_금지어는_전_마켓_차단():
@@ -588,3 +639,49 @@ def test_표기를_고르면_대문자화는_그대로_동작한다():
                                              'brand_case': 'upper'},
                                     'brand': {'mode': 'english', 'position': 'front'}})
     assert view.name == 'NIKE air force 1', view.name
+
+
+# ── 새 조립 조각 (2026-08-24 Phase 3) ───────────────────────────────────────
+#
+# 🔴 여기 없는 조각을 화면에 단추로 내놓으면 안 된다. 사장님이 눌렀는데 아무것도
+#   안 붙으면 「규칙이 안 먹는다」가 되고, 그 오해를 푸는 데 한참 걸린다.
+
+def test_품번을_상품명에_넣는다():
+    """품번은 Model.article_no 에 있다 — 구성 사본이 실어 주면 붙는다."""
+    d = _Draft(name='에어포스 1', brand='나이키', article_no='CW2288-111')
+    view, _, skipped = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', 'model_no']}})
+    assert view.name == '에어포스 1 CW2288-111'
+    assert 'NO_MODEL_NO' not in _codes(skipped)
+
+
+def test_품번이_비면_조용히_빼지_않고_말한다():
+    d = _Draft(name='에어포스 1', brand='나이키', article_no='')
+    view, _, skipped = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', 'model_no']}})
+    assert view.name == '에어포스 1'
+    assert 'NO_MODEL_NO' in _codes(skipped)
+    assert not _blocking(skipped), '품번이 없다고 전송을 막으면 안 된다'
+
+
+def test_상품번호를_상품명에_넣는다():
+    d = _Draft(name='에어포스 1', brand='', model_code='M-1234')
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', 'product_no']}})
+    assert view.name == '에어포스 1 M-1234'
+
+
+def test_카테고리는_맨_끝_칸만_쓴다():
+    """'신발>스니커즈' 를 통째로 넣으면 상품명에 꺾쇠가 들어간다."""
+    d = _Draft(name='에어포스 1', brand='', source_category_path='신발>스니커즈')
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['category', 'origin_name']}})
+    assert view.name == '스니커즈 에어포스 1'
+
+
+def test_모르는_조각은_임의_텍스트로_들어간다():
+    """기존 동작 — 조각 이름이 아니면 그 글자를 그대로 붙인다(회귀 확인)."""
+    d = _Draft(name='에어포스 1', brand='')
+    view, _, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', '정품']}})
+    assert view.name == '에어포스 1 정품'

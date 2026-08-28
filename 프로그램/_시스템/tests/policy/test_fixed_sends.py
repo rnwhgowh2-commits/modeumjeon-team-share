@@ -35,9 +35,29 @@ def test_쿠팡_고정값이_실제_코드에_그대로_있다():
 
 def test_스스_고정값이_실제_코드에_그대로_있다():
     src = _read('compile_smartstore.py')
-    assert "'naverShoppingRegistration': True" in src
     assert "draft.origin_area_code or '0200037'" in src
     assert "draft.importer or '-'" in src
+
+
+def test_가격비교_노출은_더_이상_코드에_박혀_있지_않다():
+    """🔴 [2026-08-24 Phase 4-5] 예전엔 `True` 가 박혀 있었다.
+
+    사장님이 「노출 안 함」으로 정해도 그대로 노출됐다 — 가격비교는 수수료가
+    더 붙는다(금전 직결). 이제 정책이 이긴다. 표(`fixed_sends`)도 그렇게 말해야
+    한다 — 표가 「코드에 박혀 있음」이라 하면 사장님이 고칠 수 있는 값을 못 고칠 값으로
+    읽는다.
+    """
+    src = _read('compile_smartstore.py')
+    assert "'naverShoppingRegistration': True," not in src, (
+        '노출 여부가 다시 코드에 박혔다 — 정책을 무시한다')
+    assert 'price_compare_expose' in src
+
+    from lemouton.policy.fixed_sends import for_market
+    행 = [f for f in for_market('smartstore')['rows']
+           if f['label'] == '가격비교 노출']
+    assert 행, '표에서 가격비교 노출이 사라졌다'
+    assert 행[0]['policy_wins'] is True, (
+        '표가 「못 고치는 값」이라 말하고 있다 — 이제 정책이 이긴다')
 
 
 def test_초안_기본값이_실제_모델과_같다():

@@ -129,25 +129,29 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
     #    ★주문내역 매출 필드도 같은 조인으로 부착 — matcher(_make_result_row)는 원본과 바이트
     #    동치라 이 필드들을 출력하지 않으므로(verbatim), 여기서 sell_df 값을 되짚어 붙인다.
     #    배송비는 order_export 가 배송건 첫 행에만 싣는다 → max 로 그 값을 보존.
-    sell_tags: dict = {}
-    sell_nums: dict = {}
-    sell_courier: dict = {}       # 판매처 택배사(문자) — matcher 가 verbatim 이라 여기서 부착
+    #    [2026-08-26] 예전엔 sell_tags/sell_nums/sell_courier 세 개의 dict 로 나눠 들고
+    #    있었다 — 같은 키를 세 번 해싱·저장해 판매처 주문이 많을수록(라이브 OOM 실측)
+    #    쓸데없이 메모리를 배로 먹었다. 지금은 dict 하나에 항목당 튜플 하나만 둔다.
+    sell_index: dict = {}
     for _, sr in sell_df.iterrows():
         k = (_norm_sell_key(sr.get("오픈마켓주문번호", "")),
              str(sr.get("상품명", "")),
              str(sr.get("옵션", "")))
-        sell_tags.setdefault(k, set()).add(str(sr.get("_settle_source", "none")))
+        ent = sell_index.get(k)
+        if ent is None:
+            ent = [set(), "", {fld: 0 for fld in _CARRY_FIELDS}]  # [tags, courier, nums]
+            sell_index[k] = ent
+        ent[0].add(str(sr.get("_settle_source", "none")))
         cr = str(sr.get("택배사", "") or "").strip()
-        if cr and not sell_courier.get(k):    # 첫 실값만(빈 값이 실값 안 덮게)
-            sell_courier[k] = cr
-        bucket = sell_nums.setdefault(k, {})
+        if cr and not ent[1]:                 # 첫 실값만(빈 값이 실값 안 덮게)
+            ent[1] = cr
         for fld in _CARRY_FIELDS:
             try:
                 v = int(pd.to_numeric(sr.get(fld, 0), errors="coerce") or 0)
             except (TypeError, ValueError):
                 v = 0
             # 배송건 첫 행 값(나머지 0) 보존 — 나머지 필드도 0 이 실값을 덮지 않게 max.
-            bucket[fld] = max(bucket.get(fld, 0), v)
+            ent[2][fld] = max(ent[2][fld], v)
 
     # 3) 태그 부착 — 가장 보수적인 태그가 이긴다. 배송비도 같은 후보키로 부착.
     unknown = 0
@@ -159,15 +163,13 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
         courier = ""
         for k in candidates:
             trip = (k, str(r.get("상품명", "")), str(r.get("옵션_매출", "")))
-            hit = sell_tags.get(trip)
-            if hit:
-                tags |= hit
-            got = sell_nums.get(trip)
-            if got:
+            ent = sell_index.get(trip)
+            if ent:
+                tags |= ent[0]
                 for fld in _CARRY_FIELDS:
-                    nums[fld] = max(nums[fld], got.get(fld, 0))
-            if not courier:
-                courier = sell_courier.get(trip, "")
+                    nums[fld] = max(nums[fld], ent[2].get(fld, 0))
+                if not courier:
+                    courier = ent[1]
         r.update(nums)
         if courier and not str(r.get("샵마인_택배사", "")).strip():
             r["샵마인_택배사"] = courier      # [판매처] 송장번호 앞에 붙일 택배사(ESM 실값)
@@ -222,8 +224,12 @@ def _json_safe(rec: dict, coerce_numeric: bool, counter: list) -> dict:
     coerce_numeric=True: 숫자 칸(_NUMERIC_FIELDS) NaN → 0(counter[0] 증가),
       그 외 NaN → "". aggregator 로 흘러가는 matched/unmatched 용.
     coerce_numeric=False: 모든 NaN → "". buy_missing(원본 더망고, 표시 전용, 하류 집계 없음).
+
+    [2026-08-26] rec 을 **제자리에서** 고치고 그대로 돌려준다 — 예전엔 새 dict 를
+    만들어 반환해서, 호출부의 리스트 컴프리헨션이 잠깐이라도 '고치기 전 dict' 와
+    '고친 후 dict' 를 동시에 들고 있었다(주문건이 많을수록 그 배가 그대로 메모리에
+    얹힘 — 라이브 OOM 실측). 여기서 값만 바꾸면 리스트만 새로 생기고 dict 는 하나다.
     """
-    out = {}
     for k, v in rec.items():
         try:
             is_na = pd.isna(v)
@@ -231,35 +237,37 @@ def _json_safe(rec: dict, coerce_numeric: bool, counter: list) -> dict:
             is_na = False  # 배열 등 스칼라 아님 → 그대로 둔다
         if is_na:
             if coerce_numeric and k in _NUMERIC_FIELDS:
-                out[k] = 0
+                rec[k] = 0
                 counter[0] += 1
             else:
-                out[k] = ""
+                rec[k] = ""
         else:
-            out[k] = _to_py(v)
-    return out
+            rec[k] = _to_py(v)
+    return rec
 
 
 def _recompute_margin_rate(matched) -> None:
     """마진율 분모를 매출 기준액으로 다시 만든다(제자리 수정).
 
     matcher(원본 바이트 동치)는 마진율=순마진/판매가(정가).
-    사장님 확정 2026-08-13: 매출 = 정가 + 배송비 − **판매자부담** 할인.
-      · 마켓이 부담한 할인은 마켓이 대신 내주므로 매출에서 빼지 않는다.
-      · 그 값은 주문내역이 `_매출기준액` 한 칸으로 만들어 둔다 — 여기선 **받아 쓰기만** 한다.
+    사장님 확정 2026-08-27: 매출 = 내가 판매가로 최종 결정한 것 = 총주문금액
+    (단가×수량+옵션) + 배송비. 할인은 판매자부담이든 마켓부담이든 안 뺀다
+    (2026-08-13엔 판매자할인만 뺐다가 다시 확정). 취소완료 행은 order_export 가
+    `_매출기준액`을 0으로 만들어 둔다 — 그 값은 그대로 받아 쓴다.
     순마진은 매출 기준과 무관(정산−매입)이라 손대지 않는다.
-    `_매출기준액`이 없거나 0(판매자할인 모름·옛 저장분)이면 옛 기준(실결제+배송비)→판매가로
-    폴백한다 — 화면 saleAmt 규칙과 동일.
+    `_매출기준액`이 없거나 0(취소완료·엑셀 전용 데이터 등)이면 여기서 같은 규칙으로
+    직접 만든다 — `_CARRY_FIELDS` 경로가 미기재 필드를 0 으로 밀어 넣어(_attach_settle_source)
+    "진짜 취소완료 0"과 "그냥 안 채워짐"을 값만으로는 구분할 수 없다(기존부터 그렇다).
     """
     for r in matched:
         try:
             net = float(pd.to_numeric(r.get("순마진", 0), errors="coerce") or 0)
-            paid = float(pd.to_numeric(r.get("실결제금액", 0), errors="coerce") or 0)
             ship = float(pd.to_numeric(r.get("배송비", 0), errors="coerce") or 0)
-            # 매출 = 주문내역이 만든 `_매출기준액`(정가+배송비−판매자할인). 0·없음이면 옛 기준.
+            amt = float(pd.to_numeric(r.get("총주문금액", 0), errors="coerce") or 0)
+            if amt <= 0:
+                amt = float(pd.to_numeric(r.get("판매가", 0), errors="coerce") or 0)
             sale = float(pd.to_numeric(r.get("_매출기준액", 0), errors="coerce") or 0)
-            base = sale if sale > 0 else ((paid + ship) if paid > 0 else float(
-                pd.to_numeric(r.get("판매가", 0), errors="coerce") or 0))
+            base = sale if sale > 0 else (amt + ship)
             r["마진율"] = round(net / base * 100, 2) if base > 0 else 0
         except (TypeError, ValueError):
             continue

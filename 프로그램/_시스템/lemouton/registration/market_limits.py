@@ -126,3 +126,76 @@ def name_limit_unknown_reason(market):
     if not mk or mk in NAME_MAX_LEN:
         return None
     return NAME_MAX_UNKNOWN.get(mk)
+
+
+# ── [2026-08-24 사장님 확정] 바이트 상한 — 삼바 실측 ─────────────────────────
+#
+# 왜 글자수가 아니라 바이트인가:
+#   마켓 문서는 「100자」처럼 글자수로 적어 두고도, 실제 등록기는 **바이트**로 자르는
+#   곳이 있다. 한글은 UTF-8 로 3바이트라 「100자」를 믿고 보내면 300바이트가 되어
+#   마켓이 거부하거나 잘라 버린다.
+#
+# 이 값의 출처는 **삼바(samba-wave) 실측**이다 —
+#   backend/domain/samba/shipment/service.py 의 `_MARKET_NAME_MAX_BYTES`.
+#   삼바는 이 값으로 6마켓 등록이 매일 성공하고 있다(대조군).
+#
+# 🔴 우리 지도(marketplace_api_map.json)의 글자수 근거와 **충돌하지 않는다** —
+#   둘 다 있으면 먼저 걸리는 쪽으로 자른다(fit_name). 쿠팡 100자는 등록 API 원문에
+#   명시된 확실한 근거라, 바이트로 갈아타면서 버리지 않는다(사장님 확정).
+#
+# 🔴 여기 없는 마켓(스마트스토어·옥션·G마켓)은 **여전히 확인 불가**다.
+#   NAME_MAX_UNKNOWN 그대로 두고 자르지 않는다 — 잘못 자르면 잘린 채 팔린다.
+#
+# ★ [2026-08-26 라이브 실데이터로 뒷받침] 문서·삼바만 믿지 않고 **우리 마켓에 실제로
+#   올라가 있는 상품**을 재 봤다(읽기 전용 조회):
+#     11번가 5건 최대 = **정확히 99바이트**(57자) · 나머지 64~83바이트
+#     롯데ON 5건 최대 = 110바이트(78자) — 149 상한과 모순 없음
+#   🔴 「99에서 잘렸다」고 단정하지는 않는다 — 원래 이름이 더 길었는지는 모른다.
+#     다만 실제 최대가 상한에 정확히 닿는다는 것은 이 값이 맞다는 강한 방증이다.
+NAME_MAX_BYTES = {
+    'eleven11': 99,
+    'lotteon': 149,
+}
+
+
+def name_limit_for(market):
+    """그 마켓의 상품명 한도. ``{'chars': int|None, 'bytes': int|None}``.
+
+    None = 「확인 불가」이지 「제한 없음」이 아니다 — 자르지 않을 뿐, 마켓이 거부할 수 있다.
+    """
+    mk = str(market or '').strip()
+    return {'chars': NAME_MAX_LEN.get(mk), 'bytes': NAME_MAX_BYTES.get(mk)}
+
+
+def fit_name(market, name):
+    """상품명을 그 마켓 한도에 맞게 자른다.
+
+    · 글자수·바이트 둘 다 있으면 **먼저 걸리는 쪽**으로 자른다.
+    · 🔴 UTF-8 로 자를 때 **글자 중간에서 쪼개지 않는다** — 깨진 글자가 마켓에 올라간다.
+    · 한도를 모르면 **원본 그대로** 돌려준다(지어내서 자르지 않는다).
+    """
+    if not name:
+        return name
+    text = str(name)
+    lim = name_limit_for(market)
+
+    cap = lim['chars']
+    if cap and len(text) > cap:
+        text = text[:cap]
+
+    cap_b = lim['bytes']
+    if cap_b:
+        raw = text.encode('utf-8')
+        if len(raw) > cap_b:
+            # ★ 자른 자리가 글자 중간이면 한 글자씩 뒤로 물러난다.
+            #   errors='ignore' 로 뭉개면 깨진 바이트가 조용히 남을 수 있어 쓰지 않는다.
+            cut = raw[:cap_b]
+            while cut:
+                try:
+                    text = cut.decode('utf-8')
+                    break
+                except UnicodeDecodeError:
+                    cut = cut[:-1]
+            else:
+                text = ''
+    return text

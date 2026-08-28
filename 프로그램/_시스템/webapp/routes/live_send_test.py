@@ -873,7 +873,13 @@ def api_register_esm():
         official_notice_no=int(p.get("official_notice_no") or 0),
         official_notice_details=p.get("official_notice_details") or [],
         image_url=p.get("image_url") or "", detail_html=p.get("detail_html") or "",
-        options=p.get("options") or None, is_vat_free=bool(p.get("is_vat_free")))
+        options=p.get("options") or None, is_vat_free=bool(p.get("is_vat_free")),
+        # ★ [2026-08-26] 즉시할인·가격비교를 **드라이런으로 확인**할 수 있게 넘긴다.
+        #   🔴 이 라우트는 arm 없이 부르면 payload 만 조립해 돌려준다 — 고객에게
+        #     아무것도 안 보이는 상태로 「무엇이 나가는지」를 실서버에서 볼 수 있다.
+        #     이 칸들을 안 넘기면 새 기능이 payload 에 실리는지 확인할 길이 없다.
+        seller_discount=p.get("seller_discount") or None,
+        pcs_use=p.get("pcs_use"), pcs_coupon_iac=p.get("pcs_coupon_iac"))
 
     import os as _os
     armed = (str(p.get("arm")) == "1") and (_os.environ.get("LIVE_REGISTER_ARMED") == "1")

@@ -58,7 +58,7 @@ def test_집계_지급예정일축(monkeypatch):
 
 
 def test_집계_주문일축(monkeypatch):
-    _patch_lines(monkeypatch, [_line(실결제금액=12000)])
+    _patch_lines(monkeypatch, [_line(_매출기준액=12000)])
     c = _make_client()
     r = c.get("/orders/api/settle-plan?axis=order&unit=day"
               "&from=2026-08-01&to=2026-08-31")
@@ -302,7 +302,7 @@ def test_정산시작전도_KPI와_목록이_일치한다(monkeypatch):
 def test_주문일축에_정산율_감시가_실린다(monkeypatch):
     """라이브 정산율 90~92%(수수료 6~18% 감안 시 과대)를 아무도 못 알아채던 것."""
     a = _line(status="구매확정", market="coupang", incl=950000)
-    a["row"]["실결제금액"] = 1000000
+    a["row"]["_매출기준액"] = 1000000
     a["row"]["주문일"] = "2026-08-01 10:00"
     _patch_lines(monkeypatch, [a])
     c = _make_client()
@@ -380,9 +380,9 @@ def test_받은_이력_칸을_누르면_그_칸_주문만_나온다(monkeypatch)
 def test_주문일축에도_상세내역이_있다(monkeypatch):
     """c-3 — 주문일 축은 드릴다운이 아예 없었다."""
     _patch_lines(monkeypatch, [
-        _line(date="2099-08-20", incl=100, 실결제금액=12000, 수령자="홍길동"),
+        _line(date="2099-08-20", incl=100, _매출기준액=12000, 수령자="홍길동"),
         _line(date="2099-08-20", incl=100, 주문일="2026-07-01 10:00",
-              오픈마켓주문번호="OTHER", 실결제금액=5000),
+              오픈마켓주문번호="OTHER", _매출기준액=5000),
     ])
     c = _make_client()
     agg = c.get("/orders/api/settle-plan?axis=order&unit=day").get_json()

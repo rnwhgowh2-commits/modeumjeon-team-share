@@ -213,6 +213,28 @@ def test_analyze_aborts_when_a_market_fails(client, monkeypatch):
     assert lst == []
 
 
+def test_unhandled_exception_still_returns_json_not_html(client, monkeypatch):
+    """[2026-08-26] pipeline.run 처럼 analyze() 안에서 try/except 로 안 감싼 단계가
+    터져도 blueprint 전용 errorhandler(_always_json_error)가 항상 JSON 으로 바꿔준다.
+
+    이게 없으면 Flask 기본 HTML 500 페이지가 나가 margin_embed.html 의 res.json() 이
+    파싱 실패 → 화면엔 이유 없이 "서버 오류"만 뜬다(라이브에서 실제로 겪은 증상 —
+    OOM-kill 로 연결이 끊기는 경우와는 다른, 코드 예외로도 같은 증상이 난다는 걸 확인).
+    """
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+
+    def _boom(buy_df, sell_df):
+        raise RuntimeError("예상치 못한 처리 실패")
+    monkeypatch.setattr("webapp.routes.api_margin.pipeline.run", _boom)
+
+    r = client.post("/api/margin/analyze", json={})
+    assert r.status_code == 500
+    j = r.get_json()  # None 이면 여기서 이미 실패 — 응답이 JSON 이 아니었다는 뜻
+    assert j is not None
+    assert "예상치 못한 처리 실패" in j["error"]
+
+
 def test_account_warnings_surface_in_response_and_db(client, monkeypatch):
     _upload(client)
     sell = _sell_df([("1000", "real", 50000)])
@@ -316,3 +338,45 @@ def test_export_returns_xlsx(client, monkeypatch):
     r = client.post("/api/margin/export", json={"analysis_id": aid, "tab": "all"})
     assert r.status_code == 200
     assert r.data[:2] == b"PK"  # xlsx = zip
+
+
+def test_export_with_payload_overrides_stored_analysis(client, monkeypatch):
+    """🔴 [2026-08-24 실측] payload 없이 늘 DB 저장분(=분석 시작 시점 원본, 전체기간)만
+    읽어, 화면에서 날짜를 좁히거나 행을 제외·수정해도 다운로드에는 반영되지 않고
+    매번 전체기간이 나오던 버그. margin_embed.html 이 화면의 getFilteredData() 결과를
+    `payload`로 실어 보내면 DB 재조회 없이 그걸 그대로 써야 한다."""
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+    aid = client.post("/api/margin/analyze", json={}).get_json()["analysis_id"]
+
+    # 저장분(DB)에는 없는, 화면이 날짜필터로 좁혀 만든 값임을 알 수 있는 구분용 값
+    override_payload = {
+        "summary": {"총매출": 111, "총매입": 22, "총순마진": 89},
+        "matched": [{"주문일": "2099-01-01", "상품명": "필터전용상품", "매출": 111}],
+        "daily": [{"일자": "2099-01-01", "매출": 111, "매입": 22, "순마진": 89, "건수": 1}],
+        "monthly": [], "brand": [], "priceRange": [], "product": [], "market": [],
+        "unmatched_buy": [], "unmatched_sell": [],
+    }
+    r = client.post("/api/margin/export",
+                    json={"analysis_id": aid, "tab": "all", "payload": override_payload})
+    assert r.status_code == 200
+
+    daily_df = pd.read_excel(io.BytesIO(r.data), sheet_name="일별")
+    assert daily_df["일자"].tolist() == ["2099-01-01"]        # 저장분(DB) 날짜가 아니라 payload 값
+    assert daily_df["매출"].tolist() == [111]
+
+    summary_df = pd.read_excel(io.BytesIO(r.data), sheet_name="요약").set_index("항목")["값"]
+    assert int(summary_df["총매출"]) == 111                    # DB 저장분(다른 값)이 아니라 payload 값
+
+
+def test_export_without_payload_falls_back_to_stored_analysis(client, monkeypatch):
+    """payload 를 안 보내면(예: 저장된 분석 목록에서 재다운로드) 기존처럼 DB 저장분을 쓴다
+    — 하위호환 회귀 방지."""
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+    aid = client.post("/api/margin/analyze", json={}).get_json()["analysis_id"]
+
+    r = client.post("/api/margin/export", json={"analysis_id": aid, "tab": "all"})
+    assert r.status_code == 200
+    summary_df = pd.read_excel(io.BytesIO(r.data), sheet_name="요약").set_index("항목")["값"]
+    assert int(summary_df["총순마진"]) == 20000                 # test_export_returns_xlsx 와 같은 저장분 값

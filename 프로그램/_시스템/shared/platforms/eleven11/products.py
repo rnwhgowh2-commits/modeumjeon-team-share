@@ -279,6 +279,15 @@ def build_register_xml(f: dict) -> str:
         f"<suplDtyfrPrdClfCd>{_TAX_CODE.get(str(f.get('tax_type') or '').strip(), '01')}"
         f"</suplDtyfrPrdClfCd>",
         "<forAbrdBuyClf>01</forAbrdBuyClf>",               # 일반판매상품
+        # ★ [2026-08-24] 가격비교 사이트 노출 — 지도 실측 `prcCmpExpYn`(선택) ·
+        #   할인적용 `prcDscCmpExpYn`(선택). 둘 다 Y=노출/적용, N=안 함.
+        #   🔴 정책이 안 정했으면 **줄 자체를 안 만든다.** 지금까지 안 보내던 칸이라,
+        #     기본값을 지어 넣으면 그 자체가 사장님이 정한 적 없는 변경이 된다
+        #     (가격비교는 수수료가 더 붙는다 — 금전 직결).
+        *([f"<prcCmpExpYn>{f['prc_cmp_exp_yn']}</prcCmpExpYn>"]
+          if f.get('prc_cmp_exp_yn') else []),
+        *([f"<prcDscCmpExpYn>{f['prc_dsc_cmp_exp_yn']}</prcDscCmpExpYn>"]
+          if f.get('prc_dsc_cmp_exp_yn') else []),
         # 지도 근거: prdStatCd enum [필수] — 01=새상품 (사장님 확정 = 무조건 새상품)
         "<prdStatCd>01</prdStatCd>",                       # 새상품
         # 지도 근거: minorSelCnYn — Y=미성년자 구매가능 / N=불가

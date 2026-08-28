@@ -80,7 +80,11 @@ def prepare_compile_draft(session, draft, market: str = '', *, gate=None,
     # [2026-07-31] 노션 「(5) ※마켓별 업로드 불가 카테고리 검사」.
     #   마켓에 물어보지 않는다 — 이미 전수 수집해 둔 카테고리 사전과 대조해 미리 막는다.
     #   올려 보고 거부당해서 아는 것보다 낫다.
-    if market and category_code:
+    # [2026-08-20] 롯데온은 카테고리 코드가 아니라 본보기 상품번호(spdNo)로 등록한다
+    #   (category_suggest.py::SUGGESTION_MARKETS 와 같은 이유로 제외) — market_categories
+    #   사전에 우연히 lotteon 행이 생기면(다른 수집 작업 등) NOT_FOUND 로 오판해 매번
+    #   막힌다. 실제로 그렇게 막혀 있었다(2026-08-20 실등록 재현으로 발견).
+    if market and category_code and market != 'lotteon':
         try:
             from lemouton.registration import category_check as _cc
             _s = _cc.as_skip(_cc.check(session, market=market, code=category_code))

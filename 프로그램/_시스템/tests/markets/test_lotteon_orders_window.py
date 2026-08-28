@@ -14,7 +14,7 @@ def test_orders_to_now_false_does_not_extend_window(monkeypatch):
 
     captured = {}
 
-    def fake_iter(since, until, client=None):
+    def fake_iter(since, until, client=None, if_cpl_yn=""):
         captured["until"] = until
         return []
 

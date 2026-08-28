@@ -95,6 +95,8 @@ def policy_detail(pid: int):
         applied_count, enabled_markets, readiness, values_for,
     )
     from lemouton.policy import fixed_sends as FIXED
+    from lemouton.policy import discount as _DC
+    from lemouton.registration import option_images as _OI
     from lemouton.policy import required as REQ
     from lemouton.pricing import fee_defaults
     from lemouton.pricing.unified import default_fee_pct
@@ -138,8 +140,20 @@ def policy_detail(pid: int):
             'on': len(_on), 'off': len(_off),
         }
         ctx = {
+            # 🔴 화면에 넘기는 것은 **정해진 칸만 담은 사본**이다. 칸을 안 넣으면
+            #   템플릿에서 조용히 빈 값이 되고, 저장은 됐는데 화면엔 안 나온다
+            #   (2026-08-24 실화면에서 잡음 — 규칙을 골라도 새로고침하면 풀렸다).
+            # [2026-08-24 Phase 4-4] 옵션별 사진이 어느 마켓에 실제로 나가나 —
+            #   화면이 「걸었다」고만 보여 주면 사장님은 걸린 줄 안다.
+            'option_image_support': _OI.badges(),
+            # [2026-08-26] 즉시할인이 실제로 나가는 마켓 — 화면이 목록을 손으로
+            #   박아 두고 있었다. 정본(`policy/discount.SUPPORTED`)이 늘어도
+            #   화면은 옛 목록을 말해, 「나간다고 했는데 안 나간다」가 된다.
+            'discount_sends': market in _DC.SUPPORTED,
+            'discount_markets': '·'.join(_DC.market_label(m) for m in _DC.SUPPORTED),
             'policy': {'id': p.id, 'name': p.name, 'memo': p.memo or '',
-                       'is_default': bool(p.is_default), 'brand': p.brand or ''},
+                       'is_default': bool(p.is_default), 'brand': p.brand or '',
+                       'name_rule_id': p.name_rule_id},
             'markets': [(COMMON_KEY, COMMON_LABEL)] + list(MARKETS),
             'market': market,
             # ── [2026-08-12 사장님 확정 B2] 노션 「마켓 활성화 체크한 것만 가공 활성화」 ──
@@ -1073,7 +1087,7 @@ def api_name_override(model_code: str):
     [중요] 마켓 한도를 넘으면 **보내기 전에** 사람 말로 막는다. 마켓까지 가면
       「유효하지 않습니다」만 돌아와 무엇이 잘못인지 알 수 없다.
     """
-    from lemouton.registration.market_limits import name_max_len
+    from lemouton.registration.market_limits import name_limit_for
     from lemouton.sourcing.models import Model
     COLS = {'coupang': 'coupang_product_name_override',
             'smartstore': 'naver_product_name_override'}
@@ -1086,11 +1100,21 @@ def api_name_override(model_code: str):
                                    '쿠팡·스마트스토어뿐입니다 — 나머지 마켓엔 '
                                    '그 칸이 아직 없습니다.'}), 400
     value = (body.get('value') or '').strip()
-    cap = name_max_len(market)
+    # ★ [2026-08-24] 글자수와 바이트를 **둘 다** 본다. 지금 이 화면이 다루는
+    #   쿠팡·스마트스토어엔 바이트 한도가 없지만, 나중에 생기면 여기가 조용히 새는
+    #   자리가 된다(11번가·롯데ON 이 딱 그렇게 새고 있었다).
+    _lim = name_limit_for(market)
+    cap = _lim['chars']
     if cap and len(value) > cap:
         return jsonify({'ok': False,
                         'message': f'{market} 상품명은 {cap}자까지입니다 '
                                    f'(지금 {len(value)}자).'}), 400
+    cap_b = _lim['bytes']
+    if cap_b and len(value.encode('utf-8')) > cap_b:
+        return jsonify({'ok': False,
+                        'message': f'{market} 상품명은 {cap_b}바이트까지입니다 '
+                                   f'(지금 {len(value.encode("utf-8"))}바이트 — '
+                                   f'한글은 한 글자가 3바이트입니다).'}), 400
     s = SessionLocal()
     try:
         m = s.get(Model, model_code)
@@ -1288,3 +1312,9 @@ def api_migrate_template():
         return jsonify({'ok': False, 'error': f'옮기지 못했어요: {e}'}), 500
     finally:
         s.close()
+
+
+# ── 0층 상품명 규칙 세트 창구 ─────────────────────────────────────────────
+#   같은 블루프린트에 얹히는 라우트라 여기서 불러 등록한다.
+#   🔴 맨 끝에서 부른다 — 위에서 부르면 `bp` 가 아직 없어 순환 import 가 난다.
+from webapp.routes import policy_name_rules  # noqa: E402,F401
