@@ -270,6 +270,12 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         # ★ 3순위: 메모 입금/철회
         elif has_settled_memo:
             memo_settled += 1
+        # ★ 3.5순위 [2026-08-29 사장님 명시]: 르무통·플리츠플리즈 등 사입 판매 마커 브랜드
+        #   — 더망고=반품/교환/취소(완료·진행중 모두) 라벨이 붙어 있어도, 대량등록 시스템에
+        #   구분자가 없어 "다른 마켓 경유 사입 판매"를 이렇게 표시해 둔 것뿐 진짜 반품이
+        #   아니다. 4순위(송장전송실패)여도 무조건 이 카드로 먼저 — 송장전송실패보다 위로.
+        elif (mg_completed_rtn or mg_in_progress) and any(k in str(row.get('브랜드', '') or '') for k in KW_BRAND_MARKER):
+            sourcing_brand_marker += 1
         # ★ 4순위 [사용자 명시 — 무조건 송장 재전송 실패 카드]: 메모/메인 분기보다 우선
         #   ⚠️ 메모 종결 phrase·정산완료 보다 위로 — 송장전송실패 행은 무조건 그 카드로
         elif any(k in mk_sync_status for k in KW_TRACKING_MK) or any(k in mg_status for k in KW_TRACKING_MG):
@@ -302,12 +308,6 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         #     (margin_embed.html isMgPending 분기와 동일하게 맞춤).
         elif any(k in mg_status for k in KW_PENDING_MG) and sm_cat not in ('in_progress', 'done_rtn'):
             pending_count += 1
-        # ★ 7.5순위 [2026-08-28 사장님 명시]: 르무통·플리츠플리즈 등 사입 판매 마커 브랜드
-        #   — 더망고=반품/교환/취소(완료·진행중 모두) 라벨이 붙어 있어도, 대량등록 시스템에
-        #   구분자가 없어 "다른 마켓 경유 사입 판매"를 이렇게 표시해 둔 것뿐 진짜 반품이
-        #   아니다. 8·9순위(mg_completed_rtn/mg_in_progress)보다 먼저 갈라 별도 카드로 뺀다.
-        elif (mg_completed_rtn or mg_in_progress) and any(k in str(row.get('브랜드', '') or '') for k in KW_BRAND_MARKER):
-            sourcing_brand_marker += 1
         # ★ 8순위 [결정 3 — 위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 여부
         #   - 메모 phrase (반품완료/교환완료/취소완료/환불완료/환불승인/회수완료) 일치 → completed_memo_yes
         #   - 메모 없음 → completed_memo_no (재확인)
