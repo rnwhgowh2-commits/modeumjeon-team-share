@@ -167,6 +167,22 @@ _SEAM_TOKENS = (
     #  "isMgPending" 은 지워지는 옛 줄에도 이미 있던 토큰이라 그대로 재사용한다
     #  (PROGRESS_PATTERNS 선례와 동일 — 지워지는 줄엔 새 토큰을 못 심는다).
     "isMgPending",
+    # ── [모음전 2026-08-28] sourcing_brand_marker 카드 — 르무통 등 대량등록 반품/취소 마커
+    #    브랜드는 진짜 반품이 아니라 사입 판매 표시라 별도 카드로 빼고 매출/마진 총계에서
+    #    뺀다(사장님 명시, git-issue-flow #margin-calculator-settlement-exclusion).
+    #    거의 모든 새 줄에 "sourcing_brand_marker" 를 심어 한 토큰으로 커버하고,
+    #    지워지는 옛 줄·그 옛 줄과 글자가 겹치는 새 줄만 아래처럼 개별 토큰을 둔다.
+    "sourcing_brand_marker",
+    "_brand_marker_excluded",             # 자동제외 플래그(수기 반품·취소 제외와 구분)
+    "c.brand.join",                       # 설정 탭 카드별 키워드 표에 브랜드 열 추가
+    "라벨과 함께 매칭",                    # 키워드 에디터 브랜드 입력칸 설명(새 줄)
+    "isBrandCard",                        # 키워드 에디터 — 브랜드 카드는 memo/mg/mk_sync 대신 brand 필드만
+    "] : [",                              # 위 삼항연산자 도입으로 생기는 줄(기존에도 3곳 있던 문법)
+    "var fields = [",                     # 지워지는 옛 줄(삼항연산자로 교체됨 — PROGRESS_PATTERNS 선례와 동일)
+    "'mk_sync', 'sub_rtn', 'sub_ex']",    # 지워지는 옛 저장 필드 목록 줄(브랜드 필드 추가 전)
+    "'sub_ex', 'brand']",                 # 새 저장 필드 목록 줄(브랜드 필드 추가)
+    "매입흔적만 (사이트번호 X)'};",         # 지워지는 옛 labelMap 줄(2곳 — sourcing_brand_marker 항목 추가 전)
+    "completed:'반품/교환/취소 완료'};",    # 지워지는 옛 labelMap 줄(downloadExcelByCard, 항목 추가 전)
 )
 
 

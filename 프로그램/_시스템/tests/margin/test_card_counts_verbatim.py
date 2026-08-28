@@ -43,12 +43,18 @@ DATA_ROOT = r"C:/dev/대량등록 마진계산기/데이터"
 
 # 원본 서버 _compute_card_counts(store['matched'], source='matched') 확정값.
 GOLDEN = {
+    # ★2026-08-28 — '사입 판매 표시' 카드 신설(르무통·플리츠플리즈 등 대량등록 반품/취소
+    #   마커 브랜드). dev PC 실데이터로 재실행해 확인 — 260712 표본에 정확히 1건 있었다
+    #   (기존엔 completed_memo_no 로 잘못 잡혀 있던 것 — 실제로는 르무통 사입 판매라
+    #   반품이 아니다). 골든값을 완료(메모X) 1→0 · 사입판매표시 0→1 로 갱신한다
+    #   (분류가 바뀐 것이지 건수가 사라진 게 아님 — partition sum 테스트로 확인됨).
     "260712": {
         "card_all": 219, "card_normal": 94, "card_pending": 36, "card_kkadaegi": 63,
-        "card_inprogress": 20, "card_completed_memo_yes": 4, "card_completed_memo_no": 1,
+        "card_inprogress": 20, "card_completed_memo_yes": 4, "card_completed_memo_no": 0,
         "card_etc": 1, "card_mango_check": 0, "card_tracking_failed": 0,
         "card_status_mismatch": 0, "card_confirmed_blackspot": 0, "card_memo_settled": 0,
         "card_immediate": 0, "card_sourcing": 0, "card_market": 0,
+        "card_sourcing_brand_marker": 1,
     },
     "260714": {
         "card_all": 154, "card_normal": 49, "card_pending": 60, "card_kkadaegi": 19,
@@ -56,6 +62,7 @@ GOLDEN = {
         "card_etc": 19, "card_mango_check": 2, "card_tracking_failed": 1,
         "card_status_mismatch": 0, "card_confirmed_blackspot": 0, "card_memo_settled": 0,
         "card_immediate": 0, "card_sourcing": 0, "card_market": 0,
+        "card_sourcing_brand_marker": 0,
     },
 }
 

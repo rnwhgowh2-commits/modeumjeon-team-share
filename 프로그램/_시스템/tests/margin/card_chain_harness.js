@@ -431,6 +431,9 @@ function _getRowsByCardFilter_internal(data, type) {
        샵마인이 이미 진행중/완료 클레임이면 더망고 라벨을 안 믿고 아래 순위(9·12순위)로 넘긴다. */
     if (isMgPending && smC !== 'in_progress' && smC !== 'done_rtn')
                                                                  return type === 'pending';
+    // ★ 7.5순위 [2026-08-28 사장님 명시] sourcing_brand_marker — 르무통 등 사입 판매 마커 브랜드는 진짜 반품 아님, 8·9순위보다 먼저 별도 카드로
+    var isSourcingBrandMarker = (mgCompletedRtn || mgInProgress) && _matchesAny(String(r['브랜드'] || ''), _kw('sourcing_brand_marker', 'brand'));
+    if (isSourcingBrandMarker)                                  return type === 'sourcing_brand_marker';
     // ★ 8순위 [위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 시 완료(메모O), 아니면 완료(메모X)
     //   ⚠️ site/track mismatch 보다 위 — 반품 시 송장 회수돼도 반품 카드로
     if (mgCompletedRtn) {
@@ -522,6 +525,7 @@ const result = {
     completed_memo_yes: cnt('completed_memo_yes'),
     completed_memo_no: cnt('completed_memo_no'),
     margin: cnt('margin'),
+    sourcing_brand_marker: cnt('sourcing_brand_marker'),
   },
   tracking_split: _splitTrackingNormalEtc('tracking_failed'),
   inprogress_split: _splitRtnEx('inprogress'),

@@ -39,7 +39,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
             'card_margin': 0, 'card_shopmine_only_count': 0,
             'card_confirmed_blackspot': 0, 'card_mango_check': 0,
             'card_completed_memo_yes': 0, 'card_completed_memo_no': 0,
-            'card_memo_settled': 0,
+            'card_memo_settled': 0, 'card_sourcing_brand_marker': 0,
         }
 
     # ★ 사용자 편집 가능한 카드별 키워드 로드 (card_keywords.json)
@@ -57,6 +57,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
     KW_TRACKING_MG    = _kw('tracking_failed', 'mg')
     KW_TRACKING_MK    = _kw('tracking_failed', 'mk_sync')
     KW_PENDING_MG     = _kw('pending', 'mg')
+    KW_BRAND_MARKER   = _kw('sourcing_brand_marker', 'brand')
 
     # 사용자 정의 매입 진행 흔적 (#3) — 다음 중 하나라도 있으면 매입 진행한 것으로 간주
     #   ① 구매가격 (구매가 입력됨)
@@ -217,6 +218,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
     tracking_failed = 0  # 송장 재전송 실패 (사용자 요청 신규 카드)
     status_mismatch = 0  # 샵마인 ↔ 더망고 상태 불일치 (사용자 요청 신규 카드 — C안)
     etc_count = 0        # 기타 — 어느 분기에도 안 잡힌 행 (사용자 요청 신규 카드)
+    sourcing_brand_marker = 0  # 사입 판매 표시 (대량등록 반품/취소 마커 브랜드, 2026-08-28)
 
     for row in mango_based:
         detail = row.get('상세분류', '') or ''
@@ -300,6 +302,12 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         #     (margin_embed.html isMgPending 분기와 동일하게 맞춤).
         elif any(k in mg_status for k in KW_PENDING_MG) and sm_cat not in ('in_progress', 'done_rtn'):
             pending_count += 1
+        # ★ 7.5순위 [2026-08-28 사장님 명시]: 르무통·플리츠플리즈 등 사입 판매 마커 브랜드
+        #   — 더망고=반품/교환/취소(완료·진행중 모두) 라벨이 붙어 있어도, 대량등록 시스템에
+        #   구분자가 없어 "다른 마켓 경유 사입 판매"를 이렇게 표시해 둔 것뿐 진짜 반품이
+        #   아니다. 8·9순위(mg_completed_rtn/mg_in_progress)보다 먼저 갈라 별도 카드로 뺀다.
+        elif (mg_completed_rtn or mg_in_progress) and any(k in str(row.get('브랜드', '') or '') for k in KW_BRAND_MARKER):
+            sourcing_brand_marker += 1
         # ★ 8순위 [결정 3 — 위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 여부
         #   - 메모 phrase (반품완료/교환완료/취소완료/환불완료/환불승인/회수완료) 일치 → completed_memo_yes
         #   - 메모 없음 → completed_memo_no (재확인)
@@ -379,4 +387,5 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         'card_tracking_failed':     tracking_failed,
         'card_status_mismatch':     status_mismatch,  # 샵마인 ↔ 더망고 상태 불일치
         'card_etc':                 etc_count,         # 기타 — 어느 분기에도 안 잡힌 행
+        'card_sourcing_brand_marker': sourcing_brand_marker,  # 사입 판매 표시(대량등록 마커)
     }
