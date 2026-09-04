@@ -239,9 +239,13 @@ def test_정산시작전_목록에_사유와_확인방법이_실린다(monkeypat
     """숫자만 보면 뭘 해야 할지 알 수 없다 — 원인과 확인법을 같이 준다.
 
     🔴 [2026-08-12] 이 건은 「입금일 지남」이 아니라 「정산 시작 전」이다 —
-       구매확정 전인데 **우리 추정** 날짜만 지난 것이라 돈이 밀린 게 아니다."""
+       구매확정 전인데 **우리 추정** 날짜만 지난 것이라 돈이 밀린 게 아니다.
+    🔴 [2026-09-05] 리터럴 날짜(2026-07-20)를 쓰면 시간이 지날수록 추정예정일이
+       assume_paid_after_days(30일)를 넘어 assumed_paid 로 옮겨가 「달력썩음」으로
+       깨진다(다섯 번째 사례 — tests/QUARANTINE.txt 의 11번가 스냅샷 건과 동일 클래스).
+       status_at 을 「오늘 기준 상대 날짜」로 잡아 다시는 안 썩게 한다."""
     ln = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
-    ln["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
+    ln["status_at"] = _dt.datetime.now() - _dt.timedelta(days=24)
     _patch_lines(monkeypatch, [ln])
     c = _make_client()
     assert c.get("/orders/api/settle-plan/detail?category=overdue"
@@ -260,10 +264,15 @@ def test_사유_요약도_집계에_들어간다(monkeypatch):
     """카드 옆에 「무엇 때문에 이만큼인지」를 한눈에.
 
     ★ 「지남」 사유 요약은 **진짜 지난 것만** 센다 — 마켓이 준 날짜(real)가 지난 건들.
-      추정일만 지난 건 not_started 로 빠져 이 요약에 안 들어간다."""
+      추정일만 지난 건 not_started 로 빠져 이 요약에 안 들어간다.
+
+    🔴 [2026-09-05] 날짜는 「오늘−10일」로 상대적으로 잡는다 — assumed_paid 30일
+      한도 안에 들면서(overdue 유지) 지나긴 지난(지난일수>=1) 상태를 계속 재현하려면
+      리터럴 날짜는 못 쓴다(달력썩음 다섯 번째 사례)."""
+    RECENT = (_dt.date.today() - _dt.timedelta(days=10)).isoformat()
     # 마켓이 준 날짜가 지났는데 아직 구매확정 전 = 진짜 지남(사유: 확정 전)
-    a = _line(status="배송완료", market="lotteon", date="2026-08-01", incl=5000)
-    b = _line(status="구매확정", market="eleven11", date="2026-08-01", incl=3000)
+    a = _line(status="배송완료", market="lotteon", date=RECENT, incl=5000)
+    b = _line(status="구매확정", market="eleven11", date=RECENT, incl=3000)
     _patch_lines(monkeypatch, [a, b])
     c = _make_client()
     agg = c.get("/orders/api/settle-plan").get_json()
@@ -285,9 +294,11 @@ def test_롯데온_수취완료는_확정예정으로_집계된다(monkeypatch):
 
 
 def test_정산시작전도_KPI와_목록이_일치한다(monkeypatch):
-    """새 부류를 만들 때마다 KPI 와 드릴다운이 갈리는 사고가 났다 — 같이 잠근다."""
+    """새 부류를 만들 때마다 KPI 와 드릴다운이 갈리는 사고가 났다 — 같이 잠근다.
+
+    🔴 [2026-09-05] status_at 을 「오늘 기준 상대 날짜」로 — 리터럴 날짜는 달력썩음."""
     ln = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
-    ln["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
+    ln["status_at"] = _dt.datetime.now() - _dt.timedelta(days=24)
     _patch_lines(monkeypatch, [ln])
     c = _make_client()
     agg = c.get("/orders/api/settle-plan").get_json()
