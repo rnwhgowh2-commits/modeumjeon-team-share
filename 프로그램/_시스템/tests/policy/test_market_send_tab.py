@@ -281,10 +281,13 @@ def test_두_화면_어디에도_옛_이름이_안_뜬다(client):
 # ── 칸별 호버카드 — 옵션별·소싱처별 가격·재고 이력 (2026-08 개편) ──────────
 
 def _seed_history(session, *, model_code='M1', sku='SKU1', color='화이트', size='250'):
-    from datetime import datetime
+    from datetime import datetime, timedelta
     from lemouton.sourcing.models import Model, Option
     from lemouton.sets.models import ProductSet, SetProduct, SetOption
     from lemouton.templates.models import PriceTrackHistory
+    # 🔴 [2026-09-05] 리터럴 날짜(2026-08-19/20)는 API 의 최근 14일 창(market_send.py
+    #   `since = now - 14일`)을 지나가는 순간 조용히 빠진다 — 「오늘 기준 상대 날짜」로.
+    now = datetime.now()
     m = Model(model_code=model_code, model_name_raw='나이키 반팔', model_name_display='나이키 반팔',
               brand='나이키', display_no='M20260101-000001')
     session.add(m)
@@ -300,10 +303,10 @@ def _seed_history(session, *, model_code='M1', sku='SKU1', color='화이트', si
     session.add(SetOption(set_product_id=sp.id, canonical_sku=sku))
     session.add(PriceTrackHistory(canonical_sku=sku, source='musinsa',
                                   price=38900, stock=11,
-                                  captured_at=datetime(2026, 8, 19, 9, 0)))
+                                  captured_at=now - timedelta(days=2)))
     session.add(PriceTrackHistory(canonical_sku=sku, source='musinsa',
                                   price=38900, stock=12,
-                                  captured_at=datetime(2026, 8, 20, 9, 0)))
+                                  captured_at=now - timedelta(days=1)))
     session.flush()
     return ps.id
 
@@ -352,10 +355,11 @@ def test_이력_없는_옵션은_카드에서_빠진다(client):
 
 def test_소싱처가_둘이면_한_숫자로_뭉개지_않고_둘_다_나온다(client):
     """🔴 listing.py 의 buy_source=None 원칙과 같다 — 「지금 사오는 곳」을 안 정했다."""
-    from datetime import datetime
+    from datetime import datetime, timedelta
     from lemouton.sourcing.models import Model, Option
     from lemouton.sets.models import ProductSet, SetProduct, SetOption
     from lemouton.templates.models import PriceTrackHistory
+    recent = datetime.now() - timedelta(days=1)   # 🔴 [2026-09-05] 상대 날짜 — 14일 창 밖으로 안 새게
     sess = client._Session()
     try:
         sess.add(Model(model_code='M3', model_name_raw='복수소싱', display_no='M-3'))
@@ -368,9 +372,9 @@ def test_소싱처가_둘이면_한_숫자로_뭉개지_않고_둘_다_나온다
         sess.flush()
         sess.add(SetOption(set_product_id=sp.id, canonical_sku='SKU3'))
         sess.add(PriceTrackHistory(canonical_sku='SKU3', source='musinsa', price=38900, stock=10,
-                                   captured_at=datetime(2026, 8, 20, 9, 0)))
+                                   captured_at=recent))
         sess.add(PriceTrackHistory(canonical_sku='SKU3', source='ssf', price=39900, stock=3,
-                                   captured_at=datetime(2026, 8, 20, 9, 0)))
+                                   captured_at=recent))
         sess.commit()
         set_id = ps.id
     finally:
@@ -500,7 +504,7 @@ def test_마켓이_둘이면_한_숫자로_뭉개지_않고_둘_다_나온다(cl
 
 
 def test_최근_가격_변동이_같이_실린다(client):
-    from datetime import datetime
+    from datetime import datetime, timedelta
     from lemouton.sets.models import ChannelChangeEvent
     sess = client._Session()
     try:
@@ -508,7 +512,8 @@ def test_최근_가격_변동이_같이_실린다(client):
         sess.add(ChannelChangeEvent(set_id=set_id, market='smartstore', canonical_sku='MSKU1',
                                     field='price', source='market',
                                     prev_value=45000, next_value=49000,
-                                    at=datetime(2026, 8, 19, 13, 0)))
+                                    # 🔴 [2026-09-05] 상대 날짜 — /margin API 도 최근 14일 창을 씀
+                                    at=datetime.now() - timedelta(days=2)))
         sess.commit()
     finally:
         sess.close()
