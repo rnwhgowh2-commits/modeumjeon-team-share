@@ -225,6 +225,20 @@ function _getSuspVirtualRows() {
 }
 /* VERBATIM_END */
 
+/* VERBATIM_BEGIN */
+function _suspVirtualRowsInRange() {
+  var v = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];
+  if (!(dateFilterFrom || dateFilterTo)) return v;
+  return v.filter(function (r) {
+    var d = parseDate26(r['주문일']);
+    if (!d) return true;
+    if (dateFilterFrom && d < dateFilterFrom) return false;
+    if (dateFilterTo && d > dateFilterTo) return false;
+    return true;
+  });
+}
+/* VERBATIM_END */
+
 /* NON-VERBATIM GLUE — trimmed to the count-relevant loop (주문미이행 needs COUNT only).
    Mirrors margin_embed.html:7985-8043 filter logic (unmatched_buy WITHOUT site order no). */
 function _getUnfulfilledUnmatchedRows() {
@@ -251,7 +265,7 @@ function getFilteredData() {
   if (!analysisData) return null;
   var hasDateF = !!(dateFilterFrom || dateFilterTo);
   /* VERBATIM_BEGIN */
-  var _susp = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];
+  var _susp = _suspVirtualRowsInRange();
   var filtered = (analysisData.matched || []).filter(function(r) {
     if (hasDateF) {
       var d = parseDate26(r['주문일']);

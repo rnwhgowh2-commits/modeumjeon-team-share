@@ -328,17 +328,16 @@ def margin_diag_eleven11_order_fact():
     return jsonify(ok=True, 조회구간=f"{since.date()}~{until.date()}", 결과=results)
 
 
-@bp.route("/upload", methods=["POST"])
-def upload():
-    """더망고 매입 엑셀 → 파싱 + 기간 자동 추론. 분석은 하지 않는다."""
-    f = request.files.get("file")
-    if f is None:
-        return jsonify({"error": "파일이 없습니다 (field 'file')."}), 400
-    raw = f.read()
+def _do_upload(raw: bytes, filename: str) -> dict:
+    """더망고 매입 엑셀 → 파싱 + 기간 자동 추론 + 스테이징. 분석은 하지 않는다.
+
+    `/upload`(동기, 기존 호출부·테스트 호환)와 `/upload/start`(백그라운드 잡)가
+    이 함수 하나를 공유한다 — `_do_analyze` 와 같은 패턴.
+    """
     try:
-        buy_df = parse_buy(raw, f.filename or "buy.xlsx")
+        buy_df = parse_buy(raw, filename)
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        raise _JobError(str(e), 400)
 
     pf, pt = _infer_period(buy_df)
     markets = sorted(
@@ -346,19 +345,107 @@ def upload():
 
     _sess = SessionLocal()
     try:
-        pending_store.stage_buy(_sess, raw=raw, filename=f.filename or "buy.xlsx",
+        pending_store.stage_buy(_sess, raw=raw, filename=filename,
                                 period_from=pf, period_to=pt)
     finally:
         _sess.close()
-    shared = _share_to_purchase_store(buy_df, f.filename or "buy.xlsx")
-    return jsonify({
+    shared = _share_to_purchase_store(buy_df, filename)
+    return {
         "rows": int(len(buy_df)),
         "markets": markets,
         "period_from": _iso(pf),
         "period_to": _iso(pt),
         # 주문 내역·상품관리와 **같은 값**을 쓰기 위해 같이 저장한 결과(설계서 §8).
         "shared": shared,
-    })
+    }
+
+
+@bp.route("/upload", methods=["POST"])
+def upload():
+    """`_do_upload` 동기 호출 — 기존 호출부·테스트 호환용.
+
+    2026-09-06 라이브 실측: 12,949행짜리 엑셀 업로드(파싱 + 주문내역 매칭·저장)가
+    자원이 빠듯한 서버에서 간헐적으로 45초+ 걸리다 502 로 죽었다(재시도하면 성공 —
+    분석과 같은 자원 경합 계열). 화면(margin_embed.html)의 업로드 흐름은
+    `/upload/start` + `/upload/status` 폴링을 쓴다 — 이 라우트는 그대로 두되
+    새 화면 흐름의 기본 경로는 아니다.
+    """
+    f = request.files.get("file")
+    if f is None:
+        return jsonify({"error": "파일이 없습니다 (field 'file')."}), 400
+    raw = f.read()
+    filename = f.filename or "buy.xlsx"
+    try:
+        result = _do_upload(raw, filename)
+    except _JobError as e:
+        return jsonify({"error": e.message}), e.status
+    return jsonify(result)
+
+
+def _run_upload_job(job_id: str, raw: bytes, filename: str) -> None:
+    """스레드에서 실행 — `_run_analyze_job` 과 같은 패턴(하트비트 + gc.collect())."""
+    gc.collect()
+    stop_heartbeat = threading.Event()
+    heartbeat = threading.Thread(
+        target=_heartbeat_loop, args=(job_id, stop_heartbeat), daemon=True)
+    heartbeat.start()
+    try:
+        result = _do_upload(raw, filename)
+    except _JobError as e:
+        stop_heartbeat.set()
+        session = SessionLocal()
+        try:
+            analyze_job_store.mark_error(session, job_id, e.message, e.status)
+        finally:
+            session.close()
+        return
+    except Exception as e:  # noqa: BLE001
+        logger.exception("매입 엑셀 업로드 백그라운드 작업 실패 job=%s", job_id)
+        stop_heartbeat.set()
+        session = SessionLocal()
+        try:
+            analyze_job_store.mark_error(session, job_id, f"{type(e).__name__}: {e}", 500)
+        finally:
+            session.close()
+        return
+    stop_heartbeat.set()
+    session = SessionLocal()
+    try:
+        analyze_job_store.mark_done(session, job_id, None, result)
+    finally:
+        session.close()
+
+
+@bp.route("/upload/start", methods=["POST"])
+def upload_start():
+    """업로드를 백그라운드 스레드로 시작하고 즉시 job_id 를 돌려준다 — `/analyze/start`
+    와 같은 이유(2026-09-06 라이브 실측 502). 파일 바이트는 요청 컨텍스트가 살아있는
+    지금 읽어 둔다(스레드에선 `request` 를 못 쓴다)."""
+    f = request.files.get("file")
+    if f is None:
+        return jsonify({"error": "파일이 없습니다 (field 'file')."}), 400
+    raw = f.read()
+    filename = f.filename or "buy.xlsx"
+    job_id = uuid.uuid4().hex
+    session = SessionLocal()
+    try:
+        analyze_job_store.create(session, job_id)
+    finally:
+        session.close()
+    threading.Thread(target=_run_upload_job, args=(job_id, raw, filename), daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@bp.route("/upload/status/<job_id>", methods=["GET"])
+def upload_status(job_id):
+    session = SessionLocal()
+    try:
+        job = analyze_job_store.get(session, job_id)
+    finally:
+        session.close()
+    if job is None:
+        return jsonify({"error": "알 수 없는 작업 id"}), 404
+    return jsonify(job)
 
 
 def _share_to_purchase_store(buy_df, filename: str) -> dict:
@@ -548,8 +635,9 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
 
 # ── 분석 ──────────────────────────────────────────────────────────────────
 
-class _AnalyzeError(Exception):
-    """`_do_analyze` 실패 신호 — 동기 라우트와 백그라운드 잡이 같은 메시지·상태코드로 처리."""
+class _JobError(Exception):
+    """`_do_upload`/`_do_analyze` 실패 신호 — 동기 라우트와 백그라운드 잡이 같은
+    메시지·상태코드로 처리(둘 다 같은 예외를 공유)."""
 
     def __init__(self, message: str, status: int):
         super().__init__(message)
@@ -569,7 +657,7 @@ def _do_analyze(body: dict) -> dict:
     finally:
         _sess.close()
     if not staged or not staged.get("buy_bytes"):
-        raise _AnalyzeError("먼저 더망고 매입 엑셀을 업로드하세요.", 400)
+        raise _JobError("먼저 더망고 매입 엑셀을 업로드하세요.", 400)
     # 저장한 건 원본 바이트 — 분석 때 다시 파싱한다(DataFrame 피클 금지).
     staged = dict(staged)
     staged["df"] = parse_buy(staged["buy_bytes"], staged["buy_filename"] or "buy.xlsx")
@@ -583,7 +671,7 @@ def _do_analyze(body: dict) -> dict:
     try:
         sell_df = sell_source.from_api(since, until)
     except Exception as e:  # noqa: BLE001
-        raise _AnalyzeError(f"마켓 주문 조회 실패 — 분석을 중단했습니다: {e}", 502)
+        raise _JobError(f"마켓 주문 조회 실패 — 분석을 중단했습니다: {e}", 502)
     warnings = list(sell_df.attrs.get("warnings", []) or [])
     # notices = 제외가 아닌 안내(예: 저장분으로 분석함). warnings 와 섞으면 화면이
     # "매출에서 제외했어요" 빨간 배너로 보여줘 거짓 경보가 된다.
@@ -621,7 +709,7 @@ def _do_analyze(body: dict) -> dict:
         _assert_finite(payload)
     except ValueError as e:
         logger.error("마진 분석 결과에 NaN/Inf — 저장하지 않음", exc_info=True)
-        raise _AnalyzeError(f"분석 결과를 저장할 수 없습니다: {e}", 500)
+        raise _JobError(f"분석 결과를 저장할 수 없습니다: {e}", 500)
     matched = payload["matched"]
 
     counts = {
@@ -676,7 +764,7 @@ def analyze():
     body = request.get_json(silent=True) or {}
     try:
         result = _do_analyze(body)
-    except _AnalyzeError as e:
+    except _JobError as e:
         return jsonify({"error": e.message}), e.status
     return jsonify(result)
 
@@ -711,7 +799,7 @@ def _run_analyze_job(job_id: str, body: dict) -> None:
     heartbeat.start()
     try:
         result = _do_analyze(body)
-    except _AnalyzeError as e:
+    except _JobError as e:
         stop_heartbeat.set()
         session = SessionLocal()
         try:
