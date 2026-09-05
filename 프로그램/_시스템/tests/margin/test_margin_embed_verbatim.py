@@ -195,6 +195,23 @@ _SEAM_TOKENS = (
     #  스크립트 한 줄만 먼저 실어 window.fetch 를 감싼다(margin_refresh_orders.js
     #  선례와 동일 패턴 — 로직은 static/margin_analyze_poll.js 에 둔다).
     "margin_analyze_poll.js",
+    # ── [모음전 2026-09-06] 블랙스팟 의심 가상행 — 선택 기간(주문일) 밖이면 총마진에서 뺀다 ──
+    #  실측(라이브 #171): 가상행 120건 전부가 "오늘"·"1주일" 어느 기간에도 안 속하는데도
+    #  날짜 필터 무관하게 매번 concat 돼 매입원가(-498만원)가 모든 기간 총마진에 새고
+    #  있었다. getFilteredData 에 공용 _passDateFilter 를 새로 만들어 실제 매출행과
+    #  가상행에 동일 적용하고, renderCurrentTab 의 (이제는 무효화된) 재-concat 보정
+    #  블록은 제거한다.
+    "블랙스팟 의심을 항상 재집계", "블랙스팟 의심 16건을 항상 재집계",
+    "날짜 필터 판별", "[2026-09-06 수정]", "[2026-09-06]",
+    "매입원가(-순마진)가 다른 기간 총마진", "짧은 기간(오늘·1주일)일수록",
+    "기간 무관 고정 120건",
+    "_passDateFilter", "if (!hasDateF) return true;", "if (!d) return true;",
+    "parseDate26(r['주문일'])", "d < dateFilterFrom", "d > dateFilterTo",
+    "가상 행도 자기 주문일이 선택 기간 안일 때만 concat",
+    "16건 (가상 행) — 모든 탭 마진/매출/매입 집계에 포함",
+    "early-return 최적화로 16건이 빠지는 것을 보정",
+    "d.matched.indexOf(_susp[0])",
+    "보정 블록을 지웠다", "단일 진실 원천, _getRowsByCardFilter 와 동일 원칙",
 )
 
 

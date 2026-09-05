@@ -245,23 +245,28 @@ function _getUnfulfilledRows() {
 }
 
 /* NON-VERBATIM GLUE — getFilteredData reduced to its `.matched` producer.
-   The `.matched` construction below is guarded verbatim (margin_embed.html:1410-1420);
-   the surrounding wrapper returns only {matched} because the card chain reads nothing else. */
+   The `.matched` construction below is guarded verbatim (margin_embed.html, getFilteredData);
+   the surrounding wrapper returns only {matched} because the card chain reads nothing else.
+   [2026-09-06] Updated for the date-scoped blackspot-suspect fix — _passDateFilter now
+   guards both the real matched rows and the suspect virtual rows (see build_margin_embed.py
+   seam dated 2026-09-06). */
 function getFilteredData() {
   if (!analysisData) return null;
   var hasDateF = !!(dateFilterFrom || dateFilterTo);
   /* VERBATIM_BEGIN */
-  var _susp = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];
-  var filtered = (analysisData.matched || []).filter(function(r) {
-    if (hasDateF) {
-      var d = parseDate26(r['주문일']);
-      if (d) {
-        if (dateFilterFrom && d < dateFilterFrom) return false;
-        if (dateFilterTo   && d > dateFilterTo)   return false;
-      }
-    }
+  function _passDateFilter(r) {
+    if (!hasDateF) return true;
+    var d = parseDate26(r['주문일']);
+    if (!d) return true;
+    if (dateFilterFrom && d < dateFilterFrom) return false;
+    if (dateFilterTo   && d > dateFilterTo)   return false;
     return true;
-  }).concat(_susp);
+  }
+
+  /* 1) 날짜 필터만 적용 — 제외된 행도 화면에 보여줘야 함 (체크해제 가능하도록)
+     ★ 1-3 블랙스팟 의심 가상 행도 자기 주문일이 선택 기간 안일 때만 concat */
+  var _susp = ((typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : []).filter(_passDateFilter);
+  var filtered = (analysisData.matched || []).filter(_passDateFilter).concat(_susp);
   /* VERBATIM_END */
   return { matched: filtered };
 }

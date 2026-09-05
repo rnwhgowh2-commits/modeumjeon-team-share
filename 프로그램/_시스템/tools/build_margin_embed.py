@@ -1070,6 +1070,80 @@ SEAMS.append((
     1,
 ))
 
+# ── [모음전 2026-09-06] 블랙스팟 의심 가상행 — 선택 기간(주문일) 밖이면 총마진에서 뺀다 ──
+#  실측(라이브 분석 #171): 이 가상행 120건은 전부 "오늘"·"이번 주" 어느 것도 아닌 다른
+#  날짜 주문인데도, 원본이 날짜 필터와 무관하게 무조건 concat 해 그 매입원가(-498만원)를
+#  모든 기간 총마진에 그대로 얹혔다 — 짧은 기간(오늘·1주일)일수록 마진이 실제보다 크게
+#  마이너스로 보이는 원인이었다(사장님 확인 요청). 가상행도 자기 주문일이 선택 기간
+#  안일 때만 집계에 넣도록 getFilteredData·renderCurrentTab 두 곳을 고친다.
+SEAMS.append((
+    "  var hasExcl    = window._excludedSet.size > 0;\n"
+    "  var hasEdit    = window._editedCount > 0;\n"
+    "  var hasDateF   = !!(dateFilterFrom || dateFilterTo);\n"
+    "  /* ★ V4 — early return 제거: 1-3 블랙스팟 의심 16건을 항상 재집계(monthly/daily/brand 등)에\n"
+    "     포함하기 위해, 필터가 없어도 아래 재집계 경로를 탄다 */\n"
+    "\n"
+    "  /* 1) 날짜 필터만 적용 — 제외된 행도 화면에 보여줘야 함 (체크해제 가능하도록)\n"
+    "     ★ 1-3 블랙스팟 의심 16건 가상 행 concat (날짜 필터 무관 — 항상 포함) */\n"
+    "  var _susp = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];\n"
+    "  var filtered = (analysisData.matched || []).filter(function(r) {\n"
+    "    if (hasDateF) {\n"
+    "      var d = parseDate26(r['주문일']);\n"
+    "      if (d) {\n"
+    "        if (dateFilterFrom && d < dateFilterFrom) return false;\n"
+    "        if (dateFilterTo   && d > dateFilterTo)   return false;\n"
+    "      }\n"
+    "    }\n"
+    "    return true;\n"
+    "  }).concat(_susp);",
+    "  var hasExcl    = window._excludedSet.size > 0;\n"
+    "  var hasEdit    = window._editedCount > 0;\n"
+    "  var hasDateF   = !!(dateFilterFrom || dateFilterTo);\n"
+    "  /* ★ V4 — early return 제거: 1-3 블랙스팟 의심을 항상 재집계(monthly/daily/brand 등)에\n"
+    "     포함하기 위해, 필터가 없어도 아래 재집계 경로를 탄다 */\n"
+    "\n"
+    "  /* 날짜 필터 판별 — 실제 매출행과 블랙스팟 의심 가상행에 동일하게 적용.\n"
+    "     [2026-09-06 수정] 예전엔 가상행이 이 판별을 안 거치고 무조건 concat 됐다 — 자기\n"
+    "     주문일(더망고 원본)이 선택 기간 밖인데도 매입원가(-순마진)가 다른 기간 총마진에\n"
+    "     새어 들어가 짧은 기간(오늘·1주일)일수록 마진이 실제보다 크게 마이너스로 보였다\n"
+    "     (실측: 기간 무관 고정 120건 · -498만원이 매 기간에 그대로 얹힘). */\n"
+    "  function _passDateFilter(r) {\n"
+    "    if (!hasDateF) return true;\n"
+    "    var d = parseDate26(r['주문일']);\n"
+    "    if (!d) return true;\n"
+    "    if (dateFilterFrom && d < dateFilterFrom) return false;\n"
+    "    if (dateFilterTo   && d > dateFilterTo)   return false;\n"
+    "    return true;\n"
+    "  }\n"
+    "\n"
+    "  /* 1) 날짜 필터만 적용 — 제외된 행도 화면에 보여줘야 함 (체크해제 가능하도록)\n"
+    "     ★ 1-3 블랙스팟 의심 가상 행도 자기 주문일이 선택 기간 안일 때만 concat */\n"
+    "  var _susp = ((typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : []).filter(_passDateFilter);\n"
+    "  var filtered = (analysisData.matched || []).filter(_passDateFilter).concat(_susp);",
+    1,
+))
+SEAMS.append((
+    "  var d = getFilteredData();\n"
+    "  /* ★ 1-3 블랙스팟 의심 16건 (가상 행) — 모든 탭 마진/매출/매입 집계에 포함 (사용자 정의: 661 전수)\n"
+    "     · getFilteredData 의 early-return 최적화로 16건이 빠지는 것을 보정 */\n"
+    "  if (d && d.matched && typeof _getSuspVirtualRows === 'function') {\n"
+    "    var _susp = _getSuspVirtualRows();\n"
+    "    if (_susp.length && d.matched.indexOf(_susp[0]) < 0) {\n"
+    "      d = Object.assign({}, d);\n"
+    "      d.matched = d.matched.concat(_susp);\n"
+    "    }\n"
+    "  }\n"
+    "  const map = {",
+    "  var d = getFilteredData();\n"
+    "  /* [2026-09-06] 여기서 블랙스팟 의심 가상행을 다시 concat하던 보정 블록을 지웠다 —\n"
+    "     getFilteredData 가 (더 이상 early-return 하지 않아) 이미 날짜 필터를 통과한\n"
+    "     가상행만 d.matched 에 넣어 준다(단일 진실 원천, _getRowsByCardFilter 와 동일 원칙).\n"
+    "     여기서 무조건 다시 이어붙이면 기간 밖 가상행까지 되살아나 방금 건 날짜 필터가\n"
+    "     무효화된다. */\n"
+    "  const map = {",
+    1,
+))
+
 if __name__ == "__main__":
     main()
 

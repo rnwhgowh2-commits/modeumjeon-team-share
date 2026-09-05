@@ -1537,22 +1537,27 @@ function getFilteredData() {
   var hasExcl    = window._excludedSet.size > 0;
   var hasEdit    = window._editedCount > 0;
   var hasDateF   = !!(dateFilterFrom || dateFilterTo);
-  /* ★ V4 — early return 제거: 1-3 블랙스팟 의심 16건을 항상 재집계(monthly/daily/brand 등)에
+  /* ★ V4 — early return 제거: 1-3 블랙스팟 의심을 항상 재집계(monthly/daily/brand 등)에
      포함하기 위해, 필터가 없어도 아래 재집계 경로를 탄다 */
 
-  /* 1) 날짜 필터만 적용 — 제외된 행도 화면에 보여줘야 함 (체크해제 가능하도록)
-     ★ 1-3 블랙스팟 의심 16건 가상 행 concat (날짜 필터 무관 — 항상 포함) */
-  var _susp = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];
-  var filtered = (analysisData.matched || []).filter(function(r) {
-    if (hasDateF) {
-      var d = parseDate26(r['주문일']);
-      if (d) {
-        if (dateFilterFrom && d < dateFilterFrom) return false;
-        if (dateFilterTo   && d > dateFilterTo)   return false;
-      }
-    }
+  /* 날짜 필터 판별 — 실제 매출행과 블랙스팟 의심 가상행에 동일하게 적용.
+     [2026-09-06 수정] 예전엔 가상행이 이 판별을 안 거치고 무조건 concat 됐다 — 자기
+     주문일(더망고 원본)이 선택 기간 밖인데도 매입원가(-순마진)가 다른 기간 총마진에
+     새어 들어가 짧은 기간(오늘·1주일)일수록 마진이 실제보다 크게 마이너스로 보였다
+     (실측: 기간 무관 고정 120건 · -498만원이 매 기간에 그대로 얹힘). */
+  function _passDateFilter(r) {
+    if (!hasDateF) return true;
+    var d = parseDate26(r['주문일']);
+    if (!d) return true;
+    if (dateFilterFrom && d < dateFilterFrom) return false;
+    if (dateFilterTo   && d > dateFilterTo)   return false;
     return true;
-  }).concat(_susp);
+  }
+
+  /* 1) 날짜 필터만 적용 — 제외된 행도 화면에 보여줘야 함 (체크해제 가능하도록)
+     ★ 1-3 블랙스팟 의심 가상 행도 자기 주문일이 선택 기간 안일 때만 concat */
+  var _susp = ((typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : []).filter(_passDateFilter);
+  var filtered = (analysisData.matched || []).filter(_passDateFilter).concat(_susp);
 
   /* 2) 집계용 실효 데이터:
      · _excluded(사용자 수기 제외) → 항상 빠짐
@@ -1739,15 +1744,11 @@ function renderCurrentTab() {
     return;
   }
   var d = getFilteredData();
-  /* ★ 1-3 블랙스팟 의심 16건 (가상 행) — 모든 탭 마진/매출/매입 집계에 포함 (사용자 정의: 661 전수)
-     · getFilteredData 의 early-return 최적화로 16건이 빠지는 것을 보정 */
-  if (d && d.matched && typeof _getSuspVirtualRows === 'function') {
-    var _susp = _getSuspVirtualRows();
-    if (_susp.length && d.matched.indexOf(_susp[0]) < 0) {
-      d = Object.assign({}, d);
-      d.matched = d.matched.concat(_susp);
-    }
-  }
+  /* [2026-09-06] 여기서 블랙스팟 의심 가상행을 다시 concat하던 보정 블록을 지웠다 —
+     getFilteredData 가 (더 이상 early-return 하지 않아) 이미 날짜 필터를 통과한
+     가상행만 d.matched 에 넣어 준다(단일 진실 원천, _getRowsByCardFilter 와 동일 원칙).
+     여기서 무조건 다시 이어붙이면 기간 밖 가상행까지 되살아나 방금 건 날짜 필터가
+     무효화된다. */
   const map = {
     summary:    renderSummary,
     daily:      renderDaily,
