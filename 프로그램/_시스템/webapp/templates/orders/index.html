@@ -2920,6 +2920,15 @@
       if(col==='송장입력')return invCellHTML(r,v);
       if(col==='수량')return esc(v||'');
       if(SETTLE_MONEY_COLS[col])return settleMoneyCell(col,r,v);
+      // 배송비 사유 — 마켓 응답에 도서산간·제주 추가배송비가 실값으로 잡힌 경우만 괄호 표시
+      //  (없는 마켓·못 가른 경우는 붙이지 않는다 — 추정으로 사유를 지어내지 않음).
+      if(col==='배송비'){
+        var _shipTxt=(v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
+        var _reason=r['_ship_reason'];
+        if(_reason&&v!==''&&v!=null&&Number(num(v))>0)
+          _shipTxt+=' <span class="muted">('+esc(_reason)+')</span>';
+        return _shipTxt;
+      }
       if(MONEY_COLS[col])return (v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
       if((col==='배송메시지'||col==='수령자'||col==='구매자')&&!v)return '<span class="muted">—</span>';
       return esc(v||'');

@@ -438,13 +438,15 @@ def test_column_meta_marks_calc_vs_api():
 
 def test_finalize_amounts_and_shipping_dedup():
     rows = [
-        {"_shipkey": ("cp", "O1"), "단가": 10000, "수량": 2, "배송비": 3000},
-        {"_shipkey": ("cp", "O1"), "단가": 5000, "수량": 1, "배송비": 3000},    # 같은 배송건 → 배송비 0
+        {"_shipkey": ("cp", "O1"), "단가": 10000, "수량": 2, "배송비": 3000, "_ship_reason": "도서산간"},
+        {"_shipkey": ("cp", "O1"), "단가": 5000, "수량": 1, "배송비": 3000, "_ship_reason": "도서산간"},    # 같은 배송건 → 배송비 0
         {"_shipkey": ("cp", "O2"), "단가": 7000, "수량": 1, "배송비": "0.00"},
     ]
     out = oe._finalize_rows(rows)
     assert out[0]["상품금액"] == 20000 and out[0]["배송비"] == 3000 and out[0]["주문금액"] == 23000
+    assert out[0]["_ship_reason"] == "도서산간"
     assert out[1]["상품금액"] == 5000 and out[1]["배송비"] == 0 and out[1]["주문금액"] == 5000
+    assert out[1]["_ship_reason"] is None           # 배송비와 같은 배송건 단위로 억제(중복 표시 방지)
     assert out[2]["상품금액"] == 7000 and out[2]["배송비"] == 0 and out[2]["주문금액"] == 7000
     assert "_shipkey" not in out[0]                # 임시키 정리
 
@@ -470,6 +472,24 @@ def test_coupang_settle_includes_delivery():
                               dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
     assert r["배송비"] == 3000
     assert r["정산예정금액"] == 88450              # 상품정산만(배송비는 N열=M+고객배송비)
+
+
+def test_coupang_remote_shipping_fee_reason():
+    """도서산간 추가배송비(remotePrice)가 붙으면 사유를 남긴다(2026-07-23 라이브 실측
+    6101762660613: shipping 0 + remote 5,000, remoteArea=True 와 같은 형태)."""
+    class C:
+        _cfg = {"vendor_id": "A1"}
+        def request(self, method, path, query=""):
+            if "ordersheets" in path and "nextToken" not in query:
+                return {"data": [{"shipmentBoxId": 1, "orderId": 5, "status": "FINAL_DELIVERY",
+                        "orderer": {}, "receiver": {}, "shippingPrice": {"units": 0},
+                        "remotePrice": {"units": 5000}, "remoteArea": True,
+                        "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
+                                        "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
+            return {"data": [], "nextToken": ""}
+    r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                              dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
+    assert r["배송비"] == 5000 and r["_ship_reason"] == "도서산간"
 
 
 def test_coupang_shipping_only_settlement_is_real():
