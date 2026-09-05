@@ -165,6 +165,9 @@
     .o7 .mk.cp{background:var(--연한-빨강,#FEE2E2);color:#B91C1C;}.o7 .mk.lo{background:#EDE9FE;color:#6D28D9;}.o7 .mk.ss{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D));}
     .o7 .bd{font-size:12px;font-weight:800;border-radius:18px;padding:0px 8px;white-space:nowrap;}
     .o7 .bd.blue{background:var(--연한-파랑,#E8F0FE);color: var(--글자-파랑, var(--blue));}.o7 .bd.amber{background:#FEF3C7;color: var(--글자-주황, var(--amber));}.o7 .bd.sky{background:var(--연한-파랑,#E0F2FE);color: var(--글자-파랑, var(--sky));}.o7 .bd.green{background:var(--연한-초록,#E7F6EC);color: var(--글자-초록, var(--green));}.o7 .bd.red{background:var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red));}.o7 .bd.gray{background:var(--line2,#F1F3F5);color:var(--sub,#8B95A1);}
+    /* [2026-09-05] 정산여부 배지 — 취소요청 등 클레임 상태가 그 뒤 실제로 어떻게 끝났는지(사장님 지시) */
+    .o7 .sv-bd{display:inline-block;margin-left:4px;font-size:10px;font-weight:700;border-radius:3px;padding:1px 6px;white-space:nowrap;color:#fff;vertical-align:middle;}
+    .o7 .sv-bd.sv-ok{background:#10b981;}.o7 .sv-bd.sv-prog{background:#F59E0B;}.o7 .sv-bd.sv-unk{background:#6b7280;}
     .o7 .state{padding:32px;text-align:center;color:var(--sub);font-size:12px;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;line-height:1.7;}
     .o7 .muted{color: var(--글자-희미, var(--faint));}
     .o7 .acct{font-size:12px;color:var(--sub);white-space:nowrap;}
@@ -2891,7 +2894,20 @@
       if(col==='배송검사')return dmCheckCell(r);
       if(col==='판매처')return '<span class="mk '+(MKCLS[v]||'gray')+'">'+esc(v||'')+'</span>';
       if(col==='주문상태'){var u=unifyStatus(v||'');var orig=String(v||'').trim()||'-';
-        return '<span class="bd '+u.cls+'" title="원본 · '+esc(r['판매처']||'')+' : '+esc(orig)+'">'+esc(u.canon)+'</span>';}
+        /* [2026-09-05] 정산여부(O/확인불가/진행중) + 클레임 이력 — 취소요청 등으로 들어온
+           상태가 그 뒤 실제로 어떻게 끝났는지(철회·정산완료) 안 보여줘서 생기던 혼선(사장님 지시).
+           lemouton.margin.settle_status 가 이미 붙여 준 값을 그대로 그린다(단일 원천). */
+        var titleTxt='원본 · '+esc(r['판매처']||'')+' : '+esc(orig);
+        var hist=r['_주문상태이력']||[];
+        if(hist.length>1){
+          titleTxt+=' · 이력: '+hist.map(function(e){return esc(e.status||'')+(e.at?'('+esc(e.at)+')':'');}).join(' → ');
+        }
+        var sv=r['정산여부'], svBadge='';
+        if(sv){
+          var svCls=(sv==='O')?'sv-ok':(sv==='진행중')?'sv-prog':'sv-unk';
+          svBadge=' <span class="sv-bd '+svCls+'">'+esc(sv)+'</span>';
+        }
+        return '<span class="bd '+u.cls+'" title="'+titleTxt+'">'+esc(u.canon)+'</span>'+svBadge;}
       if(col==='쇼핑몰별칭'){var an=acctName(v);
         return an?'<span class="acct" title="'+esc(v||'')+'">'+esc(an)+'</span>':'<span class="muted">—</span>';}
       // 판매경로(롯데온 제휴 판별) — 4상태 + 마우스 올림 설명(왜 그렇게 판단했는지).

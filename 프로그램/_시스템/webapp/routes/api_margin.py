@@ -32,6 +32,7 @@ from flask import Blueprint, jsonify, request, send_file
 from shared.db import SessionLocal
 from lemouton.margin import aggregator, export, pipeline, store
 from lemouton.margin import sell_source
+from lemouton.margin import settle_status
 from lemouton.margin import keyword_store
 from lemouton.margin import matcher, classifier
 from lemouton.margin.card_counts import compute_card_counts
@@ -517,6 +518,10 @@ def analyze():
 
     # 2) 매칭 + 집계
     out = pipeline.run(staged["df"], sell_df)
+    # 2a) 정산여부(O/확인불가/진행중) + 주문상태 이력 — 클레임(취소요청 등)으로 들어온
+    #   상태가 그 뒤 실제로 어떻게 됐는지(철회·정산완료) 보여준다(2026-09-05 사장님 지시).
+    #   실패해도 매출·마진 본체는 그대로 살린다(부가 정보 — settle_status 안에서 이미 삼킴).
+    settle_status.attach_settlement_status(out["matched"])
     agg = aggregator.aggregate(out["matched"], DEFAULT_PRICE_RANGES)
     payload = _json_normalize({**out, **agg})
     # 2b) 블랙스팟 분류 계약 복원 — classified·blackspot_summary·검증 카운트·흔적 보강.

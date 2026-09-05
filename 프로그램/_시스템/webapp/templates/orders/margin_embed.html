@@ -937,6 +937,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
   <script src="{{ url_for('static', filename='margin_col_filter_fix.js') }}"></script>  <!-- [모음전 2026-08-20] 전체내역 컬럼필터 (빈값)·제외/비대량등록 통일 -->
   <script src="{{ url_for('static', filename='margin_settle_cell.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_checksum.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_status_history.js') }}"></script>  <!-- [모음전 2026-09-05] 정산여부 배지 + 주문상태 이력 호버 -->
   <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id="sellBox" 감춤 → 매입 칸이 한 칸 전체 -->
 <!-- [모음전] 디자인 타입 — 홀로 선 페이지라 여기서 직접 싣는다. 선택자가 전부 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. -->
 <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}?v={{ STATIC_VER|default('') }}">
@@ -7843,6 +7844,7 @@ function buildDetailTable(detailCode, rows, cardType) {
         if (v || suffix) {
           h += '<td>' + esc(v);
           if (suffix) h += ' <span style="display:inline-block;padding:1px 6px;border-radius:3px;background:'+badgeColor+';color:#fff;font-size:10px;font-weight:600;margin-left:3px">'+esc(suffix)+'</span>';
+          if (window._ssVerdictCellHtml) h += window._ssVerdictCellHtml(r);  /* [모음전 2026-09-05] 정산여부+이력호버 */
           h += '</td>';
         } else {
           h += '<td></td>';

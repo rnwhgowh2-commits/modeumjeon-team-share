@@ -173,13 +173,25 @@ def test_화면에_반품교환완료_카드가_있다():
 
 
 def test_줄_만드는_곳이_클레임을_이어_준다():
-    """🔴 집계·드릴다운·엑셀이 전부 이 함수를 지난다 — 여기서 빠지면 셋이 갈린다."""
+    """🔴 집계·드릴다운·엑셀이 전부 이 함수를 지난다 — 여기서 빠지면 셋이 갈린다.
+
+    [2026-09-05] 실제 조회는 `order_store.lines_for_markets` 로 옮겼다(마진계산기도
+    같은 판정을 쓰게 하려고 — 단일 진실 원천). `_settle_plan_lines` 는 그리로
+    위임만 하므로, 여기서는 **위임 여부**와 **위임 대상이 실제로 이어 붙이는지**를
+    각각 확인한다(둘 중 하나만 보면 이관 중 조용히 끊겨도 통과한다)."""
     import pathlib
     import webapp.routes.orders as om
+    from lemouton.markets import order_store as OS
+
     src = pathlib.Path(om.__file__).read_text(encoding="utf-8")
     i = src.index("def _settle_plan_lines")
-    blk = src[i:i + 1600]
-    assert "annotate_claims" in blk
+    blk = src[i:i + 800]
+    assert "lines_for_markets" in blk, "_settle_plan_lines 가 order_store.lines_for_markets 를 안 부른다"
+
+    store_src = pathlib.Path(OS.__file__).read_text(encoding="utf-8")
+    j = store_src.index("def lines_for_markets")
+    store_blk = store_src[j:j + 1600]
+    assert "annotate_claims" in store_blk
 
 
 def test_반품교환완료_칸을_누르면_목록이_뜬다(monkeypatch):

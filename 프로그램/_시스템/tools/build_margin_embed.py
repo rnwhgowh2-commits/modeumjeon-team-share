@@ -53,6 +53,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_col_filter_fix.js') }}\"></script>  <!-- [모음전 2026-08-20] 전체내역 컬럼필터 (빈값)·제외/비대량등록 통일 -->\n"
         "  <script src=\"{{ url_for('static', filename='margin_settle_cell.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_checksum.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_status_history.js') }}\"></script>  <!-- [모음전 2026-09-05] 정산여부 배지 + 주문상태 이력 호버 -->\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
@@ -1035,6 +1036,36 @@ SEAMS.append((
     "    });\n"
     "  } else if (ctxCard && ctxCard !== 'all') {\n"
     "    var cardRows2 = _getRowsByCardFilter(ctxCard);",
+    1,
+))
+
+# ── [모음전 2026-09-05] 정산여부 배지 + 주문상태 이력 호버 (사장님 지시) ──
+#  클레임(취소요청 등)으로 들어온 주문상태가 그 뒤 실제로 어떻게 됐는지(철회·정산완료)를
+#  전체내역 표가 안 보여줘서 이미 끝난 정상거래가 「손실 진행중」으로 잘못 보였다.
+#  서버(lemouton.margin.settle_status)가 matched 행에 이미 붙여 준 r['정산여부']·
+#  r['_주문상태이력']을 그대로 그린다(여기서 새로 판정하지 않는다 — 단일 원천).
+SEAMS.append((
+    "        if (v || suffix) {\n"
+    "          h += '<td>' + esc(v);\n"
+    "          if (suffix) h += ' <span style=\"display:inline-block;padding:1px 6px;border-radius:3px;background:'+badgeColor+';color:#fff;font-size:10px;font-weight:600;margin-left:3px\">'+esc(suffix)+'</span>';\n"
+    "          h += '</td>';\n"
+    "        } else {\n"
+    "          h += '<td></td>';\n"
+    "        }\n"
+    "        return;\n"
+    "      }\n"
+    "      if(c==='_추가메모') {",
+    "        if (v || suffix) {\n"
+    "          h += '<td>' + esc(v);\n"
+    "          if (suffix) h += ' <span style=\"display:inline-block;padding:1px 6px;border-radius:3px;background:'+badgeColor+';color:#fff;font-size:10px;font-weight:600;margin-left:3px\">'+esc(suffix)+'</span>';\n"
+    "          if (window._ssVerdictCellHtml) h += window._ssVerdictCellHtml(r);  /* [모음전 2026-09-05] 정산여부+이력호버 */\n"
+    "          h += '</td>';\n"
+    "        } else {\n"
+    "          h += '<td></td>';\n"
+    "        }\n"
+    "        return;\n"
+    "      }\n"
+    "      if(c==='_추가메모') {",
     1,
 ))
 
