@@ -124,3 +124,22 @@ def test_주문내역_스타일_행_판매처_오픈마켓주문번호_필드명
     rows = [{"판매처": "쿠팡", "오픈마켓주문번호": "O5"}]
     SS.attach_settlement_status(rows, today=dt.date(2026, 9, 5))
     assert rows[0]["정산여부"] == "O"
+
+
+def test_order_nos로_좁혀_읽는다_전체_스캔_금지(session, monkeypatch):
+    """🔴 2026-09-05 라이브 실측 — order_nos 로 안 좁히면 analyze() 마다 마켓 180일
+    전체 + 클레임 무제한을 통째로 읽어(매칭 3,499건에 50초) Cloudflare 100초 상한에
+    근접했다. order_nos 를 반드시 넘겨야 한다(안 넘기면 이 시험이 잡는다)."""
+    _seed_line(session, order_no="O6", status="배송완료", market="coupang")
+    from lemouton.markets import order_store as _store
+    captured = {}
+    orig = _store.lines_for_markets
+    def _spy(*a, **kw):
+        captured.update(kw)
+        return orig(*a, **kw)
+    monkeypatch.setattr(_store, "lines_for_markets", _spy)
+
+    matched = [{"마켓": "쿠팡", "마켓주문번호": "O6"}]
+    SS.attach_settlement_status(matched, today=dt.date(2026, 9, 5))
+    assert captured.get("order_nos") == ["O6"], (
+        "settle_status 가 order_nos 를 안 넘긴다 — 마켓 전체를 읽는 느린 경로로 되돌아갔다")

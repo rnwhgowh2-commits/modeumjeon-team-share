@@ -114,12 +114,18 @@ def build_verdict_map(matched: list, *, today=None) -> dict:
     markets = sorted({_DISPLAY_TO_INTERNAL[m] for m in markets_disp if m in _DISPLAY_TO_INTERNAL})
     if not markets:
         return {}
+    order_nos = sorted({_row_order_no(r) for r in matched if _row_order_no(r)})
+    if not order_nos:
+        return {}
 
     from lemouton.margin import settle_plan as _sp
     from lemouton.markets import order_store as _store
 
     try:
-        lines = _store.lines_for_markets(markets)
+        # ★ order_nos 로 반드시 좁힌다 — 안 좁히면 마켓 전체 180일+클레임 무제한을
+        #   analyze() 마다 통째로 읽는다(2026-09-05 라이브 실측: 매칭 3,499건에 analyze
+        #   50초 — Cloudflare 100초 상한에 근접해 「서버 오류」로 이어질 위험이 있었다).
+        lines = _store.lines_for_markets(markets, order_nos=order_nos)
     except Exception:   # noqa: BLE001 — 정산여부는 부가 정보, 실패해도 본 분석은 살아야 한다
         logger.exception("settle_status: lines_for_markets 실패 markets=%s", markets)
         return {}
