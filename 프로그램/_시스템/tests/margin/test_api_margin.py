@@ -121,7 +121,15 @@ def test_analyze_stores_and_returns_full_payload(client, monkeypatch):
 
 class _ImmediateThread:
     """threading.Thread 대역 — 테스트에서 진짜 스레드(SQLite 커넥션 스레드 제약,
-    타이밍 경합)를 피하려고 target 을 동기로 즉시 실행한다."""
+    타이밍 경합)를 피하려고 target 을 동기로 즉시 실행한다.
+
+    monkeypatch.setattr(api_margin.threading, "Thread", ...) 는 `threading` 모듈이
+    전역 싱글턴이라 **프로세스 전체**의 threading.Thread 를 바꾼다 — 잡 스레드뿐
+    아니라 그 안에서 또 threading.Thread 로 띄우는 하트비트(`_heartbeat_loop`)도
+    이 대역으로 걸린다. 하트비트를 그대로 동기 실행하면 `stop.wait(20)` 이
+    바깥(잡 스레드)이 아직 끝나기 전에 **자기 자신을 막아버려** 20초씩 멈춘다
+    (2026-09-05 실제로 테스트가 매번 걸려서 발견 — 하트비트 자체는
+    test_analyze_job_store.py 에서 따로 검증하므로 여기선 조용히 건너뛴다)."""
 
     def __init__(self, target=None, args=(), kwargs=None, daemon=None):
         self._target = target
@@ -129,6 +137,8 @@ class _ImmediateThread:
         self._kwargs = kwargs or {}
 
     def start(self):
+        if getattr(self._target, "__name__", "") == "_heartbeat_loop":
+            return
         self._target(*self._args, **self._kwargs)
 
 
