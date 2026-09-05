@@ -450,7 +450,7 @@ def test_finalize_amounts_and_shipping_dedup():
 
 
 def test_coupang_settle_includes_delivery():
-    # M열 = 상품 settlementAmount 만 — 배송비 정산은 M에 안 섞는다(2026-07-23 샵마인
+    # M열 = 상품 settlementAmount 만 — 배송비 정산은 M에 안 섞는다(2026-07-23 정답지
     # 45건 전수: 샵 M=상품분, N=M+고객배송비 전액. M에 배송비 97%를 더하면 N 이중가산 +4,014).
     class C:
         _cfg = {"vendor_id": "A1"}
@@ -473,9 +473,9 @@ def test_coupang_settle_includes_delivery():
 
 
 def test_coupang_shipping_only_settlement_is_real():
-    """배송비정산만 있는 주문 — 샵마인 M열 규약(상품분만) 전환 후 M은 공란이 정답.
+    """배송비정산만 있는 주문 — 정답지 M열 규약(상품분만) 전환 후 M은 공란이 정답.
     (배송비 정산을 M에 넣으면 N열=M+고객배송비가 이중 가산 — 2026-07-23 규약 전환.
-    샵마인도 이런 행의 M은 공란/알수없음.)"""
+    정답지도 이런 행의 M은 공란/알수없음.)"""
     class C:
         _cfg = {"vendor_id": "A1"}
         def request(self, method, path, query=""):
@@ -493,7 +493,7 @@ def test_coupang_shipping_only_settlement_is_real():
     # 단일 정산 윈도우(≤30일) — fake 가 매 호출 같은 데이터라 다중 윈도우면 배송비 중복합산(테스트 artifact)
     r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
                               dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
-    assert r["정산예정금액"] == ""               # 상품정산 없음 → M 공란(샵마인 규약)
+    assert r["정산예정금액"] == ""               # 상품정산 없음 → M 공란(정답지 규약)
     assert r["_settle_source"] == "none"
 
 
@@ -524,7 +524,7 @@ def test_coupang_settle_map_refund_subtracts_product():
 
 def test_coupang_estimate_shipping_fee_3pct():
     # 미정산 추정 M열 = 상품 11.55%(0.8845)만. 배송비는 N열(_finalize=M+고객배송비 전액)
-    # — 샵마인 45건 전수 실측(2026-07-23) N=M+ship, 배송비 3% 차감은 M·N 어디에도 없음.
+    # — 정답지 45건 전수 실측(2026-07-23) N=M+ship, 배송비 3% 차감은 M·N 어디에도 없음.
     class C:
         _cfg = {"vendor_id": "A1"}
         def request(self, method, path, query=""):
@@ -1242,7 +1242,7 @@ def test_ESM_실결제는_판매자할인만_뺀다():
     assert r2["실결제금액"] == 37800, (
         "판매자할인 3,000 을 안 뺐다(원금 강제가 남아 있다): %s" % r2["실결제금액"])
 
-    # 취소·클레임은 여전히 원금 강제(샵마인 규약) — 갈래가 있어도 안 뺀다
+    # 취소·클레임은 여전히 원금 강제(정답지 규약) — 갈래가 있어도 안 뺀다
     r3 = {"판매처": "옥션", "주문상태": "취소완료", "단가": 50000, "수량": 1,
           "옵션추가금": 0, "배송비": 0, "실결제금액": 50000, "_dc_seller": "5000.0000"}
     oe._finalize_rows([r3])
@@ -1263,7 +1263,7 @@ def test_매출기준액은_할인을_아예_빼지_않는다():
     assert lo["_매출기준액"] == 37900, (
         "할인을 뺐다(할인은 이제 매출기준액과 무관해야 한다): %s" % lo["_매출기준액"])
     assert lo["_매출기준출처"] == "sale_price_plus_shipping"
-    # 실결제금액은 손대지 않는다 — 샵마인 K열 대조·마켓수수료 파생이 그것을 쓴다.
+    # 실결제금액은 손대지 않는다 — 정답지 K열 대조·마켓수수료 파생이 그것을 쓴다.
     assert lo["실결제금액"] == 30720, "실결제금액에 매출 정의를 덮어썼다: %s" % lo["실결제금액"]
 
     # 옵션추가금도 정가에 든다(2026-08-12 사고 — 빼먹으면 할인이 음수로 나온다)

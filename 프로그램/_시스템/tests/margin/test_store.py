@@ -87,10 +87,9 @@ def test_prune_keeps_20_and_deletes_r2(session, monkeypatch):
 def test_delete_removes_row_and_objects(session, monkeypatch):
     deleted = []
     monkeypatch.setattr(S, "_delete_object", lambda key: deleted.append(key))
-    a = _save(session, buy_file_key="bk", shopmine_file_key="sk",
-              shopmine_filename="s.xls")
+    a = _save(session, buy_file_key="bk")
     S.delete(session, a.id)
-    assert deleted == ["bk", "sk"]
+    assert deleted == ["bk"]
     assert S.list_recent(session) == []
 
 

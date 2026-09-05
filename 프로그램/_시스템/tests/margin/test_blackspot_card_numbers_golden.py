@@ -6,7 +6,8 @@ r"""골든 회귀 — ⚫블랙스팟 탭 카드 숫자 (260704 데이터, 원�
 
 동작:
   1) analysisData 를 `_card_golden_helper` 로 빌드 — api_margin.analyze() 를 그대로
-     미러(샵마인 EXCEL 을 sell_df 로 치환).
+     미러(과거엔 옛 통합주문관리 EXCEL 을 sell_df 로 치환했으나, 2026-09 전 마켓
+     API 연동 완료로 그 경로가 삭제돼 지금은 데이터 폴더가 있어도 skip 된다).
   2) 클라이언트 카드 체인(webapp/templates/orders/margin_embed.html 의
      _getRowsByCardFilter* + 키워드 헬퍼)을 byte-identical 하게 슬라이스한
      `card_chain_harness.js` 를 node 로 실행.

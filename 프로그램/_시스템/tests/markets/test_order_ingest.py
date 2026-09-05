@@ -39,7 +39,7 @@ def test_11번가_청크는_7일을_절대_안_넘는다():
 
 def test_모르는_마켓은_좁은_청크를_쓴다():
     """넓게 잡아 조용히 잃느니 느린 게 낫다."""
-    assert OI.chunk_days("shopmine") <= 7
+    assert OI.chunk_days("unknown_market") <= 7
 
 
 # ── 구간 분할 ─────────────────────────────────────────────────

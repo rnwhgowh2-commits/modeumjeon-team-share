@@ -83,8 +83,8 @@ def test_중단하면_요청이_사라진다(client):
 
 # ── 입력 검증 ─────────────────────────────────────────────────
 def test_모르는_마켓은_400(client):
-    r = client.post("/api/orders-ingest/backfill", json={"markets": ["shopmine"]})
-    assert r.status_code == 400 and "shopmine" in r.get_json()["error"]
+    r = client.post("/api/orders-ingest/backfill", json={"markets": ["invalid_market"]})
+    assert r.status_code == 400 and "invalid_market" in r.get_json()["error"]
 
 
 def test_days가_숫자가_아니면_400(client):
@@ -111,7 +111,7 @@ def test_동기실행_실패는_사유를_숨기지_않는다(client, monkeypatc
 
 def test_동기실행도_마켓을_검증한다(client):
     assert client.post("/api/orders-ingest/run-sync",
-                       json={"market": "shopmine"}).status_code == 400
+                       json={"market": "invalid_market"}).status_code == 400
 
 
 # ── 현황 ──────────────────────────────────────────────────────

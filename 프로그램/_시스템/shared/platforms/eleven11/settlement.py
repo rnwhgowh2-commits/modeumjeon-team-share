@@ -116,8 +116,8 @@ def parse_settlement_details(xml_text_or_elem: Optional[Union[str, Element]]) ->
             except (TypeError, ValueError):
                 pass                          # 값 형식 불명 → 옵션추가금 미기록(0 대체 금지)
         # ★배송비 분리(2026-07-23 라이브 프로브 실측): 정산 라인 한 줄에 dlvAmt(배송비)가
-        #  함께 온다 — 분리 안 하면 정산예정금액이 샵마인 M열(배송비 제외)보다 +배송비
-        #  과대되고, '배송비포함' 열은 이중 가산된다(샵마인 대조로 발견).
+        #  함께 온다 — 분리 안 하면 정산예정금액이 정답지 M열(배송비 제외)보다 +배송비
+        #  과대되고, '배송비포함' 열은 이중 가산된다(정답지 대조로 발견).
         dlv = entry.get("dlvAmt")
         if dlv not in (None, "", "null"):
             try:

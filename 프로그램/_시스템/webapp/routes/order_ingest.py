@@ -203,7 +203,7 @@ def api_esm_claims_window():
 def api_lotteon_orders_window():
     """롯데온 과거 209(출고/회수지시) 백필 — 한 요청에 (계정 1, 창 1)만 처리.
 
-    정산 API 백필엔 수령자·주소·전화·송장이 없다 — 209 가 정본(2026-07-22 샵마인
+    정산 API 백필엔 수령자·주소·전화·송장이 없다 — 209 가 정본(2026-07-22 정답지
     전열 대조: 구매자 정보 공란 792). body: {back=0, days=5(≤7), account_index=0}.
     창 안(지시생성일)만 걷는다(now 확장 없음 — 스캔범위 폭발 방지). 업서트 멱등.
     """
@@ -250,7 +250,7 @@ def api_lotteon_claims_window():
     """롯데온 과거 클레임 백필 — 한 요청에 (계정 1, 창 1)만 처리.
 
     확정 전 취소는 정산API(구매확정건만)에 안 나와 과거 취소가 통째 빠졌다
-    (2026-07-22 샵마인 대사: 취소완료 계열 233건). body: {back=0, days=30, account_index=0}.
+    (2026-07-22 정답지 대사: 취소완료 계열 233건). body: {back=0, days=30, account_index=0}.
     업서트라 멱등 — 호출자가 (계정 × 창)을 반복 호출한다.
     """
     import datetime as _dt
@@ -523,7 +523,7 @@ def api_backfill():
 def api_lotteon_odno_probe():
     """롯데온 209 를 **주문번호 단건**으로 조회 — 취소건도 나오는지 실측.
 
-    근거: 공식문서 body "기간 또는 odNo"(우리는 기간만 써 왔음). 샵마인이 옛 계정
+    근거: 공식문서 body "기간 또는 odNo"(우리는 기간만 써 왔음). 정답지가 옛 계정
     연동 후에도 취소건 상세를 읽는다는 사장님 관찰(2026-07-22) — 이 경로가 맞으면
     취소 공란의 근본 해법이 된다. body: {"od_no": "...", "date": "yyyymmdd"(선택)}.
     값은 마스킹(키·존재 여부만) — 개인정보 비노출.
@@ -645,7 +645,7 @@ def api_lotteon_odno_probe():
 def api_eleven11_settle_shape_probe():
     """11번가 settlementList 원시 라인 구조 실측 — 배송비 라인 구분자 찾기.
 
-    샵마인 대조(2026-07-23): 우리 정산예정금액이 샵마인보다 정확히 +배송비만큼 큼
+    정답지 대조(2026-07-23): 우리 정산예정금액이 정답지보다 정확히 +배송비만큼 큼
     = 배송비 정산 라인이 상품 라인과 같은 (ordNo,ordPrdSeq)로 합산되는 중.
     분리하려면 라인 유형 필드를 알아야 한다. 값은 키·타입만(마스킹).
     body: {"days": 3}
@@ -721,7 +721,7 @@ def api_eleven11_settle_shape_probe():
 
 @bp.post("/api/orders-ingest/amount-probe")
 def api_amount_probe():
-    """주문 1건의 **원시 금액 필드 전량** 덤프 — 샵마인 J~N열 잔차의 원천 판별용.
+    """주문 1건의 **원시 금액 필드 전량** 덤프 — 정답지 J~N열 잔차의 원천 판별용.
 
     2026-07-23 대조에서 공식으로 못 푼 3계열: ①롯데온 40건 = 우리 M이 정확히
     판매가×2% 큼(34건은 0차이 — 판별 필드가 API에 있어야 함) ②11번가 배송완료
@@ -914,7 +914,7 @@ def api_lotteon_so_peek():
     왜: 채움·상태교정이 왜 걸리고 안 걸렸는지 판단하려면 그 주문의 SO 라인 구성
     (odSeq·procSeq·상태)을 봐야 한다. 값 자체는 안 돌려준다(이름·주소·전화 = 유무만).
     """
-    from lemouton.markets.models_shopmine import LotteonSoOrder
+    from lemouton.markets.models_lotteon_so import LotteonSoOrder
 
     onos = [x.strip() for x in (request.args.get("ono") or "").split(",") if x.strip()]
     if not onos:
@@ -932,91 +932,6 @@ def api_lotteon_so_peek():
                         "has_buyer": bool(o.buyer), "has_addr": bool(o.address)})
         out.sort(key=lambda x: (x["od_no"], x["od_seq"], x["proc_seq"]))
         return jsonify({"ok": True, "lines": out, "count": len(out)})
-    finally:
-        s.close()
-
-
-@bp.post("/api/orders-ingest/shopmine-upsert")
-def api_shopmine_upsert():
-    """샵마인 내보내기 행을 적재(sm_uid 업서트 — 멱등). body: {"rows": [{...} ≤500]}.
-
-    공란 채움 소스 ⑥(order_export._shopmine_fill)의 재료. 같은 파일 재업로드 안전.
-    """
-    from lemouton.markets.models_shopmine import ShopmineOrder
-
-    body = request.get_json(silent=True) or {}
-    rows = body.get("rows") or []
-    if not rows or len(rows) > 500:
-        return jsonify({"ok": False, "error": "rows 는 1~500개"}), 400
-    _FIELDS = ("market", "order_no", "account_alias", "ordered_at", "product_name",
-               "option1", "qty", "unit_price", "paid_amount", "buyer", "recipient",
-               "phone", "buyer_phone", "zipcode", "address", "invoice")
-    s = _session()
-    try:
-        new = updated = skipped = 0
-        pending: dict = {}    # 배치 내 중복 가드(autoflush=False 대응 — order_store.save 패턴)
-        for r in rows:
-            uid = str(r.get("sm_uid") or "").strip()
-            if not uid:
-                skipped += 1              # 고유코드 없는 행은 저장 안 함(키 날조 금지)
-                continue
-            obj = pending.get(uid) or s.get(ShopmineOrder, uid)
-            vals = {k: str(r.get(k) or "").strip() for k in _FIELDS}
-            if obj is None:
-                obj = ShopmineOrder(sm_uid=uid, **vals)
-                s.add(obj)
-                new += 1
-            else:
-                for k, v in vals.items():
-                    if v:                 # 새 값이 비었으면 기존 유지(덜 주는 재업로드 안전)
-                        setattr(obj, k, v)
-                updated += 1
-            pending[uid] = obj
-        s.commit()
-        return jsonify({"ok": True, "new": new, "updated": updated, "skipped": skipped})
-    finally:
-        s.close()
-
-
-@bp.post("/api/orders-ingest/order-no-membership")
-def api_order_no_membership():
-    """주문번호 목록이 우리 적재분(market_order_lines·claim_events)에 있는지 일괄 대조.
-
-    용도(2026-07-22 사장님): 샵마인 3개월치 (마켓×계정)별 주문번호를 우리 1년 적재와
-    교집합 내어 「어느 샵마인 계정 = 우리 어느 계정」 매핑을 **근거(교집합 N/M)**로 확정.
-    body: {"market": "lotteon", "nos": ["...", ...]}  (nos ≤ 3000)
-    응답: found/total + 우리 계정명 분포 + 미존재 샘플.
-    """
-    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
-
-    body = request.get_json(silent=True) or {}
-    market = str(body.get("market") or "").strip()
-    nos = [str(x).strip() for x in (body.get("nos") or []) if str(x).strip()]
-    if not market or not nos:
-        return jsonify({"ok": False, "error": "market·nos 필수"}), 400
-    if len(nos) > 3000:
-        return jsonify({"ok": False, "error": "nos 는 3000개 이하"}), 400
-    s = _session()
-    try:
-        found = {}
-        for o in (s.query(MarketOrderLine.order_no, MarketOrderLine.account)
-                  .filter(MarketOrderLine.market == market,
-                          MarketOrderLine.order_no.in_(nos)).all()):
-            found.setdefault(o.order_no, o.account or "(계정없음)")
-        # 주문 라인엔 없고 클레임 이벤트로만 잡힌 번호도 '있음'으로 집계.
-        rest = [n for n in nos if n not in found]
-        if rest:
-            for c in (s.query(MarketClaimEvent.order_no)
-                      .filter(MarketClaimEvent.market == market,
-                              MarketClaimEvent.order_no.in_(rest)).all()):
-                found.setdefault(c.order_no, "(클레임만)")
-        accounts = {}
-        for acc in found.values():
-            accounts[acc] = accounts.get(acc, 0) + 1
-        missing = [n for n in nos if n not in found]
-        return jsonify({"ok": True, "market": market, "total": len(nos),
-                        "found": len(found), "accounts": accounts,
-                        "missing_sample": missing[:5], "missing": len(missing)})
     finally:
         s.close()
 

@@ -8,7 +8,7 @@ r"""골든테스트 1단계 — 옛 마진계산기(READ-ONLY)의 회귀 기준�
 
 무엇을 하나:
     옛 프로그램 C:\dev\대량등록 마진계산기\app.py 를 in-process 로 import 하고
-    test_client() 로 /api/upload(더망고·샵마인 xls) → /api/analyze({}) 를 호출해
+    test_client() 로 /api/upload(더망고·구 통합주문관리 xls) → /api/analyze({}) 를 호출해
     옛 프로그램의 "cycle ① 매칭·집계 결과"를 그대로 뽑아 JSON 으로 저장한다.
 
 왜 라우트 JSON 을 그대로 저장하지 않고 store + _aggregate 를 다시 읽나 (중요):
@@ -94,7 +94,7 @@ def capture(date: str) -> dict:
     if not os.path.isdir(folder):
         raise SystemExit(f"데이터 폴더 없음: {folder}")
 
-    mango = shopmine = None
+    mango = sell_xls = None
     for fn in os.listdir(folder):
         low = fn.lower()
         if not (low.endswith(".xls") or low.endswith(".xlsx")):
@@ -102,9 +102,9 @@ def capture(date: str) -> dict:
         if "더망고" in fn:
             mango = os.path.join(folder, fn)
         elif "샵마인" in fn:
-            shopmine = os.path.join(folder, fn)
-    if not mango or not shopmine:
-        raise SystemExit(f"더망고/샵마인 쌍을 찾지 못함: {folder}")
+            sell_xls = os.path.join(folder, fn)
+    if not mango or not sell_xls:
+        raise SystemExit(f"더망고/구 통합주문관리 쌍을 찾지 못함: {folder}")
 
     # ── 옛 앱 in-process import (migrator·app.run 은 __main__ 아래라 미실행) ──
     os.environ["DEPLOY_MODE"] = "server"  # Playwright/Chrome 경로 비활성
@@ -117,14 +117,14 @@ def capture(date: str) -> dict:
         client = old_app.app.test_client()
         with open(mango, "rb") as f:
             mango_bytes = f.read()
-        with open(shopmine, "rb") as f:
-            shopmine_bytes = f.read()
+        with open(sell_xls, "rb") as f:
+            sell_bytes = f.read()
 
         up = client.post(
             "/api/upload",
             data={
                 "buy_file": (open(mango, "rb"), os.path.basename(mango)),
-                "sell_file": (open(shopmine, "rb"), os.path.basename(shopmine)),
+                "sell_file": (open(sell_xls, "rb"), os.path.basename(sell_xls)),
             },
             content_type="multipart/form-data",
         )
@@ -147,7 +147,7 @@ def capture(date: str) -> dict:
             "date": date,
             "source_files": {
                 "buy": os.path.basename(mango),
-                "sell": os.path.basename(shopmine),
+                "sell": os.path.basename(sell_xls),
             },
             "matched": list(store["matched"] or []),
             "unmatched_buy": list(store["unmatched_buy"] or []),

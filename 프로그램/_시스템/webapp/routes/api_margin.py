@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 r"""마진 분석 라우트 — `/api/margin/*`.
 
-흐름: 더망고 매입 엑셀 업로드(기간 자동 추론) → analyze(마켓 API 조회 + 선택 샵마인
-concat → pipeline → aggregate → R2 + DB 저장) → 목록/로드/삭제/엑셀 내보내기.
+흐름: 더망고 매입 엑셀 업로드(기간 자동 추론) → analyze(마켓 API 조회 → pipeline →
+aggregate → R2 + DB 저장) → 목록/로드/삭제/엑셀 내보내기.
 
 원본 로직: C:\dev\대량등록 마진계산기\app.py 의 /api/analyze·/api/download.
 
@@ -27,7 +27,6 @@ import math
 import uuid
 
 import numpy as np
-import pandas as pd
 from flask import Blueprint, jsonify, request, send_file
 
 from shared.db import SessionLocal
@@ -158,7 +157,6 @@ def _row_meta(row) -> dict:
         "period_from": _iso(row.period_from),
         "period_to": _iso(row.period_to),
         "buy_filename": row.buy_filename,
-        "shopmine_filename": row.shopmine_filename,
         "markets_fetched": row.markets_fetched,
         "markets_failed": row.markets_failed,
         "counts": row.counts,
@@ -280,7 +278,6 @@ def upload():
     markets = sorted(
         {str(m).strip() for m in buy_df.get("마켓명", []) if str(m).strip()})
 
-    # 새 매입 업로드는 이전에 스테이징된 샵마인을 반드시 비운다(stale 방지, 규칙 §6).
     _sess = SessionLocal()
     try:
         pending_store.stage_buy(_sess, raw=raw, filename=f.filename or "buy.xlsx",
@@ -341,35 +338,6 @@ def _share_to_purchase_store(buy_df, filename: str) -> dict:
         logger.exception("매입 엑셀 공유 저장 실패 %s", filename)
         return {"saved": 0, "matched": 0,
                 "error": f"{type(e).__name__}: {str(e)[:200]}"}
-
-
-@bp.route("/upload-shopmine", methods=["POST"])
-def upload_shopmine():
-    """옥션·G마켓 등 보조 매출 엑셀(샵마인 포맷) 스테이징. 선택 사항."""
-    _sess = SessionLocal()
-    try:
-        if not pending_store.has_buy(_sess):
-            return jsonify({"error": "먼저 더망고 매입 엑셀을 업로드하세요."}), 400
-    finally:
-        _sess.close()
-    f = request.files.get("file")
-    if f is None:
-        return jsonify({"error": "파일이 없습니다 (field 'file')."}), 400
-    raw = f.read()
-    try:
-        sell_df = sell_source.from_shopmine_excel(raw, f.filename or "shopmine.xlsx")
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-
-    _sess = SessionLocal()
-    try:
-        pending_store.stage_shopmine(_sess, raw=raw,
-                                     filename=f.filename or "shopmine.xlsx")
-    finally:
-        _sess.close()
-    markets = sorted(
-        {str(m).strip() for m in sell_df.get("쇼핑몰", []) if str(m).strip()})
-    return jsonify({"rows": int(len(sell_df)), "markets": markets})
 
 
 # ── 블랙스팟 분류 계약 복원 (원본 app.py /api/analyze) ─────────────────────
@@ -445,7 +413,7 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
 
     buy_valid, _buy_missing = pipeline.split_by_site_order_no(buy_df)
     mc = matcher.match_for_classifier(buy_valid, sell_df)
-    cls = classifier.classify(mc["matched"], mc["mango_unmatched"], mc["shopmine_only"])
+    cls = classifier.classify(mc["matched"], mc["mango_unmatched"], mc["market_only"])
     classified = [pipeline._json_safe(r, False, counter) for r in cls["classified"]]
     payload["classified"] = classified
     payload["blackspot_summary"] = cls["summary"]
@@ -464,7 +432,7 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
             if mk:
                 existing_keys.add(mk)
         for r in classified:
-            if r.get("데이터출처") in ("더망고+샵마인", "더망고만"):
+            if r.get("데이터출처") in ("더망고+판매처", "더망고만"):
                 mk = str(r.get("마켓주문번호", "")).strip()
                 if mk:
                     existing_keys.add(mk)
@@ -516,7 +484,7 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
 
 @bp.route("/analyze", methods=["POST"])
 def analyze():
-    """마켓 API 조회 + 선택 샵마인 concat → pipeline → aggregate → R2 + DB 저장."""
+    """마켓 API 조회 → pipeline → aggregate → R2 + DB 저장."""
     _sess = SessionLocal()
     try:
         staged = pending_store.get(_sess)
@@ -546,14 +514,6 @@ def analyze():
     # notices = 제외가 아닌 안내(예: 저장분으로 분석함). warnings 와 섞으면 화면이
     # "매출에서 제외했어요" 빨간 배너로 보여줘 거짓 경보가 된다.
     notices = list(sell_df.attrs.get("notices", []) or [])
-
-    # 선택 샵마인 보조 매출 concat
-    shop = None
-    if staged.get("shop_bytes"):
-        shop = {"bytes": staged["shop_bytes"],
-                "filename": staged.get("shop_filename") or "shopmine.xlsx"}
-        shop["df"] = sell_source.from_shopmine_excel(shop["bytes"], shop["filename"])
-        sell_df = pd.concat([sell_df, shop["df"]], ignore_index=True)
 
     # 2) 매칭 + 집계
     out = pipeline.run(staged["df"], sell_df)
@@ -600,10 +560,6 @@ def analyze():
 
     # 3) R2 업로드 — 조회 성공 뒤에만. (실패 run 이 R2 고아를 남기지 않도록 순서 고정)
     buy_key = _put_object(staged["bytes"], _r2_key(staged["filename"]), _XLSX_CT)
-    shop_key = shop_name = None
-    if shop is not None:
-        shop_key = _put_object(shop["bytes"], _r2_key(shop["filename"]), _XLSX_CT)
-        shop_name = shop["filename"]
 
     # 4) DB 저장
     session = SessionLocal()
@@ -612,7 +568,6 @@ def analyze():
             session, payload=payload,
             period_from=since.date(), period_to=until.date(),
             buy_file_key=buy_key, buy_filename=staged["filename"],
-            shopmine_file_key=shop_key, shopmine_filename=shop_name,
             markets_fetched=sell_source.api_markets(),
             markets_failed=warnings, counts=counts,
             created_by=_created_by(),

@@ -16,7 +16,7 @@
 
   function reasonOf(r) {
     var mk = String((r && r['마켓']) || '').trim();
-    var sm = String((r && (r['샵마인_주문상태'] || r['샵마인_샵마인주문상태'])) || '').trim();
+    var sm = String((r && (r['판매처_주문상태'] || r['판매처_판매처주문상태'])) || '').trim();
     var mg = String((r && r['더망고주문상태 (사용자 연동)']) || '').trim();
     /* 판매처 상태가 비어 있으면 더망고 상태로 묶는다 — '빈칸'만 잔뜩 뜨는 걸 막는다. */
     var what = sm || (mg ? '더망고 ' + mg : '상태 없음');

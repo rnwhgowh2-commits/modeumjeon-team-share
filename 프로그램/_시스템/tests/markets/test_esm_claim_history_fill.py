@@ -24,7 +24,6 @@ def session():
     import lemouton.markets.models_orders  # noqa: F401 — 테이블 등록
     import lemouton.sets.models            # noqa: F401 — set_channels 등록
     import lemouton.delivery.models        # noqa: F401 — mango_orders 등록
-    import lemouton.markets.models_shopmine  # noqa: F401 — shopmine_orders 등록
     eng = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(eng, tables=[
         Base.metadata.tables["market_order_lines"],
@@ -32,7 +31,6 @@ def session():
         Base.metadata.tables["product_sets"],
         Base.metadata.tables["set_channels"],
         Base.metadata.tables["mango_orders"],
-        Base.metadata.tables["shopmine_orders"],
     ])
     s = sessionmaker(bind=eng, autoflush=False, expire_on_commit=False)()
     yield s
@@ -196,90 +194,16 @@ def test_더망고_업로드분에서_수령자_전화_상품명을_채운다(se
     assert "수령자" in (claim.get("_mango_filled") or "")
 
 
-def test_샵마인_적재분에서_구매자_주소_실결제까지_채운다(session):
-    """⑥샵마인 — 마켓 취소 API 가 안 주는 값을 샵마인이 취소 전에 받아뒀다.
-    라이브 대조(2026-07-22): 롯데온 공란 38건 중 24건이 샵마인에 전부 값 보유."""
-    from lemouton.markets.models_shopmine import ShopmineOrder
-    session.add(ShopmineOrder(sm_uid="SM1", market="lotteon",
-                              order_no="2026071516654239", buyer="최대혁",
-                              recipient="최대혁", phone="010-1111-2222",
-                              buyer_phone="010-1111-2222", zipcode="12345",
-                              address="서울 강남 테헤란로 1",
-                              product_name="라코스테 스니커즈", option1="270",
-                              qty="1", unit_price="151800", paid_amount="147900"))
-    session.commit()
-    claim = {"판매처": "롯데온", "오픈마켓주문번호": "2026071516654239",
-             "_kind": "change", "주문상태": "취소완료",
-             "상품명": "", "옵션": "", "수량": "", "단가": "", "실결제금액": "",
-             "구매자": "", "구매자번호": "", "수령자": "", "수령자전화번호": "",
-             "주소": "", "우편번호": ""}
-    oe.fill_claim_blanks_from_history([claim], "lotteon", session=session)
-    assert claim["구매자"] == "최대혁"
-    assert claim["수령자전화번호"] == "010-1111-2222"
-    assert claim["주소"] == "서울 강남 테헤란로 1"
-    assert claim["실결제금액"] == "147900"
-    assert claim["상품명"] == "라코스테 스니커즈"
-    assert claim["단가"] == "151800"
-    assert "구매자" in (claim.get("_shopmine_filled") or "")
-    assert claim["주문상태"] == "취소완료"      # 상태 안 덮음
-
-
-def test_샵마인_송장칸의_상태문구는_송장번호로_안_채운다(session):
-    """샵마인 엑셀의 송장 열은 **번호가 아니라 상태**('송장입력됨')를 적는 경우가 있다.
-
-    2026-07-23 라이브 실측: 쿠팡 반품완료 행 「송장입력」 칸에 '송장입력됨'이 떴다
-    (_shopmine_filled 에 '송장입력' 기록). 번호 칸에 문구가 앉으면 화면이 번호를 못 보여줄
-    뿐 아니라 송장 원장·다품 라인 매칭(송장번호 대조)까지 오염된다.
-    """
-    from lemouton.markets.models_shopmine import ShopmineOrder
-    session.add(ShopmineOrder(sm_uid="SM10", market="coupang", order_no="15101749312893",
-                              buyer="여희동", product_name="나이키 비스타 샌들",
-                              invoice="송장입력됨"))
-    session.add(ShopmineOrder(sm_uid="SM11", market="coupang", order_no="15101749312894",
-                              buyer="김구매", product_name="나이키 비스타 샌들",
-                              invoice="612345678901"))
-    session.commit()
-    rows = [{"판매처": "쿠팡", "오픈마켓주문번호": "15101749312893", "_kind": "change",
-             "주문상태": "반품완료", "상품명": "나이키 비스타 샌들", "송장입력": "", "구매자": ""},
-            {"판매처": "쿠팡", "오픈마켓주문번호": "15101749312894", "_kind": "change",
-             "주문상태": "반품완료", "상품명": "나이키 비스타 샌들", "송장입력": "", "구매자": ""}]
-    oe.fill_claim_blanks_from_history(rows, "coupang", session=session)
-    assert rows[0]["송장입력"] == ""              # 상태 문구는 안 들어온다
-    assert rows[1]["송장입력"] == "612345678901"  # 진짜 번호는 그대로 들어온다
-    assert rows[0]["구매자"] == "여희동"           # 다른 칸 채우기는 그대로
-
-
-def test_샵마인_다품주문은_연락처만_채우고_상품값은_안_섞는다(session):
-    """같은 주문번호에 라인 2개 — 어느 상품인지 특정 불가면 상품·금액은 안 채운다.
-    연락처(구매자·주소)는 주문 단위라 어느 라인이든 같아 안전하게 채운다."""
-    from lemouton.markets.models_shopmine import ShopmineOrder
-    session.add(ShopmineOrder(sm_uid="SM2", market="lotteon", order_no="900",
-                              buyer="김구매", address="부산 해운대 1",
-                              product_name="상품A", unit_price="10000"))
-    session.add(ShopmineOrder(sm_uid="SM3", market="lotteon", order_no="900",
-                              buyer="김구매", address="부산 해운대 1",
-                              product_name="상품B", unit_price="20000"))
-    session.commit()
-    claim = {"판매처": "롯데온", "오픈마켓주문번호": "900", "_kind": "change",
-             "주문상태": "취소완료", "상품명": "", "단가": "", "구매자": "", "주소": ""}
-    oe.fill_claim_blanks_from_history([claim], "lotteon", session=session)
-    assert claim["구매자"] == "김구매"          # 주문 단위 정보는 채움
-    assert claim["주소"] == "부산 해운대 1"
-    assert claim["상품명"] == ""                # 라인 특정 불가 → 안 섞음
-    assert claim["단가"] == ""
-
-
 def test_구매확정처럼_상품명은_있는데_연락처만_빈_정상행도_채운다(session):
     """실사례(2026-07-22 엑셀 감사): 11번가 구매확정 목록은 상품명은 주고 단가·배송
-    정보를 안 준다 → '상품명 공란' 조건만으론 대상에서 빠져 샵마인이 못 채웠다."""
-    from lemouton.markets.models_shopmine import ShopmineOrder
-    session.add(ShopmineOrder(sm_uid="SM20", market="eleven11",
-                              order_no="20260717085626200", buyer="김민재",
-                              recipient="김민재", phone="010-6599-4422",
-                              zipcode="48490", address="부산 남구 동명로 1",
-                              product_name="아디다스 스타디움 자켓",
-                              unit_price="37700", paid_amount="33630"))
-    session.commit()
+    정보를 안 준다 → '상품명 공란' 조건만으론 대상에서 빠져 저장분도 못 채웠다."""
+    OS.save([{L.FIELD: "eleven11|20260717085626200|1", "판매처": "11번가",
+              "오픈마켓주문번호": "20260717085626200",
+              "주문일": "2026-07-17 10:00:00", "주문상태": "구매확정",
+              "상품명": "아디다스 스타디움 자켓", "구매자": "김민재",
+              "수령자": "김민재", "수령자전화번호": "010-6599-4422",
+              "우편번호": "48490", "주소": "부산 남구 동명로 1",
+              "단가": "37700", "실결제금액": "33630"}], session=session)
     row = {"판매처": "11번가", "오픈마켓주문번호": "20260717085626200",
            "_kind": "order", "주문상태": "구매확정",
            "상품명": "아디다스 스타디움 자켓",   # 구매확정 목록이 상품명은 준다

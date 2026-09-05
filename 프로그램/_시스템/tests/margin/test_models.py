@@ -13,7 +13,7 @@ def test_columns():
     cols = {c.name for c in MarginAnalysis.__table__.columns}
     assert cols == {
         "id", "created_at", "created_by", "period_from", "period_to",
-        "buy_file_key", "buy_filename", "shopmine_file_key", "shopmine_filename",
+        "buy_file_key", "buy_filename",
         "markets_fetched", "markets_failed", "counts", "result_blob",
     }
 

@@ -43,7 +43,9 @@ SUBTABS = [
     #   금액대별·상품별·마켓별·소싱처별)가 옮겨진 적이 없어서 없애면 통째로 사라진다.
     {'key': 'margin', 'label': '마진 계산기',
      'desc': '기간 집계·분석 (일별·월별·브랜드별·마켓별·소싱처별) — 실매입가 입력은 주문 내역에서'},
-    {'key': 'recon', 'label': '샵마인 대조', 'desc': '샵마인 정답지 엑셀 ↔ 우리 적재분 전수 대조 (누락·필드차이)'},
+    # [2026-09-05] 구 통합주문관리 대조 탭 삭제 — 취소건 구매자·주소 보완용 수동 업로드였으나
+    #   실사용 중단 확인(사장님) + 전 마켓 API 연동 완료로 필요성 소멸. 관련 모델·모듈·
+    #   대조 라우트(/orders/*-recon/*) 함께 제거.
     # [2026-08-06] 정산예정금액 — 기간별 미래 정산예정금(자금계획). 🔴 옛 sales 탭 id 재사용
     #   금지(사이드바 _REMOVED_IDS 가 i_sales 를 지운다) — 새 id=settle_plan.
     {'key': 'settle_plan', 'label': '정산예정금액',
@@ -398,7 +400,7 @@ def _export_visible_rows():
         cols = [c.strip() for c in cols.split(',') if c.strip()]
     # 화면 전용 칸 중 **엑셀에도 나가야 하는 것**만 맨 앞에 붙인다(사장님 확정 2026-08-06).
     #  🔴 화이트리스트로 막는다 — 클라이언트가 보낸 아무 이름이나 열이 되면 엑셀을 쓰는
-    #    다른 흐름(마진계산기·샵마인 대조 양식)이 모르는 열을 만나게 된다.
+    #    다른 흐름(마진계산기 등)이 모르는 열을 만나게 된다.
     #  🔴 기존 열 목록(ALL_COLUMNS)에는 넣지 않는다 → 기존 열 순서·이름은 그대로다.
     _lead_in = d.get('lead_cols')
     if not isinstance(_lead_in, (list, tuple)):
@@ -2753,9 +2755,9 @@ def orders_diag_e11_order_raw():
 def orders_diag_ss_settle():
     """[읽기 전용] 스마트스토어 정산조회 raw — 한 주문의 settleExpectAmount 행 전부.
 
-    왜 필요한가 (2026-07-25 샵마인 대조 24건) — 프로그램은 네이버 settleExpectAmount 를
-    productOrderId 별로 **전 행(상품/배송비/기타비용/지원금) 합산**한다. 샵마인 정산예상과
-    갈릴 때, 어느 행이 합쳐져 갈리는지 눈으로 봐야 '프로그램이 틀렸나 샵마인이 다른가'를
+    왜 필요한가 (2026-07-25 정답지 대조 24건) — 프로그램은 네이버 settleExpectAmount 를
+    productOrderId 별로 **전 행(상품/배송비/기타비용/지원금) 합산**한다. 정답지 정산예상과
+    갈릴 때, 어느 행이 합쳐져 갈리는지 눈으로 봐야 '프로그램이 틀렸나 정답지가 다른가'를
     가른다(섣불리 프로그램을 고치면 네이버 실정산에서 멀어질 위험).
 
     `?from=YYYY-MM-DD&to=YYYY-MM-DD&orders=orderId,orderId&alias=`
@@ -3401,78 +3403,6 @@ def inspect_upload():
             warn.append(f"마켓 조회 실패: {type(e).__name__}")
         return jsonify(ok=True, inserted=res['inserted'], updated=res['updated'],
                        parsed=len(rows), market_checked=enr.get('checked', 0), warnings=warn)
-    finally:
-        s.close()
-
-
-@bp.route('/shopmine-recon/run', methods=['POST'])
-def shopmine_recon_run():
-    """샵마인 정답지 엑셀 업로드 → 전수 대조 → 결과 저장(지난번 대비 추적).
-
-    기간 = 파일이 결정(파일 주문일 min~max 로 우리 적재분을 로드). 결과는
-    shopmine_recon_runs 에 저장해 다음 실행 때 「지난번 대비」로 보여준다.
-    """
-    from lemouton.markets import shopmine_recon as _smr
-    from lemouton.markets.models_shopmine import ShopmineReconRun
-
-    f = request.files.get('file')
-    if not f:
-        return jsonify(ok=False, error='파일이 없습니다.'), 400
-    raw = f.read()
-    s = SessionLocal()
-    try:
-        try:
-            res = _smr.run_against_store(raw, session=s)
-        except ValueError as e:
-            return jsonify(ok=False, error=str(e)), 422
-        except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
-            return jsonify(ok=False, error=f'대조 실패: {type(e).__name__}: {e}'), 400
-        # 🔴 `defs`(노랑 표본)는 목록이라 **detail 쪽**에 둔다 — summary 에 두면
-        #   실행 30회치가 그대로 쌓여 Supabase 무료 티어를 먹는다.
-        #   집계인 `def_reasons` 는 작으므로 summary 에 남아 화면 요약에 쓰인다.
-        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided', 'defs')}
-        summary = {k: v for k, v in res.items() if k not in detail}
-        prev = (s.query(ShopmineReconRun)
-                .order_by(ShopmineReconRun.id.desc()).first())
-        run = ShopmineReconRun(filename=f.filename or '',
-                               period_from=res['period'][0],
-                               period_to=res['period'][1],
-                               summary=summary, result=detail)
-        s.add(run)
-        # 저장 상한 30회 — Supabase 무료 티어(500MB) 보호. 오래된 실행부터 삭제.
-        olds = (s.query(ShopmineReconRun)
-                .order_by(ShopmineReconRun.id.desc()).offset(29).all())
-        for o in olds:
-            s.delete(o)
-        s.commit()
-        return jsonify(ok=True, ran_at=run.ran_at.isoformat(),
-                       summary=summary, detail=detail,
-                       prev=(prev.summary if prev else None),
-                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
-    finally:
-        s.close()
-
-
-@bp.route('/shopmine-recon/latest')
-def shopmine_recon_latest():
-    """마지막 대조 결과(탭 진입 시 초기 표시) + 직전 실행 요약(지난번 대비)."""
-    from lemouton.markets.models_shopmine import ShopmineReconRun
-
-    s = SessionLocal()
-    try:
-        runs = (s.query(ShopmineReconRun)
-                .order_by(ShopmineReconRun.id.desc()).limit(2).all())
-        if not runs:
-            return jsonify(ok=True, latest=None)
-        latest = runs[0]
-        prev = runs[1] if len(runs) > 1 else None
-        return jsonify(ok=True,
-                       latest={'ran_at': latest.ran_at.isoformat(),
-                               'filename': latest.filename,
-                               'summary': latest.summary,
-                               'detail': latest.result},
-                       prev=(prev.summary if prev else None),
-                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
     finally:
         s.close()
 

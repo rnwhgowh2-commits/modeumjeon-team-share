@@ -128,7 +128,7 @@ def _accounts_for_plan(market: str) -> list:
     """계획에 넣을 (prefix, 별칭) 목록. 조회 불가·0개면 대표계정 폴백 [(None, None)].
 
     ★ 예전엔 백필 fetcher 가 대표계정만 조회해 나머지 계정의 과거 주문이 통째
-    빠졌다(2026-07-22 샵마인 대사: 누락 605건 최대 원인 — G마켓 위시 44%·롯데온 64%).
+    빠졌다(2026-07-22 정답지 대사: 누락 605건 최대 원인 — G마켓 위시 44%·롯데온 64%).
     """
     try:
         from lemouton.markets.order_export import _active_accounts

@@ -10,7 +10,7 @@ from datetime import datetime
 import pandas as pd
 
 from lemouton.margin.config import (
-    MANGO_COLS, SHOPMINE_COLS,
+    MANGO_COLS, MARKET_SELL_COLS,
     MEMO_SKIP_CODES,
     MANGO_PENDING_STATUSES, MANGO_KKADAEGI_STATUSES,
     MARKET_STATUS_FAIL,
@@ -46,7 +46,7 @@ CLASSIFICATION_MAP = {
     ("O_불완전", "O", "O"):        ("2_매입O(불완전)", "2-1", "매입가미입력(정산O)"),
     ("O_불완전", "O", "X_취소"):   ("2_매입O(불완전)", "2-2", "블랙스팟의심(흔적O+취소)"),
     ("O_불완전", "O", "X_반품"):   ("2_매입O(불완전)", "2-3", "블랙스팟의심(흔적O+반품)"),
-    ("O_불완전", "O", "X_미매칭"): ("2_매입O(불완전)", "2-4", "데이터미비+샵마인누락"),
+    ("O_불완전", "O", "X_미매칭"): ("2_매입O(불완전)", "2-4", "데이터미비+판매처누락"),
     ("O_불완전", "X", "O"):        ("2_매입O(불완전)", "2-5", "배송누락+데이터미비"),
     ("O_불완전", "X", "X_취소"):   ("2_매입O(불완전)", "2-6", "매입흔적+취소"),
     ("O_불완전", "X", "X_반품"):   ("2_매입O(불완전)", "2-7", "매입흔적+반품"),
@@ -70,7 +70,7 @@ CLASSIFICATION_MAP = {
     ("X_불명", "O", "X_취소"):   ("4_매입X(불명)", "4-5", "이상(매입불명+배송+취소)"),
     ("X_불명", "O", "X_반품"):   ("4_매입X(불명)", "4-6", "이상(매입불명+배송+반품)"),
     ("X_불명", "X", "X_미매칭"): ("4_매입X(불명)", "4-7", "유령건"),
-    ("X_불명", "O", "X_미매칭"): ("4_매입X(불명)", "4-8", "이상(매입불명+배송+샵마인없음)"),
+    ("X_불명", "O", "X_미매칭"): ("4_매입X(불명)", "4-8", "이상(매입불명+배송+판매처없음)"),
 }
 
 # 발송대기: 매입상태별 (정산 무시)
@@ -114,9 +114,9 @@ CHECK_INFO = {
              "[확인2] 마켓: 반품 사유, 환불 진행 상태\n"
              "[대응] 소싱처 반품 미접수 시 → 즉시 반품 신청, 회수 확인"),
     "1-6":  (False, True,
-             "[문제] 매입+배송 완료했는데 샵마인에 주문기록 없음 → 정산 누락 가능\n"
+             "[문제] 매입+배송 완료했는데 판매처에 주문기록 없음 → 정산 누락 가능\n"
              "[확인] 마켓: 해당 주문번호로 마켓에 직접 검색 → 주문 존재 여부\n"
-             "[대응] 샵마인 동기화 오류면 재동기화, 마켓에서 삭제되었으면 CS 확인"),
+             "[대응] 판매처 동기화 오류면 재동기화, 마켓에서 삭제되었으면 CS 확인"),
     "1-7":  (True,  False,
              "[문제] 매입+정산은 되는데 송장번호가 없음 → 배송 안 됐거나 송장 미입력\n"
              "[확인] 소싱처: 간단메모URL → 소싱처에서 발송했는지, 송장번호 확인\n"
@@ -130,10 +130,10 @@ CHECK_INFO = {
              "[확인] 소싱처: 간단메모URL → 반품/환불 처리 상태\n"
              "[대응] 소싱처에 반품 접수, 환불 확인"),
     "1-10": (True,  True,
-             "[문제] 매입했는데 샵마인 미매칭+배송 안 됨 → 주문 자체 의심\n"
+             "[문제] 매입했는데 판매처 미매칭+배송 안 됨 → 주문 자체 의심\n"
              "[확인1] 소싱처: 간단메모URL → 주문상태 확인\n"
              "[확인2] 마켓: 주문번호로 마켓 직접 검색\n"
-             "[대응] 마켓에 주문 없으면 소싱처 취소, 있으면 샵마인 동기화"),
+             "[대응] 마켓에 주문 없으면 소싱처 취소, 있으면 판매처 동기화"),
     "1-11": (False, False, "정상 프로세스 진행중 (매입 완료, 배송 대기)"),
     "1-12": (False, False, "정상 까대기 진행중 (매입 완료, 해외 현지 배송 중 → 사무실 입고 후 발송 예정)"),
 
@@ -152,7 +152,7 @@ CHECK_INFO = {
              "[확인2] 마켓: 반품 사유\n"
              "[대응] 소싱처 반품 접수 확인 후 더망고 정보 보완"),
     "2-4":  (True,  True,
-             "[문제] 매입 흔적만 있고 샵마인에도 없음 → 주문 자체 의심\n"
+             "[문제] 매입 흔적만 있고 판매처에도 없음 → 주문 자체 의심\n"
              "[확인1] 소싱처: 간단메모URL → 매입 실제 여부\n"
              "[확인2] 마켓: 주문 존재 여부\n"
              "[대응] 확인 후 더망고 정보 보완 또는 정리"),
@@ -169,7 +169,7 @@ CHECK_INFO = {
              "[확인] 소싱처: 간단메모URL → 매입/반품 처리 확인\n"
              "[대응] 매입했다면 소싱처 환불"),
     "2-8":  (True,  True,
-             "[문제] 매입 흔적+미배송+샵마인 미매칭 → 전체 추적 불가\n"
+             "[문제] 매입 흔적+미배송+판매처 미매칭 → 전체 추적 불가\n"
              "[확인1] 소싱처: 매입 여부 확인\n"
              "[확인2] 마켓: 주문 존재 여부\n"
              "[대응] 확인 후 정리"),
@@ -200,11 +200,11 @@ CHECK_INFO = {
              "[확인2] 마켓: 반품 사유\n"
              "[대응] 매입했다면 소싱처 반품 처리"),
     "3-7":  (False, True,
-             "[문제] 미이행 사유 + 미배송 + 샵마인 미매칭 → 정상 취소 대기 상태일 수 있음\n"
+             "[문제] 미이행 사유 + 미배송 + 판매처 미매칭 → 정상 취소 대기 상태일 수 있음\n"
              "[확인] 마켓: 주문 존재 여부\n"
              "[대응] 마켓에 있으면 즉시 취소 처리"),
     "3-8":  (False, True,
-             "[문제] 미이행 사유 + 배송 O + 샵마인 미매칭 → 배송된 경로 불명\n"
+             "[문제] 미이행 사유 + 배송 O + 판매처 미매칭 → 배송된 경로 불명\n"
              "[확인] 마켓: 배송 이력\n"
              "[대응] 확인 후 정리"),
     "3-9":  (False, True,
@@ -243,11 +243,11 @@ CHECK_INFO = {
              "[확인2] 마켓: 반품 사유\n"
              "[대응] 매입했다면 소싱처 반품/환불 처리"),
     "4-7":  (False, True,
-             "[문제] 더망고에만 주문 흔적, 샵마인 미매칭, 매입/배송 기록 없음\n"
+             "[문제] 더망고에만 주문 흔적, 판매처 미매칭, 매입/배송 기록 없음\n"
              "[확인] 마켓: 주문번호로 마켓에 직접 검색 → 주문 존재 여부\n"
              "[대응] 마켓에 없으면 유령건으로 정리, 있으면 처리 필요"),
     "4-8":  (True,  True,
-             "[문제] 매입불명+배송됨+샵마인 미매칭 → 전체 추적 불가\n"
+             "[문제] 매입불명+배송됨+판매처 미매칭 → 전체 추적 불가\n"
              "[확인1] 소싱처: 더망고 주문 검색 → 매입/배송 확인\n"
              "[확인2] 마켓: 주문 존재 여부\n"
              "[대응] 전방위 데이터 확인 후 정리"),
@@ -265,7 +265,7 @@ CHECK_INFO = {
     "5-2":  (False, False, "송장전송실패 + 취소건 → 이미 취소된 건에 송장 시도 (정상)"),
     "5-3":  (False, False, "송장전송실패 + 반품건 → 이미 반품된 건에 송장 시도 (정상)"),
     "5-4":  (False, True,
-             "[문제] 송장전송실패 + 샵마인 미매칭 → 주문 자체 확인 필요\n"
+             "[문제] 송장전송실패 + 판매처 미매칭 → 주문 자체 확인 필요\n"
              "[확인] 마켓: 주문번호로 검색\n"
              "[대응] 마켓에 주문 있으면 송장 재전송"),
     "5-5":  (False, True,
@@ -273,11 +273,11 @@ CHECK_INFO = {
              "[확인] 마켓: 주문 상태, 자동취소 임박 여부\n"
              "[대응] 즉시 이행 또는 취소 결정"),
     "5-6":  (False, True,
-             "[문제] 샵마인에만 있고 더망고에 없음 → 더망고 누락 또는 다른 경로 주문\n"
+             "[문제] 판매처에만 있고 더망고에 없음 → 더망고 누락 또는 다른 경로 주문\n"
              "[확인] 마켓: 주문 경로 확인 (더망고 외 채널?)\n"
              "[대응] 더망고에서 해당 주문 검색, 누락이면 등록"),
-    "5-7":  (False, False, "샵마인에만 있는 취소/반품건 → 더망고에서 삭제되었을 가능성 (정상)"),
-    "5-8":  (False, False, "샵마인에만 있는 반품건 → 반품 처리 후 더망고에서 삭제됨 (정상)"),
+    "5-7":  (False, False, "판매처에만 있는 취소/반품건 → 더망고에서 삭제되었을 가능성 (정상)"),
+    "5-8":  (False, False, "판매처에만 있는 반품건 → 반품 처리 후 더망고에서 삭제됨 (정상)"),
 }
 
 
@@ -394,53 +394,53 @@ def _determine_settlement_status(row: dict) -> str:
     O:        매칭됨 + 정상 정산 상태
     X_취소:   매칭됨 + 취소 키워드
     X_반품:   매칭됨 + 반품 키워드
-    X_미매칭: 샵마인 매칭 안됨
+    X_미매칭: 판매처 매칭 안됨
     """
-    if not row.get("샵마인_매칭", False):
+    if not row.get("판매처_매칭", False):
         return "X_미매칭"
 
     # 최우선 0: 정상건 존재 플래그
-    if row.get("샵마인_정상건존재", False):
+    if row.get("판매처_정상건존재", False):
         return "O"
 
-    shopmine_status = str(
-        row.get(f"샵마인_{SHOPMINE_COLS['order_status']}", "")
+    mk_sell_status = str(
+        row.get(f"판매처_{MARKET_SELL_COLS['order_status']}", "")
     ).strip()
 
-    if shopmine_status in SETTLEMENT_O_EXACT:
+    if mk_sell_status in SETTLEMENT_O_EXACT:
         return "O"
-    if shopmine_status in SETTLEMENT_X_EXCEPT_TO_O:
+    if mk_sell_status in SETTLEMENT_X_EXCEPT_TO_O:
         return "O"
     for kw in SETTLEMENT_REVERT_KEYWORDS:
-        if kw in shopmine_status:
+        if kw in mk_sell_status:
             return "O"
 
     # 2순위: 애매한 상태 → 메모 오버라이드
     memos = [
-        row.get(f"샵마인_{SHOPMINE_COLS.get('shopmine_status', '샵마인주문상태')}", ""),
-        row.get("샵마인_메모", ""),
-        row.get("샵마인_판매처", ""),
+        row.get(f"판매처_{MARKET_SELL_COLS.get('mk_sell_status', '판매처주문상태')}", ""),
+        row.get("판매처_메모", ""),
+        row.get("판매처_판매처", ""),
         row.get(MANGO_COLS.get("memo", "간단메모"), ""),
     ]
-    memo_result = _memo_override(shopmine_status, memos)
+    memo_result = _memo_override(mk_sell_status, memos)
     if memo_result:
         return memo_result
 
-    if shopmine_status in SETTLEMENT_X_EXACT:
-        if any(kw in shopmine_status for kw in ["반품", "회수", "환불", "수거"]):
+    if mk_sell_status in SETTLEMENT_X_EXACT:
+        if any(kw in mk_sell_status for kw in ["반품", "회수", "환불", "수거"]):
             return "X_반품"
-        if any(kw in shopmine_status for kw in ["교환"]):
+        if any(kw in mk_sell_status for kw in ["교환"]):
             return "X_반품"
         return "X_취소"
 
     for kw in SETTLEMENT_CANCEL_KEYWORDS:
-        if kw in shopmine_status:
+        if kw in mk_sell_status:
             return "X_취소"
     for kw in SETTLEMENT_RETURN_KEYWORDS:
-        if kw in shopmine_status:
+        if kw in mk_sell_status:
             return "X_반품"
     for kw in SETTLEMENT_EXCHANGE_KEYWORDS:
-        if kw in shopmine_status:
+        if kw in mk_sell_status:
             return "O"
 
     return "O"
@@ -480,16 +480,16 @@ def _cross_validate(row: dict, settlement: str):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 샵마인만 있는 행 정산 분류 (5-6, 5-7, 5-8)
+# 판매처만 있는 행 정산 분류 (5-6, 5-7, 5-8)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _classify_shopmine_only(row: dict) -> tuple:
-    shopmine_status = str(row.get(SHOPMINE_COLS["order_status"], "")).strip()
+def _classify_market_only(row: dict) -> tuple:
+    mk_sell_status = str(row.get(MARKET_SELL_COLS["order_status"], "")).strip()
 
-    is_reverted = any(kw in shopmine_status for kw in SETTLEMENT_REVERT_KEYWORDS)
-    is_cancel   = any(kw in shopmine_status for kw in SETTLEMENT_CANCEL_KEYWORDS)
-    is_return   = any(kw in shopmine_status for kw in SETTLEMENT_RETURN_KEYWORDS)
-    is_exchange = any(kw in shopmine_status for kw in SETTLEMENT_EXCHANGE_KEYWORDS)
+    is_reverted = any(kw in mk_sell_status for kw in SETTLEMENT_REVERT_KEYWORDS)
+    is_cancel   = any(kw in mk_sell_status for kw in SETTLEMENT_CANCEL_KEYWORDS)
+    is_return   = any(kw in mk_sell_status for kw in SETTLEMENT_RETURN_KEYWORDS)
+    is_exchange = any(kw in mk_sell_status for kw in SETTLEMENT_EXCHANGE_KEYWORDS)
 
     if is_reverted:
         return ("5-6", "더망고누락(정산O/철회복구)")
@@ -504,7 +504,7 @@ def _classify_shopmine_only(row: dict) -> tuple:
 # 메인 분류 함수
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def classify(matched: list, mango_unmatched: list, shopmine_only: list) -> dict:
+def classify(matched: list, mango_unmatched: list, market_only: list) -> dict:
     """탭1 전체 분류 실행.
 
     Returns:
@@ -533,23 +533,23 @@ def classify(matched: list, mango_unmatched: list, shopmine_only: list) -> dict:
         row["마켓확인필요"]   = market_chk
         row["확인사항"]       = note
         row["교차검증"]       = cross
-        row["데이터출처"]     = "더망고+샵마인" if row.get("샵마인_매칭", False) else "더망고만"
+        row["데이터출처"]     = "더망고+판매처" if row.get("판매처_매칭", False) else "더망고만"
         classified.append(row)
 
-    for row in shopmine_only:
-        detail_code, detail_label = _classify_shopmine_only(row)
+    for row in market_only:
+        detail_code, detail_label = _classify_market_only(row)
         sourcing_chk, market_chk, note = _get_check_info(detail_code)
 
         row["매입상태"]       = "확인불가"
         row["배송상태"]       = "확인불가"
-        row["정산상태"]       = "샵마인만"
+        row["정산상태"]       = "판매처만"
         row["대분류"]         = "5_교차검증"
         row["상세분류"]       = f"{detail_code}_{detail_label}"
         row["소싱처확인필요"] = sourcing_chk
         row["마켓확인필요"]   = market_chk
         row["확인사항"]       = note
         row["교차검증"]       = None
-        row["데이터출처"]     = "샵마인만"
+        row["데이터출처"]     = "판매처만"
         classified.append(row)
 
     # 요약 통계

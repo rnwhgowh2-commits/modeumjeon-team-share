@@ -52,15 +52,61 @@ def test_match_data_stage1_precise():
     assert r["마켓"] == "쿠팡"           # MARKET_REVERSE 역변환
 
 
+def _undo_shopmine_word_purge(text: str) -> str:
+    """2026-09 "샵마인" 단어 제거 작업(사장님 지시)에서 의도적으로 바꾼 식별자를
+    원본 이름으로 되돌린다 — 무수정 이식 가드가 이 사전 승인된 리네임까지 diff 로
+    잡으면 안 되므로, 비교 직전에만 원복해 실제 로직 변조와 구분한다."""
+    reps = [
+        ("MARKET_SELL_COLS", "SHOPMINE_COLS"),
+        ("_PANMAECHEO_TO_CHANNEL_CODE", "_PANMAECHEO_TO_SHOPMINE"),
+        ("market_to_channel_code", "market_to_shopmine"),
+        ("market_df", "shopmine_df"),
+        ("market_by_order", "shopmine_by_order"),
+        ("market_lookup", "shopmine_lookup"),
+        ("market_has_normal", "shopmine_has_normal"),
+        ("market_all_statuses", "shopmine_all_statuses"),
+        ("matched_market_keys", "matched_shopmine_keys"),
+        ("market_key", "shopmine_key"),
+        ("market_row", "shopmine_row"),
+        ("market_only", "shopmine_only"),
+        ("판매처 매출", "샵마인 매출"),
+        ("판매처_매칭", "샵마인_매칭"),
+        ("판매처_정상건존재", "샵마인_정상건존재"),
+        ("판매처_모든주문상태", "샵마인_모든주문상태"),
+        ("판매처_주문상태", "샵마인_주문상태"),
+        ("판매처_정산예상금액(배송비포함)", "샵마인_정산예상금액(배송비포함)"),
+        ("판매처_송장입력", "샵마인_송장입력"),
+        ("판매처_{col}", "샵마인_{col}"),
+        ("판매처 오픈마켓주문번호", "샵마인 오픈마켓주문번호"),
+        ("# 판매처(마켓 API) 측 정보", "# 샵마인 측 정보"),
+        ("'판매처_*' 필드", "'샵마인_*' 필드"),
+        ("판매처에만 있는 행", "샵마인에만 있는 행"),
+    ]
+    for new, old in reps:
+        text = text.replace(new, old)
+    # 삭제된 죽은 필드 '샵마인_샵마인주문상태' 한 줄 — 실데이터에서 늘 빈 문자열이던
+    # 필드라 2026-09 정리 때 아예 지웠다(단순 리네임이 아니라 삭제). 원본과의 줄 단위
+    # diff 를 맞추려면 이 자리에 그 줄을 되살려 넣어야 한다(로직상으로는 죽은 채였다).
+    text = text.replace(
+        "            '샵마인_주문상태':           str(s_row.get('주문상태', '') or ''),\n"
+        "            '샵마인_정산예상금액(배송비포함)':",
+        "            '샵마인_주문상태':           str(s_row.get('주문상태', '') or ''),\n"
+        "            '샵마인_샵마인주문상태':     str(s_row.get('샵마인주문상태', '') or ''),\n"
+        "            '샵마인_정산예상금액(배송비포함)':",
+    )
+    return text
+
+
 def test_source_is_verbatim_except_import_lines():
-    """원본과의 diff 가 config import 두 줄뿐이어야 한다 (docstring 포함 전부 동일).
+    """원본과의 diff 가 config import 두 줄 + 승인된 샵마인 리네임뿐이어야 한다.
 
     원본은 개발자 PC 에만 있는 단독앱이라 CI·팀원 PC 에서는 skip 된다.
     (skip 이 아니라 FileNotFoundError 로 '에러' 나면 스위트 전체가 빨개진다.)
     """
     if not ORIGINAL.exists():
         pytest.skip(f"원본 마진계산기 없음: {ORIGINAL}")
-    ported = pathlib.Path(M.__file__).read_text(encoding="utf-8").splitlines()
+    ported = _undo_shopmine_word_purge(
+        pathlib.Path(M.__file__).read_text(encoding="utf-8")).splitlines()
     original = ORIGINAL.read_text(encoding="utf-8").splitlines()
 
     def strip(lines):

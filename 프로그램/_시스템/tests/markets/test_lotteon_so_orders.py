@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """롯데온 셀러오피스 크롤분 — 업서트·채움·누락 취소라인 추가·철회 잔존 교정.
 
-배경(2026-07-23 샵마인 387건 대조): OpenAPI 가 구조적으로 못 주는 3종 —
+배경(2026-07-23 정답지 387건 대조): OpenAPI 가 구조적으로 못 주는 3종 —
 ①부분취소의 취소 라인(018057538·018074798) ②취소건 구매자(2218436713 등)
 ③철회 취소 후 정상 복귀 신호(1917781423). 셀러오피스 화면이 유일 원천.
 """
@@ -17,7 +17,7 @@ from lemouton.markets import lotteon_so as SO
 @pytest.fixture
 def session():
     from shared.db import Base
-    import lemouton.markets.models_shopmine  # noqa: F401 — lotteon_so_orders 등록
+    import lemouton.markets.models_lotteon_so  # noqa: F401 — lotteon_so_orders 등록
     eng = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(eng, tables=[Base.metadata.tables["lotteon_so_order_lines"]])
     s = sessionmaker(bind=eng, autoflush=False, expire_on_commit=False)()
@@ -43,7 +43,7 @@ def test_업서트는_멱등_같은키는_갱신(session):
     assert st == {"new": 2, "updated": 0, "skipped_no_odno": 0}
     st2 = SO.upsert_rows([_so("2026070100000001", buyer="박구매")], session=session)
     assert st2["updated"] == 1 and st2["new"] == 0
-    from lemouton.markets.models_shopmine import LotteonSoOrder
+    from lemouton.markets.models_lotteon_so import LotteonSoOrder
     assert session.get(LotteonSoOrder, ("2026070100000001", "1", "1")).buyer == "박구매"
 
 
@@ -54,7 +54,7 @@ def test_od_no_없는_라인은_스킵_보고(session):
 
 def test_HTML_이스케이프_정규화(session):
     SO.upsert_rows([_so("2026070100000004", product_name="&lt;매장정품&gt; 커버낫")], session=session)
-    from lemouton.markets.models_shopmine import LotteonSoOrder
+    from lemouton.markets.models_lotteon_so import LotteonSoOrder
     assert session.get(LotteonSoOrder, ("2026070100000004", "1", "1")).product_name == "<매장정품> 커버낫"
 
 

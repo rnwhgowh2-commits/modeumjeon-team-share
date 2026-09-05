@@ -93,26 +93,6 @@ def test_upload_infers_period_with_3day_margin(client):
     assert j["markets"] == ["쿠팡"]
 
 
-def test_new_buy_upload_clears_staged_shopmine(client, monkeypatch):
-    """새 매입 업로드는 이전 샵마인 스테이징을 비운다(옛 매출이 따라붙는 stale 방지)."""
-    from lemouton.margin import pending_store as _ps
-    _upload(client)
-    s2 = api_margin.SessionLocal()
-    try:
-        _ps.stage_shopmine(s2, raw=b"x", filename="shopmine.xlsx")
-        assert _ps.get(s2)["shop_bytes"] == b"x"
-    finally:
-        s2.close()
-
-    _upload(client)  # 새 매입 업로드
-
-    s3 = api_margin.SessionLocal()
-    try:
-        assert not _ps.get(s3).get("shop_bytes")
-    finally:
-        s3.close()
-
-
 # ── 분석 ────────────────────────────────────────────────────────────────
 
 def test_analyze_requires_upload_first(client, monkeypatch):

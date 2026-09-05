@@ -124,7 +124,7 @@ class TestFillMissing:
     def test_status_words_are_not_invoices(self, session):
         """'송장입력됨' 같은 상태 문구는 송장번호가 아니다 — 저장도, 채움도 안 한다.
 
-        2026-07-23 라이브: 샵마인 대조가 이 문구를 송장 칸에 채워 원장까지 오염될 뻔했다.
+        2026-07-23 라이브: 정답지 대조가 이 문구를 송장 칸에 채워 원장까지 오염될 뻔했다.
         """
         from lemouton.markets.invoice_ledger import remember, fill_missing
         from lemouton.sourcing.models_v2 import InvoiceLedger

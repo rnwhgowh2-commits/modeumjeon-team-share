@@ -26,7 +26,7 @@ def aggregate(result_rows, price_ranges):
             'brand': [], 'priceRange': [],
             'filters': {'brands': [], 'markets': [], 'priceRange': []},
             'reconcile': {'총매출': 0, 'Σ마켓별': 0, 'Σ브랜드별': 0, '일치': True,
-                          '더망고만': 0, '샵마인만': 0, '마켓미확정': 0},
+                          '더망고만': 0, '판매처만': 0, '마켓미확정': 0},
             'brand_unresolved': {'건수': 0, '매출': 0, '상품명': []},
         }
 
@@ -182,17 +182,17 @@ def aggregate(result_rows, price_ranges):
             card_sourcing_need += 1
 
     # ── 블랙스팟 카드 집계 (Phase 2c) ──
-    # 카드 집계 기준: 더망고 기준 (매칭 + 더망고만) — 샵마인만 제외
+    # 카드 집계 기준: 더망고 기준 (매칭 + 더망고만) — 판매처만 제외
     # 블랙스팟 판단의 핵심은 실제 사용자가 주문한 건(더망고) 이므로.
     # _aggregate 는 matched 기반이라 '데이터출처' 필드가 없을 수 있음.
     # 그 경우 아래 기본 카드 카운트는 0 으로 두고, api_analyze 에서
     # store['classified'] 기반 카드 카운트를 덮어쓴다 (_compute_card_counts).
     mango_based = [
         r for r in result_rows
-        if r.get('데이터출처') in ('더망고+샵마인', '더망고만')
+        if r.get('데이터출처') in ('더망고+판매처', '더망고만')
     ]
-    shopmine_only_count = sum(
-        1 for r in result_rows if r.get('데이터출처') == '샵마인만'
+    market_only_count = sum(
+        1 for r in result_rows if r.get('데이터출처') == '판매처만'
     )
 
     immediate_check = 0
@@ -260,7 +260,7 @@ def aggregate(result_rows, price_ranges):
         'card_pending':              pending_count,
         'card_kkadaegi':             kkadaegi_count,
         'card_margin':               margin_issue,
-        'card_shopmine_only_count':  shopmine_only_count,
+        'card_market_only_count':  market_only_count,
     }
 
     ndf = normal
@@ -310,7 +310,7 @@ def aggregate(result_rows, price_ranges):
     }
     _src = df['데이터출처'] if '데이터출처' in df.columns else pd.Series([], dtype=str)
     reconcile['더망고만'] = int((_src == '더망고만').sum())
-    reconcile['샵마인만'] = int((_src == '샵마인만').sum())
+    reconcile['판매처만'] = int((_src == '판매처만').sum())
     reconcile['마켓미확정'] = int((df['마켓'].fillna('').astype(str).str.strip() == '').sum()) if '마켓' in df.columns else 0
 
     _mj = df[df['브랜드'] == '미확정'] if '브랜드' in df.columns else df.iloc[0:0]

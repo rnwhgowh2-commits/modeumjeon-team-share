@@ -54,18 +54,20 @@ def test_empty_payload_still_produces_workbook():
 
 
 def test_real_payload_roundtrips():
-    """실데이터 166행이 실제로 엑셀로 나가는지 (openpyxl 시트명 31자 제한 등)."""
+    """실데이터 166행이 실제로 엑셀로 나가는지 (openpyxl 시트명 31자 제한 등).
+
+    2026-09: sell_source 의 구 통합주문관리 엑셀 변환 함수가 삭제됐다(전 마켓 API
+    연동 완료) — 이 재현 경로는 원본 데이터가 있는 그 PC 에서도 더 이상 동작하지
+    않는다(조용한 실패 금지 — 명시적으로 실패한다).
+    """
     import pathlib
-    from lemouton.margin import aggregator as A, buy_parser as B, pipeline as P, sell_source as S
-    from lemouton.margin.config import DEFAULT_PRICE_RANGES
+
+    import pytest
 
     d = pathlib.Path(r"C:\dev\대량등록 마진계산기\데이터\260704")
     if not d.exists():
-        import pytest
         pytest.skip("원본 엑셀 없음")
-    b = next(p for p in d.iterdir() if "더망고" in p.name)
-    s = next(p for p in d.iterdir() if "샵마인" in p.name)
-    out = P.run(B.parse_buy(b.read_bytes(), b.name), S.from_shopmine_excel(s.read_bytes(), s.name))
-    payload = {**out, **A.aggregate(out["matched"], DEFAULT_PRICE_RANGES)}
-    wb = openpyxl.load_workbook(io.BytesIO(E.to_xlsx(payload, tab="all")))
-    assert wb["전체매칭"].max_row == 167   # 헤더 + 166
+    pytest.skip(
+        "구 통합주문관리 엑셀 변환 함수가 삭제돼(2026-09) 이 재현 경로는 더 이상 동작하지 "
+        "않습니다 — 전 마켓 API 연동 완료로 그 입력 포맷 자체가 은퇴함."
+    )

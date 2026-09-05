@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""판매처 주문 → 발송관리 엑셀(샵마인 형식) 재사용 모듈.
+"""판매처 주문 → 발송관리 엑셀 재사용 모듈.
 
 책임: 마켓 주문 조회 + 정산예정금액 조인 → 16컬럼 행 → xlsx 바이트.
 현재 스마트스토어만 실배선(주문+정산 코드·실계정 검증 완료 2026-07-07).
@@ -30,7 +30,7 @@ ALL_COLUMNS = ["주문일", "판매처", "주문상태", "상품명", "옵션", 
                "수령자", "수령자전화번호", "주소", "우편번호", "배송메시지",
                "구매자", "구매자번호", "단가", "배송비", "상품금액", "주문금액",
                "정산예정금액", "판매경로",
-               # 샵마인 대조로 추가(2026-07-08) — 판매처관리 계정명·주문번호·수수료·송장 등.
+               # 정답지 대조로 추가(2026-07-08) — 판매처관리 계정명·주문번호·수수료·송장 등.
                "오픈마켓주문번호", "쇼핑몰별칭", "송장입력", "실결제금액",
                "총주문금액", "옵션추가금", "마켓수수료", "수수료율", "정산예정금(배송비포함)"]
 # 상품금액 = 단가×수량 / 주문금액 = 총주문금액 + 배송비(배송건당 1회).
@@ -89,7 +89,7 @@ def columns_meta() -> dict:
     return {c: column_meta(c) for c in ALL_COLUMNS}
 
 # 롯데온 유입 채널번호(209 chNo) → 제휴/직영 — 2026-07-23 라이브 70건 전수 프로브 실측.
-#  제휴 채널 주문은 판매가×2% 제휴수수료가 정산에서 추가 차감된다(샵마인 대조로 발견,
+#  제휴 채널 주문은 판매가×2% 제휴수수료가 정산에서 추가 차감된다(정답지 대조로 발견,
 #  compute_settlement rate_affiliate). 여기 없는 새 chNo 는 상품별 이력 추정으로 폴백.
 _LO_AFFILIATE_CHNOS = {"100065", "100071", "100077", "101148"}
 _LO_DIRECT_CHNOS = {"100195", "101508", "100279", "101507", "101677", "100002", "100176"}
@@ -232,7 +232,7 @@ _SHIPPED_STATES = {"배송중", "배송완료", "발송완료", "수취완료", 
 def is_invoice_no(v) -> str:
     """송장번호로 볼 수 있는 값만 돌려준다(아니면 '').
 
-    ★대조 자료의 '송장' 열이 **번호가 아니라 상태**를 적는 경우가 있다 — 샵마인은
+    ★대조 자료의 '송장' 열이 **번호가 아니라 상태**를 적는 경우가 있다 — 정답지는
       '송장입력됨'이라고 쓴다(2026-07-23 라이브 실측: 쿠팡 4건·11번가 1건이 화면 번호
       칸에 이 문구로 떴다). 문구가 번호 칸에 앉으면 ①사장님이 번호를 못 보고
       ②송장 원장(invoice_ledger)에 가짜 송장으로 저장되며 ③다품 주문 라인 매칭
@@ -674,8 +674,8 @@ def _lo_subtract_shipping_once(rows: list) -> list:
       크롤로만 들어온 주문은 이 필드가 0/없음 → 빼기가 통째로 건너뛰어졌고, _finalize 가
       배송비를 이중 가산했다(N = pymtTgtAmt + 배송비). 정산 스윕 확장(#473·#474)으로
       옛 주문 실정산이 대량 수집되며 42건으로 커졌다. 라이브 실측: 주문 2026070413404406
-      pymtTgtAmt=41,265(=샵마인 배송비포함) → 프로그램 45,265 = 정확히 +4,000.
-      빼는 값을 `배송비`로 맞추면 K=37,265·N=41,265=샵마인. _lo_dvcst==배송비였던 기존
+      pymtTgtAmt=41,265(=정답지 배송비포함) → 프로그램 45,265 = 정확히 +4,000.
+      빼는 값을 `배송비`로 맞추면 K=37,265·N=41,265=정답지. _lo_dvcst==배송비였던 기존
       정상건은 값이 같아 결과 불변.
 
     주문당 1회만(다품 라인 과차감 방지 — _finalize _shipkey 규약 동일). change(회수·반품
@@ -707,7 +707,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
 
     claims_only=True + claim_to_now=False = **과거 클레임 백필 모드**(2026-07-22).
     확정 전 취소는 정산API(구매확정건만)에 안 나와 과거 취소 233건이 통째 빠졌다
-    (샵마인 대사 실측). 이 모드는 209 를 안 돌고 클레임 3종만 창 안에서 걷는다.
+    (정답지 대사 실측). 이 모드는 209 를 안 돌고 클레임 3종만 창 안에서 걷는다.
     """
     import html as _html
     from shared.platforms.lotteon.orders import (iter_delivery_orders,
@@ -717,7 +717,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   배송지시가 나중에(예: 07-12 주문 → 07-13 지시생성) 잡히면 [since,until] 창 밖이라
     #   통째 누락된다(라이브: 07-12 신규주문 6건, 서버 프로브 확인). 조회 끝을 now 로 넓히고
     #   combined_order_rows 가 주문일 기준으로 다시 트리밍(기간=주문일 유지).
-    # orders_to_now=False = **과거 209 백필 모드**(2026-07-22 샵마인 전열 대조): 창 안(지시
+    # orders_to_now=False = **과거 209 백필 모드**(2026-07-22 정답지 전열 대조): 창 안(지시
     #   생성일)만 조회한다. now 확장을 켜면 back=90 창이 90일치를 하루씩 전부 스캔한다
     #   (백필 스캔범위 폭발 — 과거이력 2026-07-21 교훈). 호출부가 창을 이어 붙여 전체를 덮는다.
     _lo_fetch_until = _until_now(until) if orders_to_now else until
@@ -811,7 +811,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "_lo_dvcst": _g(od, "dvCst", default=""),              # 수수료적용배송비
             "_lo_spdno": _g(od, "spdNo", default=""),              # 상품번호(제휴 학습 키)
             "_lo_chno": _g(od, "chNo", default=""),                # 유입 채널(제휴 판별 실데이터)
-            # 상품 단위 식별자 공용 키 — 샵마인 '오픈마켓상품번호' 대조·M4 표시용(spdNo 동일값).
+            # 상품 단위 식별자 공용 키 — 정답지 '오픈마켓상품번호' 대조·M4 표시용(spdNo 동일값).
             "_pd_market_product_id": _g(od, "spdNo", default=""),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
             # 롯데온 단품(sitm)=옵션 단위 상품이라 단가에 옵션가 포함 → 추가금 구조적 0.
@@ -1000,7 +1000,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         return aff, label
 
     # ── ① 판매경로 판정만 먼저 — 정산 계산보다 앞에 둔다 ────────────────────
-    #  🔴 왜 순서를 갈랐나 (2026-07-25 샵마인 대조에서 드러남)
+    #  🔴 왜 순서를 갈랐나 (2026-07-25 정답지 대조에서 드러남)
     #    예전엔 판정과 정산을 한 루프에서 했고, 채널 학습 승격은 이 함수 **맨 끝**에서
     #    라벨만 바꿨다. 결과 = '제휴로 승격됐는데 정산은 2% 안 뺀 값'. 라벨과 돈이
     #    갈리면 화면은 제휴라고 말하면서 금액은 비제휴다 — 에러 없이 틀린 숫자.
@@ -1069,7 +1069,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             r["정산예정금액"] = v
             r["_settle_source"] = "real"
 
-    # ── 샵마인 M열 정합(2026-07-23 대조 실측: +배송비 차이 55건) ──
+    # ── 정답지 M열 정합(2026-07-23 대조 실측: +배송비 차이 55건) ──
     #  롯데온 지급액(실·추정 모두)은 배송비를 포함한다 — K열(정산예정금액)은 상품분
     #  (−배송비)으로 표기하고, '배송비포함' 열은 _finalize 가 +고객배송비로 N열 정합.
     #  배송비는 주문당 1회만 뺀다(다품 라인 과차감 방지 — _finalize _shipkey 규약 동일).
@@ -1079,9 +1079,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #    필드가 0/없음이라 빼기가 통째로 건너뛰어졌다. 그러면 _finalize 가 `배송비`를
     #    이중 가산한다(N = pymtTgtAmt + 배송비). 정산 스윕 확장(#473·#474)으로 옛 주문
     #    실정산(pymtTgtAmt)이 대량 수집되면서 이 누락이 42건으로 커졌다.
-    #    2026-07-25 라이브 실측: 주문 2026070413404406 pymtTgtAmt=41,265(=샵마인 배송비
+    #    2026-07-25 라이브 실측: 주문 2026070413404406 pymtTgtAmt=41,265(=정답지 배송비
     #    포함) 인데 프로그램 45,265 = 정확히 +4,000(배송비). 빼는 값을 `배송비`로 맞추면
-    #    K=41,265−4,000=37,265, N=37,265+4,000=41,265=샵마인. _lo_dvcst==배송비였던
+    #    K=41,265−4,000=37,265, N=37,265+4,000=41,265=정답지. _lo_dvcst==배송비였던
     #    기존 정상건은 값이 같아 결과 불변.
     _lo_subtract_shipping_once(rows)
 
@@ -1247,7 +1247,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                             + (_sdc_b if isinstance(_sdc_b, int) else 0))
                     # 실결제 = orderPrice(결제가격) − 판매자부담쿠폰. orderPrice 없으면 빈칸.
                     #  🔴 기준이 두 번 바뀐 자리다:
-                    #    2026-07-23  orderPrice **그대로**(할인 차감 전) — 샵마인 K열과
+                    #    2026-07-23  orderPrice **그대로**(할인 차감 전) — 정답지 K열과
                     #                글자 그대로 맞추려던 규약.
                     #    2026-08-06  사장님 확정 → 판매자부담쿠폰을 뺀다. 「매출」은 우리가
                     #                실제로 번 돈이어야 한다. 옛 규약 탓에 쿠팡만 매출이
@@ -1255,7 +1255,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     #                카드에서 쿠팡만 **영원히 0** 으로 보였다.
                     #  🔴 이중 차감 금지 — 정산 추정(_cp_estimate_settle)은 단가×수량에서
                     #    따로 빼므로 실결제를 안 본다. 여기서 빼도 정산은 안 깎인다.
-                    #  🔴 샵마인 대조는 그대로 성립한다 — shopmine_recon 의 재현식 후보에
+                    #  🔴 정답지 대조는 그대로 성립한다 — 과거 대조 도구의 재현식 후보에
                     #    「정가총액」이 이미 있어 판정이 match→def(설명 가능한 차이)가 된다.
                     #    롯데온이 `_lo_seller_dc` 로 이미 그렇게 돌고 있다.
                     _paid_raw = _won(it.get("orderPrice"))
@@ -1306,10 +1306,10 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "오픈마켓주문번호": box.get("orderId") or "",
                         "송장입력": it.get("invoiceNumber") or box.get("invoiceNumber") or "",
                         # 상품 단위 식별자 — ordersheet orderItems[].sellerProductId(지도 예시 실물
-                        # 확인 2026-07-22). 없으면 샵마인 '오픈마켓상품번호' 대조가 전량 공란이었다.
+                        # 확인 2026-07-22). 없으면 정답지 '오픈마켓상품번호' 대조가 전량 공란이었다.
                         "_pd_market_product_id": str(it.get("sellerProductId") or ""),
-                        # 쿠팡 노출용 상품번호(productId) — 샵마인 '오픈마켓상품번호'는 이 값이다
-                        # (2026-07-23 재대조 실측: 샵 92억대=productId ≠ sellerProductId 159억대).
+                        # 쿠팡 노출용 상품번호(productId) — 정답지 '오픈마켓상품번호'는 이 값이다
+                        # (2026-07-23 재대조 실측: 정답지 92억대=productId ≠ sellerProductId 159억대).
                         # 스스의 main/alt 이중 보존과 동형.
                         "_pd_market_product_id_alt": str(it.get("productId") or ""),
                     })
@@ -1340,7 +1340,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         #  버려지면 주문↔소싱처를 연결할 방법이 사라져 전 행이 '확인 불가'가 된다.
         if vid:
             r["_pd_market_option_id"] = vid
-        # ★M열 = 상품 정산만(2026-07-23 샵마인 45건 전수 실측: 샵 M=상품분, N=M+고객배송비
+        # ★M열 = 상품 정산만(2026-07-23 정답지 45건 전수 실측: 정답지 M=상품분, N=M+고객배송비
         #  **전액**). 배송비 정산(97%)을 M에 더하면 N열(_finalize 가 M+고객배송비로 계산)이
         #  이중 가산돼 +4,014 씩 어긋났다(3건 실측). 배송비 실정산액(deliv_settle)은 마진
         #  계산 등 다른 소비처가 없어 M에서 뺀 채 버려도 정보 손실은 N열 규약 안에서 흡수된다.
@@ -1490,14 +1490,14 @@ CP_FEE_FACTOR = 0.8845        # 1 - 0.1155 (= 10.5% × 1.1). 옛 근사 상수 �
 
 # ── 배송비 수수료: 2026-08-13 재판정(되돌림 아님, 근거 교체) ──────────────────
 #  옛 판정(2026-07-23): 「배송비 수수료 상수 제거 — N열 = M + 고객배송비 **전액**,
-#    샵마인 45건 전수 실측」
+#    정답지 45건 전수 실측」
 #  새 판정(2026-08-13): **쿠팡 자기 정산 엑셀**(MSF_PAYMENT_REVENUE_DETAIL 9개·449행·
 #    153주문) 전수 대조. 배송료는 `<기본배송료>`/`<추가배송료>` 라는 독립 정산 행으로
 #    오고 판매액에 서비스이용율 3.0%(VAT 별도) = 실효 3.3% 가 붙는다. 예외 0건:
 #      4,000→3,868(105건) · 3,000→2,901(10) · 10,000→9,670(5)
 #      9,000→8,703(2) · 6,000→5,802(1) · −4,000→−3,868(환불 1)
 #    (정산금액 = 판매액 − 판매자할인쿠폰 − 판매수수료 로 141/141 원 단위 검산됨)
-#  🔴 두 실측은 **서로 모순이 아니다** — 샵마인은 제3자 프로그램의 *계산 필드*이고,
+#  🔴 두 실측은 **서로 모순이 아니다** — 정답지는 제3자 프로그램의 *계산 필드*이고,
 #    우리 N열의 소비처(마진계산기·이행판정·KPI·정산탭)는 「마켓이 실제로 주는 돈」을
 #    묻는다. 사장님 확정(2026-08-12): "더망고는 제외하고 실마켓 기준으로. 실마켓은
 #    100% 정답이야." → 실마켓 값 채택.
@@ -1521,7 +1521,7 @@ def _cp_estimate_settle(unit, qty, ship, seller_dc=0, fee_rate=None):
 
     수수료율(fee_rate)은 **그 상품의 실제 요율**을 알 때만 넣는다(정산 확정분 역산).
     없으면 계약 기본율 11.55%. 요율은 상품 카테고리마다 달라 고정값은 늘 조금 틀린다
-    (2026-07-25 샵마인 대조 실측: 실제 11.67~12.56% — 고정 11.55% 라서 건당
+    (2026-07-25 정답지 대조 실측: 실제 11.67~12.56% — 고정 11.55% 라서 건당
     133~167원씩 정산이 과다하게 잡혔다).
     """
     try:
@@ -2115,7 +2115,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                           if (od.get("OptSelPrice") is not None
                               or od.get("OptAddPrice") is not None
                               or od.get("_claim_kind") is None) else ""),
-            # 실결제(K열) = 원금(단가×수량+옵션) — 샵마인 규약(2026-07-23 G마켓 13/13 전수:
+            # 실결제(K열) = 원금(단가×수량+옵션) — 정답지 규약(2026-07-23 G마켓 13/13 전수:
             # ── 할인 부담 갈래(2026-08-12) — 지도에 있는데 우리가 안 읽던 필드 ──
             #  SellerDiscountPrice  판매자할인금액(1+2 최종) = **우리 부담**
             #  DirectDiscountPrice  사이트에서 할인 지원하는 금액 = **마켓 부담**
@@ -2125,7 +2125,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             #    `/orders/diag/esm-order-raw` 로 라이브 확인한 뒤에 쓴다.
             "_dc_seller": _g(od, "SellerDiscountPrice"),
             "_dc_market": _g(od, "DirectDiscountPrice"),
-            #  샵 K=단가×수량, 판매자 쿠폰 할인 전). 빌더에서 채워야 미정산 신규 주문도
+            #  정답지 K=단가×수량, 판매자 쿠폰 할인 전). 빌더에서 채워야 미정산 신규 주문도
             #  estimate_settle_from_history 가 돈다(실측 471551517: K 공란→추정 불발).
             #  _finalize_rows 의 ESM K=원금 규칙과 같은 값이라 이중 계산 아님.
             "실결제금액": ((lambda _u, _q: ("" if _u is None else _u * (_q or 1)))(
@@ -2389,13 +2389,6 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
         except Exception:   # noqa: BLE001 — 더망고는 부가 소스(테이블 없어도 무해)
             pass
 
-        # ⑥ 샵마인 적재분 — 마켓 취소 API 가 안 주는 값을 샵마인이 취소 전에 받아뒀다
-        #   (2026-07-22 사장님 제공 3개월치. 라이브 대조: 롯데온 공란 38건 중 24건 보유).
-        try:
-            _shopmine_fill(session, market, targets)
-        except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
-            pass
-
         # ⑦ 롯데온 셀러오피스 크롤분 — 취소건 구매자·라인 금액 + 철회 잔존 교정.
         #   OpenAPI 전수 소진으로 확정된 유일 원천(2026-07-23, lotteon_so 모듈 참조).
         if market == "lotteon":
@@ -2414,76 +2407,6 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
         if own:
             session.close()
     return rows
-
-
-def _shopmine_fill(session, market: str, targets: list) -> None:
-    """샵마인 행으로 빈 구매자·수령자·전화·주소·상품·금액을 채운다(빈 칸만).
-
-    연락처(구매자·수령자·전화·주소·우편)는 **주문 단위** 정보라 다품 주문이어도 안전.
-    상품명·옵션·수량·단가·실결제는 **라인 단위** — 주문에 라인이 하나뿐이거나 상품명이
-    일치할 때만 채운다(어느 상품인지 특정 못 하면 섞지 않는다 — 날조 금지).
-    """
-    from lemouton.markets.models_shopmine import ShopmineOrder
-
-    need = [r for r in targets
-            if not str(r.get("구매자") or "").strip()
-            or not str(r.get("수령자") or "").strip()
-            or not str(r.get("상품명") or "").strip()
-            or not str(r.get("실결제금액") or "").strip()
-            # 쿠팡 취소주문 실주문일 — 마켓 API 3경로 전부 구조적 미제공 실측(2026-07-23:
-            # 단건=400 'cancelled or returned' 거부·목록=미노출·클레임=미제공).
-            # 샵마인이 취소 전에 받아둔 주문일이 유일한 실데이터다.
-            or not str(r.get("주문일") or "").strip()]
-    if not need:
-        return
-    onos = {str(r.get("오픈마켓주문번호") or "").strip() for r in need}
-    onos.discard("")
-    if not onos:
-        return
-    sm: dict = {}
-    for o in (session.query(ShopmineOrder)
-              .filter(ShopmineOrder.market == market,
-                      ShopmineOrder.order_no.in_(sorted(onos))).all()):
-        sm.setdefault(o.order_no, []).append(o)
-
-    for r in need:
-        lines = sm.get(str(r.get("오픈마켓주문번호") or "").strip()) or []
-        if not lines:
-            continue
-        first = lines[0]
-        filled = []
-        # 주문 단위(어느 라인이든 동일) — 다품이어도 안전.
-        # 주문일도 주문 단위 — 샵마인 '26.04.22' → '2026-04-22' 정규화해 채운다.
-        _odt = ""
-        _m = _re.match(r"^(\d{2})\.(\d{2})\.(\d{2})$", str(first.ordered_at or "").strip())
-        if _m:
-            _odt = f"20{_m.group(1)}-{_m.group(2)}-{_m.group(3)}"
-        for col, val in (("구매자", first.buyer), ("수령자", first.recipient),
-                         ("수령자전화번호", first.phone),
-                         ("구매자번호", first.buyer_phone),
-                         ("우편번호", first.zipcode), ("주소", first.address),
-                         ("주문일", _odt)):
-            if val and not str(r.get(col) or "").strip():
-                r[col] = val
-                filled.append(col)
-        # 라인 단위 — 단일 라인이거나 상품명이 일치할 때만.
-        line = lines[0] if len(lines) == 1 else next(
-            (x for x in lines
-             if str(r.get("상품명") or "").strip()
-             and str(x.product_name or "").strip() == str(r.get("상품명")).strip()),
-            None)
-        if line is not None:
-            for col, val in (("상품명", line.product_name), ("옵션", line.option1),
-                             ("수량", line.qty), ("단가", line.unit_price),
-                             ("실결제금액", line.paid_amount),
-                             # 샵마인 송장 열은 '송장입력됨' 같은 상태를 적기도 한다 →
-                             # 진짜 번호일 때만 채운다(문구는 번호 칸에 넣지 않는다).
-                             ("송장입력", is_invoice_no(line.invoice))):
-                if val and not str(r.get(col) or "").strip():
-                    r[col] = val
-                    filled.append(col)
-        if filled:
-            r["_shopmine_filled"] = " ".join(filled)
 
 
 def _mango_fill(session, targets: list) -> None:
@@ -2561,7 +2484,7 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
     def _rate_base(d):
         """비율 분모·추정 밑값 — ESM은 **원금(단가×수량)**: 저장분 실결제가 옛 규약
         (BuyerPayAmt=쿠폰 할인후)과 새 규약(K=원금)이 섞여 있어 실결제 기반 비율이
-        오염된다(2026-07-23 G마켓 +3,041·+2,141 실측 — 샵마인 M=원금×0.87).
+        오염된다(2026-07-23 G마켓 +3,041·+2,141 실측 — 정답지 M=원금×0.87).
         단가×수량은 두 시절 모두 원금이라 안정적. 그 외 마켓은 실결제 기준 유지."""
         if esm:
             u = _to_int(d.get("단가"))
@@ -2716,7 +2639,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "_ordt_real": bool(real_ordt),   # 주문일이 API ordDt 출처인가(아니면 ordNo[:8] 근사)
             # 배송키 — 묶음배송번호(bndlDlvSeq), 단 **'0'은 비묶음 기본값**이라 키로 쓰면
             #  서로 다른 주문 전부가 같은 키를 공유해 첫 행 빼고 배송비가 전부 소거된다
-            #  (2026-07-23 라이브 실측: 배송준비중 23행 배송비 전멸 → L·N열 샵마인 불일치).
+            #  (2026-07-23 라이브 실측: 배송준비중 23행 배송비 전멸 → L·N열 정답지 불일치).
             "_shipkey": ("eleven11",
                          (lambda _b: _b if _b not in ("", "0") else "")(
                              str(_g11(od, "bndlDlvSeq"))) or _g11(od, "ordNo")),
@@ -2750,7 +2673,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "옵션추가금": 0,
             "배송비": ship,
             # 정산예정금액(M열) = stlPlnAmt − 배송비 — stlPlnAmt 는 배송비를 포함한다
-            #  (라이브 프로브 실측 2026-07-23, 086650134: stlPlnAmt 32,913 = 샵마인 M
+            #  (라이브 프로브 실측 2026-07-23, 086650134: stlPlnAmt 32,913 = 정답지 M
             #   29,913 + dlvCst 3,000). '배송비포함' 열은 _finalize 가 +배송비로 복원.
             #  구매확정 목록엔 stlPlnAmt 없어 공란. 실정산액은 settlementList 조인이 덮음.
             "정산예정금액": (lambda _sp, _sv: ("" if _sp is None else _sp - (_sv or 0)))(
@@ -2776,11 +2699,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             #   부담 갈래는 표기 기준 두 필드를 그대로 쓴다 — 섞으면 합이 안 맞는다.)
             "_dc_seller": _g11(od, "sellerDscPrc"),
             "_dc_market": _g11(od, "tmallDscPrc"),
-            # 실결제 = ordPayAmt − 배송비 + (tmall 표기할인 − 적용할인) — 샵마인 K열 규약.
+            # 실결제 = ordPayAmt − 배송비 + (tmall 표기할인 − 적용할인) — 정답지 K열 규약.
             #  ①배송비 제외(2026-07-23 대조 17건 실측). ②11번가 할인은 '표기'(tmallDscPrc)와
             #  '적용'(tmallApplyDscAmt)이 다를 수 있고 ordPayAmt 는 표기 기준 차감이라,
-            #  샵마인 K(=ordAmt−적용할인)보다 그 차액만큼 작아진다(라이브 프로브 실측
-            #  086884234: 28,100+300=28,400·086157090: 27,790+324=28,114 = 샵 정확 일치).
+            #  정답지 K(=ordAmt−적용할인)보다 그 차액만큼 작아진다(라이브 프로브 실측
+            #  086884234: 28,100+300=28,400·086157090: 27,790+324=28,114 = 정답지 정확 일치).
             #  ★차액은 **양·음 양방향** 이다 — 적용할인이 표기보다 큰 주문이 있고(2026-07-23
             #   재대조 7건 전부 −159 균일), 하한 0 을 두면 그만큼 K 가 과대해진다.
             #   적용할인 필드가 아예 없으면(배송완료 목록 등) 0(보정 안 함).
@@ -2799,8 +2722,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "택배사": _e11_courier(_g11(od, "dlvEtprsCd")),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)
-            # ── 할인 성분(내부 `_e11_`) — 샵마인 대조 재현식 확정용(2026-07-22).
-            #  샵마인 '실결제'는 할인 차감 범위가 우리(ordPayAmt=전체 할인 차감)와 달라
+            # ── 할인 성분(내부 `_e11_`) — 정답지 대조 재현식 확정용(2026-07-22).
+            #  정답지 '실결제'는 할인 차감 범위가 우리(ordPayAmt=전체 할인 차감)와 달라
             #  143건이 어긋났다. 성분을 보존해야 재현식(판매자할인만 차감 등)을 검증·계산
             #  할 수 있다. ordAmt=주문총액(할인 전), sellerDsc=판매자 할인, tmallDsc=11번가 할인.
             "_e11_ord_amt": _g11(od, "ordAmt"),
@@ -2861,7 +2784,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
 
     if order_nos:
         # ★ 주문번호 단건 정밀 복구(eleven11.110 + 115) — 상태별 창 조회 9경로가
-        #   구조적으로 못 주는 주문(반품완료·구매확정 옛 건, 2026-07-22 샵마인 대사
+        #   구조적으로 못 주는 주문(반품완료·구매확정 옛 건, 2026-07-22 정답지 대사
         #   잔여 26건)의 통로. 창 조회는 안 돌고 단건만 부른다.
         from shared.platforms.eleven11.orders import fetch_order, fetch_order_status
         out = []
@@ -2927,7 +2850,7 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                 ent = smap.get((ono, seq))
                 if ent is None:
                     continue
-                # ★정산금액에서 배송비(dlvAmt)를 분리 — 샵마인 M열(배송비 제외)과 정합.
+                # ★정산금액에서 배송비(dlvAmt)를 분리 — 정답지 M열(배송비 제외)과 정합.
                 #  '배송비포함' 열은 _finalize 가 +고객배송비로 만들어 N열과 정합
                 #  (분리 안 하면 K열 +배송비 과대·L열 이중 가산 — 2026-07-23 대조 실측).
                 r["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
@@ -3344,7 +3267,7 @@ def _finalize_rows(rows: list) -> list:
             seen.add(sk)
         r["배송비"] = ship
 
-        # ── 샵마인 대조 파생(2026-07-08): 총주문금액·마켓수수료·수수료율 ──
+        # ── 정답지 대조 파생(2026-07-08): 총주문금액·마켓수수료·수수료율 ──
         opt_add = _to_int(r.get("옵션추가금"), 0) or 0
         total = (prod + opt_add) if prod != "" else ""   # 총주문금액 = 단가×수량 + 옵션추가금
         r["총주문금액"] = total
@@ -3360,17 +3283,17 @@ def _finalize_rows(rows: list) -> list:
         paid = _to_int(r.get("실결제금액"))
         if paid is None and isinstance(total, int):
             paid = total                     # 실결제 미제공(쿠팡 등) → 총주문금액(할인 없음 가정)
-        # ── 취소완료 = 거래 무산 → 정산·수수료 0 (2026-07-23 샵마인 규약으로 강화) ──
+        # ── 취소완료 = 거래 무산 → 정산·수수료 0 (2026-07-23 정답지 규약으로 강화) ──
         #  '취소요청'은 철회될 수 있어 제외(미확정). 잔존 실정산·추정값이 있어도 0 으로
-        #  통일한다 — 샵마인(정답지)이 취소건 정산을 항상 '없음'으로 표기(사장님 확정).
+        #  통일한다 — 정답지가 취소건 정산을 항상 '없음'으로 표기(사장님 확정).
         zero_cancel = "취소완료" in str(r.get("주문상태") or "")
         if zero_cancel:
             settle = 0
             r["정산예정금액"] = 0
             r["_settle_source"] = "zero_cancel"
-        # ── K열(실결제) = 원금(단가×수량+옵션) 으로 통일하는 경우 — 샵마인 규약 ──
-        #  ① 취소완료(사장님 확정 2026-07-23) ② 취소요청·철회(616897117 실측: 샵 K=원금)
-        #  ③ 쿠팡 반품완료(749312893 실측) ④ 옥션·G마켓 전체(13/13 전수: 샵 K=단가×수량,
+        # ── K열(실결제) = 원금(단가×수량+옵션) 으로 통일하는 경우 — 정답지 규약 ──
+        #  ① 취소완료(사장님 확정 2026-07-23) ② 취소요청·철회(616897117 실측: 정답지 K=원금)
+        #  ③ 쿠팡 반품완료(749312893 실측) ④ 옥션·G마켓 전체(13/13 전수: 정답지 K=단가×수량,
         #    판매자 쿠폰 할인 전 — 할인 있던 12건 전부 이 차이였다. M열은 이미 일치).
         #  원금을 못 구하면(단가 공란) 기존 값 유지 — 날조 금지.
         _st = str(r.get("주문상태") or "")
@@ -3386,7 +3309,7 @@ def _finalize_rows(rows: list) -> list:
             #   앞서 「구조적 불가」로 보고한 것은 `OrderAmount`·`AcntMoney` 만 보고 낸 오판.
             #   · 판매자할인은 우리 주머니에서 나가므로 **뺀다**
             #   · 사이트(마켓) 할인은 마켓이 부담하므로 **안 뺀다**(빼면 매출이 실제보다 작아진다)
-            #   취소·클레임 행은 여전히 원금 그대로 — 샵마인 K열 규약(할인 차감 전).
+            #   취소·클레임 행은 여전히 원금 그대로 — 정답지 K열 규약(할인 차감 전).
             _esm_sdc = 0
             if _mk in ("옥션", "G마켓") and not zero_cancel \
                     and "취소" not in _st and "반품" not in _st and "철회" not in _st:
@@ -3402,7 +3325,7 @@ def _finalize_rows(rows: list) -> list:
         #  🔴 여기서 **한 번만** 만든다. 주문내역·마진계산기·엑셀이 이 칸을 그대로 읽는다.
         #    (2026-07-23 사고: 마진계산기가 정산액을 자기 방식으로 다시 계산해, 규약이 바뀐 날
         #     두 화면이 조용히 갈라졌다. 같은 실수를 매출에서 반복하지 않는다.)
-        #  🔴 `실결제금액`은 그대로 둔다 — 샵마인 K열 대조·마켓수수료 파생이 그것을 쓴다.
+        #  🔴 `실결제금액`은 그대로 둔다 — 정답지 K열 대조·마켓수수료 파생이 그것을 쓴다.
         #    같은 이름에 다른 뜻을 담으면 그 소비처들이 조용히 틀어진다.
         #  🔴 취소완료(zero_cancel)만 예외 — 거래가 무산됐으니 판매가가 아니라 0.
         #    그 외(취소요청·반품·철회 등 미확정 클레임)는 아직 거래가 살아있을 수 있어

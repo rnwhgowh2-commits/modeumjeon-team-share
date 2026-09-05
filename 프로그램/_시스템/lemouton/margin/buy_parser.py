@@ -2,7 +2,7 @@
 r"""더망고 솔루션 매입 엑셀 파싱 + G열(사이트주문번호) 유무로 분할.
 
 원본: C:\dev\대량등록 마진계산기\modules\data_loader.py (parse_buy / split_by_site_order_no)
-parse_sell 은 sell_source.from_shopmine_excel 로 이관됨.
+parse_sell 은 sell_source.from_api 로 대체됨(전 마켓 API 연동 완료로 엑셀 업로드 폐지, 2026-09).
 """
 import io
 import re

@@ -25,10 +25,10 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
       ─── 메모 분류 끝 ───
       4. (메모 X) + 데이터 정합성 이상 → mango_check
          - 사이트주문번호 ↔ 송장번호 미스매치 (케이스 1, 2)
-         - 샵마인 종결흐름 + 더망고 일반 진행중 (기존)
+         - 판매처 종결흐름 + 더망고 일반 진행중 (기존)
       5. (메모 X) + 더망고 종결(반품/교환/취소완료) → completed_memo_no
       6. (메모 X) + 진행중 → inprogress
-      7. (메모 X) + 샵마인 종결 → completed_memo_no
+      7. (메모 X) + 판매처 종결 → completed_memo_no
       8. fallback (즉시/소싱처/마켓/정상/대기/까대기)
     """
     if not classified_rows:
@@ -36,7 +36,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
             'card_all': 0, 'card_immediate': 0, 'card_sourcing': 0,
             'card_market': 0, 'card_normal': 0, 'card_pending': 0,
             'card_kkadaegi': 0, 'card_inprogress': 0, 'card_completed': 0,
-            'card_margin': 0, 'card_shopmine_only_count': 0,
+            'card_margin': 0, 'card_market_only_count': 0,
             'card_confirmed_blackspot': 0, 'card_mango_check': 0,
             'card_completed_memo_yes': 0, 'card_completed_memo_no': 0,
             'card_memo_settled': 0, 'card_sourcing_brand_marker': 0,
@@ -98,7 +98,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         # 기존 방식 (classified 기반 + raw augmentation)
         mango_based = [
             r for r in classified_rows
-            if r.get('데이터출처') in ('더망고+샵마인', '더망고만')
+            if r.get('데이터출처') in ('더망고+판매처', '더망고만')
         ]
         if buy_df_raw is not None and not buy_df_raw.empty:
             existing_keys = set()
@@ -117,11 +117,11 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
                     mango_based.append(raw_dict)
                     existing_keys.add(mk)
 
-    shopmine_only_count = sum(
-        1 for r in classified_rows if r.get('데이터출처') == '샵마인만'
+    market_only_count = sum(
+        1 for r in classified_rows if r.get('데이터출처') == '판매처만'
     )
 
-    # 샵마인 주문상태 분류 (사용자 요구):
+    # 판매처 주문상태 분류 (사용자 요구):
     #   '진행중' 류 → 새 카드 'card_inprogress'
     #   '반품/교환/취소 완료' 류 → 새 카드 'card_completed'
     #   일반 배송/수취 완료 → 'normal' (정상/완료 카드)
@@ -132,7 +132,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
     # 일반 정상 완료 (정상/완료 카드)
     DONE_NORMAL_PATTERNS = ('배송완료', '수취완료', '구매확정', '정산완료', '정산예정', '발송완료', '확정')
 
-    def _shopmine_state_category(s: str) -> str:
+    def _market_sell_state_category(s: str) -> str:
         s = str(s or '').strip()
         if not s:
             return 'normal'
@@ -216,7 +216,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
     confirmed_blackspot = mango_check = completed_memo_yes = completed_memo_no = 0
     memo_settled = 0
     tracking_failed = 0  # 송장 재전송 실패 (사용자 요청 신규 카드)
-    status_mismatch = 0  # 샵마인 ↔ 더망고 상태 불일치 (사용자 요청 신규 카드 — C안)
+    status_mismatch = 0  # 판매처 ↔ 더망고 상태 불일치 (사용자 요청 신규 카드 — C안)
     etc_count = 0        # 기타 — 어느 분기에도 안 잡힌 행 (사용자 요청 신규 카드)
     sourcing_brand_marker = 0  # 사입 판매 표시 (대량등록 반품/취소 마커 브랜드, 2026-08-28)
 
@@ -233,8 +233,8 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         is_pending_code = code in ('1-11', '2-9', '3-9', '4-9')
         is_kkadaegi_code = code in ('1-12', '2-10', '3-10', '4-10')
 
-        sm_status = row.get('샵마인_주문상태', '') or row.get('샵마인_샵마인주문상태', '')
-        sm_cat = _shopmine_state_category(sm_status)
+        mk_sell_status = row.get('판매처_주문상태', '') or row.get('판매처_판매처주문상태', '')
+        mk_sell_cat = _market_sell_state_category(mk_sell_status)
         mg_status = str(row.get('더망고주문상태 (사용자 연동)', '') or '')
         # 마켓주문상태 (오픈 마켓 연동) — 송장전송실패 등 마켓 sync 결과 (사용자 요청)
         mk_sync_status = str(row.get('마켓주문상태 (오픈 마켓 연동)', '') or '')
@@ -281,26 +281,26 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         # ★ 5순위: 메모 normal 키워드 ('정산완료' 등)
         elif has_normal_memo:
             normal_count += 1
-        # ★ 6순위 [결정 2 + 사용자 확장]: 더망고=국내배송중 + 샵마인 분기
+        # ★ 6순위 [결정 2 + 사용자 확장]: 더망고=국내배송중 + 판매처 분기
         #   - 배송중/배송준비/발송대기/상품준비 → 발송 대기 (배송 진행 중)
         #   - 구매확정/수취완료/배송완료/확정/배송 → 정상/완료 (정상 종결)
-        elif '국내배송중' in mg_status and any(k in str(sm_status) for k in (
+        elif '국내배송중' in mg_status and any(k in str(mk_sell_status) for k in (
             '배송중', '배송준비', '발송대기', '상품준비'
         )):
             pending_count += 1
-        elif '국내배송중' in mg_status and any(k in str(sm_status) for k in (
+        elif '국내배송중' in mg_status and any(k in str(mk_sell_status) for k in (
             '구매확정', '수취완료', '배송완료', '확정', '배송'
         )):
             normal_count += 1
         # ★ 6순위: 더망고 = 발송 대기 키워드 ('배송대기중' 등)
         #   🔴 2026-08-27 — 더망고(사람이 손으로 갱신, 지연됨)가 아직 평상 라벨인데
-        #     샵마인_주문상태(마켓 API 실값, 더 최신)는 이미 취소·반품 진행/완료로
-        #     넘어간 행이 있었다. sm_cat 을 안 보고 먼저 채가면 그 행이 pending 으로
+        #     판매처_주문상태(마켓 API 실값, 더 최신)는 이미 취소·반품 진행/완료로
+        #     넘어간 행이 있었다. mk_sell_cat 을 안 보고 먼저 채가면 그 행이 pending 으로
         #     빠져 반품·취소 자동 제외(inprogress/completed_memo_* 카드만 훑음) 대상에서
-        #     아예 벗어나 체크박스가 안 켜진 채 매출·마진에 남는다. 샵마인이 이미
+        #     아예 벗어나 체크박스가 안 켜진 채 매출·마진에 남는다. 판매처이 이미
         #     진행중/완료 클레임이면 더망고 라벨을 안 믿고 9·12순위로 넘긴다
         #     (margin_embed.html isMgPending 분기와 동일하게 맞춤).
-        elif any(k in mg_status for k in KW_PENDING_MG) and sm_cat not in ('in_progress', 'done_rtn'):
+        elif any(k in mg_status for k in KW_PENDING_MG) and mk_sell_cat not in ('in_progress', 'done_rtn'):
             pending_count += 1
         # ★ 7.5순위 [2026-08-28 사장님 명시]: 르무통·플리츠플리즈 등 사입 판매 마커 브랜드
         #   — 더망고=반품/교환/취소(완료·진행중 모두) 라벨이 붙어 있어도, 대량등록 시스템에
@@ -319,24 +319,24 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
             else:
                 completed_memo_no += 1
                 completed_count += 1
-        # ★ 9순위 [결정 3 — 위로 이동]: 더망고/샵마인 진행중 → 진행중
+        # ★ 9순위 [결정 3 — 위로 이동]: 더망고/판매처 진행중 → 진행중
         #   ⚠️ site/track mismatch 보다 위 — 반품 진행 시 송장 회수돼도 진행중 카드로
-        elif mg_in_progress or sm_cat == 'in_progress':
+        elif mg_in_progress or mk_sell_cat == 'in_progress':
             inprogress_count += 1
         # ★ 10순위: site/track mismatch → 더망고 점검 (이전 8순위 → 아래로)
         elif site_track_mismatch:
             mango_check += 1
         # ★ 11순위: 상태 불일치 (기존)
-        elif (mg_normal_progress and sm_cat in ('in_progress', 'done_rtn')) or \
+        elif (mg_normal_progress and mk_sell_cat in ('in_progress', 'done_rtn')) or \
              (('국내배송' in mg_status or '해외현지배송' in mg_status) and
-              ('발송대기' in str(sm_status) or '배송준비' in str(sm_status))):
+              ('발송대기' in str(mk_sell_status) or '배송준비' in str(mk_sell_status))):
             status_mismatch += 1
-        # ★ 12순위: 샵마인 종결 → 메모X 재확인 (기존)
-        elif sm_cat == 'done_rtn':
+        # ★ 12순위: 판매처 종결 → 메모X 재확인 (기존)
+        elif mk_sell_cat == 'done_rtn':
             completed_memo_no += 1
             completed_count += 1
         # ★ 13순위: 일반 배송/수취 완료 → 정상/완료 (기존)
-        elif sm_cat == 'done_normal':
+        elif mk_sell_cat == 'done_normal':
             normal_count += 1
         elif is_kkadaegi_code:
             kkadaegi_count += 1
@@ -377,7 +377,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         'card_inprogress':          inprogress_count,
         'card_completed':           completed_count,
         'card_margin':              margin_issue,
-        'card_shopmine_only_count': shopmine_only_count,
+        'card_market_only_count': market_only_count,
         # 신규 카드
         'card_confirmed_blackspot': confirmed_blackspot,
         'card_mango_check':         mango_check,
@@ -385,7 +385,7 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
         'card_completed_memo_no':   completed_memo_no,
         'card_memo_settled':        memo_settled,
         'card_tracking_failed':     tracking_failed,
-        'card_status_mismatch':     status_mismatch,  # 샵마인 ↔ 더망고 상태 불일치
+        'card_status_mismatch':     status_mismatch,  # 판매처 ↔ 더망고 상태 불일치
         'card_etc':                 etc_count,         # 기타 — 어느 분기에도 안 잡힌 행
         'card_sourcing_brand_marker': sourcing_brand_marker,  # 사입 판매 표시(대량등록 마커)
     }

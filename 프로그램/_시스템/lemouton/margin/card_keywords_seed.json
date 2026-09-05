@@ -1,5 +1,5 @@
 {
-  "_comment": "카드별 메모/더망고/샵마인 분류 키워드 — 사용자 편집 가능 (설정 탭 또는 카드 헤더 ⚙️). 3개 카드(inprogress·completed_memo_yes·completed_memo_no)는 sub_rtn/sub_ex 로 반품/취소 vs 교환 분리.",
+  "_comment": "카드별 메모/더망고/판매처 분류 키워드 — 사용자 편집 가능 (설정 탭 또는 카드 헤더 ⚙️). 3개 카드(inprogress·completed_memo_yes·completed_memo_no)는 sub_rtn/sub_ex 로 반품/취소 vs 교환 분리.",
   "version": 2,
   "cards": {
     "confirmed_blackspot": {

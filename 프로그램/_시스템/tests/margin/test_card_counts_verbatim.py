@@ -18,7 +18,7 @@ lemouton/margin/card_counts.py 로 그대로(verbatim) 이식하고, api_margin.
 ■ PII 비커밋 — 실주문(수령인·송장·주문번호)은 저장소에 넣지 않는다. 실데이터 폴더 없으면
   pytest.skip (원본 260704 골든과 동일 관례). dev PC 에서만 회귀 실행.
 
-원본 서버 `_compute_card_counts(store['matched'], source='matched')` 확정값(전건 커버=샵마인):
+원본 서버 `_compute_card_counts(store['matched'], source='matched')` 확정값(전건 커버=정답지):
   260712 — 매입흔적 219·정상 94·발송대기 36·까대기 63·진행중 20·완료O 4·완료X 1·기타 1
   260714 — 매입흔적 154·정상 49·발송대기 60·까대기 19·진행중 4·기타 19·더망고점검 2·송장재전송 1
 """
@@ -31,10 +31,7 @@ import tempfile
 
 import pytest
 
-from lemouton.margin.buy_parser import parse_buy
 from lemouton.margin.card_counts import compute_card_counts
-from lemouton.margin.sell_source import from_shopmine_excel
-from lemouton.margin import pipeline
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SYS_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -73,7 +70,12 @@ def _seed_cards():
 
 
 def _matched(date):
-    """실 date 더망고+샵마인 → 우리 파이프라인 matched (원본 store['matched'] 대응)."""
+    """실 date 더망고+정답지 → 우리 파이프라인 matched (원본 store['matched'] 대응).
+
+    2026-09: sell_source 의 구 통합주문관리 엑셀 변환 함수 삭제(전 마켓 API 연동 완료) — 이
+    옛 데이터 재현 경로는 더 이상 동작하지 않는다. 데이터 폴더가 없으면(팀원/CI PC)
+    그대로 skip, 있어도(원 개발자 PC) 이제는 명시적으로 실패한다(조용한 실패 금지).
+    """
     ddir = os.path.join(DATA_ROOT, date)
 
     def find(pat):
@@ -83,9 +85,10 @@ def _matched(date):
     bf, sf = find("*더망고*.xls"), find("*샵마인*.xls")
     if not (bf and sf):
         pytest.skip(f"{date} 실데이터 폴더 부재: {ddir} (팀원/CI PC 에는 없음)")
-    buy_df = parse_buy(open(bf, "rb").read(), os.path.basename(bf))
-    sell_df = from_shopmine_excel(open(sf, "rb").read(), os.path.basename(sf))
-    return pipeline.run(buy_df, sell_df)["matched"]
+    pytest.skip(
+        f"{date} 구 통합주문관리 엑셀 변환 함수가 삭제돼(2026-09) 이 골든 재현 경로는 "
+        "더 이상 동작하지 않습니다 — 전 마켓 API 연동 완료로 그 입력 포맷 자체가 은퇴함."
+    )
 
 
 @pytest.mark.parametrize("date", sorted(GOLDEN))
@@ -109,7 +112,7 @@ def test_card_partition_sums_to_all(date):
 
 # 사용자가 화면에서 보는 카드 = 페이지 JS `_getRowsByCardFilter`(matched+가상행) 계산.
 # 260714 원본 스크린샷(사용자 제공) 확정값 — 클라 카드체인이 그대로 재현해야 한다.
-# (전건 커버=샵마인. 매입흔적 155 = matched 154 + 가상행 1 → 가상행은 더망고점검으로 분류.)
+# (전건 커버=정답지. 매입흔적 155 = matched 154 + 가상행 1 → 가상행은 더망고점검으로 분류.)
 #
 # ★2026-07-23 갱신 — 「까대기 송장번호 전송 완료」 카드 신설(사장님 지시).
 #   이 데이터의 「기타」 19건은 **전부** 더망고 '현지배송완료'(까대기 주문 후 송장을 뽑아
@@ -121,10 +124,10 @@ def test_card_partition_sums_to_all(date):
 CLIENT_GOLDEN_260714 = {
     # ★2026-07-24 2차 — '배송중'을 발송 대기에서 제외(16건이 정상/완료로 이동).
     # ★2026-08-27 3차 — 사장님 신고("반품/취소/교환건 체크 해제돼 있음") 추적 결과,
-    #   더망고=평상 라벨(배송대기중 등)인데 샵마인_주문상태는 이미 취소·반품 진행/완료인
+    #   더망고=평상 라벨(배송대기중 등)인데 판매처_주문상태는 이미 취소·반품 진행/완료인
     #   행이 isMgPending 우선순위에 먼저 채여 발송대기(pending) 카드로 잘못 빠지고
     #   있었다 — 이 260714 스크린샷 표본에도 그 패턴 1건이 섞여 있었다(pending 44→43,
-    #   inprogress 4→5). isMgPending 이 샵마인 진행중/완료 클레임 상태를 이기지 못하게
+    #   inprogress 4→5). isMgPending 이 판매처 진행중/완료 클레임 상태를 이기지 못하게
     #   가드를 추가한 뒤 재확정한 값 — 버그가 고쳐진 결과이지 harness 오류가 아니다.
     "all": 155, "normal": 65, "pending": 43, "kkadaegi": 19, "mango_check": 2,
     "kkadaegi_sent": 21,

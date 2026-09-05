@@ -63,9 +63,11 @@ def test_디자인타입이_이_화면에도_걸린다(client):
 def test_endpoints_rewired_to_api_margin(client):
     html = client.get("/orders/margin-embed").get_data(as_text=True)
     assert "'/api/margin/analyze'" in html
-    assert "'/api/margin/upload'" in html
-    assert "'/api/margin/upload-shopmine'" in html
+    assert "/api/margin/upload" in html
     assert "'/api/margin/export'" in html
+    # 2026-09: 매출 보조 엑셀 업로드(전 마켓 API 연동 완료로 폐지) 엔드포인트는
+    # 더 이상 화면에 없어야 한다.
+    assert "upload-shopmine" not in html
 
 
 def test_no_bare_original_endpoints(client):

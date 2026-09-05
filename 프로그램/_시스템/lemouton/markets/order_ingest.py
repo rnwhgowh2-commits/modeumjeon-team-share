@@ -84,7 +84,7 @@ def _fetch(market: str, start, end, *, include_settlement: bool = True,
     """한 창 조회. backfill 경로는 prefix(계정)를 존중하고 alias 를 행에 새긴다.
 
     ★ 예전엔 백필 fetcher 가 전부 대표계정(_account_client(market))만 조회해
-    나머지 계정의 과거가 통째 빠졌다(2026-07-22 샵마인 대사: 누락 605건 최대 원인).
+    나머지 계정의 과거가 통째 빠졌다(2026-07-22 정답지 대사: 누락 605건 최대 원인).
     """
     rows = _fetch_inner(market, start, end, include_settlement=include_settlement,
                         backfill=backfill, prefix=prefix)
@@ -282,7 +282,7 @@ def ingest_lotteon_claims_window(start, end, *, prefix: str = None,
     """롯데온 **과거 클레임** 한 창 적재 — 클레임 접수일 축, 창 안만.
 
     확정 전 취소는 정산API(구매확정건만)에 안 나와 과거 취소가 통째 빠졌다
-    (2026-07-22 샵마인 대사: 취소완료 계열 233건). 209 없이 클레임 3종만 걷는다.
+    (2026-07-22 정답지 대사: 취소완료 계열 233건). 209 없이 클레임 3종만 걷는다.
     업서트라 멱등. alias 를 새겨 계정 귀속을 남긴다.
     """
     from lemouton.markets import line_uid as _luid
@@ -307,7 +307,7 @@ def ingest_lotteon_orders_window(start, end, *, prefix: str = None,
     """롯데온 **과거 209(출고/회수지시)** 한 창 적재 — 지시생성일 축, 창 안만.
 
     정산 API 백필(lotteon_settle)은 수령자·주소·전화·송장이 없다 — 그 필드는 209 가
-    정본(2026-07-22 샵마인 전열 대조: 구매자 정보 공란 792). orders_to_now=False 로
+    정본(2026-07-22 정답지 전열 대조: 구매자 정보 공란 792). orders_to_now=False 로
     창 안만 걷고, 호출부가 (계정 × 창)을 이어 붙여 전체를 덮는다. 업서트 멱등이며
     _merge_row 가 빈 값으로 기존 채움을 지우지 않는다.
     """
@@ -333,7 +333,7 @@ def ingest_coupang_dates_by_order_ids(ord_ids, *, session=None) -> dict:
     """쿠팡 취소주문 실주문일 채움 — 발주서 단건(orderId) 조회로 orderedAt 확보.
 
     쿠팡 클레임 응답엔 실주문일이 없어(builder 명시) 취소주문(클레임행만 존재)의
-    주문일이 공란이다(2026-07-23 샵마인 전열 대조 537건). 계정을 순회하며 조회하고,
+    주문일이 공란이다(2026-07-23 정답지 전열 대조 537건). 계정을 순회하며 조회하고,
     빈 칸만 채운다(set_order_dates — 실값 보존·멱등). 못 찾은 id 는 그대로 돌려준다.
     """
     from lemouton.markets.order_export import _account_client, _active_accounts
@@ -386,7 +386,7 @@ def ingest_eleven11_orders_by_no(ord_nos, *, session=None) -> dict:
     """11번가 주문번호 **단건 정밀 복구** — 계정을 순회하며 각 주문을 찾아 적재.
 
     상태별 창 조회 9경로가 구조적으로 못 주는 주문(반품완료·구매확정 옛 건 —
-    2026-07-22 샵마인 대사 잔여 26건)의 마지막 통로. 찾은 계정의 별칭을 새기고,
+    2026-07-22 정답지 대사 잔여 26건)의 마지막 통로. 찾은 계정의 별칭을 새기고,
     못 찾은 주문번호는 숨기지 않고 돌려준다(조용한 실패 금지). 멱등.
     """
     import time as _time
@@ -502,7 +502,7 @@ def restore_eleven11_claim_gaps(days: int = 2, limit: int = 8, *,
 
     주문→취소완료가 고속 틱(20분) 사이에 끝나는 초고속 취소는 클레임 이벤트만 남고
     주문 라인 스냅샷이 없다 → 클레임 행의 주문일이 비어 「주문일 탭」에서 통째 빠진다
-    (2026-07-23 샵마인 대조 실측 5건). 최근 days일 클레임 중 주문일 있는 라인이 없는
+    (2026-07-23 정답지 대조 실측 5건). 최근 days일 클레임 중 주문일 있는 라인이 없는
     주문번호를 골라 단건 조회로 원주문을 적재한다(호출 상한 limit — 계정×2회/주문).
     """
     own = False
@@ -891,7 +891,7 @@ def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,
     """배송중·배송완료·구매확정 최근 주문의 낡은 정산 스냅샷을 by-no 재조회로 갱신.
 
     11번가는 배송 후에도 stlPlnAmt(정산예정금)를 갱신한다(T-쿠폰 등 — 2026-07-23
-    샵마인 대조 실측 ±610~1,347원). 배송완료·구매확정 목록 조회는 stlPlnAmt 를 안 줘
+    정답지 대조 실측 ±610~1,347원). 배송완료·구매확정 목록 조회는 stlPlnAmt 를 안 줘
     저장분 스냅샷이 정본인데, 스냅샷이 결제완료 시점이면 낡은 값이 남는다.
     최근 days일 주문 중 min_age_hours 이상 안 본 순으로 limit 개씩 단건 재조회.
     (배송준비중·결제완료는 목록 조회가 매 틱 갱신하므로 제외.)
@@ -1897,7 +1897,7 @@ def refresh_settlement_eleven11(*, since=None, until=None,
             # 🔴🔴 이미 real 인 행도 **배송비 이중가산 backlog 는 교정**한다(롯데온 #484 와 동일
             #   클래스·2026-07-25 실측 9건). #stlPlnAmt −배송비 규약(_stl_net) 이전에 저장된
             #   real 행은 K 가 GROSS(배송비 포함)라 _finalize 가 배송비를 이중 가산했다
-            #   (라이브 실측 20260625079413235: K=25,061=샵마인 N, 저장 N=28,061=+3,000).
+            #   (라이브 실측 20260625079413235: K=25,061=정답지 N, 저장 N=28,061=+3,000).
             #   임의 재동기화는 안 함 — **재도출 N + 배송비 == 저장 N** 인 이중가산 서명일 때만
             #   교정(배송비>0). 교정 뒤 서명 불일치 → 멱등. 정상 real 은 그대로 둔다.
             if str(row.get("_settle_source") or "") == "real":

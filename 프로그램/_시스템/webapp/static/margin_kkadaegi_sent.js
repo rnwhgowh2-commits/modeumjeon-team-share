@@ -26,7 +26,7 @@
   var DONE_STATES = ['배송완료', '구매확정', '수취완료', '구매결정', '배송중', '발송완료'];
 
   function isDelivered(r) {
-    var s = String((r && (r['샵마인_주문상태'] || r['샵마인_샵마인주문상태'])) || '');
+    var s = String((r && (r['판매처_주문상태'] || r['판매처_판매처주문상태'])) || '');
     if (!s || s.indexOf('취소') >= 0 || s.indexOf('반품') >= 0 || s.indexOf('교환') >= 0) return false;
     for (var i = 0; i < DONE_STATES.length; i++) {
       if (s.indexOf(DONE_STATES[i]) >= 0) return true;

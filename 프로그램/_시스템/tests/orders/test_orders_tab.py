@@ -227,8 +227,8 @@ def test_list_export_offers_three_markets():
     assert "스마트스토어" in html and "롯데온" in html and "쿠팡" in html   # 마켓 선택 칩
 
 
-def test_shopmine_fee_derivation():
-    """샵마인 대조(2026-07-08): 마켓수수료 = 실결제 − 정산예정, 수수료율 = 수수료/**실결제**.
+def test_market_fee_derivation():
+    """정답지 대조(2026-07-08): 마켓수수료 = 실결제 − 정산예정, 수수료율 = 수수료/**실결제**.
 
     4개 마켓 실샘플로 검증. 실결제 없으면(쿠팡) 총주문금액으로. 정산==실결제(롯데온,
     정산 API 없음)면 수수료 공란(0/음수 폴백 금지 — 없는 값 지어내지 않음).

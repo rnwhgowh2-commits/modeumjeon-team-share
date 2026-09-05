@@ -79,7 +79,7 @@ _ALL_MODEL_MODULES = [
     "lemouton.claims.models",
     "lemouton.cs_inquiries.models",
     "lemouton.markets.models_orders",
-    "lemouton.markets.models_shopmine",
+    "lemouton.markets.models_lotteon_so",
     "lemouton.markets.models_purchase",   # 실매입가 저장소 (order_line_purchases)
     "lemouton.markets.models_supply",     # 공급방식 저장소 (order_line_supplies)
     # 「주문 관리」 상태 (order_status_options · order_line_status)

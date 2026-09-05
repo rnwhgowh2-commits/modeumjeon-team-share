@@ -53,14 +53,12 @@ def _unpack(blob: bytes) -> dict:
 def save(session, *, payload, period_from, period_to,
          buy_file_key, buy_filename,
          markets_fetched, markets_failed, counts,
-         created_by,
-         shopmine_file_key=None, shopmine_filename=None) -> MarginAnalysis:
+         created_by) -> MarginAnalysis:
     """분석 1건 저장 후 KEEP_RECENT 초과분 정리. 저장된 레코드를 반환."""
     row = MarginAnalysis(
         created_by=created_by,
         period_from=period_from, period_to=period_to,
         buy_file_key=buy_file_key, buy_filename=buy_filename,
-        shopmine_file_key=shopmine_file_key, shopmine_filename=shopmine_filename,
         markets_fetched=markets_fetched, markets_failed=markets_failed,
         counts=counts,
         result_blob=_pack(payload),
@@ -93,13 +91,12 @@ def list_recent(session, limit: int = KEEP_RECENT) -> list:
 
 
 def delete(session, analysis_id: int) -> None:
-    """레코드 + R2 오브젝트(buy/shopmine) 삭제. 없으면 no-op.
+    """레코드 + R2 오브젝트(buy) 삭제. 없으면 no-op.
     R2 삭제가 실패해도 DB 행은 지운다 (모듈 docstring 정책)."""
     row = get(session, analysis_id)
     if row is None:
         return
     _delete_object_safe(row.buy_file_key)
-    _delete_object_safe(row.shopmine_file_key)
     session.delete(row)
     session.commit()
 
@@ -114,6 +111,5 @@ def _prune(session) -> None:
         return
     for row in stale:
         _delete_object_safe(row.buy_file_key)
-        _delete_object_safe(row.shopmine_file_key)
         session.delete(row)
     session.commit()
