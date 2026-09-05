@@ -190,7 +190,8 @@ def test_줄_만드는_곳이_클레임을_이어_준다():
 
     store_src = pathlib.Path(OS.__file__).read_text(encoding="utf-8")
     j = store_src.index("def lines_for_markets")
-    store_blk = store_src[j:j + 1600]
+    k = store_src.index("\ndef ", j + 1)   # 다음 함수 시작까지 — 길이에 안 흔들리게
+    store_blk = store_src[j:k]
     assert "annotate_claims" in store_blk
 
 

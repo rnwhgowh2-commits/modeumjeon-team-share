@@ -453,7 +453,8 @@ def load(markets: Optional[Iterable[str]] = None, *,
 
 
 def lines_for_markets(markets: Optional[Iterable[str]] = None, *,
-                      lookback_days: int = 180, session=None) -> list[dict]:
+                      lookback_days: int = 180, order_nos: Optional[Iterable[str]] = None,
+                      session=None) -> list[dict]:
     """MarketOrderLine + MarketClaimEvent → `settle_plan` 엔진 입력(line dict).
 
     `webapp/routes/orders.py::_settle_plan_lines` 가 짜던 걸 공용 계층으로 옮긴 것
@@ -463,16 +464,32 @@ def lines_for_markets(markets: Optional[Iterable[str]] = None, *,
 
     [중요] 클레임에는 최근 lookback_days 로 거르지 않는다 — 옛 클레임이라도 그
       주문이 지금 창 안에 있으면 이어 줘야 한다(주문이 오래전이어도 반품은 최근일 수 있다).
+
+    `order_nos` 를 주면 그 주문번호만 SQL 로 골라 읽는다(`ix_mol_order_no`·
+    `ix_mce_market_order` 인덱스) — **마진계산기 쪽 호출은 반드시 이걸 써야 한다.**
+    2026-09-05 라이브 실측: 이 필터 없이 마진계산기 분석(매칭 3,499건)마다 6마켓×
+    180일 전체 + 클레임 전체(무제한)를 통째로 읽어 analyze() 한 번에 50초 가까이
+    걸렸다 — Cloudflare 100초 상한에 근접해 「서버 오류」로 이어질 수 있는 위험한
+    지연이었다(이 저장소가 이미 겪은 6마켓 61.7초→502 사고와 같은 부류).
     """
     from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
 
+    ons = [str(o).strip() for o in (order_nos or []) if str(o or "").strip()]
+
     s, own = _open_session(session)
     try:
-        lo = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
-        q = s.query(MarketOrderLine).filter(MarketOrderLine.order_date >= lo)
+        q = s.query(MarketOrderLine)
         mk = [m for m in (markets or []) if m]
         if mk:
             q = q.filter(MarketOrderLine.market.in_(mk))
+        if ons:
+            # IN 절이 너무 길면 DB 가 거부한다 — 900 개씩 끊어 붙인다(order_store.load 와 동일).
+            from sqlalchemy import or_ as _or1
+            q = q.filter(_or1(*[MarketOrderLine.order_no.in_(ons[i:i + 900])
+                               for i in range(0, len(ons), 900)]))
+        else:
+            lo = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+            q = q.filter(MarketOrderLine.order_date >= lo)
         lines = [{"row": dict(o.row or {}), "market": o.market,
                   "account": o.account or "", "status_at": o.status_at,
                   "status_prev": o.status_prev or ""}
@@ -481,6 +498,10 @@ def lines_for_markets(markets: Optional[Iterable[str]] = None, *,
         qc = s.query(MarketClaimEvent)
         if mk:
             qc = qc.filter(MarketClaimEvent.market.in_(mk))
+        if ons:
+            from sqlalchemy import or_ as _or2
+            qc = qc.filter(_or2(*[MarketClaimEvent.order_no.in_(ons[i:i + 900])
+                                 for i in range(0, len(ons), 900)]))
         lines += [{"row": dict(c.row or {}), "market": c.market,
                    "account": "", "status_at": None}
                   for c in qc.all()]
