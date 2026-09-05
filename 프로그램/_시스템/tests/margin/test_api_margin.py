@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from shared.db import Base
 from lemouton.margin.models import (  # 테이블 등록
-    MarginAnalysis, CardKeywordConfig, MarginPendingUpload)
+    MarginAnalysis, CardKeywordConfig, MarginPendingUpload, MarginAnalyzeJob)
 from lemouton.margin.sell_source import SELL_COLUMNS
 from webapp.routes import api_margin
 
@@ -57,6 +57,7 @@ def client(tmp_path, monkeypatch):
     MarginAnalysis.__table__.create(eng, checkfirst=True)
     CardKeywordConfig.__table__.create(eng, checkfirst=True)  # analyze 가 카드 키워드 주입
     MarginPendingUpload.__table__.create(eng, checkfirst=True)  # 업로드→분석 스테이징(DB)
+    MarginAnalyzeJob.__table__.create(eng, checkfirst=True)  # /analyze/start 백그라운드 잡 상태
     Session = sessionmaker(bind=eng, future=True, expire_on_commit=False)
     monkeypatch.setattr(api_margin, "SessionLocal", Session)
     from lemouton.margin import pending_store as _ps
@@ -112,6 +113,65 @@ def test_analyze_stores_and_returns_full_payload(client, monkeypatch):
     assert len(j["matched"]) == 1
     assert j["summary"]["총순마진"] == 20000
     assert "market" in j and "daily" in j and "filters" in j
+
+
+# ── 분석(백그라운드 잡) ──────────────────────────────────────────────────
+# 2026-09-05: 대용량 매입 엑셀에서 동기 /analyze 가 라이브 100초 벽(Cloudflare 524)에
+# 걸려 "서버 오류"가 났다 — /analyze/start + /analyze/status 폴링으로 우회.
+
+class _ImmediateThread:
+    """threading.Thread 대역 — 테스트에서 진짜 스레드(SQLite 커넥션 스레드 제약,
+    타이밍 경합)를 피하려고 target 을 동기로 즉시 실행한다."""
+
+    def __init__(self, target=None, args=(), kwargs=None, daemon=None):
+        self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
+
+    def start(self):
+        self._target(*self._args, **self._kwargs)
+
+
+def test_analyze_start_and_status_round_trip(client, monkeypatch):
+    _upload(client)
+    _patch_from_api(monkeypatch, _sell_df([("1000", "real", 50000)]))
+    monkeypatch.setattr(api_margin.threading, "Thread", _ImmediateThread)
+
+    r = client.post("/api/margin/analyze/start", json={})
+    assert r.status_code == 200
+    job_id = r.get_json()["job_id"]
+
+    r2 = client.get(f"/api/margin/analyze/status/{job_id}")
+    assert r2.status_code == 200
+    j = r2.get_json()
+    assert j["status"] == "done"
+    assert j["analysis_id"] > 0
+    # meta = payload 이외 필드(동기 /analyze 응답의 나머지 절반) — payload 본체는
+    # 중복 저장하지 않고 /analyses/<id> 에서 가져온다.
+    assert set(j["meta"]) == {"counts", "markets_failed", "notices",
+                               "period_from", "period_to"}
+    assert j["meta"]["counts"]["matched"] == 1
+
+    # 동기 /analyze 와 같은 결과가 실제로 저장됐는지 최종 확인.
+    got = client.get(f"/api/margin/analyses/{j['analysis_id']}").get_json()
+    assert len(got["payload"]["matched"]) == 1
+
+
+def test_analyze_start_records_error_status(client, monkeypatch):
+    monkeypatch.setattr(api_margin.threading, "Thread", _ImmediateThread)
+    r = client.post("/api/margin/analyze/start", json={})  # 업로드 안 한 상태
+    job_id = r.get_json()["job_id"]
+
+    r2 = client.get(f"/api/margin/analyze/status/{job_id}")
+    j = r2.get_json()
+    assert j["status"] == "error"
+    assert j["http_status"] == 400
+    assert "업로드" in j["error"]
+
+
+def test_analyze_status_unknown_job_is_404(client):
+    r = client.get("/api/margin/analyze/status/nope")
+    assert r.status_code == 404
 
 
 def test_analyze_injects_team_db_card_keywords_into_summary(client, monkeypatch):
