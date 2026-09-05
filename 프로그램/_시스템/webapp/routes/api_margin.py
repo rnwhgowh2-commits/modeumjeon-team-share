@@ -266,6 +266,68 @@ def margin_match_probe():
                    매출중복=dup, 매칭시뮬=sim, 샘플키=keys[:5])
 
 
+@bp.route("/margin/diag/eleven11-order-fact")
+def margin_diag_eleven11_order_fact():
+    """[읽기 전용] 11번가 실제 API 기준 진단 — 저장분(_settle_paid_date)이 아니라
+    지금 이 순간 11번가가 실제로 뭐라고 답하는지를 직접 물어본다.
+
+    2026-09-06 사장님 신고: 마진계산기가 취소완료 주문 2건을 "정산O"로 표시.
+    settle_status.py 의 verdict 는 저장된 `_settle_paid_date`(과거 한 번 기록되면
+    안 지워짐)만 보므로, 실제로 "정산 받은 게 맞는지" 는 라이브 API 를 다시
+    불러야 확인된다 — 저장분 대조가 아니라 소싱처/판매처 실물 확인 원칙과 동일.
+
+    반환: 계정별 ① 지금 주문상태(fetch_order_status) ② 지정 구간의 정산 실값
+    (settlement_detail_map, ordNo 일치분 전체 ordPrdSeq). 고객정보는 담지 않는다.
+
+    `?orders=번호,번호[&since=YYYY-MM-DD][&until=YYYY-MM-DD]`
+    (since 생략 시 각 주문번호 앞 40일부터 — 주문번호가 여러 개면 그중 가장 이른
+    주문일을 모르므로 90일 전부터 안전하게 잡는다.)
+    """
+    want = [o.strip() for o in (request.args.get("orders") or "").split(",") if o.strip()]
+    if not want:
+        return jsonify(ok=False, error="orders=번호,번호 가 필요해요."), 400
+
+    def _d(v, dflt):
+        try:
+            return _dt.datetime.strptime(v, "%Y-%m-%d")
+        except Exception:   # noqa: BLE001
+            return dflt
+
+    now = _dt.datetime.now()
+    until = _d(request.args.get("until") or "", now)
+    since = _d(request.args.get("since") or "", now - _dt.timedelta(days=180))
+
+    from lemouton.markets.order_ingest import _esm_settlement_clients
+    from shared.platforms.eleven11 import orders as _el_orders, settlement as _el_settle
+
+    clients = _esm_settlement_clients("eleven11")
+    if not clients:
+        return jsonify(ok=False, error="11번가 등록 계정이 없어요."), 400
+
+    results = {onno: {"현재주문상태(계정별)": {}, "정산실값(계정별)": {}} for onno in want}
+    for name, cli in clients:
+        acc = name or "대표"
+        for onno in want:
+            try:
+                results[onno]["현재주문상태(계정별)"][acc] = _el_orders.fetch_order_status(
+                    onno, client=cli)
+            except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+                results[onno]["현재주문상태(계정별)"][acc] = f"조회실패: {type(e).__name__}: {e}"
+        try:
+            smap = _el_settle.settlement_detail_map(since, until, client=cli)
+        except Exception as e:   # noqa: BLE001
+            for onno in want:
+                results[onno]["정산실값(계정별)"].setdefault(acc, []).append(
+                    f"조회실패: {type(e).__name__}: {e}")
+            continue
+        for (ord_no, seq), ent in smap.items():
+            if ord_no in want:
+                results[ord_no]["정산실값(계정별)"].setdefault(acc, []).append(
+                    {"ordPrdSeq": seq, **ent})
+
+    return jsonify(ok=True, 조회구간=f"{since.date()}~{until.date()}", 결과=results)
+
+
 @bp.route("/upload", methods=["POST"])
 def upload():
     """더망고 매입 엑셀 → 파싱 + 기간 자동 추론. 분석은 하지 않는다."""
