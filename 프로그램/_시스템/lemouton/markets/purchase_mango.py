@@ -143,6 +143,8 @@ def match_to_lines(buy_df, order_rows) -> dict:
           "ambiguous": [{...행 요약, "사유", "후보": [line_uid, ...]}, ...],
         }
     """
+    from collections import defaultdict
+
     from lemouton.margin.matcher import extract_product_code, normalize_option
 
     sells = []
@@ -154,19 +156,31 @@ def match_to_lines(buy_df, order_rows) -> dict:
             "_option_norm": normalize_option(r.get("옵션")),
         })
 
+    # 🔴 [issue #1139] order_key 별로 미리 묶어 둔다. 아래 3단계 predicate 는
+    #    전부 "s['_order_key'] in b['_order_keys']" 를 공통으로 깔고 있었는데,
+    #    이걸 매입행마다 매출행 전체(sells)를 선형 재스캔해서 걸렀다 —
+    #    3단계 × 매입행 × 매출행이라 3,900+행에서 O(n²)로 느려진다.
+    #    order_key 로 미리 나눠 두면 각 매입행은 "그 주문의 라인 수"만큼만
+    #    보면 되고, 이 값은 보통 1~몇 개로 늘 작다(주문번호 자체가 유일 키는
+    #    아니라 여러 줄일 수 있다 — 그래서 다음 단계로 product_code·option 으로
+    #    더 좁힌다). 매칭 결과·정밀도는 원래 알고리즘과 동일, 순서만 다르다.
+    by_order_key = defaultdict(list)
+    for s in sells:
+        if s["_order_key"]:
+            by_order_key[s["_order_key"]].append(s)
+
     buys = _buy_records(buy_df)
     matched, unmatched, ambiguous = [], [], []
     used_sell = set()
     pending = list(range(len(buys)))
 
     # matcher.match_data 와 같은 3단계 — 좁은 조건부터.
+    # order_key 일치는 위 버킷팅으로 이미 보장되므로 여기선 나머지 조건만 본다.
     stages = (
-        ("정밀", lambda b, s: (s["_order_key"] in b["_order_keys"]
-                               and s["_product_code"] == b["_product_code"]
+        ("정밀", lambda b, s: (s["_product_code"] == b["_product_code"]
                                and s["_option_norm"] == b["_option_norm"])),
-        ("기본", lambda b, s: (s["_order_key"] in b["_order_keys"]
-                               and s["_product_code"] == b["_product_code"])),
-        ("주문번호", lambda b, s: s["_order_key"] in b["_order_keys"]),
+        ("기본", lambda b, s: s["_product_code"] == b["_product_code"]),
+        ("주문번호", lambda b, s: True),
     )
 
     for match_type, pred in stages:
@@ -176,8 +190,16 @@ def match_to_lines(buy_df, order_rows) -> dict:
             if not b["_order_keys"]:
                 still.append(bi)
                 continue
-            cands = [s for s in sells
-                     if s["line_uid"] not in used_sell and pred(b, s)]
+            seen_uid = set()
+            cands = []
+            for k in b["_order_keys"]:
+                for s in by_order_key.get(k, ()):
+                    uid = s["line_uid"]
+                    if uid in used_sell or uid in seen_uid:
+                        continue
+                    if pred(b, s):
+                        seen_uid.add(uid)
+                        cands.append(s)
             if not cands:
                 still.append(bi)
                 continue
@@ -206,6 +228,12 @@ def match_to_lines(buy_df, order_rows) -> dict:
     return {"matched": matched, "unmatched": unmatched, "ambiguous": ambiguous}
 
 
+# [issue #1139] 한 트랜잭션에 몇 줄까지 모아 커밋할지. 전부 한 번에(무제한)는
+# 실패 시 되돌릴 범위가 너무 커지고, 행마다(1)는 원래 버그 그대로다 — 적당히
+# 큰 상수로 끊어서 "원격 왕복 수" 와 "실패 시 잃는 범위"를 같이 줄인다.
+_COMMIT_CHUNK = 200
+
+
 def apply(session, buy_df, order_rows, *, filename: str = "", input_by=None,
           reason=None) -> dict:
     """매칭 → `order_line_purchases` 저장. 매칭 결과를 그대로 되돌려준다.
@@ -214,19 +242,35 @@ def apply(session, buy_df, order_rows, *, filename: str = "", input_by=None,
     · 못 붙은 행·애매한 행은 버리지 않고 응답에 담는다.
     · `reason` 은 변경 이력에 남길 경로 이름(기본 `mango`). 마진 계산기 쪽 업로드는
       `margin` 을 넘겨 「어느 화면에서 올린 엑셀이 덮어썼나」를 나중에 알 수 있게 한다.
+
+    🔴 [issue #1139] 대용량 매입 엑셀(3,900+행) 업로드가 Cloudflare 524(타임아웃)로
+      죽었다 — 매칭된 행마다 `upsert`(커밋 1~2번 + `session.get()` 조회 1번)를 불러
+      원격 DB(Supabase) 왕복이 수천 번 쌓인 게 정체였다. 여기서 두 가지로 줄인다:
+      ① `get_many` 로 대상 line_uid 를 **한 번에** 읽어 `_existing` 맵을 만들고
+         `upsert` 에 넘긴다 — 있던 행이든 새 행이든 이후 개별 `session.get()` 조회가
+         통째로 사라진다(맵에 없으면 새 행이라는 뜻 — `get_many` 가 그 uid 목록
+         전체를 이미 조회했으므로 확실하다).
+      ② `commit=False` 로 넘기고 `_COMMIT_CHUNK` 줄마다 한 번씩만 커밋·플러시한다
+         (행마다 왕복하지 않되, 실패해도 그 청크만 날아가게 범위를 제한한다).
     """
     from lemouton.markets import purchase_price as _pp
 
     res = match_to_lines(buy_df, order_rows)
-    saved, skipped_zero = 0, []
-    for m in res["matched"]:
-        if not m["price"]:
-            skipped_zero.append(dict(m["buy"], 사유=_SKIP_ZERO_REASON))
-            continue
+    to_save = [m for m in res["matched"] if m["price"]]
+    skipped_zero = [dict(m["buy"], 사유=_SKIP_ZERO_REASON)
+                    for m in res["matched"] if not m["price"]]
+
+    existing = (_pp.get_many(session, [m["line_uid"] for m in to_save])
+                if to_save else {})
+
+    saved = 0
+    for i, m in enumerate(to_save):
         ref = f"{filename}#{m['buy'].get('행번호')}"[:255] if filename else None
+        is_chunk_end = (i + 1) % _COMMIT_CHUNK == 0 or i == len(to_save) - 1
         _pp.upsert(session, line_uid=m["line_uid"], price=m["price"],
                    source=_pp.SOURCE_MANGO, mango_ref=ref, input_by=input_by,
-                   reason=(reason or _pp.SOURCE_MANGO))
+                   reason=(reason or _pp.SOURCE_MANGO), commit=is_chunk_end,
+                   _existing=existing)
         saved += 1
     return {
         "matched": len(res["matched"]),

@@ -52,6 +52,43 @@ def test_parse_buy_missing_required_column_raises():
         bp.parse_buy(data, "더망고.xlsx")
 
 
+# ══════════════════════════════════════════════════════════════════════
+# HTML 포맷 .xls (더망고 구버전 다운로드) — issue #1139: lxml 우선 파싱으로 바꾼
+#   뒤에도 결과가 그대로인지 잠근다.
+# ══════════════════════════════════════════════════════════════════════
+
+def _html_xls_bytes(rows: list) -> bytes:
+    head = ("<html><head><meta http-equiv='Content-Type' "
+            "content='application/vnd.ms-excel;charset=utf-8'></head><body>"
+            "<table border='1'><tr>" +
+            "".join(f"<td>{c}</td>" for c in COLS) + "</tr>")
+    body = "".join(
+        "<tr>" + "".join(f"<td>{v}</td>" for v in r) + "</tr>" for r in rows)
+    tail = "</table></body></html>"
+    return (head + body + tail).encode("utf-8")
+
+
+def test_parse_buy_html_xls_format_lxml():
+    data = _html_xls_bytes([
+        ["26.07.04", "쿠팡", "1001", "홍길동", "코트 12345", "블랙/95", "SO-1", "50000", ""],
+    ])
+    df = bp.parse_buy(data, "더망고.xls")
+    assert len(df) == 1
+    assert df.loc[0, "마켓주문번호"] == "1001"
+    assert df.loc[0, "구매가격"] == 50000
+    assert "_uid" in df.columns
+
+
+def test_parse_buy_html_xls_sentinel_and_multirow():
+    data = _html_xls_bytes([
+        ["26.07.04", "쿠팡", "1001", "홍길동", "코트 12345", "블랙/95", "SO-1", "50000", ""],
+        ["26.07.05", "롯데ON", "1002", "김철수", "신발 54321", "화이트/260", "", "999999999.99", "메모"],
+    ])
+    df = bp.parse_buy(data, "더망고.xls")
+    assert len(df) == 2
+    assert df.loc[1, "구매가격"] == 0, "센티널(미입력) 999999999.99 는 HTML 경로에서도 0 이어야 한다"
+
+
 def test_split_by_site_order_no():
     data = _xlsx_bytes([
         ["26.07.04", "쿠팡", "1001", "A", "코트 12345", "블랙", "SO-1", 50000, ""],

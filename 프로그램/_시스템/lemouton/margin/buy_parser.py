@@ -83,7 +83,14 @@ def parse_buy(file_bytes: bytes, filename: str) -> pd.DataFrame:
             )
 
         try:
-            dfs = pd.read_html(io.StringIO(text), flavor='html5lib')
+            # [issue #1139] lxml 이 html5lib 보다 훨씬 빠르다(같은 8.7MB/6,887행 파일
+            # 기준 html5lib 9.7초 vs lxml 1.2초 — 8배). 대용량 매입 엑셀이 Cloudflare
+            # 100초 타임아웃에 걸리는 원인 중 하나라 lxml 을 먼저 시도하고, lxml 이
+            # 못 읽는 더 지저분한 HTML 만 html5lib 으로 물러난다(정확도는 그대로 유지).
+            try:
+                dfs = pd.read_html(io.StringIO(text), flavor='lxml')
+            except Exception:
+                dfs = pd.read_html(io.StringIO(text), flavor='html5lib')
             df = dfs[0]
             if df.iloc[0].astype(str).str.contains('마켓|주문|상품', regex=True).any():
                 df.columns = df.iloc[0]

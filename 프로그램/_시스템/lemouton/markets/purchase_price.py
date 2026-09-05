@@ -86,28 +86,41 @@ def get_many(session, line_uids) -> dict:
 
 def _record_history(session, *, line_uid, old_price, new_price,
                     old_source=None, new_source=None, reason=None,
-                    ref=None, changed_by=None) -> None:
+                    ref=None, changed_by=None, commit=True) -> None:
     """변경 이력 한 줄 덧붙이기 (`models_purchase_history` 머리말의 규율).
 
     · **바뀐 때만** 적는다 — 값도 출처도 그대로면 아무것도 안 남긴다(잡음 방지).
     · 🔴 여기서 터져도 저장을 되돌리지 않는다. 돈 값을 못 적는 것보다 이력 한 줄이
       비는 편이 낫다. 다만 **조용히 넘어가지는 않는다** — 로그에 남긴다.
+    · `commit=False` — 대량 업로드(`purchase_mango.apply`)가 행마다 커밋·플러시하면
+      원격 DB 왕복이 N배가 돼 3,900+행에서 타임아웃 난다(issue #1139). 호출부가
+      여러 줄을 모아 한 번만 커밋할 때 쓴다 — 이때는 그냥 `session.add` 만 하고
+      커밋도 조용한-실패 처리도 하지 않는다(같은 배치 트랜잭션에 얹혀 호출부의
+      한 번뿐인 커밋에서 함께 저장되거나 함께 실패한다 — 실패 범위는 호출부의
+      청크 크기로 제한된다).
     """
     if old_price == new_price and (old_source or None) == (new_source or None):
         return
-    try:
-        from lemouton.markets.models_purchase_history import \
-            OrderLinePurchaseHistory
+    from lemouton.markets.models_purchase_history import \
+        OrderLinePurchaseHistory
 
-        session.add(OrderLinePurchaseHistory(
-            line_uid=line_uid, old_price=old_price, new_price=new_price,
-            old_source=old_source, new_source=new_source,
-            reason=(reason or None), ref=(str(ref)[:255] if ref else None),
-            changed_by=changed_by))
+    entry = OrderLinePurchaseHistory(
+        line_uid=line_uid, old_price=old_price, new_price=new_price,
+        old_source=old_source, new_source=new_source,
+        reason=(reason or None), ref=(str(ref)[:255] if ref else None),
+        changed_by=changed_by)
+
+    if not commit:
+        session.add(entry)
+        return
+
+    try:
+        session.add(entry)
         session.commit()
     except Exception:                       # noqa: BLE001
-        logger.exception("실매입가 변경 이력 적기 실패 uid=%s (%s→%s) — 저장 자체는 됐습니다",
-                         line_uid, old_price, new_price)
+        logger.exception(
+            "실매입가 변경 이력 적기 실패 uid=%s (%s→%s) — 저장 자체는 됐습니다",
+            line_uid, old_price, new_price)
         try:
             session.rollback()
         except Exception:                   # noqa: BLE001
@@ -115,11 +128,22 @@ def _record_history(session, *, line_uid, old_price, new_price,
 
 
 def upsert(session, *, line_uid, price, source=SOURCE_MANUAL,
-           mango_ref=None, memo=None, input_by=None, reason=None):
+           mango_ref=None, memo=None, input_by=None, reason=None, commit=True,
+           _existing=None):
     """실매입가 저장. **가격이 0 또는 None 이면 삭제**(= 「입력 안 함」으로 되돌림).
 
     `reason` 은 변경 이력에 남길 「무엇이 이 변경을 일으켰나」다(기본값 = `source`).
     마진 계산기 업로드처럼 출처는 mango 지만 경로가 다른 경우를 구분하려고 받는다.
+
+    `commit=False` — 호출부가 여러 줄을 모아 한 번만 커밋할 때(대량 업로드,
+    issue #1139). 이때는 flush 도 안 한다 — 호출부가 청크 경계에서 commit=True 로
+    부르면 그때 한꺼번에 반영된다. 기본값은 그대로 즉시 커밋(단건 저장 호출부는
+    동작이 안 바뀐다).
+
+    `_existing` — {line_uid: OrderLinePurchase | None} 미리 읽어 둔 맵(대량
+    호출부가 `get_many` 로 한 번에 읽어서 넘긴다). 있으면 `session.get()` 을
+    생략한다 — 수천 줄을 저장할 때 행마다 SELECT 왕복이 나가는 걸 막는다
+    (issue #1139). 안 주면(기본값) 원래대로 그때그때 조회한다.
 
     Returns: 저장된 행 / 삭제됐거나 애초에 없으면 None.
     """
@@ -134,10 +158,10 @@ def upsert(session, *, line_uid, price, source=SOURCE_MANUAL,
     n = _to_price(price)
     if n is None:
         delete(session, uid, reason=(reason or source), ref=mango_ref,
-               changed_by=input_by)
+               changed_by=input_by, commit=commit, _existing=_existing)
         return None
 
-    obj = session.get(OrderLinePurchase, uid)
+    obj = _existing.get(uid) if _existing is not None else session.get(OrderLinePurchase, uid)
     # 🔴 바꾸기 **전에** 옛 값을 챙긴다 — 고친 뒤에는 무엇이었는지 알 길이 없다.
     old_price = int(obj.purchase_price) if obj is not None else None
     old_source = obj.source if obj is not None else None
@@ -145,6 +169,8 @@ def upsert(session, *, line_uid, price, source=SOURCE_MANUAL,
         obj = OrderLinePurchase(line_uid=uid, purchase_price=n, source=source,
                                 mango_ref=mango_ref, memo=memo, input_by=input_by)
         session.add(obj)
+        if _existing is not None:
+            _existing[uid] = obj
     else:
         obj.purchase_price = n
         obj.source = source
@@ -156,30 +182,38 @@ def upsert(session, *, line_uid, price, source=SOURCE_MANUAL,
         if input_by is not None:
             obj.input_by = input_by
         obj.updated_at = datetime.now(timezone.utc)
-    session.commit()
+    if commit:
+        session.commit()
     _record_history(session, line_uid=uid, old_price=old_price, new_price=n,
                     old_source=old_source, new_source=source,
                     reason=(reason or source), ref=mango_ref,
-                    changed_by=input_by)
+                    changed_by=input_by, commit=commit)
     return obj
 
 
-def delete(session, line_uid, *, reason=None, ref=None, changed_by=None) -> bool:
-    """행 삭제. 지운 게 있으면 True. **지움도 이력에 남는다**(new_price=None)."""
+def delete(session, line_uid, *, reason=None, ref=None, changed_by=None,
+           commit=True, _existing=None) -> bool:
+    """행 삭제. 지운 게 있으면 True. **지움도 이력에 남는다**(new_price=None).
+
+    `_existing` — `upsert` 와 같은 미리 읽어 둔 맵. 대량 호출부에서 넘긴다.
+    """
     from lemouton.markets.models_purchase import OrderLinePurchase
 
     uid = _clean(line_uid)
     if not uid:
         return False
-    obj = session.get(OrderLinePurchase, uid)
+    obj = _existing.get(uid) if _existing is not None else session.get(OrderLinePurchase, uid)
     if obj is None:
         return False
     old_price, old_source = int(obj.purchase_price), obj.source
     session.delete(obj)
-    session.commit()
+    if _existing is not None:
+        _existing[uid] = None
+    if commit:
+        session.commit()
     _record_history(session, line_uid=uid, old_price=old_price, new_price=None,
                     old_source=old_source, new_source=None,
-                    reason=(reason or SOURCE_MANUAL), ref=ref,
+                    reason=(reason or SOURCE_MANUAL), ref=ref, commit=commit,
                     changed_by=changed_by)
     return True
 

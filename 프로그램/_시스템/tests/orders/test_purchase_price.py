@@ -26,6 +26,7 @@ for _m in (
     "lemouton.sets.models", "lemouton.multitenancy.models",
     "lemouton.audit.models", "lemouton.mapping.models",
     "lemouton.markets.models_orders", "lemouton.markets.models_purchase",
+    "lemouton.markets.models_purchase_history",
 ):
     try:
         __import__(_m)
@@ -485,6 +486,112 @@ def test_query_count_does_not_grow_with_rows(db, engine, monkeypatch, fake_break
         f"행을 3 → 40 으로 늘렸더니 쿼리가 {q3} → {q40} 로 늘었다 — N+1 이 살아 있다")
     # 절대 상한은 넉넉히 — 진짜 감시선은 위의 「늘지 않는다」다.
     assert q3 <= 25, f"3줄 조회가 쿼리 {q3}개 — IN 절 일괄로 묶여 있어야 한다"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ⑦ 대용량 더망고 업로드 회귀 감시 (issue #1139)
+#    3,902행 업로드가 Cloudflare 524(타임아웃)로 죽었다 — 행마다 커밋·조회하던 것이
+#    원격 DB(Supabase) 왕복을 수천 번 만든 것이 정체. 행 수가 늘어도 커밋·쿼리는
+#    거의 그대로여야 한다(§⑥ 과 같은 감시 방식, PM.apply 대상).
+# ══════════════════════════════════════════════════════════════════════
+
+def _bulk_rows_and_mango(n):
+    """서로 다른 주문 n개(각 1줄) + 그대로 매칭되는 더망고 매입 행 n개."""
+    rows = [_row(f"coupang|BOX{i}|V{i}", order_no=f"B{i}",
+                 name=f"상품{i} 12345", opt=f"옵션{i}") for i in range(n)]
+    mangos = [_mango(order_no=f"B{i}", name=f"상품{i} 12345", opt=f"옵션{i}",
+                     price=10000 + i) for i in range(n)]
+    return rows, mangos
+
+
+def test_bulk_apply_commits_once_not_per_row(db, engine):
+    """N 개 행을 저장해도 커밋은 1번 — 예전엔 upsert+history 가 행마다 2번씩 커밋했다."""
+    from sqlalchemy import event
+
+    N = 50
+    rows, mangos = _bulk_rows_and_mango(N)
+    OS.save(rows, session=db)
+    order_rows = OS.load(order_nos=[f"B{i}" for i in range(N)],
+                         include_claims=False, session=db)
+
+    commits = {"n": 0}
+
+    def _count(conn):
+        commits["n"] += 1
+
+    event.listen(engine, "commit", _count)
+    try:
+        res = PM.apply(db, _buy_df(mangos), order_rows, filename="bulk.xlsx")
+    finally:
+        event.remove(engine, "commit", _count)
+
+    assert res["saved"] == N
+    assert commits["n"] <= 2, (
+        f"{N}건을 저장하는데 커밋이 {commits['n']}번 — 행마다 커밋하면 원격 DB에선 "
+        f"N번의 네트워크 왕복이 되어 대량 업로드가 타임아웃 난다(issue #1139)")
+
+
+def test_bulk_apply_select_count_does_not_grow_with_rows(db, engine):
+    """매칭된 행마다 session.get() 이 매번 원격 SELECT 를 날리면 안 된다.
+
+    INSERT/UPDATE 문 자체는 행 수만큼 나오는 게 정상(그건 N+1 이 아니라 그냥 N개
+    저장이다) — 여기서 감시하는 건 **SELECT** 문 수다. `get_many` 로 대상 line_uid
+    를 한 번에 읽어 `_existing` 맵을 넘기면, 그 뒤 `upsert` 내부의 개별
+    `session.get()` 이 아예 안 불려서 SELECT 는 (행 수와 무관하게) 상수여야 한다.
+    """
+    from sqlalchemy import event
+
+    N = 60
+    rows, mangos = _bulk_rows_and_mango(N)
+    OS.save(rows, session=db)
+    order_rows = OS.load(order_nos=[f"B{i}" for i in range(N)],
+                         include_claims=False, session=db)
+
+    selects = {"n": 0}
+
+    def _count(conn, cursor, statement, parameters, context, executemany):
+        if statement.strip().upper().startswith("SELECT"):
+            selects["n"] += 1
+
+    event.listen(engine, "before_cursor_execute", _count)
+    try:
+        res = PM.apply(db, _buy_df(mangos), order_rows, filename="bulk.xlsx")
+    finally:
+        event.remove(engine, "before_cursor_execute", _count)
+
+    assert res["saved"] == N
+    # 상한을 넉넉히 둬도(10) "행마다 1개"였던 옛 동작(N=60)은 확실히 잡는다.
+    assert selects["n"] <= 10, (
+        f"{N}건 저장에 SELECT 가 {selects['n']}번 — 행마다 session.get() 이 원격 "
+        f"조회를 하고 있다(N+1 회귀, issue #1139)")
+
+
+def test_match_to_lines_scales_subquadratically_and_stays_correct():
+    """매칭이 매입행마다 매출행 전체를 다시 훑으면 안 된다.
+
+    O(n²) 이면 행을 10배 늘릴 때 시간은 대략 100배가 돼야 한다 — 20배 미만이면
+    order_key 로 인덱싱된 것으로 본다. 절대 시간 상한도 둔다: 1,000행이 몇 초 안에
+    끝나야 실사용 규모(3,900+행)도 Cloudflare 100초 벽 안에 든다(issue #1139).
+    """
+    import time
+
+    def _timed(n):
+        rows, mangos = _bulk_rows_and_mango(n)
+        t0 = time.perf_counter()
+        res = PM.match_to_lines(_buy_df(mangos), rows)
+        elapsed = time.perf_counter() - t0
+        assert len(res["matched"]) == n, (
+            f"{n}행 중 {len(res['matched'])}건만 매칭 — 인덱싱하며 매칭 결과가 바뀌면 안 된다")
+        assert not res["unmatched"] and not res["ambiguous"]
+        return elapsed
+
+    t_small = _timed(100)
+    t_big = _timed(1000)
+    ratio = t_big / max(t_small, 1e-6)
+    assert t_big < max(t_small * 20, 2.0), (
+        f"100행 {t_small:.3f}s → 1000행 {t_big:.3f}s ({ratio:.1f}배) — O(n²) 라면 "
+        f"~100배 늘어야 하는데 이 비율이면 order_key 인덱싱이 빠졌을 수 있다")
+    assert t_big < 5.0, f"1,000행 매칭에 {t_big:.1f}초 — 3,900+행에서 타임아웃 위험"
 
 
 def test_target_index_reads_only_asked_ids(db, engine, monkeypatch, fake_breakdown):
