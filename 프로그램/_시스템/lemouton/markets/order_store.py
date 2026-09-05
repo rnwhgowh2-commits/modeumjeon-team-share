@@ -452,6 +452,46 @@ def load(markets: Optional[Iterable[str]] = None, *,
             s.close()
 
 
+def lines_for_markets(markets: Optional[Iterable[str]] = None, *,
+                      lookback_days: int = 180, session=None) -> list[dict]:
+    """MarketOrderLine + MarketClaimEvent → `settle_plan` 엔진 입력(line dict).
+
+    `webapp/routes/orders.py::_settle_plan_lines` 가 짜던 걸 공용 계층으로 옮긴 것
+    (2026-08-19 발견 그대로 — 클레임을 안 읽으면 반품·취소가 0건으로 보인다).
+    호출자가 둘이면(정산예정금액 탭 + 마진계산기) 판정이 갈릴 수 있으므로 이제
+    하나만 남긴다 — 주문내역 쪽은 이 함수에 위임한다.
+
+    [중요] 클레임에는 최근 lookback_days 로 거르지 않는다 — 옛 클레임이라도 그
+      주문이 지금 창 안에 있으면 이어 줘야 한다(주문이 오래전이어도 반품은 최근일 수 있다).
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+
+    s, own = _open_session(session)
+    try:
+        lo = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+        q = s.query(MarketOrderLine).filter(MarketOrderLine.order_date >= lo)
+        mk = [m for m in (markets or []) if m]
+        if mk:
+            q = q.filter(MarketOrderLine.market.in_(mk))
+        lines = [{"row": dict(o.row or {}), "market": o.market,
+                  "account": o.account or "", "status_at": o.status_at,
+                  "status_prev": o.status_prev or ""}
+                 for o in q.all()]
+
+        qc = s.query(MarketClaimEvent)
+        if mk:
+            qc = qc.filter(MarketClaimEvent.market.in_(mk))
+        lines += [{"row": dict(c.row or {}), "market": c.market,
+                   "account": "", "status_at": None}
+                  for c in qc.all()]
+    finally:
+        if own:
+            s.close()
+
+    from lemouton.margin import settle_plan as _sp
+    return _sp.annotate_claims(lines)
+
+
 def _fill_invoice_from_ledger(rows) -> int:
     """발송됐는데 송장이 빈 행을 **송장 원장**에서 채운다. 채운 수 반환.
 

@@ -208,6 +208,15 @@ def _rows_from_store(markets, since, until):
         import logging
         logging.getLogger(__name__).exception("store rows enrich failed markets=%s", markets)
 
+    # 정산여부(O/확인불가/진행중) + 클레임 이력 — 마진계산기와 같은 판정(단일 원천,
+    #  lemouton.margin.settle_status). 2026-09-05 사장님 지시 2단계.
+    try:
+        from lemouton.margin import settle_status as _ss
+        _ss.attach_settlement_status(rows)
+    except Exception:                 # noqa: BLE001 — 부가 정보, 주문 목록 자체는 안 막는다
+        import logging
+        logging.getLogger(__name__).exception("store rows settle_status failed markets=%s", markets)
+
     missing = [m for m in markets if m not in cov]
     note = ("90일이 넘는 기간은 저장해둔 주문에서 보여드려요"
             "(실시간으로 1년치를 부르면 수십 분이 걸려요). ")
@@ -1425,43 +1434,18 @@ _SETTLE_PLAN_LOOKBACK_DAYS = 180   # 쿠팡 최대 2달 주기 + 여유
 def _settle_plan_lines(markets=None):
     """MarketOrderLine → settle_plan 엔진 입력. 최근 180일 주문 + 그 클레임 전 이력.
 
-    [중요] [2026-08-19] 클레임은 안 읽고 있었다 — **라이브 배포 직후 발견**. `MarketOrderLine`
-       한 테이블만 읽어서, `annotate_claims()` 가 이어 붙일 클레임 행이 애초에 하나도
-       없었다(반품완료 234건이 있는데도 kpi.returned=0으로 화면에 서 있었다).
-       클레임은 `order_store.save()` 가 **별도 테이블**(`MarketClaimEvent`)에 쌓는다
-       — 같은 라인이 반품요청→반품완료로 갈 때 주문 테이블에 덮어쓰면 이력이
-       사라지기 때문이다(`order_store.py` 의 그 이유 그대로). `order_store.load()`
-       (preview.json 이 쓰는 그 함수)는 이미 `include_claims` 로 두 테이블을 합쳐
-       왔는데, 이 함수는 그 패턴을 안 따르고 직접 쿼리를 짜면서 절반만 옮겼다.
-       [중요] 클레임에는 날짜로 거르지 않는다 — 옛 클레임이라도 그 주문이 지금 180일
-         창 안에 있으면 이어 줘야 한다(주문이 오래전이어도 반품은 최근일 수 있다).
+    [2026-09-05] 실제 로직은 `order_store.lines_for_markets` 로 옮겼다 — 마진계산기의
+    「정산여부」도 같은 판정을 써야 두 화면이 안 갈린다(예전에 판정이 두 곳에 흩어져
+    「KPI 5.5억 · 목록 0건」이 라이브에 나갔던 것과 같은 사고 예방). 이 함수는 그
+    호출 시그니처만 유지하는 얇은 래퍼다.
     """
-    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
-    lo = (_dt.datetime.now() - _dt.timedelta(days=_SETTLE_PLAN_LOOKBACK_DAYS)
-          ).strftime("%Y-%m-%d")
-    s = SessionLocal()
+    from lemouton.markets import order_store as _store
+    s = SessionLocal()          # 이 모듈의 SessionLocal(테스트가 바꿔치기하는 그 자리)로 연다
     try:
-        q = s.query(MarketOrderLine).filter(MarketOrderLine.order_date >= lo)
-        if markets:
-            q = q.filter(MarketOrderLine.market.in_(list(markets)))
-        lines = [{"row": dict(o.row or {}), "market": o.market,
-                  "account": o.account or "", "status_at": o.status_at}
-                 for o in q.all()]
-
-        qc = s.query(MarketClaimEvent)
-        if markets:
-            qc = qc.filter(MarketClaimEvent.market.in_(list(markets)))
-        lines += [{"row": dict(c.row or {}), "market": c.market,
-                   "account": "", "status_at": None}
-                  for c in qc.all()]
+        return _store.lines_for_markets(markets, lookback_days=_SETTLE_PLAN_LOOKBACK_DAYS,
+                                        session=s)
     finally:
         s.close()
-    # 🔴 [2026-08-13] 클레임 행을 **주문번호로 원래 주문행에 이어** 표식을 남긴다.
-    #   여기서 하는 이유 — 이 함수가 정산예정금액의 **유일한 줄 만드는 곳**이다.
-    #   집계·드릴다운·엑셀이 전부 여기를 지나므로 한 곳만 손대면 셋이 절대 안 갈린다.
-    #   (예전에 판정이 두 곳에 흩어져 「KPI 5.5억 · 목록 0건」이 라이브에 나갔다.)
-    from lemouton.margin import settle_plan as _sp
-    return _sp.annotate_claims(lines)
 
 
 @bp.route('/api/settle-plan')

@@ -3366,6 +3366,22 @@ async function settleRunOnce(st) {
           { method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ source: "auto", rows: r.rows }) })
           .then((x) => x.json()).catch(() => null);
+        // ★[2026-09-05] 지급내역(seCmptDt) 크롤도 같은 회차에 얹는다 — 여태
+        //   handleLotteonPaidCrawl 함수는 있는데 아무도 부르지 않아 「입금 완료」를
+        //   확인할 유일한 창구(lotteon_paid 표)가 항상 비어 있었다. 여분 시간이 있을
+        //   때만 돈다(정산 본체보다 우선순위 낮음 — 실패해도 정산은 성공으로 친다).
+        if (Date.now() < runDeadline) {
+          try {
+            const pr = await handleLotteonPaidCrawl({ since: win.since, until: win.until, trNo: r.trNo });
+            if (pr && pr.ok && pr.rows && pr.rows.length) {
+              await bgFetch("/api/margin/lotteon-paid",
+                { method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ source: "auto", trNo: pr.trNo || r.trNo,
+                                          account: a.display_name || "", rows: pr.rows }) })
+                .then((x) => x.json()).catch(() => null);
+            }
+          } catch (_) { /* 부가 수집 — 본체(정산)를 안 죽인다 */ }
+        }
         // ★[2026-08-02] 주문 크롤분도 보낸다 — 여태 **수집해놓고 버리고 있었다**.
         //   handleLotteonAccountCollect 는 같은 로그인 세션에서 통합주문조회까지 긁어
         //   orderRows 로 돌려주는데(그 비용은 이미 치렀다), 자동 회차는 그걸 안 보냈다.

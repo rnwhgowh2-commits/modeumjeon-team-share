@@ -183,6 +183,10 @@ _SEAM_TOKENS = (
     "'sub_ex', 'brand']",                 # 새 저장 필드 목록 줄(브랜드 필드 추가)
     "매입흔적만 (사이트번호 X)'};",         # 지워지는 옛 labelMap 줄(2곳 — sourcing_brand_marker 항목 추가 전)
     "completed:'반품/교환/취소 완료'};",    # 지워지는 옛 labelMap 줄(downloadExcelByCard, 항목 추가 전)
+    # ── [모음전 2026-09-05] 정산여부 배지 + 주문상태 이력 호버 ──
+    #  클레임(취소요청 등)으로 들어온 주문상태가 그 뒤 실제로 어떻게 됐는지(철회·정산완료)
+    #  를 안 보여줘서 이미 끝난 정상거래가 「손실 진행중」으로 잘못 보였다(사장님 지시).
+    "margin_status_history.js", "_ssVerdictCellHtml",
 )
 
 
