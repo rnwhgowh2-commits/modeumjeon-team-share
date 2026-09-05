@@ -43,12 +43,20 @@ def test_cell_key_is_market_then_column(client):
 def test_drift_banner_is_carried_to_the_screen(client, monkeypatch):
     """🔴 배너가 화면까지 안 가면, 거짓 검증완료를 아무도 못 본다."""
     from lemouton.policy import checklist as CK
+    # 🔴 표본을 손으로 박지 않는다 — 배선이 이어질 때마다 낡는다(4번 카테고리 →
+    #   16번 원산지가 차례로 「나감」이 되며 두 번 옮겼다). **지금 저장만인 열**을
+    #   그때그때 고른다. 이 시험의 뜻은 「저장만인 칸에 검증완료가 달리면 배너가
+    #   화면까지 온다」이지, 「어느 항목이 저장만인가」가 아니다.
+    col = next(c for c in CK.load_columns()
+               if (c.get("specs") or {}).get("smartstore")
+               and CK.cell_state("smartstore", c) == CK.STORED)
     monkeypatch.setattr(CK, "load_marks",
                         lambda name="dev_checklist_marks.json":
-                        ({"smartstore:4": {"verified": "2026-08-12"}}, ""))
+                        ({f"smartstore:{col['col']}": {"verified": "2026-08-12"}}, ""))
     data = client.get("/marketplace-guide/checklist.json").get_json()
     assert data["drift"], "배너가 화면까지 안 왔다"
-    assert "카테고리" in data["drift"][0]
+    assert col["name"] in data["drift"][0], \
+        f"{col['col']}번({col['name']}) 을 안 짚었다: {data['drift'][0]}"
 
 
 def test_stored_only_cells_exist(client):

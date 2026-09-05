@@ -524,6 +524,10 @@ def _rep_policy_price(values: dict, purchase, market: str = 'smartstore'):
     if fixed is None and purchase is None:
         return None
     fee = fee_rate_of(values)
+    # 🔴 즉시할인을 안 넘기면 목록만 실제 업로드가보다 낮은 값을 보여 준다.
+    #   부담 규칙은 `policy/discount.seller_share` 한 곳만 쓴다.
+    from lemouton.policy.discount import seller_share
+    d_unit, d_value = seller_share((values or {}).get('price') or {})
     try:
         r = compute_sale_price_unified(
             purchase or 0,
@@ -531,7 +535,8 @@ def _rep_policy_price(values: dict, purchase, market: str = 'smartstore'):
             fee_rate=(fee / 100.0 if fee is not None else _default_fee(market)),
             shipping_fee=shipping_fee_of(values), rounding_unit=100,
             mode=('fixed' if fixed is not None else 'rate'),
-            fixed_price=(fixed or 0))
+            fixed_price=(fixed or 0),
+            seller_discount_unit=d_unit, seller_discount_value=d_value)
         return r.final_price
     except Exception:                                  # noqa: BLE001
         _log.exception('[tower] 정책 판매가 계산 실패')
@@ -612,9 +617,18 @@ def _build_price_index(s) -> dict:
             continue
         st['policy_id'] = pol.id
         st['policy_name'] = pol.name
-        st['sell'] = _rep_policy_price(vals.get(pol.id) or {}, st['buy'])
+        _v = vals.get(pol.id) or {}
+        st['sell'] = _rep_policy_price(_v, st['buy'])
         if st['sell'] and st['buy']:
-            st['margin_pct'] = round((st['sell'] - st['buy']) / st['sell'] * 100, 1)
+            # 🔴 마진율 분모는 **우리 수입 기준가**(판매가 − 우리 부담 할인)다.
+            #   올려 잡은 판매가를 그대로 나누면 20% 할인 상품의 마진율이
+            #   실제보다 높아 보인다(판매가가 25% 부풀어 있으니까).
+            from lemouton.policy.discount import exposed_price, seller_share
+            _단위, _몫 = seller_share((_v or {}).get('price') or {})
+            기준 = exposed_price(st['sell'], {'value': _몫, 'unitType': _단위}) \
+                if _몫 else st['sell']
+            if 기준:
+                st['margin_pct'] = round((기준 - st['buy']) / 기준 * 100, 1)
     return out
 
 

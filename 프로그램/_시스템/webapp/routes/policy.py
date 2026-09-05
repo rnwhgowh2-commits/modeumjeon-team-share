@@ -201,8 +201,18 @@ def policy_detail(pid: int):
             'fee_alt': (None if market == COMMON_KEY else
                         (lambda d: dict(d, alt_pct=fee_defaults.pretty(d.get('alt_pct'))))
                         (fee_defaults.load().get(market) or {})),
+            # 🔴 `NOTES` 만 쓰면 적어 둔 마켓만 말하고 나머지는 **침묵**한다.
+            #   11번가는 「포함인지 모른다」가 사실인데 빈칸이면 「포함 안 됨」으로
+            #   읽혀, 사장님이 2% 를 따로 얹으려 할 수 있다. 모른다고 말한다.
+            # 🔴🔴 **어긋남이 있으면 그것부터** 말한다 — 롯데온 18% 는 실정산
+            #   공식(13+3.3+2)과 갈린다. 「제휴 2% 포함」만 보여 주면 사장님은
+            #   숫자가 확인된 줄 아신다.
             'fee_note': ('' if market == COMMON_KEY
-                         else fee_defaults.NOTES.get(market, '')),
+                         else (fee_defaults.rate_evidence_note(market)
+                               if (fee_defaults.RATE_EVIDENCE.get(market) or {})
+                                   .get('disagrees_with')
+                               else (fee_defaults.NOTES.get(market)
+                                     or fee_defaults.affiliate_note(market)))),
         }
     finally:
         s.close()
@@ -575,6 +585,27 @@ def api_bundles():
         named.append(('', counts['']))
     return jsonify({'ok': True, 'rows': rows, 'total': total,
                     'brands': [{'name': b, 'count': n} for b, n in named]})
+
+
+@bp.route('/policies/discount-rehearsal')
+def discount_rehearsal():
+    """할인 반영 리허설 — **읽기 전용**. 승인 전에 무엇이 바뀌는지 보는 화면.
+
+    🔴 판매가가 바뀌는 변경은 사장님이 이 표를 보시기 전에는 마켓에 나가면 안 된다.
+      계산은 `policy/discount_rehearsal.rehearse` 한 곳에서만 한다 —
+      화면과 터미널 스크립트가 각자 계산하면 승인용 표가 실제와 갈린다.
+    """
+    from lemouton.policy.discount_rehearsal import rehearse
+    try:
+        min_margin = int(request.args.get('min_margin') or 0)
+    except (TypeError, ValueError):
+        min_margin = 0
+    s = SessionLocal()
+    try:
+        r = rehearse(s, min_margin=min_margin)
+    finally:
+        s.close()          # 🔴 commit 하지 않는다 — 리허설은 아무것도 안 바꾼다
+    return render_template('policy/discount_rehearsal.html', active='policies', r=r)
 
 
 @bp.get('/api/policies/product/<path:code>/sourcing-detail')
