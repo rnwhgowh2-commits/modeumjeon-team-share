@@ -110,6 +110,19 @@ def test_창이_시간을_넘기면_건너뛴다(db, monkeypatch):
     assert any("초과" in e for e in st["recent_errors"]), st
 
 
+def test_타임아웃_메시지는_실제_적용된_제한을_보고한다(db, monkeypatch):
+    """🔴 2026-09-06 — 호출부가 window_timeout 을 오버라이드했는데(예: /step 의 45초)
+    메시지는 마켓 기본표 값(예: 90초)을 찍어 실제와 다른 숫자로 오진을 유발했다."""
+    import time
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_BY_MARKET", {"coupang": 999})
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(1))
+    BR.request_backfill(["coupang"], 30)             # 1창
+    BR.run_if_requested(window_timeout=0.05)         # 호출부 오버라이드
+    st = BR.status()
+    assert any("0.05초 초과" in e for e in st["recent_errors"]), st
+    assert not any("999초 초과" in e for e in st["recent_errors"]), st
+
+
 def test_연속_타임아웃이_이어지면_그_마켓을_포기한다(db, monkeypatch):
     """버려진 스레드가 쌓이면 그게 또 자원을 먹는다 — 마켓이 죽었으면 그만 두드린다.
     단 **그 마켓만** 포기한다(전체를 멈추면 뒤 마켓 차례가 영영 안 온다)."""
@@ -217,6 +230,10 @@ def test_창_타임아웃은_실측보다_넉넉해야_한다(db):
     실측(쿠팡 30일 창 75초)에 여유가 없으면 실제로 건너뛰어진다(라이브에서 겪음)."""
     assert BR.WINDOW_TIMEOUT_BY_MARKET["coupang"] >= 150   # 실측 75초의 2배 이상
     assert BR.WINDOW_TIMEOUT_BY_MARKET["lotteon"] >= 150   # 29일 창 페이징
+    # 🔴 2026-09-06 라이브: 옥션·G마켓 1일 창(주문 2건)이 94.3초 걸렸다
+    # (/orders/diag/esm-timing 실측) — 옛 90초 기본값으론 100% 타임아웃됐다.
+    assert BR.WINDOW_TIMEOUT_BY_MARKET["gmarket"] >= 120
+    assert BR.WINDOW_TIMEOUT_BY_MARKET["auction"] >= 120
 
 
 def test_한_마켓이_막혀도_다른_마켓은_계속한다(db, monkeypatch):

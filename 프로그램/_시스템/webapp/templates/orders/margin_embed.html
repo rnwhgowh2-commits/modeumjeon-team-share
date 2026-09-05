@@ -6964,7 +6964,7 @@ function _getGroupCardBreakdown(rows) {
           tracking_failed:0, status_mismatch:0, etc:0, sourcing_brand_marker:0};
   // 판매처 주문상태별 분류 (백엔드와 동일 패턴)
   var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청','취소요청'];  /* [모음전] 취소요청 추가 — 기타로 새던 1건 */
-  var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부'];
+  var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부','주문취소','교환완료','교환수거완료'];  /* [모음전 2026-09-06] 기타 카드로 새던 11번가·롯데ON·G마켓 3건 — card_counts.py 와 동일 추가. tools/build_margin_embed.py 에도 같은 seam 등록(재생성 시 유지됨) */
   var DONE_NORMAL_PATTERNS = ['배송완료','수취완료','구매확정','정산완료','정산예정','발송완료','확정'];
   function smCat(s) {
     s = String(s || '').trim();
@@ -8721,7 +8721,7 @@ function _getRowsByCardFilter_internal(data, type) {
   //   if/elif 우선순위 분류 — 각 행은 정확히 하나의 카드에만 속함 (margin 만 중첩)
   //   ★ 사용자 명시 — 이슈 엑셀 _force_card 가 있으면 그 카드로 강제 이동
   var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청','취소요청'];  /* [모음전] 취소요청 추가 — 기타로 새던 1건 */
-  var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부'];
+  var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부','주문취소','교환완료','교환수거완료'];  /* [모음전 2026-09-06] 기타 카드로 새던 11번가·롯데ON·G마켓 3건 — card_counts.py 와 동일 추가. tools/build_margin_embed.py 에도 같은 seam 등록(재생성 시 유지됨) */
   var DONE_NORMAL_PATTERNS = ['배송완료','수취완료','구매확정','정산완료','정산예정','발송완료','확정'];
   function smCat(s) {
     s = String(s || '').trim();
