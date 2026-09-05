@@ -618,12 +618,30 @@ def analyze():
     return jsonify(result)
 
 
+def _heartbeat_loop(job_id: str, stop: threading.Event) -> None:
+    """오래 도는 분석 중 20초마다 살아있음을 기록 — analyze_job_store.STALE_AFTER 보다
+    훨씬 촘촘해야 워커가 진짜 죽었을 때만 stale 판정이 뜬다."""
+    while not stop.wait(20):
+        session = SessionLocal()
+        try:
+            analyze_job_store.touch(session, job_id)
+        except Exception:  # noqa: BLE001 — 하트비트 실패가 본 계산을 막으면 안 된다.
+            logger.warning("분석 하트비트 기록 실패 job=%s", job_id, exc_info=True)
+        finally:
+            session.close()
+
+
 def _run_analyze_job(job_id: str, body: dict) -> None:
     """스레드에서 실행 — Flask request/app 컨텍스트에 기대지 않는다(lemouton.margin 은
     Flask 의존이 없고, `_created_by()`는 컨텍스트 없으면 이미 None 으로 넘어간다)."""
+    stop_heartbeat = threading.Event()
+    heartbeat = threading.Thread(
+        target=_heartbeat_loop, args=(job_id, stop_heartbeat), daemon=True)
+    heartbeat.start()
     try:
         result = _do_analyze(body)
     except _AnalyzeError as e:
+        stop_heartbeat.set()
         session = SessionLocal()
         try:
             analyze_job_store.mark_error(session, job_id, e.message, e.status)
@@ -632,12 +650,14 @@ def _run_analyze_job(job_id: str, body: dict) -> None:
         return
     except Exception as e:  # noqa: BLE001 — 무슨 예외든 폴링 쪽에 "error"로 보여야 한다.
         logger.exception("마진 분석 백그라운드 작업 실패 job=%s", job_id)
+        stop_heartbeat.set()
         session = SessionLocal()
         try:
             analyze_job_store.mark_error(session, job_id, f"{type(e).__name__}: {e}", 500)
         finally:
             session.close()
         return
+    stop_heartbeat.set()
     meta = {k: result[k] for k in
             ("counts", "markets_failed", "notices", "period_from", "period_to")}
     session = SessionLocal()
