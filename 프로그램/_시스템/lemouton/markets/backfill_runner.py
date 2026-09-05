@@ -40,8 +40,15 @@ WINDOW_TIMEOUT_SEC = 90         # 창 하나가 90초를 넘으면 포기하고 
 #  (짧게 잡으면 매번 타임아웃 → 롯데온 과거가 통째로 안 쌓인다)
 #  쿠팡 30일 창은 실측 75초 — 90초는 빠듯해 실제로 건너뛰어져 구간에 구멍이 났다
 #  (2026-05-21~06-20). 건너뛴 창은 '조용한 구멍'이라 넉넉히 준다.
-WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300, "coupang": 300, "eleven11": 180}
-                                #  (실측: 스스 1~8초 · 롯데온 3초 · 11번가 16초 · 쿠팡 75초)
+#  🔴 2026-09-06 라이브 실측 — 옥션·G마켓도 기본값(90초)에 못 미친다. `/orders/diag/
+#  esm-timing`으로 재보니 **1일·주문 2건짜리** 창도 94.3초(주문조회만 ~73초) 걸렸다.
+#  옛 가정("5초/1회 × 5상태 = 25초")은 지금 실제 응답속도를 못 따라간다 — 데이터양이
+#  아니라 API 자체 지연이 원인이라 창을 좁혀도 소용없다. 백필 전용 창(옥션 90일·
+#  G마켓 31일)에 넉넉한 여유를 준다.
+WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300, "coupang": 300, "eleven11": 180,
+                            "auction": 150, "gmarket": 150}
+                                #  (실측: 스스 1~8초 · 롯데온 3초 · 11번가 16초 · 쿠팡 75초 ·
+                                #   옥션·G마켓 94초/1일창)
 #  창 사이 간격 — 두 가지 목적:
 #   ① 429 폭주 방지(스스·11번가는 연달아 때리면 클라이언트가 호출 간격을 늘린다)
 #   ② 🔴 **CPU 양보**. 이 서버는 shared-cpu-1x(1코어)다. 백필이 쉬지 않고 돌면
@@ -255,7 +262,11 @@ def run_if_requested(budget: float = None, in_worker: bool = False,
                 slowest = (secs, f"{market} {start:%Y-%m-%d}")
         except _Timeout:
             consecutive_timeouts += 1
-            lim = WINDOW_TIMEOUT_BY_MARKET.get(market, WINDOW_TIMEOUT_SEC)
+            # 🔴 2026-09-06 — 여기서 시장 기본값만 보고 적으면 실제로 적용된 제한(호출부의
+            #   window_timeout 오버라이드)과 다른 값을 보고해 오진의 원인이 된다
+            #   (예: /step 이 45초로 강제했는데 로그엔 "90초 초과"로 남았었다).
+            lim = window_timeout if window_timeout is not None else \
+                WINDOW_TIMEOUT_BY_MARKET.get(market, WINDOW_TIMEOUT_SEC)
             msg = (f"[{market}] {start:%Y-%m-%d}~{end:%Y-%m-%d} "
                    f"{lim}초 초과 — 건너뜀")
             logger.warning(msg)

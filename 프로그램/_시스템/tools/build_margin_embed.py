@@ -1070,6 +1070,19 @@ SEAMS.append((
     1,
 ))
 
+# ── [모음전 2026-09-06] 기타 카드로 새던 '주문취소'·'교환완료'·'교환수거완료' ──
+#  라이브 기타 카드 119건 실사(11번가 1·롯데ON 1·G마켓 1)에서 발견: 셋 다 종결
+#  상태인데 DONE_RTN_PATTERNS 에 없어 기타로 떨어졌다. lemouton/margin/card_counts.py
+#  (서버·source='matched')에도 동일하게 추가 — 둘이 갈라지면 화면과 서버 집계가
+#  어긋난다. 원본에 이 배열이 2회 나온다(_getGroupCardBreakdown·
+#  _getRowsByCardFilter_internal 각 1회) — 둘 다 바꿔야 우선순위 체인이 어긋나지 않는다.
+SEAMS.append((
+    "var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부'];",
+    "var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부','주문취소','교환완료','교환수거완료'];  /* [모음전 2026-09-06] card_counts.py 와 동일 추가 */",
+    2,
+))
+
+
 if __name__ == "__main__":
     main()
 
