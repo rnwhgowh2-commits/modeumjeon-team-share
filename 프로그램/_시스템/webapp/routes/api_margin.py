@@ -21,6 +21,7 @@ aggregate → R2 + DB 저장) → 목록/로드/삭제/엑셀 내보내기.
   동시에 둘이 올리면 마지막 업로더가 이긴다 — 팀 공유 단일 행이라 기존과 같은 성질이다.
 """
 import datetime as _dt
+import gc
 import io
 import logging
 import math
@@ -633,7 +634,15 @@ def _heartbeat_loop(job_id: str, stop: threading.Event) -> None:
 
 def _run_analyze_job(job_id: str, body: dict) -> None:
     """스레드에서 실행 — Flask request/app 컨텍스트에 기대지 않는다(lemouton.margin 은
-    Flask 의존이 없고, `_created_by()`는 컨텍스트 없으면 이미 None 으로 넘어간다)."""
+    Flask 의존이 없고, `_created_by()`는 컨텍스트 없으면 이미 None 으로 넘어간다).
+
+    gc.collect() 먼저 — 이 컨테이너는 1코어·900MB 로 빠듯한데(Dockerfile 참고),
+    「분석 시작」 직전에 화면이 6마켓 최신 주문 수집(run-sync)을 돌려 같은 워커
+    프로세스에 큰 DataFrame 쓰레기가 남아있을 수 있다. 무거운 매칭을 시작하기
+    전에 회수해 두면 피크 메모리가 줄어든다(라이브에서 「수집 직후 분석」 조합만
+    워커가 죽는 게 반복 관측됨 — 수집 없이 바로 분석만 걸면 매번 성공).
+    """
+    gc.collect()
     stop_heartbeat = threading.Event()
     heartbeat = threading.Thread(
         target=_heartbeat_loop, args=(job_id, stop_heartbeat), daemon=True)
