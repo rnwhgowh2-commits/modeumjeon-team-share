@@ -69,12 +69,16 @@ class MarginPendingUpload(Base):
 
 
 class MarginAnalyzeJob(Base):
-    """분석 백그라운드 작업 상태 — job_id(문자열 uuid) 로 조회.
+    """마진계산기 백그라운드 작업 상태 — job_id(문자열 uuid) 로 조회.
+
+    이름은 분석 전용처럼 보이지만 2026-09-06 부터 `/upload/start`(대용량 엑셀
+    업로드)도 이 표를 같이 쓴다 — 상태·하트비트 계약이 같아 두 벌로 안 만든다.
+    `analysis_id` 는 분석 잡에만 값이 있고, 업로드 잡은 None(결과는 `meta` 전체).
 
     🔴 왜 DB 인가 (MarginPendingUpload 와 같은 이유, 2026-07-23 사고 재발 방지)
-      앱은 gunicorn 워커 여러 개로 돈다. `/analyze/start` 가 스레드를 띄운 워커와
-      뒤이은 `/analyze/status` 폴링을 받는 워커가 다를 수 있다 — 작업 상태를
-      프로세스 전역 dict 에 두면 다른 워커에서 "알 수 없는 작업 id"가 뜬다.
+      앱은 gunicorn 워커 여러 개로 돈다. `/analyze/start`·`/upload/start` 가
+      스레드를 띄운 워커와 뒤이은 `/status` 폴링을 받는 워커가 다를 수 있다 —
+      작업 상태를 프로세스 전역 dict 에 두면 다른 워커에서 "알 수 없는 작업 id"가 뜬다.
 
     🔴 왜 백그라운드로 도는가 (2026-09-05)
       매입행 12,949개짜리 더망고 엑셀에서 동기 `/api/margin/analyze` 가 100초를
@@ -82,7 +86,8 @@ class MarginAnalyzeJob(Base):
       `matcher.match_data`(원본 무수정 이식, 손대지 않는다)가 매입행 수에 비례해
       매출 전체를 훑는 알고리즘이라 대용량 파일에서 항상 그 벽에 걸린다.
       요청·응답 왕복만 짧게(즉시 job_id 반환) 만들고, 실제 계산은 스레드에서
-      시간 제약 없이 돈다.
+      시간 제약 없이 돈다. (2026-09-06) 업로드(파싱+주문내역 매칭)도 같은 자원
+      경합으로 45초+ 걸리다 502 로 죽는 게 라이브에서 관측돼 같은 패턴을 적용.
     """
 
     __tablename__ = "margin_analyze_jobs"

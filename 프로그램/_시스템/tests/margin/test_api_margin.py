@@ -94,6 +94,46 @@ def test_upload_infers_period_with_3day_margin(client):
     assert j["markets"] == ["쿠팡"]
 
 
+# ── 업로드(백그라운드 잡) ────────────────────────────────────────────────
+# 2026-09-06: 대용량 매입 엑셀 업로드(파싱+주문내역 매칭)가 자원이 빠듯한 서버에서
+# 간헐적으로 45초+ 걸리다 502 로 죽었다 — /analyze/start 와 같은 이유로
+# /upload/start + /upload/status 폴링을 둔다(analyze_job_store 공유).
+
+def test_upload_start_and_status_round_trip(client, monkeypatch):
+    monkeypatch.setattr(api_margin.threading, "Thread", _ImmediateThread)
+    r = client.post("/api/margin/upload/start", data={
+        "file": (io.BytesIO(_buy_xlsx(["2026-07-04", "2026-07-06"])), "더망고.xlsx")},
+        content_type="multipart/form-data")
+    assert r.status_code == 200
+    job_id = r.get_json()["job_id"]
+
+    r2 = client.get(f"/api/margin/upload/status/{job_id}")
+    assert r2.status_code == 200
+    j = r2.get_json()
+    assert j["status"] == "done"
+    assert j["analysis_id"] is None       # 업로드 잡엔 분석 id 개념이 없다
+    assert j["meta"]["rows"] == 2
+    assert j["meta"]["period_from"] == "2026-07-01"
+
+
+def test_upload_start_records_error_status(client, monkeypatch):
+    monkeypatch.setattr(api_margin.threading, "Thread", _ImmediateThread)
+    r = client.post("/api/margin/upload/start", data={},
+                     content_type="multipart/form-data")  # file 필드 없음
+    assert r.status_code == 400   # 스레드 뜨기 전에 바로 걸러진다(파일 자체가 없음)
+
+
+def test_upload_start_requires_file_field(client, monkeypatch):
+    monkeypatch.setattr(api_margin.threading, "Thread", _ImmediateThread)
+    bad = io.BytesIO(b"not an excel file")
+    r = client.post("/api/margin/upload/start", data={
+        "file": (bad, "broken.xlsx")}, content_type="multipart/form-data")
+    job_id = r.get_json()["job_id"]
+    j = client.get(f"/api/margin/upload/status/{job_id}").get_json()
+    assert j["status"] == "error"
+    assert j["http_status"] == 400
+
+
 # ── 분석 ────────────────────────────────────────────────────────────────
 
 def test_analyze_requires_upload_first(client, monkeypatch):

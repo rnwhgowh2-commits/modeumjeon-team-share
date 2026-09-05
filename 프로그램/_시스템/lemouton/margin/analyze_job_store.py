@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
-"""분석 백그라운드 작업 상태 저장소 (DB, 워커 공유) — pending_store.py 와 같은 이유.
+"""마진계산기 백그라운드 작업 상태 저장소 (DB, 워커 공유) — pending_store.py 와 같은 이유.
+
+2026-09-06: 이름은 analyze_job_store 지만 `/upload/start`(대용량 엑셀 업로드)도
+같은 표·같은 함수를 쓴다 — 잡 상태(운영중/완료/에러) + 하트비트 계약이 완전히
+같아서 두 벌로 유지하지 않는다. `mark_done` 의 `analysis_id` 는 분석 잡에만
+있고, 업로드 잡은 None 이며 결과 전체가 `meta` 에 담긴다.
 
 🔴 프로세스 전역 dict 를 쓰면 안 되는 이유 — 앱은 gunicorn 워커 여러 개로 돈다.
-   `/analyze/start` 가 스레드를 띄운 워커와 `/analyze/status` 폴링을 받는 워커가
-   다를 수 있어, 작업 상태를 전역 dict 에 두면 다른 워커에서 "알 수 없는 작업"이 뜬다.
+   `/analyze/start`·`/upload/start` 가 스레드를 띄운 워커와 `/status` 폴링을 받는
+   워커가 다를 수 있어, 작업 상태를 전역 dict 에 두면 다른 워커에서 "알 수 없는
+   작업"이 뜬다.
 
 🔴 STALE_AFTER — 라이브 실측(2026-09-05): 대용량 매입 엑셀 분석 도중 워커가
    (gunicorn `--timeout 180` 안전망 또는 OOM-kill — 컨테이너가 1코어·900MB 상한,
@@ -36,7 +42,8 @@ def touch(session, job_id: str) -> None:
     session.commit()
 
 
-def mark_done(session, job_id: str, analysis_id: int, meta: dict) -> None:
+def mark_done(session, job_id: str, analysis_id: int | None, meta: dict) -> None:
+    """analysis_id 는 분석 잡에만 있다 — 업로드 잡은 None(결과는 meta 에 전부 담긴다)."""
     row = session.get(MarginAnalyzeJob, job_id)
     if row is None:
         return

@@ -1541,8 +1541,10 @@ function getFilteredData() {
      포함하기 위해, 필터가 없어도 아래 재집계 경로를 탄다 */
 
   /* 1) 날짜 필터만 적용 — 제외된 행도 화면에 보여줘야 함 (체크해제 가능하도록)
-     ★ 1-3 블랙스팟 의심 16건 가상 행 concat (날짜 필터 무관 — 항상 포함) */
-  var _susp = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];
+     ★ 1-3 블랙스팟 의심 가상 행 concat — [모음전 2026-09-06] 선택한 기간 안에 드는
+     것만(사장님 결정, 이전엔 날짜 필터 무관하게 전체 포함이라 좁은 기간에서 총마진이
+     실제와 무관하게 왜곡됐다) */
+  var _susp = _suspVirtualRowsInRange();
   var filtered = (analysisData.matched || []).filter(function(r) {
     if (hasDateF) {
       var d = parseDate26(r['주문일']);
@@ -1739,11 +1741,13 @@ function renderCurrentTab() {
     return;
   }
   var d = getFilteredData();
-  /* ★ 1-3 블랙스팟 의심 16건 (가상 행) — 모든 탭 마진/매출/매입 집계에 포함 (사용자 정의: 661 전수)
-     · getFilteredData 의 early-return 최적화로 16건이 빠지는 것을 보정 */
-  if (d && d.matched && typeof _getSuspVirtualRows === 'function') {
-    var _susp = _getSuspVirtualRows();
-    if (_susp.length && d.matched.indexOf(_susp[0]) < 0) {
+  /* ★ 1-3 블랙스팟 의심 (가상 행) — 모든 탭 마진/매출/매입 집계에 포함하되
+     [모음전 2026-09-06] 선택한 기간 안에 드는 것만(_suspVirtualRowsInRange, 사장님 결정)
+     · getFilteredData 의 early-return 최적화로 빠지는 것을 보정 */
+  if (d && d.matched && typeof _suspVirtualRowsInRange === 'function') {
+    var _susp = _suspVirtualRowsInRange();
+    var _alreadyIn = _susp.length && d.matched.indexOf(_susp[0]) >= 0;
+    if (_susp.length && !_alreadyIn) {
       d = Object.assign({}, d);
       d.matched = d.matched.concat(_susp);
     }
@@ -8520,6 +8524,23 @@ function _getSuspVirtualRows() {
   });
   analysisData._suspRowsCache = out;
   return out;
+}
+
+/* [모음전 2026-09-06] 블랙스팟 의심 가상행 — 기간 필터 반영 (사장님 결정: "선택한 기간
+   안에 들어오는 건만 반영"). 예전엔 기간과 무관하게 전체(120건·-498만원)가 매번
+   총마진에 통째로 더해져, "오늘/어제"처럼 그날 매출이 적은 좁은 기간을 고르면 그
+   고정 손실액이 그대로 얹혀 총마진이 실제와 무관하게 크게 마이너스로 보였다.
+   날짜를 모르는 행은 배제하지 않는다(날조 금지 — 모르는 걸 "범위 밖"으로 단정 안 함). */
+function _suspVirtualRowsInRange() {
+  var v = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];
+  if (!(dateFilterFrom || dateFilterTo)) return v;
+  return v.filter(function (r) {
+    var d = parseDate26(r['주문일']);
+    if (!d) return true;
+    if (dateFilterFrom && d < dateFilterFrom) return false;
+    if (dateFilterTo && d > dateFilterTo) return false;
+    return true;
+  });
 }
 
 /* ★ 주문 미이행 가상 행 — 실마켓(API) 미매칭 + 사이트주문번호 없는 더망고 행
