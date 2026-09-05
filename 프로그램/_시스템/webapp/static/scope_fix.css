@@ -46,8 +46,6 @@
 /* templates/sourcing_guide/map.html */
 .ds.ds-light .sgmap { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
 /* templates/orders/index.html */
-.ds.ds-light .smr { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
-/* templates/orders/index.html */
 .ds.ds-light .spn { --amber: var(--ap-orange); --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
 /* templates/sourcing_guide/map.html */
 .ds.ds-light .v3n { --sub: #6E6E73; }
