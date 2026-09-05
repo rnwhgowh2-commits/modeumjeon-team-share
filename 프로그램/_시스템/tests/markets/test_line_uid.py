@@ -60,7 +60,7 @@ def test_조각이_하나라도_비면_키를_안_만든다():
 
 
 def test_모르는_마켓은_빈값():
-    assert L.line_uid("shopmine", {"오픈마켓주문번호": "X"}) == ""
+    assert L.line_uid("unknown_market", {"오픈마켓주문번호": "X"}) == ""
 
 
 def test_행이_깨져도_예외를_안_낸다():

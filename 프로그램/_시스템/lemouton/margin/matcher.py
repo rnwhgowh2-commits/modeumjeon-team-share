@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """매칭 엔진.
 
-`match_data`: 더망고 매입 DF ↔ 샵마인 매출 DF 3단계 매칭.
+`match_data`: 더망고 매입 DF ↔ 판매처 매출 DF 3단계 매칭.
 Stage 1: 주문번호 + 상품코드 + 옵션(정규화)
 Stage 2: 주문번호 + 상품코드
 Stage 3: 주문번호만
@@ -36,7 +36,7 @@ def normalize_order_number(order_num, market_name):
 
 def order_match_keys(order_num, market_name):
     """매칭용 후보 키 list 반환 (사용자 요구: 괄호 밖/안 둘 다 시도).
-    스마트스토어 'A(B)' → [A, B] 둘 중 하나가 샵마인 오픈마켓주문번호와 매칭되면 성공.
+    스마트스토어 'A(B)' → [A, B] 둘 중 하나가 판매처 오픈마켓주문번호와 매칭되면 성공.
     그 외 마켓: [원본 1개].
     """
     s = str(order_num).strip()
@@ -102,7 +102,7 @@ def normalize_option(option_text):
 # ── 핵심 매칭 엔진 ────────────────────────────────────────────────────────
 
 def match_data(buy_df, sell_df):
-    """더망고 매입 ↔ 샵마인 매출 3단계 매칭.
+    """더망고 매입 ↔ 판매처 매출 3단계 매칭.
 
     Returns:
         (result_rows, unmatched_buy_rows, unmatched_sell_rows)
@@ -186,11 +186,10 @@ def match_data(buy_df, sell_df):
             '마켓주문일자':              str(b_row.get('마켓주문일자', '') or ''),
             '수령인명':                  str(b_row.get('수령인명', '') or s_row.get('수취고객명', '') or ''),
             '마켓상품명':                str(b_row.get('마켓상품명', '') or ''),
-            # 샵마인 측 정보
-            '샵마인_주문상태':           str(s_row.get('주문상태', '') or ''),
-            '샵마인_샵마인주문상태':     str(s_row.get('샵마인주문상태', '') or ''),
-            '샵마인_정산예상금액(배송비포함)': str(s_row.get('정산예상금액_배송비포함', '') or ''),
-            '샵마인_송장입력':           str(s_row.get('송장입력', '') or ''),
+            # 판매처(마켓 API) 측 정보
+            '판매처_주문상태':           str(s_row.get('주문상태', '') or ''),
+            '판매처_정산예상금액(배송비포함)': str(s_row.get('정산예상금액_배송비포함', '') or ''),
+            '판매처_송장입력':           str(s_row.get('송장입력', '') or ''),
         }
 
     # Stage 1: 주문번호 + 상품코드 + 옵션
@@ -316,40 +315,40 @@ def match_data(buy_df, sell_df):
 
 # ── 블랙스팟 분류 엔진용 양방향 매칭 ──────────────────────────────────────
 
-def match_for_classifier(mango_df, shopmine_df):
+def match_for_classifier(mango_df, market_df):
     """classifier 가 요구하는 형태로 양방향 매칭.
 
     같은 주문번호에 정상건(SETTLEMENT_O_EXACT) 이 있으면 대표 행으로 선택하고,
-    '샵마인_정상건존재' 플래그를 True 로 설정 — classifier 가 최우선 정산 O 판정.
+    '판매처_정상건존재' 플래그를 True 로 설정 — classifier 가 최우선 정산 O 판정.
 
     Returns:
         {
-            "matched":         [dict, ...],  # 더망고 행 + '샵마인_*' 필드
+            "matched":         [dict, ...],  # 더망고 행 + '판매처_*' 필드
             "mango_unmatched": [dict, ...],  # 더망고에만 있는 행
-            "shopmine_only":   [dict, ...],  # 샵마인에만 있는 행
+            "market_only":   [dict, ...],  # 판매처에만 있는 행
         }
     """
-    from lemouton.margin.config import SETTLEMENT_O_EXACT, SETTLEMENT_X_EXCEPT_TO_O, SHOPMINE_COLS
+    from lemouton.margin.config import SETTLEMENT_O_EXACT, SETTLEMENT_X_EXCEPT_TO_O, MARKET_SELL_COLS
 
     mango_key    = '마켓주문번호'
-    shopmine_key = SHOPMINE_COLS.get('order_no', '오픈마켓주문번호')
-    status_col   = SHOPMINE_COLS.get('order_status', '주문상태')
+    market_key = MARKET_SELL_COLS.get('order_no', '오픈마켓주문번호')
+    status_col   = MARKET_SELL_COLS.get('order_status', '주문상태')
 
-    if mango_df.empty and shopmine_df.empty:
-        return {"matched": [], "mango_unmatched": [], "shopmine_only": []}
+    if mango_df.empty and market_df.empty:
+        return {"matched": [], "mango_unmatched": [], "market_only": []}
 
     # 주문번호별 그룹핑 (정상 + 클레임 공존 시 정상건 우선)
-    shopmine_by_order = {}
-    for _, row in shopmine_df.iterrows():
-        key = str(row.get(shopmine_key, '')).strip()
+    market_by_order = {}
+    for _, row in market_df.iterrows():
+        key = str(row.get(market_key, '')).strip()
         if not key:
             continue
-        shopmine_by_order.setdefault(key, []).append(row.to_dict())
+        market_by_order.setdefault(key, []).append(row.to_dict())
 
-    shopmine_lookup       = {}
-    shopmine_has_normal   = {}
-    shopmine_all_statuses = {}
-    for key, rows in shopmine_by_order.items():
+    market_lookup       = {}
+    market_has_normal   = {}
+    market_all_statuses = {}
+    for key, rows in market_by_order.items():
         statuses = [str(r.get(status_col, '')).strip() for r in rows]
         has_normal = any(
             s in SETTLEMENT_O_EXACT or s in SETTLEMENT_X_EXCEPT_TO_O
@@ -364,13 +363,13 @@ def match_for_classifier(mango_df, shopmine_df):
             )
         else:
             rep = rows[0]
-        shopmine_lookup[key]       = rep
-        shopmine_has_normal[key]   = has_normal
-        shopmine_all_statuses[key] = statuses
+        market_lookup[key]       = rep
+        market_has_normal[key]   = has_normal
+        market_all_statuses[key] = statuses
 
     matched = []
     mango_unmatched = []
-    matched_shopmine_keys = set()
+    matched_market_keys = set()
 
     for _, mango_row in mango_df.iterrows():
         row_dict = mango_row.to_dict()
@@ -379,34 +378,34 @@ def match_for_classifier(mango_df, shopmine_df):
 
         # ★ 스마트스토어 'A(B)' 양측 매칭: 후보 키 list 로 lookup
         candidate_keys = order_match_keys(mango_order, mango_market) if mango_order else []
-        matched_key = next((k for k in candidate_keys if k in shopmine_lookup), None)
+        matched_key = next((k for k in candidate_keys if k in market_lookup), None)
 
         if matched_key:
-            shopmine_row = shopmine_lookup[matched_key]
-            for col, val in shopmine_row.items():
-                row_dict[f"샵마인_{col}"] = val
-            row_dict["샵마인_매칭"]       = True
-            row_dict["샵마인_정상건존재"] = shopmine_has_normal.get(matched_key, False)
-            row_dict["샵마인_모든주문상태"] = " | ".join(shopmine_all_statuses.get(matched_key, []))
+            market_row = market_lookup[matched_key]
+            for col, val in market_row.items():
+                row_dict[f"판매처_{col}"] = val
+            row_dict["판매처_매칭"]       = True
+            row_dict["판매처_정상건존재"] = market_has_normal.get(matched_key, False)
+            row_dict["판매처_모든주문상태"] = " | ".join(market_all_statuses.get(matched_key, []))
             matched.append(row_dict)
-            matched_shopmine_keys.add(matched_key)
+            matched_market_keys.add(matched_key)
         else:
-            row_dict["샵마인_매칭"] = False
+            row_dict["판매처_매칭"] = False
             mango_unmatched.append(row_dict)
 
-    shopmine_only = []
-    for _, row in shopmine_df.iterrows():
-        key = str(row.get(shopmine_key, '')).strip()
-        if key and key not in matched_shopmine_keys:
-            shopmine_only.append(row.to_dict())
+    market_only = []
+    for _, row in market_df.iterrows():
+        key = str(row.get(market_key, '')).strip()
+        if key and key not in matched_market_keys:
+            market_only.append(row.to_dict())
 
     logger.info(
         f"classifier용 매칭: matched={len(matched)}, "
         f"mango_unmatched={len(mango_unmatched)}, "
-        f"shopmine_only={len(shopmine_only)}"
+        f"market_only={len(market_only)}"
     )
     return {
         "matched":         matched,
         "mango_unmatched": mango_unmatched,
-        "shopmine_only":   shopmine_only,
+        "market_only":   market_only,
     }

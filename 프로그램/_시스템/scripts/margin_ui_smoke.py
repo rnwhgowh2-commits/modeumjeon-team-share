@@ -4,12 +4,13 @@ r"""실브라우저 검증용 — 마진 UI 전체 탭 렌더용 고정 결과 J
 마켓 API(서버 IP 전용, 로컬 차단)는 이 화면과 무관하다. 이 스크립트는
 분석 결과 payload 만 만들어 webapp/static/_margin_sample.json 에 떨군다.
 
-1순위: 실데이터 — C:\dev\대량등록 마진계산기\데이터\260704 의 더망고+샵마인 엑셀을
-        샵마인 경로로 분석(B.parse_buy → S.from_shopmine_excel → P.run → A.aggregate).
-2순위(폴백): 실데이터가 없으면 합성 6행으로 동일한 payload 형태를 만든다.
-        (손실행 / 계산불가행 / 고마진행 + 2개 이상 마켓 · 2개 이상 소싱처 키워드 포함)
+합성 6행으로 렌더러가 읽는 실제 필드 형태의 payload 를 만든다
+(손실행 / 계산불가행 / 고마진행 + 2개 이상 마켓 · 2개 이상 소싱처 키워드 포함).
 
-어느 경로를 탔는지 print 로 남긴다.
+★2026-09: 예전엔 1순위로 실데이터(옛 통합주문관리 엑셀 쌍)를 읽어 그 경로로도
+  분석했으나, 전 마켓 API 연동 완료로 그 엑셀 업로드 기능 자체가 폐지돼(엑셀을
+  DataFrame 으로 바꾸던 sell_source 의 변환 함수가 삭제) 더 이상 재현할
+  수 없다. 합성 경로 하나만 남긴다.
 """
 import json
 import os
@@ -22,36 +23,6 @@ from lemouton.margin import aggregator as A  # noqa: E402
 from lemouton.margin.config import DEFAULT_PRICE_RANGES  # noqa: E402
 
 OUT_PATH = pathlib.Path("webapp/static/_margin_sample.json")
-DATA_DIR = pathlib.Path(r"C:\dev\대량등록 마진계산기\데이터\260704")
-
-
-def _build_from_real():
-    """실 엑셀 → 매칭 파이프라인 결과. 파일이 없으면 예외를 던진다."""
-    from lemouton.margin import buy_parser as B
-    from lemouton.margin import pipeline as P
-    from lemouton.margin import sell_source as S
-
-    b = next(p for p in DATA_DIR.iterdir() if "더망고" in p.name)
-    s = next(p for p in DATA_DIR.iterdir() if "샵마인" in p.name)
-    out = P.run(
-        B.parse_buy(b.read_bytes(), b.name),
-        S.from_shopmine_excel(s.read_bytes(), s.name),
-    )
-    agg = A.aggregate(out["matched"], DEFAULT_PRICE_RANGES)
-    counts = {
-        "matched": len(out["matched"]),
-        "unmatched_buy": len(out["unmatched_buy"]),
-        "unmatched_sell": len(out["unmatched_sell"]),
-        "settle_estimated": 0,
-    }
-    payload = {
-        "analysis_id": 0,
-        "counts": counts,
-        "markets_failed": [],
-        **out,
-        **agg,
-    }
-    return payload, counts["matched"]
 
 
 def _synthetic_rows():
@@ -79,7 +50,7 @@ def _synthetic_rows():
             "수량_매출": 1,
             "매칭타입": "정밀",
             "이상가": (매입 > 판매가 * 3 and 판매가 > 0) or 매입 > 500000,
-            "데이터출처": "더망고+샵마인",
+            "데이터출처": "더망고+판매처",
             "간단메모": 메모,
         }
 
@@ -122,7 +93,7 @@ def _build_from_synthetic():
         "unmatched_buy": [{
             "주문일": "26.07.05", "마켓주문번호": "X-UB-1", "마켓명": "스마트스토어",
             "상품명": "미매칭 매입행(샘플)", "옵션": "FREE", "구매가격": 15000,
-            "수령인": "홍길동", "수령인_2차매칭": "", "비고": "샵마인 미대응",
+            "수령인": "홍길동", "수령인_2차매칭": "", "비고": "판매처 미대응",
         }],
         "unmatched_sell": [{
             "주문일": "26.07.05", "마켓주문번호": "X-US-1", "쇼핑몰": "쿠팡",
@@ -138,15 +109,8 @@ def _build_from_synthetic():
 
 
 def main():
-    try:
-        if not DATA_DIR.exists():
-            raise FileNotFoundError(str(DATA_DIR))
-        payload, matched = _build_from_real()
-        path_used = "real"
-    except Exception as e:  # noqa: BLE001 — 실데이터 없음/파싱 실패 → 합성 폴백
-        payload, matched = _build_from_synthetic()
-        path_used = "synthetic"
-        print(f"[margin_ui_smoke] 실데이터 사용 불가 ({type(e).__name__}: {e}) → 합성 폴백")
+    payload, matched = _build_from_synthetic()
+    path_used = "synthetic"
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")

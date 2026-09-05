@@ -25,9 +25,9 @@ def test_settlement_sets_present_for_matcher():
     assert "취소철회(구매확정)" in C.SETTLEMENT_X_EXCEPT_TO_O
 
 
-def test_shopmine_cols():
-    assert C.SHOPMINE_COLS["order_no"] == "오픈마켓주문번호"
-    assert C.SHOPMINE_COLS["settlement"] == "정산예상금액(배송비포함)"
+def test_market_sell_cols():
+    assert C.MARKET_SELL_COLS["order_no"] == "오픈마켓주문번호"
+    assert C.MARKET_SELL_COLS["settlement"] == "정산예상금액(배송비포함)"
 
 
 def test_no_filesystem_constants():

@@ -70,7 +70,7 @@ def test_클라이언트_없으면_error_지_rejected_아니다():
 
 def test_지원하지_않는_마켓과_kind_는_명확히_거절():
     with pytest.raises(ValueError, match="지원하지 않는 마켓"):
-        P.probe("shopmine", "orders", window_days=1, back_days=0, client=object())
+        P.probe("unknown_market", "orders", window_days=1, back_days=0, client=object())
     with pytest.raises(ValueError, match="미지원"):
         P.probe("smartstore", "claims_return", window_days=1, back_days=0, client=object())
 

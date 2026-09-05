@@ -149,8 +149,8 @@ def create_app() -> Flask:
     import webapp.server_ip_model  # noqa: F401
     # 주문·클레임 적재 (1년치 조회의 전제) — 신규 테이블, create_all 자동 생성
     import lemouton.markets.models_orders  # noqa: F401
-    # 샵마인 내보내기 적재 — 공란 채움 외부 실데이터 소스(2026-07-22)
-    import lemouton.markets.models_shopmine  # noqa: F401
+    # 롯데온 셀러오피스 통합주문조회 크롤 적재 (OpenAPI 미제공분의 유일한 원천)
+    import lemouton.markets.models_lotteon_so  # noqa: F401
     # 마켓 정산 대조 실행 이력 — 마켓 화면 엑셀 ↔ 우리 정산예정금액(2026-08-12)
     import lemouton.margin.models_settle_recon  # noqa: F401
     # 실매입가(사람이 적는 값) — 적재분과 물리적으로 분리된 표(2026-08-06). 재수집에 안 지워진다.

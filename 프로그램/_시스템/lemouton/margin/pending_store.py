@@ -28,26 +28,17 @@ def _row(session, create: bool = False) -> Optional[MarginPendingUpload]:
 
 def stage_buy(session, *, raw: bytes, filename: str,
               period_from: _dt.date | None, period_to: _dt.date | None) -> None:
-    """매입 엑셀 스테이징. 새 매입 업로드는 **이전 샵마인을 반드시 비운다**(stale 방지)."""
+    """매입 엑셀 스테이징."""
     row = _row(session, create=True)
     row.buy_bytes = raw
     row.buy_filename = filename
     row.period_from = period_from
     row.period_to = period_to
-    row.shop_bytes = None
-    row.shop_filename = None
-    session.commit()
-
-
-def stage_shopmine(session, *, raw: bytes, filename: str) -> None:
-    row = _row(session, create=True)
-    row.shop_bytes = raw
-    row.shop_filename = filename
     session.commit()
 
 
 def get(session) -> dict:
-    """{buy_bytes, buy_filename, period_from, period_to, shop_bytes, shop_filename}.
+    """{buy_bytes, buy_filename, period_from, period_to}.
 
     매입이 없으면 buy_bytes 가 None — 호출부가 그걸로 '업로드 안 됨'을 판정한다.
     """
@@ -57,7 +48,6 @@ def get(session) -> dict:
     return {
         "buy_bytes": row.buy_bytes, "buy_filename": row.buy_filename,
         "period_from": row.period_from, "period_to": row.period_to,
-        "shop_bytes": row.shop_bytes, "shop_filename": row.shop_filename,
     }
 
 

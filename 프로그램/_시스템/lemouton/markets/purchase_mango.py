@@ -6,7 +6,7 @@
 
 매칭 규칙(키 만들기 3종 + 3단계)은 **마진 계산기의 것을 그대로 쓴다**
 (`margin.matcher.order_match_keys` · `extract_product_code` · `normalize_option`).
-그런데 `matcher.match_data` 는 매출 쪽을 **샵마인 DataFrame** 으로 받아 결과 행에
+그런데 `matcher.match_data` 는 매출 쪽을 **판매처 DataFrame** 으로 받아 결과 행에
 `line_uid` 를 안 싣는다. 실매입가는 **주문 라인 1줄**에 붙여야 하므로 그 식별자가
 반드시 필요하다.
 

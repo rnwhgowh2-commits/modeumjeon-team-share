@@ -114,8 +114,8 @@ function _isExchangeRow(r, cardType) {
   var subEx = _kw(cardType, 'sub_ex');
   var memo = String(r['간단메모']||'');
   if (_matchesAny(memo, subEx)) return true;
-  var marketState = String(r['샵마인_주문상태']||'') + ' '
-                  + String(r['샵마인_샵마인주문상태']||'') + ' '
+  var marketState = String(r['판매처_주문상태']||'') + ' '
+                  + String(r['판매처_판매처주문상태']||'') + ' '
                   + String(r['마켓주문상태 (오픈 마켓 연동)']||'');
   /* 반품·취소·교환 세 단어를 다 뭉뚱그린 복합 라벨(예: 마켓주문상태 "취소/반품/교환 완료")은
      "교환" 근거로 안 침 — 통째 제거 후 검사 */
@@ -140,8 +140,8 @@ function _splitRtnEx(cardType) {
 function _isTrackingNormalRow(r) {
   if (!r) return false;
   var combined = String(r['더망고주문상태 (사용자 연동)']||'') + ' '
-               + String(r['샵마인_주문상태']||'') + ' '
-               + String(r['샵마인_샵마인주문상태']||'')
+               + String(r['판매처_주문상태']||'') + ' '
+               + String(r['판매처_판매처주문상태']||'')
                + ' ' + String(r['간단메모']||'');
   /* '반품/교환/취소 완료' 같은 복합 라벨 통째 제거 — 단독 키워드만 */
   var clean = combined.replace(/반품\/교환\/취소/g, '').replace(/반품·교환·취소/g, '');
@@ -208,8 +208,8 @@ function _getSuspVirtualRows() {
       '마켓주문상태 (오픈 마켓 연동)': '',
       '수령인명':         b['수령인'] || '',
       '마켓상품명':       b['상품명'] || '',
-      '샵마인_주문상태':  '실마켓(API) 미동기화',
-      '샵마인_샵마인주문상태': '',
+      '판매처_주문상태':  '실마켓(API) 미동기화',
+      '판매처_판매처주문상태': '',
       '대분류':           '4_매입X(블랙스팟의심)',
       '상세분류':         '1-3_블랙스팟의심',
       '확인사항':         '[문제] 매입 진행했으나 실마켓(API) 미동기화 → 정산 확인 필요',
@@ -339,7 +339,7 @@ function _getRowsByCardFilter_internal(data, type) {
     );
     var isPendingCode = (code === '1-11' || code === '2-9' || code === '3-9' || code === '4-9');
     var isKkadaegiCode = (code === '1-12' || code === '2-10' || code === '3-10' || code === '4-10');
-    var sm = r['샵마인_주문상태'] || r['샵마인_샵마인주문상태'] || '';
+    var sm = r['판매처_주문상태'] || r['판매처_판매처주문상태'] || '';
     var smC = smCat(sm);
     var mg = String(r['더망고주문상태 (사용자 연동)'] || '');
     var mkSync = String(r['마켓주문상태 (오픈 마켓 연동)'] || '');
@@ -400,11 +400,11 @@ function _getRowsByCardFilter_internal(data, type) {
         sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
     ))                                                          return type === 'normal';
     /* 🔴 2026-08-27 사장님 신고 — 더망고(사람이 손으로 갱신, 지연됨)가 아직 "배송대기중" 등
-       평상 라벨에 머물러 있는데 샵마인_주문상태(마켓 API 실값, 더 최신)는 이미 취소·반품
+       평상 라벨에 머물러 있는데 판매처_주문상태(마켓 API 실값, 더 최신)는 이미 취소·반품
        진행/완료로 넘어간 행이 있었다. isMgPending 이 smC 를 안 보고 먼저 채가서 pending
        카드로 빠지면 반품·취소 자동 제외(_applyAutoExcludeReturns, inprogress/completed_memo_*
        카드만 훑음) 대상에 아예 안 걸려 체크박스가 안 켜진 채 매출·마진에 남았다.
-       샵마인이 이미 진행중/완료 클레임이면 더망고 라벨을 안 믿고 아래 순위(9·12순위)로 넘긴다. */
+       판매처이 이미 진행중/완료 클레임이면 더망고 라벨을 안 믿고 아래 순위(9·12순위)로 넘긴다. */
     if (isMgPending && smC !== 'in_progress' && smC !== 'done_rtn')
                                                                  return type === 'pending';
     // ★ 7.5순위 [2026-08-28 사장님 명시] sourcing_brand_marker — 르무통 등 사입 판매 마커 브랜드는 진짜 반품 아님, 8·9순위보다 먼저 별도 카드로
@@ -426,7 +426,7 @@ function _getRowsByCardFilter_internal(data, type) {
         ((mg.indexOf('국내배송') >= 0 || mg.indexOf('해외현지배송') >= 0) &&
          (sm.indexOf('발송대기') >= 0 || sm.indexOf('배송준비') >= 0)))
                                                                  return type === 'status_mismatch';
-    // ★ 12순위: 샵마인 종결 → 메모X 재확인
+    // ★ 12순위: 판매처 종결 → 메모X 재확인
     if (smC === 'done_rtn')                                     return type === 'completed_memo_no';
     // ★ 13순위: 일반 배송/수취 완료 → 정상/완료
     if (smC === 'done_normal')                                  return type === 'normal';

@@ -152,7 +152,7 @@ def test_구매자정보_값이_결과에_섞이지_않는다():
 
 def test_지원하지_않는_마켓은_명확히_거절():
     with pytest.raises(ValueError, match="지원하지 않는 마켓"):
-        S.shape("shopmine", client=object())
+        S.shape("unknown_market", client=object())
 
 
 def test_클라이언트_없으면_에러를_돌려준다():

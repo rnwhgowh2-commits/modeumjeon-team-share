@@ -44,8 +44,8 @@ MANGO_COLS = {
     "memo":           "간단메모",
 }
 
-# ── 샵마인 칼럼명 ──
-SHOPMINE_COLS = {
+# ── 판매처(마켓 API) 칼럼명 ──
+MARKET_SELL_COLS = {
     "order_no":       "오픈마켓주문번호",
     "order_status":   "주문상태",
     "settlement":     "정산예상금액(배송비포함)",
@@ -56,7 +56,7 @@ SHOPMINE_COLS = {
     "payment":        "실결제금액",
     "fee":            "마켓수수료",
     "fee_rate":       "수수료율",
-    "shopmine_status": "샵마인주문상태",
+    "mk_sell_status": "판매처주문상태",
 }
 
 # ── 더망고주문상태 값 ──
@@ -93,7 +93,7 @@ MARGIN_HIGH_RATE     = 0.30     # 30% 초과 마진율
 MARGIN_HIGH_AMOUNT   = 5000     # 5천원 초과 마진
 MARGIN_NEGATIVE_RATE = 0.0      # 0% 미만 역마진
 
-# ── 샵마인 정산 판정 (블랙스팟 config.py 에서 전체 이전) ──
+# ── 판매처 정산 판정 (블랙스팟 config.py 에서 전체 이전) ──
 SETTLEMENT_O_EXACT = {
     "결제완료", "교환", "구매확정",
     "발송대기", "발송대기(발주확인)", "발송대기(신규주문)",

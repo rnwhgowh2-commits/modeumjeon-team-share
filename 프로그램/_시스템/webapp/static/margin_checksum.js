@@ -23,7 +23,7 @@
   'use strict';
 
   /* 서로 안 겹치는 분류 카드 전체 (합 = 전체 건수). 라벨·색은 화면 카드와 맞춘다.
-     status_mismatch 라벨은 '샵마인'→'실마켓' 개명 반영. */
+     status_mismatch 라벨은 구 라벨→'실마켓' 개명 반영. */
   var CARDS = [
     { t: 'normal',             l: '정상/완료',                 c: '#22C55E' },
     { t: 'kkadaegi_sent',      l: '까대기 송장전송 완료',       c: '#0D9488' },

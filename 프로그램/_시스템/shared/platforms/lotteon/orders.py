@@ -38,7 +38,7 @@ def fetch_delivery_orders(srch_start: str, srch_end: str,
 
     srch_start/srch_end = yyyymmddhhmmss. ifCplYN 빈값 = 미연동 신규주문.
     od_no 지정 시 주문번호 단건 조회(공식문서 "기간 또는 odNo" — 2026-07-22 사장님
-    "샵마인은 옛 계정 연동해도 취소건을 읽는다" 지적으로 발굴한 미사용 경로).
+    "정답지는 옛 계정 연동해도 취소건을 읽는다" 지적으로 발굴한 미사용 경로).
     """
     client = client or LotteonClient()
     body = {

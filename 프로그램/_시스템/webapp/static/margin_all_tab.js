@@ -118,7 +118,7 @@
       /* 🔴 열 필터(▼) 목록이 통째로 비던 버그 — 필터는 state.tab1Data 를 보는데 그건
          _syncBlackspotState() 가 채운다. 그 함수는 renderBlackspot 안에서만 불려서,
          블랙스팟 탭을 한 번도 안 열고 전체내역 탭으로 오면 tab1Data 가 비어 있었다
-         (사장님 화면 실측 2026-07-30: 「필터 — 샵마인_주문상태」 목록 0개).
+         (사장님 화면 실측 2026-07-30: 「필터 — 판매처_주문상태」 목록 0개).
          → 전체내역 탭도 같은 상태를 채우고 시작한다. */
       if (typeof window._syncBlackspotState === 'function') {
         try { window._syncBlackspotState(); } catch (e) { /* 표는 그려야 한다 */ }

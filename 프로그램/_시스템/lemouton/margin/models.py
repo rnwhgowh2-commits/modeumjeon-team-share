@@ -32,8 +32,6 @@ class MarginAnalysis(Base):
 
     buy_file_key: Mapped[str] = mapped_column(String(512))
     buy_filename: Mapped[str] = mapped_column(String(255))
-    shopmine_file_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    shopmine_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     markets_fetched: Mapped[list] = mapped_column(JSON, default=list)
     markets_failed: Mapped[list] = mapped_column(JSON, default=list)
@@ -66,8 +64,6 @@ class MarginPendingUpload(Base):
     buy_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     period_from: Mapped[_dt.date | None] = mapped_column(Date, nullable=True)
     period_to: Mapped[_dt.date | None] = mapped_column(Date, nullable=True)
-    shop_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    shop_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[_dt.datetime] = mapped_column(
         DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
 
@@ -188,7 +184,7 @@ class PurchaseCard(Base):
 class MarketLearnedRates(Base):
     """마켓이 한 번 알려준 값을 기억해 두는 곳 — 팀 공유 단일 row (id=1 고정).
 
-    🔴 왜 필요한가 (2026-07-25 샵마인 전수 대조에서 발견)
+    🔴 왜 필요한가 (2026-07-25 정답지 전수 대조에서 발견)
       두 곳에서 같은 병이 났다 — **조회 한 번 안에서만 아는 값**이라, 그 조회에 근거가
       안 들어오면 매번 다시 모른다:
 

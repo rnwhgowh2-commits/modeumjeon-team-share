@@ -182,7 +182,7 @@ class TestDeliverySplit:
 
     def test_배송비는_정산에서_분리된다(self):
         """실측(2026-07-23 라이브 프로브): 정산 라인 한 줄에 dlvAmt(배송비)가 함께 온다.
-        분리 안 하면 정산예정금액이 샵마인 M열보다 +배송비 과대(K/L 이중 가산)."""
+        분리 안 하면 정산예정금액이 정답지 M열보다 +배송비 과대(K/L 이중 가산)."""
         from shared.platforms.eleven11.settlement import parse_settlement_details
         xml = _XML.replace(
             "<ns2:stlAmt>10000</ns2:stlAmt>",

@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
-"""매출(SellRow) 생산자 2종 — 마켓 API / 샵마인 엑셀.
+"""매출(SellRow) 생산자 — 마켓 API.
 
-두 생산자는 동일한 SELL_COLUMNS 스키마를 뱉는다. matcher 는 출처를 모른다.
-컬럼명은 기존 샵마인 이름을 그대로 쓴다 — matcher 를 무수정으로 두기 위한 의도적 선택.
+matcher 는 출처를 모른다. 컬럼명은 과거 외부 통합주문관리 엑셀 연동 시절부터 쓰던
+이름을 그대로 쓴다 — matcher 를 무수정으로 두기 위한 의도적 선택.
 
 정산예정금액 정책의 유일한 자리. 스펙 §4 참조.
 
-주의: from_shopmine_excel 은 원본 modules/data_loader.py::parse_sell 의 DataFrame
-변환(컬럼 정규화·쿠팡 '알수없음' 보정)을 그대로 재현한다. 골든테스트(Task 10)가
-옛 프로그램과의 정확한 회귀 동치를 요구하고, matcher.match_for_classifier 가
-샵마인 측 모든 컬럼을 '샵마인_{col}' 로 그대로 복사하므로, 컬럼명 정규화를 빠뜨리면
-결과가 달라진다. 따라서 원본 col_map 전체 + bare '정산예상금액' 보정을 유지한다.
+(과거엔 매출 생산자가 마켓 API / 외부 통합주문관리 엑셀 보조 업로드 2종이었으나,
+전 마켓 API 연동 완료로 그 엑셀 업로드 기능은 폐지됨 — 2026-09.)
 """
 import datetime as _dt
-import io
 import logging
-import re
 from typing import Optional
 
 import pandas as pd
@@ -24,7 +19,7 @@ from lemouton.margin.config import COUPANG_FEE_RATE
 
 logger = logging.getLogger(__name__)
 
-# 롯데온 미정산(구매확정 전) 정산 추정 계수 — 원본(샵마인) 정산과 마켓주문번호 조인해 역산.
+# 롯데온 미정산(구매확정 전) 정산 추정 계수 — 원본(정답지) 정산과 마켓주문번호 조인해 역산.
 #  실결제(actualAmt) 확보분: 원본정산/실결제 = 0.947(수수료 ~5.3%).
 #  실결제 미확보분(actualAmt 누락): 원본정산/판매가(단가×수량) = 0.884.
 #  ⚠️ 실결제 미확보는 롯데온 주문 API 가 actualAmt 를 못 준 것 → 근본은 그 조회 보강.
@@ -39,7 +34,7 @@ EL_FEE_FACTOR_LIST = 0.869
 # matcher 가 읽는 컬럼 + 마진 표시에 필요한 컬럼
 SELL_COLUMNS = [
     "오픈마켓주문번호", "상품명", "옵션", "수량", "단가", "실결제금액",
-    "배송비",            # 고객배송비(API) — 샵마인 고객배송비와 대조·정산 검증용
+    "배송비",            # 고객배송비(API) — 정답지 고객배송비와 대조·정산 검증용
     # ── 주문내역 매출 필드 동기화(사장님 지시 2026-07-23) ──────────────────
     #  마진계산기가 매출 금액을 스스로 다시 만들면 주문내역과 조용히 어긋난다
     #  (matcher 는 `판매가`를 단가×수량으로만 계산해 **옵션추가금을 빠뜨린다**).
@@ -50,7 +45,7 @@ SELL_COLUMNS = [
     "수취고객명", "주문일", "송장입력", "택배사", "주문상태",
     "판매경로",          # 롯데온 유입경로(제휴=상품가 2% / 롯데ON=0) — 크롤 확정, 마진 표시용
     "_settle_source",   # real | estimated | none
-    "_sell_origin",     # api | shopmine
+    "_sell_origin",     # api
 ]
 
 _SENTINEL_999 = 999999999.99
@@ -65,126 +60,6 @@ def _to_numeric_safe(series: pd.Series) -> pd.Series:
     return result.replace(_SENTINEL_999, 0)
 
 
-def _read_excel_any(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    """xls(xlrd) → xlsx(openpyxl) → HTML 형식 xls(html5lib) 순 fallback.
-
-    원본 parse_sell 의 3단계 fallback 을 그대로 재현. 모든 엔진 실패 시
-    시도한 방식 목록(attempts)을 담아 ValueError 를 던진다.
-    """
-    attempts = []
-    for engine in ("xlrd", "openpyxl"):
-        try:
-            return pd.read_excel(io.BytesIO(file_bytes), engine=engine)
-        except Exception as e:  # noqa: BLE001
-            attempts.append(f"{engine}: {e}")
-
-    try:
-        text = file_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        text = file_bytes.decode("euc-kr", errors="replace")
-
-    # Excel "웹 페이지로 저장" frameset 감지 — 실제 데이터는 옆 .files 폴더에 있음
-    if "Excel Workbook Frameset" in text or ("File-List" in text and ".files/" in text):
-        m = re.search(r'href\s*=\s*["\']?([^"\'>\s]+\.files)/', text)
-        folder = m.group(1) if m else f"{filename.rsplit('.', 1)[0]}.files"
-        raise ValueError(
-            f'이 파일은 "Excel 웹 페이지" 포맷입니다 — 실제 데이터는 옆의 '
-            f'"{folder}" 폴더 안 sheet001.htm 에 있습니다. '
-            f'다시 업로드하실 때 **xls 와 {folder} 폴더를 함께** 드래그하세요.')
-
-    try:
-        dfs = pd.read_html(io.StringIO(text), flavor="html5lib")
-        df = max(dfs, key=len)
-        if df.iloc[0].astype(str).str.contains("주문|상품|쇼핑몰|단가", regex=True).any():
-            df.columns = df.iloc[0]
-            df = df.iloc[1:].reset_index(drop=True)
-        return df
-    except Exception as e:  # noqa: BLE001
-        attempts.append(f"pd.read_html: {e}")
-
-    raise ValueError(
-        "매출 엑셀 파싱 실패 — 지원되지 않는 형식입니다. 시도한 방식: "
-        + " / ".join(f"[{i+1}] {a}" for i, a in enumerate(attempts)))
-
-
-def from_shopmine_excel(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    """샵마인 통합주문관리 엑셀 → SellRow DF.
-
-    쿠팡 '알수없음' 정산금액·수수료는 실결제금액 × (1 − 0.1155) 로 보정한다
-    (원본 data_loader.parse_sell 과 동일). 보정값도 샵마인이 그렇게 써 왔으므로
-    _settle_source='real' 로 둔다 — 옛 프로그램과의 회귀 동치를 깨지 않기 위함.
-    """
-    df = _read_excel_any(file_bytes, filename)
-
-    # ★ 컬럼명 1차 정규화 — 연속 공백(전각 포함)을 단일 공백으로 (원본 line 214~216)
-    df.columns = [re.sub(r"\s+", " ", str(c)).strip() for c in df.columns]
-
-    # 전각 공백 포함 컬럼명 정규화 (원본 col_map 전체 재현)
-    col_map = {}
-    for c in df.columns:
-        s = str(c)
-        if "오픈마켓" in s and "주문번호" in s:
-            col_map[c] = "오픈마켓주문번호"
-        elif "오픈마켓" in s and "상품번호" in s:
-            col_map[c] = "오픈마켓상품번호"
-        elif "샵마인" in s and "주문고유코드" in s:
-            col_map[c] = "샵마인주문고유코드"
-        elif "정산예상금액" in s and "배송비" in s:
-            col_map[c] = "정산예상금액_배송비포함"
-        elif "해외매입금액" in s and "ＣＮＹ" in s:
-            col_map[c] = "해외매입금액_CNY"
-        elif "해외매입금액" in s and "원화" in s:
-            col_map[c] = "해외매입금액_원화"
-        elif c == "정산예상금액":
-            col_map[c] = "정산예상금액"
-    df = df.rename(columns=col_map)
-
-    # '삼품명' → '상품명' 오타 보정
-    if "삼품명" in df.columns and "상품명" not in df.columns:
-        df = df.rename(columns={"삼품명": "상품명"})
-
-    # 필수 컬럼 검증 — 없는 채로 통과시키면 matcher 가 판매가·마진을 0 으로 계산해
-    # 조용히 틀린 표를 보여준다(조용한 실패 금지). 원본의 무방비 df['단가'] KeyError 를
-    # 명시적 에러로 대체. buy_parser.parse_buy 의 필수 컬럼 검증 패턴과 동일.
-    required = ["오픈마켓주문번호", "상품명", "단가", "수량",
-                "실결제금액", "정산예상금액_배송비포함", "수취고객명"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError(f"매출 엑셀에 필수 컬럼이 없습니다: {missing}")
-
-    # 쿠팡 '알수없음' 정산금액·수수료 보정 (원본과 동일: bare 정산예상금액 포함)
-    for col in ("정산예상금액", "정산예상금액_배송비포함", "마켓수수료"):
-        if col in df.columns:
-            mask = df[col].astype(str).str.contains("알수없음", na=False)
-            paid = pd.to_numeric(df.loc[mask, "실결제금액"], errors="coerce")
-            if col in ("정산예상금액", "정산예상금액_배송비포함"):
-                df.loc[mask, col] = paid * (1 - COUPANG_FEE_RATE)
-            else:  # 마켓수수료
-                df.loc[mask, col] = paid * COUPANG_FEE_RATE
-            df[col] = _to_numeric_safe(df[col])
-
-    # 쿠팡 수수료율 '알수없음' → '11.55%'
-    if "수수료율" in df.columns:
-        mask = df["수수료율"].astype(str).str.contains("알수없음", na=False)
-        df.loc[mask, "수수료율"] = "11.55%"
-
-    # 숫자형 변환 (단가·실결제금액 센티널 제거, 수량 정수화)
-    # — 위 required 검증이 세 컬럼 존재를 보장하므로 직접 대입.
-    df["단가"] = _to_numeric_safe(df["단가"])
-    df["실결제금액"] = _to_numeric_safe(df["실결제금액"])
-    df["수량"] = pd.to_numeric(df["수량"], errors="coerce").fillna(1).astype(int)
-
-    # 출처·정산 근거 태깅
-    df["_settle_source"] = "real"
-    df["_sell_origin"] = "shopmine"
-
-    # SELL_COLUMNS 스키마 보장 (누락 컬럼은 빈 값으로 채움 — matcher 가 .get 으로 읽음)
-    for col in SELL_COLUMNS:
-        if col not in df.columns:
-            df[col] = ""
-    return df
-
-
 # ── API 생산자 ────────────────────────────────────────────────────────────
 
 _API_MARKET_ORDER = ["smartstore", "coupang", "lotteon", "eleven11", "auction", "gmarket"]
@@ -195,14 +70,14 @@ def api_markets() -> list:
 
     ★ 상수로 고정하면 안 된다. 라이브 검증으로 옥션·G마켓이 열려도 마진계산기만
       옛 목록에 묶여, 주문내역엔 보이는데 마진엔 안 잡히는 모순이 생긴다.
-    아직 안 열린 마켓은 기존대로 샵마인 엑셀 보조 업로드로 채운다.
+    아직 안 열린 마켓은 이 목록에서 빠진다.
     """
     from lemouton.markets import order_export as _oe
     sup = _oe.supported_markets()
     return [m for m in _API_MARKET_ORDER if m in sup]
 
-# order_export 의 '판매처' 한글값 → 샵마인 '쇼핑몰' 코드값
-_PANMAECHEO_TO_SHOPMINE = {
+# order_export 의 '판매처' 한글값 → '쇼핑몰' 코드값
+_PANMAECHEO_TO_CHANNEL_CODE = {
     "스마트스토어": "04.스마트스토어",
     "쿠팡": "06.쿠팡",
     "롯데온": "18.롯데온",
@@ -212,16 +87,16 @@ _PANMAECHEO_TO_SHOPMINE = {
 }
 
 
-def market_to_shopmine(panmaecheo: str) -> str:
-    """order_export '판매처' → 샵마인 '쇼핑몰'. 미지원 값은 원본 그대로."""
-    return _PANMAECHEO_TO_SHOPMINE.get(str(panmaecheo).strip(), str(panmaecheo).strip())
+def market_to_channel_code(panmaecheo: str) -> str:
+    """order_export '판매처' → '쇼핑몰' 코드값. 미지원 값은 원본 그대로."""
+    return _PANMAECHEO_TO_CHANNEL_CODE.get(str(panmaecheo).strip(), str(panmaecheo).strip())
 
 
-# order_export '판매처'별 API 주문상태 → 샵마인 정산 어휘 정규화.
+# order_export '판매처'별 API 주문상태 → 정산 어휘 정규화.
 # 위험값(정산O 로 오분류되는 값)만 remap + '우연히 맞던' 값 명시 pin.
 # 이미 SETTLEMENT_* 에 정확히 있는 값은 여기 없으면 identity 통과.
 _ESM_STATUS = {"구매결정": "구매확정"}   # 옥션·G마켓 공통 (ESM 2.0). esm 클레임 값은 여기에 추가.
-_STATUS_TO_SHOPMINE = {
+_STATUS_TO_SETTLE_VOCAB = {
     "롯데온": {
         "철회": "취소완료",        # ★odPrgsStepCd 22 — 기본값 O 로 새던 것
         "회수확정": "반품완료",     # ★odPrgsStepCd 26 — 기본값 O 로 새던 것
@@ -233,12 +108,12 @@ _STATUS_TO_SHOPMINE = {
 }
 
 
-def status_to_shopmine(panmaecheo, api_status):
-    """(판매처, API 주문상태) → 샵마인 정산 정규 문자열. 미지 값은 원본 통과."""
+def status_to_settle_vocab(panmaecheo, api_status):
+    """(판매처, API 주문상태) → 정산 정규 어휘 문자열. 미지 값은 원본 통과."""
     status = "" if api_status is None else str(api_status).strip()
     if not status:
         return status
-    per = _STATUS_TO_SHOPMINE.get(str(panmaecheo).strip())
+    per = _STATUS_TO_SETTLE_VOCAB.get(str(panmaecheo).strip())
     if per and status in per:
         return per[status]
     return status
@@ -318,7 +193,7 @@ def _settlement_for(row: dict):
     # ── ③ 주문내역이 못 채운 정산 추정 ────────────────────────────────────
     #  실수수료가 없다고 0 으로 두면 매출이 통째로 사라져 '손실'로 둔갑한다.
     #  ★실결제금액 = 상품가(배송비 미포함) 규약이라, 상품분에만 수수료율을 곱하고
-    #    배송비는 원본 정의대로 전액 가산한다(샵마인 실증: 실결제 30,318 + 수수료
+    #    배송비는 원본 정의대로 전액 가산한다(정답지 실증: 실결제 30,318 + 수수료
     #    1,744 = 정산 28,574, 고객배송비 4,000 은 실결제 밖).
     #  배송비는 order_export 가 배송건 첫 행에만 실으므로 행별 가산에 중복이 없다.
     factors = {"롯데온": (LO_FEE_FACTOR_PAID, LO_FEE_FACTOR_LIST),
@@ -366,7 +241,7 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
             "정산예상금액_배송비포함": settle,
             "마켓수수료": r.get("마켓수수료", ""),
             "수수료율": r.get("수수료율", ""),
-            "쇼핑몰": market_to_shopmine(r.get("판매처", "")),
+            "쇼핑몰": market_to_channel_code(r.get("판매처", "")),
             # order_export 가 _rows_for 에서 계정명(display_name)을 쇼핑몰별칭에 태깅함(L1050).
             # 이걸 실어야 matcher 가 '계정'을 산출해 다계정(롯데온 7계정 등)을 구분한다.
             "쇼핑몰별칭": r.get("쇼핑몰별칭", ""),
@@ -376,7 +251,7 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
             # 판매처 택배사 — 지금은 ESM(옥션·G마켓)만 실값(TakbaeName). 다른 마켓은 빈 값이라
             #  화면에서 송장번호만 나온다(코드가 불안정한 곳의 택배사명을 지어내지 않는다).
             "택배사": r.get("택배사", ""),
-            "주문상태": status_to_shopmine(r.get("판매처", ""), r.get("주문상태", "")),
+            "주문상태": status_to_settle_vocab(r.get("판매처", ""), r.get("주문상태", "")),
             "판매경로": r.get("판매경로", ""),   # 롯데온 제휴/롯데ON(제휴 2% 표시)
             "_settle_source": src,
             "_sell_origin": "api",

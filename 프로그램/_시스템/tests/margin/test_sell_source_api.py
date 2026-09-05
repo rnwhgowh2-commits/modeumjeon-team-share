@@ -23,7 +23,7 @@ def _oe_row(**kw):
     return base
 
 
-def test_market_name_mapped_to_shopmine_form(monkeypatch):
+def test_market_name_mapped_to_channel_code_form(monkeypatch):
     monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: ([_oe_row()], []))
     df = SS.from_api(SINCE, UNTIL)
     assert df.loc[0, "쇼핑몰"] == "04.스마트스토어"
@@ -34,7 +34,7 @@ def test_all_markets_mapped():
     for api_name, ko in [("스마트스토어", "04.스마트스토어"), ("쿠팡", "06.쿠팡"),
                          ("롯데온", "18.롯데온"), ("11번가", "03.11번가"),
                          ("옥션", "02.옥션"), ("G마켓", "01.지마켓")]:
-        assert SS.market_to_shopmine(api_name) == ko
+        assert SS.market_to_channel_code(api_name) == ko
 
 
 def test_settlement_comes_from_orders_tab_field():
@@ -241,7 +241,7 @@ def test_coupang_settlement_includes_customer_shipping():
     """🔴 회귀 방지 — 쿠팡 배송비 누락.
 
     주문내역은 2026-07-23 부터 쿠팡 `정산예정금액` 을 **상품정산만** 담게 바꿨고
-    (샵마인 45건 전수 실측), 고객배송비는 `정산예정금(배송비포함)` 에서 더한다.
+    (정답지 45건 전수 실측), 고객배송비는 `정산예정금(배송비포함)` 에서 더한다.
     마진계산기가 앞쪽을 계속 읽는 바람에 배송비 붙은 쿠팡 주문의 마진이 그만큼
     과소였다. 두 화면이 같은 숫자를 보는지 못 박는다.
     """
@@ -345,9 +345,9 @@ def test_settlement_survives_formatted_strings():
 
 
 def test_ESM_정산은_주문내역_배송비포함값을_그대로():
-    """샵마인 정답지 대사(2026-07-22): 옥션 7/7·G마켓 20/21 불일치가 정확히 배송비
+    """정답지 대사(2026-07-22): 옥션 7/7·G마켓 20/21 불일치가 정확히 배송비
     (+3,000)만큼 작았다 — ESM 정산조회 SettlementPrice 는 상품 정산만이라 배송비를
-    더해야 샵마인 `정산예상금액(배송비포함)` 정의와 같아진다. 그 덧셈은 이제
+    더해야 정답지 `정산예상금액(배송비포함)` 정의와 같아진다. 그 덧셈은 이제
     주문내역이 하고, 마진계산기는 결과만 읽는다."""
     from lemouton.margin.sell_source import _settlement_for
     settle, src = _settlement_for({"판매처": "옥션", "정산예정금액": 10000,

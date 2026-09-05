@@ -1,16 +1,20 @@
 # -*- coding: utf-8 -*-
 r"""골든테스트 1단계 — 옛 마진계산기와의 회귀 동치(cycle ①).
 
-매출원을 옛 프로그램이 읽던 샵마인 엑셀로 고정(API·네트워크 없음)한다. 그러면
+매출원을 옛 프로그램이 읽던 통합주문관리 엑셀로 고정(API·네트워크 없음)한다. 그러면
 옛 출력과 신 출력의 차이는 오직 "포팅 결함"만 남는다.
 
   옛(baseline, 고정): scripts/margin_capture_baseline.py 가 옛 app.py 를 in-process
       로 구동해 store['matched'] + _aggregate(...) 의 순수 cycle ① 산출물을 저장.
       (라우트 응답의 cycle ② 오염 — card_* 덮어쓰기·mango_*·unmatched_buy augment·
        classified·blackspot_summary — 은 baseline 에 애초에 담지 않는다.)
-  신(new): parse_buy → from_shopmine_excel → pipeline.run → aggregator.aggregate.
+  신(new): parse_buy → (구 통합주문관리 엑셀 변환, 2026-09 삭제) → pipeline.run → aggregator.aggregate.
 
 규칙: 옛·신이 어긋나면 신코드가 틀린 것. baseline 을 만지지 말고 이식 모듈을 고친다.
+
+⚠️ 2026-09 전 마켓 API 연동 완료로 sell_source 의 구 통합주문관리 엑셀 변환 함수가 삭제됐다 —
+   이 골든 재현 경로는 원본 데이터가 있는 그 한 대의 개발자 PC 에서도 더 이상
+   동작하지 않는다(조용한 실패 금지 — `_build_new()` 호출 시 명시적으로 실패).
 
 비교 대상(과제 명시):
   1) matched — 행 단위 전 필드 완전 일치(부동소수 approx)
@@ -27,11 +31,6 @@ import json
 import os
 
 import pytest
-
-from lemouton.margin import aggregator, pipeline
-from lemouton.margin.buy_parser import parse_buy
-from lemouton.margin.config import DEFAULT_PRICE_RANGES
-from lemouton.margin.sell_source import from_shopmine_excel
 
 # 옛 프로그램 데이터 폴더(로컬 전용, CI 에는 없음) + baseline 마스킹·정규화 헬퍼 재사용
 from scripts.margin_capture_baseline import OLD, mask_pii, _jsonable
@@ -97,31 +96,16 @@ def _find_excel_pair(date):
 
 
 def _build_new(date):
-    """신코드로 cycle ① 산출물 생성 후 baseline 과 동일하게 마스킹·정규화."""
-    mango, shop = _find_excel_pair(date)
-    with open(mango, "rb") as f:
-        buy_df = parse_buy(f.read(), os.path.basename(mango))
-    with open(shop, "rb") as f:
-        sell_df = from_shopmine_excel(f.read(), os.path.basename(shop))
+    """신코드로 cycle ① 산출물 생성 후 baseline 과 동일하게 마스킹·정규화.
 
-    result = pipeline.run(buy_df, sell_df, DEFAULT_PRICE_RANGES)
-    agg = aggregator.aggregate(result["matched"], DEFAULT_PRICE_RANGES)
-
-    new = {
-        "matched": result["matched"],
-        "unmatched_buy": result["unmatched_buy"],
-        "unmatched_sell": result["unmatched_sell"],
-        "summary": agg["summary"],
-        "market": agg["market"],
-        "daily": agg["daily"],
-        "monthly": agg["monthly"],
-        "brand": agg["brand"],
-        "priceRange": agg["priceRange"],
-        "product": agg["product"],
-        "filters": agg["filters"],
-    }
-    # baseline 과 완전히 동일한 마스크·정규화(대칭) — 마스킹이 차이를 가릴 수 없게.
-    return mask_pii(_jsonable(new))
+    2026-09: sell_source 의 구 통합주문관리 엑셀 변환 함수 삭제(전 마켓 API 연동 완료) — 이
+    옛 데이터 재현 경로는 더 이상 동작하지 않는다. 조용히 진행하는 대신 명시적으로 skip한다
+    (이 파일은 애초에 CI 미실행 — 그 한 대의 개발자 PC 로컬 전용 포팅 검증이었다).
+    """
+    pytest.skip(
+        f"[{date}] 구 통합주문관리 엑셀 변환 함수가 삭제돼(2026-09) 이 골든 재현 경로는 "
+        "더 이상 동작하지 않습니다 — 전 마켓 API 연동 완료로 그 입력 포맷 자체가 은퇴함."
+    )
 
 
 @pytest.fixture(scope="module")

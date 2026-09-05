@@ -22,7 +22,7 @@ def test_env_없으면_404_로_닫힌다(client, monkeypatch):
 
 def test_env_켜면_열린다(client, monkeypatch):
     monkeypatch.setenv("PERIOD_PROBE", "1")
-    r = client.get("/api/period-probe?market=shopmine&kind=orders")
+    r = client.get("/api/period-probe?market=unknown_market&kind=orders")
     assert r.status_code == 400          # 게이트는 통과, 마켓명이 틀려 400
     assert "지원하지 않는 마켓" in r.get_json()["error"]
 

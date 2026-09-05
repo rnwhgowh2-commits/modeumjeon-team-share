@@ -263,20 +263,20 @@ def test_cancelled_tag_is_less_trusted_than_real():
 
 
 def test_marketplace_courier_carried_to_matched_row():
-    """판매처 택배사(ESM TakbaeName)가 matched 행에 '샵마인_택배사'로 붙는다.
+    """판매처 택배사(ESM TakbaeName)가 matched 행에 '판매처_택배사'로 붙는다.
 
     matcher 는 원본과 바이트 동치라 택배사를 출력하지 않는다 → pipeline 이 sell 값을
     (주문번호,상품명,옵션) 조인으로 되짚어 붙인다(_CARRY_FIELDS 와 같은 방식).
     이게 있어야 전체내역 [판매처] 송장번호 앞에 택배사가 나온다.
     """
     out = P.run(pd.DataFrame([_buy()]), pd.DataFrame([_sell(택배사="CJ대한통운")]))
-    assert out["matched"][0]["샵마인_택배사"] == "CJ대한통운"
+    assert out["matched"][0]["판매처_택배사"] == "CJ대한통운"
 
 
 def test_missing_courier_leaves_blank_not_fabricated():
     """택배사가 없으면(코드 불안정 마켓) 빈 값 — 이름을 지어내지 않는다."""
     out = P.run(pd.DataFrame([_buy()]), pd.DataFrame([_sell()]))   # 택배사 미지정
-    assert str(out["matched"][0].get("샵마인_택배사", "")).strip() == ""
+    assert str(out["matched"][0].get("판매처_택배사", "")).strip() == ""
 
 
 def test_margin_rate_uses_sale_price_plus_shipping_not_paid():

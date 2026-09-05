@@ -171,8 +171,8 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
                 if not courier:
                     courier = ent[1]
         r.update(nums)
-        if courier and not str(r.get("샵마인_택배사", "")).strip():
-            r["샵마인_택배사"] = courier      # [판매처] 송장번호 앞에 붙일 택배사(ESM 실값)
+        if courier and not str(r.get("판매처_택배사", "")).strip():
+            r["판매처_택배사"] = courier      # [판매처] 송장번호 앞에 붙일 택배사(ESM 실값)
         if tags:
             r["_settle_source"] = _pick(tags)
         else:

@@ -129,7 +129,7 @@ def _itmd_discount_map(start_date: str, end_date: str, *, client) -> dict:
     """통합매출정산(SettleItmdSales)에서 (odNo, odSeq) → 할인 합계.
 
     SettleProduct 의 slAmt 는 **정가(판매금액)** 라 그대로 실결제로 쓰면 할인이
-    빠진다(2026-07-22 샵마인 대사: 658건 불일치). 이 API 가 같은 키(odNo·odSeq)로
+    빠진다(2026-07-22 정답지 대사: 658건 불일치). 이 API 가 같은 키(odNo·odSeq)로
     셀러즉시할인(slrDcAmt)·상품할인 셀러부담(pdDcSlrAmt)·이커머스부담(pdDcOcoAmt)을
     준다 — 고객 결제액은 셋 다 차감된 값이다. 실패하면 빈 맵(호출부가 실결제를 비움).
     """
@@ -224,7 +224,7 @@ def to_row(r: dict) -> dict:
         "쇼핑몰": "롯데온", "쇼핑몰ID": "",
         # 실결제 = 정가(slAmt) − 할인합(SettleItmdSales 조인). 할인 정보를 못 얻으면
         # **비운다** — 정가를 실결제로 두면 할인분만큼 큰 값이 된다(2026-07-22
-        # 샵마인 대사 658건 사고). 공란=미확보가 틀린 값보다 낫다.
+        # 정답지 대사 658건 사고). 공란=미확보가 틀린 값보다 낫다.
         "실결제금액": ((_num(r.get("slAmt")) or 0) - r["_dc_sum"]
                   if r.get("_dc_sum") is not None and _num(r.get("slAmt")) is not None
                   else ""),

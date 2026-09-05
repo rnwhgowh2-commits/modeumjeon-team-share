@@ -168,7 +168,7 @@ def parse_itmd_lines(resp: dict) -> dict:
       odSeq1=41,624 · odSeq2=41,624). `parse_itmd` 는 이를 odNo 로 합산(83,248)하는데,
       order_export·스윕이 그 **주문 총액을 각 라인에 통째로 대입**해 2벌 주문이 정확히
       2배가 됐다(각 라인 83,248 → 합 166,496 = 2×). 라인 키로 나눠 대입하면 각 41,624 =
-      샵마인 벌값과 일치한다. 같은 (odNo,odSeq) 의 여러 procSeq(부분취소 등)는 합산.
+      정답지 벌값과 일치한다. 같은 (odNo,odSeq) 의 여러 procSeq(부분취소 등)는 합산.
 
     ★[2026-08-04] 상품 정산이 아닌 별도 라인은 뺀다 — `_is_product_line` 주석 참조.
       부분취소(procSeq 2, 금액 음수)는 상품번호가 있으므로 그대로 합산된다(순액 규약 유지).
@@ -231,7 +231,7 @@ def itmd_line_map(since: datetime, until: datetime, *,
 def _fetch_all_itmd_rows(cfg: dict, since: datetime, until: datetime, *, client) -> list:
     """[since, until] 전 구간의 SettleItmdSales data 행 — **창을 가로질러 dedup**.
 
-    🔴 왜 여기서 다시 dedup 하나 (2026-07-25 샵마인 실측 6건·+37만원, pymtAmt 정확히 2배)
+    🔴 왜 여기서 다시 dedup 하나 (2026-07-25 정답지 실측 6건·+37만원, pymtAmt 정확히 2배)
       `_windows` 는 [cur, cur+step], [cur+step, ...] 로 나뉘어 **경계일이 앞뒤 창에 겹친다**
       (endDate == 다음 startDate, 정산 API 는 날짜 범위 양끝 포함). `_fetch_itmd_rows` 의
       `seen` 은 **창 하나 안에서만** 접어서, 경계일에 구매확정된 주문의 (odNo,odSeq,procSeq)

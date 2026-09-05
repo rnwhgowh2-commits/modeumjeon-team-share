@@ -111,7 +111,7 @@ def test_coupang_unsettled_is_estimated():
 def test_coupang_unsettled_uses_remembered_rate():
     """지난 조회에서 정산 확정분으로 배운 그 상품의 실요율을 다시 쓴다.
 
-    2026-07-25 샵마인 대조 회귀: 고정 11.55% 라서 미정산 주문 7건이 건당
+    2026-07-25 정답지 대조 회귀: 고정 11.55% 라서 미정산 주문 7건이 건당
     133~167원씩 정산 과다였다(실제 요율 11.67~12.56%).
     """
     from lemouton.margin import learned_rates_store as lrs
