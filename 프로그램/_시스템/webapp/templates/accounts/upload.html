@@ -155,18 +155,18 @@
             <div class="status-stack">
               <div class="status-line" title="{{ acc.masked_id }}">
                 {% if acc.cred_state == 'ok' %}
-                  <span class="status-icon ok">✓</span> API 키 등록
+                  <span class="status-icon ok"><i class="ph-light ph-check" aria-hidden="true"></i></span> API 키 등록
                 {% elif acc.cred_state == 'missing' %}
                   <span class="status-icon warn"><i class="ph-light ph-warning" aria-hidden="true"></i></span> 키 누락 ({{ acc.missing_count }})
                 {% else %}
-                  <span class="status-icon err">✗</span> 미지원
+                  <span class="status-icon err"><i class="ph-light ph-x" aria-hidden="true"></i></span> 미지원
                 {% endif %}
               </div>
               {# 키 지문 — 같은 지문 = 같은 셀러 키. 중복이면 빨갛게(키 값은 표시하지 않음). #}
               <div class="status-line fp-line" data-acc-id="{{ acc.id }}" data-market="{{ acc.market }}"></div>
               {% if acc.login_state == 'logged_in' %}
               <div class="status-line" title="영구 인증 쿠키 (NID_AUT 등) 발견 — 자동 로그인 가능">
-                <span class="status-icon ok">✓</span> 영구 로그인 ({{ acc.login_age_days }}일 경과)
+                <span class="status-icon ok"><i class="ph-light ph-check" aria-hidden="true"></i></span> 영구 로그인 ({{ acc.login_age_days }}일 경과)
               </div>
               {% elif acc.login_state == 'stale' %}
               <div class="status-line" title="30일 경과 — 재로그인 권장">
@@ -188,7 +188,7 @@
               {% if acc.market == 'smartstore' %}
                 {% if acc.has_login_creds %}
                 <div class="status-line" title="{{ acc.env_prefix }}_LOGIN_ID/PW 가 .env 에 등록됨 — 매번 자동 입력 + 자동 [로그인] 클릭. 디바이스 인증만 사용자.">
-                  <span class="status-icon ok">✓</span> 자동 입력 ON (.env LOGIN_ID/PW)
+                  <span class="status-icon ok"><i class="ph-light ph-check" aria-hidden="true"></i></span> 자동 입력 ON (.env LOGIN_ID/PW)
                 </div>
                 {% else %}
                 <div class="status-line muted" title="자동 입력하려면 .env 에 {{ acc.env_prefix }}_LOGIN_ID 와 {{ acc.env_prefix }}_LOGIN_PW 추가">
@@ -239,7 +239,7 @@
               {% if acc.login_state in ('logged_in', 'stale') %}
               <button class="btn btn-sm btn-test"
                       onclick="loginUploadAccount({{ acc.id }}, '{{ acc.display_name|e }}')"
-                      title="이미 로그인된 상태 — 클릭하면 재로그인 창 오픈">✓ 로그인 완료</button>
+                      title="이미 로그인된 상태 — 클릭하면 재로그인 창 오픈"><i class="ph-light ph-check" aria-hidden="true"></i> 로그인 완료</button>
               {% else %}
               <button class="btn btn-sm"
                       onclick="loginUploadAccount({{ acc.id }}, '{{ acc.display_name|e }}')"
@@ -490,7 +490,7 @@
   .status-icon.err { background: var(--연한-빨강,#FEE2E2); color: var(--글자-빨강, var(--red,#991B1B)); }
   .status-icon.muted { background: var(--n100, #F2F4F6); color: var(--n500, var(--faint,#B0B8C1)); }
 
-  /* 계정명 옆 인라인 ✏️ */
+  /* 계정명 옆 인라인 [수정] */
   .name-with-edit { display: inline-flex; align-items: center; gap: 6px; }
   .name-edit-btn {
     background: transparent;
@@ -554,7 +554,7 @@
 {# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ #}
 {#  통합 모달 — V2 좌우분할 (마켓 사이드바 + 폼)        #}
 {#  · "계정 추가" : 마켓 + 계정명 + 키 한 번에            #}
-{#  · "🔑 키 입력" : 마켓 잠금 + 키만 입력                #}
+{#  · " 키 입력" : 마켓 잠금 + 키만 입력  #}
 {# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ #}
 <div id="v2-modal-bg" class="modal-bg" onclick="if(event.target===this)closeV2Modal()">
   <div class="modal v2-modal" role="dialog" aria-modal="true" aria-labelledby="v2-modal-title">
@@ -578,7 +578,7 @@
           <h3 id="v2-modal-title">마켓을 선택하세요</h3>
           <p class="v2-sub" id="v2-subtitle">왼쪽에서 등록할 마켓을 클릭하세요.</p>
         </div>
-        <button class="v2-close" aria-label="닫기" onclick="closeV2Modal()">✕</button>
+        <button class="v2-close" aria-label="닫기" onclick="closeV2Modal()"><i class="ph-light ph-x" aria-hidden="true"></i></button>
       </header>
 
       <div class="v2-form-body" id="v2-form-body" style="display:none">

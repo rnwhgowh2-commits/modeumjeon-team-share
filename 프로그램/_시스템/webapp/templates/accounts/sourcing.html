@@ -12,8 +12,8 @@
     <label class="sj-checkbox">
       <input type="checkbox" id="sj-select-all-master" onchange="sjToggleSelectAll(this.checked)"> 전체선택
     </label>
-    <button class="btn btn-sm sj-btn-outline" onclick="sjVerifySelected()">✓ 선택 로그인</button>
-    <button class="btn btn-sm sj-btn-outline" onclick="sjVerifyAll()">✓ 전체 확인</button>
+    <button class="btn btn-sm sj-btn-outline" onclick="sjVerifySelected()"><i class="ph-light ph-check" aria-hidden="true"></i> 선택 로그인</button>
+    <button class="btn btn-sm sj-btn-outline" onclick="sjVerifyAll()"><i class="ph-light ph-check" aria-hidden="true"></i> 전체 확인</button>
     <button class="btn btn-sm sj-btn-warning" onclick="autoLoginAll()" id="btn-login-all"><i class="ph-light ph-key" aria-hidden="true"></i> 전체 자동 로그인</button>
     <button class="btn btn-sm btn-primary" onclick="sjSaveAll()"><i class="ph-light ph-floppy-disk" aria-hidden="true"></i> 전체 저장</button>
   </div>
@@ -72,7 +72,7 @@
     <header style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:2px solid var(--primary-dim,var(--연한-파랑,#E8F2FE))">
       <span id="sb-modal-icon" style="font-size:17px"><i class="ph-light ph-gear" aria-hidden="true"></i></span>
       <h3 id="sb-modal-title" style="margin:0;font-size:17px;font-weight:800;color:#7C3AED">혜택 관리</h3>
-      <button onclick="sbCloseModal()" style="margin-left:auto;background:var(--surface,#ffffff);border:1px solid var(--n300);border-radius:8px;padding:4px 12px;cursor:pointer;font-size: 14px">✕ 닫기</button>
+      <button onclick="sbCloseModal()" style="margin-left:auto;background:var(--surface,#ffffff);border:1px solid var(--n300);border-radius:8px;padding:4px 12px;cursor:pointer;font-size: 14px"><i class="ph-light ph-x" aria-hidden="true"></i> 닫기</button>
     </header>
     <div id="sb-modal-list" style="margin-bottom:12px"></div>
     <button onclick="sbAddRow()" style="padding:8px;border:1.5px dashed #7C3AED;border-radius:8px;color:#7C3AED;font-weight:700;font-size:12px;cursor:pointer;background:var(--surface,#ffffff);width:100%;font-family:inherit;text-align:center">+ 새 혜택 추가</button>
@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
   <div class="sj-help-body" role="dialog" aria-modal="true" aria-labelledby="sj-help-title">
     <header class="sj-help-head">
       <h3 id="sj-help-title"><i class="ph-light ph-lock-key" aria-hidden="true"></i> 소싱처 계정 추가 방법</h3>
-      <button type="button" class="sj-help-x" onclick="sjHelpClose()" aria-label="닫기">✕</button>
+      <button type="button" class="sj-help-x" onclick="sjHelpClose()" aria-label="닫기"><i class="ph-light ph-x" aria-hidden="true"></i></button>
     </header>
     <ol class="sj-help-steps">
       <li><b>STEP 1</b> 추가할 사이트 그룹에서 <b>「+ 추가」</b> 클릭 → 빈 입력 행 생성</li>
@@ -324,9 +324,9 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 .sj-row .sj-owner { flex: 0 0 70px; padding: 4px 8px; border: 1px solid var(--n200); border-radius: 8px; font-size: 14px; background: var(--surface); text-align: center; }
 .sj-row input:focus { outline: none; border-color: var(--primary); }
 .sj-row .sj-status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;  cursor: help; }
-.sj-row .sj-status-dot.ok { background: var(--green,#00C471);  }       /* 🟢 로그인 완료 */
-.sj-row .sj-status-dot.fail { background: var(--red,#FF4444);  }    /* 🔴 시도 → 실패 */
-.sj-row .sj-status-dot.warn { background: var(--amber,#FFB800);  }    /* 🟡 시도 전 */
+.sj-row .sj-status-dot.ok { background: var(--green,#00C471);  }       /* 로그인 완료 */
+.sj-row .sj-status-dot.fail { background: var(--red,#FF4444);  }    /* [중요] 시도 → 실패 */
+.sj-row .sj-status-dot.warn { background: var(--amber,#FFB800);  }    /* 시도 전 */
 .sj-row .sj-status-dot.unknown { background: var(--n300); }
 .sj-row .sj-icon-btn { padding: 0 4px; cursor: pointer; border: none; background: none; font-size: 14px; line-height: 1; flex-shrink: 0; }
 .sj-row .sj-icon-btn:hover { transform: scale(1.2); }
@@ -440,7 +440,7 @@ function sjRowHtml(site, acc) {
       <input type="text" class="sj-id" placeholder="ID" value="${acc.id_masked || ''}" data-field="id" autocomplete="off" spellcheck="false">
       <input type="password" class="sj-pw" placeholder="${'•'.repeat(Math.min(acc.pw_length || 0, 14))} (변경 시 입력)" data-field="pw" data-pw-length="${acc.pw_length || 0}" autocomplete="new-password">
       <input type="text" class="sj-owner" placeholder="명의자" value="${acc.account_key.replace(/_\\d+$/, '')}" data-field="owner">
-      <span class="sj-status-dot ${acc.cookie_status === 'logged_in' ? 'ok' : (acc.cookie_status === 'in_progress' ? 'fail' : 'warn')}" title="${acc.cookie_status === 'logged_in' ? '🟢 로그인 완료 (쿠키 ' + (acc.cookie_size_kb || 0) + 'KB)' : acc.cookie_status === 'in_progress' ? '🔴 시도했으나 실패 (쿠키 빈 상태)' : '🟡 시도 전'}"></span>
+      <span class="sj-status-dot ${acc.cookie_status === 'logged_in' ? 'ok' : (acc.cookie_status === 'in_progress' ? 'fail' : 'warn')}" title="${acc.cookie_status === 'logged_in' ? '로그인 완료 (쿠키 ' + (acc.cookie_size_kb || 0) + 'KB)' : acc.cookie_status === 'in_progress' ? '시도했으나 실패 (쿠키 빈 상태)' : '시도 전'}"></span>
       <button class="sj-icon-btn sj-default-star ${isDefaultCrawl ? 'on' : ''}" title="${starTitle}" onclick="sjToggleDefault(this)" style="font-size:17px">${starIcon}</button>
       <button class="sj-icon-btn" title="복사" onclick="sjCopyId(this)"></button>
       <button class="sj-icon-btn" title="자동 로그인" onclick="sjLoginRow(this)"></button>
@@ -555,11 +555,11 @@ function sjLoginRow(btn) {
 }
 
 function sjVerifyRow(btn) {
-  // ✓ 단일 행 — sjLoginRow 와 동일하게 자동 로그인 트리거
+  // v 단일 행 — sjLoginRow 와 동일하게 자동 로그인 트리거
   sjLoginRow(btn);
 }
 
-// ★ 대표 크롤 계정 지정 토글 (소싱처별 1개만)
+// * 대표 크롤 계정 지정 토글 (소싱처별 1개만)
 async function sjToggleDefault(btn) {
   const row = btn.closest('.sj-row');
   const source = row.getAttribute('data-source');
@@ -600,7 +600,7 @@ async function sjToggleDefault(btn) {
 }
 
 async function sjVerifySelected() {
-  // ✓ 선택 로그인 — 체크된 행만 일괄 자동 로그인
+  // v 선택 로그인 — 체크된 행만 일괄 자동 로그인
   const selected = Array.from(document.querySelectorAll('.sj-row .sj-cb:checked'));
   if (selected.length === 0) { showToast('선택된 행 없음', 'error'); return; }
 
@@ -639,7 +639,7 @@ async function sjVerifySelected() {
 }
 
 function sjVerifyAll() {
-  // ✓ 전체 확인 — 전체 자동 로그인과 동일하게 처리
+  // v 전체 확인 — 전체 자동 로그인과 동일하게 처리
   autoLoginAll();
 }
 

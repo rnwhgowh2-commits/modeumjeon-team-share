@@ -67,11 +67,11 @@
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
       <h2 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink,#292A2F)">자동 정책</h2>
       <div style="font-size:14px;line-height:2;color:var(--ink,#292A2F)">
-        <div>★ 평균매입가 — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">이동평균 (ADR-002)</span></div>
-        <div>★ 출고 시 COGS — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">snapshot 박제</span></div>
-        <div>★ 마진 우선순위 — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">옵션 → 모델 → 템플릿</span></div>
-        <div>★ SKU 매핑 — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">100/80/50 fuzzy</span></div>
-        <div>★ Bundle 출고 — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">자동 차감 (v1.5)</span></div>
+        <div><i class="ph-light ph-star" aria-hidden="true"></i> 평균매입가 — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">이동평균 (ADR-002)</span></div>
+        <div><i class="ph-light ph-star" aria-hidden="true"></i> 출고 시 COGS — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">snapshot 박제</span></div>
+        <div><i class="ph-light ph-star" aria-hidden="true"></i> 마진 우선순위 — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">옵션 → 모델 → 템플릿</span></div>
+        <div><i class="ph-light ph-star" aria-hidden="true"></i> SKU 매핑 — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">100/80/50 fuzzy</span></div>
+        <div><i class="ph-light ph-star" aria-hidden="true"></i> Bundle 출고 — <span style="color: var(--글자-초록, var(--green,#22C55E));font-weight:600">자동 차감 (v1.5)</span></div>
       </div>
     </div>
 
@@ -86,16 +86,16 @@
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
       <h2 style="font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink,#292A2F)"><i class="ph-light ph-shield" aria-hidden="true"></i>️ 데이터 무결성</h2>
       <div style="font-size:14px;line-height:1.9;color:var(--ink,#292A2F)">
-        ✓ canonical_sku unique<br>
-        ✓ Tx 추가만 (UPDATE/DELETE <i class="ph-light ph-x-circle" aria-hidden="true"></i>)<br>
-        ✓ snapshot 한번 박제 후 변경 <i class="ph-light ph-x-circle" aria-hidden="true"></i><br>
-        ✓ 잔량 0 미만 검증<br>
-        ✓ Bundle 차감 트랜잭션 안전
+        <i class="ph-light ph-check" aria-hidden="true"></i> canonical_sku unique<br>
+        <i class="ph-light ph-check" aria-hidden="true"></i> Tx 추가만 (UPDATE/DELETE <i class="ph-light ph-x-circle" aria-hidden="true"></i>)<br>
+        <i class="ph-light ph-check" aria-hidden="true"></i> snapshot 한번 박제 후 변경 <i class="ph-light ph-x-circle" aria-hidden="true"></i><br>
+        <i class="ph-light ph-check" aria-hidden="true"></i> 잔량 0 미만 검증<br>
+        <i class="ph-light ph-check" aria-hidden="true"></i> Bundle 차감 트랜잭션 안전
       </div>
     </div>
 
   </div>
 
-  <div style="margin-top:12px;font-size:12px;color:var(--sub,#8F91A0)">★ 박스히어로 1:1 — 설정 sub-tab 4종 (팀/알림/구매판매/연동). 멤버·결제 등 단독 운영 무관 항목은 사용자 명시로 제외.</div>
+  <div style="margin-top:12px;font-size:12px;color:var(--sub,#8F91A0)"><i class="ph-light ph-star" aria-hidden="true"></i> 박스히어로 1:1 — 설정 sub-tab 4종 (팀/알림/구매판매/연동). 멤버·결제 등 단독 운영 무관 항목은 사용자 명시로 제외.</div>
 </div>
 {% endblock %}

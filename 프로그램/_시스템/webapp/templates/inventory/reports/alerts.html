@@ -27,7 +27,7 @@
           <td style="padding:8px;text-align:right;font-family:ui-monospace,monospace">{{ a.threshold }}</td>
           <td style="padding:8px;text-align:right;font-family:ui-monospace,monospace;font-weight:700;color:var(--red,#DC2626)">-{{ a.gap }}</td>
           <td style="padding:8px">{{ a.location_id or '전체' }}</td>
-        </tr>{% else %}<tr><td colspan="5" style="padding:24px;text-align:center;color: var(--글자-초록, var(--green,#10B981));font-weight:600">✓ 모든 재고 정상</td></tr>{% endfor %}
+        </tr>{% else %}<tr><td colspan="5" style="padding:24px;text-align:center;color: var(--글자-초록, var(--green,#10B981));font-weight:600"><i class="ph-light ph-check" aria-hidden="true"></i> 모든 재고 정상</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

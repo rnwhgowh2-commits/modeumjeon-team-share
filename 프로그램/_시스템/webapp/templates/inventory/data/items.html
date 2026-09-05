@@ -10,7 +10,7 @@
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <button type="button" onclick="openNewItemModal()" style="background:#4F67FF;border:none;color:#fff;padding:7px 14px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600">+ 제품 추가</button>
       <a href="{{ url_for('inventory.data_boxhero_import') }}" style="background:#EEF1FE;border:1px solid #4F67FF;color:#4F67FF;padding:7px 12px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600"><i class="ph-light ph-tray-arrow-down" aria-hidden="true"></i> 제품 엑셀 업로드</a>
-      <button type="button" onclick="exportFilteredXlsx()" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer">⬇ 엑셀 내보내기</button>
+      <button type="button" onclick="exportFilteredXlsx()" style="background:#fff;border:1px solid #CBCCD3;color:#292A2F;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer"><i class="ph-light ph-arrow-down" aria-hidden="true"></i> 엑셀 내보내기</button>
       <button type="button" onclick="document.getElementById('wipeModal').style.display='flex'" style="background:#fff;border:1px solid #FCA5A5;color:#DC2626;padding:7px 12px;border-radius:5px;font-size:14px;cursor:pointer;font-weight:600"><i class="ph-light ph-trash" aria-hidden="true"></i> 전체 삭제</button>
     </div>
   </div>
@@ -50,7 +50,7 @@
     </form>
   </div>
 
-  {# ★ 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만 노출 #}
+  {# * 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만 노출 #}
   <div id="searchSummary" style="display:none;background:linear-gradient(90deg,#EEF4FF,#F4F8FF);border:1px solid #BCD2FF;border-radius:8px;padding:11px 18px;margin-bottom:14px;align-items:center;font-size:14px"></div>
 
   {# [Phase 3-1 A2] 다중 선택 일괄 액션바 — 1건 이상 체크 시 표시 #}
@@ -252,7 +252,7 @@
   <div style="background:#fff;border-radius:12px;width:520px;max-width:92vw;box-shadow:0 20px 56px rgba(0,0,0,0.35);overflow:hidden">
     <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:10px">
       <strong style="font-size:17px;color:#191F28">⧉ 제품 복사</strong>
-      <button type="button" onclick="closeCopyModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:7px;padding:6px 11px;font-size:13px;color:#6B7684;font-weight:700;cursor:pointer">✕ 닫기</button>
+      <button type="button" onclick="closeCopyModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:7px;padding:6px 11px;font-size:13px;color:#6B7684;font-weight:700;cursor:pointer"><i class="ph-light ph-x" aria-hidden="true"></i> 닫기</button>
     </div>
     <div style="padding:18px 22px">
       <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:9px;padding:11px 14px;font-size:14px;margin-bottom:16px">
@@ -293,7 +293,7 @@
   <div style="background:#fff;border-radius:14px;width:1020px;max-width:95vw;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.4);overflow:hidden">
     <div style="padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:11px">
       <strong style="font-size:18px;color:#191F28">⊞ 일괄 생성 — 색상 × 사이즈 매트릭스</strong>
-      <button type="button" onclick="closeMatrixModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:8px;padding:8px 13px;font-size:14px;color:#6B7684;font-weight:700;cursor:pointer">✕ 닫기</button>
+      <button type="button" onclick="closeMatrixModal()" style="margin-left:auto;background:#F2F4F6;border:0;border-radius:8px;padding:8px 13px;font-size:14px;color:#6B7684;font-weight:700;cursor:pointer"><i class="ph-light ph-x" aria-hidden="true"></i> 닫기</button>
     </div>
     <div style="padding:18px 22px;overflow:auto;flex:1">
       <div style="background:#F9FAFB;border:1px solid #E5E8EB;border-radius:9px;padding:12px 15px;font-size:14px;margin-bottom:14px">
@@ -311,7 +311,7 @@
       </div>
       <div id="mtxTableWrap" style="overflow:auto"></div>
       <div id="mtxInfo" style="background:#FFF8E6;border:1px solid #F2DFA8;color:#7A5A12;border-radius:9px;padding:11px 15px;font-size:13px;margin-top:12px">
-        ✓ 체크한 <b id="mtxCount">0</b>개 조합이 생성됩니다 · SKU·바코드는 조합마다 자동 발급 · 재고제품·연결 함께 생성
+        <i class="ph-light ph-check" aria-hidden="true"></i> 체크한 <b id="mtxCount">0</b>개 조합이 생성됩니다 · SKU·바코드는 조합마다 자동 발급 · 재고제품·연결 함께 생성
       </div>
       <div id="mtxError" style="display:none;color:#B91C1C;font-size:13px;margin-top:8px"></div>
     </div>
@@ -689,7 +689,7 @@ function confirmDelete(){
   function fmt(n){ return Number(n||0).toLocaleString(); }
   function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); }
 
-  // ★ 검색 결과 요약 배너 (시안 A)
+  // * 검색 결과 요약 배너 (시안 A)
   function renderSummary(sm){
     var el = document.getElementById('searchSummary');
     if(!el) return;
@@ -1005,7 +1005,7 @@ function onWipeInput(e){
         </div>
       </div>
 
-      {# 🎨 옵션 일괄 생성 매트릭스 — 색상·사이즈에 쉼표 또는 합산 ≥ 2 일 때 자동 노출 #}
+      {#  옵션 일괄 생성 매트릭스 — 색상·사이즈에 쉼표 또는 합산 ≥ 2 일 때 자동 노출 #}
       <div id="matrixSection" style="display:none;background:#FFFAF0;border:1px solid #F5D899;border-radius:6px;padding:12px 14px;margin-bottom:12px">
         <div style="font-size:12.5px;color:#7C5A14;font-weight:700;margin-bottom:6px"><i class="ph-light ph-palette" aria-hidden="true"></i> 옵션 일괄 생성 매트릭스</div>
         <div style="font-size:12px;color:#92400E;margin-bottom:10px;line-height:1.5">• 체크박스로 ON/OFF · 행/열 헤더의 "전체"로 일괄 토글 · 셀에 초기 재고 입력<br>• 셀 수량은 <b>기본 위치</b>로 입고 처리 (다른 위치로 보내려면 등록 후 재고 이동)</div>
@@ -1028,7 +1028,7 @@ function onWipeInput(e){
         </div>
       </div>
 
-      {# 📍 위치별 초기 재고 (DB 의 InventoryLocation 활성 행 자동 렌더 — 위치 추가/삭제 시 자동 반영). 매트릭스 모드에서는 숨김 — 셀 수량이 기본 위치로 들어감 #}
+      {#  위치별 초기 재고 (DB 의 InventoryLocation 활성 행 자동 렌더 — 위치 추가/삭제 시 자동 반영). 매트릭스 모드에서는 숨김 — 셀 수량이 기본 위치로 들어감 #}
       <div id="niLocSection" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:7px;padding:12px 14px;margin-bottom:14px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:12.5px;font-weight:700;color:#191F28">
           <span><i class="ph-light ph-map-pin" aria-hidden="true"></i> 위치별 초기 재고 <span style="color:#6B7684;font-weight:400;font-size:12px;margin-left:6px">(전체 합산 = 총 재고)</span></span>
@@ -1081,7 +1081,7 @@ function onWipeInput(e){
         </label>
         <div style="margin-top:4px;font-size:12px;color:#047857;padding-left:24px;line-height:1.5">
           체크 X → 창고에만 둡니다. 아직 팔 상품으로 만들지 않은 것으로 표시됩니다.<br>
-          체크 ✓ → 팔 상품으로 등록합니다 (옵션 매트릭스 사용 가능).
+          체크 <i class="ph-light ph-check" aria-hidden="true"></i> → 팔 상품으로 등록합니다 (옵션 매트릭스 사용 가능).
         </div>
       </div>
 
