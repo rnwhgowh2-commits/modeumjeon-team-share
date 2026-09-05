@@ -44,6 +44,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "<script src=\"{{ url_for('static', filename='js/margin_rules.js') }}\"></script>",
         "<script src=\"{{ url_for('static', filename='margin_rules.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_ext_check.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_analyze_poll.js') }}\"></script>  <!-- [모음전 2026-09-05] 대용량 매입 엑셀 100초 벽(524) 우회 -->\n"
         "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_rate_cell.js') }}\"></script>\n"

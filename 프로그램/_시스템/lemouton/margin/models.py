@@ -68,6 +68,40 @@ class MarginPendingUpload(Base):
         DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
 
 
+class MarginAnalyzeJob(Base):
+    """분석 백그라운드 작업 상태 — job_id(문자열 uuid) 로 조회.
+
+    🔴 왜 DB 인가 (MarginPendingUpload 와 같은 이유, 2026-07-23 사고 재발 방지)
+      앱은 gunicorn 워커 여러 개로 돈다. `/analyze/start` 가 스레드를 띄운 워커와
+      뒤이은 `/analyze/status` 폴링을 받는 워커가 다를 수 있다 — 작업 상태를
+      프로세스 전역 dict 에 두면 다른 워커에서 "알 수 없는 작업 id"가 뜬다.
+
+    🔴 왜 백그라운드로 도는가 (2026-09-05)
+      매입행 12,949개짜리 더망고 엑셀에서 동기 `/api/margin/analyze` 가 100초를
+      넘겨 Cloudflare 가 524(게이트웨이 타임아웃)로 연결을 끊었다 — 원인은
+      `matcher.match_data`(원본 무수정 이식, 손대지 않는다)가 매입행 수에 비례해
+      매출 전체를 훑는 알고리즘이라 대용량 파일에서 항상 그 벽에 걸린다.
+      요청·응답 왕복만 짧게(즉시 job_id 반환) 만들고, 실제 계산은 스레드에서
+      시간 제약 없이 돈다.
+    """
+
+    __tablename__ = "margin_analyze_jobs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), default="running")  # running|done|error
+    analysis_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # {counts, markets_failed, notices, period_from, period_to} — analyze() 응답의
+    # payload 이외 부분만. payload 본체(수 MB)는 MarginAnalysis.result_blob 에 이미
+    # 있으므로(store.save) 여기 또 담지 않는다 — 같은 자료를 두 곳에 안 둔다.
+    meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, default=_dt.datetime.utcnow)
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
+
+
 class CardKeywordConfig(Base):
     """카드별 분류 키워드 설정 — 팀 공유 단일 row (id=1 고정).
 

@@ -24,6 +24,7 @@ import datetime as _dt
 import io
 import logging
 import math
+import threading
 import uuid
 
 import numpy as np
@@ -34,6 +35,7 @@ from lemouton.margin import aggregator, export, pipeline, store
 from lemouton.margin import sell_source
 from lemouton.margin import settle_status
 from lemouton.margin import keyword_store
+from lemouton.margin import analyze_job_store
 from lemouton.margin import matcher, classifier
 from lemouton.margin.card_counts import compute_card_counts
 from lemouton.margin.buy_parser import parse_buy
@@ -483,23 +485,34 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
 
 # ── 분석 ──────────────────────────────────────────────────────────────────
 
-@bp.route("/analyze", methods=["POST"])
-def analyze():
-    """마켓 API 조회 → pipeline → aggregate → R2 + DB 저장."""
+class _AnalyzeError(Exception):
+    """`_do_analyze` 실패 신호 — 동기 라우트와 백그라운드 잡이 같은 메시지·상태코드로 처리."""
+
+    def __init__(self, message: str, status: int):
+        super().__init__(message)
+        self.message = message
+        self.status = status
+
+
+def _do_analyze(body: dict) -> dict:
+    """마켓 API 조회 → pipeline → aggregate → R2 + DB 저장.
+
+    `/analyze`(동기, 기존 호출부·테스트 호환)와 `/analyze/start`(백그라운드 잡)가
+    이 함수 하나를 공유한다 — 분석 본체를 두 벌로 유지하지 않는다.
+    """
     _sess = SessionLocal()
     try:
         staged = pending_store.get(_sess)
     finally:
         _sess.close()
     if not staged or not staged.get("buy_bytes"):
-        return jsonify({"error": "먼저 더망고 매입 엑셀을 업로드하세요."}), 400
+        raise _AnalyzeError("먼저 더망고 매입 엑셀을 업로드하세요.", 400)
     # 저장한 건 원본 바이트 — 분석 때 다시 파싱한다(DataFrame 피클 금지).
     staged = dict(staged)
     staged["df"] = parse_buy(staged["buy_bytes"], staged["buy_filename"] or "buy.xlsx")
     staged["bytes"] = staged["buy_bytes"]
     staged["filename"] = staged["buy_filename"] or "buy.xlsx"
 
-    body = request.get_json(silent=True) or {}
     since = _parse_dt(body.get("since") or staged["period_from"])
     until = _parse_dt(body.get("until") or staged["period_to"])
 
@@ -507,10 +520,7 @@ def analyze():
     try:
         sell_df = sell_source.from_api(since, until)
     except Exception as e:  # noqa: BLE001
-        return jsonify({
-            "error": f"마켓 주문 조회 실패 — 분석을 중단했습니다: {e}",
-            "stage": "from_api",
-        }), 502
+        raise _AnalyzeError(f"마켓 주문 조회 실패 — 분석을 중단했습니다: {e}", 502)
     warnings = list(sell_df.attrs.get("warnings", []) or [])
     # notices = 제외가 아닌 안내(예: 저장분으로 분석함). warnings 와 섞으면 화면이
     # "매출에서 제외했어요" 빨간 배너로 보여줘 거짓 경보가 된다.
@@ -548,7 +558,7 @@ def analyze():
         _assert_finite(payload)
     except ValueError as e:
         logger.error("마진 분석 결과에 NaN/Inf — 저장하지 않음", exc_info=True)
-        return jsonify({"error": f"분석 결과를 저장할 수 없습니다: {e}"}), 500
+        raise _AnalyzeError(f"분석 결과를 저장할 수 없습니다: {e}", 500)
     matched = payload["matched"]
 
     counts = {
@@ -581,7 +591,7 @@ def analyze():
     finally:
         session.close()
 
-    return jsonify({
+    return {
         "analysis_id": analysis_id,
         "counts": counts,
         "markets_failed": warnings,
@@ -589,7 +599,85 @@ def analyze():
         "period_from": _iso(since.date()),
         "period_to": _iso(until.date()),
         **payload,
-    })
+    }
+
+
+@bp.route("/analyze", methods=["POST"])
+def analyze():
+    """`_do_analyze` 동기 호출 — 기존 호출부·테스트 호환용(응답까지 최대 몇 분 대기).
+
+    라이브(Cloudflare) 에서 대용량 매입 엑셀은 100초 벽에 걸려 524 가 난다.
+    화면(margin_embed.html)의 「분석 시작」 버튼은 `/analyze/start` + `/analyze/status`
+    폴링을 쓴다 — 이 라우트는 그대로 두되 새 화면 흐름의 기본 경로는 아니다.
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        result = _do_analyze(body)
+    except _AnalyzeError as e:
+        return jsonify({"error": e.message}), e.status
+    return jsonify(result)
+
+
+def _run_analyze_job(job_id: str, body: dict) -> None:
+    """스레드에서 실행 — Flask request/app 컨텍스트에 기대지 않는다(lemouton.margin 은
+    Flask 의존이 없고, `_created_by()`는 컨텍스트 없으면 이미 None 으로 넘어간다)."""
+    try:
+        result = _do_analyze(body)
+    except _AnalyzeError as e:
+        session = SessionLocal()
+        try:
+            analyze_job_store.mark_error(session, job_id, e.message, e.status)
+        finally:
+            session.close()
+        return
+    except Exception as e:  # noqa: BLE001 — 무슨 예외든 폴링 쪽에 "error"로 보여야 한다.
+        logger.exception("마진 분석 백그라운드 작업 실패 job=%s", job_id)
+        session = SessionLocal()
+        try:
+            analyze_job_store.mark_error(session, job_id, f"{type(e).__name__}: {e}", 500)
+        finally:
+            session.close()
+        return
+    meta = {k: result[k] for k in
+            ("counts", "markets_failed", "notices", "period_from", "period_to")}
+    session = SessionLocal()
+    try:
+        analyze_job_store.mark_done(session, job_id, result["analysis_id"], meta)
+    finally:
+        session.close()
+
+
+@bp.route("/analyze/start", methods=["POST"])
+def analyze_start():
+    """분석을 백그라운드 스레드로 시작하고 즉시 job_id 를 돌려준다.
+
+    2026-09-05: 매입 12,949행짜리 더망고 엑셀에서 동기 `/analyze` 가 100초를 넘겨
+    Cloudflare 가 524 로 끊었다 — 원인은 `matcher.match_data`(원본 무수정 이식,
+    손대지 않는다)가 매입행 수에 비례해 매출 전체를 훑는 알고리즘이라 대용량
+    파일에서 항상 그 벽에 걸린다. 요청·응답 왕복만 짧게 만들고(즉시 반환), 실제
+    계산은 스레드에서 시간 제약 없이 돈다 — 폴링은 `/analyze/status/<job_id>`.
+    """
+    body = request.get_json(silent=True) or {}
+    job_id = uuid.uuid4().hex
+    session = SessionLocal()
+    try:
+        analyze_job_store.create(session, job_id)
+    finally:
+        session.close()
+    threading.Thread(target=_run_analyze_job, args=(job_id, body), daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@bp.route("/analyze/status/<job_id>", methods=["GET"])
+def analyze_status(job_id):
+    session = SessionLocal()
+    try:
+        job = analyze_job_store.get(session, job_id)
+    finally:
+        session.close()
+    if job is None:
+        return jsonify({"error": "알 수 없는 작업 id"}), 404
+    return jsonify(job)
 
 
 # ── 목록 / 로드 / 삭제 ─────────────────────────────────────────────────────

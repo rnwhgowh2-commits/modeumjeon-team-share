@@ -187,6 +187,14 @@ _SEAM_TOKENS = (
     #  클레임(취소요청 등)으로 들어온 주문상태가 그 뒤 실제로 어떻게 됐는지(철회·정산완료)
     #  를 안 보여줘서 이미 끝난 정상거래가 「손실 진행중」으로 잘못 보였다(사장님 지시).
     "margin_status_history.js", "_ssVerdictCellHtml",
+    # ── [모음전 2026-09-05] 대용량 매입 엑셀 — /api/margin/analyze 100초 벽(524) 우회 ──
+    #  매입 12,949행짜리 더망고 엑셀에서 동기 분석이 Cloudflare 100초 게이트웨이
+    #  제한에 걸려 "서버 오류"가 났다(matcher.match_data 가 매입행 수에 비례해
+    #  매출 전체를 훑는 원본 무수정 알고리즘이라 대용량에서 항상 그 벽에 걸림).
+    #  본문(fetch('/api/margin/analyze',...) 호출 3곳)은 무수정으로 두고, 이
+    #  스크립트 한 줄만 먼저 실어 window.fetch 를 감싼다(margin_refresh_orders.js
+    #  선례와 동일 패턴 — 로직은 static/margin_analyze_poll.js 에 둔다).
+    "margin_analyze_poll.js",
 )
 
 
