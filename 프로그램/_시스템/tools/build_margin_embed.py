@@ -1070,6 +1070,83 @@ SEAMS.append((
     1,
 ))
 
+# ── [모음전 2026-09-06] 블랙스팟 의심 가상행 — 총마진 집계에 기간 필터 반영 ──
+#  사장님 신고: 기간을 「오늘/어제/1주일」로 좁히면 총마진이 실제와 무관하게 크게
+#  마이너스로 보임. 원인 = 블랙스팟 의심 가상행(120건·-498만원)이 날짜 필터와
+#  무관하게 매번 전체가 총마진에 통째로 더해지고 있었다(원본에서 물려받은 동작,
+#  당시엔 "16건"이라 체감 영향이 작았다). 사장님 결정: 선택한 기간 안에 드는
+#  것만 반영. 새 헬퍼(_suspVirtualRowsInRange)를 두 호출부(getFilteredData·
+#  renderCurrentTab 보정)에 모두 적용해야 한쪽만 고치고 다른 쪽이 전체를
+#  재주입하는 회귀를 막는다.
+SEAMS.append((
+    "  /* 1) 날짜 필터만 적용 — 제외된 행도 화면에 보여줘야 함 (체크해제 가능하도록)\n"
+    "     ★ 1-3 블랙스팟 의심 16건 가상 행 concat (날짜 필터 무관 — 항상 포함) */\n"
+    "  var _susp = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];\n"
+    "  var filtered = (analysisData.matched || []).filter(function(r) {",
+    "  /* 1) 날짜 필터만 적용 — 제외된 행도 화면에 보여줘야 함 (체크해제 가능하도록)\n"
+    "     ★ 1-3 블랙스팟 의심 가상 행 concat — [모음전 2026-09-06] 선택한 기간 안에 드는\n"
+    "     것만(사장님 결정, 이전엔 날짜 필터 무관하게 전체 포함이라 좁은 기간에서 총마진이\n"
+    "     실제와 무관하게 왜곡됐다) */\n"
+    "  var _susp = _suspVirtualRowsInRange();\n"
+    "  var filtered = (analysisData.matched || []).filter(function(r) {",
+    1,
+))
+SEAMS.append((
+    "  var d = getFilteredData();\n"
+    "  /* ★ 1-3 블랙스팟 의심 16건 (가상 행) — 모든 탭 마진/매출/매입 집계에 포함 (사용자 정의: 661 전수)\n"
+    "     · getFilteredData 의 early-return 최적화로 16건이 빠지는 것을 보정 */\n"
+    "  if (d && d.matched && typeof _getSuspVirtualRows === 'function') {\n"
+    "    var _susp = _getSuspVirtualRows();\n"
+    "    if (_susp.length && d.matched.indexOf(_susp[0]) < 0) {\n"
+    "      d = Object.assign({}, d);\n"
+    "      d.matched = d.matched.concat(_susp);\n"
+    "    }\n"
+    "  }",
+    "  var d = getFilteredData();\n"
+    "  /* ★ 1-3 블랙스팟 의심 (가상 행) — 모든 탭 마진/매출/매입 집계에 포함하되\n"
+    "     [모음전 2026-09-06] 선택한 기간 안에 드는 것만(_suspVirtualRowsInRange, 사장님 결정)\n"
+    "     · getFilteredData 의 early-return 최적화로 빠지는 것을 보정 */\n"
+    "  if (d && d.matched && typeof _suspVirtualRowsInRange === 'function') {\n"
+    "    var _susp = _suspVirtualRowsInRange();\n"
+    "    var _alreadyIn = _susp.length && d.matched.indexOf(_susp[0]) >= 0;\n"
+    "    if (_susp.length && !_alreadyIn) {\n"
+    "      d = Object.assign({}, d);\n"
+    "      d.matched = d.matched.concat(_susp);\n"
+    "    }\n"
+    "  }",
+    1,
+))
+SEAMS.append((
+    "  analysisData._suspRowsCache = out;\n"
+    "  return out;\n"
+    "}\n"
+    "\n"
+    "/* ★ 주문 미이행 가상 행",
+    "  analysisData._suspRowsCache = out;\n"
+    "  return out;\n"
+    "}\n"
+    "\n"
+    "/* [모음전 2026-09-06] 블랙스팟 의심 가상행 — 기간 필터 반영 (사장님 결정: \"선택한 기간\n"
+    "   안에 들어오는 건만 반영\"). 예전엔 기간과 무관하게 전체(120건·-498만원)가 매번\n"
+    "   총마진에 통째로 더해져, \"오늘/어제\"처럼 그날 매출이 적은 좁은 기간을 고르면 그\n"
+    "   고정 손실액이 그대로 얹혀 총마진이 실제와 무관하게 크게 마이너스로 보였다.\n"
+    "   날짜를 모르는 행은 배제하지 않는다(날조 금지 — 모르는 걸 \"범위 밖\"으로 단정 안 함). */\n"
+    "function _suspVirtualRowsInRange() {\n"
+    "  var v = (typeof _getSuspVirtualRows === 'function') ? _getSuspVirtualRows() : [];\n"
+    "  if (!(dateFilterFrom || dateFilterTo)) return v;\n"
+    "  return v.filter(function (r) {\n"
+    "    var d = parseDate26(r['주문일']);\n"
+    "    if (!d) return true;\n"
+    "    if (dateFilterFrom && d < dateFilterFrom) return false;\n"
+    "    if (dateFilterTo && d > dateFilterTo) return false;\n"
+    "    return true;\n"
+    "  });\n"
+    "}\n"
+    "\n"
+    "/* ★ 주문 미이행 가상 행",
+    1,
+))
+
 if __name__ == "__main__":
     main()
 

@@ -195,6 +195,13 @@ _SEAM_TOKENS = (
     #  스크립트 한 줄만 먼저 실어 window.fetch 를 감싼다(margin_refresh_orders.js
     #  선례와 동일 패턴 — 로직은 static/margin_analyze_poll.js 에 둔다).
     "margin_analyze_poll.js",
+    # ── [모음전 2026-09-06] 블랙스팟 의심 가상행 — 총마진 집계에 기간 필터 반영 ──
+    #  기간을 오늘/어제/1주일로 좁히면 총마진이 실제와 무관하게 크게 마이너스로
+    #  보였다 — 블랙스팟 의심 가상행(120건·-498만원)이 날짜 필터와 무관하게 매번
+    #  전체가 총마진에 통째로 더해지던 것을 선택한 기간 안에 드는 것만 반영하도록
+    #  고쳤다(사장님 결정). 지워지는 옛 줄의 "16건" 문구도 새 줄엔 없다 — 새 함수
+    #  이름(_suspVirtualRowsInRange)이 유일 토큰.
+    "_suspVirtualRowsInRange",
 )
 
 
