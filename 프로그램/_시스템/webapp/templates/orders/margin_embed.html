@@ -7029,7 +7029,7 @@ function _getGroupCardBreakdown(rows) {
         sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0  /* [모음전] '배송중' 제외 — 이미 발송된 건이 발송 대기로 잡히던 것 */
     )) { b.pending++; }
     else if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
+        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0 || sm.indexOf('매출확정') >= 0  /* [모음전 2026-09-06] 롯데온 정산백필 매출확정 — 기타로 새던 116건 */
     )) { b.normal++; }
     else if (isMgPending) { b.pending++; }
     // ★ 7.5순위 [2026-08-28] sourcing_brand_marker — 르무통 등 사입 판매 마커 브랜드는 진짜 반품 아님
@@ -8817,7 +8817,7 @@ function _getRowsByCardFilter_internal(data, type) {
         sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0  /* [모음전] '배송중' 제외 — 이미 발송된 건이 발송 대기로 잡히던 것 */
     ))                                                          return type === 'pending';
     if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
+        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0 || sm.indexOf('매출확정') >= 0  /* [모음전 2026-09-06] 롯데온 정산백필 매출확정 — 기타로 새던 116건 */
     ))                                                          return type === 'normal';
     /* 🔴 2026-08-27 사장님 신고 — 더망고(사람이 손으로 갱신, 지연됨)가 아직 "배송대기중" 등
        평상 라벨에 머물러 있는데 판매처_주문상태(마켓 API 실값, 더 최신)는 이미 취소·반품
