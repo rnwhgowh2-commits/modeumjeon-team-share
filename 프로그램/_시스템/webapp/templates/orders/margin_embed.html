@@ -2972,10 +2972,10 @@ function esc(s) {
 /* 판매가 = 단가 × 수량. 구 데이터는 판매가 필드 없을 수 있어 계산 fallback */
 function saleAmt(r) {
   if (!r) return 0;  /* [모음전 매출기준] r 접근 전 가드 */
-  var _sale = Number(r['_매출기준액']);  /* [모음전 매출기준] 정가+배송비−판매자할인 */
+  var _sale = Number(r['_매출기준액']);  /* [모음전 매출기준] 정가+배송비, 할인 무관(2026-08-28) */
   if (isFinite(_sale) && _sale > 0) return _sale;  /* [모음전 매출기준] 단일 원천 */
-  var _paid = Number(r['실결제금액']);  /* [모음전 매출기준] 폴백 — 할인 모름·옛 저장분 */
-  if (isFinite(_paid) && _paid > 0) return _paid + (Number(r['배송비']) || 0);  /* [모음전 매출기준] */
+  var _gross = Number(r['총주문금액']) || Number(r['상품금액']) || 0;  /* [모음전 매출기준] 폴백도 정가(할인 무관) — 실결제 아님 */
+  if (_gross > 0) return _gross + (Number(r['배송비']) || 0);  /* [모음전 매출기준] */
   if (!r) return 0;
   var s = Number(r['판매가']);
   if (isFinite(s) && s > 0) return s;
@@ -4724,7 +4724,7 @@ function renderSummary(d) {
      + '</div>';
   /* ── 5카드 ── */
   h += '<div class="sum-cards">'
-     + _sumCard('총매출','정가−판매자할인', fmt(매출)+'원')  /* [모음전 매출기준] 표기 */
+     + _sumCard('총매출','정가+배송비(할인 무관)', fmt(매출)+'원')  /* [모음전 매출기준] 표기 */
      + _sumCard('총정산','실수령', fmt(s['총정산']||0)+'원', 'settle')
      + _sumCard('총매입','− 구매가', fmt(매입)+'원')
      + _sumCard('순마진','= 정산−매입', fmt(순마진)+'원', 순마진<0?'red':'green')
