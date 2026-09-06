@@ -183,6 +183,34 @@ def parse_itmd_lines(resp: dict) -> dict:
     return out
 
 
+def parse_itmd_lines_by_spd(resp: dict) -> dict:
+    """SettleItmdSales data → {(odNo, spdNo): [pymtAmt, ...]} **상품번호 단위** 지급액.
+
+    🔴 [2026-09-06] 왜 odSeq 조인이 실제로는 항상 실패했나 (라이브 diag 재현)
+      `parse_itmd_lines`(odSeq 키)는 2026-07-25에 "다품 주문 2배 방지"로 만들었지만,
+      export 쪽 `_odseq`는 **209(SellerDeliveryOrdersSearch) 응답을 그대로 읽는데
+      209엔 odSeq 필드가 없다**(공식문서 확인 필드에 없음 — 진행단계 조회(140)에만
+      있음). 그래서 `_odseq`는 항상 빈 문자열이고, 정산 라인맵의 실제 odSeq("1","2"…)
+      와 절대 안 맞아 매 다품 주문마다 폴백(주문 총액)이 각 라인에 통째로 들어갔다
+      (실측: 주문 2026062210257214 3개 상품 전부 110,148원=합계로 찍힘, 실제는
+      37,243/36,471/36,434). `/orders/diag/lotteon-itmd`로 raw를 보면 각 라인에
+      `spdNo`(상품번호)가 있고, 이 값은 export 행에도 이미 `_lo_spdno`로 잡혀 있어
+      **양쪽 API에 공통으로 존재하는 유일한 신뢰 가능 키**다.
+
+    ★ 같은 주문 안에 같은 spdNo(같은 상품의 다른 옵션)가 여러 벌이면 list 로 쌓아
+      둔다 — 호출부가 순서대로 하나씩 소비(pop)한다. 실측상 같은 spdNo 의 여러 벌은
+      금액도 동일해 소비 순서가 바뀌어도 결과에 영향 없다.
+    """
+    out: dict = {}
+    for r in ((resp or {}).get("data") or []):
+        od = str(r.get("odNo") or "")
+        sp = str(r.get("spdNo") or "")
+        if not od or not sp or not _is_product_line(r):
+            continue
+        out.setdefault((od, sp), []).append(_num(r.get("pymtAmt")))
+    return out
+
+
 def parse_itmd_line_dates(resp: dict) -> dict:
     """SettleItmdSales data → {(odNo, odSeq): seStdDt} **구매확정일**.
 
@@ -274,15 +302,19 @@ def parse_product_affiliate(resp: dict) -> dict:
 
 def scan(since: datetime, until: datetime, *,
          client: Optional[LotteonClient] = None):
-    """한 번 순회로 (주문별 정산맵, 라인별 지급액맵, 상품별 제휴여부맵) 반환.
+    """한 번 순회로 (주문별 정산맵, 라인별 지급액맵, 상품별 제휴여부맵, spdNo별 지급액맵) 반환.
 
-    주문맵  = {odNo:{pymtAmt,pcs_cmsn,is_affiliate}} — 제휴 판정용(odNo 단위 집계).
-    라인맵  = {(odNo,odSeq): pymtAmt} — **정산액 대입용**(다품 주문 2배 방지, parse_itmd_lines).
-    상품맵  = {spdNo: bool} — 미정산 주문의 제휴 여부를 상품 이력으로 추정하는 데 쓴다(판매경로는
+    주문맵    = {odNo:{pymtAmt,pcs_cmsn,is_affiliate}} — 제휴 판정용(odNo 단위 집계).
+    라인맵    = {(odNo,odSeq): pymtAmt} — odSeq 로 라인이 특정될 때만 쓴다(대부분 안 됨 —
+      export 쪽 _odseq 가 209 응답엔 없는 필드라 늘 공란, parse_itmd_lines_by_spd 참조).
+    상품맵    = {spdNo: bool} — 미정산 주문의 제휴 여부를 상품 이력으로 추정하는 데 쓴다(판매경로는
     고객 유입경로라 주문 API엔 없음 → 상품별 제휴 이력이 최선 추정).
+    spdNo라인맵 = {(odNo,spdNo): [pymtAmt, ...]} — **실제로 쓰는 정산액 대입 키**
+      (parse_itmd_lines_by_spd 참조, 2026-09-06).
 
-    ★정산액은 반드시 라인맵으로 대입한다 — 주문맵(odNo 총액)을 각 라인에 통째로 넣으면
-      다품(2벌) 주문이 정확히 2배가 된다(2026-07-25 실측 1건, diag 확인 odSeq1=odSeq2=41,624).
+    ★정산액은 반드시 라인 단위로 대입한다 — 주문맵(odNo 총액)을 각 라인에 통째로 넣으면
+      다품(2벌) 주문이 정확히 2배(N벌이면 N배)가 된다(2026-07-25 실측 1건, 2026-09-06
+      라이브 27건 재확인, diag 확인 odSeq1=odSeq2=41,624).
     """
     client = client or LotteonClient()
     cfg = getattr(client, "_cfg", None) or _CFG
@@ -294,4 +326,5 @@ def scan(since: datetime, until: datetime, *,
     orders = parse_itmd(resp)
     lines = parse_itmd_lines(resp)
     products = parse_product_affiliate(resp)
-    return orders, lines, products
+    lines_by_spd = parse_itmd_lines_by_spd(resp)
+    return orders, lines, products, lines_by_spd

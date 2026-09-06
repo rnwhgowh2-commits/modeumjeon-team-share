@@ -987,6 +987,76 @@ def test_finalize_normalizes_order_datetime():
     assert rows[0]["주문일"] == "2026-07-08 20:22:54"       # 시간 포함 통일
 
 
+class FakeLotteonMultiItemClient:
+    """다품(2상품) 주문 — 209(배송지시)의 odSeq 와 SettleItmdSales(정산)의 odSeq 가
+    서로 안 맞아도(라이브 실측: 209엔 odSeq 필드가 없거나 다른 채번) spdNo 로 조인되면
+    각 라인이 **자기 몫만** 받는지 검증(2026-09-06 실측 버그: 27개 주문·66행에서
+    주문 총액이 상품 수만큼 중복 대입됐다)."""
+
+    def request(self, method, path, body=None):
+        if "SellerDeliveryOrdersSearch" in path:
+            return {"returnCode": "0000", "data": {"deliveryOrderList": [
+                {"odNo": "LOTTE1", "odSeq": "1", "spdNo": "SP-A",
+                 "odCmptDttm": "20260705120000", "spdNm": "상품A", "sitmNm": "M",
+                 "odQty": 1, "slPrc": 30000, "actualAmt": 27000,
+                 "dvpCustNm": "수령자", "odrNm": "구매자"},
+                {"odNo": "LOTTE1", "odSeq": "2", "spdNo": "SP-B",
+                 "odCmptDttm": "20260705120000", "spdNm": "상품B", "sitmNm": "L",
+                 "odQty": 1, "slPrc": 32000, "actualAmt": 29000,
+                 "dvpCustNm": "수령자", "odrNm": "구매자"},
+            ]}}
+        if "SettleItmdSales" in path:
+            # ★ odSeq 는 209 쪽("1","2")과 **다르게**("9","10") 준다 — 실측대로 odSeq
+            #   조인은 실패해야 정상. spdNo("SP-A"/"SP-B")만 양쪽에 공통.
+            return {"returnCode": "0000", "data": [
+                {"odNo": "LOTTE1", "odSeq": "9", "spdNo": "SP-A",
+                 "pymtAmt": 27500, "pcsCmsn": 0, "procSeq": "1"},
+                {"odNo": "LOTTE1", "odSeq": "10", "spdNo": "SP-B",
+                 "pymtAmt": 29500, "pcsCmsn": 0, "procSeq": "1"},
+            ]}
+        return {"returnCode": "0000", "data": {}}
+
+
+def test_lotteon_다품주문_정산액_spdNo로_라인별_배분():
+    """🔴🔴 [2026-09-06 실측] odSeq 조인 실패 시 주문 총액(57,000)이 두 라인 모두에
+    중복 대입되던 버그 — spdNo 로 다시 조인해 각 라인이 자기 몫(27,500/29,500)만
+    받아야 한다(합계는 그대로 57,000, 각 라인엔 중복 없음)."""
+    rows = oe.lotteon_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                                  dt.datetime(2026, 7, 6, tzinfo=oe.KST),
+                                  client=FakeLotteonMultiItemClient())
+    by_spd = {r["_send_ids"]["spd_no"]: r for r in rows}
+    assert by_spd["SP-A"]["정산예정금액"] == 27500
+    assert by_spd["SP-B"]["정산예정금액"] == 29500
+    assert by_spd["SP-A"]["_settle_source"] == "real"
+    assert by_spd["SP-B"]["_settle_source"] == "real"
+    # 회귀 방지 — 총액(57,000)이 한 라인에라도 통째로 들어가면 안 된다.
+    assert by_spd["SP-A"]["정산예정금액"] != 57000
+    assert by_spd["SP-B"]["정산예정금액"] != 57000
+
+
+def test_lotteon_다품주문_spdNo도_안맞으면_총액_중복대입_금지():
+    """odSeq·spdNo 둘 다 라인을 특정 못 하면 — 총액을 아무 라인에나 밀어넣지 않고
+    209 자체 근사치(actualAmt)를 그대로 둔다(추측·폴백 남발 금지, CLAUDE.md)."""
+    class C(FakeLotteonMultiItemClient):
+        def request(self, method, path, body=None):
+            if "SettleItmdSales" in path:
+                return {"returnCode": "0000", "data": [
+                    {"odNo": "LOTTE1", "odSeq": "9", "spdNo": "SP-X",
+                     "pymtAmt": 27500, "pcsCmsn": 0, "procSeq": "1"},
+                    {"odNo": "LOTTE1", "odSeq": "10", "spdNo": "SP-Y",
+                     "pymtAmt": 29500, "pcsCmsn": 0, "procSeq": "1"},
+                ]}
+            return super().request(method, path, body)
+
+    rows = oe.lotteon_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
+                                  dt.datetime(2026, 7, 6, tzinfo=oe.KST), client=C())
+    by_spd = {r["_send_ids"]["spd_no"]: r for r in rows}
+    assert by_spd["SP-A"]["정산예정금액"] == 27000     # 209 actualAmt 그대로(근사)
+    assert by_spd["SP-B"]["정산예정금액"] == 29000
+    assert by_spd["SP-A"]["_settle_source"] != "real"   # 확정으로 잘못 승격 금지
+    assert by_spd["SP-B"]["_settle_source"] != "real"
+
+
 def test_lotteon_ready_in_builders_and_supported():
     assert "lotteon" in oe._BUILDERS and "lotteon" in oe.SUPPORTED   # 코드+UI 노출
     assert oe._ENV_PREFIX["lotteon"] == "LOTTEON_MAIN"               # 실키 로드용 prefix
