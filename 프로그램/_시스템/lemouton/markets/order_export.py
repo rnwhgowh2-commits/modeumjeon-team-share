@@ -954,14 +954,14 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  미정산 주문   = 209 성분 + compute_settlement(제휴는 상품별 이력으로 추정).
     #  ★정산 기준일=구매확정일이라 조회창을 [주문창 시작 ~ 지금]으로 넓혀 odNo/spdNo 로 조인.
     from lemouton.margin.lotteon_settlement import compute_settlement as _lo_calc
-    itmd, itmd_lines, aff_by_spd = {}, {}, {}
+    itmd, itmd_lines, aff_by_spd, itmd_lines_by_spd = {}, {}, {}, {}
     if include_settlement:
         try:
             from shared.platforms.lotteon import settlement as _lo_settle
-            itmd, itmd_lines, aff_by_spd = _lo_settle.scan(
+            itmd, itmd_lines, aff_by_spd, itmd_lines_by_spd = _lo_settle.scan(
                 since, _lo_fetch_until, client=client)
         except Exception:   # noqa: BLE001
-            itmd, itmd_lines, aff_by_spd = {}, {}, {}
+            itmd, itmd_lines, aff_by_spd, itmd_lines_by_spd = {}, {}, {}, {}
 
     # ── 크롤 정산(판매자센터) 캐시 로드 — 라인별 실정산액(pymtTgtAmt)+판매경로(제휴 여부).
     #    ★제휴 판단은 크롤로 1회 확정되면 sl_chnl 에 박혀 여기서 재사용(재판단·중복작업 불필요).
@@ -1027,18 +1027,37 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         pass
 
     # ── ③ 정산 계산 — 승격까지 끝난 제휴 여부를 읽는다 ─────────────────────
+    #  🔴 [2026-09-06] odSeq 조인은 실제로는 항상 실패한다 — 209 응답엔 odSeq 필드가
+    #    없어 `_odseq`가 늘 공란이고, 정산 라인맵의 실제 odSeq와 절대 안 맞는다.
+    #    라이브 재현(주문 2026062210257214 등 27건): 다품 라인 전부가 매번 이 폴백을
+    #    타서 주문 총액이 상품 수만큼 중복 대입됐다(3상품 주문이 마진 3배). spdNo는
+    #    양쪽 API에 공통으로 있는 유일한 신뢰 키라 그걸로 다시 조인하고, 그마저도
+    #    안 되는(같은 주문에 남은 라인이 여럿인) 경우는 **총액을 중복 대입하지 않고**
+    #    209 자체 근사치(actualAmt, 이미 라인 단위 값)를 그대로 둔다 — 틀린 실값보다
+    #    "덜 정확한 근사치"가 낫다(추측·폴백 남발 금지, CLAUDE.md).
+    _lo_order_line_counts: dict = {}
+    for r in rows:
+        _k = str(r.get("오픈마켓주문번호") or "")
+        _lo_order_line_counts[_k] = _lo_order_line_counts.get(_k, 0) + 1
+
     for r in rows:
         odno = str(r.get("오픈마켓주문번호") or "")
         aff = bool(r.get("_lo_is_affiliate"))
         hit = itmd.get(odno)
         if hit:                                  # 구매확정 = 마켓 실지급액(정확)
-            # ★정산액은 **라인(odNo,odSeq) 단위**로 대입한다 — odNo 총액(hit["pymtAmt"])을
-            #   각 라인에 통째로 넣으면 다품(2벌) 주문이 정확히 2배가 된다(2026-07-25 실측·
-            #   diag odSeq1=odSeq2=41,624). 라인맵에 그 벌이 있으면 그 값을, 없으면(단일라인·
-            #   odSeq 공란 등) odNo 총액으로 폴백(단일라인은 총액=라인값이라 동일).
             line_amt = itmd_lines.get((odno, str(r.get("_odseq") or "")))
-            r["정산예정금액"] = line_amt if line_amt is not None else hit["pymtAmt"]
-            r["_settle_source"] = "real"
+            if line_amt is None:
+                spd_bucket = itmd_lines_by_spd.get((odno, str(r.get("_lo_spdno") or "")))
+                if spd_bucket:
+                    line_amt = spd_bucket.pop(0)
+            if line_amt is not None:
+                r["정산예정금액"] = line_amt
+                r["_settle_source"] = "real"
+            elif _lo_order_line_counts.get(odno, 1) <= 1:
+                # 이 주문에 남은 라인이 이거 하나뿐이면 총액=라인값이라 안전하게 대입.
+                r["정산예정금액"] = hit["pymtAmt"]
+                r["_settle_source"] = "real"
+            # else: 다품인데 라인을 특정 못 함 → 총액 중복 대입 금지, 근사치(actualAmt) 유지.
             continue
         slamt = _to_int(r.get("_lo_slAmt"))
         if slamt is None:                        # 209 성분 없음(클레임행 등) → 유지

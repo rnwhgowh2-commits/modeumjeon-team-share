@@ -77,9 +77,10 @@ def test_scan_도_전량_수집():
     since, until = _win()
     cli = _PagedClient(_rows(150))
 
-    orders, lines, products = S.scan(since, until, client=cli)
+    orders, lines, products, lines_by_spd = S.scan(since, until, client=cli)
     assert len(orders) == 150
     assert len(products) == 150
+    assert len(lines_by_spd) == 150
 
 
 def test_페이징_미지원이면_무페이징으로_폴백():
@@ -177,11 +178,12 @@ def test_scan도_경계일_중복_2배_안된다():
              "pymtAmt": 101322, "pcsCmsn": 20, "spdNo": "SP1"}]
     cli = _SameRowsEveryWindow(rows)
 
-    orders, lines, products = S.scan(since, until, client=cli)
+    orders, lines, products, lines_by_spd = S.scan(since, until, client=cli)
 
     assert orders["OD1"]["pymtAmt"] == 101322
     assert orders["OD1"]["is_affiliate"] is True
     assert products["SP1"] is True
+    assert lines_by_spd[("OD1", "SP1")] == [101322]
 
 
 def test_다른_procSeq는_같은주문이어도_합산된다():
