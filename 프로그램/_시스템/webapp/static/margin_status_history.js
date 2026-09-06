@@ -82,8 +82,17 @@
     var p = ensurePop();
     p.innerHTML = '<div class="hd">주문상태 이력</div>' + hist.map(function (e, idx) {
       var arrow = idx > 0 ? '<span style="color:#9ca3af"> → </span>' : '';  /* → */
-      var at = e.at ? '<span style="color:#9ca3af;font-size:11px">(' + esc(e.at) + ')</span>' : '';
-      return arrow + '<span>' + esc(e.status || '') + '</span> ' + at;
+      /* [모음전 2026-09-06] "출고지시 (2026-08-02)" 처럼 6개월 전 주문에 이번 주
+         날짜가 찍혀 헷갈림 문의 — at_kind='detected' 는 실제 처리일이 아니라 **우리
+         시스템이 그 상태를 처음 확인한 날**(조회 주기만큼 늦을 수 있다, order_store
+         ._apply_status 설계 그대로). 마켓 실제 발생일(claim 이벤트)과 헷갈리지
+         않게 "확인" 을 붙여 구분한다. */
+      var dateTxt = e.at_kind === 'detected' ? ('확인 ' + esc(e.at)) : esc(e.at);
+      var at = e.at ? '<span style="color:#9ca3af;font-size:11px">(' + dateTxt + ')</span>' : '';
+      /* [모음전 2026-09-06] 롯데온 "주문"(정산백필 odTypCd=10 원문) 이력에 헷갈림 문의
+         — 라벨은 그대로 두고 ⓘ 호버로만 설명(settle_status._STATUS_NOTE 가 붙여 준 것). */
+      var note = e.note ? ' <span title="' + esc(e.note) + '" style="cursor:help;color:#9ca3af;font-size:11px">ⓘ</span>' : '';
+      return arrow + '<span>' + esc(e.status || '') + '</span>' + note + ' ' + at;
     }).join('<br>');
     p.style.display = 'block';
     var r = anchor.getBoundingClientRect(), w = p.offsetWidth, h2 = p.offsetHeight;

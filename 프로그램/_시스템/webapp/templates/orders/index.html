@@ -2900,7 +2900,14 @@
         var titleTxt='원본 · '+esc(r['판매처']||'')+' : '+esc(orig);
         var hist=r['_주문상태이력']||[];
         if(hist.length>1){
-          titleTxt+=' · 이력: '+hist.map(function(e){return esc(e.status||'')+(e.at?'('+esc(e.at)+')':'');}).join(' → ');
+          /* [2026-09-06] at_kind='detected' 는 실제 처리일이 아니라 우리 시스템이 그
+             상태를 처음 확인한 날(조회 주기만큼 늦을 수 있다) — 6개월 전 주문에 이번 주
+             날짜가 찍혀 헷갈리지 않게 "확인" 을 붙여 구분(settle_status._event 참고). */
+          titleTxt+=' · 이력: '+hist.map(function(e){
+            if(!e.at) return esc(e.status||'');
+            var d=(e.at_kind==='detected'?'확인 ':'')+e.at;
+            return esc(e.status||'')+'('+esc(d)+')';
+          }).join(' → ');
         }
         var sv=r['정산여부'], svBadge='';
         if(sv){
