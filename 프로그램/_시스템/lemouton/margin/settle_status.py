@@ -88,12 +88,27 @@ def _event(status: str, at: str, *, at_kind: str = "") -> dict:
     return e
 
 
+def _tag_sort(e: dict, *, sort_at: str, is_prev: bool) -> dict:
+    """`_event()` 결과에 정렬 전용 키(`_sort_at`/`_prev`)를 얹는다 — 화면엔 안 나간다
+    (build_status_history 가 정렬 후 벗겨낸다). 화면에 보여줄 `at`과 정렬에 쓸 값을
+    분리하는 이유는 아래 `_order_status_event` 참조."""
+    e["_sort_at"] = sort_at
+    e["_prev"] = is_prev
+    return e
+
+
 def _order_status_event(line: dict) -> list[dict]:
     """한 line(row+status_at/status_prev) → 이력 이벤트 0~2개.
 
     클레임 행(_kind=change)은 `status_at`이 항상 None이다(order_store.lines_for_markets
     가 주문 라인에만 그 값을 준다) — 클레임 자체의 발생일(`_change_date`, 마켓 원본
-    날짜)을 대신 쓴다. 못 찾으면 날짜 없이(정렬에서 뒤로 밀림·날조 금지)."""
+    날짜)을 대신 쓴다. 못 찾으면 날짜 없이(정렬에서 뒤로 밀림·날조 금지).
+
+    🔴 `_sort_at` — 화면에 보여줄 `at`과 정렬에 쓸 값을 분리한다. status_prev(직전
+    상태)는 시작 시각을 몰라 `at`은 빈 채로 두지만(날조 금지), 정렬까지 맨 뒤로
+    밀리면 **방금 있었던 과거가 이력 맨 끝에서 「가장 최근」인 것처럼** 보인다
+    (2026-09-06 라이브에서 실제로 "취소요청→배송완료→배송중" 순으로 뜬 사고).
+    `_sort_at`엔 같이 온 현재 상태의 날짜를 넣어 그 바로 앞자리에 세운다."""
     row = line.get("row") or {}
     status = str(row.get("주문상태") or "").strip()
     if not status:
@@ -101,7 +116,7 @@ def _order_status_event(line: dict) -> list[dict]:
     is_claim = str(row.get("_kind") or "") == "change"
     if is_claim:
         at = _norm_date10(row.get("_change_date")) or _norm_date10(row.get("주문일"))
-        return [_event(status, at, at_kind="event")]
+        return [_tag_sort(_event(status, at, at_kind="event"), sort_at=at, is_prev=False)]
     status_at = line.get("status_at")
     at = status_at.date().isoformat() if isinstance(status_at, _dt.datetime) else ""
     events = []
@@ -109,11 +124,11 @@ def _order_status_event(line: dict) -> list[dict]:
     # status_prev 는 order_store.lines_for_markets 가 실어 주는 필드(있으면 전환 증거)
     #  — 없으면 「과거에 뭐였는지」를 지어내지 않는다.
     if prev and prev != status:
-        events.append(_event(prev, ""))   # 시작 시각은 모른다(날조 금지)
+        events.append(_tag_sort(_event(prev, ""), sort_at=at, is_prev=True))   # 시작 시각은 모른다(날조 금지)
     # ★ status_at 은 마켓 시각이 아니라 **우리가 그 상태를 처음 본 시각**이다
     #   (_apply_status 설계 의도 — "화면에도 그렇게 적는다"). at_kind='detected' 로
     #   구분해 화면에서 "확인 …" 으로 적는다(실제 처리일인 척 금지).
-    events.append(_event(status, at, at_kind="detected"))
+    events.append(_tag_sort(_event(status, at, at_kind="detected"), sort_at=at, is_prev=False))
     return events
 
 
@@ -122,13 +137,19 @@ def build_status_history(lines_for_order: list) -> list[dict]:
     events: list[dict] = []
     for ln in lines_for_order:
         events.extend(_order_status_event(ln))
-    # 날짜가 있는 것부터, 없는 것은 뒤로 — 그다음 안정 정렬(원 순서 보존).
-    events.sort(key=lambda e: (e["at"] == "", e["at"]))
+    # 날짜를 아는 것부터, 모르는 것은 뒤로 — 같은 날짜면 직전상태(_prev)가 그 짝인
+    #  현재상태보다 앞. 그다음 안정 정렬(원 순서 보존).
+    events.sort(key=lambda e: (e["_sort_at"] == "", e["_sort_at"], e["_prev"] is not True))
     out: list[dict] = []
     for e in events:
         if out and out[-1]["status"] == e["status"]:
             continue
-        out.append(e)
+        clean = {"status": e["status"], "at": e["at"]}
+        if e.get("at_kind"):
+            clean["at_kind"] = e["at_kind"]
+        if e.get("note"):
+            clean["note"] = e["note"]
+        out.append(clean)
     return out
 
 

@@ -7010,6 +7010,12 @@ function _getGroupCardBreakdown(rows) {
     var isKkadaegi = /^(1-12_|2-10_|3-10_|4-10_)/.test(detail);
     var sm = r['판매처_주문상태'] || r['판매처_판매처주문상태'] || '';
     var smC = smCat(sm);
+    /* 🔴 [2026-09-06 사장님 확정] 취소요청 등 클레임 뒤에도 주문 자체가 실제로
+       배송·구매확정까지 진행될 수 있다(클레임 미반영 — 실사례: 취소요청 '26-09-04
+       → 배송완료 '26-09-06). 서버가 이력(status_at)으로 이미 재판정해 둔 '정산여부'가
+       있으면 그걸 우선한다 — 여기서 텍스트만 보고 또 진행중으로 세지 않는다
+       (card_counts.py 와 동일 판단, 단일 원천). */
+    if (smC === 'in_progress' && r['정산여부'] && r['정산여부'] !== '진행중') smC = 'normal';
     var mg = String(r['더망고주문상태 (사용자 연동)'] || '');
     var mkSync = String(r['마켓주문상태 (오픈 마켓 연동)'] || '');
     var trackingFailed = (mkSync.indexOf('송장전송실패') >= 0) || (mg.indexOf('송장전송실패') >= 0);
@@ -8780,6 +8786,12 @@ function _getRowsByCardFilter_internal(data, type) {
     var isKkadaegiCode = (code === '1-12' || code === '2-10' || code === '3-10' || code === '4-10');
     var sm = r['판매처_주문상태'] || r['판매처_판매처주문상태'] || '';
     var smC = smCat(sm);
+    /* 🔴 [2026-09-06 사장님 확정] 취소요청 등 클레임 뒤에도 주문 자체가 실제로
+       배송·구매확정까지 진행될 수 있다(클레임 미반영 — 실사례: 취소요청 '26-09-04
+       → 배송완료 '26-09-06). 서버가 이력(status_at)으로 이미 재판정해 둔 '정산여부'가
+       있으면 그걸 우선한다 — 여기서 텍스트만 보고 또 진행중으로 세지 않는다
+       (card_counts.py 와 동일 판단, 단일 원천). */
+    if (smC === 'in_progress' && r['정산여부'] && r['정산여부'] !== '진행중') smC = 'normal';
     var mg = String(r['더망고주문상태 (사용자 연동)'] || '');
     var mkSync = String(r['마켓주문상태 (오픈 마켓 연동)'] || '');
     var trackingFailed = (mkSync.indexOf('송장전송실패') >= 0) || (mg.indexOf('송장전송실패') >= 0);

@@ -65,6 +65,50 @@ def test_진행중과_완료를_가른다():
     assert lines[2]["row"]["_claim"] == "done"
 
 
+def test_클레임_이후_주문이_실제로_진행됐으면_open_표식을_안_남긴다():
+    """2026-09-06 사장님 확정 — 취소요청 등 클레임이 들어온 **뒤에도**(날짜로 확인)
+    원래 주문 행 자체가 배송완료·구매확정까지 진행됐다면, 클레임이 받아들여지지
+    않고 그대로 이행된 것이다. 그런 주문은 「진행중(open)」으로 걸지 않는다
+    (실제 사례: 취소요청 '26-09-04 → 배송완료 '26-09-06)."""
+    lines = [
+        {"row": {"오픈마켓주문번호": "P1", "주문상태": "배송완료"}, "market": "coupang",
+         "account": "", "status_at": dt.datetime(2026, 9, 6)},
+        {"row": {"오픈마켓주문번호": "P1", "주문상태": "취소요청", "_kind": "change",
+                 "_change_date": "2026-09-04"}, "market": "coupang",
+         "account": "", "status_at": None},
+    ]
+    SP.annotate_claims(lines)
+    assert "_claim" not in lines[0]["row"]
+
+
+def test_클레임_날짜를_모르면_추정하지_않고_기존대로_open():
+    """주문 라인에 status_at 이 없어 「클레임보다 나중」을 확인할 수 없으면
+    — 지어내지 않고 안전한 쪽(open)으로 그대로 둔다."""
+    lines = [
+        {"row": {"오픈마켓주문번호": "Q1", "주문상태": "배송완료"}, "market": "coupang",
+         "account": "", "status_at": None},
+        {"row": {"오픈마켓주문번호": "Q1", "주문상태": "취소요청", "_kind": "change",
+                 "_change_date": "2026-09-04"}, "market": "coupang",
+         "account": "", "status_at": None},
+    ]
+    SP.annotate_claims(lines)
+    assert lines[0]["row"]["_claim"] == "open"
+
+
+def test_주문이_클레임보다_먼저_진행됐으면_그대로_open():
+    """배송이 클레임보다 **먼저**였다면(정상적으로 배송 후 들어온 취소 요청) —
+    시간 역전이 없으므로 그대로 진행중으로 걸어야 한다."""
+    lines = [
+        {"row": {"오픈마켓주문번호": "R1", "주문상태": "배송완료"}, "market": "coupang",
+         "account": "", "status_at": dt.datetime(2026, 9, 1)},
+        {"row": {"오픈마켓주문번호": "R1", "주문상태": "취소요청", "_kind": "change",
+                 "_change_date": "2026-09-04"}, "market": "coupang",
+         "account": "", "status_at": None},
+    ]
+    SP.annotate_claims(lines)
+    assert lines[0]["row"]["_claim"] == "open"
+
+
 def test_클레임_없는_주문엔_표식이_안_붙는다():
     lines = [_line("D1", "배송완료", 100000)]
     SP.annotate_claims(lines)

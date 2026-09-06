@@ -99,6 +99,43 @@ def test_취소요청_이후_입금일이_찍히면_이력에_둘_다_남고_O(s
     assert statuses == ["취소요청", "배송완료"]
 
 
+def test_이전상태가_시각을_몰라도_현재상태보다_이력_앞자리에_온다():
+    """2026-09-06 라이브에서 발견 — 시각을 모르는 '직전 상태'가 정렬에서 맨
+    뒤로 밀려 실제로 먼저 있었던 상태가 이력 맨 끝에 「가장 최근」인 것처럼 떴다
+    (사장님 신고: 취소요청→배송완료→배송중 순으로 보임 — 배송중이 사실은 더 먼저)."""
+    lines = [{"row": {"주문상태": "배송완료"},
+              "status_at": dt.datetime(2026, 9, 6), "status_prev": "배송중"}]
+    hist = SS.build_status_history(lines)
+    assert [e["status"] for e in hist] == ["배송중", "배송완료"]
+
+
+def test_클레임과_직전상태가_섞여도_시간순으로_온다():
+    """사장님이 보고한 실제 사례 재현 — 취소요청('26-09-04) 뒤에 배송중(시각모름)
+    →배송완료('26-09-06). 배송중은 배송완료 **바로 앞**에 와야 한다(끝이 아니라)."""
+    lines = [
+        {"row": {"주문상태": "취소요청", "_kind": "change", "_change_date": "2026-09-04"},
+         "status_at": None, "status_prev": ""},
+        {"row": {"주문상태": "배송완료"},
+         "status_at": dt.datetime(2026, 9, 6), "status_prev": "배송중"},
+    ]
+    hist = SS.build_status_history(lines)
+    assert [e["status"] for e in hist] == ["취소요청", "배송중", "배송완료"]
+
+
+def test_취소요청_이후_실제_배송완료로_진행되면_더이상_진행중_아니다(session):
+    """사장님이 실제로 목격한 사례 재현 — 취소요청 클레임이 걸렸지만 주문 자체는
+    그 뒤(status_at 로 확인)로 배송완료까지 진행됐다. 클레임이 받아들여지지 않고
+    이행된 것이므로 더 이상 「진행중」이 아니다(이력의 최신 상태로 재판정)."""
+    _seed_line(session, order_no="O10", status="배송완료", market="coupang",
+               status_prev="배송중", status_at=dt.datetime(2026, 9, 6))
+    _seed_claim(session, order_no="O10", status="취소요청", market="coupang", days_ago=2)
+    matched = [{"마켓": "쿠팡", "마켓주문번호": "O10"}]
+    SS.attach_settlement_status(matched, today=dt.date(2026, 9, 6))
+    assert matched[0]["정산여부"] != "진행중"
+    statuses = [e["status"] for e in matched[0]["_주문상태이력"]]
+    assert statuses == ["취소요청", "배송중", "배송완료"]
+
+
 def test_해당하는_주문이_없으면_확인불가_기본값(session):
     matched = [{"마켓": "쿠팡", "마켓주문번호": "없는주문"}]
     SS.attach_settlement_status(matched, today=dt.date(2026, 9, 5))

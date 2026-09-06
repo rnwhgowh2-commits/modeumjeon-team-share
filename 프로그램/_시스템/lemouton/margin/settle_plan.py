@@ -120,7 +120,33 @@ def annotate_claims(lines: list) -> list:
     표식: 'open'(진행 중 — 받을지 모름) / 'done'(끝남 — 금액이 확정적으로 바뀜).
     한 주문에 둘 다 달려 있으면 **done 이 이긴다**(요청 뒤에 완료가 오므로 완료가 최신).
     라이브에 그런 주문이 56건 있다.
-    """
+
+    🔴 [2026-09-06 사장님 확정] 클레임(취소요청 등)이 걸린 **뒤에도** 원래 주문 행
+    자체가 (날짜로 확인되는) 배송·구매확정까지 진행됐다면 — 클레임이 받아들여지지
+    않고 그대로 이행된 것이다. 그런 주문까지 'open'으로 걸면 이미 끝난 정상거래가
+    「손실 진행중」으로 잘못 보인다(주문상태 이력 화면에 실제로 그렇게 뜬 사례:
+    취소요청('26-09-04) 뒤에 배송완료('26-09-06)). 시각 비교(status_at)로 확인될
+    때만 'open'을 안 건다 — **날짜를 모르면 절대 추정하지 않고** 기존대로 'open'
+    유지(정합성 원칙: 확인 안 되면 안전한 쪽)."""
+    # 클레임보다 나중에 실제로 배송·구매확정된 주문 라인의 가장 최근 날짜.
+    order_progress: dict = {}
+    for ln in lines:
+        row = ln.get("row") or {}
+        if str(row.get("_kind") or "") == "change":
+            continue
+        key = (ln.get("market") or "", str(row.get("오픈마켓주문번호") or ""))
+        if not key[1]:
+            continue
+        st = str(row.get("주문상태") or "")
+        if not any(m in st for m in _SHIPPED_MARKERS + _CONFIRMED_WORDS):
+            continue
+        status_at = ln.get("status_at")
+        at = status_at.date().isoformat() if isinstance(status_at, dt.datetime) else ""
+        if not at:
+            continue
+        if key not in order_progress or at > order_progress[key]:
+            order_progress[key] = at
+
     state: dict = {}
     for ln in lines:
         row = ln.get("row") or {}
@@ -133,7 +159,12 @@ def annotate_claims(lines: list) -> list:
         if any(m in st for m in _CLAIM_DONE_MARKERS):
             state[key] = "done"
         elif any(m in st for m in _RISK_MARKERS) and state.get(key) != "done":
-            state[key] = "open"
+            claim_at = _norm_date(row.get("_change_date")) or _norm_date(row.get("주문일"))
+            shipped_at = order_progress.get(key)
+            if claim_at and shipped_at and shipped_at > claim_at:
+                pass  # 클레임 이후 정상 진행 확인됨 — open 표식을 걸지 않는다
+            else:
+                state[key] = "open"
     if not state:
         return lines
     for ln in lines:

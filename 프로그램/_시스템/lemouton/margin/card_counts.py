@@ -126,7 +126,10 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
     #   '반품/교환/취소 완료' 류 → 새 카드 'card_completed'
     #   일반 배송/수취 완료 → 'normal' (정상/완료 카드)
     PROGRESS_PATTERNS = ('회수지시', '철회', '진행중', '취소진행', '반품진행', '교환진행', '출고중지',
-                         '반품접수', '반품요청', '교환신청', '교환요청')
+                         '반품접수', '반품요청', '교환신청', '교환요청', '취소요청')
+    # ★ [2026-09-06 발견] '취소요청'이 이 목록에 없어 화면 JS(margin_embed.html
+    #   PROGRESS_PATTERNS, '취소요청 추가' 커밋)와 이 서버 함수가 갈려 있었다 —
+    #   서버 summary.card_*(배너 폴백·export·API 소비자용)만 취소요청을 놓쳤다. 맞춤.
     # 반품/교환/취소 완료 (별도 카드 = card_completed)
     #   '주문취소'·'교환완료'·'교환수거완료' — 2026-09-06 라이브 기타 카드 119건 중
     #   119건 실사에서 발견(11번가·롯데ON·G마켓 각 1건). 전부 종결 상태인데 이 목록에
@@ -240,6 +243,15 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
 
         mk_sell_status = row.get('판매처_주문상태', '') or row.get('판매처_판매처주문상태', '')
         mk_sell_cat = _market_sell_state_category(mk_sell_status)
+        # 🔴 [2026-09-06 사장님 확정] 취소요청 등 클레임이 걸려도 주문 자체는 그 뒤
+        #   실제로 배송·구매확정까지 진행될 수 있다(클레임이 안 받아들여짐 — 실사례:
+        #   취소요청 '26-09-04 → 배송완료 '26-09-06). settle_status.attach_settlement_status
+        #   가 이미 이력(status_at)으로 재판정해 둔 '정산여부'가 있으면 그걸 우선한다 —
+        #   여기서 또 텍스트만 보고 진행중으로 세지 않는다(단일 원천, annotate_claims
+        #   와 같은 판단을 공유). 그 필드가 없으면(계산 안 됨) 기존 텍스트 판정 유지.
+        row_verdict = row.get('정산여부')
+        if mk_sell_cat == 'in_progress' and row_verdict and row_verdict != '진행중':
+            mk_sell_cat = 'normal'
         mg_status = str(row.get('더망고주문상태 (사용자 연동)', '') or '')
         # 마켓주문상태 (오픈 마켓 연동) — 송장전송실패 등 마켓 sync 결과 (사용자 요청)
         mk_sync_status = str(row.get('마켓주문상태 (오픈 마켓 연동)', '') or '')
