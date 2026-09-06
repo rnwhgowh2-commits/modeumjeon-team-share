@@ -245,6 +245,20 @@ def test_order_revenue_fields_are_reattached_to_matched():
     assert r["판매가"] == 80000
 
 
+def test_sale_basis_reattached_even_when_discounted_in_sell_row():
+    """`_매출기준액`도 배송비·상품금액과 같은 조인으로 되짚어 붙어야 한다.
+
+    2026-09-06 실측 사고: sell_source.SELL_COLUMNS 가 이 칸을 안 실어 날라 조인이
+    늘 0 으로 떨어졌고, 마진탭·엑셀이 실결제(할인 반영) 폴백으로 되돌아갔다.
+    여기서는 sell_df 에 이미 이 값이 있으면(order_export 확정 규칙: 정가+배송비,
+    할인 무관) matched 행이 그 값을 실결제금액과 무관하게 그대로 받는지만 고정한다.
+    """
+    out = P.run(pd.DataFrame([_buy()]),
+                pd.DataFrame([_sell(배송비=3000, 실결제금액=68000,   # 할인 반영(더 작은) 값 — 매출 아님
+                                    **{"_매출기준액": 83000})]))  # 정가(80000)+배송비(3000)
+    assert out["matched"][0]["_매출기준액"] == 83000
+
+
 def test_reattached_revenue_fields_stay_numeric():
     """숫자 칸이 문자열로 새면 aggregator 의 sum() 이 TypeError 로 죽는다."""
     out = P.run(pd.DataFrame([_buy()]),

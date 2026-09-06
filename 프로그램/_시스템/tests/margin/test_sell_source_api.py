@@ -120,6 +120,22 @@ def test_lotteon_no_basis_stays_none():
     assert df.loc[0, "_settle_source"] == "none"
 
 
+def test_sale_basis_field_carried_through_not_dropped():
+    """`_매출기준액`(정가+배송비, 할인 무관 확정 2026-08-28)이 SELL_COLUMNS 에서 빠지면
+    안 된다.
+
+    2026-09-06 실측 사고: 이 칸이 SELL_COLUMNS 에 없어 sell_df 조인 시 항상 0 으로
+    밀려나(_CARRY_FIELDS), 마진탭·다운로드 엑셀이 폴백(실결제=할인 반영) 값으로
+    조용히 되돌아갔다 — 롯데온·11번가·스마트스토어 매출이 할인만큼 과소 표시됨
+    (쿠팡·G마켓은 그 배치에 할인이 0이라 우연히 안 들킴).
+    """
+    row = _oe_row(판매처="롯데온", 단가=100000, 실결제금액=85000, 배송비=3000,
+                  **{"총주문금액": 100000, "상품금액": 100000, "_매출기준액": 103000})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "_매출기준액"] == 103000
+    assert "_매출기준액" in SS.SELL_COLUMNS
+
+
 def test_coupang_estimated_is_passed_through_and_tagged():
     """쿠팡 추정치는 order_export 계산식 그대로. 실결제금액이 API 에 없어 통일 불가(스펙 §4)."""
     row = _oe_row(판매처="쿠팡", 실결제금액="", 단가=10000, 수량=1, 배송비=0,
