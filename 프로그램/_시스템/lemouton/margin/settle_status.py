@@ -61,6 +61,42 @@ def _norm_date10(v) -> str:
     return t if t[:4] >= "2000" else ""
 
 
+# "주문" 하나로 롯데온 두 경로(정산백필 odTypCd=10 · 라이브 추적이 못 갱신해 결제직후
+#  상태로 굳은 것, scheduler/main.py 참고)가 겹친다 — 둘 다 "취소·교환·반품이 아니다"
+#  라는 뜻이지 "취소가 되돌아갔다"는 뜻이 아니다. 클레임(취소요청 등) 뒤에 이 값이
+#  이력에 남으면 사장님이 "취소가 원복됐나?" 헷갈리므로([2026-09-06] 실제 문의) 호버에
+#  설명을 붙인다 — 라벨 문자열 자체는 사장님이 오늘 확정한 대로 그대로 둔다.
+_STATUS_NOTE = {
+    "주문": ("롯데온 마켓 API 원문 표기 그대로입니다. 취소가 되돌아간 게 아니라, "
+            "이 주문 라인에 대해 마켓이 마지막으로 알려준 처리 결과가 "
+            "「취소·교환·반품이 아닌 주문(정상매출)」이라는 뜻입니다."),
+}
+
+
+def _event(status: str, at: str, *, at_kind: str = "") -> dict:
+    """at_kind: ''(날짜 없음) / 'event'(마켓이 준 실제 발생일 — 클레임 _change_date) /
+    'detected'(우리 시스템이 그 상태를 **처음 확인한 시각** — order_store._apply_status
+    의 status_at=_now(). 조회 주기만큼 실제 사건보다 늦을 수 있다 — 마켓 시각인 척
+    하지 않는다. 예: 6개월 전 주문인데 오래 재확인을 안 하다가 이번 주 일괄 재조회에서
+    "출고지시"로 갱신됐으면, 실제 출고일이 아니라 **이번 주 날짜**가 찍힌다)."""
+    e = {"status": status, "at": at}
+    if at and at_kind:
+        e["at_kind"] = at_kind
+    note = _STATUS_NOTE.get(status)
+    if note:
+        e["note"] = note
+    return e
+
+
+def _tag_sort(e: dict, *, sort_at: str, is_prev: bool) -> dict:
+    """`_event()` 결과에 정렬 전용 키(`_sort_at`/`_prev`)를 얹는다 — 화면엔 안 나간다
+    (build_status_history 가 정렬 후 벗겨낸다). 화면에 보여줄 `at`과 정렬에 쓸 값을
+    분리하는 이유는 아래 `_order_status_event` 참조."""
+    e["_sort_at"] = sort_at
+    e["_prev"] = is_prev
+    return e
+
+
 def _order_status_event(line: dict) -> list[dict]:
     """한 line(row+status_at/status_prev) → 이력 이벤트 0~2개.
 
@@ -80,7 +116,7 @@ def _order_status_event(line: dict) -> list[dict]:
     is_claim = str(row.get("_kind") or "") == "change"
     if is_claim:
         at = _norm_date10(row.get("_change_date")) or _norm_date10(row.get("주문일"))
-        return [{"status": status, "at": at, "_sort_at": at, "_prev": False}]
+        return [_tag_sort(_event(status, at, at_kind="event"), sort_at=at, is_prev=False)]
     status_at = line.get("status_at")
     at = status_at.date().isoformat() if isinstance(status_at, _dt.datetime) else ""
     events = []
@@ -88,8 +124,11 @@ def _order_status_event(line: dict) -> list[dict]:
     # status_prev 는 order_store.lines_for_markets 가 실어 주는 필드(있으면 전환 증거)
     #  — 없으면 「과거에 뭐였는지」를 지어내지 않는다.
     if prev and prev != status:
-        events.append({"status": prev, "at": "", "_sort_at": at, "_prev": True})   # 시작 시각은 모른다(날조 금지)
-    events.append({"status": status, "at": at, "_sort_at": at, "_prev": False})
+        events.append(_tag_sort(_event(prev, ""), sort_at=at, is_prev=True))   # 시작 시각은 모른다(날조 금지)
+    # ★ status_at 은 마켓 시각이 아니라 **우리가 그 상태를 처음 본 시각**이다
+    #   (_apply_status 설계 의도 — "화면에도 그렇게 적는다"). at_kind='detected' 로
+    #   구분해 화면에서 "확인 …" 으로 적는다(실제 처리일인 척 금지).
+    events.append(_tag_sort(_event(status, at, at_kind="detected"), sort_at=at, is_prev=False))
     return events
 
 
@@ -105,7 +144,12 @@ def build_status_history(lines_for_order: list) -> list[dict]:
     for e in events:
         if out and out[-1]["status"] == e["status"]:
             continue
-        out.append({"status": e["status"], "at": e["at"]})
+        clean = {"status": e["status"], "at": e["at"]}
+        if e.get("at_kind"):
+            clean["at_kind"] = e["at_kind"]
+        if e.get("note"):
+            clean["note"] = e["note"]
+        out.append(clean)
     return out
 
 
