@@ -642,16 +642,26 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       next_run_time=_dtm2.datetime.now() + _dtm2.timedelta(minutes=6))
         logger.info('scheduler: order_ingest_fast job every %dmin (recent 1d, 비ESM)',
                     fast_min)
-    # 🔴 백필 틱은 마스터 스케줄러에서 끈다(2026-07-20). gunicorn --preload fork
-    #  환경에서 마스터의 Supabase 연결이 몇 창 돌다 굳었다(done 이 5 에서 안 움직임).
-    #  워커 경로(/api/orders-ingest/step)는 안정적이라 백필은 그쪽으로 민다.
-    #  MOUM_BACKFILL_MASTER_TICK=1 이면 예전 방식으로 되살릴 수 있다(폴백).
-    if (os.environ.get('MOUM_BACKFILL_MASTER_TICK') == '1'
+    # 🔴 2026-07-20: 마스터 스케줄러의 백필 틱을 껐었다 — gunicorn --preload fork
+    #  환경에서 마스터의 Supabase 연결이 몇 창 돌다 굳는 문제(done 이 5 에서 안 움직임)
+    #  때문이었다. 그 근본 원인의 수정(`backfill_runner._reset_pool_once` — fork 로
+    #  상속된 커넥션을 dispose 하고 이 프로세스가 새로 연결)이 이미 `run_if_requested`
+    #  진입부에 들어가 있는데도, 그때 껐던 스위치만 그대로 남아 있었다.
+    #  🔴🔴 2026-09-06 — 그 결과가 라이브에서 실제로 드러났다: 대체 경로였던 워커
+    #  (`/api/orders-ingest/step`)는 gunicorn `--timeout 60` 밑에 있어야 해서 창 하나에
+    #  최대 45초만 줄 수 있는데, 옥션·G마켓 실측은 창 하나에 최소 73~94초가 걸린다
+    #  (`/orders/diag/esm-timing` 실측). 즉 이 두 마켓은 워커 경로로는 **원리적으로
+    #  영영 성공할 수 없다**(45초 안에 못 끝나는 일을 45초 예산으로 계속 재시도만
+    #  했다) — 창을 좁혀도 API 자체 지연이라 소용없다. 마스터 경로는 HTTP 요청
+    #  시간제한이 없어 이 마켓들의 실제 소요를 그대로 기다릴 수 있다.
+    #  → 되살린 근본 수정이 이미 있으니 **기본으로 켠다**. 문제가 재발하면
+    #  MOUM_BACKFILL_MASTER_TICK=0 으로 즉시 되돌릴 수 있다(코드 배포 없이).
+    if (os.environ.get('MOUM_BACKFILL_MASTER_TICK', '1') != '0'
             and sched.get_job('order_backfill') is None):
         sched.add_job(_order_backfill_tick, 'interval', minutes=1,
                       id='order_backfill', max_instances=1, coalesce=True,
                       misfire_grace_time=300)
-        logger.info('scheduler: order_backfill watcher every 1min (레거시)')
+        logger.info('scheduler: order_backfill watcher every 1min')
     # ── 쿠팡 쿠폰: 대기열 처리 + 자동연장 (2026-08-13 사장님 확정) ──────────
     #  🔴 「대기열에 넣었다」 ≠ 「처리된다」 — 이 틱이 **처리기**다. 없으면 단추가
     #    거짓말이 된다(라이브에서 실제로 겪은 사고).

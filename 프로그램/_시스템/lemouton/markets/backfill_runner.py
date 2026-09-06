@@ -35,13 +35,26 @@ from lemouton.markets.order_ingest import (KST, backfill_chunk_days,
 logger = logging.getLogger(__name__)
 
 ROW_ID = "current"
-WINDOW_TIMEOUT_SEC = 90         # 창 하나가 90초를 넘으면 포기하고 다음으로
+#  🔴🔴 2026-09-06 사장님 지시 — "다시는 이런 버그 발생하지 않도록 시간과 기한을
+#  가능한 많이 늘려라". 이 상수들은 전부 **마스터 스케줄러 경로**(백그라운드 스레드,
+#  HTTP 요청 시간제한 없음)에서만 쓰인다 — 넉넉히 잡아도 응답 지연·502 위험이 없다.
+#  유일한 하한선은 "진짜 죽은(응답이 영영 안 오는) 연결을 얼마나 오래 붙들고 있을
+#  것인가"뿐이고, 그마저도 MAX_TIMEOUTS 로 마켓 단위 포기가 있어 안전하다.
+#  → 기본값을 큰 폭으로 올린다: 90초→180초(모르는 마켓), ESM 150초→280초.
+WINDOW_TIMEOUT_SEC = 180        # 창 하나가 이만큼 넘으면 포기하고 다음으로(모르는 마켓 기본)
 #  마켓별 예외 — 롯데온 백필은 29일 창을 페이징으로 여러 번 돌아 오래 걸린다.
 #  (짧게 잡으면 매번 타임아웃 → 롯데온 과거가 통째로 안 쌓인다)
 #  쿠팡 30일 창은 실측 75초 — 90초는 빠듯해 실제로 건너뛰어져 구간에 구멍이 났다
 #  (2026-05-21~06-20). 건너뛴 창은 '조용한 구멍'이라 넉넉히 준다.
-WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300, "coupang": 300, "eleven11": 180}
-                                #  (실측: 스스 1~8초 · 롯데온 3초 · 11번가 16초 · 쿠팡 75초)
+#  🔴 2026-09-06 라이브 실측 — 옥션·G마켓도 기본값(90초)에 못 미친다. `/orders/diag/
+#  esm-timing`으로 재보니 **1일·주문 2건짜리** 창도 94.3초(주문조회만 ~73초) 걸렸다.
+#  옛 가정("5초/1회 × 5상태 = 25초")은 지금 실제 응답속도를 못 따라간다 — 데이터양이
+#  아니라 API 자체 지연이 원인이라 창을 좁혀도 소용없다. 측정값의 3배 가까운
+#  여유(280초)를 준다 — 물량이 많은 달·마켓이 느려진 날에도 버틸 수 있게.
+WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300, "coupang": 300, "eleven11": 180,
+                            "auction": 280, "gmarket": 280}
+                                #  (실측: 스스 1~8초 · 롯데온 3초 · 11번가 16초 · 쿠팡 75초 ·
+                                #   옥션·G마켓 94초/1일창 — 마지막 둘은 3배 여유)
 #  창 사이 간격 — 두 가지 목적:
 #   ① 429 폭주 방지(스스·11번가는 연달아 때리면 클라이언트가 호출 간격을 늘린다)
 #   ② 🔴 **CPU 양보**. 이 서버는 shared-cpu-1x(1코어)다. 백필이 쉬지 않고 돌면
@@ -54,9 +67,16 @@ WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300, "coupang": 300, "eleven11": 180}
 PACE_SEC = {"smartstore": 1.5, "eleven11": 1.5,   # 마켓 자체 429 방지용(서버와 무관)
             "auction": 5.5, "gmarket": 5.5}
 _DEFAULT_PACE = 0.5
-TICK_BUDGET_SEC = 300           # 한 틱에 최대 5분 — 다음 틱이 이어받는다
-                                #  (서버 업그레이드로 코어 여유 생김 → 길게 붙잡아도 됨)
-MAX_TIMEOUTS = 5                # 연속 타임아웃이 이만큼이면 중단(마켓이 죽은 것)
+#  한 틱에 최대 이만큼 — 다음 틱이 이어받는다. 마스터 스레드라 길게 붙잡아도
+#  다른 요청을 막지 않는다(HTTP 타임아웃과 무관) — 5분→10분으로 늘려 한 틱이
+#  더 많은 창을 처리하게 한다(1분마다 도는 틱 사이 경계에서 느린 창이 반토막
+#  나는 빈도를 줄인다).
+TICK_BUDGET_SEC = 600
+#  연속 타임아웃이 이만큼이면 그 마켓을 포기(마켓이 죽은 것으로 판단)하고 다음
+#  마켓으로 — 5→8 로 늘려 "느리지만 살아있는" 마켓을 "죽었다"고 성급히 포기하는
+#  일을 줄인다(오늘 겪은 옥션·G마켓처럼 예상보다 그냥 느린 경우와 진짜 응답이
+#  아예 안 오는 경우를 헷갈리지 않도록 여유를 더 준다).
+MAX_TIMEOUTS = 8
 
 
 _pool_reset_done = False
@@ -255,7 +275,11 @@ def run_if_requested(budget: float = None, in_worker: bool = False,
                 slowest = (secs, f"{market} {start:%Y-%m-%d}")
         except _Timeout:
             consecutive_timeouts += 1
-            lim = WINDOW_TIMEOUT_BY_MARKET.get(market, WINDOW_TIMEOUT_SEC)
+            # 🔴 2026-09-06 — 여기서 시장 기본값만 보고 적으면 실제로 적용된 제한(호출부의
+            #   window_timeout 오버라이드)과 다른 값을 보고해 오진의 원인이 된다
+            #   (예: /step 이 45초로 강제했는데 로그엔 "90초 초과"로 남았었다).
+            lim = window_timeout if window_timeout is not None else \
+                WINDOW_TIMEOUT_BY_MARKET.get(market, WINDOW_TIMEOUT_SEC)
             msg = (f"[{market}] {start:%Y-%m-%d}~{end:%Y-%m-%d} "
                    f"{lim}초 초과 — 건너뜀")
             logger.warning(msg)

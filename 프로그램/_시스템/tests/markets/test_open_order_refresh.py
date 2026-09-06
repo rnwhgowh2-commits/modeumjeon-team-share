@@ -137,6 +137,22 @@ def test_창밖_미확정도_틱당_조금씩_되찾는다(session, monkeypatch)
     assert "2026-07-20" in r["dates"]                          # 최근 차선은 그대로
 
 
+def test_180일_넘은_주문도_결국_되찾는다(session, monkeypatch):
+    """🔴🔴 2026-09-06 재발 — STALE_OPEN_DAYS=180 은 고정 절벽이었다. 08-02 수정
+    직후엔 3~4월분이 이 차선(21~180일)에 걸려 해소됐지만, 시간이 지나 그 주문들이
+    180일을 넘기면 21일 차선에도 180일 차선에도 안 걸리는 '차선 밖'으로 다시
+    떨어진다 — 마진계산기 기타 카드에서 2월 주문 116건(215일째)으로 실측됐다.
+    상한을 치운 뒤에는(STALE_OPEN_DAYS 기본값) 이 정도로 오래된 주문도 옛 차선이
+    여전히 찾아내야 한다."""
+    from lemouton.markets import order_ingest as oi
+    _line(session, "w1", "lotteon", "2026-02-03", "주문", seen_days_ago=200)  # 215일째
+    _patch_now(monkeypatch, oi, _dt.datetime(2026, 9, 6, 12, 0))
+    _no_fetch(monkeypatch, oi)
+
+    r = oi.refresh_open_orders("lotteon", days=21, session=session)  # stale_days·limit 기본값
+    assert "2026-02-03" in r["stale_dates"], r
+
+
 def test_옛_차선은_틱당_상한을_지킨다(session, monkeypatch):
     """상한이 없으면 밀린 옛 날짜가 매 틱을 차지해 최근 21일이 굶는다."""
     from lemouton.markets import order_ingest as oi
