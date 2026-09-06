@@ -208,8 +208,11 @@ def test_마켓_자체_429가_있는_마켓은_창_사이에_쉰다(db):
 
 
 def test_틱은_너무_길게_붙잡지_않는다(db):
-    """길게 붙잡을수록 웹 요청과 코어를 오래 다툰다."""
-    assert BR.TICK_BUDGET_SEC <= 360
+    """길게 붙잡을수록 웹 요청과 코어를 오래 다툰다.
+    🔴 2026-09-06 사장님 지시("시간과 기한을 가능한 늘려라")로 5분→10분 상향—
+    이 마켓 실패(옥션·G마켓 100% 타임아웃)의 대가가 코어 경합보다 훨씬 컸다.
+    상한 자체는 유지한다(무제한은 안 됨 — 1코어 서버에서 웹 요청과 계속 다툰다)."""
+    assert BR.TICK_BUDGET_SEC <= 600
 
 
 def test_커넥션풀을_프로세스당_한번만_재생성한다(db, monkeypatch):
@@ -232,8 +235,12 @@ def test_창_타임아웃은_실측보다_넉넉해야_한다(db):
     assert BR.WINDOW_TIMEOUT_BY_MARKET["lotteon"] >= 150   # 29일 창 페이징
     # 🔴 2026-09-06 라이브: 옥션·G마켓 1일 창(주문 2건)이 94.3초 걸렸다
     # (/orders/diag/esm-timing 실측) — 옛 90초 기본값으론 100% 타임아웃됐다.
-    assert BR.WINDOW_TIMEOUT_BY_MARKET["gmarket"] >= 120
-    assert BR.WINDOW_TIMEOUT_BY_MARKET["auction"] >= 120
+    # 사장님 지시("시간과 기한을 가능한 늘려라")로 실측의 약 3배(280초)까지 상향.
+    assert BR.WINDOW_TIMEOUT_BY_MARKET["gmarket"] >= 250
+    assert BR.WINDOW_TIMEOUT_BY_MARKET["auction"] >= 250
+    # 모르는 마켓 기본값도 함께 상향(90→180) — 이 사고가 ESM 외 마켓에서도
+    # 재발하지 않도록 안전 마진을 넓힌다.
+    assert BR.WINDOW_TIMEOUT_SEC >= 150
 
 
 def test_한_마켓이_막혀도_다른_마켓은_계속한다(db, monkeypatch):
