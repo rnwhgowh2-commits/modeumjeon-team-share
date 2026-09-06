@@ -1556,6 +1556,20 @@ function getFilteredData() {
     return true;
   }).concat(_susp);
 
+  /* ★ [모음전 2026-09-06] 사장님 결정 — 미매칭 매입(unmatched_buy)도 같은 날짜 필터 적용
+     (기존엔 항상 엑셀 원본 전체 그대로 흘려보내 renderDataVerifyBanner 의 "더망고 전체" 계열
+     카드가 기간과 무관하게 고정값으로 보였다) */
+  var unmatchedBuyFiltered = (analysisData.unmatched_buy || []).filter(function(r) {
+    if (hasDateF) {
+      var d = parseDate26(r['주문일']);
+      if (d) {
+        if (dateFilterFrom && d < dateFilterFrom) return false;
+        if (dateFilterTo   && d > dateFilterTo)   return false;
+      }
+    }
+    return true;
+  });
+
   /* 2) 집계용 실효 데이터:
      · _excluded(사용자 수기 제외) → 항상 빠짐
      · 주문미이행 only (메모 s/p/x/empty + 매입흔적 X) → 자동 빠짐 (마진 의미 없음)
@@ -1699,7 +1713,7 @@ function getFilteredData() {
     priceRange: priceRows,
     product: productRows,
     filters: analysisData.filters,
-    unmatched_buy: analysisData.unmatched_buy,
+    unmatched_buy: unmatchedBuyFiltered,
     unmatched_sell: analysisData.unmatched_sell,
   };
 }
@@ -1881,10 +1895,13 @@ function renderDataVerifyBanner(opts) {
   opts = opts || {};
   var expanded = !!opts.expanded;
   var sm = (analysisData && analysisData.summary) || {};
-  /* ★ 사용자 명시 — 더망고 전체 = 엑셀 원본 (기간 필터·제외 무관)
-     getFilteredData() 안 씀 → analysisData.matched 전체 사용 */
-  var sourceMatched = (analysisData && analysisData.matched) || [];
-  var unmBuyAll     = (analysisData && analysisData.unmatched_buy) || [];
+  /* ★ [모음전 2026-09-06] 사장님 결정 — 상단 기간 선택("적용")에 이 배너(더망고 전체·매입
+     흔적 포함·주문 미이행)도 반영되도록 변경. 이전엔 "더망고 전체 = 엑셀 원본, 기간 필터·
+     제외 무관"으로 항상 analysisData 원본 전체를 썼으나, 그 방침을 뒤집고
+     getFilteredData() 로 날짜 필터가 적용된 matched/unmatched_buy 를 쓴다. */
+  var _fd = (typeof getFilteredData === 'function') ? getFilteredData() : null;
+  var sourceMatched = (_fd && _fd.matched) || (analysisData && analysisData.matched) || [];
+  var unmBuyAll     = (_fd && _fd.unmatched_buy) || (analysisData && analysisData.unmatched_buy) || [];
 
   function _hasV(v){ var s_ = String(v||'').trim(); return s_ && ['nan','0','0.0','None'].indexOf(s_) < 0; }
   /* ★ V4 — 매입흔적 5기준 OR (app.py:490 _has_purchase_trace 와 동일) */
@@ -1936,7 +1953,7 @@ function renderDataVerifyBanner(opts) {
     if (_hasV(r['사이트주문번호'])) unmWithSite++;
   });
 
-  /* ★ 사용자 보장 1 — 더망고 전체 = 엑셀 원본 행수 (matched + unmBuy = 항상 동일) */
+  /* ★ 사용자 보장 1 — 더망고 전체 = 선택 기간 내 엑셀 원본 행수 (matched + unmBuy = 항상 동일) */
   var totalDisplay = sourceMatched.length + unmBuyAll.length;
   /* 매칭/미매칭 = 엑셀 원본 기준 */
   var matchedTotal = sourceMatched.length;
@@ -1985,7 +2002,9 @@ function renderDataVerifyBanner(opts) {
   /* === 좌측 (1/4) — V4: 큰 수 967 + 1단(매칭) + 2단(매입진행) stacked === */
   h += '<div style="background:linear-gradient(135deg,#1f2937,#374151);color:#fff;border-radius:14px;'
     + 'padding:20px 22px;display:flex;flex-direction:column;box-shadow:0 2px 6px rgba(0,0,0,0.06)">'
-    +   '<div style="font-size:13px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:4px">더망고 전체 (엑셀 업로드)</div>'
+    +   '<div style="font-size:13px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:4px">더망고 전체 (엑셀 업로드)'
+    +     ((dateFilterFrom || dateFilterTo) ? ' <span style="color:#93c5fd">· 선택 기간</span>' : '')
+    +   '</div>'
     +   '<div style="font-size:42px;font-weight:800;line-height:0.95;letter-spacing:-0.03em;color:#fff">'
     +     fmt(total)
     +     '<span style="font-size:18px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:6px">건</span>'
