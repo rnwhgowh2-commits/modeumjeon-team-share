@@ -82,6 +82,16 @@ class _PolicyTemplate:
                     v = read_side(cfg, side).amount if has_price else None
                     return self._policy_or_fallback(prefix, tail, v)
 
+            # ── 즉시할인 · 누가 부담하나 ────────────────────────────────
+            # 🔴 할인 값은 **가공정책에만** 있다 — `PriceTemplate` 에는 할인 칸이
+            #   아예 없다(컬럼 0개). 그래서 여기서 안 알려주면 엔진은 늘
+            #   「할인 0」을 받아 판매가를 안 올린다. 에러는 하나도 안 나고
+            #   상품마다 조용히 손해만 난다(스스 20% 기준 5,557원/건).
+            # 🔴 쓰던 템플릿으로 되받지 않는다 — 되받을 칸이 없다.
+            if tail in ('discount_unit', 'discount_value',
+                        'discount_burden', 'discount_burden_pct'):
+                return cfg.get(tail) if has_price else None
+
             if tail == 'external_sale_price':        # 소싱 지정가
                 v = read_side(cfg, 'sourcing').fixed if has_price else None
                 return self._policy_or_fallback(prefix, tail, v)
