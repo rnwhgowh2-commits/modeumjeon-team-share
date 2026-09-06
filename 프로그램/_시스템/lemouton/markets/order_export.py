@@ -1236,8 +1236,10 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     #  remoteArea=True). remotePrice 를 안 더하면 L·N열이 통째 누락된다.
                     ship = _won(box.get("shippingPrice"))
                     _remote = _won(box.get("remotePrice"))
+                    _ship_reason = None
                     if isinstance(_remote, int) and _remote:
                         ship = (ship if isinstance(ship, int) else 0) + _remote
+                        _ship_reason = "도서산간"
                     # 판매자부담할인(즉시+다운로드쿠폰) — 우리 주머니에서 나가는 돈.
                     #  쿠팡지원할인(coupangDiscount)은 쿠팡이 보전하므로 차감 금지
                     #  (`discountPrice` 총 할인을 그대로 빼면 그것까지 손해로 잡힌다).
@@ -1285,6 +1287,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "쇼핑몰ID": "",
                         "단가": _won(it.get("salesPrice")),
                         "배송비": ship,
+                        "_ship_reason": _ship_reason,
                         "실결제금액": _paid if isinstance(_paid, int) else "",
                         # 쿠팡 vendorItem=옵션 단위 상품 — 단가에 옵션가 포함 → 추가금 구조적 0.
                         "옵션추가금": 0,
@@ -2108,6 +2111,12 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             #  값이 없으면 빈칸 유지(0 대체 금지).
             "단가": (lambda v: "" if v is None else v)(_to_int(_g(od, "SalePrice"))),
             "배송비": (lambda v: "" if v is None else v)(_to_int(_g(od, "ShippingFee"))),
+            # 배송비 사유 표시용 — ShippingFee 는 이미 이 두 값을 포함한 총액이다(지도 esm 응답
+            # 필드 실측·2026-08-23 gmarket 4482179566: ShippingFee 5,000 = JejuAddDeliveryFee
+            # 5,000, 상품 자체는 무료배송). 더하지 않는다 — **내역 표시 전용**(합산 아님).
+            "_ship_reason": (lambda j, b: ("제주" if j else ("도서산간" if b else None)))(
+                _to_int(_g(od, "JejuAddDeliveryFee"), 0) or 0,
+                _to_int(_g(od, "BackwoodsAddDeliveryFee"), 0) or 0),
             # 옵션추가금 = OptSelPrice(옵션단가×수량) + OptAddPrice(추가구성단가×수량)
             #  — 지도 esm:67 확정 필드. 클레임 행(응답에 없음)은 빈칸 유지.
             "옵션추가금": ((_to_int(_g(od, "OptSelPrice"), 0) or 0)
@@ -3263,6 +3272,7 @@ def _finalize_rows(rows: list) -> list:
             ship = 0                       # 이미 계산한 배송건 → 0
             if ship_settle is not None:
                 ship_settle = 0            # 실값도 배송건당 1회 — 다건 주문 중복 가산 금지
+            r["_ship_reason"] = None       # 배송비와 같은 배송건 단위로 억제(중복 표시 방지)
         elif sk is not None:
             seen.add(sk)
         r["배송비"] = ship
