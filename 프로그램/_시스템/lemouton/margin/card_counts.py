@@ -293,9 +293,13 @@ def compute_card_counts(classified_rows, buy_df_raw=None, source='classified', c
             '배송중', '배송준비', '발송대기', '상품준비'
         )):
             pending_count += 1
-        elif '국내배송중' in mg_status and any(k in str(mk_sell_status) for k in (
-            '구매확정', '수취완료', '배송완료', '확정', '배송'
-        )):
+        elif '국내배송중' in mg_status and (
+            any(k in str(mk_sell_status) for k in ('구매확정', '수취완료', '배송완료', '확정', '배송'))
+            # [모음전 2026-09-06] 롯데온 정산백필(odTypCd=10, API 원문 그대로 "주문") —
+            # 배송 단계를 안 주는 백필이라 위 키워드 어디에도 안 걸려 정상 매출 116건이
+            # "기타"로 샜다. 정확히 일치할 때만(다른 마켓의 서술형 상태문구와 안 겹치게).
+            or str(mk_sell_status).strip() == '주문'
+        ):
             normal_count += 1
         # ★ 6순위: 더망고 = 발송 대기 키워드 ('배송대기중' 등)
         #   🔴 2026-08-27 — 더망고(사람이 손으로 갱신, 지연됨)가 아직 평상 라벨인데
