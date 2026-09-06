@@ -69,7 +69,30 @@ def save_crawl_to_track(s, model_code: str, result) -> int:
         except Exception:
             pass
 
+    # [2026-08-19] 값이 안 바뀌었으면 안 쌓는다.
+    #   전에는 크롤할 때마다 무조건 한 줄씩 넣었다. 크롤이 60초 간격 연속 모드라
+    #   가격·재고가 그대로여도 하루 수천 줄이 쌓여 DB 용량을 계속 먹었다.
+    #   (Supabase 무료 한도 초과로 프로젝트가 멈춘 원인)
+    #   화면은 '값이 바뀐 시점' 만 필요하므로 같은 값은 안 넣어도 그래프가 같다.
+    _skus = [o.canonical_sku for o in our_options if o.canonical_sku]
+    _last: dict = {}
+    if _skus:
+        for sku, src, price, stock in (
+            s.query(
+                PriceTrackHistory.canonical_sku,
+                PriceTrackHistory.source,
+                PriceTrackHistory.price,
+                PriceTrackHistory.stock,
+            )
+            .filter(PriceTrackHistory.canonical_sku.in_(_skus))
+            .order_by(PriceTrackHistory.captured_at.desc())
+            .limit(2000)
+            .all()
+        ):
+            _last.setdefault((sku, src), (price, stock))   # 최신 1건만
+
     saved = 0
+    skipped = 0
     for raw in (result.options or []):
         c_text = (raw.get("color_text") or "").strip().lower()
         s_text = (raw.get("size_text") or "").strip()
@@ -99,16 +122,26 @@ def save_crawl_to_track(s, model_code: str, result) -> int:
                 break
 
         if matched:
+            price = raw.get("price")
+            stock = raw.get("stock")
+            prev = _last.get((matched.canonical_sku, result.source))
+            if prev is not None and prev == (price, stock):
+                skipped += 1          # 값 그대로 → 안 쌓는다
+                continue
             s.add(PriceTrackHistory(
                 canonical_sku=matched.canonical_sku,
                 source=result.source,
-                price=raw.get("price"),
-                stock=raw.get("stock"),
+                price=price,
+                stock=stock,
             ))
+            _last[(matched.canonical_sku, result.source)] = (price, stock)
             saved += 1
 
     if saved:
         s.commit()
+    if skipped:
+        logger.info("[track] %s/%s — 값 그대로라 %d건 안 쌓음 (저장 %d)",
+                  model_code, result.source, skipped, saved)
     return saved
 
 

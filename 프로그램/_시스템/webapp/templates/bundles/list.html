@@ -107,7 +107,7 @@
     .hub-cards-v3 { grid-template-columns: 1fr; }
   }
 
-  /* ⭐ Phase 8.8.4 — 무신사 비회원가 row 강조 (좌측 빨강 보더 + ⚠ 배지) */
+  /* [중요] Phase 8.8.4 — 무신사 비회원가 row 강조 (좌측 빨강 보더 + [주의] 배지) */
   .bl-row.nm-alert-row {
     
     background: linear-gradient(90deg, var(--연한-빨강,#FEF2F2), var(--surface,#ffffff) 30%);
@@ -216,7 +216,7 @@
       {# v32 — hero 아이콘 picker 트리거 (글로벌 [data-icon-edit] 핸들러가 자동 처리) #}
       <div class="hub-hero-ic"
            data-icon-edit="hub|registered"
-           data-icon-current="📦"
+           data-icon-current="package"
            data-icon-color="default"
            data-icon-label="등록된 상품"><i class="ph-light ph-package" aria-hidden="true"></i></div>
       <div class="hub-hero-body">
@@ -340,14 +340,14 @@
         {# v32 — 모음전 카드 이모지 picker 트리거 (글로벌 핸들러 자동 처리) #}
         <span class="bl-thumb"
               data-icon-edit="model|{{ b.model_code }}"
-              data-icon-current="{% if b.category == '의류' %}👕{% else %}👟{% endif %}"
+              data-icon-current="{% if b.category == '의류' %}t-shirt{% else %}sneaker{% endif %}"
               data-icon-color="default"
               data-icon-label="{{ b.group_name or b.model_code }}">{% if b.category == '의류' %}<i class="ph-light ph-t-shirt" aria-hidden="true"></i>{% else %}<i class="ph-light ph-sneaker" aria-hidden="true"></i>{% endif %}</span>
         <span>
           <strong>{{ b.group_name or b.model_code }}</strong>
           {% if b.cluster_size and b.cluster_size > 1 %}<span class="bl-cluster">{{ b.cluster_size }}모델</span>{% endif %}
-          {# ★ Phase 8.8.4 — 무신사 비회원가 ⚠ 배지 (회원가 추출 실패 옵션 카운트) #}
-          {% if b.musinsa_non_member_count %}<span class="nm-row-badge" title="무신사 비회원가 크롤링 — 재로그인 필요. 클릭하여 대시보드 ⚠ 카드 확인."><i class="ph-light ph-warning" aria-hidden="true"></i> 무신사 비회원가 {{ b.musinsa_non_member_count }}건</span>{% endif %}
+          {# * Phase 8.8.4 — 무신사 비회원가 [주의] 배지 (회원가 추출 실패 옵션 카운트) #}
+          {% if b.musinsa_non_member_count %}<span class="nm-row-badge" title="무신사 비회원가 크롤링 — 재로그인 필요. 클릭하여 대시보드 카드 확인."><i class="ph-light ph-warning" aria-hidden="true"></i> 무신사 비회원가 {{ b.musinsa_non_member_count }}건</span>{% endif %}
           <div class="bl-name-sub">{{ b.category }} · 코드 {{ b.model_code }}</div>
         </span>
       </a>
@@ -400,29 +400,36 @@
     </p>
   </div>
   {% else %}
-  <div class="bl-table-wrap">
+  {# 2026-08-19 디자인 통일 — 「촘촘 / 5줄」 전환. 고른 값은 브라우저에 기억된다. #}
+  <div class="bl-density-bar">
+    <div class="ds-tab3" id="bl-density">
+      <button type="button" class="on" data-density="compact">촘촘</button>
+      <button type="button" data-density="tall">5줄</button>
+    </div>
+  </div>
+  <div class="bl-table-wrap" id="bl-dwrap" data-ds-density="compact">
     <table class="bl-table" id="bl-table">
       <thead>
         <tr>
-          <th class="bl-c-check"><input type="checkbox" id="bl-check-all" onclick="document.querySelectorAll('.bl-row-check').forEach(c=>c.checked=this.checked)"></th>
+          <th class="bl-c-check ds-c"><input type="checkbox" id="bl-check-all" onclick="document.querySelectorAll('.bl-row-check').forEach(c=>c.checked=this.checked)"></th>
           <th class="bl-sort" data-sort-key="name" data-type="str">모음전 <span class="sort-ind">⇅</span></th>
           <th class="bl-sort" data-sort-key="brand" data-type="str">브랜드 <span class="sort-ind">⇅</span></th>
-          <th class="bl-sort" data-sort-key="opt_count" data-type="num">옵션 <span class="sort-ind">⇅</span></th>
+          <th class="bl-sort ds-c" data-sort-key="opt_count" data-type="num">옵션 <span class="sort-ind">⇅</span></th>
           {% for mkt in markets_active %}
-          <th class="bl-sort bl-c-mkt-h" data-sort-key="mkt-{{ mkt.key }}" data-type="num" title="{{ mkt.label }}">
+          <th class="bl-sort bl-c-mkt-h ds-c" data-sort-key="mkt-{{ mkt.key }}" data-type="num" title="{{ mkt.label }}">
             <span class="brand-app-logo {{ mkt.key }} sm">{{ mkt.glyph }}</span>
             {{ mkt.label }}
             <span class="sort-ind">⇅</span>
           </th>
           {% endfor %}
-          <th class="bl-sort" data-sort-key="src" data-type="num">소싱처 <span class="sort-ind">⇅</span></th>
-          <th class="bl-sort" data-sort-key="crawl" data-type="num">크롤 <span class="sort-ind">⇅</span></th>
-          <th class="bl-sort" data-sort-key="upload" data-type="num">업로드 <span class="sort-ind">⇅</span></th>
+          <th class="bl-sort ds-c" data-sort-key="src" data-type="num">소싱처 <span class="sort-ind">⇅</span></th>
+          <th class="bl-sort ds-c" data-sort-key="crawl" data-type="num">크롤 <span class="sort-ind">⇅</span></th>
+          <th class="bl-sort ds-c" data-sort-key="upload" data-type="num">업로드 <span class="sort-ind">⇅</span></th>
           {% if selected_status != 'draft' %}
           <th class="bl-c-rmkt-h">등록 마켓</th>
           {% endif %}
-          <th class="bl-sort" data-sort-key="status" data-type="str">상태 <span class="sort-ind">⇅</span></th>
-          <th class="bl-c-action-h">액션</th>
+          <th class="bl-sort ds-c" data-sort-key="status" data-type="str">상태 <span class="sort-ind">⇅</span></th>
+          <th class="bl-c-action-h ds-r">액션</th>
         </tr>
       </thead>
       <tbody id="bl-tbody">
@@ -438,7 +445,7 @@
     <div class="bl-modal" role="dialog" aria-labelledby="add-mkt-title">
       <div class="bl-modal-head">
         <h3 id="add-mkt-title">+ 새 마켓 추가</h3>
-        <button class="bl-modal-close" onclick="closeAddMarketModal()">✕</button>
+        <button class="bl-modal-close" onclick="closeAddMarketModal()"><i class="ph-light ph-x" aria-hidden="true"></i></button>
       </div>
       <p class="bl-modal-lead">
         새 마켓을 모음전 표에 column 으로 추가합니다.
@@ -592,6 +599,27 @@
   .bl-table th.sort-asc .sort-ind, .bl-table th.sort-desc .sort-ind { font-size: 0; }
   .bl-table th.sort-asc::after  { content: ' ▲'; color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); font-size: 12px; }
   .bl-table th.sort-desc::after { content: ' ▼'; color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); font-size: 12px; }
+  /* 2026-08-19 디자인 통일 — 가운데 정렬 머릿글은 정렬표시가 글자를 옆으로 밀지 않게 띄운다. */
+  .bl-table th.ds-c { position: relative; }
+  .bl-table th.ds-c .sort-ind,
+  .bl-table th.ds-c.sort-asc::after,
+  .bl-table th.ds-c.sort-desc::after {
+    position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+    margin: 0; pointer-events: none;
+  }
+  /* 「촘촘 / 5줄」 밀도 전환 (ds.css 의 [data-ds-density] 와 짝) */
+  .bl-density-bar { display: flex; justify-content: flex-end; margin: 0 0 9px; }
+  [data-ds-density="compact"] .bl-table td { padding-top: 6px; padding-bottom: 6px; }
+  [data-ds-density="compact"] .bl-thumb    { font-size: 22px; }
+  [data-ds-density="compact"] .bl-name-sub { display: none; }
+  [data-ds-density="tall"] .bl-table td    { padding-top: 8px; padding-bottom: 8px; }
+  [data-ds-density="tall"] .bl-thumb {
+    font-size: 96px; line-height: 1; width: 146px; height: 146px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--n100, #F2F4F6); border-radius: 8px;
+  }
+  [data-ds-density="tall"] .bl-name-link { align-items: center; gap: 14px; }
+  [data-ds-density="tall"] .bl-name-sub  { display: block; }
   .bl-table td {
     padding:8px 12px; border-bottom: 1px solid var(--n100, var(--n100,#f2f4f6));
     vertical-align: middle; line-height:1.33;
@@ -954,12 +982,12 @@
         <h3 style="margin:0 0 4px;font-size:17px"><i class="ph-light ph-tray-arrow-up" aria-hidden="true"></i> 업로드 실행</h3>
         <p style="margin:0;color:var(--n600);font-size:12px">전체 모음전 → 어떤 마켓에 업로드할까요?</p>
       </div>
-      <button class="modal-close" data-action="close-upload-modal" type="button">✕</button>
+      <button class="modal-close" data-action="close-upload-modal" type="button"><i class="ph-light ph-x" aria-hidden="true"></i></button>
     </div>
     <div class="modal-section-title">대상 마켓 (다중 선택)</div>
     <label class="modal-row on">
       <input type="checkbox" name="market" value="smartstore" checked style="display:none" />
-      <div class="check">✓</div>
+      <div class="check"><i class="ph-light ph-check" aria-hidden="true"></i></div>
       <div class="mk-icon ss">N</div>
       <div class="mk-info">
         <div class="mk-name">스마트스토어</div>
@@ -969,7 +997,7 @@
     </label>
     <label class="modal-row on">
       <input type="checkbox" name="market" value="coupang" checked style="display:none" />
-      <div class="check">✓</div>
+      <div class="check"><i class="ph-light ph-check" aria-hidden="true"></i></div>
       <div class="mk-icon cp">C</div>
       <div class="mk-info">
         <div class="mk-name">쿠팡</div>
@@ -1011,6 +1039,29 @@
 </div>
 {% include 'partials/draft_bubble.html' %}
 
+{# 2026-08-19 디자인 통일 — 밀도 전환. 고른 값을 브라우저에 기억. #}
+<script>
+(function(){
+  var wrap = document.getElementById('bl-dwrap');
+  var bar  = document.getElementById('bl-density');
+  if (!wrap || !bar) return;
+  var KEY = 'bl-density';
+  function apply(v){
+    wrap.setAttribute('data-ds-density', v);
+    bar.querySelectorAll('button').forEach(function(b){
+      b.classList.toggle('on', b.dataset.density === v);
+    });
+    try { localStorage.setItem(KEY, v); } catch(e){}
+  }
+  bar.addEventListener('click', function(e){
+    var b = e.target.closest('button[data-density]');
+    if (b) apply(b.dataset.density);
+  });
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch(e){}
+  if (saved === 'tall' || saved === 'compact') apply(saved);
+})();
+</script>
 <style>
 /* [3단계 배치4b · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
    🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */

@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>모음전 상품관리 — 전체 레이아웃 시안 20</title>
+<style>
+:root{
+  --color-primary:#3182F6; --color-primary-dark:#1B64DA; --color-primary-light:#E8F2FF;
+  --color-navy:#17181C; --color-navy-soft:#20222A; --color-navy-border:#2A2D37;
+  --color-text-primary:#191F28; --color-text-secondary:#4E5968; --color-text-tertiary:#8B95A1;
+  --color-text-on-navy:#B0B8C1;
+  --color-bg-page:#F9FAFB; --color-bg-card:#FFFFFF; --color-bg-muted:#F2F4F6;
+  --color-border:#E5E8EB; --color-border-soft:#F2F4F6;
+  --color-success:#22C55E; --color-warning:#F59E0B; --color-danger:#EF4444; --color-info:#3182F6;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-7:32px; --sp-8:40px;
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:9999px;
+  --sh-sm:0 2px 4px rgba(0,0,0,.04); --sh-md:0 4px 12px rgba(0,0,0,.06); --sh-lg:0 12px 24px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-bg-page);color:var(--color-text-primary);
+  font-family:Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:14px;line-height:1.5}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+
+/* ── 페이지 머리 ── */
+.wrap{max-width:1720px;margin:0 auto;padding:var(--sp-7)}
+h1{font-size:24px;font-weight:700;margin:0 0 var(--sp-2)}
+.lead{color:var(--color-text-secondary);margin:0 0 var(--sp-6)}
+.rec{background:var(--color-primary-light);border:1px solid #9DC2FF;border-radius:var(--r-md);
+  padding:var(--sp-5) var(--sp-6);margin-bottom:var(--sp-6)}
+.rec b{color:var(--color-primary-dark)}
+.rec ul{margin:var(--sp-3) 0 0;padding-left:18px}
+.rec li{margin:2px 0}
+.note{background:var(--color-bg-muted);border-radius:var(--r-sm);padding:var(--sp-4) var(--sp-5);
+  color:var(--color-text-secondary);font-size:13px;margin-bottom:var(--sp-6)}
+
+/* ── 썸네일 갤러리 ── */
+.gal{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-5)}
+.card{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--r-md);
+  overflow:hidden;box-shadow:var(--sh-sm);cursor:pointer;transition:box-shadow .12s,transform .12s}
+.card:hover{box-shadow:var(--sh-md);transform:translateY(-2px);border-color:#9DC2FF}
+.thumb{width:100%;height:216px;overflow:hidden;background:var(--color-bg-muted);
+  border-bottom:1px solid var(--color-border);position:relative}
+.thumb > .mock-app{transform:scale(.2);transform-origin:top left;width:1920px;height:1080px}
+.cap{padding:var(--sp-3) var(--sp-4)}
+.cap .no{font-size:11px;font-weight:700;color:var(--color-text-tertiary)}
+.cap .nm{font-size:14px;font-weight:700;margin:1px 0 2px}
+.cap .ds{font-size:12px;color:var(--color-text-secondary);line-height:1.45;min-height:34px}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:var(--r-full);
+  background:var(--color-bg-muted);color:var(--color-text-secondary);margin-top:var(--sp-2)}
+.tag.rc{background:var(--color-primary-light);color:var(--color-primary-dark)}
+
+/* ── 확대 보기 ── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:50;overflow:auto}
+.ov.on{display:block}
+.ovbar{position:sticky;top:0;background:var(--color-bg-card);border-bottom:1px solid var(--color-border);
+  padding:var(--sp-3) var(--sp-5);display:flex;align-items:center;gap:var(--sp-4);z-index:2}
+.ovbar .t{font-weight:700}
+.ovbar .d{color:var(--color-text-secondary);font-size:13px;flex:1}
+.btn{border:1px solid var(--color-border);background:var(--color-bg-card);border-radius:var(--r-sm);
+  padding:7px 14px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;color:var(--color-text-secondary)}
+.btn--primary{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.ovbody{padding:var(--sp-5);display:flex;justify-content:center}
+.ovbody .mock-win{width:1920px;flex:none}
+
+/* ── 목업 창 ── */
+.mock-win{background:#fff;border:1px solid #d1d6db;border-radius:10px;overflow:hidden;box-shadow:var(--sh-lg)}
+.mock-bar{background:var(--color-bg-muted);padding:10px 16px;font-size:12px;color:#6b7684;
+  border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:var(--sp-2)}
+.mock-bar .url{background:#fff;padding:4px 12px;border-radius:5px;font-family:ui-monospace,monospace;font-size:11.5px;flex:1}
+.mock-app{display:grid;grid-template-columns:200px 1fr;height:1080px;background:var(--color-bg-page)}
+.mock-sb{background:var(--color-navy);color:#fff;padding:14px 12px;font-size:12px;line-height:1.8}
+.mock-content{padding:var(--sp-6) 28px;overflow:hidden}
+
+/* 사이드바 */
+.sb-brand{font-weight:700;font-size:13px;color:#fff;margin-bottom:2px}
+.sb-sub{font-size:10px;color:#6B7280;margin-bottom:var(--sp-4)}
+.sb-modes{display:flex;gap:4px;margin-bottom:var(--sp-4)}
+.sb-mode{flex:1;text-align:center;background:var(--color-navy-soft);border-radius:6px;padding:6px 2px;
+  font-size:10px;color:var(--color-text-on-navy)}
+.sb-mode.on{background:var(--color-primary);color:#fff;font-weight:700}
+.sb-grp{font-size:10px;color:#5B6270;margin:var(--sp-3) 0 2px;font-weight:600}
+.sb-it{padding:5px 8px;border-radius:6px;color:var(--color-text-on-navy);font-size:11.5px;
+  display:flex;align-items:center;gap:6px}
+.sb-it.on{background:var(--color-primary);color:#fff;font-weight:700}
+.sb-it .bd{margin-left:auto;background:#374151;border-radius:var(--r-full);padding:0 6px;font-size:10px}
+
+/* 공통 부품 */
+.ph{display:flex;align-items:flex-end;gap:var(--sp-4);margin-bottom:var(--sp-5)}
+.ph h2{font-size:24px;font-weight:700;margin:0}
+.ph .sub{color:var(--color-text-tertiary);font-size:13px;padding-bottom:3px}
+.ph .sp{margin-left:auto;display:flex;gap:var(--sp-2)}
+.tabs{display:flex;gap:var(--sp-1);border-bottom:1px solid var(--color-border);margin-bottom:var(--sp-5)}
+.tabs div{padding:10px 18px;font-size:14px;font-weight:600;color:var(--color-text-tertiary);
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs div.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+.seg{display:inline-flex;background:var(--color-bg-muted);border-radius:var(--r-sm);padding:3px;gap:2px}
+.seg span{padding:5px 14px;font-size:12.5px;font-weight:600;color:var(--color-text-secondary);border-radius:6px}
+.seg span.on{background:#fff;color:var(--color-text-primary);box-shadow:var(--sh-sm)}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--sp-4);margin-bottom:var(--sp-5)}
+.kpi{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--r-md);padding:var(--sp-4) var(--sp-5)}
+.kpi .l{font-size:12px;color:var(--color-text-tertiary);font-weight:500}
+.kpi .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .v small{font-size:13px;font-weight:600;color:var(--color-text-tertiary);margin-left:3px}
+.kpi.warn .v{color:var(--color-warning)}
+.kpi.dg .v{color:var(--color-danger)}
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-4)}
+.mcard{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--r-md);padding:var(--sp-4) var(--sp-5)}
+.mcard .hd{display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-3)}
+.mcard .hd .nm{font-weight:700;font-size:14px}
+.mcard .hd .tot{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
+.arow{display:grid;grid-template-columns:1fr 62px 52px 52px 52px;gap:var(--sp-2);align-items:center;
+  padding:5px 0;border-top:1px solid var(--color-border-soft);font-size:12px}
+.arow .an{color:var(--color-text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow b{font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+.arow .s1{color:var(--color-success)} .arow .s2{color:var(--color-warning)}
+.arow .s3{color:var(--color-text-tertiary)} .arow .s4{color:var(--color-info)}
+.ahd{display:grid;grid-template-columns:1fr 62px 52px 52px 52px;gap:var(--sp-2);
+  font-size:10.5px;color:var(--color-text-tertiary);font-weight:600;text-align:right;padding-bottom:3px}
+.ahd span:first-child{text-align:left}
+table.tb{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--color-border);border-radius:var(--r-md)}
+table.tb th{background:#FBFCFD;font-size:11.5px;font-weight:600;color:var(--color-text-tertiary);
+  padding:9px 12px;border-bottom:1px solid var(--color-border);text-align:left;white-space:nowrap}
+table.tb th.n{text-align:right} table.tb th.c{text-align:center}
+table.tb td{padding:9px 12px;border-bottom:1px solid var(--color-border-soft);font-size:12.5px}
+table.tb td.n{text-align:right;font-variant-numeric:tabular-nums}
+table.tb td.c{text-align:center}
+.bg{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:var(--r-full);
+  background:var(--color-bg-muted);color:var(--color-text-secondary)}
+.bg.ok{background:#EAFBF0;color:#15803D} .bg.wn{background:#FEF6E7;color:#8A5A00}
+.bg.dg{background:#FEECEC;color:#B91C1C} .bg.pm{background:var(--color-primary-light);color:var(--color-primary-dark)}
+.srch{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-4)}
+.srch .ip{flex:1;border:1px solid var(--color-border);border-radius:var(--r-sm);padding:10px 14px;
+  color:var(--color-text-tertiary);background:#fff;font-size:13px}
+.panel{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--r-md);padding:var(--sp-5)}
+.ttl{font-size:16px;font-weight:700;margin:0 0 var(--sp-3)}
+.sub2{font-size:12px;color:var(--color-text-tertiary)}
+.stale{font-size:12px;color:var(--color-text-tertiary);display:flex;align-items:center;gap:5px}
+.dot{width:6px;height:6px;border-radius:var(--r-full);background:var(--color-success);display:inline-block}
+.split{display:grid;gap:var(--sp-4);height:900px}
+.pane{background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--r-md);
+  padding:var(--sp-4) var(--sp-5);overflow:hidden}
+.lrow{display:grid;grid-template-columns:28px 1fr 92px 120px;gap:var(--sp-3);align-items:center;
+  padding:9px 0;border-bottom:1px solid var(--color-border-soft);font-size:12.5px}
+.lrow.on{background:var(--color-primary-light);margin:0 -12px;padding-left:12px;padding-right:12px;border-radius:6px}
+.lrow .pn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .mk{display:flex;gap:3px;flex-wrap:wrap}
+.chk{width:15px;height:15px;border:1.5px solid var(--color-border);border-radius:4px;display:inline-block}
+.chk.on{background:var(--color-primary);border-color:var(--color-primary)}
+.fld{margin-bottom:var(--sp-3)}
+.fld .lb{font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:3px}
+.fld .iv{border:1px solid var(--color-border);border-radius:var(--r-sm);padding:8px 11px;background:#fff;font-size:13px}
+.cmp{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:var(--sp-2);font-size:12.5px}
+.cmp .a{text-align:right;font-variant-numeric:tabular-nums;color:var(--color-text-tertiary)}
+.cmp .ar{text-align:center;color:var(--color-text-tertiary)}
+.cmp .b{text-align:left;font-variant-numeric:tabular-nums;font-weight:700;color:var(--color-primary-dark)}
+.drw{position:absolute;right:0;top:0;bottom:0;width:760px;background:#fff;border-left:1px solid var(--color-border);
+  box-shadow:-12px 0 24px rgba(0,0,0,.08);padding:var(--sp-5) var(--sp-6)}
+.tray{position:absolute;left:200px;right:0;bottom:0;background:#fff;border-top:2px solid var(--color-primary);
+  box-shadow:0 -8px 20px rgba(0,0,0,.08);padding:var(--sp-4) 28px}
+.rel{position:relative}
+.mtx{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--color-border);
+  border-radius:var(--r-md);margin-top:var(--sp-6);overflow:hidden}
+.mtx th,.mtx td{padding:9px 12px;border-bottom:1px solid var(--color-border-soft);font-size:12.5px;text-align:left}
+.mtx th{background:#FBFCFD;font-size:11.5px;color:var(--color-text-tertiary);font-weight:600}
+.mtx td.c{text-align:center}
+h3.sec{font-size:18px;font-weight:700;margin:var(--sp-8) 0 var(--sp-3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>모음전 상품관리 — 전체 레이아웃 시안 20</h1>
+  <p class="lead">화면 3개(현황 보기 · 상품 담기 · 상품 상세)를 <b>어떻게 오갈지</b>를 정하는 1차입니다.
+    썸네일을 누르면 실제 크기(1920×1080)로 열립니다.</p>
+
+  <div class="rec">
+    <b>먼저 봐주실 3장</b> — 「상품 하나를 보다가 목록으로 돌아오는 왕복」이 제일 잦다는 점을 살린 안입니다.
+    <ul>
+      <li><b>3번 「목록과 상세를 나란히」</b> — 왼쪽 목록을 그대로 둔 채 오른쪽만 바뀝니다. 왕복이 0번. <b>가장 추천</b></li>
+      <li><b>5번 「상세를 옆에서 밀어 열기」</b> — 목록이 넓게 보이고, 상세는 필요할 때만 덮습니다</li>
+      <li><b>12번 「탭 + 위쪽 요약 띠」</b> — 어느 화면에 있든 전체 숫자가 늘 보입니다</li>
+    </ul>
+  </div>
+
+  <div class="note">
+    <b>화면 속 숫자는 실제로 재어 온 값입니다</b> — 롯데온 140,171개(브랜드위시 47,960 최다) · 11번가 약 91,000 ·
+    쿠팡 29,244 · 스마트스토어 9,555 · 옥션·G마켓 9,660. 합계 약 28만 개.
+  </div>
+
+  <div class="gal" id="gal"></div>
+
+  <h3 class="sec">한눈에 비교</h3>
+  <table class="mtx" id="mtx">
+    <thead><tr><th style="width:52px">번호</th><th style="width:220px">이름</th>
+      <th class="c" style="width:110px">목록↔상세 왕복</th><th class="c" style="width:110px">한 화면 정보량</th>
+      <th class="c" style="width:110px">화면 5개까지 확장</th><th>이럴 때 좋습니다</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h3 class="sec">다음에 하실 일</h3>
+  <div class="note" style="margin-bottom:0">
+    <b>하나로 확정</b> — 「3번으로 갈게요」 한 마디면 그 뼈대 위에 2차(현황 화면 20장)를 그립니다.<br>
+    <b>섞기</b> — 「3번 뼈대 + 12번 위쪽 요약 띠」 처럼 말씀하시면 합친 안 1장을 다시 보여드립니다.<br>
+    <b>수정</b> — 고칠 곳만 알려주시면 그 부분만 고쳐 다시 보여드립니다.
+  </div>
+</div>
+
+<div class="ov" id="ov">
+  <div class="ovbar">
+    <span class="t" id="ovT"></span><span class="d" id="ovD"></span>
+    <button class="btn" id="prev">← 이전</button>
+    <button class="btn" id="next">다음 →</button>
+    <button class="btn btn--primary" id="close">닫기 (Esc)</button>
+  </div>
+  <div class="ovbody"><div class="mock-win">
+    <div class="mock-bar"><span>●</span><span>●</span><span>●</span>
+      <span class="url">mou-m.com/products</span></div>
+    <div id="ovMock"></div>
+  </div></div>
+</div>
+
+<script>
+/* ─────────── 공통 부품 ─────────── */
+const SB = (act) => `
+<div class="mock-sb">
+  <div class="sb-brand">모음전 자동화</div><div class="sb-sub">v3 · 멀티 브랜드 · 멀티 마켓</div>
+  <div class="sb-modes"><div class="sb-mode on">모음전</div><div class="sb-mode">재고</div><div class="sb-mode">대량</div></div>
+  <div class="sb-grp">모음전 구성</div>
+  <div class="sb-it">📋 모음전 구성</div><div class="sb-it">🔗 기존 마켓 연동</div>
+  <div class="sb-grp">매핑 현황</div>
+  <div class="sb-it">🏠 소싱처 운영센터</div><div class="sb-it">🔍 미맵핑 큐<span class="bd">12</span></div>
+  <div class="sb-grp">판매</div>
+  <div class="sb-it ${act==='pm'?'on':''}">📦 상품관리</div>
+  <div class="sb-it">🧾 주문 내역</div><div class="sb-it">📊 마진 계산기</div><div class="sb-it">🧩 템플릿</div>
+</div>`;
+
+const STALE = `<span class="stale"><span class="dot"></span>마지막 확인: 오늘 새벽 3시</span>`;
+const PH = (t, sub, right='') => `<div class="ph"><h2>${t}</h2><span class="sub">${sub}</span>
+  <span class="sp">${right||STALE}</span></div>`;
+const TABS = (on) => `<div class="tabs">
+  ${['현황 보기','상품 담기','상품 상세','신규 등록','타마켓 판매'].map((n,i)=>
+    `<div class="${i===on?'on':''}">${n}</div>`).join('')}</div>`;
+const SEG = () => `<div class="seg"><span class="on">모음전</span><span>대량등록</span></div>`;
+
+const KPI = () => `<div class="kpis">
+  <div class="kpi"><div class="l">전체 등록</div><div class="v">279,630<small>개</small></div></div>
+  <div class="kpi"><div class="l">판매중</div><div class="v" style="color:var(--color-success)">262,417<small>개</small></div></div>
+  <div class="kpi warn"><div class="l">품절</div><div class="v">1,884<small>개</small></div></div>
+  <div class="kpi"><div class="l">판매중지</div><div class="v" style="color:var(--color-text-tertiary)">14,309<small>개</small></div></div>
+  <div class="kpi dg"><div class="l">모음전으로 담은 것</div><div class="v">1,204<small>개</small></div></div>
+</div>`;
+
+const MK = [
+  ['롯데온','140,171',[['브랜드위시','47,960','44,102','612','3,246','0'],['브랜드박스','33,870','31,559','388','1,923','0'],
+    ['브랜드타임','15,635','14,880','142','613','0'],['브랜드바이','12,007','11,402','96','509','0'],
+    ['브랜드마켓','10,581','9,853','224','504','0'],['브랜드조이','10,316','9,744','88','484','0'],
+    ['브랜드웨이','9,802','9,201','61','540','0']]],
+  ['11번가','91,112',[['브랜드마켓','13,016','12,240','203','573','0'],['브랜드바이','13,402','12,610','188','604','0'],
+    ['브랜드박스','12,884','12,102','166','616','0'],['브랜드웨이','13,110','12,388','171','551','0'],
+    ['브랜드위시','12,960','12,204','154','602','0'],['브랜드조이','12,802','12,066','142','594','0'],
+    ['브랜드타임','12,938','12,190','160','588','0']]],
+  ['쿠팡','29,244',[['브랜드타임','9,974','9,402','188','384','0'],['브랜드바이','7,854','7,388','142','324','0'],
+    ['브랜드웨이','4,581','4,302','88','191','0'],['브랜드박스','3,752','3,510','62','180','0'],
+    ['브랜드위시','2,986','2,802','44','140','0'],['세소','78','72','2','4','0'],['브랜드마켓','19','17','0','1','1']]],
+  ['스마트스토어','9,555',[['브랜드마켓','6,520','6,002','5','509','0'],['브랜드타임','944','865','17','62','0'],
+    ['브랜드박스','1,218','1,184','0','32','0'],['브랜드위시','762','715','0','44','0'],
+    ['브랜드트립','111','109','0','2','0']]],
+  ['옥션','4,673',[['브랙드웍스','1,605','1,537','0','67','0'],['브랜드위시','1,654','1,603','0','51','0'],
+    ['브랜드타임즈','1,414','1,347','0','63','0']]],
+  ['G마켓','4,987',[['브랙드웍스','1,655','1,588','0','66','0'],['브랜드위시','1,676','1,622','0','52','0'],
+    ['브랜드타임즈','1,656','1,580','0','74','0']]],
+];
+
+const MCARD = (m) => `<div class="mcard">
+  <div class="hd"><span class="bg pm">${m[0]}</span><span class="nm">계정 ${m[2].length}개</span>
+    <span class="tot">${m[1]}</span></div>
+  <div class="ahd"><span>계정</span><span>전체</span><span>판매중</span><span>품절</span><span>중지</span></div>
+  ${m[2].slice(0,5).map(a=>`<div class="arow"><span class="an">${a[0]}</span>
+    <b>${a[1]}</b><b class="s1">${a[2]}</b><b class="s2">${a[3]}</b><b class="s3">${a[4]}</b></div>`).join('')}
+</div>`;
+const MGRID = (n=6) => `<div class="mgrid">${MK.slice(0,n).map(MCARD).join('')}</div>`;
+
+const MTABLE = () => `<table class="tb"><thead><tr>
+  <th>마켓</th><th>계정</th><th class="n">전체</th><th class="n">판매중</th>
+  <th class="n">품절</th><th class="n">판매중지</th><th class="n">승인대기</th><th class="c">확인 시각</th></tr></thead>
+  <tbody>${MK.flatMap(m=>m[2].slice(0,3).map((a,i)=>`<tr>
+    <td>${i===0?`<span class="bg pm">${m[0]}</span>`:''}</td><td>${a[0]}</td>
+    <td class="n">${a[1]}</td><td class="n" style="color:var(--color-success)">${a[2]}</td>
+    <td class="n" style="color:var(--color-warning);font-weight:700">${a[3]}</td>
+    <td class="n" style="color:var(--color-text-tertiary)">${a[4]}</td><td class="n">${a[5]}</td>
+    <td class="c"><span class="sub2">새벽 3시</span></td></tr>`)).join('')}</tbody></table>`;
+
+const PRODS = [
+  ['아디다스골프 HS9658 A672S 썬 햇 모자','아디다스','31,900',['롯데온','11번가','쿠팡']],
+  ['디아도라 스트라이프 미드 삭스 BROWN','디아도라','18,900',['롯데온','옥션','G마켓']],
+  ['필라 페이토 샌들 1SM02602H063','휠라','39,000',['옥션','G마켓']],
+  ['와키윌리 우먼스 세미와이드 스웻팬츠 오트밀','와키윌리','48,000',['롯데온','스마트스토어','쿠팡','11번가']],
+  ['조던 스포츠 터널 팬츠 FB4660-085','나이키','69,000',['쿠팡','11번가']],
+  ['뉴발란스 992 그레이 M992GR','뉴발란스','289,000',['롯데온','옥션']],
+  ['노스페이스 눕시 다운 자켓 블랙','노스페이스','329,000',['롯데온','11번가','쿠팡','G마켓']],
+  ['컨버스 척테일러 하이 옵티컬 화이트','컨버스','69,900',['스마트스토어','옥션']],
+];
+const LIST = (n=8, sel=0) => PRODS.slice(0,n).map((p,i)=>`<div class="lrow ${i===sel?'on':''}">
+  <span class="chk ${i<2?'on':''}"></span>
+  <span class="pn">${p[0]}<div class="sub2">${p[1]}</div></span>
+  <span class="num">${p[2]}원</span>
+  <span class="mk">${p[3].map(m=>`<span class="bg">${m}</span>`).join('')}</span></div>`).join('');
+
+const SEARCH = () => `<div class="srch"><div class="ip">상품명 · 브랜드 · 상품번호로 찾기</div>
+  <button class="btn">필터</button><button class="btn btn--primary">모음전으로 담기 2</button></div>`;
+
+const DETAIL = (compact) => `
+  <div class="ttl">아디다스골프 HS9658 A672S 썬 햇 모자 <span class="bg pm">3개 마켓</span></div>
+  <div class="sub2" style="margin-bottom:16px">아디다스 · 모음전 상품 #1042 ·
+    <span style="color:var(--color-primary)">모음전 구성 보기 ↗</span> ·
+    <span style="color:var(--color-primary)">마켓 상품 페이지 ↗</span></div>
+  <div class="tabs" style="margin-bottom:16px">${['롯데온','11번가','쿠팡'].map((n,i)=>
+    `<div class="${i===0?'on':''}">${n}</div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div>
+      <div class="fld"><div class="lb">마켓 상품명</div><div class="iv">&lt;매장정품&gt; 아디다스골프 썬 햇 모자 479803</div></div>
+      <div class="fld"><div class="lb">판매가</div><div class="iv">31,900원</div></div>
+      <div class="fld"><div class="lb">브랜드 · 원산지</div><div class="iv">아디다스 · 베트남</div></div>
+      ${compact?'':`<div class="fld"><div class="lb">배송</div><div class="iv">무료배송 · 출고지 서울</div></div>
+      <div class="fld"><div class="lb">카테고리</div><div class="iv">패션잡화 &gt; 모자 &gt; 썬캡</div></div>`}
+    </div>
+    <div>
+      <div class="lb" style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:6px">
+        옵션 연동 (2개)</div>
+      <table class="tb"><thead><tr><th>옵션</th><th class="n">판매가</th><th class="n">재고</th><th class="c">연동</th></tr></thead>
+      <tbody>
+        <tr><td>BROWN / FREE</td><td class="n">31,900</td><td class="n">12</td><td class="c"><span class="bg ok">연결됨</span></td></tr>
+        <tr><td>BLACK / FREE</td><td class="n">31,900</td><td class="n">0</td><td class="c"><span class="bg wn">품절</span></td></tr>
+      </tbody></table>
+      <div class="lb" style="font-size:12px;font-weight:600;color:var(--color-text-secondary);margin:14px 0 6px">
+        바꾼 곳 (마켓에 아직 안 보냄)</div>
+      <div class="panel" style="padding:12px 14px">
+        <div class="cmp"><span class="a">31,900원</span><span class="ar">→</span><span class="b">29,900원</span></div>
+        <div class="cmp" style="margin-top:6px"><span class="a">무료배송</span><span class="ar">→</span><span class="b">조건부 3,000원</span></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn">저장</button><button class="btn btn--primary">마켓에 반영</button></div>
+    </div>
+  </div>`;
+
+/* ─────────── 20가지 뼈대 ─────────── */
+const V = [
+{n:'위쪽 가로 탭', d:'탭을 눌러 화면을 갈아탑니다. 지금 프로그램의 다른 화면과 가장 비슷합니다.',
+ wr:'많음', info:'보통', ext:'좋음', when:'익숙한 방식 그대로 가고 싶을 때',
+ c:()=>`${PH('상품관리','마켓에 올라간 상품을 한곳에서')}${TABS(0)}${KPI()}${MGRID(6)}`},
+
+{n:'왼쪽에 작은 메뉴 하나 더', d:'사이드바 옆에 두 번째 메뉴가 서고, 오른쪽이 바뀝니다.',
+ wr:'많음', info:'보통', ext:'매우 좋음', when:'화면이 5개로 늘어나도 안 비좁게',
+ c:()=>`<div style="display:grid;grid-template-columns:170px 1fr;gap:20px;height:100%">
+   <div class="panel" style="padding:14px">
+     <div class="sub2" style="font-weight:700;color:var(--color-text-secondary);margin-bottom:8px">상품관리</div>
+     ${['현황 보기','상품 담기','상품 상세','신규 등록','타마켓 판매'].map((n,i)=>
+       `<div class="sb-it" style="color:${i===0?'#fff':'var(--color-text-secondary)'};
+         background:${i===0?'var(--color-primary)':'transparent'};margin-bottom:2px">${n}</div>`).join('')}
+   </div>
+   <div>${PH('현황 보기','마켓 6곳 · 계정 36개')}${KPI()}${MGRID(3)}</div></div>`},
+
+{n:'목록과 상세를 나란히', d:'왼쪽 목록은 그대로 두고 오른쪽만 바뀝니다. 목록으로 돌아갈 필요가 없습니다.', rec:1,
+ wr:'없음', info:'많음', ext:'좋음', when:'상품을 여러 개 연달아 볼 때 (가장 잦은 일)',
+ c:()=>`${PH('상품관리','모음전 상품 1,204개')}${TABS(2)}
+   <div class="split" style="grid-template-columns:620px 1fr">
+     <div class="pane">${SEARCH()}${LIST(8,0)}</div>
+     <div class="pane">${DETAIL()}</div></div>`},
+
+{n:'목록에서 눌러 전체 화면으로', d:'상세가 화면을 꽉 채웁니다. 한 상품에만 집중됩니다.',
+ wr:'많음', info:'많음', ext:'좋음', when:'상세 내용이 아주 많을 때',
+ c:()=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+     <button class="btn">← 목록으로</button><span class="sub2">모음전 상품 1,204개 중 1번째</span>
+     <span style="margin-left:auto">${STALE}</span></div>
+   <div class="panel">${DETAIL()}</div>`},
+
+{n:'상세를 옆에서 밀어 열기', d:'목록은 넓게 그대로, 상세만 오른쪽에서 덮어 열립니다. 닫으면 제자리.', rec:1,
+ wr:'적음', info:'많음', ext:'매우 좋음', when:'목록을 넓게 보면서 가끔 상세를 볼 때',
+ c:()=>`<div class="rel" style="height:100%">${PH('상품관리','모음전 상품 1,204개')}${TABS(1)}
+   <div class="panel">${SEARCH()}${LIST(8,-1)}</div>
+   <div class="drw"><div class="sub2" style="margin-bottom:10px">
+     <button class="btn">닫기 ×</button></div>${DETAIL(1)}</div></div>`},
+
+{n:'상세를 가운데 창으로', d:'화면 가운데에 창이 뜹니다. 뒤 목록이 비쳐 보입니다.',
+ wr:'적음', info:'보통', ext:'보통', when:'빠르게 하나만 확인하고 닫을 때',
+ c:()=>`<div class="rel" style="height:100%">${PH('상품관리','모음전 상품 1,204개')}${TABS(1)}
+   <div class="panel" style="opacity:.45">${SEARCH()}${LIST(8,-1)}</div>
+   <div style="position:absolute;inset:60px 180px auto 180px;background:#fff;border-radius:16px;
+     box-shadow:0 12px 24px rgba(0,0,0,.18);padding:24px 28px;border:1px solid var(--color-border)">
+     ${DETAIL()}</div></div>`},
+
+{n:'행을 눌러 그 자리에서 펼치기', d:'누른 줄 바로 아래가 열립니다. 화면이 안 바뀝니다.',
+ wr:'없음', info:'적음', ext:'보통', when:'값 한두 개만 빨리 고칠 때',
+ c:()=>`${PH('상품관리','모음전 상품 1,204개')}${TABS(1)}
+   <div class="panel">${SEARCH()}${LIST(2,-1)}
+     <div style="background:var(--color-bg-muted);border-radius:10px;padding:18px 20px;margin:6px 0">
+       ${DETAIL(1)}</div>
+     ${LIST(5,-1)}</div>`},
+
+{n:'세 칸으로 쪼개기', d:'마켓 → 상품 → 상세가 왼쪽부터 차례로 놓입니다.',
+ wr:'없음', info:'많음', ext:'보통', when:'마켓별로 좁혀 들어가며 볼 때',
+ c:()=>`${PH('상품관리','마켓 6곳 · 계정 36개')}
+   <div class="split" style="grid-template-columns:230px 480px 1fr">
+     <div class="pane"><div class="ttl" style="font-size:14px">마켓 · 계정</div>
+       ${MK.map((m,i)=>`<div style="margin-bottom:6px">
+         <div class="lrow" style="grid-template-columns:1fr auto;padding:6px 0;font-weight:700">
+           <span>${m[0]}</span><span class="num">${m[1]}</span></div>
+         ${i===0?m[2].slice(0,3).map(a=>`<div class="lrow" style="grid-template-columns:1fr auto;
+           padding:4px 0 4px 12px;font-size:12px;color:var(--color-text-secondary)">
+           <span>${a[0]}</span><span class="num">${a[1]}</span></div>`).join(''):''}</div>`).join('')}</div>
+     <div class="pane">${SEARCH()}${LIST(7,0)}</div>
+     <div class="pane">${DETAIL(1)}</div></div>`},
+
+{n:'상태별로 줄 세우기', d:'판매중·품절·판매중지·승인대기가 각각 한 줄이 됩니다.',
+ wr:'적음', info:'보통', ext:'보통', when:'품절·승인대기를 몰아서 처리할 때',
+ c:()=>`${PH('상품관리','상태별로 보기')}${TABS(0)}
+   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;height:820px">
+     ${[['판매중','262,417','var(--color-success)'],['품절','1,884','var(--color-warning)'],
+        ['판매중지','14,309','var(--color-text-tertiary)'],['승인대기','1','var(--color-info)']]
+       .map(s=>`<div class="pane" style="border-top:3px solid ${s[2]}">
+       <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px">
+         <span style="font-weight:700">${s[0]}</span>
+         <span class="num" style="margin-left:auto;font-weight:700;color:${s[2]}">${s[1]}</span></div>
+       ${PRODS.slice(0,5).map(p=>`<div style="border:1px solid var(--color-border);border-radius:8px;
+         padding:9px 11px;margin-bottom:7px;font-size:12px">
+         <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p[0]}</div>
+         <div class="sub2">${p[1]} · ${p[2]}원</div></div>`).join('')}</div>`).join('')}</div>`},
+
+{n:'현황이 첫 화면, 눌러서 들어가기', d:'큰 카드가 먼저 보이고 카드를 누르면 그 안으로 들어갑니다.',
+ wr:'많음', info:'적음', ext:'매우 좋음', when:'무엇부터 볼지 고르는 데 시간을 쓸 때',
+ c:()=>`${PH('상품관리','오늘 봐야 할 것')}
+   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px">
+     ${[['📦','모음전 상품','1,204','담아둔 상품을 보고 고칩니다'],
+        ['🔎','상품 담기','279,630','마켓에서 찾아 모음전으로'],
+        ['⚠️','손보는 게 좋은 것','1,884','품절인데 판매중인 상품']].map(c=>`
+       <div class="panel" style="padding:26px 28px">
+         <div style="font-size:30px">${c[0]}</div>
+         <div style="font-size:17px;font-weight:700;margin-top:8px">${c[1]}</div>
+         <div class="num" style="font-size:32px;font-weight:700;text-align:left;margin:4px 0">${c[2]}</div>
+         <div class="sub2">${c[3]}</div></div>`).join('')}</div>
+   ${MGRID(3)}`},
+
+{n:'검색이 첫 화면', d:'들어오자마자 검색창이 가운데. 치면 결과가 아래로 펼쳐집니다.',
+ wr:'적음', info:'적음', ext:'보통', when:'찾을 상품이 이미 정해져 있을 때',
+ c:()=>`<div style="max-width:1100px;margin:70px auto 0">
+     <div style="text-align:center;margin-bottom:24px">
+       <div style="font-size:26px;font-weight:700">무슨 상품을 찾으세요?</div>
+       <div class="sub2" style="margin-top:6px">마켓 6곳에 올라간 279,630개에서 찾습니다 · ${STALE.replace('<span class="stale">','<span>')}</div></div>
+     <div class="srch" style="margin-bottom:20px"><div class="ip" style="padding:16px 20px;font-size:16px">
+       상품명 · 브랜드 · 상품번호</div><button class="btn btn--primary" style="padding:0 28px">찾기</button></div>
+     <div class="panel">${LIST(6,-1)}</div></div>`},
+
+{n:'탭 + 위쪽 요약 띠', d:'어느 화면에 있든 위쪽에 전체 숫자가 늘 붙어 있습니다.', rec:1,
+ wr:'많음', info:'많음', ext:'좋음', when:'전체 숫자를 항상 곁눈질하고 싶을 때',
+ c:()=>`${PH('상품관리','마켓에 올라간 상품을 한곳에서')}${KPI()}${TABS(1)}
+   <div class="panel">${SEARCH()}${LIST(8,-1)}</div>`},
+
+{n:'왼쪽에 마켓 나무', d:'마켓과 계정이 접었다 폈다 하는 나무 모양으로 왼쪽에 섭니다.',
+ wr:'없음', info:'많음', ext:'좋음', when:'특정 계정만 계속 들여다볼 때',
+ c:()=>`${PH('상품관리','마켓 6곳 · 계정 36개')}
+   <div class="split" style="grid-template-columns:280px 1fr">
+     <div class="pane">${MK.map((m,i)=>`
+       <div class="lrow" style="grid-template-columns:14px 1fr auto;padding:7px 0;font-weight:700">
+         <span class="sub2">${i===0?'▾':'▸'}</span><span>${m[0]}</span><span class="num">${m[1]}</span></div>
+       ${i===0?m[2].map(a=>`<div class="lrow" style="grid-template-columns:1fr auto;padding:4px 0 4px 22px;
+         font-size:12px;color:var(--color-text-secondary);border-bottom:0">
+         <span>${a[0]}</span><span class="num">${a[1]}</span></div>`).join(''):''}`).join('')}</div>
+     <div><div class="panel" style="margin-bottom:16px">${SEARCH()}${LIST(6,-1)}</div></div></div>`},
+
+{n:'차례대로 밟아가기', d:'위쪽에 1·2·3 단계가 보이고 한 단계씩 넘어갑니다.',
+ wr:'많음', info:'적음', ext:'나쁨', when:'처음 쓰는 사람이 순서를 익힐 때',
+ c:()=>`<div style="display:flex;gap:0;margin-bottom:24px;align-items:center">
+     ${['현황을 본다','담을 상품을 고른다','내용을 고친다','마켓에 보낸다'].map((s,i)=>`
+       <div style="display:flex;align-items:center;gap:10px;${i<3?'flex:1':''}">
+         <div style="width:30px;height:30px;border-radius:999px;display:flex;align-items:center;
+           justify-content:center;font-weight:700;font-size:13px;
+           background:${i<=1?'var(--color-primary)':'var(--color-bg-muted)'};
+           color:${i<=1?'#fff':'var(--color-text-tertiary)'}">${i+1}</div>
+         <span style="font-weight:${i===1?700:500};color:${i<=1?'var(--color-text-primary)':'var(--color-text-tertiary)'}">${s}</span>
+         ${i<3?'<div style="flex:1;height:2px;background:var(--color-border)"></div>':''}</div>`).join('')}</div>
+   <div class="panel">${SEARCH()}${LIST(8,-1)}</div>`},
+
+{n:'여러 상품을 나란히 붙여놓기', d:'상품을 핀으로 꽂아 옆에 나란히 두고 비교합니다.',
+ wr:'없음', info:'많음', ext:'나쁨', when:'비슷한 상품끼리 값을 맞출 때',
+ c:()=>`${PH('상품관리','나란히 보기 · 3개 꽂음')}${TABS(2)}
+   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;height:800px">
+     ${PRODS.slice(0,3).map(p=>`<div class="pane">
+       <div style="font-weight:700;font-size:13px;margin-bottom:2px">${p[0]}</div>
+       <div class="sub2" style="margin-bottom:12px">${p[1]} · 핀 고정 📌</div>
+       <div class="fld"><div class="lb">판매가</div><div class="iv">${p[2]}원</div></div>
+       <div class="fld"><div class="lb">올라간 마켓</div>
+         <div class="iv">${p[3].map(m=>`<span class="bg">${m}</span>`).join(' ')}</div></div>
+       <div class="fld"><div class="lb">상태</div><div class="iv"><span class="bg ok">판매중</span></div></div>
+       <div class="fld"><div class="lb">옵션</div><div class="iv">2개 · 모두 연결됨</div></div>
+     </div>`).join('')}</div>`},
+
+{n:'상품마다 탭이 생김', d:'연 상품이 위쪽에 탭으로 쌓입니다. 여러 개를 열어두고 오갑니다.',
+ wr:'없음', info:'많음', ext:'좋음', when:'상품 여러 개를 동시에 붙잡고 일할 때',
+ c:()=>`<div style="display:flex;gap:2px;border-bottom:1px solid var(--color-border);margin-bottom:18px">
+     ${['📋 목록','아디다스골프 썬 햇','디아도라 미드 삭스','필라 페이토 샌들'].map((t,i)=>`
+       <div style="padding:9px 16px;font-size:12.5px;font-weight:${i===1?700:500};
+         background:${i===1?'#fff':'transparent'};border:1px solid ${i===1?'var(--color-border)':'transparent'};
+         border-bottom:${i===1?'1px solid #fff':'0'};border-radius:8px 8px 0 0;margin-bottom:-1px;
+         color:${i===1?'var(--color-text-primary)':'var(--color-text-tertiary)'}">${t}${i>0?' ×':''}</div>`).join('')}</div>
+   <div class="panel">${DETAIL()}</div>`},
+
+{n:'뒤로 갈수록 겹쳐 쌓이기', d:'들어갈 때마다 카드가 겹쳐 쌓여, 어디서 왔는지 보입니다.',
+ wr:'적음', info:'보통', ext:'좋음', when:'깊이 들어갔다 되돌아 나오는 일이 많을 때',
+ c:()=>`<div class="rel" style="height:100%">
+     <div class="panel" style="position:absolute;inset:0 60px 0 0;opacity:.4">${PH('현황 보기','')}${MGRID(3)}</div>
+     <div class="panel" style="position:absolute;inset:26px 30px 26px 40px;opacity:.7;box-shadow:var(--sh-md)">
+       ${SEARCH()}${LIST(5,-1)}</div>
+     <div class="panel" style="position:absolute;inset:52px 0 52px 80px;box-shadow:var(--sh-lg)">
+       <div class="sub2" style="margin-bottom:10px">← 상품 담기 ← 현황 보기</div>${DETAIL(1)}</div></div>`},
+
+{n:'왼쪽에 거르개, 오른쪽에 카드', d:'왼쪽에서 마켓·상태·브랜드로 거르고, 오른쪽에 사진 카드로 뜹니다.',
+ wr:'적음', info:'보통', ext:'좋음', when:'사진을 보며 고를 때',
+ c:()=>`${PH('상품관리','279,630개에서 고르기')}${TABS(1)}
+   <div class="split" style="grid-template-columns:250px 1fr">
+     <div class="pane">
+       ${[['마켓',['롯데온','11번가','쿠팡','스마트스토어','옥션','G마켓']],
+          ['상태',['판매중','품절','판매중지','승인대기']],
+          ['브랜드',['아디다스','나이키','휠라','컨버스']]].map(g=>`
+         <div style="margin-bottom:16px"><div class="lb" style="font-size:12px;font-weight:700;
+           color:var(--color-text-secondary);margin-bottom:6px">${g[0]}</div>
+           ${g[1].map((o,i)=>`<div style="display:flex;align-items:center;gap:7px;padding:3px 0;font-size:12.5px;
+             color:var(--color-text-secondary)"><span class="chk ${i===0?'on':''}"></span>${o}</div>`).join('')}</div>`).join('')}
+     </div>
+     <div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+       ${PRODS.map(p=>`<div class="panel" style="padding:0;overflow:hidden">
+         <div style="height:130px;background:var(--color-bg-muted);display:flex;align-items:center;
+           justify-content:center;color:var(--color-text-tertiary);font-size:11px">사진</div>
+         <div style="padding:10px 12px">
+           <div style="font-size:12px;font-weight:600;height:34px;overflow:hidden">${p[0]}</div>
+           <div class="sub2">${p[1]}</div>
+           <div class="num" style="font-weight:700;text-align:left;margin-top:3px">${p[2]}원</div>
+           <div class="mk" style="margin-top:5px">${p[3].slice(0,3).map(m=>`<span class="bg">${m}</span>`).join('')}</div>
+         </div></div>`).join('')}</div></div></div>`},
+
+{n:'고른 것이 아래에 쌓임', d:'고를 때마다 아래 띠에 담기고, 다 골랐으면 한 번에 담습니다.',
+ wr:'적음', info:'보통', ext:'좋음', when:'여러 마켓에 흩어진 같은 상품을 한 번에 묶을 때',
+ c:()=>`<div class="rel" style="height:100%">${PH('상품 담기','279,630개에서 고르기')}${TABS(1)}
+   <div class="panel">${SEARCH()}${LIST(8,-1)}</div>
+   <div class="tray" style="left:0">
+     <div style="display:flex;align-items:center;gap:12px">
+       <b>3개 골랐습니다</b>
+       <div style="display:flex;gap:6px;flex:1">
+         ${PRODS.slice(0,3).map(p=>`<span class="bg pm">${p[0].slice(0,18)}… ×</span>`).join('')}</div>
+       <button class="btn">한 상품으로 묶기</button>
+       <button class="btn btn--primary">모음전으로 담기</button></div></div></div>`},
+
+{n:'위는 현황, 아래는 상세', d:'화면을 위아래로 나눠 현황을 늘 보면서 아래에서 상세를 봅니다.',
+ wr:'없음', info:'많음', ext:'보통', when:'숫자를 보며 바로 고쳐야 할 때',
+ c:()=>`${PH('상품관리','마켓 6곳 · 계정 36개')}
+   <div style="height:300px;overflow:hidden;margin-bottom:16px">${MGRID(3)}</div>
+   <div class="panel" style="height:560px">
+     <div style="display:flex;gap:16px;height:100%">
+       <div style="width:520px;overflow:hidden">${SEARCH()}${LIST(6,0)}</div>
+       <div style="flex:1;border-left:1px solid var(--color-border);padding-left:16px">${DETAIL(1)}</div></div></div>`},
+];
+
+/* ─────────── 그리기 ─────────── */
+const gal = document.getElementById('gal');
+V.forEach((v,i)=>{
+  const el = document.createElement('div');
+  el.className = 'card'; el.dataset.i = i;
+  el.innerHTML = `<div class="thumb"><div class="mock-app">${SB('pm')}<div class="mock-content">${v.c()}</div></div></div>
+    <div class="cap"><div class="no">${i+1}번</div><div class="nm">${v.n}</div>
+      <div class="ds">${v.d}</div>${v.rec?'<span class="tag rc">먼저 봐주세요</span>':`<span class="tag">${v.when}</span>`}</div>`;
+  el.onclick = () => open(i);
+  gal.appendChild(el);
+});
+
+document.querySelector('#mtx tbody').innerHTML = V.map((v,i)=>`<tr>
+  <td><b>${i+1}번</b></td><td>${v.n}${v.rec?' <span class="bg pm">추천</span>':''}</td>
+  <td class="c">${v.wr}</td><td class="c">${v.info}</td><td class="c">${v.ext}</td>
+  <td style="color:var(--color-text-secondary)">${v.when}</td></tr>`).join('');
+
+let cur = 0;
+const ov = document.getElementById('ov');
+function open(i){
+  cur = i; const v = V[i];
+  document.getElementById('ovT').textContent = `${i+1}번. ${v.n}`;
+  document.getElementById('ovD').textContent = v.d;
+  document.getElementById('ovMock').innerHTML =
+    `<div class="mock-app">${SB('pm')}<div class="mock-content">${v.c()}</div></div>`;
+  ov.classList.add('on'); ov.scrollTop = 0;
+}
+document.getElementById('close').onclick = () => ov.classList.remove('on');
+document.getElementById('prev').onclick = () => open((cur-1+V.length)%V.length);
+document.getElementById('next').onclick = () => open((cur+1)%V.length);
+ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('on'); });
+document.addEventListener('keydown', e => {
+  if (!ov.classList.contains('on')) return;
+  if (e.key === 'Escape') ov.classList.remove('on');
+  else if (e.key === 'ArrowRight') open((cur+1)%V.length);
+  else if (e.key === 'ArrowLeft') open((cur-1+V.length)%V.length);
+});
+</script>
+</body>
+</html>

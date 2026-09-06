@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}➕ 신규 소싱처 추가 — 모음전 자동화{% endblock %}
+{% block title %}<i class="ph-light ph-plus" aria-hidden="true"></i> 신규 소싱처 추가 — 모음전 자동화{% endblock %}
 {% block content %}
 <style>
   .sa-shell{padding:24px 24px;max-width:1280px;margin:0 auto}
@@ -103,7 +103,7 @@
     <!-- 우측 — 폼 -->
     <div class="sa-col">
       <form method="post" id="sourceForm" class="sa-card primary">
-        <h2>➕ 신규 소싱처 정보</h2>
+        <h2><i class="ph-light ph-plus" aria-hidden="true"></i> 신규 소싱처 정보</h2>
 
         <!-- URL probe (자동 채우기) -->
         <div class="sa-field" style="background:var(--bg,#F9FAFB);padding:12px;border-radius:8px;border:1px dashed var(--faint,#CBCCD3)">
@@ -181,7 +181,7 @@
         </div>
 
         <div style="display:flex;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--n100,#F2F4F6)">
-          <button type="submit" class="sa-btn sa-btn-primary">✓ 등록 + 모든 모음전에 컬럼 추가</button>
+          <button type="submit" class="sa-btn sa-btn-primary"><i class="ph-light ph-check" aria-hidden="true"></i> 등록 + 모든 모음전에 컬럼 추가</button>
           <a href="/accounts/sourcing" class="sa-btn sa-btn-ghost" style="text-decoration:none;display:inline-block">취소</a>
         </div>
       </form>

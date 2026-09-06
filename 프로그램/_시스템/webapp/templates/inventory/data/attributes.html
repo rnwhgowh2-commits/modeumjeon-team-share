@@ -43,7 +43,7 @@
             <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--primary,#4F67FF);color: var(--글자-파랑, var(--primary,#4F67FF));padding:4px 12px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">+ <i class="ph-light ph-{{ std[2] }}" aria-hidden="true"></i> {{ std[0] }}</button>
           </form>
         {% else %}
-          <button type="button" disabled style="background:var(--line2,#F1F1F4);border:1px solid var(--line,#E5E8EB);color:var(--sub,#8F91A0);padding:4px 12px;border-radius:8px;font-size:14px;cursor:default">✓ <i class="ph-light ph-{{ std[2] }}" aria-hidden="true"></i> {{ std[0] }}</button>
+          <button type="button" disabled style="background:var(--line2,#F1F1F4);border:1px solid var(--line,#E5E8EB);color:var(--sub,#8F91A0);padding:4px 12px;border-radius:8px;font-size:14px;cursor:default"><i class="ph-light ph-check" aria-hidden="true"></i> <i class="ph-light ph-{{ std[2] }}" aria-hidden="true"></i> {{ std[0] }}</button>
         {% endif %}
       {% endfor %}
     </div>
@@ -89,6 +89,6 @@
       </tbody>
     </table>
   </div>
-  <div style="margin-top:12px;font-size:12px;color:var(--sub,#8F91A0);line-height:1.7">★ 박스히어로 1:1 — 5 type (텍스트/숫자/날짜/바코드/파일) + 표준 5종 quick-add (색상·사이즈·카테고리·브랜드·모델). 고정 필드 (SKU·모델명·구매가·판매가)는 수정 <i class="ph-light ph-x-circle" aria-hidden="true"></i>.</div>
+  <div style="margin-top:12px;font-size:12px;color:var(--sub,#8F91A0);line-height:1.7"><i class="ph-light ph-star" aria-hidden="true"></i> 박스히어로 1:1 — 5 type (텍스트/숫자/날짜/바코드/파일) + 표준 5종 quick-add (색상·사이즈·카테고리·브랜드·모델). 고정 필드 (SKU·모델명·구매가·판매가)는 수정 <i class="ph-light ph-x-circle" aria-hidden="true"></i>.</div>
 </div>
 {% endblock %}

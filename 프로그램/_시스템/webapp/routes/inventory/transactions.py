@@ -203,7 +203,7 @@ def inbound_new():
                    .order_by(_M.brand, _M.category, _M.model_name_display,
                              Option.color_display, Option.size_display)
                    .limit(500).all())
-        # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
+        # * LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(options)
         # 🔴 화면이 보여 주는 「현재 N」도 **원장** 기준이어야 한다. 스냅샷을 보여 주면
@@ -220,7 +220,7 @@ def inbound_new():
             # [2부-3] 옵션 사진 — 라인·모달에서 썸네일 표시 (2부-1 그룹 사진)
             'img': getattr(o, 'image_url', '') or '',
         } for o in options]
-        # ?sku=... 으로 진입한 경우 prefill 지원 (제품목록에서 [📥 입고] 클릭)
+        # ?sku=... 으로 진입한 경우 prefill 지원 (제품목록에서 [ 입고] 클릭)
         prefill_skus = request.args.getlist('sku')
         return render_template(
             'inventory/inbound/form.html', active='inbound',
@@ -285,7 +285,7 @@ def _opt_data_all(s, include_bundles: bool = False):
                .order_by(_M.brand, _M.category, _M.model_name_display,
                          Option.color_display, Option.size_display)
                .limit(500).all())
-    # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
+    # * LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
     from shared.product_display import compute_display_maps
     cleaned_color, display_pname = compute_display_maps(options)
     _st = _ledger_stock(s, [o.canonical_sku for o in options])
@@ -725,7 +725,7 @@ def history():
         tx_type = request.args.get('type', '')
         q = (request.args.get('q') or '').strip()
         search_tokens = split_tokens(q)
-        # ★ 기간 필터 (박스히어로 1:1 — 전체/오늘/이번주/이번달/직접)
+        # * 기간 필터 (박스히어로 1:1 — 전체/오늘/이번주/이번달/직접)
         period = request.args.get('period', '')
         date_from = request.args.get('date_from', '')
         date_to = request.args.get('date_to', '')
@@ -753,7 +753,7 @@ def history():
                     query = query.filter(InventoryTx.created_at < dt2)
             except ValueError:
                 pass
-        # ★ 박스히어로식 다중 키워드 AND 교집합
+        # * 박스히어로식 다중 키워드 AND 교집합
         query = apply_and_filter(
             query, search_tokens,
             InventoryTx.option_canonical_sku, InventoryTx.partner_label, InventoryTx.memo,
@@ -764,7 +764,7 @@ def history():
         # 위치 dict (id → name) — From/To 표시용
         locs = {loc.id: loc.name for loc in s.query(InventoryLocation).all()}
 
-        # ★ 거래서 그룹화 — 같은 (분 단위 시각, 사용자, 종류, 위치) → 1 묶음
+        # * 거래서 그룹화 — 같은 (분 단위 시각, 사용자, 종류, 위치) → 1 묶음
         # 박스히어로의 "거래서 = 여러 품목 묶음" UX 모사
         from collections import OrderedDict
         groups = OrderedDict()
