@@ -46,6 +46,55 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function rawStatus(r) {
+    var v = r ? r['판매처_주문상태'] : null;
+    return v == null ? '' : String(v);
+  }
+
+  /* [모음전 2026-09-16 사장님 지시] 전체내역 「[판매처] 주문상태」 칸에 **찍을 글자**
+     = 이력의 마지막 상태.
+
+     왜 — 주문 라인의 `판매처_주문상태`(matcher 가 매칭된 매출행에서 그대로 실어 준 값)는
+     그 라인이 마지막으로 알려 준 상태라, 그 **뒤에** 들어온 클레임(반품요청 등)이 칸에
+     안 보였다. 라이브 실제 사례: 칸은 "배송완료"인데 이력은
+     배송중 → 배송완료(확인 2026-09-15) → 반품요청(2026-09-15).
+
+     🔴 여기서 새로 판정하지 않는다 — 서버(lemouton.margin.settle_status.build_status_history)
+       가 이미 시간순으로 정렬해 둔 배열의 **마지막 칸**을 읽을 뿐이다(단일 원천).
+     🔴 원본값(`판매처_주문상태`)은 **안 덮어쓴다** — 카드 분류(card_counts._market_sell_state_category
+       ·_isExchangeRow 등)가 그 값을 읽는다. 표기만 바꾸고 판정은 원본 그대로 둔다.
+     🔴 이력이 비면 원본 그대로(날조·폴백 금지). */
+  root._ssLastStatusText = function (r) {
+    var raw = rawStatus(r);
+    var hist = (r && r['_주문상태이력']) || [];
+    if (!hist.length) return raw;
+    var last = hist[hist.length - 1];
+    var s = (last && last.status != null) ? String(last.status).trim() : '';
+    return s || raw;
+  };
+
+  /* 전체내역 표의 정렬·엑셀도 화면에 **찍힌 글자**를 기준으로 삼게 하는 값 산출
+     (컬럼필터는 margin_col_filter_fix.js 의 _moumColFilterKey 가 같은 함수를 쓴다).
+     이 칼럼 말고는 원본 값 그대로 — 숫자 칼럼의 숫자 정렬이 문자열로 바뀌면 안 된다. */
+  root._moumDetailSortVal = function (r, col) {
+    if (col === '판매처_주문상태') return root._ssLastStatusText(r);
+    return r ? r[col] : null;
+  };
+
+  /* 엑셀 다운로드용 — 화면에 보이는 값 그대로 내보낸다(화면 ↔ 엑셀이 갈리면 모순). */
+  root._moumRowsForExport = function (rows) {
+    if (!rows || !rows.map) return rows;
+    return rows.map(function (r) {
+      if (!r) return r;
+      var disp = root._ssLastStatusText(r);
+      if (disp === rawStatus(r)) return r;
+      var c = {};
+      for (var k in r) { if (Object.prototype.hasOwnProperty.call(r, k)) c[k] = r[k]; }
+      c['판매처_주문상태'] = disp;
+      return c;
+    });
+  };
+
   /* 표 렌더가 호출 — 배지(+이력이 2건 이상이면 호버 아이콘) HTML 조각을 돌려준다. */
   root._ssVerdictCellHtml = function (r) {
     var v = r && r['정산여부'];
@@ -53,7 +102,10 @@
     var st2 = VERDICT_STYLE[v] || { bg: '#6b7280', label: v };
     var hist = (r && r['_주문상태이력']) || [];
     var badge = ' <span class="ss-verdict-badge" style="background:' + st2.bg + '">' + esc(st2.label) + '</span>';
-    if (hist.length <= 1) return badge;   // 이력이 한 건뿐이면 호버로 보여줄 게 없다
+    /* [모음전 2026-09-16] 이력이 한 건뿐이어도 그 한 건이 칸에 찍힌 글자를 **바꿨다면**
+       호버를 띄운다 — 안 그러면 원본과 다른 글자가 아무 설명 없이 찍힌다. */
+    if (hist.length <= 1 && root._ssLastStatusText(r) === rawStatus(r)) return badge;
+    if (!hist.length) return badge;
     var histJson = JSON.stringify(hist).replace(/"/g, '&quot;');
     return ' <span class="ss-hist-anchor" data-ss-hist=\'' + histJson + '\' '
       + 'onmouseenter="_ssHistShow(event,this)" onmouseleave="_ssHistHide()" '

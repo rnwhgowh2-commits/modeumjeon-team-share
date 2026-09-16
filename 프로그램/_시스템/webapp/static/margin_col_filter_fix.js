@@ -21,6 +21,10 @@
   function colFilterKey(r, col) {
     var val = (col === '제외') ? (r && r._excluded ? '예' : '아니오')
             : (col === '비대량등록') ? (r && r._manual_reg ? '예' : '아니오')
+            /* [모음전 2026-09-16] 「[판매처] 주문상태」 칸은 이력의 **마지막 상태**를 찍는다
+               (margin_status_history.js). 필터가 원본값을 읽으면 화면엔 "반품요청"이 보이는데
+               필터 목록엔 "배송완료"만 떠서 체크해도 그 행이 안 걸린다 — 같은 함수로 맞춘다. */
+            : (col === '판매처_주문상태' && window._ssLastStatusText) ? window._ssLastStatusText(r)
             : (r ? r[col] : null);
     if (val == null) return '(빈값)';
     var s = String(val).trim();

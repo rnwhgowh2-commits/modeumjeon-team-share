@@ -7593,7 +7593,7 @@ function _getDetailRowsSorted() {
   if (state.detailSort && state.detailSort.col) {
     var sc = state.detailSort.col, sa = state.detailSort.asc;
     rows = rows.slice().sort(function(a,b){
-      var va=a[sc], vb=b[sc];
+      var va=(window._moumDetailSortVal?window._moumDetailSortVal(a,sc):a[sc]), vb=(window._moumDetailSortVal?window._moumDetailSortVal(b,sc):b[sc]);  /* [모음전 2026-09-16] 정렬도 화면에 찍힌 마지막 상태 기준 */
       if(va==null) va=''; if(vb==null) vb='';
       if(typeof va==='number' && typeof vb==='number') return sa?va-vb:vb-va;
       return sa?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
@@ -7835,7 +7835,7 @@ function buildDetailTable(detailCode, rows, cardType) {
   if(state.detailSort.col) {
     var sc = state.detailSort.col, sa = state.detailSort.asc;
     sorted = rows.slice().sort(function(a,b){
-      var va=a[sc], vb=b[sc];
+      var va=(window._moumDetailSortVal?window._moumDetailSortVal(a,sc):a[sc]), vb=(window._moumDetailSortVal?window._moumDetailSortVal(b,sc):b[sc]);  /* [모음전 2026-09-16] 정렬도 화면에 찍힌 마지막 상태 기준 */
       if(va==null) va=''; if(vb==null) vb='';
       if(typeof va==='number' && typeof vb==='number') return sa?va-vb:vb-va;
       return sa?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
@@ -7863,6 +7863,7 @@ function buildDetailTable(detailCode, rows, cardType) {
         return;
       }
       if(c==='판매처_주문상태') {
+        if (window._ssLastStatusText) v = window._ssLastStatusText(r);  /* [모음전 2026-09-16] 이 칸에 찍는 건 주문상태 이력의 마지막 상태. 원본 r['판매처_주문상태'] 는 안 덮어쓴다 — 카드 분류가 그 값을 읽는다 (margin_status_history.js) */
         // 원본 + 정산여부 접미사 표시
         var settle = r['정산상태'] || '';
         var suffix = '';
@@ -10725,6 +10726,7 @@ async function downloadExcel(tabKey) {
     let columnOrder = null;
     if (tabKey === 'tab1' && state.currentDetailCode && typeof _getDetailRowsSorted === 'function') {
       filteredRows = _getDetailRowsSorted();
+      if (window._moumRowsForExport) filteredRows = window._moumRowsForExport(filteredRows);  /* [모음전 2026-09-16] 엑셀도 화면에 찍힌 마지막 상태로 */
       if (filteredRows && filteredRows.length > 0) {
         useFilterMode = true;
         const ctxCard = state.currentDetailCardCtx || state.currentCardType || state.activeCardFilter || null;
