@@ -14,6 +14,13 @@ from sqlalchemy.orm import sessionmaker
 from lemouton.margin import settle_status as SS
 from lemouton.markets import line_uid as L
 
+# 🔴 [2026-09-17] 이 파일의 시험은 판정에 **고정된 오늘**(아래 _TODAY)을 넘기는데, 씨앗
+#   날짜만 `dt.date.today()`(진짜 시계) 기준이라 날이 갈수록 둘이 벌어졌다. 2026-09-08
+#   부터 「취소요청 이후 실제 배송완료」 시험이 깨져(클레임 날짜가 배송완료 날짜를 앞질러
+#   추월) **배포 게이트가 9일간 막혔다**(main 도 같이 빨강). 씨앗도 같은 _TODAY 에 묶어
+#   시계와 무관하게 만든다 — 시험이 「내 PC 의 오늘」을 전제하면 CI 에서 조용히 썩는다.
+_TODAY = dt.date(2026, 9, 5)
+
 
 @pytest.fixture
 def session(monkeypatch):
@@ -38,7 +45,7 @@ def session(monkeypatch):
 def _seed_line(session, *, order_no, status, market="coupang", days_ago=1,
                settle_paid_date="", status_prev="", status_at=None):
     from lemouton.markets.models_orders import MarketOrderLine
-    order_date = (dt.date.today() - dt.timedelta(days=days_ago)).isoformat()
+    order_date = (_TODAY - dt.timedelta(days=days_ago)).isoformat()
     row = {"오픈마켓주문번호": order_no, "주문일": f"{order_date} 10:00:00",
            "주문상태": status, "쇼핑몰별칭": "브랜드마켓", "상품명": "테스트상품"}
     if settle_paid_date:
@@ -53,7 +60,7 @@ def _seed_line(session, *, order_no, status, market="coupang", days_ago=1,
 
 def _seed_claim(session, *, order_no, status, market="coupang", days_ago=5):
     from lemouton.markets.models_orders import MarketClaimEvent
-    order_date = (dt.date.today() - dt.timedelta(days=days_ago)).isoformat()
+    order_date = (_TODAY - dt.timedelta(days=days_ago)).isoformat()
     row = {"오픈마켓주문번호": order_no, "주문상태": status, "_kind": "change",
            "_change_date": order_date}
     obj = MarketClaimEvent(
