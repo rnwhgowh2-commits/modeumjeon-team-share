@@ -92,6 +92,54 @@ def _apply_guardrail(final: int, guardrail: tuple[int, int] | None) -> str:
     return 'ok'
 
 
+def _grossup(raw: float, unit: str, value) -> tuple[float, bool]:
+    """**판매자가 부담하는** 할인만큼 판매가를 올려 잡는다. `(올려잡은 값, 불가능한가)`.
+
+    사장님 확정(2026-08-13) — 마진 기준가 = 판매가 − 판매자 부담 할인액.
+    고객이 내는 돈이 `raw` 가 되도록 표시 판매가를 키운다:
+      · 정률 d% → raw / (1 − d)
+      · 정액 N원 → raw + N
+
+    🔴 **마켓이 같이 부담하는 할인은 여기 넣지 않는다.** 그 몫은 우리 수입이라
+      판매가를 올릴 이유가 없다 — 올리면 고객에게 괜히 비싸 보인다.
+    🔴 **버림은 여기서 하지 않는다.** 부르는 쪽이 맨 마지막에 한 번만 버린다 —
+      두 번 버리면 100원을 더 손해 본다.
+    """
+    try:
+        v = float(value or 0)
+    except (TypeError, ValueError):
+        return raw, False
+    if v <= 0:
+        return raw, False
+    if str(unit or 'WON').upper() == 'PERCENT':
+        if v >= 100:
+            return 0.0, True          # 100% 할인 = 공짜. 지어내지 말고 못 낸다고 한다
+        return raw / (1.0 - v / 100.0), False
+    return raw + v, False
+
+
+def _net_basis(final: int, unit: str, value) -> int:
+    """**우리 수입 기준가** = 판매가 − 판매자 부담 할인액. 마진은 이 값으로 잰다.
+
+    🔴 이것은 「고객이 내는 값」이 **아니다.** 마켓이 할인을 같이 부담하면
+      고객은 전체 할인만큼 싸게 사고, 마켓이 낸 몫은 우리에게 들어온다 —
+      그래서 우리 수입 기준은 고객가보다 크다. 판매자 100% 부담일 때만
+      두 숫자가 우연히 같아진다(그래서 못 알아채기 쉽다).
+
+      고객이 내는 값이 필요하면 `policy/discount.exposed_price` 를 쓴다.
+      그쪽이 **전체 할인**을 안다.
+    """
+    try:
+        v = float(value or 0)
+    except (TypeError, ValueError):
+        return int(final)
+    if v <= 0:
+        return int(final)
+    if str(unit or 'WON').upper() == 'PERCENT':
+        return int(round(final * (1.0 - v / 100.0)))
+    return int(max(0, final - v))
+
+
 def compute_sale_price_unified(
     purchase_price: int | None,
     margin_rate: float,
@@ -103,6 +151,8 @@ def compute_sale_price_unified(
     mode: str = 'rate',
     margin_amount: int = 0,
     fixed_price: int = 0,
+    seller_discount_unit: str = 'WON',
+    seller_discount_value: int = 0,
 ) -> PriceResult:
     """마켓별·공급별 정책(mode)에 따라 판매가 산출 — 단일 진실 원천.
 
@@ -144,6 +194,13 @@ def compute_sale_price_unified(
                 'shipping_fee': shipping_fee, 'rounding_unit': rounding_unit,
                 'raw_total': float(final), 'final_price': final,
                 'guardrail': guardrail, 'guardrail_status': status,
+                'seller_discount_unit': seller_discount_unit,
+                'seller_discount_value': seller_discount_value,
+                # 🔴 지정가는 **올려 잡지 않는다**(사람이 친 값 그대로) — 다만 할인이
+                #   걸려 있으면 고객이 내는 돈은 그만큼 적다. 마진을 정직하게 재려면
+                #   그 값을 알려 줘야 한다. 안 그러면 마진이 부풀어 가드가 헛돈다.
+                'net_basis_price': _net_basis(final, seller_discount_unit,
+                                          seller_discount_value),
             },
         )
 
@@ -177,6 +234,12 @@ def compute_sale_price_unified(
         }
         status = _apply_guardrail(final, guardrail)
         breakdown['guardrail_status'] = status
+        # 🔴 모드마다 따로 채우면 하나를 빠뜨린다 — 나가기 직전에 보장한다.
+        #   기준가(net_basis_price)가 없으면 마진을 표시 판매가로 재서 부풀어 보인다.
+        breakdown.setdefault('seller_discount_unit', seller_discount_unit)
+        breakdown.setdefault('seller_discount_value', seller_discount_value)
+        breakdown.setdefault('net_basis_price',
+                             _net_basis(final, seller_discount_unit, seller_discount_value))
         return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
     # ── mode='rate' — 마진율 = **판매가 대비** (2026-07-20 변경) ──
@@ -204,9 +267,26 @@ def compute_sale_price_unified(
                 'impossible_reason': '수수료율 + 마진율이 100% 이상이라 판매가를 정할 수 없어요.',
             },
         )
-    base = purchase_price / denom          # 배송비 제외 판매가
+    base = purchase_price / denom          # 배송비 제외 판매가 = **마진 기준가**
     raw = base + shipping_fee
-    final = round_to_unit(int(round(raw)), rounding_unit)
+    # 판매자 부담 할인이 있으면, 고객이 내는 돈이 `raw` 가 되도록 표시가를 올려 잡는다.
+    grossed, impossible = _grossup(raw, seller_discount_unit, seller_discount_value)
+    if impossible:
+        return PriceResult(
+            final_price=0, guardrail_status='none',
+            breakdown={
+                'mode': 'rate', 'purchase_price': purchase_price,
+                'margin_rate': margin_rate, 'fee_rate': fee_rate,
+                'shipping_fee': shipping_fee, 'raw_total': 0.0,
+                'rounding_unit': rounding_unit, 'final_price': 0,
+                'guardrail': guardrail, 'guardrail_status': 'none',
+                'seller_discount_unit': seller_discount_unit,
+                'seller_discount_value': seller_discount_value,
+                'impossible': True,
+                'impossible_reason': '할인이 100% 이상이라 판매가를 정할 수 없어요.',
+            },
+        )
+    final = round_to_unit(int(round(grossed)), rounding_unit)   # 버림은 여기 한 번뿐
     status = _apply_guardrail(final, guardrail)
     breakdown = {
         'mode': 'rate',
@@ -222,7 +302,18 @@ def compute_sale_price_unified(
         'final_price': final,
         'guardrail': guardrail,
         'guardrail_status': status,
+        # 화면이 다시 계산하지 않게 근거를 같이 준다 — 두 곳이 각자 세면 갈린다.
+        'seller_discount_unit': seller_discount_unit,
+        'seller_discount_value': seller_discount_value,
+        'margin_basis': int(round(base)),        # 마진을 어느 값 기준으로 쟀나
+        'net_basis_price': _net_basis(final, seller_discount_unit, seller_discount_value),
     }
+    # 🔴 모드마다 따로 채우면 하나를 빠뜨린다 — 나가기 직전에 보장한다.
+    #   기준가(net_basis_price)가 없으면 마진을 표시 판매가로 재서 부풀어 보인다.
+    breakdown.setdefault('seller_discount_unit', seller_discount_unit)
+    breakdown.setdefault('seller_discount_value', seller_discount_value)
+    breakdown.setdefault('net_basis_price',
+                         _net_basis(final, seller_discount_unit, seller_discount_value))
     return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
 
@@ -340,6 +431,22 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
         fee_rate = default_fee_rate(prefix)
     shipping_fee = g(f'{prefix}_delivery_fee', 0) or 0
 
+    # ── 할인 · 누가 부담하나 (사장님 확정 2026-08-13) ──────────────────────────
+    #   판매가를 올려 잡을 근거는 **판매자가 실제로 내는 몫**뿐이다.
+    #   마켓이 내는 몫까지 얹으면 고객에게 괜히 비싸 보이고, 덜 얹으면 적자가 된다.
+    #   🔴 부담 주체를 안 정했으면 **판매자**로 본다 — 모르면 보수적으로.
+    #     「마켓」으로 잘못 두면 판매가를 안 올려 그대로 손해다.
+    #   🔴 규칙 자체는 `policy/discount.seller_share` 한 곳에만 둔다 —
+    #     여기서 다시 쓰면 미리보기 화면과 실제 업로드가가 갈린다.
+    from lemouton.policy.discount import seller_share
+    burden = str(g(f'{prefix}_discount_burden') or 'seller').lower()
+    d_unit, seller_value = seller_share({
+        'discount_unit': g(f'{prefix}_discount_unit'),
+        'discount_value': g(f'{prefix}_discount_value'),
+        'discount_burden': burden,
+        'discount_burden_pct': g(f'{prefix}_discount_burden_pct'),
+    })
+
     return {
         'mode': str(mode).lower(),
         'rate': float(rate),
@@ -347,6 +454,9 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
         'fixed_price': int(fixed),
         'fee_rate': float(fee_rate),
         'shipping_fee': int(shipping_fee),
+        'seller_discount_unit': d_unit,
+        'seller_discount_value': seller_value,
+        'discount_burden': burden,
     }
 
 
@@ -370,4 +480,7 @@ def compute_market_price(
         mode=pol['mode'],
         margin_amount=pol['amount'],
         fixed_price=pol['fixed_price'],
+        # 🔴 여기서 안 넘기면 엔진을 고쳐도 값이 영영 0 으로 간다.
+        seller_discount_unit=pol['seller_discount_unit'],
+        seller_discount_value=pol['seller_discount_value'],
     )

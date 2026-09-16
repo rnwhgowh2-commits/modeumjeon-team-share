@@ -57,7 +57,10 @@ class PriceTemplate(Base):
     # ── 롯데온 ──
     #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
     #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
-    lotteon_fee_rate = Column(Float, default=0.18)
+    # 🔴 [2026-08-13 사장님 재확정] 0.18 → 0.15 (판매 13 + 유입 2). 숫자의 주인은
+    #   `pricing/fee_defaults.SEED` 다 — 여기와 갈리면 새로 만든 가격 정책이
+    #   계산과 다른 값을 들고 태어난다(test_unified 가 묶어 둔다).
+    lotteon_fee_rate = Column(Float, default=0.15)
     lotteon_normal_price = Column(Integer, default=149000)
     lotteon_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
     lotteon_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
@@ -73,7 +76,8 @@ class PriceTemplate(Base):
     # ── 11번가 ──
     #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
     #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
-    eleven11_fee_rate = Column(Float, default=0.11)
+    # 🔴 [2026-08-13] 0.11 → 0.13 — 계약 11% + 늘 켜는 가격비교 2%.
+    eleven11_fee_rate = Column(Float, default=0.13)
     eleven11_normal_price = Column(Integer, default=149000)
     eleven11_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
     eleven11_external_sale_price = Column(Integer, default=0)   # 소싱 지정가

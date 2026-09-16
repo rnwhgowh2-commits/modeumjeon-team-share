@@ -162,6 +162,10 @@ def upsert(session, *, set_id: int, market: str, view=None):
     #     LIVE 게이트 뒤에서 한다(그게 이미 있는 경로다).
     d.images_json = json.dumps(option_images(session, set_id), ensure_ascii=False)
 
+    # 🔴 미성년자 구매는 위 `policy_fields_from(view)` 가 이미 옮겨 담는다
+    #   (`_POLICY_FIELDS` 에 들어 있다). 여기서 규칙을 다시 읽어 또 넣으면 같은 값을
+    #   두 곳에서 만들게 되고, 한쪽만 고쳐지는 날 조용히 갈린다.
+
     # 🔴 고시정보(notice_json)는 **여기서 채우지 않는다** — 전역·소싱처별 기본값을
     #   `notice_defaults.apply_notice_defaults` 가 **컴파일 직전에** 병합한다.
     #   미리 써 넣으면 「사장님이 넣은 값」과 「기본값이 채운 값」이 뭉개진다.

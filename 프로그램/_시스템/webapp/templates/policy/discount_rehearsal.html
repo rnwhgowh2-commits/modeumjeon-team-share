@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}할인 반영 리허설 — 정책{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-discount-rehearsal">
+  <style>
+    .dr-back{font-size:12px;color:var(--글자-기본,#4E5968);text-decoration:none}
+    .dr-h{font-size:24px;font-weight:700;margin:8px 0 4px;color:var(--ink,#191F28)}
+    .dr-sub{font-size:13px;color:var(--글자-보조,#6B7684);margin-bottom:16px;line-height:1.7}
+    .dr-warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);
+             border-radius:8px;padding:12px 16px;font-size:12.5px;line-height:1.8;
+             color:var(--글자-주황, var(--amber,#92400E));margin-bottom:16px}
+    .dr-ok{background:var(--연한-초록,#F0FDF4);border:1px solid var(--연한-초록,#BBF7D0);
+           border-radius:8px;padding:12px 16px;font-size:12.5px;line-height:1.8;
+           color:var(--글자-초록, var(--green,#166534));margin-bottom:16px}
+    .dr-cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+    .dr-card{background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
+             border-radius:12px;padding:12px 16px;min-width:132px}
+    .dr-card b{display:block;font-size:20px;font-weight:700;color:var(--ink,#191F28)}
+    .dr-card span{font-size:11.5px;color:var(--sub,#8B95A1)}
+    .dr-wrap{overflow-x:auto}
+    .dr-tbl{width:100%;border-collapse:collapse;font-size:13px;
+            background:var(--surface,#fff);border:1px solid var(--line,#E5E8EB);
+            border-radius:12px;overflow:hidden}
+    .dr-tbl th{background:var(--n100,#F2F4F6);font-size:11.5px;font-weight:600;
+               color:var(--글자-기본,#4E5968);padding:8px 12px;text-align:left;white-space:nowrap}
+    .dr-tbl td{padding:8px 12px;border-top:1px solid var(--n100,#F2F4F6);white-space:nowrap}
+    .dr-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
+    .dr-tbl td.nm{font-weight:600;color:var(--ink,#191F28)}
+    .dr-up{color:var(--글자-파랑, var(--primary,#3182F6));font-weight:600}
+    .dr-neg{color:var(--글자-빨강, var(--red,#E5484D));font-weight:600}
+    .dr-pos{color:var(--글자-초록, var(--green,#166534));font-weight:600}
+    .dr-same{color:var(--sub,#8B95A1)}
+    .dr-hold{background:var(--연한-빨강,#FEF2F2)}
+    .dr-note{font-size:12px;color:var(--sub,#8B95A1);line-height:1.8;margin-top:14px}
+  </style>
+
+  <a class="dr-back" href="/policies">← 정책 목록</a>
+  <h1 class="dr-h">할인 반영 리허설</h1>
+  <p class="dr-sub">
+    판매자가 부담하는 할인만큼 <b>판매가를 올려 잡으면</b> 무엇이 어떻게 되는지 미리 봅니다.
+    <b>이 화면은 아무것도 바꾸지 않습니다</b> — 마켓에도 아무것도 보내지 않습니다.
+  </p>
+
+  {% if r.policies_with_discount == 0 %}
+    <div class="dr-ok">
+      정책 {{ r.policies_total }}개 중 <b>할인을 걸어 둔 것이 하나도 없습니다</b> —
+      지금 이 변경으로 바뀌는 판매가는 <b>한 건도 없습니다.</b><br>
+      할인은 「가공정책 → 판매가 → 즉시할인」 칸에서 겁니다.
+      마켓 관리자 화면에서 손으로 건 할인은 프로그램이 알지 못하니,
+      걸어 두셨다면 그 값을 이 칸에도 적어 주셔야 판매가가 그만큼 올라갑니다.
+    </div>
+  {% else %}
+    <div class="dr-cards">
+      <div class="dr-card"><b>{{ r.policies_with_discount }}</b><span>할인 건 정책 × 마켓</span></div>
+      <div class="dr-card"><b>{{ '{:,}'.format(r.products_affected) }}</b><span>붙은 상품</span></div>
+      <div class="dr-card"><b>{{ r.loss_before }}</b><span>고치기 전 적자였던 줄</span></div>
+      <div class="dr-card"><b>{{ r.newly_held }}</b><span>역마진에 새로 걸림</span></div>
+    </div>
+
+    {% if r.newly_held %}
+      <div class="dr-warn">
+        <b>{{ r.newly_held }}개 조합이 역마진 가드에 새로 걸립니다</b>
+        (기준 {{ '{:,}'.format(r.min_margin) }}원) — 판매가를 올린 뒤에도 기준에 못 미쳐
+        마켓 전송이 보류됩니다. 아래 표에서 붉은 줄을 확인해 주세요.
+      </div>
+    {% endif %}
+
+    <div class="dr-wrap">
+      <table class="dr-tbl">
+        <thead>
+          <tr>
+            <th>정책</th><th>마켓</th><th>할인</th><th>누가 부담</th>
+            <th>상품</th><th>매입가</th>
+            <th>표시 판매가 (전 → 후)</th>
+            <th>고객이 내는 값</th>
+            <th>마진 (전 → 후)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in r.rows %}
+          <tr class="{{ 'dr-hold' if row.newly_held else '' }}">
+            <td class="nm">{{ row.policy }}</td>
+            <td>{{ row.market }}</td>
+            <td>{{ row.discount }}</td>
+            <td>{{ {'seller':'판매자','market':'마켓','split':'반반'}.get(row.burden, row.burden) }}</td>
+            <td class="r">{{ '{:,}'.format(row.products) }}</td>
+            <td class="r">{{ '{:,}'.format(row.purchase) }}</td>
+            <td class="r">
+              {{ '{:,}'.format(row.price_before) }} →
+              {% if row.price_after > row.price_before %}
+                <span class="dr-up">{{ '{:,}'.format(row.price_after) }}</span>
+              {% else %}
+                <span class="dr-same">{{ '{:,}'.format(row.price_after) }} (그대로)</span>
+              {% endif %}
+            </td>
+            <td class="r">{{ '{:,}'.format(row.customer_after) }}</td>
+            <td class="r">
+              <span class="{{ 'dr-neg' if row.margin_before < 0 else 'dr-pos' }}">
+                {{ '{:,}'.format(row.margin_before) }}</span> →
+              {% if row.margin_after is none %}
+                <span class="dr-same">—</span>
+              {% else %}
+                <span class="{{ 'dr-neg' if row.margin_after < 0 else 'dr-pos' }}">
+                  {{ '{:,}'.format(row.margin_after) }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {% if r.errors %}
+    <div class="dr-warn" style="margin-top:16px">
+      <b>못 잰 조합 {{ r.errors|length }}건</b><br>
+      {% for e in r.errors[:10] %}· {{ e }}<br>{% endfor %}
+    </div>
+  {% endif %}
+
+  <p class="dr-note">
+    · <b>매입가</b>는 정책에 없어 대표값 몇 개로 폭만 보여 드립니다 — 실제 상품마다 다릅니다.<br>
+    · <b>고객이 내는 값</b>은 전체 할인을 뺀 값입니다. <b>마진</b>은 우리 수입 기준
+      (판매가 − <b>우리가 부담하는</b> 할인)으로 쟀습니다 —
+      마켓이 같이 부담한 몫은 우리에게 들어오므로 손해로 세지 않습니다.<br>
+    · 이 표를 확인하시기 전에는 마켓에 아무것도 올리지 않습니다.
+  </p>
+</section>
+{% endblock %}

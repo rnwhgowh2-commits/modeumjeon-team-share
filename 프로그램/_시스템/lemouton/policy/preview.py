@@ -160,6 +160,11 @@ def preview_for_model(session, *, model_code: str, values: dict, market: str,
     from lemouton.pricing.unified import compute_sale_price_unified
     fee = fee_rate_of(values)
     ship = shipping_fee_of(values)
+    # 🔴 즉시할인은 **판매가에 물린다** — 안 넘기면 미리보기가 실제 업로드가보다
+    #   낮게 나와 사장님이 「올라간 값이 다르다」로 겪는다. 부담 규칙은
+    #   `policy/discount.seller_share` 한 곳만 쓴다(여기서 다시 쓰지 않는다).
+    from lemouton.policy.discount import seller_share
+    d_unit, d_value = seller_share((values or {}).get('price') or {})
 
     def _price(purchase):
         try:
@@ -170,7 +175,8 @@ def preview_for_model(session, *, model_code: str, values: dict, market: str,
                 fee_rate=(fee / 100.0 if fee is not None else _default_fee(market)),
                 shipping_fee=ship, rounding_unit=100,
                 mode=('fixed' if fixed is not None else 'rate'),
-                fixed_price=(fixed or 0))
+                fixed_price=(fixed or 0),
+                seller_discount_unit=d_unit, seller_discount_value=d_value)
             return r.final_price
         except Exception:                              # noqa: BLE001
             logger.exception('정책 판매가 계산 실패 market=%s', market)
@@ -208,12 +214,14 @@ def result_by_market(session, *, model_code: str, policy_id: int) -> dict:
         · 계산 못 한 마켓은 price=None + reason (지어내지 않는다)
         · margin 은 **수수료를 뺀** 값이다 — 뺄 수 없으면 None
     """
+    from lemouton.policy.discount import exposed_price, seller_share
     from lemouton.policy.fields import MARKETS
     from lemouton.policy.service import values_for
 
     rows = []
     for mk, label in MARKETS:
         values = values_for(session, policy_id, mk)
+        단위_몫, 우리몫 = seller_share((values or {}).get('price') or {})
         got = preview_for_model(session, model_code=model_code,
                                 values=values, market=mk)
         opts = got.get('rows') or []
@@ -231,7 +239,12 @@ def result_by_market(session, *, model_code: str, policy_id: int) -> dict:
             if fee is None:
                 fee = _default_fee(mk) * 100.0
             price, purchase = base['policy_price'], base['purchase']
-            margin = price - purchase - round(price * fee / 100.0)
+            # 🔴 마진은 **우리 수입 기준**(판매가 − 우리 부담 할인)으로 잰다.
+            #   표시 판매가로 재면 할인 걸린 상품의 마진이 크게 부풀어 보이고
+            #   (스스 20% 기준 3.5배), 사장님이 남는 줄 알고 그대로 올린다.
+            기준 = exposed_price(price, {'value': 우리몫, 'unitType': 단위_몫}) \
+                if 우리몫 else price
+            margin = 기준 - purchase - round(기준 * fee / 100.0)
             row.update(price=price, purchase=purchase, margin=margin,
                        margin_rate=round(margin / price * 100, 1) if price else None)
         rows.append(row)

@@ -28,16 +28,25 @@ def db():
 # ── 씨앗 ────────────────────────────────────────────────────────────────
 
 def test_사장님이_불러준_값이_씨앗이다():
-    want = {'smartstore': 6.0, 'coupang': 11.55, 'lotteon': 18.0,
-            'eleven11': 11.0, 'auction': 15.0, 'gmarket': 15.0}
+    # 🔴 [2026-08-13 사장님 재확정] 롯데온 18 → 15(판매 13 + 유입 2) · 11번가 11 → 13.
+    #   롯데온 18% 는 어디서도 뒷받침되지 않았다 — 판매수수료 13(실정산 공식과 같음)
+    #   에 늘 켜는 유입(제휴) 2 를 더해 15.
+    #   11번가는 「11%(1년 이내 8%)이고 가격비교 2% 미포함」이라, 늘 켜는 그 2% 를
+    #   합쳐 13% 로 둔다. 계산이 쓰는 값은 언제나 숫자 하나여야 한다.
+    want = {'smartstore': 6.0, 'coupang': 11.55, 'lotteon': 15.0,
+            'eleven11': 13.0, 'auction': 15.0, 'gmarket': 15.0}
     for market, pct in want.items():
         assert FD.SEED[market]['base_pct'] == pct, f'{market} 씨앗이 {pct} 가 아니다'
 
 
 def test_11번가만_조건부_요율을_가진다():
-    """1년 이내 계정이면 8% — 지나면 11%."""
+    """1년 이내 계정이면 10% — 지나면 13%.
+
+    🔴 계약 요율은 8%/11% 인데 **가격비교 노출 2% 가 미포함**이라(2026-08-13 확인)
+      늘 켜는 그 2% 를 더한 값이 실제로 떼인다.
+    """
     assert FD.SEED['eleven11']['alt_label'] == '1년 이내 계정'
-    assert FD.SEED['eleven11']['alt_pct'] == 8.0
+    assert FD.SEED['eleven11']['alt_pct'] == 10.0
     for m in ('smartstore', 'coupang', 'lotteon', 'auction', 'gmarket'):
         assert not FD.SEED[m]['alt_label'], f'{m} 에 조건이 붙었다'
 
@@ -45,8 +54,8 @@ def test_11번가만_조건부_요율을_가진다():
 def test_처음_열면_씨앗이_심긴다(db):
     got = FD.load(db)
     assert set(got) == set(FD.SEED)
-    assert got['eleven11']['base_pct'] == 11.0
-    assert got['eleven11']['alt_pct'] == 8.0
+    assert got['eleven11']['base_pct'] == 13.0
+    assert got['eleven11']['alt_pct'] == 10.0
 
 
 # ── 고치기 ──────────────────────────────────────────────────────────────
