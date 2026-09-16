@@ -284,7 +284,7 @@
     <select id="location-sel" aria-label="담을 위치"><option value="">위치 선택…</option></select>
     <button class="kbd" id="manual-toggle" type="button" title="직접 입력" aria-label="SKU·바코드 직접 입력 열기">⌨</button>
     <button class="btn {{ mode }}" id="save-btn" onclick="saveAll()" disabled>
-      ✓ <b id="cart-total">0</b>개 {% if mode == 'in' %}입고{% else %}출고{% endif %}
+      <i class="ph-light ph-check" aria-hidden="true"></i> <b id="cart-total">0</b>개 {% if mode == 'in' %}입고{% else %}출고{% endif %}
     </button>
   </div>
 </div>

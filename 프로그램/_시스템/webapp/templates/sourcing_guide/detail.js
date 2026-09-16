@@ -430,7 +430,7 @@
     poll(j.job_id); pollTimer=setInterval(()=>poll(j.job_id), 2500);
   });
 
-  // 🔑 키워드 게이트 검증
+  // 키워드 게이트 검증 — 크롤된 혜택 라인 + ③ 저장된 포함/제외 키워드 → 영수증
   const kwBtn=document.getElementById('sg-kw-btn');
   const kwRes=document.getElementById('sg-kw-result');
   const KW_AMOUNTS={
@@ -475,7 +475,7 @@
     });
   }
 
-  // 🟢🔴 시안 2 — 키워드 실시간 하이라이트
+  // [정상][중요] 시안 2 — ③ 키워드 실시간 하이라이트 미리보기 (포함=초록 / 제외=빨강취소선)
   const kwHl=document.getElementById('sg-kw-hl');
   const kwLinesEl=document.getElementById('sg-kw-lines');
   function _esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
@@ -518,7 +518,7 @@
   document.querySelector('.sg-go3')?.addEventListener('click', e=>{ e.preventDefault();
     const el=document.getElementById('sg-inc'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); });
 
-  // ✓ 저장 — 검증 결과를 '저장된 검증' 리스트에 누적
+  // v 저장 — 검증 결과를 '저장된 검증' 리스트(우측)에 누적 + ① 동시 등록 (시안 2-C)
   function nameFromUrl(u){ const m=(u||'').match(/\/products\/(\d+)/); return m? ('상품 '+m[1]) : (u||'검증'); }
   document.addEventListener('click', async e=>{
     if(!e.target || e.target.id!=='sg-kw-save') return;

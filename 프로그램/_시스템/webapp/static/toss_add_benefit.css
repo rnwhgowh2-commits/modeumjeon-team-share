@@ -77,7 +77,7 @@
   padding: 14px 16px 14px 18px;
   background: var(--m-white);
   border: 1px solid var(--m-line);
-  border-left: 3px solid var(--m-ink);  /* ★ 좌측 검정 accent */
+  border-left: 3px solid var(--m-ink);  /* * 좌측 검정 accent */
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -86,7 +86,7 @@
   animation: addform-slidedown .22s ease;
 }
 
-/* ★ hidden bug fix — .add-form { display:flex } 가 [hidden] 을 이김 */
+/* * hidden bug fix — .add-form { display:flex } 가 [hidden] 을 이김 */
 .cell-fx-pop .add-form[hidden] {
   display: none !important;
 }

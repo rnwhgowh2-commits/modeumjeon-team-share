@@ -9,10 +9,10 @@
   {% set _is_cluster = (_models|length) > 1 %}
   <div class="bundle-header-v6">
     <div class="bh-top">
-      {# v32 — 큰 아이콘 picker 트리거 (호버 ✎ + 우클릭) #}
+      {# v32 — 큰 아이콘 picker 트리거 (호버 [수정] + 우클릭) #}
       <div class="bh-thumb"
            data-icon-edit="model|{{ bundle.model_code }}"
-           data-icon-current="{% if bundle.category == '의류' %}👕{% else %}👟{% endif %}"
+           data-icon-current="{% if bundle.category == '의류' %}t-shirt{% else %}sneaker{% endif %}"
            data-icon-label="{{ bundle.model_code }}">{% if bundle.category == '의류' %}<i class="ph-light ph-t-shirt" aria-hidden="true"></i>{% else %}<i class="ph-light ph-sneaker" aria-hidden="true"></i>{% endif %}</div>
       <div style="flex:1;min-width:0">
         <h1 class="bh-title">{{ bundle.model_code }}</h1>
@@ -102,7 +102,7 @@
           <div class="b-hist-row">
             <span class="b-hist-pill crawl">크롤</span>
             <span class="b-hist-msg">{{ r.summary or r.status or '실행' }}</span>
-            <span class="b-hist-status {{ 'ok' if r.status == 'ok' else ('fail' if r.status == 'fail' else '') }}">{% if r.status == 'ok' %}✓{% elif r.status == 'fail' %}<i class="ph-light ph-warning" aria-hidden="true"></i>{% else %}{{ r.status }}{% endif %}</span>
+            <span class="b-hist-status {{ 'ok' if r.status == 'ok' else ('fail' if r.status == 'fail' else '') }}">{% if r.status == 'ok' %}<i class="ph-light ph-check" aria-hidden="true"></i>{% elif r.status == 'fail' %}<i class="ph-light ph-warning" aria-hidden="true"></i>{% else %}{{ r.status }}{% endif %}</span>
             <span class="b-hist-time">{{ r.run_at_short or r.run_at or '—' }}</span>
           </div>
           {% endfor %}
@@ -125,7 +125,7 @@
           <div class="b-hist-row">
             <span class="b-hist-pill upload">업로드</span>
             <span class="b-hist-msg">{{ r.summary or r.status or '실행' }}</span>
-            <span class="b-hist-status {{ 'ok' if r.status == 'ok' else ('fail' if r.status == 'fail' else '') }}">{% if r.status == 'ok' %}✓{% elif r.status == 'fail' %}<i class="ph-light ph-warning" aria-hidden="true"></i>{% else %}{{ r.status }}{% endif %}</span>
+            <span class="b-hist-status {{ 'ok' if r.status == 'ok' else ('fail' if r.status == 'fail' else '') }}">{% if r.status == 'ok' %}<i class="ph-light ph-check" aria-hidden="true"></i>{% elif r.status == 'fail' %}<i class="ph-light ph-warning" aria-hidden="true"></i>{% else %}{{ r.status }}{% endif %}</span>
             <span class="b-hist-time">{{ r.run_at_short or r.run_at or '—' }}</span>
           </div>
           {% endfor %}
@@ -324,7 +324,7 @@
           <div class="combo-head">
             <div class="combo-title">{{ c.name or ('조합 ' ~ loop.index) }}</div>
             <button class="btn btn-sm" data-action="edit-combo" data-id="{{ c.id }}"><i class="ph-light ph-pencil-simple" aria-hidden="true"></i> 편집</button>
-            <button class="btn btn-sm" style="color: var(--글자-빨강, var(--danger)" data-action="del-combo" data-id="{{ c.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
+            <button class="btn btn-sm" style="color: var(--글자-빨강, var(--danger))" data-action="del-combo" data-id="{{ c.id }}"><i class="ph-light ph-trash" aria-hidden="true"></i> 삭제</button>
           </div>
           <div class="combo-axlbl">색상</div>
           <div class="chip-row" style="margin-bottom:12px">
@@ -677,8 +677,8 @@
                         {% for src, v in r.sources.items() %}
                         <li>
                           <span class="run-src-name">{{ src }}</span>
-                          {% if v.ok %}<span class="run-src-ok">✓ {{ v.items_crawled or 0 }}건</span>
-                          {% else %}<span class="run-src-fail">✗ {{ v.error or 'error' }}</span>{% endif %}
+                          {% if v.ok %}<span class="run-src-ok"><i class="ph-light ph-check" aria-hidden="true"></i> {{ v.items_crawled or 0 }}건</span>
+                          {% else %}<span class="run-src-fail"><i class="ph-light ph-x" aria-hidden="true"></i> {{ v.error or 'error' }}</span>{% endif %}
                         </li>
                         {% endfor %}
                       </ul>
@@ -691,8 +691,8 @@
                         {% for mkt, v in r.markets.items() %}
                         <li>
                           <span class="run-src-name">{{ mkt }}</span>
-                          {% if v.ok %}<span class="run-src-ok">✓ 변동 {{ v.uploaded or 0 }} · 스킵 {{ v.skipped or 0 }} · 실패 {{ v.failed or 0 }}</span>
-                          {% else %}<span class="run-src-fail">✗ {{ v.error or 'error' }}</span>{% endif %}
+                          {% if v.ok %}<span class="run-src-ok"><i class="ph-light ph-check" aria-hidden="true"></i> 변동 {{ v.uploaded or 0 }} · 스킵 {{ v.skipped or 0 }} · 실패 {{ v.failed or 0 }}</span>
+                          {% else %}<span class="run-src-fail"><i class="ph-light ph-x" aria-hidden="true"></i> {{ v.error or 'error' }}</span>{% endif %}
                         </li>
                         {% endfor %}
                       </ul>
@@ -1122,7 +1122,7 @@
         <button type="button" class="src-tree-del-btn" data-del-url-id="${id}" title="삭제"></button>
       </div>`;
     }
-    // [시안 2 — 자동저장] 저장 직후 그 행 옆에 "✓ 저장됨" 잠깐 표시
+    // [시안 2 — 자동저장] 저장 직후 그 행 옆에 "v 저장됨" 잠깐 표시
     function flashSaved(row) {
       if (!row) return;
       let tag = row.querySelector('.row-saved');
@@ -1167,7 +1167,7 @@
         }
         return;
       }
-      // ✕ 삭제
+      // x 삭제
       const delBtn = e.target.closest('.src-tree-del-btn');
       if (delBtn) {
         e.preventDefault();

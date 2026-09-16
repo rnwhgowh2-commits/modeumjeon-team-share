@@ -142,7 +142,7 @@ def _get_kpis():
             .count()
         )
 
-        # ⚠ 무신사 비회원가 크롤링 알림 (Phase 8.8.1 — D1 드로워)
+        # [주의] 무신사 비회원가 크롤링 알림 (Phase 8.8.1 — D1 드로워)
         nm_alert = _get_musinsa_non_member_alert()
 
         return {

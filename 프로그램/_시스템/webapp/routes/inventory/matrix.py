@@ -60,8 +60,8 @@ def matrix_view():
 
             rows.append({
                 'opt': opt,
-                'model_name': display_pname.get(opt.canonical_sku, opt.canonical_sku),  # ★ LCP+brand-strip 적용
-                'cleaned_color': cleaned_color.get(opt.canonical_sku, 'ONE Color'),  # ★
+                'model_name': display_pname.get(opt.canonical_sku, opt.canonical_sku),  # * LCP+brand-strip 적용
+                'cleaned_color': cleaned_color.get(opt.canonical_sku, 'ONE Color'),  # *
                 'template_name': tpl.name if tpl else '-',
                 'self': self_calc,
                 'external': ext_calc,
@@ -70,14 +70,14 @@ def matrix_view():
         # 모델 드롭다운용
         all_models = s.query(Model).order_by(Model.model_code).all()
 
-        # ★ SSOT 실시간 재고 batch
+        # * SSOT 실시간 재고 batch
         from shared.inventory_stock import get_stock_batch
         all_skus = [r['opt'].canonical_sku for r in rows]
         stock_map = get_stock_batch(s, all_skus)
         for r in rows:
             r['realtime_stock'] = stock_map.get(r['opt'].canonical_sku, 0)
 
-        # 요약 통계 (실시간) — ★ 전체 rows 기준으로 먼저 계산 (행 제한과 무관하게 정확)
+        # 요약 통계 (실시간) — * 전체 rows 기준으로 먼저 계산 (행 제한과 무관하게 정확)
         total = len(rows)
         mapped = sum(1 for r in rows if r['opt'].boxhero_sku)
         with_stock = sum(1 for r in rows if r['realtime_stock'] > 0)
@@ -86,7 +86,7 @@ def matrix_view():
         # [perf 2026-05-29] 렌더 행 수 제한 — 재고목록 "상위 500" 패턴과 동일.
         #   배경: 전체(844옵션) 렌더 시 HTML 2.7MB → 브라우저 스크롤·반응 둔화.
         #   필터(모델·미매핑) 적용 시엔 이미 좁혀졌으니 제한 없음. ?all=1 로 전체 강제 가능.
-        #   ★ 통계는 위에서 전체 기준 계산했으므로 제한과 무관하게 정확.
+        #  * 통계는 위에서 전체 기준 계산했으므로 제한과 무관하게 정확.
         ROW_CAP = 300
         show_all = (request.args.get('all') == '1') or bool(model_filter) or unmapped_only
         rows_to_render = rows if show_all else rows[:ROW_CAP]

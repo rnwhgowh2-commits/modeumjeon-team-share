@@ -150,12 +150,12 @@
 // Avery: gLabels (오픈소스 라벨 도구) avery-iso-templates.xml
 // Printec: 공식 사양 미확보 → 제외 (Custom 사용 권장)
 const PRESETS = {
-  // ─── 📦 박스히어로 호환 — 박스히어로 SaaS 표기 그대로 (사용자 익숙도)
+  // ─── [상자] 박스히어로 호환 — 박스히어로 SaaS 표기 그대로 (사용자 익숙도)
   'boxhero_3m_21314':      {cols:4, rows:10, w:48.0, h:25.0, mt:23.5,  ml:9.0,  gx:0, gy:0 },  // 3M 21314 4×10 (박스히어로 베스트)
   'boxhero_formtec_3102':  {cols:5, rows:13, w:38.1, h:21.2, mt:10.7,  ml:9.75, gx:0, gy:0 },  // 박스히어로 Formtec 3102 = 65칸 (한국폼텍 LS-3100 동일)
   'boxhero_formtec_3107':  {cols:3, rows:8,  w:64.0, h:34.0, mt:12.5,  ml:9.0,  gx:0, gy:0 },  // 박스히어로 Formtec 3107 = 24칸 (한국폼텍 LS-3106 동일)
   'boxhero_formtec_3108':  {cols:3, rows:7,  w:63.5, h:38.1, mt:15.15, ml:7.25, gx:2.5,gy:0 },  // 박스히어로 Formtec 3108 = 21칸 (Avery L7160 동일)
-  // ─── 🇰🇷 Formtec — 칸수+크기 ✅ 검증, 여백은 균등분배 추정 (Custom 으로 보정 가능)
+  // ───  Formtec — 칸수+크기 [확인] 검증, 여백은 균등분배 추정 (Custom 으로 보정 가능)
   'formtec_ls3100': {cols:5, rows:13, w:38.1, h:21.2, mt:10.7,  ml:9.75, gx:0, gy:0 },  // 65칸 바코드용
   'formtec_ls3102': {cols:4, rows:10, w:47.0, h:26.9, mt:14.0,  ml:11.0, gx:0, gy:0 },  // 40칸 바코드용
   'formtec_ls3104': {cols:3, rows:9,  w:62.7, h:30.1, mt:13.05, ml:10.95,gx:0, gy:0 },  // 27칸 바코드용
@@ -166,7 +166,7 @@ const PRESETS = {
   'formtec_ls3118': {cols:2, rows:2,  w:99.1, h:140,  mt:8.5,   ml:5.9,  gx:0, gy:0 },  // 4칸 물류
   'formtec_ls3120': {cols:1, rows:2,  w:200,  h:140,  mt:8.5,   ml:5.0,  gx:0, gy:0 },  // 2칸 물류
   'formtec_ls3130': {cols:1, rows:1,  w:210,  h:297,  mt:0,     ml:0,    gx:0, gy:0 },  // 1칸 전면
-  // ─── 🇺🇸 Avery — gLabels XML 기반 ✅ 전체 검증
+  // ───  Avery — gLabels XML 기반 [확인] 전체 검증
   'avery_l7160':    {cols:3, rows:7,  w:63.5, h:38.1, mt:15.49, ml:7.48, gx:2.05,gy:0 },
   'avery_l7161':    {cols:3, rows:6,  w:63.5, h:46.6, mt:8.11,  ml:7.41, gx:2.50,gy:0 },
   'avery_l7162':    {cols:2, rows:8,  w:99.1, h:33.9, mt:12.98, ml:3.99, gx:3.39,gy:0 },

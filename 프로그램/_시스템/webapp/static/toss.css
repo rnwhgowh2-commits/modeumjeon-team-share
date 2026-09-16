@@ -363,7 +363,7 @@
   /* Badge (회색 톤 위주) */
   .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 12px; font-size: 14px; font-weight: 600; }
   .badge-ok { background: var(--n100); color: var(--n700); }
-  .badge-ok::before { content: "✓ "; }
+  .badge-ok::before { content: "\e182"; font-family: "Phosphor-Light"; font-weight: normal; }
   .badge-warn { background: var(--n100); color: var(--n800); }
   .badge-warn::before { content: "! "; }
   .badge-danger { background: var(--danger-bg); color: var(--글자-빨강, var(--danger)); }
@@ -606,7 +606,7 @@
   .search-bar { position: relative; }
   .search-input { width: 100%; font-family: var(--font); font-size: 14px; padding: 10px 14px 10px 36px; border: 1.5px solid var(--n200); border-radius: 10px; background: var(--surface); outline: none; transition: border-color 0.15s; }
   .search-input:focus { border-color: var(--primary); }
-  .search-bar::before { content: "🔍"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: 0.55; pointer-events: none; }
+  .search-bar::before { content: "\e30c"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: 0.55; pointer-events: none; font-family: "Phosphor-Light"; font-weight: normal; }
 
   /* 빈 상태 */
   .empty-state { text-align: center; padding: 48px 24px; color: var(--n600); }
@@ -1151,12 +1151,12 @@
     background: var(--연한-파랑,#e0e7ff); color: #3730a3; padding: 1px 7px; border-radius: 9px;
     font-size: 12px; font-weight: 700; border: 1px solid #c7d2fe;
   }
-  .bh-chip::before { content: '📦'; font-size: 11px; }
+  .bh-chip::before { content: '\e390'; font-size: 8px; font-family: "Phosphor-Light"; font-weight: normal; }
   .bh-chip.zero { background: var(--연한-빨강,#fee2e2); color: var(--글자-빨강, var(--red,#991b1b)); border-color: var(--연한-빨강,#fecaca); }
   .bh-chip.zero::before { content: '⊘'; font-size: 12px; }
 
 /* ════════════════════════════════════════════════════════════════
-   v5 시안 1 — 소싱처×옵션 매트릭스 (4색 + ⚠ + 최저가 박스 + 통계)
+   v5 시안 1 — 소싱처×옵션 매트릭스 (4색 + [주의] + 최저가 박스 + 통계)
    ════════════════════════════════════════════════════════════════ */
 .sm-section { margin-top: 24px; }
 .sm-section .sm-head {
@@ -1412,11 +1412,11 @@
 /* 사이트 셀 폭 자동 분배 (테이블 layout: auto + min-width 만) — 우측 여백 활용 */
 .opt-table.integrated-mtx { table-layout: auto; }
 
-/* ━━━ v21 A1 — 옵션명 옆 ⚙ / v22 — 1.3배 / v23 — 1.2배 (22px) — 가로 유지 ━━━ */
+/* ━━━ v21 A1 — 옵션명 옆 설정 / v22 — 1.3배 / v23 — 1.2배 (22px) — 가로 유지 ━━━ */
 .opt-table.integrated-mtx td.opt-cell {
   display: flex; align-items: center; gap: 8px;
   white-space: nowrap;            /* v23 fix — 가로 유지 (글자 단위 깨짐 방지) */
-  min-width: 140px;               /* 옵션명 + ⚙ 공간 확보 */
+  min-width: 140px;               /* 옵션명 + 설정 공간 확보 */
   min-height: 36px;
 }
 .opt-table.integrated-mtx td.opt-cell strong {
@@ -1524,9 +1524,8 @@
 .integrated-mtx th.th-site-col.done { border-bottom: 2px solid #03C75A; }
 .integrated-mtx th.th-site-col.run { border-bottom: 2px solid var(--primary,#3182F6); }
 .integrated-mtx th.th-site-col.urlw::before {
-  content: '⚠'; position: absolute; right: 4px; top: 2px;
-  font-size: 13px; color: var(--글자-주황, var(--amber,#92400E)); z-index: 2;
-}
+  content: '\e4e0'; position: absolute; right: 4px; top: 2px;
+  font-size: 13px; color: var(--글자-주황, var(--amber,#92400E)); z-index: 2; font-family: "Phosphor-Light"; font-weight: normal; }
 .integrated-mtx th.th-site-col { position: relative; }
 .integrated-mtx th.th-site-col .hring-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .integrated-mtx th.th-site-col .h-frac { font-size: 12px; color: var(--글자-희미, var(--sub,#8B95A1)); font-weight: 600; margin-top: 2px; }
@@ -1555,7 +1554,7 @@
 .integrated-mtx td.td-site-col.cw { background: var(--surface,#ffffff); color: var(--글자-희미, var(--faint,#D1D6DB)); }
 .integrated-mtx td.td-site-col.cw::before { content: '●'; font-size: 14px; }
 .integrated-mtx td.td-site-col.cn { background: var(--surface,#ffffff); color: #F59E0B; }
-.integrated-mtx td.td-site-col.cn::before { content: '⚠'; font-size: 14px; }
+.integrated-mtx td.td-site-col.cn::before { content: '\e4e0'; font-size: 14px; font-family: "Phosphor-Light"; font-weight: normal; }
 .integrated-mtx td.td-site-col .cell-fx {
   display: inline-flex; vertical-align: middle; margin-right: 6px;
   background: #7C3AED; color: #fff; width: 28px; height: 22px; border-radius: 5px;
@@ -1572,8 +1571,7 @@
   background: var(--연한-초록,#DCFCE7); box-shadow: inset 0 0 0 2.5px var(--primary,#3182F6); font-weight: 800;
 }
 .integrated-mtx td.td-site-col.lo::before {
-  content: '★'; position: absolute; top: 1px; right: 4px; color: var(--글자-파랑, var(--primary,#3182F6)); font-size: 14px; font-weight: 800;
-}
+  content: '\e46a'; position: absolute; top: 1px; right: 4px; color: var(--글자-파랑, var(--primary,#3182F6)); font-size: 14px; font-weight: 800; font-family: "Phosphor-Light"; font-weight: normal; }
 .integrated-mtx td.td-site-col .save {
   display: block; font-size: 12px; color: var(--글자-파랑, var(--primary,#3182F6)); font-weight: 700; margin-top: 1px;
 }
@@ -1615,8 +1613,8 @@
 .sm-side-h .srcs-grid .scell .frac { font-size: 14px; color: var(--글자-희미, var(--sub,#8B95A1)); font-weight: 600; margin-top: 5px; }
 /* [2026-06-03] 소싱처별 최근 크롤 시각 — 회색, frac 아래 작게 */
 .sm-side-h .srcs-grid .scell .crawl-time { font-size: 12px; color: var(--글자-희미, var(--faint,#B0B8C1)); font-weight: 600; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sm-side-h .srcs-grid .scell.partial::after { content: '⚠'; position: absolute; right: 8px; top: 8px; font-size: 13px; color: var(--글자-주황, var(--amber,#92400E)); }
-/* [2026-06-05] 듀얼 미니바 — 🔗URL(완료/시도) + 📌매핑(완료/시도, N열 총합) */
+.sm-side-h .srcs-grid .scell.partial::after { content: '\e4e0'; position: absolute; right: 8px; top: 8px; font-size: 13px; color: var(--글자-주황, var(--amber,#92400E)); font-family: "Phosphor-Light"; font-weight: normal; }
+/* [2026-06-05] 듀얼 미니바 — URL(완료/시도) + 매핑(완료/시도, N열 총합) */
 .sm-side-h .srcs-grid .scell .dual-bars { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .sm-side-h .srcs-grid .scell .dual-bars .dbar .dbar-lab { display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: var(--글자-보조,#6B7684); }
 .sm-side-h .srcs-grid .scell .dual-bars .dbar .dbar-track { height: 6px; background: var(--line,#E5E8EB); border-radius: 3px; overflow: hidden; margin-top: 2px; }
@@ -1668,7 +1666,7 @@
 .sm-src.s-done .pct { color: #0E7C3A; }
 .sm-src.s-run .pct { color: var(--글자-파랑, var(--primary,#3182F6)); }
 
-/* 🏆 최저가 통계 카드 (시안 ①) */
+/* 최고 최저가 통계 카드 (시안 ①) */
 .sm-stat {
   margin-top: 14px; padding: 14px;
   background: linear-gradient(135deg, #FEF3C7, var(--surface,#ffffff));
@@ -1719,7 +1717,7 @@
 .sm-mtx .cw::before { content: '●'; font-size: 18px; color: var(--글자-희미, var(--faint,#D1D6DB)); }
 .sm-mtx .cf { background: var(--연한-빨강,#FEE2E2); color: #EF4444; font-weight: 600; }
 .sm-mtx .cn { background: var(--surface,#ffffff); font-size: 0; color: transparent; }
-.sm-mtx .cn::before { content: '⚠'; font-size: 20px; }
+.sm-mtx .cn::before { content: '\e4e0'; font-size: 20px; font-family: "Phosphor-Light"; font-weight: normal; }
 /* 컬럼 헤더 (th 내부 div 로 stack — th 자체는 normal table cell) */
 /* v10 시안 ⑩ mini ring 적용 — 헤더 라인 1: ring + 브랜드 / 라인 2: 분수 */
 .sm-mtx th.mtx-h { padding:12px 8px; text-align: center; background: var(--surface,#ffffff); }
@@ -1749,9 +1747,8 @@
 .sm-mtx th.mtx-h.s-done { background: var(--surface,#ffffff); border-bottom: 2px solid #03C75A; }
 .sm-mtx th.mtx-h.s-run { background: var(--surface,#ffffff); border-bottom: 2px solid var(--primary,#3182F6); }
 .sm-mtx th.mtx-h.urlw::before {
-  content: '⚠'; position: absolute; right: 6px; top: 6px;
-  font-size: 16px; line-height:1.33; z-index: 2; color: var(--글자-주황, var(--amber,#92400E));
-}
+  content: '\e4e0'; position: absolute; right: 6px; top: 6px;
+  font-size: 16px; line-height: 1.33; z-index: 2; color: var(--글자-주황, var(--amber,#92400E)); font-family: "Phosphor-Light"; font-weight: normal; }
 
 /* ━━━ v11 시안 A4: 좌측 트리 다중 체크 ━━━ */
 .sm-layout-tree { display: grid; grid-template-columns: 240px 1fr; gap: 14px; align-items: start; }
@@ -1782,9 +1779,8 @@
 }
 .sm-tree .gh.on .ck, .sm-tree .gh.partial .ck { background: #7C3AED; border-color: #7C3AED; }
 .sm-tree .gh.on .ck::after {
-  content: '✓'; color: #fff; font-size: 12px; font-weight: 800;
-  position: absolute; top: -1px; left: 2px;
-}
+  content: '\e182'; color: #fff; font-size: 12px; font-weight: 800;
+  position: absolute; top: -1px; left: 2px; font-family: "Phosphor-Light"; font-weight: normal; }
 .sm-tree .gh.partial .ck::after {
   content: '–'; color: #fff; font-size: 14px; font-weight: 800;
   position: absolute; top: -3px; left: 2px;
@@ -2298,7 +2294,7 @@
 .m4v1-card.pur.active .m4v1-stock-chip { background: #FEF3C7; color: var(--글자-주황, var(--amber,#92400E)); }
 .m4v1-card.pur.blocked .m4v1-stock-chip { background: var(--연한-빨강,#FEE2E2); color: #B91C1C; }
 
-/* [M] 헤더 안 ✓ 적용 / 🚫 차단 인라인 칩 — 우측 정렬 */
+/* [M] 헤더 안 v 적용 / 차단 차단 인라인 칩 — 우측 정렬 */
 .m4v1-head-right { margin-left: auto; display: flex; align-items: center; gap: 5px; }
 .m4v1-chip-applied {
   font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 5px;
@@ -2409,7 +2405,7 @@
   background: linear-gradient(135deg, var(--연한-빨강,#FEF2F2) 0%, var(--surface,#ffffff) 70%);
 }
 .m4v1-card.pur.blocked::before {
-  content: '🚫 차단'; position: absolute; top: -10px; right: 10px;
+  content: '차단'; position: absolute; top: -10px; right: 10px;
   background: var(--바탕-빨강, var(--red,#DC2626)); color: #fff; padding: 2px 9px; border-radius: 8px;
   font-size: 14px; font-weight: 800;
 }
@@ -2687,7 +2683,7 @@
   box-shadow: inset 3px -3px 0 var(--primary,#3182F6), inset -3px 0 0 var(--primary,#3182F6);
 }
 .sm-mtx .lo-top::before, .sm-mtx .lo-single::before {
-  content: '★ 최저'; position: absolute; top: -10px; right: 6px;
+  content: '최저'; position: absolute; top: -10px; right: 6px;
   background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff; padding: 2px 7px; border-radius: 5px;
   font-size: 12px; font-weight: 700; z-index: 3;
 }
@@ -2738,11 +2734,10 @@
   outline: 1.5px dashed #F59E0B; outline-offset: -3px;
 }
 .sm-mtx tr.sm-row-sel td.opt::before {
-  content: '✓'; display: inline-block; margin-right: 6px;
-  width: 16px; height: 16px; line-height:16px;
+  content: '\e182'; display: inline-block; margin-right: 6px;
+  width: 16px; height: 16px; line-height: 16px;
   background: #F59E0B; color: #fff; border-radius: 50%;
-  font-size: 14px; font-weight: 800; text-align: center; vertical-align: middle;
-}
+  font-size: 14px; font-weight: 800; text-align: center; vertical-align: middle; font-family: "Phosphor-Light"; font-weight: normal; }
 /* 옵션 행 hover hint (선택 가능) */
 .sm-mtx tr:not(.sm-row-sel) td.opt {
   cursor: pointer; user-select: none;
@@ -2767,9 +2762,8 @@
 }
 .sm-color-head.sm-all-sel .sm-ch-chip { background: #F59E0B; border-color: #F59E0B; }
 .sm-color-head.sm-all-sel .sm-ch-chip::after {
-  content: '✓'; color: #fff; font-size: 14px; font-weight: 800;
-  display: block; line-height: 13px; text-align: center;
-}
+  content: '\e182'; color: #fff; font-size: 14px; font-weight: 800;
+  display: block; line-height: 13px; text-align: center; font-family: "Phosphor-Light"; font-weight: normal; }
 .sm-color-head .sm-ch-name { vertical-align: middle; }
 .sm-color-head .sm-ch-cnt { color: var(--글자-희미, var(--sub,#8B95A1)); font-weight: 500; font-size: 14px; margin-left: 8px; }
 
@@ -3113,7 +3107,7 @@
   display: grid; grid-template-columns: 30px 1fr 80px auto;
   gap: 8px; align-items: center; padding: 6px 0; font-size: 13.5px;
 }
-/* [2026-06-11] 액션 버튼 묶음 — ✎ 값수정 / ↺ 초기화 / 🗑 삭제 (1~3개, 우측 정렬) */
+/* [2026-06-11] 액션 버튼 묶음 — 수정 값수정 / 초기화 초기화 / 삭제 삭제 (1~3개, 우측 정렬) */
 .cell-fx-row .cf-acts { display: inline-flex; gap: 4px; align-items: center; justify-content: flex-end; }
 .cell-fx-row .tg {
   position: relative; width: 30px; height: 16px; background: var(--바탕-흐리게, var(--faint,#D1D6DB));
@@ -3192,7 +3186,7 @@
 .cf-receipt .cf-rc-ln.fin .num { font-size: 21px; font-weight: 800; color: var(--글자-파랑, var(--primary,#3182F6)); }
 .cf-chip-row { display: flex; justify-content: flex-end; margin-top: 2px; }
 
-/* [2026-06-06] 결제수단 택1 = 선택 카드 (B 시안): 선택 시 파란 테두리 + 체크(✓) */
+/* [2026-06-06] 결제수단 택1 = 선택 카드 (B 시안): 선택 시 파란 테두리 + 체크(v) */
 .cell-fx-ben .cf-paycard {
   display: flex; align-items: center; gap: 10px;
   border: 1.5px solid var(--line,#E5E8EB); border-radius: 11px;
@@ -3339,7 +3333,7 @@
 }
 .rfx-card.lowest .h .pct { color: var(--글자-파랑, var(--primary,#3182F6)); }
 .rfx-card.lowest::after {
-  content: '★ 최저'; position: absolute; top: -10px; right: 6px;
+  content: '최저'; position: absolute; top: -10px; right: 6px;
   background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff; padding: 2px 8px; border-radius: 5px;
   font-size: 12px; font-weight: 800; letter-spacing: .3px;
 }
@@ -3412,7 +3406,7 @@
   width: 390px; padding: 0 17px 17px; gap: 0;
   box-shadow: 0 14px 40px rgba(20,30,45,.20);
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
-  zoom: 1.4;  /* ★ 2026-06-06 — 팝업 전체 140% 확대 (디자인 비율 유지, 글자가 작다는 피드백) */
+  zoom: 1.4;  /* * 2026-06-06 — 팝업 전체 140% 확대 (디자인 비율 유지, 글자가 작다는 피드백) */
 }
 .fxpop-v2.cell-fx-pop::before, .fxpop-v2.cell-fx-pop::after { display: none; }
 /* 헤더 — 흰 패널 X, 플랫 타이틀 */
@@ -3443,7 +3437,7 @@
 .fxpop-v2 .cf-receipt .cf-rc-ln.fin .num { font-size: 20px; font-weight: 800; color: var(--글자-파랑, var(--primary,#3182F6)); letter-spacing: -0.02em; }
 /* 카드칩 줄(있을 때만) */
 .fxpop-v2 .cf-chip-row { display: flex; justify-content: flex-end; margin-top: 6px; }
-/* ★ 2026-06-11 영수증 단계별 '베이스금액' 노출 (무신사 영수증 가이드 방식) */
+/* * 2026-06-11 영수증 단계별 '베이스금액' 노출 (무신사 영수증 가이드 방식) */
 .fxpop-v2 .cf-receipt .cf-rc-ln.sub { padding: 2px 0 2px 12px; }
 .fxpop-v2 .cf-receipt .cf-rc-ln.sub .lbl { font-size: 12px; color: var(--글자-희미, var(--sub,#8B95A1)); font-weight: 500; }
 .fxpop-v2 .cf-receipt .cf-rc-ln.sub .lbl .rc-pct { color: var(--글자-희미, var(--faint,#B0B8C1)); font-weight: 500; }
@@ -3463,7 +3457,7 @@
 .fxpop-v2 .cf-receipt .cf-rc-ln.sub.cpex .num .rc-to { color: var(--글자-희미, var(--faint,#B0B8C1)); font-weight: 500; margin: 0 5px; }
 .fxpop-v2 .cf-receipt .cf-rc-ln.sub.cpex .num .rc-now { color: var(--글자-파랑, var(--primary,#3182F6)); font-weight: 800; font-variant-numeric: tabular-nums; }
 .fxpop-v2 .cf-receipt .cf-rc-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 5px; background: var(--연한-빨강,#FDECEE); color: var(--글자-빨강, var(--red,#F04452)); margin-left: 6px; vertical-align: 1px; }
-/* ★ 굵은 가로 점선 — 혜택 적용가(영수증) ↔ 세부 혜택 위상 구분선 */
+/* * 굵은 가로 점선 — 혜택 적용가(영수증) ↔ 세부 혜택 위상 구분선 */
 .fxpop-v2 .cf-phase-sep { border: none; border-top: 3px dashed var(--line,#C4CCD4); margin: 13px 0 2px; }
 /* 정률 혜택 행 — 곱셈 기준 베이스금액 표기 */
 .fxpop-v2 .cell-fx-ben .cell-fx-row .val .rt.ref { color: #1B64DA; font-weight: 600; }
@@ -3523,7 +3517,7 @@
   font-size:11.5px; font-weight:700; padding:5px 10px; cursor:pointer; font-family:inherit; }
 .cf-diffbar .db-reset:hover { background:#D98908; }
 
-/* ── A1 인라인 값 편집 (✎ 클릭 시 .val → 입력칸) ── */
+/* ── A1 인라인 값 편집 (수정 클릭 시 .val → 입력칸) ── */
 .cell-fx-row .inline-edit { display:inline-flex; align-items:center; gap:5px; }
 .cell-fx-row .inline-edit .ie-tpl { font-size:11px; font-weight:700; color:#fff; background: var(--바탕-흐리게, var(--sub,#8B95A1)); border-radius:5px; padding:1px 5px; }
 .cell-fx-row .inline-edit .ie-input { width:58px; border:1.5px solid var(--primary,#3182F6); border-radius:7px; padding:4px 7px; font-size:13px; font-weight:700; text-align:right; outline:none; font-family:inherit; color:var(--ink,#191F28); }
@@ -3594,7 +3588,7 @@
   border-radius: 10px; padding: 12px; font-size: 13px; color: var(--글자-희미, var(--sub,#8B95A1)); font-weight: 600; text-align: center;
 }
 .fxpop-v2.cell-fx-pop .pop-add:hover { border-color: var(--ink,#191F28); color: var(--ink,#191F28); background: var(--bg,#F9FAFB); }
-/* 하단 푸터(닫기/사이트 템플릿) — 시안에 없음 → 숨김 (닫기는 헤더 ✕ 사용) */
+/* 하단 푸터(닫기/사이트 템플릿) — 시안에 없음 → 숨김 (닫기는 헤더 x 사용) */
 .fxpop-v2 .pop-actions { display: none; }
 
 /* ===== 소싱처 크롤링 가이드 ===== */

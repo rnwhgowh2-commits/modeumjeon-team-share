@@ -458,7 +458,7 @@ def share_public(token):
                    .order_by(_M.brand, _M.category, _M.model_name_display,
                              Option.color_display, Option.size_display)
                    .limit(500).all())
-        # ★ LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
+        # * LCP 색상 정리 + 제품명 brand-strip (전 시스템 통일)
         from shared.product_display import compute_display_maps
         cleaned_color, display_pname = compute_display_maps(options)
         return render_template('inventory/reports/share_public.html',

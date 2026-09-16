@@ -37,7 +37,7 @@ def home():
             or 'application/json' in (request.headers.get('Accept') or '')
         )
 
-        # ★ Model join — 제품명·품번·브랜드·색상까지 검색 (SKU·바코드만 아님)
+        # * Model join — 제품명·품번·브랜드·색상까지 검색 (SKU·바코드만 아님)
         #   contains_eager → 템플릿 o.model.* 접근 시 추가 SELECT 0회 (N+1 제거)
         q = (
             s.query(Option)
@@ -45,7 +45,7 @@ def home():
             .options(contains_eager(Option.model))
             .filter(Option.is_active == True)  # noqa: E712  [2026-05-28] 비활성 숨김
         )
-        # ★ 박스히어로식 다중 키워드 AND 교집합 필터 (shared.search 헬퍼)
+        # * 박스히어로식 다중 키워드 AND 교집합 필터 (shared.search 헬퍼)
         search_tokens = split_tokens(search_q)
         q = apply_and_filter(
             q, search_tokens,
@@ -62,7 +62,7 @@ def home():
         all_skus = [r[0] for r in all_rows]
         model_set = {r[1] for r in all_rows}
 
-        # ★ SSOT 재고 batch 조회 (InventoryTx 기반 실시간)
+        # * SSOT 재고 batch 조회 (InventoryTx 기반 실시간)
         stock_map = get_stock_batch(s, all_skus)
 
         # in_stock_only 필터 — 재고 > 0 인 SKU 만 (정적 컬럼 X, 실시간 stock_map 기준)
@@ -71,7 +71,7 @@ def home():
             q = q.filter(Option.canonical_sku.in_(in_stock_skus) if in_stock_skus else False)
             all_skus = [sk for sk in all_skus if sk in in_stock_skus]
 
-        # ★ stats (실시간 재고 기반)
+        # * stats (실시간 재고 기반)
         stats_total = len(all_skus)
         stats_in_stock = sum(1 for sk in all_skus if stock_map.get(sk, 0) > 0)
         stats_total_stock = sum(stock_map.get(sk, 0) for sk in all_skus)
@@ -139,7 +139,7 @@ def home():
         page_skus = [o.canonical_sku for o in options]
         per_loc_stock = get_stock_by_location_batch(s, page_skus)
 
-        # ★ 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만
+        # * 검색 결과 요약 배너 (시안 A) — 검색·필터 적용 시에만
         _sum_rows = q.with_entities(Option.boxhero_avg_purchase_price, Model.brand).all()
         _prices = [r[0] for r in _sum_rows if r[0] and r[0] > 0]
         _avg_price = round(sum(_prices) / len(_prices)) if _prices else 0
@@ -155,7 +155,7 @@ def home():
             'brands': _brands,
         }
 
-        # ★ JSON 모드 — 실시간 라이브 검색용 (엔터 없이 타이핑 → 표 즉시 갱신)
+        # * JSON 모드 — 실시간 라이브 검색용 (엔터 없이 타이핑 → 표 즉시 갱신)
         if want_json:
             from flask import jsonify
             rows = []
@@ -189,11 +189,11 @@ def home():
             search_tokens=search_tokens,
             selected_detail=selected_detail, all_locs=all_locs,
             location_filter=location_filter, stats=stats,
-            stock_map=stock_map,  # ★ list 의 재고 컬럼용 (실시간 SSOT)
+            stock_map=stock_map,  # * list 의 재고 컬럼용 (실시간 SSOT)
             cleaned_color=cleaned_color,  # {sku: 색상} — LCP strip 적용
             display_pname=display_pname,  # {sku: 제품명} — 브랜드+모델명 (색상 X)
-            per_loc_stock=per_loc_stock,  # ★ {sku: {loc_id: stock}} — 위치별 재고 컬럼
-            search_summary=search_summary,  # ★ 검색 결과 요약 배너
+            per_loc_stock=per_loc_stock,  # * {sku: {loc_id: stock}} — 위치별 재고 컬럼
+            search_summary=search_summary,  # * 검색 결과 요약 배너
         )
     finally:
         s.close()
@@ -238,12 +238,12 @@ def inject_active_app():
     return {'active_app': 'inventory'}
 
 
-# ★ sub-route 모듈 import — bp에 라우트 데코레이터 등록 (Sprint 1A 이후 점진 추가)
+# * sub-route 모듈 import — bp에 라우트 데코레이터 등록 (Sprint 1A 이후 점진 추가)
 from . import data  # noqa: E402  (Sprint 1A Task 1.2~1.6 — 데이터 마스터)
 from . import boxhero_import  # noqa: E402  (Sprint 1B Task 1.9 — 박스히어로 import)
 from . import sku_mapping  # noqa: E402  (Sprint 1B Task 1.8 — SKU 매핑 큐)
 from . import transactions  # noqa: E402  (Sprint 2 Task 2.1~2.5 — 입출고·조정·이동·히스토리)
-from . import matrix  # noqa: E402  (Sprint 2 Task 2.6 ★★★ — 옵션 매트릭스 R2 핵심)
+from . import matrix  # noqa: E402  (Sprint 2 Task 2.6 *** — 옵션 매트릭스 R2 핵심)
 from . import inspection  # noqa: E402  (Sprint 2 Task 2.7 — 입고 검사)
 from . import purchase_sale  # noqa: E402  (Sprint 3 Task 3.1~3.3 — 발주·판매·반품)
 from . import reports  # noqa: E402  (Sprint 3 Task 3.4~3.6 — 재고조사·알림·공유링크)

@@ -24,7 +24,7 @@
             {% else %}대기 중{% endif %}
           </div>
         </div>
-        {% if m.status == 'done' and m.key != active_market.key %}<span class="m2-check">✓</span>{% endif %}
+        {% if m.status == 'done' and m.key != active_market.key %}<span class="m2-check"><i class="ph-light ph-check" aria-hidden="true"></i></span>{% endif %}
         {% if m.key == active_market.key %}<span class="m2-check current">●</span>{% endif %}
       </a>
       {% endfor %}
