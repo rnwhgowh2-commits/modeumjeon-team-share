@@ -1081,6 +1081,7 @@ SEAMS.append((
     "        return;\n"
     "      }\n"
     "      if(c==='_추가메모') {",
+    "        if (window._ssLastStatusText) v = window._ssLastStatusText(r);  /* [모음전 2026-09-16] 이 칸에 찍는 건 주문상태 이력의 마지막 상태. 원본 r['판매처_주문상태'] 는 안 덮어쓴다 — 카드 분류가 그 값을 읽는다 (margin_status_history.js) */\n"
     "        if (v || suffix) {\n"
     "          h += '<td>' + esc(v);\n"
     "          if (suffix) h += ' <span style=\"display:inline-block;padding:1px 6px;border-radius:3px;background:'+badgeColor+';color:#fff;font-size:10px;font-weight:600;margin-left:3px\">'+esc(suffix)+'</span>';\n"
@@ -1092,6 +1093,24 @@ SEAMS.append((
     "        return;\n"
     "      }\n"
     "      if(c==='_추가메모') {",
+    1,
+))
+
+# ── [모음전 2026-09-16] 「[판매처] 주문상태」 = 이력의 마지막 상태 (사장님 지시) ──
+#  셀 글자만 바꾸면 같은 칼럼의 정렬·엑셀이 원본값을 써서 화면과 어긋난다(컬럼필터는
+#  margin_col_filter_fix.js 의 _moumColFilterKey 한 곳에서 이미 같은 함수로 맞춘다).
+#  정렬 — 전체내역 표를 그리는 두 곳(_getDetailRowsSorted·buildDetailTable)에 같은 줄이 있다.
+SEAMS.append((
+    "      var va=a[sc], vb=b[sc];",
+    "      var va=(window._moumDetailSortVal?window._moumDetailSortVal(a,sc):a[sc]), vb=(window._moumDetailSortVal?window._moumDetailSortVal(b,sc):b[sc]);  /* [모음전 2026-09-16] 정렬도 화면에 찍힌 마지막 상태 기준 */",
+    2,
+))
+
+#  엑셀 — 화면에 보이는 필터·정렬 결과를 그대로 보낸다. 값도 화면과 같아야 한다.
+SEAMS.append((
+    "      filteredRows = _getDetailRowsSorted();\n",
+    "      filteredRows = _getDetailRowsSorted();\n"
+    "      if (window._moumRowsForExport) filteredRows = window._moumRowsForExport(filteredRows);  /* [모음전 2026-09-16] 엑셀도 화면에 찍힌 마지막 상태로 */\n",
     1,
 ))
 
