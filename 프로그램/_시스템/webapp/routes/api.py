@@ -3476,23 +3476,20 @@ def bundle_price_apply(code: str):
             opt_updates = {oid: {'stockQuantity': d['stock'], 'price': 0}
                            for oid, d in push_data.items()}
 
-        # option_price_config 갱신
-        from lemouton.templates.models import PriceTemplate  # noqa
-        import sqlalchemy as sa
-        now = datetime.now(timezone.utc)
-        for oid, d in push_data.items():
-            row = s.execute(sa.text(
-                "SELECT canonical_sku FROM option_price_config WHERE canonical_sku=:sku"
-            ), {'sku': d['sku']}).fetchone()
-            if row:
-                s.execute(sa.text(
-                    "UPDATE option_price_config SET manual_stock=:st, manual_ss_price=:p, updated_at=:ts WHERE canonical_sku=:sku"
-                ), {'sku': d['sku'], 'st': d['stock'], 'p': d['price'], 'ts': now})
-            else:
-                s.execute(sa.text(
-                    "INSERT INTO option_price_config (canonical_sku, auto_enabled, manual_stock, manual_ss_price, updated_at) VALUES (:sku, 1, :st, :p, :ts)"
-                ), {'sku': d['sku'], 'st': d['stock'], 'p': d['price'], 'ts': now})
-        s.commit()
+        # 🔴 [2026-08-13] **수기 칸에 쓰지 않는다.**
+        #   예전엔 여기서 계산한 값을 option_price_config 의
+        #   manual_ss_price / manual_stock 에 써 넣었다(그리고 auto_enabled=1 로 켰다).
+        #   그 칸은 「사장님이 자동을 끄고 **직접 넣은 값**」이 사는 자리다.
+        #   아무도 그 칸을 안 읽던 시절엔 티가 안 났지만, 이제 **전송이 그 칸을 읽는다**
+        #   (uploader/preview.py → pricing/user_price.py). 그대로 두면:
+        #     ① 사장님이 자동을 끄고 120,000 을 넣는다
+        #     ② 가격 적용을 한 번 돌린다 → 그 칸이 자동 계산값으로 덮인다
+        #     ③ 다음 전송에 **자동값이 나간다** — 사장님은 120,000 인 줄 안다
+        #   에러도 안 나고 화면도 그럴듯해서 아무도 모른다 = 조용한 실패.
+        #   푸시한 값은 아래 응답과 로그에 남는다 — 수기 칸을 이력 저장소로 쓰지 않는다.
+        logger.info("[가격적용] code=%s 푸시 %d건 %s", code, len(push_data),
+                    {d['sku']: {'price': d['price'], 'stock': d['stock']}
+                     for d in list(push_data.values())[:20]})
 
         # 라이브 push
         from lemouton.uploader.adapters.smartstore import SmartStoreAdapter
