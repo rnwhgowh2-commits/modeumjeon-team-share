@@ -132,6 +132,28 @@ class TestEsmOrderRows:
         assert r["정산예정금액"] == ""              # 정산 조인 없음(client 무자격) → 공란(폴백 금지)
         assert r["_shipkey"] == ("auction", "A1")
         assert "_ono" not in r                      # 조인용 임시키 제거됨
+        assert r["_ship_reason"] is None            # 제주·도서산간 필드 없음 → 사유 없음
+
+    def test_jeju_shipping_fee_reason(self, monkeypatch):
+        """ShippingFee 안에 JejuAddDeliveryFee 가 잡히면 사유만 표시(합산 아님).
+
+        실측(2026-08-23 gmarket 4482179566): 상품 자체는 무료배송인데 제주 배송이라
+        ShippingFee 가 5,000 으로 왔다 — JejuAddDeliveryFee 도 5,000(같은 금액, 내역).
+        """
+        from lemouton.markets import order_export as oe
+        sample = [dict(self.SAMPLE[0], ShippingFee=5000, JejuAddDeliveryFee=5000)]
+        monkeypatch.setattr("shared.platforms.esm.orders.iter_orders",
+                            lambda *a, **k: iter(sample))
+        r = oe.gmarket_order_rows(None, None, client=object())[0]
+        assert r["배송비"] == 5000 and r["_ship_reason"] == "제주"
+
+    def test_backwoods_shipping_fee_reason(self, monkeypatch):
+        from lemouton.markets import order_export as oe
+        sample = [dict(self.SAMPLE[0], ShippingFee=3000, BackwoodsAddDeliveryFee=3000)]
+        monkeypatch.setattr("shared.platforms.esm.orders.iter_orders",
+                            lambda *a, **k: iter(sample))
+        r = oe.gmarket_order_rows(None, None, client=object())[0]
+        assert r["배송비"] == 3000 and r["_ship_reason"] == "도서산간"
 
     def test_gmarket_label(self, monkeypatch):
         from lemouton.markets import order_export as oe
